@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
+import { GitStatusParser, hasGitConfigIncludes, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
 import * as assert from 'assert';
 import { splitInChunks } from '../util';
 
@@ -265,6 +265,24 @@ suite('git', () => {
 `;
 
 			assert.deepStrictEqual(parseGitRemotes(sample), []);
+		});
+	});
+
+	suite('hasGitConfigIncludes', () => {
+		test('config without includes', () => {
+			assert.strictEqual(hasGitConfigIncludes('[remote "origin"]'), false);
+		});
+
+		test('include section', () => {
+			assert.strictEqual(hasGitConfigIncludes('[include]'), true);
+		});
+
+		test('conditional include section', () => {
+			assert.strictEqual(hasGitConfigIncludes('[includeIf "gitdir:~/work/"]'), true);
+		});
+
+		test('case insensitive section', () => {
+			assert.strictEqual(hasGitConfigIncludes('[INCLUDEIF "gitdir:~/work/"]'), true);
 		});
 	});
 
