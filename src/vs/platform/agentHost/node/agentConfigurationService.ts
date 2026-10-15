@@ -179,6 +179,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	private readonly _rootTransientValueKeys = new Set<string>();
 	private readonly _sessionSandboxPolicies = new Map<ProtocolURI, ISessionSandboxPolicy>();
 	private readonly _sessionSandboxChanges = new Map<ProtocolURI, Record<string, unknown> | undefined>();
+	private readonly _sessionSandboxUserSelections = new Set<ProtocolURI>();
 
 	private readonly _onDidRootConfigChange = this._register(new Emitter<void>());
 	readonly onDidRootConfigChange: Event<void> = this._onDidRootConfigChange.event;
@@ -214,6 +215,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		this._register(this._stateManager.onDidRemoveSession(session => {
 			this._sessionSandboxPolicies.delete(session);
 			this._sessionSandboxChanges.delete(session);
+			this._sessionSandboxUserSelections.delete(session);
 		}));
 
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
@@ -223,7 +225,14 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 				}
 				this._onDidRootConfigChange.fire();
 			} else if (envelope.action.type === ActionType.SessionConfigChanged) {
-				this._publishSessionSandboxPolicy(envelope.channel);
+				if (Object.hasOwn(envelope.action.config, SessionConfigKey.SandboxEnabled)) {
+					if (envelope.origin) {
+						this._sessionSandboxUserSelections.add(envelope.channel);
+					} else {
+						this._sessionSandboxUserSelections.delete(envelope.channel);
+					}
+				}
+				this._publishSessionSandboxPolicy(envelope.channel, !!envelope.origin);
 				if (Object.hasOwn(envelope.action.config, SessionConfigKey.SandboxEnabled)) {
 					this._sessionSandboxChanges.set(envelope.channel, this.getSessionConfigValues(envelope.channel));
 				}
@@ -300,7 +309,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		this._publishSessionSandboxPolicy(session);
 	}
 
-	private _publishSessionSandboxPolicy(session: ProtocolURI): boolean {
+	private _publishSessionSandboxPolicy(session: ProtocolURI, isUserChange = false): boolean {
 		const state = this._stateManager.getSessionState(session);
 		const previousPolicy = readSessionSandboxPolicy(state);
 		const policy = this.getSessionSandboxPolicy(session);
@@ -318,7 +327,8 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 				: state._meta;
 			this._stateManager.setSessionMeta(session, withSessionSandboxPolicy(meta, policy));
 		}
-		if (!policy?.failClosed && this.getSessionConfigValues(session)?.[SessionConfigKey.SandboxEnabled] === 'off'
+		const preserveSelection = (isUserChange || (!policyChanged && this._sessionSandboxUserSelections.has(session))) && policy?.allowBypass === true;
+		if (!policy?.failClosed && !preserveSelection && this.getSessionConfigValues(session)?.[SessionConfigKey.SandboxEnabled] === 'off'
 			&& getSessionSandboxOverrides(this, session).enabled === AgentSandboxEnabledValue.On) {
 			this.updateSessionConfig(session, { [SessionConfigKey.SandboxEnabled]: AgentSandboxEnabledValue.On });
 			return true;

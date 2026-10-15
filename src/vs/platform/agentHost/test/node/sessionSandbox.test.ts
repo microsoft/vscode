@@ -540,6 +540,58 @@ suite('Session sandbox configuration', () => {
 		}
 	});
 
+	test('preserves a user bypass request without weakening the floor before runtime confirmation', () => {
+		const { manager, configuration, create } = setupSession();
+		const owner = create('managed-toggle', { sandboxEnabled: 'on' });
+		configuration.setSessionSandboxPolicy(owner, { enabled: true, allowBypass: true });
+		configuration.setSessionSandboxEnabled(owner, true);
+		const origin = { clientId: 'client', clientSeq: 1 };
+		manager.dispatchClientAction(owner, { type: ActionType.SessionConfigChanged, config: { sandboxEnabled: 'off' } }, origin);
+		const pending = {
+			selection: configuration.getSessionConfigValues(owner)?.sandboxEnabled,
+			effective: getSessionSandboxOverrides(configuration, owner).enabled,
+		};
+		configuration.setSessionSandboxEnabled(owner, false);
+		assert.deepStrictEqual({
+			pending,
+			selection: configuration.getSessionConfigValues(owner)?.sandboxEnabled,
+			effective: getSessionSandboxOverrides(configuration, owner).enabled,
+		}, { pending: { selection: 'off', effective: 'on' }, selection: 'off', effective: 'off' });
+	});
+
+	test('rolls back a rejected managed bypass request and publishes its error', () => {
+		const { manager, configuration, create } = setupSession();
+		const owner = create('managed-toggle-rejected', { sandboxEnabled: 'on' });
+		configuration.setSessionSandboxPolicy(owner, { enabled: true, allowBypass: true });
+		configuration.setSessionSandboxEnabled(owner, true);
+		const origin = { clientId: 'client', clientSeq: 1 };
+		manager.dispatchClientAction(owner, { type: ActionType.SessionConfigChanged, config: { sandboxEnabled: 'off' } }, origin);
+		configuration.rejectSessionSandboxChange(owner, configuration.getSessionConfigValues(owner), origin, 'Bypass rejected');
+		assert.deepStrictEqual({
+			selection: configuration.getSessionConfigValues(owner)?.sandboxEnabled,
+			state: readSessionSandboxState(manager.getSessionState(owner)),
+		}, { selection: 'on', state: { enabled: true, error: { ...origin, message: 'Bypass rejected' } } });
+	});
+
+	test('pending managed selection survives unrelated changes but not bypass revocation', () => {
+		const { manager, configuration, create } = setupSession();
+		const owner = create('pending-toggle', { sandboxEnabled: 'on' });
+		configuration.setSessionSandboxPolicy(owner, { enabled: true, allowBypass: true });
+		configuration.setSessionSandboxEnabled(owner, true);
+		manager.dispatchClientAction(owner, { type: ActionType.SessionConfigChanged, config: { sandboxEnabled: 'off' } }, { clientId: 'client', clientSeq: 1 });
+		configuration.updateRootConfig({ sandbox: { enabled: 'on', allowNetwork: false } });
+		configuration.updateSessionConfig(owner, { [SessionConfigKey.AutoApprove]: 'default' });
+		const pending = {
+			selection: configuration.getSessionConfigValues(owner)?.sandboxEnabled,
+			effective: getSessionSandboxOverrides(configuration, owner).enabled,
+		};
+		configuration.setSessionSandboxPolicy(owner, { enabled: true, allowBypass: false });
+		assert.deepStrictEqual({ pending, revoked: configuration.getSessionConfigValues(owner)?.sandboxEnabled }, {
+			pending: { selection: 'off', effective: 'on' },
+			revoked: 'on',
+		});
+	});
+
 	test('forwarded defaults preserve the unresolved-runtime-policy retry path', () => {
 		const { manager, configuration, create } = setupSession();
 		const owner = create('managed-fail-closed');
@@ -1062,20 +1114,21 @@ suite('Session sandbox configuration', () => {
 		});
 	});
 
-	test('session sandbox opt-out is offered only for supported runtime bypass prompts', () => {
+	test('sandbox bypass prompts label one-time approval Allow, regardless of session policy', () => {
 		const { manager, configuration, create } = setupSession();
 		const owner = create('bypass-options');
 		const permissions = store.add(new SessionPermissionManager(manager, {}, configuration, new NullLogService(), createSessionDataService(), createTestChatOwnershipService(manager)));
-		const cases = [
-			{ canAllowSessionSandboxBypass: false, requestSandboxPermissive: false },
-			{ canAllowSessionSandboxBypass: true, requestSandboxPermissive: false },
-			{ canAllowSessionSandboxBypass: true, requestSandboxPermissive: true },
-		];
-		const options = cases.map(({ canAllowSessionSandboxBypass, requestSandboxPermissive }) => permissions.createToolReadyAction({
-			kind: 'pending_confirmation', chat: URI.parse(buildChatUri(owner, 'peer')), requestSandboxBypass: true, requestSandboxPermissive, canAllowSessionSandboxBypass,
-			state: { status: ToolCallStatus.PendingConfirmation, toolCallId: 'tool', toolName: 'bash', displayName: 'Bash', invocationMessage: 'run', confirmationTitle: 'Outside sandbox?' },
-		}, owner, 'turn').options?.map(option => option.id));
-		assert.deepStrictEqual(options, [['allow-once', 'skip'], ['allow-session', 'allow-once', 'skip'], ['allow-once', 'skip']]);
+		const options = [];
+		for (const allowBypass of [undefined, false, true]) {
+			configuration.setSessionSandboxPolicy(owner, { enabled: true, allowBypass });
+			for (const requestSandboxPermissive of [false, true]) {
+				options.push(permissions.createToolReadyAction({
+					kind: 'pending_confirmation', chat: URI.parse(buildChatUri(owner, 'peer')), requestSandboxBypass: true, requestSandboxPermissive,
+					state: { status: ToolCallStatus.PendingConfirmation, toolCallId: 'tool', toolName: 'bash', displayName: 'Bash', invocationMessage: 'run', confirmationTitle: 'Outside sandbox?' },
+				}, owner, 'turn').options?.map(option => ({ id: option.id, label: option.label })));
+			}
+		}
+		assert.deepStrictEqual(options, Array.from({ length: 6 }, () => [{ id: 'allow-once', label: 'Allow' }, { id: 'skip', label: 'Skip' }]));
 	});
 
 	test('sandbox path grant choices survive action construction except for managed asks', () => {
@@ -1102,6 +1155,19 @@ suite('Session sandbox configuration', () => {
 			kind: 'pending_confirmation', chat: URI.parse(buildChatUri(owner, 'peer')), requestSandboxBypass: true, managedApprovalRequired: true,
 			state: { status: ToolCallStatus.PendingConfirmation, toolCallId: 'tool', toolName: 'bash', displayName: 'Bash', invocationMessage: 'run', confirmationTitle: 'Outside sandbox?' },
 		}, owner, 'turn');
-		assert.deepStrictEqual(ready.options?.map(option => option.id), ['allow-once', 'skip']);
+		assert.deepStrictEqual(ready.options?.map(option => ({ id: option.id, label: option.label })), [
+			{ id: 'allow-once', label: 'Allow' }, { id: 'skip', label: 'Skip' },
+		]);
+	});
+
+	test('ordinary and managed tool confirmations retain the Allow Once label', () => {
+		const { manager, configuration, create } = setupSession();
+		const owner = create('ordinary-options');
+		const permissions = store.add(new SessionPermissionManager(manager, {}, configuration, new NullLogService(), createSessionDataService(), createTestChatOwnershipService(manager)));
+		const labels = [false, true].map(managedApprovalRequired => permissions.createToolReadyAction({
+			kind: 'pending_confirmation', chat: URI.parse(buildChatUri(owner, 'peer')), managedApprovalRequired,
+			state: { status: ToolCallStatus.PendingConfirmation, toolCallId: 'tool', toolName: 'bash', displayName: 'Bash', invocationMessage: 'run', confirmationTitle: 'Run command?' },
+		}, owner, 'turn').options?.map(option => option.label));
+		assert.deepStrictEqual(labels, [['Allow in this Session', 'Allow Once', 'Skip'], ['Allow Once', 'Skip']]);
 	});
 });
