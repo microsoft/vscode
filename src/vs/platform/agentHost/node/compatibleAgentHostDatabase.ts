@@ -465,6 +465,30 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 		return this.identity.record(result, 'runtime');
 	}
 
+	async moveChatV2(...[move]: Parameters<IAgentHostDatabase['moveChatV2']>): ReturnType<IAgentHostDatabase['moveChatV2']> {
+		// Sessions whose older-build membership is still authoritative are never moved.
+		if (this.requiresLegacyChatCatalog(move.source) || this.requiresLegacyChatCatalog(move.target)) {
+			return { status: 'notReady' };
+		}
+		const toStorage = (resource: string) => this.identity.toStorage(resource);
+		const result = await this.raw.moveChatV2({
+			...move,
+			chat: toStorage(move.chat),
+			source: toStorage(move.source),
+			target: toStorage(move.target),
+			after: move.after === undefined ? undefined : toStorage(move.after),
+		});
+		return result.status === 'applied' ? { ...result, moved: result.moved.map(chat => this.identity.toRuntime(chat)) } : result;
+	}
+
+	async reorderChatV2(...[session, chat, after, expectedCatalogRevision]: Parameters<IAgentHostDatabase['reorderChatV2']>): ReturnType<IAgentHostDatabase['reorderChatV2']> {
+		if (this.requiresLegacyChatCatalog(session)) {
+			return { status: 'notReady' };
+		}
+		const result = await this.raw.reorderChatV2(this.identity.toStorage(session), this.identity.toStorage(chat), after === undefined ? undefined : this.identity.toStorage(after), expectedCatalogRevision);
+		return this.identity.record(result, 'runtime');
+	}
+
 	async getSessionChatCatalog(...[session]: Parameters<IAgentHostDatabase['getSessionChatCatalog']>): ReturnType<IAgentHostDatabase['getSessionChatCatalog']> {
 		const result = await this.raw.getSessionChatCatalog(this.identity.toStorage(session));
 		return this.identity.record(result, 'runtime');

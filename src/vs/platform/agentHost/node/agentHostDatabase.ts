@@ -318,6 +318,23 @@ export type AgentHostDatabaseChatV2WriteResult =
 	 */
 	| { readonly status: 'notReady'; readonly reason: string; readonly awaitsReprojection: boolean };
 
+/** A visible chat and its private descendants changing their owner between two normalized catalogs. */
+export interface IAgentHostDatabaseChatV2Move {
+	readonly chat: string;
+	readonly source: string;
+	readonly target: string;
+	/** The visible chat of `target` to place the moved chat after; `undefined` places it first. */
+	readonly after: string | undefined;
+	readonly expectedSourceRevision: number;
+	readonly expectedTargetRevision: number;
+	/** The moved chat's own working directories after the move; `undefined` keeps the stored value. */
+	readonly workingDirectories: readonly string[] | undefined;
+}
+
+export type AgentHostDatabaseChatV2MoveResult =
+	| { readonly status: 'applied'; readonly sourceRevision: number; readonly targetRevision: number; readonly moved: readonly string[] }
+	| { readonly status: 'conflict' | 'notReady' | 'missingSession' | 'tombstoned' };
+
 class AgentHostDatabaseWriteCancelledError extends Error { }
 
 export const IAgentHostDatabase = createDecorator<IAgentHostDatabase>('agentHostDatabase');
@@ -478,6 +495,15 @@ export interface IAgentHostDatabase extends IDisposable, IAgentHostSessionStateD
 	updateChatV2Metadata(chat: string, expected: IAgentHostDatabaseChatV2Revision, patch: IAgentHostDatabaseChatV2Patch, validate?: () => boolean): Promise<AgentHostDatabaseChatV2WriteResult>;
 	insertPrivateChatV2(session: string, chat: IAgentHostDatabaseChatV2NormalizationChat, expectedCatalogRevision: number, validate?: () => boolean): Promise<AgentHostDatabaseChatV2WriteResult>;
 	removePrivateChatV2(session: string, chat: string, expectedCatalogRevision: number): Promise<AgentHostDatabaseChatV2WriteResult>;
+	/**
+	 * Moves a visible non-default chat and its private descendants to another normalized catalog in one
+	 * transaction: ownership, a contiguous visible order in both catalogs, the origin session recorded
+	 * before the first move, both catalog revisions, the older-build `session_chats` projection and both
+	 * list payloads (marked dirty). Storage and every other column are kept.
+	 */
+	moveChatV2(move: IAgentHostDatabaseChatV2Move): Promise<AgentHostDatabaseChatV2MoveResult>;
+	/** Places a visible chat after `after` (`undefined`: first) within its own normalized catalog. */
+	reorderChatV2(session: string, chat: string, after: string | undefined, expectedCatalogRevision: number): Promise<AgentHostDatabaseChatV2WriteResult>;
 	/**
 	 * A number that changes whenever the session registrations change:
 	 * `sessions` and `sessions_v2` rows, and session tombstones and
@@ -2804,6 +2830,159 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 
 	async removePrivateChatV2(session: string, chat: string, expectedCatalogRevision: number): Promise<AgentHostDatabaseChatV2WriteResult> {
 		return this._mutatePrivateChatV2(session, chat, expectedCatalogRevision);
+	}
+
+	async moveChatV2(move: IAgentHostDatabaseChatV2Move): Promise<AgentHostDatabaseChatV2MoveResult> {
+		this._validateRevision(move.expectedSourceRevision);
+		this._validateRevision(move.expectedTargetRevision);
+		validateChatV2String(move.chat, true);
+		if (move.workingDirectories !== undefined) {
+			validateChatV2WorkingDirectories(move.workingDirectories);
+		}
+		if (move.source === move.target) {
+			throw new Error('A chat move needs two different sessions; reorder within a session instead');
+		}
+		return this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			await exec(database, 'BEGIN IMMEDIATE');
+			try {
+				for (const session of [move.source, move.target]) {
+					const unavailable = await this._chatCatalogUnavailable(database, session);
+					if (unavailable) {
+						await exec(database, 'COMMIT');
+						return { status: unavailable };
+					}
+				}
+				const sourceHeader = await get(database, 'SELECT * FROM session_chat_catalogs WHERE session_uri = ?', [move.source]);
+				const targetHeader = await get(database, 'SELECT * FROM session_chat_catalogs WHERE session_uri = ?', [move.target]);
+				if (sourceHeader?.authority_version !== 2 || targetHeader?.authority_version !== 2
+					|| sourceHeader.revision !== move.expectedSourceRevision || targetHeader.revision !== move.expectedTargetRevision) {
+					await exec(database, 'COMMIT');
+					return { status: 'conflict' };
+				}
+				const sourceRows = await all(database, 'SELECT * FROM chats_v2 WHERE owner_session_uri = ? AND tombstoned = 0', [move.source]);
+				const targetRows = await all(database, 'SELECT * FROM chats_v2 WHERE owner_session_uri = ? AND tombstoned = 0', [move.target]);
+				const requested = sourceRows.find(row => row.chat_uri === move.chat);
+				const anchor = move.after === undefined ? undefined : targetRows.find(row => row.chat_uri === move.after);
+				if (!requested || requested.chat_order === null || move.chat === sourceHeader.default_chat_uri
+					|| (move.after !== undefined && (!anchor || anchor.chat_order === null))) {
+					await exec(database, 'COMMIT');
+					return { status: 'conflict' };
+				}
+				const moved = this._chatV2Subtree(sourceRows, move.chat);
+				if (targetRows.length + moved.size > AGENT_HOST_CATALOG_CHILD_LIMIT) {
+					throw new Error(`Normalized chat catalog exceeds ${AGENT_HOST_CATALOG_CHILD_LIMIT} chats`);
+				}
+				const visibleOrder = (rows: readonly Record<string, unknown>[]) => rows
+					.filter(row => row.chat_order !== null)
+					.sort((a, b) => (a.chat_order as number) - (b.chat_order as number))
+					.map(row => row.chat_uri as string);
+				const movedVisible = visibleOrder(sourceRows.filter(row => moved.has(row.chat_uri as string)));
+				const sourceOrder = visibleOrder(sourceRows).filter(chat => !moved.has(chat));
+				const targetOrder = visibleOrder(targetRows);
+				const insertAt = move.after === undefined ? 0 : targetOrder.indexOf(move.after) + 1;
+				// The requested chat comes first, then any visible descendant in its current order.
+				targetOrder.splice(insertAt, 0, move.chat, ...movedVisible.filter(chat => chat !== move.chat));
+				for (const chat of moved) {
+					const row = sourceRows.find(candidate => candidate.chat_uri === chat)!;
+					await run(database, `UPDATE chats_v2 SET origin_session_uri = COALESCE(origin_session_uri, owner_session_uri), owner_session_uri = ?, chat_order = NULL, ownership_revision = ?
+						WHERE chat_uri = ?`, [move.target, this._nextRevision(row.ownership_revision as number), chat]);
+				}
+				if (move.workingDirectories !== undefined) {
+					await run(database, 'UPDATE chats_v2 SET working_directories = ?, metadata_revision = ? WHERE chat_uri = ?',
+						[JSON.stringify(move.workingDirectories), this._nextRevision(requested.metadata_revision as number), move.chat]);
+				}
+				await this._placeVisibleChatsV2(database, move.source, sourceOrder);
+				await this._placeVisibleChatsV2(database, move.target, targetOrder);
+				const sourceRevision = this._nextRevision(move.expectedSourceRevision);
+				const targetRevision = this._nextRevision(move.expectedTargetRevision);
+				await run(database, 'UPDATE session_chat_catalogs SET revision = ? WHERE session_uri = ?', [sourceRevision, move.source]);
+				await run(database, 'UPDATE session_chat_catalogs SET revision = ? WHERE session_uri = ?', [targetRevision, move.target]);
+				for (const session of [move.source, move.target]) {
+					await this._projectNormalizedPeersToLegacy(database, session);
+					await this._markSessionV2PayloadDirty(database, session);
+				}
+				await exec(database, 'COMMIT');
+				return { status: 'applied', sourceRevision, targetRevision, moved: [...moved] };
+			} catch (error) {
+				return this._rollback(database, error, `Failed to move chat ${move.chat} from ${move.source} to ${move.target}`);
+			}
+		});
+	}
+
+	async reorderChatV2(session: string, chat: string, after: string | undefined, expectedCatalogRevision: number): Promise<AgentHostDatabaseChatV2WriteResult> {
+		this._validateRevision(expectedCatalogRevision);
+		validateChatV2String(chat, true);
+		return this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			await exec(database, 'BEGIN IMMEDIATE');
+			try {
+				const unavailable = await this._chatCatalogUnavailable(database, session);
+				if (unavailable) {
+					await exec(database, 'COMMIT');
+					return { status: unavailable };
+				}
+				const header = await get(database, 'SELECT * FROM session_chat_catalogs WHERE session_uri = ?', [session]);
+				if (header?.authority_version !== 2 || header.revision !== expectedCatalogRevision || chat === after) {
+					await exec(database, 'COMMIT');
+					return { status: 'conflict' };
+				}
+				const order = (await all(database, 'SELECT chat_uri FROM chats_v2 WHERE owner_session_uri = ? AND tombstoned = 0 AND chat_order IS NOT NULL ORDER BY chat_order', [session]))
+					.map(row => row.chat_uri as string);
+				if (!order.includes(chat) || (after !== undefined && !order.includes(after))) {
+					await exec(database, 'COMMIT');
+					return { status: 'conflict' };
+				}
+				const reordered = order.filter(candidate => candidate !== chat);
+				reordered.splice(after === undefined ? 0 : reordered.indexOf(after) + 1, 0, chat);
+				if (reordered.every((candidate, index) => candidate === order[index])) {
+					await exec(database, 'COMMIT');
+					return { status: 'replayed', catalogRevision: expectedCatalogRevision };
+				}
+				await this._placeVisibleChatsV2(database, session, reordered);
+				const revision = this._nextRevision(expectedCatalogRevision);
+				await run(database, 'UPDATE session_chat_catalogs SET revision = ? WHERE session_uri = ?', [revision, session]);
+				await this._projectNormalizedPeersToLegacy(database, session);
+				await this._markSessionV2PayloadDirty(database, session);
+				await exec(database, 'COMMIT');
+				return { status: 'applied', catalogRevision: revision };
+			} catch (error) {
+				return this._rollback(database, error, `Failed to reorder chat ${chat} in ${session}`);
+			}
+		});
+	}
+
+	/** `chat` and every live chat whose recorded parent chain reaches it. */
+	private _chatV2Subtree(rows: readonly Record<string, unknown>[], chat: string): Set<string> {
+		const subtree = new Set([chat]);
+		let expanded = true;
+		while (expanded) {
+			expanded = false;
+			for (const row of rows) {
+				if (row.parent_chat !== null && subtree.has(row.parent_chat as string) && !subtree.has(row.chat_uri as string)) {
+					subtree.add(row.chat_uri as string);
+					expanded = true;
+				}
+			}
+		}
+		return subtree;
+	}
+
+	/**
+	 * Gives `chats` the contiguous zero-based visible orders of `session`. Older builds reject a catalog
+	 * whose visible orders have gaps, so every move and reorder renumbers the whole sequence.
+	 */
+	private async _placeVisibleChatsV2(database: Database, session: string, chats: readonly string[]): Promise<void> {
+		// Moved out of the way first: `(owner_session_uri, chat_order)` is unique and orders can't be negative.
+		await run(database, 'UPDATE chats_v2 SET chat_order = chat_order + ? WHERE owner_session_uri = ? AND tombstoned = 0 AND chat_order IS NOT NULL',
+			[AGENT_HOST_CATALOG_CHILD_LIMIT + 1, session]);
+		for (const [order, chat] of chats.entries()) {
+			await run(database, 'UPDATE chats_v2 SET chat_order = ? WHERE chat_uri = ? AND owner_session_uri = ?', [order, chat, session]);
+		}
+		const stray = await get(database, 'SELECT chat_uri FROM chats_v2 WHERE owner_session_uri = ? AND tombstoned = 0 AND chat_order > ?', [session, AGENT_HOST_CATALOG_CHILD_LIMIT]);
+		if (stray) {
+			throw new Error(`Visible chat ${stray.chat_uri} of ${session} lost its order`);
+		}
 	}
 
 	private async _mutatePrivateChatV2(session: string, chat: string, expectedCatalogRevision: number, insertion?: IAgentHostDatabaseChatV2NormalizationChat, validate?: () => boolean): Promise<AgentHostDatabaseChatV2WriteResult> {

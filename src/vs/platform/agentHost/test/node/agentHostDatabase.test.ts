@@ -3413,4 +3413,164 @@ suite('AgentHostDatabase sessions_v2', () => {
 			});
 		});
 	});
+
+	suite('chat moves (Block 4)', () => {
+		const sessionA = 'session://a';
+		const sessionB = 'session://b';
+		const sessionC = 'session://c';
+
+		async function seedSession(target: IAgentHostDatabase, session: string): Promise<void> {
+			await target.registerSessionV2(session, { provider: 'copilot', startTime: 100, source: 'explicit' }, { checkTombstone: true });
+			const source = createEnvelope(session, `${session}-generation`, 10, {
+				payload: stableStringify({
+					payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
+					data: {
+						modifiedTime: 110, isRead: true, isArchived: false, workingDirectories: ['file:///project'],
+						chats: [
+							{ uri: `${session}#default`, kind: 'default', order: 0, summary: 'Default' },
+							{ uri: `${session}#peer`, kind: 'peer', order: 1, summary: 'Peer' },
+							{ uri: `${session}#sub`, kind: 'peer', order: 2, summary: 'Sub', interactivity: ChatInteractivity.Hidden },
+						],
+					},
+				}),
+			});
+			await target.upsertSessionV2(source, undefined);
+			const result = await target.ensureChatCatalogV2(session,
+				{ sessionGeneration: source.sessionGeneration, sourceRevision: source.sourceRevision, payloadHash: source.payloadHash, catalogRevision: 0 }, {
+				defaultChat: { chat: `${session}#default`, order: 0, storageResource: session },
+				peers: [{ chat: `${session}#peer`, order: 1, storageResource: `${session}#peer` }],
+				privateDescendants: [{ chat: `${session}#sub`, parentChat: `${session}#peer`, storageResource: `${session}#sub` }],
+			});
+			assert.strictEqual(result.status, 'applied');
+		}
+
+		async function seedAll(): Promise<{ instance: AgentHostDatabase; raw: Database }> {
+			const instance = new AgentHostDatabase(':memory:');
+			database = instance;
+			for (const session of [sessionA, sessionB, sessionC]) {
+				await seedSession(instance, session);
+			}
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Read the stored rows, as older builds do.
+			return { instance, raw: await instance['_ensureDatabase']() };
+		}
+
+		function rows(raw: Database, ...sessions: string[]): Promise<readonly Record<string, unknown>[]> {
+			return all(raw, `SELECT chat_uri, owner_session_uri, origin_session_uri, chat_order, storage_resource, parent_chat, working_directories, ownership_revision
+				FROM chats_v2 WHERE tombstoned = 0 AND owner_session_uri IN (${sessions.map(() => '?').join(', ')}) ORDER BY owner_session_uri, chat_order, chat_uri`, sessions);
+		}
+
+		async function revision(instance: AgentHostDatabase, session: string): Promise<number> {
+			return (await instance.readCatalogSnapshot([session]))[0].header!.revision;
+		}
+
+		test('moves a peer with its private descendant, compacts both catalogs and keeps storage', async () => {
+			const { instance, raw } = await seedAll();
+			const result = await instance.moveChatV2({
+				chat: `${sessionA}#peer`, source: sessionA, target: sessionB, after: `${sessionB}#default`,
+				expectedSourceRevision: await revision(instance, sessionA), expectedTargetRevision: await revision(instance, sessionB),
+				workingDirectories: ['file:///project/packages/app'],
+			});
+			assert.deepStrictEqual({
+				result,
+				rows: await rows(raw, sessionA, sessionB),
+				legacyA: (await readLegacySessionChatCatalog(raw, sessionA)).map(row => [row.chat_uri, row.chat_order, row.revision]),
+				legacyB: (await readLegacySessionChatCatalog(raw, sessionB)).map(row => [row.chat_uri, row.chat_order, row.revision]),
+				dirty: [await instance.getSessionV2PayloadDirty(sessionA), await instance.getSessionV2PayloadDirty(sessionB), await instance.getSessionV2PayloadDirty(sessionC)],
+			}, {
+				result: { status: 'applied', sourceRevision: 2, targetRevision: 2, moved: [`${sessionA}#peer`, `${sessionA}#sub`] },
+				rows: [
+					{ chat_uri: `${sessionA}#default`, owner_session_uri: sessionA, origin_session_uri: sessionA, chat_order: 0, storage_resource: sessionA, parent_chat: null, working_directories: null, ownership_revision: 0 },
+					{ chat_uri: `${sessionA}#sub`, owner_session_uri: sessionB, origin_session_uri: sessionA, chat_order: null, storage_resource: `${sessionA}#sub`, parent_chat: `${sessionA}#peer`, working_directories: null, ownership_revision: 1 },
+					{ chat_uri: `${sessionB}#sub`, owner_session_uri: sessionB, origin_session_uri: sessionB, chat_order: null, storage_resource: `${sessionB}#sub`, parent_chat: `${sessionB}#peer`, working_directories: null, ownership_revision: 0 },
+					{ chat_uri: `${sessionB}#default`, owner_session_uri: sessionB, origin_session_uri: sessionB, chat_order: 0, storage_resource: sessionB, parent_chat: null, working_directories: null, ownership_revision: 0 },
+					{ chat_uri: `${sessionA}#peer`, owner_session_uri: sessionB, origin_session_uri: sessionA, chat_order: 1, storage_resource: `${sessionA}#peer`, parent_chat: null, working_directories: '["file:///project/packages/app"]', ownership_revision: 1 },
+					{ chat_uri: `${sessionB}#peer`, owner_session_uri: sessionB, origin_session_uri: sessionB, chat_order: 2, storage_resource: `${sessionB}#peer`, parent_chat: null, working_directories: null, ownership_revision: 0 },
+				],
+				// Older builds read the projection: A has no peer left, B lists both peers in order.
+				legacyA: [[null, null, 2]],
+				legacyB: [[`${sessionA}#peer`, 0, 2], [`${sessionB}#peer`, 1, 2]],
+				dirty: [1, 1, undefined],
+			});
+		});
+
+		test('places a chat first without an anchor and keeps its first origin across moves', async () => {
+			const { instance, raw } = await seedAll();
+			const first = await instance.moveChatV2({
+				chat: `${sessionA}#peer`, source: sessionA, target: sessionB, after: undefined,
+				expectedSourceRevision: 1, expectedTargetRevision: 1, workingDirectories: undefined,
+			});
+			const second = await instance.moveChatV2({
+				chat: `${sessionA}#peer`, source: sessionB, target: sessionC, after: `${sessionC}#peer`,
+				expectedSourceRevision: 2, expectedTargetRevision: 1, workingDirectories: undefined,
+			});
+			assert.deepStrictEqual({
+				first: first.status, second: second.status,
+				rows: (await rows(raw, sessionB, sessionC)).map(row => [row.chat_uri, row.owner_session_uri, row.origin_session_uri, row.chat_order, row.working_directories]),
+			}, {
+				first: 'applied', second: 'applied',
+				rows: [
+					[`${sessionB}#sub`, sessionB, sessionB, null, null],
+					[`${sessionB}#default`, sessionB, sessionB, 0, null],
+					[`${sessionB}#peer`, sessionB, sessionB, 1, null],
+					[`${sessionA}#sub`, sessionC, sessionA, null, null],
+					[`${sessionC}#sub`, sessionC, sessionC, null, null],
+					[`${sessionC}#default`, sessionC, sessionC, 0, null],
+					[`${sessionC}#peer`, sessionC, sessionC, 1, null],
+					[`${sessionA}#peer`, sessionC, sessionA, 2, null],
+				],
+			});
+		});
+
+		test('refuses invalid moves without changing anything', async () => {
+			const { instance, raw } = await seedAll();
+			const before = await rows(raw, sessionA, sessionB);
+			const move = { chat: `${sessionA}#peer`, source: sessionA, target: sessionB, after: undefined, expectedSourceRevision: 1, expectedTargetRevision: 1, workingDirectories: undefined };
+			const results = {
+				defaultChat: await instance.moveChatV2({ ...move, chat: `${sessionA}#default` }),
+				privateChat: await instance.moveChatV2({ ...move, chat: `${sessionA}#sub` }),
+				staleSource: await instance.moveChatV2({ ...move, expectedSourceRevision: 0 }),
+				staleTarget: await instance.moveChatV2({ ...move, expectedTargetRevision: 7 }),
+				foreignAnchor: await instance.moveChatV2({ ...move, after: `${sessionA}#default` }),
+				privateAnchor: await instance.moveChatV2({ ...move, after: `${sessionB}#sub` }),
+				notOwned: await instance.moveChatV2({ ...move, chat: `${sessionC}#peer` }),
+				missingTarget: await instance.moveChatV2({ ...move, target: 'session://missing' }),
+			};
+			await assert.rejects(instance.moveChatV2({ ...move, target: sessionA }), /two different sessions/);
+			await instance.tombstoneAndUnregisterSession(sessionC);
+			const tombstonedTarget = await instance.moveChatV2({ ...move, target: sessionC });
+			assert.deepStrictEqual({ results, tombstonedTarget, unchanged: await rows(raw, sessionA, sessionB), revisions: [await revision(instance, sessionA), await revision(instance, sessionB)] }, {
+				results: {
+					defaultChat: { status: 'conflict' }, privateChat: { status: 'conflict' }, staleSource: { status: 'conflict' }, staleTarget: { status: 'conflict' },
+					foreignAnchor: { status: 'conflict' }, privateAnchor: { status: 'conflict' }, notOwned: { status: 'conflict' }, missingTarget: { status: 'missingSession' },
+				},
+				tombstonedTarget: { status: 'tombstoned' },
+				unchanged: before,
+				revisions: [1, 1],
+			});
+		});
+
+		test('reorders within a session contiguously and replays an unchanged order', async () => {
+			const { instance, raw } = await seedAll();
+			const unchanged = await instance.reorderChatV2(sessionA, `${sessionA}#peer`, `${sessionA}#default`, 1);
+			const moved = await instance.reorderChatV2(sessionA, `${sessionA}#peer`, undefined, 1);
+			const stale = await instance.reorderChatV2(sessionA, `${sessionA}#default`, undefined, 1);
+			const selfAnchor = await instance.reorderChatV2(sessionA, `${sessionA}#peer`, `${sessionA}#peer`, 2);
+			const privateChat = await instance.reorderChatV2(sessionA, `${sessionA}#sub`, undefined, 2);
+			assert.deepStrictEqual({
+				unchanged, moved, stale, selfAnchor, privateChat,
+				order: (await rows(raw, sessionA)).filter(row => row.chat_order !== null).map(row => [row.chat_uri, row.chat_order]),
+				legacy: (await readLegacySessionChatCatalog(raw, sessionA)).map(row => [row.chat_uri, row.chat_order]),
+				dirty: await instance.getSessionV2PayloadDirty(sessionA),
+			}, {
+				unchanged: { status: 'replayed', catalogRevision: 1 },
+				moved: { status: 'applied', catalogRevision: 2 },
+				stale: { status: 'conflict' },
+				selfAnchor: { status: 'conflict' },
+				privateChat: { status: 'conflict' },
+				order: [[`${sessionA}#peer`, 0], [`${sessionA}#default`, 1]],
+				legacy: [[`${sessionA}#peer`, 0]],
+				dirty: 1,
+			});
+		});
+	});
 });
