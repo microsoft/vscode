@@ -561,6 +561,7 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 			branch: {
 				ref: 'refs/heads/main',
 				name: 'main',
+				upstream: undefined,
 				kind: GitRefType.Head,
 			},
 		});
@@ -608,6 +609,7 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 			branch: {
 				ref: 'refs/heads/main',
 				name: 'main',
+				upstream: undefined,
 				kind: GitRefType.Head,
 			},
 		});
