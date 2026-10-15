@@ -241,12 +241,12 @@ suite('Sessions - Desktop editor part empty group', () => {
 			removedOnDispose: !addTab() && !list() && !element.classList.contains('sessions-has-add-tab-watermark'),
 		}, {
 			// `+` and list menus for the first render and again when the group becomes empty again.
-			// The `+` dropdown reads its menu when opened; the list also follows changes inside submenus (e.g. Canvas).
+			// Each of the two renders reads the Add Tab menu for the `+` dropdown and its own menu for the list, which also follows changes inside submenus (e.g. Canvas).
 			requestedMenus: [
 				{ id: Menus.SessionsEditorTabsBarAddTab, submenuChanges: false },
-				{ id: Menus.SessionsEditorTabsBarAddTab, submenuChanges: true },
+				{ id: Menus.SessionsEmptyEditorGroupAddTab, submenuChanges: true },
 				{ id: Menus.SessionsEditorTabsBarAddTab, submenuChanges: false },
-				{ id: Menus.SessionsEditorTabsBarAddTab, submenuChanges: true },
+				{ id: Menus.SessionsEmptyEditorGroupAddTab, submenuChanges: true },
 			],
 			ran: ['test.browser'],
 			submenuOnClick: { items: ['Kusto'], focused: true },

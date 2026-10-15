@@ -53,8 +53,18 @@
 	max-width: none;
 }
 
+/* Uncapped content always reaches the strip, so it gives up the whole reserved width. */
+.agent-sessions-workbench .part.sessionspart .chat-groups-view:not(.single-group) .chat-view {
+	--session-toolbar-content-inset: var(--session-toolbar-reserved-width);
+}
+
 .agent-sessions-workbench .part.sessionspart .chat-groups-view:not(.single-group) .interactive-session .chat-scroll-down {
-	right: var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240));
+	right: calc(var(--session-toolbar-content-inset, 0px) + var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240)));
+}
+
+.agent-sessions-workbench .part.sessionspart .chat-groups-view:not(.single-group) .interactive-session > .interactive-input-part,
+.agent-sessions-workbench .part.sessionspart .chat-groups-view:not(.single-group) .interactive-session > .chat-suggest-next-widget {
+	margin-left: 0;
 }
 
 .agent-sessions-workbench .part.sessionspart .chat-groups-view:not(.single-group) .interactive-session > .interactive-list > .chat-transcript-context {

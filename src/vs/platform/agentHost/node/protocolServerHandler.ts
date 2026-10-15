@@ -29,7 +29,7 @@ import { AgentHostChatUrisCapabilityMetaKey, AgentHostNativeImplementationMetaKe
 import { supportsAgentHostModelConfigAliases } from '../common/meta/agentModelConfigurationMeta.js';
 import { withSessionInitiator } from '../common/meta/agentSessionInitiatorMeta.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, readClientConnectionKind, readClientDevDeviceId, readClientMachineId, readClientTelemetryLevel, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
-import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, type IAgentCreateChatRequestOptions, type IMcpNotification } from '../common/agent.js';
+import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, type IAgentCreateChatRequestOptions, type IAgentSessionMetadata, type IMcpNotification } from '../common/agent.js';
 import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
@@ -116,6 +116,46 @@ const UNSUPPORTED_CLIENT_ACTION_TYPES: ReadonlySet<ActionType> = new Set([
 	ActionType.ChatWorkingDirectorySet,
 	ActionType.ChatWorkingDirectoryRemoved,
 ]);
+
+/** Projects an agent session listing entry into the root-channel {@link SessionSummary} a `listSessions` reply carries. */
+export function toListedSessionSummary(s: IAgentSessionMetadata): ListSessionsResult['items'][number] {
+	const provider = s.provider ?? AgentSession.provider(s.session);
+	if (!provider) {
+		throw new Error(`Agent session URI has no provider scheme: ${s.session.toString()}`);
+	}
+	return {
+		resource: s.session.toString(),
+		provider,
+		title: s.summary ?? 'Session',
+		status: s.status ?? SessionStatus.Idle,
+		activity: s.activity,
+		createdAt: new Date(s.startTime).toISOString(),
+		modifiedAt: new Date(s.modifiedTime).toISOString(),
+		...(s.project ? { project: { uri: s.project.uri.toString(), displayName: s.project.displayName } } : {}),
+		workingDirectories: s.workingDirectories?.map(d => d.toString()),
+		changes: s.changes,
+		chats: s.chats?.map(chat => ({
+			resource: chat.chat.toString(),
+			title: chat.summary ?? '',
+			origin: chat.origin,
+			...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
+			// Forward the chat's activity bits so clients can present them without subscribing.
+			...(chat.status !== undefined || chat.isRead !== undefined ? {
+				status: withSessionStatusFlag(
+					withSessionStatusFlag(chat.status ?? SessionStatus.Idle, SessionStatus.IsArchived, chat.archived === true),
+					SessionStatus.IsRead,
+					chat.isRead ?? (chat.status !== undefined && (chat.status & SessionStatus.IsRead) === SessionStatus.IsRead),
+				),
+			} : {}),
+			...(chat.archived === true ? { archived: true } : {}),
+			...(chat.changes !== undefined ? { changes: chat.changes } : {}),
+		})),
+		defaultChat: s.chats?.find(chat => chat.kind === 'default')?.chat.toString(),
+		// `_meta` carries durable host provenance, including session kind
+		// and provider-native discovery provenance.
+		...(s._meta !== undefined ? { _meta: s._meta } : {}),
+	};
+}
 
 /** A client tool call in any of these statuses is still awaiting its result. */
 function isPendingToolCallStatus(status: ToolCallStatus): boolean {
@@ -2021,44 +2061,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			const sessions = await this._agentService.listSessions();
 			const visible = await Promise.all(sessions.map(async s => this._isSessionVisible(client, s.session.toString(), s.chats?.find(chat => chat.kind === 'default')?.chat.toString() ?? this._chatOwnership.getDefaultChat(s.session.toString()))
 				&& (!this._config.relayRoots || (s.workingDirectories?.length && (await Promise.all(s.workingDirectories.map(directory => this._isGrantedRelayDirectory(directory.toString())))).every(Boolean)))));
-			const items = sessions.filter((_, index) => visible[index]).map(s => {
-				const provider = s.provider ?? AgentSession.provider(s.session);
-				if (!provider) {
-					throw new Error(`Agent session URI has no provider scheme: ${s.session.toString()}`);
-				}
-				return {
-					resource: s.session.toString(),
-					provider,
-					title: s.summary ?? 'Session',
-					status: s.status ?? SessionStatus.Idle,
-					activity: s.activity,
-					createdAt: new Date(s.startTime).toISOString(),
-					modifiedAt: new Date(s.modifiedTime).toISOString(),
-					...(s.project ? { project: { uri: s.project.uri.toString(), displayName: s.project.displayName } } : {}),
-					workingDirectories: s.workingDirectories?.map(d => d.toString()),
-					changes: s.changes,
-					chats: s.chats?.map(chat => ({
-						resource: chat.chat.toString(),
-						title: chat.summary ?? '',
-						origin: chat.origin,
-						...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
-						// Forward the chat's activity bits so clients can present them without subscribing.
-						...(chat.status !== undefined || chat.isRead !== undefined ? {
-							status: withSessionStatusFlag(
-								withSessionStatusFlag(chat.status ?? SessionStatus.Idle, SessionStatus.IsArchived, chat.archived === true),
-								SessionStatus.IsRead,
-								chat.isRead ?? (chat.status !== undefined && (chat.status & SessionStatus.IsRead) === SessionStatus.IsRead),
-							),
-						} : {}),
-						...(chat.archived === true ? { archived: true } : {}),
-						...(chat.changes !== undefined ? { changes: chat.changes } : {}),
-					})),
-					defaultChat: s.chats?.find(chat => chat.kind === 'default')?.chat.toString(),
-					// `_meta` carries durable host provenance, including session kind
-					// and provider-native discovery provenance.
-					...(s._meta !== undefined ? { _meta: s._meta } : {}),
-				} satisfies ListSessionsResult['items'][number];
-			});
+			const items = sessions.filter((_, index) => visible[index]).map(toListedSessionSummary);
 			let prepared = this._stateManager.prepareSessionSummariesForListing(items)
 				.filter(item => this._isSessionVisible(client, item.resource, item.defaultChat))
 				.map(item => item.chats ? { ...item, chats: [...this._filterVisibleChats(client, item.chats, chat => chat.resource)] } : item);
