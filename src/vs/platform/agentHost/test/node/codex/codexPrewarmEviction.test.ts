@@ -39,7 +39,7 @@ import { CustomizationEnablementKind, CustomizationType, McpServerStatus, Sessio
 import { ISessionDataService, MAX_TERMINAL_OUTPUT_BYTES } from '../../../common/sessionDataService.js';
 import { buildNonPtyShellTerminalUri } from '../../../common/nonPtyShellTerminalUri.js';
 import { SessionServerToolName } from '../../../common/serverToolNames.js';
-import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
+import { AgentConfigurationService, IAgentConfigurationService, type IAgentChatConfigurationTarget } from '../../../node/agentConfigurationService.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../../node/shared/worktreeIsolation.js';
 import { IAgentHostCustomizationEnablementService, type CustomizationEnablementResolution } from '../../../node/agentHostCustomizationEnablementService.js';
 import { AgentHostStateManager, creationTimeChatStorageResource, IAgentHostStateManager } from '../../../node/agentHostStateManager.js';
@@ -260,6 +260,13 @@ class TestCodexConfigurationService extends AgentConfigurationService {
 
 	override getSessionConfigValues(): Record<string, unknown> | undefined {
 		return this.sessionConfig ? { ...this.sessionConfig } : undefined;
+	}
+
+	/** A chat's own values, applied over the session's for that chat. */
+	readonly chatConfig = new Map<string, Readonly<Record<string, boolean | string | readonly string[]>>>();
+
+	override getChatConfigValues(target: IAgentChatConfigurationTarget): Record<string, unknown> | undefined {
+		return this.sessionConfig ? { ...this.sessionConfig, ...this.chatConfig.get(target.chat) } : undefined;
 	}
 }
 
@@ -3543,6 +3550,34 @@ suite('CodexAgent prewarm eviction', () => {
 				secondSelectedPaths: [repoBCodexSkills.fsPath],
 				turnMethod: 'turn/start',
 			});
+		} finally {
+			peer.exit();
+		}
+	});
+
+	test('thread start uses the chat\'s own permissions preset over the session\'s', async () => {
+		const agent = await createAgent(disposables);
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		const configurationService = agent['_configurationService'];
+		assert.ok(configurationService instanceof TestCodexConfigurationService);
+		const session = AgentSession.uri('codex', 'per-chat-preset');
+		configurationService.setSessionConfig({ [CodexSessionConfigKey.PermissionsPreset]: 'default' });
+		configurationService.chatConfig.set(defaultChatOf(session).toString(), { [CodexSessionConfigKey.PermissionsPreset]: 'full-access' });
+
+		try {
+			await createSession(agent, { session, workingDirectories: [URI.file('/repo')], model: { id: COPILOT_TEST_MODEL } });
+			const entry = agent['_sessions'].get(AgentSession.id(session))!;
+			const start = await readNextRequest(peer.outbound);
+			peer.push({ id: start.id, result: { thread: { id: 'thread-per-chat' } } });
+			await entry.materializePromise;
+			assert.deepStrictEqual({ approvalPolicy: start.params.approvalPolicy, permissions: start.params.permissions }, { approvalPolicy: 'never', permissions: ':danger-full-access' });
 		} finally {
 			peer.exit();
 		}

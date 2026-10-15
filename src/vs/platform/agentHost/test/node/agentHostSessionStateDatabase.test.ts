@@ -122,16 +122,16 @@ suite('AgentHostDatabase session state', () => {
 		return store.add(new AgentHostDatabase(path));
 	}
 
-	test('migrates a Block 2b database to version 15 without touching the tables older builds read', async () => {
+	test('migrates a Block 2b database without changing the tables older builds read, other than adding chat origins', async () => {
 		const fixture = createLegacySessionFixture('2b');
 		const sessionData = store.add(new InMemorySessionDataService());
 		const written = await open();
 		await writeLegacySessionState(sessionData.createService(), written, fixture);
 		const viewBefore = await readOldBuildView(sessionData.createService(), written, fixture);
 		await written.close();
-		// What a Block 2b build leaves: the same tables at version 14, without the session state tables.
+		// What a Block 2b build leaves: the same tables at version 14, without the session state tables or chat origins.
 		const before = await withRaw(path, async database => {
-			await rawExec(database, `${SESSION_STATE_TABLES.map(table => `DROP TABLE ${table};`).join('\n')}\nPRAGMA user_version = 14;`);
+			await rawExec(database, `${SESSION_STATE_TABLES.map(table => `DROP TABLE ${table};`).join('\n')}\nALTER TABLE chats_v2 DROP COLUMN origin_session_uri;\nPRAGMA user_version = 14;`);
 			return { version: await userVersion(database), schema: await protectedSchema(database) };
 		});
 
@@ -156,14 +156,17 @@ suite('AgentHostDatabase session state', () => {
 
 		assert.deepStrictEqual({
 			versions: [before.version, after.version, await withRaw(path, userVersion)],
-			protectedSchemaUnchanged: JSON.stringify(after.schema) === JSON.stringify(before.schema),
+			// Only `chats_v2` gains a nullable column, which older builds neither write nor read.
+			addedColumns: (after.schema.chats_v2 as readonly Record<string, unknown>[]).filter(column => !(before.schema.chats_v2 as readonly Record<string, unknown>[]).some(previous => previous.name === column.name)).map(column => [column.name, column.type, column.notnull]),
+			protectedSchemaUnchanged: JSON.stringify({ ...after.schema, chats_v2: (after.schema.chats_v2 as readonly Record<string, unknown>[]).filter(column => column.name !== 'origin_session_uri') }) === JSON.stringify(before.schema),
 			oldBuildViewUnchanged: JSON.stringify(viewAfter) === JSON.stringify(viewBefore),
 			tables: after.tables,
 			centralCheckpointState: after.centralCheckpointState,
 			centralBranchChangesets: after.centralBranchChangesets,
 			reopenedState,
 		}, {
-			versions: [14, 15, 15],
+			versions: [14, 17, 17],
+			addedColumns: [['origin_session_uri', 'TEXT', 0]],
 			protectedSchemaUnchanged: true,
 			oldBuildViewUnchanged: true,
 			tables: [...SESSION_STATE_TABLES].sort(),

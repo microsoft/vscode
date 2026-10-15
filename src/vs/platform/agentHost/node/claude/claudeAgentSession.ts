@@ -125,10 +125,11 @@ export interface IMaterializeContext {
 function resolveCurrentPermissionMode(
 	configurationService: IAgentConfigurationService,
 	resource: URI,
+	chat: URI,
 	inheritedPermissionMode: ClaudePermissionMode | undefined,
 	permissionModeFallback: ClaudePermissionMode,
 ): ClaudePermissionMode {
-	return readClaudePermissionMode(configurationService, resource) ?? inheritedPermissionMode ?? permissionModeFallback;
+	return readClaudePermissionMode(configurationService, resource, chat) ?? inheritedPermissionMode ?? permissionModeFallback;
 }
 
 function isGitHubMcpServerDefinition(definition: IMcpServerDefinition, gitHubMcpServerConfiguration: IMcpServerConfiguration): boolean {
@@ -627,7 +628,7 @@ export class ClaudeAgentSession extends Disposable {
 		this._transportKind = ctx.transport.kind;
 		this._materializedTransport = ctx.transport;
 
-		const permissionMode = resolveCurrentPermissionMode(this._configurationService, ctx.configResource, this._inheritedPermissionMode, this._permissionModeFallback);
+		const permissionMode = resolveCurrentPermissionMode(this._configurationService, ctx.configResource, this._chatChannelUri, this._inheritedPermissionMode, this._permissionModeFallback);
 		const plugins = this._desiredClientPluginConfigs();
 		this.clientCustomizationsDiff.consume(plugins.map(plugin => plugin.uri));
 		const mcpLaunchEnablementRevision = this._mcpLaunchEnablementRevision;
@@ -694,11 +695,11 @@ export class ClaudeAgentSession extends Disposable {
 		}
 		this._register(pipeline.onDidProduceSignal(s => this._onDidSessionProgress.fire(this._enrichSignalWithMcpContributor(this._enrichSignalWithCredits(s)))));
 		this._pipeline = pipeline;
-		this._register(this._configurationService.onDidSessionConfigChange(event => {
-			if (!event.origin || event.session !== ctx.configResource.toString()) {
+		this._register(this._configurationService.onDidChatConfigChange(event => {
+			if (!event.origin || event.chat !== this._chatChannelUri.toString()) {
 				return;
 			}
-			const inheritedMode = readClaudePermissionMode(this._configurationService, ctx.configResource);
+			const inheritedMode = readClaudePermissionMode(this._configurationService, ctx.configResource, this._chatChannelUri);
 			const mode = inheritedMode ?? this.permissionModeFallback;
 			this.setInheritedPermissionMode(inheritedMode).catch(err => {
 				this._logService.warn(`[Claude:${this.sessionId}] mid-turn setPermissionMode(${mode}) failed`, err);
@@ -729,7 +730,7 @@ export class ClaudeAgentSession extends Disposable {
 		}
 
 		pipeline.attachRematerializer(async (_reason) => {
-			const liveMode = resolveCurrentPermissionMode(this._configurationService, ctx.configResource, this._inheritedPermissionMode, this._permissionModeFallback);
+			const liveMode = resolveCurrentPermissionMode(this._configurationService, ctx.configResource, this._chatChannelUri, this._inheritedPermissionMode, this._permissionModeFallback);
 			const rebuildAbort = new AbortController();
 			let rebuildWarm: WarmQuery | undefined;
 			try {
@@ -1081,7 +1082,7 @@ export class ClaudeAgentSession extends Disposable {
 			|| this._pendingTransportSwitch) {
 			await this._rebindForSyncedState();
 		} else {
-			await pipeline.setPermissionMode(resolveCurrentPermissionMode(this._configurationService, resource, this._inheritedPermissionMode, this._permissionModeFallback));
+			await pipeline.setPermissionMode(resolveCurrentPermissionMode(this._configurationService, resource, this._chatChannelUri, this._inheritedPermissionMode, this._permissionModeFallback));
 		}
 		await this._reconcileMcpServerEnablement();
 		this._hostInstructions = hostInstructions;

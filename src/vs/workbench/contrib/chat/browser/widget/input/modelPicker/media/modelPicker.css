@@ -451,7 +451,8 @@
 	background: transparent;
 }
 
-.action-widget .chat-model-picker-tabbar .monaco-custom-radio .monaco-button > .codicon {
+.action-widget .chat-model-picker-tabbar .monaco-custom-radio .monaco-button > .codicon,
+.action-widget .tabbed-action-list-tabbar.chat-model-picker-tabbar .monaco-custom-radio .monaco-button.tabbed-action-list-tab-image-icon::before {
 	flex: 0 0 auto;
 	margin: var(--vscode-spacing-sizeNone);
 }
@@ -475,6 +476,11 @@
 .action-widget .chat-model-picker-tabbar .tabbed-action-list-tabbar-action:hover {
 	color: var(--vscode-modernTab-hoverForeground);
 	background: var(--vscode-modernTab-hoverBackground);
+}
+
+/* A hovered tab brightens its image icon along with its codicons. */
+.action-widget .chat-model-picker-tabbar .monaco-custom-radio .monaco-button.tabbed-action-list-tab-image-icon:hover:not(.active)::before {
+	opacity: 1;
 }
 
 .action-widget .chat-model-picker-tabbar .monaco-custom-radio .monaco-button.active,
@@ -903,6 +909,22 @@
 .chat-model-picker-welcome-icon.codicon {
 	font-size: 32px;
 	color: var(--vscode-descriptionForeground);
+}
+
+.chat-model-picker-welcome-icon.image-icon {
+	width: 32px;
+	height: 32px;
+	background-image: var(--chat-model-picker-welcome-icon-light);
+	background-position: center;
+	background-repeat: no-repeat;
+	background-size: contain;
+	/* Matches the muted foreground of the codicon it stands in for. */
+	opacity: 0.7;
+}
+
+.vs-dark .chat-model-picker-welcome-icon.image-icon,
+.hc-black .chat-model-picker-welcome-icon.image-icon {
+	background-image: var(--chat-model-picker-welcome-icon-dark);
 }
 
 .chat-model-picker-welcome-title {

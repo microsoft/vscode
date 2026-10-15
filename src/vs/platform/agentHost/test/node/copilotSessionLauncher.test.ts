@@ -132,12 +132,14 @@ function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettin
 		getRootValue: (_schema: unknown, key: string) => rootValues[key],
 		getRootConfigValues: () => rootValues,
 		getSessionConfigValues: () => undefined,
+		getChatConfigValues: () => undefined,
 		resolveConfigurationOwner: (session: string) => session,
 		getSessionSandboxPolicy: () => undefined,
 		getSessionSandboxEnabled: () => undefined,
+		getChatSandboxEnabled: () => undefined,
 		setSessionSandboxPolicy: () => { },
-		setSessionSandboxEnabled: () => { },
-		rejectSessionSandboxChange: () => { },
+		setChatSandboxEnabled: () => { },
+		rejectChatSandboxChange: () => { },
 	} as Partial<IAgentConfigurationService> as IAgentConfigurationService;
 	return new CopilotSessionLauncher(
 		configurationService,
@@ -597,7 +599,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 		] as const) {
 			test(`${kind} logs a ${format} sandbox conflict without disconnecting or publishing the rejected state`, async () => {
 				const fixture = setup(kind, true, false, false, undefined, error);
-				fixture.configuration.setSessionSandboxEnabled(fixture.owner, true);
+				fixture.configuration.setChatSandboxEnabled({ session: fixture.owner, chat: buildDefaultChatUri(fixture.owner) }, true);
 
 				store.add(await fixture.launcher.launch(fixture.plan, testRuntime));
 

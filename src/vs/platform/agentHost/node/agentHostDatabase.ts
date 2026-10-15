@@ -197,6 +197,8 @@ export interface IAgentHostDatabaseChatV2NormalizationChat {
 
 export interface IAgentHostDatabaseChatV2 extends Omit<IAgentHostDatabaseChatV2NormalizationChat, 'providerData'> {
 	readonly ownerSession: string;
+	/** The session the chat was created in; the owner for rows written before it was recorded. */
+	readonly originSession: string;
 	readonly ownershipRevision: number;
 	readonly metadataRevision: number;
 }
@@ -491,6 +493,11 @@ const sessionChatCatalogSchemaSql = [
 
 const CHAT_ARCHIVE_MIGRATION_VERSION = 12;
 const CHAT_READ_MIGRATION_VERSION = 13;
+/**
+ * Records the session each chat was created in. 16 is the pending worktree
+ * removals table, which the migrations before this one create.
+ */
+const CHAT_ORIGIN_MIGRATION_VERSION = 17;
 const chatArchiveMigrationSql = 'ALTER TABLE session_chats ADD COLUMN archived INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1))';
 const chatReadMigrationSql = 'ALTER TABLE session_chats ADD COLUMN is_read INTEGER CHECK (is_read IN (0, 1))';
 
@@ -520,6 +527,13 @@ const chatsV2SchemaSql = `CREATE TABLE IF NOT EXISTS chats_v2 (
 	metadata_revision INTEGER NOT NULL DEFAULT 0 CHECK (metadata_revision >= 0),
 	tombstoned INTEGER NOT NULL DEFAULT 0 CHECK (tombstoned IN (0, 1))
 )`;
+
+/** Adds `chats_v2.origin_session_uri`; idempotent. Rows without it read as created in their owner. */
+async function migrateChatOriginSchema(database: Database): Promise<void> {
+	if (!(await all(database, 'PRAGMA table_info(chats_v2)', [])).some(column => column.name === 'origin_session_uri')) {
+		await exec(database, 'ALTER TABLE chats_v2 ADD COLUMN origin_session_uri TEXT');
+	}
+}
 
 async function migrateChatV2Schema(database: Database): Promise<void> {
 	const columns = await all(database, 'PRAGMA table_info(session_chat_catalogs)', []);
@@ -592,6 +606,10 @@ const migrations = [
 	{
 		version: SESSION_STATE_MIGRATION_VERSION,
 		sql: SESSION_STATE_SCHEMA_SQL,
+	},
+	{
+		version: CHAT_ORIGIN_MIGRATION_VERSION,
+		sql: '',
 	},
 ] as const;
 
@@ -2255,7 +2273,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					EXISTS (SELECT 1 FROM metadata WHERE key = '${provisionalSessionKeyPrefix}' || s.session_uri AND value = 'true') AS provisional
 					FROM sessions_v2 s LEFT JOIN session_chat_catalogs h ON h.session_uri = s.session_uri
 					WHERE ${live} ${selector} ORDER BY s.session_uri`, sessions ?? []);
-				const rows = await all(database, `SELECT c.chat_uri, c.owner_session_uri, c.chat_order, c.storage_resource,
+				const rows = await all(database, `SELECT c.chat_uri, c.owner_session_uri, c.origin_session_uri, c.chat_order, c.storage_resource,
 					c.parent_chat, c.origin, c.working_directories, c.is_read, c.archived, c.inherited_turn_id, c.metadata, c.metadata_hash,
 					c.ownership_revision, c.metadata_revision
 					FROM chats_v2 c JOIN sessions_v2 s ON s.session_uri = c.owner_session_uri
@@ -2321,7 +2339,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			const row = await get(await this._ensureDatabase(), `SELECT h.authority_version,
 				EXISTS (SELECT 1 FROM chats_v2 d WHERE d.chat_uri = h.default_chat_uri
 					AND d.owner_session_uri = s.session_uri AND d.tombstoned = 0 AND d.chat_order IS NOT NULL) AS has_default,
-				c.chat_uri, c.owner_session_uri, c.chat_order, c.storage_resource,
+				c.chat_uri, c.owner_session_uri, c.origin_session_uri, c.chat_order, c.storage_resource,
 				c.parent_chat, c.origin, c.working_directories, c.is_read, c.archived, c.inherited_turn_id,
 				c.metadata, c.metadata_hash, c.ownership_revision, c.metadata_revision
 				FROM sessions_v2 s LEFT JOIN session_chat_catalogs h ON h.session_uri = s.session_uri
@@ -2820,10 +2838,11 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 
 	private async _insertChatV2(database: Database, session: string, chat: IAgentHostDatabaseChatV2NormalizationChat): Promise<void> {
 		const metadata = encodeChatV2Metadata(chat.metadata ?? {});
-		await run(database, `INSERT INTO chats_v2 (chat_uri, owner_session_uri, chat_order, storage_resource,
+		// A chat is created in the session it is inserted into.
+		await run(database, `INSERT INTO chats_v2 (chat_uri, owner_session_uri, origin_session_uri, chat_order, storage_resource,
 			parent_chat, provider_data, origin, is_read, archived, inherited_turn_id, working_directories, metadata, metadata_hash)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
-			chat.chat, session, chat.order ?? null, chat.storageResource ?? null, chat.parentChat ?? null,
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+			chat.chat, session, session, chat.order ?? null, chat.storageResource ?? null, chat.parentChat ?? null,
 			chat.providerData ?? null, chat.origin ?? null, chat.isRead === undefined ? null : chat.isRead ? 1 : 0,
 			chat.archived ? 1 : 0, chat.inheritedTurnId ?? null,
 			chat.workingDirectories === undefined ? null : JSON.stringify(chat.workingDirectories),
@@ -2939,6 +2958,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		return {
 			chat: row.chat_uri as string,
 			ownerSession: row.owner_session_uri as string,
+			originSession: (row.origin_session_uri ?? row.owner_session_uri) as string,
 			...(row.chat_order === null ? {} : { order: row.chat_order as number }),
 			...(row.storage_resource === null ? {} : { storageResource: row.storage_resource as string }),
 			...(row.parent_chat === null ? {} : { parentChat: row.parent_chat as string }),
@@ -3355,6 +3375,8 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 							try {
 								if (migration.version === 14) {
 									await migrateChatV2Schema(database);
+								} else if (migration.version === CHAT_ORIGIN_MIGRATION_VERSION) {
+									await migrateChatOriginSchema(database);
 								} else {
 									await exec(database, migration.sql);
 								}
@@ -3373,6 +3395,9 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 							if (currentVersion >= SESSION_STATE_MIGRATION_VERSION) {
 								// Idempotent: repairs profiles shared with pre-release builds that skipped the tables.
 								await exec(database, SESSION_STATE_SCHEMA_SQL);
+							}
+							if (currentVersion >= CHAT_ORIGIN_MIGRATION_VERSION) {
+								await migrateChatOriginSchema(database);
 							}
 							await exec(database, 'COMMIT');
 						} catch (error) {

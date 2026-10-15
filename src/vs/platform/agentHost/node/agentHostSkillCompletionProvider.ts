@@ -15,7 +15,7 @@ import { MessageAttachmentKind } from '../common/state/protocol/state.js';
 import { toSkillCompletionAttachmentMeta } from '../common/meta/agentCompletionAttachmentMeta.js';
 import { readSkillArgumentHint } from '../common/meta/skillCustomizationMeta.js';
 import { CustomizationType, DirectoryCustomization, PluginCustomization, SkillCustomization, type Customization } from '../common/state/sessionState.js';
-import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider } from './agentHostCompletions.js';
+import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider, type IAgentHostCompletionContext } from './agentHostCompletions.js';
 import { extractWhitespaceDelimitedSlashToken, matchesSlashCompletion } from './agentHostSlashCompletion.js';
 
 
@@ -44,7 +44,7 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 		super();
 	}
 
-	async provideCompletionItems(params: CompletionsParams, token: CancellationToken): Promise<readonly CompletionItem[]> {
+	async provideCompletionItems(params: CompletionsParams, _context: IAgentHostCompletionContext, token: CancellationToken): Promise<readonly CompletionItem[]> {
 		const leading = extractWhitespaceDelimitedSlashToken(params.text, params.offset);
 		if (!leading) {
 			return [];

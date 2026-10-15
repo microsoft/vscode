@@ -234,6 +234,7 @@ suite('AgentHostCatalogListReader', () => {
 				chat: stableChat,
 				order: 0,
 				ownerSession: session.toString(),
+				originSession: session.toString(),
 				ownershipRevision: 1,
 				metadataRevision: 3,
 				isRead: false,
@@ -243,6 +244,7 @@ suite('AgentHostCatalogListReader', () => {
 			}, {
 				chat: 'agent-chat://copilot/private',
 				ownerSession: session.toString(),
+				originSession: session.toString(),
 				ownershipRevision: 1,
 				metadataRevision: 0,
 				parentChat: stableChat,
