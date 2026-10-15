@@ -659,7 +659,7 @@ export interface IVoiceClientService {
 	 * because the state field itself didn't change.
 	 */
 	invalidateSessionCache(sessionId: string): void;
-	sendToolResult(callId: string, result: string | IVoiceDispatchResult): void;
+	sendToolResult(callId: string, result: string | IVoiceDispatchResult, toolName?: string, toolArgs?: Readonly<Record<string, unknown>>): void;
 	/** Report that one correlated checkpoint playback attempt finished locally. */
 	sendNarrationPlaybackComplete(codingSessionId: string, narrationId: string, playbackId: string): void;
 	/**

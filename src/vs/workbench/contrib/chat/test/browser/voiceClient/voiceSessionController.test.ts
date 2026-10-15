@@ -173,10 +173,12 @@ class TestVoiceClientService extends mock<IVoiceClientService>() {
 		this.playbackCompletions.push({ sessionId: codingSessionId, narrationId, playbackId });
 	}
 	readonly toolResults: { callId: string; result: string | IVoiceDispatchResult }[] = [];
+	readonly toolResultDetails: { callId: string; result: string | IVoiceDispatchResult; toolName?: string; toolArgs?: Readonly<Record<string, unknown>> }[] = [];
 	private toolResultResolver: (() => void) | undefined;
 	readonly toolResultReceived = new Promise<void>(resolve => this.toolResultResolver = resolve);
-	override sendToolResult(callId: string, result: string | IVoiceDispatchResult): void {
+	override sendToolResult(callId: string, result: string | IVoiceDispatchResult, toolName?: string, toolArgs?: Readonly<Record<string, unknown>>): void {
 		this.toolResults.push({ callId, result });
+		this.toolResultDetails.push({ callId, result, toolName, toolArgs });
 		this.toolResultResolver?.();
 	}
 
@@ -1109,6 +1111,40 @@ suite('VoiceSessionController', () => {
 			{ passive: false, during: 'listening', after: 'listening' },
 			{ passive: true, during: 'speaking', after: 'listening' },
 		]);
+	});
+
+	test('opens a passive hands-free turn while direct remote audio is speaking', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		voiceClientService.gptLiveByok = true;
+		const micCaptureService = new TestMicCaptureService();
+		const controller = createController(
+			voiceClientService,
+			undefined,
+			undefined,
+			undefined,
+			micCaptureService,
+			new TestConfigurationService({ 'agents.voice.handsFree': true }),
+		);
+		await controller.connect(mainWindow);
+		voiceClientService.fireConnectionState(true);
+		voiceClientService.fireSessionInit();
+		controller.pttUp('internal', true);
+		Reflect.set(controller, '_window', { document: { hasFocus: () => true } });
+		const turnsBeforePlayback = micCaptureService.pttTurns.length;
+
+		voiceClientService.fireRemoteAudioState(true);
+
+		assert.deepStrictEqual({
+			state: controller.voiceState.get(),
+			turnsStarted: micCaptureService.pttTurns.length - turnsBeforePlayback,
+			held: Reflect.get(controller, '_pttHeld'),
+			passive: Reflect.get(controller, '_bargeInListenActive'),
+		}, {
+			state: 'speaking',
+			turnsStarted: 1,
+			held: true,
+			passive: true,
+		});
 	});
 
 	test('keeps remote speaking visible when an asynchronous chat send completes', async () => {
@@ -4833,6 +4869,57 @@ suite('VoiceSessionController', () => {
 			telemetryService.events.filter(event => event.name === 'voiceToolApproval').map(event => (event.data as { approved: boolean }).approved),
 			[true, false],
 		);
+	});
+
+	test('forwards generic tool metadata with the dispatch result', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const toolDispatchService = new class extends mock<IVoiceToolDispatchService>() {
+			override setDelegate(): void { }
+			override async dispatchToolCall(): Promise<string> {
+				return JSON.stringify({ ok: false, reason: 'session_not_found' });
+			}
+		}();
+		const controller = createController(
+			voiceClientService, undefined, undefined, undefined, undefined, undefined, undefined,
+			undefined, undefined, undefined, undefined, undefined, undefined, toolDispatchService,
+		);
+		await controller.connect(mainWindow);
+		const args = { coding_session_id: 'missing-session', session_label: 'Favorite chocolate' };
+
+		voiceClientService.fireToolCall({ callId: 'focus', name: 'focus_session', args });
+		await voiceClientService.toolResultReceived;
+
+		assert.deepStrictEqual(voiceClientService.toolResultDetails, [{
+			callId: 'focus',
+			result: JSON.stringify({ ok: false, reason: 'session_not_found' }),
+			toolName: 'focus_session',
+			toolArgs: args,
+		}]);
+	});
+
+	test('forwards passive session tool metadata with the dispatch result', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const toolDispatchService = new class extends mock<IVoiceToolDispatchService>() {
+			override setDelegate(): void { }
+			override async dispatchToolCall(): Promise<string> {
+				return JSON.stringify({ ok: true, sessions: [{ label: 'Alpha' }] });
+			}
+		}();
+		const controller = createController(
+			voiceClientService, undefined, undefined, undefined, undefined, undefined, undefined,
+			undefined, undefined, undefined, undefined, undefined, undefined, toolDispatchService,
+		);
+		await controller.connect(mainWindow);
+
+		voiceClientService.fireToolCall({ callId: 'session-info', name: 'get_session_info', args: {} });
+		await voiceClientService.toolResultReceived;
+
+		assert.deepStrictEqual(voiceClientService.toolResultDetails, [{
+			callId: 'session-info',
+			result: '{"ok":true,"sessions":[{"label":"Alpha"}]}',
+			toolName: 'get_session_info',
+			toolArgs: {},
+		}]);
 	});
 
 	test('publishes a question form as a structured pending payload', () => {

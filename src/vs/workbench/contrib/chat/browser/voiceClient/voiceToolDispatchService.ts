@@ -34,8 +34,12 @@ export interface IVoiceToolDispatchDelegate {
 	getCurrentSessionResource(): Promise<URI | undefined>;
 	/** Switch the view to a different session by resource URI. */
 	switchToSession(resource: URI): Promise<boolean>;
+	/** Resolve a session resource using the active frontend's authoritative session model. */
+	resolveSessionResource?(sessionIdOrLabel: string): Promise<URI | undefined>;
+	/** Get session information from the active frontend's authoritative session model. */
+	getSessionInfo?(): Promise<string | undefined>;
 	/** Set the session all subsequent voice turns and actions belong to. */
-	setTargetSession(resource: URI): void;
+	setTargetSession(resource: URI, preserveVoice?: boolean): void;
 	/** The explicit voice target, or the currently shown session when unpinned. */
 	getTargetSessionResource(): URI | undefined;
 	/** Select a model in the currently shown voice input. */
@@ -212,13 +216,14 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 			}
 			case 'focus_session': {
 				const targetSessionId = argString('coding_session_id');
-				const targetResource = this._findSessionResource(targetSessionId);
+				const targetResource = this._findSessionResource(targetSessionId)
+					?? await delegate.resolveSessionResource?.(targetSessionId);
 				if (targetResource) {
 					const currentResource = await delegate.getCurrentSessionResource();
 					const switched = targetResource.toString() === currentResource?.toString()
 						|| await delegate.switchToSession(targetResource);
 					if (switched) {
-						delegate.setTargetSession(targetResource);
+						delegate.setTargetSession(targetResource, true);
 						return JSON.stringify({ ok: true, session_id: targetResource.toString() });
 					}
 				}
@@ -247,7 +252,7 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 				break;
 			}
 			case 'get_session_info': {
-				return await this._gatherSessionInfo();
+				return await delegate.getSessionInfo?.() ?? await this._gatherSessionInfo();
 			}
 			case 'get_session_changes': {
 				const sessionId = typeof toolCall.args?.coding_session_id === 'string'

@@ -920,7 +920,21 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			},
 			switchToSession: async (resource: URI): Promise<boolean> =>
 				await this.commandService.executeCommand<boolean>('_chat.voice.switchToSession', resource.toString()).catch(() => false) === true,
-			setTargetSession: (resource: URI): void => this.setTargetSession(resource),
+			resolveSessionResource: async (sessionIdOrLabel: string): Promise<URI | undefined> => {
+				const resourceStr = await this.commandService.executeCommand<string | undefined>('_chat.voice.resolveSession', sessionIdOrLabel).catch(() => undefined);
+				return resourceStr ? URI.parse(resourceStr) : undefined;
+			},
+			getSessionInfo: async (): Promise<string | undefined> =>
+				await this.commandService.executeCommand<string | undefined>('_chat.voice.getSessionInfo').catch(() => undefined),
+			setTargetSession: (resource: URI, preserveVoice?: boolean): void => {
+				if (preserveVoice) {
+					this._hasDraftTarget.set(false, undefined);
+					this._setTargetSession(resource);
+					this._sendContext();
+				} else {
+					this.setTargetSession(resource);
+				}
+			},
 			getTargetSessionResource: (): URI | undefined => this._targetSession.get(),
 			selectModel: async (requestedModel: string): Promise<IVoiceModelSelectionResult> =>
 				(await this.commandService.executeCommand<IVoiceModelSelectionResult>('_chat.voice.selectModel', requestedModel)
@@ -1790,6 +1804,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				this._replyPlayedSinceSend = true;
 				this._voiceState.set('speaking', undefined);
 				this._statusText.set('Speaking...', undefined);
+				this._startBargeInListen();
 			} else if (this._isConnected.get()) {
 				this._voiceState.set(this._pttHeld ? 'listening' : 'idle', undefined);
 				this._statusText.set(this._pttHeld ? 'Listening...' : 'Hold to speak...', undefined);
@@ -2117,7 +2132,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					this._voiceState.set(this._remoteAudioSpeaking ? 'speaking' : this._awaitingReplyAudio ? 'processing' : 'idle', undefined);
 					this._statusText.set(this._remoteAudioSpeaking ? 'Speaking...' : this._awaitingReplyAudio ? 'Waiting for response...' : 'Hold to speak...', undefined);
 					this._sendContext();
-					this.voiceClientService.sendToolResult(e.callId, result);
+					this.voiceClientService.sendToolResult(e.callId, result, e.name, e.args);
 				};
 				const sendPromise = this._prepareNewSessionTarget(createNewSession, text).then(result => {
 					if (!isCurrent()) {
@@ -2155,13 +2170,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				if (passiveTools.includes(e.name)) {
 					this.voiceToolDispatchService.dispatchToolCall(e).then(result => {
 						if (isCurrent()) {
-							this.voiceClientService.sendToolResult(e.callId, result);
+							this.voiceClientService.sendToolResult(e.callId, result, e.name, e.args);
 						}
 					}, err => {
 						// Always answer, even on failure, so the backend isn't left waiting on this callId.
 						this.logService.error(`[voice] passive tool ${e.name} dispatch failed`, err);
 						if (isCurrent()) {
-							this.voiceClientService.sendToolResult(e.callId, 'error');
+							this.voiceClientService.sendToolResult(e.callId, 'error', e.name, e.args);
 						}
 					});
 					return;
@@ -2222,7 +2237,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					if (!isCurrent()) {
 						return;
 					}
-					this.voiceClientService.sendToolResult(e.callId, result);
+					this.voiceClientService.sendToolResult(e.callId, result, e.name, e.args);
 					settle();
 				}, err => {
 					// Always answer, even on failure, so the backend isn't left waiting on this callId.
@@ -2230,7 +2245,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					if (!isCurrent()) {
 						return;
 					}
-					this.voiceClientService.sendToolResult(e.callId, 'error');
+					this.voiceClientService.sendToolResult(e.callId, 'error', e.name, e.args);
 					settle();
 				});
 			} else {

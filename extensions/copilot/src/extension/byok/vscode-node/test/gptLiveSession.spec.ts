@@ -80,6 +80,7 @@ describe('createGptLiveSession', () => {
 				json: {
 					session: {
 						model: 'configured-live-model',
+						instructions: expect.stringContaining('Handle session awareness and session navigation yourself with the client session tools'),
 						delegation: { type: 'client' },
 					},
 					transport: {

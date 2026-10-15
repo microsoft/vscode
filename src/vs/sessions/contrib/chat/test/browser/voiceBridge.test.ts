@@ -18,7 +18,7 @@ import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contri
 import { IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatViewModel } from '../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { IVoiceSessionController } from '../../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
-import { IChat, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ICreateNewSessionOptions, ISendRequestOptions, ISendRequestSentEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IOpenNewSessionOptions, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL, NewChatVoiceTargetService } from '../../browser/newChatVoice.js';
@@ -28,7 +28,11 @@ import { prepareNewVoiceSession, SessionsVoiceActiveSessionContribution, Session
 suite('SessionsVoiceBridgeContribution - input ownership', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function registerBridge(widget: IChatWidget | undefined, composer: INewChatVoiceComposer | undefined) {
+	function registerBridge(
+		widget: IChatWidget | undefined,
+		composer: INewChatVoiceComposer | undefined,
+		sessionsManagementService: ISessionsManagementService = new class extends mock<ISessionsManagementService>() { }(),
+	) {
 		disposables.add(new SessionsVoiceBridgeContribution(
 			new TestConfigurationService({ 'agents.voice.enabled': true }),
 			new class extends mock<IChatWidgetService>() {
@@ -40,7 +44,7 @@ suite('SessionsVoiceBridgeContribution - input ownership', () => {
 			new class extends mock<ISessionsService>() {
 				override readonly activeSession = constObservable(undefined);
 			}(),
-			new class extends mock<ISessionsManagementService>() { }(),
+			sessionsManagementService,
 			new class extends mock<INewChatVoiceTargetService>() {
 				override readonly activeComposer = constObservable(composer);
 			}(),
@@ -115,6 +119,117 @@ suite('SessionsVoiceBridgeContribution - input ownership', () => {
 		}();
 		const accepted = await registerBridge(widget, undefined)('Edited input', resource.toString());
 		assert.deepStrictEqual({ populated, accepted }, { populated: ['Edited input'], accepted: false });
+	});
+
+	test('resolves a session title against the Agents window session model', () => {
+		const favoriteResource = URI.parse('agent-session://test/favorite');
+		const weatherResource = URI.parse('agent-session://test/weather');
+		const otherWeatherResource = URI.parse('agent-session://test/other-weather');
+		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
+			override getSessions(): ISession[] {
+				return [
+					upcastPartial<ISession>({
+						resource: favoriteResource,
+						title: constObservable('Favorite chocolate'),
+					}),
+					upcastPartial<ISession>({
+						resource: weatherResource,
+						title: constObservable('Fun weather question'),
+					}),
+					upcastPartial<ISession>({
+						resource: otherWeatherResource,
+						title: constObservable('Other weather report'),
+					}),
+				];
+			}
+		}();
+		registerBridge(undefined, undefined, sessionsManagementService);
+
+		const resolve = CommandsRegistry.getCommand('_chat.voice.resolveSession')!.handler;
+		const accessor = new class extends mock<ServicesAccessor>() { }();
+		assert.deepStrictEqual({
+			exact: resolve(accessor, 'Favorite chocolate'),
+			withSuffix: resolve(accessor, 'Favorite chocolate session'),
+			uniquePartial: resolve(accessor, 'weather question session'),
+			tooBroad: resolve(accessor, 'weather'),
+			missing: resolve(accessor, 'Missing'),
+		}, {
+			exact: favoriteResource.toString(),
+			withSuffix: favoriteResource.toString(),
+			uniquePartial: weatherResource.toString(),
+			tooBroad: undefined,
+			missing: undefined,
+		});
+	});
+
+	test('reports session information from the Agents window session model', () => {
+		const activeResource = URI.parse('agent-session://test/active');
+		const idleResource = URI.parse('agent-session://test/idle');
+		const archivedResource = URI.parse('agent-session://test/archived');
+		const sessions = [
+			upcastPartial<ISession>({
+				resource: activeResource,
+				title: constObservable('Active session'),
+				status: constObservable(SessionStatus.InProgress),
+				updatedAt: constObservable(new Date('2026-01-02T00:00:00Z')),
+				isArchived: constObservable(false),
+			}),
+			upcastPartial<ISession>({
+				resource: idleResource,
+				title: constObservable('Idle session'),
+				status: constObservable(SessionStatus.Completed),
+				updatedAt: constObservable(new Date('2026-01-01T00:00:00Z')),
+				isArchived: constObservable(false),
+			}),
+			upcastPartial<ISession>({
+				resource: archivedResource,
+				title: constObservable('Archived session'),
+				status: constObservable(SessionStatus.Completed),
+				updatedAt: constObservable(new Date('2025-01-01T00:00:00Z')),
+				isArchived: constObservable(true),
+			}),
+		];
+		disposables.add(new SessionsVoiceBridgeContribution(
+			new TestConfigurationService({ 'agents.voice.enabled': true }),
+			new class extends mock<IChatWidgetService>() { }(),
+			new class extends mock<ISessionsService>() {
+				override readonly activeSession = constObservable(upcastPartial<IActiveSession>({ resource: activeResource }));
+			}(),
+			new class extends mock<ISessionsManagementService>() {
+				override getSessions(): ISession[] {
+					return sessions;
+				}
+			}(),
+			new class extends mock<INewChatVoiceTargetService>() {
+				override readonly activeComposer = constObservable(undefined);
+			}(),
+			new class extends mock<IVoiceSessionController>() { }(),
+			new class extends mock<INewSessionComposerService>() { }(),
+			new NullLogService(),
+		));
+
+		const result = JSON.parse(String(CommandsRegistry.getCommand('_chat.voice.getSessionInfo')!.handler(
+			new class extends mock<ServicesAccessor>() { }(),
+		)));
+		assert.deepStrictEqual({
+			total_sessions: result.total_sessions,
+			counts: result.counts,
+			sessions: result.sessions.map((session: { id: string; label: string; state: string; is_active: boolean }) => ({
+				id: session.id,
+				label: session.label,
+				state: session.state,
+				is_active: session.is_active,
+			})),
+			truncated: result.truncated,
+		}, {
+			total_sessions: 2,
+			counts: { working: 1, waiting_for_input: 0, idle: 1 },
+			sessions: [
+				{ id: activeResource.toString(), label: 'Active session', state: 'working', is_active: true },
+				{ id: idleResource.toString(), label: 'Idle session', state: 'idle', is_active: false },
+			],
+			truncated: false,
+		});
 	});
 });
 

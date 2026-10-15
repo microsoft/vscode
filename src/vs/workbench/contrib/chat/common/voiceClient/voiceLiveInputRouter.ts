@@ -75,6 +75,67 @@ function questionPrompt(question: IVoicePendingQuestion): string {
 	return localize('voice.live.questionPrompt', "{0} {1}", question.title, options).trim();
 }
 
+function normalizeSessionUtterance(text: string): string {
+	return text
+		.trim()
+		.replace(/^(?:\[[^\]\r\n]{1,40}\]\s*)+/, '')
+		.replace(/^(?:(?:great|thanks|thank you|okay|ok|sure)\b[.!,:]?\s*)+/i, '')
+		.replace(/^(?:now\s+)?(?:i\s+(?:want|need)\s+you\s+to|i(?:'d| would)\s+like\s+you\s+to|can\s+you|could\s+you|would\s+you)\s+/i, '')
+		.replace(/[.!?]+$/, '')
+		.trim();
+}
+
+function normalizeSessionLabel(label: string): string {
+	return label.trim().toLocaleLowerCase().replace(/\s+session$/, '').trim();
+}
+
+function sessionNavigationTarget(text: string): string | undefined {
+	const normalized = normalizeSessionUtterance(text);
+	const patterns = [
+		/^(?:(?:please|okay|ok|hey|well|wet)\s*[,.]?\s*)*(?:switch|change|move|navigate)\s+(?:the\s+)?sessions?\s+(?:to\s+)?(?<target>.+)$/i,
+		/^(?:(?:please|okay|ok|hey|well|wet)\s*[,.]?\s*)*(?:switch|change|move|navigate|go|open|show|focus)\s+(?:me\s+)?(?:to\s+)?(?:the\s+)?session\s+(?:named\s+|called\s+)?(?<target>.+)$/i,
+		/^(?:(?:please|okay|ok|hey|well|wet)\s*[,.]?\s*)*(?:switch|change|move|navigate|go|open|show|focus)\s+(?:me\s+)?(?:to\s+)?(?:the\s+)?(?<target>.+\bsession)$/i,
+		/^(?:to\s+)?(?:the\s+)?session\s+(?:named\s+|called\s+)(?<target>.+)$/i,
+	];
+	for (const pattern of patterns) {
+		const target = pattern.exec(normalized)?.groups?.target.trim().replace(/^["']|["']$/g, '');
+		if (target) {
+			return target;
+		}
+	}
+	return undefined;
+}
+
+function isSessionInformationRequest(text: string): boolean {
+	const normalized = normalizeSessionUtterance(text);
+	return [
+		/^(?:please\s+)?(?:which|what)\b.*\b(?:current|active|other)?\s*sessions?\b/i,
+		/^(?:please\s+)?how many\s+sessions?\b/i,
+		/^(?:please\s+)?tell me\b.*\b(?:current|active|other)?\s*sessions?\b/i,
+	].some(pattern => pattern.test(normalized));
+}
+
+function resolveSessionRequest(callId: string, text: string, sessions: readonly VoiceSession[]): IVoiceToolCall | undefined {
+	const navigationTarget = sessionNavigationTarget(text);
+	if (navigationTarget) {
+		const normalizedTarget = normalizeSessionLabel(navigationTarget);
+		const matches = sessions.filter(session => session.label && normalizeSessionLabel(session.label) === normalizedTarget);
+		const sessionLabel = matches.length === 1 ? matches[0].label! : navigationTarget;
+		return {
+			callId,
+			name: 'focus_session',
+			args: {
+				coding_session_id: matches.length === 1 ? matches[0].id : navigationTarget,
+				session_label: sessionLabel,
+			},
+		};
+	}
+	if (isSessionInformationRequest(text)) {
+		return { callId, name: 'get_session_info', args: {} };
+	}
+	return undefined;
+}
+
 /**
  * Routes direct-provider replies using an input-turn snapshot, never model
  * guesses. Only a still-published pending occurrence can receive a response.
@@ -148,13 +209,20 @@ export class VoiceLiveInputRouter {
 		if (!session) {
 			return this._context.sessions.some(candidate => candidate.is_active)
 				? stale
-				: { toolCall: { callId, name: 'send_to_chat', args: { text } } };
+				: { toolCall: resolveSessionRequest(callId, text, this._context.sessions) ?? { callId, name: 'send_to_chat', args: { text } } };
 		}
 		if (!current || JSON.stringify(current.pending) !== JSON.stringify(session.pending)) {
 			return stale;
 		}
+		const sessionRequest = resolveSessionRequest(callId, text, this._context.sessions);
+		if (sessionRequest?.name === 'focus_session') {
+			return { toolCall: sessionRequest };
+		}
 		const pending = session.pending;
 		if (!pending) {
+			if (sessionRequest) {
+				return { toolCall: sessionRequest };
+			}
 			if (session.agent_state === 'waiting_for_confirmation' || session.confirmation_type) {
 				return { clarification: localize('voice.live.unsupportedPrompt', "This prompt cannot be answered by voice. Please respond in the chat input.") };
 			}

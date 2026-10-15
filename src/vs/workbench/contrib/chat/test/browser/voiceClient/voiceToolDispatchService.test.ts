@@ -65,12 +65,14 @@ suite('VoiceToolDispatchService - session actions', () => {
 		readonly chatModels?: readonly IChatModel[];
 		readonly selectModelResult?: IVoiceModelSelectionResult;
 		readonly switchSucceeds?: boolean;
+		readonly sessionInfo?: string;
 	}
 
 	function createActionHarness(options: IActionHarnessOptions = {}) {
 		const calls = {
 			switchedTo: [] as URI[],
 			targeted: [] as URI[],
+			preservedVoice: [] as boolean[],
 			selectedModels: [] as string[],
 		};
 		let currentResource = options.currentResource;
@@ -103,11 +105,13 @@ suite('VoiceToolDispatchService - session actions', () => {
 				currentResource = resource;
 				return true;
 			}
-			override setTargetSession(resource: URI): void {
+			override setTargetSession(resource: URI, preserveVoice?: boolean): void {
 				targetResource = resource;
 				calls.targeted.push(resource);
+				calls.preservedVoice.push(preserveVoice === true);
 			}
 			override getTargetSessionResource(): URI | undefined { return targetResource; }
+			override async getSessionInfo(): Promise<string | undefined> { return options.sessionInfo; }
 			override async selectModel(requestedModel: string): Promise<IVoiceModelSelectionResult> {
 				calls.selectedModels.push(requestedModel);
 				return options.selectModelResult ?? {
@@ -129,9 +133,17 @@ suite('VoiceToolDispatchService - session actions', () => {
 
 		const result = await dispatch(service, 'focus_session', { coding_session_id: resource.toString() });
 
-		assert.deepStrictEqual(result, { ok: true, session_id: resource.toString() });
-		assert.strictEqual(calls.switchedTo[0]?.toString(), resource.toString());
-		assert.strictEqual(calls.targeted[0]?.toString(), resource.toString());
+		assert.deepStrictEqual({
+			result,
+			switchedTo: calls.switchedTo.map(target => target.toString()),
+			targeted: calls.targeted.map(target => target.toString()),
+			preservedVoice: calls.preservedVoice,
+		}, {
+			result: { ok: true, session_id: resource.toString() },
+			switchedTo: [resource.toString()],
+			targeted: [resource.toString()],
+			preservedVoice: [true],
+		});
 	});
 
 	test('focuses a session by its human-readable label', async () => {
@@ -166,6 +178,36 @@ suite('VoiceToolDispatchService - session actions', () => {
 			{ ok: true, session_id: resource.toString() },
 		);
 		assert.deepStrictEqual(calls, [resource]);
+	});
+
+	test('uses the frontend session resolver when the shared session model does not contain the target', async () => {
+		const resource = URI.parse('agent-session://test/favorite');
+		const { service, calls } = createActionHarness();
+		service.setDelegate(new class extends mock<IVoiceToolDispatchDelegate>() {
+			override async resolveSessionResource(sessionIdOrLabel: string): Promise<URI | undefined> {
+				return sessionIdOrLabel === 'Favorite chocolate' ? resource : undefined;
+			}
+			override async switchToSession(target: URI): Promise<boolean> {
+				calls.switchedTo.push(target);
+				return true;
+			}
+			override setTargetSession(target: URI): void {
+				calls.targeted.push(target);
+			}
+			override async getCurrentSessionResource(): Promise<URI | undefined> {
+				return undefined;
+			}
+		}());
+
+		assert.deepStrictEqual({
+			result: await dispatch(service, 'focus_session', { coding_session_id: 'Favorite chocolate' }),
+			switchedTo: calls.switchedTo.map(target => target.toString()),
+			targeted: calls.targeted.map(target => target.toString()),
+		}, {
+			result: { ok: true, session_id: resource.toString() },
+			switchedTo: [resource.toString()],
+			targeted: [resource.toString()],
+		});
 	});
 
 	test('sets a model on the current session without changing the voice target', async () => {
@@ -263,6 +305,18 @@ suite('VoiceToolDispatchService - session actions', () => {
 
 		assert.deepStrictEqual(result.counts, { working: 0, waiting_for_input: 0, idle: 1 });
 		assert.strictEqual(result.sessions[0].state, 'idle');
+	});
+
+	test('uses session information from the active frontend', async () => {
+		const sessionInfo = {
+			total_sessions: 2,
+			counts: { working: 1, waiting_for_input: 0, idle: 1 },
+			sessions: [{ id: 'agent-session://test/authoritative', label: 'Authoritative session' }],
+			truncated: false,
+		};
+		const { service } = createActionHarness({ sessionInfo: JSON.stringify(sessionInfo) });
+
+		assert.deepStrictEqual(await dispatch(service, 'get_session_info'), sessionInfo);
 	});
 });
 

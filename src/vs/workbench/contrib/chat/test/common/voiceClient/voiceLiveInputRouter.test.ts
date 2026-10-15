@@ -180,6 +180,65 @@ suite('VoiceLiveInputRouter', () => {
 		});
 	});
 
+	test('routes explicit session navigation before answering the active pending prompt', () => {
+		const router = new VoiceLiveInputRouter();
+		router.updateContext({
+			display_locale: 'en-US',
+			sessions: [
+				{ id: 'chat-session:/a', label: 'Alpha', is_active: true, agent_state: 'waiting_for_confirmation', pending: approval },
+				{ id: 'chat-session:/b', label: 'Favorite chocolate', is_active: false, agent_state: 'idle' },
+			],
+		});
+
+		assert.deepStrictEqual(router.resolve('switch', 'Switch to the favorite chocolate session.', router.captureTarget()), {
+			toolCall: {
+				callId: 'switch',
+				name: 'focus_session',
+				args: { coding_session_id: 'chat-session:/b', session_label: 'Favorite chocolate' },
+			},
+		});
+	});
+
+	test('routes session awareness and navigation to client session tools without capturing coding requests', () => {
+		const router = new VoiceLiveInputRouter();
+		router.updateContext({
+			display_locale: 'en-US',
+			sessions: [
+				{ id: 'chat-session:/a', label: 'Alpha', is_active: true, agent_state: 'idle' },
+				{ id: 'chat-session:/b', label: 'Favorite chocolate', is_active: false, agent_state: 'idle' },
+			],
+		});
+		const target = router.captureTarget();
+
+		assert.deepStrictEqual([
+			router.resolve('current', 'Which session am I in right now?', target).toolCall,
+			router.resolve('count', 'How many sessions do I have, and name one other session?', target).toolCall,
+			router.resolve('list-all', 'List all my sessions and describe each session.', target),
+			router.resolve('switch-named', 'Switch to the session named Favorite chocolate.', target).toolCall,
+			router.resolve('switch-prefixed', 'wetSwitch to the session named Favorite chocolate.', target).toolCall,
+			router.resolve('switch-fragment', 'to the session named Favorite chocolate.', target).toolCall,
+			router.resolve('switch-noise', '[mouth noise] Switch to the favorite chocolate session', target).toolCall,
+			router.resolve('switch-conversational', 'Great. Now I want you to switch to the favorite chocolate session', target).toolCall,
+			router.resolve('switch-title', 'Switch to Fun weather question session.', target).toolCall,
+			router.resolve('annotated-coding', '[mouth noise] Fix the session timeout in the tests.', target).toolCall,
+			router.resolve('conversational-coding', 'Great. Now I want you to fix the session timeout in the tests.', target).toolCall,
+			router.resolve('coding', 'Fix the session timeout in the tests.', target).toolCall,
+		], [
+			{ callId: 'current', name: 'get_session_info', args: {} },
+			{ callId: 'count', name: 'get_session_info', args: {} },
+			{ toolCall: { callId: 'list-all', name: 'send_to_chat', args: { text: 'List all my sessions and describe each session.', coding_session_id: 'chat-session:/a' } } },
+			{ callId: 'switch-named', name: 'focus_session', args: { coding_session_id: 'chat-session:/b', session_label: 'Favorite chocolate' } },
+			{ callId: 'switch-prefixed', name: 'focus_session', args: { coding_session_id: 'chat-session:/b', session_label: 'Favorite chocolate' } },
+			{ callId: 'switch-fragment', name: 'focus_session', args: { coding_session_id: 'chat-session:/b', session_label: 'Favorite chocolate' } },
+			{ callId: 'switch-noise', name: 'focus_session', args: { coding_session_id: 'chat-session:/b', session_label: 'Favorite chocolate' } },
+			{ callId: 'switch-conversational', name: 'focus_session', args: { coding_session_id: 'chat-session:/b', session_label: 'Favorite chocolate' } },
+			{ callId: 'switch-title', name: 'focus_session', args: { coding_session_id: 'Fun weather question session', session_label: 'Fun weather question session' } },
+			{ callId: 'annotated-coding', name: 'send_to_chat', args: { text: '[mouth noise] Fix the session timeout in the tests.', coding_session_id: 'chat-session:/a' } },
+			{ callId: 'conversational-coding', name: 'send_to_chat', args: { text: 'Great. Now I want you to fix the session timeout in the tests.', coding_session_id: 'chat-session:/a' } },
+			{ callId: 'coding', name: 'send_to_chat', args: { text: 'Fix the session timeout in the tests.', coding_session_id: 'chat-session:/a' } },
+		]);
+	});
+
 	test('supports exact multi-select choices and explicit custom answers without guessing', () => {
 		const router = new VoiceLiveInputRouter();
 		const pending = { ...questions, questions: [{ ...questions.questions![0], type: 'multiSelect' as const, allow_freeform: true }] };

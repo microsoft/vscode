@@ -16,6 +16,7 @@ import { IVoiceSessionController, VoiceNewSessionPreparationResult } from '../..
 import { combineVoiceInput } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceInputUtils.js';
 import { IVoiceModelSelectionResult, resolveVoiceModel } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceToolDispatchService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { IActiveSession, inheritableSessionTarget, ISendRequestOptions, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL } from './newChatVoice.js';
 import { INewSessionComposerService } from './newSessionComposerService.js';
@@ -79,6 +80,7 @@ export async function prepareNewVoiceSession(
  * Commands are registered only while `agents.voice.enabled` is set:
  * - `_chat.voice.acceptInput` injects transcribed text into the focused chat widget.
  * - `_chat.voice.getCurrentSession` reports the active session's chat resource.
+ * - `_chat.voice.getSessionInfo` reports the authoritative Agents session list.
  * - `_chat.voice.prepareNewSession` creates a provider-backed draft for a new-session request.
  * - `_chat.voice.switchToSession` activates the session that owns a chat resource.
  * - `_chat.voice.activateSession` narrates a session's pending voice item on demand.
@@ -189,6 +191,71 @@ export class SessionsVoiceBridgeContribution extends Disposable implements IWork
 				? composer.selectVoiceModel(resolved.identifier)
 				: widget!.inputPart.switchModelByIdentifier(resolved.identifier, true, true);
 			return selected ? resolved : { ok: false, reason: 'selection_failed', available_models: resolved.available_models };
+		}));
+
+		this._commandDisposables.add(CommandsRegistry.registerCommand('_chat.voice.resolveSession', (_accessor, sessionIdOrLabel: string): string | undefined => {
+			const requested = sessionIdOrLabel.trim().toLocaleLowerCase();
+			const sessions = this.sessionsManagementService.getSessions();
+			const resourceMatches = sessions.filter(session => session.resource.toString().toLocaleLowerCase() === requested);
+			if (resourceMatches.length === 1) {
+				return resourceMatches[0].resource.toString();
+			}
+			const normalizeLabel = (label: string) => label.trim().toLocaleLowerCase().replace(/\s+session$/, '').trim();
+			const normalizedRequested = normalizeLabel(requested);
+			const labelMatches = sessions.filter(session => normalizeLabel(session.title.get()) === normalizedRequested);
+			if (labelMatches.length === 1) {
+				return labelMatches[0].resource.toString();
+			}
+			const requestedWords = normalizedRequested.split(/\s+/);
+			if (requestedWords.length < 2) {
+				return undefined;
+			}
+			const partialMatches = sessions.filter(session => {
+				const normalizedTitle = normalizeLabel(session.title.get());
+				return normalizedTitle.includes(normalizedRequested) || normalizedRequested.includes(normalizedTitle);
+			});
+			return partialMatches.length === 1 ? partialMatches[0].resource.toString() : undefined;
+		}));
+		this._commandDisposables.add(CommandsRegistry.registerCommand('_chat.voice.getSessionInfo', (): string => {
+			const activeSession = this.sessionsService.activeSession.get();
+			const sessions = this.sessionsManagementService.getSessions()
+				.filter(session => !session.isArchived.get())
+				.map(session => {
+					const status = session.status.get();
+					const updatedAt = session.updatedAt.get().getTime();
+					return {
+						id: session.resource.toString(),
+						label: session.title.get() || undefined,
+						session_type: 'agent',
+						state: status === SessionStatus.InProgress ? 'working'
+							: status === SessionStatus.NeedsInput ? 'waiting_for_input'
+								: status === SessionStatus.Untitled || status === SessionStatus.Completed ? 'idle'
+									: 'unknown',
+						is_active: isEqual(activeSession?.resource, session.resource),
+						insertions: 0,
+						deletions: 0,
+						last_activity: updatedAt,
+						last_activity_minutes_ago: Math.max(0, Math.round((Date.now() - updatedAt) / 60000)),
+					};
+				})
+				.sort((a, b) => Number(b.is_active) - Number(a.is_active) || b.last_activity - a.last_activity);
+			const counts = sessions.reduce((result, session) => {
+				if (session.state === 'working') {
+					result.working++;
+				} else if (session.state === 'waiting_for_input') {
+					result.waiting_for_input++;
+				} else if (session.state === 'idle') {
+					result.idle++;
+				}
+				return result;
+			}, { working: 0, waiting_for_input: 0, idle: 0 });
+			const visibleSessions = sessions.slice(0, 20).map(({ last_activity, ...session }) => session);
+			return JSON.stringify({
+				total_sessions: sessions.length,
+				counts,
+				sessions: visibleSessions,
+				truncated: visibleSessions.length < sessions.length,
+			});
 		}));
 
 		// Reveal the session that owns the given chat resource.

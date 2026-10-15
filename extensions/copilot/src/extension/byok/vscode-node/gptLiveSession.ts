@@ -94,7 +94,7 @@ export async function createGptLiveSession(fetcherService: IFetcherService, apiK
 		json: {
 			session: {
 				model: modelId,
-				instructions: 'You are the voice interface for a coding agent. Be concise. Delegate coding tasks to the client and clearly communicate its progress and results.',
+				instructions: 'You are the voice interface for a coding agent. Be concise. Handle session awareness and session navigation yourself with the client session tools; never delegate those requests to the coding agent. Delegate coding tasks to the client and clearly communicate its progress and results.',
 				delegation: {
 					type: 'client',
 				},
