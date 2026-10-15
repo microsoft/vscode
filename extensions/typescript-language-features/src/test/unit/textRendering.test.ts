@@ -177,6 +177,61 @@ suite('typescript.previewer', () => {
 			'a [`dog`](command:_typescript.openJsDocLink?%5B%7B%22file%22%3A%7B%22path%22%3A%22%2Fpath%2Ffile.ts%22%2C%22scheme%22%3A%22file%22%7D%2C%22position%22%3A%7B%22line%22%3A6%2C%22character%22%3A4%7D%7D%5D "Open symbol link") b');
 	});
 
+	test('Should render @type tag generics as code (#341685)', () => {
+		assert.strictEqual(
+			tagsToMarkdown([
+				{
+					name: 'type',
+					text: '{Promise<number> | Promise<string>}'
+				}
+			], noopToResource),
+			'*@type* — `Promise<number> | Promise<string>`');
+	});
+
+	test('Should render @type tag with trailing description text', () => {
+		assert.strictEqual(
+			tagsToMarkdown([
+				{
+					name: 'type',
+					text: '{Promise<number>} some doc text'
+				}
+			], noopToResource),
+			'*@type* — `Promise<number>` some doc text');
+	});
+
+	test('Should render @satisfies tag generics as code', () => {
+		assert.strictEqual(
+			tagsToMarkdown([
+				{
+					name: 'satisfies',
+					text: '{Promise<number> | Promise<string>}'
+				}
+			], noopToResource),
+			'*@satisfies* — `Promise<number> | Promise<string>`');
+	});
+
+	test('Should render @throws tag generics as code', () => {
+		assert.strictEqual(
+			tagsToMarkdown([
+				{
+					name: 'throws',
+					text: '{Promise<number>} if bad'
+				}
+			], noopToResource),
+			'*@throws* — `Promise<number>` if bad');
+	});
+
+	test('Should render @type tag with nested object type generics as code', () => {
+		assert.strictEqual(
+			tagsToMarkdown([
+				{
+					name: 'type',
+					text: '{Array<{ a: number }>}'
+				}
+			], noopToResource),
+			'*@type* — `Array<{ a: number }>`');
+	});
+
 	test('Should render @linkcode text as code', () => {
 		assert.strictEqual(
 			asPlainTextWithLinks([

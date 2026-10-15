@@ -59,9 +59,45 @@ function getTagBodyText(
 			return makeCodeblock(text);
 		}
 		default: {
-			return text;
+			return wrapLeadingTypeExpressionAsCode(text);
 		}
 	}
+}
+
+/**
+ * Many JSDoc tags (`@type`, `@satisfies`, `@enum`, `@throws`, `@this`, etc.) start with a
+ * `{TypeExpression}` immediately after the tag name. That type expression is not source code,
+ * so it is not put in a code block, which means it is later rendered as plain Markdown.
+ *
+ * Markdown treats bracket pairs like `<number>` as inline HTML. Since `<number>` is not an
+ * allowed/known HTML tag, it gets stripped out by the Markdown sanitizer, silently eating any
+ * generic type arguments (e.g. `Promise<number>` renders as just `Promise`). See #341685.
+ *
+ * To avoid this, wrap the leading `{TypeExpression}` in an inline code span so it is rendered
+ * verbatim instead of being interpreted as Markdown/HTML.
+ */
+function wrapLeadingTypeExpressionAsCode(text: string): string {
+	if (text.charAt(0) !== '{') {
+		return text;
+	}
+
+	let depth = 0;
+	for (let i = 0; i < text.length; ++i) {
+		switch (text.charAt(i)) {
+			case '{':
+				depth++;
+				break;
+			case '}':
+				if (--depth === 0) {
+					const typeExpression = text.slice(1, i);
+					const rest = text.slice(i + 1).trim();
+					const code = '`' + typeExpression.replace(/`/g, '\\`') + '`';
+					return rest ? `${code} ${rest}` : code;
+				}
+				break;
+		}
+	}
+	return text;
 }
 
 function getTagDocumentation(
