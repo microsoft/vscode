@@ -53,6 +53,17 @@ const searchTabActionWhen = ContextKeyExpr.and(
 	addTabActionWhen,
 	IsQuickChatSessionContext.negate());
 
+// Only offer the Changes and Files tabs when they are not already shown.
+const changesAddTabWhen = ContextKeyExpr.and(
+	addTabLayoutWhen,
+	DesktopChangesTabAvailableContext,
+	ContextKeyExpr.or(singleEditorTitleWhen, DesktopChangesTabMissingContext));
+
+const filesAddTabWhen = ContextKeyExpr.and(
+	addTabLayoutWhen,
+	DesktopFilesTabAvailableContext,
+	ContextKeyExpr.or(singleEditorTitleWhen, DesktopFilesTabMissingContext));
+
 export class NewFileTabAction extends Action2 {
 
 	constructor() {
@@ -69,16 +80,22 @@ export class NewFileTabAction extends Action2 {
 				when: filesTabActionWhen,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyE,
 			},
-			menu: {
+			menu: [{
 				id: Menus.SessionsEditorTabsBarAddTab,
 				group: 'navigation',
 				order: 1,
-				// Only offer when the Files tab is not already shown.
-				when: ContextKeyExpr.and(
-					addTabLayoutWhen,
-					DesktopFilesTabAvailableContext,
-					ContextKeyExpr.or(singleEditorTitleWhen, DesktopFilesTabMissingContext))
-			}
+				when: filesAddTabWhen
+			}, {
+				id: Menus.SessionsEmptyEditorGroupAddTab,
+				group: 'navigation',
+				order: 1,
+				when: filesAddTabWhen
+			}, {
+				id: Menus.SessionToolbar,
+				group: 'navigation',
+				order: 1,
+				when: filesTabActionWhen
+			}]
 		});
 	}
 
@@ -111,12 +128,22 @@ export class NewBrowserTabAction extends Action2 {
 				when: addTabActionWhen,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyB,
 			},
-			menu: {
+			menu: [{
 				id: Menus.SessionsEditorTabsBarAddTab,
 				group: 'navigation',
 				order: 2,
 				when: addTabLayoutWhen
-			}
+			}, {
+				id: Menus.SessionsEmptyEditorGroupAddTab,
+				group: 'navigation',
+				order: 2,
+				when: addTabLayoutWhen
+			}, {
+				id: Menus.SessionToolbar,
+				group: 'navigation',
+				order: 2,
+				when: addTabActionWhen
+			}]
 		});
 	}
 
@@ -148,6 +175,7 @@ export class NewSearchTabAction extends Action2 {
 				id: Menus.SessionsEditorTabsBarAddTab,
 				group: 'navigation',
 				order: 3,
+				// Only offered from the Add Tab dropdown.
 				when: ContextKeyExpr.and(addTabLayoutWhen, IsQuickChatSessionContext.negate())
 			}
 		});
@@ -176,16 +204,23 @@ export class NewChangesTabAction extends Action2 {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG,
 				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KeyG },
 			},
-			menu: {
+			menu: [{
 				id: Menus.SessionsEditorTabsBarAddTab,
 				group: 'navigation',
 				order: 0,
-				// Only offer when the session has a Changes editor but its tab is closed.
-				when: ContextKeyExpr.and(
-					addTabLayoutWhen,
-					DesktopChangesTabAvailableContext,
-					ContextKeyExpr.or(singleEditorTitleWhen, DesktopChangesTabMissingContext))
-			}
+				when: changesAddTabWhen
+			}, {
+				id: Menus.SessionsEmptyEditorGroupAddTab,
+				group: 'navigation',
+				order: 0,
+				when: changesAddTabWhen
+			}, {
+				id: Menus.SessionToolbar,
+				group: 'navigation',
+				order: 0,
+				// Offered whenever the tab is available; an open tab is activated in place.
+				when: changesTabActionWhen
+			}]
 		});
 	}
 

@@ -7,7 +7,8 @@ import assert from 'assert';
 import * as sinon from 'sinon';
 import * as dom from '../../../../../base/browser/dom.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
-import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { ObjectTree } from '../../../../../base/browser/ui/tree/objectTree.js';
+import { DeferredPromise, retry, timeout } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -62,8 +63,14 @@ import { NewChatWidget } from '../../browser/newChatWidget.js';
 import '../../../../../workbench/browser/media/style.css';
 import '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/media/chatAgentMergeContent.css';
 import '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/media/chatRequestOrigin.css';
-import { ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
+import { AbstractChatView, ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
+import { ChatViewSessionToolbar } from '../../../../browser/parts/sessionToolbar.js';
+import '../../../../browser/parts/media/chatCompositeBar.css';
+import '../../../../browser/parts/media/chatGroupsView.css';
 import '../../../../browser/parts/media/sessionView.css';
+import '../../../../browser/parts/media/sessionsPart.css';
+import '../../browser/media/externalSessionBanner.css';
+import '../../../../../workbench/contrib/chat/browser/promptTimeline/media/promptTimeline.css';
 
 suite('Sessions - Chat View', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -458,8 +465,9 @@ suite('Sessions - Chat View', () => {
 		let offsetReads = 0;
 		let bannerHeight = 35;
 		Object.defineProperty(widgetContainer, 'offsetTop', { get: () => { offsetReads++; return bannerHeight; } });
-		const view: { _layoutChatWidget(): void } = Object.assign(Object.create(ChatView.prototype), {
+		const view: { contentRightInset: number; _layoutChatWidget(): void } = Object.assign(Object.create(ChatView.prototype), {
 			element,
+			contentRightInset: 0,
 			_lastLayout: { width: 500, height: 400 },
 			_externalSessionBanner: { domNode: banner },
 			_widgetContainer: widgetContainer,
@@ -479,10 +487,120 @@ suite('Sessions - Chat View', () => {
 		banner.classList.add('hidden');
 		view._layoutChatWidget();
 		progressOffsets.push(progress.style.top);
-		assert.deepStrictEqual({ hiddenReads, offsetReads, layouts, progressOffsets }, {
+		view.contentRightInset = ChatViewSessionToolbar.RESERVED_WIDTH;
+		view._layoutChatWidget();
+		assert.deepStrictEqual({ hiddenReads, offsetReads, layouts, progressOffsets, viewportWidth: widgetContainer.style.width }, {
 			hiddenReads: 0, offsetReads: 2,
-			layouts: [[400, 500], [365, 500], [340, 500], [400, 500]],
+			layouts: [[400, 500], [365, 500], [340, 500], [400, 500], [400, 462]],
 			progressOffsets: ['0px', '35px', '60px', '0px'],
+			viewportWidth: '500px',
+		});
+	});
+
+	test('keeps chat content centered with the header, moving it aside only where the toolbar would cover it, and retains the outer scrollbar', async () => {
+		const root = dom.append(dom.getActiveDocument().body, dom.$('.monaco-workbench.agent-sessions-workbench'));
+		disposables.add(toDisposable(() => root.remove()));
+		root.style.setProperty('--vscode-spacing-size240', '24px');
+		root.style.setProperty('--vscode-spacing-size40', '4px');
+		root.style.setProperty('--session-view-centered-content-max-width', '950px');
+		const part = dom.append(root, dom.$('.part.sessionspart'));
+		const session = dom.append(part, dom.$('.session-view'));
+		const groups = dom.append(session, dom.$('.chat-groups-view.single-group'));
+		// The toolbar's host publishes its column for surfaces that sit beside it.
+		groups.style.setProperty('--session-toolbar-column-width', '50px');
+		const headerHost = dom.append(groups, dom.$('.chat-group-view-bar'));
+		const header = dom.append(dom.append(headerHost, dom.$('.chat-composite-bar.session-header-bar')), dom.$('.chat-composite-bar-header'));
+		const view = disposables.add(new class extends AbstractChatView {
+			readonly kind = 'chat';
+			protected doLayout(): void { }
+			toJSON(): object { return {}; }
+			focus(): void { }
+		}());
+		view.element.classList.add('chat-view-chat');
+		groups.appendChild(view.element);
+		const widget = dom.append(dom.append(view.element, dom.$('.chat-view-widget')), dom.$('.interactive-session'));
+		const listContainer = dom.append(widget, dom.$('.interactive-list'));
+		const tree = disposables.add(new ObjectTree<number>('session-toolbar-layout-test', listContainer, {
+			getHeight: () => 80,
+			getTemplateId: () => 'message',
+		}, [{
+			templateId: 'message',
+			renderTemplate: container => dom.append(container, dom.$('.interactive-item-container.interactive-response')),
+			renderElement: (node, _index, container: HTMLElement) => { container.textContent = `Response ${node.element}`; },
+			disposeTemplate: () => { },
+		}], { horizontalScrolling: false }));
+		tree.setChildren(null, Array.from({ length: 12 }, (_, element) => ({ element })));
+		const input = dom.append(widget, dom.$('.interactive-input-part'));
+		const suggestion = dom.append(widget, dom.$('.chat-suggest-next-widget'));
+		const banner = dom.append(view.element, dom.$('.external-session-banner'));
+		const rail = dom.append(widget, dom.$('.prompt-timeline-rail'));
+		await retry(async () => {
+			const targetWindow = dom.getWindow(root);
+			if (targetWindow.getComputedStyle(header).maxWidth !== '950px'
+				|| targetWindow.getComputedStyle(widget).maxWidth !== 'none'
+				|| targetWindow.getComputedStyle(banner).boxSizing !== 'border-box'
+				|| targetWindow.getComputedStyle(rail).position !== 'absolute'
+				|| !targetWindow.getComputedStyle(view.element).getPropertyValue('--session-toolbar-content-inset')) {
+				throw new Error('Session header and chat styles have not loaded');
+			}
+		}, 10, 100);
+
+		const snapshot = (width: number, inset: number, split = false) => {
+			widget.classList.remove('prompt-timeline-host', 'prompt-timeline-with-rail');
+			groups.classList.toggle('single-group', !split);
+			session.classList.toggle('grid-layout', split);
+			part.style.width = `${width}px`;
+			headerHost.style.width = `${width}px`;
+			view.layout(width, 300, 0, 0, inset);
+			tree.layout(160, Math.min(split ? Infinity : 950, width - inset));
+			const origin = view.element.getBoundingClientRect();
+			const band = (element: HTMLElement) => {
+				const bounds = element.getBoundingClientRect();
+				return [Math.round(bounds.left - origin.left), Math.round(bounds.width)];
+			};
+			const scrollbar = listContainer.querySelector<HTMLElement>('.scrollbar.vertical')!;
+			return {
+				header: band(header),
+				response: band(listContainer.querySelector<HTMLElement>('.interactive-item-container')!),
+				input: band(input),
+				suggestion: band(suggestion),
+				banner: band(banner),
+				scrollbarRight: Math.round(scrollbar.getBoundingClientRect().right - origin.left),
+			};
+		};
+		// The ruler prompt timeline beside the transcript: its offset from the right edge and where response content ends.
+		const rulerSnapshot = (width: number, inset: number) => {
+			snapshot(width, inset);
+			widget.classList.add('prompt-timeline-host', 'prompt-timeline-with-rail');
+			const origin = view.element.getBoundingClientRect();
+			const response = listContainer.querySelector<HTMLElement>('.interactive-item-container')!;
+			const responseBounds = response.getBoundingClientRect();
+			return {
+				railRightOffset: Math.round(origin.right - rail.getBoundingClientRect().right),
+				contentRight: Math.round(responseBounds.right - Number.parseFloat(dom.getWindow(root).getComputedStyle(response).paddingRight) - origin.left),
+			};
+		};
+
+		assert.deepStrictEqual({
+			narrow: snapshot(600, 38),
+			wide: snapshot(1200, 38),
+			split: snapshot(1200, 38, true),
+			// Just wide enough that the centered band would reach the strip.
+			nearlyWide: snapshot(1000, 38),
+			disabled: snapshot(600, 0),
+			wideDisabled: snapshot(1200, 0),
+			ruler: rulerSnapshot(600, 38),
+			rulerDisabled: rulerSnapshot(600, 0),
+		}, {
+			narrow: { header: [0, 600], response: [0, 562], input: [0, 562], suggestion: [0, 562], banner: [24, 514], scrollbarRight: 600 },
+			wide: { header: [125, 950], response: [125, 950], input: [125, 950], suggestion: [125, 950], banner: [125, 950], scrollbarRight: 1200 },
+			split: { header: [0, 1200], response: [0, 1162], input: [0, 1162], suggestion: [0, 1162], banner: [106, 950], scrollbarRight: 1200 },
+			nearlyWide: { header: [25, 950], response: [12, 950], input: [12, 950], suggestion: [12, 950], banner: [24, 926], scrollbarRight: 1000 },
+			disabled: { header: [0, 600], response: [0, 600], input: [0, 600], suggestion: [0, 600], banner: [24, 552], scrollbarRight: 600 },
+			wideDisabled: { header: [125, 950], response: [125, 950], input: [125, 950], suggestion: [125, 950], banner: [125, 950], scrollbarRight: 1200 },
+			// The rail clears the 50px toolbar column by 4px and reserves the transcript room itself.
+			ruler: { railRightOffset: 54, contentRight: 486 },
+			rulerDisabled: { railRightOffset: 10, contentRight: 530 },
 		});
 	});
 

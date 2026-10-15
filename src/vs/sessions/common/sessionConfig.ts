@@ -11,6 +11,9 @@ export const SESSIONS_CHAT_TABS_SETTING = 'sessions.showChatTabs';
 
 export const SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING = 'sessions.experimental.emptyFileEditorActions';
 
+/** Whether the Session Toolbar is shown beside the active chat in the desktop Agents window. */
+export const SESSION_TOOLBAR_SETTING = 'sessions.showSessionToolbar';
+
 export const SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING = 'sessions.list.groupExternalSessions';
 
 export const SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING = 'sessions.list.externalApplicationBadge';
