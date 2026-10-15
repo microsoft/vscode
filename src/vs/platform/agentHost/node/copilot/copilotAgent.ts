@@ -54,7 +54,7 @@ import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../
 import { AgentChatOperationContext, AgentSession, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent } from '../../common/agent.js';
 import type { ChatUriFormat } from '../../common/agentHostChatMinting.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
-import { autoModeTiers, defaultAutoModeTier, getAutoModeTierDescription, getAutoModeTierLabel, getEnsembleAutoModeTierLabel } from '../../common/autoModeTiers.js';
+import { autoModeTiers, defaultAutoModeTier, DynamicAutoTiersFeatureFlag, getAutoModeTierDescription, getAutoModeTierLabel, getEnsembleAutoModeTierLabel, setAdvertisedAutoModeTiers } from '../../common/autoModeTiers.js';
 import { AUTO_MODEL_ID, isAutoModel } from './modelIdentifiers.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
@@ -156,6 +156,36 @@ function setCopilotTgrepEnvironment(env: Record<string, string | undefined>, ena
 	} else {
 		env['USE_TGREP'] = 'false';
 	}
+}
+
+/** Adds a runtime feature flag to `COPILOT_CLI_ENABLED_FEATURE_FLAGS`, keeping any already enabled. */
+function addCopilotFeatureFlag(env: Record<string, string | undefined>, flag: string): void {
+	const enabledFlags = env['COPILOT_CLI_ENABLED_FEATURE_FLAGS'];
+	const flags = new Set((enabledFlags ?? '').split(',').map(f => f.trim()).filter(Boolean));
+	flags.add(flag);
+	env['COPILOT_CLI_ENABLED_FEATURE_FLAGS'] = [...flags].join(',');
+}
+
+/** The provider's Auto tier metadata from server-level `models.list` (CAPI `/meta`). */
+export type CopilotAutoTierMetadata = NonNullable<Awaited<ReturnType<CopilotClient['rpc']['models']['list']>>['auto']>;
+type CopilotAutoTierDescriptor = CopilotAutoTierMetadata['tiers'][number];
+
+/**
+ * Tiers this runtime can run as an Auto preference: enabled `auto` routing or HydraFusion `fusion`
+ * executions. The runtime rejects HydraFusion Max unless the session has HydraFusion plan v2.
+ */
+function isRunnableAutoTier(tier: CopilotAutoTierDescriptor, hydraFusionV2: boolean): boolean {
+	return tier.status.enabled
+		&& (tier.type === 'auto' || tier.type === 'fusion')
+		&& (tier.id !== COPILOT_HYDRA_FUSION_MAX_MODEL_ID || hydraFusionV2);
+}
+
+/**
+ * The tiers offered in Auto's "Optimize for" picker, in the provider's order. Matches the Copilot
+ * CLI: runnable tiers, without the integrator-only `fast` latency preset.
+ */
+export function getPickerAutoTiers(metadata: CopilotAutoTierMetadata, hydraFusionV2: boolean): CopilotAutoTierDescriptor[] {
+	return metadata.tiers.filter(tier => isRunnableAutoTier(tier, hydraFusionV2) && tier.id !== 'fast');
 }
 
 export async function getCopilotManagedSettingsDiagnostics(
@@ -790,6 +820,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _capiModels: readonly IAgentModelInfo[] = [];
 	/** See {@link _getFallbackAutoModel}. */
 	private _fallbackAutoModel: IAgentModelInfo | undefined;
+	/** Auto routing tiers the provider advertised in the last `models.list`, when the runtime reads CAPI `/meta`. */
+	private _autoTierMetadata: CopilotAutoTierMetadata | undefined;
 	private _ensembleExperimentTriggerPending = false;
 	private _byokModels: readonly IAgentModelInfo[] = [];
 
@@ -1249,6 +1281,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.EnsembleIntelligenceUsesHydraFusion) === true;
 	}
 
+	private _isDynamicAutoTiersEnabled(): boolean {
+		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.DynamicAutoTiers) === true;
+	}
+
 	private _isLocalMemoryEnabled(): boolean {
 		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Memory) === true
 			&& this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.LocalMemory) === true;
@@ -1365,6 +1401,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._isLocalIndexEnabled(),
 			this._configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true,
 			readLocalModelRootConfig(this._configurationService).enabled,
+			this._isDynamicAutoTiersEnabled(),
 		);
 	}
 
@@ -1590,6 +1627,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// change. Not hooked in `_ensureClient`, since `_listModels` calls
 		// it and would recurse.
 		this._capiModels = [];
+		// The replacement may run without `DYNAMIC_AUTO_TIERS`, which rejects the old client's tiers.
+		this._setAutoTierMetadata(undefined);
 		this._publishModels();
 		void this._scheduleModelRefresh();
 	}
@@ -3242,10 +3281,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// sandboxed shells. This becomes a no-op once the bundled CLI defaults the
 			// spawn backend on for all of Linux.
 			if (process.platform === 'linux') {
-				const enabledFlags = env['COPILOT_CLI_ENABLED_FEATURE_FLAGS'];
-				const flags = new Set((enabledFlags ?? '').split(',').map(f => f.trim()).filter(Boolean));
-				flags.add('SHELL_SPAWN_BACKEND');
-				env['COPILOT_CLI_ENABLED_FEATURE_FLAGS'] = [...flags].join(',');
+				addCopilotFeatureFlag(env, 'SHELL_SPAWN_BACKEND');
+			}
+
+			// Have the runtime list models and Auto routing tiers from CAPI `/meta`, so
+			// `models.list` returns the provider's tiers as `auto` and sessions accept them.
+			// This also moves the runtime's whole catalog to `/meta`, so it stays opt-in.
+			if (startupConfig.dynamicAutoTiers) {
+				addCopilotFeatureFlag(env, DynamicAutoTiersFeatureFlag);
+				this._logService.info(`[Copilot] Enabled runtime feature flag ${DynamicAutoTiersFeatureFlag}`);
 			}
 
 			// Identify VS Code's agent host traffic in CAPI
@@ -3443,15 +3487,50 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!isAutoModel(modelId)) {
 			return undefined;
 		}
+		const title = localize('copilot.modelAutoTier.title', "Optimize for");
+		const description = localize('copilot.modelAutoTier.description', "Biases which models Auto routes this session to.");
+		const metadata = this._autoTierMetadata;
+		if (metadata) {
+			const tiers = getPickerAutoTiers(metadata, this._isHydraFusionV2Enabled());
+			if (!tiers.length) {
+				return undefined;
+			}
+			const ids = tiers.map(tier => tier.id);
+			return {
+				type: 'string',
+				title,
+				description,
+				default: ids.includes(metadata.defaultTier) ? metadata.defaultTier : ids[0],
+				enum: ids,
+				enumLabels: tiers.map(tier => tier.displayName || getAutoModeTierLabel(tier.id)),
+				enumDescriptions: tiers.map(tier => tier.description || getAutoModeTierDescription(tier.id) || ''),
+			};
+		}
 		return {
 			type: 'string',
-			title: localize('copilot.modelAutoTier.title', "Optimize for"),
-			description: localize('copilot.modelAutoTier.description', "Biases which models Auto routes this session to."),
+			title,
+			description,
 			default: defaultAutoModeTier,
 			enum: [...autoModeTiers],
 			enumLabels: autoModeTiers.map(getAutoModeTierLabel),
 			enumDescriptions: autoModeTiers.map(tier => getAutoModeTierDescription(tier) ?? ''),
 		};
+	}
+
+	/**
+	 * Records the provider's Auto tiers from `models.list`. Present only when the runtime runs with
+	 * `DYNAMIC_AUTO_TIERS` and CAPI `/meta` returned an `auto` block; otherwise the built-in tiers apply.
+	 */
+	private _setAutoTierMetadata(metadata: CopilotAutoTierMetadata | undefined): void {
+		this._autoTierMetadata = metadata;
+		const hydraFusionV2 = this._isHydraFusionV2Enabled();
+		const accepted = metadata?.tiers.filter(tier => isRunnableAutoTier(tier, hydraFusionV2)).map(tier => tier.id) ?? [];
+		setAdvertisedAutoModeTiers(accepted);
+		if (metadata) {
+			this._logService.info(`[Copilot] Provider Auto tiers: default '${metadata.defaultTier}'; ${metadata.tiers.map(tier => `${tier.id} (${tier.type}${tier.status.enabled ? '' : ', disabled'})`).join(', ')}`);
+		} else {
+			this._logService.info('[Copilot] No provider Auto tier metadata; using built-in Auto tiers');
+		}
 	}
 
 	private _createModelPickerMeta(modelInfo: CopilotModelInfo, billing: ICAPIModelBilling | undefined): Record<string, unknown> | undefined {
@@ -4084,11 +4163,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private async _listModels(gitHubToken: string): Promise<IAgentModelInfo[]> {
 		this._logService.info('[Copilot] Listing models...');
 		const client = await this._ensureClient();
-		const { models } = await client.rpc.models.list(this._getEnterpriseHost() ? {} : { gitHubToken });
+		const { models, auto } = await client.rpc.models.list(this._getEnterpriseHost() ? {} : { gitHubToken });
 		// Empty SDK results can also mean discovery failed, so do not replace an already loaded catalog.
 		if (!models.length && this._capiModels.some(model => model !== this._fallbackAutoModel)) {
 			throw new Error('Model refresh returned an empty catalog; retaining the previous models');
 		}
+		this._setAutoTierMetadata(auto);
 		this._freeLongContextModels.clear();
 		const result = models.map((m): IAgentModelInfo => {
 			const billing = normalizeCAPIBilling(m.billing);

@@ -768,6 +768,27 @@ suite('ChatModelConfigurationStore', () => {
 		assert.deepStrictEqual(editorB.getModelConfiguration(MODEL), { thinkingEffort: 'medium' });
 	});
 
+	test('restoreModelConfiguration keeps a provider-advertised Auto tier the schema lists', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const control = createControllableService();
+		control.setAutoModel();
+		// Tiers the runtime discovered from CAPI `/meta`, which need not be the built-in profiles.
+		control.setSchema({ properties: { tier: { type: 'string', enum: ['balance', 'hydrafusion', 'premium-v2'], default: 'balance' } } });
+		const advertised = createStore(storage, control.service);
+		const stale = createStore(store.add(new InMemoryStorageService()), control.service);
+
+		advertised.restoreModelConfiguration(MODEL, { tier: 'hydrafusion' });
+		stale.restoreModelConfiguration(MODEL, { tier: 'intelligence' });
+
+		assert.deepStrictEqual({
+			advertised: advertised.getModelConfiguration(MODEL)?.tier,
+			stale: stale.getModelConfiguration(MODEL)?.tier,
+		}, {
+			advertised: 'hydrafusion',
+			stale: 'balance',
+		});
+	});
+
 	test('clear() drops in-memory snapshots so the next read re-seeds from storage', () => {
 		const storage = store.add(new InMemoryStorageService());
 		const editor = createStore(storage, createStubService());

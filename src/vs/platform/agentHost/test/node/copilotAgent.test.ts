@@ -110,7 +110,8 @@ import { CopilotAgentSession, type ICopilotCanvasHandoff } from '../../node/copi
 import { ModelCallTurnCorrelation, type IModelCallTurnCorrelationResult } from '../../node/copilot/modelCallTurnCorrelation.js';
 import { createCopilotCliEnvironment } from '../../node/copilot/copilotCliEnvironment.js';
 import { AgentBranchNameGenerator, getAgentBranchNameHintFromMessage, normalizeAgentBranchName } from '../../node/shared/agentBranchNameGenerator.js';
-import type { CopilotSessionLaunchPlan, IActiveClientSnapshot } from '../../node/copilot/copilotSessionLauncher.js';
+import { getCopilotAutoTier, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from '../../node/copilot/copilotSessionLauncher.js';
+import { setAdvertisedAutoModeTiers } from '../../common/autoModeTiers.js';
 import { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import { registerPendingEditContentProvider } from '../../node/copilot/pendingEditContentStore.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
@@ -750,7 +751,7 @@ class TestCopilotClient implements ITestCopilotClient {
 				if (error) {
 					throw error;
 				}
-				return { models: models.map(toSdkModelInfo) };
+				return { models: models.map(toSdkModelInfo), ...(this.autoTierMetadata ? { auto: this.autoTierMetadata } : {}) };
 			}
 		},
 		plugins: {
@@ -805,6 +806,8 @@ class TestCopilotClient implements ITestCopilotClient {
 	pluginMarketplaceRefreshResults: Awaited<ReturnType<CopilotPluginMarketplaces['refresh']>>['results'] = [];
 	readonly pluginMarketplaceRefreshRequests: Parameters<CopilotPluginMarketplaces['refresh']>[0][] = [];
 	readonly modelListErrors: Error[] = [];
+	/** Provider Auto tiers returned as `models.list` `auto`, as with `DYNAMIC_AUTO_TIERS`. */
+	autoTierMetadata: Awaited<ReturnType<CopilotModelsList>>['auto'];
 	/** When set, `models.list` records its request then blocks on this until resolved. */
 	modelListGate: Promise<void> | undefined;
 	/** Per-request gates and results, captured when each request starts. */
@@ -9721,6 +9724,52 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('launches the runtime with DYNAMIC_AUTO_TIERS only while opted in, dropping advertised tiers on restart', async () => {
+			const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
+			client.autoTierMetadata = {
+				defaultTier: 'balance',
+				tiers: [
+					{ id: 'balance', displayName: 'Balanced', description: '', type: 'auto', status: { enabled: true } },
+					{ id: 'hydrafusion', displayName: 'High', description: '', type: 'fusion', status: { enabled: true } },
+				],
+			};
+			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
+			const hasFlag = () => (getCreatedClientOptions(agent).at(-1)?.env?.['COPILOT_CLI_ENABLED_FEATURE_FLAGS'] ?? '').split(',').includes('DYNAMIC_AUTO_TIERS');
+			const acceptsHydraFusion = () => getCopilotAutoTier({ id: 'auto', config: { tier: 'hydrafusion' } }) === 'hydrafusion';
+			const gate = new DeferredPromise<void>();
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.listChatsToMigrate();
+				const byDefault = hasFlag();
+
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.DynamicAutoTiers]: true });
+				await agent.listChatsToMigrate();
+				await agent.refreshModels();
+				const optedIn = { flag: hasFlag(), acceptsHydraFusion: acceptsHydraFusion() };
+
+				// Hold the post-restart model refresh so only the restart itself can drop the tiers.
+				client.modelListGate = gate.p;
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.DynamicAutoTiers]: false });
+				await agent.listChatsToMigrate();
+
+				assert.deepStrictEqual({
+					byDefault,
+					optedIn,
+					optedOut: { flag: hasFlag(), acceptsHydraFusion: acceptsHydraFusion() },
+					stopCallCount: client.stopCallCount,
+				}, {
+					byDefault: false,
+					optedIn: { flag: true, acceptsHydraFusion: true },
+					optedOut: { flag: false, acceptsHydraFusion: false },
+					stopCallCount: 2,
+				});
+			} finally {
+				gate.complete();
+				await disposeAgent(agent);
+				setAdvertisedAutoModeTiers([]);
+			}
+		});
+
 		test('enables Claude Advisor when configured', async () => {
 			const client = new TestCopilotClient([]);
 			const { agent } = createTestAgentContext(disposables, {
@@ -11415,6 +11464,82 @@ suite('CopilotAgent', () => {
 		} finally {
 			await disposeAgent(agent);
 		}
+	});
+
+	test('configSchema offers the provider Auto tiers from models.list in its order and default', async () => {
+		const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
+		client.autoTierMetadata = {
+			defaultTier: 'premium-v2',
+			tiers: [
+				{ id: 'balance', displayName: 'Balanced', description: 'Server balance', type: 'auto', status: { enabled: true } },
+				{ id: 'hydrafusion', displayName: 'High', description: 'Server fusion', type: 'fusion', status: { enabled: true } },
+				{ id: 'premium-v2', displayName: 'Premium', description: '', type: 'auto', status: { enabled: true } },
+				{ id: 'intelligence', displayName: 'Careful', description: 'Disabled', type: 'auto', status: { enabled: false, message: 'Contact admin' } },
+				{ id: 'fast', displayName: 'Fast', description: 'Integrator only', type: 'auto', status: { enabled: true } },
+				{ id: 'ensemble', displayName: 'Ensemble', description: 'Unknown execution', type: 'ensemble', status: { enabled: true } },
+			],
+		};
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			const published = await waitForState(agent.models, published => published.length === 1);
+			const tier = published[0].configSchema?.properties.tier;
+
+			assert.deepStrictEqual({
+				tier: { enum: tier?.enum, default: tier?.default, enumLabels: tier?.enumLabels, enumDescriptions: tier?.enumDescriptions },
+				// Sessions accept what the provider advertises, not the built-in profiles.
+				accepted: ['premium-v2', 'hydrafusion', 'fast', 'intelligence', 'efficiency'].map(value => getCopilotAutoTier({ id: 'auto', config: { tier: value } })),
+			}, {
+				tier: {
+					enum: ['balance', 'hydrafusion', 'premium-v2'],
+					default: 'premium-v2',
+					enumLabels: ['Balanced', 'High', 'Premium'],
+					// An empty provider description falls back to a built-in one, else none.
+					enumDescriptions: ['Server balance', 'Server fusion', ''],
+				},
+				accepted: ['premium-v2', 'hydrafusion', 'fast', undefined, undefined],
+			});
+		} finally {
+			await disposeAgent(agent);
+			setAdvertisedAutoModeTiers([]);
+		}
+	});
+
+	test('offers and accepts the provider\'s HydraFusion Max tier only with HydraFusion v2', async () => {
+		const run = async (rootConfig: Record<string, unknown>) => {
+			const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
+			client.autoTierMetadata = {
+				defaultTier: 'hydrafusion-max',
+				tiers: [
+					{ id: 'balance', displayName: 'Balance', description: '', type: 'auto', status: { enabled: true } },
+					{ id: 'hydrafusion', displayName: 'High', description: '', type: 'fusion', status: { enabled: true } },
+					{ id: 'hydrafusion-max', displayName: 'Max', description: '', type: 'fusion', status: { enabled: true } },
+				],
+			};
+			const { agent } = createTestAgentContext(disposables, { copilotClient: client, rootConfig });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const published = await waitForState(agent.models, published => published.some(model => model.id === 'auto'));
+				const tier = published.find(model => model.id === 'auto')?.configSchema?.properties.tier;
+				return {
+					enum: tier?.enum,
+					default: tier?.default,
+					acceptsMax: getCopilotAutoTier({ id: 'auto', config: { tier: 'hydrafusion-max' } }) === 'hydrafusion-max',
+				};
+			} finally {
+				await disposeAgent(agent);
+				setAdvertisedAutoModeTiers([]);
+			}
+		};
+
+		assert.deepStrictEqual({
+			withoutV2: await run({}),
+			withV2: await run({ [CopilotCliConfigKey.HydraFusion]: true, [CopilotCliConfigKey.HydraFusionV2]: true }),
+		}, {
+			// The runtime rejects HydraFusion Max without plan v2, so its default falls back to the first tier.
+			withoutV2: { enum: ['balance', 'hydrafusion'], default: 'balance', acceptsMax: false },
+			withV2: { enum: ['balance', 'hydrafusion', 'hydrafusion-max'], default: 'hydrafusion-max', acceptsMax: true },
+		});
 	});
 
 	test('offers Auto with its routing profiles when the runtime lists no models', async () => {

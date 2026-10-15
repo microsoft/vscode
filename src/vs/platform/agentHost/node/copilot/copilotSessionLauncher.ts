@@ -24,7 +24,7 @@ import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js
 import { reasoningEffortLevels, type ReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { getSessionSandboxConfig } from '../sessionSandbox.js';
 import { projectCopilotSandboxPolicy } from './copilotSandboxPolicy.js';
-import { autoModeTiers, defaultAutoModeTier, isAutoModeTier, normalizeAutoModeTier, type AutoModeTier } from '../../common/autoModeTiers.js';
+import { defaultAutoModeTier, getSupportedAutoModeTiers, isSupportedAutoModeTier, normalizeAutoModeTier } from '../../common/autoModeTiers.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import type { ModelSelection, ToolDefinition } from '../../common/state/protocol/state.js';
 import { ContextSizeConfigKey } from '../../common/agentModelConfiguration.js';
@@ -523,16 +523,16 @@ export function getCopilotContextTier(model: ModelSelection | undefined, longCon
 /**
  * The Auto routing preference ("Optimize for"). Profiles left on concrete models are ignored.
  */
-export function getCopilotAutoTier(model: ModelSelection | undefined): AutoModeTier | undefined {
+export function getCopilotAutoTier(model: ModelSelection | undefined): string | undefined {
 	if (!isAutoModel(model?.id)) {
 		return undefined;
 	}
 	const tier = normalizeAutoModeTier(model?.config?.[AutoTierConfigKey]);
-	return isAutoModeTier(tier) ? tier : undefined;
+	return isSupportedAutoModeTier(tier) ? tier : undefined;
 }
 
 /** Resolves the shared Auto override, leaving concrete models unchanged. */
-function resolveConfiguredAutoTierOverride(model: ModelSelection | undefined, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string): AutoModeTier | undefined {
+function resolveConfiguredAutoTierOverride(model: ModelSelection | undefined, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string): string | undefined {
 	if (model && !isAutoModel(model.id)) {
 		return undefined;
 	}
@@ -541,8 +541,8 @@ function resolveConfiguredAutoTierOverride(model: ModelSelection | undefined, co
 		return undefined;
 	}
 	const tier = normalizeAutoModeTier(override);
-	if (!isAutoModeTier(tier)) {
-		logService.warn(`[Copilot:${sessionId}] Ignoring unsupported Auto "Optimize for" override '${override}'; expected one of [${autoModeTiers.join(', ')}]`);
+	if (!isSupportedAutoModeTier(tier)) {
+		logService.warn(`[Copilot:${sessionId}] Ignoring unsupported Auto "Optimize for" override '${override}'; expected one of [${getSupportedAutoModeTiers().join(', ')}]`);
 		return undefined;
 	}
 	logService.info(`[Copilot:${sessionId}] Applying Auto "Optimize for" override '${tier}'`);
@@ -550,7 +550,7 @@ function resolveConfiguredAutoTierOverride(model: ModelSelection | undefined, co
 }
 
 /** Ensemble offers no Efficiency, so it runs as Ensemble's default instead. */
-function toEnsembleTier(tier: AutoModeTier, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string): AutoModeTier {
+function toEnsembleTier(tier: string, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string): string {
 	if (tier !== 'efficiency' || configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Ensemble) !== true) {
 		return tier;
 	}
@@ -559,7 +559,7 @@ function toEnsembleTier(tier: AutoModeTier, configurationService: Pick<IAgentCon
 }
 
 /** Resolves the shared override first, then the picker preference. */
-export function resolveCopilotAutoTier(model: ModelSelection | undefined, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string): AutoModeTier | undefined {
+export function resolveCopilotAutoTier(model: ModelSelection | undefined, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string): string | undefined {
 	const override = resolveConfiguredAutoTierOverride(model, configurationService, logService, sessionId);
 	if (override !== undefined) {
 		return override;
@@ -576,7 +576,7 @@ export function resolveCopilotAutoTier(model: ModelSelection | undefined, config
  * The CAPI session options for a routing profile. Omitting `capi` entirely, rather than sending an
  * empty profile, is what leaves the runtime on its default routing.
  */
-function toSdkCapiSessionOptions(autoTier: AutoModeTier | undefined): Pick<SessionConfig, 'capi'> {
+function toSdkCapiSessionOptions(autoTier: string | undefined): Pick<SessionConfig, 'capi'> {
 	if (autoTier === undefined) {
 		return {};
 	}

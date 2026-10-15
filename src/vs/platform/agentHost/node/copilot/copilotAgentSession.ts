@@ -41,7 +41,7 @@ import { getCopilotHomePath, getCopilotMcpConfigurationPath } from '../../../env
 import { AgentHostHydraFusionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, isCopilotHydraFusionModelId } from '../../common/copilotCliConfig.js';
 import { logSettingExperimentTrigger } from '../../../telemetry/common/experimentTrigger.js';
 import { withCustomizationEnablement } from '../../common/customizationEnablement.js';
-import { isAutoModeRoutingTier, type AutoModeRoutingTier, type AutoModeTier } from '../../common/autoModeTiers.js';
+import { isAutoModeRoutingTier, isSupportedAutoModeTier } from '../../common/autoModeTiers.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from '../../common/agentHostPlanReview.js';
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
@@ -161,9 +161,9 @@ function readSubagentTaskModelSource(data: object): AgentSubagentTaskModelSource
 	}
 }
 
-/** The runtime-reported Auto tier, only while the model is Auto; never inferred or defaulted. */
-function getCommittedAutoTier(model: string | undefined, autoTier: unknown): AutoModeRoutingTier | undefined {
-	return isAutoModel(model) && isAutoModeRoutingTier(autoTier) ? autoTier : undefined;
+/** The runtime-reported Auto tier, only while the model is Auto; never inferred or defaulted. Includes tiers the provider advertises. */
+function getCommittedAutoTier(model: string | undefined, autoTier: unknown): string | undefined {
+	return isAutoModel(model) && (isAutoModeRoutingTier(autoTier) || isSupportedAutoModeTier(autoTier)) ? autoTier : undefined;
 }
 
 /** How the runtime settled an Auto resolution, for the info log: identifiers, flags and numbers only; `''` when none were reported. */
@@ -180,7 +180,7 @@ function formatAutoModeRoutingForLog(data: { readonly routingMethod?: string; re
 }
 
 /** A known tier, or the pending runtime read for the configuration in effect when it was captured. */
-type AutoTierSnapshot = AutoModeRoutingTier | undefined | Promise<AutoModeRoutingTier | undefined>;
+type AutoTierSnapshot = string | undefined | Promise<string | undefined>;
 
 const AUTO_TIER_READ_TIMEOUT = 5_000;
 
@@ -1138,7 +1138,7 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private readonly _autoModeResolvedByToolCallId = new Map<string, NonNullable<UsageInfoMeta['autoModeResolved']>>();
 	private _committedAutoTier: AutoTierSnapshot;
-	private readonly _committedAutoTierBySubagentToolCallId = new Map<string, AutoModeRoutingTier>();
+	private readonly _committedAutoTierBySubagentToolCallId = new Map<string, string>();
 	private readonly _subagentTaskCompletionSchedulers = this._register(new DisposableMap<string, RunOnceScheduler>());
 	private readonly _pendingSubagentLifecycleCompletions = new Map<string, { readonly toolCallId: string; readonly activityRevision: number | undefined; readonly outcome?: SubagentTurnOutcome }>();
 	private readonly _subagentTaskCompletionDelay: number;
@@ -5569,7 +5569,7 @@ export class CopilotAgentSession extends Disposable {
 		});
 	}
 
-	async setModel(model: string, reasoningEffort?: SessionConfig['reasoningEffort'], contextTier?: SessionConfig['contextTier'], autoTier?: AutoModeTier | null): Promise<void> {
+	async setModel(model: string, reasoningEffort?: SessionConfig['reasoningEffort'], contextTier?: SessionConfig['contextTier'], autoTier?: string | null): Promise<void> {
 		// The runtime rejects a BYOK model that is not registered on the session.
 		try {
 			await this.syncByokModels();
@@ -9793,11 +9793,11 @@ export class CopilotAgentSession extends Disposable {
 
 	/** `session.start`/`session.resume` fire before this session subscribes. A result superseded by a later model change resolves as unknown. */
 	private _readCommittedAutoTier(wrapper: CopilotSessionWrapper): void {
-		const result = new DeferredPromise<AutoModeRoutingTier | undefined>();
+		const result = new DeferredPromise<string | undefined>();
 		const read = result.p;
 		this._committedAutoTier = read;
 		void (async () => {
-			let tier: AutoModeRoutingTier | undefined;
+			let tier: string | undefined;
 			try {
 				const current = await raceTimeout(wrapper.session.rpc.model.getCurrent(), AUTO_TIER_READ_TIMEOUT);
 				tier = current && this._committedAutoTier === read && this._wrapper === wrapper ? getCommittedAutoTier(current.modelId, current.autoTier) : undefined;
