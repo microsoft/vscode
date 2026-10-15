@@ -1262,11 +1262,25 @@ function makeCompletedToolCallPart(
 	const imageGeneration = info.toolName === CopilotToolName.ImageGeneration ? getSdkImageGenerationMetadata(d.result, rawCompletion.toolUsage) : undefined;
 	const toolOutput = d.error?.message ?? d.result?.content;
 	const displayOutput = d.error?.message ?? getSdkToolResultText(d.result);
+	const mcpServerName = info.mcpServerName ?? readStringProperty(d, 'mcpServerName');
+	const mcpChannel = mcpServerName ? buildMcpChannel(chatURI, mcpServerName, providerId) : undefined;
 	const content: ToolResultContent[] = [];
 	if (displayOutput !== undefined) {
 		content.push({ type: ToolResultContentType.Text, text: displayOutput });
 	}
 	const resultContent = getSdkToolResultContent(info.toolName, d.result);
+	const toolResources = storedResources?.get(d.toolCallId) ?? [];
+	const embedded = new Map<ToolExecutionCompleteContentResource, ContentRef>();
+	for (const resource of toolResources) {
+		const block = resultContent?.contents?.[resource.ordinal];
+		if (resource.kind === 'embedded' && block?.type === 'resource') {
+			embedded.set(block, {
+				uri: buildToolResultResourceUri(sessionUriStr, d.toolCallId, resource.ordinal, resource.name),
+				contentType: resource.mimeType,
+				sizeHint: resource.size,
+			});
+		}
+	}
 	appendSdkToolResultContent(
 		content,
 		resultContent?.contents,
@@ -1279,12 +1293,11 @@ function makeCompletedToolCallPart(
 		} : undefined,
 		resultContent?.binaryResultsForLlm,
 		binaryAssets,
-		info.mcpServerName ? { mcpChannel: buildMcpChannel(chatURI, info.mcpServerName, providerId) } : undefined,
+		{ embedded, mcpChannel },
 	);
 
 	if (!resultContent?.contents?.length) {
-		const mcpChannel = info.mcpServerName ? buildMcpChannel(chatURI, info.mcpServerName, providerId) : undefined;
-		for (const resource of storedResources?.get(d.toolCallId) ?? []) {
+		for (const resource of toolResources) {
 			if (resource.kind === 'embedded' || mcpChannel) {
 				content.push({
 					type: ToolResultContentType.Resource,
@@ -1335,13 +1348,12 @@ function makeCompletedToolCallPart(
 		});
 	}
 
-	const mcpServerName = info.mcpServerName ?? readStringProperty(d, 'mcpServerName');
 	const mcpToolName = info.mcpToolName ?? readStringProperty(d, 'mcpToolName');
 	const mcpUiResourceUri = info.mcpUiResourceUri ?? readMcpUiResourceUri(d);
 	const mcpUi: IToolCallUiMeta | undefined = mcpUiResourceUri
 		? {
 			resourceUri: mcpUiResourceUri,
-			...(mcpServerName ? { channel: buildMcpChannel(chatURI, mcpServerName, providerId) } : {}),
+			...(mcpChannel ? { channel: mcpChannel } : {}),
 		}
 		: undefined;
 

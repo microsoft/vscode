@@ -206,6 +206,28 @@ suite('AgentHostCatalogSyncService', () => {
 		});
 	});
 
+	test('acknowledges a normalized write that replays an acknowledged receipt', async () => {
+		const { local, central, service } = await createHarness();
+		await service.synchronize(session, { data: data('initial', 'Chat'), legacyMetadata: {} });
+		const snapshot = await activateChatCatalog(central);
+		const request = {
+			data: { ...data('aggregate'), chats: chatCatalogV2ToCatalogChats(snapshot) },
+			legacyMetadata: {},
+			chatCatalogRevision: snapshot.header.revision,
+		};
+		const first = await service.synchronize(session, request);
+		const replayed = await service.synchronize(session, request);
+		assert.deepStrictEqual({
+			first,
+			replayed,
+			receipt: (await local.getCatalogSyncSnapshot())?.state,
+		}, {
+			first: { status: 'acknowledged', sourceRevision: 1 },
+			replayed: { status: 'acknowledged', sourceRevision: 1 },
+			receipt: 'acknowledged',
+		});
+	});
+
 	for (const localStorage of [false, true]) {
 		test(`rebuilds normalized requests after a catalog revision conflict ${localStorage ? 'with' : 'without'} local storage`, async () => {
 			const { local, central, service } = await createHarness();

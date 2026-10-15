@@ -38,7 +38,7 @@ import type { ITextModel } from '../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
 import { AgentHostAllowSignedOutWhenUsableSettingId, AgentHostMcpToolRoutingEnabledSettingId, AgentProvider, AgentSession, CODEX_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { AgentHostCanvasCollection } from '../../../../canvases/common/agentHostCanvas.js';
+import { AgentHostCanvasCollection, getAgentHostCanvasDefinitionsChangedEvent } from '../../../../canvases/common/agentHostCanvas.js';
 import { ICanvasContext, ICanvasOwner, isCanvasOwner } from '../../../../canvases/common/canvas.js';
 import { CanvasReference } from '../../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
 import { agentHostAuthority, fromAgentHostUri, LOCAL_AGENT_HOST_AUTHORITY } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -748,6 +748,8 @@ function snapshotInvocationToAdopt(opts: IObserveTurnOptions, toolCallId: string
 // Chat session
 // =============================================================================
 
+const emptyCanvasReferences: readonly CanvasReference[] = [];
+
 class AgentHostChatSession extends Disposable implements IChatSession {
 	readonly progressObs = observableValue<IChatProgress[]>('agentHostProgress', []);
 	readonly isCompleteObs = observableValue<boolean>('agentHostComplete', true);
@@ -761,6 +763,8 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	readonly backgroundShellCount = derived(this, reader =>
 		this._chatState.read(reader).read(reader)?.backgroundWork?.filter(work => work.kind === BackgroundWorkKind.Shell).length);
 	private readonly _disposed = observableValue(this, false);
+	private readonly _onDidChangeCanvasDefinitions = this._register(new Emitter<void>());
+	private readonly _canvasDefinitionsTracking = this._register(new MutableDisposable<IDisposable>());
 	private readonly _promptCacheTracking = this._register(new MutableDisposable<IDisposable>());
 	private readonly _sandboxNotification = this._register(new MutableDisposable<AgentHostSandboxNotification>());
 	private readonly _subagentTurnStores = this._register(new DisposableMap<string, DisposableStore>());
@@ -830,7 +834,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 			const presentationChat = derived(this, reader => this._disposed.read(reader) ? undefined : this._chatState.read(reader).read(reader));
 			const references = derived<readonly CanvasReference[] | undefined>(this, reader => {
 				const chat = presentationChat.read(reader);
-				return chat?.canvases ?? (chat ? [] : undefined);
+				return chat?.canvases ?? (chat ? emptyCanvasReferences : undefined);
 			});
 			const owner = derivedOpts<ICanvasOwner | undefined>({ owner: this, equalsFn: (first, second) => first === second || (!!first && !!second && isCanvasOwner(first, second)) }, reader => {
 				const session = this._sessionState.read(reader).read(reader);
@@ -841,7 +845,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 			});
 			this.canvasContext = derived(this, reader => {
 				const reference = owner.read(reader);
-				return reference ? canvasProvider.createContext(reference, references, presentationChat) : undefined;
+				return reference ? canvasProvider.createContext(reference, references, presentationChat, this._onDidChangeCanvasDefinitions.event) : undefined;
 			});
 		}
 
@@ -875,6 +879,9 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	}
 
 	setStateSubscriptions(sessionSubscription: IAgentSubscription<SessionState> | undefined, chatSubscription: IAgentSubscription<ChatState> | undefined): void {
+		this._canvasDefinitionsTracking.value = chatSubscription
+			? getAgentHostCanvasDefinitionsChangedEvent(chatSubscription)(() => this._onDidChangeCanvasDefinitions.fire())
+			: undefined;
 		this._promptCacheTracking.clear();
 		this._promptCacheTracking.value = sessionSubscription ? this._promptCacheNotification?.trackSession(this.sessionResource, sessionSubscription) : undefined;
 		this._sandboxNotification.clear();

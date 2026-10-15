@@ -381,6 +381,10 @@
 	gap: var(--vscode-spacing-size20);
 }
 
+.action-widget .chat-model-picker-tabbar .tabbed-action-list-tabbar-action[data-id='workflow'] + .tabbed-action-list-tabbar-action.align-end {
+	margin-left: 0;
+}
+
 .action-widget.search-mode .chat-model-picker-tabbar .tabbed-action-list-tabstrip {
 	display: none;
 }

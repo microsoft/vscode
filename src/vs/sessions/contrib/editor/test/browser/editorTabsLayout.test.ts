@@ -173,6 +173,56 @@ suite('Sessions - Editor tabs trailing layout', () => {
 		};
 	}
 
+	test('single-row Connected strips match panel headers with wrapping on or off without changing wrapped row height', async () => {
+		const results = [];
+		const lastEditor = model.getEditorByIndex(model.count - 1)!;
+		model.openEditor(lastEditor, { active: true });
+		control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+		for (const agentsWindow of [true, false]) {
+			root.classList.toggle('agent-sessions-workbench', agentsWindow);
+			for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
+				root.classList.add(theme);
+				for (const tabHeight of ['default', 'compact'] as const) {
+					for (const wrapTabs of [false, true]) {
+						const oldOptions = partOptions;
+						partOptions = { ...partOptions, tabHeight, wrapTabs };
+						control.updateOptions(oldOptions, partOptions);
+						for (const width of [1200, 300, 1200]) {
+							await layout(width);
+							const strip = title.querySelector<HTMLElement>('.tabs-and-actions-container')!;
+							const tabs = Array.from(strip.querySelectorAll<HTMLElement>('.tab'));
+							const active = strip.querySelector<HTMLElement>('.tab.active')!;
+							const fill = active.querySelector<HTMLElement>('.tab-fill')!;
+							const wrapping = strip.classList.contains('wrapping');
+							results.push({
+								agentsWindow, theme, tabHeight, wrapTabs, width,
+								wrapping,
+								headerHeight: wrapping ? undefined : strip.getBoundingClientRect().height,
+								tabHeights: [...new Set(tabs.map(tab => tab.getBoundingClientRect().height))],
+								topInset: wrapping ? undefined : fill.getBoundingClientRect().top - strip.getBoundingClientRect().top,
+								capReachesBottom: wrapping ? undefined : Math.abs(fill.getBoundingClientRect().bottom - strip.getBoundingClientRect().bottom) < 1 / 64,
+								cachedHeightMatches: control.getHeight() === strip.offsetHeight,
+							});
+						}
+					}
+				}
+				root.classList.remove(theme);
+			}
+		}
+		assert.deepStrictEqual(results, results.map(result => {
+			const wrapping = result.wrapTabs && result.width === 300;
+			return {
+				...result,
+				wrapping,
+				headerHeight: wrapping ? undefined : result.tabHeight === 'default' ? 32 : 28,
+				tabHeights: [wrapping ? result.tabHeight === 'default' ? 28 : 24 : result.tabHeight === 'default' ? 31 : 27],
+				topInset: wrapping ? undefined : 0,
+				capReachesBottom: wrapping ? undefined : true,
+				cachedHeightMatches: true,
+			};
+		}));
+	});
+
 	test('wrapped Add Tab and both editor toolbars reserve disjoint trailing bounds', async () => {
 		const results = [];
 		for (const style of ['legacy', 'pill', 'connected']) {

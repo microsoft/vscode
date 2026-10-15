@@ -1364,6 +1364,8 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	public readonly id: string;
 	public readonly requestId: string;
 	private _session: ChatModel;
+	/** Last known position of the owning request, so {@link request} avoids a scan per call. Parity with `find()` assumes request ids are unique. */
+	private _requestIndexHint = 0;
 	private _agent: IChatAgentData | undefined;
 	private _slashCommand: IChatAgentCommand | undefined;
 	private _modelState = observableValue<ResponseModelStateT>(this, { value: ResponseModelState.Pending });
@@ -1389,7 +1391,17 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	}
 
 	public get request(): IChatRequestModel | undefined {
-		return this.session.getRequests().find(r => r.id === this.requestId);
+		const requests = this.session.getRequests();
+		const hinted = requests[this._requestIndexHint];
+		if (hinted?.id === this.requestId) {
+			return hinted;
+		}
+		const index = requests.findIndex(r => r.id === this.requestId);
+		if (index === -1) {
+			return undefined;
+		}
+		this._requestIndexHint = index;
+		return requests[index];
 	}
 
 	public get session() {

@@ -1015,7 +1015,7 @@ export class AgentService extends Disposable implements IAgentService {
 			},
 		));
 		this._register(this._resourceProviders.registerProvider(TOOL_RESULT_RESOURCE_SCHEME, instantiationService.createInstance(ToolResultResourceProvider)));
-		this._register(this._resourceProviders.registerProvider(MCP_RESOURCE_SCHEME, instantiationService.createInstance(McpResourceLinkProvider)));
+		this._register(this._resourceProviders.registerProvider(MCP_RESOURCE_SCHEME, instantiationService.createInstance(McpResourceLinkProvider, (session: URI, chat: URI) => this._restoreSessionChat(session, chat, 'MCP resource read'))));
 		this._register(this._resourceProviders.registerProvider(SESSION_DB_SCHEME, instantiationService.createInstance(SessionDbResourceProvider)));
 		this._register(this._resourceProviders.registerProvider(EDIT_ATTRIBUTION_RESOURCE_SCHEME, instantiationService.createInstance(EditAttributionResourceProvider)));
 		this._register(this._resourceProviders.registerProvider(GIT_BLOB_SCHEME, instantiationService.createInstance(GitBlobResourceProvider, {
@@ -5574,8 +5574,8 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._worktree.reconcileDetachedWorktrees(scope, activeHandles);
 	}
 
-	async refreshCopilotConnectorSessions(): Promise<void> {
-		await Promise.all(this._providerService.getProviders().map(provider => provider.refreshConnectorSessions?.()));
+	async refreshCopilotConnectorSessions(forceConnectorName?: string): Promise<void> {
+		await Promise.all(this._providerService.getProviders().map(provider => provider.refreshConnectorSessions?.(forceConnectorName)));
 	}
 
 	async uninstallPlugin(providerId: AgentProvider, request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void> {
@@ -5588,7 +5588,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async listSessionCanvases(session: URI, chat: URI): Promise<readonly IAgentCanvasInfo[]> {
 		this._assertCanvasesEnabled();
-		await this._restoreSessionCanvasChat(session, chat);
+		await this._restoreSessionChat(session, chat, 'Canvas operation');
 		const provider = this._providerService.getProviderForSession(session);
 		if (!provider?.listSessionCanvases) {
 			throw new Error(`Canvas inventory is unavailable for session '${session.toString()}'.`);
@@ -5598,7 +5598,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void> {
 		this._assertCanvasesEnabled();
-		await this._restoreSessionCanvasChat(session, chat);
+		await this._restoreSessionChat(session, chat, 'Canvas operation');
 		const provider = this._providerService.getProviderForSession(session);
 		if (!provider?.openSessionCanvas) {
 			throw new Error(`Opening canvases is unavailable for session '${session.toString()}'.`);
@@ -5612,11 +5612,12 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
-	private async _restoreSessionCanvasChat(session: URI, chat: URI): Promise<void> {
+	/** Restores a session and materializes one of its chats, including lazily restored peer chats. */
+	private async _restoreSessionChat(session: URI, chat: URI, operation: string): Promise<void> {
 		await this.restoreSession(session);
 		const ownsChat = this._stateManager.getSessionState(session.toString())?.chats.some(candidate => isEqual(URI.parse(candidate.resource), chat)) === true;
 		if (!ownsChat) {
-			throw new Error(`Canvas operation targeted a chat outside session '${session.toString()}'.`);
+			throw new Error(`${operation} targeted a chat outside session '${session.toString()}'.`);
 		}
 		await this._stateManager.resolveChatState(chat.toString());
 	}

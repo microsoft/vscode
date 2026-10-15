@@ -82,6 +82,8 @@ export interface IModelCardOptions {
 	readonly onWillSelect?: () => void;
 	/** Selects the model for the latest saved configuration or speed choice. */
 	readonly onSelect?: (model: ILanguageModelChatMetadataAndIdentifier) => void;
+	/** Whether saving configuration selects the configured model. Defaults to true. */
+	readonly selectModelOnConfigurationChange?: boolean;
 	/** Called once the selection settles so the picker can refresh its rows. */
 	readonly onDidAccept?: () => void;
 }
@@ -189,7 +191,9 @@ export class ModelCard extends DisposableStore {
 		try {
 			await setModelConfigValues(options.model, options.configurationAccess, values, options.onDidChangeConfiguration);
 			if (!this.isDisposed && version === this._configurationChangeVersion) {
-				options.onSelect?.(options.model);
+				if (options.selectModelOnConfigurationChange !== false) {
+					options.onSelect?.(options.model);
+				}
 				this._setSelectedRoutingAlternative(undefined);
 			}
 			await Promise.all([...this._groupControls.values()].map(control => control.whenSelectionAnimationSettles()));

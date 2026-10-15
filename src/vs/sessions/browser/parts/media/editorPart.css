@@ -25,10 +25,6 @@
 	--modern-ui-editor-tabs-border: color-mix(in srgb, var(--vscode-activeSessionView-foreground, var(--vscode-agentsPanel-foreground)) 12%, transparent);
 }
 
-.agent-sessions-workbench .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs {
-	--modern-ui-connected-tab-single-row-height: calc(var(--editor-group-tab-height) + var(--vscode-spacing-size40));
-}
-
 /* Detail-pane view tabs need a leading icon inset without widening the RTL file-icon gutter. */
 .agent-sessions-workbench.dock-detail-panel .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .tabs-container > .tab:not(.sticky-compact):not(.tab-actions-left) {
 	--modern-ui-editor-tab-left-inset: var(--vscode-spacing-size80);
