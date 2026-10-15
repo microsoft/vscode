@@ -86,4 +86,24 @@ suite('Animation frame window lifetime', () => {
 
 		assert.deepStrictEqual(calls, ['high', 'current', 'low', 'next']);
 	});
+
+	test('keeps the scheduling order of equal-priority callbacks added during the frame', async () => {
+		const live = createWindow();
+		const calls: string[] = [];
+
+		await new Promise<void>(resolve => {
+			scheduleAtNextAnimationFrame(live.targetWindow, () => calls.push('a'));
+			scheduleAtNextAnimationFrame(live.targetWindow, () => calls.push('b'));
+			scheduleAtNextAnimationFrame(live.targetWindow, () => {
+				calls.push('frame');
+				// Both of these join the queue that is currently being drained, so they have
+				// to be ordered against the callbacks that are still waiting.
+				runAtThisOrScheduleAtNextAnimationFrame(live.targetWindow, () => calls.push('late'), -100);
+				runAtThisOrScheduleAtNextAnimationFrame(live.targetWindow, () => calls.push('inserted'));
+				resolve();
+			}, 100);
+		});
+
+		assert.deepStrictEqual(calls, ['frame', 'a', 'b', 'inserted', 'late']);
+	});
 });

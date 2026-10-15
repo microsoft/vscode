@@ -457,6 +457,30 @@ class AnimationFrameQueueItem implements IDisposable {
 		inAnimationFrameRunner.delete(vscodeWindowId);
 	}));
 
+	/**
+	 * Inserts `item` into `queue`, which must be sorted by priority in descending
+	 * order. Items with an equal priority are placed after the ones already in the
+	 * queue, which is the order a stable sort of the whole queue produced before.
+	 * Index moves only - no array is allocated and nothing is returned.
+	 */
+	function insertSorted(queue: AnimationFrameQueueItem[], item: AnimationFrameQueueItem): void {
+		let low = 0;
+		let high = queue.length;
+		while (low < high) {
+			const mid = (low + high) >>> 1;
+			if (queue[mid].priority >= item.priority) {
+				low = mid + 1;
+			} else {
+				high = mid;
+			}
+		}
+		queue.push(item);
+		if (low < queue.length - 1) {
+			queue.copyWithin(low + 1, low, queue.length - 1);
+			queue[low] = item;
+		}
+	}
+
 	const animationFrameRunner = (targetWindowId: number) => {
 		if (!animFrameRequested.has(targetWindowId)) {
 			return;
@@ -468,8 +492,10 @@ class AnimationFrameQueueItem implements IDisposable {
 		NEXT_QUEUE.set(targetWindowId, []);
 
 		inAnimationFrameRunner.set(targetWindowId, true);
+		// Sort once and then keep the queue ordered while it drains. Executing a runner may
+		// add to this queue, but re-sorting it after every single execution is O(n^2 log n).
+		currentQueue.sort(AnimationFrameQueueItem.sort);
 		while (currentQueue.length > 0) {
-			currentQueue.sort(AnimationFrameQueueItem.sort);
 			const top = currentQueue.shift()!;
 			top.execute();
 		}
@@ -506,7 +532,7 @@ class AnimationFrameQueueItem implements IDisposable {
 				currentQueue = [];
 				CURRENT_QUEUE.set(targetWindowId, currentQueue);
 			}
-			currentQueue.push(item);
+			insertSorted(currentQueue, item);
 			return item;
 		} else {
 			return scheduleAtNextAnimationFrame(targetWindow, runner, priority);
