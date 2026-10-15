@@ -7,11 +7,14 @@ import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
+import { AnonymousClient } from '../../common/anonymous/anonymousClient.js';
 import { LocalApiRequestProvider } from '../../common/client/localApiRequestProvider.js';
+import { ApiRequest, IApiRequestProvider } from '../../common/client/request.js';
 import { parse, SchemaError } from '../../common/client/schema.js';
 import { GitHubService } from '../../common/githubService.js';
 import { GitHubClientOptions, GitHubCredentialChange, GitHubRequestError, GitHubServiceOptions } from '../../common/githubTypes.js';
@@ -36,8 +39,29 @@ suite('GitHub anonymous clients', () => {
 	const create = (options: GitHubServiceOptions) => store.add(new GitHubService(options, new NullLogService(), NullTelemetryService));
 
 	function assertRequestError(action: () => void, kind: GitHubRequestError['kind']): void {
-		assert.throws(action, error => error instanceof GitHubRequestError && error.kind === kind);
+		assert.throws(action, function isExpectedRequestError(error: unknown) {
+			return error instanceof GitHubRequestError && error.kind === kind;
+		});
 	}
+
+	test('gist reads forward request options and cancellation to the provider', async () => {
+		const requests: { request: ApiRequest; signal: AbortSignal }[] = [];
+		const dispatched = new Error('Request reached the provider');
+		const provider: IApiRequestProvider = {
+			request: async (request: ApiRequest, signal: AbortSignal) => {
+				requests.push({ request, signal });
+				throw dispatched;
+			},
+		};
+		const client = store.add(new AnonymousClient(provider, undefined, Disposable.None));
+		const requestSignal = signal();
+		const options = { caller: 'test.gist', deadline: Date.now() + 10_000 };
+
+		await assert.rejects(client.gist.get('123abc', requestSignal, options), error => error === dispatched);
+		assert.deepStrictEqual(requests.map(({ request, signal }) => ({ path: request.path, options: request.options, sameSignal: signal === requestSignal })), [
+			{ path: '/gists/123abc', options, sameSignal: true },
+		]);
+	});
 
 	test('returns separate disposable facades backed by one default anonymous engine', async () => {
 		const requests: { url: string; etag: string | null }[] = [];

@@ -7,6 +7,7 @@ import assert from 'assert';
 import { CodeWindow } from '../../../../../base/browser/window.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IMenuService } from '../../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
@@ -16,6 +17,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IGitHubAnonymousClient } from '../../../../../platform/github/common/anonymous/anonymous.js';
+import { ApiRequestOptions } from '../../../../../platform/github/common/client/request.js';
 import { GitHubRequestError } from '../../../../../platform/github/common/githubTypes.js';
 import { SchemaError } from '../../../../../platform/github/common/client/schema.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
@@ -65,15 +67,16 @@ suite('IssueFormService', () => {
 		};
 	}
 
-	test('search uses the anonymous client and returns its items', async () => {
-		const requests: string[] = [];
+	test('search uses the anonymous client with a ten-second deadline and returns its items', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const requests: { query: string; options: ApiRequestOptions | undefined }[] = [];
+		const deadline = Date.now() + 10_000;
 		const items = [{
 			id: 1, node_id: 'I_1', number: 1, html_url: 'https://github.com/owner/repo/issues/1',
 			repository_url: 'https://api.github.com/repos/owner/repo', title: 'Issue title', state: 'open', user: null, score: 1,
 			updated_at: '2026-10-14T01:00:00Z',
 		}];
-		const { service, leases } = createSearchService(async query => {
-			requests.push(query);
+		const { service, leases } = createSearchService(async (query, _signal, options) => {
+			requests.push({ query, options });
 			return { total_count: 1, incomplete_results: false, items };
 		});
 		const query = 'title & labels #1';
@@ -82,11 +85,11 @@ suite('IssueFormService', () => {
 			service.searchGitHubIssues('owner/repo', query, new AbortController().signal),
 		]);
 		assert.deepStrictEqual({ requests, returnedItems: results.map(result => result === items), leases }, {
-			requests: [`repo:owner/repo ${query}`, `repo:owner/repo ${query}`],
+			requests: [0, 1].map(() => ({ query: `repo:owner/repo ${query}`, options: { caller: 'github.query', deadline } })),
 			returnedItems: [true, true],
 			leases: { acquired: 2, released: 2 },
 		});
-	});
+	}));
 
 	test('malformed and failed searches remain failures rather than empty successful results', async () => {
 		const errors = [new GitHubRequestError('Not Found', 'notFound', 404), new SchemaError('Malformed search response')];

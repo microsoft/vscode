@@ -22,7 +22,7 @@ export class AnonymousClient extends Disposable implements IGitHubAnonymousClien
 		this._register(lifetime);
 		this.content = new ContentClient(provider, rawContent);
 		const gist = new GistsClient(provider);
-		this.gist = { get: (gistId, signal) => gist.get(gistId, signal) };
+		this.gist = { get: (gistId, signal, options) => gist.get(gistId, signal, options) };
 		const core = new CoreClient(provider, {
 			request: async () => {
 				throw new GitHubRequestError('GitHub GraphQL requests require an authenticated client', 'authentication');

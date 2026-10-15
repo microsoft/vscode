@@ -206,7 +206,9 @@ suite('LocalApiRequestProvider', () => {
 		const transport = store.add(new GitHubTransport(async () => assert.fail('No fetch expected')));
 		for (const endpoint of ['', 'not a URL', 'http://api.github.com', 'https://user@api.github.com', 'https://api.github.com?secret=value', 'https://api.github.com#fragment']) {
 			for (const target of ['rest', 'rawContent'] as const) {
-				assert.throws(() => new LocalApiRequestProvider(endpoint, transport, undefined, target), { kind: 'validation' });
+				assert.throws(() => new LocalApiRequestProvider(endpoint, transport, undefined, target), function isValidationError(error: unknown) {
+					return error instanceof GitHubRequestError && error.kind === 'validation';
+				});
 			}
 		}
 	});

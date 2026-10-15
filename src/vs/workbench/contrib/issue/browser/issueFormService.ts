@@ -123,7 +123,10 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 		const lifetime = new DisposableStore();
 		try {
 			const client = lifetime.add(await this.gitHubService.acquireAnonymousApiClient(signal));
-			const page = await client.search.issues(`repo:${repo} ${title}`, signal);
+			const page = await client.search.issues(`repo:${repo} ${title}`, signal, {
+				caller: 'github.query',
+				deadline: Date.now() + 10_000,
+			});
 			return page.items;
 		} catch (error) {
 			if (!signal.aborted) {
