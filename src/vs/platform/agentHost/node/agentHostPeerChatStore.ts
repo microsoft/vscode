@@ -21,7 +21,7 @@ import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_C
 import { getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
-import { legacyChatStorage, mirrorsAtChatUri } from './agentHostStateManager.js';
+import { legacyPeerChatStorage, mirrorsAtChatUri } from './agentHostStateManager.js';
 
 export const PEER_CHATS_METADATA_KEY = 'peerChats';
 export const CHAT_PROVIDER_DATA_METADATA_KEY = 'agentHost.chatProviderData';
@@ -146,7 +146,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				}
 				let metadata = chat.metadata;
 				if (restore) {
-					const chatRef = await this._sessionDataService.tryOpenDatabase(URI.parse(chat.storageResource ?? legacyChatStorage(session.toString(), chat.chat, undefined)));
+					const chatRef = await this._sessionDataService.tryOpenDatabase(URI.parse(chat.storageResource ?? legacyPeerChatStorage(chat.chat)));
 					let title: string | undefined;
 					let titleSource: string | undefined;
 					try {
@@ -278,8 +278,11 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		}
 		const [snapshot] = await this._database.readCatalogSnapshot([session.toString()]);
 		for (const [chat, workingDirectories] of changes) {
-			const storage = this._chatOwnership.getChatStorageResource(chat) ?? snapshot?.chats.find(row => row.chat === chat)?.storageResource ?? chat;
-			if (!mirrorsAtChatUri(chat, storage)) {
+			// A catalog row without storage follows the creation-time rule. A chat nothing records any more has no
+			// database to mirror into; never create one at its URI.
+			const row = snapshot?.chats.find(candidate => candidate.chat === chat);
+			const storage = this._chatOwnership.getChatStorageResource(chat) ?? row?.storageResource ?? (row ? this._chatOwnership.resolveChatStorageResource(session.toString(), chat) : undefined);
+			if (storage === undefined || !mirrorsAtChatUri(chat, storage)) {
 				continue;
 			}
 			try {
@@ -1119,7 +1122,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 	private async _readChatMetadata(session: URI, entry: IPersistedPeerChat): Promise<IPersistedPeerChat> {
 		const central = this._sessionStateStore.peek(session)?.chats.get(entry.uri);
 		// Legacy-catalog peers: their storage is their chat URI.
-		const ref = await this._sessionDataService.tryOpenDatabase(URI.parse(legacyChatStorage(session.toString(), entry.uri, undefined)));
+		const ref = await this._sessionDataService.tryOpenDatabase(URI.parse(legacyPeerChatStorage(entry.uri)));
 		if (!ref) {
 			return entry;
 		}
@@ -1173,7 +1176,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				const { workingDirectories: _existingWorkingDirectories, ...entryWithoutWorkingDirectories } = entry;
 				return { ...entryWithoutWorkingDirectories, workingDirectories: [...row.workingDirectories] };
 			}
-			const ref = await this._sessionDataService.tryOpenDatabase(URI.parse(legacyChatStorage(session.toString(), entry.uri, undefined)));
+			const ref = await this._sessionDataService.tryOpenDatabase(URI.parse(legacyPeerChatStorage(entry.uri)));
 			if (!ref) {
 				return entry;
 			}
@@ -1199,7 +1202,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 
 	private async _writeChatMetadata(session: URI, entry: IPersistedPeerChat): Promise<void> {
 		// A legacy-catalog peer: older builds read its metadata from its own database, at its chat URI.
-		const ref = this._sessionDataService.openDatabase(URI.parse(legacyChatStorage(session.toString(), entry.uri, undefined)));
+		const ref = this._sessionDataService.openDatabase(URI.parse(legacyPeerChatStorage(entry.uri)));
 		try {
 			await ref.object.setMetadataValues({
 				...(entry.isRead !== undefined ? { [AH_META_IS_READ_DB_KEY]: entry.isRead ? 'true' : '' } : {}),

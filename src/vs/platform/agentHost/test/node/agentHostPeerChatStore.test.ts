@@ -862,6 +862,21 @@ suite('AgentHostPeerChatStore', () => {
 		]);
 	});
 
+	test('copies no working directories for older builds of a chat nothing records', async () => {
+		await orchestrator.registerChatCatalogV2(session.toString(), {
+			defaultChat: { chat: buildDefaultChatUri(session), order: 0, metadata: { summary: 'Default', interactivity: ChatInteractivity.Full, changes: { files: 0 } } },
+			peers: [],
+			privateDescendants: [],
+		});
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+
+		// A chat removed after its change was computed reaches the mirror without any record.
+		await (store as unknown as { _mirrorPeerWorkingDirectories(session: URI, changes: ReadonlyMap<string, string>): Promise<void> })._mirrorPeerWorkingDirectories(session, new Map([[buildChatUri(session, 'unrecorded'), JSON.stringify(['file:///workspace/unrecorded'])]]));
+
+		assert.deepStrictEqual(database.setMetadataCalls.filter(call => call.key === CHAT_WORKING_DIRECTORIES_METADATA_KEY), []);
+	});
+
 	test('working directories are read from the session state store rather than a stale chat database value', async () => {
 		const database = new TestSessionDatabase();
 		const store = createStore(database);

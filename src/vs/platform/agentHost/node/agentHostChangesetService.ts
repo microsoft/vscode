@@ -385,6 +385,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * recorded storage of the chat (a session's own tracked edits are its
 	 * default chat's). File-edit content URIs embed it, so it must address the
 	 * database itself, never a chat URI or owner derived for it.
+	 *
+	 * Throws for a chat with no recorded storage (not registered, or removed):
+	 * its database is unknown, and opening one at its URI would create it.
 	 */
 	private _getTrackedDatabaseUri(owner: ProtocolURI): ProtocolURI {
 		const source = resolveBranchChangesetScopeForOwner(this._stateManager, owner)?.sourceUri ?? owner;
@@ -393,8 +396,11 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		if (recorded !== undefined) {
 			return recorded;
 		}
-		// Not registered (yet): the session's own database, or the chat's creation-time storage.
-		return this._chatOwnership.isRegisteredDefaultChat(source) ? this._containingSessionUri(source) : source;
+		if (!isAhpChatChannel(source)) {
+			// A session whose default chat is not registered (yet): the session's own database.
+			return source;
+		}
+		throw new Error(`No recorded storage for chat ${source}`);
 	}
 
 	private _getSessionSummaryWorkingDirectories(session: ProtocolURI): readonly ProtocolURI[] | undefined {
@@ -1510,9 +1516,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		}
 		const workingDirectories = this._getEffectiveWorkingDirectories(chat);
 		const folderScope = this._getTrackedEditFolderScope(chat, workingDirectories);
-		const trackedUri = this._getTrackedDatabaseUri(chat);
+		let trackedUri: ProtocolURI;
 		let ref: ReturnType<ISessionDataService['openDatabase']>;
 		try {
+			trackedUri = this._getTrackedDatabaseUri(chat);
 			ref = this._sessionDataService.openDatabase(URI.parse(trackedUri));
 		} catch (err) {
 			this._logService.warn(`[AgentHostChangesetService] Failed to open chat database for Session Changes: ${chat}`, err);

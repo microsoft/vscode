@@ -3768,6 +3768,22 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			});
 		});
 
+		test('addresses tracked edits only through recorded storage, never a database at an unregistered chat\'s URI', () => {
+			const storage = 'copilot:/moved-in-storage';
+			const { svc } = build({
+				workingDirectories: ['file:///wd'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE, db: new TestSessionDatabase(),
+				peer: { resource: peer, db: new TestSessionDatabase(), turnId: 'peer-turn', storage },
+			});
+			const internals = svc as unknown as { _getTrackedDatabaseUri(owner: string): string };
+			const unregistered = buildChatUri(sessionStr, 'unregistered');
+
+			assert.deepStrictEqual({
+				peer: internals._getTrackedDatabaseUri(peer),
+				session: internals._getTrackedDatabaseUri(sessionStr),
+				unregistered: (() => { try { return internals._getTrackedDatabaseUri(unregistered); } catch { return 'rejected'; } })(),
+			}, { peer: storage, session: sessionStr, unregistered: 'rejected' });
+		});
+
 		test('an observed peer Session Changes computation publishes the peer aggregate', async () => {
 			const peerDb = new TestSessionDatabase();
 			addCreatedFile(peerDb, 'peer-turn', '/wd/peer.ts', 'a\nb');

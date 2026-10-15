@@ -108,13 +108,14 @@ export function mirrorsAtChatUri(chat: string, storage: string): boolean {
 }
 
 /**
- * The storage of a chat of a legacy-catalog session, which records none: a
- * peer stores at its chat URI and the default chat in the session. Moving a
- * chat into or out of such a session first normalizes it, so this holds for
- * every chat a legacy catalog lists.
+ * The storage of a peer chat of a legacy-catalog session, which records none:
+ * a legacy peer stores at its chat URI. Moving a chat into or out of such a
+ * session first normalizes it, so this holds for every peer a legacy catalog
+ * lists. Peers only: the legacy default chat stores in the session, and the
+ * caller knows which chat is a peer from the catalog, never from its URI.
  */
-export function legacyChatStorage(session: string, chat: string, defaultChat: string | undefined): string {
-	return creationTimeChatStorageResource(session, chat, defaultChat);
+export function legacyPeerChatStorage(peer: string): string {
+	return peer;
 }
 
 function registrationParentChat(origin: ChatOrigin | undefined): string | undefined {

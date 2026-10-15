@@ -7,7 +7,7 @@ import { Event } from '../../../../base/common/event.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { IAgentHostDatabase, type IAgentHostDatabaseChatOwner, type IAgentHostDatabaseSessionRegistrations } from '../../node/agentHostDatabase.js';
 import { AgentHostChatOwnershipService, IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 
 /** A catalog that records no chats or sessions, so ownership comes from the live registry only. */
 export class EmptyOwnershipDatabase extends mock<IAgentHostDatabase>() {
@@ -54,6 +54,9 @@ export function createLiveChatOwnership(getChatOwner: (chat: string) => string |
 		}
 		override getChatStorageResource(): string | undefined {
 			return undefined;
+		}
+		override resolveChatStorageResource(session: string, chat: string): string {
+			return creationTimeChatStorageResource(session, chat, getDefaultChat(session));
 		}
 	}();
 }
