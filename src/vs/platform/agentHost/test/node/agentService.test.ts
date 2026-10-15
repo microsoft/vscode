@@ -31506,6 +31506,53 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			});
 
+			test('neither a move nor a promotion seeds the chat\'s config again: it keeps its own, not its new session\'s default chat\'s (D1)', async () => {
+				const { service, source, target } = await setupMove();
+				const stateManager = getStateManager(service);
+				const schema = {
+					type: 'object' as const, properties: {
+						autoApprove: { type: 'string' as const, title: 'Approvals', enum: ['default', 'assisted', 'autoApprove'], sessionMutable: true, chatMutable: true },
+						mode: { type: 'string' as const, title: 'Mode', enum: ['agent', 'plan'], sessionMutable: true, chatMutable: true },
+					},
+				};
+				stateManager.setSessionConfig(source.toString(), { schema, values: { autoApprove: 'default', mode: 'agent' } });
+				stateManager.setSessionConfig(target.toString(), { schema, values: { autoApprove: 'default', mode: 'agent' } });
+				// The target's default chat uses values of its own, which D1 would give a chat created in the target.
+				stateManager.dispatchServerAction(buildDefaultChatUri(target), { type: ActionType.ChatConfigChanged, config: { autoApprove: 'assisted', mode: 'plan' } });
+				const moved = URI.parse(buildChatUri(source, 'seeded-moved'));
+				const promoted = URI.parse(buildChatUri(source, 'seeded-promoted'));
+				await service.createChat(source, moved);
+				await service.createChat(source, promoted);
+				await timeout(0);
+				stateManager.dispatchServerAction(moved.toString(), { type: ActionType.ChatConfigChanged, config: { autoApprove: 'autoApprove' } });
+				stateManager.dispatchServerAction(promoted.toString(), { type: ActionType.ChatConfigChanged, config: { autoApprove: 'autoApprove' } });
+				const seeded = stateManager.getChatConfig(moved.toString())?.values;
+
+				await service.moveChat(source, moved, { kind: 'session', session: target, after: undefined });
+				const newSession = await service.moveChat(source, promoted, { kind: 'newSession' });
+				await timeout(0);
+
+				const configuration = getConfigurationService(service);
+				assert.deepStrictEqual({
+					seeded,
+					movedOwn: stateManager.getChatConfig(moved.toString())?.values,
+					movedEffective: configuration.getChatConfigValues({ session: target.toString(), chat: moved.toString() }),
+					targetDefault: configuration.getChatConfigValues({ session: target.toString(), chat: buildDefaultChatUri(target) }),
+					promotedSession: stateManager.getSessionState(newSession.toString())?.config?.values,
+					promotedOwn: stateManager.getChatConfig(promoted.toString())?.values,
+					promotedEffective: configuration.getChatConfigValues({ session: newSession.toString(), chat: promoted.toString() }),
+				}, {
+					// D1 seeded the chats from the source's default chat when they were created.
+					seeded: { autoApprove: 'autoApprove', mode: 'agent' },
+					movedOwn: { autoApprove: 'autoApprove', mode: 'agent' },
+					movedEffective: { autoApprove: 'autoApprove', mode: 'agent' },
+					targetDefault: { autoApprove: 'assisted', mode: 'plan' },
+					promotedSession: { autoApprove: 'autoApprove', mode: 'agent' },
+					promotedOwn: {},
+					promotedEffective: { autoApprove: 'autoApprove', mode: 'agent' },
+				});
+			});
+
 			interface IMoveInternals {
 				_sessionResidency: { isBeingDisposed(resource: URI | string): boolean };
 				_workspaceConversionService: { isPending(resource: string, sessionWide?: boolean): boolean };
