@@ -403,6 +403,41 @@ suite('Session state compatibility fixtures', () => {
 		});
 	}
 
+	test('a compatibility session whose legacy catalog orders its peers unlike its aggregate converts, in the aggregate\'s order', async () => {
+		const fixture = createLegacySessionFixture('2b');
+		const sessionData = store.add(new InMemorySessionDataService());
+		await writeOldBuild(fixture, sessionData);
+		const today = store.add(new CompatibleAgentHostDatabase(join(directory, 'agent-host.db')));
+		await today.initialize();
+		const service = sessionData.createService(today.identity);
+		const peers = new AgentHostPeerChatStore(today, service, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(today, service));
+		const session = URI.parse(fixture.runtimeSession);
+		const [, sameFolder, otherFolder] = fixture.chats;
+		// As in the live run: one peer archived, one unread, the payload current.
+		await editChatListAsOldBuild(sessionData.createService(), today.raw, fixture, 'centralCatalog', chats => chats.map(chat => chat.uri === otherFolder.uri ? { ...chat, archived: true } : chat));
+		await peers.reconcileLegacy(session);
+		await reprojectLegacyFixturePayload(sessionData.createService(), today.raw, fixture);
+		// The legacy catalog lists the peers in the other order, and a peer's own database records an empty inherited turn.
+		const sqlite = await (today.raw as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+		for (const sql of ['UPDATE session_chats SET chat_order = chat_order + 2 WHERE session_uri = ?', 'UPDATE session_chats SET chat_order = 3 - chat_order WHERE session_uri = ?']) {
+			await new Promise<void>((resolve, reject) => sqlite.run(sql, [fixture.session], error => error ? reject(error) : resolve()));
+		}
+		const own = sessionData.createService().openDatabase(URI.parse(sameFolder.storage));
+		await own.object.setMetadata('agentHost.chatInheritedTurnId', '');
+		own.dispose();
+
+		const converted = await migrateChatCatalogV2(today, service, session);
+
+		const [stored] = await today.raw.readCatalogSnapshot([fixture.session]);
+		assert.deepStrictEqual({
+			converted: converted.status,
+			peers: stored?.chats.filter(chat => chat.order !== undefined && chat.chat !== stored.header?.defaultChatUri).map(chat => ({ chat: chat.chat, archived: chat.archived, isRead: chat.isRead })),
+		}, {
+			converted: 'applied',
+			peers: [{ chat: sameFolder.uri, archived: false, isRead: sameFolder.isRead }, { chat: otherFolder.uri, archived: true, isRead: otherFolder.isRead }],
+		});
+	});
+
 	for (const write of ['archive', 'rename'] as const) {
 		test(`after a restart, a normalized ${write} with no open in between first imports what an old build changed`, async () => {
 			const { fixture, sessionData, today, extra, createStore, session, runtime, peers } = await publishedNormalizedSession();

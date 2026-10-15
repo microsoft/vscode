@@ -305,7 +305,9 @@ export type IAgentHostDatabaseChatV2Mutation =
 export type AgentHostDatabaseChatV2WriteResult =
 	| { readonly status: 'applied' | 'replayed'; readonly catalogRevision: number }
 	/** `olderBuildEdits`: see {@link AgentHostDatabaseSessionChatCatalogReplaceResult}. */
-	| { readonly status: 'conflict' | 'notReady' | 'missingSession' | 'tombstoned' | 'alreadyNormalized' | 'cancelled' | 'olderBuildEdits' };
+	| { readonly status: 'conflict' | 'missingSession' | 'tombstoned' | 'alreadyNormalized' | 'cancelled' | 'olderBuildEdits' }
+	/** A normalization whose sources are not ready yet; `reason` says which, for the log. */
+	| { readonly status: 'notReady'; readonly reason: string };
 
 class AgentHostDatabaseWriteCancelledError extends Error { }
 
@@ -2903,7 +2905,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		const row = await get(database, `SELECT s.*, COALESCE(CAST((SELECT value FROM metadata WHERE key = ?) AS INTEGER), 0) AS dirty
 			FROM sessions_v2 s WHERE session_uri = ?`, [sessionsV2PayloadDirtyKey(session), session]);
 		if (!row || row.verified !== 1 || row.dirty !== 0) {
-			return { status: 'notReady' };
+			return { status: 'notReady', reason: 'the session aggregate is unverified or awaits its re-projection' };
 		}
 		if (row.session_generation !== expected.sessionGeneration || row.source_revision !== expected.sourceRevision || row.payload_hash !== expected.payloadHash) {
 			return { status: 'conflict' };
@@ -2927,8 +2929,11 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		const deletedUris = new Set(candidate.deletedChats?.map(chat => chat.chat));
 		const legacy = (await all(database, 'SELECT * FROM session_chats WHERE session_uri = ? ORDER BY chat_order', [session]))
 			.filter(chat => !deletedUris.has(chat.chat_uri as string));
-		if (header && (legacy.length !== peers.length || legacy.some((chat, index) => chat.chat_uri !== peers[index].uri))) {
-			return { status: 'notReady' };
+		// The legacy catalog must list exactly the aggregate's visible peers (its membership is current); their order is
+		// the aggregate's, which is what this build shows: the two orders are never reconciled, so they may differ.
+		const peerUris = new Set(peers.map(peer => peer.uri));
+		if (header && (legacy.length !== peers.length || legacy.some(chat => !peerUris.has(chat.chat_uri as string)))) {
+			return { status: 'notReady', reason: 'the legacy chat catalog lists other peers than the session aggregate' };
 		}
 		const legacyByUri = new Map(legacy.map(chat => [chat.chat_uri as string, chat]));
 		const normalize = (chat: IAgentHostDatabaseChatV2NormalizationChat): IAgentHostDatabaseChatV2NormalizationChat => {

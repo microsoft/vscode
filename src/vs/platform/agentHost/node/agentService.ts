@@ -1359,6 +1359,8 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _untitledExternalSessions = new Map<string, IAgentSessionMetadata>();
 	private _externalSessionTitlingQueued = false;
 	private readonly _backgroundInitialMigrationRetries = new Map<AgentProvider, Promise<void>>();
+	/** The reason each session's last chat catalog migration ended without converting it, logged at warn once per reason. */
+	private readonly _catalogMigrationDeferrals = new Map<string, string>();
 	private readonly _initialProviderMigrationsNeedingRetry = new Set<AgentProvider>();
 
 	async whenCatalogReconciliationIdle(): Promise<void> {
@@ -2810,7 +2812,7 @@ export class AgentService extends Disposable implements IAgentService {
 			privateDescendants: [],
 		});
 		if (result.status === 'notReady') {
-			this._logService.trace(`[AgentService] Deferring normalized catalog registration for ${session.toString()}`);
+			this._logService.trace(`[AgentService] Deferring normalized catalog registration for ${session.toString()}: ${result.reason}`);
 			this._catalogReconciliationService.schedule();
 			return;
 		}
@@ -2939,9 +2941,8 @@ export class AgentService extends Disposable implements IAgentService {
 						await this._markCatalogPayloadDirty(session.toString());
 					} else if (result.status === 'applied' || result.status === 'replayed') {
 						this._invalidateSessionList();
-					} else if (result.status !== 'alreadyNormalized') {
-						this._logService.trace(`[AgentService] Chat catalog migration for ${session.toString()} deferred: ${result.status}`);
 					}
+					this._reportCatalogMigration(session, result);
 					return result;
 				});
 			});
@@ -2952,6 +2953,26 @@ export class AgentService extends Disposable implements IAgentService {
 				await this._markCatalogPayloadDirty(session.toString());
 				this._catalogReconciliationService.schedule();
 			}
+		}
+	}
+
+	/**
+	 * Logs a chat catalog migration that ended without converting the session, with why: at warn the first time a
+	 * session is deferred for a reason in this process (a conversion is never left silent), at trace after.
+	 */
+	private _reportCatalogMigration(session: URI, result: Awaited<ReturnType<typeof migrateChatCatalogV2>>): void {
+		const key = session.toString();
+		if (result.status === 'applied' || result.status === 'replayed' || result.status === 'alreadyNormalized') {
+			this._catalogMigrationDeferrals.delete(key);
+			return;
+		}
+		const reason = result.status === 'notReady' ? `notReady: ${result.reason}` : result.status;
+		const message = `[AgentService] Chat catalog migration of ${key} ended without converting it: ${reason}`;
+		if (this._catalogMigrationDeferrals.get(key) === reason) {
+			this._logService.trace(message);
+		} else {
+			this._catalogMigrationDeferrals.set(key, reason);
+			this._logService.warn(message);
 		}
 	}
 
