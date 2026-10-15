@@ -27,6 +27,7 @@ import { autorun, constObservable, derived, IObservable, IReader, observableFrom
 import { extUri, isEqual } from '../../../../../base/common/resources.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { IChatOpenDiagnosticsService } from '../../common/chatOpenDiagnosticsService.js';
 import { ChatPerfMark, clearChatMarks, markChat } from '../../common/chatPerf.js';
 import { CloudSandboxSessionTrace } from '../../common/cloudSandboxSessionTrace.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
@@ -645,6 +646,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IManagedSettingsService managedSettingsService: IManagedSettingsService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IAgentHostPolicyContinuationService private readonly policyContinuationService: IAgentHostPolicyContinuationService,
+		@IChatOpenDiagnosticsService private readonly chatOpenDiagnosticsService: IChatOpenDiagnosticsService,
 	) {
 		super();
 		this._persistentContentHeight = viewOptions.persistentContentHeight ?? 0;
@@ -1510,6 +1512,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this._pendingFirstRenderSessionResource = undefined;
 				this.logService.trace(`ChatWidget#firstRender: session=${this.viewModel.sessionResource.toString()} items=${items.length}`);
 				CloudSandboxSessionTrace.get(this.viewModel.model)?.record('firstRender', { items: items.length });
+				this.chatOpenDiagnosticsService.mark(this.viewModel.sessionResource, 'firstRender');
 			}
 
 			if (!skipDynamicLayout && this._dynamicMessageLayoutData) {
@@ -3051,6 +3054,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.listWidget.setViewModel(this.viewModel);
 		CloudSandboxSessionTrace.get(model)?.record('widgetBound');
+		this.chatOpenDiagnosticsService.mark(model.sessionResource, 'modelAttached');
 		// Armed only once the list is bound, so a render triggered while the
 		// outgoing model was torn down cannot consume it.
 		this._pendingFirstRenderSessionResource = model.sessionResource;

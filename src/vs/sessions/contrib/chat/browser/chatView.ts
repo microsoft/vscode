@@ -38,6 +38,7 @@ import { ChatContentMarkdownRenderer } from '../../../../workbench/contrib/chat/
 import { chatPersistentContentVisibleClass, ChatWidget } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
 import { SESSIONS_CHAT_CONTENT_HORIZONTAL_PADDING } from '../../../../workbench/contrib/chat/browser/widget/chatOptions.js';
 import { setModelPreservingInputTypedWhileLoading } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { IChatOpen, IChatOpenDiagnosticsService } from '../../../../workbench/contrib/chat/common/chatOpenDiagnosticsService.js';
 import { IChatModelReference, IChatService, ResponseModelState } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { isChatTranscriptContextVariableEntry, IChatRequestTranscriptContextVariableEntry, IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatModel, IChatModel, IInputModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
@@ -278,6 +279,7 @@ export class ChatView extends AbstractChatView {
 
 	/** Tracks the currently loaded chat resource to avoid redundant reloads. */
 	private _currentChatResource: URI | undefined;
+	private readonly _openDiagnostics = this._register(new MutableDisposable<IChatOpen>());
 	/**
 	 * The bound chat whose content provider was unregistered. Its model stays wired to the
 	 * provider that went away, so a replacement registering for the same session type never
@@ -330,6 +332,7 @@ export class ChatView extends AbstractChatView {
 		@INewChatVoiceTargetService private readonly newChatVoiceTargetService: INewChatVoiceTargetService,
 		@ISessionsChatViewStateService private readonly viewStateService: ISessionsChatViewStateService,
 		@ISessionOpenTelemetryService private readonly sessionOpenTelemetryService: ISessionOpenTelemetryService,
+		@IChatOpenDiagnosticsService private readonly chatOpenDiagnosticsService: IChatOpenDiagnosticsService,
 		@ISessionsChatBackgroundService private readonly chatBackgroundService: ISessionsChatBackgroundService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
@@ -828,13 +831,50 @@ export class ChatView extends AbstractChatView {
 		const cts = new CancellationTokenSource();
 		this._loadCts.value = cts;
 		const token = cts.token;
+		const open = this._openDiagnostics.value = this.chatOpenDiagnosticsService.startOpen('agentsWindow', resource, token);
+		open.mark('selectionHandled');
 		this._setLoading(true);
 
 		// Capture the input draft before the load window opens so text typed
 		// during loading is preserved when the model binds. See #325323.
 		const inputBeforeLoad = this._widget.getInput();
 
-		const loadPromise = this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'ChatView').then(ref => {
+		const loadPromise = (async (): Promise<boolean> => {
+			let ref: IChatModelReference | undefined;
+			try {
+				ref = await this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'ChatView');
+			} catch (err) {
+				if (!isEqual(this._currentChatResource, resource) || this._loadCts.value !== cts) {
+					return false;
+				}
+				if (token.isCancellationRequested) {
+					this.logService.trace(`[ChatView] setChat cancelled uri=${resource.toString()}`);
+					this._setLoading(false);
+					return false;
+				}
+				this.logService.error(`[ChatView] Failed to load chat model for chat uri=${resource.toString()}`, err);
+				this._loadFailure.set({
+					resource,
+					status: {
+						kind: 'history',
+						message: localize('chatView.historyLoadFailed', "Couldn't load this conversation."),
+						action: {
+							label: localize('chatView.retryHistoryLoad', "Retry"),
+							run: async () => {
+								if (!token.isCancellationRequested && this._loadCts.value === cts && isEqual(this._currentChatResource, resource)) {
+									await this._loadChat(resource, this._currentSessionObs.get(), { inputModelToPreserve: options?.inputModelToPreserve });
+								}
+							},
+						},
+					},
+				}, undefined);
+				this._setLoading(false);
+				open.fail(err);
+				if (session) {
+					this.sessionOpenTelemetryService.modelBindFailed(session.resource, resource);
+				}
+				return false;
+			}
 			const isCurrentChat = isEqual(this._currentChatResource, resource);
 			const isCurrentLoad = this._loadCts.value === cts;
 			if (token.isCancellationRequested || !ref || !isCurrentChat || !isCurrentLoad) {
@@ -844,9 +884,12 @@ export class ChatView extends AbstractChatView {
 				}
 				if (isCurrentChat && isCurrentLoad) {
 					this._setLoading(false);
+					if (!token.isCancellationRequested && !ref) {
+						open.fail(new Error('The chat model could not be acquired'));
+					}
 				}
 				this.logService.trace(`[ChatView] setChat abandoned uri=${resource.toString()}`);
-				return;
+				return false;
 			}
 			this.logService.trace(`[ChatView] setChat model loaded uri=${resource.toString()}`);
 			const inputState = options?.inputModelToPreserve ? this._widget.getInputState() : undefined;
@@ -890,43 +933,29 @@ export class ChatView extends AbstractChatView {
 			// inner widget is fully attached to the loaded model.
 			this.element.dataset.boundChatResource = resource.toString();
 			this.logService.trace(`[ChatView] setChat done uri=${resource.toString()}`);
-		}, err => {
-			if (!isEqual(this._currentChatResource, resource) || this._loadCts.value !== cts) {
-				return;
+			return true;
+		})();
+
+		const loaded = (async () => {
+			try {
+				const bound = await loadPromise;
+				if (bound && !token.isCancellationRequested) {
+					open.complete(this._widget.visible && !this.element.ownerDocument.hidden);
+				}
+			} catch (err) {
+				open.fail(err);
+				throw err;
+			} finally {
+				open.end();
 			}
-			if (token.isCancellationRequested) {
-				this.logService.trace(`[ChatView] setChat cancelled uri=${resource.toString()}`);
-				this._setLoading(false);
-				return;
-			}
-			this.logService.error(`[ChatView] Failed to load chat model for chat uri=${resource.toString()}`, err);
-			this._loadFailure.set({
-				resource,
-				status: {
-					kind: 'history',
-					message: localize('chatView.historyLoadFailed', "Couldn't load this conversation."),
-					action: {
-						label: localize('chatView.retryHistoryLoad', "Retry"),
-						run: async () => {
-							if (!token.isCancellationRequested && this._loadCts.value === cts && isEqual(this._currentChatResource, resource)) {
-								await this._loadChat(resource, this._currentSessionObs.get(), { inputModelToPreserve: options?.inputModelToPreserve });
-							}
-						},
-					},
-				},
-			}, undefined);
-			this._setLoading(false);
-			if (session) {
-				this.sessionOpenTelemetryService.modelBindFailed(session.resource, resource);
-			}
-		});
+		})();
 
 		// Surface progress on this leaf's own bar while the chat model loads,
 		// matching how each editor group shows progress independently. The short
 		// delay avoids flashing the bar for fast cached loads.
-		this.showProgressWhile(loadPromise, ChatView.LOADING_FEEDBACK_DELAY_MS);
+		this.showProgressWhile(loaded, ChatView.LOADING_FEEDBACK_DELAY_MS);
 		this._layoutChatWidget();
-		return loadPromise;
+		return loaded;
 	}
 
 	private _saveCurrentViewState(): void {

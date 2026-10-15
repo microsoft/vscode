@@ -50,6 +50,7 @@ import { ILanguageModelToolsService } from '../../../../contrib/chat/common/tool
 import { IChatArtifacts, IChatArtifactsService, IArtifactSourceGroup } from '../../../../contrib/chat/common/tools/chatArtifactsService.js';
 import { IChatTodoListService } from '../../../../contrib/chat/common/tools/chatTodoListService.js';
 import { IChatDebugService } from '../../../../contrib/chat/common/chatDebugService.js';
+import { ChatOpenDiagnosticsService, IChatOpenDiagnosticsService } from '../../../../contrib/chat/common/chatOpenDiagnosticsService.js';
 import { IPromptsService } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { IChatWidgetHistoryService } from '../../../../contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { IChatLayoutService } from '../../../../contrib/chat/common/widget/chatLayoutService.js';
@@ -230,6 +231,7 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme, focus }
 				readonly onDidReceiveTip = Event.None;
 				override resetSession() { }
 			}());
+			reg.define(IChatOpenDiagnosticsService, ChatOpenDiagnosticsService);
 			reg.defineInstance(IChatDebugService, new class extends mock<IChatDebugService>() {
 				override readonly onDidAddEvent = Event.None;
 				override getEvents() { return []; }
