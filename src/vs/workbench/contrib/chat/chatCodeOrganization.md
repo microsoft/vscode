@@ -28,6 +28,8 @@ The boolean treatment `chatOpenInAgentsTitleBarExpandOnHover` applies to all use
 - `widget/` - The core files related to rendering parts of the ChatWidget, including the list, the input, the model/agent pickers, and other main UI parts. Must have direct references from ChatWidget itself.
 - `widgetHosts/` - Hosts that embed chat widgets in other places (view pane, editor, quick chat).
 
+Response Markdown file images on remote Agent Hosts use `widget/chatContentParts/chatMarkdownImage.ts`. The loader verifies the resource against the session's owning connection before using the file service, accepts PNG/JPEG/GIF/WebP up to 5 MB and 40 megapixels, and disposes its temporary blob URLs with the rendered Markdown. Missing files, unavailable connections, and invalid images produce inline errors; unloaded images retry when their owning connection changes. Ordinary local and embedded images retain the Markdown renderer's existing path, and arbitrary remote URLs remain blocked.
+
 ### `common/`
 
 - `chatService/` - IChatService interface, implementation, and related code.

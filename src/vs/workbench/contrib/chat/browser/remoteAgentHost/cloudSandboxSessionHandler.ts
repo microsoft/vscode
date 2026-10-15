@@ -25,6 +25,7 @@ import { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/c
 import { CloudSandboxSessionTrace } from '../../common/cloudSandboxSessionTrace.js';
 import { CloudSandboxReadOnlySessionHandler, ICloudSandboxReadOnlyConfig, ReadOnlyChatSession } from './cloudSandboxReadOnlySessionHandler.js';
 import type { ICanvasContext } from '../../../canvases/common/canvas.js';
+import { rewriteAgentHostLinkTarget } from '../agentSessions/agentHost/stateToProgressAdapter.js';
 
 const LIVE_CONTENT_TIMEOUT_MS = 30_000;
 
@@ -542,7 +543,8 @@ export class CloudSandboxSessionHandler extends Disposable implements IChatSessi
 	}
 
 	resolveChatResponseUri(resource: URI, href: string, kind: 'link' | 'image'): string {
-		return this._liveProvider?.resolveChatResponseUri?.(resource, href, kind) ?? href;
+		return this._liveProvider?.resolveChatResponseUri?.(resource, href, kind)
+			?? (kind === 'image' ? rewriteAgentHostLinkTarget(href, this._config.connectionAuthority) : href);
 	}
 
 	provideChatInputCompletions: NonNullable<IChatSessionContentProvider['provideChatInputCompletions']> =

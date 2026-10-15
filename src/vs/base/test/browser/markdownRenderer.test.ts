@@ -95,6 +95,69 @@ suite('MarkdownRenderer', () => {
 	});
 
 	suite('Images', () => {
+		test('custom image rendering preserves sanitized metadata and owns the image lifetime', () => {
+			const image = mainWindow.document.createElement('img');
+			const element = mainWindow.document.createElement('span');
+			element.appendChild(image);
+			const sources: string[] = [];
+			let disposed = 0;
+			const result = store.add(renderMarkdown({
+				value: '![a & b](file:///preview.png|width=10,height=20 "Preview")',
+			}, {
+				transformUri: () => 'custom-image:/preview.png',
+				imageRenderer: href => {
+					sources.push(href);
+					return { element, image, dispose: () => disposed++ };
+				},
+				sanitizerConfig: { remoteImageIsAllowed: () => false },
+			}));
+			result.dispose();
+
+			assert.deepStrictEqual({
+				sources,
+				element: result.element.querySelector('span') === element,
+				image: result.element.querySelector('img') === image,
+				source: image.getAttribute('src'),
+				alt: image.alt,
+				title: image.title,
+				width: image.width,
+				height: image.height,
+				disposed,
+			}, {
+				sources: ['custom-image:/preview.png'],
+				element: true,
+				image: true,
+				source: null,
+				alt: 'a & b',
+				title: 'Preview',
+				width: 10,
+				height: 20,
+				disposed: 1,
+			});
+		});
+
+		test('unhandled images and raw HTML still use the media sanitizer', () => {
+			const sources: string[] = [];
+			const result = store.add(renderMarkdown(new MarkdownString(
+				'![remote](https://example.com/image.png)\n\n<img src="https://example.com/raw.png">',
+				{ supportHtml: true },
+			), {
+				imageRenderer: href => {
+					sources.push(href);
+					return undefined;
+				},
+				sanitizerConfig: { remoteImageIsAllowed: () => false },
+			}));
+
+			assert.deepStrictEqual({
+				sources,
+				imageSources: Array.from(result.element.querySelectorAll('img'), image => image.getAttribute('src')),
+			}, {
+				sources: ['https://example.com/image.png'],
+				imageSources: [null, null],
+			});
+		});
+
 		test('image rendering conforms to default', () => {
 			const markdown = { value: `![image](http://example.com/cat.gif 'caption')` };
 			const result: HTMLElement = store.add(renderMarkdown(markdown)).element;

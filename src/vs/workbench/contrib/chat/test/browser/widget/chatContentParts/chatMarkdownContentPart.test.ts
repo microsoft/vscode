@@ -12,6 +12,7 @@ import { MarkdownString } from '../../../../../../../base/common/htmlContent.js'
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
+import { decodeBase64 } from '../../../../../../../base/common/buffer.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
@@ -23,7 +24,13 @@ import { IConfigurationService } from '../../../../../../../platform/configurati
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
-import { toAgentHostUri } from '../../../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, createAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../../platform/agentHost/common/agentHostUri.js';
+import { IAgentHostConnectionsService } from '../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IAgentConnection } from '../../../../../../../platform/agentHost/common/agentService.js';
+import { FileService } from '../../../../../../../platform/files/common/fileService.js';
+import { IFileService } from '../../../../../../../platform/files/common/files.js';
+import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { ChatMarkdownContentPart } from '../../../../browser/widget/chatContentParts/chatMarkdownContentPart.js';
@@ -154,6 +161,11 @@ suite('ChatMarkdownContentPart', () => {
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		chatSessionsService = new MockChatSessionsService();
 		instantiationService.stub(IChatSessionsService, chatSessionsService);
+		instantiationService.stub(IAgentHostConnectionsService, {
+			onDidChangeSessionResolution: Event.None,
+			resolveSessionResource: () => undefined,
+			resolveSessionResourceIdentity: () => undefined,
+		});
 		instantiationService.stub(IChatMarkdownAnchorService, disposables.add(new ChatMarkdownAnchorService()));
 		instantiationService.stub(IChatPetService, new class extends mock<IChatPetService>() {
 			override unlockAchievement(): boolean { return false; }
@@ -386,6 +398,50 @@ suite('ChatMarkdownContentPart', () => {
 				imageSource: null,
 			},
 		);
+	});
+
+	test('renders a remote Markdown file image through the session connection without allowing web images', async () => {
+		const authority = 'my-host';
+		const fileService = disposables.add(new FileService(disposables.add(new NullLogService())));
+		disposables.add(fileService.registerProvider(AGENT_HOST_SCHEME, disposables.add(new InMemoryFileSystemProvider())));
+		const resource = toAgentHostUri(URI.file('/preview.gif'), authority);
+		await fileService.writeFile(resource, decodeBase64('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'));
+		instantiationService.stub(IFileService, fileService);
+		const connection = new class extends mock<IAgentConnection>() {
+			override readonly resourceUris = createAgentHostResourceUriMapper(authority);
+		}();
+		instantiationService.stub(IAgentHostConnectionsService, {
+			onDidChangeSessionResolution: Event.None,
+			resolveSessionResourceIdentity: () => undefined,
+			resolveSessionResource: () => ({
+				connection,
+				connectionAuthority: authority,
+				backendSession: URI.parse('custom-session://tenant/opaque'),
+			}),
+		});
+		disposables.add(chatSessionsService.registerChatSessionContentProvider('chat-session', {
+			provideChatSessionContent: async () => { throw new Error('Unexpected session resolution'); },
+			resolveChatResponseUri: (_resource, href) => rewriteAgentHostLinkTarget(href, authority, connection.resourceUris),
+		}));
+		const part = createMarkdownPart('![Preview](file:///preview.gif|width=24,height=16 "Caption") ![Blocked](https://example.com/image.png)');
+		await Event.toPromise(part.onDidChangeHeight, disposables);
+		const image = part.domNode.querySelector('img');
+
+		assert.deepStrictEqual({
+			imageCount: part.domNode.querySelectorAll('img').length,
+			sourceIsBlob: image?.src.startsWith('blob:'),
+			alt: image?.alt,
+			title: image?.title,
+			size: [image?.width, image?.height],
+			decodedSize: [image?.naturalWidth, image?.naturalHeight],
+		}, {
+			imageCount: 1,
+			sourceIsBlob: true,
+			alt: 'Preview',
+			title: 'Caption',
+			size: [24, 16],
+			decodedSize: [1, 1],
+		});
 	});
 
 	test('preserves absolute Windows targets for newly created file links', () => {

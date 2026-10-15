@@ -40,6 +40,9 @@ export interface MarkdownRenderOptions {
 	/** Rewrites parsed Markdown link and image destinations before sanitization. */
 	readonly transformUri?: (href: string, kind: 'link' | 'image') => string;
 
+	/** Renders selected Markdown images without exposing their source to the browser. */
+	readonly imageRenderer?: (href: string) => IRenderedMarkdownImage | undefined;
+
 	readonly fillInIncompleteTokens?: boolean;
 
 	readonly sanitizerConfig?: MarkdownSanitizerConfig;
@@ -89,13 +92,14 @@ function getLinkTitle(href: string): string {
 	return '';
 }
 
-function renderImage({ href, title, text }: marked.Tokens.Image, transformUri?: (href: string) => string): string {
+function renderImage({ href, title, text }: marked.Tokens.Image, transformUri?: (href: string) => string, getImageId?: (href: string) => string | undefined): string {
 	let dimensions: string[] = [];
 	let attributes: string[] = [];
 	if (href) {
 		({ href, dimensions } = parseHrefAndDimensions(href));
 		href = transformUri?.(href) ?? href;
-		attributes.push(`src="${escapeDoubleQuotes(href)}"`);
+		const imageId = getImageId?.(href);
+		attributes.push(imageId ? `data-md-image="${imageId}"` : `src="${escapeDoubleQuotes(href)}"`);
 	}
 	if (text) {
 		attributes.push(`alt="${escapeDoubleQuotes(text)}"`);
@@ -212,6 +216,11 @@ export interface IRenderedMarkdown extends IDisposable {
 	readonly element: HTMLElement;
 }
 
+export interface IRenderedMarkdownImage extends IRenderedMarkdown {
+	/** Receives the sanitized alt text, title, and dimensions from the Markdown image. */
+	readonly image: HTMLImageElement;
+}
+
 /**
  * Low-level way create a html element from a markdown string.
  *
@@ -223,7 +232,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	let isDisposed = false;
 
 	const markedInstance = new marked.Marked(...(options.markedExtensions ?? []));
-	const { renderer, codeBlocks, syncCodeBlocks } = createMarkdownRenderer(markedInstance, options, markdown);
+	const { renderer, codeBlocks, syncCodeBlocks, images } = createMarkdownRenderer(markedInstance, options, markdown, disposables);
 	const value = preprocessMarkdownString(markdown);
 
 	let renderedMarkdown: string;
@@ -253,6 +262,25 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 
 	// Rewrite links and images before potentially inserting them into the real dom
 	rewriteRenderedLinks(markdown, options, renderedContent);
+
+	if (images.size) {
+		// eslint-disable-next-line no-restricted-syntax
+		for (const placeholder of renderedContent.querySelectorAll<HTMLImageElement>('img[data-md-image]')) {
+			const id = placeholder.dataset.mdImage!;
+			const renderedImage = images.get(id);
+			placeholder.removeAttribute('data-md-image');
+			if (renderedImage) {
+				for (const attribute of ['alt', 'title', 'width', 'height']) {
+					const value = placeholder.getAttribute(attribute);
+					if (value !== null) {
+						renderedImage.image.setAttribute(attribute, value);
+					}
+				}
+				placeholder.replaceWith(renderedImage.element);
+				images.delete(id);
+			}
+		}
+	}
 
 	let outElement: HTMLElement;
 	if (target) {
@@ -484,9 +512,19 @@ function rewriteRenderedLinks(markdown: IMarkdownString, options: MarkdownRender
 }
 
 
-function createMarkdownRenderer(marked: marked.Marked, options: MarkdownRenderOptions, markdown: IMarkdownString): { renderer: marked.Renderer; codeBlocks: Promise<[string, HTMLElement]>[]; syncCodeBlocks: [string, HTMLElement][] } {
+function createMarkdownRenderer(marked: marked.Marked, options: MarkdownRenderOptions, markdown: IMarkdownString, disposables: DisposableStore): { renderer: marked.Renderer; codeBlocks: Promise<[string, HTMLElement]>[]; syncCodeBlocks: [string, HTMLElement][]; images: Map<string, IRenderedMarkdownImage> } {
 	const renderer = new marked.Renderer(options.markedOptions);
-	renderer.image = token => renderImage(token, href => options.transformUri?.(href, 'image') ?? href);
+	const images = new Map<string, IRenderedMarkdownImage>();
+	renderer.image = token => renderImage(token, href => options.transformUri?.(href, 'image') ?? href, href => {
+		const image = options.imageRenderer?.(href);
+		if (!image) {
+			return undefined;
+		}
+		disposables.add(image);
+		const id = defaultGenerator.nextId();
+		images.set(id, image);
+		return id;
+	});
 	renderer.link = token => defaultMarkedRenderers.link.call(renderer, {
 		...token,
 		href: options.transformUri?.(token.href, 'link') ?? token.href,
@@ -529,7 +567,7 @@ function createMarkdownRenderer(marked: marked.Marked, options: MarkdownRenderOp
 			return match ? text : '';
 		};
 	}
-	return { renderer, codeBlocks, syncCodeBlocks };
+	return { renderer, codeBlocks, syncCodeBlocks, images };
 }
 
 function preprocessMarkdownString(markdown: IMarkdownString) {
@@ -712,6 +750,7 @@ export const allowedMarkdownHtmlAttributes = Object.freeze<Array<string | domSan
 	// Custom markdown attributes
 	'data-code',
 	'data-href',
+	'data-md-image',
 	'data-severity',
 
 	// Only allow very specific styles

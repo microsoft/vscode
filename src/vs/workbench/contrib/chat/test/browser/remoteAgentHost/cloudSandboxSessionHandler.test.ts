@@ -14,6 +14,7 @@ import { IObservable, observableValue, waitForState } from '../../../../../../ba
 import { getMarks } from '../../../../../../base/common/performance.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
+import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { CloudSandboxRequestError, ICloudSandboxApiService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
@@ -958,5 +959,23 @@ suite('CloudSandboxSessionHandler', () => {
 			triggers: await triggers,
 			uri: handler.resolveChatResponseUri(resource, 'file.txt', 'link'),
 		}, { triggers: ['@', '/'], uri: 'resolved:file.txt' });
+	});
+
+	test('keeps recorded file images scoped to the sandbox before its live provider connects', () => {
+		const handler = createHandler();
+		const file = URI.file('/workspace/my preview.png');
+		const external = 'https://example.com/image.png';
+
+		assert.deepStrictEqual({
+			file: handler.resolveChatResponseUri(resource, file.toString(), 'image'),
+			path: handler.resolveChatResponseUri(resource, '/workspace/my%20preview.png', 'image'),
+			external: handler.resolveChatResponseUri(resource, external, 'image'),
+			link: handler.resolveChatResponseUri(resource, file.toString(), 'link'),
+		}, {
+			file: toAgentHostUri(file, 'test').toString(),
+			path: toAgentHostUri(file, 'test').toString(),
+			external,
+			link: file.toString(),
+		});
 	});
 });
