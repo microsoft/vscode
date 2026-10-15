@@ -13,6 +13,7 @@ import morphdom from 'morphdom';
 import type { MarkdownPreviewChangeIndicator, MarkdownPreviewInnerChange, MarkdownPreviewLineChanges, ToWebviewMessage } from '../types/previewMessaging';
 import { isOfScheme, Schemes } from '../src/util/schemes';
 import { DiffScrollSyncManager } from './diffScrollSync';
+import { areNodesEqual } from '../src/util/previewNodeEquality';
 import { updateSourceLineAttributes } from '../src/util/sourceLineMap';
 
 let scrollDisabledCount = 0;
@@ -781,48 +782,6 @@ window.addEventListener('scroll', throttle(() => {
 function updateScrollProgress() {
 	state.scrollProgress = window.scrollY / document.body.clientHeight;
 	vscode.setState(state);
-}
-
-
-/**
- * Compares two nodes for morphdom to see if they are equal.
- *
- * This skips some attributes that should not cause equality to fail.
- */
-function areNodesEqual(a: Element, b: Element): boolean {
-	const skippedAttrs = [
-		'open', // for details
-	];
-
-	if (a.isEqualNode(b)) {
-		return true;
-	}
-
-	if (a.tagName !== b.tagName || a.textContent !== b.textContent) {
-		return false;
-	}
-
-	const aAttrs = [...a.attributes].filter(attr => !skippedAttrs.includes(attr.name));
-	const bAttrs = [...b.attributes].filter(attr => !skippedAttrs.includes(attr.name));
-	if (aAttrs.length !== bAttrs.length) {
-		return false;
-	}
-
-	for (let i = 0; i < aAttrs.length; ++i) {
-		const aAttr = aAttrs[i];
-		const bAttr = bAttrs[i];
-		if (aAttr.name !== bAttr.name) {
-			return false;
-		}
-		if (aAttr.value !== bAttr.value && aAttr.name !== 'data-line') {
-			return false;
-		}
-	}
-
-	const aChildren = Array.from(a.children);
-	const bChildren = Array.from(b.children);
-
-	return aChildren.length === bChildren.length && aChildren.every((x, i) => areNodesEqual(x, bChildren[i]));
 }
 
 
