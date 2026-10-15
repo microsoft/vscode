@@ -6586,6 +6586,17 @@ export class AgentService extends Disposable implements IAgentService {
 			// Without its own backing, a session's default chat names the session's conversation, which the new session has none of.
 			refuse(AgentChatMoveRefusal.Unsupported, `Chat ${chatKey} has no recorded conversation of its own to take into a new session.`);
 		}
+		// Like a brand-new session, a chat is durable as a session only once its conversation exists: no agent persists one
+		// before the chat's first turn starts, and a session whose default chat has none can't be restored.
+		let started: boolean;
+		try {
+			started = this._hasStartedTurn(await this._stateManager.resolveChatState(chatKey));
+		} catch (error) {
+			return refuse(AgentChatMoveRefusal.SessionNotReady, `Chat ${chatKey}'s history couldn't be read: ${toErrorMessage(error)}`);
+		}
+		if (!started) {
+			refuse(AgentChatMoveRefusal.NotStarted, `Chat ${chatKey} has no turns yet; send a message before moving it to its own session.`);
+		}
 		// Read before validating: the database refuses the promotion if the catalog changes after this point.
 		const [catalog] = await this._orchestratorDatabase.readCatalogSnapshot([sourceKey]);
 		const expectedSourceCatalogRevision = catalog?.header?.revision ?? 0;
@@ -6612,6 +6623,9 @@ export class AgentService extends Disposable implements IAgentService {
 					refuse(AgentChatMoveRefusal.Conflict, `Chat ${chatKey} changed while it was being promoted; try again.`);
 				}
 				this._validateChatMove(sourceKey, undefined, chatKey, moved, undefined, chatFolders, recordedWorktrees);
+				if (!this._hasStartedTurn(this._stateManager.getChatState(chatKey))) {
+					refuse(AgentChatMoveRefusal.Conflict, `Chat ${chatKey} changed while it was being promoted; try again.`);
+				}
 				const sourceFolders = this._stateManager.getSessionSummary(sourceKey)?.workingDirectories ?? [];
 				const values: Record<string, string> = { [SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify(chatFolders) };
 				for (const [key, value] of carried) {
@@ -6752,6 +6766,11 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/** Refuses a session that is no longer one that can move under another session (Block 4): `chat` is its default and only chat. */
+	/** Whether a chat has a turn in its history or one running. */
+	private _hasStartedTurn(state: ChatState | undefined): boolean {
+		return !!state && (state.turns.length > 0 || state.activeTurn !== undefined);
+	}
+
 	private _checkMovedSession(source: string, chat: string): void {
 		if (this._chatOwnership.getChatOwner(chat) !== source || !this._stateManager.isChatRegistered(chat) || !this._stateManager.isDefaultChat(source, chat)) {
 			throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.NotMovable, `Session ${source} can't be moved.`);

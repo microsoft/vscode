@@ -31307,6 +31307,13 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		suite('chat moves (Block 4)', () => {
+			/** Records a completed turn: a chat becomes its own session only once it has one. */
+			function completeTurn(service: AgentService, chat: URI): void {
+				const stateManager = getStateManager(service);
+				stateManager.dispatchServerAction(chat.toString(), { type: ActionType.ChatTurnStarted, turnId: 'first-turn', startedAt: new Date(0).toISOString(), message: { text: 'Hello', origin: { kind: MessageKind.User } } });
+				stateManager.dispatchServerAction(chat.toString(), { type: ActionType.ChatTurnComplete, turnId: 'first-turn', duration: 1 });
+			}
+
 			class MovingAgent extends MockAgent {
 				readonly materialized: { readonly chat: string; readonly providerData: string | undefined }[] = [];
 				readonly metadataStorage: string[] = [];
@@ -31534,6 +31541,7 @@ suite('AgentService (node dispatcher)', () => {
 				const seeded = stateManager.getChatConfig(moved.toString())?.values;
 
 				await service.moveChat(source, moved, { kind: 'session', session: target, after: undefined });
+				completeTurn(service, promoted);
 				const newSession = await service.moveChat(source, promoted, { kind: 'newSession' });
 				await timeout(0);
 
@@ -31705,6 +31713,7 @@ suite('AgentService (node dispatcher)', () => {
 				stateManager.setSessionConfig(source.toString(), { schema, values: { autoApprove: 'default', isolation: 'folder' } });
 				stateManager.dispatchServerAction(peer.toString(), { type: ActionType.ChatConfigChanged, config: { autoApprove: 'autoApprove' } });
 
+				completeTurn(service, peer);
 				const target = await service.moveChat(source, peer, { kind: 'newSession' });
 				await timeout(0);
 
@@ -31744,6 +31753,7 @@ suite('AgentService (node dispatcher)', () => {
 					foreignChat: await refusalOf(service.moveChat(target, peer, { kind: 'newSession' })),
 				};
 				(service as unknown as IMoveInternals)._worktree.getResolvedWorktree = () => URI.file('/repo');
+				completeTurn(service, peer);
 				const worktreeFolder = await refusalOf(service.moveChat(source, peer, { kind: 'newSession' }));
 				assert.deepStrictEqual({ reasons, worktreeFolder, sessions: stateManager.getSessionUris().length - sessionsBefore, owner: stateManager.getChatOwner(peer.toString()) === source.toString() }, {
 					reasons: { defaultChat: AgentChatMoveRefusal.NotMovable, foreignChat: AgentChatMoveRefusal.NotMovable },
@@ -31824,6 +31834,7 @@ suite('AgentService (node dispatcher)', () => {
 					const raw = await orchestratorDatabase['_ensureDatabase']();
 					await new Promise<void>((resolve, reject) => raw.run('UPDATE chats_v2 SET provider_data = ? WHERE chat_uri = ?', ['session-backing', chat.toString()], error => error ? reject(error) : resolve()));
 					// Its session's default chat now stores neither in that session nor at its own URI.
+					completeTurn(service, chat);
 					const promoted = await service.moveChat(target, chat, { kind: 'newSession' });
 					await service.whenCatalogReconciliationIdle();
 					await getTestSessionStateStore(service).whenIdle(undefined);
@@ -31978,6 +31989,7 @@ suite('AgentService (node dispatcher)', () => {
 				const peer = URI.parse(buildChatUri(source, 'promoted'));
 				await first.createChat(source, peer);
 				await timeout(0);
+				completeTurn(first, peer);
 				const target = await first.moveChat(source, peer, { kind: 'newSession' });
 				await first.whenCatalogReconciliationIdle();
 				await getTestSessionStateStore(first).whenIdle(undefined);
@@ -32003,6 +32015,48 @@ suite('AgentService (node dispatcher)', () => {
 					materialized: [{ chat: peer.toString(), providerData: 'peer-backing' }],
 					metadataStorage: [peer.toString()],
 					origin: source.toString(),
+				});
+			});
+
+			test('a chat promotes only once its first turn started, like a new session becomes durable; its session opens after a restart', async () => {
+				const orchestratorDatabase = new AgentHostDatabase(':memory:');
+				const sessionDataService = createSessionDataService(new TestSessionDatabase());
+				const createService = () => {
+					const service = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+						undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, orchestratorDatabase));
+					registerTestAgentProvider(service, disposables.add(new MovingAgent('copilot')));
+					getConfigurationService(service).updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
+					return service;
+				};
+				const first = createService();
+				const stateManager = getStateManager(first);
+				const source = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+				const peer = URI.parse(buildChatUri(source, 'promoted'));
+				await first.createChat(source, peer);
+				await timeout(0);
+				const sessionsBefore = stateManager.getSessionUris().length;
+
+				// No agent has persisted the chat's conversation yet: its session could not be restored.
+				const neverStarted = await refusalOf(first.moveChat(source, peer, { kind: 'newSession' }));
+				const unchanged = { sessions: stateManager.getSessionUris().length - sessionsBefore, owner: stateManager.getChatOwner(peer.toString()) };
+				// Its first turn is running: the agent persists the conversation as it starts, and the turn moves along.
+				stateManager.dispatchServerAction(peer.toString(), {
+					type: ActionType.ChatTurnStarted, turnId: 'first-turn', startedAt: new Date(0).toISOString(),
+					message: { text: 'Hello', origin: { kind: MessageKind.User } },
+				});
+				const target = await first.moveChat(source, peer, { kind: 'newSession' });
+				stateManager.dispatchServerAction(peer.toString(), { type: ActionType.ChatTurnComplete, turnId: 'first-turn', duration: 1 });
+				await first.whenCatalogReconciliationIdle();
+				await getTestSessionStateStore(first).whenIdle(undefined);
+
+				const restarted = createService();
+				await restarted.listSessions();
+				await restarted.restoreSession(target);
+
+				assert.deepStrictEqual({ neverStarted, unchanged, restoredDefaultChat: getStateManager(restarted).getSessionState(target.toString())?.defaultChat }, {
+					neverStarted: AgentChatMoveRefusal.NotStarted,
+					unchanged: { sessions: 0, owner: source.toString() },
+					restoredDefaultChat: peer.toString(),
 				});
 			});
 
@@ -32127,6 +32181,7 @@ suite('AgentService (node dispatcher)', () => {
 				await timeout(0);
 				await seed(source);
 				await seed(keptFor);
+				completeTurn(service, peer);
 				const promoted = await service.moveChat(source, peer, { kind: 'newSession' });
 
 				// A session no moved chat came from is deleted whole.
@@ -32292,6 +32347,7 @@ suite('AgentService (node dispatcher)', () => {
 				const peer = URI.parse(buildChatUri(source, 'promoted'));
 				await first.createChat(source, peer);
 				await timeout(0);
+				completeTurn(first, peer);
 				const target = await first.moveChat(source, peer, { kind: 'newSession' });
 				await first.whenCatalogReconciliationIdle();
 				await getTestSessionStateStore(first).whenIdle(undefined);
@@ -32367,6 +32423,7 @@ suite('AgentService (node dispatcher)', () => {
 				await service.moveChat(source, peer, { kind: 'session', session: target, after: undefined });
 				const moved = { source: readChatSandboxState(stateManager.getSessionState(source.toString()), peer.toString()), target: readChatSandboxState(stateManager.getSessionState(target.toString()), peer.toString()) };
 
+				completeTurn(service, peer);
 				const promotedSession = await service.moveChat(target, peer, { kind: 'newSession' });
 				const promoted = stateManager.getSessionState(promotedSession.toString());
 				assert.deepStrictEqual({ moved, promoted: [readChatSandboxState(promoted, peer.toString()), readSessionSandboxState(promoted)], left: readChatSandboxState(stateManager.getSessionState(target.toString()), peer.toString()) }, {

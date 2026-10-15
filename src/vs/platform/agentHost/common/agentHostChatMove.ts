@@ -73,6 +73,8 @@ export const enum AgentChatMoveRefusal {
 	Unsupported = 'unsupported',
 	/** A session moves under another session only while its default chat is its only chat (Block 4, VS Code-internal). */
 	NotSingleChat = 'notSingleChat',
+	/** A chat becomes its own session only once its first turn started, which is when every agent persists its conversation. */
+	NotStarted = 'notStarted',
 }
 
 /** A chat move the host refused before changing anything. */
