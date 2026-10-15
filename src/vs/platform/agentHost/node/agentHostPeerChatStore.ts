@@ -769,7 +769,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 	 * Imports what older builds changed in a normalized catalog's older-build copy. Returns the normalized peers,
 	 * `'notNormalized'` for a legacy catalog, or `undefined` when the session is unavailable.
 	 *
-	 * `session_chats`: builds writing only the legacy stores (1.140, and 1.141 for some sessions) rewrite it and advance `revision`, while
+	 * `session_chats`: builds writing only the legacy stores (1.140, 1.141) rewrite it and advance `revision`, while
 	 * this build keeps `projected_revision` equal to `revision` through every write of its own (in the same
 	 * transaction). Only when they differ are the rows compared with the projection of the untouched `chats_v2`
 	 * rows, the merge base; a difference then is an older build's committed write. No difference means the other
