@@ -7405,6 +7405,8 @@ export class AgentService extends Disposable implements IAgentService {
 	private async _whenSessionDataIdle(session: URI): Promise<void> {
 		const ref = this._sessionDataService.openDatabase(session);
 		try {
+			// A released session's pending older-build copy is published while its database is still held.
+			await this._peerChatStore.flushCompatibilityPublishes(session, ref);
 			await ref.object.whenIdle();
 		} finally {
 			ref.dispose();
@@ -11276,6 +11278,11 @@ export class AgentService extends Disposable implements IAgentService {
 			} finally {
 				await this._replayPendingPassiveSessionMetadata();
 				await this._debugLogsCollector?.cleanup();
+				try {
+					await this._peerChatStore.flushCompatibilityPublishes(undefined, undefined);
+				} catch (error) {
+					this._logService.error(error, '[AgentService] Failed to publish peer-chat compatibility state before shutdown');
+				}
 				try {
 					// Session state writes are fire-and-forget for their callers: let every queued write and pending mirror land before the database closes.
 					await this._sessionStateStore.whenIdle(undefined);

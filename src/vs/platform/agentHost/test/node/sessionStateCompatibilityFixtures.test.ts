@@ -17,7 +17,7 @@ import { SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../..
 import { AgentHostPeerChatStore } from '../../node/agentHostPeerChatStore.js';
 import { CompatibleAgentHostDatabase } from '../../node/compatibleAgentHostDatabase.js';
 import { createLiveChatOwnership } from './chatOwnershipTestUtils.js';
-import { createLegacySessionFixture, InMemorySessionDataService, LEGACY_BUILDS, legacyPeerMetadata, legacySessionMetadata, normalizeLegacySessionFixture, readOldBuildView, writeLegacySessionState, type ILegacyChatFixture, type ILegacySessionFixture } from './sessionStateCompatibilityFixtures.js';
+import { createLegacySessionFixture, InMemorySessionDataService, LEGACY_BUILDS, legacyPeerMetadata, legacySessionMetadata, normalizeLegacySessionFixture, readOldBuildView, restorePeersAsOldBuild, writeLegacySessionState, type ILegacyChatFixture, type ILegacySessionFixture } from './sessionStateCompatibilityFixtures.js';
 
 suite('Session state compatibility fixtures', () => {
 	const store = new DisposableStore();
@@ -132,7 +132,7 @@ suite('Session state compatibility fixtures', () => {
 
 			await peers.setArchived(session, URI.parse(sameFolder.runtimeUri), true);
 			await peers.setRead(session, URI.parse(otherFolder.runtimeUri), false);
-			await peers.whenIdle();
+			await peers.flushCompatibilityPublishes(undefined, undefined);
 			peers.dispose();
 
 			const view = await readOldBuildView(sessionData.createService(), today.raw, fixture);
@@ -161,6 +161,41 @@ suite('Session state compatibility fixtures', () => {
 			});
 		});
 	}
+
+	test('a host stopped after a normalized write but before its publish leaves a consistent older-build copy: 1.141 does not revert the write', async () => {
+		const fixture = createLegacySessionFixture('1.143');
+		const sessionData = store.add(new InMemorySessionDataService());
+		await writeOldBuild(fixture, sessionData);
+		const today = store.add(new CompatibleAgentHostDatabase(join(directory, 'agent-host.db')));
+		await today.initialize();
+		await normalizeLegacySessionFixture(today.raw, fixture);
+		const service = sessionData.createService(today.identity);
+		const createStore = () => new AgentHostPeerChatStore(today, service, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(today, service));
+		const session = URI.parse(fixture.runtimeSession);
+		const [, sameFolder] = fixture.chats;
+		const published = createStore();
+		await published.setRead(session, URI.parse(sameFolder.runtimeUri), sameFolder.isRead);
+		await published.flushCompatibilityPublishes(undefined, undefined);
+		published.dispose();
+
+		const interrupted = createStore();
+		await interrupted.setArchived(session, URI.parse(sameFolder.runtimeUri), true);
+		await interrupted.whenIdle();
+		interrupted.dispose();
+
+		const view = await readOldBuildView(sessionData.createService(), today.raw, fixture);
+		const catalog = await today.raw.getSessionChatCatalog(fixture.session);
+		const restored = await restorePeersAsOldBuild(sessionData.createService(), today.raw, fixture);
+		assert.deepStrictEqual({
+			acknowledgedPayloadIsPeerChats: catalog?.legacyMirroredPayload === view.sessionDb.peerChats,
+			acknowledgedRevisionIsBehind: (catalog?.legacyMirroredRevision ?? 0) < (catalog?.revision ?? 0),
+			sameFolderArchivedForOldBuild: restored.find(peer => peer.uri === sameFolder.uri)?.archived,
+		}, {
+			acknowledgedPayloadIsPeerChats: true,
+			acknowledgedRevisionIsBehind: true,
+			sameFolderArchivedForOldBuild: true,
+		});
+	});
 
 	test('a normalized session\'s title and default-chat read changes write only main\'s keys to the databases old builds read, and never import their title edits', async () => {
 		const sessionData = store.add(new InMemorySessionDataService());

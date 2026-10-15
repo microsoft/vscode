@@ -264,7 +264,7 @@ suite('AgentHostPeerChatStore', () => {
 			chats: snapshot.chats.map(chat => chat.chat),
 			legacyWrites: local.setMetadataCalls,
 		}, {
-			attempts: 1, chats: [defaultChat], legacyWrites: [{ key: PEER_CHATS_METADATA_KEY, value: '[]' }],
+			attempts: 1, chats: [defaultChat], legacyWrites: [],
 		});
 	});
 
@@ -967,16 +967,17 @@ suite('AgentHostPeerChatStore', () => {
 		return createPerResourceStore();
 	}
 
-	test('a burst of normalized peer changes publishes the older-build copy once, acknowledged, and a title change publishes nothing', async () => {
+	test('normalized peer changes publish nothing inline; a flush publishes the burst once, acknowledged, with only changed peer keys; a title change publishes nothing', async () => {
 		const { store, databaseFor } = await registerNormalizedPeer();
 		await store.setRead(session, first, true);
 		await store.upsert(session, first, 'late-provider-data', origin, 'inherited-turn');
 		await store.setArchived(session, first, true);
-		const writesBeforeFlush = databaseFor(first).setMetadataCalls.length + databaseFor(session).setMetadataCalls.length;
 		await store.whenIdle();
+		const writesBeforeFlush = databaseFor(first).setMetadataCalls.length + databaseFor(session).setMetadataCalls.length;
+		await store.flushCompatibilityPublishes(session, undefined);
 		const catalog = await orchestrator.getSessionChatCatalog(session.toString());
 		await store.persistMetadata(session, first, { [SESSION_CUSTOM_TITLE_KEY]: 'Renamed', [SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user' });
-		await store.whenIdle();
+		await store.flushCompatibilityPublishes(session, undefined);
 		const copy = JSON.stringify([{ uri: first.toString(), isRead: true, archived: true, providerData: 'late-provider-data', origin, inheritedTurnId: 'inherited-turn' }]);
 		assert.deepStrictEqual({
 			writesBeforeFlush,
@@ -993,6 +994,42 @@ suite('AgentHostPeerChatStore', () => {
 			],
 			sessionWrites: [{ key: PEER_CHATS_METADATA_KEY, value: copy }],
 			acknowledged: { current: true, payload: copy },
+		});
+	});
+
+	test('a burst of ten creates or ten deletes publishes peerChats once, in six agent-host.db statements', async () => {
+		const { store, databaseFor } = await registerNormalizedPeer();
+		const sqlite = await (orchestrator as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+		let statements = 0;
+		// Trigger bodies are traced as `-- TRIGGER` lines; they are not statements of their own.
+		sqlite.on('trace', (sql: string) => statements += sql.startsWith('-- TRIGGER') ? 0 : 1);
+		const chats = Array.from({ length: 10 }, (_, index) => URI.parse(buildChatUri(session, `burst-${index}`)));
+		const publish = async (burst: () => Promise<void>) => {
+			await burst();
+			await store.whenIdle();
+			const before = { statements, sessionWrites: databaseFor(session).setMetadataCalls.length, peerWrites: chats.reduce((sum, chat) => sum + databaseFor(chat).setMetadataCalls.length, 0) };
+			await store.flushCompatibilityPublishes(undefined, undefined);
+			return {
+				statements: statements - before.statements,
+				peerChatsWrites: databaseFor(session).setMetadataCalls.length - before.sessionWrites,
+				peerKeyWrites: chats.reduce((sum, chat) => sum + databaseFor(chat).setMetadataCalls.length, 0) - before.peerWrites,
+			};
+		};
+		assert.deepStrictEqual({
+			creates: await publish(async () => {
+				for (const [index, chat] of chats.entries()) {
+					await store.upsert(session, chat, `provider-${index}`);
+				}
+			}),
+			deletes: await publish(async () => {
+				for (const chat of chats) {
+					await store.remove(session, chat);
+				}
+			}),
+		}, {
+			// Each created peer's database gets only its provider data: its other keys hold their defaults.
+			creates: { statements: 6, peerChatsWrites: 1, peerKeyWrites: 10 },
+			deletes: { statements: 6, peerChatsWrites: 1, peerKeyWrites: 0 },
 		});
 	});
 

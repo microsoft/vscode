@@ -77,7 +77,7 @@ import { toListedSessionSummary } from '../../node/protocolServerHandler.js';
 import { mintPeerChatUri } from '../../common/agentHostChatMinting.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { AgentHostDatabase, AgentHostDatabaseSessionChatCatalogReplaceResult, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionChat, IAgentHostDatabaseSessionChatCatalog, IAgentHostDatabaseSessionListCatalog, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionsV2ExclusionExpectation, IAgentHostDatabaseSessionOptions, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope, IAgentHostDatabaseSessionV2Receipt } from '../../node/agentHostDatabase.js';
-import { CHAT_INHERITED_TURN_METADATA_KEY, CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, type IPersistedPeerChat } from '../../node/agentHostPeerChatStore.js';
+import { CHAT_INHERITED_TURN_METADATA_KEY, CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, PEER_CHATS_METADATA_KEY, type IPersistedPeerChat } from '../../node/agentHostPeerChatStore.js';
 import { AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT, AGENT_HOST_CATALOG_PAYLOAD_VERSION, AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, decodeAgentHostCatalogPayload, encodeAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
 import type { IAgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, CATALOG_VERIFICATION_VERSION, type IAgentHostCatalogReconciliationReport } from '../../node/agentHostCatalogReconciliationService.js';
@@ -407,6 +407,9 @@ class TransientRegistryWriteDatabase extends SessionStateUnsupportedDatabase imp
 	recordChatStorageIdentity(): void { }
 	listLegacyChatCatalogSessions(sessions: readonly string[]): ReturnType<IAgentHostDatabase['listLegacyChatCatalogSessions']> {
 		return listTestLegacyChatCatalogSessions(this, sessions);
+	}
+	async readOlderBuildCopySource(): ReturnType<IAgentHostDatabase['readOlderBuildCopySource']> {
+		return undefined;
 	}
 	readChatV2(session: string, chat: string): ReturnType<IAgentHostDatabase['readChatV2']> {
 		return readTestChatV2(this, session, chat);
@@ -948,6 +951,9 @@ class TestAgentHostOrchestratorDatabase extends SessionStateUnsupportedDatabase 
 	recordChatStorageIdentity(): void { }
 	listLegacyChatCatalogSessions(sessions: readonly string[]): ReturnType<IAgentHostDatabase['listLegacyChatCatalogSessions']> {
 		return listTestLegacyChatCatalogSessions(this, sessions);
+	}
+	async readOlderBuildCopySource(): ReturnType<IAgentHostDatabase['readOlderBuildCopySource']> {
+		return undefined;
 	}
 	readChatV2(session: string, chat: string): ReturnType<IAgentHostDatabase['readChatV2']> {
 		return readTestChatV2(this, session, chat);
@@ -27290,8 +27296,6 @@ suite('AgentService (node dispatcher)', () => {
 					selection: { text: selectionText, responsePartId: 'response-part-1' },
 				},
 			});
-			// The peer's older-build copy is published once the burst of membership changes ends.
-			await localService.whenCatalogReconciliationIdle();
 
 			const peerCatalog = await catalogDatabase.getSessionChatCatalog(session.toString());
 			const peerCatalogOrigin = JSON.parse(peerCatalog?.chats.find(chat => chat.chat === chatUri.toString())?.origin ?? '{}') as { selection?: { text?: string } };
@@ -27307,7 +27311,7 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				liveSelectionMatches: true,
 				peerCatalogSelectionMatches: true,
-				chatMetadataSelectionMatches: true,
+				chatMetadataSelectionMatches: false,
 				centralOrigin: { kind: ChatOriginKind.SideChat, chat: defaultChatUri, turnId: 't1' },
 			});
 		});
@@ -31708,6 +31712,33 @@ suite('AgentService (node dispatcher)', () => {
 					await base.releaseChat(chat, context);
 				},
 			}));
+		}
+
+		for (const flushPoint of ['release', 'shutdown'] as const) {
+			test(`a normalized session's older-build chat copy is published on ${flushPoint}, never inline`, async () => {
+				class MultiChatAgent extends MockAgent {
+					override async createChat(_session: URI, _chat: URI): Promise<void> { }
+				}
+				const sessionData = createPerSessionDataService();
+				const database = disposables.add(new AgentHostDatabase(':memory:'));
+				const residency = createResidencyTestService(1, 30_000, true, new MultiChatAgent('copilot'), sessionData.service, database);
+				const first = await createUsedSession(residency.service, residency.agent);
+				const peer = URI.parse(buildChatUri(first, 'peer-1'));
+				await residency.service.createChat(first, peer);
+				await residency.service.whenCatalogReconciliationIdle();
+				const beforeFlush = await sessionData.database(first).getMetadata(PEER_CHATS_METADATA_KEY);
+				if (flushPoint === 'release') {
+					await createUsedSession(residency.service, residency.agent);
+					await waitForResidency(() => getStateManager(residency.service).getSessionState(first.toString()) === undefined, 'first session was not released');
+				} else {
+					await residency.service.shutdown();
+				}
+				const published = await sessionData.database(first).getMetadata(PEER_CHATS_METADATA_KEY);
+				assert.deepStrictEqual({ beforeFlush, published: published === undefined ? undefined : (JSON.parse(published) as IPersistedPeerChat[]).map(entry => entry.uri) }, {
+					beforeFlush: undefined,
+					published: [peer.toString()],
+				});
+			});
 		}
 
 		test('deleting an evicted session disposes every persisted peer chat', async () => {

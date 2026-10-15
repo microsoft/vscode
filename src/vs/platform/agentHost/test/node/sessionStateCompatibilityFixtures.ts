@@ -19,6 +19,7 @@
  */
 
 import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
+import type { Database } from '@vscode/sqlite3';
 import { URI } from '../../../../base/common/uri.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import type { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
@@ -455,6 +456,44 @@ export async function normalizeLegacySessionFixture(agentHost: AgentHostDatabase
 		throw new Error(`Could not normalize the fixture chat catalog: ${result.status}`);
 	}
 	return extra;
+}
+
+/**
+ * The peer list 1.141, which does not know normalized catalogs, restores for {@link fixture}'s session, following
+ * release/1.141 `AgentHostPeerChatStore.reconcileLegacy`: it reads `session_chats` and the session database's
+ * `peerChats`, and takes `peerChats` for its own older edits whenever it differs from the acknowledged payload,
+ * merging them over `session_chats` against that payload.
+ */
+export async function restorePeersAsOldBuild(sessionData: ISessionDataService, agentHost: AgentHostDatabase, fixture: ILegacySessionFixture): Promise<readonly IPersistedPeerChat[]> {
+	const sqlite = await (agentHost as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+	const query = (sql: string, parameters: readonly unknown[]) => new Promise<Record<string, unknown>[]>((resolve, reject) => sqlite.all(sql, parameters, (error: Error | null, rows: Record<string, unknown>[]) => error ? reject(error) : resolve(rows)));
+	const [header] = await query(`SELECT revision, legacy_mirrored_revision, (SELECT value FROM metadata WHERE key = ?) AS payload
+		FROM session_chat_catalogs WHERE session_uri = ?`, [`sessionChatCatalogLegacyMirror:${fixture.session}`, fixture.session]);
+	const central: IPersistedPeerChat[] = (await query('SELECT * FROM session_chats WHERE session_uri = ? ORDER BY chat_order', [fixture.session])).map(row => ({
+		uri: row.chat_uri as string,
+		...(row.is_read === null ? {} : { isRead: row.is_read === 1 }),
+		...(row.archived === 1 ? { archived: true } : {}),
+		...(row.provider_data === null ? {} : { providerData: row.provider_data as string }),
+		...(row.origin === null ? {} : { origin: JSON.parse(row.origin as string) }),
+		...(row.inherited_turn_id === null ? {} : { inheritedTurnId: row.inherited_turn_id as string }),
+	}));
+	const raw = await withExistingDatabase(sessionData, fixture.session, database => database.getMetadata('peerChats'));
+	const payload = header.payload === null ? undefined : header.payload as string;
+	const legacy: IPersistedPeerChat[] | undefined = raw === undefined ? undefined : JSON.parse(raw);
+	const base: IPersistedPeerChat[] | undefined = payload === undefined ? undefined : JSON.parse(payload);
+	const takesPeerChatsAsEdits = header.legacy_mirrored_revision !== header.revision
+		? legacy !== undefined && base !== undefined && raw !== payload && JSON.stringify(legacy) !== JSON.stringify(base)
+		: legacy !== undefined && raw !== payload;
+	if (!takesPeerChatsAsEdits || !legacy) {
+		return central;
+	}
+	if (!base) {
+		return legacy;
+	}
+	const baseByUri = new Map(base.map(entry => [entry.uri, JSON.stringify(entry)]));
+	const merged = legacy.flatMap(entry => !baseByUri.has(entry.uri) || baseByUri.get(entry.uri) !== JSON.stringify(entry)
+		? [entry] : central.filter(chat => chat.uri === entry.uri));
+	return [...merged, ...central.filter(chat => !baseByUri.has(chat.uri) && !legacy.some(entry => entry.uri === chat.uri))];
 }
 
 async function writeLegacyRows(database: ISessionDatabase, fixture: ILegacySessionFixture): Promise<void> {

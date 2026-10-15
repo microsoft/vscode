@@ -149,6 +149,20 @@ export interface IAgentHostDatabaseSessionChatCatalog {
 	readonly chats: readonly IAgentHostDatabaseOwnedSessionChat[];
 }
 
+/** A visible peer of a normalized catalog as its older-build copy lists it, with its recorded storage. */
+export interface IAgentHostDatabaseOlderBuildCopyPeer extends IAgentHostDatabaseSessionChat {
+	readonly storageResource: string;
+}
+
+/** What {@link IAgentHostDatabase.readOlderBuildCopySource} reads. */
+export interface IAgentHostDatabaseOlderBuildCopySource {
+	readonly revision: number;
+	readonly legacyMirroredRevision: number;
+	/** The acknowledged payload: exactly what the session database's `peerChats` holds, when published. */
+	readonly legacyMirroredPayload: string | undefined;
+	readonly peers: readonly IAgentHostDatabaseOlderBuildCopyPeer[];
+}
+
 /** Where a chat's owner was found by {@link IAgentHostDatabase.findCentralChatOwners} or {@link IAgentHostDatabase.findCatalogPayloadChatOwners}. */
 export type AgentHostDatabaseChatOwnerSource = 'normalized' | 'legacyCatalog' | 'catalogPayload';
 
@@ -452,6 +466,11 @@ export interface IAgentHostDatabase extends IDisposable, IAgentHostSessionStateD
 	findCatalogPayloadChatOwners(chats: readonly string[]): Promise<ReadonlyMap<string, IAgentHostDatabaseChatOwner>>;
 	/** Reads authoritative peer-chat membership. `undefined` means legacy import has not completed. */
 	getSessionChatCatalog(session: string): Promise<IAgentHostDatabaseSessionChatCatalog | undefined>;
+	/**
+	 * Reads what a normalized catalog's older-build copy is published from, in one read: the header revision, its
+	 * acknowledgement and the live visible peers in order with their recorded storage. `undefined` unless normalized.
+	 */
+	readOlderBuildCopySource(session: string): Promise<IAgentHostDatabaseOlderBuildCopySource | undefined>;
 	/** Replaces authoritative peer-chat membership when the session exists and its revision still matches. */
 	replaceSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number | undefined): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult>;
 	/** Acknowledges the exact central revision written to the downgrade-compatibility mirror. */
@@ -2000,6 +2019,26 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		});
 	}
 
+	async readOlderBuildCopySource(session: string): Promise<IAgentHostDatabaseOlderBuildCopySource | undefined> {
+		return this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			const header = await get(database, `SELECT h.revision, h.legacy_mirrored_revision, h.default_chat_uri,
+				(SELECT value FROM metadata WHERE key = ?) AS legacy_mirrored_payload
+				FROM session_chat_catalogs h WHERE h.session_uri = ? AND h.authority_version = 2`, [sessionChatCatalogLegacyMirrorKey(session), session]);
+			if (!header) {
+				return undefined;
+			}
+			const rows = await all(database, `SELECT * FROM chats_v2 WHERE owner_session_uri = ? AND tombstoned = 0
+				AND chat_order IS NOT NULL AND chat_uri <> ? ORDER BY chat_order`, [session, header.default_chat_uri]);
+			return {
+				revision: header.revision as number,
+				legacyMirroredRevision: header.legacy_mirrored_revision as number,
+				legacyMirroredPayload: header.legacy_mirrored_payload === null ? undefined : header.legacy_mirrored_payload as string,
+				peers: rows.map((row, order) => ({ ...this._toLegacyChat(row), order, storageResource: (row.storage_resource ?? row.chat_uri) as string })),
+			};
+		});
+	}
+
 	async replaceSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number | undefined): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> {
 		this._validateSessionChats(chats);
 		if (expectedRevision !== undefined && (!Number.isSafeInteger(expectedRevision) || expectedRevision <= 0)) {
@@ -2072,19 +2111,18 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			const database = await this._ensureDatabase();
 			await exec(database, 'BEGIN IMMEDIATE');
 			try {
-				await run(database, `UPDATE session_chat_catalogs SET legacy_mirrored_revision = ?
-					WHERE session_uri = ? AND revision = ? AND legacy_mirrored_revision < ?`, [
+				// Re-acknowledging the same revision counts, so the change count tells whether the revision is current.
+				const mirrored = await runReturningChanges(database, `UPDATE session_chat_catalogs SET legacy_mirrored_revision = ?
+					WHERE session_uri = ? AND revision = ? AND legacy_mirrored_revision <= ?`, [
 					expectedRevision,
 					session,
 					expectedRevision,
 					expectedRevision,
-				]);
-				const row = await get(database, `SELECT revision, legacy_mirrored_revision
-					FROM session_chat_catalogs WHERE session_uri = ?`, [session]);
-				const mirrored = row?.revision === expectedRevision && row.legacy_mirrored_revision === expectedRevision;
-				if (row && payload !== undefined) {
-					await run(database, `INSERT INTO metadata (key, value) VALUES (?, ?)
-						ON CONFLICT(key) DO UPDATE SET value = excluded.value`, [sessionChatCatalogLegacyMirrorKey(session), payload]);
+				]) > 0;
+				if (payload !== undefined) {
+					// The payload is what the session database now holds, so it is recorded even when the revision moved on.
+					await run(database, `INSERT INTO metadata (key, value) SELECT ?, ? WHERE EXISTS (SELECT 1 FROM session_chat_catalogs WHERE session_uri = ?)
+						ON CONFLICT(key) DO UPDATE SET value = excluded.value`, [sessionChatCatalogLegacyMirrorKey(session), payload, session]);
 				}
 				await exec(database, 'COMMIT');
 				return mirrored;

@@ -17,13 +17,12 @@ import { ChatInteractivity, ChatOrigin } from '../common/state/protocol/state.js
 import { AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, isAhpChatChannel } from '../common/state/sessionState.js';
 import { fromCatalogChatOrigin, toCatalogSummary, toSerializableJsonValue } from './agentHostCatalogSourceResolver.js';
 import { AGENT_HOST_CATALOG_CHILD_LIMIT, agentHostCatalogChangesValidator } from './agentHostCatalogProjection.js';
-import { IAgentHostDatabase, type IAgentHostDatabaseCatalogSnapshotEntry, type IAgentHostDatabaseChatV2, type IAgentHostDatabaseChatV2Patch, type IAgentHostDatabaseChatV2NormalizationChat, type IAgentHostDatabaseChatV2NormalizationCandidate, type IAgentHostDatabaseChatV2Mutation } from './agentHostDatabase.js';
+import { IAgentHostDatabase, type IAgentHostDatabaseCatalogSnapshotEntry, type IAgentHostDatabaseChatV2, type IAgentHostDatabaseChatV2Patch, type IAgentHostDatabaseChatV2NormalizationChat, type IAgentHostDatabaseChatV2NormalizationCandidate, type IAgentHostDatabaseChatV2Mutation, type IAgentHostDatabaseOlderBuildCopyPeer } from './agentHostDatabase.js';
 import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
 import { getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 import { legacyPeerChatStorage, mirrorsAtChatUri } from './agentHostStateManager.js';
-import { SESSION_STATE_MIRROR_FLUSH_DELAY } from './agentHostSessionStateStore.js';
 
 export const PEER_CHATS_METADATA_KEY = 'peerChats';
 export const CHAT_PROVIDER_DATA_METADATA_KEY = 'agentHost.chatProviderData';
@@ -47,7 +46,12 @@ const IMPORTED_PEER_CHAT_LIMIT = AGENT_HOST_CATALOG_CHILD_LIMIT - 1;
  * as that session's default chat (Q-A), and the default chat of a promoted session (Q-B). Until then every
  * visible peer is listed.
  */
-function isListedInOlderBuildCopy(_chat: IAgentHostDatabaseChatV2): boolean {
+function isListedInOlderBuildCopy(_peer: IAgentHostDatabaseOlderBuildCopyPeer): boolean {
+	return true;
+}
+
+/** Whether older builds read `key` from a listed peer's own database, so the older-build copy writes it there. */
+function isPeerKeyReadByOlderBuilds(_key: string): boolean {
 	return true;
 }
 
@@ -56,6 +60,11 @@ function changesOlderBuildCopy(patch: IAgentHostDatabaseChatV2Patch): boolean {
 	return patch.isRead !== undefined || patch.archived !== undefined || patch.providerData !== undefined
 		|| patch.origin !== undefined || patch.inheritedTurnId !== undefined || patch.workingDirectories !== undefined;
 }
+
+/** Idle time after a normalized session's last change before its older-build copy is published. */
+export const COMPATIBILITY_PUBLISH_IDLE_DELAY = 5000;
+/** Longest a normalized session's older-build copy waits behind continuing changes. */
+const COMPATIBILITY_PUBLISH_MAX_DELAY = 30000;
 
 export const IAgentHostPeerChatPersistenceService = createDecorator<IAgentHostPeerChatPersistenceService>('agentHostPeerChatPersistenceService');
 
@@ -93,7 +102,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 	private readonly _metadataWrites = new Set<Promise<void>>();
 	private readonly _deletingSessions = new Map<string, number>();
 	/** Normalized catalogs whose older-build copy is published once their coalescing window ends, by session. */
-	private readonly _pendingCompatibilityPublishes = new Map<string, { readonly session: URI; readonly scheduler: RunOnceScheduler }>();
+	private readonly _pendingCompatibilityPublishes = new Map<string, { readonly session: URI; readonly scheduler: RunOnceScheduler; readonly firstChange: number }>();
 	private _metadataMigration: ((session: URI, resource: URI, values: Readonly<Record<string, string>>) => Promise<Readonly<Record<string, string>>>) | undefined;
 
 	constructor(
@@ -132,13 +141,20 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		return { mutation: target ? { chat: target.chat, expected: { ownershipRevision: 0, metadataRevision: 0 }, patch } : undefined, remaining };
 	}
 
+	/** Awaits writes already in flight. A pending older-build copy is not published: see {@link flushCompatibilityPublishes}. */
 	async whenIdle(): Promise<void> {
-		while (this._writes.size || this._metadataWrites.size || this._pendingCompatibilityPublishes.size) {
-			for (const key of [...this._pendingCompatibilityPublishes.keys()]) {
-				this._flushCompatibilityPublish(key);
-			}
+		while (this._writes.size || this._metadataWrites.size) {
 			await Promise.all([...this._writes.values(), ...this._metadataWrites]);
 		}
+	}
+
+	/**
+	 * Publishes the pending older-build copy of `session`, or of every session when `undefined`, now. Called only
+	 * at shutdown, when a session is released (with its `database` still held), and before a move or promotion.
+	 */
+	async flushCompatibilityPublishes(session: URI | undefined, database: AgentHostCatalogDatabaseReference | undefined): Promise<void> {
+		const keys = session ? [session.toString()] : [...this._pendingCompatibilityPublishes.keys()];
+		await Promise.all(keys.map(key => this._flushCompatibilityPublish(key, database)));
 	}
 
 	dispose(): void {
@@ -1045,24 +1061,32 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 	/** Publishes a normalized catalog's older-build copy at the end of the session's coalescing window, once per burst of changes. */
 	private _scheduleCompatibilityPublish(session: URI): void {
 		const key = session.toString();
-		if (this._pendingCompatibilityPublishes.has(key) || this._deletingSessions.has(key)) {
+		const pending = this._pendingCompatibilityPublishes.get(key);
+		if (pending) {
+			// Each change restarts the idle window, up to the bound.
+			if (Date.now() - pending.firstChange + COMPATIBILITY_PUBLISH_IDLE_DELAY <= COMPATIBILITY_PUBLISH_MAX_DELAY) {
+				pending.scheduler.schedule();
+			}
 			return;
 		}
-		const scheduler = new RunOnceScheduler(() => this._flushCompatibilityPublish(key), SESSION_STATE_MIRROR_FLUSH_DELAY);
-		this._pendingCompatibilityPublishes.set(key, { session, scheduler });
+		if (this._deletingSessions.has(key)) {
+			return;
+		}
+		const scheduler = new RunOnceScheduler(() => void this._flushCompatibilityPublish(key, undefined), COMPATIBILITY_PUBLISH_IDLE_DELAY);
+		this._pendingCompatibilityPublishes.set(key, { session, scheduler, firstChange: Date.now() });
 		scheduler.schedule();
 	}
 
-	private _flushCompatibilityPublish(key: string): void {
+	private _flushCompatibilityPublish(key: string, database: AgentHostCatalogDatabaseReference | undefined): Promise<void> {
 		const pending = this._pendingCompatibilityPublishes.get(key);
 		if (!pending) {
-			return;
+			return Promise.resolve();
 		}
 		pending.scheduler.dispose();
 		this._pendingCompatibilityPublishes.delete(key);
-		void this._trackMetadataWrite(() => this._enqueue(pending.session, async () => {
+		return this._trackMetadataWrite(() => this._enqueue(pending.session, async () => {
 			try {
-				await this._publishNormalizedCompatibilityState(pending.session);
+				await this._publishNormalizedCompatibilityState(pending.session, database);
 			} catch (error) {
 				this._logService.error(error, `[AgentHostPeerChatStore] Failed to publish peer-chat compatibility state for ${key}`);
 			}
@@ -1071,48 +1095,65 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 
 	/**
 	 * Publishes the older-build copy of a normalized catalog: the `peerChats` list in the session database, the
-	 * read, provider, origin and inherited-turn keys in each listed peer's own database, and the acknowledgement
-	 * (`legacy_mirrored_revision` and its payload, the merge base of the next import). Private chats are never
-	 * listed. Only entries that differ from the acknowledged payload are written, and only into the database at a
-	 * peer's own URI, where older builds read it: a peer stored elsewhere gets no copy there. An unchanged list is
-	 * only acknowledged.
+	 * keys older builds read in each listed peer's own database, and the acknowledgement (`legacy_mirrored_revision`
+	 * and its payload, the merge base of the next import).
+	 *
+	 * Invariant: the acknowledged payload is always exactly what `peerChats` holds. A newer revision with an older
+	 * but matching pair is safe (older builds then republish from central), whereas an acknowledgement ahead of
+	 * `peerChats` would make older builds take the stale list for their own edits. So the session database is
+	 * written first and acknowledged after, outside any catalog write: one read transaction and one short
+	 * acknowledgement transaction per publish, whose revision advances only if it is still current.
+	 *
+	 * Private chats are never listed. A peer's keys are written only where they differ from the acknowledged
+	 * payload, and only into the database at the peer's own URI, where older builds read them; a peer stored
+	 * elsewhere gets no copy there. An unchanged list is only acknowledged.
 	 */
-	private async _publishNormalizedCompatibilityState(session: URI, database?: AgentHostCatalogDatabaseReference): Promise<void> {
-		const sessionKey = session.toString();
-		while (true) {
-			const [snapshot] = await this._database.readCatalogSnapshot([sessionKey]);
-			const catalog = await this._database.getSessionChatCatalog(sessionKey);
-			if (snapshot?.authorityVersion !== 2 || !snapshot.header || !catalog) {
-				return;
-			}
-			if (catalog.revision !== snapshot.header.revision) {
-				continue;
-			}
-			const rows = new Map(snapshot.chats.map(chat => [chat.chat, chat]));
-			const listed = catalog.chats.filter(chat => {
-				const row = rows.get(chat.chat);
-				return row !== undefined && isListedInOlderBuildCopy(row);
-			});
-			const entries = this._entriesFromCatalog(listed).map((entry, index) => {
-				const workingDirectories = listed[index].workingDirectories;
-				return workingDirectories !== undefined ? { ...entry, workingDirectories: [...workingDirectories] } : entry;
-			});
-			const payload = JSON.stringify(entries);
-			if (catalog.legacyMirroredRevision === catalog.revision && catalog.legacyMirroredPayload === payload) {
-				return;
-			}
-			const previous = this._parseLegacyMirrorBase(session, catalog.legacyMirroredPayload);
-			const previousByUri = previous && new Map(previous.map(entry => [entry.uri, JSON.stringify(entry)]));
-			const changed = entries.filter(entry => (rows.get(entry.uri)?.storageResource ?? entry.uri) === entry.uri
-				&& previousByUri?.get(entry.uri) !== JSON.stringify(entry));
-			const limiter = new Limiter<void>(CHAT_METADATA_CONCURRENCY);
-			await Promise.all(changed.map(entry => limiter.queue(() => this._writeChatMetadata(entry))));
-			if (catalog.legacyMirroredPayload === payload
-				? await this._database.markSessionChatCatalogLegacyMirrored(sessionKey, catalog.revision, payload)
-				: await this._writeLegacyMirror(session, entries, catalog.revision, database)) {
-				return;
-			}
+	private async _publishNormalizedCompatibilityState(session: URI, database: AgentHostCatalogDatabaseReference | undefined): Promise<void> {
+		const source = await this._database.readOlderBuildCopySource(session.toString());
+		if (!source) {
+			return;
 		}
+		const listed = source.peers.filter(isListedInOlderBuildCopy);
+		const entries = this._entriesFromCatalog(listed).map((entry, index) => {
+			const workingDirectories = listed[index].workingDirectories;
+			return workingDirectories !== undefined ? { ...entry, workingDirectories: [...workingDirectories] } : entry;
+		});
+		const payload = JSON.stringify(entries);
+		if (source.legacyMirroredPayload === payload) {
+			if (source.legacyMirroredRevision !== source.revision) {
+				await this._database.markSessionChatCatalogLegacyMirrored(session.toString(), source.revision, payload);
+			}
+			return;
+		}
+		const previous = new Map(this._parseLegacyMirrorBase(session, source.legacyMirroredPayload)?.map(entry => [entry.uri, this._olderBuildPeerKeys(entry)]));
+		const limiter = new Limiter<void>(CHAT_METADATA_CONCURRENCY);
+		await Promise.all(entries.map((entry, index) => limiter.queue(async () => {
+			if (listed[index].storageResource !== entry.uri) {
+				return;
+			}
+			const before = previous.get(entry.uri) ?? {};
+			const changed = Object.entries(this._olderBuildPeerKeys(entry)).filter(([key, value]) => value !== (before[key] ?? ''));
+			if (changed.length) {
+				const ref = this._sessionDataService.openDatabase(URI.parse(entry.uri));
+				try {
+					await ref.object.setMetadataValues(Object.fromEntries(changed));
+				} finally {
+					ref.dispose();
+				}
+			}
+		})));
+		await this._writeLegacyMirror(session, entries, source.revision, database);
+	}
+
+	/** The keys of a listed peer older builds read from its own database, with the values its entry gives them. */
+	private _olderBuildPeerKeys(entry: IPersistedPeerChat): Record<string, string> {
+		const values: Record<string, string> = {
+			...(entry.isRead !== undefined ? { [AH_META_IS_READ_DB_KEY]: entry.isRead ? 'true' : '' } : {}),
+			[CHAT_PROVIDER_DATA_METADATA_KEY]: entry.providerData ?? '',
+			[CHAT_ORIGIN_METADATA_KEY]: entry.origin === undefined ? '' : this._stringifyOrigin(entry.origin),
+			[CHAT_INHERITED_TURN_METADATA_KEY]: entry.inheritedTurnId ?? '',
+		};
+		return Object.fromEntries(Object.entries(values).filter(([key]) => isPeerKeyReadByOlderBuilds(key)));
 	}
 
 	private async _reconcileUnmirroredCatalog(session: URI, database?: AgentHostCatalogDatabaseReference): Promise<
@@ -1316,12 +1357,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		// A legacy-catalog peer: older builds read its metadata from its own database, at its chat URI.
 		const ref = this._sessionDataService.openDatabase(URI.parse(legacyPeerChatStorage(entry.uri)));
 		try {
-			await ref.object.setMetadataValues({
-				...(entry.isRead !== undefined ? { [AH_META_IS_READ_DB_KEY]: entry.isRead ? 'true' : '' } : {}),
-				[CHAT_PROVIDER_DATA_METADATA_KEY]: entry.providerData ?? '',
-				[CHAT_ORIGIN_METADATA_KEY]: entry.origin === undefined ? '' : this._stringifyOrigin(entry.origin),
-				[CHAT_INHERITED_TURN_METADATA_KEY]: entry.inheritedTurnId ?? '',
-			});
+			await ref.object.setMetadataValues(this._olderBuildPeerKeys(entry));
 		} finally {
 			ref.dispose();
 		}
