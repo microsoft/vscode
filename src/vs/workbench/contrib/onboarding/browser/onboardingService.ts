@@ -42,6 +42,14 @@ interface IExperimentState {
 	readonly assignmentContextId: string;
 }
 
+/** A queued or running scenario, shared by every caller that joins it. */
+interface IScenarioRun {
+	readonly scenario: IOnboardingScenario;
+	readonly deferred: DeferredPromise<OnboardingOutcome>;
+	/** Whether only automatic evaluation asked for this run. An explicit request clears it, even while the run waits for the presentation slot. */
+	automatic: boolean;
+}
+
 export class OnboardingScenarioService extends Disposable implements IOnboardingScenarioService {
 
 	declare readonly _serviceBrand: undefined;
@@ -63,9 +71,9 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 
 	/** Scenario ids currently queued or running (prevents double-scheduling). */
 	private readonly _pending = new Set<string>();
-	private readonly _queue: { scenario: IOnboardingScenario; deferred: DeferredPromise<OnboardingOutcome>; automatic: boolean }[] = [];
-	/** Deferreds for scenarios that have been dequeued and are currently running, keyed by id. */
-	private readonly _inflight = new Map<string, DeferredPromise<OnboardingOutcome>>();
+	private readonly _queue: IScenarioRun[] = [];
+	/** Scenarios that have been dequeued and are currently running, keyed by id. */
+	private readonly _inflight = new Map<string, IScenarioRun>();
 	private _pumping = false;
 
 	/** Abort signal for the scenario currently running. */
@@ -126,7 +134,7 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 		this._stopped = true;
 		this._activeAbort?.fire();
 
-		let entry: { scenario: IOnboardingScenario; deferred: DeferredPromise<OnboardingOutcome> } | undefined;
+		let entry: IScenarioRun | undefined;
 		while ((entry = this._queue.shift())) {
 			this._pending.delete(entry.scenario.id);
 			entry.deferred.complete(OnboardingOutcome.Aborted);
@@ -364,14 +372,10 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 		// De-duplicate against both the queue and the in-flight run so a repeated
 		// `runScenario(id)` (e.g. a command invoked while the tour is active)
 		// joins the existing run instead of scheduling a second one.
-		const queued = this._queue.find(entry => entry.scenario.id === scenario.id);
-		if (queued) {
-			queued.automatic &&= automatic;
-			return queued.deferred.p;
-		}
-		const inflight = this._inflight.get(scenario.id);
-		if (inflight) {
-			return inflight.p;
+		const existing = this._queue.find(entry => entry.scenario.id === scenario.id) ?? this._inflight.get(scenario.id);
+		if (existing) {
+			existing.automatic &&= automatic;
+			return existing.deferred.p;
 		}
 
 		const deferred = new DeferredPromise<OnboardingOutcome>();
@@ -397,15 +401,15 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 	private async _doPump(): Promise<void> {
 		await Promise.resolve(); // let the current synchronous batch of enqueues settle
 		try {
-			let entry: { scenario: IOnboardingScenario; deferred: DeferredPromise<OnboardingOutcome>; automatic: boolean } | undefined;
-			while (!this._stopped && (entry = this._queue.shift())) {
-				const { scenario, deferred, automatic } = entry;
+			let run: IScenarioRun | undefined;
+			while (!this._stopped && (run = this._queue.shift())) {
+				const { scenario, deferred } = run;
 				// Track the running scenario so a concurrent `_enqueue` for the same
 				// id joins this run instead of scheduling another.
-				this._inflight.set(scenario.id, deferred);
+				this._inflight.set(scenario.id, run);
 				let outcome: OnboardingOutcome;
 				try {
-					outcome = await this._runPresentation(scenario, automatic);
+					outcome = await this._runPresentation(run);
 				} catch (error) {
 					onUnexpectedError(error);
 					outcome = OnboardingOutcome.Aborted;
@@ -420,7 +424,8 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 		}
 	}
 
-	private async _runPresentation(scenario: IOnboardingScenario, automatic: boolean): Promise<OnboardingOutcome> {
+	private async _runPresentation(run: IScenarioRun): Promise<OnboardingOutcome> {
+		const { scenario } = run;
 		const presentation = onboardingPresentationRegistry.get(scenario.presentation.kind);
 		if (scenario.tryout || !presentation) {
 			return OnboardingOutcome.Aborted;
@@ -440,7 +445,7 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 		try {
 			return await runWithOnboardingPresentation(mainWindow, cancellation.token, async () => {
 				// An automatic run can wait behind other presentations, so it only starts if it is still eligible.
-				if (this._stopped || automatic && !this._isStillEligible(scenario)) {
+				if (this._stopped || run.automatic && !this._isStillEligible(scenario)) {
 					throw new CancellationError();
 				}
 				running = true;

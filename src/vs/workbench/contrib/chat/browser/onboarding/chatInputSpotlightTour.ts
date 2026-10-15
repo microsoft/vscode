@@ -88,6 +88,7 @@ function resolveChatInputTourTarget(widget: IChatWidget, targetId: string): IOnb
 		return picker && element ? {
 			element,
 			open: token => picker.showSection(section, token ?? CancellationToken.None),
+			close: () => picker.hideMenu(),
 			additionalElements: () => picker.menuElement ? [picker.menuElement] : [],
 		} : undefined;
 	};
@@ -122,6 +123,8 @@ export class ChatInputSpotlightTour extends Disposable {
 	private readonly _readyChat = observableValue<IChatWidget | undefined>(this, undefined);
 	readonly signal: IObservable<boolean>;
 	private readonly _run = this._register(new MutableDisposable<CancellationTokenSource>());
+	/** Targets opened since the current step started. */
+	private readonly _openedTargets = new Set<string>();
 
 	constructor(
 		eligibility: IChatOnboardingEligibility,
@@ -137,10 +140,15 @@ export class ChatInputSpotlightTour extends Disposable {
 		for (const targetId of Object.values(ChatInputTourTarget)) {
 			this._register(registerOnboardingTargetProvider(targetId, scope => {
 				const chat = eligibility.eligibleChat.get();
-				return scope === undefined && chat ? resolveChatInputTourTarget(chat, targetId) : undefined;
+				const target = scope === undefined && chat ? resolveChatInputTourTarget(chat, targetId) : undefined;
+				const open = target?.open;
+				return target && open ? { ...target, open: token => this._openOncePerStep(targetId, () => open(token), () => !!target.additionalElements?.().length) } : target;
 			}));
 		}
-		this._register(onboardingScenarioRegistry.register(createChatInputTour(this.signal, () => this._joinRun())));
+		this._register(onboardingScenarioRegistry.register(createChatInputTour(this.signal, () => {
+			this._openedTargets.clear();
+			this._joinRun();
+		})));
 
 		this._register(autorun(reader => {
 			const chat = eligibility.eligibleChat.read(reader);
@@ -171,6 +179,22 @@ export class ChatInputSpotlightTour extends Disposable {
 		};
 		check(0);
 		return pending;
+	}
+
+	/**
+	 * Choosing an option in the separate mode or permissions picker replaces its trigger, and the
+	 * spotlight then shows the step again for the new one. Once the menu has opened in a step, do
+	 * not open it again, so it does not reopen right after the selection.
+	 */
+	private async _openOncePerStep(targetId: string, open: () => Promise<void> | void, isOpen: () => boolean): Promise<void> {
+		if (this._openedTargets.has(targetId)) {
+			return;
+		}
+		this._openedTargets.add(targetId);
+		await open();
+		if (!isOpen()) {
+			this._openedTargets.delete(targetId);
+		}
 	}
 
 	/** Joins the running tour, so a modal editor can end it. */

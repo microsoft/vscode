@@ -41,7 +41,6 @@ import type { SessionState } from '../../../../../../platform/agentHost/common/s
 import { StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
-import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IContextViewService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
@@ -445,7 +444,6 @@ export class AgentHostChatInputPicker extends Disposable {
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super();
 
@@ -564,10 +562,10 @@ export class AgentHostChatInputPicker extends Disposable {
 			return;
 		}
 		if (this._pickerVisible && this.combinesPermissions) {
-			await this._setSectionExpanded(section === 'mode' ? PERMISSIONS_SECTION_ID : MODE_SECTION_ID, false);
+			this._setSectionExpanded(section === 'mode' ? PERMISSIONS_SECTION_ID : MODE_SECTION_ID, false);
 			await timeout(SECTION_SWITCH_DELAY_MS, token).catch(() => { });
 			if (!token.isCancellationRequested && this._pickerVisible) {
-				await this._setSectionExpanded(headerId, true);
+				this._setSectionExpanded(headerId, true);
 			}
 			return;
 		}
@@ -576,17 +574,27 @@ export class AgentHostChatInputPicker extends Disposable {
 		for (let attempt = 0; attempt < 20 && this._actionWidgetService.isVisible && !token.isCancellationRequested; attempt++) {
 			await timeout(50);
 		}
-		await this._showPicker(trigger, section === 'permissions');
 		if (token.isCancellationRequested) {
-			this._hidePicker();
-		} else if (this._pickerVisible && this.combinesPermissions) {
+			return;
+		}
+		await this._showPicker(trigger, section === 'permissions', token);
+		if (this._pickerVisible && this.combinesPermissions) {
 			this._actionWidgetService.focusItemById(headerId);
 		}
 	}
 
-	private async _setSectionExpanded(headerId: string, expanded: boolean): Promise<void> {
+	/** Closes the menu if it is open. */
+	hideMenu(): void {
+		this._hidePicker();
+	}
+
+	private _setSectionExpanded(headerId: string, expanded: boolean): void {
 		this._actionWidgetService.focusItemById(headerId);
-		await this._commandService.executeCommand(expanded ? 'expandSectionCodeAction' : 'collapseSectionCodeAction');
+		if (expanded) {
+			this._actionWidgetService.expandSection();
+		} else {
+			this._actionWidgetService.collapseSection();
+		}
 	}
 
 	private _reattach(): void {
@@ -942,7 +950,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		}
 	}
 
-	private async _showPicker(trigger: HTMLElement, openPermissions = false): Promise<void> {
+	private async _showPicker(trigger: HTMLElement, openPermissions = false, token = CancellationToken.None): Promise<void> {
 		if (this._actionWidgetService.isVisible) {
 			return;
 		}
@@ -989,7 +997,7 @@ export class AgentHostChatInputPicker extends Disposable {
 			}));
 		}
 		const currentContext = this._readContext();
-		if (this._actionWidgetService.isVisible || !this._isCurrentTarget(ctx) || !currentContext || !this._canEdit(currentContext)) {
+		if (token.isCancellationRequested || this._actionWidgetService.isVisible || !this._isCurrentTarget(ctx) || !currentContext || !this._canEdit(currentContext)) {
 			return;
 		}
 		const combinedTrigger = permissions ? this._trigger : undefined;

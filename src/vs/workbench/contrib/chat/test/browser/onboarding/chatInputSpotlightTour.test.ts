@@ -39,6 +39,7 @@ suite('ChatInputSpotlightTour', () => {
 	function createHarness(combined = true) {
 		const opened: { label: string; section: AgentHostPickerSection; token: CancellationToken }[] = [];
 		const menu = createElement('menu');
+		let cancelNextOpen = false;
 		const createPicker = (label: string, combinesPermissions: boolean) => {
 			const element = createElement(label);
 			let open = false;
@@ -47,8 +48,12 @@ suite('ChatInputSpotlightTour', () => {
 				override get combinesPermissions() { return combinesPermissions; }
 				override get menuElement() { return open ? menu : undefined; }
 				override async showSection(section: AgentHostPickerSection, token: CancellationToken) {
-					open = true;
 					opened.push({ label, section, token });
+					open = !cancelNextOpen;
+					cancelNextOpen = false;
+				}
+				override hideMenu() {
+					open = false;
 				}
 			}();
 		};
@@ -79,6 +84,7 @@ suite('ChatInputSpotlightTour', () => {
 		const tour = disposables.add(new ChatInputSpotlightTour({ eligibleChat }, onboardingService, contextKeyService));
 		return {
 			tour, opened, runs, menu, model, pickers,
+			cancelNextOpen: () => cancelNextOpen = true,
 			setEligible: (value: boolean) => eligibleChat.set(value ? chat : undefined, undefined),
 			openModalEditor: () => onDidChangeContext.fire({ affectsSome: keys => keys.has(EditorPartModalVisibleContext.key), allKeysContainedIn: () => false }),
 			settle: () => timeout(ChatInputSpotlightTour.SETTLE_DELAY_MS),
@@ -131,6 +137,31 @@ suite('ChatInputSpotlightTour', () => {
 			element: pickers.get(SessionConfigKey.AutoApprove)!.triggerElement,
 			opened: [['autoApprove', 'permissions']],
 		});
+	}));
+
+	test('opens a picker target once per step and closes its menu', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { opened, menu, runs, cancelNextOpen, setEligible, settle } = createHarness(false);
+		setEligible(true);
+		await settle();
+		const steps = (onboardingScenarioRegistry.getScenario(CHAT_INPUT_TOUR_ID)!.presentation.payload as ISpotlightPayload).steps;
+		const agentModeStep = steps.find(step => step.targetId === ChatInputTourTarget.AgentMode)!;
+		const agentMode = () => resolveOnboardingTarget(mainWindow, ChatInputTourTarget.AgentMode);
+		agentModeStep.onBeforeShow?.();
+		cancelNextOpen();
+		await agentMode()?.open?.();
+		// The first open was cancelled before the menu showed, so the step can open it again.
+		await agentMode()?.open?.();
+		// Choosing an option replaced the trigger, so the spotlight shows the step again.
+		await agentMode()?.open?.();
+		const openedInStep = opened.length;
+		const menuBeforeClose = agentMode()?.additionalElements?.();
+		agentMode()?.close?.();
+		const menuAfterClose = agentMode()?.additionalElements?.();
+		agentModeStep.onBeforeShow?.();
+		await agentMode()?.open?.();
+
+		assert.deepStrictEqual({ openedInStep, menuBeforeClose, menuAfterClose, openedOnNextVisit: opened.length }, { openedInStep: 2, menuBeforeClose: [menu], menuAfterClose: [], openedOnNextVisit: 3 });
+		runs[0].result.complete(OnboardingOutcome.Completed);
 	}));
 
 	test('drops the signal and its targets while the chat is not eligible', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

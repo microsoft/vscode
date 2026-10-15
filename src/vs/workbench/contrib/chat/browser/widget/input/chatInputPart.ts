@@ -1490,7 +1490,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	/** The Agent Host mode or permissions picker in the input toolbar, if it is rendered. */
-	public getAgentHostPicker(property: SessionConfigKey.Mode | SessionConfigKey.AutoApprove): Pick<AgentHostChatInputPicker, 'triggerElement' | 'menuElement' | 'combinesPermissions' | 'showSection'> | undefined {
+	public getAgentHostPicker(property: SessionConfigKey.Mode | SessionConfigKey.AutoApprove): Pick<AgentHostChatInputPicker, 'triggerElement' | 'menuElement' | 'combinesPermissions' | 'showSection' | 'hideMenu'> | undefined {
 		const picker = this.agentHostPickers.get(property);
 		return picker?.triggerElement?.isConnected ? picker : undefined;
 	}

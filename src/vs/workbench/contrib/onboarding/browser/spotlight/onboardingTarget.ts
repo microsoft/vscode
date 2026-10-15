@@ -45,6 +45,8 @@ export interface IOnboardingTarget {
 	readonly element: HTMLElement;
 	/** Opens the target for its step. `token` is cancelled when the step ends. */
 	readonly open?: (token?: CancellationToken) => Promise<void> | void;
+	/** Closes what {@link open} opened. A spotlight tour calls it before it shows a step for another element, and when the tour ends. */
+	readonly close?: () => void;
 	readonly focusTarget?: IOnboardingFocusTarget;
 	/** Accepted selections supplied by a scoped adapter, without replacing the owner's DOM marker. */
 	readonly onDidSelect?: Event<Promise<boolean>>;
@@ -96,6 +98,7 @@ export function resolveOnboardingTarget(targetWindow: Window, id: string, scope?
 				}
 				return undefined;
 			},
+			close: target.close,
 			additionalElements: target.additionalElements,
 		};
 	}
