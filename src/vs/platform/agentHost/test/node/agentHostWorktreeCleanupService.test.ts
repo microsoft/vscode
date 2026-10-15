@@ -194,7 +194,7 @@ suite('AgentHostWorktreeCleanupService', () => {
 		assert.ok(state);
 		await database.writeSessionState(OTHER_SESSION.toString(), state.header.revision, { values: { [AH_META_IS_ARCHIVED_DB_KEY]: 'true' }, folders: [], chats: [], markPayloadDirty: false });
 		// The periodic re-check removes it without another request.
-		for (let attempt = 0; attempt < 200 && worktree.calls.length < 2; attempt++) {
+		for (let attempt = 0; attempt < 400 && (await database.listPendingWorktreeRemovals()).length; attempt++) {
 			await timeout(5);
 		}
 
@@ -398,7 +398,7 @@ suite('AgentHostWorktreeCleanupService', () => {
 		await database.writeSessionState(OTHER_SESSION.toString(), state.header.revision, { values: { [AH_META_IS_ARCHIVED_DB_KEY]: 'true' }, folders: [], chats: [], markPayloadDirty: false });
 		// The other session has no worktree of its own, yet its archive triggers a pass.
 		await cleanup.requestSessionWorktreeRemoval(OTHER_SESSION, 'commit');
-		for (let attempt = 0; attempt < 200 && worktree.calls.length < 2; attempt++) {
+		for (let attempt = 0; attempt < 400 && (await database.listPendingWorktreeRemovals()).length; attempt++) {
 			await timeout(5);
 		}
 
