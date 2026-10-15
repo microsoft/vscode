@@ -67,6 +67,7 @@ import { LocalCommandContribution } from '../../node/chatContributions/localComm
 import { MarkUnreadContribution } from '../../node/chatContributions/markUnread/markUnreadContribution.js';
 import { QueueDrainContribution } from '../../node/chatContributions/queueDrain/queueDrainContribution.js';
 import { ISessionWorkspaceConversionService } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
+import { IAgentHostArchivedChatWorkspaceService } from '../../node/chatContributions/chatArchive/archivedChatWorkspaceService.js';
 import { SessionWorkspaceConversionContribution } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionContribution.js';
 import { SessionTitleContribution } from '../../node/chatContributions/sessionTitle/sessionTitleContribution.js';
 import { SideChatContribution } from '../../node/chatContributions/sideChat/sideChatContribution.js';
@@ -956,6 +957,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 			setArchived: async () => { },
 		}],
 	);
+	services.set(IAgentHostArchivedChatWorkspaceService, { _serviceBrand: undefined, setChatWorkspaceAttached: async () => { } } satisfies IAgentHostArchivedChatWorkspaceService);
 	services.set(ISessionWorkspaceConversionService, {
 		_serviceBrand: undefined,
 		supportsChatIsolation: () => false,
@@ -1041,6 +1043,7 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 		[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
 	);
 	let conversionPending = false;
+	services.set(IAgentHostArchivedChatWorkspaceService, { _serviceBrand: undefined, setChatWorkspaceAttached: async () => { } } satisfies IAgentHostArchivedChatWorkspaceService);
 	services.set(ISessionWorkspaceConversionService, {
 		_serviceBrand: undefined,
 		supportsChatIsolation: () => false,
@@ -1182,6 +1185,7 @@ suite('AgentHostChatContributions', () => {
 		const peerChat = buildChatUri(session, 'peer');
 		const failingChat = buildChatUri(session, 'failing-peer');
 		const persisted: { session: string; chat: string; archived: boolean }[] = [];
+		const workspace: { session: string; chat: string; attached: boolean }[] = [];
 		const errors: string[] = [];
 		const logService = new class extends NullLogService {
 			override error(message: string | Error, ...args: unknown[]): void {
@@ -1218,6 +1222,10 @@ suite('AgentHostChatContributions', () => {
 			[IAgentHostStateManager, stateManager],
 			[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
 			[IAgentHostPeerChatPersistenceService, peerChatPersistenceService],
+			[IAgentHostArchivedChatWorkspaceService, {
+				_serviceBrand: undefined,
+				setChatWorkspaceAttached: async (session: URI, chat: URI, attached: boolean) => { workspace.push({ session: session.toString(), chat: chat.toString(), attached }); },
+			} satisfies IAgentHostArchivedChatWorkspaceService],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 		const contributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
@@ -1232,6 +1240,7 @@ suite('AgentHostChatContributions', () => {
 
 		assert.deepStrictEqual({
 			persisted,
+			workspace,
 			errors,
 			peerRead: !!((stateManager.getChatState(peerChat)?.status ?? 0) & SessionStatus.IsRead),
 			failingRead: !!((stateManager.getChatState(failingChat)?.status ?? 0) & SessionStatus.IsRead),
@@ -1239,6 +1248,11 @@ suite('AgentHostChatContributions', () => {
 			persisted: [
 				{ session, chat: peerChat, archived: true },
 				{ session, chat: peerChat, archived: false },
+			],
+			workspace: [
+				{ session, chat: peerChat, attached: false },
+				{ session, chat: peerChat, attached: true },
+				{ session, chat: failingChat, attached: false },
 			],
 			errors: [`Error: write failed [ChatArchiveContribution] Failed to persist archived state for ${failingChat}`],
 			peerRead: true,
@@ -1265,6 +1279,7 @@ suite('AgentHostChatContributions', () => {
 				setRead: async () => { },
 				setArchived: async (_session: URI, chat: URI, archived: boolean) => { persisted.push({ chat: chat.toString(), archived }); },
 			} satisfies IAgentHostPeerChatPersistenceService],
+			[IAgentHostArchivedChatWorkspaceService, { _serviceBrand: undefined, setChatWorkspaceAttached: async () => { } } satisfies IAgentHostArchivedChatWorkspaceService],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 		const contributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
@@ -2050,7 +2065,7 @@ suite('AgentHostChatContributions', () => {
 	] satisfies ITurnEnd['reason'][]) {
 		for (const rejected of [false, true]) {
 			for (const owner of ['session', 'defaultChat', 'peerChat'] as const) {
-				test(`${owner} ${reason.kind} schedules tracked changes before checkpoint capture ${rejected ? 'rejects' : 'resolves'} and auto refresh after`, async () => {
+				test(`${owner} ${reason.kind} schedules tracked changes without waiting for checkpoint capture that ${rejected ? 'rejects' : 'resolves'}`, async () => {
 					const contributions = createBuiltInContributions(disposables);
 					const checkpoint = new DeferredPromise<void>();
 					const captures: { session: string; chat: string; turnId: string }[] = [];
@@ -2090,7 +2105,7 @@ suite('AgentHostChatContributions', () => {
 						captures: [{ session: turn.session, chat: channel, turnId: turn.turnId }],
 						whilePending: { recomputes: expected, refreshes: [] },
 						recomputes: expected,
-						refreshes: [[turn.session, 'auto']],
+						refreshes: [],
 						warnings: rejected ? [`[AgentSideEffects] Turn checkpoint capture failed for ${turn.session}/${turn.turnId}: checkpoint failed`] : [],
 					});
 				});

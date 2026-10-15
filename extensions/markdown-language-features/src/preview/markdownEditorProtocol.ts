@@ -115,11 +115,12 @@ export const markdownEditorHost = defineInterface({ id: 'markdown.editor.host' }
 	cancelCompletions: requestType(z.object({ requestId: offset }), z.void()),
 	pasteImages: requestType(z.extend(range, {
 		editEpoch: offset,
-		images: z.array(z.object({ name: z.string(), mime: z.string(), base64: z.string() })),
+		images: z.array(z.object({ id: z.string(), name: z.string(), mime: z.string(), size: offset })),
 	}), z.object({ offset: z.optional(offset), editEpoch: offset })),
 });
 
 export const markdownEditorRenderer = defineInterface({ id: 'markdown.editor.renderer' }, {
+	readClipboardMedia: requestType(z.object({ id: z.string(), offset, length: offset }), z.object({ base64: z.string() })),
 	configurationChanged: notificationType(editorConfiguration),
 	diagnosticsChanged: requestType(z.object({}), z.void()),
 	update: requestType(z.object({ content: z.string(), editEpoch: offset }), z.void()),

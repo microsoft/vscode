@@ -1087,6 +1087,7 @@ class AdditionalChat extends Disposable {
 				workingDirectories?.map(directory => mapWorkingDirectoryUri(URI.parse(directory))),
 				output?.getFolderGitHubInfo(reader),
 				output?.getScopeGitState(reader, workingDirectories),
+				this._isArchived.read(reader),
 			);
 		});
 		const interactivity = derived(reader => effectiveChatInteractivity(

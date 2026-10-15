@@ -46,6 +46,7 @@ import type { ISessionServerToolAccessor } from './shared/sessionServerTools.js'
 import { type IAgentServiceFoundation } from './agentServiceFoundation.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { ISessionWorkspaceConversionService, SessionWorkspaceConversionService } from './chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
+import { IAgentHostArchivedChatWorkspaceService } from './chatContributions/chatArchive/archivedChatWorkspaceService.js';
 import { IAgentHostTurnTracker } from './agentHostTurnTracker.js';
 import { AgentHostSessionLifecycle, type IAgentHostSessionLifecycleAccessor } from './agentHostSessionLifecycle.js';
 import { persistSessionMetadataValues } from './shared/persistSessionMetadata.js';
@@ -231,6 +232,10 @@ export function createAgentServiceComposition(
 			setChatWorkingDirectory: (session, chat, directory, replaceSessionWorkspace, expectedSessionDirectories) => agentService!.setChatWorkingDirectory(session, chat, directory, replaceSessionWorkspace, expectedSessionDirectories),
 		}));
 		services.set(ISessionWorkspaceConversionService, workspaceConversionService.value);
+		services.set(IAgentHostArchivedChatWorkspaceService, {
+			_serviceBrand: undefined,
+			setChatWorkspaceAttached: (session, chat, attached) => agentService!.setArchivedChatWorkspaceAttached(session, chat, attached),
+		});
 
 		const collaborators: IAgentServiceCollaborators = {
 			gitHubEndpointService,
