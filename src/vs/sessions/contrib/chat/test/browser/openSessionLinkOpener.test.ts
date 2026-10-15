@@ -145,8 +145,8 @@ suite('OpenSessionLinkOpenerContribution', () => {
 				opened.push(`chat:${resource.toString()}`);
 			}
 
-			override async openSessionToSide(_session: ISession, options?: { chatResource?: URI }): Promise<void> {
-				opened.push(`sessionSide:${options?.chatResource?.toString()}`);
+			override async openSessionToSide(_session: ISession, options?: Parameters<ISessionsService['openSessionToSide']>[1]): Promise<void> {
+				opened.push(`sessionSide:${options?.forceMainChat}:${options?.chatResource?.toString()}`);
 			}
 
 			override async openChatToSide(_session: ISession, resource: URI): Promise<void> {
@@ -197,7 +197,7 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			opened: [
 				'chat:copilotcli:/session-1',
 				'chat:copilotcli:/session-1#chat-2',
-				'sessionSide:copilotcli:/session-1',
+				'sessionSide:true:undefined',
 				'chatSide:copilotcli:/session-1#chat-2',
 			],
 		});

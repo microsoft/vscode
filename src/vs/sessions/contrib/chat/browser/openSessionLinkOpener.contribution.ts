@@ -103,7 +103,7 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 			if (chatId) {
 				await this._sessionsService.openChatToSide(session, chatResource);
 			} else {
-				await this._sessionsService.openSessionToSide(session, { chatResource, source: 'link' });
+				await this._sessionsService.openSessionToSide(session, { forceMainChat: true, source: 'link' });
 			}
 		} else {
 			await this._sessionsService.openChat(session, chatResource, { source: 'link' });
