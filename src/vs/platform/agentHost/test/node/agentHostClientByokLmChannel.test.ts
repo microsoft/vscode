@@ -4,19 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { ChannelClient, ChannelServer } from '../../../../base/parts/ipc/common/ipc.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ChannelClient, ChannelServer, ClientConnectionEvent, IPCClient, IPCServer } from '../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { IAgentHostByokLmHandler, IByokLmChatRequest, IByokLmChatResult, IByokLmChatProgress, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
-import { AgentHostClientByokLmChannel, createAgentHostClientByokLmConnection } from '../../common/agentHostClientByokLmChannel.js';
+import { AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, AgentHostClientByokLmChannel, createAgentHostClientByokLmConnection } from '../../common/agentHostClientByokLmChannel.js';
 
 suite('agentHostClientByokLmChannel', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	teardown(() => sinon.restore());
 
 	function handlerOf(
 		chat: (request: IByokLmChatRequest) => Promise<IByokLmChatResult>,
@@ -38,8 +42,8 @@ suite('agentHostClientByokLmChannel', () => {
 		const toServer = store.add(new Emitter<VSBuffer>());
 		const client = store.add(new ChannelClient({ onMessage: toClient.event, send: buffer => toServer.fire(buffer) }));
 		const server = store.add(new ChannelServer({ onMessage: toServer.event, send: buffer => toClient.fire(buffer) }, null));
-		server.registerChannel('byok', new AgentHostClientByokLmChannel(handler, new NullLogService()));
-		return createAgentHostClientByokLmConnection(client.getChannel('byok'));
+		server.registerChannel(AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, new AgentHostClientByokLmChannel(handler, new NullLogService()));
+		return createAgentHostClientByokLmConnection(client);
 	}
 
 	test('round-trips a Responses request to the handler and back', async () => {
@@ -135,17 +139,62 @@ suite('agentHostClientByokLmChannel', () => {
 		await Promise.all([rejection, cancelled.p]);
 	});
 
+	test('releases request emitters on a pinned server connection before server disposal', async () => {
+		const onDidClientConnect = store.add(new Emitter<ClientConnectionEvent>());
+		const toHost = store.add(new Emitter<VSBuffer>());
+		const toRenderer = store.add(new Emitter<VSBuffer>());
+		const server = store.add(new IPCServer(onDidClientConnect.event));
+		const connected = Event.toPromise(server.onDidAddConnection);
+		onDidClientConnect.fire({
+			protocol: { onMessage: toHost.event, send: buffer => queueMicrotask(() => toRenderer.fire(buffer)) },
+			onDidClientDisconnect: Event.None,
+		});
+		const client = store.add(new IPCClient({ onMessage: toRenderer.event, send: buffer => queueMicrotask(() => toHost.fire(buffer)) }, 'renderer'));
+		client.registerChannel(AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, new AgentHostClientByokLmChannel({
+			_serviceBrand: undefined,
+			listModels: async () => [],
+			chat: async (_request, _token, report) => {
+				report?.({ outputIndex: 0, item: { type: 'message', content: [{ type: 'text', text: 'hello' }] } });
+				return { output: [] };
+			},
+		}, new NullLogService()));
+		const hostConnection = await connected;
+		const connection = createAgentHostClientByokLmConnection(hostConnection.channelClient);
+		const added = sinon.spy(DisposableStore.prototype, 'add');
+		const disposed = sinon.spy(Emitter.prototype, 'dispose');
+		let progressCount = 0;
+		for (let i = 0; i < 25; i++) {
+			await connection.chat({ vendor: 'v', modelId: 'm', input: [] }, CancellationToken.None, () => progressCount++);
+		}
+		await flush();
+		const retainedEmitters = added.args.map(([disposable]) => disposable)
+			.filter(disposable => disposable instanceof Emitter && !disposed.calledOn(disposable));
+		assert.deepStrictEqual({ progressCount, retainedEmitters: retainedEmitters.length }, { progressCount: 25, retainedEmitters: 0 });
+	});
+
 	test('forwards cancellation for buffered requests too', async () => {
 		const cts = store.add(new CancellationTokenSource());
-		let received: CancellationToken | undefined;
+		const started = new DeferredPromise<void>();
+		const cancelled = new DeferredPromise<void>();
 		const connection = bridge({
 			_serviceBrand: undefined,
 			listModels: async () => [],
-			chat: async (_request, token) => { received = token; return { output: [] }; },
+			chat: async (_request, token) => {
+				const listener = token.onCancellationRequested(() => void cancelled.complete());
+				try {
+					await started.complete();
+					await cancelled.p;
+					return { output: [] };
+				} finally {
+					listener.dispose();
+				}
+			},
 		});
-		await connection.chat({ vendor: 'v', modelId: 'm', input: [] }, cts.token);
+		const pending = connection.chat({ vendor: 'v', modelId: 'm', input: [] }, cts.token);
+		const rejection = assert.rejects(pending, /Canceled/);
+		await started.p;
 		cts.cancel();
-		assert.strictEqual(received?.isCancellationRequested, true);
+		await Promise.all([rejection, cancelled.p]);
 	});
 
 	test('forwards a bridge error result unchanged', async () => {

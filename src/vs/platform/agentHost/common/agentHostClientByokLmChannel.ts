@@ -9,7 +9,7 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
 import { generateUuid } from '../../../base/common/uuid.js';
-import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
+import { IChannelClient, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { ILogService } from '../../log/common/log.js';
 import {
 	IAgentHostByokLmHandler,
@@ -23,9 +23,8 @@ import {
 /**
  * IPC channel name used for in-process agent-host → renderer reverse BYOK
  * language-model RPCs. The renderer registers a server channel under this
- * name on its `MessagePortClient`; the agent host reaches it via
- * `server.getChannel(name, c => c.ctx === clientId)` on its
- * `UtilityProcessServer`.
+ * name on its `MessagePortClient`; the agent host reaches it via the
+ * corresponding connection's `channelClient`.
  */
 export const AGENT_HOST_CLIENT_BYOK_LM_CHANNEL = 'agentHostClientByokLm';
 
@@ -35,14 +34,11 @@ interface IStreamingChatRequest {
 }
 
 /**
- * Wraps an {@link IChannel} (obtained from the agent host's
- * `UtilityProcessServer.getChannel`) into an {@link IByokLmBridgeConnection}
- * suitable for the node-side {@link IByokLmProxyService}. This is the node end
- * of the bridge: `chat()` uses a request-scoped event subscription for live
- * output. The RPC still owns completion, transport errors and cancellation, and
- * `onDidChangeModels` is the renderer's pushed model snapshot stream.
+ * Wraps a connection-pinned IPC client into a reverse BYOK LM bridge.
+ * Request-scoped progress subscriptions must not use server-wide multicast routing, which retains emitters until shutdown.
  */
-export function createAgentHostClientByokLmConnection(channel: IChannel): IByokLmBridgeConnection {
+export function createAgentHostClientByokLmConnection(client: IChannelClient): IByokLmBridgeConnection {
+	const channel = client.getChannel(AGENT_HOST_CLIENT_BYOK_LM_CHANNEL);
 	return {
 		chat: async (request, token = CancellationToken.None, onProgress) => {
 			if (!onProgress) {
