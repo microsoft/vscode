@@ -64,10 +64,10 @@ suite('ModelPickerActionItem', () => {
 
 	/**
 	 * Renders the real picker as the chat input toolbar does, with the model's
-	 * name followed by its thinking effort / context size readout. The name has
-	 * no icon, so it keeps its label even when the picker is compact.
+	 * name followed by its thinking effort / context size readout. By default the
+	 * name has no icon, so it keeps its label even when the picker is compact.
 	 */
-	function renderPicker(model: ILanguageModelChatMetadataAndIdentifier, options: { readonly compact?: boolean; readonly itemWidth?: number; readonly workflow?: IModelPickerWorkflow } = {}) {
+	function renderPicker(model: ILanguageModelChatMetadataAndIdentifier, options: { readonly compact?: boolean; readonly itemWidth?: number; readonly showModelIcon?: boolean; readonly workflow?: IModelPickerWorkflow } = {}) {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IActionWidgetService, {});
 		instantiationService.stub(ICommandService, {});
@@ -99,7 +99,7 @@ suite('ModelPickerActionItem', () => {
 				showManageModelsAction: false,
 				showUnavailableFeatured: false,
 				showAutoModel: true,
-				showModelIcon: false,
+				showModelIcon: options.showModelIcon ?? false,
 			}),
 		};
 		const item = disposables.add(new ModelPickerActionItem(
@@ -160,6 +160,30 @@ suite('ModelPickerActionItem', () => {
 		state.set(undefined, undefined);
 		assert.deepStrictEqual({ initial, duringSetup, committed, dismissed: label() }, {
 			initial: 'First', duringSetup: 'First', committed: '3 Attempts', dismissed: '3 Attempts',
+		});
+	});
+
+	test('composer keeps the labeled summary when variants repeat a model icon', () => {
+		const model = createModel('First');
+		const { domNode } = renderPicker(model, {
+			compact: true,
+			showModelIcon: true,
+			workflow: upcastPartial<IModelPickerWorkflow>({
+				available: constObservable(true),
+				summary: constObservable('First, First Max'),
+				summaryModelIds: constObservable([model.identifier, model.identifier]),
+				state: constObservable(undefined),
+			}),
+		});
+
+		assert.deepStrictEqual({
+			label: domNode.querySelector('.chat-input-picker-label')?.textContent,
+			attemptIcons: domNode.querySelector('.chat-input-picker-attempt-icons')?.childElementCount,
+			ariaLabel: domNode.querySelector('.model-picker-name')?.getAttribute('aria-label'),
+		}, {
+			label: 'First, First Max',
+			attemptIcons: undefined,
+			ariaLabel: 'Models, First, First Max',
 		});
 	});
 

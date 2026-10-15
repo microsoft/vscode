@@ -851,13 +851,14 @@ export class ModelPickerWidget extends Disposable {
 		const summaryModelIds = workflow && this._delegate.getPresentationOptions().showModelIcon
 			? this._delegate.workflow?.summaryModelIds?.get()
 			: undefined;
+		const hasRepeatedSummaryModelIds = !!summaryModelIds && new Set(summaryModelIds).size !== summaryModelIds.length;
 		const summaryIcons = summaryModelIds?.length
 			? summaryModelIds.map(modelId => {
 				const model = this._delegate.getModels().find(candidate => candidate.identifier === modelId);
 				return model && getCompactModelPickerIcon(model);
 			})
 			: undefined;
-		const showSummaryIcons = !!summaryIcons?.every((icon): icon is ThemeIcon => !!icon);
+		const showSummaryIcons = !hasRepeatedSummaryModelIds && !!summaryIcons?.every((icon): icon is ThemeIcon => !!icon);
 		const modelIcon = showSummaryIcons
 			? undefined
 			: workflow ? Codicon.layers : shownModel
@@ -883,7 +884,7 @@ export class ModelPickerWidget extends Disposable {
 				: genericNoModels
 					? localize('chat.modelPicker.noModels', "No models available")
 					: (name ?? localize('chat.modelPicker.auto', "Auto"));
-		const showModelLabel = (!compact || !modelIcon || noModelsAvailable) && !showSummaryIcons;
+		const showModelLabel = hasRepeatedSummaryModelIds || (!compact || !modelIcon || noModelsAvailable) && !showSummaryIcons;
 		if (showModelLabel) {
 			nameChildren.push(dom.$('span.chat-input-picker-label', undefined, modelLabel));
 		}
