@@ -151,6 +151,8 @@ class TestChangesetService implements IAgentHostChangesetService {
 	onToolCallEditsApplied(_session: string, _turnId: string): void { }
 	onTurnComplete(_session: string, _turnId: string | undefined): void { }
 	onSessionTruncated(_session: string): void { }
+	openTrackedTurnDatabase(): undefined { return undefined; }
+	onFileEditsDiscarded(): void { }
 	ensureChatChangesSummary(): void { }
 	refreshChatChangesSummary(): void { }
 }

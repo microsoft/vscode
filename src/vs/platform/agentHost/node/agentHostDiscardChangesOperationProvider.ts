@@ -6,10 +6,11 @@
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
-import { ChangesetKind } from '../common/changesetUri.js';
+import { ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
 import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetOperation } from '../common/state/sessionState.js';
-import { AgentHostDiscardChangesOperationHandler } from './agentHostDiscardChangesOperationHandler.js';
+import { AgentHostDiscardChangesOperationHandler, getLastTurn } from './agentHostDiscardChangesOperationHandler.js';
+import { AgentHostFileEditRevert } from './agentHostFileEditRevert.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 
 export class AgentHostDiscardChangesOperationContribution extends Disposable implements IChangesetOperationContribution {
@@ -27,27 +28,45 @@ export class AgentHostDiscardChangesOperationContribution extends Disposable imp
 		this._registry = registry;
 		const store = new DisposableStore();
 		const getSessionState = (sessionKey: string) => this._stateManager.getSessionState(sessionKey);
-		const handler = this._instantiationService.createInstance(AgentHostDiscardChangesOperationHandler, getSessionState, (sessionKey: string) => this._onDiscarded(sessionKey));
+		const fileEditRevert = this._instantiationService.createInstance(AgentHostFileEditRevert);
+		const handler = this._instantiationService.createInstance(AgentHostDiscardChangesOperationHandler, getSessionState, (sessionKey: string) => this._onDiscarded(sessionKey), fileEditRevert);
 		store.add(registry.registerChangesetOperationHandler(AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES, handler));
 		store.add({ dispose: () => { this._registry = undefined; } });
 
 		return store;
 	}
 
-	getOperations({ changesetKind, gitState }: IChangesetOperationContext): ChangesetOperation[] {
-		if (changesetKind !== ChangesetKind.Branch
-			&& (changesetKind !== ChangesetKind.Uncommitted || (gitState?.uncommittedChanges ?? 0) <= 0)) {
-			return [];
+	getOperations({ changesetKind, changesetUri, gitState }: IChangesetOperationContext): ChangesetOperation[] {
+		const confirmation = localize('agentHost.changeset.discardChanges.confirmation', "Are you sure you want to discard the changes in \'{0}\'? This action cannot be undone.");
+		switch (changesetKind) {
+			case ChangesetKind.Branch:
+				return [this._createOperation(confirmation)];
+			case ChangesetKind.Uncommitted:
+				return (gitState?.uncommittedChanges ?? 0) > 0
+					? [this._createOperation(confirmation)]
+					: [];
+			case ChangesetKind.Turn: {
+				// Also offered while the turn is running, so the action is shown;
+				// the operation service disables it until the turn completes.
+				const parsed = parseChangesetUri(changesetUri);
+				return parsed?.turnId !== undefined && getLastTurn(this._stateManager, parsed.ownerUri)?.id === parsed.turnId
+					? [this._createOperation(localize('agentHost.changeset.discardTurnChanges.confirmation', "Are you sure you want to discard the last turn's changes to \'{0}\'? Changes made outside of the last turn will be kept. This action cannot be undone."))]
+					: [];
+			}
+			default:
+				return [];
 		}
+	}
 
-		return [{
+	private _createOperation(confirmation: string): ChangesetOperation {
+		return {
 			id: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES,
 			label: localize('agentHost.changeset.discardChanges', "Discard Changes"),
-			confirmation: localize('agentHost.changeset.discardChanges.confirmation', "Are you sure you want to discard the changes in \'{0}\'? This action cannot be undone."),
+			confirmation,
 			icon: 'discard',
 			scopes: [ChangesetOperationScope.Resource],
 			status: ChangesetOperationStatus.Idle,
-		} satisfies ChangesetOperation];
+		} satisfies ChangesetOperation;
 	}
 
 	private async _onDiscarded(sessionKey: string): Promise<void> {
