@@ -17,6 +17,7 @@ import { AgentSubscriptionMissingError, IAgentSubscription } from '../../../../p
 import { AhpErrorCodes } from '../../../../platform/agentHost/common/state/protocol/common/errors.js';
 import { isAgentHostConnectionClosedError, ProtocolError } from '../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { supportsAgentHostSerializedTerminalCreation } from '../../../../platform/agentHost/common/meta/agentHostTerminalMeta.js';
 import { BasePty } from '../common/basePty.js';
 
 /** Whether the host has a terminal, or `unknown` if that cannot be established. */
@@ -28,13 +29,12 @@ type HostTerminalProbeResult = 'exists' | 'missing' | 'unknown';
  * that creating the terminal again is safe.
  */
 function isHostTerminalMissingError(error: Error): boolean {
-	return error instanceof AgentSubscriptionMissingError
-		|| (error instanceof ProtocolError && (
-			error.code === AhpErrorCodes.NotFound
-			// Hosts report subscribing to an unknown terminal URI as
-			// "No agent for session" because it falls through to session restore.
-			|| error.code === AhpErrorCodes.SessionNotFound
-		));
+	return error instanceof ProtocolError && (
+		error.code === AhpErrorCodes.NotFound
+		// Hosts report subscribing to an unknown terminal URI as
+		// "No agent for session" because it falls through to session restore.
+		|| error.code === AhpErrorCodes.SessionNotFound
+	);
 }
 
 /**
@@ -283,6 +283,10 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 				this._logService.warn(`[AgentHostPty] Could not determine whether host terminal ${this._terminalUri.toString()} exists; reporting the original launch failure.`);
 				throw error;
 			}
+			if (!supportsAgentHostSerializedTerminalCreation(connection.initializeResult.get())) {
+				this._logService.warn(`[AgentHostPty] Host does not advertise serialized terminal creation; reporting the original launch failure to avoid duplicate shells.`);
+				throw error;
+			}
 
 			this._logService.info(`[AgentHostPty] Host terminal ${this._terminalUri.toString()} does not exist; retrying creation.`);
 			try {
@@ -327,8 +331,14 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 	 * the terminal exists so startup can reuse its snapshot.
 	 */
 	private async _probeHostTerminal(connection: IAgentConnection): Promise<HostTerminalProbeResult> {
-		const { subscription, store } = this._createSubscription(connection);
-		const result = await this._waitForProbeResult(subscription, store);
+		let { subscription, store } = this._createSubscription(connection);
+		let result = await this._waitForProbeResult(subscription, store);
+		if (result === 'unknown' && subscription.value instanceof AgentSubscriptionMissingError && this._isCurrentStartup(connection)) {
+			// Reconnect's missing list also includes authorization and internal restore failures.
+			this._subscription.clear();
+			({ subscription, store } = this._createSubscription(connection));
+			result = await this._waitForProbeResult(subscription, store);
+		}
 		if (result !== 'exists' && this._subscription.value === store) {
 			this._subscription.clear();
 		}

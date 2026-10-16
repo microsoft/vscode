@@ -33,6 +33,7 @@ import { AgentHostArtifactIntegrationsCapabilityMetaKey, AgentHostArtifactNotice
 import type { ArtifactIntegrationRequest, ArtifactIntegrationResponse, ArtifactIntegrationUpdate } from '../../artifactIntegrations/common/artifactIntegrationProtocol.js';
 import type { ArtifactIntegrationDescriptor } from '../../artifactIntegrations/common/artifactIntegration.js';
 import { AgentHostCopilotExtensionsCapabilityMetaKey } from './meta/agentHostCopilotExtensionsMeta.js';
+import { AgentHostSerializedTerminalCreationCapabilityMetaKey } from './meta/agentHostTerminalMeta.js';
 
 export { supportsAgentHostArtifactRemoval } from './meta/agentHostArtifactRemovalMeta.js';
 export { StageCreateSessionImportChunkExtensionMethod, stageCreateSessionImportChunkParamsValidator, supportsAgentHostCreateSessionImport };
@@ -116,6 +117,7 @@ export interface IAgentHostExtensionInitializeResultMeta extends Record<string, 
 	readonly [AgentHostArtifactNoticesCapabilityMetaKey]?: 1;
 	readonly [AgentHostWorktreeDiskUsageCapabilityMetaKey]?: true;
 	readonly [AgentHostWorktreeCleanupCapabilityMetaKey]?: true;
+	readonly [AgentHostSerializedTerminalCreationCapabilityMetaKey]?: true;
 	readonly [AgentHostDebugLogsCancellationCapabilityMetaKey]?: true;
 	readonly [AgentHostSessionUrisCapabilityMetaKey]?: true;
 	readonly [AgentHostChatUrisCapabilityMetaKey]?: true;
@@ -146,6 +148,7 @@ export interface IAgentHostExtensionInitializeResult extends InitializeResult {
 
 export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true, devContainers = false, timing = false, sessionImport = false, savedChat = false, savedChatContinuation = false, sessionMove = false, artifactIntegrations = false, copilotExtensions = false): IAgentHostExtensionInitializeResultMeta {
 	return {
+		[AgentHostSerializedTerminalCreationCapabilityMetaKey]: true,
 		[AgentHostDebugLogsCancellationCapabilityMetaKey]: true,
 		[AgentHostSessionUrisCapabilityMetaKey]: true,
 		[AgentHostChatUrisCapabilityMetaKey]: true,
