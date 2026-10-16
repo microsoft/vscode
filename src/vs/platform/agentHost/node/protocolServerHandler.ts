@@ -3258,7 +3258,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				if (!resource.scheme || !scopeId.trim()) {
 					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat and scopeId must be non-empty'));
 				}
-				return this._agentService[operation]!(resource, scopeId);
+				return this._agentService[operation]!(chat, scopeId);
 			}
 			case 'shutdown':
 				return this._agentService.shutdown();

@@ -1515,14 +1515,17 @@ suite('AgentService (node dispatcher)', () => {
 			const calls: [string, string][] = [];
 			registerTestAgentProvider(service, provider);
 			const session = await service.createSession({ legacyChatUris: false, provider: provider.id });
-			const chat = getStateManager(service).getDefaultChat(session.toString());
-			assert.ok(chat);
+			const defaultChat = getStateManager(service).getDefaultChat(session.toString());
+			assert.ok(defaultChat);
+			const chat = 'conversation://tenant/a%2Fb?revision%3D2#entry';
+			getStateManager(service).addChat(session.toString(), chat, defaultChat);
 			service.restoreSession = async () => { assert.fail('Certificate installation must not restore a session'); };
-			await assert.rejects(service[operation](URI.parse(chat), 'runtime'), /unavailable/);
-			provider[operation] = async (chat, scopeId) => { calls.push([chat.toString(), scopeId]); };
-			await assert.rejects(service[operation](URI.parse('conversation://missing/chat'), 'runtime'), /unavailable/);
+			await assert.rejects(service[operation](chat, 'runtime'), /unavailable/);
+			provider[operation] = async (chat, scopeId) => { calls.push([chat, scopeId]); };
+			await assert.rejects(service[operation]('conversation://missing/chat', 'runtime'), /unavailable/);
+			await assert.rejects(service[operation](URI.parse(chat).toString(), 'runtime'), /unavailable/);
 			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
-			await managementService[operation](URI.parse(chat), 'runtime');
+			await managementService[operation](chat, 'runtime');
 			assert.deepStrictEqual(calls, [[chat, 'runtime']]);
 		});
 	}

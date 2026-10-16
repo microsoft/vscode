@@ -1177,7 +1177,7 @@ suite('AgentHostProtocolClient', () => {
 		test('rotation uses its own capability and forwards the exact chat and scope', async () => {
 			const { client, transport } = createClient();
 			await connectClient(client, transport, { 'vscode.sandboxCertificate.rotate': true });
-			const rotating = client.rotateSandboxCertificate(URI.parse('conversation://tenant/opaque?revision%3D2#entry'), 'runtime');
+			const rotating = client.rotateSandboxCertificate('conversation://tenant/a%2Fb?revision%3D2#entry', 'runtime');
 			await flushMicrotasks();
 			const request = transport.sentMessages.findLast((message): message is JsonRpcRequest => hasKey(message, { method: true, id: true }) && message.method === 'vscode/rotateSandboxCertificate');
 			assert.ok(request);
@@ -1185,14 +1185,14 @@ suite('AgentHostProtocolClient', () => {
 			await rotating;
 			assert.deepStrictEqual({
 				supported: client.sandboxCertificateRotationSupported.get(), installationSupported: client.sandboxCertificateInstallationSupported.get(), params: request.params,
-			}, { supported: true, installationSupported: false, params: { chat: 'conversation://tenant/opaque?revision%3D2#entry', scopeId: 'runtime' } });
+			}, { supported: true, installationSupported: false, params: { chat: 'conversation://tenant/a%2Fb?revision%3D2#entry', scopeId: 'runtime' } });
 		});
 
 		for (const capability of [undefined, false, 'true']) {
 			test(`does not infer rotation support from installation when rotation capability is ${capability}`, async () => {
 				const { client, transport } = createClient();
 				await connectClient(client, transport, { 'vscode.sandboxCertificate.install': true, 'vscode.sandboxCertificate.rotate': capability });
-				await assert.rejects(client.rotateSandboxCertificate(URI.parse('conversation://tenant/opaque'), 'runtime'), /does not support/);
+				await assert.rejects(client.rotateSandboxCertificate('conversation://tenant/opaque', 'runtime'), /does not support/);
 				assert.deepStrictEqual({
 					supported: client.sandboxCertificateRotationSupported.get(),
 					sent: transport.sentMessages.some(message => hasKey(message, { method: true }) && message.method === 'vscode/rotateSandboxCertificate'),
@@ -1203,7 +1203,7 @@ suite('AgentHostProtocolClient', () => {
 		test('removal uses its own capability and forwards the exact chat and scope', async () => {
 			const { client, transport } = createClient();
 			await connectClient(client, transport, { 'vscode.sandboxCertificate.remove': true });
-			const removing = client.removeSandboxCertificate(URI.parse('conversation://tenant/opaque?revision%3D2#entry'), 'runtime');
+			const removing = client.removeSandboxCertificate('conversation://tenant/a%2Fb?revision%3D2#entry', 'runtime');
 			await flushMicrotasks();
 			const request = transport.sentMessages.findLast((message): message is JsonRpcRequest => hasKey(message, { method: true, id: true }) && message.method === 'vscode/removeSandboxCertificate');
 			assert.ok(request);
@@ -1211,14 +1211,14 @@ suite('AgentHostProtocolClient', () => {
 			await removing;
 			assert.deepStrictEqual({
 				supported: client.sandboxCertificateRemovalSupported.get(), installationSupported: client.sandboxCertificateInstallationSupported.get(), params: request.params,
-			}, { supported: true, installationSupported: false, params: { chat: 'conversation://tenant/opaque?revision%3D2#entry', scopeId: 'runtime' } });
+			}, { supported: true, installationSupported: false, params: { chat: 'conversation://tenant/a%2Fb?revision%3D2#entry', scopeId: 'runtime' } });
 		});
 
 		for (const capability of [undefined, false, 'true']) {
 			test(`does not infer removal support from installation when removal capability is ${capability}`, async () => {
 				const { client, transport } = createClient();
 				await connectClient(client, transport, { 'vscode.sandboxCertificate.install': true, 'vscode.sandboxCertificate.remove': capability });
-				await assert.rejects(client.removeSandboxCertificate(URI.parse('conversation://tenant/opaque'), 'runtime'), /does not support/);
+				await assert.rejects(client.removeSandboxCertificate('conversation://tenant/opaque', 'runtime'), /does not support/);
 				assert.deepStrictEqual({
 					supported: client.sandboxCertificateRemovalSupported.get(),
 					sent: transport.sentMessages.some(message => hasKey(message, { method: true }) && message.method === 'vscode/removeSandboxCertificate'),
@@ -1230,13 +1230,13 @@ suite('AgentHostProtocolClient', () => {
 			const { client, transport } = createClient();
 			await connectClient(client, transport, { 'vscode.sandboxCertificate.install': true });
 			assert.strictEqual(client.sandboxCertificateInstallationSupported.get(), true);
-			const installing = client.installSandboxCertificate(URI.parse('conversation://tenant/opaque?revision%3D2#entry'), 'runtime');
+			const installing = client.installSandboxCertificate('conversation://tenant/a%2Fb?revision%3D2#entry', 'runtime');
 			await flushMicrotasks();
 			const request = transport.sentMessages.findLast((message): message is JsonRpcRequest => hasKey(message, { method: true, id: true }) && message.method === 'vscode/installSandboxCertificate');
 			assert.ok(request);
 			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: null });
 			await installing;
-			assert.deepStrictEqual(request.params, { chat: 'conversation://tenant/opaque?revision%3D2#entry', scopeId: 'runtime' });
+			assert.deepStrictEqual(request.params, { chat: 'conversation://tenant/a%2Fb?revision%3D2#entry', scopeId: 'runtime' });
 		});
 
 		for (const capability of [undefined, false, 'true']) {
@@ -1244,7 +1244,7 @@ suite('AgentHostProtocolClient', () => {
 				const { client, transport } = createClient();
 				await connectClient(client, transport, { 'vscode.sandboxCertificate.install': capability });
 				assert.strictEqual(client.sandboxCertificateInstallationSupported.get(), false);
-				await assert.rejects(client.installSandboxCertificate(URI.parse('conversation://tenant/opaque'), 'runtime'), /does not support/);
+				await assert.rejects(client.installSandboxCertificate('conversation://tenant/opaque', 'runtime'), /does not support/);
 				assert.strictEqual(transport.sentMessages.some(message => hasKey(message, { method: true }) && message.method === 'vscode/installSandboxCertificate'), false);
 			});
 		}

@@ -3900,19 +3900,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return await this._findChatByUri(chat)?.stopBackgroundWork(id) ?? false;
 	}
 
-	async installSandboxCertificate(chat: URI, scopeId: string): Promise<void> {
+	async installSandboxCertificate(chat: string, scopeId: string): Promise<void> {
 		await this._withSandboxCertificateRefresh(chat, session => session.installSandboxCertificate(scopeId));
 	}
 
-	async rotateSandboxCertificate(chat: URI, scopeId: string): Promise<void> {
+	async rotateSandboxCertificate(chat: string, scopeId: string): Promise<void> {
 		await this._withSandboxCertificateRefresh(chat, session => session.rotateSandboxCertificate(scopeId));
 	}
 
-	async removeSandboxCertificate(chat: URI, scopeId: string): Promise<void> {
+	async removeSandboxCertificate(chat: string, scopeId: string): Promise<void> {
 		await this._withSandboxCertificateRefresh(chat, session => session.removeSandboxCertificate(scopeId));
 	}
 
-	private async _withSandboxCertificateRefresh(chat: URI, operation: (session: CopilotAgentSession) => Promise<void>): Promise<void> {
+	private async _withSandboxCertificateRefresh(chat: string, operation: (session: CopilotAgentSession) => Promise<void>): Promise<void> {
 		const session = this._findChatByUri(chat);
 		if (!session) {
 			throw new Error(localize('copilot.sandboxCertificate.chatUnavailable', "The chat is no longer running. Reopen it before changing sandbox certificate trust."));

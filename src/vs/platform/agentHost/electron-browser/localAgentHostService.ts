@@ -503,15 +503,15 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	readonly sandboxCertificateRotationSupported = constObservable(true);
 	readonly sandboxCertificateRemovalSupported = constObservable(true);
 
-	installSandboxCertificate(chat: URI, scopeId: string): Promise<void> {
+	installSandboxCertificate(chat: string, scopeId: string): Promise<void> {
 		return this._getManagementService().installSandboxCertificate(chat, scopeId);
 	}
 
-	rotateSandboxCertificate(chat: URI, scopeId: string): Promise<void> {
+	rotateSandboxCertificate(chat: string, scopeId: string): Promise<void> {
 		return this._getManagementService().rotateSandboxCertificate(chat, scopeId);
 	}
 
-	removeSandboxCertificate(chat: URI, scopeId: string): Promise<void> {
+	removeSandboxCertificate(chat: string, scopeId: string): Promise<void> {
 		return this._getManagementService().removeSandboxCertificate(chat, scopeId);
 	}
 

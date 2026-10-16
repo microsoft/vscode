@@ -1710,12 +1710,12 @@ export interface IAgent {
 	 * stoppable. Resolves false when the entry is unknown or had already finished.
 	 */
 	stopBackgroundWork?(chat: URI, id: string): Promise<boolean>;
-	/** Installs the live chat runtime's sandbox certificate after explicit client consent. */
-	installSandboxCertificate?(chat: URI, scopeId: string): Promise<void>;
+	/** Installs the live chat runtime's sandbox certificate after explicit client consent, preserving the advertised chat string. */
+	installSandboxCertificate?(chat: string, scopeId: string): Promise<void>;
 	/** Replaces the live runtime's sandbox CA after explicit client consent. */
-	rotateSandboxCertificate?(chat: URI, scopeId: string): Promise<void>;
+	rotateSandboxCertificate?(chat: string, scopeId: string): Promise<void>;
 	/** Removes OS trust for the live runtime's sandbox CA after explicit client consent, retaining the stored CA. */
-	removeSandboxCertificate?(chat: URI, scopeId: string): Promise<void>;
+	removeSandboxCertificate?(chat: string, scopeId: string): Promise<void>;
 
 	/**
 	 * Changes the working directory of an exact chat's existing provider-native

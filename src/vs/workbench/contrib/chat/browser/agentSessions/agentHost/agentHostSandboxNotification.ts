@@ -353,7 +353,7 @@ export class AgentHostSandboxNotification extends Disposable {
 		const connection = resolution.connection;
 		return {
 			connection, chat, scopeId: certificate.scopeId, authority: resolution.connectionAuthority,
-			run: () => connection[method]!(URI.parse(chat), certificate.scopeId),
+			run: () => connection[method]!(chat, certificate.scopeId),
 		};
 	}
 	private _update(state: SessionState | Error | undefined): void {

@@ -1978,20 +1978,20 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
-	async installSandboxCertificate(chat: URI, scopeId: string): Promise<void> {
+	async installSandboxCertificate(chat: string, scopeId: string): Promise<void> {
 		await this._runSandboxCertificateOperation(chat, scopeId, 'installSandboxCertificate');
 	}
 
-	async rotateSandboxCertificate(chat: URI, scopeId: string): Promise<void> {
+	async rotateSandboxCertificate(chat: string, scopeId: string): Promise<void> {
 		await this._runSandboxCertificateOperation(chat, scopeId, 'rotateSandboxCertificate');
 	}
 
-	async removeSandboxCertificate(chat: URI, scopeId: string): Promise<void> {
+	async removeSandboxCertificate(chat: string, scopeId: string): Promise<void> {
 		await this._runSandboxCertificateOperation(chat, scopeId, 'removeSandboxCertificate');
 	}
 
-	private async _runSandboxCertificateOperation(chat: URI, scopeId: string, operation: 'installSandboxCertificate' | 'rotateSandboxCertificate' | 'removeSandboxCertificate'): Promise<void> {
-		const owner = this._chatOwnership.getChatOwner(chat.toString());
+	private async _runSandboxCertificateOperation(chat: string, scopeId: string, operation: 'installSandboxCertificate' | 'rotateSandboxCertificate' | 'removeSandboxCertificate'): Promise<void> {
+		const owner = this._chatOwnership.getChatOwner(chat);
 		const provider = owner === undefined ? undefined : this._providerService.getProviderForSession(URI.parse(owner));
 		if (!provider?.[operation]) {
 			throw new Error('Sandbox certificate management is unavailable for this chat.');

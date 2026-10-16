@@ -395,7 +395,7 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 			['rotateSandboxCertificate', 'sandboxCertificateRotationSupported'],
 			['removeSandboxCertificate', 'sandboxCertificateRemovalSupported'],
 		] as const;
-		const chat = URI.parse('conversation://tenant/opaque?revision%3D2#entry');
+		const chat = 'conversation://tenant/a%2Fb?revision%3D2#entry';
 		const scopeId = 'remote-runtime-scope';
 
 		function createService(protocolClient: Partial<AgentHostProtocolClient>, remoteAuthority?: string): EditorRemoteAgentHostServiceClient {
@@ -433,7 +433,7 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 				const installation = observableValue('installation', false);
 				const rotation = observableValue('rotation', false);
 				const removal = observableValue('removal', false);
-				const calls: { operation: string; chat: URI; scopeId: string }[] = [];
+				const calls: { operation: string; chat: string; scopeId: string }[] = [];
 				const service = createService({
 					sandboxCertificateInstallationSupported: installation,
 					sandboxCertificateRotationSupported: rotation,

@@ -63,21 +63,21 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._runMutation(() => this._agentService.createChat(session, chat, options));
 	}
 
-	installSandboxCertificate(chat: URI, scopeId: string): Promise<void> {
+	installSandboxCertificate(chat: string, scopeId: string): Promise<void> {
 		if (!this._agentService.installSandboxCertificate) {
 			throw new Error('Sandbox certificate installation is unavailable');
 		}
 		return this._runMutation(() => this._agentService.installSandboxCertificate!(chat, scopeId));
 	}
 
-	rotateSandboxCertificate(chat: URI, scopeId: string): Promise<void> {
+	rotateSandboxCertificate(chat: string, scopeId: string): Promise<void> {
 		if (!this._agentService.rotateSandboxCertificate) {
 			throw new Error('Sandbox certificate rotation is unavailable');
 		}
 		return this._runMutation(() => this._agentService.rotateSandboxCertificate!(chat, scopeId));
 	}
 
-	removeSandboxCertificate(chat: URI, scopeId: string): Promise<void> {
+	removeSandboxCertificate(chat: string, scopeId: string): Promise<void> {
 		if (!this._agentService.removeSandboxCertificate) {
 			throw new Error('Sandbox certificate removal is unavailable');
 		}

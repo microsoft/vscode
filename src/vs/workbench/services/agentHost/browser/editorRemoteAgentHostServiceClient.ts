@@ -286,15 +286,15 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._requireClient().diagnosticsFetch(url);
 	}
 
-	installSandboxCertificate(chat: URI, scopeId: string): Promise<void> {
+	installSandboxCertificate(chat: string, scopeId: string): Promise<void> {
 		return this._requireClient().installSandboxCertificate(chat, scopeId);
 	}
 
-	rotateSandboxCertificate(chat: URI, scopeId: string): Promise<void> {
+	rotateSandboxCertificate(chat: string, scopeId: string): Promise<void> {
 		return this._requireClient().rotateSandboxCertificate(chat, scopeId);
 	}
 
-	removeSandboxCertificate(chat: URI, scopeId: string): Promise<void> {
+	removeSandboxCertificate(chat: string, scopeId: string): Promise<void> {
 		return this._requireClient().removeSandboxCertificate(chat, scopeId);
 	}
 

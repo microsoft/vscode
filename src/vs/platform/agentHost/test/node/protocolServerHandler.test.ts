@@ -232,9 +232,9 @@ class MockAgentService implements IAgentService {
 	readonly getSessionStateFileCalls: { session: string; chat: string | undefined }[] = [];
 	readonly removeSessionArtifactCalls: { session: string; artifactId: string }[] = [];
 	readonly stopBackgroundWorkCalls: { chat: string; id: string }[] = [];
-	installSandboxCertificate: ((chat: URI, scopeId: string) => Promise<void>) | undefined;
-	rotateSandboxCertificate: ((chat: URI, scopeId: string) => Promise<void>) | undefined;
-	removeSandboxCertificate: ((chat: URI, scopeId: string) => Promise<void>) | undefined;
+	installSandboxCertificate: ((chat: string, scopeId: string) => Promise<void>) | undefined;
+	rotateSandboxCertificate: ((chat: string, scopeId: string) => Promise<void>) | undefined;
+	removeSandboxCertificate: ((chat: string, scopeId: string) => Promise<void>) | undefined;
 	readonly importedSessions: string[] = [];
 	readonly createDetachedWorktreeCalls: { session: string; prompt: string }[] = [];
 	readonly setDetachedWorktreeArchivedCalls: { handle: string; archived: boolean }[] = [];
@@ -2620,12 +2620,12 @@ suite('ProtocolServerHandler', () => {
 	for (const operation of ['install', 'rotate', 'remove'] as const) {
 		test(`sandbox certificate ${operation} validates requests and forwards opaque chat identities`, async () => {
 			const calls: { chat: string; scopeId: string }[] = [];
-			agentService[`${operation}SandboxCertificate`] = async (chat, scopeId) => { calls.push({ chat: chat.toString(), scopeId }); };
+			agentService[`${operation}SandboxCertificate`] = async (chat, scopeId) => { calls.push({ chat, scopeId }); };
 			const transport = connectClient('certificate-installer');
 			const response = findResponse(transport.sent, 1);
 			assert.ok(response && hasKey(response, { result: true }));
 			const advertised = (response.result as InitializeResult)._meta?.[`vscode.sandboxCertificate.${operation}`];
-			const chat = 'conversation://tenant/opaque?revision%3D2#entry';
+			const chat = 'conversation://tenant/a%2Fb?revision%3D2#entry';
 			const completed = waitForResponse(transport, 2);
 			transport.simulateMessage(request(2, `vscode/${operation}SandboxCertificate`, { chat, scopeId: 'runtime' }));
 			assert.ok(hasKey(await completed, { result: true }));

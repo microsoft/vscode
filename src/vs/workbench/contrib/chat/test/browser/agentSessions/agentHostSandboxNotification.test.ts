@@ -218,7 +218,7 @@ suite('AgentHostSandboxNotification', () => {
 			focusedSessionChanged.fire();
 		}
 
-		function enableInstallation(install: (chat: URI, scopeId: string) => Promise<void>, supported = true): void {
+		function enableInstallation(install: (chat: string, scopeId: string) => Promise<void>, supported = true): void {
 			assert.ok(resolution);
 			resolution = {
 				...resolution,
@@ -250,7 +250,7 @@ suite('AgentHostSandboxNotification', () => {
 			return instantiationService.invokeFunction(accessor => new InstallTrustedCAAction().run(accessor));
 		}
 
-		function enableRemoval(remove: (chat: URI, scopeId: string) => Promise<void>, supported = true): void {
+		function enableRemoval(remove: (chat: string, scopeId: string) => Promise<void>, supported = true): void {
 			assert.ok(resolution);
 			resolution = {
 				...resolution,
@@ -269,7 +269,7 @@ suite('AgentHostSandboxNotification', () => {
 			return instantiationService.invokeFunction(accessor => new RemoveTrustedCAAction().run(accessor));
 		}
 
-		function enableRotation(rotate: (chat: URI, scopeId: string) => Promise<void>, supported = true): void {
+		function enableRotation(rotate: (chat: string, scopeId: string) => Promise<void>, supported = true): void {
 			assert.ok(resolution);
 			resolution = {
 				...resolution,
@@ -327,10 +327,11 @@ suite('AgentHostSandboxNotification', () => {
 				store.add(registerAction2(ManageTrustedCAAction));
 				const subscription = store.add(new TestSubscription());
 				subscription.setValue();
-				subscription.setCertificate({ ...certificate, state: selected === 'Install' ? 'notInstalled' : 'installed' });
+				const chat = 'conversation://opaque/a%2Fb?revision%3D3#entry';
+				subscription.setCertificate({ ...certificate, state: selected === 'Install' ? 'notInstalled' : 'installed' }, chat);
 				const service = new NotificationService();
 				const calls: [string, string][] = [];
-				const run = async (chat: URI, scopeId: string) => { calls.push([chat.toString(), scopeId]); };
+				const run = async (chat: string, scopeId: string) => { calls.push([chat, scopeId]); };
 				if (selected === 'Install') {
 					enableInstallation(run);
 				} else if (selected === 'Rotate') {
@@ -352,7 +353,7 @@ suite('AgentHostSandboxNotification', () => {
 					confirmations: confirmations.length, errors: installationErrors,
 				}, {
 					title: 'Manage Trusted CA', labels: ['Install', 'Rotate', 'Remove'],
-					calls: selected ? [['conversation://opaque/certificate?revision%3D3#entry', 'host-runtime']] : [],
+					calls: selected ? [[chat, 'host-runtime']] : [],
 					confirmations: selected ? 1 : 0, errors: [],
 				});
 			});

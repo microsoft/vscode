@@ -1673,25 +1673,25 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return result.stopped;
 	}
 
-	async installSandboxCertificate(chat: URI, scopeId: string): Promise<void> {
+	async installSandboxCertificate(chat: string, scopeId: string): Promise<void> {
 		if (!supportsSandboxCertificateInstallation(this.initializeResult.get())) {
 			throw new Error('This agent host does not support sandbox certificate installation.');
 		}
-		await this._sendExtensionRequest(InstallSandboxCertificateExtensionMethod, { chat: chat.toString(), scopeId });
+		await this._sendExtensionRequest(InstallSandboxCertificateExtensionMethod, { chat, scopeId });
 	}
 
-	async rotateSandboxCertificate(chat: URI, scopeId: string): Promise<void> {
+	async rotateSandboxCertificate(chat: string, scopeId: string): Promise<void> {
 		if (!this.sandboxCertificateRotationSupported.get()) {
 			throw new Error('This agent host does not support sandbox certificate rotation.');
 		}
-		await this._sendExtensionRequest(RotateSandboxCertificateExtensionMethod, { chat: chat.toString(), scopeId });
+		await this._sendExtensionRequest(RotateSandboxCertificateExtensionMethod, { chat, scopeId });
 	}
 
-	async removeSandboxCertificate(chat: URI, scopeId: string): Promise<void> {
+	async removeSandboxCertificate(chat: string, scopeId: string): Promise<void> {
 		if (!this.sandboxCertificateRemovalSupported.get()) {
 			throw new Error('This agent host does not support sandbox certificate removal.');
 		}
-		await this._sendExtensionRequest(RemoveSandboxCertificateExtensionMethod, { chat: chat.toString(), scopeId });
+		await this._sendExtensionRequest(RemoveSandboxCertificateExtensionMethod, { chat, scopeId });
 	}
 
 	refreshSubscription(resource: URI): Promise<void> {

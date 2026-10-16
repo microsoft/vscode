@@ -131,9 +131,9 @@ suite('LocalAgentHostServiceClient events', () => {
 		const channels: string[] = [];
 		const calls: [string, string, string][] = [];
 		const channel = ProxyChannel.fromService({
-			installSandboxCertificate: async (chat: URI, scopeId: string) => { calls.push(['install', chat.toString(), scopeId]); },
-			rotateSandboxCertificate: async (chat: URI, scopeId: string) => { calls.push(['rotate', chat.toString(), scopeId]); },
-			removeSandboxCertificate: async (chat: URI, scopeId: string) => { calls.push(['remove', chat.toString(), scopeId]); },
+			installSandboxCertificate: async (chat: string, scopeId: string) => { calls.push(['install', chat, scopeId]); },
+			rotateSandboxCertificate: async (chat: string, scopeId: string) => { calls.push(['rotate', chat, scopeId]); },
+			removeSandboxCertificate: async (chat: string, scopeId: string) => { calls.push(['remove', chat, scopeId]); },
 		}, disposables.add(new DisposableStore()));
 		const client: IChannelClient = {
 			getChannel: <T extends IChannel>(name: string): T => {
@@ -144,12 +144,13 @@ suite('LocalAgentHostServiceClient events', () => {
 		};
 		const managementClient = stub(LocalAgentHostManagementConnection.prototype, 'client').resolves(client);
 		disposables.add({ dispose: () => managementClient.restore() });
-		await service.installSandboxCertificate(URI.parse('conversation://host/chat'), 'runtime');
-		await service.rotateSandboxCertificate(URI.parse('conversation://host/chat'), 'runtime');
-		await service.removeSandboxCertificate(URI.parse('conversation://host/chat'), 'runtime');
+		const chat = 'conversation://host/a%2Fb?revision%3D2#entry';
+		await service.installSandboxCertificate(chat, 'runtime');
+		await service.rotateSandboxCertificate(chat, 'runtime');
+		await service.removeSandboxCertificate(chat, 'runtime');
 		assert.deepStrictEqual({ supported: [service.sandboxCertificateInstallationSupported.get(), service.sandboxCertificateRotationSupported.get(), service.sandboxCertificateRemovalSupported.get()], channels, calls }, {
 			supported: [true, true, true], channels: ['agentHostManagement', 'agentHostManagement', 'agentHostManagement'],
-			calls: [['install', 'conversation://host/chat', 'runtime'], ['rotate', 'conversation://host/chat', 'runtime'], ['remove', 'conversation://host/chat', 'runtime']],
+			calls: [['install', chat, 'runtime'], ['rotate', chat, 'runtime'], ['remove', chat, 'runtime']],
 		});
 	});
 
