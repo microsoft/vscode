@@ -200,10 +200,13 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 	}
 
 	openSession(session: IActiveSession | undefined, options: ISessionViewOptions): void {
+		options = { ...options, hostVisible: this._isVisibleObs };
 		if (this._hasOpenedSession && this._currentSession === session) {
+			if (session && session.isCreated.get()) {
+				this._groupsView.setSession(session, options);
+			}
 			return;
 		}
-		options = { ...options, hostVisible: this._isVisibleObs };
 		this._hasOpenedSession = true;
 		this._currentSession = session;
 		this._sessionObs.set(session, undefined);

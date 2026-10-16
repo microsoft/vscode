@@ -913,6 +913,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 				this.sessionOpenTelemetryService.sessionActivated(telemetryAttempt, chatUri);
 			}
 			this.logService.trace(`[SessionsView] openChat start uri=${chatUri.toString()} provider=${session.providerId}`);
+			const wasActive = this.activeSession.get()?.sessionId === session.sessionId;
 			this._activate(session, preserveFocus, intent);
 			if (!await this._waitForSessionToLoad(session, token)) {
 				this.logService.trace(`[SessionsView] openChat cancelled while waiting for session to load uri=${chatUri.toString()}`);
@@ -929,6 +930,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 					this._visibility.openChat(session, chat);
 					this._visibility.setActiveChat(session, chat);
 					this._setChatVisibilityState(session, chat, true);
+					if (wasActive) {
+						this.sessionsPartService.getSessionView(activeSession.sessionId)?.openSession(activeSession, {});
+					}
 				}
 			}
 			navigation.complete();
@@ -1381,7 +1385,14 @@ export class SessionsService extends Disposable implements ISessionsService {
 		const t0 = Date.now();
 		this.logService.trace(`[SessionsView] openSession start uri=${sessionData.resource.toString()} provider=${sessionData.providerId}`);
 
+		const wasActive = this.activeSession.get()?.sessionId === sessionData.sessionId;
 		this._activate(sessionData, options?.preserveFocus, intent);
+		if (wasActive) {
+			const active = this.activeSession.get();
+			if (active) {
+				this.sessionsPartService.getSessionView(active.sessionId)?.openSession(active, {});
+			}
+		}
 		this.logService.trace(`[SessionsView] showSession done total=${Date.now() - t0}ms uri=${sessionData.resource.toString()}`);
 	}
 

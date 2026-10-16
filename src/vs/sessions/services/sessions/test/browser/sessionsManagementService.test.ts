@@ -2495,6 +2495,7 @@ suite('SessionsManagementService', () => {
 					const { customViewService, view, sessionsPartService, contextKeyService } = createSessionsManagementService(first, disposables, provider);
 					sessionsPartService.sessionViews.set(target.sessionId, upcastPartial<SessionView>({
 						openChatToSide: resource => view.openChat(target, resource),
+						openSession: () => { },
 					}));
 					const destination = () => customViewService.activeCustomView.get()?.id ?? view.activeSession.get()?.activeChat.get().resource.toString() ?? 'newSession';
 
@@ -2550,6 +2551,7 @@ suite('SessionsManagementService', () => {
 			const { customViewService, view, sessionsPartService, contextKeyService } = createSessionsManagementService(first, disposables, provider);
 			sessionsPartService.sessionViews.set(target.sessionId, upcastPartial<SessionView>({
 				openChatToSide: resource => view.openChat(target, resource),
+				openSession: () => { },
 			}));
 			const destination = () => customViewService.activeCustomView.get()?.id ?? view.activeSession.get()?.activeChat.get().resource.toString() ?? 'newSession';
 
@@ -3556,6 +3558,7 @@ suite('SessionsManagementService', () => {
 		const openedToSide: string[] = [];
 		sessionsPartService.sessionViews.set(session.sessionId, upcastPartial<SessionView>({
 			openChatToSide: async resource => { openedToSide.push(resource.toString()); },
+			openSession: () => { },
 		}));
 
 		await view.openSessionToSide(session, { forceMainChat: true });
@@ -3586,6 +3589,7 @@ suite('SessionsManagementService', () => {
 		const openedToSide: string[] = [];
 		sessionsPartService.sessionViews.set(session.sessionId, upcastPartial<SessionView>({
 			openChatToSide: async resource => { openedToSide.push(resource.toString()); },
+			openSession: () => { },
 		}));
 
 		await view.openSessionsAt([added, session], neighbor.sessionId, 'right', { activate: 'last', forceMainChat: true });
@@ -3601,6 +3605,62 @@ suite('SessionsManagementService', () => {
 			activeChat: peer.resource.toString(),
 			openedToSide: [main.resource.toString()],
 		});
+	});
+
+	test('openSession on an already active session forwards openSession to the mounted session view', async () => {
+		const session = stubSession({ sessionId: 'already-active', providerId: 'test' });
+		const { view, sessionsPartService } = createSessionsManagementService(session, disposables);
+		await view.openSession(session.resource);
+		assert.strictEqual(view.activeSession.get()?.sessionId, session.sessionId);
+
+		const openCalls: any[] = [];
+		sessionsPartService.sessionViews.set(session.sessionId, upcastPartial<SessionView>({
+			openSession: (s, options) => { openCalls.push({ session: s?.sessionId, options }); },
+		}));
+
+		await view.openSession(session.resource, { forceMainChat: true });
+		assert.strictEqual(openCalls.length, 1);
+		assert.strictEqual(openCalls[0].session, session.sessionId);
+		assert.deepStrictEqual(openCalls[0].options, {});
+	});
+
+	test('openChat on an already active chat forwards openSession to the mounted session view to retry failed loads', async () => {
+		const main = { ...stubChat, resource: URI.parse('test:///session/main') };
+		const peer = { ...stubChat, resource: URI.parse('test:///session/peer') };
+		const session = stubSession({
+			sessionId: 'already-active',
+			providerId: 'test',
+			chats: constObservable([main, peer]),
+			mainChat: constObservable(main),
+		});
+		const { view, sessionsPartService } = createSessionsManagementService(session, disposables);
+		await view.openChat(session, peer.resource);
+		assert.strictEqual(view.activeSession.get()?.sessionId, session.sessionId);
+		assert.strictEqual(view.activeSession.get()?.activeChat.get().resource.toString(), peer.resource.toString());
+
+		const openCalls: any[] = [];
+		sessionsPartService.sessionViews.set(session.sessionId, upcastPartial<SessionView>({
+			openSession: (s, options) => { openCalls.push({ session: s?.sessionId, options }); },
+		}));
+
+		// Reselecting the same already-active chat through the public openChat API
+		await view.openChat(session, peer.resource);
+		assert.strictEqual(openCalls.length, 1);
+		assert.strictEqual(openCalls[0].session, session.sessionId);
+		assert.deepStrictEqual(openCalls[0].options, {});
+
+		// Selecting a different chat on the active session (e.g. displayed in an inactive split group) also forwards openSession to retry failed loads
+		await view.openChat(session, main.resource);
+		assert.strictEqual(openCalls.length, 2);
+		assert.strictEqual(openCalls[1].session, session.sessionId);
+		assert.deepStrictEqual(openCalls[1].options, {});
+		assert.strictEqual(view.activeSession.get()?.activeChat.get().resource.toString(), main.resource.toString());
+
+		// Reselecting main once it is active triggers openSession fallback
+		await view.openChat(session, main.resource);
+		assert.strictEqual(openCalls.length, 3);
+		assert.strictEqual(openCalls[2].session, session.sessionId);
+		assert.deepStrictEqual(openCalls[2].options, {});
 	});
 
 	for (const side of [false, true]) {

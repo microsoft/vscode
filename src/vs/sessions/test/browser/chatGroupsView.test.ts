@@ -1503,6 +1503,58 @@ suite('Sessions - ChatGroupsView', () => {
 		});
 	});
 
+	test('reopening an active chat re-dispatches setChat to allow retrying failed loads', () => {
+		const { view, chatViewFactory } = createHarness(disposables);
+		const main = createChat('main');
+		const session = new TestActiveSession([main]);
+		view.setSession(session, options);
+		const chatView = chatViewFactory.views.find(v => v.kind === 'chat')!;
+		assert.ok(chatView);
+		assert.strictEqual(chatView.boundChats.length, 1);
+
+		// Reopening the same chat through _openChat (e.g. clicking the tab) re-dispatches setChat
+		view['_openChat'](view['_groups'][0], main.resource);
+		assert.strictEqual(chatView.boundChats.length, 2);
+
+		// Reopening the same session through setSession (e.g. sidebar reselection) re-dispatches setChat
+		view.setSession(session, options);
+		assert.strictEqual(chatView.boundChats.length, 3);
+	});
+
+	test('selecting a chat displayed in an inactive split group re-dispatches setChat without requiring a second selection', () => {
+		const { view, chatViewFactory } = createHarness(disposables);
+		const chatA = createChat('chatA');
+		const chatB = createChat('chatB');
+		const session = new TestActiveSession([chatA, chatB]);
+		view.setSession(session, options);
+		view.splitChatToSide(chatB.resource);
+
+		session.activeChat.set(chatA, undefined);
+		const chatBView = chatViewFactory.views.find(v => v.kind === 'chat' && v.boundChats.some(b => b.chat === chatB.resource.toString()))!;
+		assert.ok(chatBView);
+		const bindsBefore = chatBView.boundChats.length;
+
+		session.activeChat.set(chatB, undefined);
+		view.setSession(session, options);
+		assert.strictEqual(chatBView.boundChats.length, bindsBefore + 1);
+	});
+
+	test('updating historyStatus on a failed chat does not trigger an automatic setChat loop', () => {
+		const { view, chatViewFactory } = createHarness(disposables);
+		const main = createChat('main');
+		const session = new TestActiveSession([main]);
+		view.setSession(session, options);
+		const chatView = chatViewFactory.views.find(v => v.kind === 'chat')!;
+		assert.ok(chatView);
+		assert.strictEqual(chatView.boundChats.length, 1);
+
+		// When chat load fails and updates historyStatus on the view:
+		chatView.historyStatus.set({ kind: 'history', message: 'Failed to load' }, undefined);
+
+		// The persistent failure must NOT re-trigger setChat
+		assert.strictEqual(chatView.boundChats.length, 1);
+	});
+
 	test('new session drafts do not restore a persisted chat grid', () => {
 		const { view } = createHarness(disposables);
 		const main = createChat('main');

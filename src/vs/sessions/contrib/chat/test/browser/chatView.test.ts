@@ -10,6 +10,7 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { ObjectTree } from '../../../../../base/browser/ui/tree/objectTree.js';
 import { DeferredPromise, retry, timeout } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -1123,12 +1124,18 @@ suite('Sessions - Chat View', () => {
 		const loadCts = disposables.add(new MutableDisposable<CancellationTokenSource>());
 		const view: {
 			_currentChatResource: URI | undefined;
+			_inputBeforeLoad: string | undefined;
 			_onInput?: () => void;
 			_handleDraftInput(): void;
 			_retryUnresolvedChatLoad(addedSessionTypes: readonly string[]): void;
-			_loadChat(resource: URI, session: ISession | undefined, options?: { inputModelToPreserve?: IInputModel }): void;
+			_loadChat(resource: URI, session: ISession | undefined, options?: { inputModelToPreserve?: IInputModel; inputBeforeLoad?: string; isCancellationRetry?: boolean }): void;
+			_widget: {
+				getInput(): string;
+				setInput(input: string): void;
+			};
 		} = Object.assign(Object.create(ChatView.prototype), {
 			_currentChatResource: resource,
+			_inputBeforeLoad: undefined,
 			_currentChatResourceObs: currentResource,
 			_currentSessionObs: observableValue<ISession | undefined>('session', undefined),
 			_loadedChatResource: observableValue<URI | undefined>('loadedChatResource', undefined),
@@ -1236,6 +1243,120 @@ suite('Sessions - Chat View', () => {
 		assert.strictEqual(loadFailure.get(), undefined);
 	});
 
+	test('retries when provider replacement cancels an in-flight load', async () => {
+		const resource = URI.parse('agent-host-claude:/history');
+		const { view, requests, fail, complete, loadFailure, bindings } = createChatLoadView(resource);
+		view._loadChat(resource, undefined);
+		await fail(0, new CancellationError());
+		assert.strictEqual(requests.length, 2);
+		assert.strictEqual(loadFailure.get(), undefined);
+		const incoming = createChatModel(resource);
+		incoming.inputModel.setState(createInputState('Loaded after provider replacement'));
+		await complete(1, incoming);
+		assert.strictEqual(bindings[0].inputText, 'Loaded after provider replacement');
+	});
+
+	test('preserves text typed during initial load and retry across provider replacement cancellation', async () => {
+		const resource = URI.parse('agent-host-claude:/history');
+		const { view, requests, fail, complete, loadFailure, setInputState } = createChatLoadView(resource);
+		view._loadChat(resource, undefined);
+
+		// User types text into the widget during the initial load window
+		setInputState(createInputState('Draft typed during initial load'));
+
+		// Provider replacement cancels the in-flight load
+		await fail(0, new CancellationError());
+		assert.strictEqual(requests.length, 2);
+		assert.strictEqual(loadFailure.get(), undefined);
+
+		// User continues typing during the automatic retry
+		setInputState(createInputState('Draft typed during initial load and retry'));
+
+		// Incoming model completes on the retry with an empty saved draft
+		const incoming = createChatModel(resource);
+		incoming.inputModel.setState(createInputState(''));
+		await complete(1, incoming);
+
+		// The user's typed input must survive and not be wiped by the empty saved draft
+		assert.strictEqual(view._widget.getInput(), 'Draft typed during initial load and retry');
+	});
+
+	test('preserves text typed while waiting for an unresolved provider to register', async () => {
+		const resource = URI.parse('agent-host-claude:/history');
+		const { view, requests, fail, complete, setInputState } = createChatLoadView(resource);
+		view._loadChat(resource, undefined);
+
+		// Initial load fails because the provider is not yet registered
+		await fail(0, new Error('No provider'));
+
+		// User types a draft while waiting for the provider to register
+		setInputState(createInputState('Draft typed while waiting for provider'));
+
+		// Provider registers and retries the unresolved load
+		view._retryUnresolvedChatLoad(['agent-host-claude']);
+		assert.strictEqual(requests.length, 2);
+
+		// Model loads on retry with an empty saved draft
+		const incoming = createChatModel(resource);
+		incoming.inputModel.setState(createInputState(''));
+		await complete(1, incoming);
+
+		// Typed draft must survive and not be cleared
+		assert.strictEqual(view._widget.getInput(), 'Draft typed while waiting for provider');
+	});
+
+	test('preserves text typed after initial failure across explicit retry action', async () => {
+		const resource = URI.parse('agent-host-claude:/history');
+		const { view, requests, fail, complete, loadFailure, setInputState } = createChatLoadView(resource);
+		view._loadChat(resource, undefined);
+
+		// Initial load fails with a recoverable error
+		await fail(0, new Error('Network timeout'));
+		const failure = loadFailure.get();
+		assert.ok(failure?.status.action);
+
+		// User types a draft after seeing the failure banner
+		setInputState(createInputState('Draft typed after failure'));
+
+		// User clicks retry
+		const retry = failure.status.action.run();
+		assert.strictEqual(requests.length, 2);
+
+		// Model completes with an empty saved draft
+		const incoming = createChatModel(resource);
+		incoming.inputModel.setState(createInputState(''));
+		await complete(1, incoming);
+		await retry;
+
+		// Typed draft must survive
+		assert.strictEqual(view._widget.getInput(), 'Draft typed after failure');
+	});
+
+	test('surfaces a load failure when cancellation repeats instead of retrying indefinitely', async () => {
+		const resource = URI.parse('agent-host-claude:/history');
+		const { view, requests, fail, complete, loadFailure } = createChatLoadView(resource);
+		view._loadChat(resource, undefined);
+		// First cancellation: triggers automatic retry
+		await fail(0, new CancellationError());
+		assert.strictEqual(requests.length, 2);
+		assert.strictEqual(loadFailure.get(), undefined);
+		// Second cancellation: terminates retry chain and shows failure
+		await fail(1, new CancellationError());
+		assert.strictEqual(requests.length, 2);
+		const failure = loadFailure.get();
+		assert.strictEqual(failure?.status.message, 'Couldn\'t load this conversation.');
+		assert.ok(failure?.status.action);
+
+		// An explicit user retry from the failure action triggers a fresh attempt
+		const retry = failure.status.action.run();
+		assert.strictEqual(requests.length, 3);
+		const incoming = createChatModel(resource);
+		incoming.inputModel.setState(createInputState('Loaded on user retry'));
+		await complete(2, incoming);
+		await retry;
+		assert.strictEqual(loadFailure.get(), undefined);
+	});
+
 	test('does not show a failure or clear the resource after cancellation', async () => {
 		const resource = URI.parse('agent-host-claude:/cancelled-history');
 		const { view, loadCts, loadFailure, loading, fail } = createChatLoadView(resource);
@@ -1243,6 +1364,20 @@ suite('Sessions - Chat View', () => {
 		loadCts.value?.cancel();
 		await fail(0, new Error('Cancelled load'));
 		assert.deepStrictEqual({ resource: view._currentChatResource?.toString(), failure: loadFailure.get(), loading: loading.at(-1) }, { resource: resource.toString(), failure: undefined, loading: false });
+	});
+
+	test('view cancellation does not trigger a provider retry or show a failure banner', async () => {
+		const resource = URI.parse('agent-host-claude:/disposed-history');
+		const { view, loadCts, loadFailure, loading, requests, fail } = createChatLoadView(resource);
+		view._loadChat(resource, undefined);
+		// Simulate view disposal or user navigating away
+		loadCts.value?.cancel();
+		await fail(0, new CancellationError());
+		// Must not trigger automatic retry
+		assert.strictEqual(requests.length, 1);
+		// Must not show failure banner
+		assert.strictEqual(loadFailure.get(), undefined);
+		assert.strictEqual(loading.at(-1), false);
 	});
 
 	test('a stale failed load cannot change the newly selected conversation', async () => {
@@ -1385,9 +1520,15 @@ suite('Sessions - Chat View', () => {
 		const widgetVisibility = { visible: true };
 		const modelRef = disposables.add(new MutableDisposable<IChatModelReference>());
 		const loadCts = disposables.add(new MutableDisposable<CancellationTokenSource>());
+		const isLoadingTranscript = observableValue('isLoadingTranscript', false);
+		const loadFailure = observableValue<any>('loadFailure', undefined);
 		const view: {
 			setChat(chat: IChat, historyKey?: string, session?: ISession, onInput?: () => void): void;
 			dispose(): void;
+			_widget: {
+				getInput(): string;
+				setInput(input: string): void;
+			};
 		} = Object.assign(Object.create(ChatView.prototype), {
 			_store: disposables.add(new DisposableStore()),
 			chatPillsDebugService: { clear: () => { } },
@@ -1399,7 +1540,7 @@ suite('Sessions - Chat View', () => {
 			_loadedChatResource: observableValue<URI | undefined>('loaded', undefined),
 			_liveModelReady: observableValue('liveModelReady', true),
 			_modelReadOnly: observableValue('modelReadOnly', false),
-			_loadFailure: observableValue('loadFailure', undefined),
+			_loadFailure: loadFailure,
 			isInputBlocked: observableValue('inputBlocked', false),
 			_interactiveDisposable: disposables.add(new MutableDisposable()),
 			_chatPills: { setChat: () => { } },
@@ -1407,6 +1548,7 @@ suite('Sessions - Chat View', () => {
 			_banners: { setDebugData: () => { } },
 			_preparationModel: { value: undefined, clear: () => { } },
 			hasVisibleTranscriptContent: observableValue('transcript', false),
+			isLoadingTranscript,
 			_modelRef: modelRef,
 			_loadCts: loadCts,
 			_openDiagnostics: disposables.add(new MutableDisposable()),
@@ -1429,7 +1571,7 @@ suite('Sessions - Chat View', () => {
 				get: (resource: URI) => viewStates.get(resource.toString()),
 				set: (resource: URI, state: { scroll: number }) => viewStates.set(resource.toString(), state),
 			},
-			_setLoading: () => { },
+			_setLoading: (loading: boolean) => { isLoadingTranscript.set(loading, undefined); },
 			_updateWidgetLockState: () => { },
 			_layoutChatWidget: () => { },
 			showProgressWhile: (promise: Promise<void>) => completions.push(promise),
@@ -1441,6 +1583,7 @@ suite('Sessions - Chat View', () => {
 				inputEditor: { hasTextFocus: () => false },
 				inputPart: { setHistoryKey: (key: string | undefined) => historyKeys.push(key) },
 				setReadOnly: () => { },
+				setLoading: () => { },
 				clear: () => Promise.resolve(),
 				getViewState: () => ({ scroll: widgetState.scroll }),
 				restoreViewState: (state: { scroll: number }) => { widgetState.scroll = state.scroll; },
@@ -1479,7 +1622,7 @@ suite('Sessions - Chat View', () => {
 			await requests[index].error(error);
 			await completions[index];
 		};
-		return { view, createChat, complete, fail, compose, snapshot, historyKeys, disposedReferences, boundModels, openOutcomes, widgetVisibility };
+		return { view, createChat, complete, fail, requests, compose, snapshot, setInput: (s: string) => { widgetState.input = s; }, loadFailure, historyKeys, disposedReferences, boundModels, openOutcomes, widgetVisibility };
 	}
 
 	suite('switching chats on one view', () => {
@@ -1577,6 +1720,53 @@ suite('Sessions - Chat View', () => {
 				newBindings: 0,
 				disposedReferences: [resourceA, resourceB],
 			});
+		});
+
+		test('retries loading an unbound chat when setChat is called again after a failed load', async () => {
+			const { view, createChat, complete, fail, requests, boundModels, setInput, snapshot } = createSwitchingView();
+			const chatA = createChat(resourceA);
+
+			view.setChat(chatA, 'key-a');
+			assert.strictEqual(requests.length, 1);
+			setInput('Draft typed during initial load');
+			await fail(0, new Error('Network timeout'));
+			assert.strictEqual(boundModels.length, 0);
+
+			// Calling setChat again on the same failed/unbound chat should retry instead of returning early
+			view.setChat(chatA, 'key-a');
+			assert.strictEqual(requests.length, 2);
+			await complete(1, resourceA);
+			assert.deepStrictEqual(boundModels, [resourceA]);
+			assert.strictEqual(snapshot().input, 'Draft typed during initial load');
+
+			// Calling setChat when already bound should not trigger another load
+			view.setChat(chatA, 'key-a');
+			assert.strictEqual(requests.length, 2);
+		});
+
+		test('provider cancellation auto-retry, bounded retry, draft preservation, and recovery', async () => {
+			const { view, createChat, complete, fail, requests, boundModels, setInput, snapshot, loadFailure } = createSwitchingView();
+			const chatA = createChat(resourceA);
+			view.setChat(chatA, 'key-a');
+			setInput('Draft typed during initial load');
+			// Provider replacement cancels load -> auto retries once, preserving draft
+			await fail(0, new CancellationError());
+			assert.strictEqual(requests.length, 2);
+			setInput('Draft typed during retry');
+			// Repeated cancellation surfaces failure banner without looping
+			await fail(1, new CancellationError());
+			assert.strictEqual(requests.length, 2);
+			const failure = loadFailure.get();
+			assert.strictEqual(failure?.status.message, 'Couldn\'t load this conversation.');
+			// Reselecting failed chat recovers by retrying
+			view.setChat(chatA, 'key-a');
+			assert.strictEqual(requests.length, 3);
+			await complete(2, resourceA);
+			assert.deepStrictEqual(boundModels, [resourceA]);
+			assert.strictEqual(snapshot().input, 'Draft typed during retry');
+			// Bound chat is not reloaded
+			view.setChat(chatA, 'key-a');
+			assert.strictEqual(requests.length, 3);
 		});
 	});
 

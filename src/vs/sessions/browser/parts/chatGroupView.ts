@@ -121,6 +121,8 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 	private readonly _currentView = this._register(new MutableDisposable<AbstractChatView>());
 	private _draftChatResource: URI | undefined;
 	private readonly _contextDisposables = this._register(new DisposableStore());
+	private _context: IChatGroupContext | undefined;
+	private _activeChat: IObservable<IChat | undefined> | undefined;
 	private readonly _scopedInstantiationService: IInstantiationService;
 	private readonly _activeChatIsClosableKey: IContextKey<boolean>;
 	private readonly _activeChatCanArchiveKey: IContextKey<boolean>;
@@ -251,8 +253,10 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 	setContext(context: IChatGroupContext | undefined): void {
 		this._contextDisposables.clear();
 		this._connection.setSession(context?.session);
+		this._context = context;
 
 		if (!context) {
+			this._activeChat = undefined;
 			this._draftChatResource = undefined;
 			this._activeChatIsClosableKey.reset();
 			this._activeChatCanArchiveKey.reset();
@@ -277,6 +281,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			const activeResource = context.activeChatResource.read(reader);
 			return context.chats.read(reader).find(c => c.resource.toString() === activeResource);
 		});
+		this._activeChat = activeChat;
 		this._chatHeader.setChat({
 			session: context.session,
 			chat: activeChat,
@@ -424,6 +429,8 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 				view.setChat(chat, session.sessionId, session, chat.interactivity.read(reader) === ChatInteractivity.DraftOnly ? () => this._connection.connectOnInput() : undefined);
 			}
 
+		}));
+		this._contextDisposables.add(autorun(reader => {
 			const surfaceContent = surface.read(reader);
 			this._setRemoteHostUnavailableEmptyState(surfaceContent.recovery);
 			this._setReadOnlyBanner(surfaceContent.banner);
@@ -484,6 +491,15 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		this._updateSessionToolbarActive();
 		if (visible) {
 			this._layoutChildren();
+		}
+	}
+
+	reopenActiveChat(): void {
+		const chat = this._activeChat?.get();
+		const view = this._currentView.value;
+		const session = this._context?.session;
+		if (chat && view && session) {
+			view.setChat(chat, session.sessionId, session, chat.interactivity.get() === ChatInteractivity.DraftOnly ? () => this._connection.connectOnInput() : undefined);
 		}
 	}
 
