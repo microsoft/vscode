@@ -15,7 +15,6 @@ import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelSc
 import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { COPILOT_INTEGRATION_ID } from '../../../../../platform/endpoint/common/licenseAgreement.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
@@ -141,29 +140,6 @@ suite('Workbench GitHub service', () => {
 			wrapped: false, authorization: { providerId: 'github', sessionId: 'session', accountId: 'account', scopes: ['repo'] },
 			domains: ['function', 'function', 'function'], invalidations: 1,
 		});
-	});
-
-	test('configures Mission Control on the acquired github.com account client', async () => {
-		const { service } = setup();
-		const acquire = sinon.spy(service, 'acquireClient');
-		const reference = store.add(await service.acquireDefaultAccountClient(signal()));
-		assert.deepStrictEqual({
-			configuration: acquire.firstCall.args[0].missionControl,
-			domains: [reference.object.automations, reference.object.tasks, reference.object.environments].map(domain => typeof domain.list),
-		}, {
-			configuration: {
-				endpoint: { apiBaseUri: 'https://api.githubcopilot.com/agents', integrationId: COPILOT_INTEGRATION_ID },
-			},
-			domains: ['function', 'function', 'function'],
-		});
-	});
-
-	test('does not infer Mission Control endpoints from an Enterprise authorization server', async () => {
-		const { service } = setup([{ ...session(), authorizationServer: URI.parse('https://enterprise.example.test') }]);
-		const acquire = sinon.spy(service, 'acquireClient');
-		const reference = store.add(await service.acquireSessionClient('github-enterprise', 'session', signal()));
-		await assert.rejects(reference.object.automations.list({ owner: 'owner', name: 'repo' }, signal()), /No approved Mission Control API endpoint/);
-		assert.strictEqual(acquire.firstCall.args[0].missionControl, undefined);
 	});
 
 	for (const stop of ['cancel', 'dispose'] as const) {

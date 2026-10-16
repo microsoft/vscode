@@ -1664,6 +1664,10 @@ export class CopilotAgentSession extends Disposable {
 	 * Connected and needs-auth statuses remain the final lifecycle authority.
 	 */
 	private readonly _lastMcpAuthRequirements = new Map<string, ILastMcpAuthRequirement>();
+	/** Latest SDK status per server, used to notice a server leaving `connected`. */
+	private readonly _mcpSdkStatus = new Map<string, SdkMcpServerStatus>();
+	/** Servers whose current connection has loaded tools, from lifecycle events or inventory `toolsLoaded`. */
+	private readonly _mcpToolsLoaded = new Set<string>();
 	/** Invalidates inventory snapshots when lifecycle events or authentication challenges arrive. */
 	private _mcpLifecycleVersion = 0;
 	private _mcpInventoryRequestVersion = 0;
@@ -1996,10 +2000,18 @@ export class CopilotAgentSession extends Disposable {
 		return true;
 	}
 
-	/** Emits an action about the running process's configuration: session actions go to the owner it launched for. */
+	/**
+	 * Emits an action about the running process's configuration: session actions go to the owner it launched for,
+	 * and none once the chat moved to another session (Block 4, C6): they describe a configuration the new owner does
+	 * not have, and its next turn relaunches the process with the new owner's.
+	 */
 	private _emitLaunchAction(action: SessionAction | ChatAction): void {
 		if (isChatAction(action)) {
 			this._emitAction(action);
+			return;
+		}
+		if (!isEqual(this.launchOwner, this._owner.get())) {
+			this._logService.trace(`[Copilot:${this.sessionId}] Dropping ${action.type} of a runtime launched for ${this.launchOwner.toString()}: its chat moved`);
 			return;
 		}
 		this._onDidSessionProgress.fire({ kind: 'action', resource: this.launchOwner, action });
@@ -6666,7 +6678,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _isHydraFusionEnabled(): boolean {
-		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Ensemble) === true
+		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Fusion) === true
 			|| this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusion) === true;
 	}
 
@@ -9220,8 +9232,13 @@ export class CopilotAgentSession extends Disposable {
 				this._logService.warn(`[Copilot:${sessionId}] Failed to refresh MCP server inventory after session.mcp_servers_loaded`, err);
 			});
 		}));
+		store.add(wrapper.onMcpServerToolsLoaded(e => {
+			this._mcpLifecycleVersion++;
+			this._markMcpToolsLoaded(e.data.serverName);
+		}));
 		store.add(wrapper.onMcpServerStatusChanged(e => {
 			this._mcpLifecycleVersion++;
+			this._noteMcpSdkStatus(e.data.serverName, e.data.status);
 			const requirement = this._lastMcpAuthRequirements.get(e.data.serverName);
 			if (requirement && e.data.status !== 'pending') {
 				this._lastMcpAuthRequirements.set(e.data.serverName, { ...requirement, acceptsTokenCompletion: false });
@@ -9239,6 +9256,12 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 			this._mcpCustomizations.applyOne(server);
+			if (e.data.status === 'connected' && !this._mcpToolsLoaded.has(e.data.serverName)) {
+				// Older runtimes never emit tools-loaded; inventory `toolsLoaded`, or its absence, decides readiness.
+				void this._refreshMcpServersFromRpc().catch(error => {
+					this._logService.warn(`[Copilot:${this.sessionId}] Failed to refresh MCP server inventory after '${e.data.serverName}' connected`, error);
+				});
+			}
 			if (e.data.status === 'disabled' || previousEnabled === false) {
 				void this._refreshObservedMcpServerEnablement(e.data.serverName, previousEnabled).catch(error => {
 					this._logService.warn(`[Copilot:${this.sessionId}] Failed to refresh MCP enablement for '${e.data.serverName}'`, error);
@@ -9305,13 +9328,24 @@ export class CopilotAgentSession extends Disposable {
 				pluginName: s.sourcePlugin,
 				pluginVersion: s.sourcePluginVersion,
 			})), 'inventory');
+			for (const server of result.servers) {
+				const status = server.live?.status ?? 'stopped';
+				this._noteMcpSdkStatus(server.name, status);
+				// The bundled SDK types predate inventory `toolsLoaded`; older runtimes use connected as ready.
+				const toolsLoaded = (server.live as { readonly toolsLoaded?: boolean } | undefined)?.toolsLoaded;
+				if (toolsLoaded === true || (toolsLoaded === undefined && status === 'connected')) {
+					this._mcpToolsLoaded.add(server.name);
+				} else if (toolsLoaded === false) {
+					this._mcpToolsLoaded.delete(server.name);
+				}
+			}
 			this._applyMcpServerList(result.servers.map(server => ({
 				...server,
 				status: server.live?.status ?? 'stopped',
 				error: server.live?.error,
 			})));
 			for (const server of result.servers) {
-				if (server.live?.status === 'connected') {
+				if (server.live?.status === 'connected' && this._mcpToolsLoaded.has(server.name)) {
 					void this._refreshMcpToolRoutingCache(server.name).catch(error => {
 						this._logService.warn(`[Copilot:${this.sessionId}] Failed to refresh MCP tool routing metadata for '${server.name}'`, error);
 					});
@@ -9337,6 +9371,33 @@ export class CopilotAgentSession extends Disposable {
 		} catch (error) {
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to refresh user MCP configuration sources`, error);
 		}
+	}
+
+	private _noteMcpSdkStatus(serverName: string, status: SdkMcpServerStatus): void {
+		if (this._mcpSdkStatus.get(serverName) === 'connected' && status !== 'connected') {
+			this._mcpToolsLoaded.delete(serverName);
+		}
+		this._mcpSdkStatus.set(serverName, status);
+	}
+
+	/** Promotes a connected server from Starting to Ready once its current connection has loaded tools. */
+	private _markMcpToolsLoaded(serverName: string): void {
+		if (this._store.isDisposed || this._mcpToolsLoaded.has(serverName)) {
+			return;
+		}
+		this._mcpToolsLoaded.add(serverName);
+		if (this._mcpSdkStatus.get(serverName) !== 'connected') {
+			return;
+		}
+		const server = this._toSdkMcpServer({
+			name: serverName,
+			status: 'connected',
+			enabled: this._mcpConfiguredEnablement.get(serverName),
+		});
+		this._mcpCustomizations.applyOne(server);
+		void this._refreshMcpToolRoutingCache(serverName).catch(error => {
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to refresh MCP tool routing metadata for '${serverName}'`, error);
+		});
 	}
 
 	private _applyMcpServerList(servers: McpServer[]): void {
@@ -9489,7 +9550,7 @@ export class CopilotAgentSession extends Disposable {
 
 	/**
 	 * Translates SDK status, preserving actionable authentication while a callback is pending.
-	 * Only a callback-free SDK `pending` update can replace a retained challenge with starting.
+	 * Only a callback-free SDK `pending` update, or `connected` while tools load, can replace a retained challenge with starting.
 	 */
 	private _toSdkMcpServer(server: McpServer): ISdkMcpServer {
 		const hasPendingAuthentication = this._hasPendingMcpAuthentication(server.name);
@@ -9497,7 +9558,7 @@ export class CopilotAgentSession extends Disposable {
 			name: server.name,
 			displayName: this._mcpServerDisplayNames.get(server.name),
 			state: this._translateSdkMcpStatus(server.name, server.status, server.error, hasPendingAuthentication),
-			...(server.status === 'pending' && !hasPendingAuthentication ? { allowAuthRequiredToStarting: true } : {}),
+			...((server.status === 'pending' && !hasPendingAuthentication) || server.status === 'connected' ? { allowAuthRequiredToStarting: true } : {}),
 			enabled: getEffectiveMcpServerEnablement(server.enabled, server.enabled === undefined ? server.status : server.live?.status),
 		};
 	}
@@ -9524,8 +9585,13 @@ export class CopilotAgentSession extends Disposable {
 	/** Translates SDK state while retaining the most recent challenge metadata for `needs-auth`. */
 	private _translateSdkMcpStatus(name: string, status: SdkMcpServerStatus, error: string | undefined, hasPendingAuthentication: boolean): McpServerState {
 		switch (status) {
-			case 'connected':
-				return { kind: McpServerStatus.Ready };
+			case 'connected': {
+				if (this._mcpToolsLoaded.has(name)) {
+					return { kind: McpServerStatus.Ready };
+				}
+				const previous = this._mcpCustomizations.stateForServer(name);
+				return { kind: McpServerStatus.Starting, blocking: previous?.kind === McpServerStatus.Starting ? previous.blocking ?? true : true };
+			}
 			case 'failed':
 				return {
 					kind: McpServerStatus.Error,
