@@ -236,6 +236,11 @@
 	flex: 1;
 }
 
+/* With an end date, the folder shrinks alongside it instead of yielding all space */
+.automations-card-has-limit .automations-card-folder {
+	flex: 1 1 auto;
+}
+
 .automations-card-meta-label {
 	min-width: 0;
 	overflow: hidden;

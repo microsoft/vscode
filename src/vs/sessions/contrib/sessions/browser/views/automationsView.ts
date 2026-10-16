@@ -785,6 +785,7 @@ class AutomationCardsSection extends Disposable {
 
 		if (!previous || previous.enabled !== automation.enabled || !equals(previous.disableConditions, automation.disableConditions)) {
 			const limit = automation.enabled ? formatAutomationLimit(automation) : undefined;
+			card.main.classList.toggle('automations-card-has-limit', !!limit);
 			DOM.reset(card.limitEl, ...(limit ? [
 				$('span' + ThemeIcon.asCSSSelector(Codicon.calendar), { 'aria-hidden': 'true' }),
 				$('span.automations-card-meta-label', undefined, limit.label),

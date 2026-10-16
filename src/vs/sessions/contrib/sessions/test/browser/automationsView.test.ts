@@ -1862,6 +1862,14 @@ suite('AutomationsCardsWidget', () => {
 		})));
 	});
 
+	test('an end date leaves room for the workspace label on a narrow card', () => {
+		const { automationService, widget } = setup();
+		automationService.setAutomations([automation({ disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate, date: '2099-01-01T15:00:00Z' }] })]);
+		widget.element.querySelector<HTMLElement>('.automations-card-wrapper')!.style.width = '220px';
+		const width = (selector: string) => widget.element.querySelector(`${selector} .automations-card-meta-label`)!.getBoundingClientRect().width;
+		assert.deepStrictEqual({ folder: width('.automations-card-folder') > 0, limit: width('.automations-card-limit') > 0 }, { folder: true, limit: true });
+	});
+
 	test('host disablement hides saved limits and re-enabling restores them without changing the definition', () => {
 		const { automationService, widget } = setup();
 		const capped = automation({

@@ -169,6 +169,8 @@ Remote host definitions may contain standard AHP run-count conditions. The clien
 
 The host evaluates the final date against admission time, including catch-up runs, and wakes at the cutoff independently of provider readiness or an active run. At or after the cutoff it disables scheduling without cancelling an admitted run. Conditions stay in the definition; clients warn before enabling an expired date.
 
+Cloud automations have no end-date support; the cloud provider rejects non-empty `disableConditions` on create and update instead of dropping them.
+
 ## Persistence and retained history
 
 Canonical definitions, schedule cursors, manual request IDs, and run state live in Agent Host storage.
