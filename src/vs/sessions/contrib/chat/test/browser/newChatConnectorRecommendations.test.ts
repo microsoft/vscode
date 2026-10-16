@@ -110,7 +110,7 @@ suite('NewChatConnectorRecommendations', () => {
 		});
 	});
 
-	test('renders product recommendations and opens the selected connector detail', async () => {
+	test('uses product descriptions without overriding known connectors and opens the selected detail', async () => {
 		const fixtures = [0, 0.5, 0.999].map(value => setup(true, true, true, connectorRecommendations, true, () => value));
 		for (const fixture of fixtures) {
 			fixture.recommendations.element.querySelector<HTMLElement>('.new-session-connector-recommendation-card-primary')!.click();
@@ -134,9 +134,9 @@ suite('NewChatConnectorRecommendations', () => {
 			commands: fixture.commands,
 			errors: fixture.errors,
 		})), [
-			{ id: 'linear', name: 'Linear', task: 'Triage your open issues in Linear', icon: 'linear' },
-			{ id: 'notion', name: 'Notion', task: 'Turn a Notion spec into an implementation plan', icon: 'notion' },
-			{ id: 'workiq-mail', name: 'WorkIQ', task: 'Find action items in your Outlook email', icon: 'workiq' },
+			{ id: 'linear', name: 'Linear', task: 'Plan and track product work.', icon: 'linear' },
+			{ id: 'notion', name: 'Notion', task: 'Search team knowledge and documentation.', icon: 'notion' },
+			{ id: 'workiq-mail', name: 'WorkIQ', task: 'Bring Microsoft 365 work context into chats.', icon: 'workiq' },
 		].map(({ id, name, task, icon }) => ({
 			hidden: false,
 			role: 'group',

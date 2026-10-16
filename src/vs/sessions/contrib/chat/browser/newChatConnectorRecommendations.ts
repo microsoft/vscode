@@ -88,7 +88,7 @@ export class NewChatConnectorRecommendations extends Disposable {
 			this.card = this.renderCard(cards, {
 				id,
 				name: recommendation.name,
-				description: getConnectorTask(id, recommendation.description),
+				description: recommendation.description,
 				icon: parseIconUri(recommendation.iconUrl),
 			});
 		}
@@ -170,19 +170,6 @@ export class NewChatConnectorRecommendations extends Disposable {
 			this.themeService.getColorTheme().type,
 			card.iconDisposables,
 		);
-	}
-}
-
-function getConnectorTask(id: string, description: string): string {
-	switch (id) {
-		case 'linear':
-			return localize('newSession.connectorRecommendations.linearTask', "Triage your open issues in Linear");
-		case 'notion':
-			return localize('newSession.connectorRecommendations.notionTask', "Turn a Notion spec into an implementation plan");
-		case 'workiq-mail':
-			return localize('newSession.connectorRecommendations.workIqMailTask', "Find action items in your Outlook email");
-		default:
-			return description;
 	}
 }
 
