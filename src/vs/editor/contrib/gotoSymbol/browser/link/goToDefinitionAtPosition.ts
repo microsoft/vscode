@@ -31,6 +31,7 @@ import { getDefinitionsAtPosition } from '../goToSymbol.js';
 import { IWordAtPosition } from '../../../../common/core/wordHelper.js';
 import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
 import { ModelDecorationInjectedTextOptions } from '../../../../common/model/textModel.js';
+import { LinkDetector } from '../../../links/browser/links.js';
 
 export class GotoDefinitionAtPositionEditorContribution implements IEditorContribution {
 
@@ -288,7 +289,16 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 			&& mouseEvent.target.type === MouseTargetType.CONTENT_TEXT
 			&& !(mouseEvent.target.detail.injectedText?.options instanceof ModelDecorationInjectedTextOptions)
 			&& (mouseEvent.hasTriggerModifier || (withKey ? withKey.keyCodeIsTriggerKey : false))
-			&& this.languageFeaturesService.definitionProvider.has(this.editor.getModel());
+			&& this.languageFeaturesService.definitionProvider.has(this.editor.getModel())
+			&& !this.hasLinkAtPosition(mouseEvent.target.position);
+	}
+
+	private hasLinkAtPosition(position: Position | null): boolean {
+		// When a document link exists at the same position, defer to the link
+		// detector so that cmd/ctrl+click does not also trigger "Go to Definition".
+		// See https://github.com/microsoft/vscode/issues/146430
+		const linkDetector = LinkDetector.get(this.editor);
+		return !!linkDetector?.getLinkOccurrence(position);
 	}
 
 	private findDefinition(position: Position, token: CancellationToken): Promise<LocationLink[] | null> {
