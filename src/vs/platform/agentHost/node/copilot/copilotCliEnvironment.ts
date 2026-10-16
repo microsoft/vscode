@@ -16,8 +16,8 @@ const STRIPPED_ENV_KEYS = new Set<string>([...HYDRAFUSION_ENV_KEYS, ...RUNTIME_L
 const STRIPPED_FEATURE_FLAGS = new Set<string>([...HYDRAFUSION_ENV_KEYS, ...RUNTIME_LOCAL_MODEL_FLAG_KEYS]);
 const ENABLED_FEATURE_FLAGS_ENV_KEY = 'COPILOT_CLI_ENABLED_FEATURE_FLAGS';
 
-export function createCopilotCliEnvironment(environment: NodeJS.ProcessEnv = process.env, omittedKeys: readonly string[] = [], claudeAdvisorEnabled = false, skillCharBudget = DEFAULT_COPILOT_SKILL_CHAR_BUDGET, omitAmbientAuthentication = false): Record<string, string | undefined> {
-	const normalizedOmittedKeys = new Set(omittedKeys.map(key => isWindows ? key.toLowerCase() : key));
+export function createCopilotCliEnvironment(environment: NodeJS.ProcessEnv = process.env, omittedKeys: readonly string[] = [], claudeAdvisorEnabled = false, skillCharBudget = DEFAULT_COPILOT_SKILL_CHAR_BUDGET, searchSubagentModel = '', omitAmbientAuthentication = false): Record<string, string | undefined> {
+	const normalizedOmittedKeys = new Set([...omittedKeys, 'SEARCH_SUBAGENT_MODEL'].map(key => isWindows ? key.toLowerCase() : key));
 	const env: Record<string, string | undefined> = {};
 	for (const [key, value] of Object.entries(environment)) {
 		const normalizedKey = isWindows ? key.toUpperCase() : key;
@@ -58,6 +58,9 @@ export function createCopilotCliEnvironment(environment: NodeJS.ProcessEnv = pro
 	env['AUTO_APPROVAL'] = 'true';
 	env['SKILL_CHAR_BUDGET'] = String(skillCharBudget);
 	env['ANTHROPIC_ADVISOR'] = String(claudeAdvisorEnabled);
+	if (searchSubagentModel) {
+		env['SEARCH_SUBAGENT_MODEL'] = searchSubagentModel;
+	}
 	for (const flag of RUNTIME_LOCAL_MODEL_FLAG_KEYS) {
 		env[flag] = 'false';
 	}

@@ -11182,13 +11182,21 @@ suite('CopilotAgent', () => {
 			], ['30000', '30000', '15000', '35000']);
 		});
 
+		test('sets the search subagent model without inheriting an environment override', () => {
+			assert.deepStrictEqual([
+				createCopilotCliEnvironment({})['SEARCH_SUBAGENT_MODEL'],
+				createCopilotCliEnvironment({ SEARCH_SUBAGENT_MODEL: 'inherited-model' })['SEARCH_SUBAGENT_MODEL'],
+				createCopilotCliEnvironment({ SEARCH_SUBAGENT_MODEL: 'inherited-model' }, [], false, undefined, 'gpt-5')['SEARCH_SUBAGENT_MODEL'],
+				createCopilotCliEnvironment({}, [], false, undefined, '')['SEARCH_SUBAGENT_MODEL'],
+			], [undefined, undefined, 'gpt-5', undefined]);
+		});
 		test('omits ambient authentication before composing scoped runtime flags without changing legacy environments', () => {
 			const inherited = {
 				PATH: '/usr/bin', GH_TOKEN: 'github', COPILOT_SDK_AUTH_TOKEN: 'copilot', OPENAI_API_KEY: 'byok',
 				COPILOT_CLI_RUN_AS_NODE: '0', COPILOT_MCP_APPS: 'false', ANTHROPIC_ADVISOR: 'false',
 			};
 			assert.deepStrictEqual([false, true].map(scoped => {
-				const env = createCopilotCliEnvironment(inherited, [], true, 15000, scoped);
+				const env = createCopilotCliEnvironment(inherited, [], true, 15000, undefined, scoped);
 				return {
 					path: env.PATH, github: env.GH_TOKEN, copilot: env.COPILOT_SDK_AUTH_TOKEN, byok: env.OPENAI_API_KEY,
 					runAsNode: env.COPILOT_CLI_RUN_AS_NODE, mcpApps: env.COPILOT_MCP_APPS, advisor: env.ANTHROPIC_ADVISOR,
@@ -11927,6 +11935,30 @@ suite('CopilotAgent', () => {
 					initialBudget: '15000',
 					updatedBudget: '35000',
 					stopCallCount: 1,
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('applies and clears the search subagent model by restarting the runtime', async () => {
+			const client = new TestCopilotClient([]);
+			const { agent, configurationService } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				rootConfig: { [CopilotCliConfigKey.SearchSubagentModel]: 'gpt-5' },
+			});
+			try {
+				await agent.listChatsToMigrate();
+				const models = [getCreatedClientOptions(agent).at(-1)?.env?.['SEARCH_SUBAGENT_MODEL']];
+				for (const model of ['gpt-5-mini', '']) {
+					configurationService.updateRootConfig({ [CopilotCliConfigKey.SearchSubagentModel]: model });
+					await agent.listChatsToMigrate();
+					models.push(getCreatedClientOptions(agent).at(-1)?.env?.['SEARCH_SUBAGENT_MODEL']);
+				}
+
+				assert.deepStrictEqual({ models, stopCallCount: client.stopCallCount }, {
+					models: ['gpt-5', 'gpt-5-mini', undefined],
+					stopCallCount: 2,
 				});
 			} finally {
 				await disposeAgent(agent);
