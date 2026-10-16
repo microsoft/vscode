@@ -1473,22 +1473,15 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			return false;
 		}
 
-		const { additions, deletions, files } = changes;
-		const currentChangesSummary = this._changesSummary.get();
-
-		if (
-			(currentChangesSummary?.files ?? 0) === (files ?? 0) &&
-			(currentChangesSummary?.additions ?? 0) === (additions ?? 0) &&
-			(currentChangesSummary?.deletions ?? 0) === (deletions ?? 0)
-		) {
+		// A reported zero summary is authoritative, so it must replace an unset one;
+		// otherwise readers fall back to the main chat's changes, which only load
+		// while the session is active.
+		const changesSummary = toSessionChangesSummary(changes);
+		if (structuralEquals(this._changesSummary.get(), changesSummary)) {
 			return false;
 		}
 
-		this._changesSummary.set({
-			additions: additions ?? 0,
-			deletions: deletions ?? 0,
-			files: files ?? 0
-		}, tx);
+		this._changesSummary.set(changesSummary, tx);
 
 		return true;
 	}
