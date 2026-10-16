@@ -8,6 +8,7 @@ import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { isObject } from '../../../base/common/types.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import type { IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentHostTitleGenerationStrategies, type AgentHostTitleGenerationStrategy } from '../common/agentHostSchema.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
@@ -112,7 +113,7 @@ export interface IAgentHostSessionTitleControllerOptions {
 	readonly readSessionValues?: (session: URI, keys: readonly string[]) => Promise<ReadonlyMap<string, string>>;
 	readonly queueCatalogSync?: (session: ProtocolURI, metadataOverrides: Readonly<Record<string, string>>) => void;
 	readonly persistSurfacedSessionTitle?: (session: ProtocolURI, title: string) => Promise<void>;
-	readonly getGitHubToken?: () => string | undefined;
+	readonly getGitHubToken?: (session: ProtocolURI, chat?: ProtocolURI, source?: IAgentHostCredentialSource) => string | undefined;
 	readonly getGitHubHost?: () => string | undefined;
 	readonly gitHubContextRequestTimeout?: number;
 	readonly gitHubService?: IAgentHostGitHubService;
@@ -728,7 +729,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		try {
 			const titlePromptContent = prompt.gitHubReferenceSource === undefined
 				? prompt.content
-				: await this._appendGitHubContext(prompt.content, prompt.gitHubReferenceSource, abortController.signal, token);
+				: await this._appendGitHubContext(prompt.content, prompt.gitHubReferenceSource, abortController.signal, token, prompt.modelContext);
 			if (token.isCancellationRequested) {
 				return undefined;
 			}
@@ -762,9 +763,9 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 	 * `promptContent`, whose middle is dropped so the request at its head and
 	 * the response tail both survive.
 	 */
-	private async _appendGitHubContext(promptContent: string, referenceSource: string, cancellationSignal: AbortSignal, token: CancellationToken): Promise<string> {
+	private async _appendGitHubContext(promptContent: string, referenceSource: string, cancellationSignal: AbortSignal, token: CancellationToken, context: IAgentHostUtilityModelContext): Promise<string> {
 		const references = this._parseGitHubReferences(referenceSource);
-		const githubToken = this._options.getGitHubToken?.();
+		const githubToken = this._options.getGitHubToken?.(context.session, context.chat, context.credentialSource);
 		const gitHubService = this._options.gitHubService;
 		if (references.length === 0 || !githubToken || !gitHubService) {
 			return promptContent;
@@ -773,7 +774,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		const signal = AbortSignal.any([cancellationSignal, AbortSignal.timeout(this._options.gitHubContextRequestTimeout ?? GITHUB_CONTEXT_REQUEST_TIMEOUT)]);
 		const store = new DisposableStore();
 		try {
-			const client = store.add(gitHubService.acquireRepositoryClient(signal)).object;
+			const client = store.add(gitHubService.acquireRepositoryClient(signal, context.credentialSource, context.chat ?? context.session)).object;
 			const { account } = await client.credentials.getCredential(signal);
 			const contexts = await Promise.all(references.map(async reference => {
 				try {

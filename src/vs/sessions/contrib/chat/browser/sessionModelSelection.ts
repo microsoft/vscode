@@ -17,10 +17,10 @@ import { getSelectedModelStorageKey, getStoredSelectedModel, storeSelectedModel 
 import { ChatAgentLocation, ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier, type IModelConfigurationAccess } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IntendedModelSlot } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
-import { IModelPickerWorkflow } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerWorkflow.js';
+import { IModelPickerComparison } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerComparison.js';
 import { IPendingModelSelection, isInConversationModelChoice, ModelSelectionReason, RestoredModelReason } from '../../../../workbench/contrib/chat/common/modelSelection.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { ChatModelSource, SessionStatus } from '../../../services/sessions/common/session.js';
+import { ChatModelSource, ISessionType, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { createModelSelectionState, EMPTY_MODEL_SELECTION_STATE, INormalizedSessionModelPickerOptions, ISessionModelSelectionState, normalizeModelPickerOptions } from './sessionModelPickerState.js';
@@ -65,11 +65,18 @@ class ConversationModelSelection {
 export const ISessionModelSelection = createDecorator<ISessionModelSelection>('sessionModelSelection');
 
 export interface ISessionModelSelection {
-	readonly workflow?: IModelPickerWorkflow;
+	readonly comparison?: IModelPickerComparison;
 	readonly _serviceBrand: undefined;
 	readonly state: IObservable<ISessionModelSelectionState>;
 	readonly modelConfiguration?: IModelConfigurationAccess;
+	getComparisonModels?(): readonly ILanguageModelChatMetadataAndIdentifier[];
+	resolveComparisonModel?(modelIdentifier: string): IResolvedSessionComparisonModel | undefined;
 	selectModel(modelIdentifier: string, isUserAction?: boolean): boolean;
+}
+
+export interface IResolvedSessionComparisonModel {
+	readonly sessionType: ISessionType;
+	readonly model: ILanguageModelChatMetadataAndIdentifier;
 }
 
 /**
@@ -88,7 +95,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 	private readonly _state = observableValue<ISessionModelSelectionState>(this, EMPTY_MODEL_SELECTION_STATE);
 	readonly state: IObservable<ISessionModelSelectionState> = this._state;
 	readonly modelConfiguration: IModelConfigurationAccess | undefined;
-	readonly workflow: IModelPickerWorkflow | undefined;
+	readonly comparison: IModelPickerComparison | undefined;
 
 	private readonly _providerListener = this._register(new MutableDisposable());
 	private readonly _modelConfigurationListener = this._register(new MutableDisposable());
@@ -117,14 +124,18 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 
 	constructor(
 		private readonly _session: IObservable<IActiveSession | undefined>,
-		options: { readonly modelConfiguration?: boolean; readonly fallbackModelConfiguration?: IModelConfigurationAccess; readonly workflow?: IModelPickerWorkflow },
+		options: {
+			readonly modelConfiguration?: boolean;
+			readonly fallbackModelConfiguration?: IModelConfigurationAccess;
+			readonly comparison?: IModelPickerComparison;
+		},
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService logService: ILogService,
 	) {
 		super();
-		this.workflow = options.workflow;
+		this.comparison = options.comparison;
 		const configurationAccess = () => this._modelConfigurationAccess ?? options.fallbackModelConfiguration;
 		this.modelConfiguration = options.modelConfiguration ? {
 			getModelConfiguration: modelId => configurationAccess()?.getModelConfiguration(modelId),
@@ -232,6 +243,62 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 			storedModelAfter: this._storageService.get(storageKey, StorageScope.PROFILE),
 		}, 'info');
 		return true;
+	}
+
+	getComparisonModels(): readonly ILanguageModelChatMetadataAndIdentifier[] {
+		const models = this._getComparisonModels();
+		return models.length > 0 ? models.map(entry => entry.presentation) : this._models;
+	}
+
+	resolveComparisonModel(modelIdentifier: string): IResolvedSessionComparisonModel | undefined {
+		const session = this._activeSession;
+		const provider = this._activeProvider;
+		const workspace = session?.workspace.get();
+		if (!session || !provider || !workspace || !provider.getModelsSnapshotForCreation) {
+			return undefined;
+		}
+		const entry = this._getComparisonModels().find(entry => entry.presentation.identifier === modelIdentifier);
+		if (!entry) {
+			return undefined;
+		}
+		const resolution = provider.getModelsSnapshotForCreation(workspace.uri, entry.sessionType.id, entry.model.identifier).desiredModelResolution;
+		return resolution.kind === 'available' ? { sessionType: entry.sessionType, model: resolution.model } : undefined;
+	}
+
+	private _getComparisonModels(): readonly {
+		readonly presentation: ILanguageModelChatMetadataAndIdentifier;
+		readonly sessionType: ISessionType;
+		readonly model: ILanguageModelChatMetadataAndIdentifier;
+	}[] {
+		const session = this._activeSession;
+		const provider = this._activeProvider;
+		const workspace = session?.workspace.get();
+		if (!session || !provider || !workspace || !provider.getModelsSnapshotForCreation) {
+			return [];
+		}
+		const models = new Map<string, {
+			readonly presentation: ILanguageModelChatMetadataAndIdentifier;
+			readonly sessionType: ISessionType;
+			readonly model: ILanguageModelChatMetadataAndIdentifier;
+		}>();
+		for (const sessionType of provider.getSessionTypes(workspace.uri)) {
+			for (const model of provider.getModelsSnapshotForCreation(workspace.uri, sessionType.id).models) {
+				models.set(model.identifier, {
+					presentation: {
+						...model,
+						metadata: {
+							...model.metadata,
+							// Comparison tabs represent execution harnesses, not the upstream
+							// model provider a harness happens to use for one model.
+							modelGroup: { id: sessionType.id },
+						},
+					},
+					sessionType,
+					model,
+				});
+			}
+		}
+		return [...models.values()];
 	}
 
 	private _createRuntime(): IChatInputModelSelectionRuntime {

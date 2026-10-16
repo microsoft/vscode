@@ -29,7 +29,9 @@ import { AgentHostStateManager, ChatRemovalReason, IAgentHostStateManager } from
 import { IAgentHostClientConnectionService } from '../../agentHostClientConnectionService.js';
 import { IAgentConfigurationService } from '../../agentConfigurationService.js';
 import { IAgentHostProviderService } from '../../agentHostProviderService.js';
+import { IAgentHostAuthenticationService } from '../../agentHostAuthenticationService.js';
 import { IAgentHostTurnService, type IDeferredAgentHostTurn } from '../../agentHostTurnService.js';
+import type { IAgentHostCredentialSource } from '../../../common/agentHostCredentials.js';
 import { IAgentHostServerToolService } from '../../shared/agentServerToolHost.js';
 import { IAgentHostWorktreeIsolation, type IIsolationConfigContribution } from '../../shared/worktreeIsolation.js';
 import type { IAgentServiceSessionServerToolAccessor } from '../../shared/sessionServerTools.js';
@@ -47,6 +49,7 @@ export interface IChatIsolationHost {
 }
 
 interface IPendingSessionWorkspaceConversion {
+	readonly credentials?: IAgentHostCredentialSource;
 	readonly chat: URI;
 	/** The chat's owning session, recorded when the conversion was requested. */
 	readonly owner: string;
@@ -99,7 +102,7 @@ export interface ISessionWorkspaceConversionService {
 	requestChatIsolation(chat: URI, turnId: string, initiatingClientId?: string): void;
 	restoreChatIsolation(session: ProtocolURI, chat: ProtocolURI, storageResource: ProtocolURI): Promise<void>;
 	/** Returns false when the chat already uses the requested folder without needing a workspace change. */
-	requestSessionWorkspaceUpdate(chat: URI, turnId: string, workspaceFolder: URI, isolation: boolean, initiatingClientId?: string): boolean;
+	requestSessionWorkspaceUpdate(chat: URI, turnId: string, workspaceFolder: URI, isolation: boolean, initiatingClientId?: string, credentials?: IAgentHostCredentialSource): boolean;
 	isPending(chat: ProtocolURI, sessionWide?: boolean): boolean;
 	/**
 	 * Fires the chat a pending or quarantined workspace change was recorded or cleared for: its own, or its session's
@@ -144,6 +147,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
+		@IAgentHostAuthenticationService private readonly _authenticationService: IAgentHostAuthenticationService,
 	) {
 		super();
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
@@ -276,7 +280,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 
 	/** The host-built context of a chat, with the storage the host recorded for it. */
 	private _chatContext(session: URI, chat: URI): IAgentChatContext {
-		return createAgentChatContext(this._stateManager, session, chat, this._chatOwnership.resolveChatStorageResource(session.toString(), chat.toString()), this._sessionStateStore.peek(session));
+		return createAgentChatContext(this._stateManager, this._authenticationService, session, chat, this._chatOwnership.resolveChatStorageResource(session.toString(), chat.toString()), this._sessionStateStore.peek(session));
 	}
 
 	async restoreChatIsolation(session: ProtocolURI, chat: ProtocolURI, storageResource: ProtocolURI): Promise<void> {
@@ -313,7 +317,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		}
 	}
 
-	requestSessionWorkspaceUpdate(chat: URI, turnId: string, workspaceFolder: URI, isolation: boolean, initiatingClientId?: string): boolean {
+	requestSessionWorkspaceUpdate(chat: URI, turnId: string, workspaceFolder: URI, isolation: boolean, initiatingClientId?: string, credentials?: IAgentHostCredentialSource): boolean {
 		initiatingClientId = this._resolveInitiatingClientId(chat, initiatingClientId);
 		const session = this._chatOwnership.getChatOwner(chat.toString());
 		const state = session !== undefined ? this._stateManager.getSessionState(session) : undefined;
@@ -351,6 +355,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		this._trackChat(key);
 		this._pending.set(key, {
 			chat, owner: session, turnId, workspaceFolder, isolation, initiatingClientId, prompt,
+			...(credentials ? { credentials } : {}),
 			showTransition: chatOnly || !!chatState?.turns.length, phase: 'requested',
 			...(chatOnly ? {
 				chatOnly: true, replaceSessionWorkspace: hasSingleUserChat(state.chats),
@@ -522,7 +527,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 					await this._worktreeIsolation.retainSessionWorktree(session, AgentSession.id(session));
 					assertWorkspace();
 				}
-				workspace = await this._resolveWorkspace(session, chat, workspaceFolder, pending.isolation, trustRequired, initiatingClientId, pending.prompt, this._stateManager.getSessionState(session.toString())?.config?.values);
+				workspace = await this._resolveWorkspace(session, chat, workspaceFolder, pending.isolation, trustRequired, initiatingClientId, pending.prompt, this._stateManager.getSessionState(session.toString())?.config?.values, pending.credentials);
 				if (!pending.isolation) {
 					const externalWorktree = await this._worktreeIsolation.resolveExternalWorktreeProject(workspaceFolder);
 					workspace = { ...workspace, project: externalWorktree?.project ?? { uri: workspaceFolder, displayName: basename(workspaceFolder) } };
@@ -541,7 +546,10 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 					},
 				};
 			} else {
-				prepared = await host.prepareChatWorkingDirectory(session, workspaceFolder, { isolation: pending.isolation ? 'worktree' : 'folder', forceNewWorktree: pending.isolation, prompt: pending.prompt ?? '' });
+				prepared = await host.prepareChatWorkingDirectory(session, workspaceFolder, {
+					isolation: pending.isolation ? 'worktree' : 'folder', forceNewWorktree: pending.isolation, prompt: pending.prompt ?? '',
+					...(pending.credentials ? { credentialSource: pending.credentials } : {}),
+				});
 				if (pending.isolation) {
 					await this._requireWorkspaceTrust(trustRequired, initiatingClientId, prepared.directory, workspaceFolder);
 				}
@@ -550,7 +558,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			await database.object.setMetadata(CHAT_ISOLATION_QUARANTINED_KEY, 'true');
 			assertWorkspace();
 			const sessionDirectoriesBeforeProviderMove = this._stateManager.getSessionSummary(session.toString())?.workingDirectories;
-			const context = this._chatContext(session, chat);
+			const context = { ...this._chatContext(session, chat), ...(pending.credentials ? { credentials: pending.credentials } : {}) };
 			if (pending.replaceSessionWorkspace) {
 				await provider.setChatWorkingDirectory!(chat, context, prepared.directory, { replaceSessionWorkspace: true });
 			} else {
@@ -896,6 +904,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		initiatingClientId: string,
 		prompt: string | undefined,
 		currentConfig: Record<string, unknown> | undefined,
+		credentials?: IAgentHostCredentialSource,
 	): Promise<IResolvedWorkspace> {
 		if (!isolation) {
 			const configValues: Record<string, unknown> = { ...currentConfig, [SessionConfigKey.Isolation]: 'folder' };
@@ -931,6 +940,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			workingDirectory: workspaceFolder,
 			config: configValues,
 			prompt,
+			...(credentials ? { credentialSource: credentials } : {}),
 			onWillCreate: async metadata => {
 				if (!isEqual(metadata.repositoryRoot, workspaceFolder)) {
 					await this._requireWorkspaceTrust(workspaceTrustRequired, initiatingClientId, metadata.repositoryRoot);
@@ -1048,7 +1058,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			_meta: toAgentWorkspaceContinuationMessageMeta(),
 		}, pending.chatOnly && pending.isolation
 			? localize('agentHost.continueIsolatedLabel', "Continue in Worktree")
-			: localize('agentHost.continueInWorkspaceLabel', "Continue in Requested Workspace")), true));
+			: localize('agentHost.continueInWorkspaceLabel', "Continue in Requested Workspace")), true), pending.credentials);
 		return continuation;
 	}
 

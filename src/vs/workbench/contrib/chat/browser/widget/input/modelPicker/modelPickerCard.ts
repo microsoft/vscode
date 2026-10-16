@@ -7,6 +7,7 @@ import * as dom from '../../../../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { getBaseLayerHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegate2.js';
 import { getDefaultHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { renderLabelWithIcons } from '../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IRadioOptionItem, Radio } from '../../../../../../../base/browser/ui/radio/radio.js';
 import { Action } from '../../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
@@ -26,6 +27,7 @@ import { getChangedModelConfigProperties, getModelConfigChoices, getModelConfigP
 import { getCategoryLabel, getPriceCategoryLabel, isAutoModel, isHighCostCategory, isHydraFusionModel, isMultiplierPricing } from './modelPickerPresentation.js';
 import { IModelSpeedVariants } from './modelPickerVariants.js';
 import { getOrganizationDefaultDescription } from './modelPickerBadges.js';
+import { IModelPickerComparisonVariant } from './modelPickerComparison.js';
 
 /**
  * Whether the pricing breakdown is open, shared by every card. Most people never need
@@ -94,8 +96,30 @@ export interface IModelCardOptions {
 	readonly onSelect?: (model: ILanguageModelChatMetadataAndIdentifier) => void;
 	/** Whether saving configuration selects the configured model. Defaults to true. */
 	readonly selectModelOnConfigurationChange?: boolean;
+	/** Uses this destination model's own schema instead of a cross-harness configuration accessor override. */
+	readonly useModelConfigurationSchema?: boolean;
 	/** Called once the selection settles so the picker can refresh its rows. */
 	readonly onDidAccept?: () => void;
+	/**
+	 * Offered only for a checked compare-mode row: lets the user add this model again at
+	 * another thinking effort, so e.g. the same model can run once at High and once at Max.
+	 */
+	readonly comparisonVariants?: IModelCardComparisonVariants;
+}
+
+export interface IModelCardComparisonVariants {
+	/** This model's already-added variants, beyond its one default-configured attempt. */
+	readonly list: readonly IModelPickerComparisonVariant[];
+	readonly onAdd: (
+		configuration: Readonly<Record<string, string | number | boolean | null>>,
+		label: string,
+		baseConfiguration?: Readonly<Record<string, string | number | boolean | null>>,
+	) => void;
+	readonly onRemove: (index: number) => void;
+}
+
+function isComparisonConfigurationValue(value: unknown): value is string | number | boolean | null {
+	return value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
 }
 
 /**
@@ -192,7 +216,7 @@ export class ModelCard extends DisposableStore {
 	}
 
 	private _configProperty(group: string): IModelConfigProperty | undefined {
-		return getModelConfigProperty(this._options.model, this._options.configurationAccess, group);
+		return getModelConfigProperty(this._options.model, this._options.configurationAccess, group, this._options.useModelConfigurationSchema);
 	}
 
 	private async _setValues(values: IStringDictionary<unknown>, focusedGroup?: string): Promise<void> {
@@ -200,13 +224,13 @@ export class ModelCard extends DisposableStore {
 		const version = ++this._configurationChangeVersion;
 		options.onWillSelect?.();
 		for (const [group, control] of this._groupControls) {
-			const property = getModelConfigProperty(options.model, options.configurationAccess, group);
+			const property = getModelConfigProperty(options.model, options.configurationAccess, group, options.useModelConfigurationSchema);
 			if (property && Object.hasOwn(values, property.key)) {
 				control.setActiveItem(Math.max(0, property.schema.enum?.indexOf(values[property.key]) ?? -1));
 			}
 		}
 		try {
-			await setModelConfigValues(options.model, options.configurationAccess, values, options.onDidChangeConfiguration);
+			await setModelConfigValues(options.model, options.configurationAccess, values, options.onDidChangeConfiguration, options.useModelConfigurationSchema);
 			if (!this.isDisposed && version === this._configurationChangeVersion) {
 				if (options.selectModelOnConfigurationChange !== false) {
 					options.onSelect?.(options.model);
@@ -360,7 +384,7 @@ export class ModelCard extends DisposableStore {
 			}
 		}
 
-		const changed = getChangedModelConfigProperties(this._options.model, this._options.configurationAccess);
+		const changed = getChangedModelConfigProperties(this._options.model, this._options.configurationAccess, this._options.useModelConfigurationSchema);
 		if (!changed.length && !this._options.onTogglePin) {
 			return;
 		}
@@ -439,6 +463,37 @@ export class ModelCard extends DisposableStore {
 		this._renderChoiceSection(effort, MODEL_CONFIG_GROUP_EFFORT, effort.schema.title ?? (isAuto
 			? localize('models.optimizeFor', "Optimize for")
 			: localize('chat.effort.header', "Effort Level")));
+		if (this._options.comparisonVariants) {
+			this._renderComparisonVariantsSection(effort, this._options.comparisonVariants);
+		}
+	}
+
+	/**
+	 * Lets a checked compare-mode row add this same model again at another thinking effort,
+	 * so e.g. "GPT-5.5 High" and "GPT-5.5 Max" can run as two separate attempts. Each choice
+	 * not already queued is one click to add; queued variants list beside a remove action.
+	 */
+	private _renderComparisonVariantsSection(effort: IModelConfigProperty, variants: IModelCardComparisonVariants): void {
+		const choices = getModelConfigChoices(effort);
+		const baseConfiguration = isComparisonConfigurationValue(effort.value) ? { [effort.key]: effort.value } : undefined;
+		const addable = choices.filter(choice => !choice.checked && !variants.list.some(variant => variant.configuration[effort.key] === choice.value));
+		if (!addable.length && !variants.list.length) {
+			return;
+		}
+		const section = this._renderSection(localize('chat.modelPicker.compareEffort', "Compare at another effort"));
+		const chips = dom.append(section, dom.$('.chat-model-card-comparison-variant-chips'));
+		for (const variant of variants.list) {
+			const chip = dom.append(chips, dom.$('span.chat-model-card-comparison-variant-chip.added', undefined, variant.label));
+			const remove = dom.append(chip, dom.$<HTMLButtonElement>('button.chat-model-card-comparison-variant-remove' + ThemeIcon.asCSSSelector(Codicon.close)));
+			remove.type = 'button';
+			remove.setAttribute('aria-label', localize('chat.modelPicker.removeVariant', "Remove the {0} attempt", variant.label));
+			this._contentDisposables.add(dom.addDisposableListener(remove, dom.EventType.CLICK, () => variants.onRemove(variants.list.indexOf(variant))));
+		}
+		for (const choice of addable) {
+			const chip = dom.append(chips, dom.$('button.chat-model-card-comparison-variant-chip.addable', { 'aria-label': localize('chat.modelPicker.addVariant', "Also compare at {0}", choice.label) }));
+			dom.reset(chip, ...renderLabelWithIcons(`$(${Codicon.add.id}) ${choice.label}`));
+			this._contentDisposables.add(dom.addDisposableListener(chip, dom.EventType.CLICK, () => variants.onAdd({ [effort.key]: choice.value }, choice.label, baseConfiguration)));
+		}
 	}
 
 	/**

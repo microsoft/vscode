@@ -1473,22 +1473,15 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			return false;
 		}
 
-		const { additions, deletions, files } = changes;
-		const currentChangesSummary = this._changesSummary.get();
-
-		if (
-			(currentChangesSummary?.files ?? 0) === (files ?? 0) &&
-			(currentChangesSummary?.additions ?? 0) === (additions ?? 0) &&
-			(currentChangesSummary?.deletions ?? 0) === (deletions ?? 0)
-		) {
+		// A reported zero summary is authoritative, so it must replace an unset one;
+		// otherwise readers fall back to the main chat's changes, which only load
+		// while the session is active.
+		const changesSummary = toSessionChangesSummary(changes);
+		if (structuralEquals(this._changesSummary.get(), changesSummary)) {
 			return false;
 		}
 
-		this._changesSummary.set({
-			additions: additions ?? 0,
-			deletions: deletions ?? 0,
-			files: files ?? 0
-		}, tx);
+		this._changesSummary.set(changesSummary, tx);
 
 		return true;
 	}
@@ -4045,6 +4038,26 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			.find(option => option.id === permissionId);
 		const mode = config.values[SessionConfigKey.Mode] ?? config.schema.properties[SessionConfigKey.Mode]?.default;
 		return option ? { ...option, comparisonModeId: typeof mode === 'string' ? mode : undefined } : undefined;
+	}
+
+	getComparisonPermissionOptionForSession(sessionId: string, sessionTypeId: string): ISessionPermissionOption | undefined {
+		const sourceSession = this._getNewSession(sessionId);
+		const sourceSessionType = sourceSession?.agentProvider;
+		const sourceOption = this.getPermissionOptionForSession(sessionId);
+		if (!sourceSessionType || !sourceOption) {
+			return undefined;
+		}
+		if (sourceSessionType === sessionTypeId) {
+			return sourceOption;
+		}
+		const options = getAgentHostSessionPermissionOptions(
+			sessionTypeId,
+			isAutoApprovePolicyRestricted(this._baseConfigurationService, sourceSession.getConfig()?.schema),
+			true,
+		);
+		return sourceOption.isAllowAll
+			? options.find(option => option.isAllowAll)
+			: options.find(option => option.isDefault);
 	}
 
 	get order(): number { return 0; }

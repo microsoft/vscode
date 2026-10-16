@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { autorun, derived, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -20,7 +21,7 @@ import { isInConversationModelChoice, resolveModelIdentifier } from '../../../..
 import { conformanceInputs, IModelSelectionConformanceScenario, ModelSelectionConformanceModel, modelSelectionConformanceScenarios } from '../../../../../workbench/contrib/chat/test/browser/widget/input/modelSelectionConformance.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider, ISessionModelPickerOptions } from '../../../../services/sessions/common/sessionsProvider.js';
-import { ChatModelSource, IChat, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ChatModelSource, IChat, ISessionWorkspace, SessionStatus, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { restoreReasonForSource, SessionModelSelection } from '../../browser/sessionModelSelection.js';
 import { AutomationModelConfiguration } from '../../../automations/browser/automationModelConfiguration.js';
@@ -246,6 +247,64 @@ class TestLogService extends NullLogService {
 suite('SessionModelSelection', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('offers every provider harness model only to comparison selection', () => {
+		const workspaceUri = URI.file('/workspace');
+		const workspace: ISessionWorkspace = {
+			uri: workspaceUri,
+			label: 'workspace',
+			icon: Codicon.folder,
+			folders: [],
+			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: false,
+		};
+		const testSession = createSession('provider', SessionStatus.Untitled, first.identifier);
+		const session = { ...testSession.session, workspace: observableValue<ISessionWorkspace | undefined>('workspace', workspace) };
+		const provider = disposables.add(createProvider('provider'));
+		const copilot = { ...first, metadata: { ...first.metadata, targetChatSessionType: 'agent-host-copilot' } };
+		const claude = { ...second, identifier: 'claude/second', metadata: { ...second.metadata, targetChatSessionType: 'agent-host-claude' } };
+		const codex = { ...second, identifier: 'codex/second', metadata: { ...second.metadata, targetChatSessionType: 'agent-host-codex' } };
+		provider.models = [copilot];
+		provider.getSessionTypes = () => [
+			{ id: 'copilot', label: 'Copilot', icon: Codicon.copilot, authRequirement: SessionTypeAuthRequirement.GitHub },
+			{ id: 'claude', label: 'Claude', icon: Codicon.commentDiscussion, authRequirement: SessionTypeAuthRequirement.None },
+			{ id: 'codex', label: 'Codex', icon: Codicon.code, authRequirement: SessionTypeAuthRequirement.None },
+		];
+		provider.getModelsSnapshotForCreation = (_workspace, sessionType, desiredModelId) => {
+			const models = sessionType === 'copilot' ? [copilot] : sessionType === 'claude' ? [claude] : [codex];
+			return {
+				models,
+				desiredModelResolution: desiredModelId
+					? { kind: 'available', model: models[0] }
+					: { kind: 'notRequested' },
+				modelTarget: `agent-host-${sessionType}`,
+			};
+		};
+		const selection = disposables.add(new SessionModelSelection(
+			observableValue<IActiveSession | undefined>('session', session),
+			{},
+			createProvidersService([provider]),
+			disposables.add(new InMemoryStorageService()),
+			createConfigurationService(),
+			disposables.add(new NullLogService()),
+		));
+		assert.deepStrictEqual({
+			ordinary: selection.state.get().models.map(model => model.identifier),
+			comparison: selection.getComparisonModels().map(model => [model.identifier, model.metadata.modelGroup?.id]),
+			resolvedClaude: selection.resolveComparisonModel(claude.identifier),
+		}, {
+			ordinary: [copilot.identifier],
+			comparison: [
+				[copilot.identifier, 'copilot'],
+				[claude.identifier, 'claude'],
+				[codex.identifier, 'codex'],
+			],
+			resolvedClaude: {
+				sessionType: provider.getSessionTypes(workspaceUri)[1],
+				model: claude,
+			},
+		});
+	});
 
 	test('managed models seed new chats, preserve available existing choices and replace unavailable ones', () => {
 		const managed = { ...second, metadata: { ...second.metadata, managedModelDefaults: { model: true, keys: [] } } };

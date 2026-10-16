@@ -64,6 +64,8 @@ export interface IChatGroupContext {
 
 	/** Whether this group's tab row replaces the session header and shows its actions. */
 	readonly showSessionActions: IObservable<boolean>;
+	/** Whether this chat group occupies a separate pane within the session. */
+	readonly showParentContext: IObservable<boolean>;
 
 	/** Make this the active chat group for group-scoped header actions. */
 	activate(): void;
@@ -95,6 +97,8 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 	private static readonly MINIMUM_HEIGHT = 200;
 
 	readonly element: HTMLElement = $('.chat-group-view');
+
+	get tabsElement(): HTMLElement { return this._compositeBar.element; }
 
 	private _insets = NO_GRID_EDGE_INSETS;
 
@@ -298,6 +302,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			mainChatResource: context.mainChatResource,
 			visible: context.tabsVisible,
 			showSessionActions: context.showSessionActions,
+			showParentContext: context.showParentContext,
 			openChat: resource => context.openChat(resource),
 			onTabDragStart: resource => context.onTabDragStart(resource),
 			onTabDragEnd: () => context.onTabDragEnd(),
@@ -489,6 +494,10 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 
 	submitInput(): Promise<boolean> {
 		return this._currentView.value?.submitInput() ?? Promise.resolve(false);
+	}
+
+	reopenChat(resource: URI): Promise<void> {
+		return this._currentView.value?.reopenChat(resource) ?? Promise.resolve();
 	}
 
 	selectWorkspace(folderUri: URI, options?: ISelectWorkspaceOptions): WorkspaceSelectionResult {

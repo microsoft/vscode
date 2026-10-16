@@ -2724,15 +2724,14 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 				options: [localize('agentFeedback.reveal', "Reveal Selected")],
 			};
 		} else if (pendingEdits?.length) {
-			const wrap = (uri: URI) => connectionAuthority ? toAgentHostUri(uri, connectionAuthority) : uri;
 			const wrapContent = (uri: URI, fileUri: URI) => connectionAuthority ? toAgentHostContentUri(uri, connectionAuthority, fileUri) : uri;
 			const mapped = mapFileEdits(pendingEdits, tc.toolCallId);
 			toolSpecificData = {
 				kind: 'modifiedFilesConfirmation',
 				options: ['Allow'],
 				modifiedFiles: mapped.map(edit => {
-					const resource = wrap(edit.resource);
-					const originalResource = edit.originalResource ? wrap(edit.originalResource) : undefined;
+					const resource = resourceUris.fromAgentHost(edit.resource);
+					const originalResource = edit.originalResource ? resourceUris.fromAgentHost(edit.originalResource) : undefined;
 					const modifiedContent = edit.afterContentUri ? wrapContent(edit.afterContentUri, edit.resource) : undefined;
 					const originalContent = edit.beforeContentUri ? wrapContent(edit.beforeContentUri, edit.originalResource ?? edit.resource) : undefined;
 					return {

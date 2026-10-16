@@ -165,6 +165,8 @@ Native Copilot OTel concurrency coverage runs 288 real shell-tool calls with tel
 
 Copilot's native `run_dynamic_workflow` and `dynamic_workflows_manage` tools are excluded from Agent Host sessions until their execution and approval behavior is validated. Prompt snapshots pin their absence from the model's tool inventory.
 
+Copilot's native `semantic_code_search` tool is also excluded in favor of the Agent Host's own `semantic_search` client tool. The native tool is remote-only and still under prompt and deferred-loading A/B tests in the CLI; revisit it in a future iteration.
+
 Copilot's native SDK sessions expose the bundled `customize-cloud-agent` and `github-pr-media` skills. Prompt snapshots pin their catalog descriptions and the `skill` tool schema alongside the existing tool inventory.
 
 `../providerIntegration/copilotImageGeneration.integrationTest.ts` tests native image-tool availability through the real Agent Host and bundled SDK, using a local synthetic model catalog. It asserts the tool in actual chat-model requests on creation and after a cold host restart, with a negative control for an unavailable image model. The default replay catalog has only chat models, so ordinary prompt snapshots cannot detect missing image consent. No image inference is performed and no credentials or credits are required.
@@ -682,6 +684,10 @@ Correlate the protocol request with `[AgentService] disposeSession` trace record
 Follow the pending boundary into its owning service or provider runtime before classifying the failure. A completed turn or failed automation run does not establish that session cleanup is finished, and a delayed disposal response alone does not distinguish a product race from worker resource contention.
 
 For a catalog drain, correlate `catalogStateWrite` iteration records with `[AgentHostCatalogSync]` records for the same session. Catalog queue records separate `queueWaitMs` from `executionMs`; synchronization stages identify whether local receipt access, central catalog access, or acknowledgement is pending. These timings include nested queues and native I/O, so a slow database stage alone does not prove filesystem or worker-pool contention.
+
+### An unrelated session is announced during a test
+
+Trace the unexpected `root/sessionAdded` resource back to its native provider thread in the host log. Codex preserves native threads after session disposal, so shared-server tests rely on durable backing markers to keep them out of top-level discovery. A pre-turn thread replacement must refresh an already-published materialization receipt with the new backing ID; an unsent draft must remain provisional. Keep the exact session-announcement assertions rather than masking a missing backing receipt with per-test server isolation.
 
 ### Replayed text is doubled (`VALUEVALUE`)
 
