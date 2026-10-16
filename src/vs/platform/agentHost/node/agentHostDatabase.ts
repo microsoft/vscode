@@ -890,7 +890,8 @@ function normalizedPeerProjectionSql(ownerPredicate: string, columns: 'sessionCh
  * with the projection ({@link normalizedPeerProjectionSql}), the merge base. Usable inside a write transaction.
  */
 export function hasOlderBuildChatCatalogEditsSql(header: string): string {
-	return `(${header}.revision IS NOT ${header}.projected_revision AND ${olderBuildChatListDiffSql(`${header}.session_uri`)})`;
+	// CASE, not AND: SQLite evaluates both operands of AND, so a clean catalog would still pay for the row diff.
+	return `(CASE WHEN ${header}.revision IS NOT ${header}.projected_revision THEN ${olderBuildChatListDiffSql(`${header}.session_uri`)} ELSE 0 END)`;
 }
 
 /**
@@ -2626,9 +2627,13 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			await exec(database, 'BEGIN IMMEDIATE');
 			try {
 				// Rows are compared only for catalogs whose projection something else wrote over since this build did.
+				// Only catalogs of listed registrations (as listSessionV2Registrations lists them), filtered before the
+				// limit: one the batch cannot reach (excluded, tombstoned) would otherwise hold a slot on every pass.
 				const candidates = await all(database, `SELECT catalog.session_uri, ${olderBuildChatListDiffSql('catalog.session_uri')} AS edited
-					FROM session_chat_catalogs catalog
+					FROM session_chat_catalogs catalog JOIN sessions_v2 registration ON registration.session_uri = catalog.session_uri
 					WHERE catalog.authority_version = 2 AND catalog.revision IS NOT catalog.projected_revision
+						AND NOT EXISTS (SELECT 1 FROM metadata WHERE key = 'sessionTombstone:' || registration.session_uri AND value = 'true')
+						AND NOT EXISTS (SELECT 1 FROM metadata WHERE key = '${sessionsV2ExcludedKeyPrefix}' || registration.provider || ':' || registration.session_uri)
 					ORDER BY catalog.session_uri LIMIT ?`, [limit]);
 				const unchanged = candidates.filter(row => row.edited !== 1).map(row => row.session_uri as string);
 				if (unchanged.length) {

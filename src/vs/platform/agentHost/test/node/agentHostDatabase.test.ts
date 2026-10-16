@@ -2241,6 +2241,24 @@ suite('AgentHostDatabase sessions_v2', () => {
 				}, { afterOwnWrites: [true, true, true, true], reprojectedElsewhere: [], recorded: true, edited: [session] });
 			});
 
+			test('the candidate scan returns only catalogs of listed registrations, so an excluded or tombstoned one never holds a slot', async () => {
+				const instance = new AgentHostDatabase(':memory:');
+				database = instance;
+				// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Write session_chats as an older build does.
+				const raw = await instance['_ensureDatabase']();
+				const sessions = ['copilot:/a-tombstoned', 'copilot:/b-excluded', 'copilot:/c-live'];
+				for (const owner of sessions) {
+					await instance.registerRuntimeSession(owner, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+					await instance.registerChatCatalogV2(owner, { defaultChat: { chat: `${owner}#default`, order: 0 }, peers: [{ chat: `${owner}#peer`, order: 1 }], privateDescendants: [] });
+					await exec(raw, `UPDATE session_chats SET archived = 1 WHERE session_uri = '${owner}';
+						UPDATE session_chat_catalogs SET revision = revision + 1 WHERE session_uri = '${owner}';`);
+				}
+				// A provider-absent exclusion keeps its normalized catalog; a tombstone, its rows until they are collected.
+				await exec(raw, `INSERT INTO metadata (key, value) VALUES ('sessionTombstone:${sessions[0]}', 'true'), ('sessionsV2Excluded:copilot:${sessions[1]}', '{}');`);
+
+				assert.deepStrictEqual(await instance.findOlderBuildChatCatalogEdits(1), [sessions[2]]);
+			});
+
 			// What each version leaves behind: 17 (Block 3b) adds chat origins, 18 the pending worktree removals.
 			const leftBehind: Record<number, string> = {
 				15: 'ALTER TABLE chats_v2 DROP COLUMN origin_session_uri; DROP TABLE pending_worktree_removals;',

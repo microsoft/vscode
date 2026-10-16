@@ -77,7 +77,7 @@ import { toListedSessionSummary } from '../../node/protocolServerHandler.js';
 import { mintPeerChatUri } from '../../common/agentHostChatMinting.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { AgentHostDatabase, type AgentHostDatabaseChatV2WriteResult, AgentHostDatabaseSessionChatCatalogReplaceResult, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionChat, IAgentHostDatabaseSessionChatCatalog, IAgentHostDatabaseSessionListCatalog, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionsV2ExclusionExpectation, IAgentHostDatabaseSessionOptions, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope, IAgentHostDatabaseSessionV2Receipt } from '../../node/agentHostDatabase.js';
-import { CHAT_INHERITED_TURN_METADATA_KEY, CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, PEER_CHATS_METADATA_KEY, type AgentHostPeerChatStore, type IPersistedPeerChat } from '../../node/agentHostPeerChatStore.js';
+import { CHAT_INHERITED_TURN_METADATA_KEY, CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, PEER_CHATS_METADATA_KEY, type AgentHostPeerChatStore, type IImportedOlderBuildChatEdit, type IOlderBuildEditsImport, type IPersistedPeerChat } from '../../node/agentHostPeerChatStore.js';
 import { AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT, AGENT_HOST_CATALOG_PAYLOAD_VERSION, AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, decodeAgentHostCatalogPayload, encodeAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
 import type { IAgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, CATALOG_VERIFICATION_VERSION, type IAgentHostCatalogReconciliationReport } from '../../node/agentHostCatalogReconciliationService.js';
@@ -32102,6 +32102,59 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			}
 		}
+
+		suite('imported older-build edits reach a restored peer that is not opened yet', () => {
+			async function restoredPeer() {
+				class MultiChatAgent extends MockAgent {
+					override async createChat(): Promise<IAgentCreateChatResult> {
+						return { providerData: 'peer-backing' };
+					}
+				}
+				const database = disposables.add(new AgentHostDatabase(':memory:'));
+				const residency = createResidencyTestService(1, 30_000, true, new MultiChatAgent('copilot'), createPerSessionDataService().service, database);
+				const svc = residency.service;
+				const session = await createUsedSession(svc, residency.agent);
+				const peer = URI.parse(buildChatUri(session, 'not-opened'));
+				await svc.createChat(session, peer, { title: 'Peer' });
+				await getTestSessionStateStore(svc).chatRows.setDraft(session, peer, { text: 'Draft before', origin: { kind: MessageKind.User } });
+				await svc.whenCatalogReconciliationIdle();
+				await createUsedSession(svc, residency.agent);
+				await waitForResidency(() => !getStateManager(svc).getSessionState(session.toString()), 'session was not evicted');
+				await svc.restoreSession(session);
+				const apply = (edit: IImportedOlderBuildChatEdit) => (svc as unknown as { _applyImportedOlderBuildEdits(imported: IOlderBuildEditsImport): Promise<void> })
+					._applyImportedOlderBuildEdits({ session, chats: new Map([[peer.toString(), edit]]) });
+				return { svc, session, peer, apply };
+			}
+
+			test('a read change also updates the session\'s read aggregate', async () => {
+				const { svc, session, peer, apply } = await restoredPeer();
+				const state = getStateManager(svc);
+				state.dispatchServerAction(buildDefaultChatUri(session), { type: ActionType.ChatIsReadChanged, isRead: true });
+				const status = () => ({
+					resolved: state.getChatState(peer.toString()) !== undefined,
+					peer: isSessionStatusRead(state.getSessionState(session.toString())?.chats.find(chat => chat.resource === peer.toString())?.status),
+					session: isSessionStatusRead(state.getSessionState(session.toString())?.status),
+				});
+				const before = status();
+
+				await apply({ isRead: false });
+
+				assert.deepStrictEqual({ before, after: status() }, {
+					before: { resolved: false, peer: true, session: true },
+					after: { resolved: false, peer: false, session: false },
+				});
+			});
+
+			test('a cleared draft does not come back from the restored draft when the peer is opened', async () => {
+				const { svc, session, peer, apply } = await restoredPeer();
+				// The import cleared the peer's durable draft, then announced it.
+				await getTestSessionStateStore(svc).chatRows.setDraft(session, peer, undefined);
+
+				await apply({ draft: null });
+
+				assert.strictEqual((await getStateManager(svc).resolveChatState(peer.toString()))?.draft, undefined);
+			});
+		});
 
 		test('deleting an evicted session disposes every persisted peer chat', async () => {
 			class MultiChatAgent extends MockAgent {

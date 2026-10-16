@@ -10608,16 +10608,21 @@ export class AgentService extends Disposable implements IAgentService {
 				if (value === undefined || ((current & flag) !== 0) === value) {
 					continue;
 				}
-				if (resolved) {
+				// A read change applies to a chat not opened yet too, and keeps the session's read aggregate in step.
+				if (resolved || type === ActionType.ChatIsReadChanged) {
 					this._stateManager.dispatchServerAction(chat, type === ActionType.ChatIsArchivedChanged ? { type, isArchived: value } : { type, isRead: value });
 				} else {
 					// A restored chat not opened yet has only its summary.
 					this._stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionChatUpdated, chat, changes: { status: withSessionStatusFlag(current, flag, value) } });
 				}
 			}
-			// A chat not opened yet reads its draft when it is.
-			if (edit.draft !== undefined && resolved) {
-				this._stateManager.dispatchServerAction(chat, { type: ActionType.ChatDraftChanged, draft: edit.draft ?? undefined });
+			if (edit.draft !== undefined) {
+				if (resolved) {
+					this._stateManager.dispatchServerAction(chat, { type: ActionType.ChatDraftChanged, draft: edit.draft ?? undefined });
+				} else {
+					// Also a cleared draft: the cached one would otherwise come back when the chat is opened.
+					this._stateManager.setUnresolvedChatDraft(chat, edit.draft ?? undefined);
+				}
 			}
 		}
 		if (!added.length) {
