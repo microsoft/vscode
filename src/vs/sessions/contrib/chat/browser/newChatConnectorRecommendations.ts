@@ -33,6 +33,7 @@ interface IConnectorRecommendation {
 	readonly name: string;
 	readonly description: string;
 	readonly icon: URI | undefined;
+	readonly showStatically: boolean;
 }
 
 interface IConnectorRecommendationCard {
@@ -60,6 +61,7 @@ export class NewChatConnectorRecommendations extends Disposable {
 
 	readonly element = dom.$('.new-session-connector-recommendations');
 	private readonly cards = new Map<string, IConnectorRecommendationCard>();
+	private readonly recommendationDomains = new Map<string, readonly string[]>();
 	private readonly staticDismissed = new Set<string>();
 	private readonly dynamicDismissed = new Set<string>();
 	private visibleDynamic = new Set<string>();
@@ -89,11 +91,13 @@ export class NewChatConnectorRecommendations extends Disposable {
 		this.element.setAttribute('aria-label', localize('newSession.connectorRecommendations.ariaLabel', "Recommended connectors"));
 		const cards = dom.append(this.element, dom.$('.new-session-connector-recommendation-cards'));
 		for (const [id, recommendation] of Object.entries(productService.connectorRecommendations ?? {})) {
+			this.recommendationDomains.set(id, recommendation.urlDomains ?? []);
 			this.renderCard(cards, {
 				id,
 				name: recommendation.name,
 				description: recommendation.description,
 				icon: parseIconUri(recommendation.iconUrl),
+				showStatically: recommendation.showStatically !== false,
 			});
 		}
 
@@ -167,13 +171,13 @@ export class NewChatConnectorRecommendations extends Disposable {
 			&& this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true
 			&& this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled) === true;
 		const matching = enabled
-			? findMatchingConnectorRecommendationIds(this.options.getInputValue(), this.cards.keys())
+			? findMatchingConnectorRecommendationIds(this.options.getInputValue(), this.recommendationDomains)
 			: new Set<string>();
 		this.mode = matching.size > 0 ? 'dynamic' : 'static';
 		const dismissed = this.mode === 'dynamic' ? this.dynamicDismissed : this.staticDismissed;
 		const nextVisible = new Set<string>();
 		for (const card of this.cards.values()) {
-			const visible = (this.mode === 'static' || matching.has(card.definition.id)) && !dismissed.has(card.definition.id);
+			const visible = (this.mode === 'static' ? card.definition.showStatically : matching.has(card.definition.id)) && !dismissed.has(card.definition.id);
 			card.element.hidden = !visible;
 			if (visible) {
 				nextVisible.add(card.definition.id);
