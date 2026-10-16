@@ -27,6 +27,7 @@ import { formatModelDetails, ModelDetailsInfo } from '../../../../platform/chat/
 import { appendResponsePartsForEvent, createResponseEventRenderContext, flushPendingAssistantMessage, ResponseEventRenderContext, ToolEventHandlers } from '../../common/sessionEventRenderer';
 import { extractChatPromptReferences, getFolderAttachmentPath } from './copilotCLIPrompt';
 import { IChatDelegationSummaryService } from './delegationSummaryService';
+import { getCopilotCLIModelIdentifier } from './utils';
 
 
 interface CreateTool {
@@ -548,8 +549,9 @@ export function buildChatHistoryFromEvents(sessionId: string, modelId: string | 
 			return;
 		}
 		const turn = turns[currentRequestTurnIndex];
-		if (turn instanceof ChatRequestTurn2 && turn.modelId !== modelId) {
-			turns[currentRequestTurnIndex] = new ChatRequestTurn2(turn.prompt, turn.command, turn.references, turn.participant, [...turn.toolReferences], turn.editedFileEvents, turn.id, modelId, turn.modeInstructions2);
+		const modelIdentifier = getCopilotCLIModelIdentifier(modelId);
+		if (turn instanceof ChatRequestTurn2 && turn.modelId !== modelIdentifier) {
+			turns[currentRequestTurnIndex] = new ChatRequestTurn2(turn.prompt, turn.command, turn.references, turn.participant, [...turn.toolReferences], turn.editedFileEvents, turn.id, modelIdentifier, turn.modeInstructions2);
 		}
 	}
 
@@ -705,7 +707,8 @@ export function buildChatHistoryFromEvents(sessionId: string, modelId: string | 
 				const resolvedRequestModelId = details?.responseModelId ?? currentModelId;
 				currentResponseModelId = resolvedRequestModelId;
 				currentCreditsUsed = details?.creditsUsed;
-				turns.push(new ChatRequestTurn2(`${commandPrefix}${prompt}`, undefined, references, '', [], undefined, details?.requestId ?? event.id, details?.isUsingAutoModel ? 'auto' : resolvedRequestModelId, modeInstructions2));
+				const requestModelId = details?.isUsingAutoModel ? 'auto' : resolvedRequestModelId;
+				turns.push(new ChatRequestTurn2(`${commandPrefix}${prompt}`, undefined, references, '', [], undefined, details?.requestId ?? event.id, requestModelId ? getCopilotCLIModelIdentifier(requestModelId) : undefined, modeInstructions2));
 				currentRequestTurnIndex = turns.length - 1;
 				continue;
 			}

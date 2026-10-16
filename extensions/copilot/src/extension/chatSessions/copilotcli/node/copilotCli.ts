@@ -23,6 +23,7 @@ import { ResourceSet } from '../../../../util/vs/base/common/map';
 import { basename } from '../../../../util/vs/base/common/resources';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
+import { COPILOT_CLI_MODEL_VENDOR } from '../common/utils';
 import { ensureNodePtyShim } from './nodePtyShim';
 import { ensureRipgrepShim } from './ripgrepShim';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
@@ -219,7 +220,7 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 				return 0;
 			}
 		};
-		this._register(lm.registerLanguageModelChatProvider('copilotcli', provider));
+		this._register(lm.registerLanguageModelChatProvider(COPILOT_CLI_MODEL_VENDOR, provider));
 		this._onDidChange.fire();
 	}
 
