@@ -472,6 +472,8 @@ export interface IAgentHostSessionStateStore {
 	 * startup repair of a handle transfer a crash interrupted.
 	 */
 	findAdditionalWorktreeOwners(handle: string): Promise<readonly URI[]>;
+	/** Whether `session` is registered and not deleted (tombstoned), by its recorded state; startup repair only. */
+	isSessionLive(session: URI): Promise<boolean>;
 	/**
 	 * Moves a chat and its private descendants to another session (Block 4). Holds both sessions, then commits the
 	 * catalog move and the chats' central state (their chat rows, pinned to the chat's folders, and the per-folder

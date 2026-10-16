@@ -1521,7 +1521,7 @@ suite('WorktreeIsolation', () => {
 		await databases.get(detachedWorktreeRecordUri(moved.handle).toString())!.setMetadata('vscode.devContainerWorktree.createdAt', '0');
 		await central.registerSessionV2(target.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
 		await central.importSessionState(target.toString(), {
-			importVersion: 1, importedAt: 1, folders: [], chats: [], legacyMirrorBase: '{}', launchDirsBackfilled: true,
+			importVersion: 1, importedAt: 1, folders: [], chats: [], legacyMirrorBase: '{"v":2,"entries":{}}', launchDirsBackfilled: true,
 			values: { [ADDITIONAL_WORKTREES_METADATA_KEY]: JSON.stringify([{ handle: moved.handle, workingDirectory: moved.worktree.toString(), repositoryRoot: repoRoot.toString() }]) },
 		});
 
@@ -1548,13 +1548,50 @@ suite('WorktreeIsolation', () => {
 		await service.openDatabase(source).object.setMetadata(ADDITIONAL_WORKTREES_METADATA_KEY, list);
 		for (const session of [source, target]) {
 			await central.registerSessionV2(session.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
-			await central.importSessionState(session.toString(), { importVersion: 1, importedAt: 1, folders: [], chats: [], legacyMirrorBase: '{}', launchDirsBackfilled: true, values: { [ADDITIONAL_WORKTREES_METADATA_KEY]: list } });
+			await central.importSessionState(session.toString(), { importVersion: 1, importedAt: 1, folders: [], chats: [], legacyMirrorBase: '{"v":2,"entries":{}}', launchDirsBackfilled: true, values: { [ADDITIONAL_WORKTREES_METADATA_KEY]: list } });
 		}
 		await central.tombstoneAndUnregisterSession(source.toString());
 
 		await isolation.cleanupUnclaimedDetachedWorktrees();
 
 		assert.deepStrictEqual(await databases.get(detachedWorktreeRecordUri(moved.handle).toString())!.getMetadataObject({ 'vscode.devContainerWorktree.owner': true }), { 'vscode.devContainerWorktree.owner': target.toString() });
+	});
+
+	test('reconciliation re-owns a transferred worktree in the order older builds rely on: the target\'s copy lists it, the record names the target, the live source\'s copy drops it (PR review)', async () => {
+		const central = disposables.add(new AgentHostDatabase(':memory:'));
+		const { databases, service, isolation, create, setOwner } = createOwnedRecordsHarness(new Set(), central);
+		const moved = await create('repaired');
+		const source = URI.parse('copilotcli:/live-source');
+		const target = URI.parse('copilotcli:/repair-target');
+		const list = JSON.stringify([{ handle: moved.handle, workingDirectory: moved.worktree.toString(), repositoryRoot: repoRoot.toString() }]);
+		await setOwner(moved.handle, source);
+		const record = databases.get(detachedWorktreeRecordUri(moved.handle).toString())!;
+		await record.setMetadata('vscode.devContainerWorktree.createdAt', '0');
+		// A crash right after the move committed: central lists moved the handle; neither older-build copy followed.
+		await service.openDatabase(source).object.setMetadata(ADDITIONAL_WORKTREES_METADATA_KEY, list);
+		// The source's copy was written before the move (its merge base records it), so it is no older build's edit.
+		const mirrored = JSON.stringify({ v: 2, entries: { [JSON.stringify(['value', ADDITIONAL_WORKTREES_METADATA_KEY])]: list } });
+		for (const [session, value, base] of [[source, '[]', mirrored], [target, list, '{"v":2,"entries":{}}']] as const) {
+			await central.registerSessionV2(session.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			await central.importSessionState(session.toString(), { importVersion: 1, importedAt: 1, folders: [], chats: [], legacyMirrorBase: base, launchDirsBackfilled: true, values: { [ADDITIONAL_WORKTREES_METADATA_KEY]: value } });
+		}
+		const olderBuildList = async (session: URI) => (JSON.parse(await service.openDatabase(session).object.getMetadata(ADDITIONAL_WORKTREES_METADATA_KEY) ?? '[]') as { handle: string }[]).map(entry => entry.handle === moved.handle ? 'handle' : entry.handle);
+		let targetListedWhenOwned: string[] | undefined;
+		const setValues = record.setMetadataValues.bind(record);
+		record.setMetadataValues = async values => {
+			if (values['vscode.devContainerWorktree.owner'] === target.toString()) {
+				targetListedWhenOwned = await olderBuildList(target);
+			}
+			return setValues(values);
+		};
+
+		await isolation.cleanupUnclaimedDetachedWorktrees();
+
+		assert.deepStrictEqual({
+			targetListedWhenOwned,
+			owner: (await record.getMetadataObject({ 'vscode.devContainerWorktree.owner': true }))['vscode.devContainerWorktree.owner'],
+			sourceLists: await olderBuildList(source),
+		}, { targetListedWhenOwned: ['handle'], owner: target.toString(), sourceLists: [] });
 	});
 
 	test('resolveWorkingDirectoryForResume recreates a missing shared worktree from the branch its co-owners recorded (Block 5)', async () => {

@@ -613,6 +613,10 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		return (await this._database.readWorktreeCoOwners(worktreePath)).map(row => ({ worktreePath: row.worktreePath, repositoryRoot: row.repositoryRoot, branch: row.branch, session: URI.parse(row.session) }));
 	}
 
+	isSessionLive(session: URI): Promise<boolean> {
+		return this._database.isSessionLive(session.toString());
+	}
+
 	async findAdditionalWorktreeOwners(handle: string): Promise<readonly URI[]> {
 		return (await this._database.findAdditionalWorktreeOwners(handle)).map(session => URI.parse(session));
 	}

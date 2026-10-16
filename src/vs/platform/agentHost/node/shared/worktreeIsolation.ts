@@ -908,13 +908,21 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		// centrally before the record names its new owner: the session whose central list names the handle owns it.
 		const listedBy = centrallyListedBy.filter(session => session.toString() !== owner);
 		if (listedBy.length > 0) {
+			const target = listedBy[0];
+			// In the order older builds rely on, as the transfer: the target's copy lists the handle (acknowledged, or this
+			// throws and the record is kept for the next repair), then the record names the target, then the source's
+			// copy drops it, unless the source ended.
+			await this._sessionStateStore.update(target, ADDITIONAL_WORKTREES_METADATA_KEY, value => value ?? null, SessionStateMirrorFlush.Acknowledged);
 			const ref = this._sessionDataService.openDatabase(record);
 			try {
-				await ref.object.setMetadataValues({ [DETACHED_WORKTREE_OWNER]: listedBy[0].toString(), [DETACHED_WORKTREE_CLAIMED]: 'true', [DETACHED_WORKTREE_LAST_SEEN_AT]: String(Date.now()) });
+				await ref.object.setMetadataValues({ [DETACHED_WORKTREE_OWNER]: target.toString(), [DETACHED_WORKTREE_CLAIMED]: 'true', [DETACHED_WORKTREE_LAST_SEEN_AT]: String(Date.now()) });
 			} finally {
 				ref.dispose();
 			}
-			this._logService.info(`[${this._logLabel}:${handle}] Re-owned detached worktree to ${listedBy[0].toString()}, which lists it`);
+			if (await this._sessionStateStore.isSessionLive(ownerUri)) {
+				await this._sessionStateStore.update(ownerUri, ADDITIONAL_WORKTREES_METADATA_KEY, value => value ?? null, SessionStateMirrorFlush.Immediate);
+			}
+			this._logService.info(`[${this._logLabel}:${handle}] Re-owned detached worktree to ${target.toString()}, which lists it`);
 			return true;
 		}
 		const transferred = await this._readDetachedWorktreeMetadata(record);
