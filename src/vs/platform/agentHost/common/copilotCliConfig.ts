@@ -34,7 +34,7 @@ export const enum CopilotCliConfigKey {
 	EnableCustomTerminalTool = 'enableCustomTerminalTool',
 	/** Apply the shell init script a client published for a session to SDK shell commands. Off by default. */
 	EnableShellInitScript = 'enableShellInitScript',
-	/** Enable native Sunburst image generation and editing. Off by default. */
+	/** Enable native Sunburst image generation and editing. */
 	ImageGeneration = 'imageGeneration',
 	/** Log level passed to the Copilot SDK client. */
 	CopilotSdkLogLevel = 'copilotSdkLogLevel',
@@ -107,7 +107,10 @@ export const CopilotTgrepEnabledSettingId = 'chat.copilot.tgrep.enabled';
 
 export const CopilotSearchSubagentEnabledSettingId = 'chat.copilot.searchSubagent.enabled';
 export const CopilotImageGenerationEnabledSettingId = 'chat.copilot.imageGeneration.enabled';
-export const DEFAULT_COPILOT_IMAGE_GENERATION_ENABLED = false;
+
+export function isImageGenerationEnabledByDefault(quality: string | undefined): boolean {
+	return quality === 'insider';
+}
 
 export const CopilotLocalIndexEnabledSettingId = 'github.copilot.chat.localIndex.enabled';
 
@@ -212,7 +215,7 @@ export const copilotCliConfigSchema = createSchema({
 	[CopilotCliConfigKey.ImageGeneration]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.imageGenerationEnabled.title', "Image Generation"),
-		description: localize('agentHost.config.imageGenerationEnabled.description', "Enable image generation and editing with GPT Image 2.5 Sunburst. Uses AI credits in addition to the conversation model. Account access and tool permissions still apply."),
+		description: localize('agentHost.config.imageGenerationEnabled.description', "Enable image generation and editing with **GPT Image 2.5 Sunburst** when available to your account. Prompts and selected images are sent to Sunburst. Account access and tool permissions still apply.\n\n**Sunburst preview rates (AI credits per 1 million tokens):**\n- **Text tokens:** 500 input / 0 output\n- **Image tokens:** 800 input / 3,000 output\n\nThese charges are in addition to the conversation model. Rates may change; these are token rates, not per-image prices. Disabling this setting prevents future image tool calls."),
 	}),
 	[CopilotCliConfigKey.EnableCustomTerminalTool]: schemaProperty<boolean>({
 		type: 'boolean',
