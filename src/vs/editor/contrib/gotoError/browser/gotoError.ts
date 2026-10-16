@@ -17,11 +17,12 @@ import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { IMarkerNavigationService, MarkerList } from './markerNavigationService.js';
 import * as nls from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { TextEditorSelectionRevealType } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { IMarker } from '../../../../platform/markers/common/markers.js';
+import { IMarker, IMarkerService, IRelatedInformation } from '../../../../platform/markers/common/markers.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { MarkerNavigationWidget } from './gotoErrorWidget.js';
 
@@ -189,6 +190,54 @@ class MarkerNavigationAction extends EditorAction {
 	}
 }
 
+export class CopyFullErrorAction extends EditorAction {
+	static readonly ID = 'editor.action.copyFullError';
+
+	constructor() {
+		super({
+			id: CopyFullErrorAction.ID,
+			label: nls.localize2('copyFullError', "Copy Full Error Message"),
+			precondition: undefined,
+			metadata: {
+				description: nls.localize2('copyFullErrorDescription', "Copy all diagnostics at the cursor, including their full messages, locations, source, code, and related information. Assign a keyboard shortcut in Keyboard Shortcuts to use this command directly.")
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+		if (!editor.hasModel()) {
+			return;
+		}
+
+		const markers = accessor.get(IMarkerService).read({ resource: editor.getModel().uri })
+			.filter(marker => Range.containsPosition(marker, editor.getPosition()));
+		if (markers.length === 0) {
+			return;
+		}
+
+		const text = markers.map(marker => {
+			const lines = [formatDiagnosticMessage(marker)];
+			const code = typeof marker.code === 'string' ? marker.code : marker.code?.value;
+			if (marker.source || code) {
+				lines.push(`${marker.source ?? ''}${code ? `(${code})` : ''}`);
+			}
+			if (marker.code && typeof marker.code !== 'string') {
+				lines.push(marker.code.target.toString(true));
+			}
+			for (const related of marker.relatedInformation ?? []) {
+				lines.push(formatDiagnosticMessage(related));
+			}
+			return lines.join('\n');
+		}).join('\n\n');
+
+		await accessor.get(IClipboardService).writeText(text);
+	}
+}
+
+function formatDiagnosticMessage(diagnostic: IRelatedInformation): string {
+	return `${diagnostic.resource.toString(true)}(${diagnostic.startLineNumber}, ${diagnostic.startColumn}): ${diagnostic.message}`;
+}
+
 export class NextMarkerAction extends MarkerNavigationAction {
 	static readonly ID = 'editor.action.marker.next';
 	static LABEL = nls.localize2('markerAction.next.label', "Go to Next Problem (Error, Warning, Info)");
@@ -286,6 +335,7 @@ registerEditorAction(NextMarkerAction);
 registerEditorAction(PrevMarkerAction);
 registerEditorAction(NextMarkerInFilesAction);
 registerEditorAction(PrevMarkerInFilesAction);
+registerEditorAction(CopyFullErrorAction);
 
 const CONTEXT_MARKERS_NAVIGATION_VISIBLE = new RawContextKey<boolean>('markersNavigationVisible', false);
 

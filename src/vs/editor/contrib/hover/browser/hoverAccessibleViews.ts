@@ -21,6 +21,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { labelForHoverVerbosityAction } from './markdownHoverParticipant.js';
+import { CopyFullErrorAction } from '../../gotoError/browser/gotoError.js';
 
 namespace HoverAccessibilityHelpNLS {
 	export const increaseVerbosity = localize('increaseVerbosity', '- The focused hover part verbosity level can be increased with the Increase Hover Verbosity command.', `<keybinding:${INCREASE_HOVER_VERBOSITY_ACTION_ID}>`);
@@ -170,7 +171,10 @@ export class HoverAccessibilityHelpProvider extends BaseHoverAccessibleViewProvi
 	}
 
 	provideContent(): string {
-		return this.provideContentAtIndex(this._focusedHoverPartIndex, true);
+		return [
+			this.provideContentAtIndex(this._focusedHoverPartIndex, true),
+			localize('hover.copyFullError', "Use Copy Full Error Message to copy all diagnostics at the editor cursor, including related information. You can assign a shortcut in Keyboard Shortcuts. {0}", `<keybinding:${CopyFullErrorAction.ID}>`)
+		].join('\n');
 	}
 }
 
