@@ -11,8 +11,7 @@ import { DisposableStore, IReference } from '../../../../../../base/common/lifec
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { GitHubCredential, IGitHubCredentials } from '../../../../../../platform/github/common/githubCredentialService.js';
-import { GitHubRepositoriesPage, GitHubRepository, GitHubRepositoryListOptions, GitHubRepositorySearchOptions, GitHubRepositorySearchPage } from '../../../../../../platform/github/common/githubQueryService.js';
-import { IGitHubQuery } from '../../../../../../platform/github/common/githubQueryServiceImpl.js';
+import { GitHubQueryApi, GitHubRepositoriesPage, GitHubRepository, GitHubRepositoryListOptions, GitHubRepositorySearchOptions, GitHubRepositorySearchPage } from '../../../../../../platform/github/common/githubQueryService.js';
 import { IGitHubClient } from '../../../../../../platform/github/common/githubService.js';
 import { GitHubRestRequest, GitHubRestResponse, IGitHubTransport } from '../../../../../../platform/github/common/githubTransport.js';
 import { GitHubRequestError, IGitHubEndpointProvider } from '../../../../../../platform/github/common/githubTypes.js';
@@ -90,7 +89,7 @@ suite('CloudSandboxRepositoryPicker', () => {
 					return upcastPartial<GitHubRestResponse<T>>({ data: data as T });
 				},
 			}),
-			query: upcastPartial<IGitHubQuery>({
+			query: upcastPartial<GitHubQueryApi>({
 				listRepositories: async (_account: AccountHandle, _signal: AbortSignal, listOptions?: GitHubRepositoryListOptions): Promise<GitHubRepositoriesPage> => {
 					requests.push({ kind: 'list', value: '', options: listOptions });
 					return { repositories: [upcastPartial<GitHubRepository>({ nameWithOwner: 'octocat/recent' })] };
