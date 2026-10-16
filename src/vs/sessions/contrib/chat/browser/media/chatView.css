@@ -38,14 +38,16 @@
 	width: calc(100% - 2 * var(--session-toolbar-content-inset, 0px) - 2 * var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240)));
 }
 
-/* The ruler prompt timeline sits beside the Session Toolbar rather than beneath it, and its own reservation
- * already keeps the transcript clear of both. */
+/* The ruler prompt timeline sits beside the Session Toolbar rather than beneath it. The chat view then widens the
+ * even inset on both sides to clear the rail too (`ChatViewSessionToolbar.getContentInset`), so the ruler's own
+ * right-side reservation is not needed. */
 .agent-sessions-workbench .part.sessionspart .chat-view-chat.has-session-toolbar .interactive-session.prompt-timeline-host.prompt-timeline-with-rail {
 	--prompt-timeline-scrollbar-gutter: calc(var(--session-toolbar-column-width, 0px) + var(--vscode-spacing-size40));
 }
 
-.agent-sessions-workbench .part.sessionspart .chat-view-chat .interactive-session.prompt-timeline-with-rail > :is(.interactive-list, .chat-suggest-next-widget) {
-	--session-toolbar-content-inset: 0px;
+.agent-sessions-workbench .part.sessionspart .chat-view-chat.has-session-toolbar .prompt-timeline-host.prompt-timeline-with-rail.interactive-session .interactive-item-container,
+.agent-sessions-workbench .part.sessionspart .chat-view-chat.has-session-toolbar .prompt-timeline-host.prompt-timeline-with-rail.interactive-session > .chat-suggest-next-widget {
+	padding-right: var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240));
 }
 
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows {

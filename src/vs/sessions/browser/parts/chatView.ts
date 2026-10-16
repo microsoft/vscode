@@ -63,6 +63,9 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	readonly element: HTMLElement = $('.chat-view');
 	/** Content-only inset kept on each side; scrollable viewports retain the leaf's full width. */
 	protected contentInset = 0;
+	/** The inset the host's Session Toolbar asks for, before {@link getContentInset} adapts it. */
+	private toolbarInset = 0;
+	private lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
 
 	readonly minimumWidth = 200;
 	readonly maximumWidth = Number.POSITIVE_INFINITY;
@@ -223,12 +226,27 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	 * to the allocated dimensions and then delegates to {@link doLayout} so
 	 * subclasses can forward sizing to their hosted widget.
 	 */
-	layout(width: number, height: number, top: number, left: number, contentInset = 0): void {
+	layout(width: number, height: number, top: number, left: number, toolbarInset = 0): void {
 		size(this.element, width, height);
-		this.contentInset = contentInset;
-		this.element.classList.toggle('has-session-toolbar', contentInset > 0);
-		this.element.style.setProperty('--session-toolbar-reserved-width', `${contentInset}px`);
+		this.lastLayout = { width, height, top, left };
+		this.toolbarInset = toolbarInset;
+		this.contentInset = this.getContentInset(toolbarInset);
+		this.element.classList.toggle('has-session-toolbar', toolbarInset > 0);
+		this.element.style.setProperty('--session-toolbar-reserved-width', `${this.contentInset}px`);
 		this.doLayout(width, height, top, left);
+	}
+
+	/** The inset to keep on each side of the content when the host's Session Toolbar asks for `toolbarInset`. */
+	protected getContentInset(toolbarInset: number): number {
+		return toolbarInset;
+	}
+
+	/** Lays out again at the last size, for when {@link getContentInset} changes. */
+	protected relayout(): void {
+		if (this.lastLayout) {
+			const { width, height, top, left } = this.lastLayout;
+			this.layout(width, height, top, left, this.toolbarInset);
+		}
 	}
 
 	protected abstract doLayout(width: number, height: number, top: number, left: number): void;
