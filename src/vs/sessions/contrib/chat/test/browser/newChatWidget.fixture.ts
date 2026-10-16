@@ -1036,7 +1036,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		const visibleCards = [...cards].filter(card => !card.hidden);
 		assert(visibleCards.length === expectedConnectorIds.length
 			&& visibleCards.every((card, index) => card.dataset.connectorId === expectedConnectorIds[index]),
-		'Only connector recommendations associated with prompt URLs must be visible.');
+			'Only connector recommendations associated with prompt URLs must be visible.');
 		const connectorSurfaceVisible = expectedConnectorIds.length > 0 && connectorRecommendationsSetting;
 		assert((targetWindow.getComputedStyle(recommendations).display !== 'none') === connectorSurfaceVisible);
 		if (connectorProductIcons && connectorSurfaceVisible) {
@@ -1366,7 +1366,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	ConnectorRecommendationsDisabled: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['With a known Notion URL in the prompt but connector recommendations disabled, the centered new-session composer shows no recommendation card.'],
-		render: context => renderNewChatWidget(context, { height: 700, withWorkspace: true, connectorRecommendations: true, connectorRecommendationsSetting: false, connectorPrompt: 'Summarize https://www.notion.so/acme/Project-123', expectedConnectorIds: ['notion'], experimentalComposerLayout: true }),
+		render: context => renderNewChatWidget(context, { height: 700, withWorkspace: true, connectorRecommendations: true, connectorRecommendationsSetting: false, connectorPrompt: 'Summarize https://www.notion.so/acme/Project-123', expectedConnectorIds: ['linear', 'notion', 'workiq-mail'], experimentalComposerLayout: true }),
 	}),
 	ConnectorRecommendations: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },

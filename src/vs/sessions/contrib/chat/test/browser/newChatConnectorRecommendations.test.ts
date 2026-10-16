@@ -55,6 +55,7 @@ suite('NewChatConnectorRecommendations', () => {
 		const telemetryService = new TestExperimentTriggerTelemetryService();
 		const onDidChangeInput = store.add(new Emitter<void>());
 		let inputValue = '';
+		let inputReadCount = 0;
 		let focusCount = 0;
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(ICommandService, {
@@ -74,7 +75,10 @@ suite('NewChatConnectorRecommendations', () => {
 		instantiationService.stub(ITelemetryService, telemetryService);
 		const recommendations = store.add(instantiationService.createInstance(NewChatConnectorRecommendations, {
 			focusInput: () => focusCount++,
-			getInputValue: () => inputValue,
+			getInputValue: () => {
+				inputReadCount++;
+				return inputValue;
+			},
 			onDidChangeInputValue: onDidChangeInput.event,
 		}));
 		document.body.appendChild(recommendations.element);
@@ -89,6 +93,7 @@ suite('NewChatConnectorRecommendations', () => {
 				inputValue = value;
 				onDidChangeInput.fire();
 			},
+			get inputReadCount() { return inputReadCount; },
 			get focusCount() { return focusCount; },
 		};
 	}
@@ -172,7 +177,11 @@ suite('NewChatConnectorRecommendations', () => {
 			'Open https://www.notion.so/acme/Project-123.',
 			'Compare linear.app/acme/issue/ENG-1 with workspace.notion.site/roadmap.',
 			'This nested URL must not count: https://example.com/redirect/notion.so/acme.',
+			'This punctuated path must not count: https://example.com/redirect;notion.so/acme.',
+			'This parenthesized path must not count: https://example.com/redirect/(notion.so)/acme.',
 			'Neither user@notion.so nor https://notion.so.example.com is a Notion URL.',
+			'Open [Notion](https://www.notion.so/acme/project).',
+			'Open (notion.so/acme/project).',
 			'',
 		]) {
 			fixture.setInput(input);
@@ -186,7 +195,24 @@ suite('NewChatConnectorRecommendations', () => {
 			{ hidden: false, visibleCards: ['linear', 'notion', 'workiq-mail'] },
 			{ hidden: false, visibleCards: ['linear', 'notion', 'workiq-mail'] },
 			{ hidden: false, visibleCards: ['linear', 'notion', 'workiq-mail'] },
+			{ hidden: false, visibleCards: ['linear', 'notion', 'workiq-mail'] },
+			{ hidden: false, visibleCards: ['notion'] },
+			{ hidden: false, visibleCards: ['notion'] },
+			{ hidden: false, visibleCards: ['linear', 'notion', 'workiq-mail'] },
 		]);
+	});
+
+	test('skips prompt matching while recommendations are disabled', () => {
+		const fixture = setup(true, true, true, connectorRecommendations, false);
+		fixture.setInput('a+'.repeat(16_000));
+
+		assert.deepStrictEqual({
+			hidden: fixture.recommendations.element.hidden === true,
+			inputReadCount: fixture.inputReadCount,
+		}, {
+			hidden: true,
+			inputReadCount: 0,
+		});
 	});
 
 	test('supports only the eight known connector families when those recommendations are available', () => {

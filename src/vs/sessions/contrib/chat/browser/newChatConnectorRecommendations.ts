@@ -162,10 +162,13 @@ export class NewChatConnectorRecommendations extends Disposable {
 	}
 
 	private updateVisibility(announce: boolean): void {
-		const matching = findMatchingConnectorRecommendationIds(
-			this.options.getInputValue(),
-			this.cards.keys(),
-		);
+		const enabled = this.cards.size > 0
+			&& this.configurationService.getValue<boolean>(NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING) === true
+			&& this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true
+			&& this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled) === true;
+		const matching = enabled
+			? findMatchingConnectorRecommendationIds(this.options.getInputValue(), this.cards.keys())
+			: new Set<string>();
 		this.mode = matching.size > 0 ? 'dynamic' : 'static';
 		const dismissed = this.mode === 'dynamic' ? this.dynamicDismissed : this.staticDismissed;
 		const nextVisible = new Set<string>();
@@ -176,11 +179,7 @@ export class NewChatConnectorRecommendations extends Disposable {
 				nextVisible.add(card.definition.id);
 			}
 		}
-		this.element.hidden = this.cards.size === 0
-			|| nextVisible.size === 0
-			|| this.configurationService.getValue<boolean>(NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING) !== true
-			|| this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) !== true
-			|| this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled) !== true;
+		this.element.hidden = !enabled || nextVisible.size === 0;
 		if (!this.element.hidden && announce && this.mode === 'dynamic') {
 			const newlyVisible = [...nextVisible].filter(id => !this.visibleDynamic.has(id));
 			if (newlyVisible.length === 1) {
