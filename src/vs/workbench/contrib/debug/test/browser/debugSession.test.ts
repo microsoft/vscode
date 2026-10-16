@@ -237,17 +237,17 @@ suite('DebugSession - exception breakpoints', () => {
 			}
 		});
 		const raw = ds.add(new RawDebugSession(adapter, undefined!, '', '', undefined!, undefined!, undefined!, undefined!));
-		session.initializeForTest(raw);
 		const initialized = Event.toPromise(raw.onDidInitialize);
 		adapter.sendEventBody('capabilities', { capabilities: { supportsExceptionFilterOptions: true } });
 		adapter.sendEventBody('initialized', {});
 		await initialized;
+		session.initializeForTest(raw);
 		return { session, exceptionFilterOptions };
 	}
 
 	test('sends the condition and mode of exception breakpoints', async () => {
 		const { session, exceptionFilterOptions } = await createSession();
-		const options = { label: 'Label', supportsCondition: true, enabled: true };
+		const options = { label: 'Label', supportsCondition: true, enabled: true, description: undefined, conditionDescription: undefined };
 
 		await session.sendExceptionBreakpoints([
 			new ExceptionBreakpoint({ ...options, filter: 'plain' }),
