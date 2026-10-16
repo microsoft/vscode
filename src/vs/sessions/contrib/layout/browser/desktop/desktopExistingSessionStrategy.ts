@@ -91,9 +91,10 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 				return;
 			}
 
+			// Chats of the same session share its main editor part, so only another visible session keeps the side pane open.
 			const session = this._sessionsService.activeSession.get();
 			if (this._ctx.isRestoringSessionLayout
-				|| this._multipleLayoutOwnersVisible()
+				|| this._ctx.multipleSessionsVisibleObs.get()
 				|| this._layoutService.isEditorPartAutoVisibilitySuppressed()
 				|| !session
 				|| session.isQuickChat?.get()
