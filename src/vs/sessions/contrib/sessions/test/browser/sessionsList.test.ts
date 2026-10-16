@@ -5292,58 +5292,70 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('the main chat section of a multi-folder session hover matches its row while the main chat is open', () => {
-			const first = { root: URI.file('/workspace/first'), workingDirectory: URI.file('/workspace/first'), name: 'first', description: undefined };
-			const second = { root: URI.file('/workspace/second'), workingDirectory: URI.file('/workspace/second'), name: 'second', description: undefined };
-			const base = createMultiFolderSession([first, second], [[first], [second]]);
-			const mainChat: IChat = {
-				...base.mainChat.get(),
-				changes: constObservable([{ modifiedUri: URI.file('/workspace/first/main.ts'), insertions: 3, deletions: 1 }]),
-				changesSummary: constObservable({ files: 2, additions: 5, deletions: 1 }),
-			};
-			const session: ISession = {
-				...base,
-				changesSummary: constObservable({ files: 4, additions: 20, deletions: 10 }),
-				chats: constObservable([mainChat, ...base.chats.get().slice(1)]),
-				mainChat: constObservable(mainChat),
-			};
-			const activeSession = observableValue<IActiveSession | undefined>('active-session', undefined);
-			const hovers = new Map<HTMLElement, () => IDelayedHoverOptions>();
-			const { container } = renderSessionChatsList(session, undefined, false, true, false, instantiationService => {
-				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-					override readonly activeSession = activeSession;
-					override readonly visibleSessions = constObservable<readonly IActiveSession[]>([]);
-				});
-				instantiationService.stub(IHoverService, {
-					...NullHoverService,
-					setupDelayedHover: (target, options) => {
-						hovers.set(target, typeof options === 'function' ? options : () => options);
-						return toDisposable(() => hovers.delete(target));
-					},
-				});
-			});
-			const read = () => {
-				const row = container.querySelector<HTMLElement>('.session-item');
-				const content = row ? hovers.get(row)?.().content : undefined;
-				const location = content instanceof HTMLElement ? content.querySelector('.session-summary-hover-location') : undefined;
-				return {
-					row: [row?.querySelector('.session-diff-added')?.textContent, row?.querySelector('.session-diff-removed')?.textContent],
-					hover: [location?.querySelector('.session-summary-hover-insertions')?.textContent, location?.querySelector('.session-summary-hover-deletions')?.textContent],
+		for (const compact of [false, true]) {
+			test(`the main chat section of a multi-folder session hover matches its row while the main chat is open, reading only what the row observes (compact: ${compact})`, () => {
+				const first = { root: URI.file('/workspace/first'), workingDirectory: URI.file('/workspace/first'), name: 'first', description: undefined };
+				const second = { root: URI.file('/workspace/second'), workingDirectory: URI.file('/workspace/second'), name: 'second', description: undefined };
+				const base = createMultiFolderSession([first, second], [[first], [second]]);
+				// Computing the changes stands in for loading them; an observed derived is read from memory.
+				const changeReads: string[] = [];
+				const mainChat: IChat = {
+					...base.mainChat.get(),
+					changes: derived(() => {
+						changeReads.push('changes');
+						return [{ modifiedUri: URI.file('/workspace/first/main.ts'), insertions: 3, deletions: 1 }];
+					}),
+					changesSummary: constObservable({ files: 2, additions: 5, deletions: 1 }),
 				};
-			};
+				const session: ISession = {
+					...base,
+					changesSummary: constObservable({ files: 4, additions: 20, deletions: 10 }),
+					chats: constObservable([mainChat, ...base.chats.get().slice(1)]),
+					mainChat: constObservable(mainChat),
+				};
+				const activeSession = observableValue<IActiveSession | undefined>('active-session', undefined);
+				const hovers = new Map<HTMLElement, () => IDelayedHoverOptions>();
+				const { container } = renderSessionChatsList(session, undefined, false, true, compact, instantiationService => {
+					instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+						override readonly activeSession = activeSession;
+						override readonly visibleSessions = constObservable<readonly IActiveSession[]>([]);
+					});
+					instantiationService.stub(IHoverService, {
+						...NullHoverService,
+						setupDelayedHover: (target, options) => {
+							hovers.set(target, typeof options === 'function' ? options : () => options);
+							return toDisposable(() => hovers.delete(target));
+						},
+					});
+				});
+				const read = () => {
+					const row = container.querySelector<HTMLElement>('.session-item');
+					changeReads.length = 0;
+					const content = row ? hovers.get(row)?.().content : undefined;
+					const hoverReads = [...changeReads];
+					const location = content instanceof HTMLElement ? content.querySelector('.session-summary-hover-location') : undefined;
+					return {
+						row: [row?.querySelector('.session-diff-added')?.textContent, row?.querySelector('.session-diff-removed')?.textContent],
+						hover: [location?.querySelector('.session-summary-hover-insertions')?.textContent, location?.querySelector('.session-summary-hover-deletions')?.textContent],
+						hoverReads,
+					};
+				};
 
-			const beforeOpen = read();
-			activeSession.set(upcastPartial<IActiveSession>({ ...session, activeChat: session.mainChat }), undefined);
-			const whileOpen = read();
-			activeSession.set(undefined, undefined);
-			const afterSwitch = read();
+				const beforeOpen = read();
+				activeSession.set(upcastPartial<IActiveSession>({ ...session, activeChat: session.mainChat }), undefined);
+				const whileOpen = read();
+				activeSession.set(undefined, undefined);
+				const afterSwitch = read();
 
-			assert.deepStrictEqual({ beforeOpen, whileOpen, afterSwitch }, {
-				beforeOpen: { row: ['+20', '-10'], hover: ['+5', '-1'] },
-				whileOpen: { row: ['+3', '-1'], hover: ['+3', '-1'] },
-				afterSwitch: { row: ['+20', '-10'], hover: ['+5', '-1'] },
+				const catalog = { row: compact ? [undefined, undefined] : ['+20', '-10'], hover: ['+5', '-1'], hoverReads: [] };
+				assert.deepStrictEqual({ beforeOpen, whileOpen, afterSwitch }, {
+					beforeOpen: catalog,
+					// A compact row shows no counts, so it observes nothing and the hover keeps the catalog counts.
+					whileOpen: compact ? catalog : { row: ['+3', '-1'], hover: ['+3', '-1'], hoverReads: [] },
+					afterSwitch: catalog,
+				});
 			});
-		});
+		}
 
 		test('shows the rich chat-scoped hover for peer chats', () => {
 			const mainRoot = URI.file('/workspace/main');
