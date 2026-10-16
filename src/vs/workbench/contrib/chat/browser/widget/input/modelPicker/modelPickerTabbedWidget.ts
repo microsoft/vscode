@@ -574,7 +574,7 @@ export class TabbedModelPicker extends Disposable {
 	 */
 	private _hostsHydraFusion(context: ITabbedModelPickerContext): boolean {
 		const auto = this._autoModel(context);
-		return !!auto?.metadata.autoModelEnsemble && this._hydraFusionModels(context).length > 0 && !!getModelConfigProperty(auto, context.configurationAccess, MODEL_CONFIG_GROUP_EFFORT);
+		return !!auto?.metadata.autoModelEnsemble && !auto.metadata.autoModelEnsemble.nativeAutoTiers && this._hydraFusionModels(context).length > 0 && !!getModelConfigProperty(auto, context.configurationAccess, MODEL_CONFIG_GROUP_EFFORT);
 	}
 
 	/**
@@ -582,7 +582,8 @@ export class TabbedModelPicker extends Disposable {
 	 * HydraFusion Max then share one row, and its details choose between them.
 	 */
 	private _hydraFusionTiers(context: ITabbedModelPickerContext): ILanguageModelChatMetadataAndIdentifier[] {
-		if (this._autoModel(context)?.metadata.autoModelEnsemble) {
+		const ensemble = this._autoModel(context)?.metadata.autoModelEnsemble;
+		if (ensemble && !ensemble.nativeAutoTiers) {
 			return [];
 		}
 		const models = this._hydraFusionModels(context);

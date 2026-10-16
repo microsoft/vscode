@@ -2427,6 +2427,15 @@ suite('getCopilotAutoTier', () => {
 		);
 	});
 
+	test('preserves native Ensemble identifiers only when offered by the runtime catalog', () => {
+		assert.deepStrictEqual({
+			native: ['balance', 'high', 'max'].map(tier => getCopilotAutoTier({ id: 'auto', config: { tier } }, ['balance', 'high', 'max'])),
+			unavailable: getCopilotAutoTier({ id: 'auto', config: { tier: 'max' } }, ['balance']),
+			legacy: getCopilotAutoTier({ id: 'auto', config: { tier: 'max' } }, ['balance', 'intelligence']),
+			concrete: getCopilotAutoTier({ id: 'gpt-5', config: { tier: 'max' } }, ['max']),
+		}, { native: ['balance', 'high', 'max'], unavailable: undefined, legacy: 'intelligence', concrete: undefined });
+	});
+
 	test('resolves the override before picker preferences', () => {
 		const log = new NullLogService();
 		const model: ModelSelection = { id: 'auto', config: { tier: 'efficiency' } };

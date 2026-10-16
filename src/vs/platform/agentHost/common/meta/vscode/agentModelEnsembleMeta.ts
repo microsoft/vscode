@@ -12,14 +12,16 @@ const VSCODE_ENSEMBLE_META_KEY = 'vscode.chat.ensemble';
 /** How the host presents its Auto model as Ensemble. */
 export interface IAgentModelEnsembleMeta {
 	readonly intelligenceUsesHydraFusion: boolean;
+	readonly nativeAutoTiers?: boolean;
 }
 
 export function withAgentModelEnsembleMeta(meta: Record<string, unknown> | undefined, ensemble: IAgentModelEnsembleMeta): Record<string, unknown> {
-	return { ...meta, [VSCODE_ENSEMBLE_META_KEY]: { intelligenceUsesHydraFusion: ensemble.intelligenceUsesHydraFusion } };
+	return { ...meta, [VSCODE_ENSEMBLE_META_KEY]: { intelligenceUsesHydraFusion: ensemble.intelligenceUsesHydraFusion, ...(ensemble.nativeAutoTiers ? { nativeAutoTiers: true } : {}) } };
 }
 
 export function readAgentModelEnsembleMeta(model: IAgentModelInfo | SessionModelInfo): IAgentModelEnsembleMeta | undefined {
 	const value = model._meta?.[VSCODE_ENSEMBLE_META_KEY];
 	const intelligenceUsesHydraFusion = isObject(value) ? (value as { intelligenceUsesHydraFusion?: unknown }).intelligenceUsesHydraFusion : undefined;
-	return typeof intelligenceUsesHydraFusion === 'boolean' ? { intelligenceUsesHydraFusion } : undefined;
+	const nativeAutoTiers = isObject(value) ? (value as { nativeAutoTiers?: unknown }).nativeAutoTiers : undefined;
+	return typeof intelligenceUsesHydraFusion === 'boolean' ? { intelligenceUsesHydraFusion, ...(nativeAutoTiers === true ? { nativeAutoTiers: true } : {}) } : undefined;
 }

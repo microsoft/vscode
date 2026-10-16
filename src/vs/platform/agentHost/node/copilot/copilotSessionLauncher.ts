@@ -30,7 +30,7 @@ import { getSessionSandboxConfig } from '../sessionSandbox.js';
 import { projectCopilotSandboxPolicy } from './copilotSandboxPolicy.js';
 import { autoModeTiers, defaultAutoModeTier, isAutoModeTier, normalizeAutoModeTier, type AutoModeTier } from '../../common/autoModeTiers.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
-import type { ModelSelection, ToolDefinition } from '../../common/state/protocol/state.js';
+import type { JsonPrimitive, ModelSelection, ToolDefinition } from '../../common/state/protocol/state.js';
 import { ContextSizeConfigKey } from '../../common/agentModelConfiguration.js';
 import type { ActiveClientToolSet } from '../activeClientState.js';
 import { IAgentConfigurationService, type IAgentChatConfigurationTarget } from '../agentConfigurationService.js';
@@ -524,14 +524,21 @@ export function getCopilotContextTier(model: ModelSelection | undefined, longCon
 }
 
 /**
- * The Auto routing preference ("Optimize for"). Profiles left on concrete models are ignored.
+ * Preserves advertised Auto identifiers before normalizing legacy selections. Ignores concrete models.
  */
-export function getCopilotAutoTier(model: ModelSelection | undefined): AutoModeTier | undefined {
+export function getCopilotAutoTier(model: ModelSelection | undefined, autoTierValues?: readonly JsonPrimitive[]): string | undefined {
 	if (!isAutoModel(model?.id)) {
 		return undefined;
 	}
-	const tier = normalizeAutoModeTier(model?.config?.[AutoTierConfigKey]);
-	return isAutoModeTier(tier) ? tier : undefined;
+	const value = model?.config?.[AutoTierConfigKey];
+	if (isAutoModeTier(value)) {
+		return value;
+	}
+	if (typeof value === 'string' && autoTierValues?.includes(value)) {
+		return value;
+	}
+	const tier = normalizeAutoModeTier(value);
+	return isAutoModeTier(tier) && (!autoTierValues || autoTierValues.includes(tier)) ? tier : undefined;
 }
 
 /** Resolves the shared Auto override, leaving concrete models unchanged. */
@@ -562,24 +569,24 @@ function toEnsembleTier(tier: AutoModeTier, configurationService: Pick<IAgentCon
 }
 
 /** Resolves the shared override first, then the picker preference. */
-export function resolveCopilotAutoTier(model: ModelSelection | undefined, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string): AutoModeTier | undefined {
+export function resolveCopilotAutoTier(model: ModelSelection | undefined, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string, autoTierValues?: readonly JsonPrimitive[]): string | undefined {
 	const override = resolveConfiguredAutoTierOverride(model, configurationService, logService, sessionId);
 	if (override !== undefined) {
 		return override;
 	}
-	const tier = getCopilotAutoTier(model);
+	const tier = getCopilotAutoTier(model, autoTierValues);
 	if (tier === undefined) {
 		return undefined;
 	}
 	logService.info(`[Copilot:${sessionId}] Using Auto "Optimize for" preference '${tier}'`);
-	return toEnsembleTier(tier, configurationService, logService, sessionId);
+	return isAutoModeTier(tier) ? toEnsembleTier(tier, configurationService, logService, sessionId) : tier;
 }
 
 /**
  * The CAPI session options for a routing profile. Omitting `capi` entirely, rather than sending an
  * empty profile, is what leaves the runtime on its default routing.
  */
-function toSdkCapiSessionOptions(autoTier: AutoModeTier | undefined): Pick<SessionConfig, 'capi'> {
+function toSdkCapiSessionOptions(autoTier: string | undefined): Pick<SessionConfig, 'capi'> {
 	if (autoTier === undefined) {
 		return {};
 	}
@@ -982,7 +989,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	}
 
 	private async _createSession(plan: ICopilotCreateSessionLaunchPlan, config: ResumeSessionConfig, sandboxConfig: (session: CopilotSessionWrapper['session']) => Promise<void>, runtime: ICopilotSessionRuntime, policy: CopilotManagedModelPolicy | undefined): Promise<CopilotSessionWrapper> {
-		const model = policy ? omitCopilotManagedModelDefaults(plan.model, policy) : plan.model;
+		const autoTierValues = plan.modelPolicyModels?.().find(model => model.id === plan.model?.id)?.configSchema?.properties[AutoTierConfigKey]?.enum;
+		const model = policy ? omitCopilotManagedModelDefaults(plan.model, policy, autoTierValues) : plan.model;
 		const omittedContextDefault = plan.model?.config?.[ContextSizeConfigKey] !== undefined && model?.config?.[ContextSizeConfigKey] === undefined;
 		const raw = await this._withTraceContext(plan.sessionId, () => plan.client.createSession({
 			...config,
@@ -990,7 +998,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			model: plan.model?.id,
 			reasoningEffort: resolveCopilotReasoningEffort(model, this._configurationService, this._logService, plan.sessionId),
 			contextTier: omittedContextDefault ? undefined : getCopilotContextTier(model, plan.longContextWindow, plan.freeLongContext),
-			...toSdkCapiSessionOptions(resolveCopilotAutoTier(model, this._configurationService, this._logService, plan.sessionId)),
+			...toSdkCapiSessionOptions(resolveCopilotAutoTier(model, this._configurationService, this._logService, plan.sessionId, autoTierValues)),
 			...(plan.resolvedAgentName ? { agent: plan.resolvedAgentName } : {}),
 			workingDirectory: plan.workingDirectory?.fsPath,
 		}));

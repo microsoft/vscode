@@ -9,15 +9,57 @@ import { isModelConfigurationDefault, modelConfigurationSourceKey, type IAgentMo
 import { readAgentManagedModelDefaults, withAgentManagedModelDefaults, withAgentModelConfigurationDefaults } from '../../common/meta/agentModelConfigurationMeta.js';
 import type { JsonPrimitive, ModelSelection } from '../../common/state/protocol/state.js';
 import type { ILogService } from '../../../log/common/log.js';
+import { localize } from '../../../../nls.js';
+import { autoModeTiers, getAutoModeTierLabel } from '../../common/autoModeTiers.js';
 
 type ResolvedManagedSettings = Awaited<ReturnType<CopilotClient['rpc']['managedSettings']['resolve']>>;
-export type CopilotManagedModelPolicy = Pick<ResolvedManagedSettings, 'values' | 'meta'>;
+export type CopilotManagedModelPolicy = Pick<ResolvedManagedSettings, 'values' | 'meta'> & Partial<Pick<ResolvedManagedSettings, 'layers'>>;
 
 const modelOptionKeys = ['thinkingLevel', 'contextSize', 'tier'] as const;
 
 /** Reads the runtime-composed Auto startup default. */
-export function getCopilotManagedAutoPreference(policy: CopilotManagedModelPolicy): string | undefined {
+export function getCopilotManagedAutoPreference(policy: CopilotManagedModelPolicy, autoTierValues?: readonly JsonPrimitive[]): string | undefined {
+	// Older SDK declarations do not yet include this additive runtime response field.
+	const ensembleTier = (policy.values as { ensembleTier?: unknown } | undefined)?.ensembleTier;
+	if (ensembleTier !== undefined) {
+		if (typeof ensembleTier !== 'string') {
+			throw new Error('Copilot runtime returned an invalid managed Ensemble tier.');
+		}
+		// Response-only aliases do not replace the original legacy wire preference.
+		const explicitEnsemble = !policy.layers || policy.layers.some(layer => layer.settings && typeof layer.settings === 'object' && Object.hasOwn(layer.settings, 'ensembleTier'));
+		if (!explicitEnsemble && policy.values?.autoTier !== undefined && (!autoTierValues || autoTierValues.includes(policy.values.autoTier))) {
+			return policy.values.autoTier;
+		}
+		return ensembleTier === 'unmanaged' ? undefined : ensembleTier;
+	}
 	return policy.values?.autoTier;
+}
+
+/** Uses runtime-advertised Auto choices, including their availability, without changing older hosts. */
+export function withCopilotAutoTierMetadata(model: IAgentModelInfo, auto: Awaited<ReturnType<CopilotClient['rpc']['models']['list']>>['auto']): IAgentModelInfo {
+	if (model.id !== 'auto' || !auto) {
+		return model;
+	}
+	const tiers = auto.tiers.filter(tier => tier.type === 'auto' && tier.status.enabled);
+	return {
+		...model,
+		configSchema: {
+			type: 'object',
+			...model.configSchema,
+			properties: {
+				...model.configSchema?.properties,
+				tier: {
+					...model.configSchema?.properties.tier,
+					type: 'string',
+					title: model.configSchema?.properties.tier?.title ?? localize('copilot.modelAutoTier.title', "Optimize for"),
+					enum: tiers.map(tier => tier.id),
+					enumLabels: tiers.map(tier => tier.displayName),
+					enumDescriptions: tiers.map(tier => tier.description),
+					default: tiers.find(tier => tier.id === auto.defaultTier)?.id ?? tiers[0]?.id,
+				},
+			},
+		},
+	};
 }
 
 /** Keeps per-chat policy and the applied runtime model out of the shared catalog and preference store. */
@@ -27,7 +69,16 @@ export function createCopilotModelConfigurationReport(
 	current: Awaited<ReturnType<CopilotSession['rpc']['model']['getCurrent']>>,
 	requested: ModelSelection | undefined,
 	logService: ILogService,
+	auto?: Awaited<ReturnType<CopilotSession['rpc']['model']['list']>>['auto'],
 ): IAgentModelConfigurationReport {
+	models = models.map(model => withCopilotAutoTierMetadata(model, auto));
+	const currentTier = current.autoTier ?? current.pendingAutoTier;
+	if (auto && current.modelId === 'auto' && typeof currentTier === 'string' && (autoModeTiers.some(tier => tier === currentTier) || currentTier === 'fast') && !auto.tiers.some(tier => tier.id === currentTier)) {
+		models = models.map(model => model.id === 'auto' ? withCopilotAutoTierMetadata(model, {
+			...auto,
+			tiers: [...auto.tiers, { id: currentTier, displayName: getAutoModeTierLabel(currentTier), description: '', type: 'auto', status: { enabled: true } }],
+		}) : model);
+	}
 	const entries: [string, IAgentModelConfigurationOptions][] = models.map(model => {
 		const projected = projectCopilotManagedModelConfiguration(model, policy, logService);
 		const properties = projected.configSchema?.properties ?? {};
@@ -84,7 +135,7 @@ export function projectCopilotManagedModelConfiguration(model: IAgentModelInfo, 
 	const properties = { ...schema.properties };
 	const values = policy.values;
 	const concreteModel = values?.model === model.id && model.id !== 'auto';
-	const autoPreference = model.id === 'auto' ? getCopilotManagedAutoPreference(policy) : undefined;
+	const autoPreference = model.id === 'auto' ? getCopilotManagedAutoPreference(policy, schema.properties.tier?.enum) : undefined;
 	const entries = [
 		{ key: 'thinkingLevel', value: concreteModel ? values.effortLevel : undefined },
 		{
@@ -118,19 +169,19 @@ export function projectCopilotManagedModelConfiguration(model: IAgentModelInfo, 
 }
 
 /** Leaves implicit options for the runtime to resolve only when that policy owns the selected model option. */
-export function omitCopilotManagedModelDefaults(model: ModelSelection, policy: CopilotManagedModelPolicy): ModelSelection;
-export function omitCopilotManagedModelDefaults(model: ModelSelection | undefined, policy: CopilotManagedModelPolicy): ModelSelection | undefined;
-export function omitCopilotManagedModelDefaults(model: ModelSelection | undefined, policy: CopilotManagedModelPolicy): ModelSelection | undefined {
+export function omitCopilotManagedModelDefaults(model: ModelSelection, policy: CopilotManagedModelPolicy, autoTierValues?: readonly JsonPrimitive[]): ModelSelection;
+export function omitCopilotManagedModelDefaults(model: ModelSelection | undefined, policy: CopilotManagedModelPolicy, autoTierValues?: readonly JsonPrimitive[]): ModelSelection | undefined;
+export function omitCopilotManagedModelDefaults(model: ModelSelection | undefined, policy: CopilotManagedModelPolicy, autoTierValues?: readonly JsonPrimitive[]): ModelSelection | undefined {
 	if (!model?.config) {
 		return model;
 	}
 	const values = policy.values;
 	const concreteModel = values?.model === model.id && model.id !== 'auto';
-	const autoPreference = model.id === 'auto' ? getCopilotManagedAutoPreference(policy) : undefined;
+	const autoPreference = model.id === 'auto' ? getCopilotManagedAutoPreference(policy, autoTierValues) : undefined;
 	const options = [
 		['thinkingLevel', concreteModel && values.effortLevel !== undefined],
 		['contextSize', concreteModel && values.contextTier !== undefined],
-		['tier', autoPreference !== undefined],
+		['tier', autoPreference !== undefined && (!autoTierValues || autoTierValues.includes(autoPreference))],
 	] as const;
 	const config = { ...model.config };
 	for (const [key, managed] of options) {

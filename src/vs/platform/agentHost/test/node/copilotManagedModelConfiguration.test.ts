@@ -9,7 +9,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import type { IAgentModelInfo } from '../../common/agent.js';
 import { modelConfigurationSourceKey } from '../../common/agentModelConfiguration.js';
 import { readAgentManagedModelDefaults, readAgentModelConfigurationDefaults } from '../../common/meta/agentModelConfigurationMeta.js';
-import { omitCopilotManagedModelDefaults, projectCopilotManagedModelConfiguration } from '../../node/copilot/copilotManagedModelConfiguration.js';
+import { createCopilotModelConfigurationReport, getCopilotManagedAutoPreference, omitCopilotManagedModelDefaults, projectCopilotManagedModelConfiguration, withCopilotAutoTierMetadata } from '../../node/copilot/copilotManagedModelConfiguration.js';
 
 suite('Copilot managed model configuration', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -24,6 +24,103 @@ suite('Copilot managed model configuration', () => {
 			},
 		},
 	};
+
+	const auto: IAgentModelInfo = {
+		provider: 'copilotcli', id: 'auto', name: 'Auto', supportsVision: false,
+		configSchema: { type: 'object', properties: { tier: { type: 'string', title: 'Optimize for', enum: ['efficiency', 'balance', 'intelligence'], default: 'balance' } } },
+	};
+
+	const autoMetadata = {
+		defaultTier: 'balance',
+		tiers: ['balance', 'high', 'max'].map(id => ({ id, displayName: id, description: `${id} description`, type: 'auto', status: { enabled: true } })),
+	};
+
+	test('prefers resolved Ensemble policy, including unmanaged, over the legacy Auto value', () => {
+		const policies = ['balance', 'high', 'max', 'unmanaged', undefined].map(ensembleTier => ({
+			values: { autoTier: 'efficiency', ...(ensembleTier ? { ensembleTier } : {}) },
+		}));
+		assert.deepStrictEqual(policies.map(policy => getCopilotManagedAutoPreference(policy)), ['balance', 'high', 'max', undefined, 'efficiency']);
+	});
+
+	test('response-only Ensemble aliases preserve the original legacy execution preference', () => {
+		const policy = {
+			values: { autoTier: 'intelligence', ensembleTier: 'high' },
+			layers: [{ source: 'server', settings: { autoTier: 'intelligence' } }],
+		};
+		const report = createCopilotModelConfigurationReport([auto], policy, {
+			modelId: 'auto', autoTier: 'intelligence',
+		}, { id: 'auto', config: { tier: 'intelligence', [modelConfigurationSourceKey('tier')]: 'explicit' } }, new NullLogService(), autoMetadata);
+		assert.deepStrictEqual({
+			legacyPreference: getCopilotManagedAutoPreference(policy),
+			nativeDefault: getCopilotManagedAutoPreference(policy, ['balance', 'high', 'max']),
+			choices: report.models.auto.choices?.tier.values,
+			current: report.current?.config,
+		}, {
+			legacyPreference: 'intelligence', nativeDefault: 'high',
+			choices: ['balance', 'high', 'max', 'intelligence'],
+			current: { tier: 'intelligence', [modelConfigurationSourceKey('tier')]: 'explicit' },
+		});
+	});
+
+	test('projects only enabled runtime Auto tiers and preserves an older runtime schema', () => {
+		const projected = withCopilotAutoTierMetadata(auto, {
+			...autoMetadata,
+			tiers: [
+				...autoMetadata.tiers.map(tier => ({ ...tier, status: { enabled: tier.id !== 'max' } })),
+				{ id: 'other-execution', displayName: 'Other', description: '', type: 'ensemble', status: { enabled: true } },
+			],
+		});
+		assert.deepStrictEqual({ schema: projected.configSchema, legacy: withCopilotAutoTierMetadata(auto, undefined) }, {
+			schema: {
+				type: 'object', properties: {
+					tier: {
+						type: 'string', title: 'Optimize for', enum: ['balance', 'high'], default: 'balance',
+						enumLabels: ['balance', 'high'], enumDescriptions: ['balance description', 'high description'],
+					}
+				}
+			},
+			legacy: auto,
+		});
+	});
+
+	test('applies an editable Ensemble default only when the runtime offers it', () => {
+		const policy = { values: { autoTier: 'efficiency', ensembleTier: 'max' } };
+		const available = projectCopilotManagedModelConfiguration(withCopilotAutoTierMetadata(auto, autoMetadata), policy, new NullLogService());
+		const unavailable = projectCopilotManagedModelConfiguration(withCopilotAutoTierMetadata(auto, {
+			...autoMetadata, tiers: autoMetadata.tiers.filter(tier => tier.id === 'balance'),
+		}), policy, new NullLogService());
+		const implicit = { id: 'auto', config: { tier: 'balance', [modelConfigurationSourceKey('tier')]: 'default' } };
+		assert.deepStrictEqual({
+			available: { tier: available.configSchema?.properties.tier.default, managed: readAgentManagedModelDefaults(available), readOnly: available.configSchema?.properties.tier.readOnly },
+			unavailable: { tier: unavailable.configSchema?.properties.tier.default, managed: readAgentManagedModelDefaults(unavailable) },
+			implicit: omitCopilotManagedModelDefaults(implicit, policy, ['balance', 'high', 'max']).config,
+			unavailableImplicit: omitCopilotManagedModelDefaults(implicit, policy, ['balance']).config,
+			explicit: omitCopilotManagedModelDefaults({ id: 'auto', config: { tier: 'balance', [modelConfigurationSourceKey('tier')]: 'explicit' } }, policy, ['balance', 'max']).config,
+		}, {
+			available: { tier: 'max', managed: { model: false, keys: ['tier'] }, readOnly: undefined },
+			unavailable: { tier: 'balance', managed: undefined },
+			implicit: { [modelConfigurationSourceKey('tier')]: 'default' },
+			unavailableImplicit: implicit.config,
+			explicit: { tier: 'balance', [modelConfigurationSourceKey('tier')]: 'explicit' },
+		});
+	});
+
+	test('uses the exact session tier catalog and reports the applied native tier', () => {
+		const policy = { values: { ensembleTier: 'high', model: 'auto' } };
+		const report = createCopilotModelConfigurationReport([auto], policy, {
+			modelId: 'auto', autoTier: 'max',
+		}, { id: 'auto', config: { tier: 'max', [modelConfigurationSourceKey('tier')]: 'explicit' } }, new NullLogService(), autoMetadata);
+		assert.deepStrictEqual(report, {
+			models: {
+				auto: {
+					defaults: { tier: 'high' }, readOnly: [],
+					choices: { tier: { values: ['balance', 'high', 'max'], labels: ['balance', 'high', 'max'], descriptions: autoMetadata.tiers.map(tier => tier.description) } },
+					managedDefaults: ['tier'],
+				}
+			},
+			current: { id: 'auto', config: { tier: 'max', [modelConfigurationSourceKey('tier')]: 'explicit' } },
+		});
+	});
 
 	test('projects server-shaped model defaults without inferring read-only state from composition metadata', () => {
 		const result = projectCopilotManagedModelConfiguration(model, {

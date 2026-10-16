@@ -843,7 +843,7 @@ class TestCopilotClient implements ITestCopilotClient {
 				if (error) {
 					throw error;
 				}
-				return { models: models.map(toSdkModelInfo) };
+				return { models: models.map(toSdkModelInfo), ...(this.autoTierMetadata ? { auto: this.autoTierMetadata } : {}) };
 			}
 		},
 		plugins: {
@@ -886,6 +886,7 @@ class TestCopilotClient implements ITestCopilotClient {
 	readonly sessionListRequests: Parameters<CopilotClient['rpc']['sessions']['list']>[0][] = [];
 	sessionListError: Error | undefined;
 	readonly modelListRequests: Parameters<CopilotModelsList>[0][] = [];
+	autoTierMetadata: Awaited<ReturnType<CopilotModelsList>>['auto'];
 	readonly pluginInstallRequests: Parameters<CopilotPluginsInstall>[0][] = [];
 	readonly pluginUninstallRequests: Parameters<CopilotPluginsUninstall>[0][] = [];
 	pluginMarketplaces: Awaited<ReturnType<CopilotPluginMarketplaces['list']>>['marketplaces'] = [];
@@ -11013,6 +11014,36 @@ suite('CopilotAgent', () => {
 					ensemble: ['auto:Ensemble:ensemble(intelligenceUsesHydraFusion=false):balance/intelligence=balance:Balance/High:Effort Level', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
 					routed: ['auto:Ensemble:ensemble(intelligenceUsesHydraFusion=true):balance/intelligence=balance:Balance/High:Effort Level', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
 					auto: ['auto:Auto:efficiency/balance/intelligence=balance:Efficiency/Balance/Intelligence:Optimize for', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('publishes native Ensemble tiers with managed defaults and updates their availability', async () => {
+			const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
+			client.autoTierMetadata = {
+				defaultTier: 'balance',
+				tiers: ['balance', 'high', 'max'].map(id => ({ id, displayName: id, description: '', type: 'auto', status: { enabled: true } })),
+			};
+			const values = { ensembleTier: 'max', autoTier: 'efficiency' };
+			client.managedSettingsResolution = { ...client.managedSettingsResolution, values };
+			const { agent } = createTestAgentContext(disposables, {
+				copilotClient: client, rootConfig: { [CopilotCliConfigKey.Ensemble]: true },
+			});
+			const published = () => {
+				const auto = agent.models.get().find(model => model.id === 'auto')!;
+				return { choices: auto.configSchema?.properties.tier.enum, defaultTier: auto.configSchema?.properties.tier.default, native: readAgentModelEnsembleMeta(auto)?.nativeAutoTiers };
+			};
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.refreshModels();
+				const available = published();
+				client.autoTierMetadata = { ...client.autoTierMetadata, tiers: client.autoTierMetadata.tiers.map(tier => ({ ...tier, status: { enabled: tier.id === 'balance' } })) };
+				await agent.refreshModels();
+				assert.deepStrictEqual({ available, unavailable: published() }, {
+					available: { choices: ['balance', 'high', 'max'], defaultTier: 'max', native: true },
+					unavailable: { choices: ['balance'], defaultTier: 'balance', native: true },
 				});
 			} finally {
 				await disposeAgent(agent);

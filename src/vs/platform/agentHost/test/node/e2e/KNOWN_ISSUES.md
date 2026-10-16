@@ -16,6 +16,21 @@ When a valid E2E scenario exposes a gap:
 
 Capability skips are tracked separately from suspected bugs. A provider that does not advertise a capability is expected to skip positive-path tests for that capability.
 
+### Managed Ensemble defaults await a bundled runtime upgrade
+
+The runtime implementation in [github/copilot-agent-runtime#26253](https://github.com/github/copilot-agent-runtime/pull/26253) adds `ensembleTier`, but the pinned SDK `1.0.23-preview.1` / runtime `1.0.99-1` predates it. Existing Auto behavior remains supported.
+
+- Scope: `Ensemble managed defaults` within `providerIntegration/copilotAutoTier.integrationTest.ts`.
+- Gate: skip only when `managedSettings.schema()` does not advertise `ensembleTier`. This is an older-runtime capability gap, not an expected-failure assertion. Remove this temporary gate with the dependency bump.
+- Candidate validation: CI run [38819668408](https://github.com/github/copilot-agent-runtime/actions/runs/38819668408), artifact `executable-sdk-macOS-ARM64`, source `c9e96f9dbdbbce59d7e045d5abc3590136576cf7`, includes the upstream merge. Its native executable and library can be selected together through `COPILOT_CLI_PATH`; the TypeScript SDK remains the pinned version and consumes the additive response compatibly.
+- Reproduce after downloading the artifact, without live credentials:
+
+  ```bash
+  COPILOT_CLI_PATH=/absolute/path/to/dist-cli/prebuilds/darwin-arm64/copilot-runtime \
+    ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/providerIntegration/copilotAutoTier.integrationTest.ts \
+    --grep "Ensemble managed defaults"
+  ```
+
 ### Copilot strict managed-model resume is nondeterministic
 
 An SDK client can opt into mandatory model-option locks. If an administrator changes the required effort after a conversation was saved with another effort, resuming should apply the new lock and retain the conversation history. The runtime intermittently rejects that resume instead. VS Code's current integration deliberately omits the strict opt-in, and its default-only resume tests remain enabled.

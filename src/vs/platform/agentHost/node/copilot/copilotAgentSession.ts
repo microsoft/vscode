@@ -5695,13 +5695,13 @@ export class CopilotAgentSession extends Disposable {
 		}
 		try {
 			const policy = await resolveCopilotManagedSettings(this._launchPlan.client.rpc.managedSettings, this._launchPlan.githubCredentials.token, 30_000, this.workingDirectory?.fsPath);
-			await this._awaitControlPlaneRpc('session.model.list', this._wrapper.session.rpc.model.list());
+			const catalog = await this._awaitControlPlaneRpc('session.model.list', this._wrapper.session.rpc.model.list());
 			const current = await this._awaitControlPlaneRpc('session.model.getCurrent', this._wrapper.session.rpc.model.getCurrent());
 			if (generation !== this._modelConfigurationGeneration || this._store.isDisposed) {
 				return;
 			}
 			const models = this._launchPlan.modelPolicyModels?.() ?? [];
-			this._publishModelConfiguration(createCopilotModelConfigurationReport(models, policy, current, this._requestedModel, this._logService));
+			this._publishModelConfiguration(createCopilotModelConfigurationReport(models, policy, current, this._requestedModel, this._logService, catalog.auto));
 		} catch (error) {
 			if (generation === this._modelConfigurationGeneration && !this._store.isDisposed) {
 				this._publishModelConfiguration(undefined);

@@ -350,7 +350,7 @@ export class ModelPickerWidget extends Disposable {
 		}
 		const ensemble = models.find(model => model.metadata.autoModelEnsemble && !isUserProvidedModel(model, this._languageModelsService));
 		const hydraFusion = models.find(model => model.metadata.id === COPILOT_HYDRA_FUSION_MODEL_ID && isHydraFusionModel(model) && !isUserProvidedModel(model, this._languageModelsService));
-		return ensemble && hydraFusion ? { ensemble, hydraFusion } : undefined;
+		return ensemble && !ensemble.metadata.autoModelEnsemble?.nativeAutoTiers && hydraFusion ? { ensemble, hydraFusion } : undefined;
 	}
 
 	/**

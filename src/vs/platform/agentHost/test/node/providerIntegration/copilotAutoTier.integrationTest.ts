@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CopilotClient } from '@github/copilot-sdk';
+import { CopilotClient, RuntimeConnection } from '@github/copilot-sdk';
 import assert from 'assert';
 import { mkdtemp, rm } from 'fs/promises';
 import type { Server } from 'http';
@@ -14,7 +14,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { parseManagedAutoTierDefault } from '../../../common/autoModeTiers.js';
 import type { ModelSelection } from '../../../common/state/sessionState.js';
 import { getCopilotAutoTier, getCopilotContextTier, getCopilotReasoningEffort } from '../../../node/copilot/copilotSessionLauncher.js';
-import { omitCopilotManagedModelDefaults } from '../../../node/copilot/copilotManagedModelConfiguration.js';
+import { createCopilotModelConfigurationReport, getCopilotManagedAutoPreference, omitCopilotManagedModelDefaults } from '../../../node/copilot/copilotManagedModelConfiguration.js';
+import { NullLogService } from '../../../../log/common/log.js';
 import { modelConfigurationSourceKey } from '../../../common/agentModelConfiguration.js';
 import { resolveCopilotManagedSettings } from '../../../node/copilot/copilotManagedSettings.js';
 import { getAncillaryStub } from '../e2e/harness/capiStubs.js';
@@ -25,11 +26,13 @@ suite('Copilot SDK managed model configuration', function () {
 	this.timeout(60_000);
 
 	let client: CopilotClient;
+	let clientOptions: NonNullable<ConstructorParameters<typeof CopilotClient>[0]>;
 	let server: Server;
 	let home: string;
 	let policy: {
 		model?: string;
 		autoTier?: string;
+		ensembleTier?: 'balance' | 'high' | 'max' | 'unmanaged';
 		effortLevel?: string;
 		contextTier?: 'default' | 'long_context';
 	};
@@ -37,6 +40,7 @@ suite('Copilot SDK managed model configuration', function () {
 	let routedTiers: unknown[];
 	let completionEfforts: (string | undefined)[];
 	let unexpectedRequests: string[];
+	let nativeTiers: { id: string; display_name: string; description: string; type: string; status: { enabled: boolean } }[] | undefined;
 
 	setup(async () => {
 		home = await mkdtemp(join(tmpdir(), 'copilot-auto-default-'));
@@ -45,6 +49,7 @@ suite('Copilot SDK managed model configuration', function () {
 		routedTiers = [];
 		completionEfforts = [];
 		unexpectedRequests = [];
+		nativeTiers = undefined;
 		let baseUrl = '';
 		const { createServer } = await import('http');
 		server = createServer(async (request, response) => {
@@ -59,6 +64,8 @@ suite('Copilot SDK managed model configuration', function () {
 			};
 			if (path === '/copilot_internal/managed_settings') {
 				json(policy);
+			} else if (path === '/meta' && nativeTiers) {
+				json({ models: JSON.parse(getAncillaryStub('GET', '/models')!.body), auto: { default_tier: 'balance', tiers: nativeTiers } });
 			} else if (path === '/user') {
 				json({ login: 'replay-user', id: 1 });
 			} else if (path === '/auto' && request.method === 'POST') {
@@ -102,7 +109,7 @@ suite('Copilot SDK managed model configuration', function () {
 		const address = server.address();
 		assert.ok(address && typeof address !== 'string');
 		baseUrl = `http://127.0.0.1:${address.port}`;
-		client = new CopilotClient({
+		clientOptions = {
 			workingDirectory: home,
 			baseDirectory: join(home, 'copilot'),
 			useLoggedInUser: false,
@@ -114,16 +121,236 @@ suite('Copilot SDK managed model configuration', function () {
 				COPILOT_DEBUG_GITHUB_API_URL: baseUrl,
 				COPILOT_MANAGED_SETTINGS_CACHE: '0',
 				COPILOT_TELEMETRY_ENABLED: 'false',
+				COPILOT_CLI_PATH: process.env.COPILOT_CLI_PATH,
 			}),
-		});
+		};
+		client = new CopilotClient(clientOptions);
 		await client.start();
 		const resolved = await resolveCopilotManagedSettings(client.rpc.managedSettings, 'test-only-no-real-credential', 30_000, home);
 		const deviceSettings = resolved.layers.find(layer => layer.source === 'device')?.settings;
 		const conflictingKeys = deviceSettings && typeof deviceSettings === 'object'
-			? Object.keys(deviceSettings).filter(key => ['model', 'autoTier', 'ensemble', 'effortLevel', 'contextTier', 'permissions'].includes(key))
+			? Object.keys(deviceSettings).filter(key => ['model', 'autoTier', 'ensembleTier', 'effortLevel', 'contextTier', 'permissions'].includes(key))
 			: [];
 		assert.deepStrictEqual(conflictingKeys, [],
 			'Managed-model integration tests require no native model or permission policy. An isolated HOME does not isolate MDM, registry, or machine-wide managed-settings files.');
+	});
+
+	suite('Ensemble managed defaults', () => {
+		async function restartWithDynamicTiers(enabled: boolean): Promise<void> {
+			await client.stop();
+			client = new CopilotClient({
+				...clientOptions,
+				connection: RuntimeConnection.forStdio(),
+				env: { ...clientOptions.env, DYNAMIC_AUTO_TIERS: String(enabled), COPILOT_EXP_COPILOT_CLI_DYNAMIC_AUTO_TIERS: String(enabled) },
+			});
+			await client.start();
+		}
+
+		setup(async function () {
+			const { schema } = await client.rpc.managedSettings.schema();
+			assert.ok(schema && typeof schema === 'object' && !Array.isArray(schema));
+			const properties = schema.properties;
+			if (!properties || typeof properties !== 'object' || !Object.hasOwn(properties, 'ensembleTier')) {
+				// Enabled with the Ensemble-capable runtime; tracked in e2e/KNOWN_ISSUES.md until the SDK bump.
+				this.skip();
+			}
+			nativeTiers = ['balance', 'high', 'max'].map(id => ({ id, display_name: id, description: `${id} tier`, type: 'auto', status: { enabled: true } }));
+			await restartWithDynamicTiers(true);
+		});
+
+		test('runtime composition gives explicit Ensemble, including unmanaged, priority over legacy Auto', async () => {
+			const values = [];
+			for (const ensembleTier of ['balance', 'high', 'max', 'unmanaged']) {
+				const composed = await client.rpc.managedSettings.compose({
+					layers: [
+						{ source: 'device', settings: { autoTier: 'intelligence' } },
+						{ source: 'server', settings: { ensembleTier } },
+					]
+				});
+				values.push({ legacy: composed.values?.autoTier, preference: getCopilotManagedAutoPreference(composed) });
+			}
+			assert.deepStrictEqual(values, [
+				{ legacy: 'intelligence', preference: 'balance' },
+				{ legacy: 'intelligence', preference: 'high' },
+				{ legacy: 'intelligence', preference: 'max' },
+				{ legacy: 'intelligence', preference: undefined },
+			]);
+		});
+
+		test('runtime supplies the legacy alias and validates a shadowed legacy setting', async () => {
+			const composed = await client.rpc.managedSettings.compose({
+				layers: [
+					{ source: 'server', settings: { autoTier: 'intelligence' } },
+				]
+			});
+			const invalid = await client.rpc.managedSettings.validate({ content: { ensembleTier: 'high', autoTier: 42 } });
+			assert.deepStrictEqual({
+				values: composed.values, preference: getCopilotManagedAutoPreference(composed), invalid: invalid.valid,
+			}, { values: { autoTier: 'intelligence', ensembleTier: 'high' }, preference: 'intelligence', invalid: false });
+		});
+
+		test('withdrawing an untouched Ensemble default restores the personal preference only for a new chat', async () => {
+			const observed = [];
+			for (const ensembleTier of ['max', undefined] as const) {
+				policy = { ensembleTier };
+				const resolved = await resolveCopilotManagedSettings(client.rpc.managedSettings, 'test-only-no-real-credential', 30_000, home);
+				const requested = omitCopilotManagedModelDefaults({
+					id: 'auto', config: { tier: 'balance', [modelConfigurationSourceKey('tier')]: 'default' },
+				}, resolved, ['balance', 'high', 'max']);
+				const session = await client.createSession({
+					model: 'auto', capi: { autoTier: getCopilotAutoTier(requested, ['balance', 'high', 'max']) },
+					workingDirectory: home, enableManagedSettings: true, enableConfigDiscovery: false,
+					availableTools: [], onPermissionRequest: async () => ({ kind: 'denied-interactively-by-user' as const }),
+				});
+				try {
+					await session.sendAndWait({ prompt: 'Reply only OK' }, 20_000);
+					observed.push((await session.rpc.model.getCurrent()).autoTier);
+				} finally {
+					await session.disconnect();
+				}
+			}
+			assert.deepStrictEqual({ observed, routedTiers, unexpectedRequests }, { observed: ['max', 'balance'], routedTiers: ['max', 'balance'], unexpectedRequests: [] });
+		});
+
+		test('a dynamic-only Ensemble default stays inactive when dynamic routing is disabled', async () => {
+			await restartWithDynamicTiers(false);
+			policy = { ensembleTier: 'max' };
+			const resolved = await resolveCopilotManagedSettings(client.rpc.managedSettings, 'test-only-no-real-credential', 30_000, home);
+			const catalog = await client.rpc.models.list({ gitHubToken: 'test-only-no-real-credential' });
+			const report = createCopilotModelConfigurationReport([{
+				id: 'auto', provider: 'copilotcli', name: 'Auto', supportsVision: false,
+				configSchema: { type: 'object', properties: { tier: { type: 'string', title: 'Tier', enum: ['balance', 'intelligence'], default: 'balance' } } },
+			}], resolved, { modelId: 'auto' }, undefined, new NullLogService(), catalog.auto);
+			const session = await client.createSession({
+				model: 'auto', capi: { autoTier: 'balance' },
+				workingDirectory: home, enableManagedSettings: true, enableConfigDiscovery: false,
+				availableTools: [], onPermissionRequest: async () => ({ kind: 'denied-interactively-by-user' as const }),
+			});
+			try {
+				await session.sendAndWait({ prompt: 'Reply only OK' }, 20_000);
+				assert.deepStrictEqual({
+					policy: getCopilotManagedAutoPreference(resolved),
+					defaultTier: report.models.auto.defaults.tier,
+					managed: report.models.auto.managedDefaults,
+					routedTiers, unexpectedRequests,
+				}, { policy: 'max', defaultTier: 'balance', managed: undefined, routedTiers: ['balance'], unexpectedRequests: [] });
+			} finally {
+				await session.disconnect();
+			}
+		});
+
+		test('restored legacy tier remains intact when the native Ensemble catalog arrives', async () => {
+			await restartWithDynamicTiers(false);
+			const options = {
+				model: 'auto', workingDirectory: home, enableManagedSettings: true, enableConfigDiscovery: false,
+				availableTools: [], onPermissionRequest: async () => ({ kind: 'denied-interactively-by-user' as const }),
+			};
+			const previous = await client.createSession({ ...options, capi: { autoTier: 'intelligence' } });
+			try {
+				await previous.sendAndWait({ prompt: 'Reply only OK' }, 20_000);
+			} finally {
+				await previous.disconnect();
+			}
+			policy = { ensembleTier: 'max' };
+			await restartWithDynamicTiers(true);
+			const resumed = await client.resumeSession(previous.sessionId, options);
+			try {
+				const policy = await resolveCopilotManagedSettings(client.rpc.managedSettings, 'test-only-no-real-credential', 30_000, home);
+				const catalog = await resumed.rpc.model.list();
+				const current = await resumed.rpc.model.getCurrent();
+				const report = createCopilotModelConfigurationReport([{
+					id: 'auto', provider: 'copilotcli', name: 'Auto', supportsVision: false,
+				}], policy, current, { id: 'auto', config: { tier: 'intelligence', [modelConfigurationSourceKey('tier')]: 'explicit' } }, new NullLogService(), catalog.auto);
+				assert.deepStrictEqual({
+					runtimeTier: current.autoTier, reportedTier: report.current?.config?.tier,
+					choices: report.models.auto.choices?.tier.values, history: (await resumed.getEvents()).some(event => event.type === 'assistant.message'),
+				}, { runtimeTier: 'intelligence', reportedTier: 'intelligence', choices: ['balance', 'high', 'max', 'intelligence'], history: true });
+			} finally {
+				await resumed.disconnect();
+			}
+		});
+
+		for (const tier of ['balance', 'high', 'max'] as const) {
+			for (const explicit of [false, true]) {
+				test(`${tier} default reaches inference and preserves edits and resume (explicit=${explicit})`, async () => {
+					policy = { model: 'auto', autoTier: 'efficiency', ensembleTier: tier };
+					const options = {
+						model: 'auto', workingDirectory: home, enableManagedSettings: true, enableConfigDiscovery: false,
+						availableTools: [], onPermissionRequest: async () => ({ kind: 'denied-interactively-by-user' as const }),
+					};
+					const { auto } = await client.rpc.models.list({ gitHubToken: 'test-only-no-real-credential' });
+					assert.ok(auto, 'Dynamic runtime must advertise Auto choices');
+					const allowed = auto.tiers.filter(tier => tier.status.enabled && tier.type === 'auto').map(tier => tier.id);
+					const resolved = await resolveCopilotManagedSettings(client.rpc.managedSettings, 'test-only-no-real-credential', 30_000, home);
+					const requested = omitCopilotManagedModelDefaults({
+						id: 'auto', config: { tier: 'balance', [modelConfigurationSourceKey('tier')]: explicit ? 'explicit' : 'default' },
+					}, resolved, allowed);
+					const editedTier = !explicit && tier === 'high' ? 'max' : 'high';
+					const session = await client.createSession({ ...options, capi: { autoTier: getCopilotAutoTier(requested, allowed) } });
+					try {
+						await session.sendAndWait({ prompt: 'Reply only OK' }, 20_000);
+						const catalog = await session.rpc.model.list();
+						const current = await session.rpc.model.getCurrent();
+						const report = createCopilotModelConfigurationReport([{
+							id: 'auto', provider: 'copilotcli', name: 'Auto', supportsVision: false,
+						}], resolved, current, requested, new NullLogService(), catalog.auto);
+						await session.setModel('auto', { autoTier: editedTier });
+						await session.sendAndWait({ prompt: 'Reply only OK' }, 20_000);
+						assert.deepStrictEqual({
+							allowed, routedTiers, reportDefault: report.models.auto.defaults.tier,
+							reportCurrent: report.current?.config?.tier, readOnly: report.models.auto.readOnly,
+						}, {
+							allowed: ['balance', 'high', 'max'], routedTiers: [explicit ? 'balance' : tier, editedTier],
+							reportDefault: tier, reportCurrent: explicit ? 'balance' : tier, readOnly: [],
+						});
+					} finally {
+						await session.disconnect();
+					}
+					policy = { ensembleTier: editedTier === 'max' ? 'balance' : 'max' };
+					const resumed = await client.resumeSession(session.sessionId, options);
+					try {
+						await resumed.sendAndWait({ prompt: 'Reply only OK' }, 20_000);
+						assert.deepStrictEqual({
+							tier: (await resumed.rpc.model.getCurrent()).autoTier,
+							routed: routedTiers.at(-1),
+							retained: (await resumed.getEvents()).filter(event => event.type === 'assistant.message').length,
+							unexpectedRequests,
+						}, { tier: editedTier, routed: editedTier, retained: 3, unexpectedRequests: [] });
+					} finally {
+						await resumed.disconnect();
+					}
+				});
+			}
+		}
+
+		for (const mode of ['unmanaged', 'removed', 'unavailable'] as const) {
+			test(`${mode} Ensemble policy leaves an inherited available preference intact`, async () => {
+				policy = mode === 'removed' ? {} : { autoTier: 'intelligence', ensembleTier: mode === 'unmanaged' ? 'unmanaged' : 'max' };
+				if (mode === 'unavailable') {
+					nativeTiers = nativeTiers!.map(tier => ({ ...tier, status: { enabled: tier.id === 'balance' } }));
+				}
+				const { auto } = await client.rpc.models.list({ gitHubToken: 'test-only-no-real-credential' });
+				assert.ok(auto);
+				const allowed = auto.tiers.filter(tier => tier.status.enabled && tier.type === 'auto').map(tier => tier.id);
+				const resolved = await resolveCopilotManagedSettings(client.rpc.managedSettings, 'test-only-no-real-credential', 30_000, home);
+				const requested = omitCopilotManagedModelDefaults({
+					id: 'auto', config: { tier: 'balance', [modelConfigurationSourceKey('tier')]: 'default' },
+				}, resolved, allowed);
+				const session = await client.createSession({
+					model: 'auto', capi: { autoTier: getCopilotAutoTier(requested, allowed) },
+					workingDirectory: home, enableManagedSettings: true, enableConfigDiscovery: false,
+					availableTools: [], onPermissionRequest: async () => ({ kind: 'denied-interactively-by-user' as const }),
+				});
+				try {
+					await session.sendAndWait({ prompt: 'Reply only OK' }, 20_000);
+					assert.deepStrictEqual({ requested: requested.config?.tier, routedTiers, unexpectedRequests }, {
+						requested: 'balance', routedTiers: ['balance'], unexpectedRequests: [],
+					});
+				} finally {
+					await session.disconnect();
+				}
+			});
+		}
 	});
 
 	teardown(async () => {

@@ -927,6 +927,30 @@ suite('TabbedModelPicker', () => {
 		});
 	});
 
+	test('native Ensemble tiers remain Auto choices without synthetic HydraFusion duplicates', async () => {
+		const base = createEnsembleModel();
+		const ensemble = {
+			...base, metadata: {
+				...base.metadata,
+				autoModelEnsemble: { intelligenceUsesHydraFusion: true, nativeAutoTiers: true },
+				configurationSchema: {
+					type: 'object' as const, properties: {
+						tier: { type: 'string' as const, group: 'navigation', enum: ['balance', 'high', 'max'], enumItemLabels: ['Balance', 'High', 'Max'], default: 'high' },
+					}
+				},
+			},
+		};
+		const result = createPicker({ models: [ensemble, createHydraFusionModel(), createHydraFusionMaxModel(), ...models], selectedModelId: ensemble.identifier });
+		openDetails(result.popup, 'Ensemble');
+		const tiers = autoTiers(result.popup);
+		chooseOption(result.popup, 'Max');
+		await timeout(0);
+		assert.deepStrictEqual({
+			tiers, selected: result.selections, tier: result.values.get(ensemble.identifier)?.tier,
+			ariaLabel: result.popup.querySelector('.tabbed-action-list-details [role="radio"][aria-checked="true"]')?.getAttribute('aria-label'),
+		}, { tiers: ['Balance', 'High', 'Max'], selected: [], tier: 'max', ariaLabel: 'Max' });
+	});
+
 	test('rapid tier edits save in order and report the actual previous values', async () => {
 		const auto = createAutoModel();
 		const pending = new DeferredPromise<void>();

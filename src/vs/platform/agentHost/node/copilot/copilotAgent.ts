@@ -51,7 +51,7 @@ import { AgentHostEnsembleEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCod
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { getCopilotApprovalConfig, getCopilotApprovalPolicy } from './copilotApprovalPolicy.js';
 import { AGENT_HOST_COPILOT_CLIENT_NAME, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
-import { getCopilotManagedAutoPreference, omitCopilotManagedModelDefaults, projectCopilotManagedModelConfiguration } from './copilotManagedModelConfiguration.js';
+import { getCopilotManagedAutoPreference, omitCopilotManagedModelDefaults, projectCopilotManagedModelConfiguration, withCopilotAutoTierMetadata } from './copilotManagedModelConfiguration.js';
 import { buildCopilotBuiltinAgentsContainer, COPILOT_BUILTIN_AGENT_NAMES_BY_URI, CopilotBuiltinAgentsStore } from './copilotBuiltinAgents.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
@@ -824,6 +824,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 */
 	private _capiModels: readonly IAgentModelInfo[] = [];
 	private _managedModelPolicy: Parameters<typeof projectCopilotManagedModelConfiguration>[1] | undefined;
+	private _autoTierMetadata: Awaited<ReturnType<CopilotClient['rpc']['models']['list']>>['auto'];
 	/** See {@link _getFallbackAutoModel}. */
 	private _fallbackAutoModel: IAgentModelInfo | undefined;
 	private _ensembleExperimentTriggerPending = false;
@@ -3062,14 +3063,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!tokenAtRefreshStart) {
 			this._capiModels = [];
 			this._managedModelPolicy = undefined;
+			this._autoTierMetadata = undefined;
 			this._publishModels();
 			return;
 		}
 		try {
-			const models = await this._listModels(tokenAtRefreshStart);
+			const { models, auto } = await this._listModels(tokenAtRefreshStart);
 			const modelPolicy = await resolveCopilotManagedSettings((await this._ensureClient()).rpc.managedSettings, tokenAtRefreshStart, COPILOT_MANAGED_SETTINGS_QUERY_TIMEOUT_MS);
 			if (this._githubCredentials.token === tokenAtRefreshStart && this._modelCatalogGeneration === generation) {
 				this._capiModels = models;
+				this._autoTierMetadata = auto;
 				this._managedModelPolicy = modelPolicy;
 				this._publishModels();
 			}
@@ -3174,7 +3177,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			name: localize('copilotAgent.ensembleModelName', "Ensemble"),
 			configSchema,
 			// HydraFusion stays published either way, so sessions that already selected it keep working.
-			_meta: withAgentModelEnsembleMeta(model._meta, { intelligenceUsesHydraFusion: this._isEnsembleIntelligenceUsingHydraFusion() }),
+			_meta: withAgentModelEnsembleMeta(model._meta, { intelligenceUsesHydraFusion: this._isEnsembleIntelligenceUsingHydraFusion(), nativeAutoTiers: this._autoTierMetadata !== undefined }),
 		};
 	}
 
@@ -4266,10 +4269,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		};
 	}
 
-	private async _listModels(gitHubToken: string): Promise<IAgentModelInfo[]> {
+	private async _listModels(gitHubToken: string): Promise<{ models: IAgentModelInfo[]; auto: Awaited<ReturnType<CopilotClient['rpc']['models']['list']>>['auto'] }> {
 		this._logService.info('[Copilot] Listing models...');
 		const client = await this._ensureClient();
-		const { models } = await client.rpc.models.list(this._getEnterpriseHost() ? {} : { gitHubToken });
+		const { models, auto } = await client.rpc.models.list(this._getEnterpriseHost() ? {} : { gitHubToken });
 		// Empty SDK results can also mean discovery failed, so do not replace an already loaded catalog.
 		if (!models.length && this._capiModels.some(model => model !== this._fallbackAutoModel)) {
 			throw new Error('Model refresh returned an empty catalog; retaining the previous models');
@@ -4308,7 +4311,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._logService.info('[Copilot] No models listed; offering Auto');
 			result.push(this._getFallbackAutoModel());
 		}
-		return result;
+		return { models: result.map(model => withCopilotAutoTierMetadata(model, auto)), auto };
 	}
 
 	/** The Auto entry offered when the runtime lists no models, with its routing profiles. */
@@ -7072,11 +7075,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 				const policy = entry
 					? await resolveCopilotManagedSettings((await this._ensureClient()).rpc.managedSettings, this._githubCredentials.token, COPILOT_MANAGED_SETTINGS_QUERY_TIMEOUT_MS, entry.workingDirectory?.fsPath)
 					: undefined;
-				const requestedModel = policy ? omitCopilotManagedModelDefaults(model, policy) : model;
+				const autoTierValues = this._models.get().find(candidate => candidate.id === model.id)?.configSchema?.properties[AutoTierConfigKey]?.enum;
+				const requestedModel = policy ? omitCopilotManagedModelDefaults(model, policy, autoTierValues) : model;
 				const omittedContextDefault = model.config?.[ContextSizeConfigKey] !== undefined && requestedModel.config?.[ContextSizeConfigKey] === undefined;
 				// Clear stale SDK preferences when a selection or an override is removed.
 				const autoTier = isAutoModel(model.id)
-					? resolveCopilotAutoTier(requestedModel, this._configurationService, this._logService, current.ownerSessionId) ?? (policy && getCopilotManagedAutoPreference(policy) ? undefined : null)
+					? resolveCopilotAutoTier(requestedModel, this._configurationService, this._logService, current.ownerSessionId, autoTierValues) ?? (policy && getCopilotManagedAutoPreference(policy) ? undefined : null)
 					: undefined;
 				await entry?.setModel(model.id, resolveCopilotReasoningEffort(requestedModel, this._configurationService, this._logService, current.ownerSessionId), omittedContextDefault ? undefined : getCopilotContextTier(requestedModel, longContextWindow, freeLongContext), autoTier, model);
 				if (entry && previousModelId !== model.id && (isCopilotHydraFusionModelId(previousModelId) || isCopilotHydraFusionModelId(model.id))) {

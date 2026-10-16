@@ -6,14 +6,14 @@
 import { localize } from '../../../nls.js';
 
 /**
- * The routing profiles the Copilot runtime accepts for an Auto session, cheapest first. These are
- * the wire values of its `capi.autoTier` option; the retired `eco`/`balanced`/`max` names are rejected.
+ * Legacy Auto routing profiles, cheapest first. Newer runtimes can advertise additional
+ * `capi.autoTier` identifiers, including native Ensemble `high` and `max`.
  */
 export const autoModeTiers = ['efficiency', 'balance', 'intelligence'] as const;
 
 export type AutoModeTier = typeof autoModeTiers[number];
 
-export type AutoModeRoutingTier = AutoModeTier | 'fast';
+export type AutoModeRoutingTier = AutoModeTier | 'fast' | 'high' | 'max';
 
 /** Provider-owned model configuration provenance; absent on older clients and restored legacy choices. */
 export const AutoTierSourceConfigKey = 'tierSource';
@@ -37,7 +37,7 @@ export function parseManagedAutoTierDefault(value: unknown): AutoModeTier | unde
 }
 
 export function isAutoModeRoutingTier(value: unknown): value is AutoModeRoutingTier {
-	return value === 'fast' || isAutoModeTier(value);
+	return value === 'fast' || value === 'high' || value === 'max' || isAutoModeTier(value);
 }
 
 export function isInheritedAutoTier(configuration: Readonly<Record<string, unknown>> | undefined): boolean {

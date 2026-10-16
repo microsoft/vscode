@@ -32,7 +32,7 @@ export function getHydraFusionTierLabel(hydraFusionModelId: string): string {
 }
 
 export function getEnsembleTierLabel(auto: ILanguageModelChatMetadata | undefined, hydraFusionModelId: string): string | undefined {
-	if (!auto?.autoModelEnsemble) {
+	if (!auto?.autoModelEnsemble || auto.autoModelEnsemble.nativeAutoTiers) {
 		return undefined;
 	}
 	if (hydraFusionModelId === COPILOT_HYDRA_FUSION_MAX_MODEL_ID) {
