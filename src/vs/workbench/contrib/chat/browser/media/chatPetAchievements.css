@@ -67,6 +67,39 @@
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
+.modern-ui-tabs .chat-pet-customization-tabs {
+	padding-bottom: var(--vscode-spacing-size80);
+	border-bottom: 0;
+}
+
+.modern-ui-tabs .chat-pet-customization-tabs .monaco-button {
+	padding-block: var(--vscode-spacing-size40);
+}
+
+.modern-ui-tabs .chat-pet-customization-tabs .monaco-button[aria-selected='true'] {
+	background: var(--vscode-modernTab-activeBackground);
+	color: var(--vscode-modernTab-activeForeground);
+}
+
+.modern-ui-tabs .chat-pet-customization-tabs .monaco-button[aria-selected='true']::after {
+	content: none;
+}
+
+.modern-ui-tabs .chat-pet-customization-tabs .monaco-button:not([aria-selected='true']):hover {
+	background: var(--vscode-modernTab-hoverBackground);
+	color: var(--vscode-modernTab-hoverForeground);
+}
+
+:is(.hc-black, .hc-light).modern-ui-tabs .chat-pet-customization-tabs .monaco-button[aria-selected='true']:not(:focus-visible) {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+:is(.hc-black, .hc-light).modern-ui-tabs .chat-pet-customization-tabs .monaco-button:not([aria-selected='true']):not(:focus-visible):hover {
+	outline: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
 .chat-pet-customization-panel {
 	min-height: 0;
 	flex: 1;
