@@ -13,6 +13,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IPosition } from '../../../../editor/common/core/position.js';
 import { isRemoteAgentHostSessionType } from '../../../../platform/agentHost/common/agentHostSessionType.js';
+import type { IAgentModelConfigurationReport } from '../../../../platform/agentHost/common/agentModelConfiguration.js';
 import { createDecorator, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
@@ -406,6 +407,8 @@ export function isTerminalCommandPrompt(text: string, prefix: string | undefined
 export namespace SessionType {
 	export const CopilotCLI = 'copilotcli';
 	export const CopilotCloud = 'copilot-cloud-agent';
+	/** Cloud sessions created in a new sandbox; replaces {@link CopilotCloud} in the picker while registered. */
+	export const CloudSandbox = 'cloud-sandbox';
 	export const Local = 'local';
 	export const Codex = 'openai-codex';
 	export const Growth = 'copilot-growth';
@@ -492,6 +495,7 @@ export interface IChatSession extends IDisposable {
 	/** Temporarily prevents sending while keeping the draft visible and editable. */
 	readonly isInputBlocked?: IObservable<boolean>;
 	readonly historyStatus?: IObservable<IChatSessionHistoryStatus | undefined>;
+	readonly modelConfigurationState?: IObservable<IAgentModelConfigurationReport | undefined>;
 	readonly canvasContext?: IObservable<ICanvasContext | undefined>;
 	/** Recheck a temporary input restriction without sending a message. */
 	readonly retryInput?: () => Promise<void>;

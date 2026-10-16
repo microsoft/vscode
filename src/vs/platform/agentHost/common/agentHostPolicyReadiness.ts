@@ -56,8 +56,7 @@ export function getAgentHostPolicyGapImpact(policyName: string): string {
 		case 'ChatEnabledPlugins':
 			return localize('policyGap.plugins', "The workbench filters synchronized plugins, but runtime discovery and more specific customization decisions do not have equivalent policy coverage.");
 		case 'ChatExtraMarketplaces':
-		case 'ChatStrictMarketplaces':
-			return localize('policyGap.marketplaces', "Shared marketplace discovery and installation honor these controls. Runtime-owned marketplace operations do not receive VS Code-only values and need separate verification. Strict marketplace rules do not retroactively disable installed plugins.");
+			return localize('policyGap.marketplaces', "Shared marketplace discovery and installation honor additional marketplaces. Runtime-owned marketplace operations do not receive VS Code-only values and need separate verification.");
 		case 'ChatStrictPluginOnlyCustomization':
 			return localize('policyGap.customizations', "The workbench filters synchronized customizations, but runtime discovery and standalone instructions do not have equivalent coverage across policy sources.");
 		case 'ChatHooks':
@@ -95,7 +94,6 @@ function hasPolicyRequirement(policyName: string, value: unknown, configurationS
 			return value !== 'all';
 		case 'ChatToolsEligibleForAutoApproval':
 			return !isObject(value) || Object.values(value).some(eligible => eligible !== true);
-		case 'ChatStrictMarketplaces':
 		case 'ChatAllowedMcpServers':
 			// An empty allowlist denies everything; null means no restriction.
 			return value !== null;

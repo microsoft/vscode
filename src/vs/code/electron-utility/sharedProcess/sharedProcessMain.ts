@@ -18,6 +18,7 @@ import { LanguagePackCachedDataCleaner } from './contrib/languagePackCachedDataC
 import { LocalizationsUpdater } from './contrib/localizationsUpdater.js';
 import { LogsDataCleaner } from './contrib/logsDataCleaner.js';
 import { UnusedWorkspaceStorageDataCleaner } from './contrib/storageDataCleaner.js';
+import { AgentHostMcpOAuthMetadataService, agentHostMcpOAuthMetadataChannelName } from '../../../platform/agentHost/common/agentHostMcpOAuthMetadataService.js';
 import { COPILOT_CONNECTORS_REQUEST_CHANNEL_NAME, CopilotConnectorsRequestChannel } from '../../../platform/copilotConnectors/common/copilotConnectorsIpc.js';
 import { CopilotConnectorsRequestService } from '../../../platform/copilotConnectors/common/copilotConnectorsRequestService.js';
 import { IChecksumService } from '../../../platform/checksum/common/checksumService.js';
@@ -39,7 +40,6 @@ import { IExtensionRecommendationNotificationService } from '../../../platform/e
 import { IFileService } from '../../../platform/files/common/files.js';
 import { FileService } from '../../../platform/files/common/fileService.js';
 import { DiskFileSystemProvider } from '../../../platform/files/node/diskFileSystemProvider.js';
-import { GITHUB_CHANNEL_NAME, GitHubChannel } from '../../../platform/github/common/githubIpc.js';
 import { IGitHubService } from '../../../platform/github/common/githubService.js';
 import { SharedProcessGitHubService } from '../../../platform/github/electron-utility/githubService.js';
 import { SyncDescriptor } from '../../../platform/instantiation/common/descriptors.js';
@@ -153,6 +153,7 @@ import { PlaywrightChannel } from '../../../platform/browserView/node/playwright
 import { AgentNetworkFilterService } from '../../../platform/networkFilter/common/networkFilterService.js';
 import { ILocalGitService } from '../../../platform/git/common/localGitService.js';
 import { LocalGitService } from '../../../platform/git/node/localGitService.js';
+import { registerGitHubChannel } from '../../../platform/github/common/remote/ipcServer.js';
 
 class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
@@ -447,8 +448,10 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 	private initChannels(accessor: ServicesAccessor): void {
 
 		const instantiationService = accessor.get(IInstantiationService);
-		this.server.registerChannel(GITHUB_CHANNEL_NAME, instantiationService.createInstance(GitHubChannel));
+		this._register(registerGitHubChannel(this.server, accessor.get(IGitHubService)));
+		this.server.registerChannel(agentHostMcpOAuthMetadataChannelName, ProxyChannel.fromService(instantiationService.createInstance(AgentHostMcpOAuthMetadataService), this._store));
 		this.server.registerChannel(COPILOT_CONNECTORS_REQUEST_CHANNEL_NAME, new CopilotConnectorsRequestChannel(() => instantiationService.createInstance(CopilotConnectorsRequestService)));
+
 		// Extensions Management
 		const channel = new ExtensionManagementChannel(accessor.get(IExtensionManagementService), () => null);
 		this.server.registerChannel('extensions', channel);

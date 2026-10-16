@@ -43,7 +43,7 @@ import { TestPathService } from '../../../../../workbench/test/browser/workbench
 import { SessionTypeAuthRequirement, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../common/session.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { ISessionChangeEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../common/sessionsProvider.js';
+import { IChatMovedEvent, ISessionChangeEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../common/sessionsProvider.js';
 import { SessionsManagementService } from '../../browser/sessionsManagementService.js';
 import { ISessionsManagementService, IActiveSession, IChatDeletedEvent, ICreateNewSessionOptions, inheritableSessionTarget, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
 import { SessionsService } from '../../browser/sessionsService.js';
@@ -51,7 +51,7 @@ import { ISessionOpenTelemetryService, SessionOpenTelemetryService } from '../..
 import { ISessionGridSlot, ISessionsPartService, SessionGridRequest } from '../../browser/sessionsPartService.js';
 import { AbstractCustomView } from '../../../customView/browser/customView.js';
 import { CustomViewService, ICustomViewService } from '../../../customView/browser/customViewService.js';
-import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../browser/sessionsProvidersService.js';
+import { ISessionsProvidersChangeEvent, ISessionsProvidersService, SessionsProvidersService } from '../../browser/sessionsProvidersService.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { SessionsHasClosedItemContext } from '../../../../common/contextkeys.js';
 import { COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME } from '../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
@@ -211,6 +211,7 @@ class TestSessionsProvider extends mock<ISessionsProvider>() {
 	override readonly sessionTypes: readonly ISessionType[] = [{ authRequirement: SessionTypeAuthRequirement.GitHub, id: 'test', label: 'Test', icon: Codicon.vm, supportsWorktreeConfiguration: true }];
 	override readonly onDidChangeSessionTypes = Event.None;
 	override readonly onDidChangeSessions = Event.None;
+	override readonly onDidMoveChat: Event<IChatMovedEvent> = Event.None;
 	override readonly browseActions = [];
 
 	constructor(private readonly _session: ISession) {
@@ -242,7 +243,7 @@ class TestSessionsProvider extends mock<ISessionsProvider>() {
 function createSessionsManagementService(
 	session: ISession,
 	disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>,
-	provider: ISessionsProvider | readonly ISessionsProvider[] | TestSessionsProvidersService = new TestSessionsProvider(session),
+	provider: ISessionsProvider | readonly ISessionsProvider[] | TestSessionsProvidersService | SessionsProvidersService = new TestSessionsProvider(session),
 	workspaceTrustManagementService = new TestWorkspaceTrustManagementService(),
 	workspaceTrustRequestService?: IWorkspaceTrustRequestService,
 	configurationService: IConfigurationService = new TestConfigurationService(),
@@ -255,7 +256,7 @@ function createSessionsManagementService(
 	instantiationService.stub(INotificationService, { error: message => notifications.push(message) });
 	const chatWidgetService = new TestChatWidgetService();
 	const chatService = disposables.add(new TestChatService());
-	const providersService = provider instanceof TestSessionsProvidersService ? provider : new TestSessionsProvidersService(Array.isArray(provider) ? provider : [provider]);
+	const providersService = provider instanceof TestSessionsProvidersService || provider instanceof SessionsProvidersService ? provider : new TestSessionsProvidersService(Array.isArray(provider) ? provider : [provider]);
 	const contextKeyService = disposables.add(new MockContextKeyService());
 	const customViewService = disposables.add(new CustomViewService(new NullLogService(), disposables.add(new InMemoryStorageService())));
 
@@ -796,6 +797,83 @@ suite('SessionsManagementService', () => {
 	});
 
 	suite('provider catalogue changes', () => {
+
+		for (const registerBeforeManagement of [true, false]) {
+			test(`routes existing environment sessions without advertising their backends (${registerBeforeManagement ? 'initial' : 'late'} registration)`, async () => {
+				const providers = disposables.add(new SessionsProvidersService());
+				const cloudSession = stubSession({ sessionId: 'cloud:draft', providerId: 'cloud' });
+				const workspace = upcastPartial<ISessionWorkspace>({ uri: URI.file('/repository') });
+				const cloud = new class extends TestSessionsProvider {
+					override readonly id = 'cloud';
+					override readonly supportsQuickChats = true;
+					override getSessions(): ISession[] { return []; }
+					override createQuickChat(): ISession { return cloudSession; }
+					override resolveWorkspace(): ISessionWorkspace { return workspace; }
+				}(cloudSession);
+				const ownerRegistration = disposables.add(providers.registerProvider(cloud));
+				const renamed: string[] = [];
+				const resolvedBy: string[] = [];
+				const sessions = ['first', 'second'].map(name => stubSession({
+					sessionId: `agenthost-${name}:opaque-session`,
+					providerId: `agenthost-${name}`,
+					resource: URI.parse(`remote-${name}:/opaque-session`),
+				}));
+				const backendChanges = disposables.add(new Emitter<ISessionChangeEvent>());
+				const registerBackends = () => {
+					for (const session of sessions) {
+						const backend = new class extends TestSessionsProvider {
+							override readonly id = session.providerId;
+							override readonly supportsQuickChats = true;
+							override readonly onDidChangeSessions = session === sessions[0] ? backendChanges.event : Event.None;
+							override resolveWorkspace(): ISessionWorkspace { return workspace; }
+							override async renameSession(sessionId: string): Promise<void> { renamed.push(sessionId); }
+							override async resolveSessionResource(resource: URI): Promise<URI | undefined> {
+								if (extUriBiasedIgnorePathCase.isEqual(resource, session.resource)) {
+									resolvedBy.push(this.id);
+									return resource;
+								}
+								return undefined;
+							}
+						}(session);
+						disposables.add(providers.registerSessionBackend(cloud.id, backend));
+					}
+				};
+				if (registerBeforeManagement) {
+					registerBackends();
+				}
+				const { service } = createSessionsManagementService(cloudSession, disposables, providers);
+				if (!registerBeforeManagement) {
+					registerBackends();
+				}
+				const changes: ISessionChangeEvent[] = [];
+				disposables.add(service.onDidChangeSessions(change => changes.push(change)));
+				backendChanges.fire({ added: [], removed: [], changed: [sessions[0]] });
+				for (const session of sessions) {
+					await service.renameSession(session, 'Renamed');
+				}
+				const listed = service.getSessions();
+				const targets = service.getQuickChatSessionTypes().map(type => type.providerId);
+				const allTargets = service.getAllProviderSessionTypes().map(type => type.providerId);
+				const folderTargets = service.getSessionTypesForFolder(workspace.uri).map(type => type.providerId);
+				const created = service.createQuickChat();
+				const resolved = await Promise.all(sessions.map(session => service.resolveSessionResource(session.resource)));
+				assert.throws(() => service.createQuickChat({ providerId: sessions[0].providerId }), /not found/);
+				assert.throws(() => service.createNewSession(workspace.uri, { providerId: sessions[0].providerId }), /not found/);
+				ownerRegistration.dispose();
+				assert.deepStrictEqual({
+					listed, targets, allTargets, folderTargets, created, resolved, resolvedBy, renamed,
+					changed: changes.flatMap(change => change.changed),
+					deleted: changes.flatMap(change => change.removed),
+					afterOwnerRemoval: service.getSessions(),
+				}, {
+					listed: sessions, targets: ['cloud'], allTargets: ['cloud'], folderTargets: ['cloud'], created: cloudSession,
+					resolved: sessions.map(session => session.resource),
+					resolvedBy: sessions.map(session => session.providerId),
+					renamed: sessions.map(session => session.sessionId),
+					changed: [sessions[0]], deleted: [], afterOwnerRemoval: [],
+				});
+			});
+		}
 
 		function createProvidersService(): TestSessionsProvidersService {
 			const providers: ISessionsProvider[] = [];
@@ -1341,6 +1419,41 @@ suite('SessionsManagementService', () => {
 		assert.deepStrictEqual({ resolved }, { resolved: true });
 	});
 
+	test('collapsing the grid preserves pending chat navigation in a loading session', async () => {
+		const loading = observableValue('loading', true);
+		const peer = { ...stubChat, resource: URI.parse('test:///target/peer') };
+		const staleA = stubSession({ sessionId: 'stale-a', providerId: 'test' });
+		const staleB = stubSession({ sessionId: 'stale-b', providerId: 'test' });
+		const target = stubSession({
+			sessionId: 'target',
+			providerId: 'test',
+			loading,
+			chats: constObservable([stubChat, peer]),
+		});
+		const provider = new class extends TestSessionsProvider {
+			override getSessions(): ISession[] { return [staleA, staleB, target]; }
+		}(staleA);
+		const { view } = createSessionsManagementService(staleA, disposables, provider);
+		await view.openSessionsInGrid([staleA, staleB]);
+
+		const openPromise = view.openChat(target, peer.resource);
+		await Promise.resolve();
+		view.collapseToSession(view.activeSession.get());
+
+		loading.set(false, undefined);
+		await openPromise;
+
+		assert.deepStrictEqual({
+			visible: view.visibleSessions.get().map(session => session?.sessionId),
+			active: view.activeSession.get()?.sessionId,
+			activeChat: view.activeSession.get()?.activeChat.get().resource.toString(),
+		}, {
+			visible: ['target'],
+			active: 'target',
+			activeChat: peer.resource.toString(),
+		});
+	});
+
 	suite('read state', () => {
 		function createReadStateSessions() {
 			const isRead = observableValue('isRead', false);
@@ -1452,6 +1565,55 @@ suite('SessionsManagementService', () => {
 				peerIsRead: true,
 				readChanges: [{ sessionId: 'multi-chat', chat: 'test:/main', isRead: true }],
 			});
+		});
+
+		test('batches multiple chat read changes when the provider supports it', async () => {
+			const first = { ...stubChat, resource: URI.parse('test:///first') };
+			const second = { ...stubChat, resource: URI.parse('test:///second') };
+			const session = stubSession({
+				sessionId: 'batch-read',
+				providerId: 'test',
+				chats: constObservable([first, second]),
+			});
+			const batches: { sessionId: string; chats: string[]; isRead: boolean }[] = [];
+			const provider = new class extends TestSessionsProvider {
+				override async setChatReadStates(sessionId: string, chatResources: readonly URI[], isRead: boolean): Promise<void> {
+					batches.push({ sessionId, chats: chatResources.map(resource => resource.toString()), isRead });
+				}
+			}(session);
+			const { service } = createSessionsManagementService(session, disposables, provider);
+
+			await service.markChatsRead(session, [first, second]);
+
+			assert.deepStrictEqual(batches, [{
+				sessionId: 'batch-read',
+				chats: ['test:/first', 'test:/second'],
+				isRead: true,
+			}]);
+		});
+
+		test('falls back to individual chat read changes when batching is unsupported', async () => {
+			const first = { ...stubChat, resource: URI.parse('test:///first') };
+			const second = { ...stubChat, resource: URI.parse('test:///second') };
+			const session = stubSession({
+				sessionId: 'individual-read',
+				providerId: 'test',
+				chats: constObservable([first, second]),
+			});
+			const changes: { sessionId: string; chat: string; isRead: boolean }[] = [];
+			const provider = new class extends TestSessionsProvider {
+				override async setChatReadState(sessionId: string, chatResource: URI, isRead: boolean): Promise<void> {
+					changes.push({ sessionId, chat: chatResource.toString(), isRead });
+				}
+			}(session);
+			const { service } = createSessionsManagementService(session, disposables, provider);
+
+			await service.markChatsRead(session, [first, second]);
+
+			assert.deepStrictEqual(changes, [
+				{ sessionId: 'individual-read', chat: 'test:/first', isRead: true },
+				{ sessionId: 'individual-read', chat: 'test:/second', isRead: true },
+			]);
 		});
 
 		test('retries marking the active chat read after provider loading completes', async () => {
@@ -6721,6 +6883,105 @@ suite('SessionsManagementService', () => {
 				afterSaveBeforeCatalog: main.resource.toString(),
 				afterCatalog: side.resource.toString(),
 			});
+		});
+	});
+
+	suite('chat moves', () => {
+
+		function chat(session: string, id: string): IChat {
+			return { ...stubChat, resource: URI.parse(`test:///${session}#${id}`), title: constObservable(id), status: constObservable(SessionStatus.Completed) };
+		}
+
+		function setup() {
+			const mainA = chat('A', 'main'), moved = chat('A', 'moved'), mainB = chat('B', 'main'), arrived = chat('B', 'moved');
+			const chatsA = observableValue<readonly IChat[]>('chatsA', [mainA, moved]);
+			const chatsB = observableValue<readonly IChat[]>('chatsB', [mainB]);
+			const sessionA = stubSession({ sessionId: 'A', providerId: 'test', title: constObservable('Session A'), chats: chatsA, mainChat: constObservable(mainA), capabilities: constObservable({ supportsMultipleChats: true }) });
+			const sessionB = stubSession({ sessionId: 'B', providerId: 'test', title: constObservable('Session B'), chats: chatsB, mainChat: constObservable(mainB), capabilities: constObservable({ supportsMultipleChats: true }) });
+			const onDidMoveChat = disposables.add(new Emitter<IChatMovedEvent>());
+			const sessionsChanged = disposables.add(new Emitter<ISessionChangeEvent>());
+			const sessions = [sessionA, sessionB];
+			const provider = new class extends TestSessionsProvider {
+				constructor() { super(sessionA); }
+				override readonly onDidMoveChat = onDidMoveChat.event;
+				override readonly onDidChangeSessions = sessionsChanged.event;
+				override getSessions(): ISession[] { return sessions; }
+			};
+			const { view } = createSessionsManagementService(sessionA, disposables, provider);
+			const move = (from: IChat, to: IChat) => {
+				chatsA.set(chatsA.get().filter(candidate => candidate !== from), undefined);
+				chatsB.set([...chatsB.get(), to], undefined);
+				onDidMoveChat.fire({ from: { session: sessionA, chat: from.resource }, to: { session: sessionB, chat: to.resource } });
+			};
+			// Session A ends by moving its only chat under B; its removal arrives before the move is paired.
+			const moveSession = () => {
+				const arrivedMain = chat('B', 'main-of-A');
+				sessions.splice(sessions.indexOf(sessionA), 1);
+				sessionsChanged.fire({ added: [], removed: [sessionA], changed: [] });
+				chatsB.set([...chatsB.get(), arrivedMain], undefined);
+				onDidMoveChat.fire({ from: { session: sessionA, chat: mainA.resource }, to: { session: sessionB, chat: arrivedMain.resource } });
+				return arrivedMain;
+			};
+			const fireMove = (from: IChat, to: IChat) => onDidMoveChat.fire({ from: { session: sessionA, chat: from.resource }, to: { session: sessionB, chat: to.resource } });
+			return { view, sessionA, sessionB, mainA, moved, arrived, move, moveSession, chatsA, chatsB, fireMove };
+		}
+
+		const shown = (view: SessionsService) => ({
+			session: view.activeSession.get()?.sessionId,
+			chat: view.activeSession.get()?.activeChat.get().resource.toString(),
+			visible: view.visibleSessions.get().map(session => session?.sessionId),
+		});
+
+		test('the slot showing a chat that moved shows its new session with the chat active, also after falling back', async () => {
+			const { view, sessionA, moved, arrived, move } = setup();
+			await view.openSession(sessionA.resource);
+			await view.openChat(sessionA, moved.resource);
+
+			move(moved, arrived);
+			await timeout(0);
+
+			assert.deepStrictEqual(shown(view), { session: 'B', chat: arrived.resource.toString(), visible: ['B'] });
+		});
+
+		test('a session that ended by moving its shown chat under another session leaves its slot to that session, though its removal came first', async () => {
+			const { view, sessionA, mainA, moveSession } = setup();
+			await view.openSession(sessionA.resource);
+			await view.openChat(sessionA, mainA.resource);
+
+			const arrivedMain = moveSession();
+			await timeout(0);
+
+			assert.deepStrictEqual(shown(view), { session: 'B', chat: arrivedMain.resource.toString(), visible: ['B'] });
+		});
+
+		test('a chat chosen after the view fell back from a chat stays shown when that chat\'s move is known later', async () => {
+			const { view, sessionA, mainA, moved, arrived, chatsA, chatsB, fireMove } = setup();
+			const side = chat('A', 'side');
+			chatsA.set([mainA, side, moved], undefined);
+			await view.openSession(sessionA.resource);
+			await view.openChat(sessionA, moved.resource);
+
+			// The source drops the chat first: the view falls back; then the user picks another chat, and the fallback again.
+			chatsA.set([mainA, side], undefined);
+			const fallback = view.activeSession.get()!.activeChat.get();
+			await view.openChat(sessionA, (fallback.resource.toString() === side.resource.toString() ? mainA : side).resource);
+			await view.openChat(sessionA, fallback.resource);
+			chatsB.set([...chatsB.get(), arrived], undefined);
+			fireMove(moved, arrived);
+			await timeout(0);
+
+			assert.deepStrictEqual(shown(view), { session: 'A', chat: fallback.resource.toString(), visible: ['A'] });
+		});
+
+		test('a chat that moved while another chat was shown changes nothing', async () => {
+			const { view, sessionA, mainA, moved, arrived, move } = setup();
+			await view.openSession(sessionA.resource);
+			await view.openChat(sessionA, mainA.resource);
+
+			move(moved, arrived);
+			await timeout(0);
+
+			assert.deepStrictEqual(shown(view), { session: 'A', chat: mainA.resource.toString(), visible: ['A'] });
 		});
 	});
 

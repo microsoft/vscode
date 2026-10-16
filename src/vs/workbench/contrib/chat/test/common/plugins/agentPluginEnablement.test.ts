@@ -17,6 +17,33 @@ import { IMarketplacePlugin, MarketplaceType, parseMarketplaceReference, PluginS
 suite('AgentPlugin enablement', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('layers stored decisions over discovered defaults', () => {
+		const service = store.add(new AgentPluginEnablementService(store.add(new InMemoryStorageService())));
+		const plugin = URI.file('/plugins/copilot-cli').toString();
+
+		service.setDefaultEnabled(plugin, false);
+		const disabledByDefault = service.readEnabled(plugin);
+		service.setEnabled(plugin, ContributionEnablementState.EnabledWorkspace);
+		service.setDefaultEnabled(plugin, true);
+		const workspaceOverride = service.readEnabled(plugin);
+		service.setDefaultEnabled(plugin, false);
+		const workspaceOverrideAfterDefaultChange = service.readEnabled(plugin);
+		service.setEnabled(plugin, ContributionEnablementState.EnabledProfile);
+		const profileOverride = service.readEnabled(plugin);
+
+		assert.deepStrictEqual({
+			disabledByDefault,
+			workspaceOverride,
+			workspaceOverrideAfterDefaultChange,
+			profileOverride,
+		}, {
+			disabledByDefault: ContributionEnablementState.DisabledProfile,
+			workspaceOverride: ContributionEnablementState.EnabledWorkspace,
+			workspaceOverrideAfterDefaultChange: ContributionEnablementState.EnabledWorkspace,
+			profileOverride: ContributionEnablementState.EnabledProfile,
+		});
+	});
+
 	test('preserves another workspace override through multiple updates and reopening', () => {
 		const storageA = store.add(new InMemoryStorageService());
 		const storageB = store.add(new InMemoryStorageService());

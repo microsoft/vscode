@@ -19,7 +19,7 @@ import { localize } from '../../../../../nls.js';
 import { AgentSession, IAgentConnection, IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
 import { agentHostAuthority, fromAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
-import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME, isCloudSandboxPlaceholderTitle } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -29,6 +29,7 @@ import { IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } 
 import { getAgentHostSessionResource } from '../../common/constants.js';
 import { AgentHostSessionListController } from '../agentSessions/agentHost/agentHostSessionListController.js';
 import { AgentHostSessionListStore } from '../agentSessions/agentHost/agentHostSessionListStore.js';
+import { RequestedWorkingDirectory } from '../agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { ICloudSandboxSessionList } from './cloudSandboxSessionContribution.js';
 import { IRemoteAgentHostAuthenticationService } from './remoteAgentHostAuthentication.js';
 
@@ -48,6 +49,10 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 	private readonly _items: IObservable<readonly IChatSessionItem[]>;
 	private readonly _archivedStates = observableValue<ReadonlyMap<string, boolean>>(this, new Map());
 	private readonly _archiveSequencer = new Sequencer();
+	/** Repository requested for sessions this window provisioned, keyed by raw session id. */
+	private readonly _provisionalRepositories = new Map<string, string | undefined>();
+	/** Configuration chosen on the draft of a session this window provisioned, keyed by raw session id. */
+	private readonly _provisionalSessionConfigs = new Map<string, Record<string, unknown>>();
 
 	constructor(
 		address: string,
@@ -65,7 +70,7 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 		this.sessionType = remoteAgentHostSessionTypeId(authority, CLOUD_SANDBOX_AGENT_PROVIDER);
 		this._sessionListStore = this._register(instantiationService.createInstance(AgentHostSessionListStore, {
 			onDidNotification: this._notifications.event,
-			listSessions: () => this._requireConnection().listSessions(),
+			listSessions: async () => (await this._requireConnection().listSessions()).map(session => this._withListedTitle(session)),
 			disposeChat: chat => this._requireConnection().disposeChat(chat),
 			disposeSession: session => this._requireConnection().disposeSession(session),
 			dispatch: (channel, action) => this._requireConnection().dispatch(channel, action),
@@ -148,15 +153,100 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 		});
 	}
 
+	seedProvisionalSession(metadata: IAgentSessionMetadata): void {
+		const rawId = AgentSession.id(metadata.session);
+		const project = metadata.project ? getGitHubRepositoryFromRemoteUrl(metadata.project.uri.toString(), ['github.com']) : undefined;
+		this._provisionalRepositories.set(rawId, project ? `${project.owner}/${project.repo}` : undefined);
+		this._sessionListStore.addPendingNewSession(CLOUD_SANDBOX_AGENT_PROVIDER, URI.from({ scheme: this.sessionType, path: `/${rawId}` }));
+		this.seedSessions([metadata]);
+		this._sessionListStore.seedSessions([metadata]);
+	}
+
+	publishWithheldSession(rawId: string): void {
+		// The editor lists provisioned sessions immediately; only forget the creation intent.
+		this._provisionalRepositories.delete(rawId);
+		this._provisionalSessionConfigs.delete(rawId);
+	}
+
+	/** Record the draft's configuration for a session seeded by {@link seedProvisionalSession}. */
+	setProvisionalSessionConfig(rawId: string, config: Record<string, unknown>): void {
+		if (Object.keys(config).length > 0) {
+			this._provisionalSessionConfigs.set(rawId, config);
+		}
+	}
+
+	getProvisionalSessionConfig(resource: URI): Record<string, unknown> | undefined {
+		return this.isNewSession(resource) ? this._provisionalSessionConfigs.get(AgentSession.id(resource)) : undefined;
+	}
+
+	isNewSession(resource: URI): boolean {
+		return this._controller.isNewSession(resource);
+	}
+
+	notifySessionMaterialized(resource: URI): void {
+		const rawId = AgentSession.id(resource);
+		this._provisionalRepositories.delete(rawId);
+		this._provisionalSessionConfigs.delete(rawId);
+		this._controller.notifySessionMaterialized(resource);
+	}
+
 	setConnection(connection: IAgentConnection): void {
 		if (this._connection.get() === connection && RemoteAgentHostConnectionStatus.isConnected(this.connectionStatus.get())) {
 			return;
 		}
 		const store = new DisposableStore();
 		this._connectionStore.value = store;
-		store.add(connection.onDidNotification(notification => this._notifications.fire(notification)));
+		store.add(connection.onDidNotification(notification => this._notifications.fire(this._withListedNotificationTitle(notification))));
 		this._connection.set(connection, undefined);
 		void this.refresh(CancellationToken.None);
+	}
+
+	private _listedTitle(session: URI | string): string | undefined {
+		return this._sessionListStore.getSession(CLOUD_SANDBOX_AGENT_PROVIDER, typeof session === 'string' ? URI.parse(session) : session)?.summary.title;
+	}
+
+	/** A placeholder title keeps the label the list already shows. */
+	private _withListedTitle(session: IAgentSessionMetadata): IAgentSessionMetadata {
+		if (!isCloudSandboxPlaceholderTitle(session.summary, session.session) && !session.chats?.some(chat => isCloudSandboxPlaceholderTitle(chat.summary, session.session))) {
+			return session;
+		}
+		return {
+			...session,
+			summary: isCloudSandboxPlaceholderTitle(session.summary, session.session) ? this._listedTitle(session.session) : session.summary,
+			chats: session.chats?.map(chat => isCloudSandboxPlaceholderTitle(chat.summary, session.session) ? { ...chat, summary: undefined } : chat),
+		};
+	}
+
+	private _withListedNotificationTitle(notification: INotification): INotification {
+		if (notification.type === 'root/sessionAdded') {
+			const session = notification.summary.resource;
+			if (!isCloudSandboxPlaceholderTitle(notification.summary.title, session) && !notification.summary.chats?.some(chat => isCloudSandboxPlaceholderTitle(chat.title, session))) {
+				return notification;
+			}
+			return {
+				...notification,
+				summary: {
+					...notification.summary,
+					title: isCloudSandboxPlaceholderTitle(notification.summary.title, session) ? this._listedTitle(session) ?? notification.summary.title : notification.summary.title,
+					chats: notification.summary.chats?.map(chat => isCloudSandboxPlaceholderTitle(chat.title, session) ? { ...chat, title: '' } : chat),
+				},
+			};
+		}
+		if (notification.type === 'root/sessionSummaryChanged') {
+			const { title, chats, ...rest } = notification.changes;
+			if (!isCloudSandboxPlaceholderTitle(title, notification.session) && !chats?.some(chat => isCloudSandboxPlaceholderTitle(chat.title, notification.session))) {
+				return notification;
+			}
+			return {
+				...notification,
+				changes: {
+					...rest,
+					...(title !== undefined && !isCloudSandboxPlaceholderTitle(title, notification.session) ? { title } : {}),
+					...(chats ? { chats: chats.map(chat => isCloudSandboxPlaceholderTitle(chat.title, notification.session) ? { ...chat, title: '' } : chat) } : {}),
+				},
+			};
+		}
+		return notification;
 	}
 
 	setConnectionStatus(status: RemoteAgentHostConnectionStatus): void {
@@ -167,7 +257,15 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 		}
 	}
 
-	resolveWorkingDirectory(resource: URI): URI | undefined {
+	resolveWorkingDirectory(resource: URI): RequestedWorkingDirectory {
+		const rawId = AgentSession.id(resource);
+		if (this.isNewSession(resource) && this._provisionalRepositories.has(rawId)) {
+			// Session preparation clones the requested repository and yields its host directory.
+			// A workspaceless sandbox explicitly leaves the choice to the host so a local
+			// workspace folder is never substituted.
+			const repoNwo = this._provisionalRepositories.get(rawId);
+			return repoNwo ? URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${repoNwo}` }) : null;
+		}
 		const entries = this._sessionListStore.getSessions(CLOUD_SANDBOX_AGENT_PROVIDER);
 		const findEntry = (parent: URI) => entries.find(entry => isEqual(this._sessionListStore.getSessionResource(URI.parse(entry.summary.resource)), parent));
 		const entry = findEntry(resource.with({ fragment: '' })) ?? findEntry(getAgentHostSessionResource(resource));

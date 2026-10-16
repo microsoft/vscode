@@ -6,7 +6,8 @@
 import { Promises, raceTimeout } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
-import { type AgentProvider, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, type IAgentCustomizationInstallation, type IAgentCustomizationInstallationRequest, type IAgentCustomizationInstallationReview, type IAgentCustomizationMarketplaceSearchRequest, type IAgentCustomizationMarketplaceSearchResult, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest } from '../common/agent.js';
+import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
+import { type AgentProvider, type IAgentCanvasCloseRequest, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, type IAgentCustomizationInstallation, type IAgentCustomizationInstallationRequest, type IAgentCustomizationInstallationReview, type IAgentCustomizationMarketplaceSearchRequest, type IAgentCustomizationMarketplaceSearchResult, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest } from '../common/agent.js';
 import { IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostManagementService, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, type IMissionControlOptions, type IMissionControlCredentialSealingRequest } from '../common/agentService.js';
 import { sealMissionControlCredential } from './missionControl/missionControlAuthentication.js';
 import { MissionControlEnvironment } from './missionControl/missionControlEnvironment.js';
@@ -97,11 +98,11 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._runMutation(() => this._agentService.reconcileDetachedWorktrees!(scope, activeHandles));
 	}
 
-	refreshCopilotConnectorSessions(): Promise<void> {
+	refreshCopilotConnectorSessions(forceConnectorName?: string): Promise<void> {
 		if (!this._agentService.refreshCopilotConnectorSessions) {
 			throw new Error('Copilot Connector session refresh is unavailable');
 		}
-		return this._runMutation(() => this._agentService.refreshCopilotConnectorSessions!());
+		return this._runMutation(() => this._agentService.refreshCopilotConnectorSessions!(forceConnectorName));
 	}
 
 	uninstallPlugin(provider: AgentProvider, request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void> {
@@ -123,6 +124,13 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 			throw new Error('Opening Copilot canvases is unavailable');
 		}
 		return this._runMutation(() => this._agentService.openSessionCanvas!(session, request, chat));
+	}
+
+	closeSessionCanvas(session: URI, request: IAgentCanvasCloseRequest, chat: URI): Promise<void> {
+		if (!this._agentService.closeSessionCanvas) {
+			throw new Error('Closing Copilot canvases is unavailable');
+		}
+		return this._runMutation(() => this._agentService.closeSessionCanvas!(session, request, chat));
 	}
 
 	installPlugin(provider: AgentProvider, request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void> {
@@ -200,6 +208,13 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 			throw new Error('Agent Host customization installation recovery is unavailable');
 		}
 		return this._runMutation(() => this._agentService.recoverCustomizationInstallations!(provider, session));
+	}
+
+	addMcpServerConfiguration(provider: AgentProvider, name: string, config: IMcpServerConfiguration): Promise<void> {
+		if (!this._agentService.addMcpServerConfiguration) {
+			throw new Error('Agent Host MCP server configuration is unavailable');
+		}
+		return this._runMutation(() => this._agentService.addMcpServerConfiguration!(provider, name, config));
 	}
 
 	shutdown(): Promise<void> {

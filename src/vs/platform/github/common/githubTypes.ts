@@ -63,7 +63,6 @@ export class GitHubRequestRateLimitError extends GitHubRequestError {
 export interface GitHubHostCapabilities {
 	readonly graphql: boolean;
 	readonly mergeQueue: boolean;
-	readonly internalMergeStatus: boolean;
 	readonly reviewThreads: boolean;
 	readonly checkContextRequiredness: boolean;
 }
@@ -118,13 +117,6 @@ export interface GitHubClientOptions {
 	readonly missionControl?: MissionControlClientOptions;
 }
 
-/** Trusted API base for public reads; callers cannot override authentication or network execution. */
-export interface GitHubAnonymousClientOptions {
-	readonly apiBaseUri: string;
-	/** Raw-content base; GitHub.com has a default, while other hosts must supply it for file reads. */
-	readonly rawBaseUri?: string;
-}
-
 /** Internal, read-only bootstrap capability; account provenance affects quota accounting, not authorization. */
 export interface GitHubBootstrapClientOptions {
 	readonly apiBaseUri: string;
@@ -141,6 +133,8 @@ export interface GitHubCredentialChange {
 /** Implemented by the host's authentication binding; token access must be silent and context-specific. */
 export interface IGitHubCredentialProvider {
 	readonly onDidChange: Event<GitHubCredentialChange>;
+	/** A new token for the same grant invalidates the generation, not its client leases. */
+	readonly onDidChangeToken?: Event<GitHubCredentialChange>;
 	getToken(context: GitHubAuthorizationContext, signal: AbortSignal): string | undefined | Promise<string | undefined>;
 	invalidateToken?(context: GitHubAuthorizationContext, token: string): void;
 }

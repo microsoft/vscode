@@ -688,7 +688,6 @@ function readySnapshot(checks: readonly PullRequestCheck[], headSha = 'head'): P
 		},
 		topLevelComments: { status: 'ready', complete: true, value: [] },
 		submittedReviews: { status: 'ready', complete: true, value: [] },
-		inlineComments: { status: 'missing', complete: false },
 		reviewThreads: { status: 'ready', complete: true, headSha, value: [] },
 		checks: {
 			status: 'ready',
@@ -714,6 +713,5 @@ function readySnapshot(checks: readonly PullRequestCheck[], headSha = 'head'): P
 				queueRequirementKnown: true,
 			},
 		},
-		participants: { status: 'missing', complete: false },
 	};
 }

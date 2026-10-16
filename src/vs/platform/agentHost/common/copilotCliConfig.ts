@@ -34,6 +34,8 @@ export const enum CopilotCliConfigKey {
 	EnableCustomTerminalTool = 'enableCustomTerminalTool',
 	/** Apply the shell init script a client published for a session to SDK shell commands. Off by default. */
 	EnableShellInitScript = 'enableShellInitScript',
+	/** Enable native Sunburst image generation and editing. */
+	ImageGeneration = 'imageGeneration',
 	/** Log level passed to the Copilot SDK client. */
 	CopilotSdkLogLevel = 'copilotSdkLogLevel',
 	/** Explicit local Copilot runtime executable path. Empty uses the bundled runtime. */
@@ -60,10 +62,12 @@ export const enum CopilotCliConfigKey {
 	HydraFusion = 'hydraFusion',
 	/** Use HydraFusion v2. Off by default; requires {@link HydraFusion}. */
 	HydraFusionV2 = 'hydraFusionV2',
-	/** Present Auto as Ensemble, with Balance, High (the Intelligence tier), and Max. Off by default. */
-	Ensemble = 'ensemble',
-	/** With {@link Ensemble}, Ensemble's Intelligence uses HydraFusion. Off by default. */
-	EnsembleIntelligenceUsesHydraFusion = 'ensembleIntelligenceUsesHydraFusion',
+	/** Ask CAPI to keep a conversation's HydraFusion root model across turns. Set by the `'multiRoot'` HydraFusion setting value; requires {@link HydraFusionV2}. */
+	HydraFusionMultiRoot = 'hydraFusionMultiRoot',
+	/** Present Auto as Fusion, with Lite, Balance, and Max. Off by default. */
+	Fusion = 'fusion',
+	/** With {@link Fusion}, Fusion's Balance uses HydraFusion. Off by default. */
+	FusionBalanceUsesHydraFusion = 'fusionBalanceUsesHydraFusion',
 	/** Enable Copilot Memory for Copilot SDK sessions. Off by default. */
 	Memory = 'memory',
 	/** Store Copilot Memory in the repository instead of GitHub's cloud memory service. Off by default; requires {@link Memory}. */
@@ -102,6 +106,11 @@ export const CopilotClaudeAdvisorEnabledSettingId = 'chat.copilot.claudeAdvisor.
 export const CopilotTgrepEnabledSettingId = 'chat.copilot.tgrep.enabled';
 
 export const CopilotSearchSubagentEnabledSettingId = 'chat.copilot.searchSubagent.enabled';
+export const CopilotImageGenerationEnabledSettingId = 'chat.copilot.imageGeneration.enabled';
+
+export function isImageGenerationEnabledByDefault(quality: string | undefined): boolean {
+	return quality === 'insider';
+}
 
 export const CopilotLocalIndexEnabledSettingId = 'github.copilot.chat.localIndex.enabled';
 
@@ -115,10 +124,13 @@ export const AgentHostToolSearchDeferThresholdSettingId = 'chat.agentHost.copilo
 
 export const AgentHostHydraFusionEnabledSettingId = 'chat.copilot.hydraFusion.enabled';
 
-/** `true` enables HydraFusion (v1) and `'v2'` enables HydraFusion v2; experiments assign either value. */
-export type AgentHostHydraFusionSettingValue = boolean | 'v2';
-export const AgentHostEnsembleEnabledSettingId = 'chat.copilot.ensemble.enabled';
-export const AgentHostEnsembleIntelligenceUsesHydraFusionSettingId = 'chat.copilot.ensemble.intelligenceUsesHydraFusion';
+/**
+ * `true` enables HydraFusion (v1), `'v2'` enables HydraFusion v2, and `'multiRoot'` enables v2 plus the
+ * sticky-root hint that lets CAPI keep a conversation's root model across turns. Experiments assign any value.
+ */
+export type AgentHostHydraFusionSettingValue = boolean | 'v2' | 'multiRoot';
+export const AgentHostFusionEnabledSettingId = 'chat.copilot.ensemble.enabled';
+export const AgentHostFusionBalanceUsesHydraFusionSettingId = 'chat.copilot.ensemble.intelligenceUsesHydraFusion';
 
 export const AgentHostCopilotMemoryEnabledSettingId = 'chat.copilot.memory.enabled';
 
@@ -128,7 +140,6 @@ export const CopilotSkillCharBudgetSettingId = 'chat.copilot.skillCharBudget';
 
 export const CopilotAutoModeTierOverrideSettingId = 'github.copilot.chat.autoModeTierOverride';
 
-export const AgentHostModelCapabilityOverridesSettingId = 'chat.agentHost.modelCapabilityOverrides';
 export const AgentHostCopilotModelCapabilityOverridesSettingId = 'chat.agentHost.copilot.modelCapabilityOverrides';
 
 export const copilotSdkLogLevelSettingValues = ['info', 'trace'] as const;
@@ -151,7 +162,7 @@ export function normalizeToolSearchDeferThreshold(value: number | undefined): nu
 export interface ICopilotCliModelCapabilityOverride {
 	/** Family alias (e.g. `"claude-opus-4.8"`) for prompt and tool-capability routing. */
 	readonly family?: string;
-	/** Wins over the model picker's thinking level; unrecognized values are ignored. */
+	/** Wins over the model picker's effort level; unrecognized values are ignored. */
 	readonly reasoningEffort?: string;
 	/** SDK tool allowlist (pattern syntax, e.g. `builtin:*`, `mcp:<name>`, or bare names). */
 	readonly availableTools?: readonly string[];
@@ -200,6 +211,11 @@ export function resolveModelCapabilityOverrideField<K extends keyof ICopilotCliM
 }
 
 export const copilotCliConfigSchema = createSchema({
+	[CopilotCliConfigKey.ImageGeneration]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.imageGenerationEnabled.title', "Image Generation"),
+		description: localize('agentHost.config.imageGenerationEnabled.description', "Enable image generation and editing with **GPT Image 2.5 Sunburst** when available to your account. Prompts and selected images are sent to Sunburst. Account access and tool permissions still apply.\n\n**Sunburst preview rates (AI credits per 1 million tokens):**\n- **Text tokens:** 500 input / 0 output\n- **Image tokens:** 800 input / 3,000 output\n\nThese charges are in addition to the conversation model. Rates may change; these are token rates, not per-image prices. Disabling this setting prevents future image tool calls."),
+	}),
 	[CopilotCliConfigKey.EnableCustomTerminalTool]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.enableCustomTerminalTool.title', "Use Agent Host Terminal Tool"),
@@ -295,16 +311,22 @@ export const copilotCliConfigSchema = createSchema({
 		description: localize('agentHost.config.hydraFusionV2.description', "When enabled together with HydraFusion, Copilot SDK sessions use HydraFusion v2."),
 		default: false,
 	}),
-	[CopilotCliConfigKey.Ensemble]: schemaProperty<boolean>({
+	[CopilotCliConfigKey.HydraFusionMultiRoot]: schemaProperty<boolean>({
 		type: 'boolean',
-		title: localize('agentHost.config.ensemble.title', "Ensemble"),
-		description: localize('agentHost.config.ensemble.description', "When enabled, Auto is presented as Ensemble, optimizing for Balance, High, or Max."),
+		title: localize('agentHost.config.hydraFusionMultiRoot.title', "HydraFusion Multi-Root"),
+		description: localize('agentHost.config.hydraFusionMultiRoot.description', "When enabled together with HydraFusion v2, Copilot SDK sessions ask the service to keep reusing the previous turn's root model when it fits the next turn's workflow."),
 		default: false,
 	}),
-	[CopilotCliConfigKey.EnsembleIntelligenceUsesHydraFusion]: schemaProperty<boolean>({
+	[CopilotCliConfigKey.Fusion]: schemaProperty<boolean>({
 		type: 'boolean',
-		title: localize('agentHost.config.ensembleIntelligenceUsesHydraFusion.title', "Ensemble High Uses HydraFusion"),
-		description: localize('agentHost.config.ensembleIntelligenceUsesHydraFusion.description', "When enabled together with Ensemble and HydraFusion, Ensemble's High tier uses HydraFusion."),
+		title: localize('agentHost.config.fusion.title', "Fusion"),
+		description: localize('agentHost.config.fusion.description', "When enabled, Auto is presented as Fusion, optimizing for Lite, Balance, or Max."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.FusionBalanceUsesHydraFusion]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.fusionBalanceUsesHydraFusion.title', "Fusion Balance Uses HydraFusion"),
+		description: localize('agentHost.config.fusionBalanceUsesHydraFusion.description', "When enabled together with Fusion and HydraFusion, Fusion's Balance tier uses HydraFusion."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.Memory]: schemaProperty<boolean>({
@@ -349,7 +371,7 @@ export const copilotCliConfigSchema = createSchema({
 					type: 'string',
 					enum: [...reasoningEffortLevels],
 					title: localize('agentHost.config.modelCapabilityOverrides.reasoningEffort.title', "Reasoning Effort"),
-					description: localize('agentHost.config.modelCapabilityOverrides.reasoningEffort.description', "Reasoning effort for sessions on this model; overrides the model picker's thinking level. Unrecognized values are ignored."),
+					description: localize('agentHost.config.modelCapabilityOverrides.reasoningEffort.description', "Reasoning effort for sessions on this model; overrides the model picker's effort level. Unrecognized values are ignored."),
 				},
 				availableTools: {
 					type: 'array',

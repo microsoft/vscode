@@ -39,6 +39,7 @@ suite('Markdown editor bridge', () => {
 			const reveals: Parameters<MarkdownEditorRenderer['revealRange']>[0][] = [];
 			let updated: (() => void) | undefined;
 			renderer.register(markdownEditorRenderer, {
+				readClipboardMedia: () => ({ base64: '' }),
 				diagnosticsChanged: () => { },
 				update: update => { updates.push(update); updated?.(); },
 				codeBlockEditorProviders: () => { },

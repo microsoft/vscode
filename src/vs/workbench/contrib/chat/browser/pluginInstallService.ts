@@ -671,19 +671,11 @@ export class PluginInstallService implements IPluginInstallService {
 			return true;
 		}
 
-		// Under the strict-marketplace enterprise policy, a marketplace that is not
-		// on the allowlist is blocked outright — the user cannot grant trust to
-		// bypass it. Surface a non-actionable enterprise-policy notification that
-		// points at the managed setting (shown as "Managed by organization").
+		// Managed restrictions cannot be bypassed by granting user trust.
 		if (this._pluginMarketplaceService.isStrictMarketplacePolicyActive()) {
 			this._notificationService.notify({
 				severity: Severity.Warning,
 				message: localize('strictMarketplaceBlockedInstall', "Plugins from '{0}' are blocked by your organization's policy.", reference.displayLabel),
-				actions: {
-					primary: [new Action('chat.plugins.viewMarketplacePolicy', localize('viewPolicySettings', "View Policy Settings"), undefined, true, () => {
-						return this._commandService.executeCommand('workbench.action.openSettings', ChatConfiguration.StrictMarketplaces);
-					})],
-				},
 			});
 			return false;
 		}

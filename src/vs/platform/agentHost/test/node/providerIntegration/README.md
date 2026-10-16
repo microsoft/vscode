@@ -6,6 +6,8 @@ These are distinct from `../e2e/`, whose prioritized cross-provider suites repla
 
 Every real provider process must use a temporary home through `createIsolatedProviderEnvironment` or the required `homeDir` option of `startRealServer`. This keeps provider configuration, logs, and sessions out of the developer's real home directory.
 
+`copilotConnectors.integrationTest.ts` exercises the production Connector reconciliation helper against the bundled SDK, a local synthetic GitHub/Connector catalog, and HTTPS MCP servers. It verifies session identity, tool inventory, ordinary no-force refresh, targeted replacement, unrelated server initialization counts, membership removal/addition, and the stopped-server safety guard. No model or live Connector service is used. The test requires OpenSSL on `PATH` to generate short-lived loopback TLS certificates in its temporary home, trusted only by the isolated runtime; certificates and keys are removed during teardown. New lifecycle tests require cross-platform Azure validation before merge.
+
 Run one suite with:
 
 ```bash

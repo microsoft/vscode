@@ -41,7 +41,7 @@ import { getPreferredSpeedVariant, IModelSpeedVariants } from './modelPickerVari
 import { getModelBadge, getOrganizationDefaultDescription, organizationDefaultLabel } from './modelPickerBadges.js';
 import { createModelAction, createUnavailableModelItem, getUnavailableReason, requiresNewerVSCode } from './modelPickerItemPrimitives.js';
 import { getModelPickerAccessibilityProvider, getModelPickerControlModels } from './modelPickerItems.js';
-import { filterModelPickerControlModelsForEntitlement, filterModelPickerModelsForEntitlement, getEnsembleTierLabel, getHydraFusionTierLabel, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly } from './modelPickerPresentation.js';
+import { filterModelPickerControlModelsForEntitlement, filterModelPickerModelsForEntitlement, getFusionTierLabel, getHydraFusionTierLabel, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly } from './modelPickerPresentation.js';
 import { buildModelPickerDestinations, buildModelPickerSections, getModelProviderLabel, hasPromotedModels, IModelPickerDestination, IModelPickerProviderPlaceholder, IModelPickerSections, IModelPickerUnavailableEntry, MODEL_PICKER_BUILT_IN_DESTINATION, MODEL_PICKER_ON_DEVICE_DESTINATION } from './modelPickerTabs.js';
 import { ModelPickerWelcome } from './modelPickerWelcome.js';
 import { createMessageBanner, HYDRA_FUSION_LEARN_MORE_URL } from './modelPickerHover.js';
@@ -499,13 +499,13 @@ export class TabbedModelPicker extends Disposable {
 	private _buildDestinations(context: ITabbedModelPickerContext): IModelPickerDestination[] {
 		const autoModel = this._autoModel(context);
 		const hydraFusionModels = this._hydraFusionModels(context);
-		// Ensemble's HydraFusion is never a row of its own, even when Ensemble does not offer it.
-		const ensembleHydraFusion = (model: ILanguageModelChatMetadataAndIdentifier) => !!autoModel?.metadata.autoModelEnsemble && isHydraFusionModel(model) && !isUserProvidedModel(model, this._languageModelsService);
+		// Fusion's HydraFusion is never a row of its own, even when Fusion does not offer it.
+		const fusionHydraFusion = (model: ILanguageModelChatMetadataAndIdentifier) => !!autoModel?.metadata.autoModelFusion && isHydraFusionModel(model) && !isUserProvidedModel(model, this._languageModelsService);
 		// On-device direct models are listed only in the "On This Device" tab, never under a provider of their own or among
 		// the cloud models (even while status is unavailable), and comparisons don't offer them.
 		const localModels = context.localModels;
 		const models = context.models.filter(model => !isLocalModelDirectRow(model) && !localModels?.getDirectModel(model));
-		const destinations = buildModelPickerDestinations(models, this._languageModelsService, context.providerPlaceholders, model => model === autoModel || hydraFusionModels.includes(model) || ensembleHydraFusion(model), this._hasBuiltInUpsells(context));
+		const destinations = buildModelPickerDestinations(models, this._languageModelsService, context.providerPlaceholders, model => model === autoModel || hydraFusionModels.includes(model) || fusionHydraFusion(model), this._hasBuiltInUpsells(context));
 		if (this._showsOnDeviceTab(context)) {
 			destinations.splice(destinations[0]?.id === MODEL_PICKER_BUILT_IN_DESTINATION ? 1 : 0, 0, {
 				id: MODEL_PICKER_ON_DEVICE_DESTINATION,
@@ -545,13 +545,13 @@ export class TabbedModelPicker extends Disposable {
 
 	/**
 	 * The HydraFusion routing models this build can run, HydraFusion before HydraFusion Max.
-	 * The host only offers HydraFusion Max with HydraFusion v2, and Ensemble only offers
-	 * HydraFusion as its Intelligence.
+	 * The host only offers HydraFusion Max with HydraFusion v2, and Fusion only offers
+	 * HydraFusion as its Balance.
 	 */
 	private _hydraFusionModels(context: ITabbedModelPickerContext): ILanguageModelChatMetadataAndIdentifier[] {
-		const ensemble = this._autoModel(context)?.metadata.autoModelEnsemble;
+		const fusion = this._autoModel(context)?.metadata.autoModelFusion;
 		return [...COPILOT_HYDRA_FUSION_MODEL_NAMES.keys()]
-			.filter(id => id !== COPILOT_HYDRA_FUSION_MODEL_ID || !ensemble || ensemble.intelligenceUsesHydraFusion)
+			.filter(id => id !== COPILOT_HYDRA_FUSION_MODEL_ID || !fusion || fusion.balanceUsesHydraFusion)
 			.map(id => context.models.find(model => model.metadata.id === id && isHydraFusionModel(model) && !isUserProvidedModel(model, this._languageModelsService) && !requiresNewerVSCode(model, context.controlModels, context.unavailableContext.currentVSCodeVersion)))
 			.filter((model): model is ILanguageModelChatMetadataAndIdentifier => !!model);
 	}
@@ -569,20 +569,20 @@ export class TabbedModelPicker extends Disposable {
 	}
 
 	/**
-	 * Whether HydraFusion is offered among Ensemble's tiers, which needs an Ensemble with
+	 * Whether HydraFusion is offered among Fusion's tiers, which needs a Fusion with
 	 * tiers to join. Otherwise HydraFusion keeps a row of its own beside Auto.
 	 */
 	private _hostsHydraFusion(context: ITabbedModelPickerContext): boolean {
 		const auto = this._autoModel(context);
-		return !!auto?.metadata.autoModelEnsemble && this._hydraFusionModels(context).length > 0 && !!getModelConfigProperty(auto, context.configurationAccess, MODEL_CONFIG_GROUP_EFFORT);
+		return !!auto?.metadata.autoModelFusion && this._hydraFusionModels(context).length > 0 && !!getModelConfigProperty(auto, context.configurationAccess, MODEL_CONFIG_GROUP_EFFORT);
 	}
 
 	/**
-	 * HydraFusion's own tiers outside Ensemble, Default before Max. HydraFusion and
+	 * HydraFusion's own tiers outside Fusion, Default before Max. HydraFusion and
 	 * HydraFusion Max then share one row, and its details choose between them.
 	 */
 	private _hydraFusionTiers(context: ITabbedModelPickerContext): ILanguageModelChatMetadataAndIdentifier[] {
-		if (this._autoModel(context)?.metadata.autoModelEnsemble) {
+		if (this._autoModel(context)?.metadata.autoModelFusion) {
 			return [];
 		}
 		const models = this._hydraFusionModels(context);
@@ -606,14 +606,14 @@ export class TabbedModelPicker extends Disposable {
 	}
 
 	private _getHydraFusionTier(hydraFusion: ILanguageModelChatMetadataAndIdentifier, context: ITabbedModelPickerContext): { readonly label: string; readonly replacesTier?: AutoModeTier } {
-		const label = getEnsembleTierLabel(this._autoModel(context)?.metadata, hydraFusion.metadata.id);
+		const label = getFusionTierLabel(this._autoModel(context)?.metadata, hydraFusion.metadata.id);
 		if (!label) {
 			return { label: hydraFusion.metadata.name };
 		}
 		return { label, replacesTier: hydraFusion.metadata.id === COPILOT_HYDRA_FUSION_MODEL_ID ? 'intelligence' : undefined };
 	}
 
-	/** The model whose details stand for the given one: Auto's for an Ensemble tier, its own for HydraFusion with tiers, none otherwise. */
+	/** The model whose details stand for the given one: Auto's for a Fusion tier, its own for HydraFusion with tiers, none otherwise. */
 	private _getDetailsModel(model: ILanguageModelChatMetadataAndIdentifier, context: ITabbedModelPickerContext): ILanguageModelChatMetadataAndIdentifier | undefined {
 		if (!isHydraFusionModel(model) || this._hydraFusionTiers(context).includes(model)) {
 			return model;
@@ -678,6 +678,8 @@ export class TabbedModelPicker extends Disposable {
 				id: 'workflow',
 				icon: Codicon.layers,
 				tooltip: workflow.label,
+				alignEnd: true,
+				useManagedHover: true,
 				checked: !!workflow.state.get(),
 				run: () => {
 					if (workflow.state.get()) {
@@ -969,7 +971,7 @@ export class TabbedModelPicker extends Disposable {
 	}
 
 	/**
-	 * Auto, listed like any other model, with its tiers in its details. Ensemble offers
+	 * Auto, listed like any other model, with its tiers in its details. Fusion offers
 	 * HydraFusion among its tiers; otherwise HydraFusion gets a row of its own, with
 	 * Default and Max as its tiers when HydraFusion Max is available.
 	 */
@@ -1016,28 +1018,16 @@ export class TabbedModelPicker extends Disposable {
 	): IActionListItem<IActionWidgetDropdownAction> {
 		const workflow = context.workflow;
 		const step = workflow?.state.get();
-		if (workflow && step) {
-			const checked = step.selectedModelIds.includes(model.identifier);
-			const disabled = step.multiple && !checked && step.selectedModelIds.length >= step.maxSelections;
-			const { action, ariaDescription } = createModelAction(model, undefined, () => {
+		const workflowChecked = !!step?.selectedModelIds.includes(model.identifier);
+		const workflowDisabled = !!step?.multiple && !workflowChecked && step.selectedModelIds.length >= step.maxSelections;
+		const hydraFusionTier = !step && isAutoModel(model) ? this._selectedHydraFusionTier(context) : undefined;
+		// HydraFusion as Auto's tier is shown as Auto, with HydraFusion in place of its tier.
+		const { action, ariaDescription } = createModelAction(model, step ? undefined : hydraFusionTier ? model.identifier : context.selectedModelId, next => {
+			if (workflow && step) {
 				workflow.select(model.identifier);
 				this._showCurrent(this._filterValue, model.identifier);
-			}, section, true);
-			return {
-				item: { ...action, checked, enabled: !disabled },
-				kind: ActionListItemKind.Action,
-				label: action.label,
-				ariaDescription,
-				group: { title: '', icon: checked ? Codicon.check : Codicon.blank },
-				hideIcon: false,
-				section,
-				disabled,
-				className: 'chat-model-picker-model',
-			};
-		}
-		const hydraFusionTier = isAutoModel(model) ? this._selectedHydraFusionTier(context) : undefined;
-		// HydraFusion as Auto's tier is shown as Auto, with HydraFusion in place of its tier.
-		const { action, ariaDescription } = createModelAction(model, hydraFusionTier ? model.identifier : context.selectedModelId, next => {
+				return;
+			}
 			this._selectionVersion++;
 			// Auto with a HydraFusion tier is already in use, so picking Auto keeps it.
 			if (isAutoModel(next) && this._selectedHydraFusionTier(this._context ?? context)) {
@@ -1073,7 +1063,13 @@ export class TabbedModelPicker extends Disposable {
 		// Auto opens its tiers like any model's details; HydraFusion only when it has tiers of its own.
 		const hasDetails = !isHydraFusionModel(model) || !!ownTierLabel;
 		return {
-			item: rowLabel === action.label ? action : { ...action, label: rowLabel, tooltip: rowLabel },
+			item: {
+				...action,
+				label: rowLabel,
+				tooltip: rowLabel === action.label ? action.tooltip : rowLabel,
+				checked: step ? workflowChecked : action.checked,
+				enabled: step ? !workflowDisabled : action.enabled,
+			},
 			kind: ActionListItemKind.Action,
 			label: rowLabel,
 			description: modelBadge || routingBadge ? undefined : action.description,
@@ -1084,10 +1080,11 @@ export class TabbedModelPicker extends Disposable {
 				: [ariaDescription, configDescription].filter(Boolean).join(', '),
 			// Right Arrow on the row opens the same details as its button.
 			opensDialog: hasDetails,
-			group: { title: '', icon: action.icon ?? ThemeIcon.fromId(action.checked ? Codicon.check.id : Codicon.blank.id) },
+			group: { title: '', icon: step ? (workflowChecked ? Codicon.check : Codicon.blank) : action.icon ?? ThemeIcon.fromId(action.checked ? Codicon.check.id : Codicon.blank.id) },
 			hideIcon: false,
 			section,
-			className: ['chat-model-picker-model', ...(action.checked ? ['chat-model-picker-current'] : []), ...(badgeClassName ? [badgeClassName] : [])].join(' '),
+			disabled: workflowDisabled,
+			className: ['chat-model-picker-model', ...(!step && action.checked ? ['chat-model-picker-current'] : []), ...(badgeClassName ? [badgeClassName] : [])].join(' '),
 			toolbarLabels: true,
 			// An on-device model's details page is its family's.
 			toolbarActions: !hasDetails
@@ -1162,7 +1159,7 @@ export class TabbedModelPicker extends Disposable {
 				ariaLabel: localize('chat.modelPicker.hydraFusionTiers', "HydraFusion tier"),
 				choices: ownTiers.map(tier => ({ label: getHydraFusionTierLabel(tier.metadata.id), model: tier })),
 			} : undefined,
-			// Only Ensemble offers HydraFusion among its tiers, each described as the tier it is.
+			// Only Fusion offers HydraFusion among its tiers, each described as the tier it is.
 			routingAlternatives: hydraFusionModels.map(hydraFusion => {
 				const tier = this._getHydraFusionTier(hydraFusion, context);
 				return {
@@ -1170,8 +1167,8 @@ export class TabbedModelPicker extends Disposable {
 					label: tier.label,
 					replacesTier: tier.replacesTier,
 					description: hydraFusion.metadata.id === COPILOT_HYDRA_FUSION_MAX_MODEL_ID
-						? localize('chat.modelPicker.ensembleMaxDescription', "Max uses multiple models on every task for the most thorough results.")
-						: localize('chat.modelPicker.ensembleIntelligenceDescription', "High picks a workflow per task, using one or more models."),
+						? localize('chat.modelPicker.fusionMaxDescription', "Max uses multiple models on every task for the most thorough results.")
+						: localize('chat.modelPicker.fusionBalanceDescription', "Balance picks a workflow per task, using one or more models."),
 					learnMoreUrl: HYDRA_FUSION_LEARN_MORE_URL,
 					selected: context.selectedModelId === hydraFusion.identifier,
 				};
@@ -1187,6 +1184,7 @@ export class TabbedModelPicker extends Disposable {
 					this._applyModelSelection(next, this._context ?? context);
 				}
 			},
+			selectModelOnConfigurationChange: !context.workflow?.state.get(),
 			onDidAccept: () => {
 				this.refresh();
 			},

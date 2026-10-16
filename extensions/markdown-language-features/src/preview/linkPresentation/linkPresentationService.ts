@@ -7,7 +7,7 @@ import { autorun, type IObservable } from '@vscode/observables';
 import * as vscode from 'vscode';
 import type { ILogger } from '../../logging';
 import { Disposable } from '../../util/dispose';
-import { GitLinkPresentationResolver } from './gitLinkPresentationResolver';
+import { GitLinkPresentationResolver, resolveGitCommitHref } from './gitLinkPresentationResolver';
 import { ImmutableLinkPresentationCache, type LinkPresentation, type LinkPresentationResolver, type LinkPresentationResolverContext } from './linkPresentationResolver';
 import { WorkspaceLinkPresentationResolver } from './workspaceLinkPresentationResolver';
 
@@ -71,7 +71,8 @@ export class LinkPresentationService extends Disposable {
 		};
 	}
 
-	async openLink(href: string): Promise<boolean> {
+	async openLink(href: string, fromResource?: vscode.Uri): Promise<boolean> {
+		href = resolveGitCommitHref(href, fromResource);
 		for (const resolver of this.#resolvers) {
 			if (resolver.open && await resolver.open(href)) {
 				return true;
@@ -195,6 +196,7 @@ function toApiPresentation(presentation: LinkPresentation): vscode.LinkPresentat
 		...(presentation.reference ? { reference: presentation.reference } : {}),
 		...(presentation.status ? { status: presentation.status } : {}),
 		...(presentation.secondaryStatus ? { secondaryStatus: presentation.secondaryStatus } : {}),
+		...(presentation.changes ? { changes: presentation.changes } : {}),
 		...(presentation.tooltip ? { tooltip: presentation.tooltip } : {}),
 		...(presentation.ariaLabel ? { ariaLabel: presentation.ariaLabel } : {}),
 		...(presentation.isLoading ? { isLoading: true } : {}),

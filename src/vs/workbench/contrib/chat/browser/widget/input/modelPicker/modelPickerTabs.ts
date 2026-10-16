@@ -7,7 +7,7 @@ import { IStringDictionary } from '../../../../../../../base/common/collections.
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { isDefined } from '../../../../../../../base/common/types.js';
 import { localize } from '../../../../../../../nls.js';
-import { COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, isUserProvidedModel } from '../../../../common/languageModels.js';
+import { COPILOT_VENDOR_ID, getLanguageModelProviderIcon, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, isUserProvidedModel, LanguageModelProviderIcon } from '../../../../common/languageModels.js';
 import { buildModelToProviderGroupMap, getProviderGroupForModel, getProviderGroupKey, isVersionAtLeast } from './modelPickerItemPrimitives.js';
 import { isDeprecated } from './modelPickerBadges.js';
 import { isEarlyAccessModel, latestOfEachLine } from './modelPickerLineage.js';
@@ -42,7 +42,8 @@ export interface IModelPickerDestination {
 	readonly id: string;
 	/** Names the destination in the tab tooltip and as the list heading. */
 	readonly label: string;
-	readonly icon: ThemeIcon;
+	/** The provider's declared icon, or one recognised from its name. */
+	readonly icon: LanguageModelProviderIcon;
 	readonly models: readonly ILanguageModelChatMetadataAndIdentifier[];
 	/** Providers with nothing to list yet, shown as a welcome body when there are no models. */
 	readonly placeholders: readonly IModelPickerProviderPlaceholder[];
@@ -121,7 +122,7 @@ export function buildModelPickerDestinations(
 		destinations.push({
 			id: MODEL_PICKER_BUILT_IN_DESTINATION,
 			label: builtInLabel,
-			icon: getProviderIconForIdentity(`${builtInLabel} ${builtInVendorId}`),
+			icon: builtInVendor?.icon ?? getProviderIconForIdentity(`${builtInLabel} ${builtInVendorId}`),
 			models: builtInModels,
 			placeholders: builtInPlaceholders,
 		});
@@ -130,22 +131,23 @@ export function buildModelPickerDestinations(
 	const modelToGroup = buildModelToProviderGroupMap(languageModelsService);
 	// Keyed by provider identity rather than by display name, so two providers that
 	// happen to share a name each keep their own tab instead of being merged.
-	const byProvider = new Map<string, { label: string; models: ILanguageModelChatMetadataAndIdentifier[]; placeholders: IModelPickerProviderPlaceholder[] }>();
-	const providerEntry = (key: string, label: string) => {
+	const byProvider = new Map<string, { label: string; icon: LanguageModelProviderIcon | undefined; models: ILanguageModelChatMetadataAndIdentifier[]; placeholders: IModelPickerProviderPlaceholder[] }>();
+	const providerEntry = (key: string, label: string, icon: LanguageModelProviderIcon | undefined) => {
 		let entry = byProvider.get(key);
 		if (!entry) {
-			entry = { label, models: [], placeholders: [] };
+			entry = { label, icon, models: [], placeholders: [] };
 			byProvider.set(key, entry);
 		}
+		entry.icon ??= icon;
 		return entry;
 	};
 	for (const model of userModels) {
-		const { vendor, groupName } = getProviderGroupForModel(model, modelToGroup, languageModelsService);
-		providerEntry(getProviderGroupKey(vendor, groupName), groupName).models.push(model);
+		const { vendor, groupName, icon } = getProviderGroupForModel(model, modelToGroup, languageModelsService);
+		providerEntry(getProviderGroupKey(vendor, groupName), groupName, icon).models.push(model);
 	}
 	// A provider still signing in has no models yet, but it has earned its tab.
 	for (const placeholder of userPlaceholders) {
-		providerEntry(getProviderGroupKey(placeholder.vendor, placeholder.label), placeholder.label).placeholders.push(placeholder);
+		providerEntry(getProviderGroupKey(placeholder.vendor, placeholder.label), placeholder.label, getLanguageModelProviderIcon(languageModelsService, placeholder.vendor)).placeholders.push(placeholder);
 	}
 	// Ordered by the name the user reads, with the key breaking ties so that providers
 	// sharing a name keep a stable order.
@@ -155,7 +157,7 @@ export function buildModelPickerDestinations(
 		destinations.push({
 			id: `${PROVIDER_DESTINATION_PREFIX}${key}`,
 			label: entry.label,
-			icon: getProviderIconForIdentity(entry.label),
+			icon: entry.icon ?? getProviderIconForIdentity(entry.label),
 			models: entry.models,
 			placeholders: entry.placeholders,
 		});

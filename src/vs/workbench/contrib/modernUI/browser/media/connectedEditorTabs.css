@@ -153,8 +153,9 @@
 	align-items: flex-start;
 }
 
-.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container:not(.wrapping):not(.connected-tab-upper-bar) {
-	--modern-ui-connected-tab-row-height: var(--modern-ui-connected-tab-single-row-height, max(var(--editor-group-tab-height), calc(var(--vscode-codiconFontSize, 16px) + var(--vscode-spacing-size60, 6px))));
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container:not(.wrapping):not(.connected-tab-upper-bar),
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .modern-ui-editor-tab-strip {
+	--modern-ui-connected-tab-row-height: calc(var(--editor-group-tab-height, var(--vscode-spacing-size240)) + var(--vscode-spacing-size40) * 2 - var(--vscode-strokeThickness));
 	--modern-ui-connected-tab-fill-block-inset: 0px;
 	--modern-ui-connected-tab-cap-radius: calc(var(--modern-ui-connected-tab-radius) + var(--vscode-strokeThickness));
 }
@@ -236,6 +237,10 @@
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container:not(.wrapping):not(.connected-tab-upper-bar) .tabs-container > .tab:not(.active):not(.selected):not(:hover):not(.hovered):not(:focus-within) > .tab-fill {
 	border-color: transparent;
+}
+
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container:not(.wrapping):not(.connected-tab-upper-bar) .tabs-container > .tab:not(.active) > .tab-fill {
+	inset-block: calc((var(--modern-ui-connected-tab-row-height) - var(--editor-group-tab-height)) / 2);
 }
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container:not(.wrapping):not(.connected-tab-upper-bar) .tabs-container > .tab:not(.active):is(:hover, .hovered, :focus-within) > .tab-fill {
