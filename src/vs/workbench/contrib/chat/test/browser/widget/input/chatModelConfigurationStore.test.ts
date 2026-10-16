@@ -541,30 +541,6 @@ suite('ChatModelConfigurationStore', () => {
 		});
 	});
 
-	test('a presented canonical Auto tier keeps session provenance across model refreshes', () => {
-		const storage = store.add(new InMemoryStorageService());
-		const control = createControllableService();
-		control.setAutoModel();
-		const property = { type: 'string' as const, enum: ['efficiency', 'balance', 'intelligence'] };
-		control.setSchema({ properties: { tier: { ...property, default: 'balance' }, autoTier: property } });
-		const managed: IManagedSettingsService = {
-			_serviceBrand: undefined, onDidChangeManagedSettings: Event.None, getManagedSettingValue: () => 'balance',
-			getManagedSettings: () => ({ autoTier: 'balance' }),
-		};
-		const editor = createStore(storage, control.service, () => true, managed);
-		editor.presentModelConfiguration(MODEL, { autoTier: 'intelligence' });
-		control.fireModelsChanged();
-		assert.deepStrictEqual({
-			presented: editor.getModelConfiguration(MODEL),
-			globalWrites: control.setConfigCalls,
-			stored: storage.get(KEY, StorageScope.APPLICATION),
-		}, {
-			presented: { tier: 'intelligence', tierSource: 'session' },
-			globalWrites: [],
-			stored: undefined,
-		});
-	});
-
 	for (const registered of [true, false]) {
 		test(`restoring a managed draft retains the real user preference when registered=${registered}`, () => {
 			const storage = store.add(new InMemoryStorageService());
@@ -792,80 +768,6 @@ suite('ChatModelConfigurationStore', () => {
 		const editorB = createStore(storage, createStubService());
 		assert.deepStrictEqual(editorB.getModelConfiguration(MODEL), { thinkingEffort: 'high' });
 	});
-
-	for (const [key, alias, choices] of [
-		['thinkingLevel', 'reasoningEffort', ['low', 'medium', 'high']],
-		['tier', 'autoTier', ['efficiency', 'balance', 'intelligence']],
-	] as const) {
-		for (const registered of [true, false]) {
-			for (const empty of [true, false]) {
-				test(`restores ${alias} before defaults and preserves edits and reset (registered=${registered}, empty=${empty})`, async () => {
-					const storage = store.add(new InMemoryStorageService());
-					const control = createControllableService();
-					if (key === 'tier') {
-						control.setAutoModel();
-					}
-					const property = { type: 'string' as const, group: 'navigation', enum: [...choices] };
-					control.setSchema({ properties: { [key]: { ...property, default: choices[1] }, [alias]: property } });
-					control.setRegistered(registered);
-					const editor = createStore(storage, control.service, () => empty);
-					editor.restoreModelConfiguration(MODEL, { [alias]: choices[2] });
-					control.setRegistered(true);
-					control.fireModelsChanged();
-					const restored = editor.getModelConfiguration(MODEL);
-					const inherited = createStore(storage, control.service).getModelConfiguration(MODEL);
-					await editor.setModelConfiguration(MODEL, { [key]: choices[0] });
-					const edited = editor.getModelConfiguration(MODEL);
-					await editor.setModelConfiguration(MODEL, { [key]: choices[1] });
-					const configuration = (value: string, source: string) => ({ [key]: value, ...(key === 'tier' ? { tierSource: source } : {}) });
-					assert.deepStrictEqual({
-						restored, inherited, edited,
-						reset: editor.getModelConfiguration(MODEL),
-						reopened: createStore(storage, control.service).getModelConfiguration(MODEL),
-						writes: control.setConfigCalls.map(call => call.values),
-					}, {
-						restored: configuration(choices[2], 'explicit'),
-						inherited: configuration(choices[2], 'preference'),
-						edited: configuration(choices[0], 'explicit'),
-						reset: configuration(choices[1], 'explicit'),
-						reopened: configuration(choices[1], 'default'),
-						writes: [{ [key]: choices[0] }, { [key]: choices[1] }],
-					});
-				});
-			}
-		}
-
-		test(`seeds saved ${alias} preferences before merging defaults`, () => {
-			const storage = store.add(new InMemoryStorageService());
-			const control = createControllableService();
-			const property = { type: 'string' as const, enum: [...choices] };
-			control.setSchema({ properties: { [key]: { ...property, default: choices[1] }, [alias]: property } });
-			control.setGlobal({ [alias]: choices[2] });
-			const editor = createStore(storage, control.service);
-			assert.deepStrictEqual(editor.getModelConfiguration(MODEL), { [key]: choices[2] });
-		});
-	}
-
-	for (const registered of [true, false]) {
-		test(`restored canonical Auto tier overrides a managed draft default (registered=${registered})`, () => {
-			const storage = store.add(new InMemoryStorageService());
-			const control = createControllableService();
-			control.setAutoModel();
-			const property = { type: 'string' as const, enum: ['efficiency', 'balance', 'intelligence'] };
-			control.setSchema({ properties: { tier: { ...property, default: 'balance' }, autoTier: property } });
-			control.setRegistered(registered);
-			const managed: IManagedSettingsService = {
-				_serviceBrand: undefined, onDidChangeManagedSettings: Event.None,
-				getManagedSettingValue: () => 'efficiency',
-				getManagedSettings: () => ({ autoTier: 'efficiency' }),
-			};
-			const editor = createStore(storage, control.service, () => true, managed);
-			editor.restoreModelConfiguration(MODEL, { autoTier: 'intelligence' });
-			control.setRegistered(true);
-			control.fireModelsChanged();
-			assert.deepStrictEqual(editor.getModelConfiguration(MODEL), { tier: 'intelligence', tierSource: 'explicit' });
-		});
-	}
 
 	test('request restoration stays local until the configuration is explicitly selected', async () => {
 		const storage = store.add(new InMemoryStorageService());

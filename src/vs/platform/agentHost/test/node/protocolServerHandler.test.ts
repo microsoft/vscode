@@ -15,7 +15,6 @@ import { supportsAgentHostTiming } from '../../common/meta/agentHostTimingMeta.j
 import { supportsAgentHostSessionImport } from '../../common/meta/agentHostSessionImportMeta.js';
 import { readAgentHostAhpLogDirectory } from '../../common/meta/agentHostDebugLogsMeta.js';
 import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
-import { AgentHostModelConfigAliasesCapabilityMetaKey } from '../../common/meta/agentModelConfigurationMeta.js';
 import { readSessionInitiator, withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
 import { readCodexSessionModel, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
 import { type IAgentHostFirstResponseDiagnostic } from '../../common/otel/agentHostTiming.js';
@@ -46,7 +45,7 @@ import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotation
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, AHP_AUTH_REQUIRED, type AhpNotification, type InitializeResult, type ProtocolMessage, type JsonRpcResponse, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot, type SubscribeResult } from '../../common/state/sessionProtocol.js';
 import { ROOT_STATE_URI, AUTOMATION_CATALOG_URI, ChatInteractivity, ChatOriginKind, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, readSessionExternal, readSessionWorkspaceless, withSessionExternal, withSessionWorkspaceless, type AgentInfo, type ChangesetState, type ChatState, type Message, type RootState, type SessionState, type SessionSummary, type Turn } from '../../common/state/sessionState.js';
-import { ChatInputResponseKind, SessionInputRequestKind, TerminalClaimKind, type JsonPrimitive } from '../../common/state/protocol/state.js';
+import { ChatInputResponseKind, SessionInputRequestKind, TerminalClaimKind, type AutomationEntry, type JsonPrimitive } from '../../common/state/protocol/state.js';
 import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanReview.js';
 import type { SessionAddedParams, SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
@@ -1163,6 +1162,82 @@ suite('ProtocolServerHandler', () => {
 		const action = findNotifications(transport.sent, 'action')[0]?.params as ActionEnvelope | undefined;
 		assert.strictEqual(action?.channel, AUTOMATION_CATALOG_URI);
 	});
+
+	for (const clientInfo of [editorWindowAgentHostClientInfo, agentsWindowAgentHostClientInfo, { name: 'mobile-client' }, undefined]) {
+		test(`automation model options are adapted at the boundary for ${clientInfo?.name ?? 'unmarked peer'}`, async () => {
+			const config = { reasoningEffort: 'high', autoTier: 'intelligence' };
+			const entries: AutomationEntry[] = ['copilotcli', 'claude', undefined].map((provider, index) => ({
+				resource: `ahp-automation:/${index}`,
+				definition: {
+					title: 'Shared automation',
+					message: { text: 'Run', origin: { kind: MessageKind.Automation }, model: { id: 'model', config } },
+					session: { provider, model: { id: 'model', config } },
+					enabled: true,
+					triggers: [],
+				},
+				runs: [],
+				operations: [],
+				createdAt: '2026-10-01T00:00:00.000Z',
+				modifiedAt: '2026-10-01T00:00:00.000Z',
+			}));
+			stateManager.setAutomationCatalogState({ entries });
+			const transport = disposables.add(new MockProtocolTransport());
+			server.simulateConnection(transport);
+			const initialized = waitForResponse(transport, 1);
+			transport.simulateMessage(request(1, 'initialize', {
+				clientId: 'automation-alias-client', protocolVersions: [PROTOCOL_VERSION],
+				initialSubscriptions: [ROOT_STATE_URI, AUTOMATION_CATALOG_URI], clientInfo,
+			}));
+			const initialResponse = await initialized;
+			assert.ok(hasKey(initialResponse, { result: true }));
+			const readEntries = (snapshot: IStateSnapshot | undefined) => {
+				assert.ok(snapshot && hasKey(snapshot.state, { entries: true }));
+				return snapshot.state.entries;
+			};
+			const initial = readEntries((initialResponse.result as InitializeResult).snapshots.find(snapshot => snapshot.resource === AUTOMATION_CATALOG_URI));
+			transport.sent.length = 0;
+			for (const automation of entries) {
+				stateManager.dispatchServerAction(AUTOMATION_CATALOG_URI, { type: ActionType.AutomationSet, automation });
+			}
+			const readActions = (actions: readonly ActionEnvelope[]) => actions.flatMap(envelope => envelope.action.type === ActionType.AutomationSet ? [envelope.action.automation] : []);
+			const live = readActions(findNotifications(transport.sent, 'action').map(notification => notification.params as ActionEnvelope));
+			const cursor = stateManager.serverSeq;
+			transport.simulateClose();
+			for (const automation of entries) {
+				stateManager.dispatchServerAction(AUTOMATION_CATALOG_URI, { type: ActionType.AutomationSet, automation });
+			}
+			const replayTransport = disposables.add(new MockProtocolTransport());
+			server.simulateConnection(replayTransport);
+			const replayed = waitForResponse(replayTransport, 2);
+			replayTransport.simulateMessage(request(2, 'reconnect', {
+				clientId: 'automation-alias-client', lastSeenServerSeq: cursor, subscriptions: [ROOT_STATE_URI, AUTOMATION_CATALOG_URI],
+			}));
+			const replayResponse = await replayed;
+			assert.ok(hasKey(replayResponse, { result: true }));
+			const replay = replayResponse.result as ReconnectResult;
+			assert.ok(replay.type === 'replay');
+			const subscribed = waitForResponse(replayTransport, 3);
+			replayTransport.simulateMessage(request(3, 'subscribe', { channel: AUTOMATION_CATALOG_URI }));
+			const subscription = await subscribed;
+			assert.ok(hasKey(subscription, { result: true }));
+			const vscode = clientInfo?.name === editorWindowAgentHostClientInfo.name || clientInfo?.name === agentsWindowAgentHostClientInfo.name;
+			const expected = entries.map(entry => !vscode || entry.definition.session.provider !== 'copilotcli' ? entry : {
+				...entry,
+				definition: {
+					...entry.definition,
+					message: { ...entry.definition.message, model: { id: 'model', config: { thinkingLevel: 'high', tier: 'intelligence' } } },
+					session: { ...entry.definition.session, model: { id: 'model', config: { thinkingLevel: 'high', tier: 'intelligence' } } },
+				},
+			});
+			assert.deepStrictEqual({
+				initial, live, replay: readActions(replay.actions),
+				subscribed: readEntries((subscription.result as SubscribeResult).snapshot),
+				authoritative: stateManager.getAutomationCatalogState()?.entries,
+			}, {
+				initial: expected, live: expected, replay: expected, subscribed: expected, authoritative: entries,
+			});
+		});
+	}
 
 	test('automation catalogue subscription rejects an inactive client before adding it', async () => {
 		stateManager.setAutomationCatalogState({ entries: [] });
@@ -3665,12 +3740,11 @@ suite('ProtocolServerHandler', () => {
 	}
 
 	for (const scenario of [
-		{ name: 'older editor', clientInfo: editorWindowAgentHostClientInfo, capability: undefined, legacy: true },
-		{ name: 'older Agents window', clientInfo: agentsWindowAgentHostClientInfo, capability: undefined, legacy: true },
-		{ name: 'current editor', clientInfo: editorWindowAgentHostClientInfo, capability: true, legacy: false },
-		{ name: 'malformed capability', clientInfo: editorWindowAgentHostClientInfo, capability: 'true', legacy: true },
-		{ name: 'mobile', clientInfo: { name: 'mobile-client' }, capability: undefined, legacy: false },
-		{ name: 'unmarked peer', clientInfo: undefined, capability: undefined, legacy: false },
+		{ name: 'older editor', clientInfo: { ...editorWindowAgentHostClientInfo, version: '1.142.0' }, vscode: true },
+		{ name: 'Agents window', clientInfo: agentsWindowAgentHostClientInfo, vscode: true },
+		{ name: 'current editor', clientInfo: { ...editorWindowAgentHostClientInfo, version: '1.143.0' }, vscode: true },
+		{ name: 'mobile', clientInfo: { name: 'mobile-client' }, vscode: false },
+		{ name: 'unmarked peer', clientInfo: undefined, vscode: false },
 	]) {
 		test(`model option aliases preserve ${scenario.name} compatibility across snapshots, updates and reconnect`, async () => {
 			const effort = { type: 'string' as const, title: 'Effort Level', enum: ['low', 'medium', 'high'] };
@@ -3685,19 +3759,27 @@ suite('ProtocolServerHandler', () => {
 							tier: { ...tier, default: 'balance' }, autoTier: tier,
 						}
 					},
+				}, {
+					id: 'canonical-only', name: 'Canonical Only', provider: 'copilotcli',
+					configSchema: { type: 'object', properties: { reasoningEffort: effort } },
+				}],
+			}, {
+				provider: 'codex', displayName: 'Codex', description: 'Codex',
+				models: [{
+					id: 'codex', name: 'Codex', provider: 'codex',
+					configSchema: { type: 'object', properties: { thinkingLevel: effort, reasoningEffort: effort } },
 				}],
 			}];
 			stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootAgentsChanged, agents });
-			const expected = scenario.legacy ? [{
+			const expected = scenario.vscode ? [{
 				...agents[0], models: [{
 					...agents[0].models[0], configSchema: {
 						type: 'object', properties: {
 							thinkingLevel: { ...effort, default: 'medium' }, tier: { ...tier, default: 'balance' },
 						}
 					},
-				}],
-			}] : agents;
-			const meta = { [AgentHostModelConfigAliasesCapabilityMetaKey]: scenario.capability };
+				}, ...agents[0].models.slice(1)],
+			}, ...agents.slice(1)] : agents;
 			const connect = () => {
 				const transport = disposables.add(new MockProtocolTransport());
 				server.simulateConnection(transport);
@@ -3707,7 +3789,7 @@ suite('ProtocolServerHandler', () => {
 			const initialized = waitForResponse(transport, 1);
 			transport.simulateMessage(request(1, 'initialize', {
 				clientId: 'model-alias-client', protocolVersions: [PROTOCOL_VERSION], initialSubscriptions: [ROOT_STATE_URI],
-				clientInfo: scenario.clientInfo, _meta: meta,
+				clientInfo: scenario.clientInfo,
 			}));
 			const response = await initialized;
 			assert.ok(hasKey(response, { result: true }));
@@ -3731,7 +3813,7 @@ suite('ProtocolServerHandler', () => {
 			const replayTransport = connect();
 			const replayed = waitForResponse(replayTransport, 3);
 			replayTransport.simulateMessage(request(3, 'reconnect', {
-				clientId: 'model-alias-client', lastSeenServerSeq: cursor, subscriptions: [ROOT_STATE_URI], _meta: meta,
+				clientId: 'model-alias-client', lastSeenServerSeq: cursor, subscriptions: [ROOT_STATE_URI],
 			}));
 			const replayResponse = await replayed;
 			assert.ok(hasKey(replayResponse, { result: true }));
@@ -3743,7 +3825,7 @@ suite('ProtocolServerHandler', () => {
 			const snapshotTransport = connect();
 			const reconnected = waitForResponse(snapshotTransport, 4);
 			snapshotTransport.simulateMessage(request(4, 'reconnect', {
-				clientId: 'model-alias-client', lastSeenServerSeq: -1, subscriptions: [ROOT_STATE_URI], _meta: meta,
+				clientId: 'model-alias-client', lastSeenServerSeq: -1, subscriptions: [ROOT_STATE_URI],
 			}));
 			const reconnectResponse = await reconnected;
 			assert.ok(hasKey(reconnectResponse, { result: true }));
@@ -3763,9 +3845,9 @@ suite('ProtocolServerHandler', () => {
 	}
 
 	for (const scenario of [
-		{ name: 'older editor', clientInfo: editorWindowAgentHostClientInfo, capability: undefined, legacy: true },
-		{ name: 'current editor', clientInfo: editorWindowAgentHostClientInfo, capability: true, legacy: false },
-		{ name: 'mobile', clientInfo: { name: 'mobile-client' }, capability: undefined, legacy: false },
+		{ name: 'older editor', clientInfo: { ...editorWindowAgentHostClientInfo, version: '1.142.0' }, vscode: true },
+		{ name: 'current editor', clientInfo: { ...editorWindowAgentHostClientInfo, version: '1.143.0' }, vscode: true },
+		{ name: 'mobile', clientInfo: { name: 'mobile-client' }, vscode: false },
 	]) {
 		const selections: { id: string; config: Record<string, JsonPrimitive>; legacy: Record<string, JsonPrimitive> }[] = [
 			{ id: 'model', config: { reasoningEffort: 'high' }, legacy: { thinkingLevel: 'high' } },
@@ -3788,13 +3870,12 @@ suite('ProtocolServerHandler', () => {
 				for (const action of actions) {
 					stateManager.dispatchServerAction(chat, action);
 				}
-				const meta = { [AgentHostModelConfigAliasesCapabilityMetaKey]: scenario.capability };
 				const transport = disposables.add(new MockProtocolTransport());
 				server.simulateConnection(transport);
 				const initialized = waitForResponse(transport, 1);
 				transport.simulateMessage(request(1, 'initialize', {
 					clientId: 'model-selection-client', protocolVersions: [PROTOCOL_VERSION], initialSubscriptions: [ROOT_STATE_URI, chat],
-					clientInfo: scenario.clientInfo, _meta: meta,
+					clientInfo: scenario.clientInfo,
 				}));
 				const response = await initialized;
 				assert.ok(hasKey(response, { result: true }));
@@ -3834,7 +3915,7 @@ suite('ProtocolServerHandler', () => {
 				server.simulateConnection(replayTransport);
 				const replayed = waitForResponse(replayTransport, 2);
 				replayTransport.simulateMessage(request(2, 'reconnect', {
-					clientId: 'model-selection-client', lastSeenServerSeq: cursor, subscriptions: [ROOT_STATE_URI, chat], _meta: meta,
+					clientId: 'model-selection-client', lastSeenServerSeq: cursor, subscriptions: [ROOT_STATE_URI, chat],
 				}));
 				const replayResponse = await replayed;
 				assert.ok(hasKey(replayResponse, { result: true }));
@@ -3845,7 +3926,7 @@ suite('ProtocolServerHandler', () => {
 				const subscription = await subscribed;
 				assert.ok(hasKey(subscription, { result: true }));
 				const restored = (subscription.result as SubscribeResult).snapshot;
-				const expected = scenario.legacy ? selection.legacy : selection.config;
+				const expected = scenario.vscode ? selection.legacy : selection.config;
 				assert.deepStrictEqual({
 					initial: snapshotConfigs(initial),
 					live,

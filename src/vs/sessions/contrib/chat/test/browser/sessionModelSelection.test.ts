@@ -322,35 +322,6 @@ suite('SessionModelSelection', () => {
 			});
 		});
 
-		test('restores canonical model options before defaults and captures subsequent legacy edits', async () => {
-			const languageModelsService = new ConfigurationService();
-			languageModelsService.metadata = {
-				...first.metadata,
-				configurationSchema: {
-					properties: {
-						thinkingLevel: { type: 'string', enum: ['low', 'medium', 'high'], default: 'medium' },
-						reasoningEffort: { type: 'string', enum: ['low', 'medium', 'high'] },
-					},
-				},
-			};
-			const configuration = disposables.add(new AutomationModelConfiguration(languageModelsService, {
-				modelId: first.identifier, modelConfiguration: { reasoningEffort: 'high' },
-			}));
-			const restored = configuration.getModelConfigurationForRequest(first.identifier);
-			await configuration.setModelConfiguration(first.identifier, { thinkingLevel: 'low' });
-			assert.deepStrictEqual({
-				restored,
-				edited: configuration.getModelConfigurationForRequest(first.identifier),
-				captured: configuration.captureModelConfiguration(first.identifier),
-				writes: languageModelsService.writes,
-			}, {
-				restored: { thinkingLevel: 'high' },
-				edited: { thinkingLevel: 'low' },
-				captured: { thinkingLevel: 'low' },
-				writes: [{ thinkingLevel: 'low' }],
-			});
-		});
-
 		test('restores unavailable options without rewriting them or shared defaults', async () => {
 			const languageModelsService = new ConfigurationService();
 			const metadata = languageModelsService.metadata;

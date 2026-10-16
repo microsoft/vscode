@@ -26,7 +26,6 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js';
 import { AgentHostClientType, getAgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AgentHostChatUrisCapabilityMetaKey, AgentHostNativeImplementationMetaKey, AgentHostSessionUrisCapabilityMetaKey, supportsAgentHostChatUris, supportsAgentHostSessionUris } from '../common/meta/agentHostSessionUrisMeta.js';
-import { supportsAgentHostModelConfigAliases } from '../common/meta/agentModelConfigurationMeta.js';
 import { withSessionInitiator } from '../common/meta/agentSessionInitiatorMeta.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, readClientConnectionKind, readClientDevDeviceId, readClientMachineId, readClientTelemetryLevel, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, type IAgentCreateChatRequestOptions, type IAgentSessionMetadata, type IMcpNotification } from '../common/agent.js';
@@ -45,7 +44,7 @@ import { IS_CLIENT_DISPATCHABLE } from '../common/state/protocol/action-origin.g
 import { ChatSourceKind } from '../common/state/protocol/channels-chat/commands.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
 import type { ChatConfigChangedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
-import type { RootConfigState } from '../common/state/protocol/state.js';
+import type { AutomationEntry, RootConfigState } from '../common/state/protocol/state.js';
 import { ActionEnvelope, ActionType, INotification, isAnnotationsAction, isAutomationAction, isAutomationRunAction, isChangesetAction, isChatAction, isSessionAction, isTerminalAction } from '../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import { getAgentHostSupportedProtocolVersions, negotiateAgentHostProtocolVersion } from '../common/agentHostProtocolCompatibility.js';
@@ -75,7 +74,7 @@ import {
 	type DispatchActionParams,
 } from '../common/state/sessionProtocol.js';
 import { isShapedChatUri } from '../common/agentHostChatIdentity.js';
-import { isAhpRootChannel, isAhpAutomationCatalogChannel, isAhpResourceWatchChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, isAhpChatChannel, withSessionStatusFlag, type ISessionWithDefaultChat, type Message, type RootState, type SessionState, type SessionConfigState, type SessionSummary } from '../common/state/sessionState.js';
+import { isAhpRootChannel, isAhpAutomationCatalogChannel, isAhpResourceWatchChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, isAhpChatChannel, withSessionStatusFlag, type ISessionWithDefaultChat, type Message, type ModelSelection, type RootState, type SessionState, type SessionConfigState, type SessionSummary } from '../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
 import { IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
@@ -343,10 +342,9 @@ type ChannelSubscription =
 	| { readonly kind: ChannelKind.ResourceWatch; readonly uri: string; readonly active: boolean }
 	| { readonly kind: ChannelKind.OtlpLogs; readonly uri: string; readonly level: OtlpLogLevelName };
 
-function projectLegacyCopilotMessage(message: Message): Message {
-	const model = message?.model;
-	if (!model?.config) {
-		return message;
+function projectVSCodeCopilotModel(model: ModelSelection): ModelSelection {
+	if (!model.config) {
+		return model;
 	}
 	const config = { ...model.config };
 	for (const [key, alias] of [['thinkingLevel', 'reasoningEffort'], ['tier', 'autoTier']]) {
@@ -355,11 +353,33 @@ function projectLegacyCopilotMessage(message: Message): Message {
 			delete config[alias];
 		}
 	}
-	return { ...message, model: { ...model, config } };
+	return { ...model, config };
 }
 
-function projectLegacyCopilotTurn<T extends { message: Message }>(turn: T): T {
-	return { ...turn, message: projectLegacyCopilotMessage(turn.message) };
+function projectVSCodeCopilotMessage(message: Message): Message {
+	return message?.model ? { ...message, model: projectVSCodeCopilotModel(message.model) } : message;
+}
+
+function projectVSCodeCopilotTurn<T extends { message: Message }>(turn: T): T {
+	return { ...turn, message: projectVSCodeCopilotMessage(turn.message) };
+}
+
+function projectVSCodeCopilotAutomation(automation: AutomationEntry): AutomationEntry {
+	const { definition } = automation;
+	if (definition.session.provider !== COPILOT_CLI_AGENT_PROVIDER_ID) {
+		return automation;
+	}
+	return {
+		...automation,
+		definition: {
+			...definition,
+			message: projectVSCodeCopilotMessage(definition.message),
+			session: {
+				...definition.session,
+				...(definition.session.model ? { model: projectVSCodeCopilotModel(definition.session.model) } : {}),
+			},
+		},
+	};
 }
 
 /**
@@ -367,7 +387,6 @@ function projectLegacyCopilotTurn<T extends { message: Message }>(turn: T): T {
  */
 interface IConnectedClient {
 	readonly legacySessionUris: boolean;
-	readonly legacyModelConfigAliases: boolean;
 	/** A positively identified VS Code client without `vscode.ahpChatUris`: it sees shaped chats only. */
 	readonly legacyChatUris: boolean;
 	devContainers?: DevContainerAgentHostProtocol;
@@ -896,7 +915,6 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		const telemetryContext = this._createClientTelemetryContext(params.clientInfo, params._meta, transport);
 		const client: IConnectedClient = {
 			legacySessionUris: getAgentHostClientType(params.clientInfo) !== AgentHostClientType.Unknown && !supportsAgentHostSessionUris(params),
-			legacyModelConfigAliases: getAgentHostClientType(params.clientInfo) !== AgentHostClientType.Unknown && !supportsAgentHostModelConfigAliases(params),
 			legacyChatUris: getAgentHostClientType(params.clientInfo) !== AgentHostClientType.Unknown && !supportsAgentHostChatUris(params),
 			clientId: params.clientId,
 			clientInfo: params.clientInfo,
@@ -1156,7 +1174,6 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		const initializationDisposables = disposables.add(new DisposableStore());
 		const client: IConnectedClient = {
 			legacySessionUris: getAgentHostClientType(existingRecord.clientInfo) !== AgentHostClientType.Unknown && !supportsAgentHostSessionUris(params),
-			legacyModelConfigAliases: getAgentHostClientType(existingRecord.clientInfo) !== AgentHostClientType.Unknown && !supportsAgentHostModelConfigAliases(params),
 			legacyChatUris: getAgentHostClientType(existingRecord.clientInfo) !== AgentHostClientType.Unknown && !supportsAgentHostChatUris(params),
 			clientId: params.clientId,
 			clientInfo: existingRecord.clientInfo,
@@ -2687,7 +2704,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	private _projectRelayRootSnapshot(client: IConnectedClient, snapshot: IStateSnapshot): IStateSnapshot {
-		snapshot = this._projectLegacyModelSelections(client, this._projectSnapshotChats(client, this._projectSnapshot(snapshot)));
+		snapshot = this._projectVSCodeModelSelections(client, this._projectSnapshotChats(client, this._projectSnapshot(snapshot)));
 		if (isAhpRootChannel(snapshot.resource) && hasKey(snapshot.state, { agents: true })) {
 			snapshot = { ...snapshot, state: { ...snapshot.state, agents: this._projectModelConfigAliases(client, snapshot.state.agents) } };
 		}
@@ -2810,7 +2827,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	private _projectModelConfigAliases(client: IConnectedClient, agents: RootState['agents']): RootState['agents'] {
-		if (!client.legacyModelConfigAliases) {
+		if (getAgentHostClientType(client.clientInfo) === AgentHostClientType.Unknown) {
 			return agents;
 		}
 		return agents.map(agent => agent.provider !== COPILOT_CLI_AGENT_PROVIDER_ID ? agent : {
@@ -2820,7 +2837,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					return model;
 				}
 				const properties = { ...model.configSchema.properties };
-				// Older VS Code clients render every enum property as a separate control.
+				// VS Code receives one spelling before generic configuration code applies schema defaults.
 				if (properties.thinkingLevel) {
 					delete properties.reasoningEffort;
 				}
@@ -2832,24 +2849,31 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		});
 	}
 
-	private _usesLegacyCopilotModelConfig(client: IConnectedClient, channel: string): boolean {
+	private _usesVSCodeCopilotModelConfig(client: IConnectedClient, channel: string): boolean {
 		const session = this._chatOwnership.getChatOwner(channel) ?? channel;
-		return client.legacyModelConfigAliases && this._stateManager.getSessionSummary(session)?.provider === COPILOT_CLI_AGENT_PROVIDER_ID;
+		return getAgentHostClientType(client.clientInfo) !== AgentHostClientType.Unknown
+			&& this._stateManager.getSessionSummary(session)?.provider === COPILOT_CLI_AGENT_PROVIDER_ID;
 	}
 
-	private _projectLegacyModelSelections(client: IConnectedClient, snapshot: IStateSnapshot): IStateSnapshot {
-		if (!this._usesLegacyCopilotModelConfig(client, snapshot.resource) || !hasKey(snapshot.state, { turns: true })) {
+	private _projectVSCodeModelSelections(client: IConnectedClient, snapshot: IStateSnapshot): IStateSnapshot {
+		if (getAgentHostClientType(client.clientInfo) === AgentHostClientType.Unknown) {
+			return snapshot;
+		}
+		if (isAhpAutomationCatalogChannel(snapshot.resource) && hasKey(snapshot.state, { entries: true })) {
+			return { ...snapshot, state: { ...snapshot.state, entries: snapshot.state.entries.map(projectVSCodeCopilotAutomation) } };
+		}
+		if (!this._usesVSCodeCopilotModelConfig(client, snapshot.resource) || !hasKey(snapshot.state, { turns: true })) {
 			return snapshot;
 		}
 		const state = snapshot.state;
 		return {
 			...snapshot, state: {
 				...state,
-				turns: state.turns.map(projectLegacyCopilotTurn),
-				...(state.activeTurn ? { activeTurn: projectLegacyCopilotTurn(state.activeTurn) } : {}),
-				...(state.draft ? { draft: projectLegacyCopilotMessage(state.draft) } : {}),
-				...(state.steeringMessage ? { steeringMessage: { ...state.steeringMessage, message: projectLegacyCopilotMessage(state.steeringMessage.message) } } : {}),
-				...(state.queuedMessages ? { queuedMessages: state.queuedMessages.map(pending => ({ ...pending, message: projectLegacyCopilotMessage(pending.message) })) } : {}),
+				turns: state.turns.map(projectVSCodeCopilotTurn),
+				...(state.activeTurn ? { activeTurn: projectVSCodeCopilotTurn(state.activeTurn) } : {}),
+				...(state.draft ? { draft: projectVSCodeCopilotMessage(state.draft) } : {}),
+				...(state.steeringMessage ? { steeringMessage: { ...state.steeringMessage, message: projectVSCodeCopilotMessage(state.steeringMessage.message) } } : {}),
+				...(state.queuedMessages ? { queuedMessages: state.queuedMessages.map(pending => ({ ...pending, message: projectVSCodeCopilotMessage(pending.message) })) } : {}),
 			}
 		};
 	}
@@ -3489,18 +3513,21 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	 * reorder is filtered, since a reorder that does not list every known chat is ignored.
 	 */
 	private _projectActionForClient(client: IConnectedClient, envelope: ActionEnvelope): ActionEnvelope | undefined {
-		if (this._usesLegacyCopilotModelConfig(client, envelope.channel)) {
+		if (getAgentHostClientType(client.clientInfo) !== AgentHostClientType.Unknown && envelope.action.type === ActionType.AutomationSet) {
+			envelope = { ...envelope, action: { ...envelope.action, automation: projectVSCodeCopilotAutomation(envelope.action.automation) } };
+		}
+		if (this._usesVSCodeCopilotModelConfig(client, envelope.channel)) {
 			const action = envelope.action;
 			switch (action.type) {
 				case ActionType.ChatTurnStarted:
 				case ActionType.ChatPendingMessageSet:
-					envelope = { ...envelope, action: { ...action, message: projectLegacyCopilotMessage(action.message) } };
+					envelope = { ...envelope, action: { ...action, message: projectVSCodeCopilotMessage(action.message) } };
 					break;
 				case ActionType.ChatDraftChanged:
-					envelope = { ...envelope, action: { ...action, ...(action.draft ? { draft: projectLegacyCopilotMessage(action.draft) } : {}) } };
+					envelope = { ...envelope, action: { ...action, ...(action.draft ? { draft: projectVSCodeCopilotMessage(action.draft) } : {}) } };
 					break;
 				case ActionType.ChatTurnsLoaded:
-					envelope = { ...envelope, action: { ...action, turns: action.turns.map(projectLegacyCopilotTurn) } };
+					envelope = { ...envelope, action: { ...action, turns: action.turns.map(projectVSCodeCopilotTurn) } };
 					break;
 			}
 		}

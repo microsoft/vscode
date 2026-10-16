@@ -11,7 +11,7 @@ import { deepClone } from '../../../../base/common/objects.js';
 import { AutoTierSourceConfigKey } from '../../../../platform/agentHost/common/autoModeTiers.js';
 import { extractSchemaDefaults, filterConfigurationToSchema, resolveModelConfiguration } from '../../../../workbench/contrib/chat/browser/widget/input/chatModelConfigurationLogic.js';
 import { assertAutomationSessionTemplate, IAutomationSessionTemplate, isAutomationModelConfiguration } from '../../../../workbench/contrib/chat/common/automations/automation.js';
-import { createModelConfigurationActions, ILanguageModelsService, normalizeModelConfigurationAliases, type IModelConfigurationAccess } from '../../../../workbench/contrib/chat/common/languageModels.js';
+import { createModelConfigurationActions, ILanguageModelsService, type IModelConfigurationAccess } from '../../../../workbench/contrib/chat/common/languageModels.js';
 
 /** Model preferences for one session, retaining unavailable values independently of effective configuration. */
 export class AutomationModelConfiguration extends Disposable implements IModelConfigurationAccess {
@@ -44,10 +44,6 @@ export class AutomationModelConfiguration extends Disposable implements IModelCo
 				this.preferences.set(modelId, deepClone(preferences));
 			}
 		}
-		preferences = normalizeModelConfigurationAliases(preferences, metadata?.configurationSchema);
-		if (this.preferences.has(modelId)) {
-			this.preferences.set(modelId, deepClone(preferences));
-		}
 		const effective = metadata
 			? resolveModelConfiguration(filterConfigurationToSchema(preferences, metadata.configurationSchema), defaults, undefined)
 			: { ...preferences };
@@ -61,7 +57,6 @@ export class AutomationModelConfiguration extends Disposable implements IModelCo
 		if (!isAutomationModelConfiguration(values)) {
 			throw new Error('Automation model configuration must contain only JSON primitive values.');
 		}
-		values = normalizeModelConfigurationAliases(values, this.languageModelsService.lookupLanguageModel(modelId)?.configurationSchema);
 		this.getModelConfiguration(modelId);
 		this.preferences.set(modelId, deepClone({
 			...this.preferences.get(modelId), ...values,

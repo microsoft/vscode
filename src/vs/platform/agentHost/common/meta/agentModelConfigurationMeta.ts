@@ -3,5 +3,5 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export { agentModelConfigurationMetaKey, AgentHostModelConfigAliasesCapabilityMetaKey, readAgentRuntimeModelConfiguration, supportsAgentHostModelConfigAliases } from './vscode/agentModelConfigurationMeta.js';
+export { agentModelConfigurationMetaKey, readAgentRuntimeModelConfiguration } from './vscode/agentModelConfigurationMeta.js';
 export type { IAgentRuntimeModelConfiguration } from './vscode/agentModelConfigurationMeta.js';
