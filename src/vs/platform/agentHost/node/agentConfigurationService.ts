@@ -18,6 +18,7 @@ import { AgentHostConfigKey, agentHostCustomizationConfigSchema, defaultAgentHos
 import { getAgentCustomizationSettingsEntries, getProviderBackedRootConfigKeys, withAgentCustomizationSettings, type IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { copilotCliConfigSchema } from '../common/copilotCliConfig.js';
 import { agentMergeRootConfigSchema } from '../common/agentMerge.js';
+import { chatMoveRootConfigSchema } from '../common/agentHostChatMove.js';
 import { automationRootConfigSchema } from '../common/automationConfig.js';
 import { sandboxConfigSchema } from '../common/sandboxConfigSchema.js';
 import { agentHostProxyConfigSchema, clientOwnedApprovalRootConfigKeys, platformRootSchema, type ISchema, type SchemaDefinition, type SchemaValue } from '../common/agentHostSchema.js';
@@ -219,6 +220,8 @@ export interface IAgentConfigurationService {
 	getSessionSandboxEnabled(session: ProtocolURI): boolean | undefined;
 	/** The last enablement a chat's runtime applied successfully, if known. */
 	getChatSandboxEnabled(target: IAgentChatConfigurationTarget): boolean | undefined;
+	/** The sessions and storages whose attachment snapshots the chat may read (see `AgentHostStateManager.getChatAttachmentScopes`). */
+	getChatAttachmentScopes(target: IAgentChatConfigurationTarget): readonly ProtocolURI[];
 	/** Records the enablement a chat's runtime applied, with an optional error for the client that requested it. */
 	setChatSandboxEnabled(target: IAgentChatConfigurationTarget, enabled: boolean, error?: ISessionSandboxState['error']): void;
 	/**
@@ -310,11 +313,12 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		const sandboxSchema = sandboxConfigSchema.toProtocol();
 		const copilotCliSchema = copilotCliConfigSchema.toProtocol();
 		const agentMergeSchema = agentMergeRootConfigSchema.toProtocol();
+		const chatMoveSchema = chatMoveRootConfigSchema.toProtocol();
 		const automationSchema = automationRootConfigSchema.toProtocol();
 		this._stateManager.rootState.config = {
 			schema: {
 				type: 'object',
-				properties: { ...existing?.schema.properties, ...ownSchema.properties, ...sandboxSchema.properties, ...copilotCliSchema.properties, ...agentMergeSchema.properties, ...automationSchema.properties },
+				properties: { ...existing?.schema.properties, ...ownSchema.properties, ...sandboxSchema.properties, ...copilotCliSchema.properties, ...agentMergeSchema.properties, ...chatMoveSchema.properties, ...automationSchema.properties },
 			},
 			values: { ...existing?.values, ...this._loadPersistedRootConfig() },
 		};
@@ -676,6 +680,10 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		return selection === 'on' ? true : selection === 'off' ? false : undefined;
 	}
 
+	getChatAttachmentScopes(target: IAgentChatConfigurationTarget): readonly ProtocolURI[] {
+		return [...new Set([target.session, ...this._stateManager.getChatAttachmentScopes(target.chat) ?? []])];
+	}
+
 	getChatSandboxEnabled(target: IAgentChatConfigurationTarget): boolean | undefined {
 		return this._readChatSandboxState(target)?.enabled;
 	}
@@ -910,6 +918,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 				...sandboxConfigSchema.validateOrDefault(parsed, {}),
 				...copilotCliConfigSchema.validateOrDefault(parsed, {}),
 				...agentMergeRootConfigSchema.validateOrDefault(parsed, {}),
+				...chatMoveRootConfigSchema.validateOrDefault(parsed, {}),
 				...automationRootConfigSchema.validateOrDefault(parsed, {}),
 				...agentHostProxyConfigSchema.validateOrDefault(parsed, {}),
 			};

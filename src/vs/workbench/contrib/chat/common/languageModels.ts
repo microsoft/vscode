@@ -266,8 +266,8 @@ export interface ILanguageModelChatMetadata {
 	 * in {@link tooltip} instead.
 	 */
 	readonly autoModelDiscountPercent?: number;
-	/** How the agent host presents its Auto model as Ensemble, when it does. */
-	readonly autoModelEnsemble?: { readonly intelligenceUsesHydraFusion: boolean };
+	/** How the agent host presents its Auto model as Fusion, when it does. */
+	readonly autoModelFusion?: { readonly balanceUsesHydraFusion: boolean };
 	readonly multiplierNumeric?: number;
 	readonly isBYOK?: boolean;
 	readonly pricing?: string;
@@ -434,13 +434,13 @@ export namespace ILanguageModelChatMetadata {
 
 	/**
 	 * Builds the shared description shown for the Auto model, rendered as Markdown
-	 * (Auto's contains a "Learn More" link; Ensemble's does not). The discount is
+	 * (Auto's contains a "Learn More" link; Fusion's does not). The discount is
 	 * described separately by {@link getAutoModelDiscountDescription}.
 	 */
-	export function getAutoModelDescription(ensemble?: boolean): string {
-		if (ensemble) {
-			// The Auto docs don't describe Ensemble, so it has no Learn More link.
-			return localize('autoModel.ensembleDescription', "Ensemble routes based on your task and real-time system health and model performance.");
+	export function getAutoModelDescription(fusion?: boolean): string {
+		if (fusion) {
+			// The Auto docs don't describe Fusion, so it has no Learn More link.
+			return localize('autoModel.fusionDescription', "Fusion routes based on your task and real-time system health and model performance.");
 		}
 		const base = localize('autoModel.description', "Auto routes based on your task and real-time system health and model performance.");
 		const learnMore = localize('autoModel.learnMore', "[Learn More]({0})", autoModelSelectionDocsUrl);
@@ -452,13 +452,13 @@ export namespace ILanguageModelChatMetadata {
 	 *
 	 * @param discountPercent Whole-number percentage (e.g. `10` for 10%).
 	 * @param tierLabel The label of Auto's selected tier, e.g. "Efficiency".
-	 * @param ensemble Whether Auto is presented as Ensemble.
+	 * @param fusion Whether Auto is presented as Fusion.
 	 */
-	export function getAutoModelDiscountDescription(discountPercent: number, tierLabel?: string, ensemble?: boolean): string {
-		if (ensemble) {
+	export function getAutoModelDiscountDescription(discountPercent: number, tierLabel?: string, fusion?: boolean): string {
+		if (fusion) {
 			return tierLabel
-				? localize('autoModel.ensembleTierDiscount', "Models routed via Ensemble {0} receive a {1}% discount.", tierLabel, discountPercent)
-				: localize('autoModel.ensembleDiscount', "Models routed via Ensemble receive a {0}% discount.", discountPercent);
+				? localize('autoModel.fusionTierDiscount', "Models routed via Fusion {0} receive a {1}% discount.", tierLabel, discountPercent)
+				: localize('autoModel.fusionDiscount', "Models routed via Fusion receive a {0}% discount.", discountPercent);
 		}
 		return tierLabel
 			? localize('autoModel.tierDiscount', "Models routed via Auto {0} receive a {1}% discount.", tierLabel, discountPercent)

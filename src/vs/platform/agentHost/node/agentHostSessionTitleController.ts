@@ -137,6 +137,8 @@ export interface IAgentHostSessionTitleController {
 	clearSession(session: ProtocolURI, chatChannels: readonly ProtocolURI[]): void;
 	markTitleAuto(channel: ProtocolURI, chatChannel: ProtocolURI | undefined, title: string): void;
 	markTitleRenamed(channel: ProtocolURI, chatChannel?: ProtocolURI, title?: string): void;
+	/** Whether the title of the session or of its chat `chatChannel` was renamed, even if that isn't persisted yet. */
+	isTitleRenamed(channel: ProtocolURI, chatChannel?: ProtocolURI): boolean;
 	prepareInstructionForAgent(channel: ProtocolURI, chatChannel: ProtocolURI): Promise<string | undefined>;
 }
 
@@ -570,6 +572,10 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 				[customChatTitleSourceMetadataKey(independentChat)]: AGENT_HOST_TITLE_SOURCE_USER,
 			});
 		}
+	}
+
+	isTitleRenamed(channel: ProtocolURI, chatChannel?: ProtocolURI): boolean {
+		return this._renamedTitles.has(this._independentChatChannel(channel, chatChannel) ?? channel);
 	}
 
 	async prepareInstructionForAgent(channel: ProtocolURI, chatChannel: ProtocolURI): Promise<string | undefined> {

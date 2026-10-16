@@ -205,6 +205,7 @@ suite('AgentHostCatalogReconciliationService', () => {
 				return database ? reference(database) : undefined;
 			},
 			deleteSessionData: async () => { },
+			deleteSessionDataExcept: async () => { },
 			onWillDeleteSessionData: Event.None,
 			cleanupOrphanedData: async () => { },
 			whenIdle: async () => { },
@@ -1272,6 +1273,19 @@ suite('AgentHostCatalogReconciliationService', () => {
 			woken: [{ session: 'agenthost:one', status: 'succeeded', reason: 'synchronized', sourceRevision: 0 }],
 			sourceResolutions: 2,
 		});
+	});
+
+	test('marks an empty source-unresolvable session provisional only when its default chat stores at the session', async () => {
+		const harness = await createHarness(['empty', 'promoted']);
+		const promoted = 'agenthost:promoted';
+		// A promoted session's default chat keeps the storage it had as a peer; nothing is at the session's own storage.
+		await harness.central.registerChatCatalogV2(promoted, { defaultChat: { chat: 'ahp-chat://promoted', order: 0, storageResource: 'ahp-chat://promoted' }, peers: [], privateDescendants: [] });
+		const marked: string[] = [];
+		const service = harness.createService(async () => ({ status: 'sourceUnresolvable' }), { onDidMarkSessionsProvisional: sessions => marked.push(...sessions) });
+
+		await service.runPass();
+
+		assert.deepStrictEqual(marked, ['agenthost:empty']);
 	});
 
 	test('a mutation arriving during source resolution is not parked away', async () => {

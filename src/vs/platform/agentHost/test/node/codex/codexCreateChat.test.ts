@@ -2738,6 +2738,48 @@ suite('CodexAgent exact chat routing', () => {
 		}
 	});
 
+	test('a runtime started for its previous owner publishes no MCP state until its thread relaunches (Block 4, C6)', async () => {
+		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true });
+		const first = AgentSession.uri('codex', 'mcp-first');
+		const second = AgentSession.uri('codex', 'mcp-second');
+		const owner = disposables.add(new TestChatOwnerRef(first));
+		const peer = disposables.add(createTestPeer());
+		connectPeer(agent, peer);
+
+		try {
+			const chat = URI.parse(buildDefaultChatUri(first));
+			const folder = URI.file('/repo/mcp-owner');
+			await createSessionBackedChat(agent, chat, createTestAgentChatContext(owner, first), { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
+			const sending = agent.chats.sendMessage(chat, 'hello', [folder], undefined, 'turn-1', undefined, undefined, createTestAgentChatContext(owner, first));
+			const start = await readNextRequest(peer.outbound);
+			peer.push({ id: start.id, result: { thread: { id: 'mcp-thread', cwd: folder.fsPath } } });
+			const turn = await readNextRequest(peer.outbound);
+			peer.push({ id: turn.id, result: {} });
+			await sending;
+
+			const fired: string[] = [];
+			const internals = agent as unknown as {
+				_sessions: Map<string, unknown>;
+				_fire(session: URI, action: unknown): void;
+				_emitMcpCustomizationAction(session: unknown, action: unknown): void;
+			};
+			const fire = internals._fire.bind(agent);
+			internals._fire = (session, action) => {
+				fired.push(`${(action as { type: string }).type} ${session.toString()}`);
+				fire(session, action);
+			};
+			const runtime = internals._sessions.get(AgentSession.id(first));
+			const removed = (id: string) => ({ type: ActionType.SessionCustomizationRemoved, id });
+			internals._emitMcpCustomizationAction(runtime, removed('before-move'));
+			owner.set(second);
+			internals._emitMcpCustomizationAction(runtime, removed('after-move'));
+
+			assert.deepStrictEqual(fired, [`${ActionType.SessionCustomizationRemoved} ${first.toString()}`]);
+		} finally {
+			peer.dispose();
+		}
+	});
+
 	test('a chat whose owner changed since its thread\'s first turn relaunches the thread with its new owner at the next send', async () => {
 		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true });
 		const first = AgentSession.uri('codex', 'relaunch-first');

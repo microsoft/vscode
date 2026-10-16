@@ -73,6 +73,7 @@ class TestSessionDataService implements ISessionDataService {
 	}
 
 	async deleteSessionData(): Promise<void> { }
+	async deleteSessionDataExcept(): Promise<void> { }
 
 	async cleanupOrphanedData(): Promise<void> { }
 

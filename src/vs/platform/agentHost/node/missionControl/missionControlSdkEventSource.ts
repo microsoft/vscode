@@ -36,6 +36,8 @@ interface SourceSession {
 	dropped: number;
 	title: string | undefined;
 	failed: boolean;
+	/** Set once its session no longer has its chat as default chat (Block 4); it never drains again. */
+	retired: boolean;
 	dirty: boolean;
 	journalCursor: string | undefined;
 	admittedCursor: string | undefined;
@@ -94,6 +96,31 @@ export class MissionControlSdkEventSource extends Disposable {
 		for (const session of this._stateManager.getSessionUris()) {
 			this.observeSession(session);
 		}
+		// Only a session's default chat is replicated (Block 4): a chat that becomes a new session's default chat
+		// (promotion) starts a stream of its own, and one that stops being its session's default chat stops its stream.
+		this._register(this._stateManager.onDidChangeChatOwner(({ previous, current }) => {
+			this._refreshSession(previous);
+			this._refreshSession(current);
+		}));
+	}
+
+	/**
+	 * Retires the session's stream when its chat moved to another session (it is replicated no more: a moved
+	 * single-chat session's default chat becomes a peer) or the session has another default chat, then observes the
+	 * session again. A session whose summary is not loaded keeps its stream.
+	 */
+	private _refreshSession(session: string): void {
+		const source = this._sessions.get(session);
+		const owner = source && this._chatOwnership.getChatOwner(source.chat);
+		const summary = this._stateManager.getSessionSummary(session);
+		if (source && ((owner !== undefined && owner !== session) || (summary !== undefined && summary.defaultChat !== source.chat))) {
+			source.retired = true;
+			this._sessions.delete(session);
+			this._bytes -= source.bytes;
+			source.bytes = 0;
+			source.queue.length = 0;
+		}
+		this.observeSession(session);
 	}
 
 	observeSession(session: string): void {
@@ -106,12 +133,17 @@ export class MissionControlSdkEventSource extends Disposable {
 		if (!summary || !chat || !provider?.onDidChatSessionEvent) {
 			return;
 		}
+		// A session ending by moving its default chat under another still advertises it until it is removed: it replicates nothing.
+		const owner = this._chatOwnership.getChatOwner(chat);
+		if (owner !== undefined && owner !== session) {
+			return;
+		}
 		let source = this._sessions.get(session);
 		if (!source) {
 			this._mirror.registerSession(session);
 			source = {
 				session, chat, provider, queue: [], seen: new Set(), bytes: 0, limit: undefined,
-				historyPending: true, draining: undefined, dropped: 0, title: undefined, failed: false, dirty: false,
+				historyPending: true, draining: undefined, dropped: 0, title: undefined, failed: false, retired: false, dirty: false,
 				journalCursor: undefined, admittedCursor: undefined, pendingCursor: undefined,
 			};
 			this._sessions.set(session, source);
@@ -157,7 +189,7 @@ export class MissionControlSdkEventSource extends Disposable {
 	}
 
 	private _drain(source: SourceSession): void {
-		if (source.draining || source.failed) {
+		if (source.draining || source.failed || source.retired) {
 			return;
 		}
 		const operation = this._work.queue(() => this._run(source)).catch(error => {
@@ -336,11 +368,11 @@ export class MissionControlSdkEventSource extends Disposable {
 
 	private async _run(source: SourceSession): Promise<void> {
 		source.dirty = false;
-		if (!this._isEnabled() || this._store.isDisposed) {
+		if (!this._isEnabled() || this._store.isDisposed || source.retired) {
 			return;
 		}
 		await this._reserve(source);
-		if (!this._isEnabled() || this._store.isDisposed) {
+		if (!this._isEnabled() || this._store.isDisposed || source.retired) {
 			return;
 		}
 		await this._persistCursor(source);

@@ -181,6 +181,11 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	override async importSession(session: URI): Promise<void> {
 		this.importedSessions.push(session);
 	}
+	public movedSessions: { session: string; destination: string; after: string | undefined }[] = [];
+	override async moveSession(session: URI, destination: URI, after: URI | undefined): Promise<URI> {
+		this.movedSessions.push({ session: session.toString(), destination: destination.toString(), after: after?.toString() });
+		return destination;
+	}
 	override async removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
 		this.removedArtifacts.push({ session, artifactId });
 	}
@@ -10842,6 +10847,50 @@ suite('LocalAgentHostSessionsProvider', () => {
 			assert.strictEqual(updateCount, 1);
 		});
 
+		test('a peer chat that leaves one session for another is reported as moved, with its resource in each', () => {
+			const provider = createProvider(disposables, agentHost);
+			const source = setupMultiChatSession(provider, 'move-source');
+			const target = setupMultiChatSession(provider, 'move-target');
+			const sourceUri = AgentSession.uri('copilotcli', 'move-source').toString();
+			const targetUri = AgentSession.uri('copilotcli', 'move-target').toString();
+			const sourceDefault = buildDefaultChatUri(sourceUri);
+			const targetDefault = buildDefaultChatUri(targetUri);
+			// The chat keeps its URI wherever it moves.
+			const moved = buildChatUri(sourceUri, 'mover');
+			agentHost.setSessionState('move-source', 'copilotcli', makeState([makeChatSummary(sourceDefault, ''), makeChatSummary(moved, 'Mover')], { defaultChat: sourceDefault }));
+			agentHost.setSessionState('move-target', 'copilotcli', makeState([makeChatSummary(targetDefault, ''), makeChatSummary(buildChatUri(targetUri, 'other'), 'Other')], { defaultChat: targetDefault }));
+			const moves: string[] = [];
+			disposables.add(provider.onDidMoveChat(({ from, to }) => moves.push(`${from.session.sessionId} ${from.chat.toString()} -> ${to.session.sessionId} ${to.chat.toString()}`)));
+
+			agentHost.setSessionState('move-source', 'copilotcli', makeState([makeChatSummary(sourceDefault, '')], { defaultChat: sourceDefault }));
+			agentHost.setSessionState('move-target', 'copilotcli', makeState([makeChatSummary(targetDefault, ''), makeChatSummary(buildChatUri(targetUri, 'other'), 'Other'), makeChatSummary(moved, 'Mover')], { defaultChat: targetDefault }));
+
+			assert.deepStrictEqual(moves, [
+				`${source.sessionId} ${source.resource.with({ fragment: 'mover' }).toString()} -> ${target.sessionId} ${target.resource.with({ fragment: 'mover' }).toString()}`,
+			]);
+		});
+
+		test('a session that ends after its only chat moves stops being followed, so the chat is reported as moved into the other session', () => {
+			const provider = createProvider(disposables, agentHost);
+			const source = setupMultiChatSession(provider, 'ending-source');
+			const target = setupMultiChatSession(provider, 'ending-target');
+			const sourceDefault = buildDefaultChatUri(AgentSession.uri('copilotcli', 'ending-source').toString());
+			const targetDefault = buildDefaultChatUri(AgentSession.uri('copilotcli', 'ending-target').toString());
+			agentHost.setSessionState('ending-source', 'copilotcli', makeState([makeChatSummary(sourceDefault, '')], { defaultChat: sourceDefault }));
+			agentHost.setSessionState('ending-target', 'copilotcli', makeState([makeChatSummary(targetDefault, '')], { defaultChat: targetDefault }));
+			const moves: string[] = [];
+			disposables.add(provider.onDidMoveChat(({ from, to }) => moves.push(`${from.session.sessionId} -> ${to.session.sessionId} ${to.chat.toString()}`)));
+
+			// The host ends the source after its chat became a peer of the target; the target may list it first.
+			agentHost.setSessionState('ending-target', 'copilotcli', makeState([makeChatSummary(sourceDefault, ''), makeChatSummary(targetDefault, '')], { defaultChat: targetDefault }));
+			fireSessionRemoved(agentHost, 'ending-source');
+
+			assert.deepStrictEqual({ moves, sourceListed: provider.getSessions().some(session => session.sessionId === source.sessionId) }, {
+				moves: [`${source.sessionId} -> ${target.sessionId} ${target.resource.with({ fragment: sourceDefault.substring(sourceDefault.indexOf('#') + 1) }).toString()}`],
+				sourceListed: false,
+			});
+		});
+
 		test('equivalent peer chat values do not notify observers', () => {
 			const provider = createProvider(disposables, agentHost);
 			const session = setupMultiChatSession(provider, 'multi-values');
@@ -14042,6 +14091,27 @@ suite('LocalAgentHostSessionsProvider', () => {
 			],
 		});
 	}));
+
+	test('moves a session under another only when the host moves sessions and says this one can move (Block 4)', async () => {
+		agentHost.addSession(createSession('move-single', { _meta: { 'vscode.movable': true } }));
+		agentHost.addSession(createSession('move-target'));
+		const provider = createProvider(disposables, agentHost);
+		await timeout(0);
+		const [single, target] = ['move-single', 'move-target'].map(rawId => provider.getSessions().find(session => AgentSession.id(session.resource.toString()) === rawId)!);
+		const before = [provider.canMoveSessionUnder(single.sessionId), provider.canMoveSessionUnder(target.sessionId)];
+		await assert.rejects(() => provider.moveSessionUnder(single.sessionId, target.sessionId, undefined), /can't be moved/);
+		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), _meta: { ...agentHost.initializeResult.get()._meta, 'vscode.sessionMove': true } }, undefined);
+		const after = [provider.canMoveSessionUnder(single.sessionId), provider.canMoveSessionUnder(target.sessionId)];
+
+		await provider.moveSessionUnder(single.sessionId, target.sessionId, undefined);
+
+		assert.deepStrictEqual({ before, after, moved: agentHost.movedSessions }, {
+			before: [false, false],
+			// Only a session the host says can move.
+			after: [true, false],
+			moved: [{ session: AgentSession.uri('copilotcli', 'move-single').toString(), destination: AgentSession.uri('copilotcli', 'move-target').toString(), after: undefined }],
+		});
+	});
 
 	test('gates external session import on the host capability and waits for ownership metadata', async () => {
 		agentHost.addSession(createSession('import-session', { _meta: withSessionExternal(undefined, true) }));

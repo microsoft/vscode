@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { affectsAgentHostProviderPreference, getPolicyUnavailableLocalAgentHostProviders, isLocalAgentHostProviderDisabledByPolicy, IAgentHostService, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -13,9 +14,12 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { AgentHostSessionListController } from './agentHostSessionListController.js';
+import { MovedChatEditorRetargeter } from './agentHostChatMoveEditors.js';
 import { AgentHostSessionListStore } from './agentHostSessionListStore.js';
 
 export class AgentHostSessionListContribution extends Disposable implements IWorkbenchContribution {
@@ -27,6 +31,7 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 	private readonly _historyRegistrations = this._register(new DisposableMap<AgentProvider, DisposableStore>());
 
 	private readonly _isSessionsWindow: boolean;
+	private readonly _movedChatEditors: MovedChatEditorRetargeter;
 	private _initialized = false;
 	private _sessionListStore: AgentHostSessionListStore | undefined;
 
@@ -38,8 +43,11 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IAgentHostSessionWorkingDirectoryResolver private readonly _workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
 		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
+		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
+		@IEditorService editorService: IEditorService,
 	) {
 		super();
+		this._movedChatEditors = new MovedChatEditorRetargeter(editorGroupsService, editorService);
 
 		this._isSessionsWindow = environmentService.isSessionsWindow;
 
@@ -145,6 +153,7 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 		const listController = store.add(this._instantiationService.createInstance(AgentHostSessionListController, sessionType, agent.provider, sessionListStore, undefined, 'local'));
 
 		store.add(this._chatSessionsService.registerChatSessionItemController(sessionType, listController));
+		store.add(listController.onDidMoveChat(({ from, to }) => this._movedChatEditors.retarget(from.chat, to.chat).catch(onUnexpectedError)));
 		store.add(this._workingDirectoryResolver.registerResolver(sessionType, _sessionResource => undefined, sessionResource => listController.isNewSession(sessionResource)));
 	}
 }

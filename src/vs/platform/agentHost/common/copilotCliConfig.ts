@@ -64,10 +64,10 @@ export const enum CopilotCliConfigKey {
 	HydraFusionV2 = 'hydraFusionV2',
 	/** Ask CAPI to keep a conversation's HydraFusion root model across turns. Set by the `'multiRoot'` HydraFusion setting value; requires {@link HydraFusionV2}. */
 	HydraFusionMultiRoot = 'hydraFusionMultiRoot',
-	/** Present Auto as Ensemble, with Balance, High (the Intelligence tier), and Max. Off by default. */
-	Ensemble = 'ensemble',
-	/** With {@link Ensemble}, Ensemble's Intelligence uses HydraFusion. Off by default. */
-	EnsembleIntelligenceUsesHydraFusion = 'ensembleIntelligenceUsesHydraFusion',
+	/** Present Auto as Fusion, with Lite, Balance, and Max. Off by default. */
+	Fusion = 'fusion',
+	/** With {@link Fusion}, Fusion's Balance uses HydraFusion. Off by default. */
+	FusionBalanceUsesHydraFusion = 'fusionBalanceUsesHydraFusion',
 	/** Enable Copilot Memory for Copilot SDK sessions. Off by default. */
 	Memory = 'memory',
 	/** Store Copilot Memory in the repository instead of GitHub's cloud memory service. Off by default; requires {@link Memory}. */
@@ -129,8 +129,8 @@ export const AgentHostHydraFusionEnabledSettingId = 'chat.copilot.hydraFusion.en
  * sticky-root hint that lets CAPI keep a conversation's root model across turns. Experiments assign any value.
  */
 export type AgentHostHydraFusionSettingValue = boolean | 'v2' | 'multiRoot';
-export const AgentHostEnsembleEnabledSettingId = 'chat.copilot.ensemble.enabled';
-export const AgentHostEnsembleIntelligenceUsesHydraFusionSettingId = 'chat.copilot.ensemble.intelligenceUsesHydraFusion';
+export const AgentHostFusionEnabledSettingId = 'chat.copilot.ensemble.enabled';
+export const AgentHostFusionBalanceUsesHydraFusionSettingId = 'chat.copilot.ensemble.intelligenceUsesHydraFusion';
 
 export const AgentHostCopilotMemoryEnabledSettingId = 'chat.copilot.memory.enabled';
 
@@ -318,16 +318,16 @@ export const copilotCliConfigSchema = createSchema({
 		description: localize('agentHost.config.hydraFusionMultiRoot.description', "When enabled together with HydraFusion v2, Copilot SDK sessions ask the service to keep reusing the previous turn's root model when it fits the next turn's workflow."),
 		default: false,
 	}),
-	[CopilotCliConfigKey.Ensemble]: schemaProperty<boolean>({
+	[CopilotCliConfigKey.Fusion]: schemaProperty<boolean>({
 		type: 'boolean',
-		title: localize('agentHost.config.ensemble.title', "Ensemble"),
-		description: localize('agentHost.config.ensemble.description', "When enabled, Auto is presented as Ensemble, optimizing for Balance, High, or Max."),
+		title: localize('agentHost.config.fusion.title', "Fusion"),
+		description: localize('agentHost.config.fusion.description', "When enabled, Auto is presented as Fusion, optimizing for Lite, Balance, or Max."),
 		default: false,
 	}),
-	[CopilotCliConfigKey.EnsembleIntelligenceUsesHydraFusion]: schemaProperty<boolean>({
+	[CopilotCliConfigKey.FusionBalanceUsesHydraFusion]: schemaProperty<boolean>({
 		type: 'boolean',
-		title: localize('agentHost.config.ensembleIntelligenceUsesHydraFusion.title', "Ensemble High Uses HydraFusion"),
-		description: localize('agentHost.config.ensembleIntelligenceUsesHydraFusion.description', "When enabled together with Ensemble and HydraFusion, Ensemble's High tier uses HydraFusion."),
+		title: localize('agentHost.config.fusionBalanceUsesHydraFusion.title', "Fusion Balance Uses HydraFusion"),
+		description: localize('agentHost.config.fusionBalanceUsesHydraFusion.description', "When enabled together with Fusion and HydraFusion, Fusion's Balance tier uses HydraFusion."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.Memory]: schemaProperty<boolean>({

@@ -237,19 +237,19 @@ suite('ChatInputModelSelectionController', () => {
 	});
 
 	test('a selection made while the model is shown or applied supersedes the one being made', () => {
-		const ensemble = model('copilot/auto');
+		const fusion = model('copilot/auto');
 		const hydraFusion = model('copilot/hydrafusion');
 		const modelChanges = disposables.add(new Emitter<string>());
 		const applied: string[] = [];
 		const intents = new Map<string | undefined, IIntendedModelSelection | undefined>();
-		const state: IRuntimeState = { models: [ensemble, hydraFusion], sessionType: 'test', isEmpty: false, intents };
+		const state: IRuntimeState = { models: [fusion, hydraFusion], sessionType: 'test', isEmpty: false, intents };
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
 		const userSelections: { fromModelId: string; toModelId: string }[] = [];
 		disposables.add(controller.onDidChangeUserSelectedModel(event => userSelections.push(event)));
 		let normalizeOnShow = false;
 		disposables.add(autorun(reader => {
 			const shown = controller.currentModel.read(reader);
-			if (normalizeOnShow && shown?.identifier === ensemble.identifier) {
+			if (normalizeOnShow && shown?.identifier === fusion.identifier) {
 				controller.applyProgrammaticSelection(hydraFusion);
 			}
 		}));
@@ -262,7 +262,7 @@ suite('ChatInputModelSelectionController', () => {
 
 		controller.applySelection(model('copilot/other'), () => { }, true);
 		// The Agents window picker normalizes from inside the provider write, i.e. during `apply`.
-		controller.applySelection(ensemble, () => {
+		controller.applySelection(fusion, () => {
 			controller.applyProgrammaticSelection(hydraFusion);
 			applied.push('store:auto');
 		}, true);
@@ -270,7 +270,7 @@ suite('ChatInputModelSelectionController', () => {
 		normalizeOnShow = true;
 		modelChanges.fire('test');
 		const afterReconcile = snapshot();
-		controller.syncFromConversationState(ensemble, undefined, 'test', 'chat:one', false, ModelSelectionReason.RestoredChoice);
+		controller.syncFromConversationState(fusion, undefined, 'test', 'chat:one', false, ModelSelectionReason.RestoredChoice);
 		const afterRestore = snapshot();
 
 		assert.deepStrictEqual({ afterUserPick, afterReconcile, afterRestore, userSelections }, {
@@ -284,16 +284,16 @@ suite('ChatInputModelSelectionController', () => {
 	test('a restored model missing from a transient catalog is reclaimed although its stand-in is shown as an equivalent', () => {
 		const restored = hostModel('agent-host-copilotcli:gpt-6.1-sol');
 		const hydraFusion = hostModel('agent-host-copilotcli:hydrafusion');
-		const ensemble = hostModel('agent-host-copilotcli:auto');
+		const fusion = hostModel('agent-host-copilotcli:auto');
 		const modelChanges = disposables.add(new Emitter<string>());
 		const applied: string[] = [];
 		const intents = new Map<string | undefined, IIntendedModelSelection | undefined>();
-		const state: IRuntimeState = { models: [restored, hydraFusion, ensemble], sessionType: 'agent-host-copilotcli', isEmpty: false, intents };
+		const state: IRuntimeState = { models: [restored, hydraFusion, fusion], sessionType: 'agent-host-copilotcli', isEmpty: false, intents };
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
-		// The picker shows HydraFusion as Ensemble at Intelligence whenever both are on offer.
+		// The picker shows HydraFusion as Fusion at Balance whenever both are on offer.
 		const present = () => {
-			if (controller.currentModel.get()?.identifier === hydraFusion.identifier && state.models.includes(ensemble)) {
-				controller.applyEquivalentSelection(ensemble);
+			if (controller.currentModel.get()?.identifier === hydraFusion.identifier && state.models.includes(fusion)) {
+				controller.applyEquivalentSelection(fusion);
 			}
 		};
 		disposables.add(autorun(reader => {
@@ -313,46 +313,46 @@ suite('ChatInputModelSelectionController', () => {
 		modelChanges.fire('test');
 		const duringRestart = snapshot();
 		// The full catalog returns, in an order where the picker re-presents the stand-in first.
-		state.models = [hydraFusion, ensemble];
+		state.models = [hydraFusion, fusion];
 		modelChanges.fire('test');
 		const beforeRestoredModel = snapshot();
-		state.models = [restored, hydraFusion, ensemble];
+		state.models = [restored, hydraFusion, fusion];
 		modelChanges.fire('test');
 		const afterFullCatalog = snapshot();
 
 		assert.deepStrictEqual({ duringRestart, beforeRestoredModel, afterFullCatalog }, {
 			duringRestart: { current: hydraFusion.identifier, reason: ModelSelectionReason.FirstAvailable, intended: restored.identifier },
-			beforeRestoredModel: { current: ensemble.identifier, reason: ModelSelectionReason.FirstAvailable, intended: restored.identifier },
+			beforeRestoredModel: { current: fusion.identifier, reason: ModelSelectionReason.FirstAvailable, intended: restored.identifier },
 			afterFullCatalog: { current: restored.identifier, reason: ModelSelectionReason.SessionRestore, intended: restored.identifier },
 		});
 	});
 
 	test('an equivalent of the intended model moves the intent with its reason', () => {
 		const hydraFusion = model('copilot/hydrafusion');
-		const ensemble = model('copilot/auto');
+		const fusion = model('copilot/auto');
 		const modelChanges = disposables.add(new Emitter<string>());
 		const intents = new Map<string | undefined, IIntendedModelSelection | undefined>();
-		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime({ models: [hydraFusion, ensemble], sessionType: 'test', intents }, modelChanges, [])));
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime({ models: [hydraFusion, fusion], sessionType: 'test', intents }, modelChanges, [])));
 
 		controller.applySelection(hydraFusion, () => { }, true);
-		controller.applyEquivalentSelection(ensemble);
+		controller.applyEquivalentSelection(fusion);
 
 		assert.deepStrictEqual({
 			current: controller.currentModel.get()?.identifier,
 			reason: controller.selectionReason,
 			intended: intents.get('chat:one') && { modelId: intents.get('chat:one')!.modelId, reason: intents.get('chat:one')!.reason },
 		}, {
-			current: ensemble.identifier,
+			current: fusion.identifier,
 			reason: ModelSelectionReason.UserSelection,
-			intended: { modelId: ensemble.identifier, reason: ModelSelectionReason.UserSelection },
+			intended: { modelId: fusion.identifier, reason: ModelSelectionReason.UserSelection },
 		});
 	});
 
 	for (const source of ['configured', 'declared'] as const) {
 		test(`a ${source} default shown as an equivalent is not reapplied when the model list changes`, () => {
 			const hydraFusion = model('copilot/hydrafusion');
-			const ensemble = model('copilot/auto');
-			const [selected, shown] = source === 'configured' ? [hydraFusion, ensemble] : [ensemble, hydraFusion];
+			const fusion = model('copilot/auto');
+			const [selected, shown] = source === 'configured' ? [hydraFusion, fusion] : [fusion, hydraFusion];
 			const declared = { ...selected, metadata: { ...selected.metadata, isDefaultForLocation: { [ChatAgentLocation.Chat]: source === 'declared' } } };
 			const modelChanges = disposables.add(new Emitter<string>());
 			const applied: string[] = [];

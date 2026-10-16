@@ -7,7 +7,7 @@ import { disposableTimeout, raceTimeout } from '../../../../base/common/async.js
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, autorun, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -20,6 +20,7 @@ import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 
 import { localize } from '../../../../nls.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../common/session.js';
 import { IActiveSession, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, inheritableSessionTarget, IRecentlyOpenedSessions, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
+import { IChatMovedEvent } from '../common/sessionsProvider.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { ensureSessionWorktreesTrusted } from './worktreeTrust.js';
 import { ClosedItemHistory } from './closedItemHistory.js';
@@ -35,6 +36,7 @@ import { ISessionChangesStatsCache } from '../common/sessionChangesStatsCache.js
 import { ISessionOpenTelemetryAttempt, ISessionOpenTelemetryService, SessionOpenSource } from './sessionOpenTelemetryService.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
+import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { ISessionGridState, isSessionGridState, projectSessionGrid } from './sessionGridState.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
@@ -59,6 +61,9 @@ const RESTORE_SESSION_WAIT_TIMEOUT = 30_000;
 
 /** Maximum number of recently opened sessions reported by {@link SessionsService.getRecentlyOpenedSessions}. */
 const MAX_RECENTLY_OPENED_SESSIONS = 10;
+
+/** How long a removed session's slot waits for a chat move out of it to be known, as long as providers pair a move's ends. */
+const DEPARTED_SESSION_PAIRING_MS = 10_000;
 
 export interface ISessionNavigationRequest {
 	/** The caller's token, so deferred handoffs can recognize their own navigation. */
@@ -409,6 +414,12 @@ export class SessionsService extends Disposable implements ISessionsService {
 	private _restoringGridState: ISessionGridState | undefined;
 
 	private readonly _sessionStates: ResourceMap<ISessionState>;
+	/**
+	 * Where removed sessions were shown, for a while: a session that ends by moving its chat under another session may be
+	 * removed before the move is known, and its slot then goes to the session the chat moved to.
+	 */
+	private readonly _departedSessions = new ResourceMap<{ readonly index: number; readonly sticky: boolean; readonly activeChat: URI | undefined }>();
+	private readonly _departedSessionTimeouts = this._register(new DisposableMap<URI>());
 	private readonly _pendingRestoredChatResources = new ResourceMap<URI>();
 	private readonly _pendingExplicitChatOpens = new ResourceMap<{ readonly chatResource: URI; readonly token: CancellationToken }>();
 	private readonly _navigation: SessionsNavigation;
@@ -537,6 +548,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._register(this.sessionsManagementService.onDidReplaceSession(({ from, to }) => this._onDidReplaceSession(from, to)));
 		this._register(this.sessionsManagementService.onDidReplaceNewDraftSession(({ from, to }) => this._onDidReplaceSession(from, to)));
 
+		// A chat that moved to another session keeps being shown there.
+		this._register(this.sessionsManagementService.onDidMoveChat(e => this._onDidMoveChat(e)));
+
 		// While a foreground send materialises new chats, keep the newest chat
 		// active in the visible slot so the user sees the chat being sent.
 		this._register(this.sessionsManagementService.onWillSendRequest(session => this._startSendFollow(session)));
@@ -577,6 +591,70 @@ export class SessionsService extends Disposable implements ISessionsService {
 		const sessionView = this.sessionsPartService.getSessionView(from.sessionId);
 		const preserveFocus = !sessionView || this.sessionsPartService.getFocusedSessionView() !== sessionView;
 		this._visibility.updateSession(from, to, preserveFocus);
+	}
+
+	/**
+	 * Keeps showing a chat that moved to another session: the slot that showed it
+	 * shows its new session instead (or that session's own slot, when it is
+	 * already visible), with the chat active.
+	 */
+	private _rememberDepartedSession(session: ISession): void {
+		const slot = this._visibility.getSlot(session.sessionId);
+		const visible = this.visibleSessions.get().find(candidate => candidate?.sessionId === session.sessionId);
+		if (!slot || !visible) {
+			return;
+		}
+		this._departedSessions.set(session.resource, { index: slot.index, sticky: slot.sticky, activeChat: visible.activeChat.get()?.resource });
+		this._departedSessionTimeouts.set(session.resource, disposableTimeout(() => {
+			this._departedSessions.delete(session.resource);
+			this._departedSessionTimeouts.deleteAndDispose(session.resource);
+		}, DEPARTED_SESSION_PAIRING_MS));
+	}
+
+	private _onDidMoveChat(event: IChatMovedEvent): void {
+		const extUri = this.uriIdentityService.extUri;
+		const { from, to } = event;
+		const shown = this.visibleSessions.get().find(session => session && extUri.isEqual(session.resource, from.session.resource));
+		if (!shown) {
+			this._onDidMoveChatFromDepartedSession(event);
+			return;
+		}
+		// The view may already have fallen back when the session dropped the chat before the move was known.
+		if (!extUri.isEqual(shown.activeChat.get()?.resource, from.chat) && !extUri.isEqual(this._visibility.getChatFallenBackFrom(shown), from.chat)) {
+			return;
+		}
+		const wasActive = this.activeSession.get()?.sessionId === shown.sessionId;
+		const preserveFocus = this.sessionsPartService.getFocusedSessionView() !== this.sessionsPartService.getSessionView(shown.sessionId);
+		if (!this.visibleSessions.get().some(session => session && extUri.isEqual(session.resource, to.session.resource))) {
+			this._visibility.updateSession(shown, to.session, preserveFocus);
+		}
+		if (wasActive) {
+			void this._openChatSession(to.session, to.chat, { preserveFocus }, 'automatic').catch(onUnexpectedError);
+		} else {
+			const chat = to.session.chats.get().find(candidate => extUri.isEqual(candidate.resource, to.chat));
+			if (chat) {
+				this._visibility.openChat(to.session, chat);
+				this._visibility.setActiveChat(to.session, chat);
+				this._setChatVisibilityState(to.session, chat, true);
+			}
+		}
+		status(localize('sessions.chatMoved', "Chat moved to {0}", to.session.title.get()));
+	}
+
+	/** A session that ended by moving its shown chat under another session, and was removed before the move was known. */
+	private _onDidMoveChatFromDepartedSession({ from, to }: IChatMovedEvent): void {
+		const extUri = this.uriIdentityService.extUri;
+		const departed = this._departedSessions.get(from.session.resource);
+		if (!departed || !extUri.isEqual(departed.activeChat, from.chat)) {
+			return;
+		}
+		this._departedSessions.delete(from.session.resource);
+		this._departedSessionTimeouts.deleteAndDispose(from.session.resource);
+		if (!this.visibleSessions.get().some(session => session && extUri.isEqual(session.resource, to.session.resource))) {
+			this._visibility.insertAtIndex(to.session, departed.index, departed.sticky);
+		}
+		void this._openChatSession(to.session, to.chat, { preserveFocus: true }, 'automatic').catch(onUnexpectedError);
+		status(localize('sessions.chatMoved', "Chat moved to {0}", to.session.title.get()));
 	}
 
 	private _activeSessionViewListeners(activeSession: IActiveSession): IDisposable {
@@ -738,6 +816,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (e.removed.length) {
 			for (const session of e.removed) {
 				this._sessionStates.delete(session.resource);
+				this._rememberDepartedSession(session);
 			}
 			this._visibility.removeMany(e.removed.map(r => r.sessionId));
 		}

@@ -502,6 +502,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._requireClient().importSession(session);
 	}
 
+	moveSession(session: URI, destination: URI, after: URI | undefined): Promise<URI> {
+		return this._requireClient().moveSession(session, destination, after);
+	}
+
 	readSavedChat(session: URI, chat?: URI): Promise<IAgentHostSavedChat> {
 		return this._requireClient().readSavedChat(session, chat);
 	}

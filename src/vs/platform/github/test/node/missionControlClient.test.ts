@@ -6,15 +6,18 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
+import { IGitHubAccountClient } from '../../common/account/account.js';
+import { AccountClient } from '../../common/account/accountClient.js';
 import { ApiRequest, ApiResponse, IApiRequestProvider } from '../../common/client/request.js';
 import { PaginationLimitError } from '../../common/client/pagination.js';
 import { parse, SchemaError } from '../../common/client/schema.js';
-import { GitHubService, IGitHubClient } from '../../common/githubService.js';
+import { GitHubService } from '../../common/githubService.js';
 import { GitHubRestRequest, GitHubTransport } from '../../common/githubTransport.js';
 import { GitHubClientOptions, IGitHubCredentialProvider } from '../../common/githubTypes.js';
 import { AutomationDetail, AutomationToolGroup, AutomationTriggerDefinition } from '../../common/missionControl/automations.js';
@@ -95,7 +98,6 @@ suite('Mission Control client', () => {
 		const requests: TestRequest[] = [];
 		const identities: TestRequest[] = [];
 		const service = store.add(new GitHubService({
-			credentialProvider,
 			fetch: async (input, init = {}) => {
 				const request = { url: new URL(String(input)), init, at: Date.now() };
 				if (request.url.pathname.endsWith('/user')) {
@@ -106,8 +108,13 @@ suite('Mission Control client', () => {
 				return respond(request);
 			},
 		}, new NullLogService(), NullTelemetryService));
-		const reference = store.add(service.acquireClient(options));
-		return { service, reference, client: reference.object, requests, identities };
+		const scope = store.add(service.createRequestProviderScope(credentialProvider));
+		const acquire = (clientOptions: GitHubClientOptions = options) => {
+			const reference = scope.acquireClient(clientOptions);
+			const client = store.add(new AccountClient(reference.object.authorization, reference.object, reference));
+			return { client, providers: reference.object };
+		};
+		return { service, acquire, ...acquire(), requests, identities };
 	}
 
 	test('uses shared request policies, response modes, and nested metadata', async () => {
@@ -210,15 +217,16 @@ suite('Mission Control client', () => {
 	});
 
 	test('forwards caller and deadline independently of Mission Control query parameters', async () => {
-		const { client } = setup(() => Response.json(emptyPage));
+		const { client, providers } = setup(() => Response.json(emptyPage));
 		const options = { caller: 'test.automations', deadline: Date.now() + 10_000 };
 		const sandbox = sinon.createSandbox();
 		try {
-			const request = sandbox.spy(client.transport, 'restText');
+			assert.ok(providers.missionControl);
+			const request = sandbox.spy(providers.missionControl, 'request');
 			await client.automations.list(repository, signal(), { ...options, query: { page: 2, disabled: false } });
-			const { url, caller, deadline } = request.firstCall.args[2];
-			assert.deepStrictEqual({ url, caller, deadline }, {
-				url: `${apiBaseUri}${collection}/v2?page=2&disabled=false`, ...options,
+			const { path, options: requestOptions } = request.firstCall.args[0];
+			assert.deepStrictEqual({ path, options: requestOptions }, {
+				path: '/repos/owner/repo/automations/v2?page=2&disabled=false', options,
 			});
 		} finally {
 			sandbox.restore();
@@ -358,15 +366,15 @@ suite('Mission Control client', () => {
 	});
 
 	for (const operation of [
-		{ name: 'list', status: 201, run: (client: IGitHubClient) => client.automations.list(repository, signal()) },
-		{ name: 'get', status: 201, run: (client: IGitHubClient) => client.automations.get(repository, automation.id, signal()) },
-		{ name: 'create', status: 200, run: (client: IGitHubClient) => client.automations.create(repository, automation, signal()) },
-		{ name: 'update', status: 201, run: (client: IGitHubClient) => client.automations.update(repository, automation.id, { name: 'Updated' }, signal()) },
-		{ name: 'delete', status: 200, run: (client: IGitHubClient) => client.automations.delete(repository, automation.id, signal()) },
-		{ name: 'dispatch', status: 200, run: (client: IGitHubClient) => client.automations.dispatch(repository, automation.id, { event: 'manual' }, signal()) },
-		{ name: 'listRuns', status: 201, run: (client: IGitHubClient) => client.automations.listRuns(automation.id, signal()) },
-		{ name: 'listTools', status: 201, run: (client: IGitHubClient) => client.automations.listTools(signal()) },
-		{ name: 'listTriggers', status: 201, run: (client: IGitHubClient) => client.automations.listTriggers(signal()) },
+		{ name: 'list', status: 201, run: (client: IGitHubAccountClient) => client.automations.list(repository, signal()) },
+		{ name: 'get', status: 201, run: (client: IGitHubAccountClient) => client.automations.get(repository, automation.id, signal()) },
+		{ name: 'create', status: 200, run: (client: IGitHubAccountClient) => client.automations.create(repository, automation, signal()) },
+		{ name: 'update', status: 201, run: (client: IGitHubAccountClient) => client.automations.update(repository, automation.id, { name: 'Updated' }, signal()) },
+		{ name: 'delete', status: 200, run: (client: IGitHubAccountClient) => client.automations.delete(repository, automation.id, signal()) },
+		{ name: 'dispatch', status: 200, run: (client: IGitHubAccountClient) => client.automations.dispatch(repository, automation.id, { event: 'manual' }, signal()) },
+		{ name: 'listRuns', status: 201, run: (client: IGitHubAccountClient) => client.automations.listRuns(automation.id, signal()) },
+		{ name: 'listTools', status: 201, run: (client: IGitHubAccountClient) => client.automations.listTools(signal()) },
+		{ name: 'listTriggers', status: 201, run: (client: IGitHubAccountClient) => client.automations.listTriggers(signal()) },
 	]) {
 		test(`${operation.name} rejects an undocumented HTTP ${operation.status} success`, async () => {
 			const { client, requests } = setup(() => Response.json(automation, { status: operation.status }));
@@ -392,29 +400,12 @@ suite('Mission Control client', () => {
 	});
 
 	test('missing configuration disables only Mission Control operations', async () => {
-		const { client, identities, requests } = setup(() => Response.json({}), { ...clientOptions(), missionControl: undefined });
+		const { client, identities, requests } = setup(() => Response.json([]), { ...clientOptions(), missionControl: undefined });
 		await assert.rejects(client.automations.list(repository, signal()), /No approved Mission Control API endpoint/);
-		const credential = await client.credentials.getCredential(signal());
-		assert.deepStrictEqual({ account: credential.account, requests: requests.length, identities: identities.length }, {
-			account: { host: 'api.github.com', accountId: '101' }, requests: 0, identities: 1,
+		const emails = await client.users.listEmails(signal());
+		assert.deepStrictEqual({ emails, requests: requests.length, identities: identities.length }, {
+			emails: [], requests: 1, identities: 1,
 		});
-	});
-
-	test('lease identity includes the canonical service endpoint, integration identity and API version', () => {
-		const options = clientOptions();
-		const { service, client } = setup(() => Response.json({}), options);
-		const acquire = (missionControl: GitHubClientOptions['missionControl']) => store.add(service.acquireClient({ ...options, missionControl })).object;
-		const endpoint = { apiBaseUri: `${apiBaseUri}/agents`, integrationId: 'test-integration' };
-		const equivalent = acquire({
-			endpoint: { integrationId: endpoint.integrationId, apiBaseUri: 'https://API.GITHUBCOPILOT.COM/agents/' },
-		});
-		const distinct = [
-			acquire(undefined),
-			acquire({ endpoint: { ...endpoint, apiBaseUri: `${apiBaseUri}/other` } }),
-			acquire({ endpoint: { ...endpoint, integrationId: 'other' } }),
-			acquire({ endpoint: { ...endpoint, apiVersion: '2025-04-01' } }),
-		];
-		assert.deepStrictEqual({ equivalent: equivalent === client, distinct: new Set([client, ...distinct]).size }, { equivalent: true, distinct: 5 });
 	});
 
 	test('coalesces safe reads without letting one cancelled caller abort a peer', async () => {
@@ -552,23 +543,22 @@ suite('Mission Control client', () => {
 
 	test('cooldowns survive client release without blocking GitHub REST or another account', () => runWithFakedTimers({ startTime: Date.parse(date) }, async () => {
 		let refused = false;
-		const { service, client, reference, requests } = setup(request => {
+		const { service, client, acquire, requests } = setup(request => {
 			if (!refused && request.url.host === 'api.githubcopilot.com') {
 				refused = true;
 				return Response.json({}, { status: 429, headers: { 'retry-after': '2' } });
 			}
-			return Response.json(emptyPage);
+			return Response.json(request.url.host === 'api.github.com' ? [] : emptyPage);
 		});
 		try {
 			await assert.rejects(client.automations.list(repository, signal()), { kind: 'rateLimit' });
-			const credential = await client.credentials.getCredential(signal());
-			await client.transport.rest(credential.account, credential.token, { method: 'GET', url: 'https://api.github.com/repos/owner/repo' }, signal());
+			await client.users.listEmails(signal());
 			const options = clientOptions();
-			const other = store.add(service.acquireClient({ ...options, authorization: { ...options.authorization, sessionId: 'second' } }));
-			await other.object.automations.list(repository, signal());
-			reference.dispose();
-			const reacquired = store.add(service.acquireClient(options));
-			await reacquired.object.automations.list(repository, signal());
+			const other = acquire({ ...options, authorization: { ...options.authorization, sessionId: 'second' } }).client;
+			await other.automations.list(repository, signal());
+			client.dispose();
+			const reacquired = acquire().client;
+			await reacquired.automations.list(repository, signal());
 			assert.deepStrictEqual(requests.map(request => request.at - Date.parse(date)), [0, 0, 0, 2000]);
 		} finally {
 			service.dispose();
@@ -701,16 +691,16 @@ suite('Mission Control client', () => {
 	test('releasing the client cancels work and prevents further domain requests', async () => {
 		const started = new DeferredPromise<void>();
 		const response = new DeferredPromise<Response>();
-		const { client, reference, requests } = setup(() => {
+		const { client, requests } = setup(() => {
 			void started.complete();
 			return response.p;
 		});
 		const rejected = assert.rejects(client.automations.list(repository, signal()));
 		await started.p;
-		reference.dispose();
+		client.dispose();
 		await rejected;
 		await response.complete(Response.json(emptyPage));
-		await assert.rejects(client.automations.list(repository, signal()), /disposed/);
+		await assert.rejects(client.automations.list(repository, signal()), isCancellationError);
 		assert.deepStrictEqual({ attempts: requests.length, aborted: requests[0].init.signal?.aborted }, { attempts: 1, aborted: true });
 	});
 

@@ -133,6 +133,9 @@ class RecordingTitleController implements IAgentHostSessionTitleController {
 	markTitleRenamed(channel: string, chatChannel?: string): void {
 		this.renamedTitles.push({ channel, chatChannel });
 	}
+	isTitleRenamed(): boolean {
+		return false;
+	}
 	async prepareInstructionForAgent(): Promise<string | undefined> {
 		return this._sessionTitleInstruction;
 	}

@@ -89,20 +89,20 @@ function createHydraFusionModel(): ILanguageModelChatMetadataAndIdentifier {
 	return { ...hydra, metadata: { ...hydra.metadata, name: 'HydraFusion', modelGroup: { id: 'copilotcli' }, detail: 'Research preview', tooltip: 'HydraFusion routes the first eligible turn and may use multiple models.' } };
 }
 
-function createEnsembleModel(intelligenceUsesHydraFusion = true): ILanguageModelChatMetadataAndIdentifier {
+function createFusionModel(balanceUsesHydraFusion = true): ILanguageModelChatMetadataAndIdentifier {
 	const auto = createAutoModel();
 	return {
 		...auto,
 		metadata: {
 			...auto.metadata,
-			name: 'Ensemble',
-			autoModelEnsemble: { intelligenceUsesHydraFusion },
+			name: 'Fusion',
+			autoModelFusion: { balanceUsesHydraFusion },
 			configurationSchema: {
 				properties: {
 					tier: {
 						type: 'string', group: 'navigation', title: 'Effort Level',
 						enum: ['balance', 'intelligence'],
-						enumItemLabels: ['Balance', 'High'],
+						enumItemLabels: ['Lite', 'Balance'],
 						default: 'balance',
 					},
 				}
@@ -758,7 +758,7 @@ suite('TabbedModelPicker', () => {
 		});
 	});
 
-	/** The labels of the options in the open details' tier control: Auto's "Optimize for", or Ensemble's "Effort Level". */
+	/** The labels of the options in the open details' tier control: Auto's "Optimize for", or Fusion's "Effort Level". */
 	function autoTiers(popup: HTMLElement): string[] {
 		return Array.from(popup.querySelectorAll('.tabbed-action-list-details :is([role="radiogroup"][aria-label="Optimize for"], [role="radiogroup"][aria-label="Effort Level"]) [role="radio"]'), option => option.textContent ?? '');
 	}
@@ -798,7 +798,7 @@ suite('TabbedModelPicker', () => {
 		});
 	});
 
-	test('outside Ensemble, HydraFusion is a model of its own beside Auto, with Default and Max as its tiers', async () => {
+	test('outside Fusion, HydraFusion is a model of its own beside Auto, with Default and Max as its tiers', async () => {
 		const auto = createAutoModel();
 		const hydra = createHydraFusionModel();
 		const max = createHydraFusionMaxModel();
@@ -882,15 +882,15 @@ suite('TabbedModelPicker', () => {
 		assert.deepStrictEqual({ hydraFusionDetails, autoOptions: autoTiers(result.popup) }, { hydraFusionDetails: false, autoOptions: ['Efficiency', 'Balance', 'Intelligence'] });
 	});
 
-	test('Ensemble offers Balance, High, and Max, with High using HydraFusion only when routed there and available', async () => {
+	test('Fusion offers Lite, Balance, and Max, with Balance using HydraFusion only when routed there and available', async () => {
 		const max = createHydraFusionMaxModel();
-		const choose = async (option: string, intelligenceUsesHydraFusion: boolean, withHydraFusion = true) => {
-			const ensemble = createEnsembleModel(intelligenceUsesHydraFusion);
-			const result = createPicker({ models: [...models, ensemble, ...(withHydraFusion ? [createHydraFusionModel()] : []), max], selectedModelId: models[0].identifier });
+		const choose = async (option: string, balanceUsesHydraFusion: boolean, withHydraFusion = true) => {
+			const fusion = createFusionModel(balanceUsesHydraFusion);
+			const result = createPicker({ models: [...models, fusion, ...(withHydraFusion ? [createHydraFusionModel()] : []), max], selectedModelId: models[0].identifier });
 			const readout = () => Array.from(result.popup.querySelectorAll('.chat-model-picker-model'))
-				.find(row => row.querySelector('.title')?.textContent === 'Ensemble')?.querySelector('.action-label')?.textContent;
+				.find(row => row.querySelector('.title')?.textContent === 'Fusion')?.querySelector('.action-label')?.textContent;
 			const rows = listRows(result.popup);
-			openDetails(result.popup, 'Ensemble');
+			openDetails(result.popup, 'Fusion');
 			const tiers = autoTiers(result.popup);
 			chooseOption(result.popup, option);
 			await timeout(0);
@@ -898,32 +898,32 @@ suite('TabbedModelPicker', () => {
 			const description = Array.from(result.popup.querySelectorAll<HTMLElement>('.chat-model-card-alternative-description')).find(element => !element.hidden)?.textContent;
 			const ariaLabel = result.popup.querySelector('.tabbed-action-list-details [role="radio"][aria-checked="true"]')?.getAttribute('aria-label');
 			goBack(result.popup);
-			return { rows, tiers, discount, description, ariaLabel, readout: readout(), selections: result.selections, tier: result.values.get(ensemble.identifier)?.tier };
+			return { rows, tiers, discount, description, ariaLabel, readout: readout(), selections: result.selections, tier: result.values.get(fusion.identifier)?.tier };
 		};
-		const ensembleIntelligence = {
-			rows: ['Ensemble', '--', 'First', 'Fixed', 'Second'], tiers: ['Balance', 'High', 'Max'], discount: 'Models routed via Ensemble High receive a 10% discount.',
-			description: undefined, ariaLabel: 'High', readout: 'High', selections: ['copilot/auto'], tier: 'intelligence',
+		const fusionBalance = {
+			rows: ['Fusion', '--', 'First', 'Fixed', 'Second'], tiers: ['Lite', 'Balance', 'Max'], discount: 'Models routed via Fusion Balance receive a 10% discount.',
+			description: undefined, ariaLabel: 'Balance', readout: 'Balance', selections: ['copilot/auto'], tier: 'intelligence',
 		};
 		assert.deepStrictEqual({
-			intelligence: await choose('High', true),
+			balance: await choose('Balance', true),
 			max: await choose('Max', true),
-			intelligenceNotRouted: await choose('High', false),
-			intelligenceWithoutHydraFusion: await choose('High', true, false),
+			balanceNotRouted: await choose('Balance', false),
+			balanceWithoutHydraFusion: await choose('Balance', true, false),
 		}, {
-			intelligence: {
-				rows: ['Ensemble', '--', 'First', 'Fixed', 'Second'], tiers: ['Balance', 'High', 'Max'], discount: undefined,
-				description: 'High picks a workflow per task, using one or more models. Learn more',
-				ariaLabel: 'High, High picks a workflow per task, using one or more models.',
-				readout: 'High', selections: ['copilot/hydrafusion'], tier: undefined,
+			balance: {
+				rows: ['Fusion', '--', 'First', 'Fixed', 'Second'], tiers: ['Lite', 'Balance', 'Max'], discount: undefined,
+				description: 'Balance picks a workflow per task, using one or more models. Learn more',
+				ariaLabel: 'Balance, Balance picks a workflow per task, using one or more models.',
+				readout: 'Balance', selections: ['copilot/hydrafusion'], tier: undefined,
 			},
 			max: {
-				rows: ['Ensemble', '--', 'First', 'Fixed', 'Second'], tiers: ['Balance', 'High', 'Max'], discount: undefined,
+				rows: ['Fusion', '--', 'First', 'Fixed', 'Second'], tiers: ['Lite', 'Balance', 'Max'], discount: undefined,
 				description: 'Max uses multiple models on every task for the most thorough results. Learn more',
 				ariaLabel: 'Max, Max uses multiple models on every task for the most thorough results.',
 				readout: 'Max', selections: ['copilot/hydrafusion-max'], tier: undefined,
 			},
-			intelligenceNotRouted: ensembleIntelligence,
-			intelligenceWithoutHydraFusion: ensembleIntelligence,
+			balanceNotRouted: fusionBalance,
+			balanceWithoutHydraFusion: fusionBalance,
 		});
 	});
 
@@ -1583,7 +1583,7 @@ suite('TabbedModelPicker', () => {
 	for (const { name, routing, requested, expected } of [
 		{ name: 'Auto with tiers', routing: [createAutoModel()], requested: 'auto', expected: { model: 'Auto', groups: ['Optimize for'] } },
 		{ name: 'Auto without a schema', routing: [model('auto', false)], requested: 'auto', expected: { model: 'auto', groups: [] } },
-		{ name: 'HydraFusion as Ensemble\'s tier', routing: [createEnsembleModel(), createHydraFusionModel()], requested: 'hydrafusion', expected: { model: 'Ensemble', groups: ['Effort Level'] } },
+		{ name: 'HydraFusion as Fusion\'s tier', routing: [createFusionModel(), createHydraFusionModel()], requested: 'hydrafusion', expected: { model: 'Fusion', groups: ['Effort Level'] } },
 		{ name: 'HydraFusion with Default and Max', routing: [createAutoModel(), createHydraFusionModel(), createHydraFusionMaxModel()], requested: 'hydrafusion-max', expected: { model: 'HydraFusion', groups: ['HydraFusion tier'] } },
 		{ name: 'HydraFusion without HydraFusion Max', routing: [createAutoModel(), createHydraFusionModel()], requested: 'hydrafusion', expected: undefined },
 		{ name: 'HydraFusion without an Auto to join', routing: [createHydraFusionModel()], requested: 'hydrafusion', expected: undefined },
@@ -1618,17 +1618,17 @@ suite('TabbedModelPicker', () => {
 		});
 	}
 
-	test('an Ensemble tier controlled by a read-only schema cannot be changed, but Max can still be chosen', async () => {
-		const ensemble = createEnsembleModel();
+	test('a Fusion tier controlled by a read-only schema cannot be changed, but Max can still be chosen', async () => {
+		const fusion = createFusionModel();
 		const max = createHydraFusionMaxModel();
 		const result = createPicker({
-			models: [{ ...ensemble, metadata: { ...ensemble.metadata, configurationSchema: { properties: { tier: { ...ensemble.metadata.configurationSchema!.properties!.tier, readOnly: true } } } } }, createHydraFusionModel(), max, ...models],
+			models: [{ ...fusion, metadata: { ...fusion.metadata, configurationSchema: { properties: { tier: { ...fusion.metadata.configurationSchema!.properties!.tier, readOnly: true } } } } }, createHydraFusionModel(), max, ...models],
 		});
-		openDetails(result.popup, 'Ensemble');
+		openDetails(result.popup, 'Fusion');
 		const disabled = Array.from(result.popup.querySelectorAll('.tabbed-action-list-details [role="radio"]'), option => option.getAttribute('aria-disabled') === 'true');
-		chooseOption(result.popup, 'Balance');
+		chooseOption(result.popup, 'Lite');
 		await timeout(0);
-		const saved = result.values.get(ensemble.identifier);
+		const saved = result.values.get(fusion.identifier);
 		chooseOption(result.popup, 'Max');
 		await timeout(0);
 		assert.deepStrictEqual({ disabled, saved, selections: result.selections }, {

@@ -667,6 +667,7 @@ export function createChatState(summary: ChatSummary): ChatState {
 		interactivity: summary.interactivity,
 		workingDirectories: summary.workingDirectories,
 		...(summary.changes !== undefined ? { changes: summary.changes } : {}),
+		...(summary.movable !== undefined ? { movable: summary.movable } : {}),
 		turns: [],
 		activeTurn: undefined,
 	};
@@ -768,6 +769,7 @@ export function chatSummaryFromState(state: ChatState): ChatSummary {
 	if (state.interactivity !== undefined) { summary.interactivity = state.interactivity; }
 	if (state.workingDirectories !== undefined) { summary.workingDirectories = state.workingDirectories; }
 	if (state.changes !== undefined) { summary.changes = state.changes; }
+	if (state.movable !== undefined) { summary.movable = state.movable; }
 	return summary;
 }
 

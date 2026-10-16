@@ -22,7 +22,7 @@ import { IAgentService } from '../../common/agentService.js';
 import { IAgent, IAgentChatSessionEvent } from '../../common/agent.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType, type ActionEnvelope } from '../../common/state/sessionActions.js';
-import { buildDefaultChatUri, MessageKind, ROOT_STATE_URI, SessionStatus } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, MessageKind, ROOT_STATE_URI, SessionStatus, type ISessionWithDefaultChat, type SessionSummary } from '../../common/state/sessionState.js';
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
@@ -80,7 +80,7 @@ suite('Mission Control host integration', () => {
 		assert.strictEqual(getMissionControlEnvironmentName(product), `${hostname().replace(/\.local$/i, '')} (VS Code Insiders)`);
 	});
 
-	function createHost(instantiation = store.add(new TestInstantiationService()), stateManager?: AgentHostStateManager, providers?: IAgentHostProviderService, agentService?: IAgentService, quality: IProductService['quality'] = 'stable') {
+	function createHost(instantiation = store.add(new TestInstantiationService()), stateManager?: AgentHostStateManager, providers?: IAgentHostProviderService, agentService?: IAgentService, quality: IProductService['quality'] = 'stable', sessionDataService?: ISessionDataService) {
 		const counts = { requests: 0, handlers: 0 };
 		const events: { eventName: string; data: ITelemetryData | undefined }[] = [];
 		const rootConfigChanged = store.add(new Emitter<void>());
@@ -120,7 +120,7 @@ suite('Mission Control host integration', () => {
 		instantiation.stub(IAgentService, agentService ?? new class extends mock<IAgentService>() { }());
 		instantiation.stub(IAgentHostStateManager, stateManager ?? new class extends mock<AgentHostStateManager>() { }());
 		instantiation.stub(IAgentHostChatOwnershipService, stateManager ? createTestChatOwnershipService(stateManager) : new class extends mock<IAgentHostChatOwnershipService>() { }());
-		instantiation.stub(ISessionDataService, new class extends mock<ISessionDataService>() { }());
+		instantiation.stub(ISessionDataService, sessionDataService ?? new class extends mock<ISessionDataService>() { }());
 		instantiation.stub(IAgentHostProviderService, providers ?? new class extends mock<IAgentHostProviderService>() { }());
 		instantiation.stubInstance(MissionControlProjects, new class extends mock<MissionControlProjects>() {
 			override get roots() { return []; }
@@ -568,6 +568,33 @@ suite('Mission Control host integration', () => {
 			defaultDirectory: URI.file(`${home}/.copilot`).toString(),
 			grants: [home], initialProjects: ['/home/test/code/project'],
 			updatedProjects: ['/another-drive/project'], catalogueGrants: [home],
+		});
+	});
+
+	test('lets read-only content access reach the data of every loaded chat, also a moved chat\'s first session (Block 4)', () => {
+		const instantiation = store.add(new TestInstantiationService());
+		const creations = sinon.spy(instantiation, 'createInstance');
+		store.add(toDisposable(() => creations.restore()));
+		instantiation.stubInstance(ProtocolServerHandler, new class extends mock<ProtocolServerHandler>() { override dispose(): void { } }());
+		const session = 'copilotcli:/content-session';
+		const peer = 'ahp-chat:/content-peer';
+		const origin = 'copilotcli:/content-origin';
+		const state = new class extends mock<AgentHostStateManager>() {
+			override getOverlaySessionSummaries() { return [{ resource: session } as SessionSummary]; }
+			override getSessionState() { return { chats: [{ resource: buildDefaultChatUri(session) }, { resource: peer }] } as ISessionWithDefaultChat; }
+			override getChatAttachmentScopes(chat: string) { return chat === peer ? [session, peer, origin] : [session]; }
+		}();
+		const dataDirectory = (resource: URI) => URI.file(`/data/${resource.scheme}${resource.path}`);
+		createHost(instantiation, state, undefined, undefined, undefined, new class extends mock<ISessionDataService>() {
+			override getSessionDataDir(resource: URI) { return dataDirectory(resource); }
+		}());
+		const environment = creations.getCalls().find(call => call.args[0] === MissionControlEnvironment)!.args[1] as IMissionControlEnvironmentHost;
+		store.add(environment.attach(new class extends mock<MissionControlProtocolServer>() { override readonly rootMeta = {}; }(), [], () => [], () => []));
+		const config = creations.getCalls().find(call => call.args[0] === ProtocolServerHandler)!.args[4] as IProtocolServerConfig;
+
+		assert.deepStrictEqual({ readOnly: config.relayResourceRoots!(true), writable: config.relayResourceRoots!(false) }, {
+			readOnly: [session, peer, origin].map(scope => dataDirectory(URI.parse(scope)).fsPath),
+			writable: [],
 		});
 	});
 

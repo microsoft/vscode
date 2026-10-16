@@ -627,6 +627,14 @@ export class AgentSideEffects extends Disposable {
 		});
 	}
 
+	/** Republishes a session's customizations from its current chats, as after a chat moved into or out of it (Block 4). */
+	republishSessionCustomizations(session: ProtocolURI): void {
+		const agent = this._options.getAgent(session);
+		if (agent && this._stateManager.getSessionState(session)) {
+			this._publishSessionCustomizationsSoon(agent, session);
+		}
+	}
+
 	private _publishSessionCustomizationsSoon(agent: IAgent, session: ProtocolURI, supersededRetries = 0): void {
 		const previous = this._pendingSessionCustomizationPublishes.get(session) ?? Promise.resolve();
 		const publish = previous.then(() => this._publishSessionCustomizations(agent, session, supersededRetries)).catch(err => {
@@ -2062,6 +2070,10 @@ export class AgentSideEffects extends Disposable {
 
 	markTitleRenamed(channel: ProtocolURI, chatChannel?: ProtocolURI): void {
 		this._titleController.markTitleRenamed(channel, chatChannel);
+	}
+
+	isTitleRenamed(channel: ProtocolURI, chatChannel?: ProtocolURI): boolean {
+		return this._titleController.isTitleRenamed(channel, chatChannel);
 	}
 
 	private _persistDefaultChatTitleSnapshot(session: ProtocolURI, chat: ProtocolURI, title: string): void {

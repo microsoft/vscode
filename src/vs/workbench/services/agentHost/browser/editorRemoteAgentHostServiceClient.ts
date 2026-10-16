@@ -304,6 +304,10 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._requireClient().createSession(config);
 	}
 
+	moveSession(session: URI, destination: URI, after: URI | undefined): Promise<URI> {
+		return this._requireClient().moveSession(session, destination, after);
+	}
+
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
 		return this._requireClient().resolveSessionConfig(params);
 	}

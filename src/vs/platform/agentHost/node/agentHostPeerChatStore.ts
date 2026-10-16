@@ -720,6 +720,15 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 	}
 
 	/**
+	 * A write outside this store changed `session`'s normalized chat list (Block 4's moves, promotions and reorders):
+	 * publishes its older-build copy at the end of the coalescing window, as for a change made here, so older builds
+	 * see the chats where they are now and the chats that left it are recorded as left.
+	 */
+	scheduleOlderBuildCopyPublish(session: URI): void {
+		this._scheduleCompatibilityPublish(session);
+	}
+
+	/**
 	 * Brings a normalized catalog's older-build copy in sync before a move or promotion validates, so it never works
 	 * from a stale list: imports what older builds changed, then publishes the pending copy. Block 4 calls this.
 	 */

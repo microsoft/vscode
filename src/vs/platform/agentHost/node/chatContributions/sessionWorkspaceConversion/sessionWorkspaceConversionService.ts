@@ -24,7 +24,7 @@ import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationWorkspaceKind, serializeAgentWorkspaceTransition, type IAgentSystemNotificationMeta, type IAgentWorkspaceTransitionRecord, toAgentSystemNotificationMeta } from '../../../common/meta/agentSystemNotificationMeta.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChatInteractivity, isAhpChatChannel, ChatOriginKind, isSubagentSession, MessageKind, parseSubagentSessionUri, readSessionExternal, readSessionWorkspaceless, ResponsePartKind, SessionLifecycle, SessionStatus, withSessionHasWorkspaceTransitions, withSessionWorkspaceless, type ISessionWithDefaultChat, type SessionConfigState, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
-import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
+import { AgentHostStateManager, ChatRemovalReason, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { IAgentHostClientConnectionService } from '../../agentHostClientConnectionService.js';
 import { IAgentConfigurationService } from '../../agentConfigurationService.js';
 import { IAgentHostProviderService } from '../../agentHostProviderService.js';
@@ -138,7 +138,8 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 	) {
 		super();
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
-			if (envelope.action.type === ActionType.SessionChatRemoved) {
+			// A moved chat keeps its isolation state.
+			if (envelope.action.type === ActionType.SessionChatRemoved && this._stateManager.chatRemovalReason(envelope.channel, envelope.action.chat) === ChatRemovalReason.Deleted) {
 				this._clearChatIsolationState(envelope.action.chat);
 			}
 			if (envelope.action.type === ActionType.SessionReady) {

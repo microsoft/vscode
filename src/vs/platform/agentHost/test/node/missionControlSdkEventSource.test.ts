@@ -12,11 +12,11 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import type { IAgent, IAgentChatContext, IAgentChatSessionEvent } from '../../common/agent.js';
+import type { IAgent, IAgentChatSessionEvent } from '../../common/agent.js';
 import type { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { MessageKind, SessionStatus, buildDefaultChatUri } from '../../common/state/sessionState.js';
+import { MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { MissionControlSdkEventSource } from '../../node/missionControl/missionControlSdkEventSource.js';
@@ -227,23 +227,70 @@ suite('MissionControlSdkEventSource', () => {
 		}, { types: ['session.idle', 'assistant.turn_start'], logged: true });
 	});
 
-	test('reconciles the history of a chat that changed owner under its current owner', async () => {
+	const sdkEvents = (events: readonly MissionControlMirrorEvent[]) => events.flatMap(value => value.event === 'sessionEvents' && value.data.ns === 'sdk' ? [`${value.data.session_id} ${value.data.payload.type}`] : []);
+
+	test('a chat promoted into a new session starts that session\'s stream from the start of its journal, and its old session\'s stream goes on (Block 4)', async () => {
 		const f = fixture();
-		const other = 'copilotcli:/mission-control-other-owner';
-		f.state.createSession({ resource: other, defaultChat: buildDefaultChatUri(other), provider: 'copilotcli', title: 'Other', status: SessionStatus.Idle, createdAt: at, modifiedAt: at }, { emitNotification: false });
-		f.state.reassignChatOwner(chat.toString(), other);
-		const owners: string[] = [];
-		sinon.stub(f.provider, 'readChatSessionEvents').callsFake(async function* (...args: unknown[]) {
-			owners.push((args[1] as IAgentChatContext).owner.get().toString());
-			yield event('idle');
-		});
 		await f.source.whenIdle();
 		clock.runAll();
+		const peer = URI.parse(buildChatUri(session, 'promoted'));
+		f.state.addChat(session, peer.toString(), peer.toString());
+		const promoted = 'ahp-session:/promoted';
+		const reads: string[] = [];
+		sinon.stub(f.provider, 'readChatSessionEvents').callsFake(async function* (...args: unknown[]) {
+			const read = args[0] as URI;
+			reads.push(`${read.toString()} ${String(args[3])}`);
+			if (read.toString() === peer.toString()) {
+				yield { ...event('peer-start', 'session.start', { sessionId: 'peer' }), chat: peer };
+			}
+		});
+		f.events.length = 0;
+
+		f.state.promoteChats(session, { resource: promoted, defaultChat: peer.toString(), provider: 'copilotcli', title: 'Promoted', status: SessionStatus.Idle, createdAt: at, modifiedAt: at }, undefined, [peer.toString()]);
+		await f.source.whenIdle();
+		clock.runAll();
+		// The new stream starts with the promotion, before the chat's next native event.
+		const readsOnPromotion = [...reads];
+		f.emitter.fire({ ...event('peer-idle'), chat: peer });
+		f.emitter.fire(event('source-idle'));
+		await f.source.whenIdle();
+		clock.runAll();
+
+		// Each stream is ordered; the two streams interleave in no particular order.
+		assert.deepStrictEqual({ readsOnPromotion, reads, sdk: sdkEvents(f.events).filter(entry => !entry.endsWith('session.title_changed')).sort() }, {
+			// The peer was never replicated, so it has no cursor: its new stream reads its journal from the start.
+			readsOnPromotion: [`${peer.toString()} undefined`],
+			reads: [`${peer.toString()} undefined`],
+			sdk: [`${session} session.idle`, `${promoted} session.idle`, `${promoted} session.start`],
+		});
+	});
+
+	test('a default chat that moved under another session is replicated no more, neither its history nor its live events (Block 4)', async () => {
+		// Its stream had not drained its history yet when it moved.
+		const f = fixture([event('before-move')]);
+		const other = 'ahp-session:/move-target';
+		f.state.restoreSession({ resource: other, defaultChat: buildDefaultChatUri(other), provider: 'copilotcli', title: 'Other', status: SessionStatus.Idle, createdAt: at, modifiedAt: at }, [], creationTimeChatStorageResource);
+
+		const movedChatReads: string[] = [];
+		sinon.stub(f.provider, 'readChatSessionEvents').callsFake(async function* (...args: unknown[]) {
+			if ((args[0] as URI).toString() === chat.toString()) {
+				movedChatReads.push(chat.toString());
+				yield event('before-move');
+			}
+		});
+
+		// Until it is removed, the session still advertises the chat as its default chat: no new stream starts for it.
+		const registered = sinon.spy(f.mirror, 'registerSession');
+		f.state.reassignChatOwner(chat.toString(), other);
+		f.emitter.fire(event('after-move'));
+		await f.source.whenIdle();
+		clock.runAll();
+
 		assert.deepStrictEqual({
-			owners,
-			types: f.events.flatMap(value => value.event === 'sessionEvents' && value.data.ns === 'sdk' ? [value.data.payload.type] : []),
-			logged: f.errors.called,
-		}, { owners: [other], types: ['session.idle'], logged: false });
+			sdk: sdkEvents(f.events).filter(entry => entry.startsWith(session)),
+			movedChatReads,
+			restarted: registered.args.filter(([candidate]) => candidate === session).length,
+		}, { sdk: [], movedChatReads: [], restarted: 0 });
 	});
 
 	test('an unreadable journal is reported without preventing fresh native metadata', async () => {

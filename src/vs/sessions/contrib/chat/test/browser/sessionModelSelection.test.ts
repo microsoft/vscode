@@ -1356,7 +1356,7 @@ suite('SessionModelSelection', () => {
 			createConfigurationService(),
 			disposables.add(new NullLogService()),
 		));
-		// As the picker maps an Ensemble tier onto the HydraFusion model that runs it.
+		// As the picker maps a Fusion tier onto the HydraFusion model that runs it.
 		disposables.add(autorun(reader => {
 			if (selection.state.read(reader).currentModel?.identifier === second.identifier) {
 				selection.selectModel(first.identifier, false);

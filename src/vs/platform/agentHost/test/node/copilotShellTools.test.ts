@@ -152,6 +152,7 @@ suite('CopilotShellTools', () => {
 			getSessionSandboxPolicy: session => policies.get(session),
 			getSessionSandboxEnabled: () => undefined,
 			getChatSandboxEnabled: () => undefined,
+			getChatAttachmentScopes: target => [target.session],
 			setChatSandboxEnabled: () => { },
 			rejectChatSandboxChange: () => { },
 			setSessionSandboxPolicy: (session, policy) => {

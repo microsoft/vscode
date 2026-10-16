@@ -14,7 +14,7 @@ import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../../../platform/agentH
 import { LOCAL_MODEL_SENTINEL_PROVIDER_NAME } from '../../../../../../platform/agentHost/common/localModel.js';
 import { readLocalModelRowMeta } from '../../../../../../platform/agentHost/common/meta/localModelStatus.js';
 import { ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { readAgentModelEnsembleMeta, readAgentModelPricingMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
+import { readAgentModelFusionMeta, readAgentModelPricingMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { readAgentManagedModelDefaults, readAgentModelConfigurationDefaults } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { readAgentModelGroupId, readAgentModelSourceId } from '../../../../../../platform/agentHost/common/agentModelSource.js';
@@ -109,7 +109,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				const multiplierNumeric = pricing.multiplierNumeric;
 				// "Auto" advertises the auto-mode discount (detail) + description (tooltip). microsoft/vscode#321778, #321659.
 				const isAuto = m.id === AUTO_RAW_MODEL_ID;
-				const ensemble = isAuto ? readAgentModelEnsembleMeta(m) : undefined;
+				const fusion = isAuto ? readAgentModelFusionMeta(m) : undefined;
 				const configurationDefaultKeys = readAgentModelConfigurationDefaults(m);
 				const notices = isAuto ? undefined : readAgentModelNoticesMeta(m);
 				const discountPercent = pricing.discountPercent;
@@ -141,7 +141,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 						...(tooltip !== undefined && { tooltip }),
 						...(detail !== undefined && { detail }),
 						...(isAuto && hasDiscount && { autoModelDiscountPercent: discountPercent }),
-						...(ensemble && { autoModelEnsemble: ensemble }),
+						...(fusion && { autoModelFusion: fusion }),
 						maxInputTokens,
 						maxOutputTokens,
 						maxContextWindowTokens: m.maxContextWindow ?? known?.maxContextWindowTokens,
@@ -192,7 +192,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 			return {
 				detail: discountPercent !== undefined ? localize('agentHost.auto.discount', "{0}% discount", discountPercent) : undefined,
 				// The discount is carried by `autoModelDiscountPercent` and described by the picker.
-				description: ILanguageModelChatMetadata.getAutoModelDescription(!!readAgentModelEnsembleMeta(model)),
+				description: ILanguageModelChatMetadata.getAutoModelDescription(!!readAgentModelFusionMeta(model)),
 			};
 		}
 		if (model.provider === COPILOT_CLI_AGENT_PROVIDER_ID && isCopilotHydraFusionModelId(model.id)) {

@@ -10,7 +10,7 @@ import { Emitter } from '../../../../../../base/common/event.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { PolicyState, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { withAgentModelEnsembleMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
+import { withAgentModelFusionMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { createLocalModelRowMeta } from '../../../../../../platform/agentHost/common/meta/localModelStatus.js';
 import { withAgentManagedModelDefaults, withAgentModelConfigurationDefaults } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
 import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
@@ -229,26 +229,26 @@ suite('AgentHostLanguageModelProvider', () => {
 		assert.strictEqual(concrete?.metadata.autoModelDiscountPercent, undefined);
 	});
 
-	test('presents Auto as Ensemble only when its host marks it so', async () => {
+	test('presents Auto as Fusion only when its host marks it so', async () => {
 		const provider = createProvider();
 		provider.updateModels([
-			{ ...makeModel('auto', withAgentModelEnsembleMeta({ discountPercent: 10 }, { intelligenceUsesHydraFusion: true })), name: 'Ensemble' },
-			{ ...makeModel('gpt-5', withAgentModelEnsembleMeta(undefined, { intelligenceUsesHydraFusion: true })) },
+			{ ...makeModel('auto', withAgentModelFusionMeta({ discountPercent: 10 }, { balanceUsesHydraFusion: true })), name: 'Fusion' },
+			{ ...makeModel('gpt-5', withAgentModelFusionMeta(undefined, { balanceUsesHydraFusion: true })) },
 		]);
 		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
-		const ensembleOf = async (meta?: Record<string, unknown>) => {
+		const fusionOf = async (meta?: Record<string, unknown>) => {
 			const host = createProvider();
 			host.updateModels([makeModel('auto', meta)]);
-			return (await host.provideLanguageModelChatInfo(undefined, CancellationToken.None))[0].metadata.autoModelEnsemble;
+			return (await host.provideLanguageModelChatInfo(undefined, CancellationToken.None))[0].metadata.autoModelFusion;
 		};
 		assert.deepStrictEqual({
-			models: infos.map(m => ({ name: m.metadata.name, ensemble: m.metadata.autoModelEnsemble, tooltip: m.metadata.tooltip })),
-			plain: await ensembleOf(),
-			malformed: [await ensembleOf({ 'vscode.chat.ensemble': {} }), await ensembleOf({ 'vscode.chat.ensemble': { intelligenceUsesHydraFusion: 'true' } })],
+			models: infos.map(m => ({ name: m.metadata.name, fusion: m.metadata.autoModelFusion, tooltip: m.metadata.tooltip })),
+			plain: await fusionOf(),
+			malformed: [await fusionOf({ 'vscode.chat.fusion': {} }), await fusionOf({ 'vscode.chat.fusion': { balanceUsesHydraFusion: 'true' } })],
 		}, {
 			models: [
-				{ name: 'Ensemble', ensemble: { intelligenceUsesHydraFusion: true }, tooltip: 'Ensemble routes based on your task and real-time system health and model performance.' },
-				{ name: 'gpt-5', ensemble: undefined, tooltip: undefined },
+				{ name: 'Fusion', fusion: { balanceUsesHydraFusion: true }, tooltip: 'Fusion routes based on your task and real-time system health and model performance.' },
+				{ name: 'gpt-5', fusion: undefined, tooltip: undefined },
 			],
 			plain: undefined,
 			malformed: [undefined, undefined],
