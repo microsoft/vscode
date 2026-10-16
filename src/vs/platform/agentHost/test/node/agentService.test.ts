@@ -33008,6 +33008,37 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			});
 
+			test('a chat in its session\'s additional worktree, or in another chat\'s own one, moves and co-owns it, with no withholding: older builds may still remove it with its original owner (accepted, Block 5)', async () => {
+				const outcomes: Record<string, unknown> = {};
+				for (const kind of ['sessionLevel', 'otherChats'] as const) {
+					const { service, source, target, peer, folder } = await setupMove();
+					const defaultChat = getStateManager(service).getSessionState(source.toString())!.defaultChat!;
+					const handle = generateUuid();
+					setTestAgentHostWorktreeIsolation(service, createTestAgentHostWorktreeIsolation({
+						readDetachedWorktreeForRemoval: async candidate => candidate === handle ? { worktree: folder, repositoryRoot: URI.file('/main'), branchName: 'agents/additional' } : undefined,
+					}));
+					const store = getTestSessionStateStore(service);
+					const worktree = { handle, workingDirectory: folder.toString(), repositoryRoot: URI.file('/main').toString(), ...(kind === 'otherChats' ? { chat: defaultChat } : {}) };
+					await writeSessionAdditionalWorktrees(store, source, [worktree]);
+					await timeout(0);
+					const movable = getStateManager(service).getSessionState(source.toString())?.chats.find(chat => chat.resource === peer.toString())?.movable;
+
+					const moved = await refusalOf(service.moveChat(source, peer, { kind: 'session', session: target, after: undefined }));
+
+					outcomes[kind] = {
+						movable,
+						moved,
+						coOwners: (await getTestAgentHostDatabase(service).readWorktreeCoOwners(folder.toString())).map(row => `${row.session === source.toString() ? 'source' : row.session === target.toString() ? 'target' : row.session}:${row.branch}`).sort(),
+						withheld: [source, target].map(session => store.peek(session)?.values.get(OLDER_BUILD_WORKTREE_WITHHELD_KEY)),
+						// Its record stays the source's: only a moved chat's own worktree transfers.
+						sourceKeepsRecord: (await readSessionAdditionalWorktrees(store, source)).map(entry => entry.handle === handle),
+						targetWorktrees: (await readSessionAdditionalWorktrees(store, target)).length,
+					};
+				}
+				const shared = { movable: true, moved: 'moved', coOwners: ['source:agents/additional', 'target:agents/additional'], withheld: [undefined, undefined], sourceKeepsRecord: [true], targetWorktrees: 0 };
+				assert.deepStrictEqual(outcomes, { sessionLevel: shared, otherChats: shared });
+			});
+
 			test('a session that moves under another hands its own worktree to it: the target lists it for the chat, and its record names the target (Block 5)', async () => {
 				const { service, source, target } = await setupMove();
 				const defaultChat = getStateManager(service).getSessionState(source.toString())!.defaultChat!;
