@@ -140,11 +140,11 @@ export async function resolveCopilotManagedSettings(
 		throw new CancellationError();
 	}
 	try {
-		const result = await raceTimeout(raceCancellationError(managedSettings.resolve({
+		const result = await raceCancellationError(raceTimeout(managedSettings.resolve({
 			clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
 			...(token ? { gitHubToken: token } : {}),
 			...(workingDirectory ? { workingDirectory } : {}),
-		}), cancellationToken), timeoutMs);
+		}), timeoutMs), cancellationToken);
 		if (!result) {
 			throw new AgentPolicyError(localize('copilot.managedSettings.timeout', "Loading your organization's managed settings took longer than {0} seconds. Please try again.", timeoutMs / 1000));
 		}

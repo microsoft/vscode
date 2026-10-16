@@ -6,7 +6,8 @@
 import assert from 'assert';
 import { useFakeTimers } from 'sinon';
 import { DeferredPromise } from '../../../../base/common/async.js';
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationTokenSource, type CancellationToken } from '../../../../base/common/cancellation.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -185,6 +186,27 @@ suite('Copilot managed settings resolution', () => {
 		} finally {
 			old.complete(result);
 			current.complete(result);
+			clock.restore();
+		}
+	});
+
+	test('repeated RPC timeouts release their cancellation listeners without invalidation', async () => {
+		const rpc = createUnmanagedCopilotSettings();
+		rpc.resolve = () => new Promise(() => { });
+		const emitter = disposables.add(new Emitter<void>());
+		const cancellation: CancellationToken = { isCancellationRequested: false, onCancellationRequested: emitter.event };
+		const listeners: boolean[] = [];
+		const clock = useFakeTimers();
+		try {
+			for (let attempt = 0; attempt < 3; attempt++) {
+				const rejected = assert.rejects(resolveCopilotManagedSettings(rpc, 'token', 30_000, undefined, cancellation), AgentPolicyError);
+				listeners.push(emitter.hasListeners());
+				await clock.tickAsync(30_000);
+				await rejected;
+				listeners.push(emitter.hasListeners());
+			}
+			assert.deepStrictEqual(listeners, [true, false, true, false, true, false]);
+		} finally {
 			clock.restore();
 		}
 	});

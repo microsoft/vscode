@@ -28,12 +28,12 @@ import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportK
 import { COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID } from '../../common/copilotCliConfig.js';
 import { getCodexAccountTelemetryContext } from '../../node/codex/codexAccountTelemetry.js';
 import type { ICodexAccountState } from '../../node/codex/codexAccountState.js';
-import { platformSessionSchema, type SessionMode } from '../../common/agentHostSchema.js';
+import { AgentHostOverlapProviderPreparationConfigKey, platformSessionSchema, type SessionMode } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType, type ChatAction, type ChatUsageAction } from '../../common/state/sessionActions.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta.js';
-import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, ChatOriginKind, createErrorResponsePart, type Message, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, ChatOriginKind, createErrorResponsePart, type Message, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus } from '../../common/state/sessionState.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
@@ -2454,6 +2454,26 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			sends: agent.sendMessageCalls.length,
 			outcomes: completedEvents().map(event => (event.data as Record<string, unknown>).result),
 		}, { failures: 0, creationError: undefined, sends: 0, outcomes: ['cancelled'] });
+	});
+
+	test('Stop during agent selection without a model does not start turn preparation', async () => {
+		setupSession();
+		stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { [AgentHostOverlapProviderPreparationConfigKey]: true } });
+		const started = new DeferredPromise<void>();
+		const selection = new DeferredPromise<void>();
+		let preparations = 0;
+		agent.changeAgent = () => { started.complete(); return selection.p; };
+		agent.chats.prepareTurn = async () => { preparations++; };
+		startTurn('turn-1', 'cancel this prompt');
+		await started.p;
+		applyClientAction({ type: ActionType.ChatTurnCancelled, turnId: 'turn-1', duration: 1 });
+		selection.error(new CancellationError());
+		await timeout(10);
+		assert.deepStrictEqual({ preparations, sends: agent.sendMessageCalls.length }, { preparations: 0, sends: 0 });
+		agent.changeAgent = async () => { };
+		startTurn('turn-2', 'send this prompt');
+		await timeout(10);
+		assert.deepStrictEqual({ preparations, sends: agent.sendMessageCalls.length }, { preparations: 1, sends: 1 });
 	});
 
 	test('fails the turn when model selection rejects instead of sending with a stale model', async () => {

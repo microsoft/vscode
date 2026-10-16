@@ -2171,12 +2171,12 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	for (const kind of ['create', 'resume', 'peerResume'] as const) {
+	for (const kind of ['create', 'resume', 'peerResume', 'resumeWithSelections', 'peerResumeWithSelections'] as const) {
 		test(`Stop releases a ${kind} waiting on managed settings before the SDK starts`, async () => {
 			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/copilot-policy-stop-`);
 			const sessionId = 'policy-stop';
 			const session = AgentSession.uri('copilotcli', sessionId);
-			const chat = kind === 'peerResume' ? URI.parse(buildChatUri(session, 'peer')) : defaultChatUri(session);
+			const chat = kind === 'peerResume' || kind === 'peerResumeWithSelections' ? URI.parse(buildChatUri(session, 'peer')) : defaultChatUri(session);
 			const context = exactChatContext(session, chat, session);
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
@@ -2212,10 +2212,19 @@ suite('CopilotAgent', () => {
 					}
 					return Promise.resolve(client.managedSettingsResolution);
 				};
-				const send = agent.chats.sendMessage(chat, 'cancel me', [URI.file(workingDirectory)], undefined, 'cancelled', undefined, undefined, context);
+				const selections = kind === 'resumeWithSelections' || kind === 'peerResumeWithSelections'
+					? [agent.chats.changeModel(chat, { id: 'model-x' }, context), agent.chats.changeAgent(chat, undefined, context)]
+					: [];
+				const settledSelections = Promise.allSettled(selections);
+				const send = (async () => {
+					await Promise.all(selections);
+					await agent.chats.sendMessage(chat, 'cancel me', [URI.file(workingDirectory)], undefined, 'cancelled', undefined, undefined, context);
+				})();
+				const completedSend = selections.length ? assert.rejects(send, isCancellationError) : send;
 				await started.p;
 				await agent.chats.abort(chat, context);
-				await send;
+				await completedSend;
+				assert.deepStrictEqual((await settledSelections).map(result => result.status), selections.map(() => 'rejected'));
 				assert.deepStrictEqual({ startedSdkSessions: runtimes.length, pendingInitializations: agent['_sessionsPendingRegistration'].size }, { startedSdkSessions: 0, pendingInitializations: 0 });
 				const retry = agent.chats.sendMessage(chat, 'retry once', [URI.file(workingDirectory)], undefined, 'retry', undefined, undefined, context);
 				await gate.complete(client.managedSettingsResolution);
