@@ -6,7 +6,7 @@
 import assert from 'assert';
 import fs from 'fs';
 import path from 'path';
-import { Page, Response } from 'playwright';
+import { ConsoleMessage, Page, Request, Response } from 'playwright';
 import { TestContext } from './context.js';
 
 /**
@@ -138,14 +138,29 @@ export class UITest {
 	 */
 	private async openMarkdownPreview(page: Page) {
 		const failedResources: string[] = [];
+		const diagnostics: string[] = [];
 		const onResponse = (response: Response) => {
 			if (response.status() >= 400 && response.url().includes('.vscode-resource.')) {
 				this.context.log(`Webview resource failed with ${response.status()}: ${response.url()}`);
 				failedResources.push(`${response.status()} ${response.url()}`);
 			}
 		};
+		const onRequestFailed = (request: Request) => {
+			if (/\.vscode-resource\.|vscode-cdn\.net/.test(request.url())) {
+				const message = `Webview request failed with ${request.failure()?.errorText}: ${request.url()}`;
+				this.context.log(message);
+				diagnostics.push(message);
+			}
+		};
+		const onConsole = (message: ConsoleMessage) => {
+			if (message.type() === 'error') {
+				diagnostics.push(`Console error: ${message.text()}`);
+			}
+		};
 
 		page.on('response', onResponse);
+		page.on('requestfailed', onRequestFailed);
+		page.on('console', onConsole);
 		try {
 			await this.createFile(page, 'preview.md', '# Webview Sanity');
 			await this.runCommand(page, 'Markdown: Open Preview');
@@ -157,7 +172,11 @@ export class UITest {
 			try {
 				await preview.getByRole('heading', { name: 'Webview Sanity' }).waitFor({ timeout: 60_000 });
 			} catch (error) {
-				throw new Error(`Markdown preview did not render. Failed webview resources: ${failedResources.join(', ') || 'none observed'}`, { cause: error });
+				throw new Error([
+					'Markdown preview did not render.',
+					`Failed webview resources: ${failedResources.join(', ') || 'none observed'}`,
+					...diagnostics.slice(0, 20),
+				].join('\n'), { cause: error });
 			}
 
 			// Keyboard focus is now inside the preview webview; return it to the workbench before later steps press F1.
@@ -165,6 +184,8 @@ export class UITest {
 			await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
 		} finally {
 			page.off('response', onResponse);
+			page.off('requestfailed', onRequestFailed);
+			page.off('console', onConsole);
 		}
 
 		assert.deepStrictEqual(failedResources, [], 'Markdown preview failed to load some webview resources');
