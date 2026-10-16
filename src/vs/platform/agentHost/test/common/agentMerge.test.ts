@@ -651,7 +651,6 @@ function readySnapshot(overrides?: {
 		},
 		topLevelComments: { status: 'ready', complete: true, value: overrides?.topLevelComments ?? [] },
 		submittedReviews: { status: 'ready', complete: true, value: overrides?.submittedReviews ?? [] },
-		inlineComments: { status: 'missing', complete: false },
 		reviewThreads: { status: 'ready', complete: true, headSha: 'head', value: overrides?.reviewThreads ?? [] },
 		checks: {
 			status: 'ready',
@@ -677,6 +676,5 @@ function readySnapshot(overrides?: {
 				queueRequirementKnown: true,
 			},
 		},
-		participants: { status: 'missing', complete: false },
 	};
 }

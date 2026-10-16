@@ -30,7 +30,7 @@ import { IProductService } from '../../../../../../../platform/product/common/pr
 import { onUnexpectedError } from '../../../../../../../base/common/errors.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { logSettingExperimentTrigger } from '../../../../../../../platform/telemetry/common/experimentTrigger.js';
-import { AgentHostEnsembleIntelligenceUsesHydraFusionSettingId, COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostFusionBalanceUsesHydraFusionSettingId, COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { COPILOT_VENDOR_ID, getLanguageModelProviderDisplayName, IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isUserProvidedModel } from '../../../../common/languageModels.js';
 import { SessionType } from '../../../../common/chatSessionsService.js';
@@ -54,7 +54,7 @@ import { IModelPickerOpenTrigger, ModelPickerTelemetrySession } from './modelPic
 import { getModelConfigProperty, MODEL_CONFIG_GROUP_EFFORT, setModelConfigValues, whenModelConfigValuesSaved } from './modelPickerModelConfig.js';
 import { IModelPickerProviderPlaceholder } from './modelPickerTabs.js';
 import { formatLocalModelOnDeviceName, ILocalModelPickerActionEvent, isLocalModelDirectRow, ModelPickerLocalModels } from './modelPickerLocalModelItems.js';
-import { getEnsembleTierLabel, getHydraFusionTierLabel, getModelPickerUnavailableReason, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly, ModelPickerUnavailableReason, modelPickerRequiresSetup, shouldShowCacheBreakHint as computeShouldShowCacheBreakHint } from './modelPickerPresentation.js';
+import { getFusionTierLabel, getHydraFusionTierLabel, getModelPickerUnavailableReason, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly, ModelPickerUnavailableReason, modelPickerRequiresSetup, shouldShowCacheBreakHint as computeShouldShowCacheBreakHint } from './modelPickerPresentation.js';
 
 /** Trusted caller options for opening a searchable picker without toggling it closed. */
 export interface IModelPickerOpenOptions {
@@ -311,51 +311,51 @@ export class ModelPickerWidget extends Disposable {
 				?? models.find(model => !isHydraFusionModel(model) || isUserProvidedModel(model, this._languageModelsService))
 				?? model;
 		}
-		return this._normalizeEnsembleIntelligence(model, models);
+		return this._normalizeFusionBalance(model, models);
 	}
 
-	/** Ensemble's Intelligence is HydraFusion when it routes there and its own tier otherwise, so a chat on the other moves. */
-	private _normalizeEnsembleIntelligence(model: ILanguageModelChatMetadataAndIdentifier, models: readonly ILanguageModelChatMetadataAndIdentifier[]): ILanguageModelChatMetadataAndIdentifier {
-		const routing = this._getEnsembleRouting(models);
+	/** Fusion's Balance is HydraFusion when it routes there and its own tier otherwise, so a chat on the other moves. */
+	private _normalizeFusionBalance(model: ILanguageModelChatMetadataAndIdentifier, models: readonly ILanguageModelChatMetadataAndIdentifier[]): ILanguageModelChatMetadataAndIdentifier {
+		const routing = this._getFusionRouting(models);
 		if (!routing) {
 			return model;
 		}
-		const { ensemble, hydraFusion } = routing;
+		const { fusion, hydraFusion } = routing;
 		const configurationAccess = this._delegate.modelConfiguration ?? this._languageModelsService;
-		const tier = getModelConfigProperty(ensemble, configurationAccess, MODEL_CONFIG_GROUP_EFFORT);
+		const tier = getModelConfigProperty(fusion, configurationAccess, MODEL_CONFIG_GROUP_EFFORT);
 		const onHydraFusion = model.identifier === hydraFusion.identifier;
-		if (!tier?.schema.enum?.includes('intelligence') || (!onHydraFusion && (model.identifier !== ensemble.identifier || tier.value !== 'intelligence'))) {
+		if (!tier?.schema.enum?.includes('intelligence') || (!onHydraFusion && (model.identifier !== fusion.identifier || tier.value !== 'intelligence'))) {
 			return model;
 		}
-		logSettingExperimentTrigger(this._telemetryService, AgentHostEnsembleIntelligenceUsesHydraFusionSettingId);
-		if (ensemble.metadata.autoModelEnsemble?.intelligenceUsesHydraFusion) {
+		logSettingExperimentTrigger(this._telemetryService, AgentHostFusionBalanceUsesHydraFusionSettingId);
+		if (fusion.metadata.autoModelFusion?.balanceUsesHydraFusion) {
 			return hydraFusion;
 		}
 		if (onHydraFusion) {
 			const scopedConfiguration = this._delegate.modelConfiguration;
 			if (scopedConfiguration?.presentModelConfiguration) {
-				scopedConfiguration.presentModelConfiguration(ensemble.identifier, { [tier.key]: 'intelligence' });
+				scopedConfiguration.presentModelConfiguration(fusion.identifier, { [tier.key]: 'intelligence' });
 			} else {
-				setModelConfigValues(ensemble, configurationAccess, { [tier.key]: 'intelligence' }).catch(onUnexpectedError);
+				setModelConfigValues(fusion, configurationAccess, { [tier.key]: 'intelligence' }).catch(onUnexpectedError);
 			}
-			return ensemble;
+			return fusion;
 		}
 		return model;
 	}
 
-	/** Ensemble and the HydraFusion its Intelligence can route to, when routing it there can make a difference. */
-	private _getEnsembleRouting(models: readonly ILanguageModelChatMetadataAndIdentifier[]): { readonly ensemble: ILanguageModelChatMetadataAndIdentifier; readonly hydraFusion: ILanguageModelChatMetadataAndIdentifier } | undefined {
+	/** Fusion and the HydraFusion its Balance can route to, when routing it there can make a difference. */
+	private _getFusionRouting(models: readonly ILanguageModelChatMetadataAndIdentifier[]): { readonly fusion: ILanguageModelChatMetadataAndIdentifier; readonly hydraFusion: ILanguageModelChatMetadataAndIdentifier } | undefined {
 		if (isHydraFusionUpgradeOnly(this._entitlementService.entitlement)) {
 			return undefined;
 		}
-		const ensemble = models.find(model => model.metadata.autoModelEnsemble && !isUserProvidedModel(model, this._languageModelsService));
+		const fusion = models.find(model => model.metadata.autoModelFusion && !isUserProvidedModel(model, this._languageModelsService));
 		const hydraFusion = models.find(model => model.metadata.id === COPILOT_HYDRA_FUSION_MODEL_ID && isHydraFusionModel(model) && !isUserProvidedModel(model, this._languageModelsService));
-		return ensemble && hydraFusion ? { ensemble, hydraFusion } : undefined;
+		return fusion && hydraFusion ? { fusion, hydraFusion } : undefined;
 	}
 
 	/**
-	 * The model a HydraFusion tier is shown as, with that tier: Ensemble for one of
-	 * Ensemble's tiers, or HydraFusion for HydraFusion's own Default or Max.
+	 * The model a HydraFusion tier is shown as, with that tier: Fusion for one of
+	 * Fusion's tiers, or HydraFusion for HydraFusion's own Default or Max.
 	 */
 	private _getRoutingTier(model: ILanguageModelChatMetadataAndIdentifier): { readonly shownModel: ILanguageModelChatMetadataAndIdentifier; readonly label: string } | undefined {
 		if (!isHydraFusionModel(model) || isUserProvidedModel(model, this._languageModelsService)) {
@@ -365,10 +365,10 @@ export class ModelPickerWidget extends Disposable {
 		// Matches the picker, which only offers models this build can run.
 		const controlModels = getModelPickerControlModels(this._languageModelsService.getModelsControlManifest(), this._entitlementService.entitlement, models);
 		const runnable = (candidate: ILanguageModelChatMetadataAndIdentifier) => !isUserProvidedModel(candidate, this._languageModelsService) && !requiresNewerVSCode(candidate, controlModels, this._productService.version);
-		const ensemble = models.find(candidate => candidate.metadata.autoModelEnsemble && runnable(candidate));
-		if (ensemble) {
-			const label = getEnsembleTierLabel(ensemble.metadata, model.metadata.id);
-			return label ? { shownModel: ensemble, label } : undefined;
+		const fusion = models.find(candidate => candidate.metadata.autoModelFusion && runnable(candidate));
+		if (fusion) {
+			const label = getFusionTierLabel(fusion.metadata, model.metadata.id);
+			return label ? { shownModel: fusion, label } : undefined;
 		}
 		// HydraFusion's own tiers need both of its models.
 		const hydraFusion = (id: string) => models.find(candidate => candidate.metadata.id === id && isHydraFusionModel(candidate) && runnable(candidate));
@@ -676,8 +676,8 @@ export class ModelPickerWidget extends Disposable {
 		});
 		trigger?.setAttribute('aria-expanded', 'true');
 		this._domNode?.classList.add('model-picker-active');
-		if (this._getEnsembleRouting(context.models)) {
-			logSettingExperimentTrigger(this._telemetryService, AgentHostEnsembleIntelligenceUsesHydraFusionSettingId);
+		if (this._getFusionRouting(context.models)) {
+			logSettingExperimentTrigger(this._telemetryService, AgentHostFusionBalanceUsesHydraFusionSettingId);
 		}
 		picker.show(anchor, context, detailsModelId, focusConfiguration, this._contextViewLayer, options);
 		if (!picker.isVisible) {

@@ -22,7 +22,7 @@ suite('VS Code sandbox read roots', () => {
 	test('grants only the current session attachments and an optional shell init root', () => {
 		const sessionDataDirectory = URI.file('/data/agentSessionData/session-1');
 		const shellInitDirectory = URI.file('/data/agentHost/shellInit/session-1');
-		assert.deepStrictEqual(getVSCodeSandboxReadRoots({ sessionDataDirectory, shellInitDirectory }), [
+		assert.deepStrictEqual(getVSCodeSandboxReadRoots({ sessionDataDirectories: [sessionDataDirectory], shellInitDirectory }), [
 			URI.file('/data/agentSessionData/session-1/attachments'),
 			shellInitDirectory,
 		]);
