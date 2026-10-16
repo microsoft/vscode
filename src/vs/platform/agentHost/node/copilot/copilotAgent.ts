@@ -48,7 +48,7 @@ import { createAgentModelNoticesMeta } from '../../common/agentModelNotices.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostFusionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAMES, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, isCopilotHydraFusionModelId, normalizeSkillCharBudget, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { getCopilotApprovalConfig, getCopilotApprovalPolicy } from './copilotApprovalPolicy.js';
 import { AGENT_HOST_COPILOT_CLIENT_NAME, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
 import { getCopilotManagedAutoPreference, omitCopilotManagedModelDefaults, projectCopilotManagedModelConfiguration } from './copilotManagedModelConfiguration.js';
@@ -1962,13 +1962,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			description: localize('copilotAgent.description', "Copilot SDK agent running in the local agent host process"),
 			capabilities: {
 				multipleChats: { fork: true, sideChat: true },
-				...(this._isMultiRootEnabled() ? { multipleWorkingDirectories: { immutablePrimary: true } } : {}),
+				multipleWorkingDirectories: { immutablePrimary: true },
 			},
 		};
-	}
-
-	private _isMultiRootEnabled(): boolean {
-		return this._configurationService.getRootValue(platformRootSchema, AgentHostCopilotMultiRootEnabledConfigKey) === true;
 	}
 
 	getProtectedResources(): ProtectedResourceMetadata[] {
@@ -2358,9 +2354,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * unchanged.
 	 */
 	async computeFolderPickerDecision(workingDirectories: readonly URI[], token: CancellationToken = CancellationToken.None): Promise<ISessionFolderPickerDecision | undefined> {
-		if (!this._isMultiRootEnabled()) {
-			return undefined;
-		}
 		return computeFolderPickerDecisionForRoots(workingDirectories, (directory, t) => workspaceDirectoryHasHooks(this._fileService, directory, t), token);
 	}
 
@@ -2685,20 +2678,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		await this._findSessionChat(session)?.backgroundMcpServerStartup();
 	}
 
-	/**
-	 * The gated additional (non-primary) roots for a session: the tail of the
-	 * ordered working-directory set when multi-root is enabled, else empty (so
-	 * single-root / flag-off is byte-identical). Used both to anchor
-	 * customization discovery and to populate the launch plan's
-	 * `additionalDirectories`, keeping the SDK's granted roots and discovery in
-	 * lockstep — so a session created while multi-root was enabled falls back to
-	 * a single root when resumed after the flag is turned off.
-	 */
+	/** Keeps customization discovery and the SDK's granted additional roots in sync. */
 	private _additionalCustomizationDirectories(workingDirectories: readonly URI[] | undefined): readonly URI[] {
-		if (!this._isMultiRootEnabled() || !workingDirectories || workingDirectories.length <= 1) {
-			return [];
-		}
-		return workingDirectories.slice(1);
+		return workingDirectories?.slice(1) ?? [];
 	}
 
 	/**
@@ -7264,7 +7246,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (isEqual(context.resource, ownerSession)) {
 				// The default chat: the published view follows its own folders.
 				activeClient.pluginController.reanchor(workingDirectory, false);
-				activeClient.pluginController.setAdditionalDirectories(this._isMultiRootEnabled() ? additionalDirectories ?? [] : []);
+				activeClient.pluginController.setAdditionalDirectories(additionalDirectories ?? []);
 			} else if (anchors.applyAdditional) {
 				activeClient.pluginController.setAdditionalDirectories(anchors.additionalDirectories);
 			}
@@ -7852,14 +7834,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!directory) {
 			return undefined;
 		}
-		const additional = this._isMultiRootEnabled() ? additionalDirectories ?? [] : [];
+		const additional = additionalDirectories ?? [];
 		await activeClient.pluginController.resolveAnchorPaths([directory, ...additional]);
 		return activeClient.pluginController.acquireAnchor(directory, additional);
 	}
 
 	/** {@link _acquireChatCustomizationAnchor} for a chat's entry, whose launch already resolved the real paths. */
 	private _acquireLiveChatCustomizationAnchor(activeClient: ActiveClient, directory: URI | undefined, additionalDirectories: readonly URI[]): IReference<CustomizationAnchor> | undefined {
-		return directory ? activeClient.pluginController.acquireAnchor(directory, this._isMultiRootEnabled() ? additionalDirectories : []) : undefined;
+		return directory ? activeClient.pluginController.acquireAnchor(directory, additionalDirectories) : undefined;
 	}
 
 	private _registerLiveChat(chat: URI, session: CopilotAgentSession, activeClient: ActiveClient): void {

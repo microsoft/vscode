@@ -92,7 +92,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		} as unknown as IAgentSubscription<RootState>;
 	})();
 
-	/** Simulates the host re-advertising after a `multiRootEnabled` change. */
+	/** Simulates the host advertising updated capabilities. */
 	fireRootStateChange(): void {
 		this._onRootStateChange.fire({ agents: this.rootStateAgents } as unknown as RootState);
 	}
@@ -1127,9 +1127,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		const ui = untitledChatUri('multi-root-enabled-at-runtime');
 
 		await provisional.getOrCreate(ui, 'copilot', primary);
-		// The hidden `multiRootEnabled` setting is toggled on: the host
-		// re-advertises `multipleWorkingDirectories`, so `rootState` changes
-		// without a window reload.
+		// The host advertises multipleWorkingDirectories without a window reload.
 		agentHost.rootStateAgents = [agentInfo('copilot', true)];
 		agentHost.fireRootStateChange();
 		await provisional.waitForPending(ui);
