@@ -266,7 +266,14 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 					publisher: item.publisher,
 					publisherUrl: publisher?.profile,
 					icon: item.iconUrl ? URI.parse(item.iconUrl) : publisher?.avatar ?? registryIcon,
-					installation: providerPlugin ?? { kind: 'providerCatalog' as const, resourceKind: item.kind, selectionId: item.selectionId, itemUrl: item.itemUrl },
+					installation: providerPlugin ?? {
+						kind: 'providerCatalog' as const,
+						resourceKind: item.kind,
+						selectionId: item.selectionId,
+						itemUrl: item.itemUrl,
+						...(item.repository ? { repository: item.repository } : {}),
+						...(item.path ? { path: item.path } : {}),
+					},
 				};
 			}),
 			nextCursor: result.nextCursor,
@@ -275,8 +282,10 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 
 	async getInstallations(sessionResource: URI, token: CancellationToken): Promise<readonly IRecordedCustomizationMarketplaceResource[]> {
 		this.throwIfCancelled(token);
-		const pluginInstallations = this.getPluginInstallations();
+		let pluginInstallations = this.getPluginInstallations();
 		if (!this.agentHostService.listCustomizationInstallations) {
+			this.captureCatalogAssociation(pluginInstallations);
+			pluginInstallations = this.getPluginInstallations();
 			return pluginInstallations;
 		}
 		let backendSession: URI;
@@ -293,11 +302,15 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		} catch (error) {
 			this.throwIfCancelled(token);
 			this.logService.error('[AgentHostCustomizationMarketplace] Unable to load session-bound SDK installation receipts', error);
-			return [...(this.receiptInstallations.get(backendSession) ?? []), ...pluginInstallations];
+			const receiptInstallations = this.receiptInstallations.get(backendSession) ?? [];
+			this.captureCatalogAssociation([...receiptInstallations, ...pluginInstallations]);
+			pluginInstallations = this.getPluginInstallations();
+			return [...receiptInstallations, ...pluginInstallations];
 		}
 		this.throwIfCancelled(token);
 		const rawReceiptInstallations = installations.map(installation => this.toRecordedInstallation(sessionResource, installation));
-		this.captureCatalogAssociation(rawReceiptInstallations);
+		this.captureCatalogAssociation([...rawReceiptInstallations, ...pluginInstallations]);
+		pluginInstallations = this.getPluginInstallations();
 		const receiptInstallations = installations.map(installation => this.toRecordedInstallation(sessionResource, installation));
 		this.receiptInstallations.set(backendSession, receiptInstallations);
 		while (this.receiptInstallations.size > maxCachedReceiptSessions) {
@@ -315,9 +328,6 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		this.throwIfCancelled(token);
 		const installation = resource.installation;
 		if (installation?.kind === 'providerCatalog') {
-			if (installation.resourceKind === 'plugin') {
-				throw new Error(this.getInstallUnavailableMessage(resource) ?? localize('agentHost.customizationInstall.directPluginUnavailable', "The SDK cannot yet install a catalog plugin at its exact pinned revision."));
-			}
 			if (!await this.resolveAuthentication()) {
 				throw new CancellationError();
 			}
@@ -332,8 +342,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 				selectionId: installation.selectionId,
 				installation: { kind: installation.resourceKind },
 			}, token);
-			await this.confirmAndApply(review, token);
-			this.pendingCatalogInstall = { resource, previousIds: new Set(this.knownInstallationIds) };
+			await this.confirmAndApplyCatalogResource(review, resource, token);
 			return;
 		}
 		if (installation?.kind === 'configuredPlugin') {
@@ -382,8 +391,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 					source: { kind: 'url', mediaType: CustomizationMarketplaceMediaType.McpServer, url: installation.cardUrl },
 				},
 			}, token);
-			await this.confirmAndApply(review, token);
-			this.pendingCatalogInstall = { resource, previousIds: new Set(this.knownInstallationIds) };
+			await this.confirmAndApplyCatalogResource(review, resource, token);
 			return;
 		}
 		if (installation?.kind !== 'skill' && installation?.kind !== 'mcp') {
@@ -480,6 +488,19 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		this._onDidChange.fire();
 	}
 
+	private async confirmAndApplyCatalogResource(review: IAgentCustomizationInstallationReview, resource: ICustomizationMarketplaceResource, token: CancellationToken): Promise<void> {
+		const pendingCatalogInstall = { resource, previousIds: new Set(this.knownInstallationIds) };
+		this.pendingCatalogInstall = pendingCatalogInstall;
+		try {
+			await this.confirmAndApply(review, token);
+		} catch (error) {
+			if (this.pendingCatalogInstall === pendingCatalogInstall) {
+				this.pendingCatalogInstall = undefined;
+			}
+			throw error;
+		}
+	}
+
 	private getReviewDetail(review: IAgentCustomizationInstallationReview): string {
 		if (review.kind === 'skill') {
 			const modifiedDetail = review.filesModified
@@ -488,6 +509,15 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 			return review.action === 'install'
 				? localize('agentHost.customizationInstall.skillInstallDetail', "Skills can supply instructions and scripts that an agent may run. Only install resources from sources you trust.\n\nSource: {0}\nDestination: {1}\nFiles: {2}\nSize: {3} bytes", review.source, review.target, review.fileCount, review.totalBytes)
 				: localize('agentHost.customizationInstall.skillUninstallDetail', "The SDK will remove {0} owned files ({1} bytes) from {2}.{3}", review.fileCount, review.totalBytes, review.target, modifiedDetail);
+		}
+		if (review.kind === 'plugin') {
+			const status = review.installsDisabled
+				? localize('agentHost.customizationInstall.pluginDisabled', "The plugin will be installed disabled.")
+				: localize('agentHost.customizationInstall.pluginEnabled', "The plugin will be installed enabled.");
+			const mcpServers = review.mcpServerCount
+				? localize('agentHost.customizationInstall.pluginMcpServers', "\nDeclared MCP servers: {0}", review.mcpServerCount)
+				: '';
+			return localize('agentHost.customizationInstall.pluginInstallDetail', "Plugins can supply agents, skills, hooks, and MCP servers. Only install resources from sources you trust.\n\nSource: {0}\nDestination: {1}\nFiles: {2}\nSize: {3} bytes\n\n{4}{5}", review.source, review.target, review.fileCount, review.totalBytes, status, mcpServers);
 		}
 		if (review.action === 'install') {
 			return localize('agentHost.customizationInstall.mcpInstallDetail', "MCP servers can run tools and access external services. Only install resources from sources you trust.\n\nServer: {0}\nDestination: {1}\nEndpoint: {2}\nConfiguration fields: {3}", review.serverName, review.target, review.endpoint ?? localize('agentHost.customizationInstall.notApplicable', "Not applicable"), review.configurationFields.join(', ') || localize('agentHost.customizationInstall.none', "None"));
@@ -563,9 +593,10 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 			if (!installation) {
 				continue;
 			}
-			const resource = toPluginMarketplaceResource(plugin);
+			const installationId = getPluginInstallationId(installation);
+			const resource = this.catalogAssociations.get(installationId) ?? toPluginMarketplaceResource(plugin);
 			result.push({
-				installationId: getPluginInstallationId(installation),
+				installationId,
 				resource,
 				state: { kind: 'installed', target: { kind: 'plugin', uri: plugin.uri, name: installation.name } },
 			});
@@ -664,6 +695,9 @@ function toPluginMarketplaceResource(plugin: IAgentPlugin): ICustomizationMarket
 		capabilities: [],
 		representativeQueries: [],
 		version,
+		repository: source?.kind === 'github'
+			? URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${source.repository}` })
+			: undefined,
 		installation: configured ?? direct,
 	};
 }

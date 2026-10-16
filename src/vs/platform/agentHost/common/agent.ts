@@ -357,7 +357,7 @@ export interface IAgentCustomizationInstallationRequest {
 	readonly installation:
 	| { readonly kind: 'skill' }
 	| { readonly kind: 'mcp'; readonly source?: { readonly kind: 'url'; readonly mediaType: 'application/mcp-server+json'; readonly url: string } }
-	| { readonly kind: 'plugin'; readonly repository: string; readonly ref: string; readonly path: string }
+	| { readonly kind: 'plugin' }
 	| { readonly kind: 'configuredPlugin'; readonly name: string; readonly marketplace: string };
 }
 
@@ -421,6 +421,19 @@ export type IAgentCustomizationInstallationReview = {
 	readonly configurationFields: readonly string[];
 	readonly restoresPreviousConfiguration?: boolean;
 	readonly preservesSharedAuthentication?: boolean;
+} | {
+	readonly operationId: string;
+	readonly action: 'install';
+	readonly kind: 'plugin';
+	readonly displayName: string;
+	readonly description?: string;
+	readonly version?: string;
+	readonly source: string;
+	readonly target: string;
+	readonly fileCount: number;
+	readonly totalBytes: number;
+	readonly installsDisabled: boolean;
+	readonly mcpServerCount: number;
 };
 
 export interface IAgentPluginInstallRequest {

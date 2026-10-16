@@ -252,6 +252,11 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 				&& installedSource.ref === resourceSource.ref
 				&& versionsCompatible;
 		}
+		if (installedSource?.kind === 'plugin' && resourceSource?.kind === 'providerCatalog' && resourceSource.resourceKind === 'plugin' && resourceSource.repository) {
+			return installedSource.repository.toLowerCase() === resourceSource.repository.toLowerCase()
+				&& normalizePluginPath(installedSource.path) === normalizePluginPath(resourceSource.path)
+				&& versionsCompatible;
+		}
 		if (!installedSource && resourceSource?.kind === 'mcpGallery' && installed.mediaType === CustomizationMarketplaceMediaType.McpServer) {
 			return installed.identifier === resourceSource.name;
 		}
@@ -1332,6 +1337,10 @@ function isConnectorAccountEqual(
 function getConnectorOperationKey(resource: ICustomizationMarketplaceResource): string {
 	const connectorName = resource.installation?.kind === 'copilotConnector' ? resource.installation.name : resource.identifier;
 	return JSON.stringify([resource.sourceId, 'copilotConnector', connectorName]);
+}
+
+function normalizePluginPath(path: string | undefined): string {
+	return path?.replace(/^\/+|\/+$/g, '') ?? '';
 }
 
 async function createInstallationRecordId(slot: readonly (string | null)[]): Promise<string> {
