@@ -276,21 +276,10 @@ export abstract class BaseCellViewModel extends Disposable {
 		}
 		if (this._editorViewStates) {
 			this._restoreViewState(this._editorViewStates);
-		} else {
-			// If no real editor view state was persisted, restore a default state.
-			// This forces the editor to measure its content width immediately.
-			if (estimatedHasHorizontalScrolling) {
-				this._restoreViewState({
-					contributionsState: {},
-					cursorState: [],
-					viewState: {
-						scrollLeft: 0,
-						firstPosition: { lineNumber: 1, column: 1 },
-						firstPositionDeltaTop: this._viewContext.notebookOptions.getLayoutConfiguration().editorTopPadding
-					}
-				});
-			}
 		}
+		// If no real editor view state was persisted, let the editor initialize naturally.
+		// Forcing a view state with empty cursorState can cause incorrect coordinate mappings
+		// for mouse clicks, especially when horizontal scrolling is present.
 
 		if (this._editorTransientState) {
 			writeTransientState(editor.getModel(), this._editorTransientState, this._codeEditorService);
