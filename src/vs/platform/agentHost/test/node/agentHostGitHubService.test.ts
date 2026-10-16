@@ -12,6 +12,7 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { IAgent } from '../../common/agent.js';
+import type { IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 import { authenticationAccountMeta, readAuthenticationAccount } from '../../common/meta/agentAuthenticationAccount.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationService, IAgentHostAuthTokenChangeEvent } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostGitHubService } from '../../node/agentHostGitHubService.js';
@@ -19,6 +20,164 @@ import { createTestGitHubEndpointService } from './testGitHubEndpointService.js'
 
 suite('Agent Host GitHub clients', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('concurrent peer chats preserve their exact credential sources', async () => {
+		const endpoint = createTestGitHubEndpointService();
+		const authentication = store.add(new AgentHostAuthenticationService(new NullLogService()));
+		for (const chat of ['chat-a', 'chat-b']) {
+			authentication.bindSessionCredentials('agent:/parent', {
+				principal: { apiOrigin: 'https://api.github.com', userId: '101' },
+				getCredential: request => ({ resource: request.resource, token: chat, revision: 1, expiresAt: undefined }),
+			}, chat);
+		}
+		const service = store.add(new AgentHostGitHubService({ fetch: async () => new Response('{"id":101}') }, authentication, endpoint, new NullLogService(), NullTelemetryService));
+		const signal = new AbortController().signal;
+		const tokens = await Promise.all(['chat-a', 'chat-b'].map(async chat => {
+			const client = store.add(service.acquireRepositoryClient(signal, undefined, chat)).object;
+			return (await client.credentials.getCredential(signal)).token;
+		}));
+		assert.deepStrictEqual(tokens, ['chat-a', 'chat-b']);
+	});
+
+	for (const withCopilot of [false, true]) {
+		test(`repair snapshots capture optional Copilot API credentials (${withCopilot})`, async () => {
+			const endpoint = createTestGitHubEndpointService();
+			const authentication = store.add(new AgentHostAuthenticationService(new NullLogService()));
+			const source: IAgentHostCredentialSource = {
+				principal: { apiOrigin: 'https://api.github.com', userId: '101' },
+				getCredential: request => request.resource === endpoint.getRepoResource().resource || withCopilot
+					? { resource: request.resource, token: request.resource === endpoint.getRepoResource().resource ? 'repo-token' : 'copilot-token', revision: 1, expiresAt: undefined }
+					: undefined,
+			};
+			authentication.bindSessionCredentials('agent:/repair', source);
+			const service = store.add(new AgentHostGitHubService({ fetch: async () => new Response('{"id":101}') }, authentication, endpoint, new NullLogService(), NullTelemetryService));
+			const snapshot = service.captureSessionCredentialSource('agent:/repair', undefined, undefined, true)!;
+			assert.deepStrictEqual({
+				repo: snapshot.getCredential({ resource: endpoint.getRepoResource().resource })?.token,
+				copilot: snapshot.getCredential({ resource: endpoint.getCopilotResource().resource })?.token,
+			}, { repo: 'repo-token', copilot: withCopilot ? 'copilot-token' : undefined });
+		});
+	}
+
+	test('captured background credentials survive rotation without switching tokens and fail on observed revocation', async () => {
+		const endpoint = createTestGitHubEndpointService();
+		const authentication = store.add(new AgentHostAuthenticationService(new NullLogService()));
+		let token = 'captured-token';
+		let usable = true;
+		const source: IAgentHostCredentialSource = {
+			principal: { apiOrigin: 'https://api.github.com', userId: '101' },
+			getCredential: request => ({ resource: request.resource, token, revision: 1, expiresAt: undefined, isUsable: () => usable }),
+		};
+		authentication.bindSessionCredentials('agent:/background', source);
+		const service = store.add(new AgentHostGitHubService({ fetch: async () => new Response('{"id":101}') }, authentication, endpoint, new NullLogService(), NullTelemetryService));
+		const captured = service.captureSessionCredentialSource('agent:/background');
+		token = 'rotated-token';
+		authentication.bindSessionCredentials('agent:/background', {
+			principal: source.principal,
+			getCredential: request => ({ resource: request.resource, token: 'replacement-token', revision: 2, expiresAt: undefined }),
+		});
+		const signal = new AbortController().signal;
+		const client = store.add(service.acquireRepositoryClient(signal, captured, 'agent:/background')).object;
+		const credential = await client.credentials.getCredential(signal);
+		usable = false;
+		await assert.rejects(client.credentials.getCredential(signal), { kind: 'authentication' });
+		assert.deepStrictEqual(credential.token, 'captured-token');
+	});
+
+	test('isolates same-account repository clients by source and authoritative session', async () => {
+		const endpoint = createTestGitHubEndpointService();
+		const resource = endpoint.getRepoResource();
+		const authentication = store.add(new AgentHostAuthenticationService(new NullLogService()));
+		const provider = new class extends mock<IAgent>() {
+			override getProtectedResources() { return [resource]; }
+			override async authenticate() { return true; }
+		}();
+		await authentication.authenticate({ resource: resource.resource, scopes: resource.scopes_supported, token: 'global-token' }, [provider]);
+		const requests: string[] = [];
+		const selections: string[] = [];
+		const source = (token: string): IAgentHostCredentialSource => ({
+			principal: { apiOrigin: 'https://api.github.com', userId: '101' },
+			getCredential: request => {
+				selections.push(`${token}|${request.session}`);
+				return { resource: request.resource, token, expiresAt: undefined, revision: 1 };
+			},
+		});
+		const a = source('source-a');
+		const b = source('source-b');
+		authentication.bindSessionCredentials('agent:/a', a);
+		const service = store.add(new AgentHostGitHubService({
+			fetch: async (_url, init) => {
+				requests.push(new Headers(init?.headers).get('authorization')!);
+				return new Response('{"id":101}');
+			},
+		}, authentication, endpoint, new NullLogService(), NullTelemetryService));
+		const signal = new AbortController().signal;
+		const first = store.add(service.acquireRepositoryClient(signal, undefined, 'agent:/a')).object;
+		const same = store.add(service.acquireRepositoryClient(signal, a, 'agent:/a')).object;
+		const other = store.add(service.acquireRepositoryClient(signal, b, 'agent:/a')).object;
+		const otherSession = store.add(service.acquireRepositoryClient(signal, a, 'agent:/b')).object;
+		const legacy = store.add(service.acquireRepositoryClient(signal)).object;
+		const credentials = await Promise.all([first, other, otherSession, legacy].map(client => client.credentials.getCredential(signal)));
+		assert.deepStrictEqual({
+			same: same === first,
+			other: other === first,
+			otherSession: otherSession === first,
+			legacy: legacy === first,
+			tokens: credentials.map(credential => credential.token),
+			requests,
+			selections: [...new Set(selections)].sort(),
+		}, {
+			same: true, other: false, otherSession: false, legacy: false,
+			tokens: ['source-a', 'source-b', 'source-a', 'global-token'],
+			requests: ['Bearer source-a', 'Bearer source-b', 'Bearer source-a', 'Bearer global-token'],
+			selections: ['source-a|agent:/a', 'source-a|agent:/b', 'source-b|agent:/a'],
+		});
+	});
+
+	for (const unavailable of ['expired', 'revoked', 'closed', 'wrongOrigin'] as const) {
+		test(`an isolated ${unavailable} source never uses a global repository token`, async () => {
+			const endpoint = createTestGitHubEndpointService();
+			const resource = endpoint.getRepoResource();
+			const authentication = store.add(new AgentHostAuthenticationService(new NullLogService()));
+			const provider = new class extends mock<IAgent>() {
+				override getProtectedResources() { return [resource]; }
+				override async authenticate() { return true; }
+			}();
+			await authentication.authenticate({ resource: resource.resource, scopes: resource.scopes_supported, token: 'global-token' }, [provider]);
+			let valid = true;
+			const source: IAgentHostCredentialSource = {
+				principal: { apiOrigin: 'https://api.github.com', userId: '101' },
+				getCredential: request => {
+					if (!valid && unavailable === 'closed') {
+						throw new Error('Source closed');
+					}
+					return !valid && unavailable === 'revoked' ? undefined : {
+						resource: request.resource, token: 'isolated-token', revision: 1,
+						expiresAt: !valid && unavailable === 'expired' ? Date.now() - 1 : undefined,
+					};
+				},
+			};
+			const requests: string[] = [];
+			const service = store.add(new AgentHostGitHubService({
+				fetch: async (_url, init) => {
+					requests.push(new Headers(init?.headers).get('authorization')!);
+					return new Response('{"id":101}');
+				},
+			}, authentication, endpoint, new NullLogService(), NullTelemetryService));
+			const signal = new AbortController().signal;
+			const client = store.add(service.acquireRepositoryClient(signal, source)).object;
+			await client.credentials.getCredential(signal);
+			valid = false;
+			const unavailableSource = unavailable === 'wrongOrigin'
+				? { ...source, principal: { apiOrigin: 'https://api.other.example', userId: '101' } }
+				: source;
+			await assert.rejects(async () => {
+				const next = store.add(service.acquireRepositoryClient(signal, unavailableSource)).object;
+				await next.credentials.getCredential(signal);
+			});
+			assert.deepStrictEqual(requests, ['Bearer isolated-token']);
+		});
+	}
 
 	for (const knownAccount of [false, true]) {
 		test(`same-account renewal after expiry keeps the repository selection (${knownAccount ? 'account metadata' : 'legacy client'})`, () => runWithFakedTimers({}, async () => {

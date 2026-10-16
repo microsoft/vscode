@@ -47,7 +47,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../../services
 import { REVEAL_CANVAS_COMMAND_ID } from '../../../../../workbench/contrib/canvases/common/canvas.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../changes/common/sessionChangesService.js';
 import { getGitHubHoverDate, getGitHubHoverDescription, getGitHubHoverTitle, getGitHubHoverTitleParts } from '../../../github/browser/githubHover.js';
-import { createIssueHoverElement } from '../../../github/browser/issueHover.js';
+import { createIssueHover } from '../../../github/browser/issueHover.js';
 import { GitHubCIOverallStatus, GitHubIssueState, GitHubIssueStateReason, GitHubPullRequestState, type IGitHubIssue, type IGitHubPullRequest } from '../../../github/common/types.js';
 import type { IResolvedSessionPullRequest } from '../../../github/browser/pullRequestIconStatus.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -1172,7 +1172,7 @@ suite('SessionChatInputToolbar', () => {
 
 	test('reveals a bounded title when keyboard focus reaches its reference link', () => {
 		const title = `${'Long issue title '.repeat(8)}ending`;
-		const hover = createIssueHoverElement({
+		const hover = createIssueHover({
 			owner: 'microsoft',
 			repo: 'vscode',
 			number: 42,
@@ -1190,7 +1190,7 @@ suite('SessionChatInputToolbar', () => {
 				closedAt: undefined,
 			},
 			density: 'compact',
-		});
+		}).element;
 		const titleContent = hover.querySelector('.sessions-issue-hover-title-content');
 		const reference = hover.querySelector<HTMLAnchorElement>('.sessions-issue-hover-reference');
 		const bounded = titleContent?.textContent;
@@ -1357,7 +1357,7 @@ suite('SessionChatInputToolbar', () => {
 		});
 	});
 
-	test('shows a canvas title or count and reveals the selected canvas', async () => {
+	test('shows a canvas title or count, reveals the selected canvas, and closes a canvas from its row', async () => {
 		const { instantiationService } = createServices();
 		const configurationService = instantiationService.get(IConfigurationService);
 		assert.ok(configurationService instanceof TestConfigurationService);
@@ -1371,13 +1371,20 @@ suite('SessionChatInputToolbar', () => {
 				return undefined;
 			},
 		}));
-		let entries: { label: string | undefined; select(): void }[] = [];
+		const closeCalls: { readonly session: string; readonly chat: string; readonly canvas: string }[] = [];
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+			closeCanvas: async (session, chat, canvas) => {
+				closeCalls.push({ session: session.sessionId, chat: chat.resource.toString(), canvas: canvas.resource.toString() });
+			},
+		}));
+		let entries: { label: string | undefined; toolbarActions: readonly IAction[]; select(): void }[] = [];
 		let hideDropdown: (() => void) | undefined;
 		instantiationService.stub(IActionWidgetService, {
 			isVisible: false,
 			show: (_id, _preview, items, delegate) => {
 				entries = items.map(item => ({
 					label: item.label,
+					toolbarActions: item.toolbarActions ?? [],
 					select: () => {
 						if (item.item) {
 							delegate.onSelect(item.item);
@@ -1427,20 +1434,24 @@ suite('SessionChatInputToolbar', () => {
 			return {
 				label: pill?.querySelector('.chat-pill-label')?.textContent,
 				ariaLabel: pill?.getAttribute('aria-label'),
+				closeLabel: toolbar.element.querySelector('.chat-pill-promoted-action')?.getAttribute('aria-label'),
 			};
 		};
 		const single = presentation();
 		toolbar.getChatPetPlatformElements()[0]?.click();
+		toolbar.element.querySelector<HTMLElement>('.chat-pill-promoted-action')?.click();
 		canvases.set([preview, dashboard], undefined);
 		const multiple = presentation();
 		toolbar.element.querySelector<HTMLElement>('.chat-dropdown-pill-button')?.click();
 		const dashboardEntry = entries.find(entry => entry.label === dashboard.title);
 		assert.ok(dashboardEntry);
 		dashboardEntry.select();
+		const closeActionLabels = entries.flatMap(entry => entry.toolbarActions.map(action => action.label));
+		await dashboardEntry.toolbarActions[0]?.run();
 
-		assert.deepStrictEqual({ single, multiple, commandCalls }, {
-			single: { label: 'Preview', ariaLabel: 'Open canvas Preview' },
-			multiple: { label: '2 Canvases', ariaLabel: 'Show 2 canvases' },
+		assert.deepStrictEqual({ single, multiple, commandCalls, closeActionLabels, closeCalls }, {
+			single: { label: 'Preview', ariaLabel: 'Open canvas Preview', closeLabel: 'Close Canvas Preview' },
+			multiple: { label: '2 Canvases', ariaLabel: 'Show 2 canvases', closeLabel: undefined },
 			commandCalls: [
 				{
 					id: REVEAL_CANVAS_COMMAND_ID,
@@ -1460,6 +1471,11 @@ suite('SessionChatInputToolbar', () => {
 						canvas: dashboard.resource,
 					},
 				},
+			],
+			closeActionLabels: ['Close Canvas Preview', 'Close Canvas Dashboard'],
+			closeCalls: [
+				{ session: session.sessionId, chat: chat.resource.toString(), canvas: preview.resource.toString() },
+				{ session: session.sessionId, chat: chat.resource.toString(), canvas: dashboard.resource.toString() },
 			],
 		});
 	});

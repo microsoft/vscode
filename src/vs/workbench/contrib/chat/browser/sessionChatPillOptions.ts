@@ -111,6 +111,7 @@ export const sessionCanvasesPillOptions: IChatDropdownPillOptions = {
 	summaryAriaLabel: count => count === 1
 		? localize('sessionCanvases.showSingle', "Show 1 canvas")
 		: localize('sessionCanvases.show', "Show {0} canvases", count),
+	promotedActionIcon: Codicon.closeCompact,
 };
 
 /** Shared presentation of the subagents pill. */

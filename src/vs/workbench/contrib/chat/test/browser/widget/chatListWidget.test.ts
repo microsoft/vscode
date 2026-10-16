@@ -308,6 +308,68 @@ suite('ChatListWidget', () => {
 		return { disposables, instantiationService, model, viewModel, container, widget, contextKeyService: instantiationService.get(IContextKeyService) };
 	}
 
+	test('consumed steering messages have no empty response or checkpoint spacer between them', async () => {
+		const { model, viewModel, container, widget } = createWidget({}, configuration => {
+			configuration.setUserConfiguration(ChatConfiguration.CheckpointsEnabled, true);
+			configuration.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
+		}, true);
+		container.style.setProperty('--vscode-chat-font-size-body-m', '13px');
+		container.style.setProperty('--vscode-spacing-size160', '16px');
+		container.style.setProperty('--vscode-spacing-size60', '6px');
+		const message = (text: string) => ({
+			text,
+			parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+		});
+		for (const text of ['say bar', 'say baz']) {
+			model.addPendingRequest(new ChatRequestModel({
+				session: model, message: message(text), variableData: { variables: [] }, timestamp: 0,
+			}), ChatRequestQueueKind.Steering, {});
+		}
+		widget.refresh();
+		widget.layout(300, 500);
+		await waitForStableLayout(widget);
+		const gap = () => {
+			const bubbles = container.querySelectorAll('.monaco-list-row .interactive-request .rendered-markdown');
+			assert.strictEqual(bubbles.length, 2);
+			return bubbles[1].getBoundingClientRect().top - bubbles[0].getBoundingClientRect().bottom;
+		};
+		const pendingGap = gap();
+		model.replacePendingRequests([]);
+		const first = model.addRequest(message('say bar'), { variables: [] }, 0);
+		first.response!.complete();
+		const second = model.addRequest(message('say baz'), { variables: [] }, 0);
+		model.acceptResponseProgress(second, { kind: 'markdownContent', content: new MarkdownString('bar and baz') });
+		second.response!.complete();
+		widget.refresh();
+		await waitForStableLayout(widget);
+		const timestampHeight = container.querySelector('.monaco-list-row .interactive-request .chat-request-timestamp-container')!.getBoundingClientRect().height;
+		assert.deepStrictEqual({
+			messages: viewModel.getItems().filter(isRequestVM).map(request => request.messageText),
+			responseCount: viewModel.getItems().filter(isResponseVM).length,
+			compact: Math.abs(gap() - pendingGap - timestampHeight) <= 1,
+		}, { messages: ['say bar', 'say baz'], responseCount: 1, compact: true }, `Bubble gap: pending=${pendingGap}, timestamp=${timestampHeight}, consumed=${gap()}`);
+	});
+
+	test('empty intermediate responses retain errors, cancellation, and streaming state', () => {
+		const { model, viewModel } = createWidget();
+		const addRequest = () => model.addRequest({
+			text: 'test', parts: [new ChatRequestTextPart(new OffsetRange(0, 4), new Range(1, 1, 1, 5), 'test')],
+		}, { variables: [] }, 0);
+		const empty = addRequest();
+		empty.response!.complete();
+		const failed = addRequest();
+		failed.response!.setResult({ errorDetails: { message: 'Request failed' } });
+		failed.response!.complete();
+		const cancelled = addRequest();
+		cancelled.response!.cancel();
+		const streaming = addRequest();
+		const final = addRequest();
+		final.response!.complete();
+		assert.deepStrictEqual(viewModel.getItems().filter(isResponseVM).map(response => response.requestId), [
+			failed.id, cancelled.id, streaming.id, final.id,
+		]);
+	});
+
 	suite('generated image preview retention', () => {
 		for (const width of [280, 500]) {
 			test(`virtualized images retain their row and scroll height while reloading (${width}px)`, async () => {

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import type { IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
@@ -19,6 +20,8 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostPullRequestStatusService, type IAgentHostPullRequestStatus } from './agentHostPullRequestStatusService.js';
+import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
+import { resolveChangesetOwnerScope } from './agentHostBranchChangesetScope.js';
 
 /**
  * The pull request lifecycle actions this handler can execute. Each maps 1:1
@@ -51,9 +54,11 @@ export class AgentHostPullRequestLifecycleOperationHandler implements IChangeset
 		@IAgentHostPullRequestStatusService private readonly _statusService: IAgentHostPullRequestStatusService,
 		@IAgentHostGitHubService private readonly _gitHubService: IAgentHostGitHubService,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 	) { }
 
-	async invoke(params: InvokeChangesetOperationParams, token: CancellationToken): Promise<InvokeChangesetOperationResult> {
+	async invoke(params: InvokeChangesetOperationParams, token: CancellationToken, source?: IAgentHostCredentialSource): Promise<InvokeChangesetOperationResult> {
+		source = this.captureCredentialSource(params, source);
 		const abortController = new AbortController();
 		if (token.isCancellationRequested) {
 			abortController.abort();
@@ -61,14 +66,22 @@ export class AgentHostPullRequestLifecycleOperationHandler implements IChangeset
 		const store = new DisposableStore();
 		store.add(token.onCancellationRequested(() => abortController.abort()));
 		try {
-			const client = store.add(this._gitHubService.acquireRepositoryClient(abortController.signal));
-			return await this._invoke(params, abortController.signal, client.object);
+			const parsed = parseChangesetUri(params.channel);
+			const scope = parsed ? resolveChangesetOwnerScope(this._stateManager, parsed.ownerUri) : undefined;
+			const client = store.add(this._gitHubService.acquireRepositoryClient(abortController.signal, source, source ? scope?.sourceUri : undefined));
+			return await this._invoke(params, abortController.signal, client.object, source);
 		} finally {
 			store.dispose();
 		}
 	}
 
-	private async _invoke(params: InvokeChangesetOperationParams, signal: AbortSignal, client: IGitHubClient): Promise<InvokeChangesetOperationResult> {
+	captureCredentialSource(params: InvokeChangesetOperationParams, source?: IAgentHostCredentialSource): IAgentHostCredentialSource | undefined {
+		const parsed = parseChangesetUri(params.channel);
+		const scope = parsed ? resolveChangesetOwnerScope(this._stateManager, parsed.ownerUri) : undefined;
+		return scope ? this._gitHubService.captureSessionCredentialSource(scope.sourceUri, source, scope.sessionUri, true) : source;
+	}
+
+	private async _invoke(params: InvokeChangesetOperationParams, signal: AbortSignal, client: IGitHubClient, source?: IAgentHostCredentialSource): Promise<InvokeChangesetOperationResult> {
 		const parsed = parseChangesetUri(params.channel);
 		if (!parsed) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Not a changeset URI: ${params.channel}`);
@@ -90,7 +103,7 @@ export class AgentHostPullRequestLifecycleOperationHandler implements IChangeset
 		const startedAt = Date.now();
 		try {
 			const message = await this._runAction(sessionUri, ownerUri, ref, status, signal, client);
-			await this._statusService.refresh(ownerUri);
+			await this._statusService.refresh(ownerUri, source);
 			return { message };
 		} catch (error) {
 			this._logService.error(`[AgentHostPullRequestLifecycleOperationHandler] Failed '${this._action}': session=${sessionUri}, pr=${status.url}, durationMs=${Date.now() - startedAt}, error=${error instanceof Error ? error.message : String(error)}`);
@@ -98,7 +111,7 @@ export class AgentHostPullRequestLifecycleOperationHandler implements IChangeset
 			// state, so a rejection usually means that state has drifted. A
 			// refresh re-derives the button bar rather than leaving the user on
 			// an action GitHub already refuses.
-			await this._statusService.refresh(ownerUri);
+			await this._statusService.refresh(ownerUri, source);
 			throw error;
 		}
 	}

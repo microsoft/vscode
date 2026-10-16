@@ -24,7 +24,7 @@ import { extUriIgnorePathCase, isEqual } from '../../../../../../base/common/res
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
+import { AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentCanvasCloseRequest, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
 import { agentSdkSetupStatusKey } from '../../../../../../platform/agentHost/common/agentSdkSetup.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AgentHostCodexAgentEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -69,7 +69,8 @@ import { ChatConfiguration, ChatModeKind } from '../../../../../../workbench/con
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import type { IChatModel, IChatModelInputState, IInputModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ISessionChangeEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions } from '../../../../../services/sessions/common/sessionsProvider.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatModelSource, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, IChat, ISession, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionStatus, TURN_CHANGES_CHANGESET_ID, toSessionId } from '../../../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatModelSource, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, IChat, ISession, ISessionCanvas, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionStatus, TURN_CHANGES_CHANGESET_ID, toSessionId } from '../../../../../services/sessions/common/session.js';
+import { readSessionChangesStats } from '../../../../../services/sessions/common/sessionChangesStatsCache.js';
 import { getSessionGitHubReferences } from '../../../../github/common/sessionGitHubReferences.js';
 import { IActiveSession, ISessionsManagementService, WorkspaceNotTrustedError } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { SessionsManagementService } from '../../../../../services/sessions/browser/sessionsManagementService.js';
@@ -93,6 +94,8 @@ import { IWorkbenchEnvironmentService } from '../../../../../../workbench/servic
 import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
 import { ChatAgentFilesLocationsSettingId, ChatHookFilesLocationsSettingId } from '../../../../../../platform/chat/common/chatSettings.js';
 import { IPathService } from '../../../../../../workbench/services/path/common/pathService.js';
+import { ICopilotHomeService } from '../../../../../../platform/environment/common/copilotHome.js';
+import { TestCopilotHomeService } from '../../../../../../platform/environment/test/common/testCopilotHomeService.js';
 import { MockLabelService } from '../../../../../../workbench/services/label/test/common/mockLabelService.js';
 import { TestPathService } from '../../../../../../workbench/test/browser/workbenchTestServices.js';
 import type { CanvasState } from '../../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
@@ -178,6 +181,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public canvasDefinitions: readonly IAgentCanvasInfo[] = [];
 	public canvasListRequests: { session: URI; chat: URI }[] = [];
 	public canvasOpenRequests: { session: URI; chat: URI; request: IAgentCanvasOpenRequest }[] = [];
+	public canvasCloseRequests: { session: URI; chat: URI; request: IAgentCanvasCloseRequest }[] = [];
 	override async importSession(session: URI): Promise<void> {
 		this.importedSessions.push(session);
 	}
@@ -195,6 +199,9 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	}
 	override async openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void> {
 		this.canvasOpenRequests.push({ session, chat, request });
+	}
+	override async closeSessionCanvas(session: URI, request: IAgentCanvasCloseRequest, chat: URI): Promise<void> {
+		this.canvasCloseRequests.push({ session, chat, request });
 	}
 	get rootStateListenerCount(): number { return this._rootStateListenerCount; }
 
@@ -762,7 +769,9 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 		override findPullRequestNumberByHeadBranch = async () => undefined;
 	}());
 	instantiationService.stub(IPullRequestIconCache, instantiationService.createInstance(PullRequestIconCache));
-	instantiationService.stub(IPathService, options?.pathService ?? new TestPathService(URI.file('/home/test')));
+	const pathService = options?.pathService ?? new TestPathService(URI.file('/home/test'));
+	instantiationService.stub(IPathService, pathService);
+	instantiationService.stub(ICopilotHomeService, new TestCopilotHomeService(pathService.userHome({ preferLocal: true })));
 	const activeSessionObs = options?.activeSession ?? constObservable<IActiveSession | undefined>(undefined);
 	const visibleSessionsObs = options?.visibleSessions ?? constObservable<readonly (IActiveSession | undefined)[]>([]);
 	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
@@ -802,6 +811,7 @@ function createManagementService(disposables: DisposableStore, provider: ISessio
 	}());
 	instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 	instantiationService.stub(IPathService, new TestPathService(URI.file('/home/test')));
+	instantiationService.stub(ICopilotHomeService, new TestCopilotHomeService(URI.file('/home/test')));
 	instantiationService.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() { }());
 	instantiationService.stub(IWorkspaceTrustManagementService, {
 		getUriTrustInfo: async uri => ({ uri, trusted: true }),
@@ -3161,6 +3171,31 @@ suite('LocalAgentHostSessionsProvider', () => {
 		]);
 	}));
 
+	test('a reported zero changes summary is kept instead of being treated as unreported', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// A folder session without tracked edits reports an empty Session Changes
+		// summary. Dropping it lets the list fall back to the main chat's default
+		// changeset, which is only loaded while the session is active.
+		const zero = { additions: 0, deletions: 0, files: 0 };
+		agentHost.addSession({ ...createSession('zero-listed', { summary: 'Listed' }), changes: zero });
+		agentHost.addSession(createSession('zero-notified', { summary: 'Notified' }));
+		const provider = createProvider(disposables, agentHost);
+		await timeout(0);
+
+		fireSessionSummaryChanged(agentHost, 'zero-notified', { changes: zero });
+		await timeout(0);
+
+		const sessionFor = (title: string) => provider.getSessions().find(session => session.title.get() === title)!;
+		assert.deepStrictEqual({
+			listed: sessionFor('Listed').changesSummary?.get(),
+			notified: sessionFor('Notified').changesSummary?.get(),
+			listedStats: readSessionChangesStats(sessionFor('Listed'), undefined),
+		}, {
+			listed: zero,
+			notified: zero,
+			listedStats: { files: 0, insertions: 0, deletions: 0 },
+		});
+	}));
+
 	test('a summaryChanged delta clearing the adoptable marker opens the passive state subscription', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		// A surfaced-but-un-adopted legacy Copilot CLI session is not subscribed
 		// passively (subscribing would trigger an adopting restore). Once it is
@@ -4031,6 +4066,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		const canvases = await provider.listCanvases(session.sessionId, peer.resource);
 		await provider.openCanvas(session.sessionId, peer.resource, canvases[0], 'project-preview');
+		const liveCanvas: ISessionCanvas = { resource: URI.parse('ahp-canvas://another-host/documents/preview'), instanceId: 'project-preview', title: 'Preview', source: undefined };
+		await provider.closeCanvas(session.sessionId, peer.resource, liveCanvas);
 
 		assert.deepStrictEqual({
 			canvases,
@@ -4043,6 +4080,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 				session: session.toString(),
 				chat: chat.toString(),
 				request,
+			})),
+			close: agentHost.canvasCloseRequests.map(({ session, chat, request }) => ({
+				session: session.toString(),
+				chat: chat.toString(),
+				resource: request.resource.toString(),
 			})),
 		}, {
 			canvases: [{
@@ -4066,6 +4108,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 					extensionId: 'project:preview',
 					instanceId: 'project-preview',
 				},
+			}],
+			close: [{
+				session: AgentSession.uri('copilotcli', 'chat-canvas-route').toString(),
+				chat: peerBackend,
+				resource: 'ahp-canvas://another-host/documents/preview',
 			}],
 		});
 	});
@@ -8116,6 +8163,26 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		}
 	}
+
+	test('comparison permissions translate allow-all intent to each target harness without copying the source mode', async () => {
+		const provider = createProvider(disposables, agentHost);
+		const sourceSessionType = provider.sessionTypes[0].id;
+		const source = provider.createNewSession(URI.file('/home/user/project'), sourceSessionType, {
+			permissionId: 'autoApprove',
+			modeId: 'interactive',
+		});
+		await waitForSessionConfig(provider, source, config => config?.values.mode === 'interactive' && config.values.autoApprove === 'autoApprove');
+
+		const claude = provider.getComparisonPermissionOptionForSession(source.sessionId, 'claude');
+		const codex = provider.getComparisonPermissionOptionForSession(source.sessionId, CODEX_AGENT_PROVIDER_ID);
+		assert.deepStrictEqual({
+			claude: claude && { id: claude.id, mode: claude.comparisonModeId, allowAll: claude.isAllowAll },
+			codex: codex && { id: codex.id, mode: codex.comparisonModeId, allowAll: codex.isAllowAll },
+		}, {
+			claude: { id: 'bypassPermissions', mode: undefined, allowAll: true },
+			codex: { id: 'full-access', mode: undefined, allowAll: true },
+		});
+	});
 
 	for (const approval of [
 		{ provider: 'conforming-host', key: 'approvalMode', values: ['manual', 'assisted', 'allow-all'] },
@@ -12807,7 +12874,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, agentHost, undefined, { pathService, labelService });
 		provider.getSessions();
 		await timeout(0);
-		const copilotStateHome = URI.joinPath(buildLocalSessionStateUri(await pathService.userHome({ preferLocal: true })), 'copilot-session');
+		const copilotStateHome = URI.joinPath(buildLocalSessionStateUri(URI.file('/home/test/.copilot')), 'copilot-session');
 		const getHomeLabel = (resource: URI): string | undefined => {
 			const home = labelService.getUriHome(resource);
 			return home ? labelService.getUriLabel(home) : undefined;
@@ -12871,7 +12938,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 		provider.getSessions();
 		await timeout(0);
-		const stateHome = URI.joinPath(buildLocalSessionStateUri(userHome), 'session-42');
+		const stateHome = URI.joinPath(buildLocalSessionStateUri(URI.joinPath(userHome, '.copilot')), 'session-42');
 		const resource = URI.joinPath(stateHome, 'artifact.md');
 		const home = labelService.getUriHome(resource);
 
@@ -12907,7 +12974,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	test('registers the SDK session state home from recorded artifacts', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const userHome = URI.file('/home/test');
-		const sdkStateHome = URI.joinPath(buildLocalSessionStateUri(userHome), 'sdk-session');
+		const sdkStateHome = URI.joinPath(buildLocalSessionStateUri(URI.joinPath(userHome, '.copilot')), 'sdk-session');
 		const artifactUri = URI.joinPath(sdkStateHome, 'files', 'plan.md');
 		const metadata = createSession('ahp-session', { summary: 'Artifact Session' });
 		agentHost.addSession({

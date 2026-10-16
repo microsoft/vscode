@@ -1008,7 +1008,7 @@ export interface ISessionWithDefaultChat extends SessionState {
 	activeTurn?: ActiveTurn;
 	/** Steering message pending on this chat. */
 	steeringMessage?: PendingMessage;
-	/** Queued messages pending on this chat. */
+	/** Steering and queued messages pending on this chat. */
 	queuedMessages?: PendingMessage[];
 	/** Draft input of this chat. */
 	draft?: Message;

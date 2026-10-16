@@ -10,6 +10,7 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { URI } from '../../../../../base/common/uri.js';
 import type { INativeEnvironmentService } from '../../../../environment/common/environment.js';
+import { TestCopilotHomeService } from '../../../../environment/test/common/testCopilotHomeService.js';
 import { NullLogService } from '../../../../log/common/log.js';
 import type { IProductService } from '../../../../product/common/productService.js';
 import type { IRequestService } from '../../../../request/common/request.js';
@@ -53,6 +54,7 @@ suite('LocalModelSetupService', () => {
 			upcastPartial<IAgentHostAuthenticationService>({ onDidChangeAuthToken: Event.None }),
 			upcastPartial<IAgentHostGitHubEndpointService>({}),
 			upcastPartial<IProductService>({ version: '1.2.3' }),
+			new TestCopilotHomeService(URI.file('/home/user')),
 		));
 		const status = () => configurationService.getRootConfigValues()[LOCAL_MODEL_STATUS_KEY];
 
