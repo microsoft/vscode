@@ -4093,6 +4093,10 @@ export class AgentService extends Disposable implements IAgentService {
 		this._readableProviderCatalogs.add(provider.id);
 		if (readableTransition) {
 			this._queuePublishedSessionListRefresh(provider.id);
+			// The provider can vouch for its sessions now: those parked while it could not are re-projected (and converted).
+			if (this._catalogReconciliationService.wakeParkedProviderSessions(provider.id)) {
+				this._catalogReconciliationService.schedule();
+			}
 		}
 		if (report.marked) {
 			this._initialProviderMigrationsNeedingRetry.delete(provider.id);
@@ -11263,6 +11267,13 @@ export class AgentService extends Disposable implements IAgentService {
 		this._chatOwnership.trackRestore(restore);
 		try {
 			await restore;
+			// A restore is evidence its source resolves: the provider vouched for the session through its own lookup, which
+			// can succeed while the provider's whole catalog stays unreadable. A session parked meanwhile is released, so its
+			// catalog is re-projected (and converted) from its live state.
+			if (this._catalogReconciliationService.isParked(sessionStr)) {
+				this._catalogReconciliationService.wakeParkedSessions(sessionStr);
+				this._catalogReconciliationService.schedule();
+			}
 			// Copies of moved chats' attachments that waited to read the chats' messages (Block 4b).
 			this._attachmentMigration.resumeSession(sessionStr);
 			this._sessionResidency.touch(session);

@@ -101,6 +101,8 @@ import { isAgentHostTelemetryService } from './agentHostTelemetryService.js';
 import { IDevContainerAgentHostMainService } from '../common/devContainerAgentHost.js';
 import { DevContainerAgentHostProtocol } from './devContainerAgentHostProtocol.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
+import { getErrorCode } from '../../../base/common/errors.js';
+import { toPolicyResolutionErrorData } from '../common/meta/errorMeta.js';
 import type { AuthRequiredErrorData } from '../common/state/protocol/common/errors.js';
 import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { isChatInputRequestWithPlanReview } from '../common/agentHostPlanReview.js';
@@ -180,6 +182,9 @@ function jsonRpcError(id: number, code: number, message: string, data?: unknown)
 function jsonRpcErrorFrom(id: number, err: unknown): JsonRpcResponse {
 	if (err instanceof ProtocolError) {
 		return jsonRpcError(id, err.code, err.message, err.data);
+	}
+	if (err instanceof Error && getErrorCode(err) === 'policyResolutionFailed') {
+		return jsonRpcError(id, JSON_RPC_INTERNAL_ERROR, err.message, toPolicyResolutionErrorData());
 	}
 	const message = err instanceof Error ? (err.stack ?? err.message) : String(err);
 	return jsonRpcError(id, JSON_RPC_INTERNAL_ERROR, message);
@@ -2024,7 +2029,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					...(this._config.scopedRelayCredentials ? { credentials: this._getScopedAuthentication(_client) } : {}),
 				});
 			} catch (err) {
-				if (err instanceof ProtocolError) {
+				if (err instanceof ProtocolError || getErrorCode(err) === 'policyResolutionFailed') {
 					throw err;
 				}
 				throw new ProtocolError(AHP_PROVIDER_NOT_FOUND, err instanceof Error ? err.message : String(err));

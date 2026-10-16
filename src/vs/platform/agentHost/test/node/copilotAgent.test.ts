@@ -2122,6 +2122,164 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('managed settings keep eager config resolution pending and apply restrictive approval modes', async () => {
+		const client = new TestCopilotClient([]);
+		const gate = new DeferredPromise<ManagedSettingsResolveResult>();
+		const started = new DeferredPromise<void>();
+		client.resolveManagedSettings = () => { started.complete(); return gate.p; };
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		const clock = useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+		try {
+			let settled = false;
+			const config = agent.resolveChatConfig({ workingDirectory: URI.file('/workspace') }).finally(() => { settled = true; });
+			await started.p;
+			await clock.tickAsync(4000);
+			assert.strictEqual(settled, false);
+			gate.complete({
+				...client.managedSettingsResolution,
+				resolved: {
+					...client.managedSettingsResolution.resolved,
+					bypassPermissionsDisabled: true,
+					settings: { permissions: { disableBypassPermissionsMode: 'disable', disableAssistedPermissionsMode: true } },
+				},
+			});
+			assert.deepStrictEqual((await config).values.availableApprovalModes, ['default']);
+		} finally {
+			gate.complete(client.managedSettingsResolution);
+			clock.restore();
+			await disposeAgent(agent);
+		}
+	});
+
+	test('managed settings reject eager config from a superseded account', async () => {
+		const client = new TestCopilotClient([]);
+		const gate = new DeferredPromise<ManagedSettingsResolveResult>();
+		const started = new DeferredPromise<void>();
+		client.resolveManagedSettings = () => { started.complete(); return gate.p; };
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		try {
+			const rejected = assert.rejects(agent.resolveChatConfig({}), /settings changed while loading/);
+			await started.p;
+			await agent.authenticate('https://api.github.com', 'new-token');
+			await rejected;
+			client.resolveManagedSettings = async () => client.managedSettingsResolution;
+			gate.complete(client.managedSettingsResolution);
+			await agent.resolveChatConfig({});
+			assert.strictEqual(client.managedSettingsRequests.at(-1)?.gitHubToken, 'new-token');
+		} finally {
+			gate.complete(client.managedSettingsResolution);
+			await disposeAgent(agent);
+		}
+	});
+
+	for (const kind of ['create', 'resume', 'peerResume', 'resumeWithSelections', 'peerResumeWithSelections'] as const) {
+		test(`Stop releases a ${kind} waiting on managed settings before the SDK starts`, async () => {
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/copilot-policy-stop-`);
+			const sessionId = 'policy-stop';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const chat = kind === 'peerResume' || kind === 'peerResumeWithSelections' ? URI.parse(buildChatUri(session, 'peer')) : defaultChatUri(session);
+			const context = exactChatContext(session, chat, session);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
+			const runtimes: MockCopilotSession[] = [];
+			client.createSession = async config => {
+				const runtime = new MockCopilotSession(config.sessionId ?? sessionId);
+				runtimes.push(runtime);
+				return runtime as unknown as CopilotSession;
+			};
+			client.resumeSession = async id => {
+				const runtime = new MockCopilotSession(id);
+				runtimes.push(runtime);
+				return runtime as unknown as CopilotSession;
+			};
+			const agent = createTestAgent(disposables, { copilotClient: client, sessionDataService, useRealResumePath: true });
+			const gate = new DeferredPromise<ManagedSettingsResolveResult>();
+			const started = new DeferredPromise<void>();
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.refreshModels();
+				if (kind === 'create') {
+					await provisionSession(agent, { session, workingDirectories: [URI.file(workingDirectory)] });
+				} else {
+					const db = sessionDataService.openDatabase(session);
+					await db.object.setMetadata('copilot.workingDirectory', URI.file(workingDirectory).toString());
+					db.dispose();
+					await agent.materializeChat(chat, context, JSON.stringify({ sdkSessionId: sessionId }));
+				}
+				client.resolveManagedSettings = params => {
+					if (params.workingDirectory) {
+						started.complete();
+						return gate.p;
+					}
+					return Promise.resolve(client.managedSettingsResolution);
+				};
+				const selections = kind === 'resumeWithSelections' || kind === 'peerResumeWithSelections'
+					? [agent.chats.changeModel(chat, { id: 'model-x' }, context), agent.chats.changeAgent(chat, undefined, context)]
+					: [];
+				const settledSelections = Promise.allSettled(selections);
+				const send = (async () => {
+					await Promise.all(selections);
+					await agent.chats.sendMessage(chat, 'cancel me', [URI.file(workingDirectory)], undefined, 'cancelled', undefined, undefined, context);
+				})();
+				const completedSend = selections.length ? assert.rejects(send, isCancellationError) : send;
+				await started.p;
+				await agent.chats.abort(chat, context);
+				await completedSend;
+				assert.deepStrictEqual((await settledSelections).map(result => result.status), selections.map(() => 'rejected'));
+				assert.deepStrictEqual({ startedSdkSessions: runtimes.length, pendingInitializations: agent['_sessionsPendingRegistration'].size }, { startedSdkSessions: 0, pendingInitializations: 0 });
+				const retry = agent.chats.sendMessage(chat, 'retry once', [URI.file(workingDirectory)], undefined, 'retry', undefined, undefined, context);
+				await gate.complete(client.managedSettingsResolution);
+				await retry;
+				assert.deepStrictEqual(runtimes.map(runtime => runtime.sendCalls), [1]);
+			} finally {
+				await gate.complete(client.managedSettingsResolution);
+				await disposeAgent(agent);
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+			}
+		});
+	}
+
+	test('changeModel recovers a connection closed during managed settings resolution', async () => {
+		const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/copilot-policy-recovery-`);
+		const sessionId = 'policy-recovery';
+		const session = AgentSession.uri('copilotcli', sessionId);
+		const chat = defaultChatUri(session);
+		const context = exactChatContext(session, chat, session);
+		const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
+		const runtimes: MockCopilotSession[] = [];
+		const createRuntime = () => {
+			const runtime = new MockCopilotSession(sessionId);
+			runtimes.push(runtime);
+			return runtime as unknown as CopilotSession;
+		};
+		client.createSession = async () => createRuntime();
+		client.resumeSession = async () => createRuntime();
+		const agent = createTestAgent(disposables, { copilotClient: client, useRealResumePath: true, sessionDataService: disposables.add(new TestSessionDataService()) });
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			await agent.refreshModels();
+			await provisionSession(agent, { session, workingDirectories: [URI.file(workingDirectory)] });
+			await agent.chats.prepareTurn!(chat, 'turn-1', [URI.file(workingDirectory)], context);
+			const starts = client.startCallCount;
+			let failed = false;
+			client.resolveManagedSettings = async params => {
+				if (params.workingDirectory && !failed) {
+					failed = true;
+					throw new Error('Connection is closed.');
+				}
+				return client.managedSettingsResolution;
+			};
+			await agent.chats.changeModel(chat, { id: 'model-x' }, context);
+			assert.deepStrictEqual({
+				failed, restarted: client.startCallCount - starts, stopped: client.stopCallCount,
+				models: runtimes.map(runtime => runtime.setModelCalls.map(([model]) => model)),
+			}, { failed: true, restarted: 1, stopped: 1, models: [[], ['model-x']] });
+		} finally {
+			await disposeAgent(agent);
+			await fs.rm(workingDirectory, { recursive: true, force: true });
+		}
+	});
+
 	test('sandbox override survives config resolution but is not inherited by forks', async () => {
 		const agent = createTestAgent(disposables);
 		try {
@@ -4922,7 +5080,7 @@ suite('CopilotAgent', () => {
 
 		await assert.rejects(
 			getCopilotManagedSettingsDiagnostics(managedSettings, 'token', 10),
-			/Copilot runtime managed-settings query exceeded 0.01 seconds while waiting for native MDM or GitHub policy resolution/,
+			/Loading your organization's managed settings took longer than 0.01 seconds/,
 		);
 	});
 
@@ -5085,7 +5243,7 @@ suite('CopilotAgent', () => {
 		const agent = createTestAgent(disposables, { copilotClient: client });
 		const clock = useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
 		try {
-			const rejected = assert.rejects(agent.getManagedSettingsDiagnostics(), /query exceeded 3.5 seconds/);
+			const rejected = assert.rejects(agent.getManagedSettingsDiagnostics(), /settings took longer than 3.5 seconds/);
 			await started.p;
 			await clock.tickAsync(3500);
 			await rejected;
@@ -22079,6 +22237,46 @@ suite('CopilotAgent', () => {
 				await disposeAgent(agent);
 			}
 		});
+
+		for (const cancel of [false, true]) {
+			test(`changeModel waits for slow managed settings without applying a stale choice (cancel=${cancel})`, async () => {
+				const client = new TestCopilotClient([]);
+				const agent = createTestAgent(disposables, { copilotClient: client });
+				const gate = new DeferredPromise<ManagedSettingsResolveResult>();
+				const started = new DeferredPromise<void>();
+				const clock = useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+				try {
+					await agent.listChatsToMigrate();
+					client.resolveManagedSettings = () => { started.complete(); return gate.p; };
+					const session = AgentSession.uri('copilotcli', 'slow-policy');
+					const chat = URI.parse(buildChatUri(session, 'peer-a'));
+					const sdk = makeFakeChatSession(session, 'sdk-a');
+					setPeerChatStub(agent, chat, sdk.fake);
+					const context = exactChatContext(session, chat);
+					const change = agent.chats.changeModel(chat, { id: 'model-x' }, context);
+					const completion = cancel ? assert.rejects(change, isCancellationError) : change;
+					await started.p;
+					await clock.tickAsync(4000);
+					assert.strictEqual(sdk.rec.modelCalls.length, 0);
+					if (cancel) {
+						await agent.chats.abort(chat, context);
+						await completion;
+					}
+					gate.complete(client.managedSettingsResolution);
+					await completion;
+					await clock.tickAsync(0);
+					assert.deepStrictEqual(sdk.rec.modelCalls.map(model => model.id), cancel ? [] : ['model-x']);
+					if (cancel) {
+						await agent.chats.changeModel(chat, { id: 'model-y' }, context);
+						assert.deepStrictEqual(sdk.rec.modelCalls.map(model => model.id), ['model-y']);
+					}
+				} finally {
+					gate.complete(client.managedSettingsResolution);
+					clock.restore();
+					await disposeAgent(agent);
+				}
+			});
+		}
 
 		test('changeModel applies the per-model reasoning-effort override from the capability overrides', async () => {
 			const { agent, configurationService } = createTestAgentContext(disposables);

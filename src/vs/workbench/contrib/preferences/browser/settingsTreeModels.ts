@@ -158,6 +158,8 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	 */
 	hasPolicyValue = false;
 
+	policyValueDescription: string | undefined;
+
 	/**
 	 * Whether the setting is read-only in the Agents window.
 	 */
@@ -363,6 +365,9 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		// Runtime restrictions affect presentation only; they are not VS Code configuration policies.
 		const policyValue = this.managedSettingsPresentationService.getValue(this.setting.key, inspected.value) ?? inspected.policyValue;
 		this.hasPolicyValue = policyValue !== undefined;
+		this.policyValueDescription = inspected.policyValue !== undefined
+			? Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties()[this.setting.key]?.policyValueDescription?.(inspected.policyValue, inspected[targetSelector])
+			: undefined;
 		if (this.hasPolicyValue) {
 			isConfigured = false; // The user did not manually configure the setting themselves.
 			displayValue = policyValue;

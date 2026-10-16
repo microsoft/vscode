@@ -4,13 +4,43 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { SettingsTreeIndicatorsLabel } from '../../browser/settingsEditorSettingIndicators.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { ISettingOverrideClickEvent, SettingsTreeIndicatorsLabel } from '../../browser/settingsEditorSettingIndicators.js';
 import { SettingsTreeSettingElement } from '../../browser/settingsTreeModels.js';
 
 suite('SettingsTreeIndicatorsLabel', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses a setting-specific policy explanation with the existing managed indicator', () => {
+		const descriptions: string[] = [];
+		const hoverService = upcastPartial<IHoverService>({
+			setupDelayedHover: (_target, options) => {
+				const content = (typeof options === 'function' ? options() : options)?.content;
+				if (typeof content === 'string') {
+					descriptions.push(content);
+				}
+				return Disposable.None;
+			},
+		});
+		const container = document.createElement('div');
+		const label = store.add(new SettingsTreeIndicatorsLabel(container, undefined!, hoverService, undefined!, undefined!, undefined!));
+		const clicks = store.add(new Emitter<ISettingOverrideClickEvent>());
+		const filters = store.add(new Emitter<string>());
+		const element = upcastPartial<SettingsTreeSettingElement>({ hasPolicyValue: true, policyValueDescription: 'Organization default explanation' });
+		label.updateScopeOverrides(element, clicks, filters);
+		const specific = descriptions.at(-1);
+		element.policyValueDescription = undefined;
+		label.updateScopeOverrides(element, clicks, filters);
+		assert.deepStrictEqual({ specific, fallback: descriptions.at(-1), indicator: container.textContent?.includes('Managed by organization') }, {
+			specific: 'Organization default explanation',
+			fallback: 'This setting is managed by your organization and its actual value cannot be changed.',
+			indicator: true,
+		});
+	});
 
 	test('replaces the preview hover when updated', () => {
 		const hoverDisposables: { disposed: boolean }[] = [];
