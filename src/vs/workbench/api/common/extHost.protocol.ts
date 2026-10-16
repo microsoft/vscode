@@ -2121,6 +2121,7 @@ export type SCMRawResource = [
 	boolean /*faded*/,
 	string /*context value*/,
 	ICommandDto | undefined /*command*/,
+	ICommandDto | undefined /* doubleClickCommand */,
 	UriComponents | undefined /* multiFileDiffEditorOriginalUri */,
 	UriComponents | undefined /* multiFileDiffEditorModifiedUri */,
 ];
