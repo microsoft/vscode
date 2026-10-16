@@ -439,6 +439,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	readonly onDidBlur = this._onDidBlur.event;
 	private readonly _onDidChangeInput = this._register(new Emitter<void>());
 	readonly onDidChangeInput = this._onDidChangeInput.event;
+	private readonly _onDidChangeInputValue = this._register(new Emitter<void>());
+	readonly onDidChangeInputValue = this._onDidChangeInputValue.event;
 	private _applyingDraft = false;
 	get element(): HTMLElement { return this._editorContainer; }
 
@@ -1304,6 +1306,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			this._updateSendButtonState();
 			this._updateEditorFontFamily();
 			this._promptOptionsWidget.value?.setInputValue(this._editor.getValue());
+			this._onDidChangeInputValue.fire();
 			if (!this._applyingDraft) {
 				this._onDidChangeInput.fire();
 			}
