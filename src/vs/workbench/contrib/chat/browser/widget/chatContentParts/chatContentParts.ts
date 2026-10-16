@@ -86,6 +86,8 @@ export interface IChatContentPartRenderContext {
 	 * transcript row, so it renders the confirmation that transcript copies defer to it.
 	 */
 	readonly inToolConfirmationCarousel?: boolean;
+	/** The image batch owns previews and animation; this part only renders tool details. */
+	readonly inImageGenerationBatch?: boolean;
 	readonly editorPool: EditorPool;
 	readonly codeBlockStartIndex: number;
 	readonly treeStartIndex: number;

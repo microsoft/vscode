@@ -102,6 +102,35 @@ The residual case is `providerHostOnlyTest(...)`: per-provider, but no model tra
 
 ---
 
+## CI execution profiles
+
+Execution priority is independent of conformance/parity. `AGENT_HOST_TEST_PROFILE=full` runs every enabled scenario and is the default for local commands and DevOps. `AGENT_HOST_TEST_PROFILE=pr` keeps representative host/provider contracts while skipping explicitly classified full-only variations. Both profiles retain the existing provider, platform, live-test, and recording gates.
+
+```bash
+# Full deterministic E2E coverage (default).
+npm run test-agent-host-e2e
+
+# PR-profile E2E coverage.
+AGENT_HOST_TEST_PROFILE=pr npm run test-agent-host-e2e
+
+# The same profile also applies to neighboring provider integration tests.
+AGENT_HOST_TEST_PROFILE=pr ./scripts/test-integration.sh --run \
+  src/vs/platform/agentHost/test/node/providerIntegration/copilotOtel.integrationTest.ts
+```
+
+GitHub PR jobs use the existing broad affected-file check to skip the parallel E2E runner for unrelated changes. Relevant implementation changes select the PR profile. Any Agent Host test, fixture, snapshot, test harness, selection infrastructure, build infrastructure, or dependency-manifest change forces Full in that same PR. Renames check both old and new paths. Failed or incomplete changed-file lookups also select Full. The selected profile and reason appear in integration-test output. Provider-integration tests outside the parallel runner inherit the same profile; the affected-file skip still applies only to the parallel runner.
+
+New tests remain in PR coverage by default. Use `fullOnlyTest(...)` from `../../agentHostTestProfile.js` (relative to an E2E suite) for native-runtime stress or redundant variations, preserving existing capability gates. Existing file-operation and peer registrars accept a final `'full'` profile argument. Do not rename tests to classify them: titles identify committed fixtures.
+
+The initial full-only list is deliberately small:
+
+- File operations: nested read, JSON read, line count, workspace listing, and Git status.
+- Peer chats: nested read and nested file creation.
+- Copilot native tools: view range, grep, and glob variations.
+- Provider integration: the two native OTel concurrency stress cases.
+
+Permission enforcement, routing, persistence, checkpoints, customizations, managed telemetry, and the prompt matrix remain in PR coverage. Coverage-report runs always select Full. Full-only is an execution priority, not a known issue or unsupported capability.
+
 ## Organization
 
 | Path | Role |
@@ -137,6 +166,8 @@ Native Copilot OTel concurrency coverage runs 288 real shell-tool calls with tel
 Copilot's native `run_dynamic_workflow` and `dynamic_workflows_manage` tools are excluded from Agent Host sessions until their execution and approval behavior is validated. Prompt snapshots pin their absence from the model's tool inventory.
 
 Copilot's native SDK sessions expose the bundled `customize-cloud-agent` and `github-pr-media` skills. Prompt snapshots pin their catalog descriptions and the `skill` tool schema alongside the existing tool inventory.
+
+`../providerIntegration/copilotImageGeneration.integrationTest.ts` tests native image-tool availability through the real Agent Host and bundled SDK, using a local synthetic model catalog. It asserts the tool in actual chat-model requests on creation and after a cold host restart, with a negative control for an unavailable image model. The default replay catalog has only chat models, so ordinary prompt snapshots cannot detect missing image consent. No image inference is performed and no credentials or credits are required.
 
 Workspace lifecycle tests enable each provider's multi-root capability only for their scenario and restore the previous root configuration afterward. They distinguish the session's aggregate folders, a peer's selected subset, and the actual directory used by its tools. Delegation tests verify that the invoking provider finishes its response, the child finishes its local command, and session disposal removes owned additional worktrees.
 
@@ -209,7 +240,7 @@ exchanges:
   | `${shell_output_N}` | the Nth generated original-output path, rebound from live requests during replay |
   | `${plugin_copy}` | the path-derived directory name of a client plugin copied into the isolated Agent Host home |
 
-  Tool-call ids are also normalized to stable ordinals (`toolcall_0`, `toolcall_1`, …).
+  Tool-call ids are also normalized to stable ordinals (`toolcall_0`, `toolcall_1`, …). JSON `toolCallId` references embedded in permission-judge text reuse the same mapping; unknown identifiers and the surrounding text remain unchanged and asserted. Quoted JSON strings normalize only escaped path separators inside whitespace-delimited placeholder-path tokens; newline and Unicode escapes outside those tokens remain byte-for-byte asserted. Unquoted path normalization also stops at whitespace, preserving authored backslashes later in the text. The same normalization applies to recorded and live request comparisons, independently of code-fence formatting.
 
   UUID placeholders are rebound dynamically during replay. The proxy aligns each recorded request with the live request, learns the fresh UUID corresponding to `${uuid_N}`, normalizes the request before comparison, and expands later model tool arguments with the learned value. Bindings are cleared whenever the shared proxy switches fixtures.
 
@@ -229,7 +260,7 @@ Both sides go through the same projection, so captures keep their existing shape
 | Text and attachment content | The model id |
 | Tool names, inputs, and `tool_use_id` wiring | Reasoning blocks |
 
-Each elision has a reason, and dropping any of them would make the assertion either platform-coupled or permanently red. Reasoning blocks are the least obvious: aggregating a recorded reply drops them, so the assistant turn replayed back to the agent never carries one even though the live recording did.
+Each elision has a reason, and dropping any of them would make the assertion either platform-coupled or permanently red. Path placeholders include an optional leading separator so Git diff prefixes such as `a${workdir}` and `a/${workdir}` compare equally across platforms; surrounding diff metadata, hunks, and authored content remain asserted. Reasoning blocks are the least obvious: aggregating a recorded reply drops them, so the assistant turn replayed back to the agent never carries one even though the live recording did.
 
 A single text block left after removing reasoning is compared as bare text, matching the replay codec's representation. Multiple text blocks and mixed text/tool content retain their structure.
 
@@ -265,13 +296,7 @@ The complete-suite runner starts one test process per entrypoint and runs up to 
 
 Pull request Electron jobs run the complete suite only when the changed files can affect the Agent Host, its shared platform dependencies, provider SDK versions, build infrastructure, or the E2E harness. The classification happens inside each already-allocated Electron runner so Linux, macOS, and Windows jobs remain parallel. When no relevant files changed, CI sets `VSCODE_SKIP_AGENT_HOST_E2E=1`; `test-integration.sh` and `test-integration.bat` then skip this suite while continuing with every other integration test.
 
-The Copilot managed-settings diagnostics suite waits for the authenticated
-provider's model catalog before requesting diagnostics. Authentication schedules
-runtime startup asynchronously; the catalog establishes a completed runtime RPC
-without creating a session or making a model request. The policy probe still
-fetches server settings afresh and retains the production 4.5-second overall and
-3.5-second query deadlines. Cold-start deadline behavior is covered by the
-Copilot agent unit tests.
+The Copilot managed-settings diagnostics suite waits for the authenticated provider's model catalog before requesting diagnostics. Authentication schedules runtime startup asynchronously; the catalog establishes a completed runtime RPC without creating a session or making a model request. The policy probe still fetches server settings afresh and retains the production 4.5-second overall and 3.5-second query deadlines. Cold-start deadline behavior is covered by the Copilot agent unit tests.
 
 The managed-telemetry suite asserts actual session-correlated native spans at loopback collectors. It covers managed capture restrictions and fine-grained overrides, exporter/resource/protocol precedence, per-session collector changes, policy removal, reenablement, and revoked capture on cold resume. Negative export assertions drain the host before inspecting the final collected spans. Runtime-managed telemetry and the Agent Host's own metadata pipeline are separate; native policy assertions must not treat host-produced metadata as native Copilot export.
 
@@ -285,25 +310,11 @@ Provider availability:
 
 ### Expected failures
 
-Use `assertExpectedFailure(issue, expectedError, run)` around a known failing
-operation while keeping its desired-behavior assertions. It logs and accepts
-only the specified error. An unexpected pass fails the run and identifies the
-marker to remove, so SDK rolls detect when an upstream fix reaches the bundle.
-Setup errors, different failures, and teardown errors remain failures.
-Skip these scenarios while recording so a known early failure cannot overwrite
-a complete fixture with a partial recording. Remove that recording skip together
-with the marker when the upstream fix is adopted.
+Use `assertExpectedFailure(issue, expectedError, run)` around a known failing operation while keeping its desired-behavior assertions. It logs and accepts only the specified error. An unexpected pass fails the run and identifies the marker to remove, so SDK rolls detect when an upstream fix reaches the bundle. Setup errors, different failures, and teardown errors remain failures. Skip these scenarios while recording so a known early failure cannot overwrite a complete fixture with a partial recording. Remove that recording skip together with the marker when the upstream fix is adopted.
 
-The native inherited-identity redaction scenario runs this way by default.
-Its expected-failure marker remains accountable in `KNOWN_ISSUES.md`; the
-managed-telemetry no-restart scenario passes normally with runtime `1.0.95-0`.
-Do not replace an expected-failure marker with a permanent negative assertion.
+The native inherited-identity redaction scenario runs this way by default. Its expected-failure marker remains accountable in `KNOWN_ISSUES.md`; the managed-telemetry no-restart scenario passes normally with runtime `1.0.95-0`. Do not replace an expected-failure marker with a permanent negative assertion.
 
-If a recognized failure prevents later model turns, pass
-`{ allowUnconsumedResponses: true }` to the lease's replay verification at
-release, only after `assertExpectedFailure` returns. This permits unused future
-responses without accepting unrecorded requests or request mismatches. The
-option is per release; normal tests still require complete replay consumption.
+If a recognized failure prevents later model turns, pass `{ allowUnconsumedResponses: true }` to the lease's replay verification at release, only after `assertExpectedFailure` returns. This permits unused future responses without accepting unrecorded requests or request mismatches. The option is per release; normal tests still require complete replay consumption.
 
 ---
 
@@ -442,7 +453,7 @@ The suite pins `gh` discovery with a temporary executable probe on its test-owne
 
 Pinning a new model is opt-in. Nothing here is derived from the live `/models` catalog, so a newly released model does not appear until a maintainer adds it to `capiStubs.ts` — and adding it there alone does not fail the suite, because the CLI's inlined model listing is elided. A model is only pinned once someone also adds it to `SNAPSHOT_MODELS` and commits its fixture and baseline.
 
-The repository instructions and the model catalog are the two elisions that are not about run-to-run variance. The CLI injects `.github/copilot-instructions.md` and `AGENTS.md` verbatim, and their content is stable across machines, so it could be pinned. It is not, because the cost would land on the wrong file: appending a single line to `AGENTS.md` would rewrite every baseline here and fail CI for an unrelated docs edit. The `<custom_instruction>` wrappers still assert that instructions are injected, how many, and where they sit in the prompt.
+The repository instructions and the model catalog are the two elisions that are not about run-to-run variance. Each prompt scenario writes `.github/copilot-instructions.md` and `AGENTS.md` into its isolated workspace and asserts that both marker bodies reach the model before normalizing them. The `<custom_instruction>` wrappers still assert how many instructions are injected and where they sit in the prompt; the test does not rely on discovering files from the Agent Host's own working directory.
 
 The model catalog is the same trade. The CLI inlines the whole `/models` list into the `Task` tool's schema, as a count and a per-model listing, so left verbatim a single new entry in `capiStubs.ts` would rewrite every baseline — including those of models nobody snapshots. The labels survive, so the catalog vanishing from the prompt, or changing shape, still fails.
 
@@ -478,11 +489,19 @@ After recording, **review the diff** (paths normalized? no usernames, tokens, or
 
 ### Managed-settings schema snapshot
 
-[`../copilotSdkManagedSettings.integrationTest.ts`](../copilotSdkManagedSettings.integrationTest.ts)
-snapshots the complete `managedSettings.schema()` response from the bundled SDK/runtime.
-This is a sessionless SDK integration test, not an AHP scenario: it creates no chat,
-calls no model, and starts no MCP servers. It uses an isolated home without login credentials.
-The snapshot preserves the schema's descriptions, defaults, validation rules, and composition metadata.
+[`../copilotSdkManagedSettings.integrationTest.ts`](../copilotSdkManagedSettings.integrationTest.ts) snapshots the complete `managedSettings.schema()` response from the bundled SDK/runtime. This is a sessionless SDK integration test, not an AHP scenario: it creates no chat, calls no model, and starts no MCP servers. It uses an isolated home without login credentials. The snapshot preserves the schema's descriptions, defaults, validation rules, and composition metadata.
+
+The same suite verifies the bundled model-policy composition contract: model-specific effort/context options stay with the channel supplying the model, Auto and missing-model policies discard those options with diagnostics, and lock/default metadata survives composition. Composition is not model-catalog validation: an unavailable model or unsupported effort can still appear in `values`. These tests do not certify session enforcement or picker behavior.
+
+The Agent Host model-default integration in [`copilotManagedModelConfiguration.ts`](../../../node/copilot/copilotManagedModelConfiguration.ts) projects matching runtime values onto offered model options and uses scalar configuration-source markers to distinguish implicit defaults from explicit choices across serialization. It enables managed settings without opting into `enforceManagedModelDefaults`: plain server-delivered model defaults do not create picker locks. Authoring wrappers may have been removed by server composition, so their absence cannot establish end-user mutability. Generic host-advertised read-only schema properties remain supported independently. Live sessions resolve policy with their working directory and publish a protected, chat-scoped report with defaults and SDK `model.getCurrent()` values. Reports do not become personal preferences. The runtime must supply a concrete matching model ID; the client never implements its own alias resolver.
+
+[`../providerIntegration/copilotAutoTier.integrationTest.ts`](../providerIntegration/copilotAutoTier.integrationTest.ts) exercises session-level model controls against a synthetic local endpoint serving plain scalar settings, matching the server-normalized shape rather than raw authoring wrappers. These tests stub the payload after composition; they do not exercise GitHub's team-membership or settings-composition service. They verify implicit effort/context defaults, preserved explicit choices, editable Auto tiers through actual synthetic inference requests, switching models, and an unavailable managed model. Resume coverage persists a completed turn and explicit options, changes the scalar policy, and checks that the conversation's choices and history survive. No real account or model service is contacted.
+
+Run this suite without native model or permission policy. Its temporary home and mock server do not isolate machine-wide MDM, registry, or managed-settings files; the setup preflight fails explicitly if device policy controls the model, Auto/Fusion tier, effort, context, or permissions. Unrelated device settings, such as remote-control policy, do not block the local SDK scenarios. Do not interpret results from a conflicting device-governed run as evidence about the synthetic server policy, or remove machine policy automatically to make the tests pass.
+
+The [github/copilot-agent-runtime#26681](https://github.com/github/copilot-agent-runtime/issues/26681) test characterizes unsupported effort being forwarded to synthetic inference even without strict enforcement; a passing characterization test is not a fix. The separate strict SDK resume scenario for [github/copilot-agent-runtime#26739](https://github.com/github/copilot-agent-runtime/issues/26739) now specifies successful policy reconciliation and retained history but is skipped while the runtime intermittently rejects it. Requiring that rejection as an expected failure is itself flaky: the identical scenario can also resume successfully under the new lock. The narrowly gated scenario and reproduction are tracked in [KNOWN_ISSUES.md](./KNOWN_ISSUES.md#copilot-strict-managed-model-resume-is-nondeterministic); default-only resume tests remain enabled. VS Code does not enable strict model enforcement. Unsupported effort validation still requires a runtime fix; use supported model/effort combinations for manual testing.
+
+Traffic summaries omit unsolicited, report-only `vscode.modelConfiguration` patches because their asynchronous readback timing is independent of conversation ordering. Client writes, rejections, replacements, and patches containing other settings remain in the summaries. The raw notifications are retained, and the materialized Copilot scenario independently waits for and asserts the protected per-chat report and applied model.
 
 ```bash
 # Compare with the committed baseline.
@@ -664,6 +683,10 @@ Follow the pending boundary into its owning service or provider runtime before c
 
 For a catalog drain, correlate `catalogStateWrite` iteration records with `[AgentHostCatalogSync]` records for the same session. Catalog queue records separate `queueWaitMs` from `executionMs`; synchronization stages identify whether local receipt access, central catalog access, or acknowledgement is pending. These timings include nested queues and native I/O, so a slow database stage alone does not prove filesystem or worker-pool contention.
 
+### An unrelated session is announced during a test
+
+Trace the unexpected `root/sessionAdded` resource back to its native provider thread in the host log. Codex preserves native threads after session disposal, so shared-server tests rely on durable backing markers to keep them out of top-level discovery. A pre-turn thread replacement must refresh an already-published materialization receipt with the new backing ID; an unsent draft must remain provisional. Keep the exact session-announcement assertions rather than masking a missing backing receipt with per-test server isolation.
+
 ### Replayed text is doubled (`VALUEVALUE`)
 
 The Responses (`/responses`) regenerator announces each output item before streaming it. If `response.output_item.added` carries the item's final content, a consumer that accumulates that content *and* the following deltas counts the same text twice, so a recorded `SHELL_VALUE_73` replays as `SHELL_VALUE_73SHELL_VALUE_73`.
@@ -708,9 +731,17 @@ Check for the preceding execution's `session.error`, a new host turn, a late roo
 
 Check the logs from both sides of the restart for storage load errors and failed shutdown drains. A `root/sessionSummaryChanged` notification precedes background catalog synchronization; graceful shutdown must drain those writes even if global storage or another persistence flush fails. Host-owned JSON storage uses atomic replacement so an interrupted write cannot leave the next host with a truncated file. Keep the restart assertions intact: sleeping after the notification would hide a persistence failure rather than fix it.
 
+### A subagent response is duplicated or stops streaming after its parent finishes
+
+Correlate the child's streaming deltas and assembled message with the parent's idle or replacement turn. A child can outlive its parent: its markdown/reasoning part identifiers and assembled-message deduplication state belong to the child, not the current root turn. Clear that state at the child's own user-message, tool-round, and confirmed-completion boundaries. Assert the child's actual transcript across parent completion and replacement; do not deduplicate by text, since separate child requests can legitimately return identical answers.
+
 ### A snapshot intermittently includes `chat/isReadChanged` after `chat/turnComplete`
 
 Turn completion precedes the unread lifecycle action. Use `waitForChatTurnComplete(...)` for imperative completion waits: it matches the exact chat and turn, rejects errors, then waits for `chat/isReadChanged` with `isRead: false` and a greater `serverSeq`. Pass the preceding error's sequence when resuming the same turn so an earlier outcome cannot satisfy the wait. Snapshot scenarios use the same helper and exclude outcomes from earlier rounds; the turn driver shares its unread barrier. Do not remove the unread action from the snapshot or add a sleep.
+
+### A retained-subagent snapshot differs only in parent/child event interleaving
+
+Parent coordination-tool completions and child replies arrive on independent chat streams. The retained-subagent follow-up scenario uses `orderIndependentActionTypes` to compare each chat's ordered transcript rather than imposing a cross-chat total order. All event fields and counts are retained; same-chat reordering, failed tools, and missing or duplicated replies still fail. Keep the exact parent tool sequence and child response/turn-state assertions as the primary contract.
 
 ### A later test fails on unexpected console output after a snapshot mismatch
 

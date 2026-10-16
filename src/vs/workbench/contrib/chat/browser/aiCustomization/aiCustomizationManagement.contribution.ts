@@ -65,7 +65,7 @@ import {
 	DELETE_AI_CUSTOMIZATION_ID,
 	resolveAICustomizationManagementOpenEditorTarget,
 } from './aiCustomizationManagement.js';
-import { AICustomizationManagementEditor } from './aiCustomizationManagementEditor.js';
+import { AICustomizationManagementEditor, CopilotConnectorDetailOpenResult } from './aiCustomizationManagementEditor.js';
 import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
 import './customizationMarketplace.contribution.js';
 import './customizationMigrationAccessibility.js';
@@ -746,6 +746,62 @@ for (const menuId of [AICustomizationManagementItemMenuId, AICustomizationManage
 
 //#endregion
 
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: AICustomizationManagementCommands.OpenEditor,
+			title: localize2('openAICustomizations', "Open Customizations"),
+			shortTitle: localize2('aiCustomizations', "Customizations"),
+			category: CHAT_CATEGORY,
+			precondition: ChatContextKeys.enabled,
+			f1: true,
+		});
+	}
+
+	async run(accessor: ServicesAccessor, target?: AICustomizationManagementOpenEditorTarget): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const harnessService = accessor.get(ICustomizationHarnessService);
+		const widget = chatWidgetService.lastFocusedWidget;
+		const { section, revealUri, sessionResource, showDiscover, searchQuery, migration, migrationCategory, migrationHint } = resolveAICustomizationManagementOpenEditorTarget(
+			target,
+			widget?.input.pendingDelegationTarget,
+			widget?.viewModel?.sessionResource,
+			sessionType => harnessService.getSessionResourceForHarness(sessionType),
+		);
+		if (migrationHint) {
+			accessor.get(ICustomizationMigrationTelemetryService).hintClicked(migrationHint, 'review');
+		}
+		if (sessionResource) {
+			harnessService.setActiveSession(sessionResource);
+		}
+
+		const input = AICustomizationManagementEditorInput.getOrCreate();
+		input.setTargetLabels(
+			harnessService.getActiveDescriptor().label,
+			accessor.get(IAICustomizationWorkspaceService).activeProjectLabel.get(),
+		);
+		const pane = await editorService.openEditor(input, { pinned: true });
+		if (migration && pane instanceof AICustomizationManagementEditor) {
+			await pane.startCustomizationMigration(migrationCategory, migrationHint?.migrationFlowId);
+		} else if (showDiscover && pane instanceof AICustomizationManagementEditor) {
+			pane.showWelcomePage();
+			if (searchQuery !== undefined) {
+				pane.setSearchQuery(searchQuery);
+			}
+		} else if (section && pane instanceof AICustomizationManagementEditor) {
+			if (pane.selectSectionById(section)) {
+				if (searchQuery !== undefined) {
+					pane.setSearchQuery(searchQuery);
+				}
+				if (revealUri) {
+					await pane.revealCustomizationByUri(revealUri);
+				}
+			}
+		}
+	}
+});
+
 //#region Actions
 
 class AICustomizationManagementActionsContribution extends Disposable implements IWorkbenchContribution {
@@ -807,54 +863,6 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 			}
 		}));
 
-		// Open AI Customizations Editor
-		this._register(registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: AICustomizationManagementCommands.OpenEditor,
-					title: localize2('openAICustomizations', "Open Customizations"),
-					shortTitle: localize2('aiCustomizations', "Customizations"),
-					category: CHAT_CATEGORY,
-					precondition: ChatContextKeys.enabled,
-					f1: true,
-				});
-			}
-
-			async run(accessor: ServicesAccessor, target?: AICustomizationManagementOpenEditorTarget): Promise<void> {
-				const editorService = accessor.get(IEditorService);
-				const chatWidgetService = accessor.get(IChatWidgetService);
-				const harnessService = accessor.get(ICustomizationHarnessService);
-				const widget = chatWidgetService.lastFocusedWidget;
-				const { section, revealUri, sessionResource, migration, migrationCategory, migrationHint } = resolveAICustomizationManagementOpenEditorTarget(
-					target,
-					widget?.input.pendingDelegationTarget,
-					widget?.viewModel?.sessionResource,
-					sessionType => harnessService.getSessionResourceForHarness(sessionType),
-				);
-				if (migrationHint) {
-					accessor.get(ICustomizationMigrationTelemetryService).hintClicked(migrationHint, 'review');
-				}
-				if (sessionResource) {
-					harnessService.setActiveSession(sessionResource);
-				}
-
-				const input = AICustomizationManagementEditorInput.getOrCreate();
-				input.setTargetLabels(
-					harnessService.getActiveDescriptor().label,
-					accessor.get(IAICustomizationWorkspaceService).activeProjectLabel.get(),
-				);
-				const pane = await editorService.openEditor(input, { pinned: true });
-				if (migration && pane instanceof AICustomizationManagementEditor) {
-					await pane.startCustomizationMigration(migrationCategory, migrationHint?.migrationFlowId);
-				} else if (section && pane instanceof AICustomizationManagementEditor) {
-					pane.selectSectionById(section);
-					if (revealUri) {
-						await pane.revealCustomizationByUri(revealUri);
-					}
-				}
-			}
-		}));
-
 		// Open Marketplace (hidden command for deep-linking into browse mode)
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
@@ -872,8 +880,18 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				const pane = await editorService.openEditor(input, { pinned: true });
 				if (pane instanceof AICustomizationManagementEditor) {
 					const section = typeof target === 'string' ? target : target?.section ?? AICustomizationManagementSection.McpServers;
-					const sourceId = typeof target === 'string' ? undefined : target?.sourceId;
-					pane.selectSectionById(section, { showMarketplace: true, marketplaceSourceId: sourceId });
+					if (typeof target !== 'string' && target?.connectorName) {
+						const result = await pane.showCopilotConnectorDetail(target.connectorName);
+						if (result === CopilotConnectorDetailOpenResult.NotFound) {
+							throw new Error(`Copilot connector '${target.connectorName}' is not available`);
+						}
+					} else {
+						const sourceId = typeof target === 'string' ? undefined : target?.sourceId;
+						pane.selectSectionById(section, { showMarketplace: true, marketplaceSourceId: sourceId });
+						if (typeof target !== 'string' && target?.searchQuery !== undefined) {
+							pane.setSearchQuery(target.searchQuery);
+						}
+					}
 				}
 			}
 		}));

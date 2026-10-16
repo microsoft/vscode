@@ -8,7 +8,7 @@ import { IClipboardService } from '../../../../platform/clipboard/common/clipboa
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { IGitHubService } from '../../../../platform/github/common/githubService.js';
+import { IWorkbenchGitHubService } from '../../../services/github/common/githubService.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -53,7 +53,7 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 		@IClipboardService clipboardService: IClipboardService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		@IGitHubService gitHubService: IGitHubService,
+		@IWorkbenchGitHubService gitHubService: IWorkbenchGitHubService,
 	) {
 		super(instantiationService, auxiliaryWindowService, menuService, contextKeyService, logService, dialogService, hostService, openerService, fileService, githubUploadService, editorService, clipboardService, gitHubService);
 	}

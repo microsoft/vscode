@@ -214,6 +214,7 @@ export interface IListHarness {
 	readonly addedToGroups: Array<{ readonly groupId: string; readonly sessionIds: readonly string[] }>;
 	/** Manual sort-key changes applied through the sessions list model service. */
 	readonly sortChanges: ISortChangeRecord[];
+	readonly sectionReorders: Array<{ readonly visibleOrder: readonly string[]; readonly draggedId: string; readonly targetId: string; readonly position: 'before' | 'after'; readonly promoteId: string | undefined }>;
 	createContainer(width?: number, height?: number): HTMLElement;
 }
 
@@ -248,6 +249,7 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	const archivedComparisonIds: string[] = [];
 	const addedToGroups: Array<{ readonly groupId: string; readonly sessionIds: readonly string[] }> = [];
 	const sortChanges: ISortChangeRecord[] = [];
+	const sectionReorders: IListHarness['sectionReorders'] = [];
 
 	instantiationService.stub(ISessionsManagementService, managementService);
 	instantiationService.stub(ICommandService, commandService);
@@ -311,6 +313,9 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		override resolveOrder(ids: readonly string[]) { return [...ids]; }
 		override isPromoted() { return false; }
 		override retain(): void { }
+		override reorder(visibleOrder: readonly string[], draggedId: string, targetId: string, position: 'before' | 'after', promoteId?: string): void {
+			sectionReorders.push({ visibleOrder: [...visibleOrder], draggedId, targetId, position, promoteId });
+		}
 	});
 	instantiationService.stub(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
 		override readonly onDidChange = Event.None;
@@ -353,5 +358,5 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		return container;
 	};
 
-	return { store, instantiationService, managementService, commandService, deletedGroupIds, cancelledComparisonIds, archivedComparisonIds, addedToGroups, sortChanges, createContainer };
+	return { store, instantiationService, managementService, commandService, deletedGroupIds, cancelledComparisonIds, archivedComparisonIds, addedToGroups, sortChanges, sectionReorders, createContainer };
 }

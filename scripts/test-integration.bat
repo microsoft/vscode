@@ -127,6 +127,8 @@ if defined SUITE_FILTER (
 if defined SUITE_FILTER goto skip_nodejs_tests
 echo.
 echo ### node.js integration tests
+call node --input-type=module -e "import { getAgentHostTestProfile } from './src/vs/platform/agentHost/test/node/agentHostTestProfile.ts'; console.log('Agent Host test profile:', getAgentHostTestProfile(), '(' + (process.env.AGENT_HOST_TEST_PROFILE_REASON ?? 'default') + ')');"
+if errorlevel 1 goto :failed
 if defined RUN_GLOB (
 	call .\scripts\test.bat %*
 ) else if defined RUN_FILE (

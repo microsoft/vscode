@@ -13,15 +13,20 @@ import { basename, getComparisonKey } from '../../../../../base/common/resources
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
-import { GitRefType, IAgentHostGitService, META_DIFF_BASE_BRANCH, type IAddWorktreeOptions } from '../../../common/agentHostGitService.js';
+import { GitRefType, IAgentHostGitService, META_DIFF_BASE_BRANCH, type IAddWorktreeOptions, type IBranch } from '../../../common/agentHostGitService.js';
 import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, MessageKind, ResponsePartKind, TurnState, type ISessionGitState, type Turn } from '../../../common/state/sessionState.js';
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from '../../../node/shared/agentBranchNameGenerator.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import type { IAgentHostPullRequestResolver, IResolvedPullRequest } from '../../../node/shared/pullRequestResolver.js';
 import { buildWorktreeFailureNotification, detachedWorktreeRecordUri, normalizeWorktreeFailureDiagnostic, NullAgentHostWorktreeIsolation, SessionWorkingDirectoryMissingError, WorktreeIsolation, getWorktreeName, getWorktreesRoot } from '../../../node/shared/worktreeIsolation.js';
-import { ADDITIONAL_WORKTREES_METADATA_KEY, readSessionAdditionalWorktrees } from '../../../node/shared/sessionAdditionalWorktrees.js';
+import { ADDITIONAL_WORKTREES_METADATA_KEY } from '../../../node/shared/sessionAdditionalWorktrees.js';
 import { TestSessionDatabase, createNoopGitService, createSessionDataService } from '../../common/sessionTestHelpers.js';
+import { AgentHostDatabase } from '../../../node/agentHostDatabase.js';
+import { createTestSessionStateStore, createTestWorktreeCleanupService, readTestSessionAdditionalWorktrees } from '../chatMetadataTestHelpers.js';
+import { AgentHostWorktreeCleanupService } from '../../../node/agentHostWorktreeCleanupService.js';
+import type { AgentHostSessionStateStore } from '../../../node/agentHostSessionStateStore.js';
+import { SessionStateMirrorFlush, SessionStateNotASessionError } from '../../../common/agentHostSessionStateStore.js';
 import type { ISessionDataService } from '../../../common/sessionDataService.js';
 
 function createNullCopilotApiService(): ICopilotApiService {
@@ -109,13 +114,28 @@ suite('WorktreeIsolation', () => {
 	const sessionUri = URI.parse('agent-session://test/s1');
 	const sessionId = 's1';
 
+	function localBranch(name: string, upstreamName?: string): IBranch {
+		return {
+			ref: `refs/heads/${name}`,
+			name,
+			kind: GitRefType.Head,
+			upstream: upstreamName ? {
+				ref: `refs/remotes/${upstreamName}`,
+				name: upstreamName,
+				remote: upstreamName.split('/')[0],
+			} : undefined,
+		};
+	}
+
 	function createGitService(): IAgentHostGitService {
 		return {
 			...createNoopGitService(),
 			getRepositoryRoot: async () => repoRoot,
 			revParse: async (_root, expr) => expr === 'HEAD' ? headCommit : undefined,
 			getCurrentBranch: async () => 'feature',
+			getHEAD: async () => localBranch('feature'),
 			getDefaultBranch: async () => ({ name: 'main', startPoint: 'main' }),
+			getDefaultBranch2: async () => localBranch('main'),
 			getBranches: async () => [
 				{ ref: 'refs/heads/main', name: 'main', kind: GitRefType.Head },
 				{ ref: 'refs/heads/feature', name: 'feature', kind: GitRefType.Head },
@@ -159,18 +179,30 @@ suite('WorktreeIsolation', () => {
 		};
 	}
 
-	function createIsolation(disposableStore: Pick<DisposableStore, 'add'>, options?: { readonly branchNameGenerator?: IAgentBranchNameGenerator; readonly gitService?: IAgentHostGitService; readonly pullRequestResolver?: IAgentHostPullRequestResolver; readonly sessionDataService?: ISessionDataService; readonly logService?: NullLogService }): WorktreeIsolation {
+	function createIsolation(disposableStore: Pick<DisposableStore, 'add'>, options?: { readonly branchNameGenerator?: IAgentBranchNameGenerator; readonly gitService?: IAgentHostGitService; readonly pullRequestResolver?: IAgentHostPullRequestResolver; readonly sessionDataService?: ISessionDataService; readonly logService?: NullLogService; readonly centralDatabase?: AgentHostDatabase; readonly stores?: AgentHostSessionStateStore[] }): WorktreeIsolation {
 		const branchNameGenerator = options?.branchNameGenerator ?? {
 			_serviceBrand: undefined,
 			generateBranchName: async () => branchName,
 		};
+		const sessionDataService = options?.sessionDataService ?? createSessionDataService(db);
+		const stateStore = disposableStore.add(createTestSessionStateStore(options?.centralDatabase ?? disposableStore.add(new AgentHostDatabase(':memory:')), sessionDataService));
+		options?.stores?.push(stateStore);
 		return disposableStore.add(new WorktreeIsolation(
 			branchNameGenerator,
 			options?.gitService ?? createGitService(),
 			options?.pullRequestResolver ?? nullPullRequestResolver,
-			options?.sessionDataService ?? createSessionDataService(db),
+			sessionDataService,
+			stateStore,
 			options?.logService ?? new NullLogService(),
 		));
+	}
+
+	/** Archives `sessionUri` the way the host does: records the removal, then runs the clean-up pass. */
+	async function archiveThroughCleanup(isolation: WorktreeIsolation, mode: 'commit' | 'synced'): Promise<AgentHostWorktreeCleanupService> {
+		const cleanup = createTestWorktreeCleanupService(disposables, isolation);
+		await cleanup.requestSessionWorktreeRemoval(sessionUri, mode);
+		await cleanup.runPass();
+		return cleanup;
 	}
 
 	function createTrackedSessionDataService(): { readonly service: ISessionDataService; readonly dataIds: Set<string> } {
@@ -210,7 +242,13 @@ suite('WorktreeIsolation', () => {
 		hasUncommittedChanges = false;
 		branchExists = true;
 		headCommit = 'abc123';
-		sessionGitState = { upstreamBranchName: 'origin/agents/my-feature', outgoingChanges: 0, uncommittedChanges: 0 };
+		sessionGitState = {
+			branchName: 'feature',
+			defaultBranchName: 'main',
+			upstreamBranchName: 'origin/agents/my-feature',
+			outgoingChanges: 0,
+			uncommittedChanges: 0,
+		};
 	});
 
 	teardown(() => {
@@ -237,34 +275,38 @@ suite('WorktreeIsolation', () => {
 	for (const fail of [false, true]) {
 		test(`retains the previous owned worktree when changing workspace (persistence failure: ${fail})`, async () => {
 			db = new class extends TestSessionDatabase {
-				override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
-					if (fail && values[ADDITIONAL_WORKTREES_METADATA_KEY]) {
+				override async applyMetadataChanges(set: Readonly<Record<string, string>>, remove: readonly string[]): Promise<void> {
+					if (fail && set[ADDITIONAL_WORKTREES_METADATA_KEY]) {
 						throw new Error('Retention persistence failed');
 					}
-					await super.setMetadataValues(values);
+					// The session.db mirror never receives the custom base branch: retention must read it from central state.
+					const { [META_DIFF_BASE_BRANCH]: baseBranch, ...rest } = set;
+					await super.applyMetadataChanges(baseBranch === 'origin/custom-base' ? rest : set, remove);
 				}
 			}();
 			const detached = new TestSessionDatabase();
+			const sessionDb = db;
 			const service: ISessionDataService = {
-				...createSessionDataService(db),
-				openDatabase: resource => createSessionDataService(resource.toString() === sessionUri.toString() ? db : detached).openDatabase(resource),
-				tryOpenDatabase: async resource => createSessionDataService(resource.toString() === sessionUri.toString() ? db : detached).openDatabase(resource),
+				...createSessionDataService(sessionDb),
+				openDatabase: resource => createSessionDataService(resource.toString() === sessionUri.toString() ? sessionDb : detached).openDatabase(resource),
+				tryOpenDatabase: async resource => createSessionDataService(resource.toString() === sessionUri.toString() ? sessionDb : detached).openDatabase(resource),
 			};
-			const isolation = createIsolation(disposables, { sessionDataService: service });
+			const stores: AgentHostSessionStateStore[] = [];
+			const isolation = createIsolation(disposables, { sessionDataService: service, stores });
 			const request = { sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } };
 			const original = await isolation.resolveForWorkspaceConversion(request);
 			assert.ok(original);
-			await db.setMetadata(META_DIFF_BASE_BRANCH, 'origin/custom-base');
+			await stores[0].writeMetadata(sessionUri, sessionUri, { [META_DIFF_BASE_BRANCH]: 'origin/custom-base' }, SessionStateMirrorFlush.Coalesced);
 			if (fail) {
 				await assert.rejects(isolation.retainSessionWorktree(sessionUri, sessionId), /Retention persistence failed/);
 				assert.deepStrictEqual({
 					owned: (await isolation.prepareSessionDeletion(sessionUri, sessionId))?.worktree.toString(),
-					retained: await readSessionAdditionalWorktrees(service, sessionUri), removed: removeCalls,
+					retained: await readTestSessionAdditionalWorktrees(service, sessionUri), removed: removeCalls,
 				}, { owned: original.toString(), retained: [], removed: [] });
 				return;
 			}
 			await isolation.retainSessionWorktree(sessionUri, sessionId);
-			const retained = await readSessionAdditionalWorktrees(service, sessionUri);
+			const retained = await readTestSessionAdditionalWorktrees(service, sessionUri);
 			const restored = createIsolation(disposables, { sessionDataService: service });
 			assert.deepStrictEqual({
 				retained: retained.map(record => ({ directory: record.workingDirectory, repository: record.repositoryRoot })),
@@ -279,21 +321,24 @@ suite('WorktreeIsolation', () => {
 			branchName = 'agents/next-worktree';
 			const next = await isolation.resolveForWorkspaceConversion(request);
 			assert.notStrictEqual(next?.toString(), original.toString(), 'A later conversion must not reuse the previous checkout');
-			await restored.deleteDetachedWorktree(retained[0].handle);
+			const cleanup = createTestWorktreeCleanupService(disposables, restored);
+			await cleanup.deleteDetachedWorktree(retained[0].handle);
+			await cleanup.runPass();
 			assert.deepStrictEqual(removeCalls.map(call => call.worktree.toString()), [original.toString()]);
 		});
 	}
 
 	test('retention refuses to drop live ownership after creation metadata persistence fails', async () => {
-		db = new class extends TestSessionDatabase {
-			override async setMetadata(key: string, value: string): Promise<void> {
-				if (key === 'copilot.worktree.branchName') {
+		// The creation metadata is session state: its central write is what persists it.
+		const centralDatabase = disposables.add(new class extends AgentHostDatabase {
+			override async writeSessionState(...args: Parameters<AgentHostDatabase['writeSessionState']>) {
+				if (JSON.stringify(args[2]).includes('copilot.worktree.branchName')) {
 					throw new Error('Creation metadata persistence failed');
 				}
-				await super.setMetadata(key, value);
+				return super.writeSessionState(...args);
 			}
-		}();
-		const isolation = createIsolation(disposables);
+		}(':memory:'));
+		const isolation = createIsolation(disposables, { centralDatabase });
 		const worktree = await isolation.resolveForWorkspaceConversion({
 			sessionUri, sessionId, workingDirectory: repoRoot,
 			config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
@@ -304,25 +349,63 @@ suite('WorktreeIsolation', () => {
 		assert.deepStrictEqual({
 			live: isolation.getResolvedWorktree(sessionId)?.toString(),
 			deletion: owned?.worktree.toString(),
-			additional: await readSessionAdditionalWorktrees(createSessionDataService(db), sessionUri),
+			additional: await readTestSessionAdditionalWorktrees(createSessionDataService(db), sessionUri),
 			exists: existsSync(worktree.fsPath),
 		}, { live: worktree.toString(), deletion: worktree.toString(), additional: [], exists: true });
 		await isolation.removeSessionWorktree(sessionId, owned);
 		assert.strictEqual(existsSync(worktree.fsPath), false);
 	});
 
+	test('a session whose worktree metadata never persisted has its worktree removed on deletion but kept on archive', async () => {
+		const sessionDataService = createSessionDataService(db);
+		const store = disposables.add(createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionDataService));
+		// Reads see nothing persisted, as when the metadata write failed.
+		const unpersisted = new Proxy(store, {
+			get: (target, property, receiver) => property === 'readWithoutImport' ? async () => new Map() : Reflect.get(target, property, receiver),
+		});
+		const isolation = disposables.add(new WorktreeIsolation(
+			{ _serviceBrand: undefined, generateBranchName: async () => branchName },
+			createGitService(),
+			nullPullRequestResolver,
+			sessionDataService,
+			unpersisted,
+			new NullLogService(),
+		));
+		const worktree = await isolation.resolveForWorkspaceConversion({
+			sessionUri, sessionId, workingDirectory: repoRoot,
+			config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
+		});
+		assert.ok(worktree);
+
+		const database = disposables.add(new AgentHostDatabase(':memory:'));
+		const cleanup = createTestWorktreeCleanupService(disposables, isolation, database);
+		await cleanup.requestSessionWorktreeRemoval(sessionUri, 'commit');
+		const archived = await cleanup.prepareSessionDeletion(sessionUri, [], 'delete');
+
+		assert.deepStrictEqual({
+			// Unarchive could not recreate it, so an archive leaves it alone.
+			archiveRequests: (await database.listPendingWorktreeRemovals()).length,
+			deletion: archived.map(request => ({ worktree: request.worktreePath, repositoryRoot: request.repositoryRoot, branch: request.branch })),
+		}, {
+			archiveRequests: 0,
+			deletion: [{ worktree: worktree.toString(), repositoryRoot: repoRoot.toString(), branch: branchName }],
+		});
+	});
+
 	for (const interruption of ['registration', 'claim'] as const) {
 		for (const retryBeforeRestart of [false, true, 'delete owner'] as const) {
 			test(`retention recovers interrupted ${interruption} (retry before restart: ${retryBeforeRestart})`, async () => {
 				let interrupt = true;
-				db = new class extends TestSessionDatabase {
-					override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
-						if (interrupt && interruption === 'registration' && values[ADDITIONAL_WORKTREES_METADATA_KEY]) {
+				db = new TestSessionDatabase();
+				// A restart keeps the central database, so the registration is interrupted there.
+				const centralDatabase = disposables.add(new class extends AgentHostDatabase {
+					override async writeSessionState(...args: Parameters<AgentHostDatabase['writeSessionState']>) {
+						if (interrupt && interruption === 'registration' && JSON.stringify(args[2]).includes(ADDITIONAL_WORKTREES_METADATA_KEY)) {
 							throw new Error('Interrupted before owner registration');
 						}
-						await super.setMetadataValues(values);
+						return super.writeSessionState(...args);
 					}
-				}();
+				}(':memory:'));
 				const databases = new Map<string, TestSessionDatabase>([[sessionUri.toString(), db]]);
 				const service: ISessionDataService = {
 					...createSessionDataService(db),
@@ -349,7 +432,18 @@ suite('WorktreeIsolation', () => {
 					deleteSessionData: async resource => { databases.delete(resource.toString()); },
 				};
 				const logService = new TestLogService();
-				const first = createIsolation(disposables, { sessionDataService: service, logService });
+				const stores: AgentHostSessionStateStore[] = [];
+				// Deleting the owner as a session delete does: its state is dropped and tombstoned centrally, then its data.
+				const deleteOwner = async () => {
+					for (const store of stores) {
+						const deletion = store.beginDeletion(sessionUri);
+						await deletion.whenDrained;
+						deletion.dispose();
+					}
+					await centralDatabase.tombstoneAndUnregisterSession(sessionUri.toString());
+					await service.deleteSessionData(sessionUri);
+				};
+				const first = createIsolation(disposables, { sessionDataService: service, logService, centralDatabase, stores });
 				const worktree = await first.resolveForWorkspaceConversion({
 					sessionUri, sessionId, workingDirectory: repoRoot,
 					config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
@@ -366,7 +460,7 @@ suite('WorktreeIsolation', () => {
 				assert.deepStrictEqual({
 					claimed: await provisional[1].getMetadata('vscode.devContainerWorktree.claimed'),
 					owned: (await first.prepareSessionDeletion(sessionUri, sessionId))?.worktree.toString(),
-					retained: (await readSessionAdditionalWorktrees(service, sessionUri)).length,
+					retained: (await readTestSessionAdditionalWorktrees(service, sessionUri)).length,
 					exists: existsSync(worktree.fsPath), removed: removeCalls,
 				}, {
 					claimed: 'false',
@@ -378,8 +472,8 @@ suite('WorktreeIsolation', () => {
 				interrupt = false;
 				if (retryBeforeRestart === 'delete owner') {
 					await provisional[1].setMetadata('vscode.devContainerWorktree.createdAt', '0');
-					await service.deleteSessionData(sessionUri);
-					const restored = createIsolation(disposables, { sessionDataService: service });
+					await deleteOwner();
+					const restored = createIsolation(disposables, { sessionDataService: service, centralDatabase, stores });
 					await timeout(20);
 					await restored.reconcileDetachedWorktrees('unrelated-scope', []);
 					assert.deepStrictEqual({
@@ -391,7 +485,7 @@ suite('WorktreeIsolation', () => {
 				if (retryBeforeRestart) {
 					await first.retainSessionWorktree(sessionUri, sessionId);
 				}
-				const restored = createIsolation(disposables, { sessionDataService: service });
+				const restored = createIsolation(disposables, { sessionDataService: service, centralDatabase, stores });
 				await timeout(20);
 				await restored.reconcileDetachedWorktrees('unrelated-scope', []);
 				assert.deepStrictEqual({
@@ -405,20 +499,20 @@ suite('WorktreeIsolation', () => {
 				});
 
 				await restored.retainSessionWorktree(sessionUri, sessionId);
-				const retained = await readSessionAdditionalWorktrees(service, sessionUri);
+				const retained = await readTestSessionAdditionalWorktrees(service, sessionUri);
 				assert.strictEqual(retained.length, 1);
 				const handle = retained[0].handle;
 				await restored.recordAdoptedWorktreeMetadata(sessionUri, {
 					branchName, baseBranch: 'main', worktreePath: worktree, repositoryRoot: repoRoot,
 				});
 				await restored.retainSessionWorktree(sessionUri, sessionId);
-				assert.deepStrictEqual((await readSessionAdditionalWorktrees(service, sessionUri)).map(record => record.handle), [handle]);
+				assert.deepStrictEqual((await readTestSessionAdditionalWorktrees(service, sessionUri)).map(record => record.handle), [handle]);
 				const record = databases.get(detachedWorktreeRecordUri(handle).toString());
 				assert.ok(record);
 				await record.setMetadata('vscode.devContainerWorktree.createdAt', '0');
-				await service.deleteSessionData(sessionUri);
+				await deleteOwner();
 				hasUncommittedChanges = true;
-				createIsolation(disposables, { sessionDataService: service });
+				createIsolation(disposables, { sessionDataService: service, centralDatabase, stores });
 				await timeout(20);
 				assert.deepStrictEqual({ exists: existsSync(worktree.fsPath), records: databases.size, removed: removeCalls }, {
 					exists: true, records: 1, removed: [],
@@ -441,7 +535,7 @@ suite('WorktreeIsolation', () => {
 			gitService: {
 				...createGitService(),
 				getRepositoryRoot: async () => { rootReads++; return repoRoot; },
-				getCurrentBranch: async () => currentBranch,
+				getHEAD: async () => localBranch(currentBranch),
 			}
 		});
 		const request = { workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'folder' } };
@@ -453,28 +547,28 @@ suite('WorktreeIsolation', () => {
 		assert.strictEqual(rootReads, 2);
 	});
 
-	test('reads current and default branches concurrently after validating HEAD', async () => {
-		const finishCurrentBranch = new DeferredPromise<string>();
+	test('reads HEAD and the default branch concurrently after validating the commit', async () => {
+		const finishHEAD = new DeferredPromise<IBranch>();
 		const calls: string[] = [];
 		const isolation = createIsolation(disposables, {
 			gitService: {
 				...createGitService(),
 				revParse: async () => { calls.push('HEAD'); return headCommit; },
-				getCurrentBranch: () => { calls.push('current'); return finishCurrentBranch.p; },
-				getDefaultBranch: async () => { calls.push('default'); return undefined; },
+				getHEAD: () => { calls.push('head'); return finishHEAD.p; },
+				getDefaultBranch2: async () => { calls.push('default'); return undefined; },
 			}
 		});
 		const resolution = isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'folder' } });
-		let callsBeforeCompletingCurrentBranch: string[];
+		let callsBeforeCompletingHEAD: string[];
 		try {
 			await timeout(0);
-			callsBeforeCompletingCurrentBranch = [...calls];
+			callsBeforeCompletingHEAD = [...calls];
 		} finally {
-			finishCurrentBranch.complete('feature');
+			finishHEAD.complete(localBranch('feature'));
 		}
 		const result = await resolution;
-		assert.deepStrictEqual({ callsBeforeCompletingCurrentBranch, branch: result.branchValue }, {
-			callsBeforeCompletingCurrentBranch: ['HEAD', 'current', 'default'],
+		assert.deepStrictEqual({ callsBeforeCompletingHEAD, branch: result.branchValue }, {
+			callsBeforeCompletingHEAD: ['HEAD', 'head', 'default'],
 			branch: 'feature',
 		});
 	});
@@ -485,8 +579,8 @@ suite('WorktreeIsolation', () => {
 			gitService: {
 				...createGitService(),
 				revParse: async () => undefined,
-				getCurrentBranch: async () => { calls.push('current'); return 'feature'; },
-				getDefaultBranch: async () => { calls.push('default'); return undefined; },
+				getHEAD: async () => { calls.push('head'); return localBranch('feature'); },
+				getDefaultBranch2: async () => { calls.push('default'); return undefined; },
 			}
 		});
 		const result = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: undefined });
@@ -495,17 +589,17 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
-	test('missing current and default branches retain the HEAD fallback', async () => {
+	test('detached checkout offers worktree isolation from HEAD without a default branch', async () => {
 		const isolation = createIsolation(disposables, {
 			gitService: {
 				...createGitService(),
-				getCurrentBranch: async () => undefined,
-				getDefaultBranch: async () => undefined,
+				getHEAD: async () => ({ name: headCommit!, kind: GitRefType.DetachedHead }),
+				getDefaultBranch2: async () => undefined,
 			}
 		});
 		const result = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: undefined });
-		assert.deepStrictEqual({ isolation: result.isolationValue, branch: result.branchValue }, {
-			isolation: 'worktree', branch: 'HEAD',
+		assert.deepStrictEqual({ isolation: result.isolationValue, isolationValues: result.isolationProperty.protocol.enum, branch: result.branchValue }, {
+			isolation: 'worktree', isolationValues: ['folder', 'worktree'], branch: headCommit,
 		});
 	});
 
@@ -526,21 +620,21 @@ suite('WorktreeIsolation', () => {
 		assert.strictEqual(rootReads, 2);
 	});
 
-	for (const failingRead of ['current', 'default']) {
-		test(`a failed ${failingRead} branch read is surfaced and retried`, async () => {
+	for (const failingRead of ['HEAD', 'default branch'] as const) {
+		test(`a failed ${failingRead} read is surfaced and retried`, async () => {
 			const failure = new Error('Git unavailable');
 			let fail = true;
 			const isolation = createIsolation(disposables, {
 				gitService: {
 					...createGitService(),
-					getCurrentBranch: async () => {
-						if (fail && failingRead === 'current') {
+					getHEAD: async () => {
+						if (fail && failingRead === 'HEAD') {
 							throw failure;
 						}
-						return 'feature';
+						return localBranch('feature');
 					},
-					getDefaultBranch: async () => {
-						if (fail && failingRead === 'default') {
+					getDefaultBranch2: async () => {
+						if (fail && failingRead === 'default branch') {
 							throw failure;
 						}
 						return undefined;
@@ -565,8 +659,8 @@ suite('WorktreeIsolation', () => {
 		const isolation = createIsolation(disposables, {
 			gitService: {
 				...createGitService(),
-				getCurrentBranch: async () => { branchRead.complete(); return currentBranch; },
-				getDefaultBranch: async () => { await finishRead.p; return { name: 'main', startPoint: 'main' }; },
+				getHEAD: async () => { branchRead.complete(); return localBranch(currentBranch); },
+				getDefaultBranch2: async () => { await finishRead.p; return localBranch('main'); },
 			}
 		});
 		const request = { workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'folder' } };
@@ -653,38 +747,27 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
-	test('defaults worktree isolation to the current branch upstream when available', async () => {
+	test('defaults worktree isolation to the default branch start point', async () => {
 		const gitService = createGitService();
-		let upstreamBranchName: string | undefined = 'origin/main';
-		const branchLookups: string[] = [];
-		gitService.getBranch = async (_root, name) => {
-			branchLookups.push(name);
-			return {
-				ref: `refs/heads/${name}`,
-				name,
-				kind: GitRefType.Head,
-				upstream: upstreamBranchName ? { ref: `refs/remotes/${upstreamBranchName}`, name: upstreamBranchName, remote: 'origin' } : undefined,
-			};
-		};
+		let defaultBranch = localBranch('main', 'origin/main');
+		gitService.getDefaultBranch2 = async () => defaultBranch;
 		const isolation = createIsolation(disposables, { gitService });
 		const checked = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree' } });
 		const folder = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'folder' } });
 		const explicit = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'feature' } });
-		upstreamBranchName = undefined;
-		const noUpstream = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree' } });
+		defaultBranch = localBranch('main');
+		const localFallback = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree' } });
 
 		assert.deepStrictEqual({
 			checked: { value: checked.branchValue, default: checked.branchProperty?.protocol.default, enum: checked.branchProperty?.protocol.enum },
 			folder: { value: folder.branchValue, default: folder.branchProperty?.protocol.default },
 			explicit: { value: explicit.branchValue, default: explicit.branchProperty?.protocol.default },
-			noUpstream: noUpstream.branchValue,
-			branchLookups,
+			localFallback: localFallback.branchValue,
 		}, {
 			checked: { value: 'origin/main', default: 'origin/main', enum: ['origin/main'] },
 			folder: { value: 'feature', default: 'feature' },
 			explicit: { value: 'feature', default: 'origin/main' },
-			noUpstream: 'main',
-			branchLookups: ['feature', 'feature', 'feature'],
+			localFallback: 'main',
 		});
 	});
 
@@ -708,7 +791,7 @@ suite('WorktreeIsolation', () => {
 
 	test('uses the selected local default branch as the worktree start point', async () => {
 		const gitService = createGitService();
-		gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'origin/main' });
+		gitService.getDefaultBranch2 = async () => localBranch('main');
 		const isolation = createIsolation(disposables, { gitService });
 
 		const config = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: undefined });
@@ -774,7 +857,7 @@ suite('WorktreeIsolation', () => {
 			operations,
 		}, {
 			startPoint: 'origin/main',
-			diffBaseBranch: 'origin/main',
+			diffBaseBranch: 'main',
 			operations: ['resolve:origin/main', 'fetch:origin:refs/remotes/origin/main', 'add:origin/main'],
 		});
 	});
@@ -1125,12 +1208,15 @@ suite('WorktreeIsolation', () => {
 			prompt: 'do a thing',
 		});
 		await isolation.claimDetachedWorktree(created.handle);
+		const cleanup = createTestWorktreeCleanupService(disposables, isolation);
 
-		await isolation.setDetachedWorktreeArchived(created.handle, true);
+		await cleanup.setDetachedWorktreeArchived(created.handle, true);
+		await cleanup.runPass();
 		const existsAfterArchive = existsSync(created.worktree.fsPath);
-		await isolation.setDetachedWorktreeArchived(created.handle, false);
+		await cleanup.setDetachedWorktreeArchived(created.handle, false);
 		const existsAfterUnarchive = existsSync(created.worktree.fsPath);
-		await isolation.deleteDetachedWorktree(created.handle);
+		await cleanup.deleteDetachedWorktree(created.handle);
+		await cleanup.runPass();
 
 		assert.deepStrictEqual({
 			handleIsUuid: /^[0-9a-f-]{36}$/.test(created.handle),
@@ -1152,6 +1238,85 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
+	test('detached worktree persists the default diff base before creation completes', async () => {
+		let diffBaseWrites = 0;
+		db = new class extends TestSessionDatabase {
+			override async setMetadata(key: string, value: string): Promise<void> {
+				if (key === META_DIFF_BASE_BRANCH && ++diffBaseWrites === 2) {
+					throw new Error('Late metadata persistence failed');
+				}
+				await super.setMetadata(key, value);
+			}
+		}();
+		const gitService = createGitService();
+		gitService.getDefaultBranch2 = async () => ({ ref: 'refs/remotes/origin/main', name: 'origin/main', remote: 'origin', kind: GitRefType.RemoteHead });
+		const isolation = createIsolation(disposables, { gitService });
+
+		await isolation.createDetachedWorktree({
+			workingDirectory: repoRoot,
+			config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'feature' },
+			prompt: 'do a thing',
+		});
+
+		assert.deepStrictEqual({
+			startPoint: addWorktreeCalls[0]?.commitish,
+			diffBaseBranch: await db.getMetadata(META_DIFF_BASE_BRANCH),
+		}, {
+			startPoint: 'feature',
+			diffBaseBranch: 'origin/main',
+		});
+	});
+
+	test('a detached worktree record keeps its metadata in its own database, never as session state', async () => {
+		const centralDatabase = disposables.add(new AgentHostDatabase(':memory:'));
+		const stores: AgentHostSessionStateStore[] = [];
+		const isolation = createIsolation(disposables, { centralDatabase, stores });
+		const created = await isolation.createDetachedWorktree({
+			workingDirectory: repoRoot,
+			config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
+			prompt: 'do a thing',
+		});
+		const record = detachedWorktreeRecordUri(created.handle);
+
+		assert.deepStrictEqual({
+			worktree: (await isolation.readWorktreeMetadata(record))?.worktreePath?.toString(),
+			centralState: await centralDatabase.readSessionState(record.toString()),
+			load: await stores[0].load(record).then(() => 'loaded', error => error instanceof SessionStateNotASessionError ? 'rejected' : String(error)),
+		}, {
+			worktree: created.worktree.toString(),
+			centralState: undefined,
+			load: 'rejected',
+		});
+		const cleanup = createTestWorktreeCleanupService(disposables, isolation);
+		await cleanup.deleteDetachedWorktree(created.handle);
+		await cleanup.runPass();
+	});
+
+	test('persists session worktree creation failure in central state and the mirror', async () => {
+		const sessionDataService = createSessionDataService(db);
+		const stateStore = disposables.add(createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionDataService));
+		const isolation = disposables.add(new WorktreeIsolation(
+			{ _serviceBrand: undefined, generateBranchName: async () => branchName },
+			createGitService(),
+			nullPullRequestResolver,
+			sessionDataService,
+			stateStore,
+			new NullLogService(),
+		));
+
+		await stateStore.load(sessionUri);
+		await isolation.persistCreationFailure(sessionUri, sessionId, 'boom');
+		await stateStore.whenIdle(undefined);
+		const key = 'copilot.worktree.creationFailure';
+		assert.deepStrictEqual({
+			central: stateStore.legacyMetadata(sessionUri, [key]).values[key],
+			mirror: await db.getMetadata(key),
+		}, {
+			central: JSON.stringify({ sessionId, diagnostic: 'boom' }),
+			mirror: JSON.stringify({ sessionId, diagnostic: 'boom' }),
+		});
+	});
+
 	test('missing detached worktree records do not block remote session lifecycle', async () => {
 		const sessionDataService = {
 			...createSessionDataService(),
@@ -1162,11 +1327,14 @@ suite('WorktreeIsolation', () => {
 			createGitService(),
 			nullPullRequestResolver,
 			sessionDataService,
+			disposables.add(createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionDataService)),
 			new NullLogService(),
 		));
 
-		await assert.doesNotReject(isolation.setDetachedWorktreeArchived('00000000-0000-4000-8000-000000000001', true));
-		await assert.doesNotReject(isolation.deleteDetachedWorktree('00000000-0000-4000-8000-000000000001'));
+		const cleanup = createTestWorktreeCleanupService(disposables, isolation);
+		await assert.doesNotReject(cleanup.setDetachedWorktreeArchived('00000000-0000-4000-8000-000000000001', true));
+		await assert.doesNotReject(cleanup.deleteDetachedWorktree('00000000-0000-4000-8000-000000000001'));
+		await assert.doesNotReject(cleanup.runPass());
 	});
 
 	test('reconcileDetachedWorktrees prunes only old clean records missing from the remote scope', async () => {
@@ -1208,8 +1376,7 @@ suite('WorktreeIsolation', () => {
 		});
 		await db.setMetadata('vscode.devContainerWorktree.createdAt', '0');
 
-		createIsolation(disposables, { sessionDataService });
-		await timeout(20);
+		await createIsolation(disposables, { sessionDataService }).cleanupUnclaimedDetachedWorktrees();
 
 		assert.deepStrictEqual({
 			removeCalls: removeCalls.map(call => ({ worktree: call.worktree.toString(), force: call.force })),
@@ -1217,6 +1384,29 @@ suite('WorktreeIsolation', () => {
 		}, {
 			removeCalls: [{ worktree: created.worktree.toString(), force: false }],
 			dataIds: [],
+		});
+	});
+
+	test('reconciliation keeps an unclaimed detached worktree its guard reports in use', async () => {
+		const { service: sessionDataService, dataIds } = createTrackedSessionDataService();
+		const created = await createIsolation(disposables, { sessionDataService }).createDetachedWorktree({
+			workingDirectory: repoRoot,
+			config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
+			prompt: 'do a thing',
+		});
+		await db.setMetadata('vscode.devContainerWorktree.createdAt', '0');
+		const asked: string[] = [];
+
+		await createIsolation(disposables, { sessionDataService }).cleanupUnclaimedDetachedWorktrees(async (handle, worktree) => {
+			asked.push(`${handle}:${worktree.toString()}`);
+			return false;
+		});
+
+		assert.deepStrictEqual({ asked, removeCalls, records: dataIds.size, stillExists: existsSync(created.worktree.fsPath) }, {
+			asked: [`${created.handle}:${created.worktree.toString()}`],
+			removeCalls: [],
+			records: 1,
+			stillExists: true,
 		});
 	});
 
@@ -1239,17 +1429,26 @@ suite('WorktreeIsolation', () => {
 			prompt: 'do a thing',
 		});
 		await first.claimDetachedWorktree(created.handle);
-		await assert.rejects(first.deleteDetachedWorktree(created.handle), /transient removal failure/);
+		const database = disposables.add(new AgentHostDatabase(':memory:'));
+		const firstCleanup = createTestWorktreeCleanupService(disposables, first, database);
+		await firstCleanup.deleteDetachedWorktree(created.handle);
+		await firstCleanup.runPass();
+		const afterFailure = { deletionAttempts, attempts: (await database.readPendingWorktreeRemoval('detached', created.handle))?.attempts };
 
-		createIsolation(disposables, { gitService, sessionDataService });
-		await timeout(20);
+		// After a restart, the removal is retried once its backoff elapsed.
+		const restarted = disposables.add(new AgentHostWorktreeCleanupService({ now: () => Date.now() + 60 * 60 * 1000 }, database, createIsolation(disposables, { gitService, sessionDataService }), new NullLogService()));
+		await restarted.runPass();
 
 		assert.deepStrictEqual({
+			afterFailure,
 			deletionAttempts,
 			dataIds: [...dataIds],
+			pending: await database.listPendingWorktreeRemovals(),
 		}, {
+			afterFailure: { deletionAttempts: 1, attempts: 1 },
 			deletionAttempts: 2,
 			dataIds: [],
+			pending: [],
 		});
 	});
 
@@ -1429,7 +1628,7 @@ suite('WorktreeIsolation', () => {
 
 		const restoredIsolation = createIsolation(disposables, { gitService });
 		await restoredIsolation.resolveWorkingDirectoryForResume(sessionUri, sessionId, worktree);
-		await restoredIsolation.cleanupWorktree(sessionUri, sessionId);
+		await archiveThroughCleanup(restoredIsolation, 'synced');
 		await restoredIsolation.recreateWorktreeOnUnarchive(sessionUri, sessionId);
 
 		assert.deepStrictEqual(symlinkFolderCalls.map(call => ({
@@ -1756,6 +1955,34 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
+	test('resolveWorkingDirectoryForResume reads the archive state from central session state', async () => {
+		// The session.db mirror never receives the archive flag (a mirror that has not caught up).
+		db = new class extends TestSessionDatabase {
+			override applyMetadataChanges(set: Readonly<Record<string, string>>, remove: readonly string[]): Promise<void> {
+				const { [AH_META_IS_ARCHIVED_DB_KEY]: _archived, ...rest } = set;
+				return super.applyMetadataChanges(rest, remove);
+			}
+		}();
+		const stores: AgentHostSessionStateStore[] = [];
+		const isolation = createIsolation(disposables, { stores });
+		const missingWorktree = URI.joinPath(worktreesRoot, 'missing-central-archived-worktree');
+		await Promise.all([
+			db.setMetadata('copilot.worktree.branchName', 'feature/x'),
+			db.setMetadata('copilot.worktree.path', missingWorktree.toString()),
+			db.setMetadata('copilot.worktree.repositoryRoot', repoRoot.toString()),
+		]);
+		// Archived centrally only.
+		await stores[0].writeMetadata(sessionUri, sessionUri, { [AH_META_IS_ARCHIVED_DB_KEY]: 'true' }, SessionStateMirrorFlush.Coalesced);
+
+		const resolved = await isolation.resolveWorkingDirectoryForResume(sessionUri, sessionId, missingWorktree);
+
+		assert.deepStrictEqual({ resolved: resolved.toString(), mirrored: await db.getMetadata(AH_META_IS_ARCHIVED_DB_KEY), worktreesRecreated: addExistingCalls.length }, {
+			resolved: repoRoot.toString(),
+			mirrored: undefined,
+			worktreesRecreated: 0,
+		});
+	});
+
 	test('resolveWorkingDirectoryForResume falls back to legacy isDone archived metadata', async () => {
 		const isolation = createIsolation(disposables);
 		const missingWorktree = URI.joinPath(worktreesRoot, 'missing-legacy-archived-worktree');
@@ -2043,7 +2270,7 @@ suite('WorktreeIsolation', () => {
 		const isolation = createIsolation(disposables);
 		const worktree = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
 
-		await isolation.cleanupWorktree(sessionUri, sessionId);
+		await archiveThroughCleanup(isolation, 'synced');
 		const removedDuringArchive = worktree ? !existsSync(worktree.fsPath) : false;
 		await isolation.recreateWorktreeOnUnarchive(sessionUri, sessionId);
 		const restoredDuringUnarchive = worktree ? existsSync(worktree.fsPath) : false;
@@ -2066,7 +2293,7 @@ suite('WorktreeIsolation', () => {
 		const worktree = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
 		hasUncommittedChanges = true;
 
-		await isolation.cleanupWorktreeOnArchive(sessionUri, sessionId);
+		await archiveThroughCleanup(isolation, 'commit');
 
 		assert.deepStrictEqual({
 			commitCalls: commitCalls.map(call => ({ worktree: call.worktree.toString(), message: call.message })),
@@ -2085,16 +2312,22 @@ suite('WorktreeIsolation', () => {
 		hasUncommittedChanges = true;
 		commitError = new Error('commit failed');
 
-		await isolation.cleanupWorktreeOnArchive(sessionUri, sessionId);
+		const database = disposables.add(new AgentHostDatabase(':memory:'));
+		const cleanup = createTestWorktreeCleanupService(disposables, isolation, database);
+		await cleanup.requestSessionWorktreeRemoval(sessionUri, 'commit');
+		await cleanup.runPass();
 
+		// The failed commit is retried later rather than losing the changes.
 		assert.deepStrictEqual({
 			commitCalls: commitCalls.length,
 			removeCalls: removeCalls.length,
 			stillExists: worktree ? existsSync(worktree.fsPath) : false,
+			attempts: (await database.readPendingWorktreeRemoval('session', sessionUri.toString()))?.attempts,
 		}, {
 			commitCalls: 1,
 			removeCalls: 0,
 			stillExists: true,
+			attempts: 1,
 		});
 	});
 
@@ -2112,7 +2345,7 @@ suite('WorktreeIsolation', () => {
 			['unknown git state', undefined],
 		] as const) {
 			sessionGitState = state;
-			await isolation.cleanupWorktree(sessionUri, sessionId);
+			await archiveThroughCleanup(isolation, 'synced');
 			outcomes.push({ reason, removed: worktree ? !existsSync(worktree.fsPath) : true });
 		}
 
@@ -2126,6 +2359,90 @@ suite('WorktreeIsolation', () => {
 				{ reason: 'uncommitted changes', removed: false },
 				{ reason: 'unknown git state', removed: false },
 			],
+		});
+	});
+
+	test('automatic deletion keeps work: the worktree must be gone, or exist with its branch synced', async () => {
+		const outcomes: Record<string, boolean> = {};
+		outcomes['no worktree'] = await createIsolation(disposables).canAutomaticallyDeleteArchivedSession(sessionUri);
+		const isolation = createIsolation(disposables);
+		const worktree = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
+		assert.ok(worktree);
+		outcomes['branch synced'] = await isolation.canAutomaticallyDeleteArchivedSession(sessionUri);
+		sessionGitState = { upstreamBranchName: 'origin/agents/my-feature', outgoingChanges: 1, uncommittedChanges: 0 };
+		outcomes['unpushed commits'] = await isolation.canAutomaticallyDeleteArchivedSession(sessionUri);
+		sessionGitState = { upstreamBranchName: 'origin/agents/my-feature', outgoingChanges: 0, uncommittedChanges: 0 };
+		branchExists = false;
+		outcomes['branch missing'] = await isolation.canAutomaticallyDeleteArchivedSession(sessionUri);
+		rmSync(worktree.fsPath, { recursive: true, force: true });
+		outcomes['folder gone'] = await isolation.canAutomaticallyDeleteArchivedSession(sessionUri);
+
+		assert.deepStrictEqual({ outcomes, removeCalls }, {
+			outcomes: { 'no worktree': true, 'branch synced': true, 'unpushed commits': false, 'branch missing': false, 'folder gone': true },
+			// Only checks: the folder is removed later by the clean-up service.
+			removeCalls: [],
+		});
+	});
+
+	test('a deletion force-removes the worktree without needing its branch, and prunes a folder that is already gone', async () => {
+		const isolation = createIsolation(disposables);
+		const worktree = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
+		assert.ok(worktree);
+		branchExists = false;
+		hasUncommittedChanges = true;
+		const recorded = { worktree, repositoryRoot: repoRoot, branchName };
+
+		await isolation.removeRecordedWorktree(sessionId, recorded, 'delete');
+		const removedExisting = !existsSync(worktree.fsPath);
+		await isolation.removeRecordedWorktree(sessionId, recorded, 'delete');
+
+		assert.deepStrictEqual({
+			removedExisting,
+			commitCalls: commitCalls.length,
+			removeCalls: removeCalls.map(call => ({ worktree: call.worktree.toString(), force: call.force })),
+		}, {
+			removedExisting: true,
+			commitCalls: 0,
+			removeCalls: [{ worktree: worktree.toString(), force: true }, { worktree: worktree.toString(), force: true }],
+		});
+	});
+
+	test('a removal reports what it did, asks its guard last, and prunes a folder that is already gone in every mode', async () => {
+		const isolation = createIsolation(disposables);
+		const worktree = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
+		assert.ok(worktree);
+		const recorded = { worktree, repositoryRoot: repoRoot, branchName };
+		hasUncommittedChanges = true;
+		const outcomes: Record<string, string> = {};
+
+		sessionGitState = { upstreamBranchName: 'origin/agents/my-feature', outgoingChanges: 1, uncommittedChanges: 0 };
+		outcomes['synced, unpushed commits'] = await isolation.removeRecordedWorktree(sessionId, recorded, 'synced');
+		branchExists = false;
+		outcomes['commit, branch missing'] = await isolation.removeRecordedWorktree(sessionId, recorded, 'commit');
+		branchExists = true;
+		outcomes['commit, came into use'] = await isolation.removeRecordedWorktree(sessionId, recorded, 'commit', async () => false);
+		const stillExists = existsSync(worktree.fsPath);
+		rmSync(worktree.fsPath, { recursive: true, force: true });
+		outcomes['synced, folder gone'] = await isolation.removeRecordedWorktree(sessionId, recorded, 'synced');
+		outcomes['commit, folder gone'] = await isolation.removeRecordedWorktree(sessionId, recorded, 'commit');
+
+		assert.deepStrictEqual({
+			outcomes,
+			stillExists,
+			// The commit before the guard runs, so the folder's changes are kept either way.
+			commitCalls: commitCalls.length,
+			removeCalls: removeCalls.map(call => ({ worktree: call.worktree.toString(), force: call.force })),
+		}, {
+			outcomes: {
+				'synced, unpushed commits': 'skipped',
+				'commit, branch missing': 'skipped',
+				'commit, came into use': 'inUse',
+				'synced, folder gone': 'removed',
+				'commit, folder gone': 'removed',
+			},
+			stillExists: true,
+			commitCalls: 1,
+			removeCalls: [{ worktree: worktree.toString(), force: true }, { worktree: worktree.toString(), force: true }],
 		});
 	});
 

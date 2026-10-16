@@ -21,7 +21,7 @@ import { localize, localize2 } from '../../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { IActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuId, MenuItemAction, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
-import { parseChatUri } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IAgentRuntimeModelConfiguration } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
 import { getReasoningEffortLabel } from '../../../../../../platform/agentHost/common/reasoningEffort.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -143,7 +143,7 @@ export function getSubagentEditorResource(context: IOpenSubagentChatContext): UR
 		const query = new URLSearchParams(parentSessionResource.query);
 		query.set(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, context.chatResource);
 		// Preserve legacy editor identities without requiring hosts to use the local chat URI format.
-		return parentSessionResource.with({ fragment: parseChatUri(context.chatResource)?.chatId ?? context.chatResource, query: query.toString() });
+		return parentSessionResource.with({ fragment: getAgentHostChatId(context.chatResource), query: query.toString() });
 	} catch {
 		return undefined;
 	}

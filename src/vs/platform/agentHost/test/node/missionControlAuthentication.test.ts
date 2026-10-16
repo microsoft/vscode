@@ -662,6 +662,72 @@ suite('Mission Control sealed authentication', () => {
 		assert.deepStrictEqual({ authenticated: auth.authenticated, lapses }, { authenticated: false, lapses: 2 });
 	});
 
+	for (const target of [resource, `${resource}/repos`]) {
+		test(`same-owner renewal for ${target} preserves admitted work and pending MCP authentication`, async () => {
+			const sealing = store.add(new MissionControlSealing());
+			const auth = store.add(new MissionControlAuthentication(sealing, '123', resource, async () => Response.json({ id: 123, type: 'User' }), false));
+			await auth.authenticate({ resource, token: seal(sealing, 'owner-token') });
+			const check = auth.captureAuthorization();
+			const mcpResource = 'https://mcp.example.test';
+			const opened = new DeferredPromise<{ token: string }>();
+			stub(sealing, 'open').callThrough().withArgs('pending-mcp', 'mcp-auth-token', mcpResource).returns(opened.p);
+			const pending = auth.authenticate({ resource: mcpResource, token: 'pending-mcp' });
+			await auth.authenticate({ resource: target, token: seal(sealing, 'renewed-owner-token', undefined, 'auth-token', target) });
+			await opened.complete({ token: 'mcp-token' });
+			const accepted = await pending;
+			check();
+			assert.deepStrictEqual({ accepted, authenticated: auth.authenticated }, {
+				accepted: { resource: mcpResource, token: 'mcp-token' }, authenticated: true,
+			});
+		});
+	}
+
+	test('renewal checks the previous deadline before replacing it after a clock jump', async () => {
+		const clock = useFakeTimers({ now: Date.parse('2030-01-01T00:00:00Z'), toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+		const sealing = store.add(new MissionControlSealing());
+		const renewal = new DeferredPromise<Response>();
+		const started = new DeferredPromise<void>();
+		let calls = 0;
+		const auth = store.add(new MissionControlAuthentication(sealing, '123', resource, async () => {
+			if (++calls === 1) {
+				return Response.json({ id: 123, type: 'User' }, { headers: { 'GitHub-Authentication-Token-Expiration': '2030-01-01T00:00:02Z' } });
+			}
+			void started.complete();
+			return renewal.p;
+		}, false));
+		let lapses = 0;
+		store.add(auth.onDidExpire(() => lapses++));
+		await auth.authenticate({ resource, token: seal(sealing, 'owner-token') });
+		const check = auth.captureAuthorization();
+		const pending = auth.authenticate({ resource, token: seal(sealing, 'renewed-token') });
+		await started.p;
+		clock.setSystemTime(Date.parse('2030-01-01T00:00:03Z'));
+		await renewal.complete(Response.json({ id: 123, type: 'User' }, { headers: { 'GitHub-Authentication-Token-Expiration': '2030-01-01T00:00:06Z' } }));
+		await pending;
+		assert.throws(check, { code: AhpErrorCodes.AuthRequired });
+		auth.captureAuthorization()();
+		assert.deepStrictEqual({ authenticated: auth.authenticated, lapses }, { authenticated: true, lapses: 1 });
+	});
+
+	for (const transition of ['handshake', 'close', 'authority'] as const) {
+		test(`admitted work stays fenced after ${transition} changes`, async () => {
+			const sealing = store.add(new MissionControlSealing());
+			let current = true;
+			const auth = store.add(new MissionControlAuthentication(sealing, '123', resource, async () => Response.json({ id: 123, type: 'User' }), false, () => current));
+			await auth.authenticate({ resource, token: seal(sealing, 'owner-token') });
+			const check = auth.captureAuthorization();
+			if (transition === 'handshake') {
+				auth.beginHandshake();
+				await auth.authenticate({ resource, token: seal(sealing, 'renewed-token') });
+			} else if (transition === 'close') {
+				auth.dispose();
+			} else {
+				current = false;
+			}
+			assert.throws(check, { code: AhpErrorCodes.AuthRequired });
+		});
+	}
+
 	test('MCP decryption that spans identity expiry cannot install its credential', async () => {
 		const clock = useFakeTimers({ now: Date.parse('2030-01-01T00:00:00Z'), toFake: ['Date', 'setTimeout', 'clearTimeout'] });
 		const sealing = store.add(new MissionControlSealing());

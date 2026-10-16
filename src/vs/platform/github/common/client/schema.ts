@@ -3,14 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/** A JSON value in an extensible API payload. */
-export type JsonValue = string | number | boolean | null | readonly JsonValue[] | JsonObject;
-
-/** A JSON object whose property names are defined by the producing service. */
-export interface JsonObject {
-	/** A named JSON value preserved without interpreting its schema. */
-	readonly [key: string]: JsonValue;
-}
+import { JsonObject, JsonValue } from './types.js';
 
 /** Indicates that a value does not match the expected schema. */
 export class SchemaError extends Error {
@@ -45,6 +38,13 @@ export namespace parse {
 		return value;
 	}
 
+	/** Reads a full lowercase hexadecimal Git SHA-1 or SHA-256 object ID. */
+	export const sha = refine(
+		string,
+		value => (value.length === 40 || value.length === 64) && !/[^a-f0-9]/.test(value),
+		'Expected a 40- or 64-character lowercase hexadecimal Git SHA',
+	);
+
 	const dateTimePattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
 
 	/** Reads an RFC 3339 date-time string without changing its representation. */
@@ -70,6 +70,14 @@ export namespace parse {
 		return value;
 	}
 
+	/** Reads a finite nonnegative number, including fractional values. */
+	export function nonNegativeNumber(value: unknown): number {
+		if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+			throw new SchemaError('Expected a nonnegative number');
+		}
+		return value;
+	}
+
 	/** Reads a safe integer, including negative values. */
 	export function integer(value: unknown): number {
 		if (typeof value !== 'number' || !Number.isSafeInteger(value)) {
@@ -90,6 +98,9 @@ export namespace parse {
 
 	/** Reads a nonnegative safe integer. */
 	export const nonNegativeInteger = range(0, Number.MAX_SAFE_INTEGER);
+
+	/** Reads a positive safe integer. */
+	export const positiveInteger = range(1, Number.MAX_SAFE_INTEGER);
 
 	/** Parses every array element without dropping malformed entries. */
 	export function arrayOf<T>(parser: Parser<T>): Parser<T[]> {
@@ -173,7 +184,17 @@ export namespace parse {
 		return record as JsonObject;
 	}
 
-	/** Reads a declared string, numeric, or boolean literal. */
+	/** Reads one exact string, numeric, or boolean literal. */
+	export function exact<const T extends string | number | boolean>(expected: T): Parser<T> {
+		return value => {
+			if (value !== expected) {
+				throw new SchemaError('Expected a supported value');
+			}
+			return expected;
+		};
+	}
+
+	/** Reads one of the declared string, numeric, or boolean literals. */
 	export function oneOf<const T extends string | number | boolean>(...values: readonly T[]): Parser<T> {
 		const allowed = new Set<unknown>(values);
 		return value => {

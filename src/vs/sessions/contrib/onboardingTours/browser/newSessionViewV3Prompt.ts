@@ -25,7 +25,7 @@ import { IActiveSession } from '../../../services/sessions/common/sessionsManage
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { INewSessionComposer, INewSessionComposerService, INewSessionPromptOption, INewSessionPromptOptionsController, NEW_SESSION_PROMPT_TYPING_DURATION_MS, NewSessionPromptOptionsProgress, NewSessionPromptOptionsState } from '../../chat/browser/newSessionComposerService.js';
 import { getGitHubRepositoryFromUri } from '../../github/common/utils.js';
-import { GitHubAuthenticationError } from '../../github/browser/githubApiClient.js';
+import { GitHubRequestError } from '../../../../platform/github/common/githubTypes.js';
 import { IGitHubRecentIssue, IGitHubRecentPullRequest, IGitHubRecentUserWork } from '../../github/browser/fetchers/githubRecentUserWorkFetcher.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { computeIssueIcon, computePullRequestIcon, GitHubIssueState, GitHubPullRequestState } from '../../github/common/types.js';
@@ -461,7 +461,7 @@ export class NewSessionViewV3PromptRunner {
 				this._logService.trace(`${LOG_PREFIX} GitHub prompt option lookup was cancelled by the onboarding flow.`);
 				return this._createPromptOptionsPlan([], 'requestFailed', diagnostics);
 			}
-			if (error instanceof GitHubAuthenticationError) {
+			if (error instanceof GitHubRequestError && error.kind === 'authentication') {
 				this._logService.warn(`${LOG_PREFIX} No existing GitHub authentication session is available; filling with standard options without requesting sign-in.`);
 				return this._createPromptOptionsPlan([], 'noAuthentication', diagnostics);
 			}
@@ -635,7 +635,7 @@ export class NewSessionViewV3PromptRunner {
 				this._logService.trace(`${LOG_PREFIX} GitHub prompt lookup was cancelled by the onboarding flow.`);
 				return this._resolvePrompt('requestFailed');
 			}
-			if (error instanceof GitHubAuthenticationError) {
+			if (error instanceof GitHubRequestError && error.kind === 'authentication') {
 				this._logService.warn(`${LOG_PREFIX} No existing GitHub authentication session is available; using the prompt variation without requesting sign-in.`);
 				return this._resolvePrompt('noAuthentication');
 			}
@@ -863,7 +863,7 @@ export class NewSessionViewV3PromptRunner {
 				record('timeout');
 				return { kind: 'failure', reason: 'timeout' };
 			}
-			if (error instanceof GitHubAuthenticationError) {
+			if (error instanceof GitHubRequestError && error.kind === 'authentication') {
 				this._logService.warn(`${LOG_PREFIX} ${capitalize(label)} lookup could not run because no existing GitHub authentication session is available.`);
 				record('noAuthentication');
 				return { kind: 'failure', reason: 'noAuthentication' };

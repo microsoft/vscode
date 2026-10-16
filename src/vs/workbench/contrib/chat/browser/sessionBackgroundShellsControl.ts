@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, append } from '../../../../base/browser/dom.js';
-import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Action } from '../../../../base/common/actions.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
@@ -20,7 +19,7 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import type { IChatPillEntry, IChatPillSection } from '../../../browser/chatPills.js';
 import { createChatPillHoverElement } from '../../../browser/chatPillHover.js';
 import type { ChatBackgroundShellOutput, IChatBackgroundShell } from '../common/sessionChatPills.js';
-import { BackgroundShellOutputView } from './sessionBackgroundShellOutputView.js';
+import { BackgroundShellCommandView, BackgroundShellOutputView } from './sessionBackgroundShellOutputView.js';
 import './media/sessionBackgroundShells.css';
 
 /** A chat whose active background shells the Background Shells pill lists. */
@@ -30,7 +29,7 @@ export interface IChatBackgroundShellsSource {
 
 /** Describes the Background Shells pill in a chat's accessibility help. */
 export function getBackgroundShellsPillAccessibilityHelp(): string {
-	return localize('backgroundShells.accessibilityHelp', "The Background Shells pill opens a picker above the chat input, including for a single shell. Each entry includes its elapsed time, and is marked Detached when the shell runs independently of the agent. Use the arrow keys to choose a shell, then Enter or Right Arrow to open its live command details beside the picker. Left Arrow or Escape returns to the list; Escape from the list returns focus to the pill. Elapsed time continues updating while details are open, and a shell disappears when it finishes. The details start with the shell's full description, unless it only repeats the command. When a shell's output is available, its details show the command and its status above a read-only terminal that streams the output. A shell that can be stopped shows a Stop Shell button beside its command. Press Tab to move through the details to the output, then use Open Accessible View{0} to read the command, its status, and its output as text.", '<keybinding:editor.action.accessibleView>');
+	return localize('backgroundShells.accessibilityHelp', "The Background Shells pill opens a picker above the chat input, including for a single shell. Each entry includes its elapsed time, and is marked Detached when the shell runs independently of the agent. Use the arrow keys to choose a shell, then Enter or Right Arrow to open its live command details beside the picker. Left Arrow or Escape returns to the list; Escape from the list returns focus to the pill. Elapsed time continues updating while details are open, and a shell disappears when it finishes. The details start with the shell's full description, unless it only repeats the command, followed by the command and its status. When a shell's output is available, a read-only terminal below the command streams it. A shell that can be stopped shows a Stop Shell button beside its command. Press Tab to move through the details to the output, then use Open Accessible View{0} to read the command, its status, and its output as text.", '<keybinding:editor.action.accessibleView>');
 }
 
 function getShellName(shell: IChatBackgroundShell): string {
@@ -41,24 +40,17 @@ interface IShellDetails {
 	readonly element: HTMLElement;
 	/** The shell's full description, which its picker row can truncate. */
 	readonly title: HTMLElement;
-	readonly summary: HTMLElement;
-	/** The command and, while the shell can be stopped, its Stop button. */
-	readonly commandRow: HTMLElement;
-	readonly command: HTMLElement;
-	readonly commandActions: ActionBar;
-	readonly shellId: HTMLElement;
-	readonly startedAt: HTMLElement;
-	/** Stops {@link shell}; shown beside the command here and in the live output's title. */
+	/** Stops {@link shell}; shown beside the command. */
 	readonly stopAction: Action;
-	/** The live output terminal, which exists only while the details are shown. */
-	readonly output: MutableDisposable<BackgroundShellOutputView>;
-	/** Closes the live output terminal; the picker may release it more than once. */
-	readonly releaseOutput: IDisposable;
-	/** Owns the actions and the live output. */
+	/** The command with its status, and its live output when available; exists only while the details are shown. */
+	readonly view: MutableDisposable<BackgroundShellOutputView | BackgroundShellCommandView>;
+	/** Closes the view; the picker may release it more than once. */
+	readonly releaseView: IDisposable;
+	/** Owns the Stop action and the view. */
 	readonly store: DisposableStore;
 	outputSource: IObservable<ChatBackgroundShellOutput> | undefined;
-	/** Whether the live output view was built with the Stop action. */
-	outputStoppable: boolean;
+	/** Whether the view was built with the Stop action. */
+	viewStoppable: boolean;
 	/** The shell as last listed. */
 	shell: IChatBackgroundShell | undefined;
 }
@@ -129,38 +121,19 @@ export class SessionBackgroundShellsControl extends Disposable {
 		const content = this._details.get(shell.id) ?? this._createDetails();
 		this._details.set(shell.id, content);
 		content.shell = shell;
-		for (const [element, text] of [
-			[content.title, description],
-			[content.summary, badge ?? ''],
-			[content.command, localize('backgroundShells.command', "Command: {0}", shell.command)],
-			[content.shellId, shell.shellId !== undefined ? localize('backgroundShells.id', "Shell ID: {0}", shell.shellId) : ''],
-			[content.startedAt, localize('backgroundShells.startedAt', "Started: {0}", shell.startedAt)],
-		] as const) {
-			if (element.textContent !== text) {
-				element.textContent = text;
-			}
+		if (content.title.textContent !== description) {
+			content.title.textContent = description;
 		}
-		const stoppable = !!shell.stop;
-		if (content.commandActions.hasAction(content.stopAction) !== stoppable) {
-			content.commandActions.clear();
-			if (stoppable) {
-				content.commandActions.push(content.stopAction, { icon: true, label: false });
-			}
-		}
-		const output = shell.output;
 		// The description titles the details above the command, unless the command already names the shell.
 		content.title.hidden = !description || description === shell.command;
-		// The live output view shows the command and its status, so it replaces the other details.
-		content.summary.hidden = !!output;
-		content.commandRow.hidden = !!output;
-		content.shellId.hidden = !!output || shell.shellId === undefined;
-		content.startedAt.hidden = !!output;
-		if (content.outputSource !== output || content.outputStoppable !== stoppable) {
+		const output = shell.output;
+		const stoppable = !!shell.stop;
+		if (content.outputSource !== output || content.viewStoppable !== stoppable) {
 			// A different output source means a different execution; never show stale output.
 			// The view's actions are fixed, so it's also rebuilt when Stop comes or goes.
-			content.output.clear();
+			content.view.clear();
 			content.outputSource = output;
-			content.outputStoppable = stoppable;
+			content.viewStoppable = stoppable;
 		}
 		return {
 			id: shell.id,
@@ -170,10 +143,10 @@ export class SessionBackgroundShellsControl extends Disposable {
 			ariaLabel: localize('backgroundShells.showDetails', "Show details for background shell {0}", name),
 			ariaDescription: detail,
 			hover: {
-				// The output terminal is only built when the details open, and the picker releases it on close.
-				content: output ? () => this._showOutput(content, shell.command, output) : content.element,
-				disposeContent: output ? () => content.output.clear() : undefined,
-				disposable: output ? content.releaseOutput : undefined,
+				// The view is only built when the details open, and the picker releases it on close.
+				content: () => this._showDetails(content, shell.command, output),
+				disposeContent: () => content.view.clear(),
+				disposable: content.releaseView,
 				expandable: true,
 				alignToParentBottom: true,
 				panelClassName: 'chat-pill-hover-panel',
@@ -186,27 +159,16 @@ export class SessionBackgroundShellsControl extends Disposable {
 	private _createDetails(): IShellDetails {
 		const store = new DisposableStore();
 		const element = createChatPillHoverElement('chat-pill-location-hover', 'compact');
-		const title = append(element, $('.chat-background-shell-title'));
-		const summary = append(element, $('div'));
-		const commandRow = append(element, $('.chat-background-shell-command'));
-		const command = append(commandRow, $('span.chat-background-shell-command-text'));
-		const commandActions = store.add(new ActionBar(append(commandRow, $('.chat-background-shell-command-actions'))));
-		const output = store.add(new MutableDisposable<BackgroundShellOutputView>());
+		const view = store.add(new MutableDisposable<BackgroundShellOutputView | BackgroundShellCommandView>());
 		const details: IShellDetails = {
 			element,
-			title,
-			summary,
-			commandRow,
-			command,
-			commandActions,
-			shellId: append(element, $('div')),
-			startedAt: append(element, $('div')),
+			title: append(element, $('.chat-background-shell-title')),
 			stopAction: store.add(new Action('chat.backgroundShells.stop', localize('backgroundShells.stop', "Stop Shell"), ThemeIcon.asClassName(Codicon.debugStop), true, () => this._stop(details))),
-			output,
-			releaseOutput: { dispose: () => output.clear() },
+			view,
+			releaseView: { dispose: () => view.clear() },
 			store,
 			outputSource: undefined,
-			outputStoppable: false,
+			viewStoppable: false,
 			shell: undefined,
 		};
 		return details;
@@ -230,10 +192,13 @@ export class SessionBackgroundShellsControl extends Disposable {
 		}
 	}
 
-	private _showOutput(details: IShellDetails, command: string, output: IObservable<ChatBackgroundShellOutput>): HTMLElement {
-		if (!details.output.value) {
-			const view = this._instantiationService.createInstance(BackgroundShellOutputView, command, output, details.outputStoppable ? [details.stopAction] : []);
-			details.output.value = view;
+	private _showDetails(details: IShellDetails, command: string, output: IObservable<ChatBackgroundShellOutput> | undefined): HTMLElement {
+		if (!details.view.value) {
+			const actions = details.viewStoppable ? [details.stopAction] : [];
+			const view = output
+				? this._instantiationService.createInstance(BackgroundShellOutputView, command, output, actions)
+				: this._instantiationService.createInstance(BackgroundShellCommandView, command, actions);
+			details.view.value = view;
 			details.element.appendChild(view.element);
 		}
 		return details.element;

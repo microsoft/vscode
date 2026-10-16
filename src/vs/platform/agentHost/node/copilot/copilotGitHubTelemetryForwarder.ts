@@ -6,6 +6,7 @@
 import type { GitHubTelemetryNotification } from '@github/copilot-sdk';
 import { ITelemetryData, ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import type { IAgentTelemetryContext } from '../../common/agent.js';
+import { toCopilotTelemetryData } from '../shared/copilotSkuTelemetry.js';
 import type { ModelCallTurnCorrelationOutcome, ModelCallTurnCorrelationRecordStatus } from './modelCallTurnCorrelation.js';
 
 export interface ICopilotModelCallCorrelationTelemetry {
@@ -101,6 +102,10 @@ type ModelCallTurnCorrelatedClassification = {
 		"numToolCalls": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of tool calls returned by the model.", "isMeasurement": true },
 		"isBYOK": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether bring-your-own-key authentication was used, encoded as 1 for true and -1 for false.", "isMeasurement": true },
 		"isAuto": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether automatic model selection was used, encoded as 1 for true and -1 for false.", "isMeasurement": true },
+		"autoTier": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Auto routing tier committed for the agent that made the call, present only when Auto served it: efficiency, balance, intelligence or the internal fast tier. A provider-advertised custom tier is a SHA-256 hash on standard rows and raw only on restricted rows." },
+		"fusionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "HydraFusion turn that made the call, for joining with copilotSdk/hydrafusion_route, hydrafusion_phase and hydrafusion_turn. Absent for calls not made by a HydraFusion phase." },
+		"fusionPattern": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "HydraFusion orchestration pattern of the turn that made the call: single, cascade or critique." },
+		"fusionPhaseKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Kind of HydraFusion phase that made the call, such as primary, draft, judge, critic, repair or revision." },
 		"totalTokenMax": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Effective maximum number of prompt tokens.", "isMeasurement": true },
 		"tokenCountMax": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Requested maximum number of output tokens.", "isMeasurement": true },
 		"acceptedPredictionTokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of accepted speculative prediction tokens.", "isMeasurement": true },
@@ -252,6 +257,20 @@ type ModelCallTurnCorrelatedClassification = {
 		"plugin_version": { "classification": "CustomerContent", "purpose": "FeatureInsight", "comment": "Contributing plugin version; restricted telemetry only." },
 		"skill_content_length": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Skill content length reported by the runtime." },
 		"allowed_tools_count": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Number of allowed tools declared by the skill." }
+	}
+*/
+
+/* __GDPR__
+	"copilotSdk/extension_startup": {
+		"owner": "jruales",
+		"comment": "Reports aggregate initial startup for all Runtime extensions on create or cold resume, not resident joins or reloads. Contains no extension identities, paths, content, or error text.",
+		"${include}": [ "${CopilotSdkForwardedTelemetry}" ],
+		"outcome": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Initial startup outcome: success, settled_with_failures, failed, cancelled, or superseded." },
+		"duration_ms": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Monotonic aggregate elapsed wall time in milliseconds from before initial extension setup/discovery until native provider settlement, not a remaining wait or per-request TTFT.", "isMeasurement": true },
+		"discovered_count": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of extensions in the authoritative startup snapshot; omitted when unavailable, with zero representing observed empty discovery.", "isMeasurement": true },
+		"running_count": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of running extensions in the authoritative startup snapshot; omitted when unavailable.", "isMeasurement": true },
+		"failed_count": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of failed extensions in the authoritative startup snapshot; omitted when unavailable.", "isMeasurement": true },
+		"disabled_count": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of disabled extensions in the authoritative startup snapshot; omitted when unavailable.", "isMeasurement": true }
 	}
 */
 
@@ -440,7 +459,7 @@ export class CopilotGitHubTelemetryForwarder {
 			copilot_tracking_id: event.copilot_tracking_id,
 			kind: event.kind,
 			restricted: notification.restricted,
-			...telemetryContext,
+			...toCopilotTelemetryData(telemetryContext),
 		};
 		delete data.secondary_assignment_context;
 		delete data.ahCorrelationOutcome;

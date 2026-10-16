@@ -20,11 +20,12 @@ import type { ListSessionsResult, SubscribeResult } from '../../../../common/sta
 import { CustomizationEnablementKind } from '../../../../common/state/protocol/state.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
-import { buildChatUri, buildDefaultChatUri, customizationId, CustomizationLoadStatus, CustomizationType, MessageKind, ROOT_STATE_URI, ToolCallCancellationReason, ToolCallConfirmationReason, type ClientPluginCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
-import { getActionEnvelope, isActionNotification, TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
+import { customizationId, CustomizationLoadStatus, CustomizationType, MessageKind, ROOT_STATE_URI, ToolCallCancellationReason, ToolCallConfirmationReason, type ClientPluginCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
+import { getActionEnvelope, isActionNotification, TestProtocolClient, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
 import { AgentHostE2EServerLease, assertToolCallCompleteText, createRealSession, driveTurnToCompletion, removeTempDirs, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
 import { COPILOT_CONFIG } from './copilotTestConfiguration.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
+import { newTestChatUri } from '../../hostDefaultChats.js';
 
 suite('Agent Host E2E — Copilot managed-settings diagnostics', function () {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -218,7 +219,7 @@ suite('Agent Host E2E — Copilot managed permissions over AHP', function () {
 		test(`managed read approval remains one-time under ${mode}`, async function () {
 			this.timeout(180_000);
 			const session = await createSession({ ask: ['Read'] }, mode);
-			const chat = buildDefaultChatUri(session);
+			const chat = defaultChatChannel(session);
 			await fileTurn(chat, 'managed-read-first', 'read', 'approve');
 			await fileTurn(chat, 'managed-read-second', 'read', 'approve');
 		});
@@ -226,7 +227,7 @@ suite('Agent Host E2E — Copilot managed permissions over AHP', function () {
 		test(`managed write approval remains one-time under ${mode}`, async function () {
 			this.timeout(180_000);
 			const session = await createSession({ ask: ['Write'] }, mode);
-			const chat = buildDefaultChatUri(session);
+			const chat = defaultChatChannel(session);
 			await fileTurn(chat, 'managed-write-first', 'write', 'approve');
 			await fileTurn(chat, 'managed-write-second', 'write', 'approve');
 		});
@@ -234,7 +235,7 @@ suite('Agent Host E2E — Copilot managed permissions over AHP', function () {
 		test(`managed write denial prevents mutation under ${mode}`, async function () {
 			this.timeout(180_000);
 			const session = await createSession({ ask: ['Write'] }, mode);
-			await fileTurn(buildDefaultChatUri(session), 'managed-write-denied', 'write', 'deny');
+			await fileTurn(defaultChatChannel(session), 'managed-write-denied', 'write', 'deny');
 		});
 	}
 
@@ -242,15 +243,15 @@ suite('Agent Host E2E — Copilot managed permissions over AHP', function () {
 		test(`managed ${operation} denial blocks the native tool under Allow All`, async function () {
 			this.timeout(180_000);
 			const session = await createSession({ deny: [operation === 'read' ? 'Read' : 'Write'] });
-			await fileTurn(buildDefaultChatUri(session), `managed-${operation}-blocked`, operation, 'blocked');
+			await fileTurn(defaultChatChannel(session), `managed-${operation}-blocked`, operation, 'blocked');
 		});
 	}
 
 	test('removing managed asks refreshes both default and peer chats before their next turn', async function () {
 		this.timeout(180_000);
 		const session = await createSession({ ask: ['Write'] });
-		const defaultChat = buildDefaultChatUri(session);
-		const peer = buildChatUri(session, 'managed-peer');
+		const defaultChat = defaultChatChannel(session);
+		const peer = newTestChatUri();
 		await client.call('createChat', { channel: session, chat: peer });
 		await client.call<SubscribeResult>('subscribe', { channel: peer });
 		await fileTurn(defaultChat, 'managed-default-before', 'write', 'approve');
@@ -263,8 +264,8 @@ suite('Agent Host E2E — Copilot managed permissions over AHP', function () {
 	test('adding managed asks refreshes both materialized default and peer chats', async function () {
 		this.timeout(180_000);
 		const session = await createSession({});
-		const defaultChat = buildDefaultChatUri(session);
-		const peer = buildChatUri(session, 'managed-peer');
+		const defaultChat = defaultChatChannel(session);
+		const peer = newTestChatUri();
 		await client.call('createChat', { channel: session, chat: peer });
 		await client.call<SubscribeResult>('subscribe', { channel: peer });
 		await fileTurn(defaultChat, 'unmanaged-default-before', 'write', 'none');
@@ -277,29 +278,29 @@ suite('Agent Host E2E — Copilot managed permissions over AHP', function () {
 	test('cold host resume reapplies the current managed ask contribution', async function () {
 		this.timeout(180_000);
 		const session = await createSession({ ask: ['Write'] });
-		await fileTurn(buildDefaultChatUri(session), 'managed-before-restart', 'write', 'approve');
+		await fileTurn(defaultChatChannel(session), 'managed-before-restart', 'write', 'approve');
 		client = await lease.restart();
 		await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'managed-resumed-client' });
 		await client.call('authenticate', { channel: ROOT_STATE_URI, resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: resolveGitHubToken() });
 		await contribute({ ask: ['Write'] });
 		await client.call('subscribe', { channel: session });
-		await client.call('subscribe', { channel: buildDefaultChatUri(session) });
+		await client.call('subscribe', { channel: defaultChatChannel(session) });
 		clientSeq = 1;
-		await fileTurn(buildDefaultChatUri(session), 'managed-after-restart', 'write', 'approve');
+		await fileTurn(defaultChatChannel(session), 'managed-after-restart', 'write', 'approve');
 	});
 
 	test('cold host resume does not persist a removed managed ask contribution', async function () {
 		this.timeout(180_000);
 		const session = await createSession({ ask: ['Write'] });
-		await fileTurn(buildDefaultChatUri(session), 'managed-before-clear', 'write', 'approve');
+		await fileTurn(defaultChatChannel(session), 'managed-before-clear', 'write', 'approve');
 		client = await lease.restart();
 		await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'managed-cleared-client' });
 		await client.call('authenticate', { channel: ROOT_STATE_URI, resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: resolveGitHubToken() });
 		await contribute({});
 		await client.call('subscribe', { channel: session });
-		await client.call('subscribe', { channel: buildDefaultChatUri(session) });
+		await client.call('subscribe', { channel: defaultChatChannel(session) });
 		clientSeq = 1;
-		await fileTurn(buildDefaultChatUri(session), 'managed-after-clear', 'write', 'none');
+		await fileTurn(defaultChatChannel(session), 'managed-after-clear', 'write', 'none');
 	});
 });
 

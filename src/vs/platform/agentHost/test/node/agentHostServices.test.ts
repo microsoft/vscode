@@ -102,6 +102,7 @@ function registerHostServices(services: ServiceCollection): void {
 		userDataPath: URI.file('/user-data'),
 		fetchFn: globalThis.fetch,
 		byok: { kind: 'renderer', bridgeRegistry: new NullByokLmBridgeRegistry() },
+		localModel: { kind: 'localUtilityProcess' },
 	});
 }
 

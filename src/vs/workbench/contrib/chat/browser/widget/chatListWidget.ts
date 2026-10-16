@@ -920,6 +920,7 @@ export class ChatListWidget extends Disposable {
 		}
 
 		const items = this._viewModel.getItems();
+		const consecutiveRequestIds = new Set(items.flatMap((item, index) => isRequestVM(item) && isRequestVM(items[index - 1]) ? [item.id] : []));
 		this._lastItem = items.at(-1);
 		this._lastItemIdContextKey.set(this._lastItem ? [this._lastItem.id] : []);
 
@@ -954,6 +955,7 @@ export class ChatListWidget extends Disposable {
 							`_${isBlocked ? 'blocked' : ''}` +
 							// Re-render requests when editing starts/stops (for hover button visibility, click handlers)
 							(isRequestVM(element) ? `_${editing ? '1' : '0'}` : '') +
+							`_${consecutiveRequestIds.has(element.id) ? 'consecutive' : ''}` +
 							// Re-render the old and new tail rows when the list grows or shrinks.
 							`_${isLastItem ? 'last' : ''}` +
 							// Re-render all if invoked by setting change
@@ -1035,7 +1037,7 @@ export class ChatListWidget extends Disposable {
 		return items;
 	}
 
-	private createRequestTreeItems(items: ChatTreeItem[]): ITreeElement<ChatTreeItem>[] {
+	private createRequestTreeItems(items: readonly ChatTreeItem[]): ITreeElement<ChatTreeItem>[] {
 		const treeItems: ITreeElement<ChatTreeItem>[] = [];
 		for (let i = 0; i < items.length; i++) {
 			const item = items[i];
