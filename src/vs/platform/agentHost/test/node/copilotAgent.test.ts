@@ -6151,7 +6151,7 @@ suite('CopilotAgent', () => {
 			const chat = defaultChatUri(session);
 			const directory = URI.file(process.cwd());
 			let credential: IAgentHostScopedCredential | undefined = {
-				resource: 'https://api.github.com', token: 'scoped-a', expiresAt: Date.now() + 3_600_000, revision: 1,
+				resource: 'https://api.github.com', token: 'scoped-a', expiresAt: Date.now() + 3_599_000, revision: 1,
 			};
 			const credentials = { getCredential: () => credential };
 			const context = { ...exactChatContext(session, chat, session), credentials };
@@ -6163,19 +6163,17 @@ suite('CopilotAgent', () => {
 				await agent.chats.prepareTurn!(chat, 'turn-a', [directory], context);
 				await agent.chats.sendMessage(chat, 'first', [directory], undefined, 'turn-a', undefined, context);
 				const first = launches[0];
-				const provider = first.config.gitHubTokenProvider!;
 				await agent.authenticate('https://api.github.com', 'desktop-rotated', 7200);
 				await agent.refreshModels();
 				await (agent as unknown as { _handleClientOperationFailure(error: Error, operation: string): Promise<unknown> })._handleClientOperationFailure(new Error('Connection is closed.'), 'modelRefresh');
 				const afterGlobalAuth = { live: hasLiveChat(agent, chat), scopedStops: clients[1].stopCallCount, updates: first.runtime.gitHubCredentialUpdates };
 				credential = { ...credential!, token: 'scoped-b', revision: 2 };
 				await assert.rejects(agent.chats.sendMessage(chat, 'busy', [directory], undefined, 'turn-b', undefined, context), /busy|in-flight|active|running/i);
-				const request = { host: 'github.com', sessionId: first.sessionId, reason: 'refresh' as const };
-				const oldToken = await provider(request);
+				const oldToken = first.config.gitHubToken;
 				chatEntriesBySdkId(agent).get(first.sessionId)!.chatSession.discardActiveTurn();
 				await agent.chats.sendMessage(chat, 'second', [directory], undefined, 'turn-b', undefined, context);
 				const second = launches[1];
-				const newToken = await second.config.gitHubTokenProvider!(request);
+				const newToken = second.config.gitHubToken;
 				chatEntriesBySdkId(agent).get(second.sessionId)!.chatSession.discardActiveTurn();
 				const detachedWork = stub(chatEntriesBySdkId(agent).get(second.sessionId)!.chatSession, 'hasActiveSubagents').get(() => true);
 				credential = { ...credential, token: 'scoped-c', expiresAt: undefined, revision: 3 };
@@ -6184,8 +6182,8 @@ suite('CopilotAgent', () => {
 				await agent.chats.resumeTurn!(chat, 'turn-c', context);
 				assert.deepStrictEqual({
 					afterReservation, afterGlobalAuth,
-					oldToken: oldToken.kind === 'token' ? oldToken.accessToken : oldToken.kind,
-					newToken: newToken.kind === 'token' ? newToken.accessToken : newToken.kind,
+					oldToken, newToken,
+					hasTokenProviders: launches.map(launch => launch.config.gitHubTokenProvider !== undefined),
 					kinds: launches.map(launch => launch.kind),
 					sameIdentity: launches.every(launch => launch.sessionId === first.sessionId) && chatBackings(agent).get(chat.toString())?.sdkSessionId === first.sessionId,
 					resumedStaticToken: launches[2].config.gitHubToken,
@@ -6194,6 +6192,7 @@ suite('CopilotAgent', () => {
 				}, {
 					afterReservation: 1, afterGlobalAuth: { live: true, scopedStops: 0, updates: [] },
 					oldToken: 'scoped-a', newToken: 'scoped-b', kinds: ['create', 'resume', 'resume'], sameIdentity: true, resumedStaticToken: 'scoped-c',
+					hasTokenProviders: [false, false, false],
 					scopedOptions: [
 						{ token: 'scoped-a', useLoggedInUser: false, remote: false },
 						{ token: 'scoped-b', useLoggedInUser: false, remote: false },
