@@ -168,6 +168,10 @@ export interface IUpdateAutomationOptions {
 	readonly customizationIds?: readonly string[];
 }
 
+export interface IDeleteAutomationOptions {
+	readonly deleteHistory: boolean;
+}
+
 /**
  * Result of an optimistic automation update.
  * `current` is absent when the automation was deleted before the update committed.
@@ -256,7 +260,7 @@ export interface IAutomationStore {
 	/** All recorded runs across all automations, newest first. */
 	readonly runs: IObservable<readonly IAutomationRun[]>;
 
-	/** Snapshot accessor (no observable dependency). */
+	/** Snapshot of an Automation or its retained history owner (no observable dependency). */
 	getAutomation(id: string): IAutomationDescriptor | undefined;
 
 	/** Runs for a single automation, newest first. */
@@ -270,8 +274,10 @@ export interface IAutomationStore {
 	 * Runtime timestamps may change without conflicting, so reviewed edits preserve scheduler progress.
 	 */
 	updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, expected: IAutomationDescriptor, mutationGuard?: AutomationMutationGuard): Promise<IGuardedAutomationUpdateResult>;
-	/** Deletes an automation and its retained run history; missing IDs are ignored. */
-	deleteAutomation(id: string, mutationGuard?: AutomationMutationGuard): Promise<void>;
+	/** Whether this automation's provider supports choosing whether to delete run history. */
+	supportsDeleteHistoryChoice?(automationId: string): boolean;
+	/** Deletes an Automation using provider defaults unless supported history options are supplied. */
+	deleteAutomation(id: string, options?: IDeleteAutomationOptions, mutationGuard?: AutomationMutationGuard): Promise<void>;
 	/**
 	 * Lists the customizations an automation targeting `target` can sync, including
 	 * those saved in automation `existingId`. Resolves `undefined` when the provider

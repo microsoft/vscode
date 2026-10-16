@@ -946,6 +946,9 @@ export interface IAgentService {
 	/** List all available sessions from the Copilot CLI. */
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 
+	/** Removes an Automation, optionally deleting its run sessions and history. */
+	deleteAutomation?(resource: string, deleteHistory: boolean, legacySessions?: readonly URI[]): Promise<void>;
+
 	/** Counts durable registry identities without provider metadata reads or presentation filtering. */
 	getSessionCount(): Promise<number>;
 
@@ -1308,6 +1311,8 @@ export interface IAgentConnection {
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
+	/** Requires the VS Code Automation history capability advertised by initialize. */
+	deleteAutomation?(resource: string, deleteHistory: boolean, legacySessions?: readonly URI[]): Promise<void>;
 	/** Requires the VS Code session import capability advertised by initialize. */
 	importSession?(session: URI): Promise<void>;
 	/** Requires the VS Code artifact removal capability advertised by initialize. */

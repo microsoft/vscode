@@ -25,7 +25,7 @@ import { getGitHubRepositoryId } from '../../../../../platform/github/common/git
 import { RepositoryPicker } from '../../../../../workbench/contrib/chat/browser/agentSessions/repositoryPicker.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { AutomationTarget, IAutomationDescriptor, IAutomationRun, IAutomationSchedule, IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AutomationCatalogueState, AutomationMutationGuard, AutomationMutationUncertainError, AutomationToolCatalog, AutomationUnavailableError, assertAutomationSessionTemplateAuthority, IAutomationProviderConfiguration, IAutomationRefreshOptions, IAutomationRunRequestResult, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, AutomationMutationGuard, AutomationMutationUncertainError, AutomationToolCatalog, AutomationUnavailableError, assertAutomationSessionTemplateAuthority, IAutomationProviderConfiguration, IAutomationRefreshOptions, IAutomationRunRequestResult, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions, serializeAutomationEditableState, IDeleteAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
@@ -327,7 +327,10 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		return result.updated ? { kind: 'updated', automation } : { kind: 'conflict', current: automation };
 	}
 
-	async deleteAutomation(id: string, guard?: AutomationMutationGuard): Promise<void> {
+	async deleteAutomation(id: string, options?: IDeleteAutomationOptions, guard?: AutomationMutationGuard): Promise<void> {
+		if (options !== undefined) {
+			throw new AutomationUnavailableError(localize('cloudAutomation.historyChoiceUnavailable', "Cloud automations do not support choosing whether to delete run history."));
+		}
 		await this.requireWritableStore().delete(this.requireEntry(id), guard);
 	}
 

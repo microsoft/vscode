@@ -56,7 +56,7 @@ import { readSessionSandboxPolicy, type ISessionSandboxPolicy } from '../../../.
 import { readChatSandboxState, readChatSandboxStates, readSessionSandboxState, type ISessionSandboxState } from '../../../../../platform/agentHost/common/meta/agentSandboxStateMeta.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ResolveSessionConfigResult, type SessionConfigPropertySchema, type SessionConfigSchema, type SessionConfigValueItem } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { AgentCustomization, ChangesSummary, type ChatConfigState, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type CanvasState, type ChatOrigin, type ClientPluginCustomization, Customization, CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, McpServerStatus, MessageKind, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, type SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AgentCustomization, ChangesSummary, type ChatConfigState, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type CanvasState, type ChatOrigin, type ClientPluginCustomization, Customization, CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, McpServerStatus, MessageKind, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, type SessionActiveClient, SessionState, SessionSummary, type Changeset, SessionOriginKind, type SessionOrigin } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { isActionKnownToVersion } from '../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType, type SessionSummaryChanges } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_SESSION_NOT_FOUND, ProtocolError } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
@@ -243,6 +243,7 @@ interface IAgentHostSessionDiscoveryMetadata {
  */
 interface ISerializedSessionMetadata {
 	readonly session: string;
+	readonly origin?: SessionOrigin;
 	readonly provider?: string;
 	readonly initiator?: Implementation;
 	readonly startTime: number;
@@ -312,6 +313,7 @@ function serializeMetadata(meta: IAgentSessionMetadata, discovery?: IAgentHostSe
 	const workingDirectoryScopeIds = readWorkingDirectoryScopeIds(meta._meta);
 	return {
 		session: meta.session.toString(),
+		origin: meta.origin,
 		provider: meta.provider,
 		initiator: readSessionInitiator(meta),
 		startTime: meta.startTime,
@@ -416,6 +418,7 @@ function deserializeMetadata(raw: ISerializedSessionMetadata): IAgentSessionMeta
 		}
 		return {
 			session: URI.parse(raw.session),
+			origin: raw.origin,
 			provider: raw.provider,
 			startTime: raw.startTime,
 			modifiedTime: raw.modifiedTime,
@@ -942,7 +945,7 @@ function toPresentedSessionStatus(owner: object, status: IObservable<SessionStat
 	});
 }
 
-type AgentHostSessionStateMetadata = Pick<IAgentSessionMetadata, 'project' | 'workingDirectories' | '_meta'>;
+type AgentHostSessionStateMetadata = Pick<IAgentSessionMetadata, 'origin' | 'project' | 'workingDirectories' | '_meta'>;
 type AgentHostSessionSummaryWorkspaceMetadata = {
 	project?: IAgentSessionMetadata['project'];
 	workingDirectories?: IAgentSessionMetadata['workingDirectories'];
@@ -1291,7 +1294,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	readonly createdAt: Date;
 	readonly workspace: ISettableObservable<ISessionWorkspace | undefined>;
 	readonly isQuickChat: IObservable<boolean>;
-	readonly isAutomation = observableValue('isAutomation', false);
+	private readonly _origin = observableValue<SessionOrigin | undefined>(this, undefined);
+	readonly isAutomation = derived(this, reader => this._origin.read(reader)?.kind === SessionOriginKind.Automation);
 	readonly isExternal: IObservable<boolean>;
 	readonly remoteConnectionStatus: IObservable<SessionRemoteConnectionStatus> | undefined;
 	readonly createdBySession: IObservable<ISessionCreationReference | undefined>;
@@ -1503,6 +1507,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this.sessionId = toSessionId(providerId, this.resource);
 		this.providerId = providerId;
 		this.sessionType = logicalSessionType;
+		this._origin.set(metadata.origin, undefined);
 		const harness = metadata.provider ?? agentProvider;
 		this.harness = harness === 'copilotcli' ? 'copilot' : harness;
 		this.environment = _options.environment;
@@ -2406,8 +2411,9 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		let didChange = false;
 
 		transaction(tx => {
+			didChange = this.setOrigin(metadata.origin, tx);
 			if (metadata.summary !== undefined) {
-				didChange = this.setTitleFromHost(metadata.summary, tx);
+				didChange = this.setTitleFromHost(metadata.summary, tx) || didChange;
 			}
 
 			if (metadata.status !== undefined) {
@@ -2580,6 +2586,9 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				didChange = this._syncQuickChatFromMeta(tx);
 				didChange = this._setWorkspace(this._computeWorkspace(), tx) || didChange;
 			}
+			if (this.setOrigin(metadata.origin, tx)) {
+				didChange = true;
+			}
 		});
 		return didChange;
 	}
@@ -2621,8 +2630,17 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		return didChange;
 	}
 
-	setIsAutomation(isAutomation: boolean): void {
-		this.isAutomation.set(isAutomation, undefined);
+	get origin(): SessionOrigin | undefined {
+		return this._origin.get();
+	}
+
+	/** An omitted field in an older or partial snapshot cannot erase known creation provenance. */
+	setOrigin(origin: SessionOrigin | undefined, tx?: ITransaction): boolean {
+		if (origin === undefined || equals(origin, this._origin.get())) {
+			return false;
+		}
+		this._origin.set(origin, tx);
+		return true;
 	}
 
 	/** Records that this session runs with worktree isolation. See {@link worktreePending}. */
@@ -8274,6 +8292,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 
 		const metadata: AgentHostSessionStateMetadata = {
+			origin: state.origin,
 			// Unchanged snapshot fields must not overwrite newer catalogue deltas.
 			...(!equals(state.project, previous?.project) ? {
 				project: state.project ? {
@@ -8451,6 +8470,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}
 			entries.push(serializeMetadata({
 				...base,
+				origin: adapter.origin,
 				summary: adapter.title.get() || base.summary,
 				modifiedTime: adapter.updatedAt.get().getTime(),
 				changes: adapter.changesSummary.get(),
@@ -8775,6 +8795,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			startTime: Date.parse(summary.createdAt),
 			modifiedTime: Date.parse(summary.modifiedAt),
 			summary: summary.title,
+			origin: summary.origin,
 			activity: summary.activity,
 			status: summary.status,
 			...(summary.project ? {
@@ -8908,7 +8929,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				return;
 			}
 
-			let didChange = false;
+			let didChange = cached.setOrigin(changes.origin, tx);
 
 			if (changes.status !== undefined) {
 				const uiStatus = mapProtocolStatus(changes.status);

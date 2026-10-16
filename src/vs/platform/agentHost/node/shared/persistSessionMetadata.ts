@@ -10,6 +10,7 @@ import { type IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../..
 export const SESSION_CUSTOM_TITLE_KEY = 'customTitle';
 export const SESSION_CUSTOM_TITLE_SOURCE_KEY = 'customTitleSource';
 export const SESSION_ARTIFACTS_KEY = 'sessionArtifacts';
+export const SESSION_ORIGIN_KEY = 'sessionOrigin';
 export const SESSION_WORKING_DIRECTORIES_KEY = 'agentHost.sessionWorkingDirectories';
 export const AGENT_HOST_TITLE_SOURCE_USER = 'user';
 export const AGENT_HOST_TITLE_SOURCE_AGENT = 'agent';

@@ -17,6 +17,7 @@ import { BackgroundWorkKind, type BackgroundShellWork } from '../../common/state
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { deriveLegacyDefaultChat } from '../../common/agentHostLegacyDefaultChat.js';
 import { buildChangesetUri, buildSessionChangesetUri, buildTurnChangesetUri } from '../../common/changesetUri.js';
+import { SessionOriginKind, type SessionOrigin } from '../../common/state/protocol/state.js';
 import { withAgentCustomizationSettings } from '../../common/agentCustomizationSettings.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
@@ -65,6 +66,65 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(chatState?.turns.length, 0);
 		assert.strictEqual(chatState?.activeTurn, undefined);
 		assert.strictEqual(manager.getSessionSummary(sessionUri)?.resource.toString(), sessionUri.toString());
+	});
+
+	test('preserves session origin in creation, summaries and listings', () => {
+		const origin: SessionOrigin = { kind: SessionOriginKind.Automation, automation: 'ahp-automation:/review', run: 'ahp-automation-run:/run' };
+		const summary = makeSessionSummary();
+		const notifications: INotification[] = [];
+		disposables.add(manager.onDidEmitNotification(notification => notifications.push(notification)));
+
+		const state = manager.createSession({ ...summary, origin });
+		const listed = manager.prepareSessionSummariesForListing([summary]);
+		assert.deepStrictEqual({
+			state: state.origin,
+			summary: manager.getSessionSummary(sessionUri)?.origin,
+			added: notifications.filter(notification => notification.type === NotificationType.SessionAdded).map(notification => notification.summary.origin),
+			listed: listed.map(summary => summary.origin),
+		}, {
+			state: origin,
+			summary: origin,
+			added: [origin],
+			listed: [origin],
+		});
+	});
+
+	test('announces an origin-only metadata update without materializing a session', () => {
+		const origin: SessionOrigin = { kind: SessionOriginKind.Automation, automation: 'ahp-automation:/review', run: 'ahp-automation-run:/run' };
+		const summary = makeSessionSummary();
+		manager.announceSurfacedSession(summary);
+		const notifications: INotification[] = [];
+		disposables.add(manager.onDidEmitNotification(notification => notifications.push(notification)));
+		manager.updateSurfacedSessionMetadata(sessionUri, { ...summary, origin });
+		manager.updateSurfacedSessionMetadata(sessionUri, { ...summary, origin: { ...origin } });
+		manager.updateSurfacedSessionMetadata(sessionUri, summary);
+
+		assert.deepStrictEqual({
+			origins: notifications.filter(notification => notification.type === NotificationType.SessionSummaryChanged).map(notification => notification.changes.origin),
+			surfaced: manager.getSurfacedSessionSummary(sessionUri)?.origin,
+			state: manager.getSessionState(sessionUri),
+		}, {
+			origins: [origin],
+			surfaced: origin,
+			state: undefined,
+		});
+	});
+
+	test('announces recovered origin on restoration of a surfaced session', () => {
+		const origin: SessionOrigin = { kind: SessionOriginKind.Automation, automation: 'ahp-automation:/review', run: 'ahp-automation-run:/run' };
+		const summary = makeSessionSummary();
+		manager.announceSurfacedSession(summary);
+		const notifications: INotification[] = [];
+		disposables.add(manager.onDidEmitNotification(notification => notifications.push(notification)));
+		manager.restoreSession({ ...summary, origin }, [], creationTimeChatStorageResource);
+
+		assert.deepStrictEqual({
+			state: manager.getSessionState(sessionUri)?.origin,
+			changes: notifications.filter(notification => notification.type === NotificationType.SessionSummaryChanged).map(notification => notification.changes.origin),
+		}, {
+			state: origin,
+			changes: [origin],
+		});
 	});
 
 	test('onDidChangeSessionWorkingDirectories fires only when the working-directory set changes', () => {

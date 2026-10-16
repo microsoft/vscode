@@ -17,7 +17,7 @@ import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { AutomationTarget, IAutomationDescriptor, IAutomationRun, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
-import { type AutomationCatalogueState, AutomationMutationUncertainError, AutomationSessionTemplateAuthorityError, AutomationUnavailableError, IAutomationProviderConfiguration, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { type AutomationCatalogueState, AutomationMutationUncertainError, AutomationSessionTemplateAuthorityError, AutomationUnavailableError, IAutomationProviderConfiguration, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions, type AutomationMutationGuard, type IDeleteAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IToolImpl, IToolInvocation, IToolResult, ToolProgress } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -86,16 +86,19 @@ class FakeAutomationService extends mock<IAutomationService>() {
 	readonly created: ICreateAutomationOptions[] = [];
 	readonly updated: Array<{ readonly id: string; readonly patch: IUpdateAutomationOptions }> = [];
 	readonly deleted: string[] = [];
+	readonly deleteOptions: IDeleteAutomationOptions[] = [];
 	available = true;
 	creationAllowed = true;
 	updatesAllowed = true;
 	configuration: IAutomationProviderConfiguration | undefined;
 	override getProviderConfiguration() { return this.configuration; }
+	historyChoiceSupported = false;
 
 	override canCreateAutomation(): boolean { return this.available && this.creationAllowed; }
 	override canRunAutomation(): boolean { return this.available; }
 	override canUpdateAutomation(): boolean { return this.available && this.updatesAllowed; }
 	override canDeleteAutomation(): boolean { return this.available; }
+	override supportsDeleteHistoryChoice(): boolean { return this.historyChoiceSupported; }
 
 	constructor(automations: readonly IAutomationDescriptor[] = []) {
 		super();
@@ -156,8 +159,10 @@ class FakeAutomationService extends mock<IAutomationService>() {
 		return { kind: 'updated', automation: await this.updateAutomation(id, patch) };
 	}
 
-	override async deleteAutomation(id: string): Promise<void> {
+	override async deleteAutomation(id: string, options: IDeleteAutomationOptions = { deleteHistory: true }, guard?: AutomationMutationGuard): Promise<void> {
+		guard?.();
 		this.deleted.push(id);
+		this.deleteOptions.push(options);
 		this.automations.set(this.automations.get().filter(automation => automation.id !== id), undefined);
 	}
 }
@@ -795,6 +800,7 @@ suite('AutomationTools', () => {
 	test('deleteAutomation provides Delete and Cancel confirmation options', async () => {
 		const automation = createAutomation();
 		const automationService = new FakeAutomationService([automation]);
+		automationService.historyChoiceSupported = true;
 		const tool = new DeleteAutomationTool(automationService, createConfigurationService());
 		const parameters = { automationId: automation.id };
 
@@ -812,22 +818,80 @@ suite('AutomationTools', () => {
 			allowAutoConfirm: prepared?.confirmationMessages?.allowAutoConfirm,
 			options: prepared?.confirmationMessages?.customOptions,
 			deleted: automationService.deleted,
+			deleteOptions: automationService.deleteOptions,
 			automations: automationService.automations.get(),
 			result: JSON.parse(getText(result)),
 		}, {
 			confirmationTitle: 'Delete Automation?',
-			confirmationMessage: 'Delete **Daily review** (`automation-1`)? Its saved configuration and run history will be permanently removed. Runs already in flight will continue.',
+			confirmationMessage: 'Delete **Daily review** (`automation-1`)? Its run history and sessions will be permanently deleted.',
 			allowAutoConfirm: undefined,
 			options: [
 				{ id: 'delete', label: 'Delete', kind: ConfirmationOptionKind.Approve },
 				{ id: 'cancel', label: 'Cancel', kind: ConfirmationOptionKind.Deny },
 			],
 			deleted: ['automation-1'],
+			deleteOptions: [{ deleteHistory: true }],
 			automations: [],
 			result: {
 				status: 'deleted',
 				automation: { id: 'automation-1', name: 'Daily review' },
 			},
+		});
+	});
+
+	test('deleteAutomation confirms and forwards the choice to keep history', async () => {
+		const automation = createAutomation();
+		const automationService = new FakeAutomationService([automation]);
+		automationService.historyChoiceSupported = true;
+		const tool = new DeleteAutomationTool(automationService, createConfigurationService());
+		const parameters = { automationId: automation.id, deleteHistory: false };
+		const prepared = await tool.prepareToolInvocation!({
+			parameters, toolCallId: 'keep-history', chatSessionResource: SESSION_RESOURCE,
+		}, CancellationToken.None);
+		const message = prepared.confirmationMessages?.message;
+		await invoke(tool, parameters, SESSION_RESOURCE, CancellationToken.None, 'delete');
+		assert.deepStrictEqual({
+			message: typeof message === 'string' ? message : message?.value,
+			options: automationService.deleteOptions,
+		}, {
+			message: 'Delete **Daily review** (`automation-1`)? Future runs will stop. Past runs will remain in Automations.',
+			options: [{ deleteHistory: false }],
+		});
+	});
+
+	test('deleteAutomation rejects non-boolean history choices without deleting', async () => {
+		const automation = createAutomation();
+		const automationService = new FakeAutomationService([automation]);
+		automationService.historyChoiceSupported = true;
+		const tool = new DeleteAutomationTool(automationService, createConfigurationService());
+		for (const deleteHistory of ['false', 0, null]) {
+			const parameters = { automationId: automation.id, deleteHistory };
+			await assert.rejects(tool.prepareToolInvocation!({
+				parameters, toolCallId: 'invalid-history', chatSessionResource: SESSION_RESOURCE,
+			}, CancellationToken.None), /"deleteHistory" must be a boolean/);
+			const result = await invoke(tool, parameters, SESSION_RESOURCE, CancellationToken.None, 'delete');
+			assert.strictEqual(result.toolResultError, '"deleteHistory" must be a boolean.');
+		}
+		assert.deepStrictEqual(automationService.deleted, []);
+	});
+
+	test('deleteAutomation preserves the provider default and rejects unsupported history choices', async () => {
+		const automation = createAutomation();
+		const automationService = new FakeAutomationService([automation]);
+		const tool = new DeleteAutomationTool(automationService, createConfigurationService());
+		const prepared = await tool.prepareToolInvocation({
+			parameters: { automationId: automation.id }, toolCallId: 'cloud', chatSessionResource: SESSION_RESOURCE,
+		}, CancellationToken.None);
+		const message = prepared.confirmationMessages?.message;
+		const result = await invoke(tool, { automationId: automation.id, deleteHistory: false }, SESSION_RESOURCE, CancellationToken.None, 'delete');
+		assert.deepStrictEqual({
+			message: typeof message === 'string' ? message : message?.value,
+			error: result.toolResultError,
+			deleted: automationService.deleted,
+		}, {
+			message: 'Delete **Daily review** (`automation-1`)? Its saved configuration and run history will be permanently removed. Runs already in flight will continue.',
+			error: 'This automation provider does not support choosing whether to delete run history. Omit deleteHistory.',
+			deleted: [],
 		});
 	});
 

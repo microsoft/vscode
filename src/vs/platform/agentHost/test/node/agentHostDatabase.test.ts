@@ -1138,7 +1138,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 			/payloadHash must match payload/,
 		);
 		await assert.rejects(
-			database.upsertSessionV2(createEnvelope(session, 'generation-1', 3, { payload: `{"payloadVersion":${AGENT_HOST_CATALOG_PAYLOAD_VERSION},"data":{}}` }), 'generation-1'),
+			database.upsertSessionV2(createEnvelope(session, 'generation-1', 3, { payload: JSON.stringify({ payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION, data: {} }) }), 'generation-1'),
 			/Catalog payload is invalid/,
 		);
 		await assert.rejects(

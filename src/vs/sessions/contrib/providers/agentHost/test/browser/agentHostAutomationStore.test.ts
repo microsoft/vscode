@@ -17,12 +17,14 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostConnectionsService, type IAgentHostSessionIdentity } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
+import { withAgentHostAutomationHistoryState } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType, type ActionEnvelope } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AutomationMisfirePolicy, AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, AutomationTriggerKind, CustomizationEnablementKind, CustomizationType, MessageKind, type AutomationEntry, type AutomationRunSummary, type AutomationState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { AUTOMATION_CATALOG_URI, StateComponents, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { AUTOMATION_CATALOG_URI, StateComponents, type ClientPluginCustomization, type ComponentToState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -53,6 +55,7 @@ class TestAutomationConnection {
 
 	readonly initializeResult;
 	readonly runRequests: string[] = [];
+	readonly deleteRequests: { readonly resource: string; readonly deleteHistory: boolean; readonly legacySessions: readonly string[] }[] = [];
 	lastRunResource = '';
 	readonly dispatched: { readonly channel: string; readonly action: Parameters<IAgentConnection['dispatch']>[1] }[] = [];
 	subscribedChannel: string | undefined;
@@ -72,7 +75,7 @@ class TestAutomationConnection {
 			serverSeq: 0,
 			snapshots: [],
 			automations: { create: {}, runCancellation: {} },
-			_meta: getAgentHostExtensionInitializeResultMeta(),
+			_meta: getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, true),
 		});
 	}
 
@@ -93,11 +96,11 @@ class TestAutomationConnection {
 		this._onDidCatalogChange.fire(this._catalog);
 	}
 
-	getSubscription(
-		kind: StateComponents.AutomationCatalog,
+	getSubscription<T extends StateComponents>(
+		kind: T,
 		resource: URI,
 		_owner: string,
-	): IReference<IAgentSubscription<AutomationState>> {
+	): IReference<IAgentSubscription<ComponentToState[T]>> {
 		assert.strictEqual(kind, StateComponents.AutomationCatalog);
 		this.subscribedChannel = resource.toString();
 		const connection = this;
@@ -111,7 +114,7 @@ class TestAutomationConnection {
 				onDidApplyAction: Event.None,
 			},
 			dispose: () => { },
-		};
+		} as IReference<IAgentSubscription<ComponentToState[T]>>;
 	}
 
 	setCatalogError(error: Error): void {
@@ -231,6 +234,25 @@ class TestAutomationConnection {
 		return { resource };
 	}
 
+	async deleteAutomation(resource: string, deleteHistory: boolean, legacySessions: readonly URI[] = []): Promise<void> {
+		this.deleteRequests.push({ resource, deleteHistory, legacySessions: legacySessions.map(session => session.toString()) });
+		this._catalog = {
+			...this._catalog,
+			entries: this._catalog.entries.flatMap(automation => {
+				if (automation.resource !== resource) {
+					return [automation];
+				}
+				return deleteHistory ? [] : [withAgentHostAutomationHistoryState({
+					...automation,
+					definition: { ...automation.definition, enabled: false, triggers: [] },
+					operations: [AutomationOperation.Remove],
+					nextRunAt: undefined,
+				}, 'retained')];
+			}),
+		};
+		this._onDidCatalogChange.fire(this._catalog);
+	}
+
 	setOperations(resource: string, operations: AutomationOperation[]): void {
 		const current = this._catalog.entries.find(automation => automation.resource === resource);
 		if (!current) {
@@ -317,6 +339,9 @@ suite('AgentHostAutomationStore', () => {
 
 	const disposables = new DisposableStore();
 	const activeClientService = new class extends mock<IAgentHostActiveClientService>() { }();
+	const connectionsService = new class extends mock<IAgentHostConnectionsService>() {
+		override resolveSessionResourceIdentity(): undefined { return undefined; }
+	}();
 
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -329,6 +354,7 @@ suite('AgentHostAutomationStore', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IConfigurationService, configuration);
 		instantiationService.stub(IAgentHostActiveClientService, activeClient);
+		instantiationService.stub(IAgentHostConnectionsService, connectionsService);
 		const store = disposables.add(instantiationService.createInstance(ReconnectableAgentHostAutomationStore, 'host', boundaryMapper));
 		return { store, storage, configuration };
 	}
@@ -1005,6 +1031,156 @@ suite('AgentHostAutomationStore', () => {
 		});
 	});
 
+	test('kept history remains openable and named after reconnect without a runnable definition', async () => {
+		const { store } = reconnectable();
+		const connection = disposables.add(new TestAutomationConnection());
+		store.setConnection(connection);
+		const automation = await store.createAutomation(createOptions());
+		await store.runAutomation(automation.id);
+		connection.completeRun(connection.lastRunResource);
+		const history = store.runs.get();
+		await store.deleteAutomation(automation.id, { deleteHistory: false });
+		store.clearConnection();
+		store.setConnection(connection);
+		assert.deepStrictEqual({
+			automations: store.automations.get(),
+			history: store.runs.get(),
+			name: store.getAutomation(automation.id)?.name,
+			canRun: store.canRunAutomation(automation.id),
+			canUpdate: store.canUpdateAutomation(automation.id),
+			historyChoice: connection.deleteRequests.map(request => request.deleteHistory),
+		}, {
+			automations: [],
+			history,
+			name: automation.name,
+			canRun: false,
+			canUpdate: false,
+			historyChoice: [false],
+		});
+	});
+
+	test('older hosts cannot silently fall back to deletion without a history choice', async () => {
+		const { store } = reconnectable();
+		const connection = disposables.add(new TestAutomationConnection());
+		store.setConnection(connection);
+		const automation = await store.createAutomation(createOptions());
+		const initialized = connection.initializeResult.get();
+		assert.ok(initialized);
+		connection.initializeResult.set({ ...initialized, _meta: getAgentHostExtensionInitializeResultMeta() }, undefined);
+		await assert.rejects(store.deleteAutomation(automation.id), /Update the Agent Host/);
+		assert.deepStrictEqual({
+			canDelete: store.canDeleteAutomation(automation.id),
+			requests: connection.deleteRequests,
+			actions: connection.dispatched.map(({ action }) => action.type),
+		}, { canDelete: false, requests: [], actions: [ActionType.AutomationCreateRequested] });
+	});
+
+	for (const { prefix, provider } of [
+		{ prefix: 'agent-host-', provider: 'copilotcli' },
+		{ prefix: 'remote-test-', provider: 'copilot' },
+	]) {
+		test(`deleting history maps ${prefix} archive sessions and preserves unrelated archive data`, async () => {
+			const connection = disposables.add(new TestAutomationConnection());
+			const storage = disposables.add(new InMemoryStorageService());
+			const connectionsService = upcastPartial<IAgentHostConnectionsService>({
+				resolveSessionResourceIdentity: resource => resource.toString() === `${prefix}${provider}:/old-session`
+					? { backendSession: URI.parse('copilotcli:/old-session'), backendSessionIsAdvertised: true, connectionAuthority: 'host' }
+					: undefined,
+				getConnectionByAuthority: () => upcastPartial<IAgentConnection>(connection),
+			});
+			const store = disposables.add(new AgentHostAutomationStore('host', connection, {
+				toHost: resource => resource,
+				fromHost: resource => resource,
+				resourceSchemeForProvider: id => `${prefix}${id}`,
+				providerForResourceScheme: scheme => scheme.startsWith(prefix) ? scheme.slice(prefix.length) : undefined,
+			}, new NullLogService(), storage, activeClientService, connectionsService));
+			const automation = await store.createAutomation(createOptions());
+			const creation = connection.dispatched[0].action;
+			assert.ok(creation.type === ActionType.AutomationCreateRequested);
+			const run = {
+				id: 'old-run', automationId: URI.parse(creation.resource).path.slice(1),
+				status: 'completed', trigger: 'manual', startedAt: '2026-01-01T00:00:00Z',
+				sessionResource: `${prefix}${provider}:/old-session`,
+			};
+			const unrelated = { ...run, id: 'unrelated', automationId: 'other', extra: 'preserved' };
+			const unrecognized = { future: 'also preserved' };
+			const archive = { version: 1, extra: 'top-level metadata', runs: [run, unrelated, unrecognized] };
+			storage.store('agentHostAutomation.legacyRunArchive.host', JSON.stringify(archive), StorageScope.APPLICATION, StorageTarget.MACHINE);
+			await store.deleteAutomation(automation.id);
+			assert.deepStrictEqual({
+				requests: connection.deleteRequests,
+				archive: JSON.parse(storage.get('agentHostAutomation.legacyRunArchive.host', StorageScope.APPLICATION)!),
+			}, {
+				requests: [{ resource: creation.resource, deleteHistory: true, legacySessions: ['copilotcli:/old-session'] }],
+				archive: { ...archive, runs: [unrelated, unrecognized] },
+			});
+		});
+	}
+
+	test('archive deletion uses the advertised identity when backend schemes share a path', async () => {
+		const connection = disposables.add(new TestAutomationConnection());
+		const storage = disposables.add(new InMemoryStorageService());
+		const frontend = URI.parse('agent-host-copilotcli:/same-id');
+		const legacy = URI.parse('copilotcli:/same-id');
+		const standard = URI.parse('ahp-session:/same-id');
+		const sessions = new Set([legacy.toString(), standard.toString()]);
+		let identity: IAgentHostSessionIdentity | undefined;
+		const connectionsService = upcastPartial<IAgentHostConnectionsService>({
+			resolveSessionResourceIdentity: resource => resource.toString() === frontend.toString() ? identity : undefined,
+			getConnectionByAuthority: () => upcastPartial<IAgentConnection>(connection),
+		});
+		const store = disposables.add(new AgentHostAutomationStore('host', connection, undefined, new NullLogService(), storage, activeClientService, connectionsService));
+		const automation = await store.createAutomation(createOptions());
+		const creation = connection.dispatched[0].action;
+		assert.ok(creation.type === ActionType.AutomationCreateRequested);
+		const archive = JSON.stringify({
+			version: 1,
+			runs: [{
+				id: 'archived', automationId: URI.parse(creation.resource).path.slice(1),
+				status: 'completed', trigger: 'manual', startedAt: '2026-01-01T00:00:00Z',
+				sessionResource: frontend.toString(),
+			}],
+		});
+		const key = 'agentHostAutomation.legacyRunArchive.host';
+		storage.store(key, archive, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		await assert.rejects(store.deleteAutomation(automation.id), /exact Agent Host session identity is unavailable/);
+		identity = { connectionAuthority: 'host', backendSession: legacy };
+		await assert.rejects(store.deleteAutomation(automation.id), /exact Agent Host session identity is unavailable/);
+		const beforeResolution = { archive: storage.get(key, StorageScope.APPLICATION), requests: [...connection.deleteRequests], runs: store.runs.get().length };
+
+		identity = { connectionAuthority: 'host', backendSession: standard, backendSessionIsAdvertised: true };
+		await store.deleteAutomation(automation.id);
+		for (const request of connection.deleteRequests) {
+			for (const resource of request.legacySessions) {
+				sessions.delete(resource);
+			}
+		}
+		assert.deepStrictEqual({
+			beforeResolution,
+			requests: connection.deleteRequests,
+			remainingSessions: [...sessions],
+			runs: store.runs.get(),
+		}, {
+			beforeResolution: { archive, requests: [], runs: 1 },
+			requests: [{ resource: creation.resource, deleteHistory: true, legacySessions: [standard.toString()] }],
+			remainingSessions: [legacy.toString()],
+			runs: [],
+		});
+	});
+
+	test('unreadable legacy archives block destructive deletion before host dispatch', async () => {
+		const { store, storage } = reconnectable();
+		const connection = disposables.add(new TestAutomationConnection());
+		store.setConnection(connection);
+		const automation = await store.createAutomation(createOptions());
+		for (const raw of ['invalid JSON', JSON.stringify({ version: 2, runs: [] })]) {
+			storage.store('agentHostAutomation.legacyRunArchive.host', raw, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			await assert.rejects(store.deleteAutomation(automation.id), /unreadable legacy archive/);
+			assert.strictEqual(storage.get('agentHostAutomation.legacyRunArchive.host', StorageScope.APPLICATION), raw);
+		}
+		assert.deepStrictEqual(connection.deleteRequests, []);
+	});
+
 	test('cross-host targets are rejected before any host mutation', async () => {
 		const { store } = reconnectable();
 		const connection = disposables.add(new TestAutomationConnection());
@@ -1063,7 +1239,7 @@ suite('AgentHostAutomationStore', () => {
 				? store.createAutomation(createOptions(), guard)
 				: operation === 'update'
 					? store.updateAutomationIfUnchanged(automation.id, { name: 'Changed' }, automation, guard)
-					: store.deleteAutomation(automation.id, guard);
+					: store.deleteAutomation(automation.id, undefined, guard);
 			permitted = false;
 			await assert.rejects(pending, /Mutation cancelled/);
 		}
@@ -1084,7 +1260,7 @@ suite('AgentHostAutomationStore', () => {
 		const connection = new TestAutomationConnection(false);
 		disposables.add(connection);
 		const storage = disposables.add(new InMemoryStorageService());
-		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService, connectionsService));
 		const loading = store.catalogueState.get();
 		connection.setCatalogAvailable();
 
@@ -1101,7 +1277,7 @@ suite('AgentHostAutomationStore', () => {
 		const connection = new TestAutomationConnection();
 		disposables.add(connection);
 		const storage = disposables.add(new InMemoryStorageService());
-		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService, connectionsService));
 		await store.createAutomation({
 			name: 'Review changes',
 			prompt: 'Review the current changes.',
@@ -1126,7 +1302,7 @@ suite('AgentHostAutomationStore', () => {
 		disposables.add(connection);
 		connection.runPrimarySession = 'ahp-session:/session';
 		const storage = disposables.add(new InMemoryStorageService());
-		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService, connectionsService));
 
 		const automation = await store.createAutomation({
 			name: 'Review changes',
@@ -1173,7 +1349,7 @@ suite('AgentHostAutomationStore', () => {
 	test('does not forward generic chat modes to Agent Host session config', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		const storage = disposables.add(new InMemoryStorageService());
-		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService, connectionsService));
 
 		await store.createAutomation({
 			name: 'Review changes',
@@ -1194,7 +1370,7 @@ suite('AgentHostAutomationStore', () => {
 	test('applies legacy Autopilot configuration to the default provider', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		const storage = disposables.add(new InMemoryStorageService());
-		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService, connectionsService));
 
 		await store.createAutomation({
 			name: 'Review changes',
@@ -1221,7 +1397,7 @@ suite('AgentHostAutomationStore', () => {
 	test('preserves Agent Host config on an unrelated canonical update', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		const storage = disposables.add(new InMemoryStorageService());
-		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService, connectionsService));
 		const automation = await store.createAutomation({
 			name: 'Review changes',
 			prompt: 'Review the current changes.',
@@ -1247,7 +1423,7 @@ suite('AgentHostAutomationStore', () => {
 	test('does not apply legacy Copilot configuration to another session type', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		const storage = disposables.add(new InMemoryStorageService());
-		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService, connectionsService));
 
 		await store.createAutomation({
 			name: 'Review changes',
@@ -1275,7 +1451,7 @@ suite('AgentHostAutomationStore', () => {
 		test(`automation templates round-trip sandbox selection ${selection}`, async () => {
 			const connection = disposables.add(new TestAutomationConnection());
 			const storage = disposables.add(new InMemoryStorageService());
-			const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+			const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService, connectionsService));
 			const automation = await store.createAutomation({
 				name: 'Sandbox selection',
 				prompt: 'Review changes.',
@@ -1305,7 +1481,7 @@ suite('AgentHostAutomationStore', () => {
 	test('automation template reset clears sandbox preference while preserving definition-owned permissions', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		const storage = disposables.add(new InMemoryStorageService());
-		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService, connectionsService));
 		const automation = await store.createAutomation({
 			name: 'Sandbox reset',
 			prompt: 'Review changes.',
@@ -1329,7 +1505,7 @@ suite('AgentHostAutomationStore', () => {
 	test('host-authored sandbox preferences survive an Automation template round-trip', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		const storage = disposables.add(new InMemoryStorageService());
-		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService, connectionsService));
 		const automation = await store.createAutomation({
 			name: 'Host sandbox preference',
 			prompt: 'Review changes.',
@@ -1364,7 +1540,7 @@ suite('AgentHostAutomationStore', () => {
 	test('filters session-owned values from canonical templates', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		const storage = disposables.add(new InMemoryStorageService());
-		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService, connectionsService));
 
 		await store.createAutomation({
 			name: 'Review changes',
@@ -1391,7 +1567,7 @@ suite('AgentHostAutomationStore', () => {
 	test('clears provider configuration and agent with an explicit template reset', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		const storage = disposables.add(new InMemoryStorageService());
-		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService, connectionsService));
 		const automation = await store.createAutomation({
 			name: 'Review changes',
 			prompt: 'Review the current changes.',
@@ -1432,7 +1608,7 @@ suite('AgentHostAutomationStore', () => {
 	test('drops provider configuration when retargeting to another session type', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		const storage = disposables.add(new InMemoryStorageService());
-		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService, connectionsService));
 		const automation = await store.createAutomation({
 			name: 'Review changes',
 			prompt: 'Review the current changes.',
@@ -1466,7 +1642,7 @@ suite('AgentHostAutomationStore', () => {
 			toHost: resource => resource,
 			fromHost: resource => resource,
 			resourceSchemeForProvider: provider => `agent-host-${provider}`,
-		}, new NullLogService(), storage, activeClientService));
+		}, new NullLogService(), storage, activeClientService, connectionsService));
 		const sessionTemplate = {
 			modelId: 'agent-host-copilotcli:auto',
 			modelConfiguration: { thinkingLevel: 'low', futureOption: 'preserved' },
@@ -1533,7 +1709,7 @@ suite('AgentHostAutomationStore', () => {
 	test('rejects model configuration without a model identifier instead of dropping it', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		const storage = disposables.add(new InMemoryStorageService());
-		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService, connectionsService));
 		const options = {
 			name: 'Model configuration',
 			prompt: 'Review changes.',
@@ -1563,7 +1739,7 @@ suite('AgentHostAutomationStore', () => {
 	test('explicit empty and omitted model configuration replace stale model options', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		const storage = disposables.add(new InMemoryStorageService());
-		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService, connectionsService));
 		const automation = await store.createAutomation({
 			name: 'Reset model configuration',
 			prompt: 'Review changes.',
@@ -1592,7 +1768,7 @@ suite('AgentHostAutomationStore', () => {
 	test('applies the first flat permission update when the projected session template is empty', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		const storage = disposables.add(new InMemoryStorageService());
-		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService, connectionsService));
 		const automation = await store.createAutomation({
 			name: 'Review changes',
 			prompt: 'Review the current changes.',
@@ -1612,7 +1788,7 @@ suite('AgentHostAutomationStore', () => {
 	test('creates and edits Weekdays with one local Monday-Friday cron trigger', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		const storage = disposables.add(new InMemoryStorageService());
-		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService, connectionsService));
 		const automation = await store.createAutomation({
 			name: 'Weekday review', prompt: 'Review changes.',
 			schedule: { interval: 'weekdays', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 6 },
@@ -1646,7 +1822,7 @@ suite('AgentHostAutomationStore', () => {
 			test(`projects host weekday field ${day} in ${foreignTimeZone ? 'a foreign' : 'the local'} time zone without losing its schedule`, async () => {
 				const connection = disposables.add(new TestAutomationConnection());
 				const storage = disposables.add(new InMemoryStorageService());
-				const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+				const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService, connectionsService));
 				const localTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 				const timeZone = foreignTimeZone ? (localTimeZone === 'UTC' ? 'Asia/Tokyo' : 'UTC') : localTimeZone;
 				const triggers: AutomationEntry['definition']['triggers'] = [{
@@ -1698,7 +1874,7 @@ suite('AgentHostAutomationStore', () => {
 		test(`preserves weekday trigger semantics with ${variant}`, async () => {
 			const connection = disposables.add(new TestAutomationConnection());
 			const storage = disposables.add(new InMemoryStorageService());
-			const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+			const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService, connectionsService));
 			const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 			const triggers: AutomationEntry['definition']['triggers'] = [{
 				id: 'host-weekdays', kind: AutomationTriggerKind.Schedule,
@@ -1753,7 +1929,7 @@ suite('AgentHostAutomationStore', () => {
 	test('keeps host-authored Weekdays in other time zones read-only without changing triggers', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		const storage = disposables.add(new InMemoryStorageService());
-		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService, connectionsService));
 		const localTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 		for (const timeZone of ['UTC', 'America/New_York', 'Asia/Tokyo'].filter(timeZone => timeZone !== localTimeZone)) {
 			const triggers: AutomationEntry['definition']['triggers'] = [{
@@ -1808,7 +1984,7 @@ suite('AgentHostAutomationStore', () => {
 		const connection = new TestAutomationConnection();
 		disposables.add(connection);
 		const storage = disposables.add(new InMemoryStorageService());
-		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService, connectionsService));
 		const automation = await store.createAutomation({
 			name: 'Scheduled review',
 			prompt: 'Review changes.',
@@ -1837,7 +2013,7 @@ suite('AgentHostAutomationStore', () => {
 			fromHost: resource => URI.from({ scheme: 'client', path: resource.path }),
 			resourceSchemeForProvider: provider => `remote-test-${provider}`,
 			providerForSessionScheme: scheme => scheme === 'ahp-session' ? 'mock' : scheme,
-		}, new NullLogService(), storage, activeClientService));
+		}, new NullLogService(), storage, activeClientService, connectionsService));
 
 		const automation = await store.createAutomation({
 			name: 'Remote',
@@ -1881,7 +2057,7 @@ suite('AgentHostAutomationStore', () => {
 			fromHost: resource => resource,
 			resourceSchemeForProvider: provider => `agent-host-${provider}`,
 			providerForResourceScheme: scheme => scheme.startsWith('agent-host-') ? scheme.slice('agent-host-'.length) : undefined,
-		}, new NullLogService(), storage, activeClientService));
+		}, new NullLogService(), storage, activeClientService, connectionsService));
 
 		const automation = await store.createAutomation({
 			name: 'Local',
@@ -1910,7 +2086,7 @@ suite('AgentHostAutomationStore', () => {
 			fromHost: resource => resource,
 			resourceSchemeForProvider: provider => `agent-host-${provider}`,
 			providerForResourceScheme: scheme => scheme.startsWith('agent-host-') ? scheme.slice('agent-host-'.length) : undefined,
-		}, new NullLogService(), storage, activeClientService));
+		}, new NullLogService(), storage, activeClientService, connectionsService));
 		const automation = await store.createAutomation({
 			name: 'Retargeted',
 			prompt: 'Say hi.',
@@ -1942,7 +2118,7 @@ suite('AgentHostAutomationStore', () => {
 			fromHost: resource => resource,
 			resourceSchemeForProvider: provider => `agent-host-${provider}`,
 			providerForResourceScheme: scheme => scheme.startsWith('agent-host-') ? scheme.slice('agent-host-'.length) : undefined,
-		}, new NullLogService(), storage, activeClientService));
+		}, new NullLogService(), storage, activeClientService, connectionsService));
 		const folderUri = URI.file('/workspace');
 
 		const defaultProvider = await store.createAutomation({
@@ -1982,7 +2158,7 @@ suite('AgentHostAutomationStore', () => {
 			toHost: resource => resource,
 			fromHost: resource => resource,
 			resourceSchemeForProvider: provider => `agent-host-${provider}`,
-		}, new NullLogService(), storage, activeClientService));
+		}, new NullLogService(), storage, activeClientService, connectionsService));
 		const timestamp = new Date().toISOString();
 
 		connection.setAutomation({
@@ -2058,7 +2234,7 @@ suite('AgentHostAutomationStore', () => {
 			resourceSchemeForProvider: provider => `agent-host-${provider}`,
 			sessionResource: resource => resources.get(resource),
 			onDidChangeSessionResolution: changed.event,
-		}, new NullLogService(), disposables.add(new InMemoryStorageService()), activeClientService));
+		}, new NullLogService(), disposables.add(new InMemoryStorageService()), activeClientService, connectionsService));
 		const timestamp = new Date().toISOString();
 		const backend = URI.parse('ahp-session:/historical-run');
 		const definition: AutomationEntry = {
@@ -2088,7 +2264,7 @@ suite('AgentHostAutomationStore', () => {
 		const connection = new TestAutomationConnection();
 		disposables.add(connection);
 		const storage = disposables.add(new InMemoryStorageService());
-		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService, connectionsService));
 		const automation = await store.createAutomation({
 			name: 'Restricted',
 			prompt: 'Review.',
@@ -2244,7 +2420,7 @@ suite('AgentHostAutomationStore', () => {
 		const connection = new TestAutomationConnection();
 		disposables.add(connection);
 		const storage = disposables.add(new InMemoryStorageService());
-		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService, connectionsService));
 		const automation = await store.createAutomation({
 			name: 'Cancelable',
 			prompt: 'Review.',
@@ -2312,7 +2488,7 @@ suite('AgentHostAutomationStore', () => {
 			toHost: resource => resource,
 			fromHost: resource => resource,
 			resourceSchemeForProvider: provider => `agent-host-${provider}`,
-		}, new NullLogService(), storage, activeClientService));
+		}, new NullLogService(), storage, activeClientService, connectionsService));
 		const automation = await store.createAutomation({
 			name: 'Long-running',
 			prompt: 'Review.',
@@ -2359,8 +2535,8 @@ suite('AgentHostAutomationStore', () => {
 		localConnection.setAutomation({ ...entry, resource: 'ahp-automation:/nested/review', runs: [] });
 		remoteConnection.setAutomation({ ...entry, definition: { ...entry.definition, title: 'Remote review' } });
 		const storage = disposables.add(new InMemoryStorageService());
-		const local = disposables.add(new AgentHostAutomationStore('local', localConnection, undefined, new NullLogService(), storage, activeClientService));
-		const remote = disposables.add(new AgentHostAutomationStore('remote', remoteConnection, undefined, new NullLogService(), storage, activeClientService));
+		const local = disposables.add(new AgentHostAutomationStore('local', localConnection, undefined, new NullLogService(), storage, activeClientService, connectionsService));
+		const remote = disposables.add(new AgentHostAutomationStore('remote', remoteConnection, undefined, new NullLogService(), storage, activeClientService, connectionsService));
 		const providers = [
 			upcastPartial<ISessionsProvider>({ id: 'local', automations: local }),
 			upcastPartial<ISessionsProvider>({ id: 'remote', automations: remote }),
@@ -2393,6 +2569,7 @@ suite('AgentHostAutomationStore', () => {
 			remoteRequests: remoteConnection.runRequests,
 			localMutations: localConnection.dispatched.map(({ action }) => action.type === ActionType.AutomationUpdateRequested ? action.resource : action.type),
 			remoteMutations: remoteConnection.dispatched.map(({ action }) => action.type),
+			remoteDeletions: remoteConnection.deleteRequests,
 			remaining: service.automations.get().map(automation => automation.id),
 		}, {
 			catalogueIds: ['local:ahp-automation:/review', 'local:ahp-automation:/nested/review', 'remote:ahp-automation:/review'],
@@ -2402,7 +2579,8 @@ suite('AgentHostAutomationStore', () => {
 			localRequests: [],
 			remoteRequests: [resource],
 			localMutations: ['ahp-automation:/nested/review'],
-			remoteMutations: [ActionType.AutomationUpdateRequested, ActionType.AutomationUpdateRequested, ActionType.AutomationRemoved],
+			remoteMutations: [ActionType.AutomationUpdateRequested, ActionType.AutomationUpdateRequested],
+			remoteDeletions: [{ resource, deleteHistory: true, legacySessions: [] }],
 			remaining: ['local:ahp-automation:/review', 'local:ahp-automation:/nested/review'],
 		});
 	});

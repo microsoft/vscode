@@ -92,6 +92,7 @@ class TestApi extends mock<IAutomationsClient>() {
 		if (this.listError) {
 			throw this.listError;
 		}
+
 		return { data: { automations: this.definitions, total_count: this.definitions.length } };
 	}
 	override async listRuns(): Promise<PaginatedResponse<ListTasksResponse>> {
@@ -593,6 +594,20 @@ suite('CloudAutomationStore', () => {
 			catalogueReads: 1,
 			name: 'Updated on GitHub',
 		});
+	});
+
+	test('deletion preserves the cloud operation and rejects a history choice', async () => {
+		const { provider, api, set } = setup();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		const id = provider.automations.get()[0].id;
+		api.calls.length = 0;
+		await assert.rejects(provider.deleteAutomation(id, { deleteHistory: false }), /do not support choosing/);
+		await provider.deleteAutomation(id, undefined, () => api.calls.push('guard'));
+		assert.deepStrictEqual({
+			calls: api.calls,
+			automations: provider.automations.get(),
+		}, { calls: ['visibility', 'guard', 'delete'], automations: [] });
 	});
 
 	test('concurrent refreshes share history and cannot republish rows after the cloud gate closes', async () => {

@@ -32,7 +32,7 @@ import { CODEX_SESSION_MODEL_META_KEY, withCodexSessionModel } from '../../commo
 import { ConfigurationTarget, type IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { ContentEncoding, ReconnectResultType } from '../../common/state/protocol/commands.js';
 import { ChatSourceKind } from '../../common/state/protocol/channels-chat/commands.js';
-import { ChatInteractivity, ResourceChangeType, ResponsePartKind, SessionLifecycle } from '../../common/state/protocol/state.js';
+import { ChatInteractivity, ResourceChangeType, ResponsePartKind, SessionLifecycle, SessionOriginKind, type SessionOrigin } from '../../common/state/protocol/state.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../../common/state/protocol/errors.js';
 import { deriveLegacyDefaultChat } from '../../common/agentHostLegacyDefaultChat.js';
 import { isActionKnownToVersion, PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
@@ -1242,6 +1242,30 @@ suite('AgentHostProtocolClient', () => {
 
 		const sessions = await resultPromise;
 		assert.deepStrictEqual(sessions.map(s => readSessionExternal(s._meta)), [true]);
+	});
+
+	test('listSessions preserves typed session origin without filtering the catalogue', async () => {
+		const { client, transport } = createClient();
+		const origin: SessionOrigin = { kind: SessionOriginKind.Automation, automation: 'ahp-automation:/review', run: 'ahp-automation-run:/run' };
+		const resultPromise = client.listSessions();
+		const sent = transport.sentMessages[0];
+		assert.ok(hasKey(sent, { id: true }) && (typeof sent.id === 'number' || typeof sent.id === 'string'));
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: sent.id,
+			result: {
+				items: [origin, undefined].map((origin, index) => ({
+					resource: `agent-session://copilotcli/session-${index}`,
+					provider: 'copilotcli',
+					title: 'Session',
+					status: SessionStatus.Idle,
+					createdAt: new Date(1000).toISOString(),
+					modifiedAt: new Date(2000).toISOString(),
+					origin,
+				})),
+			},
+		});
+		assert.deepStrictEqual((await resultPromise).map(session => session.origin), [origin, undefined]);
 	});
 
 	test('listSessions reads only valid provider-qualified Codex models from namespaced metadata', async () => {
@@ -2725,6 +2749,38 @@ suite('AgentHostProtocolClient', () => {
 		const error = { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found' };
 		transport.fireMessage({ jsonrpc: '2.0', id: 1, error });
 		await assertRemoteProtocolError(resultPromise, error);
+	});
+
+	test('deleteAutomation sends the history choice and host session identities', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, true));
+		transport.sentMessages.length = 0;
+		const result = client.deleteAutomation('ahp-automation:/review', true, [URI.parse('copilotcli:/legacy')]);
+		assert.deepStrictEqual(transport.sentMessages, [{
+			jsonrpc: '2.0', id: 2, method: 'vscode/deleteAutomation',
+			params: { automation: 'ahp-automation:/review', deleteHistory: true, legacySessions: ['copilotcli:/legacy'] },
+		}]);
+		transport.fireMessage({ jsonrpc: '2.0', id: 2, result: null });
+		await result;
+	});
+
+	test('deleteAutomation fails without sending to a host lacking the history capability', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport);
+		transport.sentMessages.length = 0;
+		await assert.rejects(client.deleteAutomation('ahp-automation:/review', false), /does not support Automation history/);
+		assert.deepStrictEqual(transport.sentMessages, []);
+	});
+
+	test('deleteAutomation propagates session cleanup failures when keeping or deleting history', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, true));
+		for (const [index, deleteHistory] of [false, true].entries()) {
+			const result = client.deleteAutomation('ahp-automation:/review', deleteHistory);
+			const error = { code: JsonRpcErrorCodes.InternalError, message: 'Session cleanup failed' };
+			transport.fireMessage({ jsonrpc: '2.0', id: index + 2, error });
+			await assertRemoteProtocolError(result, error);
+		}
 	});
 
 	test('getSessionStateFile maps the returned host resource', async () => {

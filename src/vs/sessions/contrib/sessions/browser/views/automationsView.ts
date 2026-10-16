@@ -1849,7 +1849,7 @@ class AutomationHistorySection extends Disposable {
 	}
 
 	private getAutomationName(run: IAutomationRun): string {
-		return this.automationService.automations.get().find(automation => automation.id === run.automationId)?.name
+		return this.automationService.getAutomation(run.automationId)?.name
 			?? localize('unknownAutomation', "Unknown");
 	}
 
@@ -2199,10 +2199,19 @@ async function confirmAndDeleteAutomation(
 		await showAutomationsDisabled(dialogService);
 		return;
 	}
+	const supportsHistoryChoice = automationService.supportsDeleteHistoryChoice?.(automation.id) === true;
 	const confirmed = await dialogService.confirm({
 		message: localize('confirmDeleteAutomation', "Delete automation \"{0}\"?", automation.name),
-		detail: localize('confirmDeleteDetail', "This will permanently delete the automation and its run history."),
+		detail: supportsHistoryChoice
+			? localize('confirmDeleteHistoryDetail', "This will stop future runs. Run history and its sessions will be deleted. Clear the checkbox to keep them in Automations.")
+			: localize('confirmDeleteDetail', "This will permanently delete the automation and its run history."),
 		primaryButton: localize('delete', "Delete"),
+		...(supportsHistoryChoice ? {
+			checkbox: {
+				label: localize('deleteAutomationRunHistory', "Delete run history"),
+				checked: true,
+			}
+		} : {}),
 	});
 	if (!confirmed.confirmed) {
 		return;
@@ -2212,7 +2221,7 @@ async function confirmAndDeleteAutomation(
 		return;
 	}
 	try {
-		await automationService.deleteAutomation(automation.id, () => {
+		await automationService.deleteAutomation(automation.id, supportsHistoryChoice ? { deleteHistory: confirmed.checkboxChecked ?? true } : undefined, () => {
 			if (!isEnabled()) {
 				throw new Error(localize('automationsDisabledBeforeDelete', "Automations were disabled before the automation could be deleted."));
 			}

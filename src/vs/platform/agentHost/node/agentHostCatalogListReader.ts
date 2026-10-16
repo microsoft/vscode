@@ -13,16 +13,20 @@ import { chatCatalogV2ToCatalogChats, fromCatalogChatOrigin, isAgentHostChatBack
 import { AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT, type IAgentHostDatabase, type IAgentHostDatabaseCatalogSnapshotEntry, type IAgentHostDatabaseSessionListCatalog } from './agentHostDatabase.js';
 import type { IRegisteredSession } from './agentSessionRegistry.js';
 
-export type AgentHostCatalogListResult =
-	/** The central row is authoritative for this session's listing. */
-	| { readonly eligible: true; readonly metadata: IAgentSessionMetadata; readonly data: AgentHostCatalogRevivedData }
-	/**
-	 * The central row marks the session as a chat backing. It is deliberately
-	 * hidden and must never fall back into the top-level list.
-	 */
-	| { readonly eligible: false; readonly chatBacking: true }
-	/** The central row is missing, stale, unusable, or unreadable; the caller falls back and repairs only non-read failures. */
-	| { readonly eligible: false; readonly chatBacking: false; readonly detail: string; readonly error?: Error };
+export type AgentHostCatalogListResult = {
+	/** The central row, null when absent or rejected, or undefined when it was not read successfully. */
+	readonly catalog?: IAgentHostDatabaseSessionListCatalog | null;
+} & (
+		/** The central row is authoritative for this session's listing. */
+		| { readonly eligible: true; readonly metadata: IAgentSessionMetadata; readonly data: AgentHostCatalogRevivedData }
+		/**
+		 * The central row marks the session as a chat backing. It is deliberately
+		 * hidden and must never fall back into the top-level list.
+		 */
+		| { readonly eligible: false; readonly chatBacking: true }
+		/** The central row is missing, stale, unusable, or unreadable; the caller falls back and repairs only non-read failures. */
+		| { readonly eligible: false; readonly chatBacking: false; readonly detail: string; readonly error?: Error; readonly fallbackMetadata?: IAgentSessionMetadata }
+	);
 
 export type AgentHostCatalogListManyResult = {
 	readonly results: readonly AgentHostCatalogListResult[];
@@ -96,32 +100,33 @@ export class AgentHostCatalogListReader {
 	private _read(registered: IRegisteredSession, catalog: IAgentHostDatabaseSessionListCatalog | undefined, snapshot?: IAgentHostDatabaseCatalogSnapshotEntry): AgentHostCatalogListResult {
 		const session = registered.session.toString();
 		if (!catalog) {
-			return ineligible('no central row');
+			return ineligible('no central row', null);
 		}
 		if (catalog.session !== session) {
-			return ineligible(`central row identity ${catalog.session} does not match`);
+			return ineligible(`central row identity ${catalog.session} does not match`, null);
 		}
 		if (isAgentHostChatBacking(registered.session, catalog.isChatBacking)) {
-			return { eligible: false, chatBacking: true };
+			return { eligible: false, chatBacking: true, catalog };
 		}
 		if (catalog.provider !== registered.provider) {
-			return ineligible(`central row provider ${catalog.provider} does not match ${registered.provider}`);
+			return ineligible(`central row provider ${catalog.provider} does not match ${registered.provider}`, null);
 		}
-		if (catalog.payloadVersion !== AGENT_HOST_CATALOG_PAYLOAD_VERSION) {
-			return ineligible(`central row payload version ${catalog.payloadVersion} is outdated`);
+		const needsMigration = catalog.payloadVersion !== AGENT_HOST_CATALOG_PAYLOAD_VERSION;
+		if (needsMigration && catalog.payloadVersion !== 1 && catalog.payloadVersion !== 2) {
+			return ineligible(`central row payload version ${catalog.payloadVersion} is outdated`, catalog);
 		}
 		if (catalog.chatCatalog?.header.sessionGeneration !== undefined && catalog.chatCatalog.header.sessionGeneration !== catalog.sessionGeneration) {
 			throw new Error(`Normalized chat catalog identity does not match session ${session}`);
 		}
-		const decoded = decodeAgentHostCatalogPayloadData(catalog.payload);
+		const decoded = decodeAgentHostCatalogPayloadData(catalog.payload, { forMigration: needsMigration });
 		if (!decoded.ok) {
-			return ineligible(`central payload is ${decoded.reason}: ${decoded.error}`);
+			return ineligible(`central payload is ${decoded.reason}: ${decoded.error}`, catalog);
 		}
 		// A payload can only become chat-backing through a write that also
 		// updates the row marker, but an inconsistent row must still hide
 		// the session rather than surface a backing as a top-level entry.
 		if (isAgentHostChatBacking(registered.session, decoded.value.isChatBacking === true)) {
-			return { eligible: false, chatBacking: true };
+			return { eligible: false, chatBacking: true, catalog };
 		}
 		if (snapshot?.authorityVersion === 2 && ((snapshot.header?.sessionGeneration !== undefined && snapshot.header.sessionGeneration !== catalog.sessionGeneration)
 			|| snapshot.identity.provider !== registered.provider)) {
@@ -138,7 +143,11 @@ export class AgentHostCatalogListReader {
 			...revivedData,
 			chats: revivedData.chats.filter(chat => fromCatalogChatOrigin(chat.origin)?.kind !== ChatOriginKind.Tool),
 		};
-		return { eligible: true, metadata: this._toSessionMetadata(registered, data), data };
+		const metadata = this._toSessionMetadata(registered, data);
+		if (needsMigration) {
+			return { eligible: false, chatBacking: false, detail: `central row payload version ${catalog.payloadVersion} is outdated`, fallbackMetadata: metadata, catalog };
+		}
+		return { eligible: true, metadata, data, catalog };
 	}
 
 	private _toSessionMetadata(registered: IRegisteredSession, data: AgentHostCatalogRevivedData): IAgentSessionMetadata {
@@ -155,6 +164,7 @@ export class AgentHostCatalogListReader {
 			// payload's own timestamp until the next reconciliation writes it back.
 			modifiedTime: Math.max(data.modifiedTime, registered.modifiedTime),
 			summary: data.summary,
+			origin: data.origin,
 			status,
 			project: data.project,
 			workingDirectories: [...data.workingDirectories],
@@ -175,8 +185,8 @@ export class AgentHostCatalogListReader {
 	}
 }
 
-function ineligible(detail: string): AgentHostCatalogListResult {
-	return { eligible: false, chatBacking: false, detail };
+function ineligible(detail: string, catalog: IAgentHostDatabaseSessionListCatalog | null): AgentHostCatalogListResult {
+	return { eligible: false, chatBacking: false, detail, catalog };
 }
 
 function readFailed(error: unknown): AgentHostCatalogListResult {
