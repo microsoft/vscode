@@ -868,6 +868,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		endpoint: IChatEndpoint,
 		messages: Raw.ChatMessage[],
 		prediction: Prediction | undefined,
+		modelServiceConfig: xtabPromptOptions.ModelConfiguration,
 		requestId: string,
 		fetchMetadata: FetchMetadata,
 		shouldRemoveCursorTagFromResponse: boolean,
@@ -896,11 +897,20 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		logContext.setFetchStartTime();
 
 		const requestOptions: OptionalChatRequestParams = { temperature: 0, stream: true, prediction };
-		if (!this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderUsePrediction, this.expService)
-			&& !this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderUseMaxTokens, this.expService)) {
-			// ChatMLFetcher adds { max_tokens: endpoint.maxOutputTokens, ...requestOptions } when not using prediction.
-			// Explicit undefined overrides that default. JSON serialization then omits max_tokens
-			requestOptions.max_tokens = undefined;
+		if (modelServiceConfig.reasoningEffort !== undefined) {
+			requestOptions.reasoning_effort = modelServiceConfig.reasoningEffort;
+		}
+
+		// Set token limits. Prediction is not compatible with token limits
+		if (!this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderUsePrediction, this.expService)) {
+			const useMaxTokens = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderUseMaxTokens, this.expService);
+			// Explicit undefined suppresses the fetcher's max_tokens default; JSON serialization omits it.
+			if (!useMaxTokens || modelServiceConfig.maxCompletionTokens !== undefined) {
+				requestOptions.max_tokens = undefined;
+			}
+			if (useMaxTokens && modelServiceConfig.maxCompletionTokens !== undefined) {
+				requestOptions.max_completion_tokens = modelServiceConfig.maxCompletionTokens;
+			}
 		}
 
 		// we must not await this promise because we want to stream edits as they come in
@@ -1018,7 +1028,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 
 		// Phase 1: Fetch lifecycle — initiate HTTP request and produce a clean line stream
 		const fetchResult = await this._performFetch(
-			endpoint, messages, prediction, request.headerRequestId,
+			endpoint, messages, prediction, editStreamCtx.modelServiceConfig, request.headerRequestId,
 			fetchMetadata, responseOpts.shouldRemoveCursorTagFromResponse,
 			editWindow, request.documentBeforeEdits,
 			fetchCancellationToken, tracing,
