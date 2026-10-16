@@ -102,6 +102,8 @@ import { resolveCodexInput } from './codexPromptResolver.js';
 import { buildUserInputRequest, emptyUserInputResponse, userInputResponseFromAnswers } from './codexUserInputMapper.js';
 import { replayThreadToTurns, type ICodexReplayedCommand } from './codexReplayMapper.js';
 import { codexRetainedCommandOutputContent, shouldRetainCodexCommandOutput } from './codexTerminalOutput.js';
+import { storeCodexTurnDiff } from './codexTurnDiff.js';
+import type { TurnDiffUpdatedNotification } from './protocol/generated/v2/TurnDiffUpdatedNotification.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CodexSessionMetadataStore } from './codexSessionMetadataStore.js';
@@ -1110,6 +1112,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	readonly onDidChatProgress = this._onDidChatProgress.event;
 	private readonly _pendingCommandOutputs = new WeakMap<ICodexSession, Map<string, Promise<ToolResultContent[]>>>();
 	private readonly _pendingChatProgress = new WeakMap<ICodexSession, Promise<void>>();
+	private readonly _turnDiffs = new WeakMap<ICodexSession, Map<string, TurnDiffUpdatedNotification>>();
 
 	private readonly _onDidMaterializeChat = this._register(new Emitter<IAgentMaterializeChatEvent>());
 	readonly onDidMaterializeChat = this._onDidMaterializeChat.event;
@@ -2653,6 +2656,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		}));
 		subscriptions.add(client.onNotification('skills/changed', () => this._queueSkillHookCustomizationRefresh(client)));
 		subscriptions.add(client.onNotification('turn/started', params => this._dispatchByThread(params.threadId, s => this._handleTurnStartedNotification(s, params))));
+		subscriptions.add(client.onNotification('turn/diff/updated', params => this._dispatchByThread(params.threadId, s => this._handleTurnDiffUpdated(s, params))));
 		subscriptions.add(client.onNotification('item/started', params => this._dispatchByThread(params.threadId, s => this._handleItemStarted(s, params))));
 		subscriptions.add(client.onNotification('item/agentMessage/delta', params => this._dispatchByThread(params.threadId, s => mapAgentMessageDelta(s.mapState, this._withHostTurnId(s, params)))));
 		subscriptions.add(client.onNotification('item/commandExecution/outputDelta', params => this._dispatchByThread(params.threadId, s => mapCommandExecutionOutputDelta(s.mapState, this._withHostTurnId(s, params)))));
@@ -3110,6 +3114,34 @@ export class CodexAgent extends Disposable implements IAgent {
 		ref.object.setTurnEventId(hostTurnId, appTurnId).catch(error => {
 			this._logService.warn(`[Codex:${session.threadId}] Failed to persist turn id mapping ${hostTurnId} -> ${appTurnId}`, error);
 		}).finally(() => ref.dispose());
+	}
+
+	private _handleTurnDiffUpdated(session: ICodexSession, params: TurnDiffUpdatedNotification): (SessionAction | ChatAction)[] {
+		let diffs = this._turnDiffs.get(session);
+		if (!diffs) {
+			diffs = new Map();
+			this._turnDiffs.set(session, diffs);
+		}
+		diffs.set(params.turnId, params);
+		return [];
+	}
+
+	/** Persists the final cumulative diff before the turn-complete signal reaches changeset consumers. */
+	private _stageTurnDiff(session: ICodexSession, appTurnId: string, publisher = session, turnId = this._hostTurnId(session, appTurnId)): void {
+		const diffs = this._turnDiffs.get(session);
+		const notification = diffs?.get(appTurnId);
+		diffs?.delete(appTurnId);
+		if (!notification?.diff || !session.chatStorage || !session.workingDirectory || session.disposed) {
+			return;
+		}
+		const database = this._sessionDataService.openDatabase(session.chatStorage);
+		const captured = storeCodexTurnDiff(notification, {
+			turnId, cwd: session.workingDirectory, database: database.object, fileService: this._fileService, logService: this._logService,
+		}).catch(error => {
+			this._logService.warn(`[Codex:${session.threadId}] Failed to capture turn diff`, error);
+		}).finally(() => database.dispose());
+		const previous = this._pendingChatProgress.get(publisher);
+		this._pendingChatProgress.set(publisher, Promise.all([previous, captured]).then(() => { }));
 	}
 
 	private _handleTurnCompletedNotification(session: ICodexSession, params: TurnCompletedNotification, retainRecoveredOutput = true): (SessionAction | ChatAction)[] {
@@ -3679,6 +3711,10 @@ export class CodexAgent extends Disposable implements IAgent {
 	private _dispatchTurnCompleted(params: TurnCompletedNotification): void {
 		const subagent = this._subagentsByThreadId.get(params.threadId);
 		if (subagent) {
+			const parent = this._sessions.get(subagent.parentSessionId);
+			if (parent) {
+				this._stageTurnDiff(subagent.session, params.turn.id, parent, parent.currentTurnId ?? this._hostTurnId(subagent.session, params.turn.id));
+			}
 			const actions = this._handleTurnCompletedNotification(subagent.session, params, false);
 			for (const action of actions) {
 				if (action.type === ActionType.ChatTurnComplete) {
@@ -3695,7 +3731,10 @@ export class CodexAgent extends Disposable implements IAgent {
 			});
 			return;
 		}
-		this._dispatchByThread(params.threadId, s => this._handleTurnCompletedNotification(s, params));
+		this._dispatchByThread(params.threadId, s => {
+			this._stageTurnDiff(s, params.turn.id);
+			return this._handleTurnCompletedNotification(s, params);
+		});
 	}
 
 	/**
@@ -4181,6 +4220,13 @@ export class CodexAgent extends Disposable implements IAgent {
 			this._disposeConnectionResources(connection);
 			return;
 		}
+		for (const subagent of this._subagentsByThreadId.values()) {
+			const parent = this._sessions.get(subagent.parentSessionId);
+			const appTurnId = subagent.session.currentAppTurnId;
+			if (parent?.currentTurnId && appTurnId) {
+				this._stageTurnDiff(subagent.session, appTurnId, parent, parent.currentTurnId);
+			}
+		}
 		// Notify every known session with a single ChatError + complete
 		// pair so the UI surfaces "agent disconnected" cleanly.
 		for (const session of this._sessions.values()) {
@@ -4201,6 +4247,9 @@ export class CodexAgent extends Disposable implements IAgent {
 			this._drainPendingSteering(session);
 			const turnId = session.currentTurnId;
 			const appTurnId = session.currentAppTurnId;
+			if (appTurnId) {
+				this._stageTurnDiff(session, appTurnId);
+			}
 			session.currentTurnId = undefined;
 			session.currentAppTurnId = undefined;
 			session.agentMergeTurn = false;
@@ -6681,32 +6730,16 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		const storage = context ? resolveAgentChatContext(context, chat).resource : targetSession?.chatStorage;
 		if (storage) {
-			await this._deleteRetainedCommandOutputs(storage, turns.slice(firstTurnToRemove));
-		}
-	}
-
-	/**
-	 * Removes output retained for the commands of turns removed from the
-	 * thread. Codex keeps the chat's database turns, so their retained output
-	 * would otherwise stay until the chat is deleted.
-	 */
-	private async _deleteRetainedCommandOutputs(storage: URI, turns: Thread['turns']): Promise<void> {
-		const toolCallIds = turns.flatMap(turn => (turn.items ?? []).flatMap(item => item.type === 'commandExecution' ? [item.id] : []));
-		if (toolCallIds.length === 0) {
-			return;
-		}
-		try {
-			const database = await this._sessionDataService.tryOpenDatabase(storage);
-			if (!database) {
-				return;
-			}
+			const database = this._sessionDataService.openDatabase(storage);
 			try {
-				await Promise.all(toolCallIds.map(toolCallId => database.object.deleteTerminalOutput(toolCallId)));
+				if (turnId !== undefined) {
+					await database.object.deleteTurnsAfter(turnId);
+				} else {
+					await database.object.deleteAllTurns();
+				}
 			} finally {
 				database.dispose();
 			}
-		} catch (error) {
-			this._logService.warn(`[Codex] Failed to remove retained command output in ${storage.toString()}`, error);
 		}
 	}
 
@@ -8836,7 +8869,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._emitChatProgress(session, { kind: 'action', resource: sessionUri, action });
 	}
 
-	/** Keeps mapping synchronous while publishing each chat's signals in order after pending output writes. */
+	/** Keeps mapping synchronous while publishing each chat's signals in order after pending snapshot and output writes. */
 	private _emitChatProgress(session: ICodexSession | undefined, signal: AgentSignal): void {
 		const completion = signal.kind === 'action' && !signal.parentToolCallId && signal.action.type === ActionType.ChatToolCallComplete ? signal.action : undefined;
 		const outputs = session && this._pendingCommandOutputs.get(session);

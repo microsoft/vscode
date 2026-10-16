@@ -12,7 +12,8 @@ import { constObservable, derived, derivedOpts, IObservable, IReader, observable
 import { URI } from '../../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { FileEditKind, ToolCallStatus, type ToolCallState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/fileEditDiff.js';
+import { FileEditKind, ToolCallStatus, type ISessionFileDiff, type ToolCallState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IChatProgress, IChatWorkspaceEdit } from '../../../common/chatService/chatService.js';
@@ -22,12 +23,13 @@ import { fileEditsToExternalEdits, type IToolCallFileEdit } from './stateToProgr
 
 /**
  * One checkpoint per request. Accumulates the before/after content URIs of
- * every completed tool call's file edits so the request's edits can be
+ * completed tool calls or a provider's turn changeset so the request's edits can be
  * undone/redone on disk during {@link AgentHostSnapshotController.restoreSnapshot}.
  */
 interface IAgentHostCheckpoint {
 	readonly requestId: string;
 	readonly edits: IToolCallFileEdit[];
+	turnEditsResolved: boolean;
 	/** Tool-call IDs whose edits have already been folded into `edits`. */
 	readonly seenToolCallIds: Set<string>;
 }
@@ -53,8 +55,8 @@ interface IAgentHostCheckpoint {
  * {@link restoreSnapshot}, {@link getSnapshotUri}, and {@link getSnapshotContents}
  * are accepted for interface compatibility but ignored.
  *
- * Hydrated by the session handler via {@link ensureRequestCheckpoint} and
- * {@link addToolCallEdits} as turns and tool calls arrive.
+ * Hydrated by the session handler as turns and tool calls arrive, with
+ * optional turn changesets resolved when checkpoint content is needed.
  */
 export class AgentHostSnapshotController extends Disposable implements IChatEditingSession {
 
@@ -89,6 +91,10 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 	constructor(
 		readonly chatSessionResource: URI,
 		private readonly _connectionAuthority: string,
+		private readonly _turnEdits: {
+			readonly getChanges: (requestId: string) => IObservable<readonly IEditSessionEntryDiff[]> | undefined;
+			readonly resolve: (requestId: string) => Promise<readonly ISessionFileDiff[] | undefined>;
+		} | undefined,
 		@ILogService private readonly _logService: ILogService,
 		@IFileService private readonly _fileService: IFileService,
 	) {
@@ -119,7 +125,7 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 			this._checkpoints.splice(currentIdx + 1);
 		}
 
-		this._checkpoints.push({ requestId, edits: [], seenToolCallIds: new Set() });
+		this._checkpoints.push({ requestId, edits: [], turnEditsResolved: false, seenToolCallIds: new Set() });
 
 		// Advance the cursor to the new checkpoint. Otherwise the just-added
 		// request would appear in requestDisablement (it would sit forward of
@@ -150,7 +156,10 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 		if (fileEdits.length === 0) {
 			return;
 		}
+		this._addCheckpointEdits(cp, fileEdits);
+	}
 
+	private _addCheckpointEdits(cp: IAgentHostCheckpoint, fileEdits: readonly IToolCallFileEdit[], replace = false): void {
 		const authority = this._connectionAuthority;
 		for (const edit of fileEdits) {
 			const resource = toAgentHostUri(edit.resource, authority);
@@ -174,7 +183,7 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 			if (existingIdx < 0) {
 				cp.edits.push(entry);
 			} else {
-				cp.edits[existingIdx] = mergeFileEdit(cp.edits[existingIdx], entry);
+				cp.edits[existingIdx] = replace ? entry : mergeFileEdit(cp.edits[existingIdx], entry);
 			}
 		}
 	}
@@ -256,7 +265,9 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 
 	getSnapshotUri(requestId: string, uri: URI, _stopId: string | undefined): URI | undefined {
 		const cp = this._checkpoints.find(c => c.requestId === requestId);
-		if (!cp || !cp.edits.some(e => e.resource.toString() === uri.toString())) {
+		const hasFile = cp?.edits.some(e => e.resource.toString() === uri.toString())
+			|| this._turnEdits?.getChanges(requestId)?.get().some(edit => edit.modifiedURI.toString() === uri.toString());
+		if (!cp || !hasFile) {
 			return undefined;
 		}
 		return URI.from({
@@ -271,6 +282,7 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 		if (!cp) {
 			return undefined;
 		}
+		await this._resolveCheckpointEdits(cp);
 		const uriStr = uri.toString();
 		// Use the last edit for this file in the request — that's the
 		// "after-content" the diff viewer wants to display.
@@ -300,9 +312,9 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 		return null;
 	}
 
-	hasEditsInRequest(requestId: string, _reader?: IReader): boolean {
+	hasEditsInRequest(requestId: string, reader?: IReader): boolean {
 		const cp = this._checkpoints.find(c => c.requestId === requestId);
-		return !!cp && cp.edits.length > 0;
+		return !!cp && (cp.edits.length > 0 || (this._turnEdits?.getChanges(requestId)?.read(reader).length ?? 0) > 0);
 	}
 
 	// ---- Unsupported / no-op (agent host owns edits server-side) ------------
@@ -348,7 +360,33 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 
 	// ---- Private helpers ----------------------------------------------------
 
+	/** Loads authoritative turn snapshots for providers that do not report edits on tool calls. */
+	private async _resolveCheckpointEdits(checkpoint: IAgentHostCheckpoint): Promise<void> {
+		if (checkpoint.turnEditsResolved) {
+			return;
+		}
+		const edits = await this._turnEdits?.resolve(checkpoint.requestId);
+		if (!edits) {
+			return;
+		}
+		const fileEdits: IToolCallFileEdit[] = [];
+		for (const edit of edits) {
+			const normalized = normalizeFileEdit(edit);
+			if (normalized) {
+				fileEdits.push({
+					...normalized,
+					originalResource: normalized.kind === FileEditKind.Rename ? normalized.beforeUri : undefined,
+					undoStopId: checkpoint.requestId,
+					diff: edit.diff,
+				});
+			}
+		}
+		this._addCheckpointEdits(checkpoint, fileEdits, true);
+		checkpoint.turnEditsResolved = true;
+	}
+
 	private async _writeCheckpointContent(checkpoint: IAgentHostCheckpoint, direction: 'before' | 'after'): Promise<void> {
+		await this._resolveCheckpointEdits(checkpoint);
 		const ops = checkpoint.edits.map(async edit => {
 			try {
 				if (direction === 'before') {
