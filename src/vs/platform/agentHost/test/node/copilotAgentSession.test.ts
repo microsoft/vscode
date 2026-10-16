@@ -54,7 +54,7 @@ import { readAgentSandboxDiagnostics } from '../../common/meta/agentSandboxDiagn
 import { toSlashCommandResourceMeta } from '../../common/meta/agentSlashCommandOutputMeta.js';
 import { mintedTestChatOwner } from '../common/mintedChatUri.js';
 import { createUnmanagedCopilotSettings, toSessionEvents } from './copilotTestEvents.js';
-import { fusionTestData } from './copilotFusionTestEvents.js';
+import { fusionMainPassTestData, fusionTestData } from './copilotFusionTestEvents.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
@@ -17741,7 +17741,7 @@ Use the attached image as context.
 
 			assert.deepStrictEqual(getActions(signals).flatMap(action => action.type === ActionType.SessionActivityChanged ? [action.activity] : []), [
 				'Preparing request',
-				'Main pass running',
+				'Fix-up pass running',
 				'Continuing the HydraFusion workflow...',
 				'Finishing request',
 				undefined,
@@ -17770,7 +17770,7 @@ Use the attached image as context.
 				mockSession.fire('assistant.intent', { intent: 'New intent' });
 
 				assert.deepStrictEqual(getActions(signals).flatMap(action => action.type === ActionType.SessionActivityChanged ? [action.activity] : []), [
-					'Main pass running', undefined, 'New intent',
+					'Fix-up pass running', undefined, 'New intent',
 				]);
 			});
 		}
@@ -18013,7 +18013,7 @@ Use the attached image as context.
 				activity: [
 					'Choosing a HydraFusion workflow...',
 					'Preparing the Cascade workflow...',
-					'Main pass running',
+					'Fix-up pass running',
 					'Continuing the HydraFusion workflow...',
 					undefined,
 				],
@@ -18047,19 +18047,19 @@ Use the attached image as context.
 				assert.strictEqual(meta.fusionPhase?.phaseId, 'phase-1');
 				assert.strictEqual(meta.fusionPhase.startedAt, Date.parse(timestamp));
 				if (tc.status !== ToolCallStatus.Streaming) {
-					assert.strictEqual(tc.invocationMessage, 'Main pass');
+					assert.strictEqual(tc.invocationMessage, 'Fix-up pass');
 				}
 				return { action: action.type, status: tc.status, model: meta.fusionPhase.model, progress: meta.progressMessage };
 			});
 			assert.deepStrictEqual(snapshots, [
-				{ action: ActionType.ChatToolCallStart, status: ToolCallStatus.Streaming, model: 'model-a', progress: 'Main pass running' },
-				{ action: ActionType.ChatToolCallReady, status: ToolCallStatus.Running, model: 'model-a', progress: 'Main pass running' },
-				{ action: ActionType.ChatToolCallReady, status: ToolCallStatus.Running, model: 'model-a', progress: 'Main pass: running a tool' },
-				{ action: ActionType.ChatToolCallReady, status: ToolCallStatus.Running, model: 'actual-model', progress: 'Main pass running' },
+				{ action: ActionType.ChatToolCallStart, status: ToolCallStatus.Streaming, model: 'model-a', progress: 'Fix-up pass running' },
+				{ action: ActionType.ChatToolCallReady, status: ToolCallStatus.Running, model: 'model-a', progress: 'Fix-up pass running' },
+				{ action: ActionType.ChatToolCallReady, status: ToolCallStatus.Running, model: 'model-a', progress: 'Fix-up pass: running a tool' },
+				{ action: ActionType.ChatToolCallReady, status: ToolCallStatus.Running, model: 'actual-model', progress: 'Fix-up pass running' },
 				{ action: ActionType.ChatToolCallComplete, status: ToolCallStatus.Completed, model: 'actual-model', progress: undefined },
 			]);
 			assert.deepStrictEqual(getActions(signals).flatMap(action => action.type === ActionType.SessionActivityChanged ? [action.activity] : []), [
-				'Main pass running', 'Main pass: running a tool', 'Main pass running', 'Continuing the HydraFusion workflow...',
+				'Fix-up pass running', 'Fix-up pass: running a tool', 'Fix-up pass running', 'Continuing the HydraFusion workflow...',
 			]);
 		});
 
@@ -18111,7 +18111,7 @@ Use the attached image as context.
 			}, {
 				statuses: ['cancelled'],
 				completions: [{ toolCallId: 'fusion:fusion-1:phase-1', success: false }],
-				activity: ['Main pass running', undefined],
+				activity: ['Fix-up pass running', undefined],
 			});
 		});
 
@@ -18158,7 +18158,7 @@ Use the attached image as context.
 				}, {
 					lateEvents: 0,
 					currentActions: [ActionType.ChatToolCallReady, ActionType.SessionActivityChanged],
-					currentTools: [{ turnId: 'second', toolCallId: 'fusion:fusion-2:phase-2', activity: 'Main pass: running a tool' }],
+					currentTools: [{ turnId: 'second', toolCallId: 'fusion:fusion-2:phase-2', activity: 'Fix-up pass: running a tool' }],
 				});
 			});
 		}
@@ -18213,7 +18213,7 @@ Use the attached image as context.
 					lateEvents: 0,
 					introductions: 1,
 					currentTools: [{ turnId: 'second', toolCallId: 'fusion:fusion-2:phase-2' }],
-					activity: ['Preparing the Cascade workflow...', 'Main pass running', 'Main pass: running a tool', 'Main pass running'],
+					activity: ['Preparing the Cascade workflow...', 'Fix-up pass running', 'Fix-up pass: running a tool', 'Fix-up pass running'],
 				});
 			});
 		}
@@ -18306,7 +18306,7 @@ Use the attached image as context.
 					lateEvents: 0,
 					latestTelemetryOwner: 'second',
 					pendingEvents: 0,
-					activity: ['Main pass: running a tool', undefined],
+					activity: ['Fix-up pass: running a tool', undefined],
 					statuses: ['degraded'],
 				});
 			});
@@ -18343,7 +18343,7 @@ Use the attached image as context.
 				}, {
 					introductions: 1,
 					phaseStarts: 1,
-					activity: ['Preparing the Cascade workflow...', 'Main pass running', 'Main pass: running a tool', 'Main pass running'],
+					activity: ['Preparing the Cascade workflow...', 'Fix-up pass running', 'Fix-up pass: running a tool', 'Fix-up pass running'],
 					pendingEvents: 0,
 				});
 			});
@@ -18619,7 +18619,7 @@ Use the attached image as context.
 			});
 		});
 
-		test('a rejected Fusion phase keeps its live work in its chat but never becomes the response', async () => {
+		test('a rejected main pass shows its work but not its answer; the repair phase keeps its work in its chat and its committed answer becomes the response', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('fusion-turn');
 			const provisional = { ephemeral: true };
@@ -18634,9 +18634,9 @@ Use the attached image as context.
 			const repair = { ...fusionTestData.started, phaseId: 'phase-3', phaseKind: 'repair' } as const;
 
 			mockSession.fire('session.fusion_resolved', fusionTestData.resolved);
-			mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+			mockSession.fire('assistant.fusion_phase_started', fusionMainPassTestData.started);
 			solverRound('phase-1', 'tc-draft', 'Checking the parser', 'Draft answer');
-			mockSession.fire('assistant.fusion_phase_completed', fusionTestData.phaseCompleted);
+			mockSession.fire('assistant.fusion_phase_completed', fusionMainPassTestData.phaseCompleted);
 			mockSession.fire('assistant.fusion_phase_started', judge);
 			mockSession.fire('assistant.fusion_phase_completed', { ...fusionTestData.phaseCompleted, ...judge, content: '{"score":2,"rationale":"Misses empty input"}' });
 			mockSession.fire('assistant.fusion_phase_started', repair);
@@ -18647,10 +18647,8 @@ Use the attached image as context.
 			mockSession.fire('session.idle', {});
 
 			assert.deepStrictEqual(fusionTranscript(signals), [
-				'subagent_started fusion:fusion-1:phase-1',
-				'fusion:fusion-1:phase-1: Checking the parser',
-				'fusion:fusion-1:phase-1: tool tc-draft',
-				'fusion:fusion-1:phase-1: Draft answer',
+				'root: Checking the parser',
+				'root: tool tc-draft',
 				'subagent_started fusion:fusion-1:phase-2',
 				'fusion:fusion-1:phase-2: **Score: 2/5**\n\nMisses empty input',
 				'subagent_started fusion:fusion-1:phase-3',
@@ -18658,7 +18656,6 @@ Use the attached image as context.
 				'fusion:fusion-1:phase-3: tool tc-fix',
 				'fusion:fusion-1:phase-3: Final answer',
 				'root: Final answer',
-				'subagent_completed fusion:fusion-1:phase-1',
 				'subagent_completed fusion:fusion-1:phase-2',
 				'subagent_completed fusion:fusion-1:phase-3',
 			]);
@@ -18749,7 +18746,7 @@ Use the attached image as context.
 		}
 
 		for (const committed of [false, true]) {
-			test(`a Fusion task_complete summary stays in its phase chat (${committed ? 'committed' : 'rejected'})`, async () => {
+			test(`a Fusion task_complete summary stays in its phase chat until it is committed as the answer (${committed ? 'committed' : 'rejected'})`, async () => {
 				const { session, mockSession, signals } = await createAgentSession(disposables);
 				session.resetTurnState('fusion-turn');
 				const replay = (commitId?: string) => {
@@ -18771,9 +18768,88 @@ Use the attached image as context.
 				assert.deepStrictEqual(fusionTranscript(signals), [
 					'subagent_started fusion:fusion-1:phase-1',
 					'fusion:fusion-1:phase-1: \n\n**Task completed:**\n\nPhase summary',
+					...(committed ? ['root: \n\n**Task completed:**\n\nPhase summary'] : []),
 				]);
 			});
 		}
+
+
+		test('an approved critique first pass shows its committed task_complete answer in the main chat without a phase tile', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('fusion-turn');
+			const critiqueFusion = (phaseId: string, commitId?: string) => ({ ...liveFusion(phaseId, commitId), pattern: 'critique' });
+			const draft = { ...fusionTestData.started, phaseKind: 'draft', pattern: 'critique' } as const;
+			const critic = { ...fusionTestData.started, phaseId: 'critic', phaseKind: 'critic', role: 'critic', conversationScope: 'review', pattern: 'critique' } as const;
+			const replay = (commitId?: string) => {
+				const options = commitId ? undefined : { ephemeral: true };
+				mockSession.fire('assistant.message', { messageId: 'm-final', content: '', toolRequests: [{ toolCallId: 'tc-complete', name: 'task_complete', arguments: {} }], fusion: critiqueFusion('phase-1', commitId) }, options);
+				mockSession.fire('tool.execution_start', { toolCallId: 'tc-complete', toolName: 'task_complete', arguments: { summary: 'Updated the parser' }, fusion: critiqueFusion('phase-1', commitId) }, options);
+				mockSession.fire('tool.execution_complete', { toolCallId: 'tc-complete', success: true, result: { content: 'Done' }, fusion: critiqueFusion('phase-1', commitId) }, options);
+			};
+
+			mockSession.fire('session.fusion_resolved', { ...fusionTestData.resolved, pattern: 'critique' });
+			mockSession.fire('assistant.fusion_phase_started', draft);
+			replay();
+			mockSession.fire('assistant.fusion_phase_completed', { ...fusionTestData.phaseCompleted, ...draft });
+			mockSession.fire('assistant.fusion_phase_started', critic);
+			mockSession.fire('assistant.fusion_phase_completed', { ...fusionTestData.phaseCompleted, ...critic, content: '{"assessment":"approve"}', verdict: 'accept' });
+			replay('commit-1');
+			mockSession.fire('session.fusion_completed', { ...fusionTestData.completed, pattern: 'critique' });
+			mockSession.fire('session.idle', {});
+
+			assert.deepStrictEqual({
+				transcript: fusionTranscript(signals),
+				phaseTiles: getActions(signals).flatMap(action => action.type === ActionType.ChatToolCallStart && action.toolCallId.startsWith('fusion:') ? [action.displayName] : []),
+			}, {
+				transcript: [
+					'subagent_started fusion:fusion-1:critic',
+					'fusion:fusion-1:critic: **Approved**',
+					'root: \n\n**Task completed:**\n\nUpdated the parser',
+					'subagent_completed fusion:fusion-1:critic',
+				],
+				phaseTiles: ['Critique pass'],
+			});
+		});
+
+		test('main pass work streams into the main chat and its answer waits for the commit', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('fusion-turn');
+			const replay = (commitId?: string) => {
+				const options = commitId ? undefined : { ephemeral: true };
+				mockSession.fire('assistant.message', { messageId: 'm1', content: 'Checking the parser', model: 'model-a', toolRequests: [{ toolCallId: 'tc-view', name: 'view', arguments: {} }], fusion: liveFusion('phase-1', commitId) }, options);
+				mockSession.fire('tool.execution_start', { toolCallId: 'tc-view', toolName: 'view', arguments: { path: '/workspace/a.ts' }, fusion: liveFusion('phase-1', commitId) }, options);
+				mockSession.fire('tool.execution_complete', { toolCallId: 'tc-view', success: true, result: { content: 'x' }, fusion: liveFusion('phase-1', commitId) }, options);
+				mockSession.fire('tool.execution_start', { toolCallId: 'tc-complete', toolName: 'task_complete', arguments: { summary: 'Fixed the parser' }, fusion: liveFusion('phase-1', commitId) }, options);
+				mockSession.fire('tool.execution_complete', { toolCallId: 'tc-complete', success: true, result: { content: 'Done' }, fusion: liveFusion('phase-1', commitId) }, options);
+				mockSession.fire('assistant.message', { messageId: 'm2', content: 'Final answer', model: 'model-a', fusion: liveFusion('phase-1', commitId) }, options);
+			};
+
+			mockSession.fire('assistant.fusion_phase_started', fusionMainPassTestData.started);
+			replay();
+			const live = fusionTranscript(signals);
+			mockSession.fire('assistant.fusion_phase_completed', fusionMainPassTestData.phaseCompleted);
+			const beforeCommit = signals.length;
+			replay('commit-1');
+			const rounds = session['_currentTurn'].value?.toolCallRounds;
+			mockSession.fire('session.fusion_completed', fusionTestData.completed);
+			mockSession.fire('session.idle', {});
+
+			assert.deepStrictEqual({
+				live, afterCommit: fusionTranscript(signals.slice(beforeCommit)), rounds,
+				phaseTiles: getActions(signals).filter(action => action.type === ActionType.ChatToolCallStart && action.toolCallId.startsWith('fusion:')).length,
+			}, {
+				live: [
+					'root: Checking the parser',
+					'root: tool tc-view',
+				],
+				afterCommit: [
+					'root: \n\n**Task completed:**\n\nFixed the parser',
+					'root: Final answer',
+				],
+				rounds: 2,
+				phaseTiles: 0,
+			});
+		});
 
 		for (const ephemeral of [false, true]) {
 			test(`non-Fusion rendering after a Fusion turn stays at root (${ephemeral})`, async () => {
