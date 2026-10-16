@@ -561,7 +561,8 @@ export class ProjectBoardChatContent extends Disposable {
 			this.widget.setLoading(true);
 			this.element.setAttribute('aria-busy', 'true');
 			const inputBeforeLoad = this.widget.getInput();
-			const sessionType = getChatSessionType(this.card.chat.resource);
+			const targetResource = this.chatSessionsService.getMaterializedSessionResource(this.card.chat.resource) ?? this.card.chat.resource;
+			const sessionType = getChatSessionType(targetResource);
 			if (sessionType !== localChatSessionType) {
 				if (!await (telemetry?.measure('providerResolveDurationMs', () => raceCancellationError(this.chatSessionsService.canResolveChatSession(sessionType), loadToken))
 					?? raceCancellationError(this.chatSessionsService.canResolveChatSession(sessionType), loadToken))) {
@@ -572,7 +573,7 @@ export class ProjectBoardChatContent extends Disposable {
 					this.widget.lockToCodingAgent(contribution.name, contribution.displayName, sessionType, contribution.agentHostProviderId);
 				}
 			}
-			const acquire = () => this.chatService.acquireOrLoadSession(this.card.chat.resource, ChatAgentLocation.Chat, loadToken, 'ProjectBoardChatSidePanel');
+			const acquire = () => this.chatService.acquireOrLoadSession(targetResource, ChatAgentLocation.Chat, loadToken, 'ProjectBoardChatSidePanel');
 			const ref = await (telemetry?.measure('modelAcquireDurationMs', acquire) ?? acquire());
 			if (loadToken.isCancellationRequested) {
 				ref?.dispose();
@@ -581,7 +582,7 @@ export class ProjectBoardChatContent extends Disposable {
 			if (!ref) {
 				throw new Error(localize('kanban.chatLoadFailed', "The selected chat could not be loaded."));
 			}
-			if (!isEqual(ref.object.sessionResource, this.card.chat.resource)) {
+			if (!isEqual(ref.object.sessionResource, targetResource)) {
 				ref.dispose();
 				throw new Error(localize('kanban.chatTargetChanged', "The selected chat changed while it was loading. Open its card again."));
 			}

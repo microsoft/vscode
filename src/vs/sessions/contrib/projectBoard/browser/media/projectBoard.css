@@ -729,9 +729,13 @@
 }
 
 .project-board-status-canvas {
+	box-sizing: border-box;
+	width: 100%;
+	max-width: 100%;
 	border: 1px solid var(--vscode-widget-border, transparent);
 	border-radius: var(--vscode-cornerRadius-small, 4px);
 	padding: var(--vscode-spacing-size60, 6px);
+	overflow: hidden;
 	overflow-wrap: anywhere;
 	min-width: 0;
 }
@@ -751,9 +755,20 @@
 }
 
 .project-board-status-canvas .project-board-canvas-toggle {
+	width: 100%;
+	max-width: 100%;
+	min-width: 0;
 	justify-content: flex-start;
 	text-align: left;
 	white-space: normal;
+	overflow: hidden;
+	overflow-wrap: anywhere;
+}
+
+.project-board-status-canvas .project-board-canvas-toggle .monaco-button-label {
+	min-width: 0;
+	white-space: normal;
+	overflow-wrap: anywhere;
 }
 
 .project-board-canvas-time,
@@ -776,13 +791,20 @@
 .project-board-status-canvas dd {
 	margin: 0;
 	min-width: 0;
+	max-width: 100%;
 	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	word-break: break-word;
 }
 
 .project-board-status-canvas dd > .monaco-button {
+	width: 100%;
+	max-width: 100%;
+	min-width: 0;
 	white-space: normal;
 	text-align: left;
 	justify-content: flex-start;
+	overflow-wrap: anywhere;
 }
 
 .project-board-card-duration-error {

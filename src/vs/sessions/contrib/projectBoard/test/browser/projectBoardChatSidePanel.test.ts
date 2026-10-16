@@ -706,7 +706,7 @@ suite('ProjectBoardChatContent', () => {
 		}, { loading: null, busy: null, target: h.card.chat.resource.toString() });
 	});
 
-	function setup(currentSession?: (card: IProjectBoardCard) => ISession, mainChat = false) {
+	function setup(currentSession?: (card: IProjectBoardCard) => ISession, mainChat = false, materializedResource?: URI) {
 		const instantiation = workbenchInstantiationService(undefined, store);
 		instantiation.stub(IHoverService, { setupDelayedHover: () => ({ dispose() { } }) });
 		instantiation.stubInstance(WorkbenchToolBar, { setActions() { }, dispose() { } });
@@ -753,7 +753,11 @@ suite('ProjectBoardChatContent', () => {
 			override dispose = sinon.spy();
 		}();
 		instantiation.stubInstance(ChatWidget, widget);
-		instantiation.stub(IChatSessionsService, { canResolveChatSession: async () => true, getChatSessionContribution: () => undefined });
+		instantiation.stub(IChatSessionsService, {
+			canResolveChatSession: async () => true,
+			getChatSessionContribution: () => undefined,
+			getMaterializedSessionResource: () => materializedResource,
+		});
 		const load = sinon.stub();
 		instantiation.stub(IChatService, { acquireOrLoadSession: load });
 		const child = sinon.spy(instantiation, 'createChild');
@@ -764,7 +768,7 @@ suite('ProjectBoardChatContent', () => {
 		const inputState = observableValue<IChatModelInputState | undefined>('inputState', undefined);
 		const setInputState = sinon.spy((state: IChatModelInputState) => inputState.set(state, undefined));
 		const model = new class extends mock<IChatModel>() {
-			override readonly sessionResource = card.chat.resource;
+			override readonly sessionResource = materializedResource ?? card.chat.resource;
 			override readonly inputModel = new class extends mock<IInputModel>() {
 				override readonly state = inputState;
 				override setState = setInputState;
@@ -775,6 +779,17 @@ suite('ProjectBoardChatContent', () => {
 		load.resolves(ref);
 		return { instantiation, content, card, widget, child, cache, pendingInputs, load, ref, released, setInputState, inputState, replacements, getSession, close, notify, execute, menus };
 	}
+
+	test('binds the materialized model used by pending question previews', async () => {
+		const materialized = URI.parse('test-chat:materialized-child');
+		const h = setup(undefined, false, materialized);
+
+		await h.content.load(CancellationToken.None);
+
+		assert.ok(h.load.calledOnceWith(materialized));
+		assert.ok(h.widget.setModel.calledWith(h.ref.object));
+		assert.strictEqual(h.content.element.dataset.boundChatResource, h.card.chat.resource.toString());
+	});
 
 	test('right-clicking the panel title offers New Chat in This Session for its scoped owning session', async () => {
 		const h = setup(card => ({ ...card.session, capabilities: constObservable({ supportsMultipleChats: true }) }));
