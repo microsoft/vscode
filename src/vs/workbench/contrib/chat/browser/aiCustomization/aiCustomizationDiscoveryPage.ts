@@ -686,7 +686,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 
 		const searchRow = DOM.append(header, $('.customization-discovery-search-row'));
 		const searchContainer = DOM.append(searchRow, $('.customization-discovery-search'));
-		const placeholder = localize('customizationDiscovery.searchPlaceholder', "Search customizations");
+		const placeholder = localize('customizationDiscovery.searchPlaceholder', "Search MCP servers, plugins, skills and more...");
 		this.searchWidget = this._register(this.instantiationService.createInstance(
 			SuggestEnabledInput,
 			'aiCustomizationDiscovery.search',
@@ -952,34 +952,25 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 
 	private updateDescription(): void {
 		this.descriptionDisposables.clear();
-		const sections = [
-			AICustomizationManagementSection.Plugins,
-			AICustomizationManagementSection.McpServers,
-			AICustomizationManagementSection.Skills,
-			AICustomizationManagementSection.Instructions,
-			AICustomizationManagementSection.Agents,
-			AICustomizationManagementSection.Hooks,
-		] as const;
+		const docsUrl = 'https://aka.ms/vscode-customizations';
 		const description = localize({
 			key: 'customizationDiscovery.description',
 			comment: [
-				'Preserve the double square brackets: they mark the customization types that become links. Keep all six links in this order: Plugins, MCP Servers, Skills, Instructions, Agents, and Hooks.',
+				'Preserve the double square brackets: they mark the Learn more link to the agent customization documentation.',
 			],
-		}, "Find new ways to extend your agent with [[Plugins]], [[MCP Servers]], [[Skills]], [[Instructions]], [[Agents]], and [[Hooks]].");
+		}, "Tailor your agent to your tools, your team, and your workflow. [[Learn more]]");
 		renderFormattedText(description, {
 			actionHandler: {
-				callback: (index, event) => {
+				callback: (_index, event) => {
 					event.preventDefault();
-					const section = sections[Number(index)];
-					if (section) {
-						this.callbacks.selectSection(section);
-					}
+					void this.openExternal(docsUrl);
 				},
 				disposables: this.descriptionDisposables,
 			},
 		}, this.titleDescription);
 		for (const link of this.titleDescription.children) {
-			link.setAttribute('href', '#');
+			link.setAttribute('href', docsUrl);
+			link.setAttribute('aria-label', localize('customizationDiscovery.learnMore', "Learn more about agent customizations"));
 		}
 	}
 
