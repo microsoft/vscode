@@ -642,7 +642,14 @@ suite('AgentHostWorktreeCleanupService', () => {
 				await timeout(0);
 			}
 			const restore = cleanup.restoreSessionWorktree(OTHER_SESSION);
-			await timeout(0);
+			// The unarchive recreates its own worktree first, then its share: give it ample time to reach the share's recreate,
+			// which only the folder's lock (held by the running removal) holds back.
+			for (let i = 0; i < 20 && !worktree.calls.includes(`recreate:${AgentSession.id(OTHER_SESSION)}`); i++) {
+				await timeout(10);
+			}
+			for (let i = 0; i < 5; i++) {
+				await timeout(10);
+			}
 			const callsWhileRemoving = [...worktree.calls];
 			worktree.removal.complete();
 			await Promise.all([pass, restore]);
