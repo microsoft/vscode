@@ -844,7 +844,7 @@ abstract class BaseArchiveSessionsInGroupAction extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor, context?: ISessionGroupItem): Promise<void> {
-		if (!context || context.comparison?.launching || !context.sessions || context.sessions.length === 0) {
+		if (!context || context.comparison?.launching) {
 			return;
 		}
 
@@ -854,11 +854,21 @@ abstract class BaseArchiveSessionsInGroupAction extends Action2 {
 		const groupsService = accessor.get(ISessionGroupsService);
 		const viewsService = accessor.get(IViewsService);
 		const comparisonService = accessor.get(ISessionComparisonService);
+		const comparison = context.comparison ? comparisonService.getComparison(context.comparison.id) : undefined;
+		const sessions = comparison
+			? comparison.participants.flatMap(participant => {
+				const session = participant.sessionResource ? sessionsManagementService.getSession(participant.sessionResource) : undefined;
+				return session && !session.isArchived.get() ? [session] : [];
+			})
+			: context.sessions;
+		if (sessions.length === 0) {
+			return;
+		}
 
 		const skipConfirmation = storageService.getBoolean(ConfirmArchiveStorageKey, StorageScope.PROFILE, false);
 		if (!skipConfirmation) {
 			const confirmed = await dialogService.confirm({
-				message: getArchiveGroupConfirmationMessage(context, this.wording),
+				message: getArchiveGroupConfirmationMessage({ ...context, sessions }, this.wording),
 				detail: this.wording === ChatSessionArchiveActionWording.MarkAsDone
 					? localize('markGroupSessionsDone.detail', "You can restore sessions later if needed from the sessions view.")
 					: localize('archiveGroupSessions.detail', "You can unarchive sessions later if needed from the sessions view."),
@@ -877,7 +887,7 @@ abstract class BaseArchiveSessionsInGroupAction extends Action2 {
 			}
 		}
 
-		await archiveSessionsWithUndo(context.sessions, this.wording, sessionsManagementService, groupsService, viewsService, comparisonService);
+		await archiveSessionsWithUndo(sessions, this.wording, sessionsManagementService, groupsService, viewsService, comparisonService);
 	}
 }
 
