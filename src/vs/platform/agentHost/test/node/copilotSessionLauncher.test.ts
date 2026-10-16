@@ -70,7 +70,8 @@ const testRuntime: ICopilotSessionRuntime = {
 
 const testWorkingDirectory = URI.file(process.cwd());
 const disabledWorkflowTools = ['builtin:run_dynamic_workflow', 'builtin:dynamic_workflows_manage'];
-const defaultDisabledTools = [...disabledWorkflowTools, 'builtin:search_code_subagent'];
+const alwaysDisabledTools = [...disabledWorkflowTools, 'builtin:semantic_code_search'];
+const defaultDisabledTools = [...alwaysDisabledTools, 'builtin:search_code_subagent'];
 const catalogInstallationFeatureFlags = { CATALOG_SEARCH: true, AGENT_FINDER_SKILL_INSTALL: true };
 
 function reportManagedSettings(config: ResumeSessionConfig | undefined): void {
@@ -2844,7 +2845,7 @@ suite('CopilotSessionLauncher resume config', () => {
 			enabled: enabled.excludedTools,
 		}, {
 			disabled: [...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
-			enabled: [...disabledWorkflowTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
+			enabled: [...alwaysDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
 		});
 	});
 
