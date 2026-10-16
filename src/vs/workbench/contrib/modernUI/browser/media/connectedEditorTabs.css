@@ -344,11 +344,13 @@
 }
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active:not(.connected-tab-upper-row).tab-border-top:where(:not(.multi-selected, .dirty-border-top)) > .tab-connected-edge {
-	--modern-ui-connected-tab-top-accent: var(--modern-ui-editor-tab-custom-active-border-top, var(--modern-ui-connected-tab-border));
+	--modern-ui-connected-tab-top-accent: var(--modern-ui-editor-tab-custom-active-border-top);
+	border-top-color: var(--modern-ui-editor-tab-custom-active-border-top, var(--modern-ui-connected-tab-border));
 }
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container:not(.active) > .title.tabs .tabs-container > .tab.active:not(.connected-tab-upper-row).tab-border-top:where(:not(.multi-selected, .dirty-border-top)) > .tab-connected-edge {
-	--modern-ui-connected-tab-top-accent: var(--modern-ui-editor-tab-custom-unfocused-active-border-top, var(--modern-ui-connected-tab-border));
+	--modern-ui-connected-tab-top-accent: var(--modern-ui-editor-tab-custom-unfocused-active-border-top);
+	border-top-color: var(--modern-ui-editor-tab-custom-unfocused-active-border-top, var(--modern-ui-connected-tab-border));
 }
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active.connected-tab-upper-row.tab-border-top > .tab-border-top-container {
@@ -774,7 +776,6 @@
 }
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active:not(.connected-tab-upper-row).tab-border-top > .tab-connected-edge {
-	border-top-color: var(--modern-ui-connected-tab-top-accent);
 	background-image: linear-gradient(var(--modern-ui-connected-tab-top-accent) var(--vscode-strokeThickness), transparent var(--vscode-strokeThickness));
 	background-position: 0 var(--vscode-strokeThickness);
 	background-repeat: no-repeat;
