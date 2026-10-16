@@ -6798,7 +6798,7 @@ suite('CopilotAgentSession', () => {
 		assert.deepStrictEqual(mockSession.sendRequests, []);
 	});
 
-	test('caches runtime slash command availability across checks', async () => {
+	test('caches runtime slash commands across listings', async () => {
 		const { session, mockSession } = await createAgentSession(disposables);
 		mockSession.commandListResult = {
 			commands: [
@@ -6824,14 +6824,12 @@ suite('CopilotAgentSession', () => {
 		};
 
 		assert.deepStrictEqual({
-			env: await session.hasRuntimeSlashCommand('env'),
-			review: await session.hasRuntimeSlashCommand('review'),
-			skill: await session.hasRuntimeSlashCommand('not-a-builtin'),
+			first: (await session.getRuntimeSlashCommands()).map(command => command.name),
+			second: (await session.getRuntimeSlashCommands()).map(command => command.name),
 			commandListCalls: mockSession.commandListCalls,
 		}, {
-			env: true,
-			review: true,
-			skill: true,
+			first: ['sandbox', 'env', 'review', 'not-a-builtin'],
+			second: ['sandbox', 'env', 'review', 'not-a-builtin'],
 			commandListCalls: [{ includeBuiltins: true, includeSkills: true, includeClientCommands: true }],
 		});
 	});

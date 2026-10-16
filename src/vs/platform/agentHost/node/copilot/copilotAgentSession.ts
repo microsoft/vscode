@@ -5276,15 +5276,6 @@ export class CopilotAgentSession extends Disposable {
 		return sdkAttachments;
 	}
 
-	async hasRuntimeSlashCommand(command: string): Promise<boolean> {
-		try {
-			return !!(await this._slashCommandProvider.resolveSlashCommand(command));
-		} catch (err) {
-			this._logService.warn(`[Copilot:${this.sessionId}] rpc.commands.list failed`, err);
-			return false;
-		}
-	}
-
 	async getRuntimeSlashCommands(options?: { readonly maxWaitMs?: number }): Promise<readonly RuntimeSlashCommandInfo[]> {
 		try {
 			return await this._slashCommandProvider.getSlashCommands(options);
