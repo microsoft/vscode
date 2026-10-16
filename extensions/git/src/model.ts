@@ -478,26 +478,24 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 			const activeRepositories = new Set<Repository>(activeRepositoriesList);
 
-			// Find all open repositories whose root is at or inside a removed workspace folder.
-			// The original check only used getOpenRepository(folder.uri) which relies on isDescendant
-			// and misses the common case where the repo root IS the workspace folder itself.
+			// A repository may be rooted at, inside, or ABOVE a workspace folder
+			// (for example, when git.openRepositoryInParentFolders is enabled).
+			const overlapsFolder = (folderPath: string, repositoryRoot: string): boolean =>
+				pathEquals(folderPath, repositoryRoot) ||
+				isDescendant(folderPath, repositoryRoot) ||
+				isDescendant(repositoryRoot, folderPath);
+
+			const remainingFolders = workspace.workspaceFolders || [];
 			const openRepositoriesToDispose = this.openRepositories
-				.filter(r => removed.some(folder => isDescendant(folder.uri.fsPath, r.repository.root) || r.repository.root === folder.uri.fsPath))
+				.filter(r => removed.some(folder => overlapsFolder(folder.uri.fsPath, r.repository.root)))
 				.filter(r => !activeRepositories.has(r.repository))
-				.filter(r => !(workspace.workspaceFolders || []).some(f => isDescendant(f.uri.fsPath, r.repository.root)));
+				// Keep a parent repo open while any remaining child workspace folder uses it.
+				.filter(r => !remainingFolders.some(folder => overlapsFolder(folder.uri.fsPath, r.repository.root)));
 
 			openRepositoriesToDispose.forEach(r => r.dispose());
 
-			// Prune stale closedRepositories entries for the removed workspace folders so that
-			// manually-closed repos don't ghost back the next time the workspace is opened.
-			for (const folder of removed) {
-				for (const closedRepo of this._closedRepositoriesManager.repositories) {
-					if (isDescendant(folder.uri.fsPath, closedRepo) || closedRepo === folder.uri.fsPath) {
-						this._closedRepositoriesManager.deleteRepository(closedRepo);
-						this.logger.trace(`[Model][onDidChangeWorkspaceFolders] Pruned stale closed repository: ${closedRepo}`);
-					}
-				}
-			}
+			// Preserve manually closed repository markers. Removing them here would
+			// allow the next repository scan to reopen a repository the user closed.
 
 			this.logger.trace(`[Model][onDidChangeWorkspaceFolders] Workspace folders: [${possibleRepositoryFolders.map(p => p.uri.fsPath).join(', ')}]`);
 			await Promise.all(possibleRepositoryFolders.map(p => this.openRepository(p.uri.fsPath)));
