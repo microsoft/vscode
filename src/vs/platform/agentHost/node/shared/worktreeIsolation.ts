@@ -891,8 +891,12 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 	 */
 	private async _reconcileOwnedDetachedWorktree(handle: string, record: URI, owner: string, claimed: boolean): Promise<boolean> {
 		const ownerUri = URI.parse(owner, true);
-		// Cheap path first: a listed handle needs no git probing of the record or owner.
-		if ((await readSessionAdditionalWorktrees(this._sessionStateStore, ownerUri)).some(worktree => worktree.handle === handle)) {
+		// The live sessions whose central list names the handle, read first: a session that ended by a move still lists
+		// it in its own database, which is never rewritten after the move.
+		const centrallyListedBy = await this._sessionStateStore.findAdditionalWorktreeOwners(handle);
+		// Cheap path: a listed handle needs no git probing of the record or owner.
+		if (centrallyListedBy.some(session => session.toString() === owner)
+			|| (centrallyListedBy.length === 0 && (await readSessionAdditionalWorktrees(this._sessionStateStore, ownerUri)).some(worktree => worktree.handle === handle))) {
 			if (!claimed) {
 				await this.claimDetachedWorktree(handle);
 			}
@@ -900,7 +904,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		}
 		// A transfer to another session (a moved chat's own worktree, or a session that moved under another one) commits
 		// centrally before the record names its new owner: the session whose central list names the handle owns it.
-		const listedBy = (await this._sessionStateStore.findAdditionalWorktreeOwners(handle)).filter(session => session.toString() !== owner);
+		const listedBy = centrallyListedBy.filter(session => session.toString() !== owner);
 		if (listedBy.length > 0) {
 			const ref = this._sessionDataService.openDatabase(record);
 			try {

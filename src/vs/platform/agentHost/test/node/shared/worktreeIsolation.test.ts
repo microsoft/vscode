@@ -1533,6 +1533,28 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
+	test('reconciliation re-owns a session move\'s transferred worktree to the target that lists it, though the ended source\'s stale database still lists it too (L1, Block 5)', async () => {
+		const central = disposables.add(new AgentHostDatabase(':memory:'));
+		const { databases, service, isolation, create, setOwner } = createOwnedRecordsHarness(new Set(), central);
+		const moved = await create('session-moved');
+		const source = URI.parse('copilotcli:/ended-source');
+		const target = URI.parse('copilotcli:/session-move-target');
+		const list = JSON.stringify([{ handle: moved.handle, workingDirectory: moved.worktree.toString(), repositoryRoot: repoRoot.toString() }]);
+		await setOwner(moved.handle, source);
+		await databases.get(detachedWorktreeRecordUri(moved.handle).toString())!.setMetadata('vscode.devContainerWorktree.createdAt', '0');
+		// The source listed it, then ended by the move: its central state is tombstoned, its own database is never rewritten.
+		await service.openDatabase(source).object.setMetadata(ADDITIONAL_WORKTREES_METADATA_KEY, list);
+		for (const session of [source, target]) {
+			await central.registerSessionV2(session.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			await central.importSessionState(session.toString(), { importVersion: 1, importedAt: 1, folders: [], chats: [], legacyMirrorBase: '{}', launchDirsBackfilled: true, values: { [ADDITIONAL_WORKTREES_METADATA_KEY]: list } });
+		}
+		await central.tombstoneAndUnregisterSession(source.toString());
+
+		await isolation.cleanupUnclaimedDetachedWorktrees();
+
+		assert.deepStrictEqual(await databases.get(detachedWorktreeRecordUri(moved.handle).toString())!.getMetadataObject({ 'vscode.devContainerWorktree.owner': true }), { 'vscode.devContainerWorktree.owner': target.toString() });
+	});
+
 	test('resolveWorkingDirectoryForResume recreates a missing shared worktree from the branch its co-owners recorded (Block 5)', async () => {
 		const central = disposables.add(new AgentHostDatabase(':memory:'));
 		const isolation = createIsolation(disposables, { centralDatabase: central });
