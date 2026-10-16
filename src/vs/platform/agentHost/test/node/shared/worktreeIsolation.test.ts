@@ -2352,6 +2352,28 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
+	test('unarchive recreates a worktree a co-owner\'s removal is removing: it waits for the folder\'s lock, then finds it gone (PR review)', async () => {
+		const isolation = createIsolation(disposables);
+		const worktree = (await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } }))!;
+		const removing = new DeferredPromise<void>();
+		// A co-owner's removal holds the folder's lock past its last in-use check, then removes the folder.
+		const removal = isolation.runExclusive(worktree.toString(), async () => {
+			await removing.p;
+			rmSync(worktree.fsPath, { recursive: true, force: true });
+		});
+
+		let settled = false;
+		const unarchive = isolation.recreateWorktreeOnUnarchive(sessionUri, sessionId).then(() => { settled = true; });
+		for (let i = 0; i < 20 && !settled; i++) {
+			await timeout(5);
+		}
+		const settledWhileRemoving = settled;
+		removing.complete();
+		await Promise.all([removal, unarchive]);
+
+		assert.deepStrictEqual({ settledWhileRemoving, exists: existsSync(worktree.fsPath), recreated: addExistingCalls.map(call => call.worktree.toString()) }, { settledWhileRemoving: false, exists: true, recreated: [worktree.toString()] });
+	});
+
 	test('manual archive commits uncommitted changes and removes the worktree', async () => {
 		const isolation = createIsolation(disposables);
 		const worktree = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });

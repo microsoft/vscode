@@ -1792,20 +1792,25 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		if (!meta?.worktreePath || !meta.repositoryRoot) {
 			return;
 		}
-		// Skip if the worktree directory already exists — nothing to do.
-		try {
-			await fs.access(meta.worktreePath.fsPath);
-			return;
-		} catch {
-			// expected when the worktree was cleaned up on archive
-		}
+		const { worktreePath, repositoryRoot } = meta;
+		// Also under the folder's lock (inside the owner's, as removals and resume take them): a co-owner's removal of a
+		// shared worktree holds only that lock, and may still be removing a folder that exists now (Block 5).
+		await this._sequencer.queue(worktreePath.toString(), async () => {
+			// Skip if the worktree directory already exists — nothing to do.
+			try {
+				await fs.access(worktreePath.fsPath);
+				return;
+			} catch {
+				// expected when the worktree was cleaned up on archive
+			}
 
-		await this._recreateWorktree(sessionId, {
-			branchName: meta.branchName,
-			worktreePath: meta.worktreePath,
-			repositoryRoot: meta.repositoryRoot,
-			symlinkPatterns: meta.symlinkPatterns,
-			symlinkSourceRoot: meta.symlinkSourceRoot,
+			await this._recreateWorktree(sessionId, {
+				branchName: meta.branchName,
+				worktreePath,
+				repositoryRoot,
+				symlinkPatterns: meta.symlinkPatterns,
+				symlinkSourceRoot: meta.symlinkSourceRoot,
+			});
 		});
 	}
 
