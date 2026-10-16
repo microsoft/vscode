@@ -24,7 +24,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
-import { IPathService } from '../../../../services/path/common/pathService.js';
+import { ICopilotHomeService } from '../../../../services/environment/common/copilotHomeService.js';
 import { buildLocalCopilotLogsUri, buildRemoteCopilotLogsUri, getCopilotCliSessionRawId, resolveEventsUri } from '../copilotCliEventsUri.js';
 
 /** Output channel ID for the current window's renderer log. */
@@ -86,7 +86,7 @@ export interface IAgentHostLogSource {
 
 /** Bag of services required to enumerate and read agent-host log sources. */
 export interface IAgentHostLogSourceServices {
-	readonly pathService: IPathService;
+	readonly copilotHomeService: ICopilotHomeService;
 	readonly agentHostService: IAgentHostService;
 	readonly agentHostConnectionsService: IAgentHostConnectionsService;
 	readonly remoteAgentHostService: IRemoteAgentHostService;
@@ -142,8 +142,8 @@ export async function enumerateAgentHostLogSources(
 		return [];
 	}
 
-	const { pathService, agentHostService, agentHostConnectionsService, remoteAgentHostService, outputService, fileService, environmentService } = services;
-	const userHome = pathService.userHome({ preferLocal: true });
+	const { copilotHomeService, agentHostService, agentHostConnectionsService, remoteAgentHostService, outputService, fileService, environmentService } = services;
+	const copilotHome = copilotHomeService.home;
 	const isLocal = sessionResource.scheme.startsWith(LOCAL_AGENT_HOST_SCHEME_PREFIX);
 	const remoteConnection = isLocal ? undefined : getRemoteConnectionForSession(sessionResource, remoteAgentHostService.connections);
 	const remoteAddress = isLocal ? undefined : agentHostConnectionsService.resolveSessionResourceIdentity(sessionResource)?.connectionAddress ?? remoteConnection?.address;
@@ -153,7 +153,7 @@ export async function enumerateAgentHostLogSources(
 	// 1. events.jsonl (model/conversation stream)
 	const eventsResult = resolveEventsUri(
 		sessionResource,
-		userHome,
+		copilotHome,
 		authority => remoteAgentHostService.connections.find(c => agentHostAuthority(c.address) === authority),
 	);
 	if (eventsResult.kind === 'ok') {
@@ -221,7 +221,7 @@ export async function enumerateAgentHostLogSources(
 	const rawSessionId = getCopilotCliSessionRawId(sessionResource);
 	if (rawSessionId) {
 		const copilotLogsDir = isLocal
-			? buildLocalCopilotLogsUri(userHome)
+			? buildLocalCopilotLogsUri(copilotHome)
 			: remoteConnection ? buildRemoteCopilotLogsUri(remoteConnection) : undefined;
 		if (copilotLogsDir) {
 			sources.push({
