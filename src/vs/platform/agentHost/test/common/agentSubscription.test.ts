@@ -118,7 +118,8 @@ suite('resolveAgentHostSession', () => {
 			peer: recordedOwner,
 			unknown: undefined,
 			folder: sessionUri,
-			terminal: sessionUri,
+			// A retained terminal link is routed by the chat it names; the session it embeds is for older builds.
+			terminal: recordedOwner,
 			peerChangeset: recordedOwner,
 			unknownChangeset: undefined,
 		});
@@ -820,6 +821,45 @@ suite('ChatStateSubscription', () => {
 			error,
 			responseParts: [{ kind: ResponsePartKind.Error, error }],
 			legacyField: undefined,
+		});
+	});
+
+	test('fires snapshot application after replaying buffered canvas changes', () => {
+		const sub = createSub();
+		sub.handleSnapshot(makeChatState(chatUri), 0);
+		const snapshots: ChatState[] = [];
+		disposables.add(sub.onDidApplySnapshot(state => snapshots.push(state)));
+
+		sub.beginSnapshotRefresh();
+		sub.receiveEnvelope(makeEnvelope({
+			type: ActionType.ChatCanvasesChanged,
+			canvases: [{ resource: 'ahp-canvas:/preview' }],
+		}, 2));
+		sub.handleSnapshot(makeChatState(chatUri), 1);
+
+		assert.deepStrictEqual(snapshots.map(snapshot => snapshot.canvases), [[{ resource: 'ahp-canvas:/preview' }]]);
+	});
+
+	test('reports buffered canvas changes replayed after a cancelled snapshot refresh', () => {
+		const sub = createSub();
+		sub.handleSnapshot(makeChatState(chatUri), 0);
+		const replayed: (readonly ActionEnvelope[])[] = [];
+		disposables.add(sub.onDidCancelSnapshotRefresh(envelopes => replayed.push(envelopes)));
+
+		sub.beginSnapshotRefresh();
+		sub.receiveEnvelope(makeEnvelope({
+			type: ActionType.ChatCanvasesChanged,
+			canvases: [{ resource: 'ahp-canvas:/preview' }],
+		}, 2));
+		sub.cancelSnapshotRefresh();
+		const value = sub.value;
+
+		assert.deepStrictEqual({
+			canvases: value instanceof Error ? undefined : value?.canvases,
+			replayed: replayed.map(envelopes => envelopes.map(envelope => envelope.action.type)),
+		}, {
+			canvases: [{ resource: 'ahp-canvas:/preview' }],
+			replayed: [[ActionType.ChatCanvasesChanged]],
 		});
 	});
 

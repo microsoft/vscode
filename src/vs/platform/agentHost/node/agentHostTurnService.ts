@@ -10,6 +10,7 @@ import { createDecorator, IInstantiationService } from '../../instantiation/comm
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { IAgentHostChatContributions } from '../common/agentHostChatContributionsService.js';
+import type { IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import type { ChatTurnStartedAction } from '../common/state/protocol/actions.js';
 import { createErrorResponsePart, type ErrorInfo, type Message, type URI as ProtocolURI } from '../common/state/sessionState.js';
@@ -22,22 +23,23 @@ export const IAgentHostTurnService = createDecorator<IAgentHostTurnService>('age
 /** An active host-authored turn whose provider execution has not started yet. */
 export interface IDeferredAgentHostTurn {
 	readonly turnId: string;
+	readonly credentials?: IAgentHostCredentialSource;
 }
 
 /** Starts host-authored turns through the standard admission and provider-send path. */
 export interface IAgentHostTurnService {
 	readonly _serviceBrand: undefined;
-	startTurnMessage(chat: URI, message: Message): void;
+	startTurnMessage(chat: URI, message: Message, credentials?: IAgentHostCredentialSource): void;
 	/**
 	 * @param options.recoverableRejection `false` when the submitting client has
 	 * already released this message, so an admission rejection is the only
 	 * surviving record of it.
 	 */
-	startClientTurn(chat: URI, action: ChatTurnStartedAction, clientId: string, clientContext: IAgentHostClientTelemetryContext, options?: IClientTurnOptions): ErrorInfo | undefined;
-	beginDeferredTurnMessage(chat: URI, message: Message): IDeferredAgentHostTurn;
+	startClientTurn(chat: URI, action: ChatTurnStartedAction, clientId: string, clientContext: IAgentHostClientTelemetryContext, credentials?: IAgentHostCredentialSource, options?: IClientTurnOptions): ErrorInfo | undefined;
+	beginDeferredTurnMessage(chat: URI, message: Message, credentials?: IAgentHostCredentialSource): IDeferredAgentHostTurn;
 	continueDeferredTurnMessage(chat: URI, turn: IDeferredAgentHostTurn, message: Message): boolean;
 	failDeferredTurnMessage(chat: URI, turn: IDeferredAgentHostTurn, error: ErrorInfo): boolean;
-	handleTurnStarted(channel: ProtocolURI, action: ChatTurnStartedAction, clientId?: string, clientContextOrType?: IAgentHostClientTelemetryContext | AgentHostClientType, options?: IClientTurnOptions): ErrorInfo | undefined;
+	handleTurnStarted(channel: ProtocolURI, action: ChatTurnStartedAction, clientId?: string, clientContextOrType?: IAgentHostClientTelemetryContext | AgentHostClientType, credentials?: IAgentHostCredentialSource, options?: IClientTurnOptions): ErrorInfo | undefined;
 }
 
 /** Admission details a caller may override when it does not match the ordinary client send. */
@@ -59,25 +61,25 @@ export class AgentHostTurnService implements IAgentHostTurnService {
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) { }
 
-	startTurnMessage(chat: URI, message: Message): void {
+	startTurnMessage(chat: URI, message: Message, credentials?: IAgentHostCredentialSource): void {
 		const channel = chat.toString();
 		const action = this._dispatchTurnStarted(channel, message);
-		this.handleTurnStarted(channel, action);
+		this.handleTurnStarted(channel, action, undefined, undefined, credentials);
 	}
 
-	startClientTurn(chat: URI, action: ChatTurnStartedAction, clientId: string, clientContext: IAgentHostClientTelemetryContext, options?: IClientTurnOptions): ErrorInfo | undefined {
+	startClientTurn(chat: URI, action: ChatTurnStartedAction, clientId: string, clientContext: IAgentHostClientTelemetryContext, credentials?: IAgentHostCredentialSource, options?: IClientTurnOptions): ErrorInfo | undefined {
 		this._stateManager.dispatchServerAction(chat.toString(), action);
-		return this.handleTurnStarted(chat.toString(), action, clientId, clientContext, options);
+		return this.handleTurnStarted(chat.toString(), action, clientId, clientContext, credentials, options);
 	}
 
-	beginDeferredTurnMessage(chat: URI, message: Message): IDeferredAgentHostTurn {
+	beginDeferredTurnMessage(chat: URI, message: Message, credentials?: IAgentHostCredentialSource): IDeferredAgentHostTurn {
 		const channel = chat.toString();
 		if (this._deferredTurns.has(channel) || this._stateManager.getActiveTurnId(channel) !== undefined) {
 			throw new Error(`Cannot defer another turn while a turn is active: ${channel}`);
 		}
 		const action = this._dispatchTurnStarted(channel, message);
 		this._deferredTurns.set(channel, action);
-		return { turnId: action.turnId };
+		return { turnId: action.turnId, ...(credentials ? { credentials } : {}) };
 	}
 
 	continueDeferredTurnMessage(chat: URI, turn: IDeferredAgentHostTurn, message: Message): boolean {
@@ -90,7 +92,7 @@ export class AgentHostTurnService implements IAgentHostTurnService {
 			this._deferredTurns.delete(channel);
 			return false;
 		}
-		this.handleTurnStarted(channel, { ...action, message });
+		this.handleTurnStarted(channel, { ...action, message }, undefined, undefined, turn.credentials);
 		this._deferredTurns.delete(channel);
 		return true;
 	}
@@ -121,7 +123,7 @@ export class AgentHostTurnService implements IAgentHostTurnService {
 		return true;
 	}
 
-	handleTurnStarted(channel: ProtocolURI, action: ChatTurnStartedAction, clientId?: string, clientContextOrType?: IAgentHostClientTelemetryContext | AgentHostClientType, options?: IClientTurnOptions): ErrorInfo | undefined {
+	handleTurnStarted(channel: ProtocolURI, action: ChatTurnStartedAction, clientId?: string, clientContextOrType?: IAgentHostClientTelemetryContext | AgentHostClientType, credentials?: IAgentHostCredentialSource, options?: IClientTurnOptions): ErrorInfo | undefined {
 		const host = this._chatContributions.getHost();
 		if (!host) {
 			throw new Error('Agent Host turn routing is unavailable.');
@@ -149,6 +151,7 @@ export class AgentHostTurnService implements IAgentHostTurnService {
 			turnStopWatch,
 			...(options?.recoverableRejection !== undefined ? { recoverableRejection: options.recoverableRejection } : {}),
 			onRejected: error => rejection = error,
+			...(credentials ? { credentials } : {}),
 		});
 		if (!started) {
 			return rejection;
@@ -163,6 +166,7 @@ export class AgentHostTurnService implements IAgentHostTurnService {
 			senderClientId: clientId,
 			clientContext,
 			turnStopWatch,
+			...(credentials ? { credentials } : {}),
 		});
 		return undefined;
 	}

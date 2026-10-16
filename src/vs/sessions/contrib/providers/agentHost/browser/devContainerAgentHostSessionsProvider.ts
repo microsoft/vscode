@@ -109,7 +109,7 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 			return this._devContainerSandboxSupported;
 		}
 		const workspace = this._getNewSession(sessionId)?.session.workspace.get()?.folders[0]?.root;
-		if (workspace && !findDevContainerSample(workspace) && this.getSessionConfig(sessionId)?.values[SessionConfigKey.Isolation] === 'worktree') {
+		if (workspace && !findDevContainerSample(workspace) && this._getNewSession(sessionId)?.getConfig()?.values[SessionConfigKey.Isolation] === 'worktree') {
 			return undefined;
 		}
 		return workspace && this.isDevContainerRequested(sessionId) ? this._devContainerSupport?.service.getSandboxSupported?.(workspace) : undefined;
@@ -220,8 +220,9 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 			if (!this._devContainerDrafts.has(sessionId) || !this._getNewSession(sessionId)) {
 				return;
 			}
-			if (this.getSessionConfig(sessionId)?.values[SessionConfigKey.Isolation] === 'worktree') {
-				await this.setSessionConfigValue(sessionId, SessionConfigKey.Isolation, 'folder');
+			const draft = this._getNewSession(sessionId);
+			if (draft?.getConfig()?.values[SessionConfigKey.Isolation] === 'worktree') {
+				await this.setSessionConfigValue(sessionId, draft.session.mainChat.get().resource, SessionConfigKey.Isolation, 'folder');
 			}
 		})();
 		this.trackSessionConfigOperation(sessionId, normalizeIsolation);
@@ -386,7 +387,7 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 			}
 			let targetConfig = await targetProvider.whenSessionConfigResolved(replacement.sessionId, token);
 			if (detachedWorktree || (sample && targetConfig.schema.properties[SessionConfigKey.Isolation])) {
-				await raceCancellationError(targetProvider.setSessionConfigValue(replacement.sessionId, SessionConfigKey.Isolation, 'folder'), replacementToken);
+				await raceCancellationError(targetProvider.setSessionConfigValue(replacement.sessionId, replacement.mainChat.get().resource, SessionConfigKey.Isolation, 'folder'), replacementToken);
 				targetConfig = await targetProvider.whenSessionConfigResolved(replacement.sessionId, token);
 			}
 			for (const [property, value] of Object.entries(sourceConfig.values)) {
@@ -397,7 +398,7 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 				if (!targetProperty || targetProperty.readOnly) {
 					continue;
 				}
-				await raceCancellationError(targetProvider.setSessionConfigValue(replacement.sessionId, property, value), replacementToken);
+				await raceCancellationError(targetProvider.setSessionConfigValue(replacement.sessionId, replacement.mainChat.get().resource, property, value), replacementToken);
 			}
 			const replacementChat = replacement.mainChat.get();
 			const resolvedTargetModel = targetModel ?? (sourceModel

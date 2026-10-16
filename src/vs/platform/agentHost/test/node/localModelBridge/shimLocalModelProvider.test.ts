@@ -68,7 +68,8 @@ function presetFor(assetName: string, dflash = false, ctxSize = 32768, ctxCheckp
 interface ITestModel {
 	readonly profile: ILocalModelProfile;
 	readonly files: Readonly<Record<string, string>>;
-	readonly resolved: IResolvedModelVersion;
+	/** Every file publishes its checksum, so the content is known before the download. */
+	readonly resolved: IResolvedModelVersion & { readonly contentId: string };
 }
 
 function createModel(assetName: string, displayName: string, overrides: Partial<ILocalModelProfile> = {}, weights?: string, options: { readonly dflash?: boolean; readonly ctxSize?: number; readonly ctxCheckpoints?: number } = {}): ITestModel {
@@ -190,7 +191,7 @@ class FakeDownloader {
 			await fs.promises.writeFile(path.join(request.targetDir, file.relativePath), model?.files[file.relativePath] ?? '');
 		}
 		request.onProgress?.({ phase: 'placing', completedBytes: totalBytes, totalBytes, bytesPerSecond: undefined, fileIndex: request.files.length - 1, fileCount: request.files.length });
-		return { downloadedBytes: totalBytes, reusedFiles: [], resumed: false, sasRenewals: 0 };
+		return { downloadedBytes: totalBytes, reusedFiles: [], resumed: false, sasRenewals: 0, sha256s: request.files.map(file => file.sha256!) };
 	}
 }
 
@@ -487,7 +488,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		}
 		await modelStore.commitVersion({
 			registry: profile.registry, assetName: profile.assetName, version: profile.version, primaryFile: 'model.gguf',
-			files: model.resolved.files.map(file => ({ path: file.relativePath, totalBytes: file.sizeBytes, sha256: file.sha256, etag: '' })),
+			files: model.resolved.files.map(file => ({ path: file.relativePath, totalBytes: file.sizeBytes, sha256: file.sha256!, etag: '' })),
 			ctxSize: 32768, parallel: 1, args: ['--jinja'], displayName: profile.displayName, capiId: profile.capiId, autoCapable: profile.autoCapable, activate: true,
 		});
 		return versionDir;
@@ -1569,7 +1570,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 		});
 	});
 
-	test('load time: a model whose architecture llama.cpp does not know fails with runtimeUnsupportedModel once, without downgrade retries, naming the change a build needs when the architecture is unpackaged (maion-coder)', async () => {
+	test('load time: a model whose architecture llama.cpp does not know fails with runtimeUnsupportedModel once, without downgrade retries, naming the first release that runs it when only recent releases do (maion-coder)', async () => {
 		const run = async (architecture: string) => {
 			const harness = createHarness({ server: { loading: true }, metadata: () => ({ ...DEFAULT_METADATA, architecture }), persistent: createPersistent(`home-${architecture}`) });
 			// The pre-download read could not tell (the registry refused the Range request).
@@ -1589,17 +1590,17 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 				server: harness.telemetry.events.filter(event => event.name === 'localModel.server' && (event.data.event === 'profileDowngraded' || event.data.event === 'startFailed')).map(event => `${event.data.event}:${event.data.errorCode}`),
 			};
 		};
-		const expected = (change: string) => {
+		const expected = (directions: string) => {
 			const error = {
 				code: 'runtimeUnsupportedModel',
-				message: `This llama.cpp build (0.6.0-dev (b11459)) can't run Example Flash 1.0. Install a llama.cpp build that ${change}, then set Chat \u203a Copilot \u203a Local Model: Llama Server Path (chat.copilot.localModel.llamaServerPath) to its llama-server and select Retry.`,
+				message: `This llama.cpp build (0.6.0-dev (b11459)) can't run Example Flash 1.0. ${directions}, then set Chat \u203a Copilot \u203a Local Model: Llama Server Path (chat.copilot.localModel.llamaServerPath) to its llama-server and select Retry.`,
 				actions: ['getLlamaCpp', 'openSettings', 'retry'],
 			};
 			return { operation: error, active: { server: 'error', error }, spawns: 1, server: ['startFailed:runtimeUnsupportedModel'] };
 		};
-		assert.deepStrictEqual({ packaged: await run('qwen2'), unpackaged: await run('maion-coder') }, {
-			packaged: expected('supports it'),
-			unpackaged: expected('includes ggml-org/llama.cpp#29778'),
+		assert.deepStrictEqual({ packaged: await run('qwen2'), newArchitecture: await run('maion-coder') }, {
+			packaged: expected('Install a llama.cpp build that supports it'),
+			newArchitecture: expected('Install llama.cpp b11658 or later'),
 		});
 	});
 
@@ -2002,7 +2003,7 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 			for (const [name, content] of Object.entries(model.files)) {
 				await fs.promises.writeFile(path.join(versionDir, name), content);
 			}
-			const files = model.resolved.files.map(file => ({ path: file.relativePath, totalBytes: file.sizeBytes, sha256: file.sha256, etag: '' }));
+			const files = model.resolved.files.map(file => ({ path: file.relativePath, totalBytes: file.sizeBytes, sha256: file.sha256!, etag: '' }));
 			const manifest = buildManifest({ registry: 'azureml', assetName: model.profile.assetName, version: '5', versionDir, primaryFile: 'model.gguf', files, ctxSize: 32768, parallel: 1, args: ['--jinja'] });
 			await fs.promises.writeFile(path.join(versionDir, 'manifest.json'), JSON.stringify(manifest));
 			await fs.promises.writeFile(path.join(familyDir, '.vscode-owner.json'), JSON.stringify({ writer: 'vscode', versions: ['5'], writtenAt: new Date(0).toISOString(), capiId: model.profile.capiId, ...(promotedTo ? { promotedTo } : {}) }));

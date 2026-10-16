@@ -13,7 +13,7 @@ import { IDecorationOptions } from '../../../../../../../editor/common/editorCom
 import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
 import { getCommandArgumentHint } from '../../../../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
-import { AgentHostCompletionReferenceKind, getAgentHostCompletionReferenceKindFromValue } from '../../../../common/attachments/chatVariableEntries.js';
+import { getAgentHostCompletionReferenceKindFromValue } from '../../../../common/attachments/chatVariableEntries.js';
 import { ChatDynamicVariableModel } from '../../../attachments/chatDynamicVariables.js';
 import { IChatWidget } from '../../../chat.js';
 import { ChatWidget } from '../../chatWidget.js';
@@ -33,9 +33,7 @@ interface ILocalCommandArgumentHint {
 }
 
 /**
- * Renders argument hints and display-only styling for accepted local command prefixes.
- * Agent Host completions carry the hint on their
- * dynamic-variable reference; local completions retain presentation-only state.
+ * Renders hints for accepted Agent Host commands and skills, plus presentation-only hints and styling for local command prefixes.
  *
  * Reads the accepted references directly from {@link ChatDynamicVariableModel}
  * rather than the parsed input, because the chat request parser resolves a
@@ -176,9 +174,9 @@ export class InputEditorCommandArgumentHint extends Disposable {
 			return undefined;
 		}
 
-		// Find an agent-host command reference that carries an argument hint.
+		// Find an agent-host command or skill reference that carries an argument hint.
 		for (const ref of dynamicVariableModel.variables) {
-			if (getAgentHostCompletionReferenceKindFromValue(ref.data) !== AgentHostCompletionReferenceKind.Command) {
+			if (getAgentHostCompletionReferenceKindFromValue(ref.data) === undefined) {
 				continue;
 			}
 			const argumentHint = getCommandArgumentHint(ref._meta);

@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { addDisposableListener } from '../../../../../../base/browser/dom.js';
+import { pauseCSSAnimationsWhenHidden } from '../../../../../../base/browser/animationSync.js';
 import { DEFAULT_FONT_FAMILY } from '../../../../../../base/browser/fonts.js';
 import { IHistoryNavigationWidget } from '../../../../../../base/browser/history.js';
 import { hasModifierKeys, StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
@@ -747,6 +748,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private inputActionsToolbar!: MenuWorkbenchToolBar;
 	private _inputPickerResponsiveLayout: ChatInputPickerResponsiveLayout | undefined;
 	private readonly _pickerFocusListeners = this._register(new MutableDisposable());
+	private readonly _workingBorderAnimations = this._register(new MutableDisposable());
+	private readonly _workingBorderAnimationRestart = this._register(new MutableDisposable());
 	private _secondaryPickerResponsiveLayout: ChatInputPickerResponsiveLayout | undefined;
 
 
@@ -1518,10 +1521,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this.renderAttachedContext();
 			},
 			setModelProgrammatically: (model: ILanguageModelChatMetadataAndIdentifier) => {
-				this._applyProgrammaticLanguageModel(model);
-				if (!this.options.suppressModelPersistence) {
-					storeSelectedModel(this.storageService, this.location, this.getSelectedModelTarget(), model.identifier);
-				}
+				// Not stored: the pick it stands in for is, and is presented the same way when restored.
+				this._modelSelectionController.applyEquivalentSelection(model);
 				this.renderAttachedContext();
 			},
 			getModels: () => this.getModels(),
@@ -2003,12 +2004,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (this.cachedWidth) {
 				this.layout(this.cachedWidth);
 			}
-			if (persistSelection) {
-				storeSelectedModel(this.storageService, this.location, this.getSelectedModelTarget(), model.identifier);
-			}
 			this._syncInputStateToModel();
 		};
 		this._modelSelectionController.applySelection(model, apply, isUserAction);
+		// Not in `apply`, which is skipped when the picker shows an equivalent in place of this model.
+		if (persistSelection) {
+			storeSelectedModel(this.storageService, this.location, this.getSelectedModelTarget(), model.identifier);
+		}
 	}
 
 	private _applyProgrammaticLanguageModel(model: ILanguageModelChatMetadataAndIdentifier): void {
@@ -3190,7 +3192,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const previousResponseListeners = store.add(new DisposableMap<string>());
 		const observePreviousResponse = (request: IChatRequestModel | undefined) => {
 			if (request?.response) {
-				previousResponseListeners.set(request.id, request.response.onDidChange(() => this.contextUsageWidget?.updateSessionCost(model.sessionCost)));
+				previousResponseListeners.set(request.id, request.response.onDidChange(() => this.contextUsageWidget?.updateSessionCost(model.sessionCost, model.sessionCostStatus)));
 			}
 		};
 		for (const request of model.getRequests().slice(0, -1)) {
@@ -3219,7 +3221,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					}
 					this.contextUsageWidget?.update(lastRequest);
 				}
-				this.contextUsageWidget?.updateSessionCost(model.sessionCost);
+				this.contextUsageWidget?.updateSessionCost(model.sessionCost, model.sessionCostStatus);
+			} else if (e.kind === 'setSessionCost') {
+				this.contextUsageWidget?.updateSessionCost(model.sessionCost, model.sessionCostStatus);
 			} else if (e.kind === 'completedRequest') {
 				this.contextUsageWidget?.update(model.lastRequest);
 			}
@@ -3236,6 +3240,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		// Initial update
 		this.contextUsageWidget.update(model.lastRequest);
+		this.contextUsageWidget.updateSessionCost(model.sessionCost, model.sessionCostStatus);
 	}
 
 	private handleViewModelChange(e: IChatWidgetViewModelChangeEvent): void {
@@ -3381,6 +3386,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		this._register(widget.onDidChangeViewModel(e => this.handleViewModelChange(e)));
+		this._register(autorun(reader => {
+			const report = this._currentSessionModelObservable.read(reader)?.modelConfigurationState?.read(reader);
+			this._modelConfigStore.setSessionModelConfiguration(report);
+		}));
 
 		let elements;
 		if (this.options.renderStyle === 'compact') {
@@ -3475,6 +3484,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.inputAndSideToolbar = inputAndSideToolbar;
 		const inputContainer = elements.inputContainer; // The chat editor, attachments, and toolbars
 		this.inputContainer = inputContainer;
+		dom.append(inputContainer, dom.$('.chat-input-working-border', { 'aria-hidden': 'true' }));
+		dom.append(inputContainer, dom.$('.chat-input-working-border.chat-input-working-border-glow', { 'aria-hidden': 'true' }));
+		this._workingBorderAnimations.value = pauseCSSAnimationsWhenHidden(inputContainer, {
+			pausedClass: 'chat-input-anim-paused',
+			subtree: true,
+			animationNames: new Set(['chat-input-working-border-spin']),
+		});
 		const editorContainer = elements.editorContainer;
 		this.attachmentsContainer = elements.attachmentsContainer;
 		this.attachedContextContainer = elements.attachedContextContainer;
@@ -3547,7 +3563,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this.renderChatEditingSessionState(null);
 
-		this.dnd.addOverlay(this.options.dndContainer ?? container, this.options.dndContainer ?? container);
+		this.dnd.addOverlay(this.options.dndContainer ?? container, this.options.dndContainer ?? container, this.container);
 
 		const inputScopedContextKeyService = this._register(this.contextKeyService.createScoped(inputContainer));
 		ChatContextKeys.inChatInput.bindTo(inputScopedContextKeyService).set(true);
@@ -5339,7 +5355,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (this.inputContainer.classList.contains('working')) {
 			const inputContainer = this.inputContainer;
 			inputContainer.classList.add('chat-input-anim-restart');
-			dom.scheduleAtNextAnimationFrame(dom.getWindow(inputContainer), () => {
+			this._workingBorderAnimationRestart.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(inputContainer), () => {
+				this._workingBorderAnimationRestart.clear();
 				inputContainer.classList.remove('chat-input-anim-restart');
 			});
 		}

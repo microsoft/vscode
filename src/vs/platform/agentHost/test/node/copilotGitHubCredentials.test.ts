@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../base/common/async.js';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
 
@@ -100,5 +102,76 @@ suite('CopilotGitHubCredentials', () => {
 				hasProvider: true,
 			},
 		});
+	});
+
+	test('scoped sessions do not follow legacy token changes or another session pin', () => runWithFakedTimers({}, async () => {
+		const legacy = disposables.add(new CopilotGitHubCredentials());
+		legacy.update('desktop', undefined);
+		const resource = 'https://api.github.com';
+		const expiresAt = Date.now() + 3_600_000;
+		const first = CopilotGitHubSessionCredentials.fromCredential({ resource, token: 'first', expiresAt, revision: 1 });
+		const second = CopilotGitHubSessionCredentials.fromCredential({ resource, token: 'second', expiresAt, revision: 1 });
+		const request = { host: 'github.com', sessionId: 'session', reason: 'initial' as const };
+		const firstProvider = first.sdkSessionOptions.gitHubTokenProvider!;
+		legacy.update('desktop-rotated', undefined);
+		assert.deepStrictEqual({
+			legacy: legacy.token,
+			first: await firstProvider(request),
+			firstToken: first.token,
+			second: await second.sdkSessionOptions.gitHubTokenProvider!(request),
+			usesStaticToken: first.usesStaticToken,
+			usesScopedCredential: first.usesScopedCredential,
+		}, {
+			legacy: 'desktop-rotated',
+			first: { kind: 'token', accessToken: 'first', expiresIn: 3600 },
+			firstToken: 'first',
+			second: { kind: 'token', accessToken: 'second', expiresIn: 3600 },
+			usesStaticToken: false,
+			usesScopedCredential: true,
+		});
+		assert.throws(() => first.updateStaticToken('desktop'), /provider-backed/);
+	}));
+
+	test('scoped credentials without a deadline use explicit static SDK authentication without joining legacy updates', () => {
+		const session = CopilotGitHubSessionCredentials.fromCredential({
+			resource: 'https://api.github.com', token: 'captured', expiresAt: undefined, revision: 1,
+		});
+		assert.deepStrictEqual({
+			options: session.sdkSessionOptions,
+			token: session.token,
+			usesStaticToken: session.usesStaticToken,
+			usesScopedCredential: session.usesScopedCredential,
+		}, {
+			options: { gitHubToken: 'captured' }, token: 'captured', usesStaticToken: false, usesScopedCredential: true,
+		});
+	});
+
+	test('a captured scoped credential remains available to in-flight work only until its deadline', () => runWithFakedTimers({}, async () => {
+		const session = CopilotGitHubSessionCredentials.fromCredential({
+			resource: 'https://api.github.com', token: 'captured', expiresAt: Date.now() + 1_000, revision: 1,
+		});
+		const provider = session.sdkSessionOptions.gitHubTokenProvider!;
+		const request = { host: 'github.com', sessionId: 'session', reason: 'refresh' as const };
+		const before = await provider(request);
+		await timeout(1_001);
+		assert.deepStrictEqual({ before, after: await provider(request), token: session.token }, {
+			before: { kind: 'token', accessToken: 'captured', expiresIn: 1 },
+			after: { kind: 'cancelled' },
+			token: undefined,
+		});
+	}));
+
+	test('observed revocation cancels a pinned SDK callback without acquiring another credential', async () => {
+		let usable = true;
+		const session = CopilotGitHubSessionCredentials.fromCredential({
+			resource: 'https://api.github.com', token: 'captured', expiresAt: Date.now() + 3_600_000, revision: 1,
+			isUsable: () => usable,
+		});
+		const provider = session.sdkSessionOptions.gitHubTokenProvider!;
+		usable = false;
+		assert.deepStrictEqual({
+			token: session.token,
+			callback: await provider({ host: 'github.com', sessionId: 'session', reason: 'refresh' }),
+		}, { token: undefined, callback: { kind: 'cancelled' } });
 	});
 });

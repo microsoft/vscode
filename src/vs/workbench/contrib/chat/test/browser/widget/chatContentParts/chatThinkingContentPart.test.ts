@@ -3191,6 +3191,80 @@ suite('ChatThinkingContentPart', () => {
 			};
 		}
 
+		test('reuses identical tool titles without reparsing markdown and restores detail after expansion', () => {
+			mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', ThinkingDisplayMode.Collapsed);
+			const renderer = sinon.spy(mockMarkdownRenderer, 'render');
+			const part = store.add(instantiationService.createInstance(ChatThinkingContentPart, createThinkingPart(''), createMockRenderContext(), mockMarkdownRenderer, false));
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+			const append = (index: number) => {
+				const tool = createMockExecutingToolInvocation('read_file', new MarkdownString('Reading **file**'), `read-${index}`);
+				part.appendItem(() => ({ domNode: $('div', undefined, 'Tool content') }), tool.toolId, tool);
+			};
+			append(0);
+			const detail = part.domNode.querySelector('.chat-thinking-title-detail');
+			for (let index = 1; index < 20; index++) {
+				append(index);
+			}
+			const repeated = {
+				renderCalls: renderer.callCount,
+				sameDetail: part.domNode.querySelector('.chat-thinking-title-detail') === detail,
+			};
+			const button = part.domNode.querySelector<HTMLElement>('.monaco-button')!;
+			button.click();
+			const detailRemoved = !part.domNode.querySelector('.chat-thinking-title-detail');
+			button.click();
+			assert.deepStrictEqual({
+				repeated, detailRemoved,
+				restoredTitle: part.domNode.querySelector('.chat-thinking-title-detail')?.textContent,
+				renderCalls: renderer.callCount,
+				ariaExpanded: button.ariaExpanded,
+			}, {
+				repeated: { renderCalls: 1, sameDetail: true },
+				detailRemoved: true,
+				restoredTitle: 'Reading **file**',
+				renderCalls: 2,
+				ariaExpanded: 'false',
+			});
+		});
+
+		test('invalidates reused titles when markdown rendering metadata or mutable input changes', () => {
+			mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', ThinkingDisplayMode.Collapsed);
+			const renderer = sinon.spy(mockMarkdownRenderer, 'render');
+			const part = store.add(instantiationService.createInstance(ChatThinkingContentPart, createThinkingPart(''), createMockRenderContext(), mockMarkdownRenderer, false));
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+			const title = new MarkdownString('Reading **file**');
+			const renderCounts: number[] = [];
+			let index = 0;
+			const append = () => {
+				const tool = createMockExecutingToolInvocation('read_file', title, `read-${index++}`);
+				part.appendItem(() => ({ domNode: $('div', undefined, 'Tool content') }), tool.toolId, tool);
+				renderCounts.push(renderer.callCount);
+			};
+			append();
+			append();
+			title.value = 'Reading **another file**';
+			append();
+			title.supportHtml = true;
+			append();
+			title.supportThemeIcons = true;
+			append();
+			title.baseUri = URI.file('/workspace/');
+			append();
+			title.uris = { reference: URI.file('/workspace/first.ts') };
+			append();
+			title.uris.reference = URI.file('/workspace/second.ts');
+			append();
+			const enabledCommands = ['first'];
+			title.isTrusted = { enabledCommands };
+			append();
+			enabledCommands.push('second');
+			append();
+			append();
+			assert.deepStrictEqual(renderCounts, [1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 9]);
+		});
+
 		test('finalizeTitleIfDefault should promote a single tool out of thinking even when it is not complete', () => {
 			const content = createThinkingPart('');
 			const context = createMockRenderContext(false);

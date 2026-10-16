@@ -20,6 +20,7 @@ import { ILogService } from '../../../log/common/log.js';
 import { IAgentHostAuthenticationService } from '../agentHostAuthenticationService.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
+import { captureCredentialSource, type IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 import { readCloudSandboxCloneResult } from '../../common/meta/cloudSandboxProjectMeta.js';
 import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ROOT_STATE_URI } from '../../common/state/sessionState.js';
@@ -45,6 +46,7 @@ interface IMissionControlProjectsOptions {
 	readonly getRoots: () => readonly string[];
 	readonly getProjectRoots?: () => readonly string[];
 	readonly runGit?: typeof runGit;
+	readonly processEnvironment?: NodeJS.ProcessEnv;
 }
 
 function runGit(args: readonly string[], env: NodeJS.ProcessEnv, signal: AbortSignal, onProgress: (progress: number) => void): Promise<void> {
@@ -159,7 +161,10 @@ export class MissionControlProjects extends Disposable {
 		});
 	}
 
-	handleRequest(method: string, params: unknown, checkAuthorization?: () => void): Promise<unknown> | undefined {
+	handleRequest(method: string, params: unknown, checkAuthorization?: () => void, source?: IAgentHostCredentialSource): Promise<unknown> | undefined {
+		if (method === 'extensions/cloneProject' && source) {
+			source = captureCredentialSource(source, [{ ...this._endpoints.getCopilotResource(), required: false }]);
+		}
 		switch (method) {
 			case 'extensions/listProjects':
 			case 'extensions/addProject':
@@ -175,7 +180,7 @@ export class MissionControlProjects extends Disposable {
 						case 'extensions/listProjects': return { projects: [...this._projects.values()] };
 						case 'extensions/addProject': return this._add(params, checkAuthorization);
 						case 'extensions/removeProject': return this._remove(params);
-						default: return this._clone(params, checkAuthorization);
+						default: return this._clone(params, checkAuthorization, source);
 					}
 				});
 			default: return undefined;
@@ -280,7 +285,7 @@ export class MissionControlProjects extends Disposable {
 		return { removed: true };
 	}
 
-	private async _clone(params: Record<string, unknown>, checkAuthorization?: () => void): Promise<unknown> {
+	private async _clone(params: Record<string, unknown>, checkAuthorization?: () => void, source?: IAgentHostCredentialSource): Promise<unknown> {
 		if (typeof params.url !== 'string' || !params.url || /[\0\r\n]/.test(params.url)
 			|| (params.branch !== undefined && (typeof params.branch !== 'string' || !params.branch || /[\0\r\n]/.test(params.branch)))
 			|| (params.depth !== undefined && (typeof params.depth !== 'number' || !Number.isInteger(params.depth) || params.depth < 0 || params.depth > 0xffffffff))
@@ -342,11 +347,11 @@ export class MissionControlProjects extends Disposable {
 		this._clones.set(id, controller);
 		this._projects.set(id, project);
 		this._publish();
-		void this._driveClone(project, url, params, controller);
+		void this._driveClone(project, url, params, controller, source);
 		return { project };
 	}
 
-	private async _driveClone(project: IMissionControlProject, url: URL, params: Record<string, unknown>, controller: AbortController): Promise<void> {
+	private async _driveClone(project: IMissionControlProject, url: URL, params: Record<string, unknown>, controller: AbortController, source?: IAgentHostCredentialSource): Promise<void> {
 		try {
 			const args = ['clone', '--progress'];
 			if (typeof params.branch === 'string') {
@@ -356,19 +361,29 @@ export class MissionControlProjects extends Disposable {
 				args.push('--depth', String(params.depth));
 			}
 			args.push('--', url.toString(), project.path);
-			const env: NodeJS.ProcessEnv = { ...process.env, GIT_TERMINAL_PROMPT: '0' };
+			const inheritedEnvironment = this._options.processEnvironment ?? process.env;
+			const env: NodeJS.ProcessEnv = { ...inheritedEnvironment, GIT_TERMINAL_PROMPT: '0' };
+			if (source) {
+				delete env.VSCODE_MC_GIT_TOKEN;
+			}
 			const githubOrigin = new URL(this._endpoints.getEnterpriseUri() ?? 'https://github.com').origin;
 			if (url.origin === githubOrigin) {
-				const resource = this._endpoints.getRepoResource();
-				const token = this._authentication.getAuthToken({ resource: resource.resource })
+				const token = source
+					? this._authentication.getAuthToken({ resource: this._endpoints.getCopilotResource().resource }, source)
+					: this._authentication.getAuthToken({ resource: this._endpoints.getRepoResource().resource })
 					?? this._authentication.getAuthToken({ resource: this._endpoints.getCopilotResource().resource });
 				if (token) {
 					env.VSCODE_MC_GIT_TOKEN = token;
-					env.GIT_CONFIG_COUNT = '2';
-					env.GIT_CONFIG_KEY_0 = `credential.${githubOrigin}.helper`;
-					env.GIT_CONFIG_VALUE_0 = '';
-					env.GIT_CONFIG_KEY_1 = `credential.${githubOrigin}.helper`;
-					env.GIT_CONFIG_VALUE_1 = '!f() { test "$1" = get && printf "username=x-access-token\\npassword=%s\\n" "$VSCODE_MC_GIT_TOKEN"; }; f';
+					const helper = '!f() { test "$1" = get && printf "username=x-access-token\\npassword=%s\\n" "$VSCODE_MC_GIT_TOKEN"; }; f';
+					if (source) {
+						args.unshift('-c', 'credential.helper=', '-c', `credential.${githubOrigin}.helper=${helper}`);
+					} else {
+						env.GIT_CONFIG_COUNT = '2';
+						env.GIT_CONFIG_KEY_0 = `credential.${githubOrigin}.helper`;
+						env.GIT_CONFIG_VALUE_0 = '';
+						env.GIT_CONFIG_KEY_1 = `credential.${githubOrigin}.helper`;
+						env.GIT_CONFIG_VALUE_1 = helper;
+					}
 				}
 			}
 			await this._runGit(args, env, controller.signal, progress => {
@@ -388,7 +403,7 @@ export class MissionControlProjects extends Disposable {
 				return;
 			}
 			if (!params.branch && params.depth) {
-				await this._runGit(['-C', project.path, 'config', 'remote.origin.fetch', '+refs/heads/*:refs/remotes/origin/*'], { ...process.env }, controller.signal, () => { });
+				await this._runGit(['-C', project.path, 'config', 'remote.origin.fetch', '+refs/heads/*:refs/remotes/origin/*'], { ...inheritedEnvironment }, controller.signal, () => { });
 			}
 			await this._mutations.queue(async () => {
 				if (controller.signal.aborted || !this._projects.has(project.id)) {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../base/common/event.js';
-import { DisposableStore, IReference, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { DisposableMap, DisposableStore, IReference, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { GitHubService, IGitHubClient, IGitHubService } from '../../github/common/githubService.js';
 import { GitHubServiceOptions } from '../../github/common/githubTypes.js';
 import { authenticationAccountId } from '../common/meta/agentAuthenticationAccount.js';
@@ -13,27 +13,37 @@ import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
+import { captureCredentialSource, isScopedCredentialUsable, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
+import { AhpErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 
 export const IAgentHostGitHubService = refineServiceDecorator<IGitHubService, IAgentHostGitHubService>(IGitHubService);
 
 export interface IAgentHostGitHubService extends IGitHubService {
+	getAgentMergeCredentialSource(chat: string): IAgentHostCredentialSource | undefined;
+	getAgentMergeCredentialBinding(chat: string): IAgentHostCredentialSource | undefined;
+	bindAgentMergeCredentialSource(session: string, chat: string, source: IAgentHostCredentialSource | undefined): void;
 	readonly onDidChangeRepositoryClient: Event<void>;
-	acquireRepositoryClient(signal: AbortSignal): IReference<IGitHubClient>;
+	captureSessionCredentialSource(session: string, source?: IAgentHostCredentialSource, owningSession?: string, includeCopilot?: boolean, usage?: 'execution' | 'agentMerge'): IAgentHostCredentialSource | undefined;
+	acquireRepositoryClient(signal: AbortSignal, source?: IAgentHostCredentialSource, session?: string): IReference<IGitHubClient>;
 }
 
 export class AgentHostGitHubService extends GitHubService implements IAgentHostGitHubService {
 
 	private readonly _repositoryClient = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _isolatedServices = this._register(new DisposableMap<string, GitHubService>());
+	private readonly _isolatedReferences = new Map<string, number>();
+	private readonly _credentialSourceIds = new WeakMap<IAgentHostCredentialSource, number>();
+	private _nextCredentialSourceId = 0;
 	private readonly _synchronizeRepositoryAccount: () => string | undefined;
 	private readonly _onDidChangeRepositoryClient = this._register(new Emitter<void>());
 	readonly onDidChangeRepositoryClient = this._onDidChangeRepositoryClient.event;
 
 	constructor(
-		options: Omit<GitHubServiceOptions, 'credentialProvider'>,
-		@IAgentHostAuthenticationService _authenticationService: IAgentHostAuthenticationService,
+		private readonly _repositoryOptions: Omit<GitHubServiceOptions, 'credentialProvider'>,
+		@IAgentHostAuthenticationService private readonly _authenticationService: IAgentHostAuthenticationService,
 		@IAgentHostGitHubEndpointService private readonly _endpointService: IAgentHostGitHubEndpointService,
-		@ILogService logService: ILogService,
-		@ITelemetryService telemetryService: ITelemetryService,
+		@ILogService private readonly _repositoryLogService: ILogService,
+		@ITelemetryService private readonly _repositoryTelemetryService: ITelemetryService,
 	) {
 		let hasRepositoryToken = false;
 		const selectedAccount = () => {
@@ -51,7 +61,7 @@ export class AgentHostGitHubService extends GitHubService implements IAgentHostG
 			return repositoryAccountId;
 		};
 		super({
-			...options,
+			..._repositoryOptions,
 			credentialProvider: {
 				onDidChange: Event.any(
 					Event.map(Event.filter(_authenticationService.onDidChangeAuthToken, event => event.token === undefined), event => ({ providerId: 'agent-host', sessionIds: [event.resource] })),
@@ -74,7 +84,7 @@ export class AgentHostGitHubService extends GitHubService implements IAgentHostG
 					return token;
 				},
 			},
-		}, logService, telemetryService);
+		}, _repositoryLogService, _repositoryTelemetryService);
 		this._synchronizeRepositoryAccount = synchronizeRepositoryAccount;
 		this._register(onDidChangeRepositoryAccount);
 		this._register(onDidChangeRepositoryAccount.event(() => this._resetRepositoryClient()));
@@ -96,8 +106,43 @@ export class AgentHostGitHubService extends GitHubService implements IAgentHostG
 		}));
 	}
 
-	acquireRepositoryClient(signal: AbortSignal): IReference<IGitHubClient> {
+	captureSessionCredentialSource(session: string, source?: IAgentHostCredentialSource, owningSession = session, includeCopilot = false, usage: 'execution' | 'agentMerge' = 'execution'): IAgentHostCredentialSource | undefined {
+		const captured = source ?? (usage === 'agentMerge' ? this.getAgentMergeCredentialSource(session) : this._authenticationService.getSessionCredentialSource(session));
+		if (captured) {
+			return captureCredentialSource({
+				principal: captured.principal,
+				getCredential: request => captured.getCredential({ ...request, session }),
+			}, [
+				this._endpointService.getRepoResource(),
+				...(includeCopilot ? [{ ...this._endpointService.getCopilotResource(), required: false }] : []),
+			]);
+		}
+		const principal = this._authenticationService.getSessionCredentialPrincipal(owningSession);
+		if (principal) {
+			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'An isolated session requires an authenticated sponsor');
+		}
+		return undefined;
+	}
+
+	/** An explicit operation sponsor takes precedence; otherwise monitoring follows the chat's execution sponsor. */
+	getAgentMergeCredentialSource(chat: string): IAgentHostCredentialSource | undefined {
+		return this.getAgentMergeCredentialBinding(chat) ?? this._authenticationService.getSessionCredentialSource(chat);
+	}
+
+	getAgentMergeCredentialBinding(chat: string): IAgentHostCredentialSource | undefined {
+		return this._authenticationService.getSessionCredentialSource(chat, 'agentMerge');
+	}
+
+	bindAgentMergeCredentialSource(session: string, chat: string, source: IAgentHostCredentialSource | undefined): void {
+		this._authenticationService.bindSessionCredentials(session, source, chat, 'agentMerge');
+	}
+
+	acquireRepositoryClient(signal: AbortSignal, source?: IAgentHostCredentialSource, session?: string): IReference<IGitHubClient> {
 		signal.throwIfAborted();
+		source ??= session ? this._authenticationService.getSessionCredentialSource(session) ?? this.captureSessionCredentialSource(session) : undefined;
+		if (source) {
+			return this._acquireIsolatedRepositoryClient(source, session);
+		}
 		const resource = this._endpointService.getRepoResource();
 		const accountId = this._synchronizeRepositoryAccount();
 		signal.throwIfAborted();
@@ -122,6 +167,60 @@ export class AgentHostGitHubService extends GitHubService implements IAgentHostG
 			}
 		}
 		return this.acquireClient(options);
+	}
+
+	private _acquireIsolatedRepositoryClient(source: IAgentHostCredentialSource, session: string | undefined): IReference<IGitHubClient> {
+		const resource = this._endpointService.getRepoResource();
+		const captured = captureCredentialSource({
+			principal: source.principal,
+			getCredential: request => source.getCredential({ ...request, session }),
+		}, [resource]);
+		const credential = captured.getCredential({ resource: resource.resource, scopes: resource.scopes_supported, session });
+		const sourceId = this._credentialSourceIds.get(source) ?? ++this._nextCredentialSourceId;
+		this._credentialSourceIds.set(source, sourceId);
+		const key = JSON.stringify([sourceId, session, credential?.revision, credential?.expiresAt]);
+		let service = this._isolatedServices.get(key);
+		if (!service) {
+			service = new GitHubService({
+				...this._repositoryOptions,
+				credentialProvider: {
+					onDidChange: Event.map(this._endpointService.onDidChange, () => ({ providerId: 'agent-host-isolated' })),
+					getToken: (context, signal) => {
+						signal.throwIfAborted();
+						if (source.principal && source.principal.apiOrigin !== new URL(this._endpointService.getApiBaseUri()).origin) {
+							return undefined;
+						}
+						const credential = captured.getCredential({ resource: context.sessionId, scopes: context.scopes, session });
+						return credential && isScopedCredentialUsable(credential)
+							? credential.token
+							: undefined;
+					},
+				},
+			}, this._repositoryLogService, this._repositoryTelemetryService);
+			this._isolatedServices.set(key, service);
+		}
+		const reference = service.acquireClient({
+			authorization: {
+				providerId: 'agent-host-isolated',
+				sessionId: resource.resource,
+				scopes: resource.scopes_supported ?? [],
+				...(source.principal ? { accountId: source.principal.userId } : {}),
+			},
+			apiBaseUri: this._endpointService.getApiBaseUri(),
+			graphQlUri: this._endpointService.getGraphQlUri(),
+		});
+		this._isolatedReferences.set(key, (this._isolatedReferences.get(key) ?? 0) + 1);
+		const disposable = toDisposable(() => {
+			reference.dispose();
+			const remaining = (this._isolatedReferences.get(key) ?? 1) - 1;
+			if (remaining) {
+				this._isolatedReferences.set(key, remaining);
+			} else {
+				this._isolatedReferences.delete(key);
+				this._isolatedServices.deleteAndDispose(key);
+			}
+		});
+		return { object: reference.object, dispose: () => disposable.dispose() };
 	}
 
 	private _resetRepositoryClient(): void {

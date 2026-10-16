@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../base/common/platform.js';
@@ -14,7 +15,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import type { IAgentCreateSessionConfig, IAgentModelInfo, IAgentSessionMetadata } from '../../common/agent.js';
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, MessageKind, PendingMessageKind, readSessionCreationReference, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, withSessionGitState, withSessionGitHubState, withSessionWorkspaceless, type ModelSelection, type ResponsePart, type ToolCallState, type Turn } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, MessageKind, PendingMessageKind, readSessionCreationReference, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, withSessionGitState, withSessionGitHubState, withSessionWorkspaceless, type ModelSelection, type ResponsePart, type ToolCallState, type ToolDefinition, type Turn } from '../../common/state/sessionState.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import type { AutomaticTitleGenerationStrategy } from '../../node/agentHostSessionTitleController.js';
@@ -52,7 +53,7 @@ import {
 
 suite('SessionServerTools', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const workspace = URI.parse('file:///workspace/app');
 	const model: IAgentModelInfo = { provider: 'copilot', id: 'gpt-4o', name: 'GPT-4o', supportsVision: false };
@@ -76,6 +77,7 @@ suite('SessionServerTools', () => {
 	function createAccessor(overrides?: Partial<ISessionServerToolAccessor> & { onCreate?: (config: IAgentCreateSessionConfig) => void; onPrompt?: (...args: Parameters<ISessionServerToolAccessor['startPrompt']>) => void; onCreateChat?: (...args: Parameters<ISessionServerToolAccessor['createChat']>) => void; onRenameChat?: (session: URI, chat: URI, title: string) => void; onDelete?: (session: URI) => void; depths?: Map<string, number> }): ISessionServerToolAccessor {
 		const depths = overrides?.depths ?? new Map<string, number>();
 		return {
+			getCredentialSource: overrides?.getCredentialSource ?? (() => undefined),
 			getAutomaticTitleGenerationStrategy: overrides?.getAutomaticTitleGenerationStrategy ?? (() => 'deferred'),
 			isWorkspaceless: overrides?.isWorkspaceless ?? (() => true),
 			canConvertWorkspace: overrides?.canConvertWorkspace ?? (() => true),
@@ -86,8 +88,8 @@ suite('SessionServerTools', () => {
 			createSession: overrides?.createSession ?? (async config => { overrides?.onCreate?.(config); return URI.parse('copilot:/new'); }),
 			getModels: overrides?.getModels ?? (() => [model]),
 			getCreationDefaults: overrides?.getCreationDefaults ?? (() => undefined),
-			startPrompt: overrides?.startPrompt ?? (async (session, chat, prompt, delegation) => { overrides?.onPrompt?.(session, chat, prompt, delegation); }),
-			createChat: overrides?.createChat ?? (async (session, chat, options) => { overrides?.onCreateChat?.(session, chat, options); }),
+			startPrompt: overrides?.startPrompt ?? (async (session, chat, prompt, delegation, credentials) => { overrides?.onPrompt?.(session, chat, prompt, delegation, credentials); }),
+			createChat: overrides?.createChat ?? (async (session, chat, options, credentials) => { overrides?.onCreateChat?.(session, chat, options, credentials); }),
 			prepareChatWorkingDirectory: overrides?.prepareChatWorkingDirectory ?? (async (_session, directory) => prepared(directory)),
 			renameChat: overrides?.renameChat ?? (async (session, chat, title) => { overrides?.onRenameChat?.(session, chat, title); return { title }; }),
 			reportToolError: overrides?.reportToolError ?? (() => { }),
@@ -552,6 +554,120 @@ suite('SessionServerTools', () => {
 		);
 		assert.ok(!stateManager.getSessionState(session)?.serverTools?.some(tool => tool.name === SessionServerToolName.SetWorkspace));
 		stateManager.dispose();
+	});
+
+	test('re-advertise only publishes changed protocol definitions', () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const session = 'copilot:/s1';
+		const chat = buildDefaultChatUri(session);
+		stateManager.createSession({
+			resource: session, provider: 'copilot', title: 'Session', status: SessionStatus.Idle,
+			createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(), defaultChat: chat,
+		});
+		const initial: ToolDefinition[] = [{
+			name: 'dynamic_tool', description: 'Dynamic tool.',
+			inputSchema: { type: 'object', properties: { value: { type: 'string' } } },
+			_meta: { 'test.kind': 'initial' },
+		}];
+		const descriptionChanged = [{ ...initial[0], description: 'Updated description.' }];
+		const schemaChanged: ToolDefinition[] = [{ ...descriptionChanged[0], inputSchema: { type: 'object', properties: { value: { type: 'number' } } } }];
+		const metadataChanged = [{ ...schemaChanged[0], _meta: { 'test.kind': 'updated' } }];
+		const additionalTool: ToolDefinition = { name: 'other_tool', description: 'Other tool.' };
+		let definitions: ToolDefinition[] = initial;
+		const host = new AgentServerToolHost(stateManager, [{
+			definitions: initial,
+			getDefinitions: () => definitions,
+			isEnabled: () => true,
+			isEnabledForSession: () => true,
+			execute: () => '',
+		}]);
+		const publications: ToolDefinition[][] = [];
+		disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.action.type === ActionType.SessionServerToolsChanged) {
+				publications.push(envelope.action.tools);
+			}
+		}));
+
+		host.advertise(session);
+		host.advertise(chat);
+		definitions = [{
+			_meta: { 'test.kind': 'initial' },
+			inputSchema: { properties: { value: { type: 'string' } }, type: 'object' },
+			description: 'Dynamic tool.', name: 'dynamic_tool',
+		}];
+		host.advertise(session);
+		for (const changed of [descriptionChanged, schemaChanged, metadataChanged, [...metadataChanged, additionalTool], [additionalTool, ...metadataChanged], [], [], initial]) {
+			definitions = changed;
+			host.advertise(session);
+			host.advertise(chat);
+		}
+
+		assert.deepStrictEqual(publications, [
+			initial, descriptionChanged, schemaChanged, metadataChanged,
+			[...metadataChanged, additionalTool], [additionalTool, ...metadataChanged], [], initial,
+		]);
+	});
+
+	test('first advertisement publishes empty tools independently for each session', () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const host = new AgentServerToolHost(stateManager, []);
+		const publications: { channel: string; tools: ToolDefinition[] }[] = [];
+		disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.action.type === ActionType.SessionServerToolsChanged) {
+				publications.push({ channel: envelope.channel, tools: envelope.action.tools });
+			}
+		}));
+		for (const session of ['copilot:/s1', 'claude:/s2']) {
+			stateManager.createSession({
+				resource: session, provider: URI.parse(session).scheme, title: 'Session', status: SessionStatus.Idle,
+				createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(), defaultChat: buildDefaultChatUri(session),
+			});
+			host.advertise(session);
+			host.advertise(session);
+		}
+
+		assert.deepStrictEqual(publications, [
+			{ channel: 'copilot:/s1', tools: [] },
+			{ channel: 'claude:/s2', tools: [] },
+		]);
+	});
+
+	test('re-advertise compares the authoritative session catalogue', () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const session = 'copilot:/s1';
+		const summary = {
+			resource: session, provider: 'copilot', title: 'Session', status: SessionStatus.Idle,
+			createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(), defaultChat: buildDefaultChatUri(session),
+		};
+		stateManager.createSession(summary);
+		const group = createSessionServerToolGroup(createAccessor());
+		new AgentServerToolHost(stateManager, [group]).advertise(session);
+		const host = new AgentServerToolHost(stateManager, [group]);
+		let publications = 0;
+		disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.action.type === ActionType.SessionServerToolsChanged) {
+				publications++;
+			}
+		}));
+
+		host.advertise(session);
+		const afterUnchanged = publications;
+		stateManager.dispatchServerAction(session, {
+			type: ActionType.SessionServerToolsChanged,
+			tools: stateManager.getSessionState(session)?.serverTools?.map(tool => ({ ...tool, description: 'Outdated description.' })) ?? [],
+		});
+		host.advertise(session);
+		host.advertise(session);
+		const afterRefresh = publications;
+		stateManager.removeSession(session);
+		stateManager.restoreSession(summary, [], creationTimeChatStorageResource);
+		host.advertise(session);
+		host.advertise(session);
+
+		assert.deepStrictEqual({
+			afterUnchanged, afterRefresh, publications,
+			tools: stateManager.getSessionState(session)?.serverTools?.map(tool => tool.name),
+		}, { afterUnchanged: 0, afterRefresh: 2, publications: 3, tools: sessionServerToolDefinitions.map(tool => tool.name) });
 	});
 
 	test('re-advertise updates dynamic groups while materialized session tools stay fixed', () => {
@@ -2393,6 +2509,36 @@ suite('SessionServerTools', () => {
 		assert.strictEqual(createdModel, undefined);
 	});
 
+	test('agent-derived sessions and prompts retain the calling chat credential source', async () => {
+		const resource = 'https://api.github.com';
+		const credentials = new AgentHostAuthenticationScope(async params => params, () => { });
+		try {
+			await credentials.authenticate({ resource, token: 'calling-chat' }, [resource]);
+			const prompts: (Parameters<ISessionServerToolAccessor['startPrompt']>[4])[] = [];
+			const creates: IAgentCreateSessionConfig[] = [];
+			const chats: (Parameters<ISessionServerToolAccessor['createChat']>[3])[] = [];
+			const accessor = createAccessor({
+				getCredentialSource: () => credentials,
+				listSessions: async () => [sessionMeta('s1', SessionStatus.Idle, workspace), sessionMeta('s2', SessionStatus.Idle, workspace)],
+				onCreate: config => creates.push(config),
+				onCreateChat: (_session, _chat, _options, source) => chats.push(source),
+				onPrompt: (_session, _chat, _prompt, _delegation, source) => prompts.push(source),
+			});
+			const sourceChat = URI.parse(buildDefaultChatUri('copilot:/s1'));
+			await applyCreateSessionTool(accessor, { relationship: 'independent', title: 'Independent', prompt: 'Work' }, sourceChat);
+			await applyCreateChatTool(accessor, { session: 'copilot:/s2', title: 'Peer', prompt: 'Work' }, sourceChat);
+			await applySendMessageTool(accessor, { session: 'copilot:/s2', message: 'Continue' }, sourceChat.toString());
+			assert.deepStrictEqual({
+				sessionSource: creates[0]?.credentials === credentials,
+				chatSource: chats[0] === credentials,
+				promptSources: prompts.map(source => source === credentials),
+				token: prompts[0]?.getCredential({ resource })?.token,
+			}, { sessionSource: true, chatSource: true, promptSources: [true, true, true], token: 'calling-chat' });
+		} finally {
+			credentials.dispose();
+		}
+	});
+
 	test('send_message targets the default chat / a specific chat, refuses the current chat, and validates', async () => {
 		const prompts: { session: URI; chat: URI; prompt: string; delegation: Parameters<ISessionServerToolAccessor['startPrompt']>[3] }[] = [];
 		const accessor = createAccessor({
@@ -2562,17 +2708,43 @@ suite('SessionServerTools', () => {
 			results: [queuedResult.action, steeringResult.action],
 			queuedMessages: stateManager.getChatState(queuedChat)?.queuedMessages?.map(message => message.message.text),
 			steeringQueuedMessages: stateManager.getChatState(steeringChat)?.queuedMessages?.map(message => message.message.text),
-			steeringMessage: stateManager.getChatState(steeringChat)?.steeringMessage?.message.text,
 			prompts,
 		}, {
 			results: ['queued', 'queued'],
 			queuedMessages: ['older', 'after queued'],
-			steeringQueuedMessages: ['after steering'],
-			steeringMessage: 'steering',
+			steeringQueuedMessages: ['steering', 'after steering'],
 			prompts: [],
 		});
 		store.dispose();
 	});
+
+	for (const userId of ['1', '2']) {
+		test(`send_message steering checks owner ${userId} without requiring the target credential`, async () => {
+			const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const targetSession = 'copilot:/s2';
+			const targetChat = buildDefaultChatUri(targetSession);
+			const sourceChat = buildDefaultChatUri('copilot:/s1');
+			stateManager.createSession({
+				resource: targetSession, provider: 'copilot', title: 'Target', status: SessionStatus.InProgress,
+				createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(), defaultChat: targetChat,
+			});
+			stateManager.dispatchServerAction(targetChat, {
+				type: ActionType.ChatTurnStarted, turnId: 'running', startedAt: new Date(0).toISOString(),
+				message: { text: 'Running', origin: { kind: MessageKind.User } },
+			});
+			const accessor = createAccessor({
+				listSessions: async () => [sessionMeta('s1', SessionStatus.InProgress, workspace), sessionMeta('s2', SessionStatus.InProgress, workspace)],
+				getCredentialSource: chat => ({
+					principal: { apiOrigin: 'https://api.github.com', userId: chat.toString() === sourceChat ? userId : '1' },
+					getCredential: () => { throw new Error('Steering must retain the target turn credential'); },
+				}),
+			});
+			const result = JSON.parse(await applySendMessageTool(accessor, { session: targetSession, delivery: 'steer', message: 'Steer' }, sourceChat, undefined, stateManager));
+			assert.deepStrictEqual({ action: result.action, message: stateManager.getChatState(targetChat)?.steeringMessage?.message.text }, userId === '1'
+				? { action: 'steered', message: 'Steer' }
+				: { action: 'rejected', message: undefined });
+		});
+	}
 
 	test('send_message steers explicitly and does not overwrite an existing steering message', async () => {
 		const store = new DisposableStore();
@@ -2602,7 +2774,7 @@ suite('SessionServerTools', () => {
 		const steered = JSON.parse(await group.execute(stateManager, context, SessionServerToolName.SendMessage, {
 			operation: 'send', session: targetSession, delivery: 'steer', message: 'focus on tests',
 		}));
-		const rejected = JSON.parse(await group.execute(stateManager, context, SessionServerToolName.SendMessage, {
+		const second = JSON.parse(await group.execute(stateManager, context, SessionServerToolName.SendMessage, {
 			operation: 'send', session: targetSession, delivery: 'steer', message: 'second steering',
 		}));
 		const notReplaced = JSON.parse(await group.execute(stateManager, context, SessionServerToolName.SendMessage, {
@@ -2614,16 +2786,16 @@ suite('SessionServerTools', () => {
 
 		assert.deepStrictEqual({
 			steered: { action: steered.action, status: steered.status },
-			rejected: { action: rejected.action, reason: rejected.reason, targetStatus: rejected.targetStatus },
+			second: { action: second.action, status: second.status },
 			notReplaced: { action: notReplaced.action, reason: notReplaced.reason, status: notReplaced.status },
 			notCancelled: { action: notCancelled.action, reason: notCancelled.reason, status: notCancelled.status },
-			message: stateManager.getChatState(targetChat)?.steeringMessage?.message.text,
+			messages: stateManager.getChatState(targetChat)?.queuedMessages?.map(message => message.message.text),
 		}, {
 			steered: { action: 'steered', status: 'processing' },
-			rejected: { action: 'rejected', reason: 'cannotSteer', targetStatus: 'steeringPending' },
+			second: { action: 'steered', status: 'processing' },
 			notReplaced: { action: 'notReplaced', reason: 'processing', status: 'processing' },
 			notCancelled: { action: 'notCancelled', reason: 'processing', status: 'processing' },
-			message: 'focus on tests',
+			messages: ['focus on tests', 'second steering'],
 		});
 		store.dispose();
 	});

@@ -5,6 +5,7 @@
 
 import './agentSessions/agentHost/codexContinuation.contribution.js';
 import './agentSessions/agentHost/localModel.contribution.js';
+import { getDefaultModelPolicyDescription } from '../common/modelSelection.js';
 import { CODEX_CONTINUATION_DEFAULT_THRESHOLD } from '../../../services/agentHost/browser/codexContinuation.js';
 import { CODEX_CONTINUATION_SETTING, CODEX_CONTINUATION_THRESHOLD_SETTING } from '../../../services/agentHost/browser/codexContinuationService.js';
 import { Event } from '../../../../base/common/event.js';
@@ -23,8 +24,8 @@ import '../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostAutoReplyEnabledConfigKey, AgentHostByokUtilityModelDefaultConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostUtilitySmallModelConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
 import { AgentMergeSettingId } from '../../../../platform/agentHost/common/agentMerge.js';
-import { AgentHostAhpJsonlLoggingSettingId, AgentHostAllowSignedOutWhenUsableSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
-import { AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotMemoryEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotRuntimePathSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostEnsembleEnabledSettingId, AgentHostEnsembleIntelligenceUsesHydraFusionSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotSkillCharBudgetSettingId, CopilotTgrepEnabledSettingId, copilotSdkLogLevelSettingValues, DEFAULT_COPILOT_SKILL_CHAR_BUDGET, normalizeSkillCharBudget } from '../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostAllowSignedOutWhenUsableSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
+import { AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotMemoryEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotRuntimePathSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostFusionEnabledSettingId, AgentHostFusionBalanceUsesHydraFusionSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, CopilotImageGenerationEnabledSettingId, isImageGenerationEnabledByDefault, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, copilotCliConfigSchema, CopilotSkillCharBudgetSettingId, CopilotTgrepEnabledSettingId, copilotSdkLogLevelSettingValues, DEFAULT_COPILOT_SKILL_CHAR_BUDGET, normalizeSkillCharBudget } from '../../../../platform/agentHost/common/copilotCliConfig.js';
 import { getLocalModelSafetyDisclosure, LOCAL_MODEL_MIN_GPU_MEMORY_GB_PLACEHOLDER, LocalModelEnabledSettingId, LocalModelLlamaServerPathSettingId, LocalModelUseInAutoSettingId } from '../../../../platform/agentHost/common/localModel.js';
 import '../../../services/agentHost/browser/localModelService.js';
 import { ChatMicrosoftAuthenticationEnabledSettingId, ChatMicrosoftAuthenticationMode, DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, mergeChatEditAutoApprovePatterns } from '../../../../platform/chat/common/chatSettings.js';
@@ -43,7 +44,7 @@ import { DEFAULT_LOCAL_TRANSCRIPTION_MODEL } from '../../../../platform/localTra
 import { McpAccessValue, McpAutoStartValue, mcpAccessConfig, mcpAllowedServersConfig, mcpAppsEnabledConfig, mcpAutoStartConfig, mcpDeniedServersConfig, mcpGalleryServiceEnablementConfig, mcpGalleryServiceUrlConfig } from '../../../../platform/mcp/common/mcpManagement.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
-import { COPILOT_ALLOWED_MCP_SERVERS_KEY, COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG, COPILOT_ALLOW_MANAGED_HOOKS_ONLY_KEY, COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_CONFIG, COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_KEY, COPILOT_DENIED_MCP_SERVERS_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_MODEL_KEY, COPILOT_STRICT_MARKETPLACES_KEY, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, managedModelValue, managedSettingsDisabledValue, managedSettingValue } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_ALLOWED_MCP_SERVERS_KEY, COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG, COPILOT_ALLOW_MANAGED_HOOKS_ONLY_KEY, COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_CONFIG, COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_KEY, COPILOT_DENIED_MCP_SERVERS_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_MODEL_KEY, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, managedModelValue, managedSettingsDisabledValue, managedSettingValue } from '../../../../platform/policy/common/copilotManagedSettings.js';
 import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { AgentSandboxSettingId } from '../../../../platform/sandbox/common/settings.js';
@@ -215,6 +216,7 @@ import { AgentPluginEditor } from './agentPluginEditor/agentPluginEditor.js';
 import { AgentPluginEditorInput } from './agentPluginEditor/agentPluginEditorInput.js';
 import { AgentPluginRepositoryService } from './agentPluginRepositoryService.js';
 import { AgentHostImportConversationStore, IAgentHostImportConversationStore } from './agentSessions/agentHost/agentHostImportConversationStore.js';
+import { AgentHostPolicyContinuationService, ContinueAgentHostChatInCopilotAction, IAgentHostPolicyContinuationService } from './agentSessions/agentHost/agentHostPolicyContinuation.js';
 import { ISessionSummaryHoverService, SessionSummaryHoverService } from './agentSessions/sessionSummaryHoverService.js';
 import { ChatDynamicVariableModel } from './attachments/chatDynamicVariables.js';
 import { ChatImplicitContextContribution } from './attachments/chatImplicitContext.js';
@@ -293,7 +295,7 @@ CommandsRegistry.registerCommand(PICK_REPOSITORY_COMMAND_ID, async (accessor: Se
 				throw new Error('The repository search command did not return repository names');
 			}
 			return repositories;
-		}, options);
+		}, options ?? undefined); // `undefined` arrives as `null` over the extension host RPC
 	} finally {
 		store.dispose();
 	}
@@ -772,7 +774,8 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.DefaultModel]: {
 			type: 'string',
 			default: '',
-			markdownDescription: nls.localize('chat.defaultModel.description', "The default model for new chat conversations. Use \"auto\" to let Copilot pick a model, a model family name (such as \"opus\" or \"gemini\") to use the latest available model in that family, or a full model id. You can still switch the model within a conversation; each new conversation starts at this model."),
+			markdownDescription: nls.localize('chat.defaultModel.description', "The default model for new chat conversations. Use \"auto\" to let Copilot pick a model, a model family name (such as \"opus\" or \"gemini\") to use the latest available model in that family, or a full model id. An organization-managed default takes precedence over your saved preference. You can still switch the model within a conversation; each new conversation starts at the effective default."),
+			policyValueDescription: getDefaultModelPolicyDescription,
 			experiment: {
 				mode: 'auto'
 			},
@@ -1454,47 +1457,6 @@ configurationRegistry.registerConfiguration({
 				},
 			},
 		},
-		[ChatConfiguration.StrictMarketplaces]: {
-			type: ['array', 'null'],
-			items: {
-				type: 'object',
-				properties: {
-					source: {
-						type: 'string',
-						enum: ['github', 'git', 'url', 'npm', 'file', 'directory', 'hostPattern', 'pathPattern'],
-					},
-					repo: { type: 'string' },
-					url: { type: 'string' },
-					ref: { type: 'string' },
-					path: { type: 'string' },
-					package: { type: 'string' },
-					hostPattern: { type: 'string' },
-					pathPattern: { type: 'string' },
-					headers: { type: 'object', additionalProperties: { type: 'string' } },
-				},
-				required: ['source'],
-			},
-			markdownDescription: nls.localize('chat.plugins.strictMarketplaces', "Enterprise-managed allowlist of plugin marketplace sources. When set, only marketplaces matching one of these entries can be installed; an empty array blocks all marketplaces. This does not retroactively disable already-installed plugins. Each entry is an object with a `source` discriminator (`github`, `git`, `url`, `npm`, `file`, `directory`, `hostPattern`, or `pathPattern`) and the corresponding fields. Typically delivered via enterprise policy."),
-			default: null,
-			restricted: true,
-			scope: ConfigurationScope.APPLICATION,
-			tags: ['experimental'],
-			policy: {
-				name: 'ChatStrictMarketplaces',
-				category: PolicyCategory.InteractiveSession,
-				minimumVersion: '1.122',
-				value: managedSettingValue(COPILOT_STRICT_MARKETPLACES_KEY),
-				managedSettings: {
-					[COPILOT_STRICT_MARKETPLACES_KEY]: { type: 'string' },
-				},
-				localization: {
-					description: {
-						key: 'chat.plugins.strictMarketplaces.policy',
-						value: nls.localize('chat.plugins.strictMarketplaces.policy', "Allowlist of plugin marketplace sources. When set, only marketplaces matching an entry are trusted; an empty array blocks all marketplaces."),
-					}
-				},
-			},
-		},
 		[COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG]: {
 			type: 'boolean',
 			default: false,
@@ -1590,12 +1552,6 @@ configurationRegistry.registerConfiguration({
 			scope: ConfigurationScope.APPLICATION,
 			ignoreSync: true,
 			tags: ['advanced'],
-		},
-		[AgentHostAhpJsonlLoggingSettingId]: {
-			type: 'boolean',
-			description: nls.localize('chat.agentHost.ahpJsonlLogging', "When enabled, logs all AHP transport messages for agent host connections to JSONL files under the window's log directory."),
-			default: product.quality !== 'stable',
-			tags: ['experimental', 'advanced'],
 		},
 		[AgentHostAgentDebugLogEnabledSettingId]: {
 			type: 'boolean',
@@ -1732,11 +1688,12 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentHostHydraFusionEnabledSettingId]: {
 			type: ['boolean', 'string'],
-			enum: [true, false, 'v2'],
+			enum: [true, false, 'v2', 'multiRoot'],
 			enumDescriptions: [
 				nls.localize('chat.copilot.hydraFusion.enabled.true', "Make HydraFusion available."),
 				nls.localize('chat.copilot.hydraFusion.enabled.false', "Do not make HydraFusion available."),
 				nls.localize('chat.copilot.hydraFusion.enabled.v2', "Make HydraFusion v2 available, which plans with per-step reasoning effort and a wider set of models."),
+				nls.localize('chat.copilot.hydraFusion.enabled.multiRoot', "Make HydraFusion v2 available and ask the service to keep reusing the previous turn's root model when it fits the next turn's workflow, which improves prompt cache reuse. Also applies to Fusion Balance and Max."),
 			],
 			markdownDescription: nls.localize('chat.copilot.hydraFusion.enabled', "When enabled, makes the experimental HydraFusion model available to local Copilot Agent Host sessions. Changing this setting restarts the local Copilot runtime."),
 			default: 'v2',
@@ -1744,17 +1701,25 @@ configurationRegistry.registerConfiguration({
 			scope: ConfigurationScope.APPLICATION_MACHINE,
 			tags: ['preview', 'experimental', 'advanced'],
 		},
-		[AgentHostEnsembleEnabledSettingId]: {
+		[CopilotImageGenerationEnabledSettingId]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.copilot.ensemble.enabled', "When enabled, local Copilot Agent Host sessions present Auto as Ensemble, which optimizes for Balance, High, or Max. Max uses HydraFusion Max, so Ensemble uses HydraFusion v2 unless `#{0}#` is off. Changing this setting can restart the local Copilot runtime.", AgentHostHydraFusionEnabledSettingId),
+			markdownDescription: copilotCliConfigSchema.definition[CopilotCliConfigKey.ImageGeneration].protocol.description,
+			default: isImageGenerationEnabledByDefault(product.quality),
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['preview', 'experimental'],
+			agentHost: { key: CopilotCliConfigKey.ImageGeneration },
+		},
+		[AgentHostFusionEnabledSettingId]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.copilot.ensemble.enabled', "When enabled, local Copilot Agent Host sessions present Auto as Fusion, which optimizes for Lite, Balance, or Max. Max uses HydraFusion Max, so Fusion uses HydraFusion v2 unless `#{0}#` is off. Changing this setting can restart the local Copilot runtime.", AgentHostHydraFusionEnabledSettingId),
 			default: false,
 			experiment: { mode: 'startup' },
 			scope: ConfigurationScope.APPLICATION_MACHINE,
 			tags: ['preview', 'experimental', 'advanced'],
 		},
-		[AgentHostEnsembleIntelligenceUsesHydraFusionSettingId]: {
+		[AgentHostFusionBalanceUsesHydraFusionSettingId]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.copilot.ensemble.intelligenceUsesHydraFusion', "When enabled together with `#{0}#`, Ensemble's High tier uses HydraFusion v2. When HydraFusion is unavailable, High routes like Auto's Intelligence.", AgentHostEnsembleEnabledSettingId),
+			markdownDescription: nls.localize('chat.copilot.ensemble.intelligenceUsesHydraFusion', "When enabled together with `#{0}#`, Fusion's Balance tier uses HydraFusion v2. When HydraFusion is unavailable, Fusion Balance routes like Auto's Intelligence.", AgentHostFusionEnabledSettingId),
 			default: false,
 			experiment: { mode: 'startup' },
 			scope: ConfigurationScope.APPLICATION_MACHINE,
@@ -1815,7 +1780,7 @@ configurationRegistry.registerConfiguration({
 					reasoningEffort: {
 						type: 'string',
 						enum: [...reasoningEffortLevels],
-						description: nls.localize('chat.agentHost.copilot.modelCapabilityOverrides.reasoningEffort', "Reasoning effort for sessions on this model, overriding the model picker's thinking level. Use the `*` entry to set it for every model. Unrecognized values are ignored."),
+						description: nls.localize('chat.agentHost.copilot.modelCapabilityOverrides.reasoningEffort', "Reasoning effort for sessions on this model, overriding the model picker's effort level. Use the `*` entry to set it for every model. Unrecognized values are ignored."),
 					},
 					availableTools: {
 						type: 'array',
@@ -2429,6 +2394,23 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.disableAIFeatures', "Disable and hide built-in AI features provided by GitHub Copilot, including chat and inline suggestions."),
 			default: false,
 			scope: ConfigurationScope.WINDOW,
+		},
+		[ChatConfiguration.CopilotCliCommandEnabled]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.copilotCliCommand.enabled', "Controls whether integrated terminals include the `copilot` command that ships with VS Code. The command runs GitHub Copilot CLI and offers to install it when it's missing. A GitHub Copilot CLI that you installed yourself isn't affected."),
+			default: true,
+			scope: ConfigurationScope.APPLICATION,
+			policy: {
+				name: 'CopilotCliCommand',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.143',
+				localization: {
+					description: {
+						key: 'chat.copilotCliCommand.enabled.policy',
+						value: nls.localize('chat.copilotCliCommand.enabled.policy', "Controls whether VS Code provides the copilot command for GitHub Copilot CLI. When disabled, VS Code setup on Windows doesn't add the command to PATH and removes the entry it added, VS Code doesn't install GitHub Copilot CLI, and integrated terminals don't include the command. A GitHub Copilot CLI that was installed separately isn't affected."),
+					}
+				},
+			}
 		},
 		[ChatConfiguration.TitleBarSignInEnabled]: {
 			type: 'boolean',
@@ -3471,6 +3453,8 @@ registerSingleton(IChatTipService, ChatTipService, InstantiationType.Delayed);
 registerSingleton(IChatDebugService, ChatDebugServiceImpl, InstantiationType.Delayed);
 registerSingleton(IChatImageCarouselService, ChatImageCarouselService, InstantiationType.Delayed);
 registerSingleton(IAgentHostImportConversationStore, AgentHostImportConversationStore, InstantiationType.Delayed);
+registerSingleton(IAgentHostPolicyContinuationService, AgentHostPolicyContinuationService, InstantiationType.Delayed);
+registerAction2(ContinueAgentHostChatInCopilotAction);
 registerSingleton(ISessionSummaryHoverService, SessionSummaryHoverService, InstantiationType.Delayed);
 registerSingleton(IChatMicrosoftSignInProbeService, ChatMicrosoftSignInProbeService, InstantiationType.Delayed);
 

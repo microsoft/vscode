@@ -58,7 +58,8 @@ interface ITaskSummary {
 	readonly updated_at?: string;
 	readonly state?: string;
 	readonly agent_collaborators?: readonly { readonly slug?: string }[];
-	readonly compute?: { readonly provider?: string };
+	readonly compute?: { readonly provider?: string } | null;
+	readonly current_environment?: { readonly kind?: string };
 	/**
 	 * The owning repository, identified by numeric id only — the payload carries no name. See
 	 * {@link CloudSandboxApiService._resolveRepositoryName}.
@@ -162,9 +163,6 @@ const DIAGNOSTIC_RESPONSE_HEADERS = ['x-github-request-id', 'x-request-id', 'x-s
 
 /** How many recent tasks to scan for sandbox sessions during discovery, per page. */
 const DISCOVERY_TASK_SCAN_LIMIT = 100;
-
-/** Bounds sequential page fetches. Hitting it leaves tasks unscanned, so the result is `partial`. */
-const DISCOVERY_TASK_PAGE_LIMIT = 10;
 
 /**
  * Max concurrent task-detail fetches during discovery.
@@ -376,7 +374,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			{ withRepository: true, archived: false }, { withRepository: false, archived: false },
 			{ withRepository: true, archived: true }, { withRepository: false, archived: true },
 		]) {
-			for (let page = 1; page <= DISCOVERY_TASK_PAGE_LIMIT; page++) {
+			for (let page = 1; ; page++) {
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
 				}
@@ -410,9 +408,6 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 					if (!hasNextLink(context.res.headers?.link)) {
 						break;
 					}
-					if (page === DISCOVERY_TASK_PAGE_LIMIT) {
-						truncated = true;
-					}
 				} catch (error) {
 					if (isCancellationError(error) || token.isCancellationRequested) {
 						throw new CancellationError();
@@ -438,11 +433,22 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		const discoveryTime = checkpoint ?? Date.now();
 		const removedTaskIds: string[] = [];
 		const sandboxTasks: IScannedTask[] = [];
+		const exclusions = { notSandboxCompute: 0, missingSessionBinding: 0, stalledQueuedSession: 0, detailFetchFailed: 0 };
+		const logExcludedTask = (taskId: string, reason: keyof typeof exclusions) => {
+			exclusions[reason]++;
+			this._logService.debug(`${LOG_PREFIX} Excluded task ${JSON.stringify({ taskId, reason })}`);
+		};
+		let acceptedWithOtherAgent = 0;
 		for (const task of tasks.values()) {
 			if (isCloudSandboxTask(task)) {
 				sandboxTasks.push(task);
+				if (!task.agent_collaborators?.some(c => c.slug === CLOUD_SANDBOX_AGENT_SLUG)) {
+					acceptedWithOtherAgent++;
+					this._logService.debug(`${LOG_PREFIX} Accepted task previously excluded by agent slug ${JSON.stringify({ taskId: task.id })}`);
+				}
 			} else {
-				if (cache.has(task.id) || isCloudSandboxTask(task)) {
+				logExcludedTask(task.id, 'notSandboxCompute');
+				if (cache.has(task.id)) {
 					removedTaskIds.push(task.id);
 				}
 				cache.delete(task.id);
@@ -489,6 +495,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 					}
 					if (cached.unstartedSince !== undefined && discoveryTime - cached.unstartedSince >= STALLED_SESSION_GRACE_MS) {
 						cache.set(task.id, cached);
+						logExcludedTask(task.id, 'stalledQueuedSession');
 						// An unread page may contain this candidate's recovery update.
 						if (!truncated || scannedTaskIds.has(task.id)) {
 							removedTaskIds.push(task.id);
@@ -501,12 +508,16 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 						cached = { ...cached, session: { ...cached.session, repoName } };
 					}
 					cache.set(task.id, cached);
+					if (!cached.session) {
+						logExcludedTask(task.id, 'missingSessionBinding');
+					}
 					return cached.session;
 				} catch (error) {
 					if (isCancellationError(error) || token.isCancellationRequested) {
 						throw new CancellationError();
 					}
 					this._logService.warn(`${LOG_PREFIX} Discovery getTask ${task.id} failed: ${toErrorMessage(error)}`);
+					logExcludedTask(task.id, 'detailFetchFailed');
 					cache.set(task.id, { ...cache.get(task.id), summary: task, needsRefresh: true });
 					unresolved++;
 					return undefined;
@@ -544,6 +555,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		const sessions = discovered.filter((session): session is ICloudSandboxDiscoveredSession => session !== undefined);
 		const unnamed = sessions.filter(session => !session.repoName).length;
 		this._logService.info(`${LOG_PREFIX} ${since ? 'Incremental discovery' : 'Discovery'} found ${sessions.length} sandbox session(s) from ${sandboxTasks.length} sandbox task(s) out of ${scannedTaskIds.size} scanned${truncated ? ' (scan truncated)' : ''}${unresolved > 0 ? `; ${unresolved} unresolved` : ''}${unnamed > 0 ? `; ${unnamed} without a repository name (they group under "Unknown")` : ''}.`);
+		this._logService.info(`${LOG_PREFIX} Discovery filtering ${JSON.stringify({ ...exclusions, acceptedWithOtherAgent })}`);
 		for (const session of sessions) {
 			this._logService.debug(`${LOG_PREFIX} Discovered sandbox session ${JSON.stringify({
 				taskId: session.taskId, sessionId: session.sessionId, environmentId: session.environmentId,
@@ -1183,17 +1195,10 @@ function rateLimitDelay(retryAfter: string | string[] | undefined, attempt: numb
 		: Math.min(RATE_LIMIT_BASE_DELAY_MS * Math.pow(2, attempt), RATE_LIMIT_MAX_BACKOFF_MS);
 }
 
-/**
- * Whether a task is a cloud sandbox task: owned by {@link CLOUD_SANDBOX_AGENT_SLUG} and running on
- * the `sandboxes` compute provider. Reads list-level fields only.
- *
- * The slug half must be settled before `chat.agentHost.cloudSandbox.enabled` is turned on: sandbox
- * tasks are expected to move to a different slug, which would silently make discovery return
- * nothing. `compute.provider` is the durable test.
- */
+/** Use a managed sandbox environment when the task has no compute-provider metadata. */
 function isCloudSandboxTask(task: ITaskSummary): boolean {
-	const isCloudCodingAgent = task.agent_collaborators?.some(c => c.slug === CLOUD_SANDBOX_AGENT_SLUG) ?? false;
-	return isCloudCodingAgent && task.compute?.provider === 'sandboxes';
+	const provider = task.compute?.provider;
+	return provider === 'sandboxes' || (provider === undefined && task.current_environment?.kind === 'managed-sandbox');
 }
 
 /** Whether a `Link` header advertises another page (`rel="next"`). */

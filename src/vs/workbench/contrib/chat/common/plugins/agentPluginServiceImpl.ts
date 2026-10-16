@@ -345,7 +345,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			if (!this._isCurrentRefresh(version)) {
 				return existing.plugin;
 			}
-			if (!watchPluginContents || existing.format.format !== format.format) {
+			if (!watchPluginContents || existing.format.format !== format.format || existing.format.manifestPath !== format.manifestPath) {
 				existing.store.dispose();
 				this._pluginEntries.delete(key);
 			} else {
@@ -456,7 +456,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 					return;
 				}
 				const latestFormat = await detectPluginFormat(uri, this._fileService);
-				if (latestFormat.format !== format.format) {
+				if (latestFormat.format !== format.format || latestFormat.manifestPath !== format.manifestPath) {
 					await this._refreshPlugins();
 					return;
 				}
@@ -875,6 +875,7 @@ interface ICopilotCliInstalledPlugin {
 	readonly uri: URI;
 	readonly name: string;
 	readonly marketplace: string;
+	readonly enabled: boolean;
 	readonly directSourceId?: string;
 	readonly source?: CopilotCliPluginInstallSource;
 	readonly revision: string;
@@ -1097,6 +1098,7 @@ class CopilotCliInstalledPluginsStore extends Disposable {
 				uri,
 				name,
 				marketplace,
+				enabled: Reflect.get(entry, 'enabled') !== false,
 				directSourceId,
 				source: toCopilotCliPluginInstallSource(rawSource),
 				revision: JSON.stringify({
@@ -1140,6 +1142,7 @@ function equalsCopilotCliInstalledPlugins(first: readonly ICopilotCliInstalledPl
 			plugin.uri.toString() === second[index].uri.toString()
 			&& plugin.name === second[index].name
 			&& plugin.marketplace === second[index].marketplace
+			&& plugin.enabled === second[index].enabled
 			&& plugin.directSourceId === second[index].directSourceId
 			&& JSON.stringify(plugin.source) === JSON.stringify(second[index].source)
 			&& plugin.revision === second[index].revision
@@ -1184,6 +1187,7 @@ export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 				if (!stat.isDirectory) {
 					continue;
 				}
+				this._enablementModel.setDefaultEnabled?.(stat.resource.toString(), installedPlugin.enabled);
 				const canUninstall = !!installedPlugin.marketplace || !!installedPlugin.directSourceId;
 				sources.push({
 					uri: stat.resource,
