@@ -364,11 +364,11 @@ suite('Request Service', () => {
 		}, CancellationToken.None);
 
 		assert.strictEqual(captured.length, 2, 'Expected an initial request and one redirect');
-		assert.strictEqual(captured[0]?.headers?.['Authorization'], 'auth-value-1', 'Initial request should carry Authorization');
+		assert.strictEqual(captured[0]?.headers?.Authorization, 'auth-value-1', 'Initial request should carry Authorization');
 		assert.strictEqual(captured[1]?.protocol, 'https:', 'Redirect must be followed to the resolved target');
 		assert.strictEqual(captured[1]?.hostname, 'cdn.other.example', 'Redirect must go to the resolved cross-origin host, not the original host');
-		assert.strictEqual(captured[1]?.headers?.['Authorization'], undefined, 'Cross-origin redirect must not forward Authorization');
-		assert.strictEqual(captured[1]?.headers?.['Cookie'], undefined, 'Cross-origin redirect must not forward Cookie');
+		assert.strictEqual(captured[1]?.headers?.Authorization, undefined, 'Cross-origin redirect must not forward Authorization');
+		assert.strictEqual(captured[1]?.headers?.Cookie, undefined, 'Cross-origin redirect must not forward Cookie');
 		assert.strictEqual(captured[1]?.headers?.['Proxy-Authorization'], 'proxy-value', 'Proxy-Authorization is bound to the proxy, not the origin, and is preserved');
 		assert.strictEqual(captured[1]?.headers?.['X-Other'], 'keep', 'Non-credential headers are preserved across the redirect');
 	});
@@ -389,8 +389,8 @@ suite('Request Service', () => {
 		assert.strictEqual(captured.length, 2, 'Expected an initial request and one redirect');
 		assert.strictEqual(captured[1]?.hostname, 'market.example.com', 'Relative redirect resolves against the current origin');
 		assert.strictEqual(captured[1]?.path, '/api/asset/v2', 'Relative redirect resolves the path against the current URL');
-		assert.strictEqual(captured[1]?.headers?.['Authorization'], 'auth-value-1', 'Same-origin redirect keeps the Authorization header');
-		assert.strictEqual(captured[1]?.headers?.['Cookie'], 'sid=abc', 'Same-origin redirect keeps the Cookie header');
+		assert.strictEqual(captured[1]?.headers?.Authorization, 'auth-value-1', 'Same-origin redirect keeps the Authorization header');
+		assert.strictEqual(captured[1]?.headers?.Cookie, 'sid=abc', 'Same-origin redirect keeps the Cookie header');
 	});
 
 	test('strips origin credentials when a protocol-relative redirect changes origin', async () => {
@@ -408,7 +408,7 @@ suite('Request Service', () => {
 		assert.strictEqual(captured.length, 2, 'Expected an initial request and one redirect');
 		assert.strictEqual(captured[1]?.protocol, 'https:', 'Protocol-relative redirect adopts the current scheme');
 		assert.strictEqual(captured[1]?.hostname, 'cdn.other.example', 'Protocol-relative redirect resolves to the new host');
-		assert.strictEqual(captured[1]?.headers?.['Authorization'], undefined, 'Protocol-relative cross-origin redirect must not forward Authorization');
+		assert.strictEqual(captured[1]?.headers?.Authorization, undefined, 'Protocol-relative cross-origin redirect must not forward Authorization');
 	});
 
 	test('does not follow a redirect to a non-HTTP(S) scheme', async () => {
