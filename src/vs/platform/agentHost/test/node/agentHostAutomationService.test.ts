@@ -41,6 +41,7 @@ import { AGENT_CLIENT_SCHEME, toAgentClientUri } from '../../common/agentClientU
 import { AgentPluginManager } from '../../node/agentPluginManager.js';
 import { AUTOMATION_ACTIVE_CLIENT_ID, toAgentHostFileUri } from '../../common/agentPluginManager.js';
 import { AgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
+import { AgentHostSystemWakeService } from '../../node/agentHostSystemWakeService.js';
 import type { IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
 import { McpAuthRequiredReason, McpServerStatus, type Customization, type McpAuthRequirement } from '../../common/state/protocol/channels-session/state.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
@@ -64,12 +65,14 @@ suite('AgentHostAutomationService', () => {
 	let fileService: FileService;
 	let pluginManager: AgentPluginManager;
 	let clientConnections: AgentHostClientConnectionService;
+	let systemWake: AgentHostSystemWakeService;
 	let authenticationRequests: IAgentHostMcpAuthenticationRequest[];
 	let authenticationResult: Promise<boolean>;
 
 	setup(() => {
 		disposables = new DisposableStore();
 		clientConnections = disposables.add(new AgentHostClientConnectionService());
+		systemWake = new AgentHostSystemWakeService();
 		authenticationRequests = [];
 		authenticationResult = Promise.resolve(false);
 		disposables.add(clientConnections.registerSource({
@@ -152,7 +155,8 @@ suite('AgentHostAutomationService', () => {
 			createSession: execution?.createSession ?? (async () => { throw new Error('Unexpected session creation'); }),
 			startSession: execution?.startSession ?? (async () => { throw new Error('Unexpected session start'); }),
 			cancelSession: execution?.cancelSession ?? (async () => false),
-		}, stateManager, createTestChatOwnershipService(stateManager), storageService, new NullLogService(), telemetry, providers, pluginManager, fileService, upcastPartial<INativeEnvironmentService>({ userHome: URI.file('/home') }), clientConnections);
+			resumeTurn: execution?.resumeTurn ?? (async () => false),
+		}, stateManager, createTestChatOwnershipService(stateManager), storageService, new NullLogService(), telemetry, providers, pluginManager, fileService, upcastPartial<INativeEnvironmentService>({ userHome: URI.file('/home') }), clientConnections, systemWake);
 		return disposables.add(service);
 	}
 
@@ -1497,6 +1501,101 @@ suite('AgentHostAutomationService', () => {
 		});
 	}
 
+	for (const { name, sleep, then, expected } of [
+		{
+			name: 'fails a run when its turn fails while the machine stays awake',
+			sleep: 'none', then: undefined,
+			expected: { afterFailure: AutomationRunStatus.Failed, resumedTurns: [], status: AutomationRunStatus.Failed },
+		},
+		{
+			name: 'resumes a turn that fails after a sleep once the machine is fully awake',
+			sleep: 'beforeFailure', then: 'complete',
+			expected: { afterFailure: AutomationRunStatus.Running, resumedTurns: ['turn'], status: AutomationRunStatus.Completed },
+		},
+		{
+			name: 'fails a run when its turn fails again after resuming on wake',
+			sleep: 'throughFailure', then: 'error',
+			expected: { afterFailure: AutomationRunStatus.Running, resumedTurns: ['turn'], status: AutomationRunStatus.Failed },
+		},
+		{
+			name: 'cancels a run that is waiting to resume after a wake',
+			sleep: 'throughFailure', then: 'cancel',
+			expected: { afterFailure: AutomationRunStatus.Running, resumedTurns: [], status: AutomationRunStatus.Cancelled },
+		},
+		{
+			name: 'fails a run when its turn fails again after the user resumes it before the retry after wake',
+			sleep: 'throughFailure', then: 'userResume',
+			expected: { afterFailure: AutomationRunStatus.Running, resumedTurns: [], status: AutomationRunStatus.Failed },
+		},
+	] as const) {
+		test(name, () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 100 }, async () => {
+			const session = URI.parse('mock:/sleeping-session');
+			const chat = buildDefaultChatUri(session);
+			const started = new DeferredPromise<void>();
+			const resumedTurns: string[] = [];
+			const service = createService({
+				createSession: async () => {
+					stateManager.createSession({
+						resource: session.toString(), provider: 'mock', title: '', status: SessionStatus.Idle,
+						createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+						defaultChat: chat,
+					});
+					return session;
+				},
+				startSession: async (_session, message) => {
+					stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: 'turn', startedAt: new Date().toISOString(), message });
+					await started.complete();
+				},
+				resumeTurn: async (_session, turnId) => {
+					resumedTurns.push(turnId);
+					stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnResume, turnId });
+					return true;
+				},
+			});
+			await enableAndCreate(service);
+			const run = await service.runAutomation({ channel: 'ahp-automations://', automation: 'ahp-automation:/review-changes', requestId: name });
+			await started.p;
+			const failTurn = () => stateManager.dispatchServerAction(chat, {
+				type: ActionType.ChatError, turnId: 'turn', duration: 0,
+				part: { kind: ResponsePartKind.Error, error: { errorType: 'query', message: 'Connection reset' }, resumable: true },
+			});
+
+			if (sleep !== 'none') {
+				systemWake.setFullyAwake(false);
+			}
+			if (sleep === 'beforeFailure') {
+				systemWake.setFullyAwake(true);
+			}
+			failTurn();
+			await timeout(1_000);
+			const afterFailure = stateManager.getAutomationRunState(run.resource)?.lifecycle.status;
+			if (then === 'cancel') {
+				await service.handleCancel(run.resource, { type: ActionType.AutomationRunCancelRequested });
+			} else if (then === 'userResume') {
+				// The user clicks Try Again before the host's own retry, and the turn fails again.
+				systemWake.setFullyAwake(true);
+				stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnResume, turnId: 'turn' });
+				failTurn();
+			} else if (then) {
+				systemWake.setFullyAwake(true);
+				await timeout(60_000);
+				if (then === 'complete') {
+					stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'turn', duration: 0 });
+				} else {
+					failTurn();
+				}
+			}
+			// Outlasts any retry after wake, so a run that never ends fails the assertion instead of hanging the test.
+			await timeout(60_000);
+
+			assert.deepStrictEqual({
+				afterFailure,
+				resumedTurns,
+				status: stateManager.getAutomationRunState(run.resource)?.lifecycle.status,
+			}, expected);
+		}));
+	}
+
 	test('cancellation wins a session-creation race without sending the prompt', async () => {
 		const session = URI.parse('mock:/cancelled-session');
 		const createStarted = new DeferredPromise<void>();
@@ -1783,6 +1882,57 @@ suite('AgentHostAutomationService', () => {
 			{ name: 'automation.runStarted', trigger: 'schedule', scheduleKind: undefined },
 		]);
 	}));
+
+	test('due schedules wait until the machine is fully awake, then catch up once', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1, 0, 30), maxTaskCount: 100 }, async () => {
+		systemWake.setFullyAwake(false);
+		const started = new DeferredPromise<void>();
+		const service = createService({
+			createSession: async () => URI.parse('copilotcli:/after-wake'),
+			startSession: async () => { await started.complete(); },
+		});
+		await service.handleCreate({
+			...createAction(),
+			definition: {
+				...definition(),
+				triggers: [{ id: 'hourly', kind: AutomationTriggerKind.Schedule, schedule: { expression: '0 * * * *', timeZone: 'UTC' } }],
+			},
+		});
+		await timeout(3 * 60 * 60_000);
+		const asleep = stateManager.getAutomationCatalogState()?.entries[0];
+
+		systemWake.setFullyAwake(true);
+		await started.p;
+
+		const awake = stateManager.getAutomationCatalogState()?.entries[0];
+		assert.deepStrictEqual({
+			asleep: { runs: asleep?.runs.length, nextRunAt: asleep?.nextRunAt },
+			awake: { origins: awake?.runs.map(run => run.origin), nextRunAt: awake?.nextRunAt },
+		}, {
+			asleep: { runs: 0, nextRunAt: '2026-01-01T01:00:00.000Z' },
+			awake: {
+				origins: [{ kind: AutomationRunOriginKind.Trigger, triggerId: 'hourly', scheduledFor: '2026-01-01T01:00:00.000Z', catchUp: true }],
+				nextRunAt: '2026-01-01T04:00:00.000Z',
+			},
+		});
+	}));
+
+	test('manual runs start while the machine is not fully awake', async () => {
+		systemWake.setFullyAwake(false);
+		const started = new DeferredPromise<void>();
+		const service = createService({
+			createSession: async () => URI.parse('copilotcli:/manual-while-asleep'),
+			startSession: async () => { await started.complete(); },
+		});
+		await enableAndCreate(service);
+		const run = await service.runAutomation({
+			channel: 'ahp-automations://',
+			automation: 'ahp-automation:/review-changes',
+			requestId: 'manual-while-asleep',
+		});
+		await started.p;
+
+		assert.strictEqual(stateManager.getAutomationRunState(run.resource)?.lifecycle.status, AutomationRunStatus.Running);
+	});
 
 	test('coalesces simultaneously-due schedule triggers on one Automation into a single run', async () => {
 		const now = new Date();

@@ -976,6 +976,8 @@ suite('CodexAgent createChat', () => {
 		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true, sessionStore: createTestSessionStore() });
 		const peer = disposables.add(createTestPeer());
 		connectPeer(agent, peer);
+		const receipts: IAgentMaterializeChatEvent[] = [];
+		disposables.add(agent.onDidMaterializeChat(event => receipts.push(event)));
 		const session = AgentSession.uri('codex', 'hook-trust-prewarm');
 		const chat = URI.parse(buildDefaultChatUri(session));
 		const folder = URI.file('/repo/hooks');
@@ -993,6 +995,7 @@ suite('CodexAgent createChat', () => {
 		const start = await readNextRequest(peer.outbound);
 		peer.push({ id: start.id, result: { thread: { id: 'trusted-thread', cwd: folder.fsPath } } });
 		const turn = await readNextRequest(peer.outbound);
+		const announcedBacking = receipts.at(-1)?.result?.backingSession?.toString();
 		peer.push({ id: turn.id, result: {} });
 		await sending;
 		assert.deepStrictEqual({
@@ -1000,11 +1003,13 @@ suite('CodexAgent createChat', () => {
 			prewarmTrust: prewarm.params.config?.['hooks.state'],
 			trust: start.params.config?.['hooks.state'],
 			thread: turn.params.threadId,
+			announcedBacking,
 		}, {
 			methods: ['thread/start', 'hooks/list', 'thread/unsubscribe', 'thread/start', 'turn/start'],
 			prewarmTrust: undefined,
 			trust: { [projectHook(folder.fsPath).key]: { trusted_hash: 'current-project-hash' } },
 			thread: 'trusted-thread',
+			announcedBacking: AgentSession.uri('codex', 'trusted-thread').toString(),
 		});
 	});
 
@@ -1061,6 +1066,8 @@ suite('CodexAgent createChat', () => {
 		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true, sessionStore: createTestSessionStore() });
 		const peer = disposables.add(createTestPeer());
 		connectPeer(agent, peer);
+		const receipts: IAgentMaterializeChatEvent[] = [];
+		disposables.add(agent.onDidMaterializeChat(event => receipts.push(event)));
 		const session = AgentSession.uri('codex', 'hook-trust-failed-replacement');
 		const chat = URI.parse(buildDefaultChatUri(session));
 		const folder = URI.file('/repo/hooks');
@@ -1088,6 +1095,7 @@ suite('CodexAgent createChat', () => {
 		const retryStart = await readNextRequest(peer.outbound);
 		peer.push({ id: retryStart.id, result: { thread: { id: 'retry-thread', cwd: folder.fsPath } } });
 		const turn = await readNextRequest(peer.outbound);
+		const announcedBacking = receipts.at(-1)?.result?.backingSession?.toString();
 		peer.push({ id: turn.id, result: {} });
 		await retrying;
 
@@ -1097,12 +1105,14 @@ suite('CodexAgent createChat', () => {
 			retryTrust: retryStart.params.config?.['hooks.state'],
 			pendingTrust: entry.pendingHookTrustState,
 			thread: turn.params.threadId,
+			announcedBacking,
 		}, {
 			methods: ['hooks/list', 'thread/start', 'hooks/list', 'thread/unsubscribe', 'thread/start', 'thread/start', 'turn/start'],
 			initialTrust: { [projectHook(folder.fsPath).key]: { trusted_hash: 'current-project-hash' } },
 			retryTrust: undefined,
 			pendingTrust: undefined,
 			thread: 'retry-thread',
+			announcedBacking: AgentSession.uri('codex', 'retry-thread').toString(),
 		});
 	});
 

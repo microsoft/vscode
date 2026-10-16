@@ -3,8 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { IDisposable } from '../../../base/common/lifecycle.js';
+import type { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
+import type { ISessionDatabase } from './sessionDataService.js';
 import type { ChangesSummary } from './state/protocol/state.js';
 import type { ISessionFileDiff, URI as ProtocolURI } from './state/sessionState.js';
 
@@ -29,6 +32,23 @@ export type StaticChangesetKind = 'branch' | 'session';
 
 /** Selects Git-first computation with fallback, Git only, or tracked file edits only. */
 export type ChangesetDiffStrategy = 'auto' | 'git' | 'fileEditTracker';
+
+/**
+ * The database holding a turn's tracked edits, opened by
+ * {@link IAgentHostChangesetService.openTrackedTurnDatabase}. Dispose it to
+ * release the database.
+ */
+export interface ITrackedTurnDatabase extends IDisposable {
+	readonly db: ISessionDatabase;
+	/** Folders the turn's changeset is limited to, or `undefined` when it isn't limited. */
+	readonly folderScope: readonly URI[] | undefined;
+	/**
+	 * Databases of the session's other chats, whose edits its Session Changes
+	 * combine with {@link db}'s. They aren't ordered by time across databases,
+	 * so a discard can't be reconciled with another chat's edits to the file.
+	 */
+	readonly otherChatDatabases: readonly ISessionDatabase[];
+}
 
 export const IAgentHostChangesetService = createDecorator<IAgentHostChangesetService>('agentHostChangesetService');
 
@@ -204,6 +224,21 @@ export interface IAgentHostChangesetService {
 	 * `changedTurnId`, no incremental reuse).
 	 */
 	onSessionTruncated(session: ProtocolURI): void;
+
+	/**
+	 * Opens the database holding the tracked edits that the per-turn changeset
+	 * of `turnId` on `owner` is computed from, together with that changeset's
+	 * folder scope. Returns `undefined` when the turn id is shared by more than
+	 * one chat, because its edits can't be attributed to one database.
+	 */
+	openTrackedTurnDatabase(owner: ProtocolURI, turnId: string): ITrackedTurnDatabase | undefined;
+
+	/**
+	 * Hook called after edits of `turnIds` on `owner` were discarded. Recomputes
+	 * those turns' changesets and Session Changes from scratch, plus Uncommitted
+	 * Changes, Branch Changes, and the chat's changes summary.
+	 */
+	onFileEditsDiscarded(owner: ProtocolURI, turnIds: readonly string[]): void;
 
 	/** Cancels pending changeset work after a chat or folder owner is removed. */
 	onChangesetOwnerRemoved?(owner: ProtocolURI): void;

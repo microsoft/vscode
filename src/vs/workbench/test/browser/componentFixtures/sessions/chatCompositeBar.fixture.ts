@@ -68,6 +68,7 @@ function createMockSession(chats: readonly IChat[], activeChat: IChat, sessionTi
 		override readonly sessionId = 'mock:session';
 		override readonly title: IObservable<string> = observableValue('title', sessionTitle);
 		override readonly openChats: IObservable<readonly IChat[]> = observableValue('openChats', chats);
+		override readonly chats = this.openChats;
 		override readonly closedChats: IObservable<readonly IChat[]> = observableValue('closedChats', []);
 		override readonly visibleChatTabs: IObservable<readonly IChat[]> = observableValue('visibleChatTabs', chats);
 		override readonly shouldShowChatTabs: IObservable<boolean> = derived(reader => {
