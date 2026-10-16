@@ -199,7 +199,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 					resource,
 					clientId,
 					clientSecret,
-					initialTokens
+					initialTokens,
+					authProviderId
 				);
 			},
 			createXaa: async (issuer) => {

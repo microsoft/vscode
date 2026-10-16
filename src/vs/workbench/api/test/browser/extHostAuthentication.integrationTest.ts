@@ -27,7 +27,7 @@ import { ExtHostContext, MainContext, MainThreadAuthenticationShape } from '../.
 import { DynamicAuthProvider, ExtHostAuthentication } from '../../common/extHostAuthentication.js';
 import { IActivityService } from '../../../services/activity/common/activity.js';
 import { AuthenticationService } from '../../../services/authentication/browser/authenticationService.js';
-import { IAuthenticationExtensionsService, IAuthenticationProviderSessionOptions, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
+import { getDynamicAuthenticationProviderId, IAuthenticationExtensionsService, IAuthenticationProviderSessionOptions, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 import { IExtensionService, nullExtensionDescription as extensionDescription } from '../../../services/extensions/common/extensions.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { TestRPCProtocol } from '../common/testRPCProtocol.js';
@@ -262,6 +262,49 @@ suite('ExtHostAuthentication', () => {
 			'test multiple provider',
 			new TestAuthProvider('test-multiple'),
 			{ supportsMultipleAccounts: true }));
+	});
+
+	test('keeps configured dynamic provider identities through the extension host boundary', async () => {
+		const authenticationService = mainInstantiationService.get(IAuthenticationService);
+		const storageService = mainInstantiationService.get(IDynamicAuthenticationProviderStorageService);
+		const authorizationServer = URI.parse('https://issuer.example');
+		const serverMetadata = {
+			issuer: authorizationServer.toString(true),
+			response_types_supported: ['code'],
+			token_endpoint: 'https://issuer.example/token'
+		};
+		const resource = { resource: 'https://mcp.example.com' };
+		const providerIds: string[] = [];
+		const baseProviderId = getDynamicAuthenticationProviderId(authorizationServer, resource);
+		await storageService.storeClientRegistration(baseProviderId, authorizationServer.toString(true), 'restored-client');
+
+		try {
+			const firstProvider = await authenticationService.createDynamicAuthenticationProvider(authorizationServer, serverMetadata, resource, 'client-a');
+			assert.ok(firstProvider);
+			providerIds.push(firstProvider.id);
+			const secondProvider = await authenticationService.createDynamicAuthenticationProvider(authorizationServer, serverMetadata, resource, 'client-b');
+			assert.ok(secondProvider);
+			providerIds.push(secondProvider.id);
+			const restoredProvider = await authenticationService.createDynamicAuthenticationProvider(authorizationServer, serverMetadata, resource);
+			assert.ok(restoredProvider);
+			providerIds.push(restoredProvider.id);
+
+			assert.deepStrictEqual({
+				providerIds: [firstProvider.id, secondProvider.id, restoredProvider.id],
+				clientIds: await Promise.all(providerIds.map(async providerId => (await storageService.getClientRegistration(providerId))?.clientId)),
+			}, {
+				providerIds: [
+					getDynamicAuthenticationProviderId(authorizationServer, resource, 'client-a'),
+					getDynamicAuthenticationProviderId(authorizationServer, resource, 'client-b'),
+					baseProviderId,
+				],
+				clientIds: ['client-a', 'client-b', 'restored-client'],
+			});
+		} finally {
+			for (const providerId of providerIds) {
+				authenticationService.unregisterAuthenticationProvider(providerId);
+			}
+		}
 	});
 
 	suite('request context', () => {

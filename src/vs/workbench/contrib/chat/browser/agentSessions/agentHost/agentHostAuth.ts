@@ -154,7 +154,7 @@ export class AgentHostAuthTokenCache {
 				}
 				return;
 			}
-			const prefix = `${resource}\x00`;
+			const prefix = `${JSON.stringify([resource]).slice(0, -1)},`;
 			const keys = new Set([...this._completedTokens.keys(), ...this._pendingAuthentications.keys(), ...this._keyGenerations.keys()]);
 			for (const key of keys) {
 				if (key.startsWith(prefix)) {
@@ -193,7 +193,7 @@ export class AgentHostAuthTokenCache {
 	}
 
 	private _key(resource: string, scopes: readonly string[] | undefined, identity?: string): string {
-		const baseKey = `${resource}\x00${scopes ? [...new Set(scopes)].sort().join('\x00') : ''}`;
+		const baseKey = JSON.stringify([resource, scopes ? [...new Set(scopes)].sort() : []]);
 		return identity === undefined ? baseKey : `${baseKey}\x00${identity}`;
 	}
 }

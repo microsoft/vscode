@@ -390,6 +390,32 @@ suite('AgentHostAuthTokenCache', () => {
 		});
 	});
 
+	test('scoped clear preserves overlapping scope sets and their in-flight authentication', async () => {
+		const cache = new AgentHostAuthTokenCache();
+		const longerScopesAuthentication = new DeferredPromise<void>();
+		let authenticateCalls = 0;
+		const authenticate = async () => { authenticateCalls++; };
+		await cache.authenticate('https://api.example.com', ['read'], 'read-token', authenticate);
+		const readWriteAuthentication = cache.authenticate('https://api.example.com', ['read', 'write'], 'read-write-token', async () => {
+			authenticateCalls++;
+			await longerScopesAuthentication.p;
+		});
+
+		cache.clear('https://api.example.com', ['read']);
+		longerScopesAuthentication.complete();
+		await readWriteAuthentication;
+
+		assert.deepStrictEqual({
+			read: await cache.authenticate('https://api.example.com', ['read'], 'read-token', authenticate),
+			readWrite: await cache.authenticate('https://api.example.com', ['read', 'write'], 'read-write-token', authenticate),
+			authenticateCalls,
+		}, {
+			read: true,
+			readWrite: false,
+			authenticateCalls: 3,
+		});
+	});
+
 	test('tokens for distinct scopes and resources are tracked independently', async () => {
 		const cache = new AgentHostAuthTokenCache();
 		let authenticateCalls = 0;
