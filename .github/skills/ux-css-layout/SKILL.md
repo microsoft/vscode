@@ -134,6 +134,8 @@ For content-sized lists and trees, distinguish logical item height from the comp
 
 Verify actual scrollbar dragging and pointer acquisition after changing margins or clipping. In maximized/fullscreen layouts, check screen-edge hit regions as well as visual placement; an inset control must not become unnecessarily difficult to acquire.
 
+Browser-native controls inside `.monaco-workbench`, including unstyled scrollbars created with CSS `overflow: auto` or `overflow: scroll`, inherit the appropriate light or dark `color-scheme` from the workbench theme class. Component rules may customize scrollbar geometry or intentionally override a state, but colors must use the corresponding `--vscode-scrollbar*` theme variable or `transparent`. Do not set inherited `scrollbar-color` within the workbench because Chromium then suppresses descendant `::-webkit-scrollbar-thumb:hover` and `:active` styling. Standalone documents outside the workbench, such as webviews, must provide their own appropriate `color-scheme` or theme-aware native scrollbar styling.
+
 ## 8. Responsive Layout
 
 VS Code does **not** use CSS media queries. Instead, it uses a **programmatic constraint-based layout system**:
