@@ -5097,9 +5097,9 @@ export class CodexAgent extends Disposable implements IAgent {
 			const conn = await this._ensureConnection();
 			const resolvedModel = parseCodexModelSelection(model);
 			const sessionHookTrust = await this._buildSessionHookTrustState(conn.client, workingDirectory.fsPath);
-			this._applySessionHookTrustState(threadConfig, sessionHookTrust, workingDirectory.fsPath);
 			const startResult = await this._threadCreations.run([workingDirectory.fsPath, ...(runtimeWorkspaceRoots ?? [])], () => {
 				this._assertCurrentConnection(conn);
+				this._applySessionHookTrustState(threadConfig, sessionHookTrust, workingDirectory.fsPath);
 				return conn.client.request<'thread/start', { thread: { id: string } }>('thread/start', {
 					cwd: workingDirectory.fsPath,
 					...(runtimeWorkspaceRoots ? { runtimeWorkspaceRoots } : {}),
@@ -5489,11 +5489,12 @@ export class CodexAgent extends Disposable implements IAgent {
 				[CODEX_DEFAULT_MODE_REQUEST_USER_INPUT_CONFIG_KEY]: true,
 				'features.image_generation': this._imageGenerationEnabledForModelProvider(resolvedModel?.modelProvider ?? sourceRead.thread.modelProvider),
 			};
-			this._applySessionHookTrustState(forkConfig, await this._buildSessionHookTrustState(forkConnection.client, forkCwd), forkCwd);
+			const forkHookTrust = await this._buildSessionHookTrustState(forkConnection.client, forkCwd);
 			const connection = forkConnection;
 			// Without a cwd of its own, the fork runs in its source thread's.
 			forkResult = await this._threadCreations.run([forkCwd ?? sourceRead.thread.cwd, ...(runtimeWorkspaceRoots ?? [])], () => {
 				this._assertCurrentConnection(connection);
+				this._applySessionHookTrustState(forkConfig, forkHookTrust, forkCwd);
 				return connection.client.request<'thread/fork', ThreadForkResponse>('thread/fork', {
 					threadId: sourceThreadId,
 					...(lastTurnId !== undefined ? { lastTurnId } : {}),
@@ -5731,13 +5732,13 @@ export class CodexAgent extends Disposable implements IAgent {
 		const sessionHookTrust = pendingHookTrustState && this._isCurrentSessionHookTrustState(pendingHookTrustState, session.workingDirectory.fsPath)
 			? pendingHookTrustState
 			: await this._buildSessionHookTrustState(conn.client, session.workingDirectory.fsPath);
-		this._applySessionHookTrustState(threadConfig, sessionHookTrust, session.workingDirectory.fsPath);
 		if (session.disposed || !session.chatChannel) {
 			return;
 		}
 		const cwd = session.workingDirectory.fsPath;
 		const startResult = await this._threadCreations.run([cwd, ...(runtimeWorkspaceRoots ?? [])], () => {
 			this._assertCurrentConnection(conn);
+			this._applySessionHookTrustState(threadConfig, sessionHookTrust, cwd);
 			return conn.client.request<'thread/start', ThreadStartResponse>('thread/start', {
 				cwd,
 				...(runtimeWorkspaceRoots?.length ? { runtimeWorkspaceRoots } : {}),
@@ -7007,13 +7008,13 @@ export class CodexAgent extends Disposable implements IAgent {
 						sessionHookTrust = await this._buildSessionHookTrustState(conn.client, session.workingDirectory?.fsPath);
 					}
 					const resumeConfig = { ...baseResumeConfig };
-					this._applySessionHookTrustState(resumeConfig, sessionHookTrust, session.workingDirectory?.fsPath);
 					const cwd = session.workingDirectory?.fsPath;
 					return this._threadCreations.run([cwd, ...(runtimeWorkspaceRoots ?? [])], () => {
 						if (session.disposed) {
 							throw new CancellationError();
 						}
 						this._assertCurrentConnection(conn);
+						this._applySessionHookTrustState(resumeConfig, sessionHookTrust, cwd);
 						return conn.client.request<'thread/resume', ThreadResumeResponse>(
 							'thread/resume',
 							{
