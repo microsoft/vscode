@@ -1632,7 +1632,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				const section = curatedSections[index];
 				this.renderBrowseSection(
 					section.title,
-					section.items.map(item => this.resolveCuratedResource(item)),
+					section.items,
 					undefined,
 					index === 0,
 				);
@@ -1681,38 +1681,6 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		if (!this.loading && this.sourceWarnings.hasErrors) {
 			this.announce(this.sourceWarnings.getAccessibilityContent());
 		}
-	}
-
-	private resolveCuratedResource(resource: ICustomizationMarketplaceResource): ICustomizationMarketplaceResource {
-		const resourceUrl = resource.externalUrl ?? resource.url?.toString(true);
-		const candidate = this.catalogItems.find(item => {
-			if (item.sourceId !== resource.sourceId || item.mediaType !== resource.mediaType) {
-				return false;
-			}
-			const itemUrl = item.externalUrl ?? item.url?.toString(true);
-			if (resource.identifier === item.identifier || resourceUrl && (resourceUrl === item.identifier || resourceUrl === itemUrl)) {
-				return true;
-			}
-			const resourceInstallation = resource.installation;
-			const itemInstallation = item.installation;
-			if (resourceInstallation?.kind === 'plugin' &&
-				(itemInstallation?.kind === 'providerPlugin' || itemInstallation?.kind === 'configuredPlugin') &&
-				itemInstallation.name &&
-				resourceInstallation.path.split('/').at(-1)?.toLowerCase() === itemInstallation.name.toLowerCase()) {
-				return true;
-			}
-			return resource.displayName === item.displayName && !!resource.repository && !!item.repository &&
-				isEqual(resource.repository, item.repository) &&
-				(!resource.version || !item.version || resource.version === item.version);
-		});
-		return candidate ? {
-			...resource,
-			icon: candidate.icon ?? resource.icon,
-			publisher: candidate.publisher ?? resource.publisher,
-			publisherUrl: candidate.publisherUrl ?? resource.publisherUrl,
-			repository: candidate.repository ?? resource.repository,
-			installation: candidate.installation ?? resource.installation,
-		} : resource;
 	}
 
 	private renderBrowseSection(label: string, items: readonly ICustomizationMarketplaceResource[], type: CustomizationDiscoveryType | undefined, elevated: boolean): void {
@@ -2187,7 +2155,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		const curatedSections = this.query.isEmpty()
 			? this.curatedSections?.filter(section => section.items.length > 0).map(section => ({
 				...section,
-				items: section.items.map(item => this.resolveCuratedResource(item)),
+				items: section.items,
 			}))
 			: undefined;
 		const searchResources = curatedSections?.length

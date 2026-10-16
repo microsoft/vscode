@@ -74,7 +74,29 @@ interface ISdkResult {
 }
 
 interface ICopilotCustomizationInstallationClient {
-	readonly rpc: Pick<CopilotClient['rpc'], 'catalog' | 'skills' | 'mcp'> & Partial<Pick<CopilotClient['rpc'], 'plugins'>>;
+	readonly rpc: Pick<CopilotClient['rpc'], 'skills' | 'mcp'> & Partial<Pick<CopilotClient['rpc'], 'plugins'>> & {
+		readonly catalog: CopilotClient['rpc']['catalog'] & ICatalogSavedFeedApi;
+	};
+}
+
+/** Compatibility boundary until the SDK publishes github/copilot-agent-runtime#26643. */
+interface ICatalogSavedFeedApi {
+	getSavedFeed?(request: {
+		contract: Parameters<CopilotClient['rpc']['catalog']['search']>[0]['contract'];
+		policySessionId?: string;
+		feedId: string;
+	}): Promise<
+		| {
+			kind: 'succeeded';
+			searchId: string;
+			feed: { id: string; name: string; version: number };
+			entries: readonly (
+				| { status: 'available'; identifier: string; candidate: CatalogCandidate }
+				| { status: 'unavailable' | 'filtered'; identifier: string }
+			)[];
+		}
+		| { kind: Exclude<CatalogSearchResult['kind'], 'succeeded'>; message: string }
+	>;
 }
 
 export interface ICopilotCustomizationPolicySession {
@@ -191,6 +213,9 @@ export class CopilotCustomizationInstallations extends Disposable {
 	}
 
 	async search(session: URI, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult> {
+		if (request.feedId !== undefined) {
+			return this.getSavedFeed(session, request.feedId);
+		}
 		if (!request.query.trim()) {
 			if (request.mediaType && request.mediaType !== copilotPluginMediaType) {
 				return { kind: 'page', items: [] };
@@ -256,6 +281,64 @@ export class CopilotCustomizationInstallations extends Disposable {
 		} finally {
 			retainedCursor?.dispose();
 		}
+	}
+
+	private async getSavedFeed(session: URI, feedId: string): Promise<IAgentCustomizationMarketplaceSearchResult> {
+		const client = await this.getClient();
+		if (!client.rpc.catalog.getSavedFeed) {
+			return { kind: 'unavailable', reason: 'unsupported' };
+		}
+		const visiblePolicySessionId = this.getPolicySessionId(session);
+		if (!visiblePolicySessionId && !this.createPolicySession) {
+			return { kind: 'unavailable', reason: 'session' };
+		}
+		const policySessionId = visiblePolicySessionId ?? await this.getOrCreatePolicySessionId(client);
+		const result = await client.rpc.catalog.getSavedFeed({
+			contract: {
+				protocolVersion: 3,
+				requiredCapabilities: [...catalogSearchCapabilities, 'catalog-feeds', 'agent-plugin-discovery'],
+			},
+			policySessionId,
+			feedId,
+		});
+		if (result.kind !== 'succeeded') {
+			if (result.kind === 'negotiation-refused') {
+				return { kind: 'unavailable', reason: 'unsupported' };
+			}
+			if (result.kind === 'authentication-required') {
+				return { kind: 'unavailable', reason: 'authentication' };
+			}
+			throw new Error(result.message);
+		}
+		return {
+			kind: 'page',
+			items: result.entries.flatMap(entry => {
+				if (entry.status !== 'available') {
+					return [];
+				}
+				const candidate = entry.candidate;
+				const kind = candidate.kind === 'plugin' ? 'plugin' : candidate.kind === 'ai-skill' ? 'skill' : 'mcp';
+				const item: IAgentCustomizationMarketplaceSearchItem = this.isInstallableCatalogCandidate(candidate)
+					? this.retainCatalogCandidate(client, policySessionId, result.searchId, candidate)
+					: {
+						selectionId: generateUuid(),
+						kind,
+						displayName: candidate.displayName,
+						description: candidate.description,
+						publisher: candidate.publisher,
+						installable: false,
+						unavailableMessage: candidate.kind === 'plugin'
+							? localize('copilot.customizationFeed.pluginUnavailable', "The SDK cannot yet install a catalog plugin at its exact pinned revision.")
+							: localize('copilot.customizationFeed.installUnavailable', "The SDK cannot install this customization in the selected session."),
+					};
+				return [{
+					...item,
+					identifier: entry.identifier,
+					iconUrl: candidate.iconUrl,
+					categories: candidate.categories,
+				}];
+			}),
+		};
 	}
 
 	private async browseFeaturedPlugins(client: ICopilotCustomizationInstallationClient, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult> {

@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceCancellationError } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { onUnexpectedError } from '../../../../../base/common/errors.js';
+import { getErrorMessage, isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
@@ -16,11 +17,13 @@ import { IPlatformCustomizationMarketplaceService } from '../../../../../platfor
 import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceRecoveryGroup, CustomizationMarketplaceService, ICustomizationMarketplaceBrowseSections, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceInfo, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources, getEnabledCustomizationMarketplaceSources, queryEnabledCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { createMcpGalleryMarketplaceProviders, getAllMcpGalleryMarketplaceSourceInfos, getCustomizationMarketplaceSourceInfos } from '../../../../../platform/customizationMarketplace/common/mcpGalleryMarketplaceProvider.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { ICustomizationHarnessService, ICustomizationMarketplaceInfo, ICustomizationMarketplaceManagementProvider, ICustomizationMarketplaceSearchProvider } from '../../common/customizationHarnessService.js';
 import { IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
-import { IAgentFinderSavedResourceFeedService } from './agentFinderSavedResourceFeedService.js';
 import { CopilotConnectorsMarketplaceProvider, ICopilotConnectorsService } from './copilotConnectorsService.js';
 import { isAgentFinderPublicFeedAvailable } from './customizationMarketplaceConfiguration.js';
 import { createPluginCustomizationMarketplaceProviders, getAllPluginCustomizationMarketplaceSourceInfos, getPluginCustomizationMarketplaceSourceInfos } from './pluginCustomizationMarketplaceProvider.js';
@@ -107,8 +110,10 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 		@IPluginMarketplaceService private readonly pluginMarketplaceService: IPluginMarketplaceService,
 		@ICopilotConnectorsService private readonly copilotConnectorsService: ICopilotConnectorsService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
-		@IAgentFinderSavedResourceFeedService private readonly savedResourceFeedService: IAgentFinderSavedResourceFeedService,
+		@IProductService private readonly productService: IProductService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IDefaultAccountService defaultAccountService: IDefaultAccountService,
+		@IAuthenticationService authenticationService: IAuthenticationService,
 	) {
 		super();
 		this.harnessBindingCancellation = this._register(new MutableDisposable<CancellationTokenSource>());
@@ -131,7 +136,12 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 			platformService.onDidChangeSources ?? Event.None,
 			Event.fromObservableLight(this.harnessService.activeHarness),
 			Event.fromObservableLight(this.harnessService.activeSessionResource),
-			savedResourceFeedService.onDidChange,
+			Event.map(defaultAccountService.onDidChangeDefaultAccount, () => undefined),
+			Event.map(Event.filter(authenticationService.onDidChangeSessions, event => {
+				const account = defaultAccountService.currentDefaultAccount;
+				return !!account && event.providerId === account.authenticationProvider.id &&
+					[...event.event.added ?? [], ...event.event.changed ?? [], ...event.event.removed ?? []].some(session => session.id === account.sessionId);
+			}), () => undefined),
 		);
 	}
 
@@ -279,14 +289,6 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 
 	getSourceRecoveryAction(sourceId: string): ICustomizationMarketplaceSourceRecoveryAction | undefined {
 		if (sourceId === CustomizationMarketplaceSources.AgentFinderPublicFeed.id) {
-			if (this.savedResourceFeedService.authorizationRequired) {
-				return {
-					label: localize('customizationMarketplace.signIn', "Sign In"),
-					kind: 'signIn',
-					groupId: CustomizationMarketplaceRecoveryGroup.GitHubDefaultAccount,
-					run: token => this.savedResourceFeedService.signIn(token),
-				};
-			}
 			return this.isGitHubFeedAvailable()
 				? this.marketplaceSearchProvider?.getRecoveryAction?.()
 				: undefined;
@@ -307,39 +309,50 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 	async getBrowseSections(options: Pick<ICustomizationMarketplaceQuery, 'sourceIds'>, token: CancellationToken): Promise<ICustomizationMarketplaceBrowseSections | undefined> {
 		const source = CustomizationMarketplaceSources.AgentFinderPublicFeed;
 		const feeds = this.getAgentFinderBrowseFeeds();
-		if (!feeds.length ||
+		const provider = this.marketplaceSearchProvider;
+		const sessionResource = this.marketplaceSessionResource;
+		if (!feeds.length || !provider?.getFeed || !sessionResource ||
 			!getEnabledCustomizationMarketplaceSources(this.configurationService, this.sources).some(candidate => candidate.id === source.id) ||
 			(options.sourceIds && !options.sourceIds.includes(source.id))) {
 			return undefined;
 		}
-		const results = await this.savedResourceFeedService.getFeeds(feeds.map(feed => feed.id), token);
-		const byId = new Map(results.map(result => [result.id, result]));
-		const errors: string[] = [];
-		const sections = feeds.flatMap(feed => {
-			const result = byId.get(feed.id);
-			if (result?.error) {
-				errors.push(result.error);
-				return [];
+		const store = new DisposableStore();
+		const cancellation = store.add(new CancellationTokenSource(token));
+		store.add(this.onDidChangeSources(() => cancellation.cancel()));
+		store.add(this.configurationService.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration(source.enablementSetting) || event.affectsConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled)) {
+				cancellation.cancel();
 			}
-			return result?.feed ? [{
-				...feed,
-				items: result.feed.items.map(item => ({ ...item, sourceId: source.id })),
-			}] : [];
-		});
-		const uniqueErrors = [...new Set(errors)];
-		return {
-			sourceId: source.id,
-			sections,
-			error: uniqueErrors.length === 0
-				? undefined
-				: uniqueErrors.length === 1
-					? uniqueErrors[0]
-					: localize('customizationMarketplace.partialFeedsError', "Some curated customization sections could not be loaded. {0}", uniqueErrors[0]),
-		};
+		}));
+		try {
+			const results = await raceCancellationError(Promise.all(feeds.map(async feed => {
+				try {
+					const page = await provider.getFeed!(sessionResource, feed.id, cancellation.token);
+					return { section: { ...feed, items: page.items.map(item => ({ ...item, sourceId: source.id })) } };
+				} catch (error) {
+					if (isCancellationError(error)) {
+						throw error;
+					}
+					return { error: getErrorMessage(error) };
+				}
+			})), cancellation.token);
+			const errors = [...new Set(results.flatMap(result => result.error ? [result.error] : []))];
+			return {
+				sourceId: source.id,
+				sections: results.flatMap(result => result.section ? [result.section] : []),
+				error: errors.length === 0
+					? undefined
+					: errors.length === 1
+						? errors[0]
+						: localize('customizationMarketplace.partialFeedsError', "Some curated customization sections could not be loaded. {0}", errors[0]),
+			};
+		} finally {
+			store.dispose();
+		}
 	}
 
 	private getAgentFinderBrowseFeeds(): readonly IAgentFinderBrowseFeed[] {
-		const feedIds = this.savedResourceFeedService.feedIds;
+		const feedIds = this.productService.defaultChatAgent?.agentFinderCustomizationFeedIds;
 		return feedIds ? [
 			{
 				id: feedIds.editorsPicks,

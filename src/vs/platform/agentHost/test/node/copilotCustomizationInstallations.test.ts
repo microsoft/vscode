@@ -19,9 +19,110 @@ type McpInstallationListOutcome = Extract<Extract<Awaited<ReturnType<CopilotClie
 type McpInstallationSummary = McpInstallationListOutcome['installations'][number];
 type McpInstallReview = Extract<McpInstallationReview, { readonly action: 'install' }>;
 type McpEffectiveConfiguration = NonNullable<McpInstallReview['effectiveConfiguration']>;
+type CustomizationClient = Awaited<ReturnType<ConstructorParameters<typeof CopilotCustomizationInstallations>[0]>>;
+type GetSavedFeed = NonNullable<CustomizationClient['rpc']['catalog']['getSavedFeed']>;
 
 suite('CopilotCustomizationInstallations', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('saved feeds', () => {
+		function createFixture(getSavedFeed?: GetSavedFeed) {
+			const plans: Parameters<CopilotClient['rpc']['mcp']['planInstall']>[0][] = [];
+			const policySessions: string[] = [];
+			const client: CustomizationClient = {
+				rpc: {
+					catalog: new class extends mock<CustomizationClient['rpc']['catalog']>() {
+						override readonly getSavedFeed = getSavedFeed;
+						override readonly search: CopilotClient['rpc']['catalog']['search'] = async () => {
+							throw new Error('Feed retrieval and installation must not search');
+						};
+					}(),
+					skills: new class extends mock<CopilotClient['rpc']['skills']>() { }(),
+					mcp: new class extends mock<CopilotClient['rpc']['mcp']>() {
+						override readonly planInstall: CopilotClient['rpc']['mcp']['planInstall'] = async request => {
+							plans.push(request);
+							throw new Error('Reached SDK installation planning');
+						};
+					}(),
+				},
+			};
+			const service = store.add(new CopilotCustomizationInstallations(async () => client, () => undefined, async (client, sessionId) => {
+				policySessions.push(sessionId);
+				return { client, sessionId, async dispose() { } };
+			}));
+			return { service, plans, policySessions };
+		}
+
+		test('preserves order and metadata and installs the retained feed candidate without searching', async () => {
+			const candidate: McpCatalogCandidate = {
+				kind: 'mcp-server', handle: 'feed-candidate', handleExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+				mediaType: 'application/mcp-server+json', installability: 'installable', displayName: 'Figma',
+				source: { kind: 'url', url: 'https://api.mcp.github.com/figma' },
+				provenance: { authority: 'agentfinder.github.com', observedAt: new Date().toISOString(), mediaType: 'application/mcp-server+json' },
+				iconUrl: 'https://raw.githubusercontent.com/example/icons/main/figma.png', categories: ['build'],
+			};
+			const requests: Parameters<GetSavedFeed>[0][] = [];
+			const fixture = createFixture(async request => {
+				requests.push(request);
+				return {
+					kind: 'succeeded', searchId: 'feed-search', feed: { id: request.feedId, name: 'Editorial', version: 2 },
+					entries: [
+						{ status: 'unavailable', identifier: 'missing' },
+						{ status: 'available', identifier: 'figma', candidate },
+						{ status: 'filtered', identifier: 'filtered' },
+						{ status: 'available', identifier: 'second', candidate: { ...candidate, handle: 'second-handle', displayName: 'Second' } },
+						{ status: 'available', identifier: 'blocked', candidate: { ...candidate, handle: 'blocked-handle', displayName: 'Blocked', installability: 'not-installable-policy' } },
+					],
+				};
+			});
+			const session = URI.parse('agent-host-copilotcli:///unmaterialized');
+			const result = await fixture.service.search(session, { query: '', feedId: 'feed_editorial', limit: 1 });
+			assert.ok(result.kind === 'page');
+			const item = result.items[0];
+			await assert.rejects(fixture.service.prepare(session, {
+				identifier: item.identifier!, displayName: item.displayName, description: item.description ?? '',
+				mediaType: candidate.mediaType, itemUrl: item.itemUrl, selectionId: item.selectionId, installation: { kind: 'mcp' },
+			}), /Reached SDK installation planning/);
+			await fixture.service.search(session, { query: '', feedId: 'feed_another', limit: 1 });
+			assert.deepStrictEqual({
+				items: result.items.map(item => [item.identifier, item.displayName, item.iconUrl, item.categories]),
+				feedIds: requests.map(request => request.feedId),
+				bound: requests.every(request => request.policySessionId === fixture.policySessions[0]),
+				capabilities: requests[0].contract.requiredCapabilities,
+				policySessions: fixture.policySessions.length,
+				planSource: fixture.plans[0].source,
+				installability: result.items.map(item => [item.installable, !!item.unavailableMessage]),
+			}, {
+				items: [['figma', 'Figma', candidate.iconUrl, ['build']], ['second', 'Second', candidate.iconUrl, ['build']], ['blocked', 'Blocked', candidate.iconUrl, ['build']]],
+				feedIds: ['feed_editorial', 'feed_another'],
+				bound: true,
+				capabilities: ['catalog-search-credential-required', 'catalog-search-session-bound', 'catalog-selection', 'catalog-search-pagination', 'trust-snapshot', 'ai-skill-discovery', 'skill-confirmed-installation', 'catalog-feeds', 'agent-plugin-discovery'],
+				policySessions: 1,
+				planSource: { kind: 'candidate', candidateHandle: 'feed-candidate', searchId: 'feed-search' },
+				installability: [[true, false], [true, false], [false, true]],
+			});
+		});
+
+		for (const kind of ['negotiation-refused', 'authentication-required'] as const) {
+			test(`surfaces ${kind} without falling back to search`, async () => {
+				const { service } = createFixture(async () => ({ kind, message: 'Unavailable' }));
+				assert.deepStrictEqual(await service.search(URI.parse('agent-host-copilotcli:///session'), { query: '', feedId: 'feed_editorial', limit: 30 }), {
+					kind: 'unavailable', reason: kind === 'negotiation-refused' ? 'unsupported' : 'authentication',
+				});
+			});
+		}
+
+		test('reports an older SDK as unsupported without creating a policy session', async () => {
+			const { service, policySessions } = createFixture();
+			const result = await service.search(URI.parse('agent-host-copilotcli:///session'), { query: '', feedId: 'feed_editorial', limit: 30 });
+			assert.deepStrictEqual({ result, policySessions }, { result: { kind: 'unavailable', reason: 'unsupported' }, policySessions: [] });
+		});
+
+		test('surfaces feed retrieval failures rather than returning an empty page', async () => {
+			const { service } = createFixture(async () => ({ kind: 'unavailable', message: 'Collection not found' }));
+			await assert.rejects(service.search(URI.parse('agent-host-copilotcli:///session'), { query: '', feedId: 'feed_missing', limit: 30 }), /Collection not found/);
+		});
+	});
 
 	test('fails before starting the SDK when no policy-session factory is available', async () => {
 		let clientRequests = 0;

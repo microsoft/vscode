@@ -39,7 +39,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 	private readonly catalogAssociations = new Map<string, ICustomizationMarketplaceResource>();
 	private knownInstallationIds = new Set<string>();
 	private pendingCatalogInstall: { readonly resource: ICustomizationMarketplaceResource; readonly previousIds: ReadonlySet<string> } | undefined;
-	private catalogAuthenticationRequired = false;
+	private readonly catalogAuthenticationRequired = new Set<string>();
 	readonly onDidChange: Event<void>;
 
 	constructor(
@@ -170,7 +170,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 	}
 
 	getRecoveryAction(): ICustomizationMarketplaceSourceRecoveryAction | undefined {
-		if (!this.catalogAuthenticationRequired) {
+		if (this.catalogAuthenticationRequired.size === 0) {
 			return undefined;
 		}
 		return {
@@ -182,12 +182,24 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 					throw new CancellationError();
 				}
 				this.throwIfCancelled(token);
-				this.catalogAuthenticationRequired = false;
+				this.catalogAuthenticationRequired.clear();
 			},
 		};
 	}
 
 	async query(sessionResource: URI, options: ICustomizationMarketplaceSourceQuery, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage | undefined> {
+		return this.queryCatalog(sessionResource, options, token);
+	}
+
+	async getFeed(sessionResource: URI, feedId: string, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage> {
+		const page = await this.queryCatalog(sessionResource, {}, token, feedId);
+		if (!page) {
+			throw new Error(localize('agentHost.customizationFeed.unavailable', "The selected agent cannot retrieve curated customizations."));
+		}
+		return page;
+	}
+
+	private async queryCatalog(sessionResource: URI, options: ICustomizationMarketplaceSourceQuery, token: CancellationToken, feedId?: string): Promise<ICustomizationMarketplaceSourcePage | undefined> {
 		this.throwIfCancelled(token);
 		const query = options.query?.trim() ?? '';
 		if (!this.agentHostService.searchCustomizationMarketplace) {
@@ -204,11 +216,17 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 			mediaType: options.mediaType,
 			limit: options.pageSize ?? 30,
 			cursor: options.cursor,
+			...(feedId !== undefined ? { feedId } : {}),
 		});
 		const result = await search();
 		this.throwIfCancelled(token);
+		const authenticationKey = feedId ?? '';
 		if (result.kind === 'unavailable') {
-			this.catalogAuthenticationRequired = result.reason === 'authentication';
+			if (result.reason === 'authentication') {
+				this.catalogAuthenticationRequired.add(authenticationKey);
+			} else {
+				this.catalogAuthenticationRequired.delete(authenticationKey);
+			}
 			switch (result.reason) {
 				case 'authentication':
 					throw new Error(localize('agentHost.customizationSearch.authenticationRequired', "Sign in to Copilot to search the GitHub Feed."));
@@ -218,7 +236,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 					throw new Error(localize('agentHost.customizationSearch.unsupported', "The active Copilot runtime does not support GitHub Feed search."));
 			}
 		}
-		this.catalogAuthenticationRequired = false;
+		this.catalogAuthenticationRequired.delete(authenticationKey);
 		return {
 			items: result.items.map(item => {
 				if (item.unavailableMessage) {
@@ -235,18 +253,18 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 					? { kind: 'providerPlugin' as const, name: item.pluginName, marketplace: item.marketplace, marketplaceSource: item.marketplaceSource }
 					: undefined;
 				return {
-					identifier: providerPlugin ? JSON.stringify([providerPlugin.marketplaceSource, providerPlugin.marketplace, providerPlugin.name]) : item.itemUrl ?? item.selectionId,
+					identifier: item.identifier ?? (providerPlugin ? JSON.stringify([providerPlugin.marketplaceSource, providerPlugin.marketplace, providerPlugin.name]) : item.itemUrl ?? item.selectionId),
 					displayName: item.displayName,
 					description: item.description ?? '',
 					mediaType: getCatalogMediaType(item.kind),
-					tags: [],
+					tags: item.categories ?? [],
 					capabilities: [],
 					representativeQueries: [],
 					version: item.version,
 					repository: item.repository ? URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${item.repository}` }) : undefined,
 					publisher: item.publisher,
 					publisherUrl: publisher?.profile,
-					icon: publisher?.avatar ?? registryIcon,
+					icon: item.iconUrl ? URI.parse(item.iconUrl) : publisher?.avatar ?? registryIcon,
 					installation: providerPlugin ?? { kind: 'providerCatalog' as const, resourceKind: item.kind, selectionId: item.selectionId, itemUrl: item.itemUrl },
 				};
 			}),

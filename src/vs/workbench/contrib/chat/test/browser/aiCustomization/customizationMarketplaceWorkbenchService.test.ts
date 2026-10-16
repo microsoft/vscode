@@ -23,7 +23,9 @@ import { IMarketplaceReference, IPluginMarketplacePage, IPluginMarketplaceQuery,
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ICustomizationHarnessService, ICustomizationMarketplaceManagementProvider, ICustomizationMarketplaceSearchProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { AgentFinderSavedResourceFeedResult, IAgentFinderSavedResourceFeedService } from '../../../browser/aiCustomization/agentFinderSavedResourceFeedService.js';
+import { IProductService } from '../../../../../../platform/product/common/productService.js';
+import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { ICopilotConnector, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { CustomizationMarketplaceWorkbenchService, getProviderMarketplaceSourceId } from '../../../browser/aiCustomization/customizationMarketplaceWorkbenchService.js';
 import { getPluginCustomizationMarketplaceSourceId } from '../../../browser/aiCustomization/pluginCustomizationMarketplaceProvider.js';
@@ -58,18 +60,12 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		}());
 	}
 
-	function createSavedResourceFeedService(overrides: {
-		readonly feedIds?: IAgentFinderSavedResourceFeedService['feedIds'];
-		readonly results?: readonly AgentFinderSavedResourceFeedResult[];
-		readonly authorizationRequired?: boolean;
-		readonly signIns?: CancellationToken[];
-	} = {}): IAgentFinderSavedResourceFeedService {
-		return new class extends mock<IAgentFinderSavedResourceFeedService>() {
-			override readonly feedIds = overrides.feedIds;
-			override readonly onDidChange = Event.None;
-			override readonly authorizationRequired = overrides.authorizationRequired ?? false;
-			override async getFeeds() { return overrides.results ?? []; }
-			override async signIn(token: CancellationToken) { overrides.signIns?.push(token); }
+	function createProductService(feedIds?: NonNullable<IProductService['defaultChatAgent']>['agentFinderCustomizationFeedIds']): IProductService {
+		return new class extends mock<IProductService>() {
+			override readonly defaultChatAgent = {
+				...new class extends mock<NonNullable<IProductService['defaultChatAgent']>>() { }(),
+				agentFinderCustomizationFeedIds: feedIds,
+			};
 		}();
 	}
 
@@ -91,7 +87,13 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			override getActiveDescriptor() { return harness; }
 			override getDescriptorForSession() { return harness; }
 		}());
-		instantiationService.stub(IAgentFinderSavedResourceFeedService, createSavedResourceFeedService());
+		instantiationService.stub(IProductService, createProductService());
+		instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
+			override readonly onDidChangeDefaultAccount = Event.None;
+		}());
+		instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
+			override readonly onDidChangeSessions = Event.None;
+		}());
 	}
 
 	function createService(
@@ -99,7 +101,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		platformService: ICustomizationMarketplaceService,
 		connectorsService: ICopilotConnectorsService,
 		marketplaceSearchProvider?: ICustomizationMarketplaceSearchProvider,
-		savedResourceFeedService = createSavedResourceFeedService(),
+		productService = createProductService(),
 		marketplaceManagementProvider?: ICustomizationMarketplaceManagementProvider,
 		pluginMarketplaceReferences: readonly IMarketplaceReference[] = [],
 		marketplacePolicy: { active: boolean; onDidChange: Event<void> } = { active: false, onDidChange: Event.None },
@@ -131,8 +133,14 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			pluginMarketplaceService,
 			connectorsService,
 			harnessService,
-			savedResourceFeedService,
+			productService,
 			store.add(new TestInstantiationService()),
+			new class extends mock<IDefaultAccountService>() {
+				override readonly onDidChangeDefaultAccount = Event.None;
+			}(),
+			new class extends mock<IAuthenticationService>() {
+				override readonly onDidChangeSessions = Event.None;
+			}(),
 		));
 	}
 
@@ -265,7 +273,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			platformService,
 			new class extends mock<ICopilotConnectorsService>() { }(),
 			undefined,
-			createSavedResourceFeedService(),
+			createProductService(),
 			provider,
 			[parseMarketplaceReference('local/ignored-marketplace')!],
 		);
@@ -522,19 +530,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			capabilities: [],
 			representativeQueries: [],
 		});
-		const savedResourceFeedService = createSavedResourceFeedService({
-			feedIds,
-			results: [{
-				id: feedIds.editorsPicks,
-				feed: { id: feedIds.editorsPicks, name: 'Remote editor title', version: 1, items: [entry('first'), entry('second')] },
-			}, {
-				id: feedIds.planBuildAndShip,
-				error: 'Plan feed unavailable',
-			}, {
-				id: feedIds.connectYourWork,
-				feed: { id: feedIds.connectYourWork, name: 'Remote connect title', version: 2, items: [entry('third')] },
-			}],
-		});
+		const requests: string[] = [];
 		const service = createService(
 			configuration,
 			new class extends mock<ICustomizationMarketplaceService>() {
@@ -542,8 +538,17 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 				override async query() { return { items: [] }; }
 			}(),
 			new class extends mock<ICopilotConnectorsService>() { }(),
-			{ async query() { return { items: [] }; } },
-			savedResourceFeedService,
+			{
+				async query() { throw new Error('Feed retrieval must not search'); },
+				async getFeed(_session, id) {
+					requests.push(id);
+					if (id === feedIds.planBuildAndShip) {
+						throw new Error('Plan feed unavailable');
+					}
+					return { items: id === feedIds.editorsPicks ? [entry('first'), entry('second')] : [entry('third')] };
+				},
+			},
+			createProductService(feedIds),
 		);
 		const sections = await service.getBrowseSections({}, CancellationToken.None);
 		const excluded = await service.getBrowseSections({ sourceIds: [CustomizationMarketplaceSources.McpGallery.id] }, CancellationToken.None);
@@ -551,6 +556,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		assert.deepStrictEqual({
 			sections,
 			excluded,
+			requests,
 		}, {
 			sections: {
 				sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id,
@@ -566,10 +572,11 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 				error: 'Plan feed unavailable',
 			},
 			excluded: undefined,
+			requests: Object.values(feedIds),
 		});
 	});
 
-	test('prefers saved-feed authentication recovery for the GitHub Feed', async () => {
+	test('uses SDK authentication recovery for the GitHub Feed', async () => {
 		const configuration = createConfiguration([CustomizationMarketplaceSources.AgentFinderPublicFeed.id]);
 		const signIns: CancellationToken[] = [];
 		const service = createService(
@@ -582,10 +589,9 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			{
 				async query() { return { items: [] }; },
 				getRecoveryAction() {
-					return { label: 'SDK Sign In', kind: 'signIn' as const, async run() { } };
+					return { label: 'Sign In', kind: 'signIn' as const, groupId: CustomizationMarketplaceRecoveryGroup.GitHubDefaultAccount, async run(token) { signIns.push(token); } };
 				},
 			},
-			createSavedResourceFeedService({ authorizationRequired: true, signIns }),
 		);
 		const action = service.getSourceRecoveryAction(CustomizationMarketplaceSources.AgentFinderPublicFeed.id);
 		await action?.run(CancellationToken.None);
@@ -602,6 +608,41 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			signIns: [CancellationToken.None],
 		});
 	});
+
+	for (const cancellationReason of ['request', 'disabled'] as const) {
+		test(`cancels SDK feed retrieval when ${cancellationReason}`, async () => {
+			const configuration = createConfiguration([CustomizationMarketplaceSources.AgentFinderPublicFeed.id]);
+			const pending = new DeferredPromise<ICustomizationMarketplaceSourcePage>();
+			const cancellation = store.add(new CancellationTokenSource());
+			const tokens: CancellationToken[] = [];
+			const service = createService(
+				configuration,
+				new class extends mock<ICustomizationMarketplaceService>() {
+					override readonly sources = [];
+					override async query() { return { items: [] }; }
+				}(),
+				new class extends mock<ICopilotConnectorsService>() { }(),
+				{
+					async query() { throw new Error('Unexpected search'); },
+					getFeed(_session, _feedId, token) {
+						tokens.push(token);
+						return pending.p;
+					},
+				},
+				createProductService({ editorsPicks: 'feed_editors', planBuildAndShip: 'feed_plan', connectYourWork: 'feed_connect' }),
+			);
+			const result = service.getBrowseSections({}, cancellation.token);
+			const rejected = assert.rejects(result, isCancellationError);
+			if (cancellationReason === 'request') {
+				cancellation.cancel();
+			} else {
+				await setEnabled(configuration, CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, false);
+			}
+			await rejected;
+			await pending.complete({ items: [] });
+			assert.deepStrictEqual(tokens.map(token => token.isCancellationRequested), [true, true, true]);
+		});
+	}
 
 
 	test('connector catalog recovery offers only ordinary sign-in', async () => {
@@ -1080,7 +1121,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		const service = createService(configuration, new class extends mock<ICustomizationMarketplaceService>() {
 			override readonly sources = [CustomizationMarketplaceSources.McpGallery];
 			override async query() { return { items: [] }; }
-		}(), new class extends mock<ICopilotConnectorsService>() { }(), harnessProvider, undefined, [], marketplacePolicy);
+		}(), new class extends mock<ICopilotConnectorsService>() { }(), harnessProvider, undefined, undefined, [], marketplacePolicy);
 		const pending = service.query({ sourceIds: [CustomizationMarketplaceSources.AgentFinderPublicFeed.id] }, CancellationToken.None);
 		const cancelled = assert.rejects(pending, isCancellationError);
 		await configuration.setUserConfiguration('chat.plugins.strictMarketplaces', []);
