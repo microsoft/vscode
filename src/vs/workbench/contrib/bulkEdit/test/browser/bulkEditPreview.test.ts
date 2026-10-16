@@ -16,6 +16,11 @@ import { BulkFileOperations } from '../../browser/preview/bulkEditPreview.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ResourceFileEdit, ResourceTextEdit } from '../../../../../editor/browser/services/bulkEditService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { CategoryElement, CategoryElementRenderer } from '../../browser/preview/bulkEditTree.js';
+import { ITreeNode } from '../../../../../base/browser/ui/tree/tree.js';
+import { FuzzyScore } from '../../../../../base/common/filters.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 
 suite('BulkEditPreview', function () {
 
@@ -129,5 +134,82 @@ suite('BulkEditPreview', function () {
 
 		assert.strictEqual(ops.checked.isChecked(edits[0]), false);
 		assert.strictEqual(ops.checked.isChecked(edits[1]), false);
+	});
+
+	suite('category checkboxes', () => {
+		let edits: ResourceTextEdit[];
+		let ops: BulkFileOperations;
+		let renderer: CategoryElementRenderer;
+		let template: ReturnType<CategoryElementRenderer['renderTemplate']>;
+		let checkbox: HTMLElement;
+
+		setup(async () => {
+			edits = [
+				new ResourceTextEdit(URI.parse('some:///uri1'), { text: 'foo', range: new Range(1, 1, 1, 1) }, undefined, { label: 'Update code', needsConfirmation: false }),
+				new ResourceTextEdit(URI.parse('some:///uri2'), { text: 'bar', range: new Range(1, 1, 1, 1) }, undefined, { label: 'Update code', needsConfirmation: false }),
+				new ResourceTextEdit(URI.parse('some:///uri1'), { text: 'import foo', range: new Range(1, 1, 1, 1) }, undefined, { label: 'Insert imports', needsConfirmation: true }),
+			];
+			ops = store.add(await instaService.invokeFunction(BulkFileOperations.create, edits));
+			renderer = new CategoryElementRenderer(new TestThemeService());
+			const container = document.createElement('div');
+			template = renderer.renderTemplate(container);
+			store.add(toDisposable(() => renderer.disposeTemplate(template)));
+			const element = container.querySelector<HTMLElement>('.edit-checkbox');
+			assert.ok(element);
+			checkbox = element;
+		});
+
+		function renderCategory(label: string): CategoryElement {
+			const category = ops.categories.find(category => category.metadata.label === label);
+			assert.ok(category);
+			const element = new CategoryElement(ops, category);
+			renderer.renderElement(new class extends mock<ITreeNode<CategoryElement, FuzzyScore>>() {
+				override element = element;
+				override filterData = undefined;
+			}, 0, template);
+			return element;
+		}
+
+		test('click toggles every edit in the group without changing other groups', () => {
+			renderCategory('Update code');
+			assert.deepStrictEqual(
+				[checkbox.getAttribute('role'), checkbox.getAttribute('aria-label'), checkbox.getAttribute('aria-checked'), checkbox.tabIndex],
+				['checkbox', 'Update code', 'true', -1]
+			);
+
+			checkbox.click();
+			assert.deepStrictEqual(ops.getWorkspaceEdit(), []);
+
+			checkbox.click();
+			assert.deepStrictEqual(ops.getWorkspaceEdit(), edits.slice(0, 2));
+		});
+
+		test('reflects confirmation requirements and changes made to children or the group', () => {
+			renderCategory('Insert imports');
+			assert.strictEqual(checkbox.getAttribute('aria-checked'), 'false');
+			checkbox.click();
+			assert.deepStrictEqual(ops.getWorkspaceEdit(), edits);
+
+			const category = renderCategory('Update code');
+			ops.checked.updateChecked(edits[0], false);
+			renderCategory('Update code');
+			assert.strictEqual(checkbox.getAttribute('aria-checked'), 'false');
+
+			category.setChecked(true);
+			renderCategory('Update code');
+			assert.strictEqual(checkbox.getAttribute('aria-checked'), 'true');
+		});
+
+		test('recycled templates toggle only the current group and release listeners on disposal', () => {
+			renderCategory('Update code');
+			renderCategory('Update code');
+			renderCategory('Insert imports');
+			checkbox.click();
+			assert.deepStrictEqual(ops.getWorkspaceEdit(), edits);
+
+			renderer.disposeTemplate(template);
+			checkbox.click();
+			assert.deepStrictEqual(ops.getWorkspaceEdit(), edits);
+		});
 	});
 });

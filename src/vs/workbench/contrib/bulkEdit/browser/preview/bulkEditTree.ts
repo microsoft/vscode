@@ -398,14 +398,38 @@ export class BulkEditIdentityProvider implements IIdentityProvider<BulkEditEleme
 
 class CategoryElementTemplate {
 
+	private readonly _disposables = new DisposableStore();
+	private readonly _localDisposables = new DisposableStore();
+	private readonly _checkbox: Checkbox;
+
 	readonly icon: HTMLDivElement;
 	readonly label: IconLabel;
 
 	constructor(container: HTMLElement) {
 		container.classList.add('category');
+
+		this._checkbox = this._disposables.add(new Checkbox('', false, defaultCheckboxStyles));
+		this._checkbox.domNode.classList.add('edit-checkbox');
+		this._checkbox.domNode.tabIndex = -1;
+		container.appendChild(this._checkbox.domNode);
+
 		this.icon = document.createElement('div');
 		container.appendChild(this.icon);
-		this.label = new IconLabel(container);
+		this.label = this._disposables.add(new IconLabel(container));
+	}
+
+	set(element: CategoryElement): void {
+		this._localDisposables.clear();
+		this._checkbox.checked = element.isChecked();
+		this._checkbox.setTitle(element.category.metadata.label);
+		this._localDisposables.add(this._checkbox.onChange(() => {
+			element.setChecked(this._checkbox.checked);
+		}));
+	}
+
+	dispose(): void {
+		this._localDisposables.dispose();
+		this._disposables.dispose();
 	}
 }
 
@@ -423,6 +447,7 @@ export class CategoryElementRenderer implements ITreeRenderer<CategoryElement, F
 
 	renderElement(node: ITreeNode<CategoryElement, FuzzyScore>, _index: number, template: CategoryElementTemplate): void {
 
+		template.set(node.element);
 		template.icon.style.setProperty('--background-dark', null);
 		template.icon.style.setProperty('--background-light', null);
 		template.icon.style.color = '';
@@ -454,7 +479,7 @@ export class CategoryElementRenderer implements ITreeRenderer<CategoryElement, F
 	}
 
 	disposeTemplate(template: CategoryElementTemplate): void {
-		template.label.dispose();
+		template.dispose();
 	}
 }
 
