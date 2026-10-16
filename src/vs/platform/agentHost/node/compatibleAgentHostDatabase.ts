@@ -394,6 +394,10 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 		return result.map(value => this.identity.toRuntime(value));
 	}
 
+	async recordOlderBuildChatListProjected(...[session]: Parameters<IAgentHostDatabase['recordOlderBuildChatListProjected']>): ReturnType<IAgentHostDatabase['recordOlderBuildChatListProjected']> {
+		return this.raw.recordOlderBuildChatListProjected(this.identity.toStorage(session));
+	}
+
 	async findOlderBuildChatCatalogEdits(...[limit]: Parameters<IAgentHostDatabase['findOlderBuildChatCatalogEdits']>): ReturnType<IAgentHostDatabase['findOlderBuildChatCatalogEdits']> {
 		const result = await this.raw.findOlderBuildChatCatalogEdits(limit);
 		return result.map(value => this.identity.toRuntime(value));

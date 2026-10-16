@@ -6,6 +6,11 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { autorun } from '../../../../../base/common/observable.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { IGitHubAccountClient } from '../../../../../platform/github/common/account/account.js';
+import { Issue } from '../../../../../platform/github/common/core/issues.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService, ILogService } from '../../../../../platform/log/common/log.js';
@@ -25,22 +30,24 @@ import { getHighestPriorityPullRequestIcon } from '../../../../services/sessions
 
 //#region Mock Fetchers
 
-class MockRepositoryFetcher {
+class MockRepositoryFetcher extends mock<GitHubRepositoryFetcher>() {
+	override client = upcastPartial<GitHubApiClient>({ onDidChange: Event.None, generation: 0 });
 	nextResult: IGitHubRepository | undefined;
 	getRepositoryCalls = 0;
 	getRepositoryGate: DeferredPromise<void> | undefined;
 
-	async getRepository(_owner: string, _repo: string, _etag?: string): Promise<{ data: IGitHubRepository | undefined; statusCode: number; etag?: string }> {
+	override async getRepository(_owner: string, _repo: string): Promise<IGitHubRepository> {
 		this.getRepositoryCalls++;
 		await this.getRepositoryGate?.p;
 		if (!this.nextResult) {
 			throw new Error('No mock result');
 		}
-		return { data: this.nextResult, statusCode: 200 };
+		return this.nextResult;
 	}
 }
 
 class MockPRFetcher {
+	readonly client = { onDidChange: Event.None, generation: 0 };
 	nextPR: IGitHubPullRequest | undefined;
 	nextReviews: IGitHubPullRequestReview[] = [];
 	nextThreads: IGitHubPullRequestReviewThread[] = [];
@@ -54,18 +61,18 @@ class MockPRFetcher {
 	postIssueCommentCalls: { body: string }[] = [];
 	resolveThreadCalls: { threadId: string }[] = [];
 
-	async getPullRequest(_owner: string, _repo: string, _prNumber: number, _etag?: string): Promise<{ data: IGitHubPullRequest | undefined; statusCode: number; etag?: string }> {
+	async getPullRequest(_owner: string, _repo: string, _prNumber: number): Promise<IGitHubPullRequest> {
 		this.getPullRequestCalls++;
 		await this.getPullRequestGate?.p;
 		if (!this.nextPR) {
 			throw new Error('No mock PR');
 		}
-		return { data: this.nextPR, statusCode: 200 };
+		return this.nextPR;
 	}
 
-	async getReviews(_owner: string, _repo: string, _prNumber: number, _etag?: string): Promise<{ data: readonly IGitHubPullRequestReview[] | undefined; statusCode: number; etag?: string }> {
+	async getReviews(_owner: string, _repo: string, _prNumber: number): Promise<readonly IGitHubPullRequestReview[]> {
 		this.getReviewsCalls++;
-		return { data: this.nextReviews, statusCode: 200 };
+		return this.nextReviews;
 	}
 
 	async getReviewThreads(_owner: string, _repo: string, _prNumber: number): Promise<IGitHubPullRequestReviewThread[]> {
@@ -95,15 +102,16 @@ class MockPRFetcher {
 }
 
 class MockCIFetcher {
+	readonly client = { onDidChange: Event.None, generation: 0 };
 	nextChecks: IGitHubCICheck[] = [];
 	getCheckRunsCalls = 0;
 	getCheckRunsGate: DeferredPromise<void> | undefined;
 
-	async getCheckRuns(_owner: string, _repo: string, _ref: string, _etag?: string): Promise<{ data: readonly IGitHubCICheck[] | undefined; statusCode: number; etag?: string }> {
+	async getCheckRuns(_owner: string, _repo: string, _ref: string): Promise<readonly IGitHubCICheck[]> {
 		this.getCheckRunsCalls++;
 		const result = this.nextChecks;
 		await this.getCheckRunsGate?.p;
-		return { data: result, statusCode: 200 };
+		return result;
 	}
 
 	async rerunFailedJobs(_owner: string, _repo: string, _runId: number): Promise<void> { }
@@ -152,12 +160,12 @@ suite('GitHubRepositoryModel', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('initial state is undefined', () => {
-		const model = store.add(new GitHubRepositoryModel('owner', 'repo', mockFetcher as unknown as GitHubRepositoryFetcher, logService));
+		const model = store.add(new GitHubRepositoryModel('owner', 'repo', mockFetcher, logService));
 		assert.strictEqual(model.repository.get(), undefined);
 	});
 
 	test('refresh populates repository observable', async () => {
-		const model = store.add(new GitHubRepositoryModel('owner', 'repo', mockFetcher as unknown as GitHubRepositoryFetcher, logService));
+		const model = store.add(new GitHubRepositoryModel('owner', 'repo', mockFetcher, logService));
 		mockFetcher.nextResult = {
 			owner: 'owner',
 			name: 'repo',
@@ -171,8 +179,31 @@ suite('GitHubRepositoryModel', () => {
 		assert.deepStrictEqual(model.repository.get(), mockFetcher.nextResult);
 	});
 
+	test('refresh only notifies observers when repository data changes', async () => {
+		const model = store.add(new GitHubRepositoryModel('owner', 'repo', mockFetcher, logService));
+		const values: (IGitHubRepository | undefined)[] = [];
+		store.add(autorun(reader => values.push(model.repository.read(reader))));
+		const original = makeRepository();
+		mockFetcher.nextResult = original;
+		await model.refresh();
+		mockFetcher.nextResult = { ...original };
+		await model.refresh();
+		const retainedIdentity = model.repository.get() === original;
+		const updated = { ...original, description: 'Updated' };
+		mockFetcher.nextResult = updated;
+		await model.refresh();
+		mockFetcher.nextResult = { ...updated };
+		await model.refresh();
+
+		assert.deepStrictEqual({ values, retainedIdentity, calls: mockFetcher.getRepositoryCalls }, {
+			values: [undefined, original, updated],
+			retainedIdentity: true,
+			calls: 4,
+		});
+	});
+
 	test('refresh shares an in-progress request', async () => {
-		const model = store.add(new GitHubRepositoryModel('owner', 'repo', mockFetcher as unknown as GitHubRepositoryFetcher, logService));
+		const model = store.add(new GitHubRepositoryModel('owner', 'repo', mockFetcher, logService));
 		mockFetcher.nextResult = makeRepository();
 		mockFetcher.getRepositoryGate = new DeferredPromise<void>();
 
@@ -201,12 +232,66 @@ suite('GitHubRepositoryModel', () => {
 		});
 	});
 
-	test('refresh handles errors gracefully', async () => {
-		const model = store.add(new GitHubRepositoryModel('owner', 'repo', mockFetcher as unknown as GitHubRepositoryFetcher, logService));
-		// No nextResult set, will throw
+	test('refresh retains its value on failure and allows retry', async () => {
+		const model = store.add(new GitHubRepositoryModel('owner', 'repo', mockFetcher, logService));
+		const original = makeRepository();
+		mockFetcher.nextResult = original;
 		await model.refresh();
+		mockFetcher.nextResult = undefined;
+		await model.refresh();
+		const retained = model.repository.get();
+		mockFetcher.nextResult = { ...original, description: 'Retried' };
+		await model.refresh();
+
+		assert.deepStrictEqual({ retained, repository: model.repository.get(), calls: mockFetcher.getRepositoryCalls }, {
+			retained: original,
+			repository: mockFetcher.nextResult,
+			calls: 3,
+		});
+	});
+
+	test('refresh does not publish a response after disposal', async () => {
+		const model = store.add(new GitHubRepositoryModel('owner', 'repo', mockFetcher, logService));
+		mockFetcher.nextResult = makeRepository();
+		mockFetcher.getRepositoryGate = new DeferredPromise<void>();
+		const pending = model.refresh();
+		model.dispose();
+		await mockFetcher.getRepositoryGate.complete(undefined);
+		await pending;
+
 		assert.strictEqual(model.repository.get(), undefined);
 	});
+
+	for (const order of ['old-first', 'new-first'] as const) {
+		test(`an account change isolates refreshes when responses complete ${order}`, async () => {
+			const changed = store.add(new Emitter<void>());
+			const client = { onDidChange: changed.event, generation: 0 };
+			mockFetcher.client = upcastPartial<GitHubApiClient>(client);
+			const first = new DeferredPromise<IGitHubRepository>();
+			const second = new DeferredPromise<IGitHubRepository>();
+			let calls = 0;
+			mockFetcher.getRepository = () => ++calls === 1 ? first.p : second.p;
+			const model = store.add(new GitHubRepositoryModel('owner', 'repo', mockFetcher, logService));
+			const previous = model.refresh();
+			client.generation++;
+			changed.fire();
+			const pending = model.refresh();
+			const current = { ...makeRepository(), description: 'New account' };
+			if (order === 'old-first') {
+				await first.complete({ ...makeRepository(), description: 'Old account' });
+				await previous;
+				assert.strictEqual(model.refresh(), pending);
+				await second.complete(current);
+			} else {
+				await second.complete(current);
+				await pending;
+				await first.complete({ ...makeRepository(), description: 'Old account' });
+			}
+			await Promise.all([previous, pending]);
+
+			assert.deepStrictEqual({ calls, repository: model.repository.get() }, { calls: 2, repository: current });
+		});
+	}
 });
 
 suite('GitHubPullRequestModel', () => {
@@ -700,46 +785,51 @@ suite('GitHubIssueModel', () => {
 	const store = new DisposableStore();
 	const logService = new NullLogService();
 
-	/**
-	 * Stands in for the low-level API client so the tests can observe the exact
-	 * `If-None-Match` value each request carries and replay `304` responses.
-	 */
-	class MockGitHubApiClient {
-		readonly sentETags: (string | undefined)[] = [];
-		readonly responses: { data?: unknown; statusCode: number; etag?: string }[] = [];
+	class MockGitHubApiClient extends mock<GitHubApiClient>() {
+		constructor(override readonly onDidChange = Event.None) { super(); }
+		override get generation() { return 0; }
+		calls = 0;
+		readonly responses: Issue[] = [];
+		private previous: Issue | undefined;
 
-		async request(_method: string, _path: string, _callSite: string, options?: { etag?: string }) {
-			this.sentETags.push(options?.etag);
-			return this.responses.shift() ?? { data: undefined, statusCode: 304 };
+		override async withClient<T>(task: (client: IGitHubAccountClient, signal: AbortSignal) => Promise<T>): Promise<T> {
+			const issues = upcastPartial<IGitHubAccountClient['issues']>({
+				get: async () => {
+					this.calls++;
+					this.previous = this.responses.shift() ?? this.previous;
+					assert.ok(this.previous);
+					return this.previous;
+				},
+			});
+			return task(upcastPartial<IGitHubAccountClient>({ issues }), new AbortController().signal);
 		}
 	}
 
 	function issueResponse(state: 'open' | 'closed', title: string) {
-		return {
+		return upcastPartial<Issue>({
 			number: 7,
 			title,
 			body: 'body',
 			state,
 			state_reason: state === 'closed' ? 'completed' : null,
-			user: { login: 'octocat', avatar_url: '' },
+			user: null,
 			created_at: '2026-01-01T00:00:00Z',
 			updated_at: '2026-01-02T00:00:00Z',
 			closed_at: null,
-		};
+		});
 	}
 
 	function createCollection(client: MockGitHubApiClient) {
-		return new GitHubIssueModelReferenceCollection(client as unknown as GitHubApiClient, logService);
+		return store.add(new GitHubIssueModelReferenceCollection(client, logService));
 	}
 
 	teardown(() => store.clear());
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('revalidates with the stored ETag and keeps the last payload on 304', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('revalidates after the freshness interval and preserves unchanged display data', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const client = new MockGitHubApiClient();
-		client.responses.push({ data: issueResponse('open', 'Original'), statusCode: 200, etag: 'W/"v1"' });
-		client.responses.push({ data: undefined, statusCode: 304, etag: 'W/"v1"' });
+		client.responses.push(issueResponse('open', 'Original'));
 		const collection = createCollection(client);
 		const reference = store.add(collection.acquire('owner/repo/issues/7', 'owner', 'repo', 7));
 
@@ -748,17 +838,17 @@ suite('GitHubIssueModel', () => {
 		await reference.object.refresh();
 
 		assert.deepStrictEqual({
-			sentETags: client.sentETags,
+			calls: client.calls,
 			title: reference.object.issue.get()?.title,
 		}, {
-			sentETags: [undefined, 'W/"v1"'],
+			calls: 2,
 			title: 'Original',
 		});
 	}));
 
 	test('on-demand refreshes inside the debounce window collapse into one request', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const client = new MockGitHubApiClient();
-		client.responses.push({ data: issueResponse('open', 'Original'), statusCode: 200, etag: 'W/"v1"' });
+		client.responses.push(issueResponse('open', 'Original'));
 		const collection = createCollection(client);
 		const reference = store.add(collection.acquire('owner/repo/issues/7', 'owner', 'repo', 7));
 
@@ -766,13 +856,13 @@ suite('GitHubIssueModel', () => {
 		await timeout(MIN_REFRESH_INTERVAL_MS - 1);
 		await reference.object.refresh();
 
-		assert.strictEqual(client.sentETags.length, 1);
+		assert.strictEqual(client.calls, 1);
 	}));
 
-	test('a re-created model starts from the previous one\'s payload and ETag', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('a re-created model starts from the previous display state and freshness', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const client = new MockGitHubApiClient();
-		client.responses.push({ data: issueResponse('open', 'Original'), statusCode: 200, etag: 'W/"v1"' });
-		client.responses.push({ data: issueResponse('closed', 'Original'), statusCode: 200, etag: 'W/"v2"' });
+		client.responses.push(issueResponse('open', 'Original'));
+		client.responses.push(issueResponse('closed', 'Original'));
 		const collection = createCollection(client);
 
 		const first = collection.acquire('owner/repo/issues/7', 'owner', 'repo', 7);
@@ -786,14 +876,27 @@ suite('GitHubIssueModel', () => {
 
 		assert.deepStrictEqual({
 			restoredState,
-			sentETags: client.sentETags,
+			calls: client.calls,
 			state: second.object.issue.get()?.state,
 		}, {
 			restoredState: GitHubIssueState.Open,
-			sentETags: [undefined, 'W/"v1"'],
+			calls: 2,
 			state: GitHubIssueState.Closed,
 		});
 	}));
+
+	test('account changes discard cached issue snapshots', async () => {
+		const changed = store.add(new Emitter<void>());
+		const client = new MockGitHubApiClient(changed.event);
+		client.responses.push(issueResponse('open', 'Previous account'));
+		const collection = createCollection(client);
+		const first = collection.acquire('owner/repo/issues/7', 'owner', 'repo', 7);
+		await first.object.refresh();
+		first.dispose();
+		changed.fire();
+		const next = store.add(collection.acquire('owner/repo/issues/7', 'owner', 'repo', 7));
+		assert.strictEqual(next.object.issue.get(), undefined);
+	});
 });
 
 suite('parseWorkflowRunId', () => {
