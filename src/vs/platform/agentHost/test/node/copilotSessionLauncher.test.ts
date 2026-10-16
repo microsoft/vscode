@@ -2495,6 +2495,22 @@ suite('getCopilotAutoTier', () => {
 		});
 	});
 
+	test('under Fusion, runs Efficiency as Balance only while the provider accepts Balance', () => {
+		const log = new NullLogService();
+		const configurationService = { getRootValue: (_schema: unknown, key: string) => key === CopilotCliConfigKey.Fusion ? true : undefined } as Parameters<typeof resolveCopilotAutoTier>[1];
+		const resolve = () => resolveCopilotAutoTier({ id: 'auto', config: { tier: 'efficiency' } }, configurationService, log, 'session');
+		let withBalance, withoutBalance;
+		try {
+			setAdvertisedAutoModeTiers(['efficiency', 'balance']);
+			withBalance = resolve();
+			setAdvertisedAutoModeTiers(['efficiency', 'hydrafusion']);
+			withoutBalance = resolve();
+		} finally {
+			setAdvertisedAutoModeTiers(undefined);
+		}
+		assert.deepStrictEqual({ withBalance, withoutBalance, builtIn: resolve() }, { withBalance: 'balance', withoutBalance: undefined, builtIn: 'balance' });
+	});
+
 	test('resolves the override before picker preferences', () => {
 		const log = new NullLogService();
 		const model: ModelSelection = { id: 'auto', config: { tier: 'efficiency' } };

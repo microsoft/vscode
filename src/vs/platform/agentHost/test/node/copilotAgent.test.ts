@@ -13273,6 +13273,44 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('Fusion offers each provider tier once under its own name, keeps unknown tiers\' labels, and hides tiers the provider keeps out of the picker', async () => {
+		const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
+		client.autoTierMetadata = {
+			defaultTier: 'efficiency',
+			tiers: [
+				{ id: 'efficiency', displayName: 'Efficiency', description: '', type: 'auto', status: { enabled: true } },
+				{ id: 'intelligence', displayName: 'Intelligence', description: '', type: 'auto', status: { enabled: true } },
+				{ id: 'hydrafusion', displayName: 'High', description: '', type: 'fusion', status: { enabled: true } },
+				{ id: 'premium-v2', displayName: 'Premium', description: '', type: 'auto', status: { enabled: true } },
+				// A tier the provider keeps out of the picker (github/copilot-api#39882), read before the SDK types it.
+				{ id: 'staged', displayName: 'Staged', description: '', type: 'auto', status: { enabled: true, tier_picker_enabled: false } as { enabled: boolean } },
+			],
+		};
+		const { agent } = createTestAgentContext(disposables, { copilotClient: client, rootConfig: { [CopilotCliConfigKey.Fusion]: true } });
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			const published = await waitForState(agent.models, published => published.some(model => model.id === 'auto'));
+			const fusion = published.find(model => model.id === 'auto')!;
+			const tier = fusion.configSchema?.properties.tier;
+
+			assert.deepStrictEqual({
+				tier: { enum: tier?.enum, labels: tier?.enumLabels, default: tier?.default },
+				autoTiers: readAgentModelAutoTiersMeta(fusion)?.tiers.map(({ id, label }) => `${id}:${label}`),
+				// Hidden from the picker, but the provider still accepts it.
+				acceptsStaged: getCopilotAutoTier({ id: 'auto', config: { tier: 'staged' } }),
+			}, {
+				// Intelligence would be a second Balance beside the provider's HydraFusion tier; Efficiency is never Fusion's.
+				// Balance is not offered, so the default falls back to the first tier.
+				tier: { enum: ['hydrafusion', 'premium-v2'], labels: ['Balance', 'Premium'], default: 'hydrafusion' },
+				autoTiers: ['hydrafusion:Balance', 'premium-v2:Premium'],
+				acceptsStaged: 'staged',
+			});
+		} finally {
+			await disposeAgent(agent);
+			setAdvertisedAutoModeTiers(undefined);
+		}
+	});
+
 	test('accepts no Auto preference, not the built-in ones, when the provider enables none of its tiers', async () => {
 		const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
 		client.autoTierMetadata = {
