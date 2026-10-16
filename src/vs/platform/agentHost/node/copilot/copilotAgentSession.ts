@@ -1895,9 +1895,9 @@ export class CopilotAgentSession extends Disposable {
 			getSession: () => this._wrapper.session,
 			getHostSupport: () => this._launchPlan.client.rpc.sandbox.getHostSupport(),
 			getCertificateStatus: config => options.sandboxCertificate.getStatus(this._launchPlan.client.rpc.sandbox.proxyCa, config),
-			installCertificate: (config, scopeId) => options.sandboxCertificate.install(this._launchPlan.client.rpc.sandbox.proxyCa, config, scopeId),
-			rotateCertificate: (config, scopeId) => options.sandboxCertificate.rotate(this._launchPlan.client.rpc.sandbox.proxyCa, config, scopeId),
-			removeCertificate: async scopeId => { await options.sandboxCertificate.remove(this._launchPlan.client.rpc.sandbox.proxyCa, scopeId); },
+			installCertificate: (getConfig, scopeId) => options.sandboxCertificate.install(this._launchPlan.client.rpc.sandbox.proxyCa, getConfig, scopeId),
+			rotateCertificate: (getConfig, scopeId) => options.sandboxCertificate.rotate(this._launchPlan.client.rpc.sandbox.proxyCa, getConfig, scopeId),
+			removeCertificate: async (scopeId, validate) => { await options.sandboxCertificate.remove(this._launchPlan.client.rpc.sandbox.proxyCa, scopeId, validate); },
 			getShellInitDirectory: () => this._shellInitScriptMaterialized ? this._shellInitScriptDirectory() : undefined,
 			shellManager: options.shellManager,
 		}));

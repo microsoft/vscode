@@ -52,9 +52,9 @@ interface ICopilotSessionSandboxOptions {
 	readonly getSession: () => CopilotSession;
 	readonly getHostSupport: () => ReturnType<CopilotClient['rpc']['sandbox']['getHostSupport']>;
 	readonly getCertificateStatus: (config: SandboxConfig) => Promise<IAgentSandboxCertificateStatus | undefined>;
-	readonly installCertificate: (config: SandboxConfig, scopeId: string) => Promise<void>;
-	readonly rotateCertificate: (config: SandboxConfig, scopeId: string) => Promise<void>;
-	readonly removeCertificate: (scopeId: string) => Promise<void>;
+	readonly installCertificate: (getConfig: () => SandboxConfig, scopeId: string) => Promise<void>;
+	readonly rotateCertificate: (getConfig: () => SandboxConfig, scopeId: string) => Promise<void>;
+	readonly removeCertificate: (scopeId: string, validate: () => void) => Promise<void>;
 	readonly getShellInitDirectory: () => URI | undefined;
 	readonly shellManager: ShellManager | undefined;
 }
@@ -203,19 +203,28 @@ export class CopilotSessionSandbox extends Disposable {
 		return this._diagnostics.update(effectiveConfig);
 	}
 
-	/** Uses the live chat's effective configuration rather than accepting credentials or paths from the client. */
+	/** Resolves the live chat's effective configuration when its queued certificate operation starts. */
 	installCertificate(scopeId: string): Promise<void> {
-		const config = this.isCustomTerminalToolEnabled() || this._disabledForSession ? { enabled: false } : this._computeConfig() ?? { enabled: false };
-		return this._options.installCertificate(config, scopeId);
+		return this._options.installCertificate(() => this._certificateConfig(), scopeId);
 	}
 
 	rotateCertificate(scopeId: string): Promise<void> {
-		const config = this.isCustomTerminalToolEnabled() || this._disabledForSession ? { enabled: false } : this._computeConfig() ?? { enabled: false };
-		return this._options.rotateCertificate(config, scopeId);
+		return this._options.rotateCertificate(() => this._certificateConfig(), scopeId);
 	}
 
 	removeCertificate(scopeId: string): Promise<void> {
-		return this._options.removeCertificate(scopeId);
+		return this._options.removeCertificate(scopeId, () => this._requireLiveCertificateSession());
+	}
+
+	private _requireLiveCertificateSession(): void {
+		if (this._store.isDisposed) {
+			throw new Error(localize('copilot.sandboxCertificate.chatUnavailable', "The chat is no longer running. Reopen it before changing sandbox certificate trust."));
+		}
+	}
+
+	private _certificateConfig(): SandboxConfig {
+		this._requireLiveCertificateSession();
+		return this.isCustomTerminalToolEnabled() || this._disabledForSession ? { enabled: false } : this._computeConfig() ?? { enabled: false };
 	}
 
 	refreshCertificateDiagnostics(): Promise<void> {

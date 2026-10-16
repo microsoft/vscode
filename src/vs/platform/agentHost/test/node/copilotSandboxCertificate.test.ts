@@ -91,7 +91,7 @@ suite('CopilotSandboxCertificate', () => {
 			assert.ok(initial);
 			const removed = { state: 'notInstalled', canInstall: true, detail: 'The retained CA needs rotation' } as const;
 			rpc.removeResult = Promise.resolve(removed);
-			await certificates.remove(rpc, initial.scopeId);
+			await certificates.remove(rpc, initial.scopeId, () => { });
 			const refreshed = await certificates.getStatus(rpc, config);
 			assert.deepStrictEqual({
 				calls: rpc.calls, args: rpc.removalArguments, state: refreshed?.state, scope: refreshed?.scopeId, requiresRotation: refreshed?.requiresRotation,
@@ -105,7 +105,7 @@ suite('CopilotSandboxCertificate', () => {
 			const rpc = new TestCertificateRpc();
 			const certificates = new CopilotSandboxCertificate(new NullLogService());
 			await certificates.getStatus(rpc, config);
-			await assert.rejects(certificates.remove(rpc, 'stale-runtime'), /runtime changed/);
+			await assert.rejects(certificates.remove(rpc, 'stale-runtime', () => { }), /runtime changed/);
 			assert.deepStrictEqual(rpc.calls, ['relevance', 'support', 'status']);
 		});
 
@@ -116,9 +116,9 @@ suite('CopilotSandboxCertificate', () => {
 			assert.ok(initial);
 			const created = new DeferredPromise<CertificateCreateResult>();
 			rpc.createResult = created.p;
-			const installing = certificates.install(rpc, config, initial.scopeId);
+			const installing = certificates.install(rpc, () => config, initial.scopeId);
 			await rpc.createStarted.p;
-			const removing = certificates.remove(rpc, initial.scopeId);
+			const removing = certificates.remove(rpc, initial.scopeId, () => { });
 			await timeout(0);
 			const removedBeforeCreation = rpc.calls.includes('remove');
 			created.complete({ certificatePath: '/runtime/proxy-ca.pem' });
@@ -128,6 +128,63 @@ suite('CopilotSandboxCertificate', () => {
 			}, { removedBeforeCreation: false, mutations: ['create', 'trust', 'remove'] });
 		});
 
+		for (const operation of ['install', 'rotate'] as const) {
+			test(`${operation} resolves the current configuration once after dequeueing`, async () => {
+				const rpc = new TestCertificateRpc();
+				const certificates = new CopilotSandboxCertificate(new NullLogService());
+				const initial = await certificates.getStatus(rpc, config);
+				assert.ok(initial);
+				const pending = new DeferredPromise<CertificateCreateResult>();
+				rpc.createResult = pending.p;
+				const creating = certificates.create(rpc, config);
+				await rpc.createStarted.p;
+				let currentConfig = config;
+				let preflights = 0;
+				const queued = certificates[operation](rpc, () => {
+					preflights++;
+					return currentConfig;
+				}, initial.scopeId);
+				const preflightsWhileWaiting = preflights;
+				currentConfig = { ...config, auth: { git: false, gh: true } };
+				const nextConfig = currentConfig;
+				const configsBeforeExecution = rpc.configs.length;
+				await pending.complete({ certificatePath: '/runtime/proxy-ca.pem' });
+				await Promise.all([creating, queued]);
+				assert.deepStrictEqual({
+					preflightsWhileWaiting, preflights,
+					configs: rpc.configs.slice(configsBeforeExecution),
+				}, {
+					preflightsWhileWaiting: 0, preflights: 1,
+					configs: Array(4).fill({ sandboxConfig: nextConfig }),
+				});
+			});
+		}
+
+		test('a removal preflight failure drops only that queued mutation and permits a later request', async () => {
+			const rpc = new TestCertificateRpc();
+			const certificates = new CopilotSandboxCertificate(new NullLogService());
+			const initial = await certificates.getStatus(rpc, config);
+			assert.ok(initial);
+			const pending = new DeferredPromise<CertificateCreateResult>();
+			rpc.createResult = pending.p;
+			const creating = certificates.create(rpc, config);
+			await rpc.createStarted.p;
+			let preflights = 0;
+			const error = new Error('The chat is no longer running');
+			const rejected = assert.rejects(certificates.remove(rpc, initial.scopeId, () => {
+				preflights++;
+				throw error;
+			}), actual => actual === error);
+			const preflightsWhileWaiting = preflights;
+			const removing = certificates.remove(rpc, initial.scopeId, () => { preflights++; });
+			await pending.complete({ certificatePath: '/runtime/proxy-ca.pem' });
+			await Promise.all([creating, rejected, removing]);
+			assert.deepStrictEqual({
+				preflightsWhileWaiting, preflights,
+				mutations: rpc.calls.filter(call => ['create', 'trust', 'rotate', 'remove'].includes(call)),
+			}, { preflightsWhileWaiting: 0, preflights: 2, mutations: ['create', 'remove'] });
+		});
+
 		for (const state of ['installed', 'unsupported', 'error'] as const) {
 			test(`remove rejects an unconfirmed ${state} result and invalidates the status cache`, async () => {
 				const rpc = new TestCertificateRpc();
@@ -135,7 +192,7 @@ suite('CopilotSandboxCertificate', () => {
 				const initial = await certificates.getStatus(rpc, config);
 				assert.ok(initial);
 				rpc.removeResult = Promise.resolve({ state, canInstall: true });
-				await assert.rejects(certificates.remove(rpc, initial.scopeId), /did not confirm/);
+				await assert.rejects(certificates.remove(rpc, initial.scopeId, () => { }), /did not confirm/);
 				await certificates.getStatus(rpc, config);
 				assert.deepStrictEqual(rpc.calls, ['relevance', 'support', 'status', 'remove', 'relevance', 'support', 'status']);
 			});
@@ -148,11 +205,11 @@ suite('CopilotSandboxCertificate', () => {
 			assert.ok(initial);
 			const removal = new DeferredPromise<CertificateStatus>();
 			rpc.removeResult = removal.p;
-			const failed = assert.rejects(certificates.remove(rpc, initial.scopeId), /Authorization denied/);
+			const failed = assert.rejects(certificates.remove(rpc, initial.scopeId, () => { }), /Authorization denied/);
 			removal.error(new Error('Authorization denied'));
 			await failed;
 			rpc.removeResult = undefined;
-			await certificates.remove(rpc, initial.scopeId);
+			await certificates.remove(rpc, initial.scopeId, () => { });
 			assert.deepStrictEqual(rpc.removalArguments, [[], []]);
 		});
 
@@ -161,7 +218,7 @@ suite('CopilotSandboxCertificate', () => {
 			const certificates = new CopilotSandboxCertificate(new NullLogService());
 			const initial = await certificates.getStatus(rpc, config);
 			assert.ok(initial);
-			await Promise.all([certificates.install(rpc, config, initial.scopeId), certificates.install(rpc, config, initial.scopeId)]);
+			await Promise.all([certificates.install(rpc, () => config, initial.scopeId), certificates.install(rpc, () => config, initial.scopeId)]);
 			const status = await certificates.getStatus(rpc, config);
 			assert.deepStrictEqual({
 				mutations: rpc.calls.filter(call => call === 'create' || call === 'trust'),
@@ -173,7 +230,7 @@ suite('CopilotSandboxCertificate', () => {
 			const rpc = new TestCertificateRpc();
 			const certificates = new CopilotSandboxCertificate(new NullLogService());
 			await certificates.getStatus(rpc, config);
-			await assert.rejects(certificates.install(rpc, config, 'stale-runtime'), /runtime changed/);
+			await assert.rejects(certificates.install(rpc, () => config, 'stale-runtime'), /runtime changed/);
 			assert.deepStrictEqual(rpc.calls, ['relevance', 'support', 'status']);
 		});
 
@@ -184,7 +241,7 @@ suite('CopilotSandboxCertificate', () => {
 			const certificates = new CopilotSandboxCertificate(new NullLogService());
 			const initial = await certificates.getStatus(rpc, config);
 			assert.ok(initial);
-			await certificates.rotate(rpc, config, initial.scopeId);
+			await certificates.rotate(rpc, () => config, initial.scopeId);
 			const status = await certificates.getStatus(rpc, config);
 			assert.deepStrictEqual({
 				mutations: rpc.calls.filter(call => ['rotate', 'trust'].includes(call)),
@@ -196,7 +253,7 @@ suite('CopilotSandboxCertificate', () => {
 			const rpc = new TestCertificateRpc();
 			const certificates = new CopilotSandboxCertificate(new NullLogService());
 			await certificates.getStatus(rpc, config);
-			await assert.rejects(certificates.rotate(rpc, config, 'stale-runtime'), /runtime changed/);
+			await assert.rejects(certificates.rotate(rpc, () => config, 'stale-runtime'), /runtime changed/);
 			assert.deepStrictEqual(rpc.calls.filter(call => call === 'rotate'), []);
 		});
 
@@ -207,7 +264,7 @@ suite('CopilotSandboxCertificate', () => {
 			const certificates = new CopilotSandboxCertificate(new NullLogService());
 			const initial = await certificates.getStatus(rpc, config);
 			assert.ok(initial);
-			await certificates.rotate(rpc, config, initial.scopeId);
+			await certificates.rotate(rpc, () => config, initial.scopeId);
 			assert.deepStrictEqual({
 				mutations: rpc.calls.filter(call => ['create', 'rotate', 'trust'].includes(call)),
 				params: rpc.configs.at(-1),
@@ -226,7 +283,7 @@ suite('CopilotSandboxCertificate', () => {
 				const initial = await certificates.getStatus(rpc, config);
 				assert.ok(initial);
 				rpc.rotateResult = Promise.resolve(result);
-				await assert.rejects(certificates.rotate(rpc, config, initial.scopeId));
+				await assert.rejects(certificates.rotate(rpc, () => config, initial.scopeId));
 				await certificates.getStatus(rpc, config);
 				assert.deepStrictEqual({
 					mutations: rpc.calls.filter(call => ['create', 'rotate', 'trust'].includes(call)),
@@ -242,7 +299,7 @@ suite('CopilotSandboxCertificate', () => {
 			const certificates = new CopilotSandboxCertificate(new NullLogService());
 			const initial = await certificates.getStatus(rpc, config);
 			assert.ok(initial);
-			await assert.rejects(certificates.rotate(rpc, config, initial.scopeId), /did not confirm/);
+			await assert.rejects(certificates.rotate(rpc, () => config, initial.scopeId), /did not confirm/);
 			assert.deepStrictEqual(rpc.calls.slice(-2), ['rotate', 'trust']);
 		});
 
@@ -256,7 +313,7 @@ suite('CopilotSandboxCertificate', () => {
 				const initial = await certificates.getStatus(rpc, config);
 				assert.ok(initial);
 				rpc.status = status;
-				await assert.rejects(certificates.install(rpc, config, initial.scopeId));
+				await assert.rejects(certificates.install(rpc, () => config, initial.scopeId));
 				assert.deepStrictEqual(rpc.calls, ['relevance', 'support', 'status', 'relevance', 'support', 'status']);
 			});
 		}
@@ -267,7 +324,7 @@ suite('CopilotSandboxCertificate', () => {
 			const initial = await certificates.getStatus(rpc, config);
 			assert.ok(initial);
 			rpc.trustResult = Promise.resolve({ state: 'notInstalled', canInstall: true });
-			await assert.rejects(certificates.install(rpc, config, initial.scopeId), /did not confirm/);
+			await assert.rejects(certificates.install(rpc, () => config, initial.scopeId), /did not confirm/);
 			assert.deepStrictEqual(rpc.calls.slice(-2), ['create', 'trust']);
 		});
 
@@ -280,7 +337,7 @@ suite('CopilotSandboxCertificate', () => {
 				const credentialConfig = { ...config, credentials: { envVars: { TOKEN: { injectHosts: ['example.com'] } } } };
 				const initial = await certificates.getStatus(rpc, credentialConfig);
 				assert.ok(initial);
-				await certificates.install(rpc, credentialConfig, initial.scopeId);
+				await certificates.install(rpc, () => credentialConfig, initial.scopeId);
 				const status = await certificates.getStatus(rpc, credentialConfig);
 				assert.deepStrictEqual({
 					mutations: rpc.calls.filter(call => ['create', 'rotate', 'trust'].includes(call)),
@@ -306,7 +363,7 @@ suite('CopilotSandboxCertificate', () => {
 				const certificates = new CopilotSandboxCertificate(new NullLogService());
 				const initial = await certificates.getStatus(rpc, config);
 				assert.ok(initial);
-				await assert.rejects(certificates.install(rpc, config, initial.scopeId));
+				await assert.rejects(certificates.install(rpc, () => config, initial.scopeId));
 				assert.deepStrictEqual(rpc.calls.filter(call => ['create', 'rotate', 'trust'].includes(call)), ['rotate']);
 			});
 		}
@@ -318,7 +375,7 @@ suite('CopilotSandboxCertificate', () => {
 			assert.ok(initial);
 			const pending = new DeferredPromise<CertificateCreateResult>();
 			rpc.createResult = pending.p;
-			const installing = certificates.install(rpc, config, initial.scopeId);
+			const installing = certificates.install(rpc, () => config, initial.scopeId);
 			const rejected = assert.rejects(installing, /Could not create CA/);
 			await rpc.createStarted.p;
 			await pending.error(new Error('Could not create CA'));

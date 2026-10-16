@@ -1273,6 +1273,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	attachmentScopes?: readonly string[];
 	getSandboxHostSupport?: CopilotSessionLaunchPlan['client']['rpc']['sandbox']['getHostSupport'];
 	sandboxCertificateRpc?: CopilotClient['rpc']['sandbox']['proxyCa'];
+	sandboxCertificate?: CopilotSandboxCertificate;
 	realpath?: (path: string) => Promise<string>;
 	/** Canvases handed over by a replaced runtime. */
 	canvasHandoff?: ICopilotCanvasHandoff;
@@ -1616,7 +1617,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			rawSessionId: 'test-session-1',
 			onDidSessionProgress: progressEmitter,
 			sessionLauncher,
-			sandboxCertificate: new CopilotSandboxCertificate(logService),
+			sandboxCertificate: options?.sandboxCertificate ?? new CopilotSandboxCertificate(logService),
 			launchPlan,
 			shellManager: options?.shellManager,
 			clientSnapshot: options?.clientSnapshot,
@@ -11779,6 +11780,73 @@ suite('CopilotAgentSession', () => {
 			await session.removeSandboxCertificate(initial.scopeId);
 			assert.deepStrictEqual({ calls, statuses }, { calls: ['create', 'trust', 'rotate', 'remove', 'remove'], statuses: ['notInstalled', 'installed', 'notInstalled'] });
 		});
+
+		for (const operation of ['installSandboxCertificate', 'rotateSandboxCertificate', 'removeSandboxCertificate'] as const) {
+			for (const change of ['disposed', 'disabled', 'unchanged'] as const) {
+				test(`queued ${operation} checks its ${change} session after another chat finishes authorization`, async () => {
+					const calls: string[] = [];
+					const trustStarted = new DeferredPromise<void>();
+					const authorization = new DeferredPromise<void>();
+					const sandboxCertificate = new CopilotSandboxCertificate(new NullLogService());
+					const sandboxCertificateRpc = new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() {
+						override checkRelevance = async () => true;
+						override checkInstallationSupport = async () => true;
+						override getStatus = async (): ReturnType<CopilotClient['rpc']['sandbox']['proxyCa']['getStatus']> => ({ state: 'notInstalled', canInstall: true });
+						override create = async () => {
+							calls.push('create');
+							return { certificatePath: '/runtime/proxy-ca.pem' };
+						};
+						override trust = async (): ReturnType<CopilotClient['rpc']['sandbox']['proxyCa']['trust']> => {
+							calls.push('trust');
+							await trustStarted.complete();
+							await authorization.p;
+							return { state: 'installed', canInstall: true };
+						};
+						override rotate = async (): ReturnType<CopilotClient['rpc']['sandbox']['proxyCa']['rotate']> => {
+							calls.push('rotate');
+							return { state: 'installed', canInstall: true };
+						};
+						override remove = async (): ReturnType<CopilotClient['rpc']['sandbox']['proxyCa']['remove']> => {
+							calls.push('remove');
+							return { state: 'notInstalled', canInstall: true };
+						};
+					};
+					const options = {
+						rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { enabled: 'on' } },
+						sandboxCertificateRpc, sandboxCertificate,
+					};
+					const first = await createAgentSession(disposables, options);
+					const second = await createAgentSession(disposables, {
+						...options,
+						sessionUri: AgentSession.uri('copilot', 'queued-certificate-session'),
+					});
+					await Promise.all([first.session.refreshSandboxCertificate(), second.session.refreshSandboxCertificate()]);
+					const status = await sandboxCertificate.getStatus(sandboxCertificateRpc, { enabled: true });
+					assert.ok(status);
+					const installing = first.session.installSandboxCertificate(status.scopeId);
+					await trustStarted.p;
+					const queued = second.session[operation](status.scopeId);
+					const rejected = change === 'disposed' || (change === 'disabled' && operation !== 'removeSandboxCertificate');
+					const settled = rejected
+						? assert.rejects(queued, change === 'disposed' ? /chat is no longer running/ : /Sandboxing must be enabled/)
+						: queued;
+					if (change === 'disposed') {
+						second.session.dispose();
+					} else if (change === 'disabled') {
+						second.setConfigValue(SessionConfigKey.SandboxEnabled, 'off');
+						second.fireSessionConfigChange({ [SessionConfigKey.SandboxEnabled]: 'off' });
+					}
+					const whileWaiting = [...calls];
+					await authorization.complete();
+					await Promise.all([installing, settled]);
+
+					assert.deepStrictEqual({ whileWaiting, calls }, {
+						whileWaiting: ['create', 'trust'],
+						calls: ['create', 'trust', ...(rejected ? [] : operation === 'installSandboxCertificate' ? ['create', 'trust'] : operation === 'rotateSandboxCertificate' ? ['rotate'] : ['remove'])],
+					});
+				});
+			}
+		}
 
 		test('sandbox certificate failures are cached without blocking initialization or sending', async () => {
 			let queries = 0;

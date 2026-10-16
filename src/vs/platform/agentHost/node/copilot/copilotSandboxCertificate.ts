@@ -39,12 +39,12 @@ export class CopilotSandboxCertificate {
 
 	/** Explicitly creates the persistent CA without trusting it; the caller must obtain user consent first. */
 	create(rpc: SandboxCertificateRpc, config: SandboxCertificateConfig): ReturnType<SandboxCertificateRpc['create']> {
-		return this._mutate(rpc, config, 'create', () => rpc.create({ sandboxConfig: config }));
+		return this._mutate(rpc, () => config, 'create', config => rpc.create({ sandboxConfig: config }));
 	}
 
 	/** Explicitly trusts an already-created CA, potentially prompting for OS authorization; never creates or rotates it. */
 	trust(rpc: SandboxCertificateRpc, config: SandboxCertificateConfig): ReturnType<SandboxCertificateRpc['trust']> {
-		return this._mutate(rpc, config, 'trust', async () => {
+		return this._mutate(rpc, () => config, 'trust', async config => {
 			const status = await rpc.trust({ sandboxConfig: config });
 			if (status.state === 'error') {
 				this._logService.warn('[Copilot] Sandbox certificate trust failed', status.detail);
@@ -55,8 +55,8 @@ export class CopilotSandboxCertificate {
 	}
 
 	/** Rechecks the consented runtime, replacing an incompatible CA when needed before establishing OS trust. */
-	install(rpc: SandboxCertificateRpc, config: SandboxCertificateConfig, scopeId: string): Promise<void> {
-		return this._mutate(rpc, config, 'install', async () => {
+	install(rpc: SandboxCertificateRpc, getConfig: () => SandboxCertificateConfig, scopeId: string): Promise<void> {
+		return this._mutate(rpc, getConfig, 'install', async config => {
 			const runtime = this._requireRuntime(rpc, scopeId);
 			const status = await this._check(rpc, config, runtime);
 			if (status.state === 'installed' && !status.requiresRotation) {
@@ -84,8 +84,8 @@ export class CopilotSandboxCertificate {
 	}
 
 	/** Explicitly replaces the persistent CA and establishes OS trust. */
-	rotate(rpc: SandboxCertificateRpc, config: SandboxCertificateConfig, scopeId: string): Promise<void> {
-		return this._mutate(rpc, config, 'rotate', async () => {
+	rotate(rpc: SandboxCertificateRpc, getConfig: () => SandboxCertificateConfig, scopeId: string): Promise<void> {
+		return this._mutate(rpc, getConfig, 'rotate', async config => {
 			const runtime = this._requireRuntime(rpc, scopeId);
 			const status = await this._check(rpc, config, runtime);
 			if ((status.state !== 'notInstalled' && status.state !== 'installed') || !status.canInstall) {
@@ -106,8 +106,8 @@ export class CopilotSandboxCertificate {
 	}
 
 	/** Removes OS trust without deleting the stored CA; serialized with installation and followed by cache invalidation. */
-	remove(rpc: SandboxCertificateRpc, scopeId: string): ReturnType<SandboxCertificateRpc['remove']> {
-		return this._mutate(rpc, undefined, 'remove', async () => {
+	remove(rpc: SandboxCertificateRpc, scopeId: string, validate: () => void): ReturnType<SandboxCertificateRpc['remove']> {
+		return this._mutate(rpc, () => { validate(); return undefined; }, 'remove', async () => {
 			this._requireRuntime(rpc, scopeId);
 			const status = await rpc.remove();
 			if (status.state !== 'notInstalled') {
@@ -152,16 +152,17 @@ export class CopilotSandboxCertificate {
 		return pending;
 	}
 
-	/** Serializes mutations for one runtime and invalidates all credential configurations, even after a partial failure. */
-	private _mutate<T>(rpc: SandboxCertificateRpc, config: SandboxCertificateConfig | undefined, operation: 'create' | 'trust' | 'install' | 'rotate' | 'remove', mutate: () => Promise<T>): Promise<T> {
+	/** Runs the live preflight once after dequeueing; invalidates cached checks even after a partial failure. */
+	private _mutate<T, C extends SandboxCertificateConfig | undefined>(rpc: SandboxCertificateRpc, preflight: () => C, operation: 'create' | 'trust' | 'install' | 'rotate' | 'remove', mutate: (config: C) => Promise<T>): Promise<T> {
 		return this._operations.queue(rpc, async () => {
 			try {
+				const config = preflight();
 				if (config && !config.enabled) {
 					throw new Error(localize('copilot.sandboxCertificate.disabled', "Sandboxing must be enabled to set up the sandbox certificate."));
 				}
 				this._invalidateStatus(rpc);
 				// OS authorization may outlive a read timeout; never release the queue while a mutation is still running.
-				return await mutate();
+				return await mutate(config);
 			} catch (error) {
 				this._logService.warn(`[Copilot] Failed to ${operation} sandbox certificate`, error);
 				throw error;
