@@ -14079,6 +14079,55 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('fallback-only catalogs survive native Auto metadata refreshes and removal', async () => {
+		const client = new TestCopilotClient([], []);
+		client.autoTierMetadata = {
+			defaultTier: 'high',
+			tiers: ['balance', 'high'].map(id => ({ id, displayName: id, description: '', type: 'auto', status: { enabled: true } })),
+		};
+		const { agent } = createTestAgentContext(disposables, {
+			copilotClient: client,
+			rootConfig: { [CopilotCliConfigKey.HydraFusion]: true },
+		});
+		let clock: ReturnType<typeof useFakeTimers> | undefined;
+		const snapshot = async () => {
+			const tier = agent.models.get().find(model => model.id === 'auto')?.configSchema?.properties.tier;
+			const selection = await (agent as unknown as { _validateModelSelection(model: ModelSelection): Promise<void> })
+				._validateModelSelection({ id: 'unlisted-model' })
+				.then(() => 'accepted', () => 'rejected');
+			return { choices: tier?.enum, defaultTier: tier?.default, selection, requests: client.modelListRequests.length };
+		};
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			await agent.refreshModels();
+			clock = useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+			const initial = await snapshot();
+			client.autoTierMetadata = {
+				defaultTier: 'max',
+				tiers: ['balance', 'max'].map(id => ({ id, displayName: id, description: '', type: 'auto', status: { enabled: true } })),
+			};
+			await agent.refreshModels();
+			await clock.tickAsync(100);
+			const refreshed = await snapshot();
+			client.autoTierMetadata = undefined;
+			await agent.refreshModels();
+			await clock.tickAsync(100);
+			const removed = await snapshot();
+			client.modelListResponses.push([{ id: 'auto', name: 'Auto' }]);
+			await agent.refreshModels();
+			const realCatalog = await snapshot();
+			assert.deepStrictEqual({ initial, refreshed, removed, realCatalog }, {
+				initial: { choices: ['balance', 'high'], defaultTier: 'high', selection: 'accepted', requests: 1 },
+				refreshed: { choices: ['balance', 'max'], defaultTier: 'max', selection: 'accepted', requests: 2 },
+				removed: { choices: ['efficiency', 'balance', 'intelligence'], defaultTier: 'balance', selection: 'accepted', requests: 3 },
+				realCatalog: { choices: ['efficiency', 'balance', 'intelligence'], defaultTier: 'balance', selection: 'rejected', requests: 4 },
+			});
+		} finally {
+			clock?.restore();
+			await disposeAgent(agent);
+		}
+	});
+
 	suite('contextSize to contextTier mapping', () => {
 		const longContextModel: ITestCopilotModelInfo = {
 			id: 'claude-sonnet',

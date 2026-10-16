@@ -548,7 +548,7 @@ export class TabbedModelPicker extends Disposable {
 	private _buildDestinations(context: ITabbedModelPickerContext): IModelPickerDestination[] {
 		const autoModel = this._autoModel(context);
 		const hydraFusionModels = this._hydraFusionModels(context);
-		// Fusion's HydraFusion is never a row of its own, even when Fusion does not offer it.
+		// Routing models are handled separately from ordinary provider rows.
 		const fusionHydraFusion = (model: ILanguageModelChatMetadataAndIdentifier) => !!autoModel?.metadata.autoModelFusion && isHydraFusionModel(model) && !isUserProvidedModel(model, this._languageModelsService);
 		// On-device direct models are listed only in the "On This Device" tab, never under a provider of their own or among
 		// the cloud models (even while status is unavailable), and comparisons don't offer them.
@@ -594,13 +594,12 @@ export class TabbedModelPicker extends Disposable {
 
 	/**
 	 * The HydraFusion routing models this build can run, HydraFusion before HydraFusion Max.
-	 * The host only offers HydraFusion Max with HydraFusion v2, and Fusion only offers
-	 * HydraFusion as its Balance.
+	 * Legacy Fusion offers HydraFusion as its Balance; native tiers keep the standalone models.
 	 */
 	private _hydraFusionModels(context: ITabbedModelPickerContext): ILanguageModelChatMetadataAndIdentifier[] {
 		const fusion = this._autoModel(context)?.metadata.autoModelFusion;
 		return [...COPILOT_HYDRA_FUSION_MODEL_NAMES.keys()]
-			.filter(id => id !== COPILOT_HYDRA_FUSION_MODEL_ID || !fusion || fusion.balanceUsesHydraFusion)
+			.filter(id => id !== COPILOT_HYDRA_FUSION_MODEL_ID || !fusion || fusion.nativeAutoTiers || fusion.balanceUsesHydraFusion)
 			.map(id => context.models.find(model => model.metadata.id === id && isHydraFusionModel(model) && !isUserProvidedModel(model, this._languageModelsService) && !requiresNewerVSCode(model, context.controlModels, context.unavailableContext.currentVSCodeVersion)))
 			.filter((model): model is ILanguageModelChatMetadataAndIdentifier => !!model);
 	}

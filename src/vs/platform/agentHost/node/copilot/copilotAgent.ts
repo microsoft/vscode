@@ -918,6 +918,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * picker.
 	 */
 	private _capiModels: readonly IAgentModelInfo[] = [];
+	private _modelCatalogIsFallback = false;
 	private _managedModelPolicy: Parameters<typeof projectCopilotManagedModelConfiguration>[1] | undefined;
 	private _autoTierMetadata: Awaited<ReturnType<CopilotClient['rpc']['models']['list']>>['auto'];
 	/** See {@link _getFallbackAutoModel}. */
@@ -3286,6 +3287,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const tokenAtRefreshStart = this._githubCredentials.token;
 		if (!tokenAtRefreshStart) {
 			this._capiModels = [];
+			this._modelCatalogIsFallback = false;
 			this._managedModelPolicy = undefined;
 			this._autoTierMetadata = undefined;
 			this._publishModels();
@@ -3293,13 +3295,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		try {
 			const client = await this._ensureClient();
-			const { models, auto } = await this._listModels(client, tokenAtRefreshStart);
+			const { models, auto, isFallback } = await this._listModels(client, tokenAtRefreshStart);
 			if (this._githubCredentials.token !== tokenAtRefreshStart || this._modelCatalogGeneration !== generation || this._shutdownPromise) {
 				return;
 			}
 			const modelPolicy = await resolveCopilotManagedSettings(client.rpc.managedSettings, tokenAtRefreshStart, COPILOT_MANAGED_SETTINGS_QUERY_TIMEOUT_MS);
 			if (this._githubCredentials.token === tokenAtRefreshStart && this._modelCatalogGeneration === generation) {
 				this._capiModels = models;
+				this._modelCatalogIsFallback = isFallback;
 				this._autoTierMetadata = auto;
 				this._managedModelPolicy = modelPolicy;
 				this._publishModels();
@@ -4548,11 +4551,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		};
 	}
 
-	private async _listModels(client: CopilotClient, gitHubToken: string): Promise<{ models: IAgentModelInfo[]; auto: Awaited<ReturnType<CopilotClient['rpc']['models']['list']>>['auto'] }> {
+	private async _listModels(client: CopilotClient, gitHubToken: string): Promise<{ models: IAgentModelInfo[]; auto: Awaited<ReturnType<CopilotClient['rpc']['models']['list']>>['auto']; isFallback: boolean }> {
 		this._logService.info('[Copilot] Listing models...');
 		const { models, auto } = await client.rpc.models.list(this._getEnterpriseHost() ? {} : { gitHubToken });
 		// Empty SDK results can also mean discovery failed, so do not replace an already loaded catalog.
-		if (!models.length && this._capiModels.some(model => model !== this._fallbackAutoModel)) {
+		if (!models.length && this._capiModels.length > 0 && !this._modelCatalogIsFallback) {
 			throw new Error('Model refresh returned an empty catalog; retaining the previous models');
 		}
 		this._freeLongContextModels.clear();
@@ -4589,7 +4592,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._logService.info('[Copilot] No models listed; offering Auto');
 			result.push(this._getFallbackAutoModel());
 		}
-		return { models: result.map(model => withCopilotAutoTierMetadata(model, auto)), auto };
+		return { models: result.map(model => withCopilotAutoTierMetadata(model, auto)), auto, isFallback: models.length === 0 };
 	}
 
 	/** The Auto entry offered when the runtime lists no models, with its routing profiles. */
@@ -7708,7 +7711,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// unavailable, so preserve the SDK's existing fail-open behavior in that case.
 		// A runtime that listed nothing, leaving only the fallback Auto, counts as empty
 		// whatever HydraFusion or BYOK models are published beside it.
-		if (this._capiModels.includes(this._getFallbackAutoModel())) {
+		if (this._modelCatalogIsFallback) {
 			return;
 		}
 		const models = this._models.get();
