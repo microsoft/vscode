@@ -23,7 +23,7 @@ import { ILogService, NullLogService } from '../../../../log/common/log.js';
 import { IProductService } from '../../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../telemetry/common/telemetryUtils.js';
-import { AgentChatMigrationDeferred, AgentSession, IAgentDiscoveredChat } from '../../../common/agent.js';
+import { AgentChatMigrationDeferred, AgentSession, IAgentDiscoveredChat, fixedChatOwnerRef } from '../../../common/agent.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../common/agentHostCheckpointService.js';
 import { readCodexSessionModel } from '../../../common/meta/codexSessionModel.js';
 import { buildNonPtyShellTerminalUri } from '../../../common/nonPtyShellTerminalUri.js';
@@ -407,6 +407,39 @@ suite('Codex chat discovery', () => {
 		}
 	}));
 
+	test('reports the last turn start as the modified time when a resume only advances the native update time', () => runWithFakedTimers({}, async () => {
+		const store = disposables.add(new DisposableStore());
+		const { agent, client, filesystem, events } = createHarness(store);
+		try {
+			client.threads = [{ ...thread('first', 10), recencyAt: 10 }];
+			await agent.startChatDiscovery();
+			client.threads = [{ ...thread('first', 50), recencyAt: 10 }];
+			filesystem.changeHomeFile('session_index.jsonl');
+			await timeout(6000);
+			client.threads = [{ ...thread('first', 90), recencyAt: 80 }];
+			filesystem.changeHomeFile('session_index.jsonl');
+			await timeout(6000);
+			assert.deepStrictEqual(events.map(chats => chats.map(chat => chat.modifiedTime)), [[10_000], [80_000]]);
+		} finally {
+			store.dispose();
+		}
+	}));
+
+	test('republishes the modified time when a turn starts in the same second as the last native update', () => runWithFakedTimers({}, async () => {
+		const store = disposables.add(new DisposableStore());
+		const { agent, client, filesystem, events } = createHarness(store);
+		try {
+			client.threads = [{ ...thread('first', 90), recencyAt: 80 }];
+			await agent.startChatDiscovery();
+			client.threads = [{ ...thread('first', 90), recencyAt: 90 }];
+			filesystem.changeHomeFile('session_index.jsonl');
+			await timeout(6000);
+			assert.deepStrictEqual(events.map(chats => chats.map(chat => chat.modifiedTime)), [[80_000], [90_000]]);
+		} finally {
+			store.dispose();
+		}
+	}));
+
 	test('serves the latest discovery metadata without materializing the external thread', () => runWithFakedTimers({}, async () => {
 		const store = disposables.add(new DisposableStore());
 		const { agent, client, filesystem } = createHarness(store);
@@ -515,7 +548,7 @@ suite('Codex chat discovery', () => {
 			await agent.startChatDiscovery();
 			const session = AgentSession.uri('codex', 'first');
 			const chat = URI.parse(buildDefaultChatUri(session));
-			await agent.materializeChat(chat, { resource: session, configurationResource: session }, undefined);
+			await agent.materializeChat(chat, { resource: session, sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session) }, undefined);
 			client.turns = [turn('one', 'First message')];
 			await agent.chats.getMessages(chat, session);
 			const observed = agent as import('../../../common/agent.js').IAgent;
@@ -758,7 +791,7 @@ suite('Codex chat discovery', () => {
 			await agent.startChatDiscovery();
 			const session = AgentSession.uri('codex', 'first');
 			const chat = URI.parse(buildDefaultChatUri(session));
-			await agent.materializeChat(chat, { resource: session, configurationResource: session }, undefined);
+			await agent.materializeChat(chat, { resource: session, sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session) }, undefined);
 			client.threads = [thread('first', 2, 'Renamed after opening')];
 			filesystem.changeHomeFile('session_index.jsonl');
 			await timeout(6000);
@@ -776,7 +809,7 @@ suite('Codex chat discovery', () => {
 			await agent.startChatDiscovery();
 			const session = AgentSession.uri('codex', 'first');
 			const chat = URI.parse(buildDefaultChatUri(session));
-			await agent.materializeChat(chat, { resource: session, configurationResource: session }, undefined);
+			await agent.materializeChat(chat, { resource: session, sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session) }, undefined);
 			client.turns = [turn('one', 'First message')];
 			await agent.chats.getMessages(chat, session);
 			const observed = agent as import('../../../common/agent.js').IAgent;
@@ -846,9 +879,9 @@ suite('Codex chat discovery', () => {
 			await agent.startChatDiscovery();
 			const session = AgentSession.uri('codex', 'first');
 			const chat = URI.parse(buildDefaultChatUri(session));
-			await agent.materializeChat(chat, { resource: session, configurationResource: session }, undefined);
+			await agent.materializeChat(chat, { resource: session, sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session) }, undefined);
 			client.turns = [turn('Working')];
-			const initial = await agent.chats.getMessages(chat, session);
+			const initial = await agent.chats.getMessages(chat, { resource: session, sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session) });
 			const observed = agent as import('../../../common/agent.js').IAgent;
 			let refreshed: ReturnType<typeof retainedContent>;
 			if (observed.onDidChangeChatHistory) {

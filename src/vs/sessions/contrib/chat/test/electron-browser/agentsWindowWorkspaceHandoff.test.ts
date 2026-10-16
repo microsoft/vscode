@@ -105,13 +105,13 @@ suite('Agents Window workspace handoff telemetry', () => {
 		const persisted = URI.parse('agent-host-copilot:/persisted');
 		await handleOpenIntent.call(harness, URI.file('/source'), persisted, false, CancellationToken.None, undefined, draft, false, true);
 		assert.deepStrictEqual({ drafts, sessions }, {
-			drafts: [{ folderUri: undefined, preferDevContainer: false, isDefault: true, draft, noWorkspace: false }],
+			drafts: [{ folderUri: undefined, preferDevContainer: false, isDefault: true, draft, noWorkspace: false, revealNewSession: false }],
 			sessions: [persisted],
 		});
 	});
 
 	for (const cancelBeforeRestore of [false, true]) {
-		test(`routes a spotlight-only invitation to the new-session composer after restore starts (cancelled: ${cancelBeforeRestore})`, async () => {
+		test(`reveals the new-session composer after restore starts (cancelled: ${cancelBeforeRestore})`, async () => {
 			const lifecycleService = disposables.add(new TestLifecycleService());
 			lifecycleService.usePhases = true;
 			const cancellation = disposables.add(new CancellationTokenSource());
@@ -149,6 +149,33 @@ suite('Agents Window workspace handoff telemetry', () => {
 			});
 		});
 	}
+
+	test('explicit new-session reveal retains workspace and draft intent', async () => {
+		const configurationService = new TestConfigurationService();
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		const intents: IAgentsWindowWorkspaceHandoff[] = [];
+		let navigations = 0;
+		const harness = {
+			configurationService,
+			newSessionComposerService: { notifyUserNavigation: () => navigations++ },
+			_workspaceHandoff: { selectWorkspace: async (intent: IAgentsWindowWorkspaceHandoff) => { intents.push(intent); } },
+			handleOpenIntent: Reflect.get(SelectAgentsFolderContribution.prototype, 'handleOpenIntent') as (
+				workspace: URI | undefined, session: URI | undefined, isDefault: boolean,
+				token: CancellationToken, telemetry: undefined, draft: IAgentsWindowDraft | undefined, noWorkspace: boolean, showNewSession: boolean
+			) => Promise<void>,
+		};
+		const folder = URI.file('/source');
+		const draft = { inputText: 'Incoming', attachments: '[]' };
+		await harness.handleOpenIntent(folder, undefined, true, CancellationToken.None, undefined, undefined, false, true);
+		await harness.handleOpenIntent(undefined, undefined, false, CancellationToken.None, undefined, draft, false, true);
+		assert.deepStrictEqual({ navigations, intents }, {
+			navigations: 2,
+			intents: [
+				{ folderUri: folder, preferDevContainer: false, isDefault: true, draft: undefined, noWorkspace: false, revealNewSession: true },
+				{ folderUri: undefined, preferDevContainer: false, isDefault: false, draft, noWorkspace: false, revealNewSession: true },
+			],
+		});
+	});
 
 	test('preserves unresolved draft workspace intent instead of treating remote workspaces as absent', async () => {
 		const configurationService = new TestConfigurationService({ [DevContainerAgentHostEnabledSettingId]: true });

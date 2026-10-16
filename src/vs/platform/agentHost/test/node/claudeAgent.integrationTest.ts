@@ -53,7 +53,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
-import { AgentSession, type AgentSignal, type IAgentChatContext, type IAgentCreateSessionConfig, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agent.js';
+import { AgentSession, type AgentSignal, type IAgentChatContext, type IAgentCreateSessionConfig, GITHUB_COPILOT_PROTECTED_RESOURCE, fixedChatOwnerRef } from '../../common/agent.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildDefaultChatUri, ResponsePartKind, ToolResultContentType, ChatInputResponseKind, ChatInputAnswerState, ChatInputAnswerValueKind, type ChatInputRequest, type ClientPluginCustomization } from '../../common/state/sessionState.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
@@ -87,9 +87,12 @@ import {
 	makeTextDelta,
 	makeUserToolResultMessage,
 } from './claudeMapSessionEventsTestUtils.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 
 const noopOTelService: IAgentHostOTelService = {
 	_serviceBrand: undefined,
+	enabled: false,
 	diagnosticsEnabled: false,
 	emitTurnTiming: () => { },
 	emitFirstResponse: () => { },
@@ -696,7 +699,7 @@ async function createSession(agent: ClaudeAgent, config: IAgentCreateSessionConf
  * resource, mirroring the orchestrator's own context builder.
  */
 function chatContext(chat: URI, session: URI): IAgentChatContext {
-	return { configurationResource: session, resource: session };
+	return { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session };
 }
 
 // #endregion
@@ -743,6 +746,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[IAgentConfigurationService, configService],
 			[IAgentHostOTelService, noopOTelService],
 			[IAgentHostStateManager, stateManager],
+			[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
 			[IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager))],
 			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 			[IAgentHostGitService, createNoopGitService()],
@@ -885,6 +889,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[IAgentConfigurationService, configService],
 			[IAgentHostOTelService, noopOTelService],
 			[IAgentHostStateManager, stateManager],
+			[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
 			[IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager))],
 			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 			[IAgentHostGitService, createNoopGitService()],
@@ -969,6 +974,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[IAgentConfigurationService, configService],
 			[IAgentHostOTelService, noopOTelService],
 			[IAgentHostStateManager, stateManager],
+			[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
 			[IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager))],
 			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 			[IAgentHostGitService, createNoopGitService()],

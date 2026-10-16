@@ -52,6 +52,7 @@ export const enum AccessibilityVerbositySettingId {
 	MergeEditor = 'accessibility.verbosity.mergeEditor',
 	Chat = 'accessibility.verbosity.panelChat',
 	CustomizationMigrations = 'accessibility.verbosity.customizationMigrations',
+	McpServerConfiguration = 'accessibility.verbosity.mcpServerConfiguration',
 	CustomizationDiscovery = 'accessibility.verbosity.customizationDiscovery',
 	InlineChat = 'accessibility.verbosity.inlineChat',
 	TerminalInlineChat = 'accessibility.verbosity.terminalChat',
@@ -75,6 +76,7 @@ export const enum AccessibilityVerbositySettingId {
 	SessionWorktreeCleanup = 'accessibility.verbosity.sessionWorktreeCleanup',
 	NewSessionWelcome = 'accessibility.verbosity.newSessionWelcome',
 	SessionsChanges = 'accessibility.verbosity.sessionsChanges',
+	EmptyFileEditorSearch = 'accessibility.verbosity.emptyFileEditorSearch',
 	SessionsListNotification = 'accessibility.verbosity.sessionsListNotification',
 	SessionCanvas = 'accessibility.verbosity.sessionCanvas',
 	ChatQuestionCarousel = 'accessibility.verbosity.chatQuestionCarousel',
@@ -159,6 +161,10 @@ const configuration: IConfigurationNode = {
 			description: localize('verbosity.customizationMigrations.description', "Provide information about how to access accessibility help for the customization migration checklist."),
 			...baseVerbosityProperty
 		},
+		[AccessibilityVerbositySettingId.McpServerConfiguration]: {
+			description: localize('verbosity.mcpServerConfiguration.description', "Provide information about how to access accessibility help when an MCP server configuration form is focused."),
+			...baseVerbosityProperty
+		},
 		[AccessibilityVerbositySettingId.CustomizationDiscovery]: {
 			description: localize('verbosity.customizationDiscovery.description', "Provide information about how to access accessibility help when discovering customizations."),
 			...baseVerbosityProperty
@@ -193,6 +199,10 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.EmptyEditorHint]: {
 			description: localize('verbosity.emptyEditorHint', 'Provide information about relevant actions in an empty text editor.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.EmptyFileEditorSearch]: {
+			description: localize('verbosity.emptyFileEditorSearch', 'Provide information about how to use file search in the empty Files editor.'),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.ReplEditor]: {

@@ -135,6 +135,28 @@ suite('computeSessionDiffs', () => {
 		assert.strictEqual(deleted.after, undefined, 'delete has no after');
 	});
 
+	test('counts no removed lines for a created file and no added lines for a deleted one', async () => {
+		const db = new TestSessionDatabase();
+		db.addEdit({
+			turnId: 't1', toolCallId: 'tc1', filePath: '/created.txt', kind: FileEditKind.Create,
+			addedLines: undefined, removedLines: undefined,
+			afterContent: encodeString('new'),
+		});
+		db.addEdit({
+			turnId: 't1', toolCallId: 'tc2', filePath: '/deleted.txt', kind: FileEditKind.Delete,
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString('bye'),
+		});
+
+		// A line diff against empty content counts its single empty line, as the real diff service does.
+		const result = await computeSessionDiffs(TEST_SESSION_URI, db, new TestDiffComputeService({ added: 1, removed: 1, changes: [] }));
+
+		assert.deepStrictEqual(result.map(diff => [getDiffUri(diff)?.split('/').at(-1), diff.diff]).sort(), [
+			['created.txt', { added: 1, removed: 0 }],
+			['deleted.txt', { added: 0, removed: 1 }],
+		]);
+	});
+
 	test('skips files with no net change', async () => {
 		const db = new TestSessionDatabase();
 		db.addEdit({

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { execFileSync } from 'child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -15,10 +15,13 @@ import { AgentHostClaudeMultiRootEnabledConfigKey, AgentHostCodexMultiRootEnable
 import { ChatSourceKind, CompletionItemKind, type CompletionsResult, type ListSessionsResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ActionType, type StateAction } from '../../../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, MessageAttachmentKind, ROOT_STATE_URI, withSessionMultiRootMetadata, type ChatState, type RootState, type SessionState } from '../../../../common/state/sessionState.js';
+import { MessageAttachmentKind, ROOT_STATE_URI, withSessionMultiRootMetadata, type ChatState, type RootState, type SessionState } from '../../../../common/state/sessionState.js';
 import { driveChatTurnToCompletion, initTestGitRepo, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
-import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { getActionEnvelope, isActionNotification, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
 import { conformanceTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
+import { AgentHostChatUrisCapabilityMetaKey } from '../../../../common/meta/vscode/agentHostSessionUrisMeta.js';
+import { newTestChatUri } from '../../hostDefaultChats.js';
 
 interface IWorkspaceSession {
 	readonly session: string;
@@ -42,6 +45,7 @@ export function defineWorkingDirectoriesTests(context: IAgentHostE2ETestContext)
 			protocolVersions: [PROTOCOL_VERSION],
 			clientId: `${prefix}-${config.provider}`,
 			clientInfo: editorWindowAgentHostClientInfo,
+			_meta: { [AgentHostChatUrisCapabilityMetaKey]: true },
 		});
 		await context.client.call('authenticate', {
 			channel: ROOT_STATE_URI,
@@ -71,7 +75,7 @@ export function defineWorkingDirectoriesTests(context: IAgentHostE2ETestContext)
 	}
 
 	async function withSession(prefix: string, run: (session: IWorkspaceSession) => Promise<void>, includeSecondary = true): Promise<void> {
-		const workspace = realpathSync(mkdtempSync(join(tmpdir(), 'ahp-working-directories-')));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-working-directories-'));
 		context.tempDirs.push(workspace);
 		const primary = URI.file(join(workspace, 'primary'));
 		const secondary = URI.file(join(workspace, 'secondary'));
@@ -96,7 +100,7 @@ export function defineWorkingDirectoriesTests(context: IAgentHostE2ETestContext)
 			});
 			context.createdSessions.push(session);
 			await sessionState(session);
-			const chat = buildDefaultChatUri(session);
+			const chat = defaultChatChannel(session);
 			await chatState(chat);
 			await run({ session, chat, workspace, primary, secondary, replacement });
 		} finally {
@@ -115,7 +119,7 @@ export function defineWorkingDirectoriesTests(context: IAgentHostE2ETestContext)
 	}
 
 	async function createPeer(session: string, id: string, workingDirectories?: readonly URI[]): Promise<string> {
-		const chat = buildChatUri(session, id);
+		const chat = newTestChatUri();
 		await context.client.call('createChat', {
 			channel: session,
 			chat,
@@ -324,6 +328,12 @@ export function defineWorkingDirectoriesTests(context: IAgentHostE2ETestContext)
 				assert.strictEqual(execFileSync('git', ['status', '--porcelain'], { cwd: session.replacement.fsPath, encoding: 'utf8' }).trim(), '');
 				await context.client.call('disposeSession', { channel: session.session }, 60_000);
 				context.createdSessions.splice(context.createdSessions.indexOf(session.session), 1);
+				// Deletion records the removal; the host removes the checkout in the background once a listing settled its startup.
+				await context.client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
+				const deadline = Date.now() + 30_000;
+				while (existsSync(worktree) && Date.now() < deadline) {
+					await new Promise(resolve => setTimeout(resolve, 100));
+				}
 				assert.strictEqual(existsSync(worktree), false, 'disposing the owner must remove its additional worktree');
 			});
 		});
@@ -390,7 +400,7 @@ export function defineWorkingDirectoriesTests(context: IAgentHostE2ETestContext)
 			await withSession('fork-folder', async session => {
 				const peer = await createPeer(session.session, 'source', [session.secondary]);
 				await turn(peer, 'source-turn', 'Reply exactly "ready".');
-				const fork = buildChatUri(session.session, 'fork');
+				const fork = newTestChatUri();
 				await context.client.call('createChat', {
 					channel: session.session,
 					chat: fork,

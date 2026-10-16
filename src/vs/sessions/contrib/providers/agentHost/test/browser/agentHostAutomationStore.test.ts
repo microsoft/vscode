@@ -21,7 +21,7 @@ import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../pla
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType, type ActionEnvelope } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, AutomationTriggerKind, CustomizationEnablementKind, CustomizationType, MessageKind, type AutomationEntry, type AutomationRunSummary, type AutomationState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AutomationMisfirePolicy, AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, AutomationTriggerKind, CustomizationEnablementKind, CustomizationType, MessageKind, type AutomationEntry, type AutomationRunSummary, type AutomationState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AUTOMATION_CATALOG_URI, StateComponents, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -1271,6 +1271,96 @@ suite('AgentHostAutomationStore', () => {
 		);
 	});
 
+	for (const selection of ['on', 'off', 'default']) {
+		test(`automation templates round-trip sandbox selection ${selection}`, async () => {
+			const connection = disposables.add(new TestAutomationConnection());
+			const storage = disposables.add(new InMemoryStorageService());
+			const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+			const automation = await store.createAutomation({
+				name: 'Sandbox selection',
+				prompt: 'Review changes.',
+				schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+				target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilotcli' },
+				sessionTemplate: { config: { sandboxEnabled: selection } },
+			});
+			const create = connection.dispatched[0].action;
+			connection.setFirstAutomationSessionConfig({ sandboxEnabled: selection === 'off' ? 'on' : 'off' });
+			await store.updateAutomation(automation.id, { sessionTemplate: { config: { sandboxEnabled: selection } } });
+			const update = connection.dispatched.at(-1)?.action;
+
+			assert.deepStrictEqual({
+				created: create.type === ActionType.AutomationCreateRequested ? create.definition.session.config : undefined,
+				projected: automation.sessionTemplate?.config,
+				updated: update?.type === ActionType.AutomationUpdateRequested ? update.changes.session?.config : undefined,
+				reopened: store.getAutomation(automation.id)?.sessionTemplate?.config,
+			}, {
+				created: { sandboxEnabled: selection },
+				projected: { sandboxEnabled: selection },
+				updated: { sandboxEnabled: selection },
+				reopened: { sandboxEnabled: selection },
+			});
+		});
+	}
+
+	test('automation template reset clears sandbox preference while preserving definition-owned permissions', async () => {
+		const connection = disposables.add(new TestAutomationConnection());
+		const storage = disposables.add(new InMemoryStorageService());
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		const automation = await store.createAutomation({
+			name: 'Sandbox reset',
+			prompt: 'Review changes.',
+			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilotcli' },
+		});
+		const permissions = { allow: ['Shell(echo *)'], deny: [] };
+		connection.setFirstAutomationSessionConfig({ sandboxEnabled: 'off', permissions });
+
+		await store.updateAutomation(automation.id, { sessionTemplate: null });
+		const update = connection.dispatched.at(-1)?.action;
+		assert.deepStrictEqual({
+			updated: update?.type === ActionType.AutomationUpdateRequested ? update.changes.session?.config : undefined,
+			reopened: store.getAutomation(automation.id)?.sessionTemplate,
+		}, {
+			updated: { permissions },
+			reopened: undefined,
+		});
+	});
+
+	test('host-authored sandbox preferences survive an Automation template round-trip', async () => {
+		const connection = disposables.add(new TestAutomationConnection());
+		const storage = disposables.add(new InMemoryStorageService());
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		const automation = await store.createAutomation({
+			name: 'Host sandbox preference',
+			prompt: 'Review changes.',
+			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilotcli' },
+		});
+		const hostConfig = {
+			sandboxEnabled: 'off',
+			[SessionConfigKey.Permissions]: { allow: ['Shell(echo *)'], deny: [] },
+			[SessionConfigKey.WorktreeBranchPrefix]: 'host-prefix/',
+			[SessionConfigKey.AgentMerge]: true,
+		};
+		connection.setFirstAutomationSessionConfig({
+			...hostConfig,
+			[SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'source ~/.bashrc' }],
+		});
+		const projected = store.getAutomation(automation.id)?.sessionTemplate;
+		await store.updateAutomation(automation.id, { name: 'Renamed', sessionTemplate: projected });
+		const update = connection.dispatched.at(-1)?.action;
+
+		assert.deepStrictEqual({
+			projected,
+			updated: update?.type === ActionType.AutomationUpdateRequested ? update.changes.session?.config : undefined,
+			reopened: store.getAutomation(automation.id)?.sessionTemplate,
+		}, {
+			projected: { config: { sandboxEnabled: 'off' } },
+			updated: hostConfig,
+			reopened: { config: { sandboxEnabled: 'off' } },
+		});
+	});
+
 	test('filters session-owned values from canonical templates', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		const storage = disposables.add(new InMemoryStorageService());
@@ -1517,6 +1607,201 @@ suite('AgentHostAutomationStore', () => {
 			update?.type === ActionType.AutomationUpdateRequested ? update.changes.session?.config : undefined,
 			{ autoApprove: 'autoApprove' },
 		);
+	});
+
+	test('creates and edits Weekdays with one local Monday-Friday cron trigger', async () => {
+		const connection = disposables.add(new TestAutomationConnection());
+		const storage = disposables.add(new InMemoryStorageService());
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		const automation = await store.createAutomation({
+			name: 'Weekday review', prompt: 'Review changes.',
+			schedule: { interval: 'weekdays', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 6 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
+		});
+		const create = connection.dispatched[0].action;
+		const updated = await store.updateAutomation(automation.id, {
+			schedule: { interval: 'weekdays', scheduleHour: 17, scheduleMinute: 45, scheduleDay: 0 },
+		});
+		const update = connection.dispatched.at(-1)?.action;
+		const trigger = (expression: string) => [{
+			id: 'schedule', kind: AutomationTriggerKind.Schedule,
+			schedule: { expression, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' },
+			misfirePolicy: AutomationMisfirePolicy.RunOnce,
+		}];
+		assert.deepStrictEqual({
+			createdSchedule: automation.schedule,
+			createdTriggers: create.type === ActionType.AutomationCreateRequested ? create.definition.triggers : undefined,
+			updatedSchedule: updated.schedule,
+			updatedTriggers: update?.type === ActionType.AutomationUpdateRequested ? update.changes.triggers : undefined,
+		}, {
+			createdSchedule: { interval: 'weekdays', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 0 },
+			createdTriggers: trigger('30 9 * * 1-5'),
+			updatedSchedule: { interval: 'weekdays', scheduleHour: 17, scheduleMinute: 45, scheduleDay: 0 },
+			updatedTriggers: trigger('45 17 * * 1-5'),
+		});
+	});
+
+	for (const day of ['1-5', 'MON-FRI', 'mon-fri', 'MoN-FrI', '1,2,3,4,5', '1-6']) {
+		for (const foreignTimeZone of [false, true]) {
+			test(`projects host weekday field ${day} in ${foreignTimeZone ? 'a foreign' : 'the local'} time zone without losing its schedule`, async () => {
+				const connection = disposables.add(new TestAutomationConnection());
+				const storage = disposables.add(new InMemoryStorageService());
+				const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+				const localTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+				const timeZone = foreignTimeZone ? (localTimeZone === 'UTC' ? 'Asia/Tokyo' : 'UTC') : localTimeZone;
+				const triggers: AutomationEntry['definition']['triggers'] = [{
+					id: 'host-weekdays', kind: AutomationTriggerKind.Schedule,
+					schedule: { expression: `30 9 * * ${day}`, timeZone },
+					misfirePolicy: AutomationMisfirePolicy.RunOnce,
+				}];
+				const timestamp = new Date().toISOString();
+				const entry: AutomationEntry = {
+					resource: 'ahp-automation:/host-weekdays',
+					definition: {
+						title: 'Host weekdays',
+						message: { text: 'Review changes.', origin: { kind: MessageKind.Automation } },
+						session: { provider: 'mock' }, enabled: true, triggers,
+					},
+					runs: [],
+					operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
+					createdAt: timestamp, modifiedAt: timestamp,
+				};
+				connection.setAutomation(entry);
+				const id = 'local-agent-host:ahp-automation:/host-weekdays';
+				const automation = store.getAutomation(id)!;
+				if (foreignTimeZone || day === '1-6') {
+					await assert.rejects(store.updateAutomation(id, { name: 'Renamed' }), /cannot be edited in VS Code/);
+					assert.deepStrictEqual({
+						schedule: automation.schedule, canUpdate: store.canUpdateAutomation(id),
+						dispatched: connection.dispatched, triggers: entry.definition.triggers,
+					}, {
+						schedule: { interval: 'custom', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+						canUpdate: false, dispatched: [], triggers,
+					});
+				} else {
+					await store.updateAutomation(id, { name: 'Renamed' });
+					const update = connection.dispatched.at(-1)?.action;
+					assert.deepStrictEqual({
+						schedule: automation.schedule, canUpdate: store.canUpdateAutomation(id),
+						triggers: update?.type === ActionType.AutomationUpdateRequested ? update.changes.triggers : undefined,
+					}, {
+						schedule: { interval: 'weekdays', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 0 },
+						canUpdate: true,
+						triggers: [{ ...triggers[0], id: 'schedule', schedule: { expression: '30 9 * * 1-5', timeZone } }],
+					});
+				}
+			});
+		}
+	}
+
+	for (const variant of ['omitted policy', 'skip policy', 'companion schedule', 'companion event']) {
+		test(`preserves weekday trigger semantics with ${variant}`, async () => {
+			const connection = disposables.add(new TestAutomationConnection());
+			const storage = disposables.add(new InMemoryStorageService());
+			const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+			const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+			const triggers: AutomationEntry['definition']['triggers'] = [{
+				id: 'host-weekdays', kind: AutomationTriggerKind.Schedule,
+				schedule: { expression: '30 9 * * MON-FRI', timeZone },
+				...(variant === 'skip policy' ? { misfirePolicy: AutomationMisfirePolicy.Skip } : {}),
+			}];
+			if (variant === 'companion schedule') {
+				triggers.push({ id: 'weekend', kind: AutomationTriggerKind.Schedule, schedule: { expression: '0 10 * * 6', timeZone } });
+			} else if (variant === 'companion event') {
+				triggers.unshift({ id: 'event', kind: AutomationTriggerKind.Event, type: 'host.event', title: 'Host event', events: [] });
+			}
+			const timestamp = new Date().toISOString();
+			connection.setAutomation({
+				resource: 'ahp-automation:/host-weekdays',
+				definition: {
+					title: 'Host weekdays', message: { text: 'Review changes.', origin: { kind: MessageKind.Automation } },
+					session: { provider: 'mock' }, enabled: true, triggers,
+				},
+				runs: [],
+				operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
+				createdAt: timestamp, modifiedAt: timestamp,
+			});
+			const id = 'local-agent-host:ahp-automation:/host-weekdays';
+			if (variant === 'omitted policy') {
+				const updated = await store.updateAutomation(id, { name: 'Renamed' });
+				const update = connection.dispatched.at(-1)?.action;
+				assert.deepStrictEqual({
+					schedule: updated.schedule,
+					triggers: update?.type === ActionType.AutomationUpdateRequested ? update.changes.triggers : undefined,
+				}, {
+					schedule: { interval: 'weekdays', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 0 },
+					triggers: [{
+						id: 'schedule', kind: AutomationTriggerKind.Schedule,
+						schedule: { expression: '30 9 * * 1-5', timeZone }, misfirePolicy: AutomationMisfirePolicy.RunOnce,
+					}],
+				});
+			} else {
+				const automation = store.getAutomation(id)!;
+				await assert.rejects(store.updateAutomation(id, { name: 'Renamed' }), /cannot be edited in VS Code/);
+				await assert.rejects(store.updateAutomationIfUnchanged(id, { enabled: false }, automation), /cannot be edited in VS Code/);
+				assert.deepStrictEqual({
+					schedule: automation.schedule, canUpdate: store.canUpdateAutomation(id),
+					dispatched: connection.dispatched, automation: store.getAutomation(id),
+				}, {
+					schedule: { interval: 'custom', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+					canUpdate: false, dispatched: [], automation,
+				});
+			}
+		});
+	}
+
+	test('keeps host-authored Weekdays in other time zones read-only without changing triggers', async () => {
+		const connection = disposables.add(new TestAutomationConnection());
+		const storage = disposables.add(new InMemoryStorageService());
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		const localTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+		for (const timeZone of ['UTC', 'America/New_York', 'Asia/Tokyo'].filter(timeZone => timeZone !== localTimeZone)) {
+			const triggers: AutomationEntry['definition']['triggers'] = [{
+				id: 'host-weekdays',
+				kind: AutomationTriggerKind.Schedule,
+				schedule: { expression: '30 9 * * 1-5', timeZone },
+				misfirePolicy: AutomationMisfirePolicy.RunOnce,
+			}];
+			const timestamp = new Date().toISOString();
+			connection.setAutomation({
+				resource: 'ahp-automation:/host-weekdays',
+				definition: {
+					title: 'Host weekdays',
+					message: { text: 'Review changes.', origin: { kind: MessageKind.Automation } },
+					session: { provider: 'mock' },
+					enabled: true,
+					triggers,
+				},
+				runs: [],
+				operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
+				createdAt: timestamp,
+				modifiedAt: timestamp,
+			});
+			const id = 'local-agent-host:ahp-automation:/host-weekdays';
+			const automation = store.getAutomation(id)!;
+			await assert.rejects(store.updateAutomation(id, { name: 'Renamed' }), /cannot be edited in VS Code/);
+			await assert.rejects(store.updateAutomationIfUnchanged(id, { enabled: false }, automation), /cannot be edited in VS Code/);
+			await assert.rejects(store.updateAutomation(id, {
+				schedule: { interval: 'weekdays', scheduleHour: 10, scheduleMinute: 0, scheduleDay: 0 },
+			}), /cannot be edited in VS Code/);
+			assert.deepStrictEqual({
+				schedule: automation.schedule,
+				readOnlyReason: automation.readOnlyReason,
+				canUpdate: store.canUpdateAutomation(id),
+				canRun: store.canRunAutomation(id),
+				canDelete: store.canDeleteAutomation(id),
+				dispatched: connection.dispatched,
+				automation: store.getAutomation(id),
+			}, {
+				schedule: { interval: 'custom', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+				readOnlyReason: 'This automation uses a schedule that cannot be edited in VS Code.',
+				canUpdate: false,
+				canRun: true,
+				canDelete: true,
+				dispatched: [],
+				automation,
+			});
+		}
 	});
 
 	test('canonicalizes irrelevant schedule fields when updating an interval', async () => {
@@ -1826,6 +2111,99 @@ suite('AgentHostAutomationStore', () => {
 			canDelete: false,
 		});
 	});
+
+	for (const backend of ['ahp-session:/new-run', 'custom-session://host/opaque/run?version=2']) {
+		for (const completeBeforeResolution of [false, true]) {
+			test(`manual dispatch waits for ${backend} identity ${completeBeforeResolution ? 'after completion' : 'while running'}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const changed = disposables.add(new Emitter<void>());
+				const resources = new ResourceMap<URI>();
+				const { store } = reconnectable(true, activeClientService, {
+					toHost: resource => resource, fromHost: resource => resource,
+					resourceSchemeForProvider: provider => `agent-host-${provider}`,
+					sessionResource: resource => resources.get(resource),
+					onDidChangeSessionResolution: changed.event,
+				});
+				const connection = disposables.add(new TestAutomationConnection());
+				connection.runPrimarySession = backend;
+				store.setConnection(connection);
+				const automation = await store.createAutomation(createOptions());
+				const dispatched = store.runAutomation(automation.id);
+				let settled = false;
+				void dispatched.then(() => settled = true);
+				await connection.runRequested.p;
+				await timeout(31_000);
+				const settledWhileRunning = settled;
+				if (completeBeforeResolution) {
+					connection.completeRun(connection.lastRunResource);
+					await timeout(0);
+				}
+				const settledBeforeResolution = settled;
+				const sessionResource = URI.parse('agent-host-copilotcli:/advertised-session');
+				resources.set(URI.parse(backend), sessionResource);
+				changed.fire();
+				const result = await dispatched;
+				assert.strictEqual(result.kind, 'dispatched');
+				const hasResolutionListener = changed.hasListeners();
+				connection.completeRun(connection.lastRunResource);
+				await result.whenCompleted;
+				assert.deepStrictEqual({
+					settledWhileRunning, settledBeforeResolution, hasResolutionListener,
+					sessionResource: result.run.sessionResource?.toString(),
+					status: result.run.status,
+				}, {
+					settledWhileRunning: false, settledBeforeResolution: false, hasResolutionListener: false,
+					sessionResource: sessionResource.toString(),
+					status: completeBeforeResolution ? 'completed' : 'running',
+				});
+			}));
+		}
+	}
+
+	for (const outcome of ['cancel', 'disconnect', 'catalogue error', 'unresolved completed session'] as const) {
+		test(`cleans up manual session resolution on ${outcome}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const changed = disposables.add(new Emitter<void>());
+			const { store } = reconnectable(true, activeClientService, {
+				toHost: resource => resource, fromHost: resource => resource,
+				resourceSchemeForProvider: provider => `agent-host-${provider}`,
+				sessionResource: () => undefined,
+				onDidChangeSessionResolution: changed.event,
+			});
+			const connection = disposables.add(new TestAutomationConnection());
+			connection.runPrimarySession = 'ahp-session:/unresolved';
+			store.setConnection(connection);
+			const automation = await store.createAutomation(createOptions());
+			const cancellation = disposables.add(new CancellationTokenSource());
+			const dispatched = store.runAutomation(automation.id, cancellation.token);
+			const observed = dispatched.then(result => result.kind, error => error.message);
+			await connection.runRequested.p;
+			await timeout(0);
+			switch (outcome) {
+				case 'cancel':
+					cancellation.cancel();
+					break;
+				case 'disconnect':
+					store.clearConnection();
+					break;
+				case 'catalogue error':
+					connection.setCatalogError(new Error('Catalogue disconnected'));
+					break;
+				case 'unresolved completed session':
+					connection.completeRun(connection.lastRunResource);
+					await timeout(30_000);
+					break;
+			}
+			assert.deepStrictEqual({
+				result: await observed,
+				hasResolutionListener: changed.hasListeners(),
+				cancellations: connection.dispatched.filter(({ action }) => action.type === ActionType.AutomationRunCancelRequested).length,
+			}, {
+				result: outcome === 'cancel' ? 'dispatched' : outcome === 'disconnect' ? 'Canceled'
+					: outcome === 'catalogue error' ? 'Catalogue disconnected' : 'Timed out waiting for authoritative Automation state after 30000ms.',
+				hasResolutionListener: false,
+				cancellations: outcome === 'cancel' ? 1 : 0,
+			});
+		}));
+	}
 
 	test('an update-only authority edits existing definitions without permitting creation', async () => {
 		const { store } = reconnectable();

@@ -14,6 +14,7 @@ import { AnchorAlignment, AnchorAxisAlignment, AnchorPosition, IRect, layout2d }
 import { renderMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { localize } from '../../../../../nls.js';
+import { IOnboardingFocusTarget } from './onboardingTarget.js';
 import { SpotlightPlacement, SpotlightTargetClickBehavior } from './spotlightTypes.js';
 import { OnboardingDismissReason } from '../../common/onboardingScenario.js';
 import '../media/spotlight.css';
@@ -60,6 +61,7 @@ export interface ISpotlightShowOptions {
 	readonly advanceOnTargetClick?: SpotlightTargetClickBehavior;
 	/** Uses the control's activation event instead of DOM clicks when advancing after its action. */
 	readonly onDidActivateTarget?: Event<void>;
+	readonly focusTarget?: IOnboardingFocusTarget;
 }
 
 /**
@@ -188,6 +190,7 @@ export class SpotlightOverlay extends Disposable {
 		// Rebuild the per-step re-layout listeners.
 		this._stepListeners.clear();
 		const targetWindow = getWindow(this._container);
+		const focusElement = options.focusTarget?.element ?? target;
 
 		const observer = new this._resizeObserverCtor(() => this.scheduleLayout());
 		observer.observe(target);
@@ -199,7 +202,7 @@ export class SpotlightOverlay extends Disposable {
 		if (externalUiParticipates) {
 			this._stepListeners.add(addDisposableListener(targetWindow, EventType.KEY_DOWN, event => {
 				const eventTarget = event.target;
-				if (!isHTMLElement(eventTarget) || this._root.contains(eventTarget) || target.contains(eventTarget)) {
+				if (!isHTMLElement(eventTarget) || this._root.contains(eventTarget) || target.contains(eventTarget) || focusElement.contains(eventTarget)) {
 					return;
 				}
 				const keyboardEvent = new StandardKeyboardEvent(event);
@@ -266,17 +269,17 @@ export class SpotlightOverlay extends Disposable {
 					this._onKeyDown(event);
 				}
 			};
-			this._stepListeners.add(addDisposableListener(target, EventType.KEY_DOWN, onTargetKey, true));
-			this._stepListeners.add(addDisposableListener(target, EventType.KEY_UP, onTargetKey, true));
+			this._stepListeners.add(addDisposableListener(focusElement, EventType.KEY_DOWN, onTargetKey, true));
+			this._stepListeners.add(addDisposableListener(focusElement, EventType.KEY_UP, onTargetKey, true));
 		} else if (options.allowTargetInteraction || advanceOnTargetClick || options.hideNext) {
-			this._stepListeners.add(addDisposableListener(target, EventType.KEY_DOWN, e => this._onKeyDown(e)));
+			this._stepListeners.add(addDisposableListener(focusElement, EventType.KEY_DOWN, e => this._onKeyDown(e)));
 		}
 
 		this.layout();
 
 		// Move focus to the spotlighted control (so keyboard users can activate it
 		// to advance) or, otherwise, into the callout's primary action.
-		(hideNext ? target : this._nextButton.element).focus();
+		this._focus(hideNext ? focusElement : this._nextButton.element);
 	}
 
 	/** Prevents duplicate activation while waiting for an action to be accepted. */
@@ -494,7 +497,15 @@ export class SpotlightOverlay extends Disposable {
 
 		event.preventDefault();
 		event.stopPropagation();
-		focusable[nextIndex].focus();
+		this._focus(focusable[nextIndex]);
+	}
+
+	private _focus(element: HTMLElement): void {
+		if (this._options.focusTarget?.element === element) {
+			this._options.focusTarget.focus();
+		} else {
+			element.focus();
+		}
 	}
 
 	/**
@@ -507,8 +518,9 @@ export class SpotlightOverlay extends Disposable {
 	 */
 	private _collectFocusable(): HTMLElement[] {
 		const targetFocusables = (this._options.allowTargetInteraction || this._options.advanceOnTargetClick || this._options.hideNext) && this._target
-			// eslint-disable-next-line no-restricted-syntax -- querying the spotlight target subtree for focusable controls
-			? [this._target, ...this._target.querySelectorAll<HTMLElement>('a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])')]
+			? this._options.focusTarget ? [this._options.focusTarget.element]
+				// eslint-disable-next-line no-restricted-syntax -- querying the spotlight target subtree for focusable controls
+				: [this._target, ...this._target.querySelectorAll<HTMLElement>('a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])')]
 			: [];
 		const descriptionFocusables = Array.from(
 			// eslint-disable-next-line no-restricted-syntax -- querying our own callout description subtree for focusable markdown content (e.g. links)

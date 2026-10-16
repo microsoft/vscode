@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../common/constants.js';
@@ -76,6 +77,8 @@ interface IRuntimeState {
 	readonly intents?: Map<string | undefined, IIntendedModelSelection | undefined>;
 	/** Set to report the session type as still loading until a model targets it. */
 	readonly awaitsSessionModels?: boolean;
+	/** Models to report as gone for good rather than not yet published. */
+	readonly goneModelIds?: ReadonlySet<string>;
 }
 
 function createRuntime(
@@ -91,6 +94,7 @@ function createRuntime(
 		getAllModels: () => state.models,
 		getConfiguredModelValue: () => state.configuredModel,
 		...(state.awaitsSessionModels ? { isAwaitingSessionModels: (type: string) => !hasModelsTargetingSession(state.models, type) } : {}),
+		isModelAbsenceConclusive: modelId => !!state.goneModelIds?.has(modelId),
 		isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
 		getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
 		subscribeToModelChanges: listener => modelChanges.event(listener),
@@ -170,6 +174,32 @@ suite('ChatInputModelSelectionController', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('managed model defaults seed new chats ahead of saved preferences and retain existing available models', () => {
+		const preferred = model('test/preferred');
+		const managed = model('test/managed');
+		managed.metadata = { ...managed.metadata, managedModelDefaults: { model: true, keys: [] } };
+		const state: IRuntimeState = { models: [preferred, managed], sessionType: 'test', configuredModel: preferred.metadata.id };
+		const changes = disposables.add(new Emitter<string>());
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, changes, [])));
+		controller.initialize(preferred.identifier);
+		const initial = controller.currentModel.get()?.identifier;
+		controller.applySelection(preferred, () => { }, true);
+		changes.fire('test');
+		const edited = controller.currentModel.get()?.identifier;
+		state.isEmpty = false;
+		controller.applySelection(managed, () => { }, true);
+		state.conversationKey = 'existing';
+		controller.beginConversationSwitch();
+		controller.syncFromConversationState(preferred, undefined, state.sessionType, 'existing', false, ModelSelectionReason.RestoredChoice);
+		changes.fire('test');
+		const restored = controller.currentModel.get()?.identifier;
+		state.models = [managed];
+		controller.selectDefault();
+		assert.deepStrictEqual({ initial, edited, restored, unavailableFallback: controller.currentModel.get()?.identifier }, {
+			initial: managed.identifier, edited: preferred.identifier, restored: preferred.identifier, unavailableFallback: managed.identifier,
+		});
+	});
+
 	suite('model selection conformance', () => {
 		for (const scenario of modelSelectionConformanceScenarios) {
 			test(scenario.name, () => {
@@ -205,6 +235,145 @@ suite('ChatInputModelSelectionController', () => {
 			userSelections: [{ fromModelId: first.identifier, toModelId: second.identifier }],
 		});
 	});
+
+	test('a selection made while the model is shown or applied supersedes the one being made', () => {
+		const ensemble = model('copilot/auto');
+		const hydraFusion = model('copilot/hydrafusion');
+		const modelChanges = disposables.add(new Emitter<string>());
+		const applied: string[] = [];
+		const intents = new Map<string | undefined, IIntendedModelSelection | undefined>();
+		const state: IRuntimeState = { models: [ensemble, hydraFusion], sessionType: 'test', isEmpty: false, intents };
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
+		const userSelections: { fromModelId: string; toModelId: string }[] = [];
+		disposables.add(controller.onDidChangeUserSelectedModel(event => userSelections.push(event)));
+		let normalizeOnShow = false;
+		disposables.add(autorun(reader => {
+			const shown = controller.currentModel.read(reader);
+			if (normalizeOnShow && shown?.identifier === ensemble.identifier) {
+				controller.applyProgrammaticSelection(hydraFusion);
+			}
+		}));
+		const snapshot = () => ({
+			current: controller.currentModel.get()?.identifier,
+			reason: controller.selectionReason,
+			intended: intents.get('chat:one')?.modelId,
+			applied: applied.splice(0),
+		});
+
+		controller.applySelection(model('copilot/other'), () => { }, true);
+		// The Agents window picker normalizes from inside the provider write, i.e. during `apply`.
+		controller.applySelection(ensemble, () => {
+			controller.applyProgrammaticSelection(hydraFusion);
+			applied.push('store:auto');
+		}, true);
+		const afterUserPick = snapshot();
+		normalizeOnShow = true;
+		modelChanges.fire('test');
+		const afterReconcile = snapshot();
+		controller.syncFromConversationState(ensemble, undefined, 'test', 'chat:one', false, ModelSelectionReason.RestoredChoice);
+		const afterRestore = snapshot();
+
+		assert.deepStrictEqual({ afterUserPick, afterReconcile, afterRestore, userSelections }, {
+			afterUserPick: { current: hydraFusion.identifier, reason: ModelSelectionReason.ProgrammaticSelection, intended: hydraFusion.identifier, applied: [hydraFusion.identifier, 'store:auto'] },
+			afterReconcile: { current: hydraFusion.identifier, reason: ModelSelectionReason.ProgrammaticSelection, intended: hydraFusion.identifier, applied: [] },
+			afterRestore: { current: hydraFusion.identifier, reason: ModelSelectionReason.ProgrammaticSelection, intended: hydraFusion.identifier, applied: [hydraFusion.identifier] },
+			userSelections: [{ fromModelId: 'copilot/other', toModelId: hydraFusion.identifier }],
+		});
+	});
+
+	test('a restored model missing from a transient catalog is reclaimed although its stand-in is shown as an equivalent', () => {
+		const restored = hostModel('agent-host-copilotcli:gpt-6.1-sol');
+		const hydraFusion = hostModel('agent-host-copilotcli:hydrafusion');
+		const ensemble = hostModel('agent-host-copilotcli:auto');
+		const modelChanges = disposables.add(new Emitter<string>());
+		const applied: string[] = [];
+		const intents = new Map<string | undefined, IIntendedModelSelection | undefined>();
+		const state: IRuntimeState = { models: [restored, hydraFusion, ensemble], sessionType: 'agent-host-copilotcli', isEmpty: false, intents };
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
+		// The picker shows HydraFusion as Ensemble at Intelligence whenever both are on offer.
+		const present = () => {
+			if (controller.currentModel.get()?.identifier === hydraFusion.identifier && state.models.includes(ensemble)) {
+				controller.applyEquivalentSelection(ensemble);
+			}
+		};
+		disposables.add(autorun(reader => {
+			controller.currentModel.read(reader);
+			present();
+		}));
+		disposables.add(modelChanges.event(present));
+		const snapshot = () => ({
+			current: controller.currentModel.get()?.identifier,
+			reason: controller.selectionReason,
+			intended: intents.get('chat:one')?.modelId,
+		});
+
+		controller.syncFromConversationState(restored, undefined, state.sessionType, 'chat:one');
+		// A CopilotClient restart briefly publishes only the synthetic HydraFusion entry.
+		state.models = [hydraFusion];
+		modelChanges.fire('test');
+		const duringRestart = snapshot();
+		// The full catalog returns, in an order where the picker re-presents the stand-in first.
+		state.models = [hydraFusion, ensemble];
+		modelChanges.fire('test');
+		const beforeRestoredModel = snapshot();
+		state.models = [restored, hydraFusion, ensemble];
+		modelChanges.fire('test');
+		const afterFullCatalog = snapshot();
+
+		assert.deepStrictEqual({ duringRestart, beforeRestoredModel, afterFullCatalog }, {
+			duringRestart: { current: hydraFusion.identifier, reason: ModelSelectionReason.FirstAvailable, intended: restored.identifier },
+			beforeRestoredModel: { current: ensemble.identifier, reason: ModelSelectionReason.FirstAvailable, intended: restored.identifier },
+			afterFullCatalog: { current: restored.identifier, reason: ModelSelectionReason.SessionRestore, intended: restored.identifier },
+		});
+	});
+
+	test('an equivalent of the intended model moves the intent with its reason', () => {
+		const hydraFusion = model('copilot/hydrafusion');
+		const ensemble = model('copilot/auto');
+		const modelChanges = disposables.add(new Emitter<string>());
+		const intents = new Map<string | undefined, IIntendedModelSelection | undefined>();
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime({ models: [hydraFusion, ensemble], sessionType: 'test', intents }, modelChanges, [])));
+
+		controller.applySelection(hydraFusion, () => { }, true);
+		controller.applyEquivalentSelection(ensemble);
+
+		assert.deepStrictEqual({
+			current: controller.currentModel.get()?.identifier,
+			reason: controller.selectionReason,
+			intended: intents.get('chat:one') && { modelId: intents.get('chat:one')!.modelId, reason: intents.get('chat:one')!.reason },
+		}, {
+			current: ensemble.identifier,
+			reason: ModelSelectionReason.UserSelection,
+			intended: { modelId: ensemble.identifier, reason: ModelSelectionReason.UserSelection },
+		});
+	});
+
+	for (const source of ['configured', 'declared'] as const) {
+		test(`a ${source} default shown as an equivalent is not reapplied when the model list changes`, () => {
+			const hydraFusion = model('copilot/hydrafusion');
+			const ensemble = model('copilot/auto');
+			const [selected, shown] = source === 'configured' ? [hydraFusion, ensemble] : [ensemble, hydraFusion];
+			const declared = { ...selected, metadata: { ...selected.metadata, isDefaultForLocation: { [ChatAgentLocation.Chat]: source === 'declared' } } };
+			const modelChanges = disposables.add(new Emitter<string>());
+			const applied: string[] = [];
+			const state: IRuntimeState = { models: [declared, shown], sessionType: 'test', configuredModel: source === 'configured' ? selected.identifier : undefined };
+			const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
+			disposables.add(autorun(reader => {
+				if (controller.currentModel.read(reader)?.identifier === selected.identifier) {
+					controller.applyEquivalentSelection(shown);
+				}
+			}));
+
+			controller.initialize(undefined);
+			modelChanges.fire('test');
+			modelChanges.fire('test');
+
+			assert.deepStrictEqual({ applied, reason: controller.selectionReason }, {
+				applied: [shown.identifier],
+				reason: source === 'configured' ? ModelSelectionReason.ConfiguredDefault : ModelSelectionReason.FirstAvailable,
+			});
+		});
+	}
 
 	test('refreshes selected model metadata when the same identifier is republished', () => {
 		const modelChanges = disposables.add(new Emitter<string>());
@@ -346,6 +515,21 @@ suite('ChatInputModelSelectionController', () => {
 			applied: [first.identifier, remembered.identifier],
 			current: remembered.identifier,
 		});
+	});
+
+	test('a remembered model gone for good falls back to the configured default, and is reclaimed if it returns', () => {
+		const modelChanges = disposables.add(new Emitter<string>());
+		const configured = model('test/configured');
+		const gone = model('test/gone');
+		const state: IRuntimeState = { models: [model('test/first'), configured], sessionType: 'test', configuredModel: configured.metadata.id, isEmpty: false, goneModelIds: new Set([gone.identifier]) };
+		const applied: string[] = [];
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
+
+		controller.initialize(gone.identifier);
+		state.models = [...state.models, gone];
+		modelChanges.fire('test');
+
+		assert.deepStrictEqual(applied, [configured.identifier, gone.identifier]);
 	});
 
 	test('explicit selection cancels an eventual remembered-model restore', () => {

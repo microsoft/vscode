@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isLocalAgentHostProviderDisabledByPolicy } from '../../../../platform/agentHost/common/agentService.js';
 import './media/chatView.css';
 import './media/voiceChatView.css';
 import { $, isHTMLElement, size } from '../../../../base/browser/dom.js';
@@ -34,8 +35,10 @@ import { IVoiceSessionController } from '../../../../workbench/contrib/chat/brow
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../workbench/common/theme.js';
 import { ChatContentMarkdownRenderer } from '../../../../workbench/contrib/chat/browser/widget/chatContentMarkdownRenderer.js';
-import { chatPersistentContentVisibleClass, ChatWidget, SESSIONS_CHAT_ITEM_HORIZONTAL_PADDING } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
+import { chatPersistentContentVisibleClass, ChatWidget } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
+import { SESSIONS_CHAT_CONTENT_HORIZONTAL_PADDING } from '../../../../workbench/contrib/chat/browser/widget/chatOptions.js';
 import { setModelPreservingInputTypedWhileLoading } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { IChatOpen, IChatOpenDiagnosticsService } from '../../../../workbench/contrib/chat/common/chatOpenDiagnosticsService.js';
 import { IChatModelReference, IChatService, ResponseModelState } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { isChatTranscriptContextVariableEntry, IChatRequestTranscriptContextVariableEntry, IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatModel, IChatModel, IInputModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
@@ -48,6 +51,7 @@ import { ISendRequestOptions } from '../../../services/sessions/common/sessionsP
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { IChatSessionsService, localChatSessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatSessionHistoryStatus } from '../../../../platform/chat/common/chatSessionHistory.js';
 import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../browser/parts/chatView.js';
 import { IsPhoneLayoutContext, SessionUsesExperimentalComposerLayoutContext } from '../../../common/contextkeys.js';
@@ -85,7 +89,7 @@ export const EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE = 28;
  * The background increment must match the response's `--vscode-spacing-size120` padding on both sides.
  */
 export function getSessionChatItemHorizontalPadding(hasBackground: boolean): number {
-	return SESSIONS_CHAT_ITEM_HORIZONTAL_PADDING + (hasBackground ? SESSION_CHAT_RESPONSE_INTERNAL_HORIZONTAL_PADDING * 2 : 0);
+	return SESSIONS_CHAT_CONTENT_HORIZONTAL_PADDING + (hasBackground ? SESSION_CHAT_RESPONSE_INTERNAL_HORIZONTAL_PADDING * 2 : 0);
 }
 
 export function shouldShowSessionChatTip(sessionStatus: SessionStatus | undefined): boolean {
@@ -204,10 +208,11 @@ export class NewChatView extends AbstractChatView {
 	}
 
 
-	override sendQuery(text: string): void {
+	override async sendQuery(text: string): Promise<boolean> {
 		if (this._widget instanceof NewChatWidget) {
-			this._widget.sendQuery(text);
+			return this._widget.sendQuery(text);
 		}
+		return false;
 	}
 
 	override submitInput(): Promise<boolean> {
@@ -235,6 +240,9 @@ export class ChatView extends AbstractChatView {
 	static readonly TYPE = 'sessions.session';
 
 	static readonly REPLACED_PROVIDER_RELEASE_WARNING_DELAY_MS = 5_000;
+
+	/** Delay before the loading progress bar appears, so instant loads do not flash. */
+	static readonly LOADING_FEEDBACK_DELAY_MS = 100;
 
 	override readonly kind: ChatViewKind = 'chat';
 
@@ -268,9 +276,11 @@ export class ChatView extends AbstractChatView {
 	private _onInput: (() => void) | undefined;
 	private readonly _loadedChatResource = observableValue<URI | undefined>(this, undefined);
 	private readonly _liveModelReady: IObservable<boolean>;
+	private readonly _modelReadOnly: IObservable<boolean>;
 
 	/** Tracks the currently loaded chat resource to avoid redundant reloads. */
 	private _currentChatResource: URI | undefined;
+	private readonly _openDiagnostics = this._register(new MutableDisposable<IChatOpen>());
 	/**
 	 * The bound chat whose content provider was unregistered. Its model stays wired to the
 	 * provider that went away, so a replacement registering for the same session type never
@@ -279,9 +289,11 @@ export class ChatView extends AbstractChatView {
 	private _chatWithUnregisteredProvider: URI | undefined;
 	private readonly _currentChatResourceObs = observableValue<URI | undefined>(this, undefined);
 	private readonly _currentSessionObs = observableValue<ISession | undefined>(this, undefined);
+	private readonly _loadFailure = observableValue<{ readonly resource: URI; readonly status: IChatSessionHistoryStatus } | undefined>(this, undefined);
 	override readonly hasVisibleTranscriptContent = observableValue(this, false);
 	override readonly isLoadingTranscript = observableValue(this, false);
 	override readonly isInputBlocked: IObservable<boolean>;
+	override readonly historyStatus: IObservable<IChatSessionHistoryStatus | undefined>;
 	private _historyKey: string | undefined;
 
 	/** Whether this view currently represents the active session. */
@@ -321,6 +333,7 @@ export class ChatView extends AbstractChatView {
 		@INewChatVoiceTargetService private readonly newChatVoiceTargetService: INewChatVoiceTargetService,
 		@ISessionsChatViewStateService private readonly viewStateService: ISessionsChatViewStateService,
 		@ISessionOpenTelemetryService private readonly sessionOpenTelemetryService: ISessionOpenTelemetryService,
+		@IChatOpenDiagnosticsService private readonly chatOpenDiagnosticsService: IChatOpenDiagnosticsService,
 		@ISessionsChatBackgroundService private readonly chatBackgroundService: ISessionsChatBackgroundService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
@@ -419,6 +432,19 @@ export class ChatView extends AbstractChatView {
 			const model = chatModel.read(reader);
 			return isEqual(model?.sessionResource, this._currentChatResourceObs.read(reader)) && (model?.isInputBlocked.read(reader) ?? false);
 		});
+		this.historyStatus = derived(this, reader => {
+			const resource = this._currentChatResourceObs.read(reader);
+			const failure = this._loadFailure.read(reader);
+			if (failure && isEqual(failure.resource, resource)) {
+				return failure.status;
+			}
+			const model = chatModel.read(reader);
+			return isEqual(model?.sessionResource, resource) ? model?.historyStatus?.read(reader) : undefined;
+		});
+		this._modelReadOnly = derived(this, reader => {
+			const model = chatModel.read(reader);
+			return isEqual(model?.sessionResource, this._currentChatResourceObs.read(reader)) && (model?.isReadOnly.read(reader) ?? false);
+		});
 		this._liveModelReady = derived(this, reader => {
 			const model = chatModel.read(reader);
 			return isEqual(model?.sessionResource, this._currentChatResourceObs.read(reader))
@@ -513,6 +539,14 @@ export class ChatView extends AbstractChatView {
 	}
 
 	private _setupTranscriptPreparationProgress(chatModel: IObservable<IChatModel | undefined>): void {
+		const hiddenResponseProgress = derived(this, reader => {
+			const request = chatModel.read(reader)?.lastRequestObs.read(reader);
+			const response = request?.isRequestHiddenFromTranscript ? request.response : undefined;
+			return response ? observableFromEvent(this, response.onDidChange, () => {
+				const progress = response.response.value.filter(part => part.kind === 'progressMessage').at(-1);
+				return progress ? renderAsPlaintext(progress.content) : undefined;
+			}) : constObservable(undefined);
+		});
 		let lastPreparationMessage: string | undefined;
 		let lastPreparationModel: ChatModel | undefined;
 		this._register(autorun(reader => {
@@ -563,7 +597,8 @@ export class ChatView extends AbstractChatView {
 				showProgress = shouldShowTranscriptPreparationProgress(requestCount, visibleRequestCount, hiddenRequestIncomplete);
 			}
 			const showCompletion = shouldShowTranscriptPreparationCompletion(requestCount, visibleRequestCount, hiddenRequestState, readyMessage);
-			const progress = preparation?.message ?? (showCompletion ? readyMessage : getTranscriptProgress(showProgress, activity));
+			const responseProgress = hiddenResponseProgress.read(reader).read(reader);
+			const progress = preparation?.message ?? (showCompletion ? readyMessage : getTranscriptProgress(showProgress, responseProgress ?? activity));
 			this._widget.setTranscriptProgress(progress, progress, preparation
 				? { detail: preparation.showLog ? { label: localize('sessionPreparation.showLog', "Show Log"), run: preparation.showLog } : undefined, onCancel: preparation.cancel, inTranscript: !!preparationModel }
 				: showCompletion ? { complete: true } : undefined);
@@ -636,9 +671,12 @@ export class ChatView extends AbstractChatView {
 		this._interactiveDisposable.value = autorun(reader => {
 			const interactivity = chat.interactivity.read(reader);
 			const draftOnly = interactivity === ChatInteractivity.DraftOnly;
+			const modelReadOnly = !draftOnly && this._modelReadOnly.read(reader);
 			const loading = !!this._onInput && interactivity === ChatInteractivity.Full && (!this._liveModelReady.read(reader) || (session?.loading.read(reader) ?? false));
 			const draftLoaded = isEqual(this._loadedChatResource.read(reader), resource);
-			this._widget.setReadOnly(interactivity !== ChatInteractivity.Full || loading, ((draftOnly || loading) && draftLoaded) || this.isInputBlocked.read(reader));
+			const failure = this._loadFailure.read(reader);
+			const loadStatus = failure && isEqual(failure.resource, resource) ? failure.status : undefined;
+			this._widget.setReadOnly(interactivity !== ChatInteractivity.Full || loading || modelReadOnly || !!loadStatus, !loadStatus && interactivity !== ChatInteractivity.ReadOnly && !modelReadOnly && (((draftOnly || loading) && draftLoaded) || this.isInputBlocked.read(reader)), loadStatus);
 		});
 
 		// Skip loading if we're already showing this chat
@@ -723,9 +761,20 @@ export class ChatView extends AbstractChatView {
 	 */
 	private _reloadChatForReplacedProvider(addedSessionTypes: readonly string[]): void {
 		const resource = this._chatWithUnregisteredProvider;
-		if (!resource || !isEqual(resource, this._currentChatResource) || !this._modelRef.value || !addedSessionTypes.includes(getChatSessionType(resource))) {
+		if (!resource || !isEqual(resource, this._currentChatResource) || !addedSessionTypes.includes(getChatSessionType(resource))) {
 			return;
 		}
+		if (resource.scheme.startsWith('agent-host-') && isLocalAgentHostProviderDisabledByPolicy(resource.scheme.slice('agent-host-'.length), this.configurationService)) {
+			if (this._providerReloadCts) {
+				this._modelRef.value ??= this.chatService.acquireExistingSession(resource, 'ChatView#policyReapplied');
+				this._providerReloadCts.cancel();
+			}
+			return;
+		}
+		if (!this._modelRef.value) {
+			return;
+		}
+
 		this._chatWithUnregisteredProvider = undefined;
 		const session = this._currentSessionObs.get();
 		const inputModelToPreserve = this._modelRef.value.object.inputModel;
@@ -746,8 +795,7 @@ export class ChatView extends AbstractChatView {
 			}, ChatView.REPLACED_PROVIDER_RELEASE_WARNING_DELAY_MS));
 			store.add(cts.token.onCancellationRequested(() => resolve()));
 		});
-		this._clearCurrentChat(session, resource);
-		this._setLoading(true);
+		this._modelRef.clear();
 		const reloaded = released.then(() => {
 			store.dispose();
 			if (this._providerReloadCts === cts) {
@@ -756,9 +804,11 @@ export class ChatView extends AbstractChatView {
 			if (cts.token.isCancellationRequested || this._loadCts.value !== cts || !isEqual(this._currentChatResource, resource)) {
 				return;
 			}
+			this._clearCurrentChat(session, resource);
+			this._setLoading(true);
 			this._loadChat(resource, session, { inputModelToPreserve });
 		});
-		this.showProgressWhile(reloaded, 800);
+		this.showProgressWhile(reloaded, ChatView.LOADING_FEEDBACK_DELAY_MS);
 	}
 
 	/**
@@ -770,7 +820,8 @@ export class ChatView extends AbstractChatView {
 		this.isLoadingTranscript.set(isLoading, undefined);
 	}
 
-	private _loadChat(resource: URI, session: ISession | undefined, options?: { previousChatResource?: URI; previousSession?: ISession; inputModelToPreserve?: IInputModel }): void {
+	private _loadChat(resource: URI, session: ISession | undefined, options?: { previousChatResource?: URI; previousSession?: ISession; inputModelToPreserve?: IInputModel }): Promise<void> {
+		this._loadFailure.set(undefined, undefined);
 		// A fresh load binds to whichever provider serves the chat now.
 		this._chatWithUnregisteredProvider = undefined;
 		// Cancel any in-flight load for the previous chat and start a fresh one.
@@ -781,13 +832,50 @@ export class ChatView extends AbstractChatView {
 		const cts = new CancellationTokenSource();
 		this._loadCts.value = cts;
 		const token = cts.token;
+		const open = this._openDiagnostics.value = this.chatOpenDiagnosticsService.startOpen('agentsWindow', resource, token);
+		open.mark('selectionHandled');
 		this._setLoading(true);
 
 		// Capture the input draft before the load window opens so text typed
 		// during loading is preserved when the model binds. See #325323.
 		const inputBeforeLoad = this._widget.getInput();
 
-		const loadPromise = this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'ChatView').then(ref => {
+		const loadPromise = (async (): Promise<boolean> => {
+			let ref: IChatModelReference | undefined;
+			try {
+				ref = await this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'ChatView');
+			} catch (err) {
+				if (!isEqual(this._currentChatResource, resource) || this._loadCts.value !== cts) {
+					return false;
+				}
+				if (token.isCancellationRequested) {
+					this.logService.trace(`[ChatView] setChat cancelled uri=${resource.toString()}`);
+					this._setLoading(false);
+					return false;
+				}
+				this.logService.error(`[ChatView] Failed to load chat model for chat uri=${resource.toString()}`, err);
+				this._loadFailure.set({
+					resource,
+					status: {
+						kind: 'history',
+						message: localize('chatView.historyLoadFailed', "Couldn't load this conversation."),
+						action: {
+							label: localize('chatView.retryHistoryLoad', "Retry"),
+							run: async () => {
+								if (!token.isCancellationRequested && this._loadCts.value === cts && isEqual(this._currentChatResource, resource)) {
+									await this._loadChat(resource, this._currentSessionObs.get(), { inputModelToPreserve: options?.inputModelToPreserve });
+								}
+							},
+						},
+					},
+				}, undefined);
+				this._setLoading(false);
+				open.fail(err);
+				if (session) {
+					this.sessionOpenTelemetryService.modelBindFailed(session.resource, resource);
+				}
+				return false;
+			}
 			const isCurrentChat = isEqual(this._currentChatResource, resource);
 			const isCurrentLoad = this._loadCts.value === cts;
 			if (token.isCancellationRequested || !ref || !isCurrentChat || !isCurrentLoad) {
@@ -797,9 +885,12 @@ export class ChatView extends AbstractChatView {
 				}
 				if (isCurrentChat && isCurrentLoad) {
 					this._setLoading(false);
+					if (!token.isCancellationRequested && !ref) {
+						open.fail(new Error('The chat model could not be acquired'));
+					}
 				}
 				this.logService.trace(`[ChatView] setChat abandoned uri=${resource.toString()}`);
-				return;
+				return false;
 			}
 			this.logService.trace(`[ChatView] setChat model loaded uri=${resource.toString()}`);
 			const inputState = options?.inputModelToPreserve ? this._widget.getInputState() : undefined;
@@ -843,27 +934,29 @@ export class ChatView extends AbstractChatView {
 			// inner widget is fully attached to the loaded model.
 			this.element.dataset.boundChatResource = resource.toString();
 			this.logService.trace(`[ChatView] setChat done uri=${resource.toString()}`);
-		}, err => {
-			if (!token.isCancellationRequested) {
-				this.logService.error(`[ChatView] Failed to load chat model for chat uri=${resource.toString()}`, err);
-			} else {
-				this.logService.trace(`[ChatView] setChat cancelled uri=${resource.toString()}`);
+			return true;
+		})();
+
+		const loaded = (async () => {
+			try {
+				const bound = await loadPromise;
+				if (bound && !token.isCancellationRequested) {
+					open.complete(this._widget.visible && !this.element.ownerDocument.hidden);
+				}
+			} catch (err) {
+				open.fail(err);
+				throw err;
+			} finally {
+				open.end();
 			}
-			if (isEqual(this._currentChatResource, resource) && this._loadCts.value === cts) { // might have changed while we were waiting, only reset if it is still the same
-				this._currentChatResource = undefined;
-				this._currentChatResourceObs.set(undefined, undefined);
-				this._setLoading(false);
-			}
-			if (!token.isCancellationRequested && this._loadCts.value === cts && session) {
-				this.sessionOpenTelemetryService.modelBindFailed(session.resource, resource);
-			}
-		});
+		})();
 
 		// Surface progress on this leaf's own bar while the chat model loads,
 		// matching how each editor group shows progress independently. The short
 		// delay avoids flashing the bar for fast cached loads.
-		this.showProgressWhile(loadPromise, 800);
+		this.showProgressWhile(loaded, ChatView.LOADING_FEEDBACK_DELAY_MS);
 		this._layoutChatWidget();
+		return loaded;
 	}
 
 	private _saveCurrentViewState(): void {
@@ -933,15 +1026,18 @@ export class ChatView extends AbstractChatView {
 			return;
 		}
 		const { width, height } = this._lastLayout;
-		const widgetTop = this._widgetContainer.offsetTop;
+		// Only the external-session banner precedes the widget in normal flow.
+		const widgetTop = this._externalSessionBanner.domNode.classList.contains('hidden') ? 0 : this._widgetContainer.offsetTop;
 		const widgetHeight = Math.max(0, height - widgetTop);
 		const progressContainer = Array.from(this.element.children).find(element => element.classList.contains('monaco-progress-container'));
 		if (isHTMLElement(progressContainer)) {
 			progressContainer.style.top = `${widgetTop}px`;
 		}
-		this._comparisonResult.layout(width);
+		const contentWidth = Math.max(0, width - this.contentRightInset);
+		this._comparisonResult.layout(contentWidth);
 		size(this._widgetContainer, width, widgetHeight);
-		this._widget.layout(widgetHeight, width);
+		// Widget layout sizes embedded editors; its DOM viewport stays full-width for the scrollbar.
+		this._widget.layout(widgetHeight, contentWidth);
 		this._layoutStickyScrollBackground();
 	}
 

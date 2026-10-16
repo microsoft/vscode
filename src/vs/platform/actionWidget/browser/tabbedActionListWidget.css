@@ -50,19 +50,28 @@
 	white-space: nowrap;
 }
 
-.action-widget .tabbed-action-list-tab {
-	display: flex;
-	align-items: center;
-	min-width: 0;
+/* An image icon is drawn by the tab itself, so it survives the tab's label being replaced. It sits
+ * where a codicon would, with the same margin text buttons give codicons. */
+.action-widget .tabbed-action-list-tabbar .monaco-custom-radio .monaco-button.tabbed-action-list-tab-image-icon::before {
+	content: '';
+	flex: 0 0 auto;
+	width: var(--vscode-codiconFontSize);
+	height: var(--vscode-codiconFontSize);
+	margin: 0 0.2em;
+	background-image: var(--tabbed-action-list-tab-icon-light);
+	background-position: center;
+	background-repeat: no-repeat;
+	background-size: contain;
 }
 
-.action-widget .tabbed-action-list-tab-toggle:not([hidden]) {
-	display: flex;
-	align-items: center;
-	gap: var(--vscode-spacing-size40);
-	padding: 0 var(--vscode-spacing-size60);
-	font-size: var(--vscode-fontSize-label2);
-	color: var(--vscode-descriptionForeground);
+.vs-dark .action-widget .tabbed-action-list-tabbar .monaco-custom-radio .monaco-button.tabbed-action-list-tab-image-icon::before,
+.hc-black .action-widget .tabbed-action-list-tabbar .monaco-custom-radio .monaco-button.tabbed-action-list-tab-image-icon::before {
+	background-image: var(--tabbed-action-list-tab-icon-dark);
+}
+
+/* Images can't take the muted foreground of inactive tabs, so they fade to the same 70% instead. */
+.action-widget .tabbed-action-list-tabbar .monaco-custom-radio .monaco-button.tabbed-action-list-tab-image-icon:not(.active)::before {
+	opacity: 0.7;
 }
 
 .action-widget .tabbed-action-list-tabbar .tabbed-action-list-tabbar-action {

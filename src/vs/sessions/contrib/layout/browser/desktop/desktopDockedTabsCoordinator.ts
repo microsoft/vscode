@@ -15,6 +15,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { EditorActivation, IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ISessionEditorWorkingSetService } from '../../common/sessionEditorWorkingSet.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { EditorResourceAccessor, IUntypedEditorInput, SideBySideEditor } from '../../../../../workbench/common/editor.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
@@ -59,7 +60,7 @@ export interface IManagedTabsTarget {
  * of this coordinator's own ambient triggers).
  */
 export interface IReconcileTrigger {
-	/** Open the default docked tabs *if the group is empty* — a session switch, a side-pane reveal, or a settled layout restore. */
+	/** Open the default docked tabs *if the group is empty* for a New Session — a session switch, a side-pane reveal, or a settled layout restore. An Existing Session leaves the empty group to the Add Tab actions. */
 	readonly openDefaultsIfEmpty?: boolean;
 	/** Activate an existing Changes tab after new-session submit so the detail panel maps to Changes rather than Files. */
 	readonly ensureChangesActive?: boolean;
@@ -76,7 +77,6 @@ function mergeTriggers(a: IReconcileTrigger, b: IReconcileTrigger): IReconcileTr
 	};
 }
 
-/** Accumulated reconcile intents scoped to the session (`sessionKey`) they were queued for. */
 interface IPendingReconcile {
 	readonly sessionKey: string | undefined;
 	readonly target: IManagedTabsTarget;
@@ -98,7 +98,7 @@ interface IPendingReconcile {
 export class DesktopDockedTabsCoordinator extends Disposable {
 
 	/** Non-docked editors closed (as reopenable inputs + tab index) while the editor area is hidden. */
-	private _collapsedEditors: { readonly editor: IUntypedEditorInput; readonly index: number }[] | undefined;
+	private readonly _collapsedEditorsByOwner = new Map<string | undefined, { readonly editor: IUntypedEditorInput; readonly index: number }[]>();
 	private readonly _sequencer = new Sequencer();
 
 	private _generation = 0;
@@ -134,6 +134,7 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 		@IChangesViewService private readonly _changesViewService: IChangesViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ISessionEditorWorkingSetService private readonly _editorWorkingSetService: ISessionEditorWorkingSetService,
 	) {
 		super();
 
@@ -241,7 +242,8 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 			}
 
 			if (visible) {
-				this._queue(() => this._restoreCollapsedTabs());
+				const ownerKey = this._ownerKeyString();
+				this._queue(() => this._restoreCollapsedTabs(ownerKey));
 				return;
 			}
 
@@ -249,12 +251,17 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 			if (this._ctx.togglingSidePane) {
 				return;
 			}
-			if (this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
-				this._queue(() => this._collapseNonManagedTabs());
-			}
+			this._queueCollapseIfDetailsOnly();
 		}));
 
-		this._register(this._ctx.onDidEndSessionLayoutRestore(() => this._queueCollapseIfDetailsOnly()));
+		this._register(this._ctx.onDidEndSessionLayoutRestore(() => {
+			if (this._ctx.chatLayoutActive() && this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+				const ownerKey = this._ownerKeyString();
+				this._queue(() => this._restoreCollapsedTabs(ownerKey));
+			} else {
+				this._queueCollapseIfDetailsOnly();
+			}
+		}));
 		this._register(mainEditorsChanged(() => {
 			if (!this._ctx.isRestoringSessionLayout) {
 				this._queueCollapseIfDetailsOnly();
@@ -268,8 +275,17 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 		return resource && this._sessionChangesService.getSessionResource(resource) ? resource : undefined;
 	}
 
+	private _ownerKeyString(): string | undefined {
+		const session = this._sessionsService.activeSession.get();
+		if (!session) {
+			return undefined;
+		}
+		const ownerKey = this._ctx.chatLayoutActive() ? this._ctx.ownerKeyFor(session) : undefined;
+		return (ownerKey ?? session.resource).toString();
+	}
+
 	prepareWorkingSetRestore(hasSavedWorkingSet: boolean): void {
-		const sessionKey = this._sessionsService.activeSession.get()?.resource.toString();
+		const sessionKey = this._ownerKeyString();
 		this._preserveMissingFilesForSessionKey = hasSavedWorkingSet && this._filesTabDismissed ? sessionKey : undefined;
 	}
 
@@ -282,7 +298,7 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 
 	/** Queues a reconcile for the active session, merging `trigger` with any not-yet-applied pending intents for that session. */
 	queueReconcile(target: IManagedTabsTarget, trigger: IReconcileTrigger): void {
-		const sessionKey = this._sessionsService.activeSession.get()?.resource.toString();
+		const sessionKey = this._ownerKeyString();
 		// Accumulate intents only within the same session; a session switch drops the previous
 		// session's pending intents (and takes the latest target).
 		const mergedTrigger = this._pending && this._pending.sessionKey === sessionKey
@@ -310,7 +326,25 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 		// Bump the generation before super.dispose() so queued/in-flight reconciles bail at their next checkpoint.
 		this._generation++;
 		this._pending = undefined;
+		this._collapsedEditorsByOwner.clear();
 		super.dispose();
+	}
+
+	remapOwnerKey(oldKey: URI, newKey: URI): void {
+		if (isEqual(oldKey, newKey)) {
+			return;
+		}
+		const captured = this._collapsedEditorsByOwner.get(oldKey.toString());
+		if (captured) {
+			this._collapsedEditorsByOwner.set(newKey.toString(), captured);
+			this._collapsedEditorsByOwner.delete(oldKey.toString());
+		}
+	}
+
+	forgetOwnerKeys(keys: readonly URI[]): void {
+		for (const key of keys) {
+			this._collapsedEditorsByOwner.delete(key.toString());
+		}
 	}
 
 	/** Queues coordinator-owned work, dropping tasks and failures that outlive disposal. */
@@ -368,7 +402,7 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 				return;
 			}
 			this._updateFilesEditors(group, target.workspace);
-			const sessionKey = this._sessionsService.activeSession.get()?.resource.toString();
+			const sessionKey = this._ownerKeyString();
 			const preserveMissingFiles = !!trigger.workingSetRestored && this._preserveMissingFilesForSessionKey === sessionKey;
 			if (preserveMissingFiles) {
 				await this._removeFilesTab(group);
@@ -377,8 +411,10 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 				}
 			}
 
-			// [2] Decide which docked inputs to open, from the trigger + group state.
-			const openIntoEmpty = !!trigger.openDefaultsIfEmpty && this._layoutService.isSidePaneVisible() && group.editors.length === 0;
+			// [2] Decide which docked inputs to open, from the trigger + group state. A created
+			// session leaves an empty group empty so it offers the Add Tab actions instead.
+			const isCreated = this._sessionsService.activeSession.get()?.isCreated.get() ?? false;
+			const openIntoEmpty = !!trigger.openDefaultsIfEmpty && !isCreated && this._layoutService.isSidePaneVisible() && group.editors.length === 0;
 			const changesPresent = !!changesResource && !!this._findChangesEditor(group, changesResource);
 			const filesPresent = group.editors.some(editor => editor instanceof EmptyFileEditorInput);
 			const activeChangesResource = this._editorService.activeEditor && this.getChangesEditorResource(this._editorService.activeEditor);
@@ -388,7 +424,6 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 
 			const openChanges = target.wantsChangesTab && !!changesResource && (activateChanges || (!changesPresent && (openIntoEmpty || ensureAllInputs)));
 			const openFiles = target.wantsFilesTab && !filesPresent && !preserveMissingFiles && (openIntoEmpty || ensureAllInputs);
-			const isCreated = this._sessionsService.activeSession.get()?.isCreated.get() ?? false;
 			const openFilesFirst = openChanges && openFiles && !isCreated && group.editors.length === 0;
 
 			// [3] Keep Files active by default for a new-session view.
@@ -429,11 +464,13 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 		}
 	}
 
-	/** On a session change, drop editors captured while the previous session's editor area was hidden so they are not reopened here. */
+	/** Legacy session switches discard collapsed inputs; chat-owned inputs survive until their owner is removed. */
 	private _resetCollapsedEditorsOnSessionChange(): void {
-		const sessionKey = this._sessionsService.activeSession.get()?.resource.toString();
+		const sessionKey = this._ownerKeyString();
 		if (sessionKey !== this._lastSyncedSessionKey) {
-			this._collapsedEditors = undefined;
+			if (!this._ctx.chatLayoutActive() && !this._ctx.chatLayoutSuspended()) {
+				this._collapsedEditorsByOwner.clear();
+			}
 			this._lastSyncedSessionKey = sessionKey;
 		}
 	}
@@ -562,16 +599,24 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 
 	private _queueCollapseIfDetailsOnly(): void {
 		if (!this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow) && this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
-			this._queue(() => this._collapseNonManagedTabs());
+			const ownerKey = this._ownerKeyString();
+			this._queue(() => this._collapseNonManagedTabs(ownerKey));
 		}
 	}
 
-	private async _collapseNonManagedTabs(): Promise<void> {
+	private async _collapseNonManagedTabs(ownerKey: string | undefined): Promise<void> {
+		if (this._ctx.isRestoringSessionLayout || this._ctx.chatLayoutSuspended() || this._ctx.togglingSidePane || ownerKey !== this._ownerKeyString()
+			|| this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow) || !this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
+			return;
+		}
 		const group = this._editorGroupsService.mainPart.activeGroup;
-		const captured: { editor: IUntypedEditorInput; index: number }[] = [...(this._collapsedEditors ?? [])];
+		const captured: { editor: IUntypedEditorInput; index: number }[] = [...(this._collapsedEditorsByOwner.get(ownerKey) ?? [])];
 		const toClose: EditorInput[] = [];
 		group.editors.forEach((editor, index) => {
 			if (editor instanceof DockedEditorInput || this.getChangesEditorResource(editor)) {
+				return;
+			}
+			if (this._editorWorkingSetService.shouldRetainEditor(editor)) {
 				return;
 			}
 			// Capture editors that can be reopened so they are restored when the editor area is
@@ -586,7 +631,7 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 			return;
 		}
 
-		this._collapsedEditors = captured;
+		this._collapsedEditorsByOwner.set(ownerKey, captured);
 		const suppressEditorPartAutoVisibility = this._layoutService.suppressEditorPartAutoVisibility();
 		try {
 			await this._editorService.closeEditors(toClose.map(editor => ({ groupId: group.id, editor })), { preserveFocus: true });
@@ -595,9 +640,13 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 		}
 	}
 
-	private async _restoreCollapsedTabs(): Promise<void> {
-		const captured = this._collapsedEditors;
-		this._collapsedEditors = undefined;
+	private async _restoreCollapsedTabs(ownerKey: string | undefined): Promise<void> {
+		if (this._ctx.isRestoringSessionLayout || this._ctx.chatLayoutSuspended() || ownerKey !== this._ownerKeyString()
+			|| !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+			return;
+		}
+		const captured = this._collapsedEditorsByOwner.get(ownerKey);
+		this._collapsedEditorsByOwner.delete(ownerKey);
 		if (!captured || captured.length === 0) {
 			return;
 		}

@@ -584,6 +584,36 @@ suite('SessionTypePicker', () => {
 		assert.deepStrictEqual(picker.selectedPick, { providerId: 'copilot', sessionTypeId: 'copilotcli' });
 	});
 
+	test('retains a committed backend label and model target without offering it for new sessions', () => {
+		const cloud = sessionType('cloud', 'cloud', 'Cloud');
+		const backend = sessionType('agenthost-environment', 'copilot', 'GitHub Copilot', 'remote-environment-copilot');
+		management.setQuickChatSessionTypes([cloud]);
+		const picker = createPicker(disposables, session, management, storage, undefined, undefined, [], {
+			providers: [upcastPartial<ISessionsProvider>({
+				id: backend.providerId, sessionTypes: [backend.sessionType],
+			})],
+		});
+		session.set(upcastPartial<ISession>({
+			providerId: backend.providerId,
+			sessionType: backend.sessionType.id,
+			status: constObservable(SessionStatus.Completed),
+			isQuickChat: constObservable(true),
+		}), undefined);
+		const container = document.createElement('div');
+		picker.render(container);
+		assert.deepStrictEqual({
+			offered: picker.offeredSessionTypeIds,
+			selected: picker.selectedPick,
+			modelTarget: picker.modelTargetChatSessionType.get(),
+			label: container.querySelector('.sessions-chat-dropdown-label')?.textContent,
+		}, {
+			offered: ['cloud'],
+			selected: { providerId: backend.providerId, sessionTypeId: backend.sessionType.id },
+			modelTarget: 'remote-environment-copilot',
+			label: 'GitHub Copilot',
+		});
+	});
+
 	test('a stored pick for a hidden harness does not survive into an offering picker', () => {
 		management.setSessionTypes([
 			sessionType('local-agent-host', 'copilotcli', 'Copilot'),
@@ -842,6 +872,29 @@ suite('SessionTypePicker', () => {
 		// Picking a non-first quick-chat type is stored.
 		picker.pick({ providerId: 'copilot', sessionTypeId: 'copilot-cli' });
 		assert.deepStrictEqual(picker.getUserPickedSessionType(), { providerId: 'copilot', sessionTypeId: 'copilot-cli' });
+	});
+
+	test('offers Cloud alongside local quick-chat harnesses and updates when it is withdrawn', () => {
+		const localTypes = [
+			sessionType('agent-host', 'copilotcli', 'Copilot'),
+			sessionType('agent-host', 'claude', 'Claude'),
+			sessionType('agent-host', 'codex', 'Codex'),
+		];
+		management.setQuickChatSessionTypes([...localTypes, sessionType('default-copilot', 'copilot-cloud-agent', 'Cloud')]);
+		const picker = createPicker(disposables, session, management, storage);
+		session.set(createFakeQuickChatSession('agent-host', 'copilotcli'), undefined);
+		const offered = picker.offeredSessionTypeIds;
+
+		picker.pick({ providerId: 'default-copilot', sessionTypeId: 'copilot-cloud-agent' });
+		const chosen = picker.selectedPick;
+		management.setQuickChatSessionTypes(localTypes);
+
+		assert.deepStrictEqual({ offered, chosen, remaining: picker.offeredSessionTypeIds, fallback: picker.selectedPick }, {
+			offered: ['copilotcli', 'claude', 'codex', 'copilot-cloud-agent'],
+			chosen: { providerId: 'default-copilot', sessionTypeId: 'copilot-cloud-agent' },
+			remaining: ['copilotcli', 'claude', 'codex'],
+			fallback: { providerId: 'agent-host', sessionTypeId: 'copilotcli' },
+		});
 	});
 
 	test('folder-driven quick-chat mode preserves an unavailable saved target through late discovery', () => {

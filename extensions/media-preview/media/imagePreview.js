@@ -78,6 +78,66 @@
 	const container = document.body;
 	const image = document.createElement('img');
 
+	/**
+	 * Whether the image needs an explicit size to be zoomed. Images without an intrinsic width,
+	 * such as SVGs with only a viewBox, otherwise stretch to fill the container, which cancels out
+	 * the zoom.
+	 */
+	let needsExplicitSize = false;
+
+	/**
+	 * Size of the image when it was last scaled to fit.
+	 *
+	 * @type {{ width?: number; height?: number } | undefined}
+	 */
+	let lastFitSize;
+
+	/**
+	 * Check if the image keeps its natural width in a container that is much wider than it.
+	 */
+	function hasIntrinsicWidth() {
+		const probe = document.createElement('div');
+		probe.style.position = 'absolute';
+		probe.style.visibility = 'hidden';
+		probe.style.width = '100000px';
+		probe.append(image);
+		document.body.append(probe);
+		const result = Math.abs(image.clientWidth - image.naturalWidth) <= 1;
+		probe.remove();
+		return result;
+	}
+
+	/**
+	 * @param {number} width
+	 * @param {number} height
+	 * @return {{ width?: number; height?: number }}
+	 */
+	function getLargerDimension(width, height) {
+		return width >= height ? { width } : { height };
+	}
+
+	/**
+	 * Get the size of the image at a zoom level of 1.
+	 *
+	 * Only the larger dimension is returned as the other one follows from the aspect ratio. Natural
+	 * sizes are rounded, so the smaller dimension of a very thin SVG may otherwise be reported as 0.
+	 *
+	 * @return {{ width?: number; height?: number } | undefined}
+	 */
+	function getBaseSize() {
+		if (image.classList.contains('scale-to-fit') && (image.clientWidth || image.clientHeight)) {
+			lastFitSize = getLargerDimension(image.clientWidth, image.clientHeight);
+		}
+
+		if (image.naturalWidth || image.naturalHeight) {
+			return getLargerDimension(image.naturalWidth, image.naturalHeight);
+		}
+
+		// Some browsers report no natural size for images without intrinsic dimensions (e.g. SVGs
+		// with only a viewBox). Fall back to the size the image had when it was last scaled to fit.
+		return lastFitSize;
+	}
+
 	function updateScale(newScale) {
 		if (!image || !hasLoadedImage || !image.parentElement) {
 			return;
@@ -89,9 +149,8 @@
 			image.classList.remove('pixelated');
 			// @ts-ignore Non-standard CSS property
 			image.style.zoom = 'normal';
-			// Clear explicit dimensions so the image can scale-to-fit naturally
-			image.style.minWidth = '';
-			image.style.minHeight = '';
+			image.style.width = '';
+			image.style.height = '';
 			vscode.setState(undefined);
 		} else {
 			scale = clamp(newScale, MIN_SCALE, MAX_SCALE);
@@ -104,17 +163,13 @@
 			const dx = (window.scrollX + container.clientWidth / 2) / container.scrollWidth;
 			const dy = (window.scrollY + container.clientHeight / 2) / container.scrollHeight;
 
+			// Must be read before leaving scale-to-fit since it may depend on the fitted size
+			const size = needsExplicitSize ? getBaseSize() : undefined;
+
 			image.classList.remove('scale-to-fit');
 
-			// For images without intrinsic dimensions (e.g. SVGs with only
-			// a viewBox), set explicit pixel dimensions so that CSS zoom has
-			// something concrete to scale.
-			if (!image.naturalWidth || !image.naturalHeight) {
-				const baseWidth = image.clientWidth || container.clientWidth;
-				const baseHeight = image.clientHeight || container.clientHeight;
-				image.style.minWidth = baseWidth + 'px';
-				image.style.minHeight = baseHeight + 'px';
-			}
+			image.style.width = size?.width ? size.width + 'px' : '';
+			image.style.height = size?.height ? size.height + 'px' : '';
 
 			// @ts-ignore Non-standard CSS property
 			image.style.zoom = scale;
@@ -156,12 +211,12 @@
 			return;
 		}
 
-		if (image.naturalWidth) {
-			scale = image.clientWidth / image.naturalWidth;
+		const size = needsExplicitSize ? getBaseSize() : { width: image.naturalWidth };
+		if (size?.width) {
+			scale = image.clientWidth / size.width;
+		} else if (size?.height) {
+			scale = image.clientHeight / size.height;
 		} else {
-			// For images without intrinsic dimensions (e.g. SVGs with
-			// only a viewBox), start at 1x since there is no meaningful
-			// natural size to compute a ratio from.
 			scale = 1;
 		}
 		updateScale(scale);
@@ -313,6 +368,7 @@
 
 		document.body.classList.remove('loading');
 		document.body.classList.add('ready');
+		needsExplicitSize = !hasIntrinsicWidth();
 		document.body.append(image);
 
 		updateScale(scale);
@@ -398,19 +454,105 @@
 
 		try {
 			await navigator.clipboard.write([new ClipboardItem({
-				'image/png': new Promise((resolve, reject) => {
-					const canvas = document.createElement('canvas');
-					canvas.width = image.naturalWidth;
-					canvas.height = image.naturalHeight;
-					canvas.getContext('2d').drawImage(image, 0, 0);
-					canvas.toBlob((blob) => {
-						resolve(blob);
-						canvas.remove();
-					}, 'image/png');
-				})
+				'image/png': encodeImageAsPng()
 			})]);
 		} catch (e) {
 			console.error(e);
 		}
+	}
+
+	/**
+	 * Encodes the preview image as a PNG.
+	 *
+	 * On the main thread, Chromium encodes canvas PNGs using idle tasks. These can be starved for
+	 * seconds when the webview doesn't get idle time, delaying the copy. Workers encode directly,
+	 * so prefer encoding there and only fall back to the main thread if that fails.
+	 *
+	 * @return {Promise<Blob>}
+	 */
+	async function encodeImageAsPng() {
+		if (typeof OffscreenCanvas !== 'undefined' && typeof Worker !== 'undefined') {
+			try {
+				// Draw on the main thread so EXIF orientation, sRGB conversion and the copied animation
+				// frame match what was previously copied. `createImageBitmap(image)` differs on these.
+				const canvas = new OffscreenCanvas(image.naturalWidth, image.naturalHeight);
+				/** @type {OffscreenCanvasRenderingContext2D} */ (canvas.getContext('2d')).drawImage(image, 0, 0);
+				return await encodePngInWorker(canvas.transferToImageBitmap());
+			} catch (e) {
+				console.warn('Failed to encode image in worker, falling back to main thread', e);
+			}
+		}
+
+		return new Promise((resolve, reject) => {
+			const canvas = document.createElement('canvas');
+			canvas.width = image.naturalWidth;
+			canvas.height = image.naturalHeight;
+			/** @type {CanvasRenderingContext2D} */ (canvas.getContext('2d')).drawImage(image, 0, 0);
+			canvas.toBlob((blob) => {
+				canvas.width = canvas.height = 0;
+				if (blob) {
+					resolve(blob);
+				} else {
+					reject(new Error('Failed to encode image'));
+				}
+			}, 'image/png');
+		});
+	}
+
+	// Avoid a 'bitmaprenderer' context here: in Firefox, convertToBlob() on one can fail to settle.
+	const pngEncoderWorkerSource = `
+self.onmessage = async (e) => {
+	const bitmap = e.data;
+	try {
+		const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+		canvas.getContext('2d').drawImage(bitmap, 0, 0);
+		// Free the source pixels before encoding so only one full-size copy is alive during the encode.
+		bitmap.close();
+		self.postMessage({ blob: await canvas.convertToBlob({ type: 'image/png' }) });
+	} catch (err) {
+		bitmap.close();
+		self.postMessage({ error: String(err) });
+	}
+};`;
+
+	/**
+	 * @param {ImageBitmap} bitmap Transferred to the worker.
+	 * @return {Promise<Blob>}
+	 */
+	function encodePngInWorker(bitmap) {
+		return new Promise((resolve, reject) => {
+			const workerUrl = URL.createObjectURL(new Blob([pngEncoderWorkerSource], { type: 'text/javascript' }));
+			/** @type {Worker | undefined} */
+			let worker;
+
+			const dispose = () => {
+				worker?.terminate();
+				URL.revokeObjectURL(workerUrl);
+			};
+
+			try {
+				worker = new Worker(workerUrl);
+				worker.onmessage = (e) => {
+					dispose();
+					if (e.data?.blob) {
+						resolve(e.data.blob);
+					} else {
+						reject(new Error(e.data?.error ?? 'Failed to encode image'));
+					}
+				};
+				worker.onerror = (e) => {
+					dispose();
+					reject(new Error(e.message || 'Image encoder worker failed'));
+				};
+				// Throws synchronously if the bitmap can't be transferred, e.g. a DataCloneError
+				// for a bitmap that isn't origin-clean. Neither worker handler runs in that case.
+				worker.postMessage(bitmap, [bitmap]);
+			} catch (e) {
+				dispose();
+				// No-op if the bitmap was already transferred.
+				bitmap.close();
+				reject(e);
+			}
+		});
 	}
 }());
