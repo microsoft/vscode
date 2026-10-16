@@ -1031,7 +1031,15 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		}
 		if (connectorPrompt !== undefined) {
 			view.prefillInput(connectorPrompt);
-			await nextFrame();
+			if (connectorRecommendationsSetting) {
+				await waitForFixtureCondition(() => {
+					const visibleConnectorIds = [...cards]
+						.filter(card => !card.hidden)
+						.map(card => card.dataset.connectorId);
+					return visibleConnectorIds.length === expectedConnectorIds.length
+						&& visibleConnectorIds.every((id, index) => id === expectedConnectorIds[index]);
+				}, 'URL-triggered connector recommendations did not settle.');
+			}
 		}
 		const visibleCards = [...cards].filter(card => !card.hidden);
 		assert(visibleCards.length === expectedConnectorIds.length
