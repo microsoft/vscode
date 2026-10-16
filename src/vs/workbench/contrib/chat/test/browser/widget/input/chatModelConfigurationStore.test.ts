@@ -786,6 +786,37 @@ suite('ChatModelConfigurationStore', () => {
 		});
 	}
 
+	for (const initialManagedTier of [undefined, 'intelligence']) {
+		test(`started Auto keeps inherited provenance across refreshes (managed=${initialManagedTier !== undefined})`, () => {
+			const storage = store.add(new InMemoryStorageService());
+			const control = createControllableService();
+			control.setAutoModel();
+			let empty = true;
+			let value = initialManagedTier;
+			const changed = store.add(new Emitter<void>());
+			const managed: IManagedSettingsService = {
+				_serviceBrand: undefined, onDidChangeManagedSettings: changed.event,
+				getManagedSettingValue: () => value,
+				getManagedSettings: (): ManagedSettingsData => value === undefined ? {} : { autoTier: value },
+			};
+			const editor = createStore(storage, control.service, () => empty, managed);
+			const initial = editor.getModelConfiguration(MODEL);
+			empty = false;
+			control.fireModelsChanged();
+			const refreshed = editor.getModelConfiguration(MODEL);
+			value = 'efficiency';
+			changed.fire();
+			const draft = createStore(storage, control.service, () => true, managed);
+			draft.restoreModelConfiguration(MODEL, editor.getModelConfiguration(MODEL) ?? {});
+			const expected = { tier: initialManagedTier ?? 'balance', tierSource: initialManagedTier ? 'managed' : 'default' };
+			assert.deepStrictEqual({
+				initial, refreshed, started: editor.getModelConfiguration(MODEL), draft: draft.getModelConfiguration(MODEL),
+			}, {
+				initial: expected, refreshed: expected, started: expected, draft: { tier: 'efficiency', tierSource: 'managed' },
+			});
+		});
+	}
+
 	test('a presented Auto tier wins over a managed default without becoming a selection or preference', () => {
 		const storage = store.add(new InMemoryStorageService());
 		const control = createControllableService();

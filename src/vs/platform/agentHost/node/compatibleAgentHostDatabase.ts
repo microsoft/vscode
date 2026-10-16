@@ -110,15 +110,6 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 		return this.identity.toRuntime(session);
 	}
 
-	requiresLegacyChatCatalog(session: string): boolean {
-		if (this.identity.toStorage(session) !== session || this.identity.toRuntime(session) !== session) {
-			return true;
-		}
-		const resource = URI.parse(session);
-		return this._writeCompatibility && ['copilotcli', 'claude', 'codex'].includes(resource.scheme)
-			&& isEqual(resource, AgentSession.uri(resource.scheme, AgentSession.id(resource)));
-	}
-
 	async registerSession(...[session, sessionOptions, registerOptions]: Parameters<IAgentHostDatabase['registerSession']>): ReturnType<IAgentHostDatabase['registerSession']> {
 		const result = await this.raw.registerSession(this.identity.toStorage(session), this.identity.record(sessionOptions, 'storage'), this.identity.record(registerOptions, 'storage'));
 		return this.identity.record(result, 'runtime');
@@ -403,6 +394,11 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 		return result.map(value => this.identity.toRuntime(value));
 	}
 
+	async findOlderBuildChatCatalogEdits(...[limit]: Parameters<IAgentHostDatabase['findOlderBuildChatCatalogEdits']>): ReturnType<IAgentHostDatabase['findOlderBuildChatCatalogEdits']> {
+		const result = await this.raw.findOlderBuildChatCatalogEdits(limit);
+		return result.map(value => this.identity.toRuntime(value));
+	}
+
 	async readChatV2(...[session, chat]: Parameters<IAgentHostDatabase['readChatV2']>): ReturnType<IAgentHostDatabase['readChatV2']> {
 		const result = await this.raw.readChatV2(this.identity.toStorage(session), this.identity.toStorage(chat));
 		return this.identity.record(result, 'runtime');
@@ -445,18 +441,11 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 	}
 
 	async ensureChatCatalogV2(...[session, expected, candidate, mutation, validate]: Parameters<IAgentHostDatabase['ensureChatCatalogV2']>): ReturnType<IAgentHostDatabase['ensureChatCatalogV2']> {
-		// Keep old-build membership writes authoritative until this storage encoding is retired.
-		if (this.requiresLegacyChatCatalog(session)) {
-			return { status: 'notReady' };
-		}
 		const result = await this.raw.ensureChatCatalogV2(this.identity.toStorage(session), this.identity.record(expected, 'storage'), this.identity.record(candidate, 'storage'), this.identity.record(mutation, 'storage'), this.identity.record(validate, 'storage'));
 		return this.identity.record(result, 'runtime');
 	}
 
 	async registerChatCatalogV2(...[session, candidate]: Parameters<IAgentHostDatabase['registerChatCatalogV2']>): ReturnType<IAgentHostDatabase['registerChatCatalogV2']> {
-		if (this.requiresLegacyChatCatalog(session)) {
-			return { status: 'notReady' };
-		}
 		const result = await this.raw.registerChatCatalogV2(this.identity.toStorage(session), this.identity.record(candidate, 'storage'));
 		return this.identity.record(result, 'runtime');
 	}
@@ -481,8 +470,37 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 		return this.identity.record(result, 'runtime');
 	}
 
+	async readOlderBuildCopySource(...[session]: Parameters<IAgentHostDatabase['readOlderBuildCopySource']>): ReturnType<IAgentHostDatabase['readOlderBuildCopySource']> {
+		const result = await this.raw.readOlderBuildCopySource(this.identity.toStorage(session));
+		return result && { ...this.identity.record(result, 'runtime'), publishedChatState: result.publishedChatState };
+	}
+
+	async recordOlderBuildChatState(...[session, state]: Parameters<IAgentHostDatabase['recordOlderBuildChatState']>): ReturnType<IAgentHostDatabase['recordOlderBuildChatState']> {
+		// The published chat state is read only by this build, in runtime spelling.
+		return this.raw.recordOlderBuildChatState(this.identity.toStorage(session), state);
+	}
+
+	async readOlderBuildCopyState(...[session]: Parameters<IAgentHostDatabase['readOlderBuildCopyState']>): ReturnType<IAgentHostDatabase['readOlderBuildCopyState']> {
+		const result = await this.raw.readOlderBuildCopyState(this.identity.toStorage(session));
+		return result && { ...this.identity.record(result, 'runtime'), publishedChatState: result.publishedChatState };
+	}
+
+	async readOlderBuildChatListEdit(...[session]: Parameters<IAgentHostDatabase['readOlderBuildChatListEdit']>): ReturnType<IAgentHostDatabase['readOlderBuildChatListEdit']> {
+		const result = await this.raw.readOlderBuildChatListEdit(this.identity.toStorage(session));
+		return result && { rows: this.identity.record(result.rows, 'runtime'), knownUnlisted: result.knownUnlisted.map(chat => this.identity.toRuntime(chat)) };
+	}
+
+	async reprojectOlderBuildChatList(...[session, expectedRevision]: Parameters<IAgentHostDatabase['reprojectOlderBuildChatList']>): ReturnType<IAgentHostDatabase['reprojectOlderBuildChatList']> {
+		return this.raw.reprojectOlderBuildChatList(this.identity.toStorage(session), expectedRevision);
+	}
+
 	async replaceSessionChatCatalog(...[session, chats, expectedRevision]: Parameters<IAgentHostDatabase['replaceSessionChatCatalog']>): ReturnType<IAgentHostDatabase['replaceSessionChatCatalog']> {
 		const result = await this.raw.replaceSessionChatCatalog(this.identity.toStorage(session), this.identity.record(chats, 'storage'), this.identity.record(expectedRevision, 'storage'));
+		return this.identity.record(result, 'runtime');
+	}
+
+	async replaceSessionChatCatalogImportingOlderBuildEdits(...[session, chats, expectedRevision]: Parameters<IAgentHostDatabase['replaceSessionChatCatalogImportingOlderBuildEdits']>): ReturnType<IAgentHostDatabase['replaceSessionChatCatalogImportingOlderBuildEdits']> {
+		const result = await this.raw.replaceSessionChatCatalogImportingOlderBuildEdits(this.identity.toStorage(session), this.identity.record(chats, 'storage'), expectedRevision);
 		return this.identity.record(result, 'runtime');
 	}
 
@@ -508,8 +526,10 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 		if (!result) {
 			return undefined;
 		}
-		const { values, legacyMirrorBase, rowsMoved, ...rest } = result;
-		return { ...this.identity.record(rest, 'runtime'), values: this._stateValues(values, 'runtime'), legacyMirrorBase, rowsMoved };
+		const { values, legacyMirrorBase, rowsMoved, draftMirrorBases, ...rest } = result;
+		// A draft base is the runtime draft as this build mirrored it, opaque here.
+		const drafts = new Map([...draftMirrorBases].map(([chat, base]) => [this.identity.toRuntime(chat), base]));
+		return { ...this.identity.record(rest, 'runtime'), values: this._stateValues(values, 'runtime'), legacyMirrorBase, rowsMoved, draftMirrorBases: drafts };
 	}
 
 	async readSessionStateValues(...[sessions, keys]: Parameters<IAgentHostDatabase['readSessionStateValues']>): ReturnType<IAgentHostDatabase['readSessionStateValues']> {

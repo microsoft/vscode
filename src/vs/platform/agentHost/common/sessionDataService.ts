@@ -196,6 +196,12 @@ export type SessionCatalogSyncWriteValidator = () => boolean;
  * Callers obtain an instance via {@link ISessionDataService.openDatabase} and
  * **must** dispose it when finished to close the underlying database connection.
  */
+/** See {@link ISessionDatabase.getRowsWatermark}. */
+export interface ISessionRowsWatermark {
+	readonly maxTurnRowid: number;
+	readonly drafts: ReadonlyMap<string, Message>;
+}
+
 export interface ISessionDatabase extends IDisposable {
 	/**
 	 * Create a turn record. Must be called before storing file edits that
@@ -328,6 +334,12 @@ export interface ISessionDatabase extends IDisposable {
 
 	/** Returns the largest `turns` rowid, or `0` when there are no turns. */
 	getMaxTurnRowid(): Promise<number>;
+
+	/**
+	 * Returns, in one read, the largest `turns` rowid (`0` when there are no turns) and every chat draft by chat
+	 * URI: what tells whether another build changed the rows mirrored here.
+	 */
+	getRowsWatermark(): Promise<ISessionRowsWatermark>;
 
 	/**
 	 * Records the chat whose rows this database holds and the complete list of

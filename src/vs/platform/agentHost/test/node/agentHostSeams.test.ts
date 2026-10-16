@@ -167,6 +167,26 @@ suite('Agent Host provider seams', () => {
 
 	suite('chat owner reference', () => {
 
+		test('a context built before session registration reads the later opaque default chat', () => {
+			const chat = URI.parse('ahp-chat:/new-default');
+			const context = createAgentChatContext(manager, session, chat, sessionKey, undefined);
+			const beforeRegistration = {
+				defaultChat: manager.getDefaultChat(sessionKey),
+				format: context.owner.getSubagentChatUriFormat(),
+			};
+			manager.createSession({ ...summary(), defaultChat: chat.toString() });
+
+			assert.deepStrictEqual({
+				beforeRegistration,
+				owner: context.owner.get().toString(),
+				format: context.owner.getSubagentChatUriFormat(),
+			}, {
+				beforeRegistration: { defaultChat: undefined, format: 'shaped' },
+				owner: sessionKey,
+				format: 'opaque',
+			});
+		});
+
 		test('follows the chat registry: the issuing session before registration, the recorded owner, reassignments, and the last owner after removal', () => {
 			const other = AgentSession.uri('copilot', 'seam-other');
 			manager.createSession(summary());
@@ -256,7 +276,7 @@ suite('Agent Host provider seams', () => {
 
 		test('resolveSessionBackedStorage reports a session database only for a chat stored outside its own resource', () => {
 			manager.createSession(summary());
-			const base = { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), subagentChatUriFormat: 'shaped' as const };
+			const base = { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session) };
 			assert.deepStrictEqual({
 				sessionBacked: resolveSessionBackedStorage({ ...base, resource: session }, defaultChat)?.toString(),
 				ownStorage: resolveSessionBackedStorage({ ...base, resource: peerChat }, peerChat),
@@ -294,7 +314,6 @@ suite('Agent Host provider seams', () => {
 				resource: peerChat,
 				owner: fixedChatOwnerRef(session),
 				origin: { kind: ChatOriginKind.Fork, chat: buildDefaultChatUri(sessionKey), turnId: 'turn-1' },
-				subagentChatUriFormat: 'shaped' as const,
 			};
 			const tool: IAgentChatContext = {
 				sessionSettings: undefined,
@@ -302,7 +321,6 @@ suite('Agent Host provider seams', () => {
 				resource: subagentChat,
 				owner: fixedChatOwnerRef(session),
 				origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(sessionKey), toolCallId: 'tool-9' },
-				subagentChatUriFormat: 'shaped' as const,
 			};
 			assert.deepStrictEqual({
 				fork: resolveSubagentChatParent(fork),
