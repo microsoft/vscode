@@ -7541,7 +7541,10 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(subagentSummary?.title, 'Code Reviewer');
 			assert.deepStrictEqual(subagentSummary?.origin, { kind: 'tool', chat: defaultChatUri, toolCallId: 'tc-1' });
 			assert.ok(subState!.activeTurn, 'subagent chat should have an active turn');
-			assert.strictEqual(subState!.activeTurn!.message.text, 'Review the auth module for security issues', 'subagent turn should render the spawning tool call prompt as its request');
+			assert.deepStrictEqual(subState!.activeTurn!.message, {
+				text: 'Review the auth module for security issues',
+				origin: { kind: MessageKind.Tool },
+			});
 
 			// Verify content was dispatched on the parent tool call
 			const parentState = stateManager.getSessionState(sessionUri.toString());
@@ -7855,10 +7858,12 @@ suite('AgentSideEffects', () => {
 			subState = stateManager.getSessionState(subagentUri);
 			assert.deepStrictEqual({
 				message: subState?.activeTurn?.message.text,
+				origin: subState?.activeTurn?.message.origin,
 				response: subState?.activeTurn?.responseParts[0],
 				completedTurns: subState?.turns.length,
 			}, {
 				message: 'Follow up',
+				origin: { kind: MessageKind.User },
 				response: { kind: ResponsePartKind.Markdown, id: 'follow-up-part', content: 'Follow-up response' },
 				completedTurns: 1,
 			});

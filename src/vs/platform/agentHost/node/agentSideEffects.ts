@@ -1274,7 +1274,7 @@ export class AgentSideEffects extends Disposable {
 			if (model && model !== existing.model) {
 				this._subagentChats.set({ ...existing, model }, chatURI, toolCallId);
 			}
-			this._resumeSubagentSession(chatURI, toolCallId, taskPrompt ? { text: taskPrompt, origin: { kind: MessageKind.User } } : undefined, immediateParentChatUri);
+			this._resumeSubagentSession(chatURI, toolCallId, taskPrompt ? { text: taskPrompt, origin: { kind: MessageKind.Tool } } : undefined, immediateParentChatUri);
 			return;
 		}
 
@@ -1289,7 +1289,7 @@ export class AgentSideEffects extends Disposable {
 			type: ActionType.ChatTurnStarted,
 			turnId,
 			startedAt: new Date().toISOString(),
-			message: { text: taskPrompt ?? '', origin: { kind: MessageKind.User } },
+			message: { text: taskPrompt ?? '', origin: { kind: MessageKind.Tool } },
 		});
 		const agent = this._options.getAgent(parentSessionUri);
 		if (agent) {
@@ -1366,7 +1366,7 @@ export class AgentSideEffects extends Disposable {
 			type: ActionType.ChatTurnStarted,
 			turnId,
 			startedAt: new Date().toISOString(),
-			message: message ?? { text: '', origin: { kind: MessageKind.User } },
+			message: message ?? { text: '', origin: { kind: MessageKind.Tool } },
 		});
 		const agent = this._options.getAgent(subagent.sessionUri);
 		if (agent) {

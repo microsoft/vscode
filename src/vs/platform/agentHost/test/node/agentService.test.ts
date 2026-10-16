@@ -29173,6 +29173,41 @@ suite('AgentService (node dispatcher)', () => {
 
 	suite('subagent membership sequencing', () => {
 
+		for (const legacyChatUris of [true, false]) {
+			test(`reading a worker chat does not add an empty chat (legacyChatUris=${legacyChatUris})`, async () => {
+				registerTestAgentProvider(service, copilotAgent);
+				const session = await service.createSession({ legacyChatUris, provider: 'copilot' });
+				const stateManager = getStateManager(service);
+				const parentChat = stateManager.getSessionState(session.toString())?.defaultChat;
+				assert.ok(parentChat);
+				service.dispatchAction(parentChat, {
+					type: ActionType.ChatTurnStarted,
+					turnId: 'parent-turn',
+					startedAt: '2025-01-01T00:00:00.000Z',
+					message: { text: 'Delegate', origin: { kind: MessageKind.User } },
+				}, 'client-test', 1);
+				copilotAgent.fireProgress({
+					kind: 'subagent_started', chat: URI.parse(parentChat), toolCallId: 'tc-worker',
+					agentName: 'explore', agentDisplayName: 'Explore', taskPrompt: 'Inspect the code',
+				});
+				const worker = stateManager.getSessionState(session.toString())?.chats.find(chat => chat.origin?.kind === ChatOriginKind.Tool);
+				assert.ok(worker);
+
+				const snapshot = await service.subscribe(URI.parse(worker.resource), 'worker-reader');
+				assert.deepStrictEqual({
+					chats: stateManager.getSessionState(session.toString())?.chats.map(chat => chat.resource),
+					snapshotResource: snapshot.resource,
+					message: stateManager.getChatState(worker.resource)?.activeTurn?.message,
+					legacySessionExists: !!stateManager.getSessionState(buildSubagentSessionUri(session, 'tc-worker')),
+				}, {
+					chats: [parentChat, worker.resource],
+					snapshotResource: worker.resource,
+					message: { text: 'Inspect the code', origin: { kind: MessageKind.Tool } },
+					legacySessionExists: false,
+				});
+			});
+		}
+
 		/** Fires a parent turn on the session's default chat. */
 		function startParentTurn(session: URI, turnId: string): string {
 			const defaultChat = getStateManager(service).getDefaultChat(session.toString());
