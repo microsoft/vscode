@@ -21,7 +21,7 @@ import type { IAgentHostSessionChatStateData, IAgentHostSessionChatStateFields, 
 import { BASE_BRANCH_MIRROR_KEY, COPILOT_LAUNCH_DIRECTORY_KEYS, getSessionStateValueKey, IMirrorReadPlan, isProjectedMirrorEntry, isRetiredLegacyKey, legacyMapWritePatch, legacyWriteEntry, ILiveChat, baseBranchSources, CHAT_WORKING_DIRECTORIES_MIRROR_KEY, MirrorReads, mergePatches, mirroredChatFields, mirrorEntryId, observedMirrorEntries, observeLegacyArchived, observeMirrorEntry, parseMirrorEntryId, patchFromMirror, patchMirrorEntries, planMirrorReads, renderLegacyMetadata, renderMirrorEntry, renderMirrorWrites, SESSION_STATE_VALUE_KEYS, sessionFolderKey, SessionStateMirrorEntry, SessionStateModel } from './agentHostSessionStateMirror.js';
 import { META_GITHUB_STATE } from '../common/agentHostGitStateService.js';
 import { SESSION_WORKING_DIRECTORIES_KEY } from './shared/persistSessionMetadata.js';
-import { creationTimeChatStorageResource } from './agentHostStateManager.js';
+import { creationTimeChatStorageResource, mirrorsAtChatUri } from './agentHostStateManager.js';
 
 /** Coalescing window of the old-format mirror writes. */
 export const SESSION_STATE_MIRROR_FLUSH_DELAY = 250;
@@ -720,7 +720,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		this._records.set(key, record);
 		this._createdDefaultChats.delete(key);
 		try {
-			await this.chatRows.moveRows(session, this._snapshot(record), readCatalogRow, state.rowsMoved, state.header.rowsRevision, state.header.rowsMirroredRevision, mirrorEdited);
+			await this.chatRows.moveRows(session, this._snapshot(record), readCatalogRow, state.rowsMoved, state.header.rowsRevision, state.header.rowsMirroredRevision, mirrorEdited, state.draftMirrorBases);
 		} catch (error) {
 			this._logService.warn(`[AgentHostSessionStateStore] Failed to move the chat rows of ${key}`, error);
 		}
@@ -1061,9 +1061,12 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			const isDefault = (chat: string) => record.model.chats.get(chat)?.isDefault ?? false;
 			const writes = renderMirrorWrites(record.key, record.model, entries, isDefault, live);
 			for (const [resource, write] of writes) {
+				const storage = record.model.chats.get(resource)?.storageResource;
+				// Older builds read a chat's mirror at its chat URI: a chat stored elsewhere gets none.
+				const mirrored = resource !== record.key && live.some(chat => chat.chat === resource) && (storage === undefined || mirrorsAtChatUri(resource, storage));
 				const reference = resource === record.key
 					? this._sessionDataService.openDatabase(record.session)
-					: live.some(chat => chat.chat === resource) ? await this._sessionDataService.tryOpenDatabase(URI.parse(resource)) : undefined;
+					: mirrored ? await this._sessionDataService.tryOpenDatabase(URI.parse(resource)) : undefined;
 				if (!reference) {
 					// A chat that is gone, or whose database does not exist: there is nothing older builds could read there.
 					for (const id of write.entries) {

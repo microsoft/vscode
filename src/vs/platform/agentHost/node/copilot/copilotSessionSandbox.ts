@@ -40,9 +40,12 @@ interface ISandboxConfigChange {
 
 interface ICopilotSessionSandboxOptions {
 	readonly sessionId: string;
+	/** The owner the SDK session was launched for; it configures the running process until the relaunch. */
 	readonly ownerSession: URI;
 	/** The chat this SDK session runs; the sandbox selection and applied state are the chat's. */
 	readonly chat: URI;
+	/** Where a rejected selection is written back: the chat under its current owner, where the change came from. */
+	readonly getConfigWriteTarget: () => IAgentChatConfigurationTarget;
 	readonly platform: NodeJS.Platform;
 	readonly getSession: () => CopilotSession;
 	readonly getHostSupport: () => ReturnType<CopilotClient['rpc']['sandbox']['getHostSupport']>;
@@ -195,7 +198,7 @@ export class CopilotSessionSandbox extends Disposable {
 
 	/** Captures request attribution before permission synchronization can yield. */
 	prepareConfigChange(event?: ISandboxConfigChange) {
-		const values = this._configurationService.getChatConfigValues(this._target());
+		const values = this._configurationService.getChatConfigValues(this._options.getConfigWriteTarget());
 		const selection = event?.origin ? event.config[SessionConfigKey.SandboxEnabled] : undefined;
 		const requestedSelection = selection === 'on' || selection === 'off' || selection === 'default' ? selection : undefined;
 		const sessionCommand = requestedSelection !== undefined && this._requiresSessionCommand();
@@ -221,7 +224,7 @@ export class CopilotSessionSandbox extends Disposable {
 	private _rejectConfigChange(event: ISandboxConfigChange | undefined, values: Record<string, unknown> | undefined, error: unknown): void {
 		if (event?.origin && Object.hasOwn(event.config, SessionConfigKey.SandboxEnabled)) {
 			const message = getErrorMessage(error);
-			this._configurationService.rejectChatSandboxChange(this._target(), values, event.origin,
+			this._configurationService.rejectChatSandboxChange(this._options.getConfigWriteTarget(), values, event.origin,
 				message.includes('Command /sandbox cannot run while the agent is active.')
 					? localize('copilot.sandbox.agentActive', "Wait for the agent to finish executing, then try again.")
 					: message);

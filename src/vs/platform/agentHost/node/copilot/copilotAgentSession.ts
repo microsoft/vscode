@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createLocalModelTurnExecutionMeta, type UsageInfoMeta } from '../../common/meta/agentUsageMeta.js';
+import { createLocalModelTurnExecutionMeta, isAiCreditsStatus, type UsageInfoMeta } from '../../common/meta/agentUsageMeta.js';
 import type { ILocalTurnExecution } from '../../common/localModel.js';
 import type { ILocalModelDirectRequestWait } from './localModelBridge/localModelProvider.js';
 import type { AttributedPermissionResult, CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, JsonValue, MessageOptions, PermissionDecisionSource, PermissionMode, PermissionAssistedApproval, PermissionRequest, PermissionRequestResult, PermissionResult, SessionConfig, SessionEvent, SessionEventPayload, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolInvocation, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
@@ -17,7 +17,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { Emitter } from '../../../../base/common/event.js';
 import { CancellationError, getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
 import { escapeMarkdownSyntaxTokens } from '../../../../base/common/htmlContent.js';
-import { Disposable, DisposableMap, IReference, type IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, type IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
@@ -41,7 +41,7 @@ import { getCopilotHomePath, getCopilotMcpConfigurationPath } from '../../../env
 import { AgentHostHydraFusionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, isCopilotHydraFusionModelId } from '../../common/copilotCliConfig.js';
 import { logSettingExperimentTrigger } from '../../../telemetry/common/experimentTrigger.js';
 import { withCustomizationEnablement } from '../../common/customizationEnablement.js';
-import { isAutoModeRoutingTier, type AutoModeRoutingTier, type AutoModeTier } from '../../common/autoModeTiers.js';
+import { isAutoModeRoutingTier, type AutoModeRoutingTier } from '../../common/autoModeTiers.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from '../../common/agentHostPlanReview.js';
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
@@ -53,9 +53,12 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoAppro
 import { reconcileCopilotConnectors } from './copilotConnectors.js';
 import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext, type IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { measureAgentProviderOperation } from '../../common/agentHostProviderTiming.js';
-import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, subagentChatTitle, type AgentCanvasExtensionSource, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
+import { AgentSession, type IAgentChatOwnerRef, COPILOT_CLI_AGENT_PROVIDER_ID, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, subagentChatTitle, type AgentCanvasExtensionSource, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
 import { isReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { agentModelConfigurationMetaKey, IAgentRuntimeModelConfiguration, readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
+import { agentModelConfigurationReportKey, type IAgentModelConfigurationReport } from '../../common/agentModelConfiguration.js';
+import { createCopilotModelConfigurationReport } from './copilotManagedModelConfiguration.js';
+import { resolveCopilotManagedSettings } from './copilotManagedSettings.js';
 import { ObservedTokenUsage } from './observedTokenUsage.js';
 import { META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
@@ -72,9 +75,9 @@ import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri
 import { isHostSnapshotAttachment } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { ISessionDatabase, ISessionDataService, MAX_TERMINAL_OUTPUT_BYTES } from '../../common/sessionDataService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
-import { BackgroundWorkKind, ConfirmationOptionKind, MessageAttachmentKind, ToolCallContributorKind, type BackgroundWork, type FileEdit, type MessageAttachment, type ToolCallContributor } from '../../common/state/protocol/state.js';
+import { BackgroundWorkKind, ConfirmationOptionKind, MessageAttachmentKind, ToolCallContributorKind, type BackgroundWork, type FileEdit, type MessageAttachment, type ModelSelection, type ToolCallContributor } from '../../common/state/protocol/state.js';
 import { ActionType, isChatAction, type ChatAction, type ChatToolCallReadyAction, type SessionAction } from '../../common/state/sessionActions.js';
-import { subagentChatUri, type ChatUriFormat } from '../../common/agentHostChatMinting.js';
+import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentSessionUri, createErrorResponsePart, isSubagentSession, type CanvasState, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
 import { buildCanvasUri } from '../../common/canvasUri.js';
 import { IAgentConfigurationService, type IAgentChatConfigurationChangeEvent, type IAgentChatConfigurationTarget } from '../agentConfigurationService.js';
@@ -120,7 +123,7 @@ import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, 
 import type { ErrorInfo, ProtectedResourceMetadata } from '../../common/state/protocol/common/state.js';
 import { CopilotSlashCommandProvider } from './copilotSlashCommandProvider.js';
 import { CopilotMcpToolRoutingCache, getMcpRoutingCacheKey, getMcpRoutingProxyName, type ICopilotMcpRoutingServer, type ICopilotMcpRoutingTool } from './copilotMcpToolRoutingCache.js';
-import { getCopilotCustomizationCommandHandler, installCopilotPlugin, removeCopilotPluginMarketplace, uninstallCopilotPlugin } from './copilotCustomizationCommandDisplay.js';
+import { getCopilotCustomizationCommandHandler, installCopilotPlugin, type ICopilotPluginCommandApi, removeCopilotPluginMarketplace, uninstallCopilotPlugin } from './copilotCustomizationCommandDisplay.js';
 import { renderCopilotSlashCommandOutput, type RuntimeSlashCommandInfo } from './copilotSlashCommand.js';
 import { CopilotSandboxPolicyDisplay } from './copilotSandboxPolicyDisplay.js';
 import { toSlashCommandResourceMeta } from '../../common/meta/agentSlashCommandOutputMeta.js';
@@ -623,10 +626,9 @@ async function isPathWithinDirectory(filePath: string, directory: URI, resolveRe
  */
 export interface ICopilotAgentSessionOptions {
 	readonly onSessionEvent?: (event: SessionEvent) => void;
-	readonly sessionUri: URI;
+	/** The chat's owner, read at each use: it can change while this runtime lives. */
+	readonly owner: IAgentChatOwnerRef;
 	readonly chatChannelUri: URI;
-	/** Format of the subagent chat ids minted for this chat's session. */
-	readonly subagentChatUriFormat: ChatUriFormat;
 	/** Exact persistence/config scope for this chat (`IAgentChatContext.resource` when supplied). */
 	readonly resource?: URI;
 	readonly rawSessionId: string;
@@ -646,6 +648,8 @@ export interface ICopilotAgentSessionOptions {
 	readonly hostCustomizations?: () => readonly Customization[];
 	/** Reads configured user servers before SDK launch, without waiting for their connection inventory. */
 	readonly getUserMcpServerNames?: () => Promise<ReadonlySet<string>>;
+	/** Lists globally installed plugins, including disabled entries omitted from the live session inventory. */
+	readonly getInstalledPlugins?: () => Promise<Awaited<ReturnType<ICopilotPluginCommandApi['list']>>['plugins']>;
 	/**
 	 * Live registry of every active client's tool contributions, shared by
 	 * reference with the agent's per-session {@link ActiveClient}. Read at
@@ -923,6 +927,7 @@ class CopilotTurn extends Disposable {
 	readonly sdkTurnIds = new Set<string>();
 	readonly interactionIds = new Set<string>();
 	activeSdkTurnId: string | undefined;
+	imageGenerationSdkTurnId: string | undefined;
 	toolCallRounds = 0;
 	totalToolCalls = 0;
 	parallelToolCallRounds = 0;
@@ -1037,15 +1042,25 @@ export class CopilotAgentSession extends Disposable {
 	private _pendingSnapshotReminder: string | undefined;
 	readonly sessionId: string;
 	readonly resourceUri: URI;
-	private readonly _ownerSessionUri: URI;
+	private readonly _owner: IAgentChatOwnerRef;
+	/**
+	 * The owner this runtime was launched for. Everything that configures the
+	 * running process reads it until the relaunch at the next turn boundary
+	 * after an owner change: the launcher, sandbox policy, customization and MCP
+	 * enablement, MCP customization ids and their publication, server tools,
+	 * the config target and approval modes.
+	 */
+	readonly launchOwner: URI;
 	private readonly _controlPlaneRpcTimeoutMs: number;
 	private _controlPlaneDesynchronized = false;
-	get ownerSessionUri(): URI { return this._ownerSessionUri; }
+	/** The chat's current owner, for per-turn identity: session actions, subagent chat URIs, terminal links and claims, edit attribution, telemetry. */
+	private get _ownerSessionUri(): URI { return this._owner.get(); }
+	get ownerSessionUri(): URI { return this._owner.get(); }
+	get ownerRef(): IAgentChatOwnerRef { return this._owner; }
 	/** @deprecated Compatibility alias for SDK callbacks; this is the exact persistence resource. */
 	get sessionUri(): URI { return this.resourceUri; }
 	private readonly _chatChannelUri: URI;
-	private readonly _subagentChatUriFormat: ChatUriFormat;
-	/** Fixed persistence scope for this chat; never re-derived from the mutable routing channel. Config reads/writes must use {@link _ownerSessionUri} instead — peer chats share that scope but have distinct storage. */
+	/** Fixed persistence scope for this chat; never re-derived from the mutable routing channel. Config reads/writes go through {@link _configTarget} instead — peer chats share that scope but have distinct storage. */
 	private readonly _storageUri: URI;
 
 	get chatChannelUri(): URI {
@@ -1215,8 +1230,6 @@ export class CopilotAgentSession extends Disposable {
 	>();
 	/** File edit tracker for this session. */
 	private readonly _editTracker: FileEditTracker;
-	/** Session database reference. */
-	private readonly _databaseRef: IReference<ISessionDatabase>;
 	private readonly _pendingOutputCaptures = new Set<Promise<void>>();
 	/**
 	 * The current protocol turn and its per-turn bookkeeping, or `undefined`
@@ -1296,6 +1309,36 @@ export class CopilotAgentSession extends Disposable {
 		} finally {
 			this._idleWaiters.delete(waiter);
 			waiter.complete(false);
+		}
+	}
+
+	/**
+	 * Starts the session's MCP servers ahead of the first message. Creating an
+	 * SDK session leaves MCP lazy until the first message or the first
+	 * `session.mcp.list`, while `rpc.mcp.listConfigured` deliberately does not
+	 * start anything; listing is therefore what brings a pre-warmed session's
+	 * servers, and any sign-in they require, up before the user sends.
+	 */
+	async startMcpServers(): Promise<void> {
+		await this._wrapper.session.rpc.mcp.list();
+	}
+
+	/**
+	 * Holds `agentHost.copilotSdkSessionError` reports until
+	 * {@link releaseHeldSessionErrorTelemetry}. A pre-warmed session may never
+	 * be used, so its errors only count once a send claims it; disposing the
+	 * session without releasing drops them.
+	 */
+	holdSessionErrorTelemetry(): void {
+		this._heldSessionErrorReports ??= [];
+	}
+
+	/** Reports the session errors held since {@link holdSessionErrorTelemetry} and stops holding. */
+	releaseHeldSessionErrorTelemetry(): void {
+		const held = this._heldSessionErrorReports;
+		this._heldSessionErrorReports = undefined;
+		for (const report of held ?? []) {
+			report();
 		}
 	}
 
@@ -1511,6 +1554,8 @@ export class CopilotAgentSession extends Disposable {
 	 * per-event `copilotUsage` instead (see {@link CopilotTurn.copilotNanoAiu}).
 	 */
 	private _sessionTotalNanoAiu = 0;
+	private _sessionAiCreditsStatus: NonNullable<UsageInfoMeta['copilotUsage']>['sessionAiCreditsStatus'];
+	private readonly _toolUsageRequestIds = new Set<string>();
 	private _promptCacheState: ISessionPromptCacheState | undefined;
 	private _promptCacheRefreshGeneration = 0;
 	/** Reads the latest retained host snapshot for this session. */
@@ -1530,6 +1575,9 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _sessionUsageMetricsRefreshThrottler = this._register(new Throttler());
 	/** SDK session wrapper, set by {@link initializeSession}. */
 	private _wrapper!: CopilotSessionWrapper;
+	private readonly _wrapperDisposables = this._register(new DisposableStore());
+	/** Session error reports deferred while this session is an unclaimed pre-warmed session. */
+	private _heldSessionErrorReports: (() => void)[] | undefined;
 	/** BYOK providers and models registered on {@link _wrapper}; seeded at launch and grown by {@link syncByokModels}. */
 	private _registeredByokConfig: ICopilotByokSessionConfig = {};
 	private readonly _byokSync = new Sequencer();
@@ -1542,6 +1590,7 @@ export class CopilotAgentSession extends Disposable {
 	private _workingDirectoryMutationInProgress = false;
 	private _requiresRestartAfterWorkingDirectoryChange = false;
 	private _requiresRestartAfterModelChange = false;
+	private _requiresRestartAfterTelemetryRevocation = false;
 	private readonly _slashCommandProvider: CopilotSlashCommandProvider;
 	/** Last agent mode pushed to the SDK via {@link applyMode}, to elide redundant `rpc.mode.set` calls. */
 	private _lastAppliedMode: CopilotSdkMode | undefined;
@@ -1639,6 +1688,8 @@ export class CopilotAgentSession extends Disposable {
 	/** Set once a script file may exist; gates the sandbox grant and dispose-time cleanup. */
 	private _shellInitScriptMaterialized = false;
 	private readonly _shellInitScriptSequencer = new Sequencer();
+	private readonly _imageGenerationSequencer = new Sequencer();
+	private _appliedImageGenerationEnabled: boolean | undefined;
 	private _shellInitScriptDisposing = false;
 	/**
 	 * Scopes this instance's script files so a disposed predecessor's queued
@@ -1646,6 +1697,10 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private readonly _shellInitScriptInstanceId = generateUuid().substring(0, 8);
 	private readonly _launchPlan: CopilotSessionLaunchPlan;
+	private readonly _modelConfigurationOwner = generateUuid();
+	private _modelConfigurationGeneration = 0;
+	private readonly _modelConfigurationRefresh = this._register(new Throttler());
+	private _requestedModel: ModelSelection | undefined;
 	private readonly _onSessionEvent: ((event: SessionEvent) => void) | undefined;
 	private readonly _canvasByInstanceId = new Map<string, ICanvasProjectionEntry>();
 	private _canvasExtensions: SessionEventPayload<'session.extensions_loaded'>['data']['extensions'] | undefined;
@@ -1772,18 +1827,18 @@ export class CopilotAgentSession extends Disposable {
 		this._developmentErrorInjectionEnabled = options.enableDevelopmentErrorInjection ?? !product.commit;
 		this._subagentTaskCompletionDelay = options.subagentTaskCompletionDelay ?? SUBAGENT_TASK_COMPLETION_DELAY_MS;
 		this.sessionId = options.rawSessionId;
-		this._ownerSessionUri = options.sessionUri;
+		this._owner = options.owner;
+		this.launchOwner = options.owner.get();
 		this._controlPlaneRpcTimeoutMs = options.controlPlaneRpcTimeoutMs ?? CONTROL_PLANE_RPC_TIMEOUT_MS;
 		this._connectorRefreshTimeoutMs = options.connectorRefreshTimeoutMs ?? CONNECTOR_REFRESH_TIMEOUT_MS;
 		this._onConnectorRefreshRetryable = options.onConnectorRefreshRetryable ?? (() => { });
-		this.resourceUri = options.resource ?? options.sessionUri;
+		this.resourceUri = options.resource ?? this.launchOwner;
 		this._chatChannelUri = options.chatChannelUri;
-		this._subagentChatUriFormat = options.subagentChatUriFormat;
 		this._storageUri = this.resourceUri;
 		const sandboxPolicyDisplay = this._instantiationService.createInstance(CopilotSandboxPolicyDisplay, this.sessionId, this._storageUri);
 		this._slashCommandProvider = new CopilotSlashCommandProvider(
 			() => this._wrapper.session.rpc.commands.list({ includeBuiltins: true, includeSkills: true, includeClientCommands: true }).then(c => c.commands),
-			{ getCommandHandler: command => sandboxPolicyDisplay.getHandler(command) ?? getCopilotCustomizationCommandHandler(command, this._wrapper.session.rpc.plugins) },
+			{ getCommandHandler: command => sandboxPolicyDisplay.getHandler(command) ?? getCopilotCustomizationCommandHandler(command, this._wrapper.session.rpc.plugins, options.getInstalledPlugins) },
 			this._logService,
 		);
 		this._onDidSessionProgress = options.onDidSessionProgress;
@@ -1795,6 +1850,8 @@ export class CopilotAgentSession extends Disposable {
 		}
 		this._sessionLauncher = options.sessionLauncher;
 		this._launchPlan = options.launchPlan;
+		this._requestedModel = options.launchPlan.kind === 'create' ? options.launchPlan.model : options.launchPlan.fallback.model;
+		this._register(toDisposable(() => this._publishModelConfiguration(undefined)));
 		this._register(toDisposable(() => this._disposeLocalModelState()));
 		const directRequestWaits = options.launchPlan.localModelProvider?.onDidDirectRequestWait;
 		if (directRequestWaits) {
@@ -1803,8 +1860,9 @@ export class CopilotAgentSession extends Disposable {
 		this._onSessionEvent = options.onSessionEvent;
 		this._sandbox = this._register(this._instantiationService.createInstance(CopilotSessionSandbox, {
 			sessionId: this.sessionId,
-			ownerSession: this._ownerSessionUri,
+			ownerSession: this.launchOwner,
 			chat: options.chatChannelUri,
+			getConfigWriteTarget: () => this._configWriteTarget(),
 			platform: options.platform ?? process.platform,
 			getSession: () => this._wrapper.session,
 			getHostSupport: () => this._launchPlan.client.rpc.sandbox.getHostSupport(),
@@ -1815,7 +1873,7 @@ export class CopilotAgentSession extends Disposable {
 		this._onTurnEnded = options.onTurnEnded ?? (() => { });
 		this._onSteeringReady = options.onSteeringReady;
 		this._shellManager = options.shellManager;
-		this._nonPtyShellTerminals = this._register(this._instantiationService.createInstance(NonPtyShellTerminalStreams, options.sessionUri, this._storageUri, options.chatChannelUri));
+		this._nonPtyShellTerminals = this._register(this._instantiationService.createInstance(NonPtyShellTerminalStreams, options.owner, this._storageUri, options.chatChannelUri));
 		this._workingDirectory = options.workingDirectory;
 		this._customizationDirectory = options.customizationDirectory;
 		this._serverToolHost = options.serverToolHost;
@@ -1861,13 +1919,12 @@ export class CopilotAgentSession extends Disposable {
 		this._activeClientToolSet = options.activeClientToolSet ?? new ActiveClientToolSet();
 		this._clientReachesChat = options.clientReachesChat ?? (() => true);
 
-		this._databaseRef = this._sessionDataService.openDatabase(this._storageUri);
-		this._register(toDisposable(() => this._databaseRef.dispose()));
+		// Keep the connection warm; asynchronous consumers acquire their own references.
+		this._register(this._sessionDataService.openDatabase(this._storageUri));
 		this._editTracker = this._instantiationService.createInstance(
 			FileEditTracker,
 			this._storageUri.toString(),
-			this._ownerSessionUri.toString(),
-			this._databaseRef.object,
+			() => this._ownerSessionUri.toString(),
 			COPILOT_CLI_AGENT_PROVIDER_ID,
 		);
 
@@ -1878,12 +1935,13 @@ export class CopilotAgentSession extends Disposable {
 		this._mcpCustomizations = this._register(this._instantiationService.createInstance(McpCustomizationController, {
 			provider: COPILOT_CLI_AGENT_PROVIDER_ID,
 			chatUri: this._chatChannelUri,
-			sessionUri: this._ownerSessionUri,
-			emit: action => this._emitAction(action),
+			sessionUri: this.launchOwner,
+			// MCP customization ids name the launch owner, so they are published there until the relaunch.
+			emit: action => this._emitLaunchAction(action),
 			pluginMcpServerSources: () => pluginMcpServerSources,
 			resolveProvenance: serverName => this._resolveMcpServerProvenance(serverName, pluginMcpServerSources),
 			resolveEnablement: (server, owningPluginUri) => {
-				const resolution = this._customizationEnablementService.resolve(this._ownerSessionUri.toString(), targetForMcpServer(server, owningPluginUri, false));
+				const resolution = this._customizationEnablementService.resolve(this.launchOwner.toString(), targetForMcpServer(server, owningPluginUri, false));
 				return resolution.kind === 'resolved' ? resolution.enablement : undefined;
 			},
 			// The runtime adds its own GitHub server only while the setting is on; a server merely named the same
@@ -1936,6 +1994,15 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.error(message);
 		}
 		return true;
+	}
+
+	/** Emits an action about the running process's configuration: session actions go to the owner it launched for. */
+	private _emitLaunchAction(action: SessionAction | ChatAction): void {
+		if (isChatAction(action)) {
+			this._emitAction(action);
+			return;
+		}
+		this._onDidSessionProgress.fire({ kind: 'action', resource: this.launchOwner, action });
 	}
 
 	/** Wraps a {@link SessionAction} in an {@link AgentSignal} envelope and emits it. */
@@ -2659,7 +2726,7 @@ export class CopilotAgentSession extends Disposable {
 
 	/** The id of the subagent chat spawned by `toolCallId` of this chat's conversation. */
 	private _subagentChatUri(toolCallId: string): string {
-		return subagentChatUri(this._subagentChatUriFormat, this._ownerSessionUri.toString(), this._chatChannelUri.toString(), toolCallId);
+		return subagentChatUri(this._owner.getSubagentChatUriFormat(), this._ownerSessionUri.toString(), this._chatChannelUri.toString(), toolCallId);
 	}
 
 	private _directUsageFor(parentToolCallId: string | undefined, create: boolean): DirectUsageAccumulator | undefined {
@@ -2725,7 +2792,7 @@ export class CopilotAgentSession extends Disposable {
 		const subagentMeta = toolKind === 'subagent' ? getSubagentMetadata(parameters) : undefined;
 		const clientToolName = this._clientToolName(toolName);
 		const networkRestrictions = this._clientToolNames.has(clientToolName)
-			? getCopilotBrowserSandboxNetworkRestrictions(this._configurationService, { session: this._ownerSessionUri.toString(), chat: this._chatChannelUri.toString() }, clientToolName) : undefined;
+			? getCopilotBrowserSandboxNetworkRestrictions(this._configurationService, { session: this.launchOwner.toString(), chat: this._chatChannelUri.toString() }, clientToolName) : undefined;
 		return {
 			...(networkRestrictions ? {
 				'vscode.copilotSandboxNetworkRestrictions': networkRestrictions,
@@ -2850,6 +2917,7 @@ export class CopilotAgentSession extends Disposable {
 		try {
 			return await this._sessionUsageMetricsRefreshThrottler.queue(async () => {
 				const promptCacheRefreshGeneration = this._promptCacheRefreshGeneration;
+				const meteredOperationCount = this._toolUsageRequestIds.size;
 				const metrics = await this._wrapper.session.rpc.usage.getMetrics();
 				const modelId = metrics.currentModel;
 				if (!this._store.isDisposed && modelId && promptCacheRefreshGeneration === this._promptCacheRefreshGeneration) {
@@ -2858,10 +2926,16 @@ export class CopilotAgentSession extends Disposable {
 				}
 
 				const total = metrics.totalNanoAiu;
-				if (typeof total !== 'number' || !Number.isFinite(total) || total < 0 || total === this._sessionTotalNanoAiu) {
+				const rawMetrics: typeof metrics & { aiCreditsStatus?: unknown } = metrics;
+				const status = isAiCreditsStatus(rawMetrics.aiCreditsStatus) ? rawMetrics.aiCreditsStatus : undefined;
+				if (this._store.isDisposed || meteredOperationCount !== this._toolUsageRequestIds.size
+					|| typeof total !== 'number' || !Number.isFinite(total) || total < 0
+					|| (total === this._sessionTotalNanoAiu && status === this._sessionAiCreditsStatus)) {
 					return false;
 				}
 				this._sessionTotalNanoAiu = total;
+				this._sessionAiCreditsStatus = status;
+				this._publishSessionUsage();
 				return true;
 			});
 		} catch (err) {
@@ -2871,19 +2945,32 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
+	private _publishSessionUsage(): void {
+		this._onDidSessionProgress.fire({
+			kind: 'chat_usage',
+			chat: this._chatChannelUri,
+			usage: {
+				totalNanoAiu: this._sessionTotalNanoAiu,
+				...(this._sessionAiCreditsStatus !== undefined ? { aiCreditsStatus: this._sessionAiCreditsStatus } : {}),
+			},
+		});
+	}
+
 	/**
 	 * The parent-scope Copilot billing metadata for the active turn: the turn's
 	 * own accumulated cost plus the SDK's session-wide total. Absent until
-	 * something has actually been billed.
+	 * billed usage or its completeness has been reported.
 	 */
 	private _parentCopilotUsageMeta(): UsageInfoMeta['copilotUsage'] | undefined {
 		const turnNanoAiu = this._currentTurn.value?.copilotNanoAiu ?? 0;
-		if (!turnNanoAiu && !this._sessionTotalNanoAiu) {
+		const reportedTurnCost = this._currentTurn.value?.directUsage.copilotNanoAiu !== undefined;
+		if (!turnNanoAiu && !reportedTurnCost && !this._sessionTotalNanoAiu && this._sessionAiCreditsStatus === undefined) {
 			return undefined;
 		}
 		return {
-			...(turnNanoAiu ? { totalNanoAiu: turnNanoAiu } : {}),
-			...(this._sessionTotalNanoAiu ? { sessionTotalNanoAiu: this._sessionTotalNanoAiu } : {}),
+			...(turnNanoAiu || reportedTurnCost ? { totalNanoAiu: turnNanoAiu } : {}),
+			...(this._sessionTotalNanoAiu || this._sessionAiCreditsStatus !== undefined ? { sessionTotalNanoAiu: this._sessionTotalNanoAiu } : {}),
+			...(this._sessionAiCreditsStatus !== undefined ? { sessionAiCreditsStatus: this._sessionAiCreditsStatus } : {}),
 		};
 	}
 
@@ -3180,6 +3267,14 @@ export class CopilotAgentSession extends Disposable {
 
 	markModelChangeRequiresRestart(): void {
 		this._requiresRestartAfterModelChange = true;
+	}
+
+	get requiresRestartAfterTelemetryRevocation(): boolean {
+		return this._requiresRestartAfterTelemetryRevocation;
+	}
+
+	markTelemetryRevocationRequiresRestart(): void {
+		this._requiresRestartAfterTelemetryRevocation = true;
 	}
 
 	get requiresMcpLaunchConfigurationRefresh(): boolean {
@@ -3514,7 +3609,8 @@ export class CopilotAgentSession extends Disposable {
 		if (!host) {
 			return [];
 		}
-		const sessionUri = this._ownerSessionUri.toString();
+		// Server tools are registered with the SDK at launch: the launch owner's.
+		const sessionUri = this.launchOwner.toString();
 		return host.getDefinitionsForSession(sessionUri).filter(def => !this._launchPlan.isEphemeral || def.enabledForEphemeralSessions).map(def => ({
 			name: def.name,
 			description: def.description ?? '',
@@ -3602,77 +3698,126 @@ export class CopilotAgentSession extends Disposable {
 	 * construction before using the session.
 	 */
 	async initializeSession(): Promise<void> {
-		await this._customizationEnablementService.initializeSession(this._ownerSessionUri.toString());
+		await this._customizationEnablementService.initializeSession(this.launchOwner.toString());
 		await this._refreshUserMcpServerNames();
 		if (this._store.isDisposed) {
 			throw new CancellationError();
 		}
-		const wrapper = await this._sessionLauncher.launch(this._launchPlan, this._createRuntimeAdapter());
-		// The session may have been disposed while we were awaiting the
-		// launcher. If so, dispose the freshly-created wrapper and
-		// skip subscribing — registering on a disposed store would leak.
-		if (this._store.isDisposed) {
-			wrapper.dispose();
-			throw new CancellationError();
-		}
-		this._wrapper = this._register(wrapper);
-		this._registeredByokConfig = wrapper.launchByokConfig;
-		this._reportLocalModelSelection(this._launchPlan.kind === 'create' ? this._launchPlan.model?.id : this._launchPlan.fallback.model?.id);
-		this._canvasExtensions = undefined;
-		this._ignoredRestoredCanvasInstanceIds.clear();
-		if (this._launchPlan.kind === 'resume') {
-			for (const canvas of wrapper.session.openCanvases) {
-				if (!this._canvasByInstanceId.has(canvas.instanceId)) {
-					this._ignoredRestoredCanvasInstanceIds.add(canvas.instanceId);
-				}
-			}
-		}
-		if (!wrapper.canvasRuntimeEnabled) {
-			this._canvasByInstanceId.clear();
-		}
-		const samplingInterest = await wrapper.session.rpc.eventLog.registerInterest({ eventType: 'sampling.requested' });
-		if (this._store.isDisposed) {
-			throw new CancellationError();
-		}
-		wrapper.setBeforeDisconnect(async () => {
-			await Promise.allSettled(this._pendingOutputCaptures);
-			try {
-				await this._awaitControlPlaneRpc('rpc.eventLog.releaseInterest', wrapper.session.rpc.eventLog.releaseInterest({ handle: samplingInterest.handle }));
-			} catch (error) {
-				this._logService.error(error, `[Copilot:${this.sessionId}] Failed to release sampling event interest`);
-			}
-		});
 		this._register(this._customizationEnablementService.onDidChange(event => {
-			if (!event.sessions.includes(this._ownerSessionUri.toString())) {
+			if (!event.sessions.includes(this.launchOwner.toString())) {
 				return;
 			}
 			this._markMcpLaunchConfigurationDirty();
 			this._reconcileMcpServerEnablement().catch(error => this._logService.error(error, `[Copilot:${this.sessionId}] Failed to reconcile MCP enablement after customizations changed`));
 		}));
-		this._subscribeToEvents();
-		this._subscribeToSdkEvents();
-		this._readCommittedAutoTier(wrapper);
-		this._subscribeForMemoInvalidation();
-		this._subscribeForInstructionsCollectedTelemetry();
 		this._subscribeToPermissionConfigChanges();
-		await this._sandbox.updateDiagnostics();
-		await this._waitForCanvasExtensions(wrapper);
-		await this._reconcileCanvasHandoff(wrapper);
-		await this._syncShellInitScript();
-		this._promptCacheState = this._promptCache.read(this.resourceUri);
-		if (this._launchPlan.kind === 'resume') {
-			await this._refreshSessionUsageMetrics();
-			if (this._store.isDisposed) {
-				throw new CancellationError();
-			}
-			// Warm the persisted-event reconstruction so canonical subagent names are known before the next turn labels agent reads.
-			this._getMappedEvents().catch(() => { /* surfaced to whichever caller reads the messages */ });
-		}
+		await this._initializeSdkWrapper();
 
 		// Advertise the agent host's server tools for this session so clients
 		// see them as server-provided. Execution happens in-process via the SDK
 		// tool handlers built in `_createServerSdkTools`.
 		this._serverToolHost?.advertise(this._storageUri.toString());
+	}
+
+	/**
+	 * Re-launches the underlying SDK session if telemetry was revoked after
+	 * {@link initializeSession} finished its launch loop (e.g. while
+	 * `beforeRegistration` or `refreshConnectors` was running).
+	 */
+	async revalidateTelemetryBeforeRegistration(): Promise<void> {
+		while (!this._store.isDisposed && this._requiresRestartAfterTelemetryRevocation) {
+			await this._relaunchSdkWrapperForTelemetryRevocation();
+		}
+	}
+
+	private async _initializeSdkWrapper(): Promise<void> {
+		while (true) {
+			this._requiresRestartAfterTelemetryRevocation = false;
+			const wrapper = await this._sessionLauncher.launch(this._launchPlan, this._createRuntimeAdapter());
+			if (this._store.isDisposed) {
+				wrapper.dispose();
+				throw new CancellationError();
+			}
+			if (this._requiresRestartAfterTelemetryRevocation) {
+				await wrapper.disconnect().catch(() => { /* best-effort teardown */ });
+				wrapper.dispose();
+				if (this._store.isDisposed) {
+					throw new CancellationError();
+				}
+				continue;
+			}
+			this._wrapperDisposables.clear();
+			this._wrapper = this._wrapperDisposables.add(wrapper);
+			this._registeredByokConfig = wrapper.launchByokConfig;
+			this._reportLocalModelSelection(this._launchPlan.kind === 'create' ? this._launchPlan.model?.id : this._launchPlan.fallback.model?.id);
+			this._canvasExtensions = undefined;
+			this._ignoredRestoredCanvasInstanceIds.clear();
+			if (this._launchPlan.kind === 'resume') {
+				for (const canvas of wrapper.session.openCanvases) {
+					if (!this._canvasByInstanceId.has(canvas.instanceId)) {
+						this._ignoredRestoredCanvasInstanceIds.add(canvas.instanceId);
+					}
+				}
+			}
+			if (!wrapper.canvasRuntimeEnabled) {
+				this._canvasByInstanceId.clear();
+			}
+			const samplingInterest = await wrapper.session.rpc.eventLog.registerInterest({ eventType: 'sampling.requested' });
+			if (this._store.isDisposed) {
+				throw new CancellationError();
+			}
+			wrapper.setBeforeDisconnect(async () => {
+				await Promise.allSettled(this._pendingOutputCaptures);
+				try {
+					await this._awaitControlPlaneRpc('rpc.eventLog.releaseInterest', wrapper.session.rpc.eventLog.releaseInterest({ handle: samplingInterest.handle }));
+				} catch (error) {
+					this._logService.error(error, `[Copilot:${this.sessionId}] Failed to release sampling event interest`);
+				}
+			});
+			this._subscribeToEvents(this._wrapperDisposables);
+			this._subscribeToSdkEvents(this._wrapperDisposables);
+			this._readCommittedAutoTier(wrapper);
+			this._subscribeForMemoInvalidation(this._wrapperDisposables);
+			this._subscribeForInstructionsCollectedTelemetry(this._wrapperDisposables);
+			this._appliedImageGenerationEnabled = wrapper.launchImageGenerationEnabled;
+			await this._syncImageGeneration();
+			this.refreshModelConfiguration();
+			await this._sandbox.updateDiagnostics();
+			await this._waitForCanvasExtensions(wrapper);
+			await this._reconcileCanvasHandoff(wrapper);
+			await this._syncShellInitScript();
+			this._promptCacheState = this._promptCache.read(this.resourceUri);
+			if (this._launchPlan.kind === 'resume') {
+				await this._refreshSessionUsageMetrics();
+				if (this._store.isDisposed) {
+					throw new CancellationError();
+				}
+				// Warm the persisted-event reconstruction so canonical subagent names are known before the next turn labels agent reads.
+				this._getMappedEvents().catch(() => { /* surfaced to whichever caller reads the messages */ });
+			}
+			if (!this._requiresRestartAfterTelemetryRevocation) {
+				return;
+			}
+			await this._disconnectAndClearWrapper();
+		}
+	}
+
+	private async _relaunchSdkWrapperForTelemetryRevocation(): Promise<void> {
+		await this._disconnectAndClearWrapper();
+		if (this._store.isDisposed) {
+			throw new CancellationError();
+		}
+		await this._initializeSdkWrapper();
+	}
+
+	private async _disconnectAndClearWrapper(): Promise<void> {
+		const wrapper = this._wrapper;
+		if (wrapper) {
+			await wrapper.disconnect().catch(() => { /* best-effort teardown */ });
+		}
+		this._wrapperDisposables.clear();
+		this._lastAppliedShellInitScripts = undefined;
+		this._registeredShellInitScriptPath = undefined;
 	}
 
 	/** Persists the host-owned catalog title through the runtime's naming API. */
@@ -4003,6 +4148,7 @@ export class CopilotAgentSession extends Disposable {
 					if (event.type === 'session.managed_settings_resolved' && !event.agentId) {
 						this._approvalPolicy.observeRuntimePolicy(event.data);
 						const availableApprovalModes = this._approvalPolicy.getAvailableModes(this._getApprovalInputs());
+						// A session key, written for the session that owns the chat now when the chat is its session-backed one.
 						const owner = this._ownerSessionUri.toString();
 						const current = this._configurationService.getSessionConfigValues(owner);
 						if (current && isEqual(this.resourceUri, this._ownerSessionUri) && !equals(current.availableApprovalModes, availableApprovalModes)) {
@@ -4015,7 +4161,7 @@ export class CopilotAgentSession extends Disposable {
 				}
 			},
 			chatUri: this._chatChannelUri,
-			configurationResource: this._ownerSessionUri,
+			launchOwner: this.launchOwner,
 			handlePermissionRequest: this._guarded(request => {
 				const recorder = this._currentTurn.value?.timingRecorder;
 				recorder?.markMilestone?.('permissionRequest');
@@ -4320,7 +4466,7 @@ export class CopilotAgentSession extends Disposable {
 			if (!applied) {
 				throw new Error(`Copilot SDK rejected permission mode '${mode}'`);
 			}
-			this._configurationService.updateChatConfig(this._configTarget(), {
+			this._configurationService.updateChatConfig(this._configWriteTarget(), {
 				[SessionConfigKey.AutoApprove]: fromCopilotPermissionMode(applied),
 			});
 		});
@@ -4568,10 +4714,10 @@ export class CopilotAgentSession extends Disposable {
 				return undefined;
 			}
 			if (!this._sdkExecutionStarted) {
-				const marker = await measureAgentProviderOperation(recorder, 'executionMarker', () => allowCopilotSdkExecution(this._sessionDataService, this._ownerSessionUri, this.sessionId, this._logService));
+				const marker = await measureAgentProviderOperation(recorder, 'executionMarker', () => allowCopilotSdkExecution(this._sessionDataService, this._storageUri, this.sessionId, this._logService));
 				if (!this._canSendTurn(turn, abortToken)) {
 					if (marker !== undefined) {
-						await measureAgentProviderOperation(recorder, 'executionMarker', () => restoreDeferredCopilotSdkExecution(this._sessionDataService, this._ownerSessionUri, marker));
+						await measureAgentProviderOperation(recorder, 'executionMarker', () => restoreDeferredCopilotSdkExecution(this._sessionDataService, this._storageUri, marker));
 					}
 					return undefined;
 				}
@@ -5011,6 +5157,7 @@ export class CopilotAgentSession extends Disposable {
 	 * Permission and sandbox failures prevent the turn from starting.
 	 */
 	private async _prepareSdkTurn(mode: CopilotSdkMode | undefined, recorder?: IAgentProviderSendStageRecorder): Promise<void> {
+		await this._syncImageGeneration();
 		await this.applyMode(mode, recorder);
 		await this.syncPermissionMode('turn-start', recorder);
 		await this._sandbox.applyConfig(true, undefined, recorder);
@@ -5365,38 +5512,34 @@ export class CopilotAgentSession extends Disposable {
 		const events = pages.reverse().flat();
 		this._seedSubagentDisplayNames(events);
 		this._logService.trace(`[Copilot:${this.sessionId}] Read ${events.length} persisted event(s); reconstructing turns`);
-		let db: ISessionDatabase | undefined;
-		try {
-			db = this._databaseRef.object;
-		} catch {
-			// Database may not exist yet — that's fine
-		}
-		const result = await mapSessionEvents(this._storageUri, db, events, this._chatChannelUri, this._ownerSessionUri, {
-			workingDirectory: this._workingDirectory,
-			clientToolNames: this._clientToolNames,
-			model: this._launchPlan.kind === 'create'
-				? this._launchPlan.model
-				: this._launchPlan.fallback.model,
-			...(this._detectInterruptedTurnOnRestore ? {
-				interruptedTurnError: {
-					errorType: 'executionInterrupted',
-					message: localize('copilotAgent.interruptedTurn', "The agent was interrupted before this request finished."),
-				},
-			} : {}),
+		return this._withDatabase(async db => {
+			const result = await mapSessionEvents(this._storageUri, db, events, this._chatChannelUri, this._ownerSessionUri, {
+				workingDirectory: this._workingDirectory,
+				clientToolNames: this._clientToolNames,
+				model: this._launchPlan.kind === 'create'
+					? this._launchPlan.model
+					: this._launchPlan.fallback.model,
+				...(this._detectInterruptedTurnOnRestore ? {
+					interruptedTurnError: {
+						errorType: 'executionInterrupted',
+						message: localize('copilotAgent.interruptedTurn', "The agent was interrupted before this request finished."),
+					},
+				} : {}),
+			});
+			await this._restoreStoredShellOutputs(result, db);
+			this._logService.trace(`[Copilot:${this.sessionId}] Reconstructed ${result.turns.length} turn(s) from ${events.length} event(s)`);
+			return result;
 		});
-		await this._restoreStoredShellOutputs(result);
-		this._logService.trace(`[Copilot:${this.sessionId}] Reconstructed ${result.turns.length} turn(s) from ${events.length} event(s)`);
-		return result;
 	}
 
-	private async _restoreStoredShellOutputs(mapped: IMappedSessionEvents): Promise<void> {
-		await this._restoreStoredShellOutputsForChat(mapped.turns, this._chatChannelUri);
+	private async _restoreStoredShellOutputs(mapped: IMappedSessionEvents, db: ISessionDatabase): Promise<void> {
+		await this._restoreStoredShellOutputsForChat(mapped.turns, this._chatChannelUri, db);
 		for (const [parentToolCallId, turns] of mapped.subagentTurnsByToolCallId) {
-			await this._restoreStoredShellOutputsForChat(turns, URI.parse(this._subagentChatUri(parentToolCallId)));
+			await this._restoreStoredShellOutputsForChat(turns, URI.parse(this._subagentChatUri(parentToolCallId)), db);
 		}
 	}
 
-	private async _restoreStoredShellOutputsForChat(turns: readonly Turn[], chat: URI): Promise<void> {
+	private async _restoreStoredShellOutputsForChat(turns: readonly Turn[], chat: URI, db: ISessionDatabase): Promise<void> {
 		for (const turn of turns) {
 			for (const part of turn.responseParts) {
 				if (part.kind !== ResponsePartKind.ToolCall
@@ -5408,7 +5551,7 @@ export class CopilotAgentSession extends Disposable {
 				if (terminal && terminal.isPty !== false) {
 					continue;
 				}
-				if (await this._databaseRef.object.getTerminalOutputSize(part.toolCall.toolCallId) === undefined) {
+				if (await db.getTerminalOutputSize(part.toolCall.toolCallId) === undefined) {
 					continue;
 				}
 				const text = part.toolCall.content?.find(content => content.type === ToolResultContentType.Text)?.text;
@@ -5567,7 +5710,7 @@ export class CopilotAgentSession extends Disposable {
 		});
 	}
 
-	async setModel(model: string, reasoningEffort?: SessionConfig['reasoningEffort'], contextTier?: SessionConfig['contextTier'], autoTier?: AutoModeTier | null): Promise<void> {
+	async setModel(model: string, reasoningEffort?: SessionConfig['reasoningEffort'], contextTier?: SessionConfig['contextTier'], autoTier?: NonNullable<SessionConfig['capi']>['autoTier'] | null, requested?: ModelSelection): Promise<void> {
 		// The runtime rejects a BYOK model that is not registered on the session.
 		try {
 			await this.syncByokModels();
@@ -5578,13 +5721,73 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to register BYOK models before changing model`, err);
 		}
 		this._logService.info(`[Copilot:${this.sessionId}] Changing model to: ${model}`);
-		await this._awaitControlPlaneRpc('session.setModel', this._wrapper.session.setModel(model, {
-			reasoningEffort,
-			contextTier,
-			...(autoTier !== undefined ? { autoTier } : {}),
-		}));
+		try {
+			await this._awaitControlPlaneRpc('session.setModel', this._wrapper.session.setModel(model, {
+				reasoningEffort,
+				contextTier,
+				...(autoTier !== undefined ? { autoTier } : {}),
+			}));
+			this._requestedModel = requested ?? { id: model };
+		} finally {
+			this.refreshModelConfiguration();
+		}
 		this._lastSeenModelId = model;
 		this._reportLocalModelSelection(model);
+	}
+
+	refreshModelConfiguration(): void {
+		if (this._store.isDisposed) {
+			return;
+		}
+		const generation = ++this._modelConfigurationGeneration;
+		void this._modelConfigurationRefresh.queue(() => this._refreshManagedModelConfiguration(generation)).catch(error => {
+			if (!isCancellationError(error) && !this._store.isDisposed) {
+				this._logService.error(error, '[Copilot] Failed to schedule model configuration refresh');
+			}
+		});
+	}
+
+	private async _refreshManagedModelConfiguration(generation: number): Promise<void> {
+		if (!this._wrapper || this._store.isDisposed) {
+			return;
+		}
+		try {
+			const policy = await resolveCopilotManagedSettings(this._launchPlan.client.rpc.managedSettings, this._launchPlan.githubCredentials.token, 30_000, this.workingDirectory?.fsPath);
+			await this._awaitControlPlaneRpc('session.model.list', this._wrapper.session.rpc.model.list());
+			const current = await this._awaitControlPlaneRpc('session.model.getCurrent', this._wrapper.session.rpc.model.getCurrent());
+			if (generation !== this._modelConfigurationGeneration || this._store.isDisposed) {
+				return;
+			}
+			const models = this._launchPlan.modelPolicyModels?.() ?? [];
+			this._publishModelConfiguration(createCopilotModelConfigurationReport(models, policy, current, this._requestedModel, this._logService));
+		} catch (error) {
+			if (generation === this._modelConfigurationGeneration && !this._store.isDisposed) {
+				this._publishModelConfiguration(undefined);
+				this._logService.error(error, '[Copilot] Failed to refresh session model configuration');
+			}
+		}
+	}
+
+	private _publishModelConfiguration(report: IAgentModelConfigurationReport | undefined): void {
+		const owner = this._ownerSessionUri.toString();
+		const chat = this._chatChannelUri.toString();
+		const previous = this._configurationService.getSessionConfigValues(owner)?.[agentModelConfigurationReportKey];
+		const reports: Record<string, unknown> = isObject(previous) ? { ...previous } : {};
+		const current = reports[chat];
+		const currentOwner: { owner?: unknown } = isObject(current) ? current : {};
+		if (!report && currentOwner.owner !== this._modelConfigurationOwner) {
+			return;
+		}
+		const next = report ? { ...report, owner: this._modelConfigurationOwner } : null;
+		if (!equals(current, next)) {
+			const updated = { ...reports };
+			if (next) {
+				updated[chat] = next;
+			} else {
+				delete updated[chat];
+			}
+			this._configurationService.updateSessionConfig(owner, { [agentModelConfigurationReportKey]: updated });
+		}
 	}
 
 	/**
@@ -5754,14 +5957,14 @@ export class CopilotAgentSession extends Disposable {
 		}
 		for (const name of configuredServerNames) {
 			if (!retainedNames.has(name)) {
-				const id = buildMcpTopLevelCustomizationId(COPILOT_CLI_AGENT_PROVIDER_ID, AgentSession.id(this._ownerSessionUri), name);
+				const id = buildMcpTopLevelCustomizationId(COPILOT_CLI_AGENT_PROVIDER_ID, AgentSession.id(this.launchOwner), name);
 				customizations.push({ type: CustomizationType.McpServer, id, uri: id, name, state: { kind: McpServerStatus.Stopped } });
 				retainedNames.add(name);
 			}
 		}
 		const resolved = resolveCustomizationEnablement(
 			this._customizationEnablementService,
-			this._ownerSessionUri,
+			this.launchOwner,
 			customizations,
 			undefined,
 			undefined,
@@ -6482,6 +6685,7 @@ export class CopilotAgentSession extends Disposable {
 	private _subscribeToPermissionConfigChanges(): void {
 		this._register(this._configurationService.onDidRootConfigChange(() => {
 			void this._syncPermissionModeAfterConfigChange();
+			void this._syncImageGenerationAfterConfigChange();
 			// The forwarded shell init setting lives in root config.
 			void this._syncShellInitScript();
 			if (this._hydraFusionV2ExperimentTriggerPending) {
@@ -6504,6 +6708,53 @@ export class CopilotAgentSession extends Disposable {
 				void this._syncShellInitScript();
 			}
 		}));
+	}
+
+	private async _syncImageGenerationAfterConfigChange(): Promise<void> {
+		if (!this._wrapper) {
+			// Wrapper initialization applies the latest preference before the session becomes usable.
+			return;
+		}
+		try {
+			await this._syncImageGeneration();
+		} catch (error) {
+			this._logService.error(error, `[Copilot:${this.sessionId}] Failed to apply image generation setting`);
+			const turn = this._currentTurn.value ?? this._resumingTurnAwaitingProviderStart;
+			if (turn) {
+				try {
+					await this.abort();
+				} catch (abortError) {
+					this._logService.error(abortError, `[Copilot:${this.sessionId}] Failed to abort after image generation setting failure`);
+				}
+				// Abort quarantines late SDK content, not this host-owned terminal action.
+				this._emitAction({
+					type: ActionType.ChatError,
+					turnId: turn.id,
+					duration: turn.duration,
+					part: createErrorResponsePart({
+						errorType: 'imageGenerationConfiguration',
+						message: localize('copilotAgent.imageGenerationConfigurationFailed', "The image generation setting could not be applied. Try again before continuing."),
+					}),
+				}, undefined, true);
+				if (this._currentTurn.value === turn) {
+					this._clearActiveTurn();
+				}
+			}
+		}
+	}
+
+	private _syncImageGeneration(): Promise<void> {
+		return this._imageGenerationSequencer.queue(async () => {
+			const enabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ImageGeneration) === true;
+			if (enabled === this._appliedImageGenerationEnabled) {
+				return;
+			}
+			const result = await this._awaitControlPlaneRpc('image generation settings', this._wrapper.session.rpc.options.update({ imageGeneration: { enabled } }));
+			if (!result.success) {
+				throw new Error('The runtime did not apply the image generation setting.');
+			}
+			this._appliedImageGenerationEnabled = enabled;
+		});
 	}
 
 	private _syncShellInitScript(recorder?: IAgentProviderSendStageRecorder): Promise<void> {
@@ -6606,7 +6857,7 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private _acceptPermissionMode(mode: PermissionMode): void {
 		this._lastAppliedPermissionMode = mode;
-		const target = this._configTarget();
+		const target = this._configWriteTarget();
 		const current = this._configurationService.getChatConfigValues(target);
 		const { availableApprovalModes, ...applied } = this._approvalPolicy.getAppliedConfig(mode);
 		if (current && isEqual(this.resourceUri, this._ownerSessionUri) && !equals(current.availableApprovalModes, availableApprovalModes)) {
@@ -6631,6 +6882,16 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _configTarget(): IAgentChatConfigurationTarget {
+		// The running process is configured for its launch owner until the relaunch.
+		return { session: this.launchOwner.toString(), chat: this._chatChannelUri.toString() };
+	}
+
+	/**
+	 * Where write-backs of the chat's own config (mode, approvals) go: the chat
+	 * under its current owner. They follow the chat, never the launch snapshot,
+	 * so a write after an owner change does not land on the previous session.
+	 */
+	private _configWriteTarget(): IAgentChatConfigurationTarget {
 		return { session: this._ownerSessionUri.toString(), chat: this._chatChannelUri.toString() };
 	}
 
@@ -6650,7 +6911,7 @@ export class CopilotAgentSession extends Disposable {
 				&& !this._sandbox.isCustomTerminalToolEnabled();
 			// Session-only by construction: root and parent-session values are
 			// never consulted.
-			const own = enabled ? this._configurationService.getSessionConfigValues(this._ownerSessionUri.toString())?.[SessionConfigKey.ShellInitScripts] : undefined;
+			const own = enabled ? this._configurationService.getSessionConfigValues(this.launchOwner.toString())?.[SessionConfigKey.ShellInitScripts] : undefined;
 			if (own !== undefined && !isShellInitScriptList(own)) {
 				// Keep the last valid registration rather than clearing it.
 				this._logService.warn(`[Copilot:${this.sessionId}] Ignoring malformed shell init script config`);
@@ -6827,7 +7088,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private async _requestUnsandboxedCommandConfirmation(request: IUnsandboxedCommandConfirmationRequest): Promise<boolean> {
-		const policy = this._configurationService.getSessionSandboxPolicy(this._ownerSessionUri.toString());
+		const policy = this._configurationService.getSessionSandboxPolicy(this.launchOwner.toString());
 		if (policy?.allowBypass === false || (policy?.enabled && !policy.allowBypass)) {
 			return false;
 		}
@@ -6874,7 +7135,7 @@ export class CopilotAgentSession extends Disposable {
 
 		const decision = await pendingPermission;
 		const approved = decision.kind === 'decision' && decision.result.kind === 'approve-once';
-		const currentPolicy = this._configurationService.getSessionSandboxPolicy(this._ownerSessionUri.toString());
+		const currentPolicy = this._configurationService.getSessionSandboxPolicy(this.launchOwner.toString());
 		return approved && currentPolicy?.allowBypass !== false && !(currentPolicy?.enabled && !currentPolicy.allowBypass);
 	}
 
@@ -7289,7 +7550,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 		const [rawContext, baseBranch] = await Promise.all([
 			this._copilotApiService.resolveRestrictedTelemetryContext(githubToken),
-			this._databaseRef.object.getMetadata(META_DIFF_BASE_BRANCH),
+			this._withDatabase(db => db.getMetadata(META_DIFF_BASE_BRANCH)),
 		]);
 		if (!rawContext.restrictedTelemetryEnabled && !rawContext.isInternal) {
 			return undefined;
@@ -7311,11 +7572,11 @@ export class CopilotAgentSession extends Disposable {
 
 	// ---- event wiring -------------------------------------------------------
 
-	private _subscribeToEvents(): void {
+	private _subscribeToEvents(store: DisposableStore = this._store): void {
 		const wrapper = this._wrapper;
 		const sessionId = this.sessionId;
 
-		this._register(wrapper.onSystemNotification(e => {
+		store.add(wrapper.onSystemNotification(e => {
 			if (e.data.kind.type === 'shell_completed') {
 				this._nonPtyShellTerminals.completeBackgroundShell(e.data.kind.shellId, e.data.kind.exitCode);
 			}
@@ -7379,7 +7640,7 @@ export class CopilotAgentSession extends Disposable {
 		//    right boundary. The DB only sets `event_id` when it's NULL,
 		//    so doing this for synthetic injections would permanently
 		//    pin the wrong event to the turn.
-		this._register(wrapper.onUserMessage(e => {
+		store.add(wrapper.onUserMessage(e => {
 			if (e.agentId) {
 				this._resumeSubagentForEvent(e, { text: e.data.content, origin: { kind: MessageKind.User } });
 				return;
@@ -7416,13 +7677,14 @@ export class CopilotAgentSession extends Disposable {
 				if (e.data.interactionId) {
 					this._currentTurn.value?.interactionIds.add(e.data.interactionId);
 				}
-				this._databaseRef.object.setTurnEventId(this._turnId, e.id);
+				void this._withDatabase(db => db.setTurnEventId(this._turnId, e.id)).catch(error =>
+					this._logService.error(`[Copilot:${sessionId}] Failed to persist turn event id`, error));
 				this._currentTurn.value?.completeEventId(e.id);
 			}
 			this._onSteeringReady?.(this);
 		}));
 
-		this._register(wrapper.onMessageDelta(e => {
+		store.add(wrapper.onMessageDelta(e => {
 			this._logService.trace(`[Copilot:${sessionId}] delta: ${e.data.deltaContent}`);
 			this._resumeSubagentForEvent(e);
 			if (this._shouldDropUnmappedSubagentEvent(e, 'assistant.message_delta')) {
@@ -7461,6 +7723,10 @@ export class CopilotAgentSession extends Disposable {
 				}, contentParentToolCallId);
 			}
 			if (e.data.toolRequests?.length) {
+				const turn = this._currentTurn.value;
+				if (!contentParentToolCallId && turn && e.data.turnId && e.data.toolRequests.some(request => request.name === CopilotToolName.ImageGeneration)) {
+					turn.imageGenerationSdkTurnId = e.data.turnId;
+				}
 				for (const request of e.data.toolRequests) {
 					if (request.toolTitle) {
 						this._currentTurn.value?.toolTitles.set(request.toolCallId, request.toolTitle);
@@ -7489,7 +7755,7 @@ export class CopilotAgentSession extends Disposable {
 				}
 			}
 		};
-		this._register(wrapper.onMessage(e => {
+		store.add(wrapper.onMessage(e => {
 			this._logService.info(`[Copilot:${sessionId}] Full message received: ${e.data.content.length} chars`);
 			this._resumeSubagentForEvent(e);
 			if (!e.agentId && this._shouldDropLateRootTurnEvent('assistant.message')) {
@@ -7557,15 +7823,15 @@ export class CopilotAgentSession extends Disposable {
 			renderMessage(e, parentToolCallId, isLastMessageChunk);
 		}));
 
-		this._register(wrapper.onSamplingRequested(e => {
+		store.add(wrapper.onSamplingRequested(e => {
 			void this._handleSamplingRequest(e.data);
 		}));
-		this._register(wrapper.onSamplingCompleted(e => {
+		store.add(wrapper.onSamplingCompleted(e => {
 			this._completeSamplingRequest(e.data.requestId);
 		}));
 
 		// TODO@connor4312: Remove this correlation once the SDK permission callback includes auto-approval data.
-		this._register(wrapper.onPermissionRequested(e => {
+		store.add(wrapper.onPermissionRequested(e => {
 			const toolCallId = e.data.permissionRequest.toolCallId;
 			if (!toolCallId) {
 				return;
@@ -7588,7 +7854,7 @@ export class CopilotAgentSession extends Disposable {
 			});
 		}));
 
-		this._register(wrapper.onPermissionCompleted(e => {
+		store.add(wrapper.onPermissionCompleted(e => {
 			const toolCallId = e.data.toolCallId;
 			if (!toolCallId) {
 				return;
@@ -7612,7 +7878,7 @@ export class CopilotAgentSession extends Disposable {
 			}
 		}));
 
-		this._register(wrapper.onToolCallDelta(e => {
+		store.add(wrapper.onToolCallDelta(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Tool call delta: ${e.data.toolName ?? '<pending>'} (${e.data.toolCallId})`);
 			this._resumeSubagentForEvent(e);
 			if (!e.agentId && this._shouldDropLateRootTurnEvent('assistant.tool_call_delta')) {
@@ -7867,7 +8133,7 @@ export class CopilotAgentSession extends Disposable {
 			}
 		};
 		this._surfaceProvisionalFusionToolStart = handleToolStart;
-		this._register(wrapper.onToolStart(e => {
+		store.add(wrapper.onToolStart(e => {
 			if (this._surfacedProvisionalFusionToolCallIds.has(e.data.toolCallId)) {
 				// The committed re-emission of a tool call already shown from its provisional phase.
 				this._logService.trace(`[Copilot:${sessionId}] Ignoring committed Fusion tool start already surfaced: ${e.data.toolCallId}`);
@@ -7900,12 +8166,13 @@ export class CopilotAgentSession extends Disposable {
 			this._autoApprovals.delete(e.data.toolCallId);
 			this._toolApprovalRecords.delete(e.data.toolCallId);
 			this._pendingAutoApprovals.respond(e.data.toolCallId, undefined);
-			if (!parentToolCallId && !e.agentId && this._shouldDropLateRootTurnEvent('tool.execution_complete', true)) {
+			if (!parentToolCallId && !e.agentId && (tracked.turnId !== this._turnId || this._shouldDropLateRootTurnEvent('tool.execution_complete', true))) {
 				return;
 			}
 			const displayName = tracked.displayName;
 			const toolOutput = e.data.error?.message ?? e.data.result?.content;
-			const imageGeneration = tracked.toolName === CopilotToolName.ImageGeneration ? getSdkImageGenerationMetadata(e.data.result) : undefined;
+			const rawCompletion: typeof e.data & { toolUsage?: unknown } = e.data;
+			const imageGeneration = tracked.toolName === CopilotToolName.ImageGeneration ? getSdkImageGenerationMetadata(e.data.result, rawCompletion.toolUsage) : undefined;
 			if (imageGeneration) {
 				tracked.meta = { ...tracked.meta, [imageGenerationToolMetaKey]: imageGeneration };
 			}
@@ -8071,13 +8338,16 @@ export class CopilotAgentSession extends Disposable {
 					complete(authoritativeOutput);
 				}
 			})().catch(err => this._logService.error(`[Copilot:${sessionId}] Failed to complete tool call`, err)).finally(async () => {
-				outputDatabase?.dispose();
-				if (terminalOutputStored && !completionPublished) {
-					try {
-						await this._databaseRef.object.deleteTerminalOutput(e.data.toolCallId);
-					} catch (error) {
-						this._logService.warn(`[Copilot:${sessionId}] Failed to clean up unpublished shell output for ${e.data.toolCallId}`, error);
+				try {
+					if (terminalOutputStored && !completionPublished && outputDatabase) {
+						try {
+							await outputDatabase.object.deleteTerminalOutput(e.data.toolCallId);
+						} catch (error) {
+							this._logService.warn(`[Copilot:${sessionId}] Failed to clean up unpublished shell output for ${e.data.toolCallId}`, error);
+						}
 					}
+				} finally {
+					outputDatabase?.dispose();
 				}
 				if (nonPtyCompletion?.shouldRetire) {
 					this._nonPtyShellTerminals.finalizeToolCall(e.data.toolCallId, nonPtyCompletion.result?.exitCode);
@@ -8092,7 +8362,9 @@ export class CopilotAgentSession extends Disposable {
 			}
 			turn?.trackToolCompletion(completion);
 		};
-		this._register(wrapper.onToolComplete(e => {
+		store.add(wrapper.onToolComplete(e => {
+			// Billing survives cancellation; capture ownership before display cleanup removes the tool.
+			handleMeteredToolUsage(e);
 			if (this._surfacedProvisionalFusionToolCallIds.delete(e.data.toolCallId) && !this._activeToolCalls.has(e.data.toolCallId)) {
 				this._logService.trace(`[Copilot:${sessionId}] Ignoring committed Fusion tool completion already surfaced: ${e.data.toolCallId}`);
 				return;
@@ -8100,7 +8372,10 @@ export class CopilotAgentSession extends Disposable {
 			handleToolComplete(e);
 		}));
 
-		this._register(wrapper.onProvisionalFusionEvent(e => {
+		store.add(wrapper.onProvisionalFusionEvent(e => {
+			if (e.type === 'tool.execution_complete') {
+				handleMeteredToolUsage(e);
+			}
 			if (e.type === 'assistant.message') {
 				// Review phases show their critique when they complete. Everything else a phase says belongs to its chat; only the committed answer becomes the response.
 				if (e.agentId || e.data.fusion?.conversationScope === 'review') {
@@ -8134,7 +8409,7 @@ export class CopilotAgentSession extends Disposable {
 			}
 		}));
 
-		this._register(wrapper.onIdle(async e => {
+		store.add(wrapper.onIdle(async e => {
 			this._logService.info(`[Copilot:${sessionId}] Session idle`);
 			const idleFromFailedExecution = !e.agentId && !e.data.aborted && this._failedExecutionIdlePending;
 			if (!e.agentId) {
@@ -8221,7 +8496,7 @@ export class CopilotAgentSession extends Disposable {
 		// `skill.invoked` event with the resolved SKILL.md path. Synthesize a
 		// tool-start/complete pair from the latter so the UI can render a
 		// clickable file link, matching the `view`-tool display style.
-		this._register(wrapper.onSkillInvoked(e => {
+		store.add(wrapper.onSkillInvoked(e => {
 			this._logService.info(`[Copilot:${sessionId}] Skill invoked: ${e.data.name} (${e.data.path})`);
 			this._resumeSubagentForEvent(e);
 			if (this._shouldDropUnmappedSubagentEvent(e, 'skill.invoked')) {
@@ -8267,7 +8542,7 @@ export class CopilotAgentSession extends Disposable {
 			}, parentToolCallId);
 		}));
 
-		this._register(wrapper.onSubagentStarted(e => {
+		store.add(wrapper.onSubagentStarted(e => {
 			if (this._dropLateRootTurnEvents) {
 				this._logService.error(`[Copilot:${sessionId}] subagent.started emitted after cancellation; dropping`);
 				return;
@@ -8303,15 +8578,15 @@ export class CopilotAgentSession extends Disposable {
 			this._updateSubagentModel(e.data.toolCallId, e.data.model);
 		}));
 
-		this._register(wrapper.onSubagentCompleted(e => {
+		store.add(wrapper.onSubagentCompleted(e => {
 			this._scheduleSubagentLifecycleCompletion(e.agentId, e.data.toolCallId, e.data.cancelled ? { kind: 'cancelled', durationMs: e.data.durationMs } : undefined);
 		}));
 
-		this._register(wrapper.onSubagentFailed(e => {
+		store.add(wrapper.onSubagentFailed(e => {
 			this._scheduleSubagentLifecycleCompletion(e.agentId, e.data.toolCallId, { kind: 'failed', message: e.data.error, durationMs: e.data.durationMs });
 		}));
 
-		this._register(wrapper.onSubagentConfigured(e => {
+		store.add(wrapper.onSubagentConfigured(e => {
 			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
 			if (!parentToolCallId) {
 				this._logService.warn(`[Copilot:${sessionId}] Unable to attribute model configuration for unknown subagent agentId=${e.agentId}`);
@@ -8323,7 +8598,7 @@ export class CopilotAgentSession extends Disposable {
 			});
 		}));
 
-		this._register(wrapper.onTurnStart(e => {
+		store.add(wrapper.onTurnStart(e => {
 			if (!e.agentId || !e.data.model) {
 				return;
 			}
@@ -8334,7 +8609,7 @@ export class CopilotAgentSession extends Disposable {
 			}
 		}));
 
-		this._register(wrapper.onSessionError(e => {
+		store.add(wrapper.onSessionError(e => {
 			if (!e.agentId && this._shouldDropLateRootTurnEvent('session.error')) {
 				return;
 			}
@@ -8347,7 +8622,13 @@ export class CopilotAgentSession extends Disposable {
 			if (isCopilotSdkAuthRejection(e.data)) {
 				this._onDidRequireAuth.fire();
 			}
-			reportCopilotSdkSessionError(this._telemetryService, e, createCopilotFailureCorrelation(this.resourceUri, this._chatChannelUri, this._turnId, this.sessionId, this._currentTurn.value?.clientContext));
+			const correlation = createCopilotFailureCorrelation(this.resourceUri, this._chatChannelUri, this._turnId, this.sessionId, this._currentTurn.value?.clientContext);
+			const reportError = () => reportCopilotSdkSessionError(this._telemetryService, e, correlation);
+			if (this._heldSessionErrorReports) {
+				this._heldSessionErrorReports.push(reportError);
+			} else {
+				reportError();
+			}
 			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
 			if (turn) {
 				this._reportToolCallDetails(turn, 'failed');
@@ -8370,7 +8651,7 @@ export class CopilotAgentSession extends Disposable {
 			}
 		}));
 
-		this._register(wrapper.onModelCallFailure(e => {
+		store.add(wrapper.onModelCallFailure(e => {
 			reportCopilotModelCallFailure(this._telemetryService, e, createCopilotFailureCorrelation(this.resourceUri, this._chatChannelUri, this._turnId, this.sessionId, this._currentTurn.value?.clientContext));
 		}));
 
@@ -8380,7 +8661,96 @@ export class CopilotAgentSession extends Disposable {
 		let lastParentUsageTurnId: string | undefined;
 		let autoModeResolved: { readonly turnId: string; readonly data: NonNullable<UsageInfoMeta['autoModeResolved']> } | undefined;
 
-		this._register(wrapper.onAutoModeResolved(e => {
+		const handleMeteredToolUsage = (e: SessionEventPayload<'tool.execution_complete'>): void => {
+			const rawCompletion: typeof e.data & { toolUsage?: unknown } = e.data;
+			if (rawCompletion.toolUsage === undefined) {
+				return;
+			}
+			const image = getSdkImageGenerationMetadata(e.data.result, rawCompletion.toolUsage);
+			if (!image?.usage) {
+				this._logService.warn(`[Copilot:${sessionId}] Invalid metered tool usage on ${e.data.toolCallId}`);
+				return;
+			}
+			const usage = image.usage;
+			if (this._toolUsageRequestIds.has(usage.requestId)) {
+				return;
+			}
+			this._toolUsageRequestIds.add(usage.requestId);
+			const tracked = this._activeToolCalls.get(e.data.toolCallId);
+			const ownerTurnId = tracked?.turnId ?? (e.data.fusion ? this._fusionEventTurnIds.get(`fusion:${e.data.fusion.fusionId}`) : undefined);
+			const parentToolCallId = tracked?.parentToolCallId ?? this._parentToolCallIdForSubagentEvent(e) ?? this._fusionPhaseToolCallId(e.agentId, e.data.fusion);
+			// Fusion phase chats are root presentation scopes; SDK children retain their own root ownership.
+			const owningRootTurn = this._owningRootTurn(parentToolCallId && this._fusionPhaseLabels.has(parentToolCallId) ? undefined : parentToolCallId);
+			const turn = !this._dropLateRootTurnEvents && (!e.agentId || parentToolCallId)
+				&& ownerTurnId !== undefined && owningRootTurn?.id === ownerTurnId ? owningRootTurn : undefined;
+			const charge = usage.copilotUsage?.totalNanoAiu;
+			if (turn && charge !== undefined) {
+				turn.copilotNanoAiu += charge;
+			}
+			// Image tokens belong in consumption totals, not in the chat context window.
+			const tokenModel = usage.inputTokens !== undefined && usage.outputTokens !== undefined ? image.requestedModel.id : undefined;
+			turn?.addTokenTotals(tokenModel, usage);
+			const liveChild = parentToolCallId && !this._dropLateRootTurnEvents
+				&& (e.agentId ? this._subagents.isActive(e.agentId) : this._fusionPhaseChats.has(parentToolCallId));
+			const directUsage = parentToolCallId
+				? liveChild ? this._directUsageFor(parentToolCallId, ownerTurnId !== undefined) : undefined
+				: turn?.directUsage;
+			directUsage?.add(tokenModel, usage, charge);
+			const previousStatus = this._sessionAiCreditsStatus;
+			if (charge === undefined) {
+				// A terminal error can precede the metrics RPC. The operation itself already
+				// proves the previous total incomplete, without estimating its missing charge.
+				this._sessionAiCreditsStatus = this._sessionAiCreditsStatus === 'complete' || this._sessionAiCreditsStatus === 'partial'
+					|| this._sessionTotalNanoAiu > 0 || (turn?.copilotNanoAiu ?? 0) > 0 || directUsage?.copilotNanoAiu !== undefined
+					? 'partial' : 'unavailable';
+			} else if (this._sessionAiCreditsStatus === 'unavailable') {
+				this._sessionAiCreditsStatus = 'partial';
+			}
+			if (previousStatus !== this._sessionAiCreditsStatus) {
+				this._publishSessionUsage();
+			}
+			const emitUsage = () => {
+				if (!turn || this._currentTurn.value !== turn || this._dropLateRootTurnEvents) {
+					return;
+				}
+				const base = lastParentUsageTurnId === turn.id ? lastParentUsage : undefined;
+				const updated: UsageInfo = {
+					...base,
+					model: base?.model ?? this._lastSeenModelId,
+					_meta: {
+						...base?._meta,
+						copilotUsage: this._parentCopilotUsageMeta(),
+						turnTokenTotals: turn.tokenTotals,
+						directTurnTokenTotals: turn.directUsage.tokenTotals,
+						...(turn.directUsage.copilotNanoAiu !== undefined ? { directCopilotUsage: { totalNanoAiu: turn.directUsage.copilotNanoAiu } } : {}),
+					},
+				};
+				lastParentUsage = updated;
+				lastParentUsageTurnId = turn.id;
+				this._emitAction({ type: ActionType.ChatUsage, turnId: turn.id, usage: updated });
+			};
+			emitUsage();
+			if (parentToolCallId && directUsage) {
+				const previous = this._lastSubagentUsageByToolCallId.get(parentToolCallId);
+				const scoped: UsageInfo = {
+					...previous,
+					_meta: {
+						...previous?._meta,
+						directTurnTokenTotals: directUsage.tokenTotals,
+						...(directUsage.copilotNanoAiu !== undefined ? {
+							copilotUsage: { totalNanoAiu: directUsage.copilotNanoAiu },
+							directCopilotUsage: { totalNanoAiu: directUsage.copilotNanoAiu },
+						} : {}),
+					},
+				};
+				this._lastSubagentUsageByToolCallId.set(parentToolCallId, scoped);
+				this._emitAction({ type: ActionType.ChatUsage, turnId: ownerTurnId ?? '', usage: scoped }, parentToolCallId);
+			}
+			const refresh = this._refreshSessionUsageMetrics().then(() => emitUsage());
+			turn?.trackToolCompletion(refresh);
+			void refresh.catch(error => this._logService.error(`[Copilot:${sessionId}] Failed to publish metered tool usage`, error));
+		};
+		store.add(wrapper.onAutoModeResolved(e => {
 			if (!e.agentId && this._shouldDropLateRootTurnEvent('session.auto_mode_resolved')) {
 				return;
 			}
@@ -8444,7 +8814,7 @@ export class CopilotAgentSession extends Disposable {
 			});
 		}));
 
-		this._register(wrapper.onUsage(e => {
+		store.add(wrapper.onUsage(e => {
 			this._resumeSubagentForEvent(e);
 			if (!e.agentId && this._shouldDropLateRootTurnEvent('assistant.usage')) {
 				return;
@@ -8639,7 +9009,7 @@ export class CopilotAgentSession extends Disposable {
 		//
 		// Losing this re-emit to a turn that ended mid-flight costs only the session
 		// total's freshness; the turn's own cost was already reported synchronously.
-		this._register(wrapper.onUsage(async e => {
+		store.add(wrapper.onUsage(async e => {
 			if (!e.agentId && this._shouldDropLateRootTurnEvent('assistant.usage')) {
 				return;
 			}
@@ -8693,7 +9063,7 @@ export class CopilotAgentSession extends Disposable {
 		// call. One that runs between turns belongs to no turn: it is reflected in the session total
 		// only, rather than being carried onto whatever runs next and inflating an unrelated
 		// response footer by what is often the session's single most expensive call.
-		this._register(wrapper.onSessionCompactionComplete(async e => {
+		store.add(wrapper.onSessionCompactionComplete(async e => {
 			const observeUsage = () => {
 				const observedParentToolCallId = this._parentToolCallIdForSubagentEvent(e);
 				if ((!e.agentId || observedParentToolCallId) && !this._dropLateRootTurnEvents) {
@@ -8807,7 +9177,7 @@ export class CopilotAgentSession extends Disposable {
 			}
 		}));
 
-		this._register(wrapper.onReasoningDelta(e => {
+		store.add(wrapper.onReasoningDelta(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Reasoning delta: ${e.data.deltaContent.length} chars`);
 			this._resumeSubagentForEvent(e);
 			if (this._shouldDropUnmappedSubagentEvent(e, 'assistant.reasoning_delta')) {
@@ -8820,7 +9190,7 @@ export class CopilotAgentSession extends Disposable {
 		// (e.g. after the model approves a plan, or after we set the mode
 		// before sending). The SDK and AHP share the same three modes
 		// (`interactive` / `plan` / `autopilot`), so we map directly.
-		this._register(wrapper.onSessionModeChanged(e => {
+		store.add(wrapper.onSessionModeChanged(e => {
 			// Sub-agents (e.g. a `task` tool sub-agent running in plan mode)
 			// emit their own `session.mode_changed` events carrying an
 			// `agentId`.
@@ -8843,14 +9213,14 @@ export class CopilotAgentSession extends Disposable {
 		// bare top-level entry (`SessionCustomizationUpdated`). Each state
 		// change is also logged (with structured metadata) so it flows to the
 		// agent host's OTLP log stream and the per-server Output channels.
-		this._register(wrapper.onMcpServersLoaded(() => {
+		store.add(wrapper.onMcpServersLoaded(() => {
 			// The SDK re-emits a cached loaded snapshot on later turns, not live connection state.
 			this._logService.trace(`[Copilot:${sessionId}] MCP server inventory invalidated by session.mcp_servers_loaded; refreshing rpc.mcp.listConfigured`);
 			void this._refreshMcpServersFromRpc().catch(err => {
 				this._logService.warn(`[Copilot:${sessionId}] Failed to refresh MCP server inventory after session.mcp_servers_loaded`, err);
 			});
 		}));
-		this._register(wrapper.onMcpServerStatusChanged(e => {
+		store.add(wrapper.onMcpServerStatusChanged(e => {
 			this._mcpLifecycleVersion++;
 			const requirement = this._lastMcpAuthRequirements.get(e.data.serverName);
 			if (requirement && e.data.status !== 'pending') {
@@ -8880,16 +9250,16 @@ export class CopilotAgentSession extends Disposable {
 				});
 			}
 		}));
-		this._register(wrapper.onMcpOAuthCompleted(e => {
+		store.add(wrapper.onMcpOAuthCompleted(e => {
 			this._handleMcpOAuthCompleted(e.data.requestId, e.data.outcome);
 		}));
 
-		this._register(wrapper.onToolsUpdated(() => {
+		store.add(wrapper.onToolsUpdated(() => {
 			this._slashCommandProvider.clearCache();
 			this._refreshReadyMcpToolRoutingCaches();
 			this._fireMcpToolsListChanged();
 		}));
-		this._register(wrapper.onCommandsChanged(() => {
+		store.add(wrapper.onCommandsChanged(() => {
 			this._slashCommandProvider.clearCache();
 		}));
 
@@ -9218,7 +9588,7 @@ export class CopilotAgentSession extends Disposable {
 				patch[SessionConfigKey.Mode] = 'interactive';
 				break;
 		}
-		this._configurationService.updateChatConfig(this._configTarget(), patch);
+		this._configurationService.updateChatConfig(this._configWriteTarget(), patch);
 	}
 
 	/**
@@ -9313,24 +9683,24 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/** Invalidates both history scopes when persisted events change, while coalescing idle reads within each scope. */
-	private _subscribeForMemoInvalidation(): void {
+	private _subscribeForMemoInvalidation(store: DisposableStore = this._store): void {
 		const wrapper = this._wrapper;
 		const invalidate = () => this._invalidateMappedEvents();
 		// New content appended to the log.
-		this._register(wrapper.onUserMessage(invalidate));
-		this._register(wrapper.onTurnStart(invalidate));
-		this._register(wrapper.onMessage(invalidate));
-		this._register(wrapper.onToolStart(invalidate));
-		this._register(wrapper.onToolComplete(invalidate));
-		this._register(wrapper.onSubagentStarted(invalidate));
-		this._register(wrapper.onSubagentCompleted(invalidate));
-		this._register(wrapper.onSubagentFailed(invalidate));
-		this._register(wrapper.onTurnEnd(invalidate));
-		this._register(wrapper.onSessionError(invalidate));
+		store.add(wrapper.onUserMessage(invalidate));
+		store.add(wrapper.onTurnStart(invalidate));
+		store.add(wrapper.onMessage(invalidate));
+		store.add(wrapper.onToolStart(invalidate));
+		store.add(wrapper.onToolComplete(invalidate));
+		store.add(wrapper.onSubagentStarted(invalidate));
+		store.add(wrapper.onSubagentCompleted(invalidate));
+		store.add(wrapper.onSubagentFailed(invalidate));
+		store.add(wrapper.onTurnEnd(invalidate));
+		store.add(wrapper.onSessionError(invalidate));
 		// In-place rewrites of the persisted log.
-		this._register(wrapper.onSessionCompactionComplete(invalidate));
-		this._register(wrapper.onSessionTruncation(invalidate));
-		this._register(wrapper.onSessionSnapshotRewind(invalidate));
+		store.add(wrapper.onSessionCompactionComplete(invalidate));
+		store.add(wrapper.onSessionTruncation(invalidate));
+		store.add(wrapper.onSessionSnapshotRewind(invalidate));
 	}
 
 	/**
@@ -9338,11 +9708,11 @@ export class CopilotAgentSession extends Disposable {
 	 * Attempts to match local chat's `ComputeAutomaticInstructions`
 	 * emitter (`src/vs/workbench/contrib/chat/common/promptSyntax/computeAutomaticInstructions.ts`)
 	 */
-	private _subscribeForInstructionsCollectedTelemetry(): void {
+	private _subscribeForInstructionsCollectedTelemetry(store: DisposableStore = this._store): void {
 		const wrapper = this._wrapper;
 		const sessionId = this.sessionId;
 
-		this._register(wrapper.onUserMessage(e => {
+		store.add(wrapper.onUserMessage(e => {
 			// Skip subagent and SDK-injected messages (matches guard on this event above).
 			if (e.agentId || (e.data.source && e.data.source.toLowerCase() !== 'user')) {
 				return;
@@ -9824,13 +10194,13 @@ export class CopilotAgentSession extends Disposable {
 		})();
 	}
 
-	private _subscribeToSdkEvents(): void {
+	private _subscribeToSdkEvents(store: DisposableStore = this._store): void {
 		const wrapper = this._wrapper;
 		const sessionId = this.sessionId;
 
-		this._register(wrapper.onFusionEvent(event => this._acceptFusionEvent(event)));
+		store.add(wrapper.onFusionEvent(event => this._acceptFusionEvent(event)));
 
-		this._register(wrapper.onUnhandledEvent(e => {
+		store.add(wrapper.onUnhandledEvent(e => {
 			if (e.type === 'session.binary_asset') {
 				this._logService.trace(`[Copilot:${sessionId}] Binary asset received: ${e.data.mimeType}, ${e.data.byteLength} bytes`);
 				return;
@@ -9843,35 +10213,35 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.trace(`[Copilot:${sessionId}] Unhandled SDK event: ${safeStringify(loggedEvent)}`);
 		}));
 
-		this._register(wrapper.onIndexedSearch(e => {
+		store.add(wrapper.onIndexedSearch(e => {
 			const data = e.data.kind === 'startup' || e.data.kind === 'server_error'
 				? (({ errorMessage: _, ...data }) => data)(e.data)
 				: e.data;
 			this._logService.trace(`[Copilot:${sessionId}] session.indexed_search: ${safeStringify(data)}`);
 		}));
 
-		this._register(wrapper.onExtensionsLoaded(e => {
+		store.add(wrapper.onExtensionsLoaded(e => {
 			if (wrapper.canvasRuntimeEnabled) {
 				this._canvasExtensions = e.data.extensions;
 				this._markCanvasProjectionLive();
 			}
 		}));
 
-		this._register(wrapper.onCanvasRegistryChanged(() => {
+		store.add(wrapper.onCanvasRegistryChanged(() => {
 			if (wrapper.canvasRuntimeEnabled && this._canvasPhase !== 'released') {
 				this._markCanvasProjectionLive();
 				this._publishCanvases();
 			}
 		}));
 
-		this._register(wrapper.onUserMessage(e => {
+		store.add(wrapper.onUserMessage(e => {
 			if (!e.agentId) {
 				this._ignoredRestoredCanvasInstanceIds.clear();
 			}
 		}));
 
 		// Only first opens emit recorded; opened also includes provider rehydration.
-		this._register(wrapper.onCanvasRecorded(e => {
+		store.add(wrapper.onCanvasRecorded(e => {
 			if (!wrapper.canvasRuntimeEnabled || e.agentId) {
 				return;
 			}
@@ -9883,7 +10253,7 @@ export class CopilotAgentSession extends Disposable {
 			);
 		}));
 
-		this._register(wrapper.onCanvasOpened(e => {
+		store.add(wrapper.onCanvasOpened(e => {
 			if (!this._projectsCanvasEvent(wrapper, e.agentId)) {
 				return;
 			}
@@ -9894,14 +10264,14 @@ export class CopilotAgentSession extends Disposable {
 			this._projectOpenedCanvas(e.data);
 		}));
 
-		this._register(wrapper.onCanvasClosed(e => {
+		store.add(wrapper.onCanvasClosed(e => {
 			if (!this._projectsCanvasEvent(wrapper, e.agentId) || !this._canvasByInstanceId.delete(e.data.instanceId)) {
 				return;
 			}
 			this._publishCanvases();
 		}));
 
-		this._register(wrapper.onCanvasUnavailable(e => {
+		store.add(wrapper.onCanvasUnavailable(e => {
 			if (!this._projectsCanvasEvent(wrapper, e.agentId)) {
 				return;
 			}
@@ -9917,15 +10287,15 @@ export class CopilotAgentSession extends Disposable {
 			}
 		}));
 
-		this._register(wrapper.onSessionStart(e => {
+		store.add(wrapper.onSessionStart(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Session started: model=${e.data.selectedModel ?? 'default'}, producer=${e.data.producer}`);
 		}));
 
-		this._register(wrapper.onSessionResume(e => {
+		store.add(wrapper.onSessionResume(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Session resumed: eventCount=${e.data.eventCount}`);
 		}));
 
-		this._register(wrapper.onSessionInfo(e => {
+		store.add(wrapper.onSessionInfo(e => {
 			const attributes: Record<string, OtelAttributeValue> = { infoType: e.data.infoType };
 			if (e.data.tip) {
 				attributes.tip = e.data.tip;
@@ -9945,14 +10315,14 @@ export class CopilotAgentSession extends Disposable {
 			}
 		}));
 
-		this._register(wrapper.onSessionWarning(e => {
+		store.add(wrapper.onSessionWarning(e => {
 			this._logService.warn(`[Copilot:${sessionId}] ${e.data.message}`, new OtelData({ warningType: e.data.warningType }));
 			if (e.data.warningType === MANAGED_PLUGINS_EVENT_TYPE && !e.agentId) {
 				this._reportManagedPluginFailure(e.data.message);
 			}
 		}));
 
-		this._register(wrapper.onSessionModelChange(e => {
+		store.add(wrapper.onSessionModelChange(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Model changed: ${e.data.previousModel ?? '(none)'} -> ${e.data.newModel}`);
 			const committedAutoTier = getCommittedAutoTier(e.data.newModel, e.data.autoTier);
 			// The runtime omits `autoTier` on Auto-to-Auto changes that keep its committed preference.
@@ -9983,49 +10353,51 @@ export class CopilotAgentSession extends Disposable {
 					this._setPromptCacheState(undefined);
 				}
 				void this._refreshSessionUsageMetrics();
+				this.refreshModelConfiguration();
 			}
 		}));
 
-		this._register(wrapper.onManagedSettingsResolved(e => {
+		store.add(wrapper.onManagedSettingsResolved(e => {
 			if (!e.agentId) {
 				void this._managedSettingsResolved.complete();
+				this.refreshModelConfiguration();
 			}
 			this._logService.info(`[Copilot:${sessionId}] Managed settings resolved: source=${e.data.source}, managedKeys=${e.data.managedKeys.join(',') || '(none)'}, bypassPermissionsDisabled=${e.data.bypassPermissionsDisabled}, failClosed=${e.data.failClosed}`);
 		}));
 
-		this._register(wrapper.onManagedSettingsEnforced(e => {
+		store.add(wrapper.onManagedSettingsEnforced(e => {
 			this._logService.warn(`[Copilot:${sessionId}] Managed settings enforced: action=${e.data.action}, setting=${e.data.setting}, escalation=${e.data.escalation ?? '(none)'}, failClosed=${e.data.failClosed}, message=${e.data.message}`);
 		}));
 
-		this._register(wrapper.onSessionHandoff(e => {
+		store.add(wrapper.onSessionHandoff(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Session handoff: sourceType=${e.data.sourceType}, remoteSessionId=${e.data.remoteSessionId ?? '(none)'}`);
 		}));
 
-		this._register(wrapper.onSessionTruncation(e => {
+		store.add(wrapper.onSessionTruncation(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Session truncation: removed ${e.data.tokensRemovedDuringTruncation} tokens, ${e.data.messagesRemovedDuringTruncation} messages`);
 		}));
 
-		this._register(wrapper.onSessionSnapshotRewind(e => {
+		store.add(wrapper.onSessionSnapshotRewind(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Snapshot rewind: upTo=${e.data.upToEventId}, eventsRemoved=${e.data.eventsRemoved}`);
 		}));
 
-		this._register(wrapper.onSessionShutdown(e => {
+		store.add(wrapper.onSessionShutdown(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Session shutdown: type=${e.data.shutdownType}, apiDuration=${e.data.totalApiDurationMs}ms`);
 		}));
 
-		this._register(wrapper.onSessionUsageInfo(e => {
+		store.add(wrapper.onSessionUsageInfo(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Usage info: ${e.data.currentTokens}/${e.data.tokenLimit} tokens, ${e.data.messagesLength} messages`);
 		}));
 
-		this._register(wrapper.onSessionCompactionStart(() => {
+		store.add(wrapper.onSessionCompactionStart(() => {
 			this._logService.trace(`[Copilot:${sessionId}] Compaction started`);
 		}));
 
-		this._register(wrapper.onSessionCompactionComplete(e => {
+		store.add(wrapper.onSessionCompactionComplete(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Compaction complete: success=${e.data.success}, tokensRemoved=${e.data.tokensRemoved ?? '?'}`);
 		}));
 
-		this._register(wrapper.onUserMessage(e => {
+		store.add(wrapper.onUserMessage(e => {
 			this._logService.trace(`[Copilot:${sessionId}] User message: ${e.data.content.length} chars, ${e.data.attachments?.length ?? 0} attachments`);
 			// Restricted `conversation.messageText` (source=user): the raw user prompt text. Emit only
 			// for genuine human prompts on the main agent — skip subagent turns (driven by the parent)
@@ -10037,15 +10409,15 @@ export class CopilotAgentSession extends Disposable {
 			}
 		}));
 
-		this._register(wrapper.onPendingMessagesModified(() => {
+		store.add(wrapper.onPendingMessagesModified(() => {
 			this._logService.trace(`[Copilot:${sessionId}] Pending messages modified`);
 		}));
 
-		this._register(wrapper.onBackgroundTasksChanged(() => {
+		store.add(wrapper.onBackgroundTasksChanged(() => {
 			this._refreshBackgroundTasks();
 		}));
 
-		this._register(wrapper.onTurnStart(e => {
+		store.add(wrapper.onTurnStart(e => {
 			if (e.agentId) {
 				this._subagentActivityRevisions.set(e.agentId, (this._subagentActivityRevisions.get(e.agentId) ?? 0) + 1);
 				this._pendingSubagentLifecycleCompletions.delete(e.agentId);
@@ -10095,31 +10467,43 @@ export class CopilotAgentSession extends Disposable {
 			}
 		}));
 
-		this._register(wrapper.onModelCallFinished(e => {
+		store.add(wrapper.onModelCallFinished(e => {
 			this._emitModelCallFinished(e);
 		}));
 
-		this._register(wrapper.onIntent(e => {
+		store.add(wrapper.onIntent(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Intent: ${e.data.intent}`);
 			this._publishActivity('intent', e.data.intent || undefined);
 		}));
 
-		this._register(wrapper.onReasoning(e => {
+		store.add(wrapper.onReasoning(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Reasoning: ${e.data.content.length} chars`);
 		}));
 
-		this._register(wrapper.onTurnEnd(e => {
+		store.add(wrapper.onTurnEnd(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Turn ended: ${e.data.turnId}`);
 			if (e.agentId) {
 				this._refreshBackgroundTasks();
 			}
 			const turn = this._currentTurn.value;
+			if (!e.agentId && turn?.imageGenerationSdkTurnId !== undefined && turn.imageGenerationSdkTurnId === e.data.turnId) {
+				turn.imageGenerationSdkTurnId = undefined;
+				this._emitAction({
+					type: ActionType.ChatResponsePart,
+					turnId: turn.id,
+					part: {
+						kind: ResponsePartKind.SystemNotification,
+						content: '',
+						_meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.ResponseRoundEnded }),
+					},
+				});
+			}
 			if (!e.agentId && turn?.activeSdkTurnId === e.data.turnId) {
 				turn.activeSdkTurnId = undefined;
 			}
 		}));
 
-		this._register(wrapper.onAbort(e => {
+		store.add(wrapper.onAbort(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Aborted: ${e.data.reason}`);
 			if (!e.agentId) {
 				this._cancelFusionEvents();
@@ -10140,7 +10524,7 @@ export class CopilotAgentSession extends Disposable {
 			}
 		}));
 
-		this._register(wrapper.onToolUserRequested(e => {
+		store.add(wrapper.onToolUserRequested(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Tool user-requested: ${e.data.toolName} (${e.data.toolCallId})`);
 		}));
 
@@ -10178,17 +10562,17 @@ export class CopilotAgentSession extends Disposable {
 			}
 		};
 
-		this._register(wrapper.onToolPartialResult(e => {
+		store.add(wrapper.onToolPartialResult(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Tool partial result: ${e.data.toolCallId} (${e.data.partialOutput.length} chars)`);
 			appendShellOutput(e.data.toolCallId, () => this._nonPtyShellTerminals.append(e.data.toolCallId, e.data.partialOutput));
 		}));
 
-		this._register(wrapper.onToolShellOutput(e => {
+		store.add(wrapper.onToolShellOutput(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Tool shell output: ${e.data.toolCallId} #${e.data.sequence} (${e.data.text.length} chars)`);
 			appendShellOutput(e.data.toolCallId, () => this._nonPtyShellTerminals.appendChunk(e.data.toolCallId, e.data));
 		}));
 
-		this._register(wrapper.onToolProgress(e => {
+		store.add(wrapper.onToolProgress(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Tool progress: ${e.data.toolCallId} - ${e.data.progressMessage}`);
 			const tracked = this._activeToolCalls.get(e.data.toolCallId);
 			if (tracked?.toolName !== CopilotToolName.ImageGeneration) {
@@ -10214,49 +10598,59 @@ export class CopilotAgentSession extends Disposable {
 			}, parentToolCallId);
 		}));
 
-		this._register(wrapper.onSkillInvoked(e => {
+		store.add(wrapper.onSkillInvoked(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Skill invoked: ${e.data.name} (${e.data.path})`);
 		}));
 
-		this._register(wrapper.onSubagentStarted(e => {
+		store.add(wrapper.onSubagentStarted(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Subagent started: ${e.data.agentName} (${e.data.agentDisplayName})`);
 		}));
 
-		this._register(wrapper.onSubagentCompleted(e => {
+		store.add(wrapper.onSubagentCompleted(e => {
 			this._seedSubagentDisplayNames([e]);
 			this._logService.trace(`[Copilot:${sessionId}] Subagent completed: ${e.data.agentName}`);
 		}));
 
-		this._register(wrapper.onSubagentFailed(e => {
+		store.add(wrapper.onSubagentFailed(e => {
 			this._seedSubagentDisplayNames([e]);
 			this._logService.error(`[Copilot:${sessionId}] Subagent failed: ${e.data.agentName} - ${e.data.error}`);
 		}));
 
-		this._register(wrapper.onSubagentSelected(e => {
+		store.add(wrapper.onSubagentSelected(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Subagent selected: ${e.data.agentName}`);
 		}));
 
-		this._register(wrapper.onHookStart(e => {
+		store.add(wrapper.onHookStart(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Hook started: ${e.data.hookType} (${e.data.hookInvocationId})`);
 		}));
 
-		this._register(wrapper.onHookEnd(e => {
+		store.add(wrapper.onHookEnd(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Hook ended: ${e.data.hookType} (${e.data.hookInvocationId}), success=${e.data.success}`);
 		}));
 
-		this._register(wrapper.onSystemMessage(e => {
+		store.add(wrapper.onSystemMessage(e => {
 			this._logService.trace(`[Copilot:${sessionId}] System message [${e.data.role}]: ${e.data.content.length} chars`);
 		}));
 	}
 
 	// ---- SDK event ID tracking & truncation ---------------------------------
 
+	/** Holds a database reference until the operation settles, independently of session disposal. */
+	private async _withDatabase<T>(operation: (db: ISessionDatabase) => Promise<T>): Promise<T> {
+		const ref = this._sessionDataService.openDatabase(this._storageUri);
+		try {
+			return await operation(ref.object);
+		} finally {
+			ref.dispose();
+		}
+	}
+
 	/**
 	 * Returns the SDK event ID for the turn inserted after the given turn,
 	 * or `undefined` if it's the last turn.
 	 */
 	getNextTurnEventId(turnId: string): Promise<string | undefined> {
-		return this._databaseRef.object.getNextTurnEventId(turnId);
+		return this._withDatabase(db => db.getNextTurnEventId(turnId));
 	}
 
 	/**
@@ -10266,7 +10660,7 @@ export class CopilotAgentSession extends Disposable {
 		const activeTurn = this._currentTurn.value;
 		const activeTurnId = activeTurn?.id;
 		const activeTurnEventId = activeTurnId !== turnId ? activeTurn?.eventId : undefined;
-		const persistedEventId = await this._databaseRef.object.getNextTurnEventId(turnId);
+		const persistedEventId = await this.getNextTurnEventId(turnId);
 		if (persistedEventId || !activeTurnEventId) {
 			return persistedEventId;
 		}
@@ -10283,14 +10677,14 @@ export class CopilotAgentSession extends Disposable {
 	 * Returns the SDK event ID associated with the given protocol turn.
 	 */
 	getTurnEventId(turnId: string): Promise<string | undefined> {
-		return this._databaseRef.object.getTurnEventId(turnId);
+		return this._withDatabase(db => db.getTurnEventId(turnId));
 	}
 
 	/**
 	 * Returns the SDK event ID of the earliest turn.
 	 */
 	getFirstTurnEventId(): Promise<string | undefined> {
-		return this._databaseRef.object.getFirstTurnEventId();
+		return this._withDatabase(db => db.getFirstTurnEventId());
 	}
 
 	/**
@@ -10310,9 +10704,9 @@ export class CopilotAgentSession extends Disposable {
 		// Clean up stale turns from our DB so getNextTurnEventId doesn't
 		// return event IDs for turns that no longer exist in the SDK.
 		if (keepTurnId) {
-			await this._databaseRef.object.deleteTurnsAfter(keepTurnId);
+			await this._withDatabase(db => db.deleteTurnsAfter(keepTurnId));
 		} else {
-			await this._databaseRef.object.deleteAllTurns();
+			await this._withDatabase(db => db.deleteAllTurns());
 		}
 	}
 
@@ -10321,7 +10715,7 @@ export class CopilotAgentSession extends Disposable {
 	 * Used after file-copying a source session's database for a fork.
 	 */
 	async remapTurnIds(mapping: ReadonlyMap<string, string>): Promise<void> {
-		await this._databaseRef.object.remapTurnIds(mapping);
+		await this._withDatabase(db => db.remapTurnIds(mapping));
 	}
 
 	// ---- cleanup ------------------------------------------------------------

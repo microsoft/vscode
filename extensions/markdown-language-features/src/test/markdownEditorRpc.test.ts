@@ -6,9 +6,10 @@
 import * as assert from 'assert';
 import 'mocha';
 import { ErrorCode, type InterfaceHandlers, type JsonRpcMessage } from '@vscode/hubrpc';
-import { markdownEditorHost, markdownEditorRenderer } from '../preview/markdownEditorProtocol';
+import { markdownEditorHost, markdownEditorRenderer, type MarkdownEditorRenderer } from '../preview/markdownEditorProtocol';
 import { createMarkdownEditorRpcConnection, MarkdownEditorRpcTransport } from '../preview/markdownEditorRpc';
 import { RecoveringTaskQueue } from '../preview/recoveringTaskQueue';
+import { clipboardMediaChunkSize, readClipboardMediaContents } from '../preview/markdownEditorMediaTransfer';
 
 suite('Markdown editor RPC', () => {
 	const disposables: { dispose(): void }[] = [];
@@ -56,6 +57,7 @@ suite('Markdown editor RPC', () => {
 		});
 		host.get(markdownEditorRenderer);
 		renderer.register(markdownEditorRenderer, {
+			readClipboardMedia: () => ({ base64: 'AQ==' }),
 			configurationChanged: () => { },
 			diagnosticsChanged: () => { },
 			update: () => { },
@@ -76,6 +78,36 @@ suite('Markdown editor RPC', () => {
 		disposables.push({ dispose: () => { host.close(); renderer.close(); } });
 		return { host, renderer, hostInbox, rendererInbox, errors };
 	}
+
+	test('resolves lazy media chunks while the paste request is awaiting its result', async () => {
+		const bytes = Buffer.alloc(clipboardMediaChunkSize + 3, 71);
+		const image = { id: 'video', name: 'clip.mp4', mime: 'video/mp4', size: bytes.length };
+		const chunks: Parameters<MarkdownEditorRenderer['readClipboardMedia']>[0][] = [];
+		const { host, renderer, hostInbox, errors } = pair({
+			pasteImages: async request => {
+				assert.deepStrictEqual(request.images, [image]);
+				const contents = await readClipboardMediaContents(request.images[0], request => remote.readClipboardMedia(request), () => { });
+				assert.deepStrictEqual(contents, Uint8Array.from(bytes));
+				return { offset: 4, editEpoch: 1 };
+			},
+		}, {
+			readClipboardMedia: request => {
+				chunks.push(request);
+				return { base64: bytes.subarray(request.offset, request.offset + request.length).toString('base64') };
+			},
+		});
+		const remote = host.get(markdownEditorRenderer);
+		const request = { start: 0, endExclusive: 0, editEpoch: 0, images: [image] };
+		assert.deepStrictEqual(await renderer.get(markdownEditorHost).pasteImages(request), { offset: 4, editEpoch: 1 });
+		assert.deepStrictEqual(hostInbox.messages[0], {
+			channel: 'markdownEditor', messageSecret: 'secret',
+			message: { jsonrpc: '2.0', id: 1, method: 'markdown.editor.host::pasteImages', params: request },
+		});
+		assert.deepStrictEqual({ chunks, errors }, { chunks: [
+			{ id: 'video', offset: 0, length: clipboardMediaChunkSize },
+			{ id: 'video', offset: clipboardMediaChunkSize, length: 3 },
+		], errors: [] });
+	});
 
 	test('sends presentation notifications without request IDs or acknowledgement messages', async () => {
 		const seen: unknown[] = [];

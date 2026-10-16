@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/agentHostChatIdentity.js';
+import { agentModelConfigurationReportKey } from '../../../../../../platform/agentHost/common/agentModelConfiguration.js';
 import { resolveSignedOutWindowGate, SignedOutWindowGate } from '../../../../../browser/sessionsAuthGate.js';
 import { withSessionSandboxPolicy } from '../../../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
 import { withChatSandboxState, withSessionSandboxState } from '../../../../../../platform/agentHost/common/meta/agentSandboxStateMeta.js';
@@ -10339,6 +10340,54 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
+		test('an archived chat keeps its folder, branch, and repository after its folder is detached from the session', () => {
+			const provider = createProvider(disposables, agentHost);
+			const primaryDirectory = URI.file('/work/MyRepo');
+			const peerDirectory = URI.file('/work/api.worktrees/task');
+			const session = setupMultiChatSession(provider, 'multi-archived-detached', [primaryDirectory]);
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-archived-detached').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+			const peerScopeId = 'host-scope-api';
+			let meta: SessionState['_meta'] = {
+				githubData: { [primaryDirectory.toString()]: { owner: 'octo', repo: 'MyRepo' }, [peerDirectory.toString()]: { owner: 'octo', repo: 'api' } },
+				gitData: { [peerScopeId]: { branchName: 'feature/api', hasGitRemote: true } },
+			};
+			meta = withWorkingDirectoryKey(meta, primaryDirectory.toString(), primaryDirectory.toString());
+			meta = withWorkingDirectoryKey(meta, peerDirectory.toString(), peerDirectory.toString());
+			meta = withWorkingDirectoryScopeId(meta, [peerDirectory.toString()], peerScopeId);
+			const setPeerArchived = (archived: boolean) => agentHost.setSessionState('multi-archived-detached', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle, [primaryDirectory.toString()]),
+				makeChatSummary(peerChat, 'Peer', archived ? ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsArchived : ProtocolSessionStatus.Idle, [peerDirectory.toString()]),
+			], { defaultChat, meta, workingDirectories: [primaryDirectory.toString()] }));
+			const peerWorkspace = () => {
+				const workspace = session.chats.get().find(chat => chat.resource.fragment === 'peer-1')?.workspace.get();
+				return workspace && {
+					label: workspace.label,
+					folders: workspace.folders.map(folder => ({
+						root: folder.root.toString(),
+						workingDirectory: folder.workingDirectory.toString(),
+						branch: folder.gitRepository?.branchName,
+						repository: folder.gitRepository?.gitHubInfo.get()?.repo,
+					})),
+				};
+			};
+
+			setPeerArchived(true);
+			const archived = peerWorkspace();
+			setPeerArchived(false);
+			const unarchivedBeforeAttach = peerWorkspace();
+
+			assert.deepStrictEqual({ archived, unarchivedBeforeAttach }, {
+				archived: {
+					label: 'api',
+					folders: [{ root: URI.file('/work/api').toString(), workingDirectory: peerDirectory.toString(), branch: 'feature/api', repository: 'api' }],
+				},
+				// Until the host attaches the folder again, an unarchived chat's folder is still loading.
+				unarchivedBeforeAttach: undefined,
+			});
+		});
+
 		test('does not match another folder by path case once the host published the folder key', () => {
 			const provider = createProvider(disposables, agentHost);
 			const upperDirectory = URI.file('/work/API');
@@ -14164,6 +14213,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 	test('replaceSessionConfig only replaces sessionMutable, non-readOnly values and preserves everything else', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		agentHost.addSession(createSession('rep-1', { summary: 'Replace Session' }));
 		const agentMergeFolders = { 'file:///repo': { enabled: true } };
+		const modelConfiguration = { 'custom-chat:/one': { models: {} } };
 		const provider = createProvider(disposables, agentHost);
 		provider.getSessions();
 		await timeout(0);
@@ -14177,9 +14227,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 					autoApprove: { type: 'string', title: 'Auto Approve', enum: ['default', 'autoApprove'], sessionMutable: true },
 					isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'] }, // non-mutable
 					branch: { type: 'string', title: 'Branch', enum: ['main'], sessionMutable: true, readOnly: true }, // readOnly
+					[agentModelConfigurationReportKey]: { type: 'object', title: 'Runtime model configuration', readOnly: true },
 				},
 			},
-			values: { autoApprove: 'default', isolation: 'worktree', branch: 'main', [SessionConfigKey.AgentMergeFolders]: agentMergeFolders },
+			values: { autoApprove: 'default', isolation: 'worktree', branch: 'main', [SessionConfigKey.AgentMergeFolders]: agentMergeFolders, [agentModelConfigurationReportKey]: modelConfiguration },
 		};
 		const fakeState: SessionState = {
 			provider: 'copilotcli', title: 'Replace Session', status: ProtocolSessionStatus.Idle,
@@ -14213,7 +14264,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 
 		const latest = provider.getSessionConfig(session!.sessionId, session!.mainChat.get().resource);
-		assert.deepStrictEqual(latest?.values, { autoApprove: 'autoApprove', isolation: 'worktree', branch: 'main', [SessionConfigKey.AgentMergeFolders]: agentMergeFolders });
+		assert.deepStrictEqual(latest?.values, { autoApprove: 'autoApprove', isolation: 'worktree', branch: 'main', [SessionConfigKey.AgentMergeFolders]: agentMergeFolders, [agentModelConfigurationReportKey]: modelConfiguration });
 	}));
 
 	test('running session config writes clamp autoApprove to default when policy disables global auto-approve', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {

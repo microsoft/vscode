@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { PermissionResult, PermissionUpdate } from '@anthropic-ai/claude-agent-sdk';
-import { URI } from '../../../../base/common/uri.js';
+import type { IAgentChatOwnerRef } from '../../common/agent.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ClaudePermissionMode, ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
@@ -27,16 +27,15 @@ import { getClaudeConfirmationTitle, getClaudeInvocationMessage, getClaudePermis
  * {@link import('./claudeSubagentRegistry.js').SubagentRegistry}); the
  * bridge no longer takes a host-singleton resolver dep.
  *
- * `configurationResource` is the session that owns the invoking chat's
- * configuration (`IAgentChatContext.configurationResource`), **not** the
- * chat's own persistence resource. `ExitPlanMode`'s permission-mode write
+ * `owner` is the session that owns the invoking chat
+ * (`IAgentChatContext.owner`), read when the bridge writes config. `ExitPlanMode`'s permission-mode write
  * changes the invoking chat's own config, which the chat's runtime reads
  * back; other chats of the session keep theirs.
  */
 export interface IClaudeCanUseToolDeps {
 	readonly getSession: (sessionId: string) => ClaudeAgentSession | undefined;
 	readonly configurationService: IAgentConfigurationService;
-	readonly configurationResource: URI;
+	readonly owner: IAgentChatOwnerRef;
 	readonly serverToolHost: IAgentServerToolHost | undefined;
 }
 
@@ -259,7 +258,7 @@ async function handleExitPlanMode(
 		...(parentToolCallId !== undefined ? { parentToolCallId } : {}),
 	});
 	if (approved) {
-		deps.configurationService.updateChatConfig(claudeConfigTarget(deps.configurationResource, session.chatChannelUri), {
+		deps.configurationService.updateChatConfig(claudeConfigTarget(deps.owner.get(), session.chatChannelUri), {
 			[ClaudeSessionConfigKey.PermissionMode]: 'acceptEdits' satisfies ClaudePermissionMode,
 		});
 		return { behavior: 'allow', updatedInput: input };

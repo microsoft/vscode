@@ -562,10 +562,20 @@ suite('SessionCanvasService', () => {
 		const getSubmenus = () => MenuRegistry.getMenuItems(Menus.SessionsEditorTabsBarAddTab)
 			.filter(isISubmenuItem)
 			.filter(item => item.submenu === Menus.SessionsEditorTabsBarAddTabCanvas);
+		const getListSubmenus = () => MenuRegistry.getMenuItems(Menus.SessionsEmptyEditorGroupAddTab)
+			.filter(isISubmenuItem)
+			.filter(item => item.submenu === Menus.SessionsEditorTabsBarAddTabCanvas);
+		const getToolbarSubmenus = () => MenuRegistry.getMenuItems(Menus.SessionToolbar)
+			.filter(isISubmenuItem)
+			.filter(item => item.submenu === Menus.SessionsEditorTabsBarAddTabCanvas);
 		const items = getItems();
 		const submenus = getSubmenus();
+		const toolbarSubmenus = getToolbarSubmenus();
 		const initialCommandIds = items.map(item => item.command.id);
 		const when = submenus[0].when?.serialize() ?? '';
+		const toolbarWhen = toolbarSubmenus[0]?.when?.serialize() ?? '';
+		const listSubmenus = getListSubmenus();
+		const itemWhen = items[0].when?.serialize() ?? '';
 		canvasStates.set(canvases.map((canvas, index) => index === 1 ? { ...canvas, title: 'Preview Updated' } : canvas), undefined);
 		const refreshedItems = getItems();
 		await CommandsRegistry.getCommand(items[1].command.id)!.handler(upcastPartial<ServicesAccessor>({}));
@@ -583,6 +593,12 @@ suite('SessionCanvasService', () => {
 			requiresSessionsWindow: when.includes(IsSessionsWindowContext.key),
 			excludesAuxiliaryWindow: when.includes(`!${IsAuxiliaryWindowContext.key}`),
 			requiresRightPane: when.includes(IsTopRightEditorGroupContext.key),
+			listSubmenuWhenMatchesAddTab: listSubmenus.length === 1 && listSubmenus[0].when?.serialize() === when,
+			toolbarSubmenuTitles: toolbarSubmenus.map(item => typeof item.title === 'string' ? item.title : item.title.value),
+			toolbarRequiresChat: toolbarWhen.includes(ChatContextKeys.enabled.key),
+			toolbarRequiresRightPane: toolbarWhen.includes(IsTopRightEditorGroupContext.key),
+			itemRequiresChat: itemWhen.includes(ChatContextKeys.enabled.key),
+			itemRequiresRightPane: itemWhen.includes(IsTopRightEditorGroupContext.key),
 			reopenedResource: opened.at(-1)?.reference.canvas.toString(),
 			refreshedCommandIds: refreshedItems.map(item => item.command.id),
 			refreshedTitles: refreshedItems.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value),
@@ -590,6 +606,8 @@ suite('SessionCanvasService', () => {
 			initialCommandsRegisteredAfterReopen: staleCommandsRegistered,
 			itemsAfterDispose: getItems().length,
 			submenusAfterDispose: getSubmenus().length,
+			listSubmenusAfterDispose: getListSubmenus().length,
+			toolbarSubmenusAfterDispose: getToolbarSubmenus().length,
 			remainingCommandsAfterDispose: remainingCommandIds.map(id => CommandsRegistry.getCommand(id) !== undefined),
 		}, {
 			submenuTitles: ['Canvas'],
@@ -599,6 +617,12 @@ suite('SessionCanvasService', () => {
 			requiresSessionsWindow: true,
 			excludesAuxiliaryWindow: true,
 			requiresRightPane: true,
+			listSubmenuWhenMatchesAddTab: true,
+			toolbarSubmenuTitles: ['Canvas'],
+			toolbarRequiresChat: true,
+			toolbarRequiresRightPane: false,
+			itemRequiresChat: true,
+			itemRequiresRightPane: false,
 			reopenedResource: 'agent-host-canvas:/preview-sidebar',
 			refreshedCommandIds: initialCommandIds,
 			refreshedTitles: ['Preview', 'Preview Updated', 'Preview (editor)', 'Dashboard', 'Logs (1)', 'Logs (1, 2)'],
@@ -606,6 +630,8 @@ suite('SessionCanvasService', () => {
 			initialCommandsRegisteredAfterReopen: [true, false, true, true, true, true],
 			itemsAfterDispose: 0,
 			submenusAfterDispose: 0,
+			listSubmenusAfterDispose: 0,
+			toolbarSubmenusAfterDispose: 0,
 			remainingCommandsAfterDispose: [false, false, false, false, false],
 		});
 	});

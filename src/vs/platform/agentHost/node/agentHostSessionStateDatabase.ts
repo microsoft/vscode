@@ -145,6 +145,8 @@ export interface IAgentHostSessionState {
 	readonly launchDirsBackfilled: boolean;
 	/** Progress of the one-time per-chat row copy, written by the session state store. */
 	readonly rowsMoved: string | undefined;
+	/** The merge base of each chat's draft mirrored into the session database, by chat ({@link IAgentHostSessionStateDatabase.readChatRowMirror}). */
+	readonly draftMirrorBases: ReadonlyMap<string, string>;
 }
 
 export interface IAgentHostSessionStateValues {
@@ -369,9 +371,11 @@ export class AgentHostSessionStateTables implements IAgentHostSessionStateDataba
 				connection.all('SELECT key, value, revision FROM session_state_values WHERE session_uri = ? ORDER BY key', [session]),
 				connection.all('SELECT folder_key, kind, value, storage_resource, revision FROM session_folder_state WHERE session_uri = ? ORDER BY folder_key, kind', [session]),
 				connection.all('SELECT * FROM session_chat_state WHERE session_uri = ? ORDER BY chat_uri', [session]),
-				connection.all('SELECT key, value FROM metadata WHERE key IN (?, ?, ?)', [legacyMirrorPrefix + session, launchDirsBackfilledPrefix + session, rowsMovedPrefix + session]),
+				// The draft mirror bases ride along with the markers: no statement of their own.
+				connection.all(`SELECT 0 AS draft, key, value FROM metadata WHERE key IN (?, ?, ?)
+					UNION ALL SELECT 1, chat_uri, base FROM chat_row_mirror WHERE session_uri = ? AND kind = 'draft'`, [legacyMirrorPrefix + session, launchDirsBackfilledPrefix + session, rowsMovedPrefix + session, session]),
 			]);
-			const marked = new Map(markers.map(row => [row.key as string, row.value as string]));
+			const marked = new Map(markers.filter(row => row.draft === 0).map(row => [row.key as string, row.value as string]));
 			return {
 				header: {
 					revision: header.revision as number,
@@ -392,6 +396,7 @@ export class AgentHostSessionStateTables implements IAgentHostSessionStateDataba
 				legacyMirrorBase: marked.get(legacyMirrorPrefix + session),
 				launchDirsBackfilled: marked.get(launchDirsBackfilledPrefix + session) === LAUNCH_DIRS_BACKFILL_VERSION,
 				rowsMoved: marked.get(rowsMovedPrefix + session),
+				draftMirrorBases: new Map(markers.filter(row => row.draft === 1).map(row => [row.key as string, row.value as string])),
 			};
 		});
 	}

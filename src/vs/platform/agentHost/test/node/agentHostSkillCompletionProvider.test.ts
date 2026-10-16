@@ -16,6 +16,7 @@ import { AgentHostCompletions, CompletionTriggerCharacter } from '../../node/age
 import { AgentHostSkillCompletionProvider } from '../../node/agentHostSkillCompletionProvider.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { MockAgent } from './mockAgent.js';
+import { createTestAgentChatContext } from './agentChatContextTestUtils.js';
 
 suite('AgentHostSkillCompletionProvider', () => {
 
@@ -93,7 +94,7 @@ suite('AgentHostSkillCompletionProvider', () => {
 	}
 
 	function createProvider(agent: MockAgent): AgentHostSkillCompletionProvider {
-		return disposables.add(new AgentHostSkillCompletionProvider(() => agent, session => URI.parse(buildDefaultChatUri(session))));
+		return disposables.add(new AgentHostSkillCompletionProvider(() => agent, session => ({ chat: URI.parse(buildDefaultChatUri(session)), context: createTestAgentChatContext(session, session) })));
 	}
 
 	async function run(provider: AgentHostSkillCompletionProvider, text: string, offset = text.length) {
@@ -102,7 +103,7 @@ suite('AgentHostSkillCompletionProvider', () => {
 
 	test('announces slash as a trigger character', () => {
 		const completions = disposables.add(new AgentHostCompletions(new NullLogService(), disposables.add(new AgentHostStateManager(new NullLogService()))));
-		const provider = disposables.add(new AgentHostSkillCompletionProvider(() => undefined, session => URI.parse(buildDefaultChatUri(session))));
+		const provider = disposables.add(new AgentHostSkillCompletionProvider(() => undefined, session => ({ chat: URI.parse(buildDefaultChatUri(session)), context: createTestAgentChatContext(session, session) })));
 		disposables.add(completions.registerProvider(provider));
 		assert.deepStrictEqual([...completions.triggerCharacters], [CompletionTriggerCharacter.Slash]);
 	});

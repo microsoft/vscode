@@ -14,6 +14,11 @@ suite('GitHub client schema', () => {
 		const cases = [
 			{ parser: parse.string, valid: ['', 'value'], invalid: [null, undefined, 1, true] },
 			{ parser: parse.nonEmptyString, valid: ['value', ' '], invalid: ['', null, undefined] },
+			{
+				parser: parse.sha,
+				valid: ['0123456789abcdef0123456789abcdef01234567', '0'.repeat(40)],
+				invalid: ['', null, undefined, 1, 'a'.repeat(39), 'a'.repeat(41), 'A'.repeat(40), 'g'.repeat(40), `${'a'.repeat(40)}\n`],
+			},
 			{ parser: parse.boolean, valid: [true, false], invalid: [0, 1, 'true'] },
 			{ parser: parse.oneOf('queued', 'done'), valid: ['queued', 'done'], invalid: ['QUEUED', false] },
 			{ parser: parse.oneOf(1, 2), valid: [1, 2], invalid: ['1', true, 3] },

@@ -31,10 +31,9 @@ import { IAgentHostConnectionLabels, IAgentHostGroup } from '../../../../common/
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
+import { CLOUD_SANDBOX_CREATION_PROVIDER_ID, COPILOT_PROVIDER_ID } from '../../copilotChatSessions/common/copilotChatSessions.js';
 import { CloudSandboxSessionsProvider } from './cloudSandboxSessionsProvider.js';
 import { IRemoteAgentHostSessionsProviderConfig } from './remoteAgentHostSessionsProvider.js';
-
-export const CLOUD_SANDBOX_CREATION_PROVIDER_ID = 'cloud-sandbox-creation';
 
 const CLOUD_SANDBOX_HOST_GROUP: IAgentHostGroup = {
 	id: 'githubsandbox',
@@ -152,7 +151,7 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 			connectionLabels: CLOUD_SANDBOX_CONNECTION_LABELS,
 			hostGroup: CLOUD_SANDBOX_HOST_GROUP,
 		}));
-		store.add(this._sessionsProvidersService.registerProvider(provider));
+		store.add(this._sessionsProvidersService.registerSessionBackend(isWeb ? CLOUD_SANDBOX_CREATION_PROVIDER_ID : COPILOT_PROVIDER_ID, provider));
 		return provider;
 	}
 

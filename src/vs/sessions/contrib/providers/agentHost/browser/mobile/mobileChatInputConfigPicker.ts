@@ -109,7 +109,7 @@ class MobileChatInputConfigPicker extends Disposable {
 			this._watchProviders(e.added);
 			this._updateTrigger();
 		}));
-		this._watchProviders(this._sessionsProvidersService.getProviders());
+		this._watchProviders(this._sessionsProvidersService.getProviders({ includeSessionBackends: true }));
 	}
 
 	/**

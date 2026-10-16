@@ -129,9 +129,8 @@ suite('AgentHostSavedChatContinuation', () => {
 		await svc.whenCatalogReconciliationIdle();
 		const worktreeCalls: string[] = [];
 		setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
-			cleanupWorktree: async () => { worktreeCalls.push('cleanup'); },
-			cleanupWorktreeOnArchive: async () => { worktreeCalls.push('archive'); },
-			setDetachedWorktreeArchived: async () => { worktreeCalls.push('detached'); },
+			readSessionWorktreeForRemoval: async () => { worktreeCalls.push('archive'); return undefined; },
+			markDetachedWorktreeArchived: async () => { worktreeCalls.push('detached'); return false; },
 		}));
 		await local.setMetadataValues({
 			[SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify(['file:///saved/project']),

@@ -114,7 +114,7 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 		// Reconcile tracked-but-missing entries (sessions deleted while this
 		// client was closed) and tracked-but-already-archived entries (sessions
 		// archived elsewhere) once each provider has loaded its sessions.
-		for (const provider of sessionsProvidersService.getProviders()) {
+		for (const provider of sessionsProvidersService.getProviders({ includeSessionBackends: true })) {
 			this._trackProviderForReconciliation(provider);
 		}
 		this._register(sessionsProvidersService.onDidChangeProviders(e => {

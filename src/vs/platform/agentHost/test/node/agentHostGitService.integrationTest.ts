@@ -460,6 +460,30 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		}, { branch: 'main', detached: undefined });
 	});
 
+	(hasGit ? test : test.skip)('getHEAD resolves attached and detached HEAD', async () => {
+		const dir = initRepo();
+		const directory = URI.file(dir);
+		const attached = await svc!.getHEAD(directory);
+		const commit = cp.execFileSync('git', ['rev-parse', 'HEAD'], { cwd: dir, encoding: 'utf8' }).trim();
+		cp.execFileSync('git', ['checkout', '--detach', '-q'], { cwd: dir, stdio: 'pipe' });
+
+		assert.deepStrictEqual({
+			attached,
+			detached: await svc!.getHEAD(directory),
+		}, {
+			attached: {
+				ref: 'refs/heads/main',
+				name: 'main',
+				upstream: undefined,
+				kind: GitRefType.Head,
+			},
+			detached: {
+				name: commit,
+				kind: GitRefType.DetachedHead,
+			},
+		});
+	});
+
 	(hasGit ? test : test.skip)('getCurrentBranchName throws on failed strict lookup without changing best-effort callers', async () => {
 		tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-nongit-'));
 		const directory = URI.file(tmpRoot);

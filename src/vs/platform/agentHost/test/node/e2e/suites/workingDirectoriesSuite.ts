@@ -328,6 +328,12 @@ export function defineWorkingDirectoriesTests(context: IAgentHostE2ETestContext)
 				assert.strictEqual(execFileSync('git', ['status', '--porcelain'], { cwd: session.replacement.fsPath, encoding: 'utf8' }).trim(), '');
 				await context.client.call('disposeSession', { channel: session.session }, 60_000);
 				context.createdSessions.splice(context.createdSessions.indexOf(session.session), 1);
+				// Deletion records the removal; the host removes the checkout in the background once a listing settled its startup.
+				await context.client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
+				const deadline = Date.now() + 30_000;
+				while (existsSync(worktree) && Date.now() < deadline) {
+					await new Promise(resolve => setTimeout(resolve, 100));
+				}
 				assert.strictEqual(existsSync(worktree), false, 'disposing the owner must remove its additional worktree');
 			});
 		});
