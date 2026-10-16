@@ -107,7 +107,7 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 	}
 
 	private _encodeColons(value: string): string {
-		return value.replaceAll(':', '\\x3a');
+		return value.replaceAll('\\', '\\\\').replaceAll(':', '\\x3a');
 	}
 
 	private blockPythonActivationVar(variable: string, extensionIdentifier: string): boolean {
