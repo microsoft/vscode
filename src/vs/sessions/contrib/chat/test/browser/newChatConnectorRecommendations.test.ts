@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Emitter } from '../../../../../base/common/event.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -52,6 +53,8 @@ suite('NewChatConnectorRecommendations', () => {
 		const errors: unknown[][] = [];
 		const notifications: string[] = [];
 		const telemetryService = new TestExperimentTriggerTelemetryService();
+		const onDidChangeInput = store.add(new Emitter<void>());
+		let inputValue = '';
 		let focusCount = 0;
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(ICommandService, {
@@ -69,9 +72,25 @@ suite('NewChatConnectorRecommendations', () => {
 		instantiationService.stub(IProductService, { _serviceBrand: undefined, connectorRecommendations: productRecommendations ?? undefined });
 		instantiationService.stub(IThemeService, new TestThemeService());
 		instantiationService.stub(ITelemetryService, telemetryService);
-		const recommendations = store.add(instantiationService.createInstance(NewChatConnectorRecommendations, () => focusCount++));
+		const recommendations = store.add(instantiationService.createInstance(NewChatConnectorRecommendations, {
+			focusInput: () => focusCount++,
+			getInputValue: () => inputValue,
+			onDidChangeInputValue: onDidChangeInput.event,
+		}));
 		document.body.appendChild(recommendations.element);
-		return { recommendations, configurationService, commands, errors, notifications, telemetryService, get focusCount() { return focusCount; } };
+		return {
+			recommendations,
+			configurationService,
+			commands,
+			errors,
+			notifications,
+			telemetryService,
+			setInput(value: string) {
+				inputValue = value;
+				onDidChangeInput.fire();
+			},
+			get focusCount() { return focusCount; },
+		};
 	}
 
 	test('triggers the recommendation experiment before deciding visibility', () => {
@@ -102,6 +121,7 @@ suite('NewChatConnectorRecommendations', () => {
 
 	test('renders product recommendations and opens the selected connector detail', async () => {
 		const fixture = setup(true, true);
+		fixture.setInput('Compare https://linear.app/acme/issue/ENG-1, notion.so/acme, and https://microsoft365.com.');
 		await Promise.resolve();
 		await Promise.resolve();
 		const cards = [...fixture.recommendations.element.querySelectorAll<HTMLElement>('.new-session-connector-recommendation-card')];
@@ -140,8 +160,80 @@ suite('NewChatConnectorRecommendations', () => {
 		});
 	});
 
+	test('shows only recommendations associated with URL hosts in the prompt', () => {
+		const fixture = setup(true, true);
+		const visibleCards = () => [...fixture.recommendations.element.querySelectorAll<HTMLElement>('.new-session-connector-recommendation-card')]
+			.filter(card => !card.hidden)
+			.map(card => card.dataset.connectorId);
+
+		const states: Array<{ readonly hidden: boolean; readonly visibleCards: readonly (string | undefined)[] }> = [];
+		for (const input of [
+			'Notion can mean an ordinary notion, so product names alone do not count.',
+			'Open https://www.notion.so/acme/Project-123.',
+			'Compare linear.app/acme/issue/ENG-1 with workspace.notion.site/roadmap.',
+			'This nested URL must not count: https://example.com/redirect/notion.so/acme.',
+			'Neither user@notion.so nor https://notion.so.example.com is a Notion URL.',
+			'',
+		]) {
+			fixture.setInput(input);
+			states.push({ hidden: fixture.recommendations.element.hidden === true, visibleCards: visibleCards() });
+		}
+
+		assert.deepStrictEqual(states, [
+			{ hidden: true, visibleCards: [] },
+			{ hidden: false, visibleCards: ['notion'] },
+			{ hidden: false, visibleCards: ['linear', 'notion'] },
+			{ hidden: true, visibleCards: [] },
+			{ hidden: true, visibleCards: [] },
+			{ hidden: true, visibleCards: [] },
+		]);
+	});
+
+	test('supports only the eight known connector families when those recommendations are available', () => {
+		const fixture = setup(true, true, true, {
+			kusto: { name: 'Azure Data Explorer', description: 'Query Azure Data Explorer.', iconUrl: 'https://example.com/kusto.png' },
+			workiq: { name: 'Work IQ', description: 'Use Microsoft 365 work data.', iconUrl: 'https://example.com/workiq.png' },
+			'atlassian-rovo': { name: 'Atlassian Rovo', description: 'Search Jira and Confluence.', iconUrl: 'https://example.com/atlassian.png' },
+			cloudflare: { name: 'Cloudflare', description: 'Inspect Cloudflare resources.', iconUrl: 'https://example.com/cloudflare.png' },
+			linear: connectorRecommendations.linear,
+			notion: connectorRecommendations.notion,
+			sentry: { name: 'Sentry', description: 'Search and triage Sentry issues.', iconUrl: 'https://example.com/sentry.png' },
+			microsoftlearndocsmcpserver: { name: 'Microsoft Learn Docs', description: 'Search Microsoft Learn.', iconUrl: 'https://example.com/learn.png' },
+			figma: { name: 'Figma', description: 'Not in the supported connector list.', iconUrl: 'https://example.com/figma.png' },
+		});
+		const visibleCards = () => [...fixture.recommendations.element.querySelectorAll<HTMLElement>('.new-session-connector-recommendation-card')]
+			.filter(card => !card.hidden)
+			.map(card => card.dataset.connectorId);
+
+		fixture.setInput([
+			'https://dataexplorer.azure.com/clusters/demo',
+			'https://contoso.kusto.windows.net',
+			'https://teams.microsoft.com/l/message/123',
+			'https://acme.atlassian.net/browse/PROJ-1',
+			'https://cloudflare.com/',
+			'https://dash.cloudflare.com/account/workers',
+			'https://linear.app/acme/issue/ENG-1',
+			'https://www.notion.so/acme/project',
+			'https://acme.sentry.io/issues/123',
+			'https://learn.microsoft.com/azure/data-explorer/',
+			'https://figma.com/file/abc',
+		].join(' '));
+
+		assert.deepStrictEqual(visibleCards(), [
+			'kusto',
+			'workiq',
+			'atlassian-rovo',
+			'cloudflare',
+			'linear',
+			'notion',
+			'sentry',
+			'microsoftlearndocsmcpserver',
+		]);
+	});
+
 	test('tracks enablement and dismisses individual cards for the widget lifetime', async () => {
 		const fixture = setup(true, false, true, connectorRecommendations, true);
+		fixture.setInput('Use linear.app, notion.so, and microsoft365.com.');
 		assert.strictEqual(fixture.recommendations.element.hidden, true);
 
 		await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled, true);
