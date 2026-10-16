@@ -105,7 +105,7 @@ import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { AGENT_MERGE_CHANGESET_ID, buildBranchChangesetUri, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
-import { getWorktreesRoot, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
+import { getWorktreesRoot, WorktreeIsolation, WORKTREE_META_PATH, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
 import type { IAgentHostPullRequestResolver } from '../../node/shared/pullRequestResolver.js';
 import { readSessionAdditionalWorktrees, writeSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
@@ -3319,7 +3319,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('lists and opens canvases through the owning provider', async () => {
+		test('lists, opens and closes canvases through the owning provider', async () => {
 			const calls: unknown[] = [];
 			const provider: IAgent = copilotAgent;
 			provider.listSessionCanvases = async (session, chat, context) => {
@@ -3338,6 +3338,10 @@ suite('AgentService (node dispatcher)', () => {
 			provider.openSessionCanvas = async (session, request, chat, context) => {
 				const resolved = resolveAgentChatContext(context, chat);
 				calls.push(['open', session.toString(), chat.toString(), resolved.resource.toString(), resolved.owner.get().toString(), request]);
+			};
+			provider.closeSessionCanvas = async (session, request, chat, context) => {
+				const resolved = resolveAgentChatContext(context, chat);
+				calls.push(['close', session.toString(), chat.toString(), resolved.resource.toString(), resolved.owner.get().toString(), request.resource.toString()]);
 			};
 			registerTestAgentProvider(service, provider);
 			getConfigurationService(service).updateRootConfig({ [AgentHostCanvasesEnabledConfigKey]: true });
@@ -3367,6 +3371,7 @@ suite('AgentService (node dispatcher)', () => {
 				extensionId: 'project:preview',
 				instanceId: 'project-preview-preview',
 			}, chat);
+			await managementService.closeSessionCanvas(session, { resource: URI.parse('ahp-canvas:/preview') }, chat);
 
 			assert.deepStrictEqual({
 				canvases,
@@ -3390,8 +3395,50 @@ suite('AgentService (node dispatcher)', () => {
 						extensionId: 'project:preview',
 						instanceId: 'project-preview-preview',
 					}],
+					['close', 'copilot:/canvas-session', chat.toString(), 'copilot:/canvas-session', 'copilot:/canvas-session', 'ahp-canvas:/preview'],
 				],
 			});
+		});
+
+		test('closes canvases without restoring a cold session or resolving a cold chat', async () => {
+			const closed: string[] = [];
+			const provider: IAgent = copilotAgent;
+			provider.closeSessionCanvas = async (_session, _request, chat) => {
+				closed.push(chat.toString());
+			};
+			registerTestAgentProvider(service, provider);
+			getConfigurationService(service).updateRootConfig({ [AgentHostCanvasesEnabledConfigKey]: true });
+			const stateManager = getStateManager(service);
+			const now = new Date().toISOString();
+			const resident = AgentSession.uri('copilot', 'canvas-resident-session');
+			stateManager.restoreSession({
+				resource: resident.toString(),
+				defaultChat: buildDefaultChatUri(resident.toString()),
+				provider: provider.id,
+				title: 'Canvas session',
+				status: SessionStatus.Idle,
+				createdAt: now,
+				modifiedAt: now,
+			}, [], creationTimeChatStorageResource);
+			const coldPeer = URI.parse(buildChatUri(resident, 'peer'));
+			let resolverCalls = 0;
+			stateManager.registerRestoredChatSummary(resident.toString(), coldPeer.toString(), {
+				storageResource: creationTimeChatStorageResource(resident.toString(), coldPeer.toString(), buildDefaultChatUri(resident.toString())),
+				resolver: async () => {
+					resolverCalls++;
+					return { turns: [] };
+				},
+			});
+			let restoreCalls = 0;
+			service.restoreSession = async () => { restoreCalls++; };
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
+			const coldSession = AgentSession.uri('copilot', 'canvas-cold-session');
+			const resource = URI.parse('ahp-canvas:/preview');
+
+			await managementService.closeSessionCanvas(coldSession, { resource }, URI.parse(buildDefaultChatUri(coldSession.toString())));
+			await managementService.closeSessionCanvas(resident, { resource }, coldPeer);
+
+			assert.deepStrictEqual({ restoreCalls, resolverCalls, closed }, { restoreCalls: 0, resolverCalls: 0, closed: [coldPeer.toString()] });
 		});
 
 		test('rejects a foreign canvas chat before resolving it', async () => {
@@ -7748,6 +7795,58 @@ suite('AgentService (node dispatcher)', () => {
 			// File on disk holds exactly the original bytes
 			const written = await fileService.readFile(URI.parse(a.uri));
 			assert.deepStrictEqual([...written.value.buffer], [...png]);
+		});
+
+		test('independent steering preserves attachment snapshots and rejects in-flight edits', async () => {
+			const { svc, agent, session, attachmentsRoot } = await setup();
+			await dispatchTurnAndWait(svc, agent, session, []);
+			const chat = buildDefaultChatUri(session);
+			const stateManager = getStateManager(svc);
+			const action = {
+				type: ActionType.ChatPendingMessageSet as const,
+				kind: PendingMessageKind.Steering, id: 'steer-a', message: {
+					text: 'A', origin: { kind: MessageKind.User },
+					attachments: [{
+						type: MessageAttachmentKind.EmbeddedResource as const,
+						label: 'context.txt', contentType: 'text/plain',
+						data: encodeBase64(VSBuffer.fromString('steering context')),
+					}],
+				},
+			};
+			const accepted = Event.toPromise(Event.filter(svc.onDidAction, envelope =>
+				envelope.action.type === ActionType.ChatPendingMessageSet && envelope.action.id === 'steer-a'));
+			await svc.dispatchAction(chat, action, 'test-client', 2);
+			await accepted;
+			const attachment = stateManager.getChatState(chat)?.queuedMessages?.[0].message.attachments?.[0];
+			assert.ok(attachment?.type === MessageAttachmentKind.Resource);
+			assert.ok(attachment.uri.startsWith(attachmentsRoot.toString() + '/'));
+			const contents = await fileService.readFile(URI.parse(attachment.uri));
+			const rejections: string[] = [];
+			disposables.add(svc.onDidAction(envelope => {
+				if (envelope.rejectionReason) {
+					rejections.push(envelope.rejectionReason);
+				}
+			}));
+			const changed = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 3));
+			svc.dispatchAction(chat, {
+				type: ActionType.ChatPendingMessageSet,
+				kind: PendingMessageKind.Steering, id: 'steer-a', message: { text: 'Changed A', origin: { kind: MessageKind.User } },
+			}, 'test-client', 3);
+			await changed;
+			const removed = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 4));
+			svc.dispatchAction(chat, { type: ActionType.ChatPendingMessageRemoved, kind: PendingMessageKind.Steering, id: 'steer-a' }, 'test-client', 4);
+			await removed;
+			assert.deepStrictEqual({
+				contents: contents.value.toString(),
+				pending: stateManager.getChatState(chat)?.queuedMessages?.map(message => message.message.text),
+				rejections,
+			}, {
+				contents: 'steering context', pending: ['A'],
+				rejections: [
+					'Cannot change a steering message while it is being processed.',
+					'Cannot change a steering message while it is being processed.',
+				],
+			});
 		});
 
 		test('snapshots embedded text attachments as text files without retaining the payload in state', async () => {
@@ -31959,9 +32058,10 @@ suite('AgentService (node dispatcher)', () => {
 				override async disposeChat(_session: URI, _chat: URI): Promise<void> { }
 			}
 
-			async function setupMove(enabled = true, targetFolder?: URI, multiRoot = false, logService: ILogService = new NullLogService()) {
+			/** With `perSessionData`, each session has its own database, as in production; otherwise all share `db`. */
+			async function setupMove(enabled = true, targetFolder?: URI, multiRoot = false, logService: ILogService = new NullLogService(), perSessionData = false) {
 				const db = new TestSessionDatabase();
-				const service = disposables.add(createTestAgentService(logService, fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				const service = disposables.add(createTestAgentService(logService, fileService, perSessionData ? createPerSessionDataService().service : createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 				const agent = disposables.add(new MovingAgent('copilot', multiRoot));
 				registerTestAgentProvider(service, agent);
 				if (enabled) {
@@ -32349,6 +32449,8 @@ suite('AgentService (node dispatcher)', () => {
 						});
 					},
 					legacyCatalog: async ({ internals, source }) => {
+						// Its reconciliation is parked: its provider can't vouch for its chats.
+						(internals as unknown as { _catalogReconciliationService: { isParked(session: string): boolean } })._catalogReconciliationService.isParked = session => session === source.toString();
 						const read = internals._orchestratorDatabase.readCatalogSnapshot.bind(internals._orchestratorDatabase);
 						internals._orchestratorDatabase.readCatalogSnapshot = async sessions => (await read(sessions)).map(entry => entry.session === source.toString() ? { ...entry, authorityVersion: 1 } : entry);
 						internals._migrateChatCatalog = async () => { };
@@ -32371,6 +32473,287 @@ suite('AgentService (node dispatcher)', () => {
 				assert.deepStrictEqual({ refusals, owners }, {
 					refusals: Object.fromEntries(Object.keys(cases).map(name => [name, name === 'hiddenAnchor' ? AgentChatMoveRefusal.InvalidAnchor : name])),
 					owners: Object.fromEntries(Object.keys(cases).map(name => [name, 'source'])),
+				});
+			});
+
+			/** A target an older build created: its catalog is legacy and its aggregate awaits a re-projection. */
+			async function setupLegacyTarget() {
+				// Each session reads its own older-build chat list, so the target's conversion never sees the source's.
+				const env = await setupMove(true, URI.file('/other'), true, undefined, true);
+				const database = getTestAgentHostDatabase(env.service);
+				const target = AgentSession.uri('copilot', 'legacy-target');
+				const folder = URI.file('/other').toString();
+				await database.registerRuntimeSession(target.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+				await database.upsertSessionV2(catalogEnvelope(target, {
+					modifiedTime: 1, summary: 'Older build', isRead: true, isArchived: false, workingDirectories: [folder],
+					chats: [{ uri: buildDefaultChatUri(target), order: 0, kind: 'default', summary: 'Older build', workingDirectories: [folder] }],
+				}), undefined);
+				await database.markSessionV2PayloadDirty(target.toString());
+				// Its provider still has the conversation.
+				const getChatMetadata = env.agent.getChatMetadata.bind(env.agent);
+				env.agent.getChatMetadata = async (chat, context, providerData) => chat.toString() === buildDefaultChatUri(target)
+					? { chat, startTime: 1, modifiedTime: 1, summary: 'Older build', workingDirectories: [URI.file('/other')] }
+					: getChatMetadata(chat, context, providerData);
+				await env.service.restoreSession(target);
+				return { env, database, target };
+			}
+
+			suite('a refused move changes nothing', () => {
+				type MoveEnv = Pick<Awaited<ReturnType<typeof setupMove>>, 'service' | 'source' | 'peer'>;
+
+				/** Everything a move would change: both catalogs (revisions and chats), live state, movability, ownership and folders. */
+				async function moveFootprint({ service, source, peer }: MoveEnv, target: URI) {
+					const stateManager = getStateManager(service);
+					// Writes still in flight land first, as a move waits for them too.
+					await (service as unknown as IMoveInternals)._peerChatStore.whenSessionsIdle([source, target]);
+					await service.whenCatalogReconciliationIdle();
+					const catalogs = await getTestAgentHostDatabase(service).readCatalogSnapshot([source.toString(), target.toString()]);
+					const session = (resource: URI) => ({
+						catalog: catalogs.filter(entry => entry.session === resource.toString()).map(entry => ({ authority: entry.authorityVersion, revision: entry.header?.revision, chats: entry.chats.map(chat => chat.chat) })),
+						chats: stateManager.getSessionState(resource.toString())?.chats.map(chat => [chat.resource, chat.movable ?? false, chat.workingDirectories]),
+						folders: stateManager.getSessionSummary(resource.toString())?.workingDirectories,
+					});
+					return {
+						source: session(source),
+						target: session(target),
+						owner: stateManager.getChatOwner(peer.toString()),
+						chatFolders: stateManager.getChatState(peer.toString())?.workingDirectories,
+						origin: stateManager.getMovedChatOrigin(peer.toString()),
+					};
+				}
+
+				/** Reports a pending workspace change of `chat` (its own, or its session's default chat's), as the conversion service does. */
+				function firePendingChanged(service: AgentService, chat: string): void {
+					(service as unknown as { _workspaceConversionService: { _onDidChangePending: Emitter<string> } })._workspaceConversionService._onDidChangePending.fire(chat);
+				}
+
+				/**
+				 * Moves `env.peer` to `target` after `arrange`, and returns its refusal, whether the move changed anything, and
+				 * whether the peer was movable before it (strict: false when its own session refuses its move).
+				 */
+				async function refuse(env: MoveEnv, target: URI, arrange?: () => void | Promise<void>) {
+					// Resolved first, as a move resolves it, so the footprint compares like with like.
+					await getStateManager(env.service).resolveChatState(env.peer.toString());
+					// `movable` follows its session's inputs synchronously, so the footprint before the move is final.
+					await arrange?.();
+					const before = await moveFootprint(env, target);
+					const reason = await refusalOf(env.service.moveChat(env.source, env.peer, { kind: 'session', session: target, after: undefined }));
+					const movable = getStateManager(env.service).getSessionState(env.source.toString())?.chats.find(chat => chat.resource === env.peer.toString())?.movable ?? false;
+					return { actual: { reason, footprint: await moveFootprint(env, target) }, before, movable };
+				}
+
+				/** The outcome of a refusal for `reason` that changed nothing. */
+				function refused(reason: AgentChatMoveRefusal, outcome: Awaited<ReturnType<typeof refuse>>) {
+					return { reason, footprint: outcome.before };
+				}
+
+				test('a different provider', async () => {
+					const env = await setupMove(true, URI.file('/other'), true);
+					registerTestAgentProvider(env.service, disposables.add(new MovingAgent('other')));
+					const target = await env.service.createSession({ legacyChatUris: true, provider: 'other', workingDirectories: [URI.file('/other')] });
+					await timeout(0);
+
+					const outcome = await refuse(env, target);
+					assert.deepStrictEqual(outcome.actual, refused(AgentChatMoveRefusal.DifferentProvider, outcome));
+				});
+
+				test('a session whose workspace is changing (quarantined), on either side', async () => {
+					const outcomes: Record<string, Awaited<ReturnType<typeof refuse>>> = {};
+					for (const side of ['source', 'target'] as const) {
+						const env = await setupMove(true, URI.file('/other'), true);
+						const quarantined = env[side].toString();
+						outcomes[side] = await refuse(env, env.target, () => {
+							(env.service as unknown as IMoveInternals)._workspaceConversionService.isPending = (resource, sessionWide) => sessionWide === true && resource === quarantined;
+							// A session-wide change is reported for the session's default chat.
+							firePendingChanged(env.service, getStateManager(env.service).getSessionState(quarantined)!.defaultChat!);
+						});
+					}
+					assert.deepStrictEqual({ source: outcomes.source.actual, target: outcomes.target.actual, movable: { source: outcomes.source.movable, target: outcomes.target.movable } }, {
+						source: refused(AgentChatMoveRefusal.SessionQuarantined, outcomes.source),
+						target: refused(AgentChatMoveRefusal.SessionQuarantined, outcomes.target),
+						// Only its own session's quarantine makes the chat not movable; a quarantined destination is refused per request.
+						movable: { source: false, target: true },
+					});
+				});
+
+				test('a chat whose own workspace is changing (conversion in progress)', async () => {
+					const env = await setupMove(true, URI.file('/other'), true);
+
+					const outcome = await refuse(env, env.target, () => {
+						(env.service as unknown as IMoveInternals)._workspaceConversionService.isPending = (resource, sessionWide) => sessionWide !== true && resource === env.peer.toString();
+						firePendingChanged(env.service, env.peer.toString());
+					});
+					assert.deepStrictEqual({ ...outcome.actual, movable: outcome.movable }, { ...refused(AgentChatMoveRefusal.ConversionInProgress, outcome), movable: false });
+				});
+
+				test('a workspace-less session on either side, and a chat without a folder', async () => {
+					const outcomes: Record<string, Awaited<ReturnType<typeof refuse>>> = {};
+					for (const side of ['source', 'target'] as const) {
+						const env = await setupMove(true, URI.file('/other'), true);
+						const stateManager = getStateManager(env.service);
+						const session = env[side].toString();
+						outcomes[side] = await refuse(env, env.target, () => stateManager.setSessionMeta(session, withSessionWorkspaceless(stateManager.getSessionState(session)?._meta, true)));
+					}
+					// A session without folders: the chat inherits none.
+					const db = new TestSessionDatabase();
+					const service = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+					registerTestAgentProvider(service, disposables.add(new MovingAgent('copilot')));
+					getConfigurationService(service).updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
+					const source = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
+					const target = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/other')] });
+					const peer = URI.parse(buildChatUri(source, 'mover'));
+					await service.createChat(source, peer);
+					await timeout(0);
+					outcomes.noFolder = await refuse({ service, source, peer }, target);
+
+					assert.deepStrictEqual({
+						source: outcomes.source.actual, target: outcomes.target.actual, noFolder: outcomes.noFolder.actual,
+						movable: { source: outcomes.source.movable, target: outcomes.target.movable, noFolder: outcomes.noFolder.movable },
+					}, {
+						source: refused(AgentChatMoveRefusal.Workspaceless, outcomes.source),
+						target: refused(AgentChatMoveRefusal.Workspaceless, outcomes.target),
+						noFolder: refused(AgentChatMoveRefusal.Workspaceless, outcomes.noFolder),
+						// A workspace-less destination is refused per request; the chat's own session, or its missing folder, makes it not movable.
+						movable: { source: false, target: true, noFolder: false },
+					});
+				});
+
+				test('a target whose legacy catalog is parked (its chats can\'t be verified)', async () => {
+					const { env, database, target } = await setupLegacyTarget();
+					const reconciliation = (env.service as unknown as { _catalogReconciliationService: { _park(session: string, observedDirty: number | undefined): Promise<unknown> } })._catalogReconciliationService;
+					await reconciliation._park(target.toString(), await database.getSessionV2PayloadDirty(target.toString()));
+
+					const first = await refuse(env, target);
+					// Refused again, it changes nothing either: an attempt leaves nothing behind for the next one to act on.
+					const again = await refuse(env, target);
+
+					assert.deepStrictEqual({ first: first.actual, again: again.actual, authority: again.actual.footprint.target.catalog[0]?.authority }, {
+						first: refused(AgentChatMoveRefusal.LegacyCatalog, first),
+						again: refused(AgentChatMoveRefusal.LegacyCatalog, again),
+						authority: 1,
+					});
+				});
+
+				test('a target its conversion attempt finds unverifiable (parked meanwhile) is a legacy catalog', async () => {
+					const { env, database, target } = await setupLegacyTarget();
+					const internals = env.service as unknown as IMoveInternals & { _catalogReconciliationService: { _park(session: string, observedDirty: number | undefined): Promise<unknown> } };
+					// The conversion fails because the provider can't vouch for the target's chats, and its reconciliation parks it.
+					internals._migrateChatCatalog = async session => {
+						await internals._catalogReconciliationService._park(session.toString(), await database.getSessionV2PayloadDirty(session.toString()));
+					};
+
+					const outcome = await refuse(env, target);
+					assert.deepStrictEqual(outcome.actual, refused(AgentChatMoveRefusal.LegacyCatalog, outcome));
+				});
+
+				test('a session whose legacy catalog still can\'t be converted is not ready, not a legacy catalog', async () => {
+					const { env, target } = await setupLegacyTarget();
+					// The conversion keeps failing (here: it never converts), though the session isn't parked.
+					(env.service as unknown as IMoveInternals)._migrateChatCatalog = async () => { };
+
+					const outcome = await refuse(env, target);
+					assert.deepStrictEqual(outcome.actual, refused(AgentChatMoveRefusal.SessionNotReady, outcome));
+				});
+			});
+
+			test('a move converts a new session though a write of the session dirties its aggregate right after it was staged', async () => {
+				const { env, target } = await setupLegacyTarget();
+				const database = (env.service as unknown as { _orchestratorDatabase: { markSessionV2PayloadClean(session: string, revision: number): Promise<boolean>; markSessionV2PayloadDirty(session: string): Promise<number | undefined> } })._orchestratorDatabase;
+				// As the session's own activity does after a turn (its read state, changes summary, ...), outside the conversion's queue.
+				const markClean = database.markSessionV2PayloadClean.bind(database);
+				let concurrentWrites = 0;
+				database.markSessionV2PayloadClean = async (session, revision) => {
+					const cleaned = await markClean(session, revision);
+					if (cleaned && session === target.toString() && concurrentWrites++ === 0) {
+						await database.markSessionV2PayloadDirty(session);
+					}
+					return cleaned;
+				};
+
+				const result = await env.service.moveChat(env.source, env.peer, { kind: 'session', session: target, after: undefined });
+				const [after] = await getTestAgentHostDatabase(env.service).readCatalogSnapshot([target.toString()]);
+
+				assert.deepStrictEqual({ result: result.toString(), authority: after?.authorityVersion, owner: getStateManager(env.service).getChatOwner(env.peer.toString()), concurrentWrites }, {
+					result: target.toString(),
+					authority: 2,
+					owner: target.toString(),
+					// Staged once, dirtied, staged again and converted.
+					concurrentWrites: 2,
+				});
+			});
+
+			test('a move converts a session that is legacy only because its re-projection is pending, at once, and moves', async () => {
+				const { env, target } = await setupLegacyTarget();
+				const stateManager = getStateManager(env.service);
+				const [before] = await getTestAgentHostDatabase(env.service).readCatalogSnapshot([target.toString()]);
+				const movableBefore = stateManager.getSessionState(env.source.toString())?.chats.find(chat => chat.resource === env.peer.toString())?.movable;
+
+				const result = await env.service.moveChat(env.source, env.peer, { kind: 'session', session: target, after: undefined });
+				const [after] = await getTestAgentHostDatabase(env.service).readCatalogSnapshot([target.toString()]);
+
+				assert.deepStrictEqual({
+					movableBefore,
+					authority: [before?.authorityVersion, after?.authorityVersion],
+					result: result.toString(),
+					owner: stateManager.getChatOwner(env.peer.toString()),
+					targetCatalog: after?.chats.map(chat => chat.chat),
+				}, {
+					// A chat whose move would convert its session on demand is movable.
+					movableBefore: true,
+					authority: [1, 2],
+					result: target.toString(),
+					owner: target.toString(),
+					targetCatalog: [env.peer.toString(), buildDefaultChatUri(target)],
+				});
+			});
+
+			test('a chat\'s movability follows the events of the services that hold its session\'s state, and a refused move keeps its reason', async () => {
+				const { service, source, target, peer, folder } = await setupMove();
+				const stateManager = getStateManager(service);
+				const internals = service as unknown as IMoveInternals & {
+					_workspaceConversionService: { restoreChatIsolation(session: string, chat: string, storage: string): Promise<void> };
+					_catalogReconciliationService: { _park(session: string, observedDirty: number | undefined): Promise<unknown>; wakeParkedSessions(session?: string): void };
+					_sessionStateStore: { peek(session: URI): { readonly authority: 1 | 2 } | undefined };
+					_sessionDataService: ISessionDataService;
+				};
+				const movable = () => stateManager.getSessionState(source.toString())?.chats.find(chat => chat.resource === peer.toString())?.movable ?? false;
+				const settled = async () => {
+					await timeout(0);
+					return movable();
+				};
+				const store = getTestSessionStateStore(service);
+				const outcomes: Record<string, unknown> = {};
+
+				// The session state store reports the worktree the session records.
+				await store.writeMetadata(source, source, { [WORKTREE_META_PATH]: folder.toString() }, SessionStateMirrorFlush.Immediate);
+				const inWorktree = await settled();
+				const worktreeRefusal = await refusalOf(service.moveChat(source, peer, { kind: 'session', session: target, after: undefined }));
+				await store.writeMetadata(source, source, { [WORKTREE_META_PATH]: null }, SessionStateMirrorFlush.Immediate);
+				outcomes.worktree = { inWorktree, worktreeRefusal, released: await settled() };
+
+				// The workspace conversion service reports a chat whose workspace change was quarantined, and its release.
+				const storage = stateManager.getChatStorageResource(peer.toString())!;
+				const restore = async (quarantined: boolean) => {
+					const chatDatabase = internals._sessionDataService.openDatabase(URI.parse(storage));
+					await chatDatabase.object.setMetadata('agentHost.chatIsolationQuarantined', String(quarantined));
+					await internals._workspaceConversionService.restoreChatIsolation(source.toString(), peer.toString(), storage);
+					return settled();
+				};
+				outcomes.conversion = { quarantined: await restore(true), released: await restore(false) };
+
+				// The catalog reconciliation reports a session it parked, and its release; a parked session's legacy catalog can't convert.
+				const peek = internals._sessionStateStore.peek.bind(internals._sessionStateStore);
+				internals._sessionStateStore.peek = resource => resource.toString() === source.toString() ? { ...peek(resource)!, authority: 1 } : peek(resource);
+				await internals._catalogReconciliationService._park(source.toString(), await getTestAgentHostDatabase(service).getSessionV2PayloadDirty(source.toString()));
+				const parked = await settled();
+				internals._catalogReconciliationService.wakeParkedSessions(source.toString());
+				outcomes.parked = { parked, released: await settled() };
+
+				assert.deepStrictEqual(outcomes, {
+					// A refused move still says why, not just that the chat isn't movable.
+					worktree: { inWorktree: false, worktreeRefusal: AgentChatMoveRefusal.WorktreeFolder, released: true },
+					conversion: { quarantined: false, released: true },
+					parked: { parked: false, released: true },
 				});
 			});
 
@@ -32664,6 +33047,45 @@ suite('AgentService (node dispatcher)', () => {
 						draft: (await store.chatRows.getDraft(target, chat))?.text,
 						strayDirectory: await fileService.exists(sessionDataService.getSessionDataDir(chat)),
 					}, { draft: 'After the move', strayDirectory: false });
+				});
+
+				test('the session\'s chat joins the destination announced as the movable peer it is now, and moves on from there', async () => {
+					const { service, source, target, chat } = await setupSessionMove();
+					const stateManager = getStateManager(service);
+					await stateManager.resolveChatState(chat.toString());
+					const announced: unknown[] = [];
+					disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+						const action = envelope.action;
+						if (action.type === ActionType.SessionChatAdded && action.summary.resource === chat.toString()) {
+							announced.push({ added: action.summary.movable });
+						} else if (action.type === ActionType.SessionChatUpdated && action.chat === chat.toString() && action.changes.movable !== undefined) {
+							announced.push({ updated: action.changes.movable });
+						} else if (action.type === ActionType.ChatMovableChanged && envelope.channel === chat.toString()) {
+							announced.push({ chat: action.movable, listed: stateManager.getSessionState(target.toString())?.chats.some(candidate => candidate.resource === chat.toString()) });
+						}
+					}));
+
+					await service.moveSession(source, target, undefined);
+					await timeout(0);
+					const announcedByMove = [...announced];
+					const other = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+					const reordered = await refusalOf(service.moveChat(target, chat, { kind: 'session', session: target, after: URI.parse(buildDefaultChatUri(target)) }));
+					const moved = await refusalOf(service.moveChat(target, chat, { kind: 'session', session: other, after: undefined }));
+
+					assert.deepStrictEqual({
+						announced: announcedByMove,
+						movable: { summary: stateManager.getSessionState(other.toString())?.chats.find(candidate => candidate.resource === chat.toString())?.movable, state: stateManager.getChatState(chat.toString())?.movable },
+						reordered,
+						moved,
+						owner: stateManager.getChatOwner(chat.toString()),
+					}, {
+						// Announced movable in the same `session/chatAdded`; its own state follows once the destination lists it. Nothing corrects it afterwards.
+						announced: [{ added: true }, { chat: true, listed: true }],
+						movable: { summary: true, state: true },
+						reordered: 'moved',
+						moved: 'moved',
+						owner: other.toString(),
+					});
 				});
 
 				test('refuses a session with other chats, a session moving under itself, and while moves are disabled; changes nothing', async () => {

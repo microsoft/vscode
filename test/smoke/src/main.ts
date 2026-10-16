@@ -13,6 +13,7 @@ import * as vscodetest from '@vscode/test-electron';
 import fetch from 'node-fetch';
 import { Quality, MultiLogger, Logger, ConsoleLogger, FileLogger, measureAndLog, getDevElectronPath, getBuildElectronPath, getBuildVersion, ApplicationOptions } from '../../automation';
 import { retry } from './utils';
+import { parseShard, selectShardSuites, Shard } from './shard';
 
 import { setup as setupDataLossTests } from './areas/workbench/data-loss.test';
 import { setup as setupPreferencesTests } from './areas/preferences/preferences.test';
@@ -47,7 +48,8 @@ const opts = minimist(args, {
 		'stable-build',
 		'wait-time',
 		'test-repo',
-		'electronArgs'
+		'electronArgs',
+		'shard'
 	],
 	boolean: [
 		'verbose',
@@ -71,6 +73,7 @@ const opts = minimist(args, {
 	'stable-build'?: string;
 	browser?: 'chromium' | 'webkit' | 'firefox' | 'chromium-msedge' | 'chromium-chrome';
 	electronArgs?: string;
+	shard?: string;
 };
 
 const logsRootPath = (() => {
@@ -175,6 +178,15 @@ function fail(errorMessage): void {
 		console.error(errorMessage);
 	}
 	process.exit(1);
+}
+
+let shard: Shard | undefined;
+if (opts.shard) {
+	try {
+		shard = parseShard(opts.shard);
+	} catch (error) {
+		fail(error instanceof Error ? error.message : String(error));
+	}
 }
 
 let quality: Quality;
@@ -425,7 +437,7 @@ after(async function () {
 	}
 });
 
-describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
+const smokeTestSuite = describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	if (!opts.web) { setupDataLossTests(() => { return { stableCodePath: opts['stable-build'], stableCodeVersion: opts['stable-version'] } /* Do not change, deferred for a reason! */; }, logger); }
 	setupPreferencesTests(logger);
 	setupSearchTests(logger);
@@ -450,3 +462,9 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	if (!opts.web && !opts.remote && process.env.VSCODE_SMOKE_TEST_POLICY === '1') { setupPolicyTests(logger); }
 	setupAccessibilityTests(logger, opts, quality);
 });
+
+if (shard && shard.total > 1) {
+	const allSuites = smokeTestSuite.suites;
+	smokeTestSuite.suites = selectShardSuites(allSuites, shard);
+	logger.log(`Running smoke test shard ${shard.index}/${shard.total} with ${smokeTestSuite.suites.length} of ${allSuites.length} suites: ${smokeTestSuite.suites.map(suite => suite.title).join(', ')}`);
+}

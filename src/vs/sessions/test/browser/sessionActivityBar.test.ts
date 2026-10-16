@@ -22,9 +22,9 @@ import { IConfigurationChangeEvent, IConfigurationService } from '../../../platf
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuMenuDelegate, IContextMenuService, IContextViewService } from '../../../platform/contextview/browser/contextView.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
-import { ChatViewSessionToolbar, SessionToolbar } from '../../browser/parts/sessionToolbar.js';
+import { ChatViewSessionActivityBar, SessionActivityBar } from '../../browser/parts/sessionActivityBar.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../browser/workbench.js';
-import { SESSION_TOOLBAR_SETTING } from '../../common/sessionConfig.js';
+import { SESSION_ACTIVITY_BAR_SETTING } from '../../common/sessionConfig.js';
 import { TestContextViewService } from './testContextViewService.js';
 import '../../../base/browser/ui/tree/media/tree.css';
 import '../../browser/parts/media/sessionView.css';
@@ -34,16 +34,18 @@ interface ITestEntry {
 	readonly title: string;
 	readonly icon: ThemeIcon;
 	readonly submenu?: readonly { readonly id: string; readonly title: string }[];
+	/** The menu group, `navigation` by default. */
+	readonly group?: string;
 }
 
 const changes: ITestEntry = { id: 'test.changes', title: 'Changes', icon: Codicon.gitCompare };
 const browser: ITestEntry = { id: 'test.browser', title: 'Browser', icon: Codicon.globe };
 const canvas: ITestEntry = { id: 'test.canvas', title: 'Canvas', icon: Codicon.preview, submenu: [{ id: 'test.canvas.kusto', title: 'Kusto' }] };
 
-suite('Sessions - Session toolbar', () => {
+suite('Sessions - Session Activity Bar', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createToolbar(disposables: Pick<DisposableStore, 'add'>, initialEntries: readonly ITestEntry[]) {
+	function createActivityBar(disposables: Pick<DisposableStore, 'add'>, initialEntries: readonly ITestEntry[]) {
 		const testStore = disposables.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, testStore);
 
@@ -74,10 +76,17 @@ suite('Sessions - Session toolbar', () => {
 				const menu: IMenu = {
 					onDidChange: onDidChangeMenu.event,
 					dispose: () => { },
-					getActions: options => [['navigation', entries.map(entry => entry.submenu
-						? new SubmenuItemAction({ submenu: MenuId.for(entry.id), title: entry.title, icon: entry.icon }, undefined, entry.submenu.map(item =>
-							instantiationService.createInstance(MenuItemAction, { id: item.id, title: item.title }, undefined, options, undefined, undefined)))
-						: instantiationService.createInstance(MenuItemAction, { id: entry.id, title: entry.title, icon: entry.icon }, undefined, options, undefined, undefined))]],
+					getActions: options => {
+						const groups = new Map<string, (MenuItemAction | SubmenuItemAction)[]>();
+						for (const entry of entries) {
+							const group = entry.group ?? 'navigation';
+							groups.set(group, [...groups.get(group) ?? [], entry.submenu
+								? new SubmenuItemAction({ submenu: MenuId.for(entry.id), title: entry.title, icon: entry.icon }, undefined, entry.submenu.map(item =>
+									instantiationService.createInstance(MenuItemAction, { id: item.id, title: item.title }, undefined, options, undefined, undefined)))
+								: instantiationService.createInstance(MenuItemAction, { id: entry.id, title: entry.title, icon: entry.icon }, undefined, options, undefined, undefined)]);
+						}
+						return [...groups];
+					},
 				};
 				createdMenu = menu;
 				return menu;
@@ -104,34 +113,34 @@ suite('Sessions - Session toolbar', () => {
 			}
 		});
 
-		const configurationService = new TestConfigurationService({ [SESSION_TOOLBAR_SETTING]: true });
+		const configurationService = new TestConfigurationService({ [SESSION_ACTIVITY_BAR_SETTING]: true });
 		instantiationService.stub(IConfigurationService, configurationService);
 
-		const toolbar = testStore.add(instantiationService.createInstance(SessionToolbar, container));
+		const activityBar = testStore.add(instantiationService.createInstance(SessionActivityBar, container));
 		return {
 			root,
-			toolbar,
+			activityBar,
 			createDocked: () => {
 				const host = append(root, $('.host'));
 				host.style.cssText = 'width: 800px; height: 600px;';
-				for (const [token, value] of [['spacing-size20', '2px'], ['spacing-size40', '4px'], ['spacing-size120', '12px'], ['spacing-size160', '16px'], ['spacing-size280', '28px'], ['strokeThickness', '1px']]) {
+				for (const [token, value] of [['spacing-size20', '2px'], ['spacing-size40', '4px'], ['spacing-size120', '12px'], ['spacing-size240', '24px'], ['strokeThickness', '1px']]) {
 					host.style.setProperty(`--vscode-${token}`, value);
 				}
-				return testStore.add(instantiationService.createInstance(ChatViewSessionToolbar, host));
+				return testStore.add(instantiationService.createInstance(ChatViewSessionActivityBar, host));
 			},
 			setLayout: (layout: AgentWorkbenchLayout) => agentWorkbenchLayout = layout,
 			layoutMainContainer: () => onDidLayoutMainContainer.fire({ width: 800, height: 600 }),
 			ran,
 			contextViewService,
 			contextMenus,
-			label: (title: string) => toolbar.element.querySelector<HTMLElement>(`.action-label[aria-label^="${title}"]`)!,
+			label: (title: string) => activityBar.element.querySelector<HTMLElement>(`.action-label[aria-label^="${title}"]`)!,
 			setEntries: (newEntries: readonly ITestEntry[]) => {
 				entries = newEntries;
 				onDidChangeMenu.fire({ menu: createdMenu!, isStructuralChange: true, isToggleChange: false, isEnablementChange: false });
 			},
 			setEnabled: (enabled: boolean) => {
-				configurationService.setUserConfiguration(SESSION_TOOLBAR_SETTING, enabled);
-				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (key: string) => key === SESSION_TOOLBAR_SETTING }));
+				configurationService.setUserConfiguration(SESSION_ACTIVITY_BAR_SETTING, enabled);
+				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (key: string) => key === SESSION_ACTIVITY_BAR_SETTING }));
 			},
 		};
 	}
@@ -141,10 +150,10 @@ suite('Sessions - Session toolbar', () => {
 	}
 
 	test('shows icon-only entries while enabled and has entries, outside the phone layout', () => {
-		const { root, toolbar, setEntries, setEnabled } = createToolbar(store, [changes, browser, canvas]);
-		const displayed = () => mainWindow.getComputedStyle(toolbar.element).display !== 'none';
+		const { root, activityBar, setEntries, setEnabled } = createActivityBar(store, [changes, browser, canvas]);
+		const displayed = () => mainWindow.getComputedStyle(activityBar.element).display !== 'none';
 
-		const entries = [...toolbar.element.querySelectorAll<HTMLElement>('.action-label')].map(label => ({
+		const entries = [...activityBar.element.querySelectorAll<HTMLElement>('.action-label')].map(label => ({
 			ariaLabel: label.getAttribute('aria-label'),
 			icon: [...label.classList].find(className => className.startsWith('codicon-')),
 			hasPopup: label.getAttribute('aria-haspopup'),
@@ -178,10 +187,10 @@ suite('Sessions - Session toolbar', () => {
 	});
 
 	test('docks at the right of the chat area, shows only while active, and drags up and down within the area', () => {
-		const { createDocked, root, setEntries } = createToolbar(store, [changes, browser]);
+		const { createDocked, root, setEntries } = createActivityBar(store, [changes, browser]);
 		const docked = createDocked();
 		const element = docked.element!;
-		const handle = element.querySelector<HTMLElement>('.session-toolbar-drag-handle')!;
+		const handle = element.querySelector<HTMLElement>('.session-activity-bar-drag-handle')!;
 		const state = () => {
 			const style = mainWindow.getComputedStyle(element);
 			return { displayed: style.display !== 'none', top: element.style.top, right: style.right };
@@ -231,8 +240,8 @@ suite('Sessions - Session toolbar', () => {
 
 		assert.deepStrictEqual({ inactive, active, dragged, draggedToBottom, areaGrewAtBottom, entryAddedAtBottom, areaTooShort, draggedPastTop, areaGrewNearTop, reset, phoneLayout, deactivated }, {
 			inactive: false,
-			active: { displayed: true, top: '44px', right: '16px' },
-			dragged: { displayed: true, top: '94px', right: '16px' },
+			active: { displayed: true, top: '44px', right: '12px' },
+			dragged: { displayed: true, top: '94px', right: '12px' },
 			draggedToBottom: { top: `${40 + 400 - height - 30}px`, bottomGap: 30 },
 			areaGrewAtBottom: 30,
 			entryAddedAtBottom: 30,
@@ -245,8 +254,22 @@ suite('Sessions - Session toolbar', () => {
 		});
 	});
 
-	test('docked toolbar stays above the chat transcript sticky scroll', () => {
-		const { createDocked } = createToolbar(store, [changes, browser]);
+	test('renders every menu group, separating the layout toggles above and below the tab entries', () => {
+		const sidePanel: ITestEntry = { id: 'test.sidePanel', title: 'Toggle Side Panel', icon: Codicon.layoutSidebarRight, group: '1_sidePanel' };
+		const panel: ITestEntry = { id: 'test.panel', title: 'Show Panel', icon: Codicon.layoutPanelOff, group: '3_panel' };
+		const { activityBar, ran, label } = createActivityBar(store, [sidePanel, changes, browser, panel]);
+		const items = [...activityBar.element.querySelectorAll<HTMLElement>('.actions-container > .action-item')]
+			.map(item => item.querySelector('.action-label.separator') ? '---' : item.querySelector('.action-label')?.getAttribute('aria-label'));
+		label('Toggle Side Panel').click();
+
+		assert.deepStrictEqual({ items, ran }, {
+			items: ['Toggle Side Panel', '---', 'Changes', 'Browser', '---', 'Show Panel'],
+			ran: ['test.sidePanel'],
+		});
+	});
+
+	test('docked activity bar stays above the chat transcript sticky scroll', () => {
+		const { createDocked } = createActivityBar(store, [changes, browser]);
 		const docked = createDocked();
 		const element = docked.element!;
 		// The tree sticky-scroll surface that pins a scrolled chat request to the top of the transcript.
@@ -261,8 +284,8 @@ suite('Sessions - Session toolbar', () => {
 		assert.deepStrictEqual(!!topmost && element.contains(topmost), true);
 	});
 
-	test('uses a slim shell with full-size buttons and a compact gap beside padded chat content', () => {
-		const { createDocked } = createToolbar(store, [changes, browser]);
+	test('uses a slim shell with minimum-size buttons, keeping padded chat content evenly spaced and clear of it', () => {
+		const { createDocked } = createActivityBar(store, [changes, browser]);
 		const docked = createDocked();
 		docked.layout(0, 600);
 		docked.setActive(true);
@@ -270,45 +293,50 @@ suite('Sessions - Session toolbar', () => {
 		const host = element.parentElement!;
 		// The chat pads its content with the session view's real content padding, which the reservation builds on.
 		host.classList.add('session-view');
-		host.style.setProperty('--vscode-spacing-size240', '24px');
+		// The chat insets its content by the reserved width on each side, inside its own content padding.
 		const chat = append(host, $('.chat-content'));
-		chat.style.cssText = `box-sizing: border-box; width: calc(100% - ${docked.reservedWidth.get()}px); padding: 0 var(--session-view-content-horizontal-padding);`;
+		chat.style.cssText = `box-sizing: border-box; margin: 0 ${docked.reservedWidth.get()}px; padding: 0 var(--session-view-content-horizontal-padding);`;
 		const content = append(chat, $('div'));
 		const bounds = element.getBoundingClientRect();
 		const button = element.querySelector<HTMLElement>('.action-label')!.getBoundingClientRect();
+		const hostBounds = host.getBoundingClientRect();
+		const contentBounds = content.getBoundingClientRect();
 
 		assert.deepStrictEqual({
-			toolbarWidth: bounds.width,
+			activityBarWidth: bounds.width,
 			buttonSize: [button.width, button.height],
-			contentGap: bounds.left - content.getBoundingClientRect().right,
-			scrollbarClearance: host.getBoundingClientRect().right - bounds.right,
-			column: host.getBoundingClientRect().right - bounds.left,
+			contentGap: bounds.left - contentBounds.right,
+			scrollbarClearance: hostBounds.right - bounds.right,
+			column: hostBounds.right - bounds.left,
+			// Space between the content and each edge of the chat, the activity bar's side included.
+			sideSpace: [contentBounds.left - hostBounds.left, hostBounds.right - contentBounds.right],
 		}, {
-			toolbarWidth: 34,
-			buttonSize: [28, 28],
+			activityBarWidth: 30,
+			buttonSize: [24, 24],
 			contentGap: 12,
-			scrollbarClearance: 16,
+			scrollbarClearance: 12,
 			// The column the host publishes for surfaces that sit beside the strip.
-			column: Number.parseFloat(host.style.getPropertyValue('--session-toolbar-column-width')),
+			column: Number.parseFloat(host.style.getPropertyValue('--session-activity-bar-column-width')),
+			sideSpace: [54, 54],
 		});
 	});
 
-	test('docked toolbar is only created in the desktop layout', () => {
-		const { createDocked, setLayout } = createToolbar(store, [changes]);
-		const desktopToolbar = createDocked();
-		const desktop = { created: !!desktopToolbar.element, reservedWidth: desktopToolbar.reservedWidth.get() };
+	test('docked activity bar is only created in the desktop layout', () => {
+		const { createDocked, setLayout } = createActivityBar(store, [changes]);
+		const desktopActivityBar = createDocked();
+		const desktop = { created: !!desktopActivityBar.element, reservedWidth: desktopActivityBar.reservedWidth.get() };
 		setLayout(AgentWorkbenchLayout.Mobile);
-		const mobileToolbar = createDocked();
-		const mobile = { created: !!mobileToolbar.element, reservedWidth: mobileToolbar.reservedWidth.get() };
+		const mobileActivityBar = createDocked();
+		const mobile = { created: !!mobileActivityBar.element, reservedWidth: mobileActivityBar.reservedWidth.get() };
 
 		assert.deepStrictEqual({ desktop, mobile }, {
-			desktop: { created: true, reservedWidth: ChatViewSessionToolbar.RESERVED_WIDTH },
+			desktop: { created: true, reservedWidth: ChatViewSessionActivityBar.RESERVED_WIDTH },
 			mobile: { created: false, reservedWidth: 0 },
 		});
 	});
 
 	test('reserves room beside the chat whether or not the view is active, unless disabled or in the phone layout', () => {
-		const { createDocked, setEnabled, root, layoutMainContainer } = createToolbar(store, [changes]);
+		const { createDocked, setEnabled, root, layoutMainContainer } = createActivityBar(store, [changes]);
 		const docked = createDocked();
 		const reserved = () => docked.reservedWidth.get();
 
@@ -323,15 +351,15 @@ suite('Sessions - Session toolbar', () => {
 		const phoneLayout = reserved();
 
 		assert.deepStrictEqual({ inactive, active, disabled, phoneLayout }, {
-			inactive: ChatViewSessionToolbar.RESERVED_WIDTH,
-			active: ChatViewSessionToolbar.RESERVED_WIDTH,
+			inactive: ChatViewSessionActivityBar.RESERVED_WIDTH,
+			active: ChatViewSessionActivityBar.RESERVED_WIDTH,
 			disabled: 0,
 			phoneLayout: 0,
 		});
 	});
 
-	test('right-clicking an entry or the rest of the strip offers to hide the toolbar', () => {
-		const { createDocked, contextMenus } = createToolbar(store, [changes, browser]);
+	test('right-clicking an entry or the rest of the strip offers to hide the activity bar', () => {
+		const { createDocked, contextMenus } = createActivityBar(store, [changes, browser]);
 		const docked = createDocked();
 		docked.layout(0, 600);
 		docked.setActive(true);
@@ -344,19 +372,19 @@ suite('Sessions - Session toolbar', () => {
 
 		assert.deepStrictEqual({
 			entry: rightClick(element.querySelector<HTMLElement>('.action-label[aria-label^="Browser"]')!),
-			grip: rightClick(element.querySelector<HTMLElement>('.session-toolbar-drag-handle')!),
+			grip: rightClick(element.querySelector<HTMLElement>('.session-activity-bar-drag-handle')!),
 			strip: rightClick(element),
 			menus: contextMenus,
 		}, {
 			entry: true,
 			grip: true,
 			strip: true,
-			menus: ['SessionToolbarContext', 'SessionToolbarContext', 'SessionToolbarContext'],
+			menus: ['SessionActivityBarContext', 'SessionActivityBarContext', 'SessionActivityBarContext'],
 		});
 	});
 
 	test('runs an entry when clicked', async () => {
-		const { label, ran } = createToolbar(store, [changes, browser]);
+		const { label, ran } = createActivityBar(store, [changes, browser]);
 
 		label('Browser').click();
 		await timeout(0);
@@ -365,7 +393,7 @@ suite('Sessions - Session toolbar', () => {
 	});
 
 	test('opens the Canvas submenu to the left on hover, click, and keyboard, and runs its items', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const { label, ran, contextViewService } = createToolbar(store, [browser, canvas]);
+		const { label, ran, contextViewService } = createActivityBar(store, [browser, canvas]);
 		const canvasLabel = label('Canvas');
 		const state = () => ({ shown: contextViewService.openSubmenu, expanded: canvasLabel.getAttribute('aria-expanded'), highlighted: canvasLabel.classList.contains('submenu-open') });
 

@@ -402,6 +402,12 @@ export class AgentHostStateManager extends Disposable {
 	readonly onDidChangeSessionStatus: Event<{ session: string; status: SessionStatus }> = this._onDidChangeSessionStatus.event;
 	private readonly _onDidRemoveSession = this._register(new Emitter<string>());
 	readonly onDidRemoveSession: Event<string> = this._onDidRemoveSession.event;
+	private readonly _onDidDeleteSession = this._register(new Emitter<string>());
+	/**
+	 * Fires when {@link deleteSession} permanently deletes a session, whether or not clients were ever told about it.
+	 * Unlike {@link onDidRemoveSession}, it does not fire when an idle session is only evicted from memory.
+	 */
+	readonly onDidDeleteSession: Event<string> = this._onDidDeleteSession.event;
 	private readonly _onDidRegisterChat = this._register(new Emitter<IChatRegistration>());
 	/** Fires when a chat enters the registry with its recorded owner and storage. */
 	readonly onDidRegisterChat: Event<IChatRegistration> = this._onDidRegisterChat.event;
@@ -1766,9 +1772,10 @@ export class AgentHostStateManager extends Disposable {
 	 * Moves a session whose only chats are its default chat and that chat's private descendants under `target` (Block 4,
 	 * VS Code-internal): the chats become chats of `target` as {@link transferChats} makes them, the default chat with
 	 * the source's effective title, and the source session ends ({@link deleteSession}) while the moved chats live on.
-	 * The source announces no `session/chatRemoved`: it is removed as a whole.
+	 * The source announces no `session/chatRemoved`: it is removed as a whole. `movable` is whether `chats[0]`, a peer
+	 * of `target` now, may move: its `session/chatAdded` announces that, so it is never a transient non-movable peer.
 	 */
-	transferSession(source: URI, target: URI, chats: readonly URI[], after: URI | undefined): void {
+	transferSession(source: URI, target: URI, chats: readonly URI[], after: URI | undefined, movable: boolean): void {
 		const sourceEntry = this._sessionStates.get(source);
 		const targetEntry = this._sessionStates.get(target);
 		if (!sourceEntry || !targetEntry) {
@@ -1791,16 +1798,23 @@ export class AgentHostStateManager extends Disposable {
 		}
 		this._snapshotDefaultChatTitle(source, sourceEntry.state);
 		this._snapshotDefaultChatTitle(target, targetEntry.state);
-		const summaries = chats.map(chat => {
+		const summaries = chats.map((chat, index) => {
 			const entry = this._chatEntries.get(chat)!;
-			return entry.state ? chatSummaryFromState(entry.state) : entry.summary;
+			const summary = entry.state ? chatSummaryFromState(entry.state) : entry.summary;
+			return index === 0 ? { ...summary, movable } : summary;
 		});
+		// Read before the announcement, which also updates the chat's own state, without telling its subscribers.
+		const stateMovable = this._chatEntries.get(chats[0])?.state?.movable;
 		this._inTransfer(chats, () => {
 			for (const chat of chats) {
 				this.reassignChatOwner(chat, target);
 			}
 			for (const summary of summaries) {
 				this.dispatchServerAction(target, { type: ActionType.SessionChatAdded, summary });
+			}
+			// Its own state follows once the target lists it, so the catalog entry it mirrors onto is the one just announced.
+			if (this._chatEntries.get(chats[0])?.state && (stateMovable ?? false) !== movable) {
+				this.dispatchServerAction(chats[0], { type: ActionType.ChatMovableChanged, movable });
 			}
 		});
 		const order = this._sessionStates.get(target)!.state.chats.map(summary => summary.resource).filter(chat => !moved.has(chat));
@@ -2148,6 +2162,7 @@ export class AgentHostStateManager extends Disposable {
 	 * {@link markSessionPersisted} are removed silently — no client knows
 	 * about them, so a `SessionRemoved` would be noise (or worse, would
 	 * cause clients to drop a session URI they had eagerly subscribed to).
+	 * {@link onDidDeleteSession} fires in both cases.
 	 */
 	deleteSession(session: URI): void {
 		const wasPublished = this._publishedSessionSummaries.has(session.toString());
@@ -2176,6 +2191,7 @@ export class AgentHostStateManager extends Disposable {
 				session,
 			});
 		}
+		this._onDidDeleteSession.fire(session);
 	}
 
 	// ---- Session meta -------------------------------------------------------

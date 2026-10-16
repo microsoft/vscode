@@ -53,7 +53,7 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoAppro
 import { reconcileCopilotConnectors } from './copilotConnectors.js';
 import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext, type IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { measureAgentProviderOperation } from '../../common/agentHostProviderTiming.js';
-import { AgentSession, type IAgentChatOwnerRef, COPILOT_CLI_AGENT_PROVIDER_ID, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, subagentChatTitle, type AgentCanvasExtensionSource, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
+import { AgentSession, type IAgentChatOwnerRef, COPILOT_CLI_AGENT_PROVIDER_ID, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, subagentChatTitle, type AgentCanvasExtensionSource, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentCanvasCloseRequest, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
 import { isReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { agentModelConfigurationMetaKey, IAgentRuntimeModelConfiguration, readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
 import { agentModelConfigurationReportKey, type IAgentModelConfigurationReport } from '../../common/agentModelConfiguration.js';
@@ -1707,6 +1707,10 @@ export class CopilotAgentSession extends Disposable {
 	private _requestedModel: ModelSelection | undefined;
 	private readonly _onSessionEvent: ((event: SessionEvent) => void) | undefined;
 	private readonly _canvasByInstanceId = new Map<string, ICanvasProjectionEntry>();
+	/** In-flight user closes by canvas channel, so concurrent requests from several clients share one RPC. */
+	private readonly _canvasCloses = new Map<string, Promise<void>>();
+	/** Closed events still expected, by instance ID, for closes applied when the runtime acknowledged them first. */
+	private readonly _expectedCanvasClosedEvents = new Map<string, number>();
 	private _canvasExtensions: SessionEventPayload<'session.extensions_loaded'>['data']['extensions'] | undefined;
 	private readonly _ignoredRestoredCanvasInstanceIds = new Set<string>();
 	private _canvasPhase: CanvasProjectionPhase = 'starting';
@@ -2266,12 +2270,12 @@ export class CopilotAgentSession extends Disposable {
 		const ids = [...this._pendingSteeringFlips.keys()];
 		this._pendingSteeringFlips.clear();
 		for (const id of ids) {
-			this._onDidSessionProgress.fire({
-				kind: 'steering_consumed',
-				chat: this._chatChannelUri,
-				id,
-			});
+			this._fireSteeringConsumed(id);
 		}
+	}
+
+	private _fireSteeringConsumed(id: string): void {
+		this._onDidSessionProgress.fire({ kind: 'steering_consumed', chat: this._chatChannelUri, id });
 	}
 
 	/**
@@ -3883,6 +3887,7 @@ export class CopilotAgentSession extends Disposable {
 		this._canvasPhase = 'released';
 		this._canvasByInstanceId.clear();
 		this._ignoredRestoredCanvasInstanceIds.clear();
+		this._expectedCanvasClosedEvents.clear();
 		if (projections.length === 0) {
 			return undefined;
 		}
@@ -3904,6 +3909,81 @@ export class CopilotAgentSession extends Disposable {
 			this._publishCanvases();
 		}
 		return true;
+	}
+
+	/**
+	 * Closes the canvas lifetime the request names if this chat still projects it;
+	 * the runtime then notifies its provider. A request for a canvas that was since
+	 * closed or reopened, or was never presented to clients, leaves canvases open.
+	 */
+	async closeCanvas(request: IAgentCanvasCloseRequest): Promise<void> {
+		if (!this._wrapper.canvasRuntimeEnabled) {
+			throw new Error('Canvases are disabled for this session.');
+		}
+		const projection = [...this._canvasByInstanceId.values()].find(candidate => isEqual(candidate.resource, request.resource));
+		if (!projection) {
+			return;
+		}
+		const key = projection.resource.toString();
+		let closing = this._canvasCloses.get(key);
+		if (!closing) {
+			closing = this._closeProjectedCanvas(projection).finally(() => this._canvasCloses.delete(key));
+			this._canvasCloses.set(key, closing);
+		}
+		await closing;
+	}
+
+	private async _closeProjectedCanvas(projection: ICopilotCanvasProjection): Promise<void> {
+		const instanceId = projection.canvas.instanceId;
+		await this._awaitControlPlaneRpc('rpc.canvas.close', this._wrapper.session.rpc.canvas.close({ instanceId }));
+		// The runtime's closed event normally removes the projection first. If it has not
+		// arrived yet, converge now and expect it, so it cannot remove a canvas projected
+		// under the same instance ID before it arrives.
+		const current = this._canvasByInstanceId.get(instanceId);
+		if (current && isEqual(current.resource, projection.resource)) {
+			this._canvasByInstanceId.delete(instanceId);
+			this._expectedCanvasClosedEvents.set(instanceId, (this._expectedCanvasClosedEvents.get(instanceId) ?? 0) + 1);
+			this._publishCanvases();
+		}
+	}
+
+	/** Handles the runtime's closed event for an instance whose projection may belong to a later lifetime than the event. */
+	private _handleCanvasClosed(wrapper: CopilotSessionWrapper, instanceId: string): void {
+		const expected = this._expectedCanvasClosedEvents.get(instanceId);
+		if (!expected) {
+			if (this._canvasByInstanceId.delete(instanceId)) {
+				this._publishCanvases();
+			}
+			return;
+		}
+		if (expected > 1) {
+			this._expectedCanvasClosedEvents.set(instanceId, expected - 1);
+		} else {
+			this._expectedCanvasClosedEvents.delete(instanceId);
+		}
+		// The event may confirm a close this session already applied or end a canvas projected since.
+		const projection = this._canvasByInstanceId.get(instanceId);
+		if (projection) {
+			void this._removeCanvasUnlessOpen(wrapper, projection);
+		}
+	}
+
+	/** Removes a projection unless the runtime still reports its instance open. */
+	private async _removeCanvasUnlessOpen(wrapper: CopilotSessionWrapper, projection: ICopilotCanvasProjection): Promise<void> {
+		let openCanvases: CopilotSession['openCanvases'];
+		try {
+			({ openCanvases } = await this._awaitControlPlaneRpc('rpc.canvas.listOpen', wrapper.session.rpc.canvas.listOpen()));
+		} catch (error) {
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to confirm an open canvas after a closed event: ${getErrorMessage(error)}`);
+			return;
+		}
+		const instanceId = projection.canvas.instanceId;
+		const current = this._canvasByInstanceId.get(instanceId);
+		if (this._store.isDisposed || !current || !isEqual(current.resource, projection.resource) || openCanvases.some(canvas => canvas.instanceId === instanceId)) {
+			return;
+		}
+		this._canvasByInstanceId.delete(instanceId);
+		this._publishCanvases();
 	}
 
 	private _canvasExtensionSource(source: string): AgentCanvasExtensionSource {
@@ -4082,6 +4162,7 @@ export class CopilotAgentSession extends Disposable {
 		const hadCanvases = this._canvasByInstanceId.size > 0;
 		this._canvasByInstanceId.clear();
 		this._ignoredRestoredCanvasInstanceIds.clear();
+		this._expectedCanvasClosedEvents.clear();
 		if (hadCanvases) {
 			this._publishCanvases();
 		}
@@ -5276,15 +5357,6 @@ export class CopilotAgentSession extends Disposable {
 		return sdkAttachments;
 	}
 
-	async hasRuntimeSlashCommand(command: string): Promise<boolean> {
-		try {
-			return !!(await this._slashCommandProvider.resolveSlashCommand(command));
-		} catch (err) {
-			this._logService.warn(`[Copilot:${this.sessionId}] rpc.commands.list failed`, err);
-			return false;
-		}
-	}
-
 	async getRuntimeSlashCommands(options?: { readonly maxWaitMs?: number }): Promise<readonly RuntimeSlashCommandInfo[]> {
 		try {
 			return await this._slashCommandProvider.getSlashCommands(options);
@@ -5448,12 +5520,14 @@ export class CopilotAgentSession extends Disposable {
 				})),
 				steeringTurn, abortToken,
 			);
-			if (execution.kind === 'skipped') {
-				this._pendingSteeringFlips.delete(steeringMessage.id);
+			if (execution.kind === 'skipped' && this._pendingSteeringFlips.delete(steeringMessage.id)) {
+				this._fireSteeringConsumed(steeringMessage.id);
 			}
 		} catch (err) {
-			this._pendingSteeringFlips.delete(steeringMessage.id);
 			this._logService.error(`[Copilot:${this.sessionId}] Steering message failed`, err);
+			if (this._pendingSteeringFlips.delete(steeringMessage.id)) {
+				this._fireSteeringConsumed(steeringMessage.id);
+			}
 		} finally {
 			this._steeringMessagesInFlight.delete(steeringMessage.id);
 		}
@@ -10368,10 +10442,9 @@ export class CopilotAgentSession extends Disposable {
 		}));
 
 		store.add(wrapper.onCanvasClosed(e => {
-			if (!this._projectsCanvasEvent(wrapper, e.agentId) || !this._canvasByInstanceId.delete(e.data.instanceId)) {
-				return;
+			if (this._projectsCanvasEvent(wrapper, e.agentId)) {
+				this._handleCanvasClosed(wrapper, e.data.instanceId);
 			}
-			this._publishCanvases();
 		}));
 
 		store.add(wrapper.onCanvasUnavailable(e => {

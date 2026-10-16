@@ -25,7 +25,7 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common
 import { isStickyPromptHeaderShown } from '../promptTimeline/promptTimelineWidgetContrib.js';
 import { FocusAgentSessionsAction } from '../agentSessions/agentSessionsActions.js';
 import { AGENT_SESSION_RENAME_ACTION_ID } from '../agentSessions/agentSessions.js';
-import { IChatWidgetService, isIChatResourceViewContext } from '../chat.js';
+import { IChatWidgetService, isIChatResourceViewContext, isResponseSelectionSupported } from '../chat.js';
 import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from '../chatEditing/chatEditingActions.js';
 import { getModePickerAccessibilityHelp } from '../agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { getBackgroundShellsPillAccessibilityHelp } from '../sessionBackgroundShellsControl.js';
@@ -70,7 +70,7 @@ export class AgentChatAccessibilityHelp implements IAccessibleViewImplementation
 	}
 }
 
-export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView', keybindingService: IKeybindingService, supportsFileReferences: boolean, isSessionsWindow: boolean = false, stickyPromptHeaderShown: boolean = false, sessionStatusPillsSupported: boolean = type === 'panelChat' || type === 'agentView', sessionArchiveNudgeShown: boolean = false, sessionArchiveActionWording = ChatSessionArchiveActionWording.Archive, codexContinuationShown: boolean = false, localModelEnabled: boolean = false): string {
+export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView', keybindingService: IKeybindingService, supportsFileReferences: boolean, isSessionsWindow: boolean = false, stickyPromptHeaderShown: boolean = false, sessionStatusPillsSupported: boolean = type === 'panelChat' || type === 'agentView', sessionArchiveNudgeShown: boolean = false, sessionArchiveActionWording = ChatSessionArchiveActionWording.Archive, codexContinuationShown: boolean = false, localModelEnabled: boolean = false, responseSelectionSupported = isResponseSelectionSupported()): string {
 	const content = [];
 	if (type !== 'inlineChat' && type !== 'quickChat') {
 		content.push(localize('chat.historyRefresh', "Cloud sandbox conversations can show previously loaded messages while refreshing silently. If recent messages cannot be loaded, use Tab to reach Refresh in the banner and press Enter or Space. Refresh retries recorded history without restarting the session, waking its environment, or sending your draft."));
@@ -140,7 +140,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 			if (!isSessionsWindow) {
 				content.push(localize('chat.sessionStatusPillsCompact', "When space is limited, session status pills collapse to icons one at a time from right to left. Their full labels remain available to screen readers and in tooltips. Labels return as space becomes available. If the icons still do not fit, the row scrolls horizontally; use the arrow keys to reach every pill."));
 				content.push(localize('chat.editorArtifactsPill', "The editor window uses the same compact Artifacts pill as the Agents Window, rather than an expanded list above the input. Generated images appear automatically. In a subagent chat, the Artifacts pill shows that chat's transcript artifacts without the parent session's metadata. A single file pill opens directly; multiple artifacts open a dropdown with a Generated Images section. Use the pill's hover or context menu, or a dropdown row's actions, to save an artifact or copy its path."));
-				content.push(localize('chat.editorCanvasesPill', "In local Copilot agent-host sessions with chat.canvases.enabled turned on, a Canvas submenu appears in the final section of the New Chat menu, and the chat's open canvases appear in their own pill in the main window. Open the Canvas submenu to choose a registered or closed canvas by name. Use Up and Down Arrow, Right Arrow, and Enter to navigate the menus and open or refocus a canvas. A single canvas in the pill shows its title and opens directly; multiple canvases show a count and open a picker. Activating a canvas focuses its tab beside the chat, or reopens it if it was closed."));
+				content.push(localize('chat.editorCanvasesPill', "In local Copilot agent-host sessions with chat.canvases.enabled turned on, a Canvas submenu appears in the final section of the New Chat menu, and the chat's open canvases appear in their own pill in the main window. Open the Canvas submenu to choose a registered or closed canvas by name. Use Up and Down Arrow, Right Arrow, and Enter to navigate the menus and open or refocus a canvas. A single canvas in the pill shows its title and opens directly; multiple canvases show a count and open a picker. Activating a canvas focuses its tab beside the chat, or reopens it if it was closed. To close a canvas rather than only its tab, use Close Canvas: the X on the pill of a single canvas or on a picker row, or the pill's context menu. Closing ends the canvas and notifies the extension that provides it."));
 			}
 			content.push(localize('chat.sessionActivityPills', "Subagents and Customizations are available in both the Agents Window and editor window, and are hidden by default. Enable them from the session status toolbar context menu. Subagents lists the current chat's direct subagents, grouped into in-progress and completed chats. Activate an entry to open its chat to the side. Subagent Options lets you show all subagents or only those in progress, remembered across windows. Customizations lists the agents, skills, instructions, hooks, prompts, MCP servers, and plugins used by the current chat. Activate an entry to reveal it in the Customizations editor."));
 			content.push(getBackgroundShellsPillAccessibilityHelp());
@@ -219,7 +219,9 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 		}
 		content.push(localize('chat.sandboxUnavailable', "If the agent host cannot support the configured sandbox, a notification above the input explains why. You can select and copy the warning text. Use Tab to reach support links or Dismiss notification, and Enter to open a focused link. Dismissing hides the warning for this session until the window reloads, without changing sandboxing or preventing messages."));
 		if (isSessionsWindow) {
-			content.push(localize('sessions.selectionSideChat', 'When you select text within an assistant response, an Ask Question input appears near the selection. Type a question and press Enter to start a new side chat scoped to that selection.'));
+			if (responseSelectionSupported) {
+				content.push(localize('sessions.selectionSideChat', 'When you select text within an assistant response, an Ask Question input appears near the selection. Type a question and press Enter to start a new side chat scoped to that selection.'));
+			}
 			content.push(localize('sessions.requestOrigin', 'Some requests include a source chat button above the message. Use Tab to focus it, then Enter or Space to open the originating chat.'));
 			content.push(localize('sessions.threadCoordinationResult', 'Completed create-session, create-chat, and send-message operations can include a target session or chat button in the response. Use Tab to focus it, Enter or Space to open it normally, or Alt+Enter (Option+Enter on macOS) to open it to the side.'));
 		}

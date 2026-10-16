@@ -1196,15 +1196,30 @@ suite('AgentHostPeerChatStore', () => {
 		const { store, opened } = createPerResourceStore();
 		const sqlite = await (orchestrator as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
 		let statements = 0;
-		sqlite.on('trace', (sql: string) => statements += sql.startsWith('-- TRIGGER') ? 0 : 1);
+		const drainSql = 'SELECT 1 AS drain';
+		let traceDrained: DeferredPromise<void>;
+		sqlite.on('trace', (sql: string) => {
+			if (sql === drainSql) {
+				traceDrained.complete();
+			} else if (!sql.startsWith('-- TRIGGER')) {
+				statements++;
+			}
+		});
+		const drain = async () => {
+			// Trace delivery and SQL completion use separate asynchronous callbacks.
+			traceDrained = new DeferredPromise<void>();
+			await Promise.all([
+				traceDrained.p,
+				new Promise<void>((resolve, reject) => sqlite.get(drainSql, error => error ? reject(error) : resolve())),
+			]);
+		};
 		const measure = async (write: () => Promise<void>) => {
-			// Traces of finished statements arrive before this one completes.
-			await new Promise<void>((resolve, reject) => sqlite.get('SELECT 1', error => error ? reject(error) : resolve()));
+			await drain();
 			const before = { statements, opened: opened.length };
 			await write();
 			await store.whenIdle();
-			await new Promise<void>((resolve, reject) => sqlite.get('SELECT 1', error => error ? reject(error) : resolve()));
-			return { statements: statements - before.statements - 1, opened: opened.slice(before.opened) };
+			await drain();
+			return { statements: statements - before.statements, opened: opened.slice(before.opened) };
 		};
 		const firstWrite = await measure(() => store.setArchived(session, first, true));
 		const nextWrite = await measure(() => store.setArchived(session, first, false));

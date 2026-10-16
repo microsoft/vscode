@@ -139,23 +139,23 @@ To use a different host, explicitly duplicate the definition there. The original
 
 ## Host lifecycle
 
-`AgentHostAutomationService` is authoritative as soon as durable host storage is readable. Execution is gated by host feature enablement and current provider availability, not renderer startup or migration flags. Host configuration restores saved Automation enablement and timeout before authority initialization, without restoring client-owned approval grants.
+`AgentHostAutomationService` is authoritative as soon as durable host storage is readable. Execution is gated by host feature enablement and current provider availability, not renderer startup or migration flags. Host configuration restores saved Automation enablement before authority initialization, without restoring client-owned approval grants.
 
 Providers may expose model-dependent readiness for unattended execution. While required credentials are missing, the host leaves due schedule cursors unchanged and resumes scheduling when readiness changes. Copilot's readiness covers initially missing credentials and preserves explicitly selected BYOK models when signed-out operation is supported; it does not persist credentials or bypass runtime authorization.
 
 The host owns:
 
-- durable manual request IDs and single-active-run admission;
+- durable manual request IDs and active-run reuse for manual requests;
 - schedule cursors, due-trigger evaluation, and misfire handling;
 - session creation, Automation prompt provenance, membership, and primary-session linkage;
-- cancellation, timeout, and terminal outcomes;
+- cancellation and terminal outcomes;
 - restart recovery and paginated run history.
 
 Definitions and run mutations are persisted before corresponding AHP state is published. An unreadable or unsupported host storage format must not be replaced with an empty writable catalogue.
 
-At most one non-terminal run occupies an Automation's active-run slot. `pending` and `running` are non-terminal; `completed` and `failed` are terminal in the Sessions projection. AHP cancellation projects as failed with its cancellation reason. A run exposes its session resource only once the host links that session.
+Every due schedule occurrence creates its own run, even while earlier runs of the same Automation are non-terminal, so a stalled run cannot block later occurrences. The host imposes no run duration limit: a run ends when its linked session completes, fails, or is cancelled; when that session is deleted; or when restart recovery interrupts it. `pending` and `running` are non-terminal; `completed` and `failed` are terminal in the Sessions projection. AHP cancellation projects as failed with its cancellation reason. A run exposes its session resource only once the host links that session.
 
-Run Now submits a manual request to this authority and observes dispatch and completion. An existing active run is reported without creating another session. Pre-dispatch cancellation prevents the request; supported in-flight cancellation is forwarded to the host. Observation failure or window closure cannot synthesize a terminal run or move execution elsewhere.
+Run Now submits a manual request to this authority and observes dispatch and completion. If the Automation already has an active run, the newest active run is reported without creating another session. Pre-dispatch cancellation prevents the request; supported in-flight cancellation is forwarded to the host. Observation failure or window closure cannot synthesize a terminal run or move execution elsewhere.
 
 Disabling scheduled execution on a definition preserves manual Run Now. Disabling the Automations feature removes new-run authority without deleting definitions or automatically terminating sessions already running. On restart or re-enablement, the host applies its existing recovery and misfire rules without requiring an Agents Window.
 

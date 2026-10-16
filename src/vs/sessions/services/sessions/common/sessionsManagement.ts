@@ -9,7 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
-import { IChat, ISession, ISessionCanvasDefinition, ISessionCreationReference, ISessionType, ISessionWorkspace, ISideChatSelection } from './session.js';
+import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionType, ISessionWorkspace, ISideChatSelection } from './session.js';
 import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, ISessionConfigurationSnapshot, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason } from './sessionsProvider.js';
 
 /** Raised when unattended session creation targets a workspace that requires trust. */
@@ -622,6 +622,9 @@ export interface ISessionsManagementService {
 
 	/** Open or focus one stable instance of a registered canvas type. */
 	openCanvas(session: ISession, chat: IChat, canvas: ISessionCanvasDefinition, instanceId: string): Promise<void>;
+
+	/** Close one live canvas of a chat through its owning provider, notifying the extension that provides it. */
+	closeCanvas(session: ISession, chat: IChat, canvas: ISessionCanvas): Promise<void>;
 }
 
 export const ISessionsManagementService = createDecorator<ISessionsManagementService>('sessionsManagementService');

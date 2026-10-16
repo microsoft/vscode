@@ -10,7 +10,7 @@ import { autorun, constObservable, observableValue } from '../../../../../base/c
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IAgentCanvasInfo, IAgentCanvasOpenRequest, IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentCanvasCloseRequest, IAgentCanvasInfo, IAgentCanvasOpenRequest, IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { CanvasReference, CanvasState } from '../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
 import { ActionType, type ActionEnvelope } from '../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -142,6 +142,26 @@ suite('AgentHost canvases', () => {
 		]);
 
 		assert.strictEqual(changes, 3);
+	});
+
+	test('closes canvases through the owner\'s host-supplied session and chat only when the host can', async () => {
+		const closed: unknown[] = [];
+		const createConnection = (canClose: boolean) => new class extends mock<IAgentConnection>() {
+			override readonly initializeResult = constObservable(undefined);
+			override readonly closeSessionCanvas = canClose ? async (session: URI, request: IAgentCanvasCloseRequest, chat: URI) => {
+				closed.push({ session: session.toString(), resource: request.resource.toString(), chat: chat.toString() });
+			} : undefined;
+		}();
+		const references = constObservable<readonly CanvasReference[] | undefined>([]);
+		const closing = store.add(new AgentHostCanvasCollection(owner.providerId, createConnection(true), new NullLogService())).createContext(owner, references);
+		const unsupported = store.add(new AgentHostCanvasCollection(owner.providerId, createConnection(false), new NullLogService())).createContext(owner, references);
+
+		await closing.closeCanvas?.(new AgentHostCanvas(resource, state, new NullLogService()));
+
+		assert.deepStrictEqual({ closed, unsupported: unsupported.closeCanvas }, {
+			closed: [{ session: owner.session.toString(), resource: resource.toString(), chat: owner.chat.toString() }],
+			unsupported: undefined,
+		});
 	});
 
 	test('tracks explicit opens by tool identity, including failed requests, rather than source changes', () => {
