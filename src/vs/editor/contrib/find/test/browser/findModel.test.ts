@@ -2422,6 +2422,29 @@ suite('FindModel', () => {
 		}
 	});
 
+	test('issue #196884: replacing one by one with lookbehind on line feed', () => {
+		for (const searchString of ['(?<=\\n)b', '(?<=\n)b']) {
+			for (const eol of [EndOfLineSequence.LF, EndOfLineSequence.CRLF]) {
+				const textArr = ['a-b-c', 'a-b-d', 'a-c-d', 'a-d-e', 'b-c-d', 'b-c-e', 'b-d-e', 'c-d-e'];
+				withTestCodeEditor(textArr, {}, (_editor) => {
+					const editor = _editor as IActiveCodeEditor;
+					editor.getModel().setEOL(eol);
+
+					const findState = disposables.add(new FindReplaceState());
+					findState.change({ searchString, replaceString: 'BBB', isRegex: true }, false);
+					const findModel = disposables.add(new FindModelBoundToEditorModel(editor, findState));
+
+					// the first call selects the first match, every following call replaces the selected match
+					for (let i = 0; i < 4; i++) {
+						findModel.replace();
+					}
+
+					assert.deepStrictEqual(editor.getModel().getLinesContent(), ['a-b-c', 'a-b-d', 'a-c-d', 'a-d-e', 'BBB-c-d', 'BBB-c-e', 'BBB-d-e', 'c-d-e']);
+				});
+			}
+		}
+	});
+
 	test('issue #196884: replace with lookbehind captures uses the match on the selection', () => {
 		const textArr = ['a', 'b'];
 		withTestCodeEditor(textArr, {}, (_editor) => {
