@@ -357,6 +357,7 @@ pub(crate) fn run<R: Runtime>(
 		Ok(Invocation::Launch { clear, arguments }) => (clear, arguments),
 		// Commands for VS Code report and exit; they never launch the Copilot CLI.
 		Ok(Invocation::Probe(options)) => return setup::probe(runtime, target, &options),
+		Ok(Invocation::Policy) => return report_policy(runtime),
 		Ok(Invocation::Install(options))
 			if matches!(options.mode, InstallMode::Interactive)
 				&& matches!(target, Some(HostTarget::MacosX64 | HostTarget::MacosArm64)) =>
@@ -401,6 +402,22 @@ pub(crate) fn run<R: Runtime>(
 		},
 	);
 	result.map_or_else(ApplicationExit::code, ApplicationExit::code)
+}
+
+/// Exits with `0` when the `CopilotCliCommand` policy allows the command and with the policy install status when it
+/// turns it off, so package install scripts can query the policy without parsing it themselves.
+fn report_policy<R: Runtime>(runtime: &R) -> i32 {
+	let disabled = runtime.copilot_cli_command_disabled();
+	runtime.write_diagnostic(&format!(
+		"the {} policy is {}",
+		setup::COPILOT_CLI_COMMAND_POLICY,
+		if disabled { "disabled" } else { "allowed" }
+	));
+	if disabled {
+		setup::InstallStatus::Policy.exit_code()
+	} else {
+		0
+	}
 }
 
 fn launch_candidate<R: Runtime>(
@@ -1800,6 +1817,55 @@ mod tests {
 		);
 		assert!(!result.contains("download:"), "{result}");
 		assert!(!result.contains("unsupported"), "{result}");
+	}
+
+	#[test]
+	fn policy_command_reports_the_policy_through_the_exit_code() {
+		let report = |disabled: bool| {
+			let runtime = FakeRuntime::default();
+			runtime.policy_disabled.set(disabled);
+			let exit = run(
+				&runtime,
+				vec![
+					OsString::from("--vscode-shim"),
+					OsString::from("verbose"),
+					OsString::from("--vscode-shim"),
+					OsString::from("policy"),
+				],
+				Some(HostTarget::LinuxGnuX64),
+			);
+			let report = (
+				exit,
+				runtime.policy_reads.get(),
+				runtime.commands.borrow().len(),
+				runtime.prompts.borrow().len(),
+				runtime.messages.borrow().len(),
+				runtime.diagnostics.borrow().clone(),
+			);
+			report
+		};
+
+		assert_eq!(
+			[report(false), report(true)],
+			[
+				(
+					0,
+					1,
+					0,
+					0,
+					0,
+					vec![String::from("the CopilotCliCommand policy is allowed")]
+				),
+				(
+					10,
+					1,
+					0,
+					0,
+					0,
+					vec![String::from("the CopilotCliCommand policy is disabled")]
+				),
+			]
+		);
 	}
 
 	#[test]

@@ -105,6 +105,12 @@ npm run test-copilot-shim-rendering
 
 It verifies the checked-in `resources/linux/copilot-link.sh` source has no unresolved rendering markers or RPM macros, has literal Stable/Insiders targets, and defines `vscode_copilot_link`. It does not invoke a package manager or mutate package state.
 
+On Linux, this check runs the same helper with `sh` and `bash` against stub shims and a temporary link path. It covers the `CopilotCliCommand` policy that each shim reports, the DEB `add-copilot-command` debconf answer, and hand-over on removal. It doesn't need root and doesn't touch `/usr/bin/copilot`:
+
+```bash
+npm run test-copilot-shim-helper
+```
+
 ### Fixture Manifest and Generation
 
 The generated manifest is self-contained: package paths are relative to the manifest, and it records DEB/RPM format, package architecture, identity, role, actual package name/version, a monotonically declared revision ordinal, payload kind, launcher/shim paths, source revision, generation command, production templates/specs used, deliberate fixture adjustments, and the SHA-256 of the exact helper source. Its JSON schema is [`fixtures/copilot-shim-fixtures.schema.json`](fixtures/copilot-shim-fixtures.schema.json). The generator rejects missing fixture roles, equal initial/upgrade revisions, a relabelled `code-oss` source, unresolved paths, and incomplete current Stable/Insiders payloads.
