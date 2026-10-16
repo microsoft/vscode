@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ActionType, NotificationType, type ActionEnvelope, type INotification } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, ChatInputQuestionKind, ChatInputResponseKind, ChatInteractivity, ChatOriginKind, MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, createErrorResponsePart, isSessionStatusRead, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
+import { ChangesetStatus, ChatInputQuestionKind, ChatInputResponseKind, ChatInteractivity, ChatOriginKind, MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, createErrorResponsePart, isSessionStatusRead, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
 import { type SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import { BackgroundWorkKind, type BackgroundShellWork } from '../../common/state/protocol/channels-chat/state.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
@@ -65,6 +65,69 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(chatState?.turns.length, 0);
 		assert.strictEqual(chatState?.activeTurn, undefined);
 		assert.strictEqual(manager.getSessionSummary(sessionUri)?.resource.toString(), sessionUri.toString());
+	});
+
+	suite('Copilot head-branch PR publication', () => {
+		const reference = { referenceType: 'pr', repository: 'owner/repo', number: 42, title: '', url: 'https://github.com/owner/repo/pull/42', relations: ['headBranch'] };
+		const summary = () => ({
+			...makeSessionSummary(),
+			workingDirectories: ['file:///repo'],
+			_meta: withSessionGitHubState(withSessionGitState({ unrelated: true }, { branchName: 'feature' }), 'file:///repo', {
+				owner: 'owner', repo: 'repo', pullRequestUrls: [reference.url], pullRequestBranchName: 'feature',
+			}),
+		});
+
+		test('publishes identical metadata in new-session state, snapshot and summary', () => {
+			const state = manager.createSession(summary());
+			assert.deepStrictEqual([
+				state._meta?.['copilot.githubReferences'],
+				(manager.getSnapshot(sessionUri)?.state as SessionState)._meta?.['copilot.githubReferences'],
+				manager.getSessionSummary(sessionUri)?._meta?.['copilot.githubReferences'],
+			], [[reference], [reference], [reference]]);
+		});
+
+		test('publishes restored and dormant list sessions without materializing them', () => {
+			const listed = manager.prepareSessionSummariesForListing([summary()])[0];
+			const state = manager.restoreSession(summary(), [], creationTimeChatStorageResource);
+			assert.deepStrictEqual([listed._meta?.['copilot.githubReferences'], state._meta?.['copilot.githubReferences']], [[reference], [reference]]);
+		});
+
+		test('streams metadata changes and clears a PR when the branch changes', () => {
+			manager.createSession({ ...makeSessionSummary(), workingDirectories: ['file:///repo'] });
+			const metadata: unknown[] = [];
+			disposables.add(manager.onDidEmitEnvelope(envelope => {
+				if (envelope.action.type === ActionType.SessionMetaChanged) {
+					metadata.push(envelope.action._meta?.['copilot.githubReferences']);
+				}
+			}));
+			manager.setSessionMeta(sessionUri, summary()._meta);
+			manager.setSessionMeta(sessionUri, withSessionGitState(manager.getSessionState(sessionUri)?._meta, { branchName: 'other' }));
+			assert.deepStrictEqual({
+				metadata,
+				current: manager.getSessionSummary(sessionUri)?._meta,
+			}, {
+				metadata: [[reference], undefined],
+				current: withSessionGitState(summary()._meta, { branchName: 'other' }),
+			});
+		});
+
+		test('clears the association when the primary working directory is removed', () => {
+			manager.createSession(summary());
+			manager.dispatchServerAction(sessionUri, { type: ActionType.SessionWorkingDirectoryRemoved, directory: 'file:///repo' });
+			assert.strictEqual(manager.getSessionSummary(sessionUri)?._meta?.['copilot.githubReferences'], undefined);
+		});
+
+		test('publishes the replacement primary checkout PR after metadata is updated', () => {
+			manager.createSession(summary());
+			const replacementUrl = 'https://github.com/other/repo/pull/43';
+			manager.setSessionMeta(sessionUri, withSessionGitHubState(manager.getSessionState(sessionUri)?._meta, 'file:///replacement', {
+				owner: 'other', repo: 'repo', pullRequestUrls: [replacementUrl], pullRequestBranchName: 'feature',
+			}));
+			manager.dispatchServerAction(sessionUri, { type: ActionType.SessionWorkingDirectoryReplaced, directory: 'file:///repo', replacement: 'file:///replacement' });
+			assert.deepStrictEqual(manager.getSessionSummary(sessionUri)?._meta?.['copilot.githubReferences'], [{
+				...reference, repository: 'other/repo', number: 43, url: replacementUrl,
+			}]);
+		});
 	});
 
 	test('onDidChangeSessionWorkingDirectories fires only when the working-directory set changes', () => {

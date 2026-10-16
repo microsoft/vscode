@@ -31,6 +31,7 @@ import { readEphemeralSessionMeta } from '../common/meta/agentEphemeralSessionMe
 import { type IChatSurfaceMeta, readChatSurfaceMeta } from '../common/meta/agentChatSurfaceMeta.js';
 import { withAgentHostResources } from '../common/meta/agentHostResources.js';
 import { withRemoteSessionsCapability } from '../common/meta/agentRemoteSessionMeta.js';
+import { withAgentSessionGitHubReferences } from '../common/meta/agentSessionGitHubReferences.js';
 import { isPresentationOnlyToolCall, readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { collectAgentHostResources } from './agentHostResources.js';
 
@@ -1094,6 +1095,7 @@ export class AgentHostStateManager extends Disposable {
 	 * afterwards to fire the deferred notification.
 	 */
 	createSession(summary: SessionSummary & { readonly defaultChat: URI }, options?: { readonly emitNotification?: boolean }): SessionState {
+		summary = withAgentSessionGitHubReferences(summary);
 		const key = summary.resource;
 		const existing = this._sessionStates.get(key);
 		if (existing) {
@@ -1155,7 +1157,7 @@ export class AgentHostStateManager extends Disposable {
 		// `SessionSummaryChanged` flush because the upcoming `SessionAdded`
 		// notification carries the complete summary already.
 		const previousWorkingDirectories = entry.state.workingDirectories;
-		entry.state = { ...entry.state, project: summary.project, workingDirectories: summary.workingDirectories, _meta: summary._meta };
+		entry.state = withAgentSessionGitHubReferences({ ...entry.state, project: summary.project, workingDirectories: summary.workingDirectories, _meta: summary._meta });
 		this._recordWorkingDirectoryChange(key, previousWorkingDirectories, summary.workingDirectories);
 		entry.project = summary.project;
 		entry.modifiedAt = summary.modifiedAt;
@@ -1172,6 +1174,7 @@ export class AgentHostStateManager extends Disposable {
 	 * the session is already in state or was already announced.
 	 */
 	announceSurfacedSession(summary: SessionSummary): void {
+		summary = withAgentSessionGitHubReferences(summary);
 		const key = summary.resource;
 		if (this._sessionStates.has(key)) {
 			this._logService.trace(`[AgentHostStateManager] announceSurfacedSession: already in state ${key}`);
@@ -1199,6 +1202,7 @@ export class AgentHostStateManager extends Disposable {
 
 	/** Publishes refreshed catalog metadata without materializing a conversation or changing its read state. */
 	updateSurfacedSessionMetadata(session: string, metadata: Pick<SessionSummary, 'title' | 'modifiedAt' | 'project' | 'workingDirectories' | '_meta'>): void {
+		metadata = withAgentSessionGitHubReferences(metadata);
 		const announced = this._summaryNotifier.getAnnounced(session);
 		if (this._sessionStates.has(session) || !announced) {
 			return;
@@ -1307,7 +1311,8 @@ export class AgentHostStateManager extends Disposable {
 	/** Records `root/listSessions` baselines and returns a current snapshot for the response. */
 	prepareSessionSummariesForListing(summaries: readonly SessionSummary[]): SessionSummary[] {
 		const result: SessionSummary[] = [];
-		for (const summary of summaries) {
+		for (const listed of summaries) {
+			const summary = withAgentSessionGitHubReferences(listed);
 			const wasPublished = this._publishedSessionSummaries.has(summary.resource);
 			if (wasPublished) {
 				if (this._summaryNotifier.isDirty(summary.resource)) {
@@ -1330,7 +1335,7 @@ export class AgentHostStateManager extends Disposable {
 		const meta = listed._meta !== undefined || current._meta !== undefined
 			? { ...listed._meta, ...current._meta }
 			: undefined;
-		return {
+		return withAgentSessionGitHubReferences({
 			...listed,
 			title: current.title || listed.title,
 			status: current.status,
@@ -1342,7 +1347,7 @@ export class AgentHostStateManager extends Disposable {
 			chats: current.chats ?? listed.chats,
 			defaultChat: current.defaultChat ?? listed.defaultChat,
 			...(meta !== undefined ? { _meta: meta } : {}),
-		};
+		});
 	}
 
 	/** Returns external sessions exposed through either listing or global add notification. */
@@ -1383,6 +1388,7 @@ export class AgentHostStateManager extends Disposable {
 	 * for a source that records none. It receives the session's default chat.
 	 */
 	restoreSession(summary: SessionSummary & { readonly defaultChat: URI }, turns: Turn[], chatStorageResource: (session: URI, chat: URI, defaultChat: URI) => string, options?: { readonly draft?: Message; readonly defaultChatTitle?: string; readonly defaultChatModifiedAt?: string; readonly defaultChatWorkingDirectories?: readonly string[]; readonly defaultChatIsRead?: boolean; readonly defaultChatConfig?: ChatConfigState }): SessionState {
+		summary = withAgentSessionGitHubReferences(summary);
 		const key = summary.resource;
 		const existing = this._sessionStates.get(key);
 		if (existing) {
@@ -2167,6 +2173,10 @@ export class AgentHostStateManager extends Disposable {
 	}
 
 	private _applyAndEmit(channel: URI, action: StateAction, origin: ActionOrigin | undefined, clientContext?: IAgentHostClientTelemetryContext): unknown {
+		if (action.type === ActionType.SessionMetaChanged) {
+			const workingDirectories = this._sessionStates.get(channel)?.state.workingDirectories;
+			action = { ...action, _meta: withAgentSessionGitHubReferences({ _meta: action._meta, workingDirectories })._meta };
+		}
 		if (action.type === ActionType.ChatTurnCancelled && isAhpChatChannel(channel)) {
 			this._finalizeCancelledFusionPhases(channel, action.turnId);
 		}
@@ -2388,6 +2398,15 @@ export class AgentHostStateManager extends Disposable {
 
 		this._logService.trace(`[AgentHostStateManager] Emitting envelope: seq=${envelope.serverSeq}, channel=${envelope.channel}, type=${action.type}${origin ? `, origin=${origin.clientId}:${origin.clientSeq}` : ''}`);
 		this._onDidEmitEnvelope.fire(envelope);
+		if (action.type === ActionType.SessionWorkingDirectorySet || action.type === ActionType.SessionWorkingDirectoryRemoved || action.type === ActionType.SessionWorkingDirectoryReplaced) {
+			const state = this._sessionStates.get(channel)?.state;
+			if (state) {
+				const projected = withAgentSessionGitHubReferences(state);
+				if (projected !== state) {
+					this.setSessionMeta(channel, projected._meta);
+				}
+			}
+		}
 		if (singleChatToSynchronize) {
 			this.dispatchServerAction(singleChatToSynchronize.chat, { type: ActionType.ChatIsReadChanged, isRead: singleChatToSynchronize.isRead });
 		}
