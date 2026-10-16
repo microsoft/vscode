@@ -80,6 +80,57 @@ Build outputs are written to `out/` (desktop), `dist/` (web), and `notebook-out/
 
    Markdown editor commands and their default keybindings are defined in `vscode-packages/vscode-team-tools/packages/markdown-editor/src/editorCommands.ts`. Do not manually edit entries marked with `"$generated": true` in this extension's `package.json` or their titles in `package.nls.json`: `npm run build-markdown-editor` and `npm run watch-markdown-editor` regenerate them while preserving manual entries. Run `npm run check-markdown-editor-package-json` to verify that the checked-in manifests are current without modifying them.
 
+### Managed development graph
+
+The experimental repository-root `dev.workspace.ts` can manage the initial
+`install-fast` / `build-fast` / Electron preparation, core transpile watcher,
+Markdown extension-host watcher, and the three Markdown webview watchers.
+It launches this checkout's Code OSS with an isolated profile and verifies
+Markdown extension activation before reporting ready.
+
+The local setup uses a directory link at `.tmp/dev-workspace` pointing to a
+built `vscode-packages/dev-workspace` package. Use the Node version from
+`.nvmrc`; the linked server task selects it with `fnm`.
+The **Dev Workspace: Linked Named-pipe Server** task reads the ignored
+`.tmp/workspace-connection.json` with `endpoint` and `token` fields.
+The **Dev Workspace: Attach TUI** task connects to that instance.
+Do not run the usual watch tasks at the same time: they would write the same
+output directories.
+
+From a terminal at the repository root, connect using the same credentials:
+
+```powershell
+$connection = Get-Content .tmp\workspace-connection.json -Raw | ConvertFrom-Json
+$env:LINKRPC_ENDPOINT = $connection.endpoint
+$env:LINKRPC_TOKEN = $connection.token
+node .tmp\dev-workspace\dist\cli.js inputs dev.workspace.ts
+node .tmp\dev-workspace\dist\cli.js inputs dev.workspace.ts '{"markdownEditorPath":"D:\\src\\vscode-packages\\vscode-team-tools\\packages\\markdown-editor"}'
+node .tmp\dev-workspace\dist\cli.js activate dev.workspace.ts codeOss
+node .tmp\dev-workspace\dist\cli.js tui dev.workspace.ts
+```
+
+`markdownEditorPath` is a live, persisted project input. Set it to `null` to
+restore the published dependency. The link step runs after installation and
+validates the package identity and built commands before replacing anything.
+Changing the input stops affected watchers before switching the link, then
+rebuilds/restarts the demanded chain. The existing Code OSS window is kept;
+reload it or reopen the Markdown editor to load the new webview bundle.
+Initial installation can take a while; subsequent `install-fast` and
+`build-fast` runs reuse the repository's own incremental state.
+
+Keep the package's `editorWatch` node active in the packages checkout's runtime.
+It owns package/dependency builds there, while this checkout watches the
+resolved package output and rebuilds the webview. The two runtimes do not yet
+share dependency leases or exact cross-checkout source provenance; activating
+`codeOss` does not automatically activate the other runtime's package watcher.
+Other extension-host/media and Copilot sources are built initially, but this
+graph's ongoing extension watchers are scoped to Markdown.
+
+The native extension build scripts emit opt-in `DEV_WORKSPACE_BUILD_EVENTS`
+start/done/failed markers. Readiness includes postprocessing, not merely
+starting the process. Run the adapter checks with
+`node --test extensions/esbuild-common.test.mts scripts/dev-workspace-link.test.mts`.
+
 ### Embedded code-block editor presentation
 
 `markdown.codeBlockEditorProviders` contributions and export-API resolve results

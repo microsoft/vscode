@@ -31,18 +31,23 @@ const commit = getVersion(root);
 // "Starting compilation" / "Finished compilation" messages
 // that the problem matcher in tasks.json relies on.
 let activeExtensionCompilations = 0;
+let failedExtensionCompilation = false;
 
 function onExtensionCompilationStart(): void {
 	if (activeExtensionCompilations === 0) {
+		failedExtensionCompilation = false;
 		fancyLog('Starting compilation');
+		if (process.env.DEV_WORKSPACE_BUILD_EVENTS) {console.log('DEV_WORKSPACE_BUILD_START');}
 	}
 	activeExtensionCompilations++;
 }
 
-function onExtensionCompilationEnd(): void {
+function onExtensionCompilationEnd(failed = false): void {
+	failedExtensionCompilation ||= failed;
 	activeExtensionCompilations--;
 	if (activeExtensionCompilations === 0) {
 		fancyLog('Finished compilation');
+		if (process.env.DEV_WORKSPACE_BUILD_EVENTS) {console.log(failedExtensionCompilation ? 'DEV_WORKSPACE_BUILD_FAILED' : 'DEV_WORKSPACE_BUILD_DONE');}
 	}
 }
 
@@ -215,7 +220,7 @@ export function createExtensionTasks(tsconfigFile: string, repoRoot = root) {
 				result.emit('end');
 			});
 			stream.on('error', () => {
-				onExtensionCompilationEnd();
+				onExtensionCompilationEnd(true);
 				result.emit('end');
 			});
 			return result;

@@ -19,17 +19,28 @@ export interface RunConfig {
 // must only call it once no builds are in flight. Otherwise a finishing build would tear down the
 // service while a sibling build (e.g. running in the same `Promise.all`) is still using it.
 let pendingBuilds = 0;
+let failedBuild = false;
 
 async function buildOnce(
 	options: esbuild.BuildOptions,
 	beforeBuild?: () => Promise<unknown> | unknown,
+	didBuild?: () => Promise<unknown> | unknown,
 ): Promise<esbuild.BuildResult> {
-	pendingBuilds++;
+	if (pendingBuilds++ === 0) {
+		failedBuild = false;
+		if (process.env.DEV_WORKSPACE_BUILD_EVENTS) {console.log('DEV_WORKSPACE_BUILD_START');}
+	}
 	try {
 		await beforeBuild?.();
-		return await esbuild.build(options);
+		const result = await esbuild.build(options);
+		if (result.errors.length === 0) {await didBuild?.();}
+		return result;
+	} catch (error) {
+		failedBuild = true;
+		throw error;
 	} finally {
 		if (--pendingBuilds === 0) {
+			if (process.env.DEV_WORKSPACE_BUILD_EVENTS) {console.log(failedBuild ? 'DEV_WORKSPACE_BUILD_FAILED' : 'DEV_WORKSPACE_BUILD_DONE');}
 			esbuild.stop();
 		}
 	}
@@ -70,9 +81,9 @@ export async function runBuild(
 		);
 	} else {
 		try {
-			await buildOnce(resolvedOptions, config.beforeBuild);
-			await didBuild?.(outdir);
-		} catch {
+			await buildOnce(resolvedOptions, config.beforeBuild, () => didBuild?.(outdir));
+		} catch (error) {
+			console.error(error);
 			process.exit(1);
 		}
 	}
@@ -95,10 +106,7 @@ async function watchWithParcel(
 			try {
 				// Also instead of retaining the esbuild context, we are re-running the entire build on each change.
 				// This reduces memory usage since most projects don't need to be re-built often.
-				const result = await buildOnce(options, beforeBuild);
-				if (result.errors.length === 0) {
-					await didBuild?.();
-				}
+				await buildOnce(options, beforeBuild, didBuild);
 			} catch (error) {
 				console.error('[watch] build error:', error);
 			}
@@ -119,6 +127,7 @@ async function watchWithParcel(
 		return watcher.subscribe(watchRoot, (error, events) => {
 			if (error) {
 				console.error('[watch] watcher error:', error);
+				if (process.env.DEV_WORKSPACE_BUILD_EVENTS) {console.log('DEV_WORKSPACE_BUILD_FAILED');}
 				return;
 			}
 			if (!watchedFile || events.some(event => path.resolve(event.path) === watchedFile)) {
