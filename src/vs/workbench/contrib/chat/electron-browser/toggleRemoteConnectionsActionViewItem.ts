@@ -10,25 +10,25 @@ import { IManagedHover, IManagedHoverContent } from '../../../../base/browser/ui
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { disposableTimeout } from '../../../../base/common/async.js';
 import { Action, IAction, IActionRunner, toAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { autorun, runOnChange } from '../../../../base/common/observable.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { IActionWidgetDropdownAction } from '../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { IMissionControlSharingService, isGitHubEnvironmentBackend } from '../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId, IMissionControlSharingService, isGitHubEnvironmentBackend } from '../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IRemoteTunnelService, INACTIVE_TUNNEL_MODE, TunnelMode, TunnelStatus } from '../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { RemoteTunnelCommandIds } from '../../remoteTunnel/electron-browser/remoteTunnel.contribution.js';
-import { IRemoteConnectionsService } from '../common/remoteConnections.js';
 
 const TUNNEL_ACCESS_DOCS_URL = 'https://aka.ms/vscode-agent-tunnel-access';
+const githubEnvironmentDataHandlingDescription = localize('remoteConnections.githubEnvironment.dataHandling', "Session actions are mirrored to GitHub for catalog and history storage. Conversation content is not end-to-end encrypted.");
 
 export interface IRemoteTunnelAccessState {
 	readonly isSharing: boolean;
@@ -53,7 +53,7 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 		action: IAction,
 		private readonly _isChatInput: boolean,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IRemoteConnectionsService private readonly _remoteConnectionsService: IRemoteConnectionsService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IProductService productService: IProductService,
 	) {
@@ -163,7 +163,7 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 	}
 
 	private _getConnectionMethods(): IActionWidgetDropdownAction[] {
-		const usesGitHubEnvironment = isGitHubEnvironmentBackend(this._remoteConnectionsService.backend.get());
+		const usesGitHubEnvironment = isGitHubEnvironmentBackend(this._configurationService.getValue<AgentHostRemoteConnectionsBackend>(AgentHostRemoteConnectionsSettingId));
 		return [
 			{
 				...toAction({
@@ -182,18 +182,19 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 					run: () => this._selectConnectionMethod('githubEnvironment'),
 				}),
 				detail: localize('remoteConnections.githubEnvironment.detail', "Register this machine with GitHub for remote agent access."),
-				badge: localize('remoteConnections.experimental', "Experimental"),
+				badge: localize('remoteConnections.preview', "Preview"),
+				hover: { content: githubEnvironmentDataHandlingDescription },
 			},
 		];
 	}
 
-	private _selectConnectionMethod(backend: 'devTunnel' | 'githubEnvironment'): void {
-		const current = this._remoteConnectionsService.backend.get();
+	private async _selectConnectionMethod(backend: 'devTunnel' | 'githubEnvironment'): Promise<void> {
+		const current = this._configurationService.getValue<AgentHostRemoteConnectionsBackend>(AgentHostRemoteConnectionsSettingId);
 		if (isGitHubEnvironmentBackend(current) === isGitHubEnvironmentBackend(backend)) {
 			return;
 		}
 		try {
-			this._remoteConnectionsService.setBackend(backend);
+			await this._configurationService.updateValue(AgentHostRemoteConnectionsSettingId, backend, ConfigurationTarget.USER);
 		} catch (error) {
 			this._notificationService.error(error);
 		}
@@ -203,21 +204,18 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 
 	private _iconElement: HTMLElement | undefined;
-	private _toastElement: HTMLElement | undefined;
 	private _hover: IManagedHover | undefined;
-	private _wasSharing = false;
 	private _mode: TunnelMode = INACTIVE_TUNNEL_MODE;
 	private _status: TunnelStatus = { type: 'uninitialized' };
 	private _hasReceivedMode = false;
 	private _hasReceivedStatus = false;
-	private _hasInitializedState = false;
 
 	constructor(
 		action: IAction,
 		@IRemoteTunnelService private readonly _remoteTunnelService: IRemoteTunnelService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IProductService private readonly _productService: IProductService,
-		@IRemoteConnectionsService private readonly _remoteConnectionsService: IRemoteConnectionsService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IMissionControlSharingService private readonly _missionControlSharingService: IMissionControlSharingService,
 	) {
 		super(undefined, action);
@@ -226,9 +224,10 @@ export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 			this._missionControlSharingService.state.read(reader);
 			this._updateState();
 		}));
-		this._register(runOnChange(this._remoteConnectionsService.backend, () => {
-			this._hideToast();
-			this._updateState();
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AgentHostRemoteConnectionsSettingId)) {
+				this._updateState();
+			}
 		}));
 		this._register(this._remoteTunnelService.onDidChangeTunnelStatus(status => {
 			this._hasReceivedStatus = true;
@@ -257,8 +256,6 @@ export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 		this._iconElement = dom.append(this.element, dom.$('span.tunnel-host-icon'));
 		this._iconElement.append(...renderLabelWithIcons(`$(${Codicon.radioTower.id})`));
 
-		this._toastElement = dom.append(this.element, dom.$('span.tunnel-host-toast'));
-
 		const hoverDelegate = getDefaultHoverDelegate('element');
 		this._hover = this._register(this._hoverService.setupManagedHover(
 			hoverDelegate, this.element, this._getHoverContent()
@@ -270,7 +267,6 @@ export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 	private _updateState(): void {
 		const state = this._getState();
 		if (!this.element) {
-			this._wasSharing = state.isSharing;
 			return;
 		}
 
@@ -280,19 +276,10 @@ export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 		this.element.setAttribute('aria-label', this._getAriaLabel());
 		this.element.setAttribute('aria-pressed', String(state.isSharing));
 
-		if (this._hasInitializedState) {
-			if (state.isSharing && !this._wasSharing && !state.isConnecting) {
-				this._showToast();
-			} else if (!state.isSharing && this._wasSharing) {
-				this._hideToast();
-			}
-		}
-
-		this._wasSharing = state.isSharing;
 	}
 
 	private _usesMissionControl(): boolean {
-		return isGitHubEnvironmentBackend(this._remoteConnectionsService.backend.get());
+		return isGitHubEnvironmentBackend(this._configurationService.getValue<AgentHostRemoteConnectionsBackend>(AgentHostRemoteConnectionsSettingId));
 	}
 
 	private _getState(): IRemoteTunnelAccessState {
@@ -315,29 +302,15 @@ export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 			this._status = status;
 		}
 		this._updateState();
-		this._hasInitializedState = true;
-	}
-
-	private _showToast(): void {
-		if (!this._toastElement) {
-			return;
-		}
-
-		this._toastElement.textContent = localize('tunnelHost.toast', "Remote session access is now enabled");
-		this._toastElement.classList.add('visible');
-
-		disposableTimeout(() => {
-			this._hideToast();
-		}, 3000, this._store);
-	}
-
-	private _hideToast(): void {
-		this._toastElement?.classList.remove('visible');
 	}
 
 	private _getHoverContent(): IManagedHoverContent {
 		if (this._usesMissionControl()) {
-			return `${this._getAriaLabel()}\n\n${localize('missionControlSharing.fileSystemAccess', "Enabling remote connections allows clients authenticated as your GitHub account to read and modify files across this machine's accessible file systems, including sensitive files. Operating system permissions still apply.")}`;
+			return localize('missionControlSharing.hover', "{0}\n\n{1}\n\n{2}",
+				this._getAriaLabel(),
+				localize('missionControlSharing.fileSystemAccess', "Enabling remote connections allows clients authenticated as your GitHub account to read and modify files across this machine's accessible file systems, including sensitive files. Operating system permissions still apply."),
+				githubEnvironmentDataHandlingDescription,
+			);
 		}
 		const lines: string[] = [];
 		const state = this._getState();

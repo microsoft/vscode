@@ -18,6 +18,7 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { AgentHostRemoteConnectionsSettingId, IMissionControlSharingService } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { INACTIVE_TUNNEL_MODE, IRemoteTunnelService, type TunnelMode, type TunnelStatus } from '../../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -26,9 +27,6 @@ import { Menus } from '../../../../browser/menus.js';
 import { RemoteTunnelCommandIds } from '../../../../../workbench/contrib/remoteTunnel/electron-browser/remoteTunnel.contribution.js';
 import { TOGGLE_SHARING_ID } from '../../../../../workbench/contrib/chat/electron-browser/tunnelHost.contribution.js';
 import { SessionsTunnelHostTitlebarContribution, TOGGLE_SHARING_FROM_AGENTS_ID } from '../../electron-browser/tunnelHost.contribution.js';
-import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
-import { IRemoteConnectionsService } from '../../../../../workbench/contrib/chat/common/remoteConnections.js';
-import { RemoteConnectionsService } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteConnectionsService.js';
 
 class TestRemoteTunnelService extends mock<IRemoteTunnelService>() {
 	override async stopTunnel(): Promise<void> { }
@@ -126,7 +124,7 @@ suite('Sessions - Tunnel Host Contribution', () => {
 		instantiationService.stub(ICommandService, commandService);
 		const configuration = new TestConfigurationService();
 		store.add(configuration.onDidChangeConfigurationEmitter);
-		instantiationService.stub(IRemoteConnectionsService, store.add(new RemoteConnectionsService(store.add(new InMemoryStorageService()), configuration)));
+		instantiationService.stub(IConfigurationService, configuration);
 		const contribution = new SessionsTunnelHostTitlebarContribution(new TestRemoteTunnelService(), new NullActionViewItemService());
 
 		try {
@@ -152,7 +150,7 @@ suite('Sessions - Tunnel Host Contribution', () => {
 		const calls: boolean[] = [];
 		instantiation.stub(IRemoteTunnelService, new TestRemoteTunnelService());
 		instantiation.stub(ICommandService, commandService);
-		instantiation.stub(IRemoteConnectionsService, store.add(new RemoteConnectionsService(store.add(new InMemoryStorageService()), configuration)));
+		instantiation.stub(IConfigurationService, configuration);
 		instantiation.stub(ILogService, store.add(new NullLogService()));
 		instantiation.stub(INotificationService, new TestNotificationService());
 		instantiation.stub(IMissionControlSharingService, new class extends mock<IMissionControlSharingService>() {

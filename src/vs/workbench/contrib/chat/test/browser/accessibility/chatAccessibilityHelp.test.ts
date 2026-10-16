@@ -20,10 +20,12 @@ suite('Chat Accessibility Help', () => {
 			const help = getAccessibilityHelpText(type, new MockKeybindingService(), false);
 			assert.deepStrictEqual({
 				backend: help.includes('Select Remote Connection Method dropdown chooses Dev Tunnels or GitHub Environments'),
+				setting: help.includes('The preview setting chat.agentHost.remoteConnections selects the connection method'),
 				explicitOptIn: help.includes('Selecting a method does not enable sharing; changing it turns sharing off'),
 				keyboard: help.includes('Enter or Space to enable or disable sharing'),
 			}, {
 				backend: type !== 'inlineChat' && type !== 'quickChat',
+				setting: type !== 'inlineChat' && type !== 'quickChat',
 				explicitOptIn: type !== 'inlineChat' && type !== 'quickChat',
 				keyboard: type !== 'inlineChat' && type !== 'quickChat',
 			});
