@@ -8,7 +8,7 @@ import sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { CancellationError } from '../../../../base/common/errors.js';
+import { CancellationError, getErrorCode, transformErrorForSerialization, transformErrorFromSerialization } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../base/common/observable.js';
@@ -22,7 +22,7 @@ import { AgentHostClientState, AgentHostProtocolClient, type IAgentHostProtocolC
 import { WebPubSubRelayTransport, type IWebSocketLike } from '../../browser/webPubSubRelayTransport.js';
 import { AgentHostSessionMoveUnsupportedError, DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, type IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
 import { McpAuthRequiredReason } from '../../common/state/protocol/channels-session/state.js';
-import { AuthenticateParams } from '../../common/agent.js';
+import { AgentPolicyError, AuthenticateParams } from '../../common/agent.js';
 import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
 import { agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js';
 import { AgentHostFileSystemProvider } from '../../common/agentHostFileSystemProvider.js';
@@ -1019,6 +1019,23 @@ suite('AgentHostProtocolClient', () => {
 
 		transport.fireMessage({ jsonrpc: '2.0', id: 1, result: { entries: [{ name: 'late', type: 'file' }] } });
 		assert.strictEqual(transport.sentMessages.length, 1);
+	});
+
+	test('restores retryable policy errors from JSON-RPC and preserves them over IPC', async () => {
+		const { client, transport } = createClient();
+		const request = client.resolveSessionConfig({ provider: 'copilotcli' });
+		const rejected = assert.rejects(request, error => {
+			assert.ok(error instanceof AgentPolicyError);
+			const forwarded = transformErrorFromSerialization(JSON.parse(JSON.stringify(transformErrorForSerialization(error))));
+			assert.deepStrictEqual({ message: forwarded.message, code: getErrorCode(forwarded) }, { message: 'Policy unavailable', code: 'policyResolutionFailed' });
+			return true;
+		});
+		transport.fireMessage(JSON.parse(JSON.stringify({
+			jsonrpc: '2.0', id: 1, error: {
+				code: -32603, message: 'Policy unavailable', data: { _meta: { 'vscode.policyResolutionFailed': true } },
+			}
+		})));
+		await rejected;
 	});
 
 	test('does not retain revoked authentication for reconnect replay', async () => {

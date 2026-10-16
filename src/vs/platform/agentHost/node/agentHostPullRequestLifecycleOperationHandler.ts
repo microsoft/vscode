@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import type { IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
@@ -20,6 +21,8 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostPullRequestStatusService, type IAgentHostPullRequestStatus } from './agentHostPullRequestStatusService.js';
+import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
+import { resolveChangesetOwnerScope } from './agentHostBranchChangesetScope.js';
 
 /**
  * The pull request lifecycle actions this handler can execute. Each maps 1:1
@@ -53,9 +56,11 @@ export class AgentHostPullRequestLifecycleOperationHandler implements IChangeset
 		@IAgentHostGitHubService private readonly _gitHubService: IAgentHostGitHubService,
 		@IAgentHostGitHubEndpointService private readonly _endpointService: IAgentHostGitHubEndpointService,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 	) { }
 
-	async invoke(params: InvokeChangesetOperationParams, token: CancellationToken): Promise<InvokeChangesetOperationResult> {
+	async invoke(params: InvokeChangesetOperationParams, token: CancellationToken, source?: IAgentHostCredentialSource): Promise<InvokeChangesetOperationResult> {
+		source = this.captureCredentialSource(params, source);
 		const abortController = new AbortController();
 		if (token.isCancellationRequested) {
 			abortController.abort();
@@ -63,13 +68,19 @@ export class AgentHostPullRequestLifecycleOperationHandler implements IChangeset
 		const store = new DisposableStore();
 		store.add(token.onCancellationRequested(() => abortController.abort()));
 		try {
-			return await this._invoke(params, abortController.signal, store);
+			return await this._invoke(params, abortController.signal, store, source);
 		} finally {
 			store.dispose();
 		}
 	}
 
-	private async _invoke(params: InvokeChangesetOperationParams, signal: AbortSignal, store: DisposableStore): Promise<InvokeChangesetOperationResult> {
+	captureCredentialSource(params: InvokeChangesetOperationParams, source?: IAgentHostCredentialSource): IAgentHostCredentialSource | undefined {
+		const parsed = parseChangesetUri(params.channel);
+		const scope = parsed ? resolveChangesetOwnerScope(this._stateManager, parsed.ownerUri) : undefined;
+		return scope ? this._gitHubService.captureSessionCredentialSource(scope.sourceUri, source, scope.sessionUri, true) : source;
+	}
+
+	private async _invoke(params: InvokeChangesetOperationParams, signal: AbortSignal, store: DisposableStore, source?: IAgentHostCredentialSource): Promise<InvokeChangesetOperationResult> {
 		const parsed = parseChangesetUri(params.channel);
 		if (!parsed) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Not a changeset URI: ${params.channel}`);
@@ -88,8 +99,8 @@ export class AgentHostPullRequestLifecycleOperationHandler implements IChangeset
 		this._logService.info(`[AgentHostPullRequestLifecycleOperationHandler] Invoking '${this._action}': session=${sessionUri}, pr=${status.url}, state=${status.state}, draft=${status.draft}, mergeReady=${status.mergeReady}, autoMergeEnabled=${status.autoMergeEnabled}`);
 		const startedAt = Date.now();
 		try {
-			const message = await this._runAction(sessionUri, ownerUri, status, signal, store);
-			await this._statusService.refresh(ownerUri);
+			const message = await this._runAction(sessionUri, ownerUri, status, signal, store, source);
+			await this._statusService.refresh(ownerUri, source);
 			return { message };
 		} catch (error) {
 			this._logService.error(`[AgentHostPullRequestLifecycleOperationHandler] Failed '${this._action}': session=${sessionUri}, pr=${status.url}, durationMs=${Date.now() - startedAt}, error=${error instanceof Error ? error.message : String(error)}`);
@@ -97,21 +108,22 @@ export class AgentHostPullRequestLifecycleOperationHandler implements IChangeset
 			// state, so a rejection usually means that state has drifted. A
 			// refresh re-derives the button bar rather than leaving the user on
 			// an action GitHub already refuses.
-			await this._statusService.refresh(ownerUri);
+			await this._statusService.refresh(ownerUri, source);
 			throw error;
 		}
 	}
 
-	private async _runAction(sessionUri: string, ownerUri: string, status: IAgentHostPullRequestStatus, signal: AbortSignal, store: DisposableStore): Promise<string> {
+	private async _runAction(sessionUri: string, ownerUri: string, status: IAgentHostPullRequestStatus, signal: AbortSignal, store: DisposableStore, source?: IAgentHostCredentialSource): Promise<string> {
+		const credentialSession = source ? resolveChangesetOwnerScope(this._stateManager, ownerUri).sourceUri : undefined;
 		if (this._action === 'merge') {
-			const client = store.add(this._gitHubService.acquireRepositoryClient(signal)).object;
+			const client = store.add(this._gitHubService.acquireRepositoryClient(signal, source, credentialSession)).object;
 			const { account } = await client.credentials.getCredential(signal);
 			const parsed = this._parsePullRequest(status, account.host);
 			const ref = { ...account, owner: parsed.owner, repo: parsed.repo, number: parsed.number };
 			return this._merge(sessionUri, ownerUri, ref, status, signal, client);
 		}
 
-		const client = store.add(this._gitHubService.acquireRepositoryApiClient(signal));
+		const client = store.add(this._gitHubService.acquireRepositoryApiClient(signal, source, credentialSession));
 		this._parsePullRequest(status, new URL(this._endpointService.getApiBaseUri()).host);
 		switch (this._action) {
 			case 'mark-ready': {

@@ -38,11 +38,11 @@ export namespace parse {
 		return value;
 	}
 
-	/** Reads a 40-character lowercase hexadecimal Git SHA. */
+	/** Reads a full lowercase hexadecimal Git SHA-1 or SHA-256 object ID. */
 	export const sha = refine(
 		string,
-		value => value.length === 40 && !/[^a-f0-9]/.test(value),
-		'Expected a 40-character lowercase hexadecimal Git SHA',
+		value => (value.length === 40 || value.length === 64) && !/[^a-f0-9]/.test(value),
+		'Expected a 40- or 64-character lowercase hexadecimal Git SHA',
 	);
 
 	const dateTimePattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;

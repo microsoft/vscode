@@ -453,8 +453,5 @@ export async function getWorkflowRuns(client: IGitHubAccountClient, ref: PullReq
 	const { workflow_runs } = await client.actions.listRuns({ owner: ref.owner, name: ref.repo }, signal, {
 		caller: 'agentHost.agentMerge', maxPages: 100, query: { head_sha: headSha, per_page: 100 },
 	});
-	if (workflow_runs.some(run => typeof run.name !== 'string')) {
-		throw new GitHubRequestError('GitHub response property name was not a string', 'malformedResponse');
-	}
 	return workflow_runs;
 }

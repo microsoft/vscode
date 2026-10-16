@@ -91,7 +91,7 @@ function thread(id: string, updatedAt = 1, name = id): Thread {
 
 function turn(id: string, text: string): CodexTurn {
 	return {
-		id, status: 'completed', error: null, startedAt: 1, completedAt: 2, durationMs: 1000, itemsView: 'full',
+		id, rootTurnId: null, status: 'completed', error: null, startedAt: 1, completedAt: 2, durationMs: 1000, itemsView: 'full',
 		items: [{ type: 'userMessage', id: `${id}-user`, clientId: null, content: [{ type: 'text', text, text_elements: [] }] }],
 	};
 }
@@ -859,7 +859,7 @@ suite('Codex chat discovery', () => {
 		await database.storeTerminalOutput('stored-turn', 'cmd-retained', VSBuffer.fromString(output).buffer);
 		const { agent, client, filesystem } = createHarness(store, createSessionDataService(database));
 		const turn = (answer: string, aggregatedOutput = output): CodexTurn => ({
-			id: 'one', status: 'completed', error: null, startedAt: 1, completedAt: 2, durationMs: 1000, itemsView: 'full',
+			id: 'one', rootTurnId: null, status: 'completed', error: null, startedAt: 1, completedAt: 2, durationMs: 1000, itemsView: 'full',
 			items: [
 				{ type: 'userMessage', id: 'one-user', clientId: null, content: [{ type: 'text', text: 'Run it', text_elements: [] }] },
 				{

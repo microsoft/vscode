@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { Event } from '../../../../base/common/event.js';
 import { ImmortalReference } from '../../../../base/common/lifecycle.js';
 import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
@@ -17,6 +18,7 @@ import { IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import type { PullRequestMergeOptions, PullRequestMergePreparation, PullRequestMutationApi } from '../../../github/common/githubPullRequestMutationService.js';
 import { AgentMergeConfigKey } from '../../common/agentMerge.js';
+import { IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 import { buildBranchChangesetUri, buildFolderChangesetOwnerUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
 import type { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostPullRequestLifecycleOperationHandler, type PullRequestLifecycleAction } from '../../node/agentHostPullRequestLifecycleOperationHandler.js';
@@ -81,6 +83,7 @@ suite('AgentHostPullRequestLifecycleOperationHandler', () => {
 			readonly prepareMergeError?: Error;
 			readonly mergeMethod?: string;
 			readonly writeError?: Error;
+			readonly credentialSource?: IAgentHostCredentialSource;
 			/** Status per owner key; takes precedence over `status`. */
 			readonly statusByOwner?: ReadonlyMap<string, IAgentHostPullRequestStatus>;
 		},
@@ -136,13 +139,16 @@ suite('AgentHostPullRequestLifecycleOperationHandler', () => {
 			}
 		}();
 		const gitHubService = new class extends mock<IAgentHostGitHubService>() {
-			override acquireRepositoryClient(signal: AbortSignal) {
+			override captureSessionCredentialSource(_session: string, source?: IAgentHostCredentialSource) { return source; }
+			override acquireRepositoryClient(signal: AbortSignal, source?: IAgentHostCredentialSource) {
 				signal.throwIfAborted();
+				assert.strictEqual(source, options?.credentialSource);
 				recorded.legacyAcquisitions++;
 				return new ImmortalReference(legacyClient);
 			}
-			override acquireRepositoryApiClient(signal: AbortSignal) {
+			override acquireRepositoryApiClient(signal: AbortSignal, source?: IAgentHostCredentialSource) {
 				signal.throwIfAborted();
+				assert.strictEqual(source, options?.credentialSource);
 				recorded.apiAcquisitions++;
 				return upcastPartial<IGitHubAccountClient>({
 					pullRequests,
@@ -156,7 +162,10 @@ suite('AgentHostPullRequestLifecycleOperationHandler', () => {
 			onDidChangePullRequestStatus: Event.None,
 			getPullRequestStatus: key => options?.statusByOwner ? options.statusByOwner.get(key) : currentStatus,
 			markPullRequestMerged: (sessionKey, url) => { merged.push(`${sessionKey}|${url}`); },
-			refresh: async (sessionKey: string) => { refreshes.push(sessionKey); },
+			refresh: async (sessionKey: string, source?: IAgentHostCredentialSource) => {
+				assert.strictEqual(source, options?.credentialSource);
+				refreshes.push(sessionKey);
+			},
 			resolveForLifecycle: async () => currentStatus,
 			dispose: () => { },
 		};
@@ -174,6 +183,7 @@ suite('AgentHostPullRequestLifecycleOperationHandler', () => {
 			gitHubService,
 			createTestGitHubEndpointService(),
 			new NullLogService(),
+			disposables.add(new AgentHostStateManager(new NullLogService())),
 		);
 		return { handler, recorded, refreshes, merged };
 	}
@@ -294,6 +304,19 @@ suite('AgentHostPullRequestLifecycleOperationHandler', () => {
 			{ calls: ['disableAutoMerge'], legacyAcquisitions: 0, apiAcquisitions: 1, apiDisposals: 1 },
 		]);
 	});
+
+	for (const action of ['mark-ready', 'enable-auto-merge', 'disable-auto-merge', 'merge'] as const) {
+		test(`${action} retains the operation sponsor through mutation and refresh`, async () => {
+			const source: IAgentHostCredentialSource = {
+				getCredential: request => ({ resource: request.resource, token: 'sponsor-token', revision: 1, expiresAt: undefined }),
+			};
+			const { handler, recorded, refreshes } = createHandler(action, { credentialSource: source });
+			await handler.invoke({ channel, operationId: action }, CancellationToken.None, source);
+			assert.deepStrictEqual({
+				legacy: recorded.legacyAcquisitions, api: recorded.apiAcquisitions, released: recorded.apiDisposals, refreshes,
+			}, { legacy: action === 'merge' ? 1 : 0, api: action === 'merge' ? 0 : 1, released: action === 'merge' ? 0 : 1, refreshes: [sessionUri] });
+		});
+	}
 
 	for (const invalid of [{ url: 'https://other.example.test/octo/repo/pull/7' }, { pullRequestId: undefined }]) {
 		test(`rejects an unsafe lifecycle target ${JSON.stringify(invalid)}`, async () => {

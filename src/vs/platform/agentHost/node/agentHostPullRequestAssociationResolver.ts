@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals as objectEquals } from '../../../base/common/objects.js';
+import type { IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { ApiRequestOptions } from '../../github/common/client/request.js';
@@ -49,6 +50,8 @@ interface ICurrentRestrictedState {
 /** Live session inputs and callbacks needed to guard an asynchronous reconciliation. */
 export interface IRestrictedPullRequestReconciliationContext {
 	readonly sessionKey: string;
+	readonly credentialSource?: IAgentHostCredentialSource;
+	readonly credentialSession?: string;
 	readonly sessionState: ISessionWithDefaultChat;
 	readonly gitHubState: ISessionGitHubState;
 	readonly gitState: ISessionGitState | undefined;
@@ -124,6 +127,8 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 		allowedPullRequestUrls?: readonly string[],
 		workingDirectory: string | undefined = state.workingDirectories?.[0],
 		requireHeadBranch = false,
+		source?: IAgentHostCredentialSource,
+		session?: string,
 	): Promise<PullRequestSummary | undefined> {
 		if (allowedPullRequestUrls?.length === 0) {
 			return undefined;
@@ -135,7 +140,7 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 		const signal = this._abortController.signal;
 		const store = new DisposableStore();
 		try {
-			const client = store.add(this._gitHubService.acquireRepositoryApiClient(signal));
+			const client = store.add(this._gitHubService.acquireRepositoryApiClient(signal, source, session));
 			const repository = { owner, name: repo };
 			const options = { priority: 'background', caller: 'agentHost.pullRequestAssociation' } as const;
 			const pullRequestByBranch = await findPullRequestByHeadBranch(client.pullRequests, repository, `${headOwner}:${headBranch}`, signal, { ...options, allowedPullRequestUrls });
@@ -222,7 +227,7 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 		const orderedCandidates = this._orderCandidates(candidates, current, previous);
 		let pullRequest: PullRequestSummary | undefined;
 		try {
-			pullRequest = await this.resolveForCheckout(sessionState, owner, repo, gitState, branchName, orderedCandidates);
+			pullRequest = await this.resolveForCheckout(sessionState, owner, repo, gitState, branchName, orderedCandidates, undefined, false, context.credentialSource, context.credentialSource ? context.credentialSession ?? sessionKey : undefined);
 		} catch (error) {
 			return {
 				kind: 'failed',

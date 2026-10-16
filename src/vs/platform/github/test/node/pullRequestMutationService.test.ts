@@ -697,6 +697,26 @@ suite('PullRequestMutationService', () => {
 		});
 	});
 
+	for (const name of [undefined, null, '']) {
+		test(`reconciles a workflow rerun without a display name (${name})`, async () => {
+			await withServers(async server => {
+				server.enqueue(
+					gitHubRestStep({ method: 'POST', path: '/repos/octo/repo/actions/runs/10/rerun', response: gitHubDisconnectResponse() }),
+					gitHubRestStep({
+						method: 'GET', path: '/repos/octo/repo/actions/runs/10',
+						response: gitHubJsonResponse({ ...workflowRun(10, 2, 'queued'), name }),
+					}),
+				);
+				const { ref, service } = setup(server);
+				const result = await service.rerunWorkflow(ref, { runId: '10', operationId: 'operation-1', expectedRunAttempt: 1 }, signal());
+				assert.deepStrictEqual(result, {
+					outcome: 'reconciled', value: { ...workflowRunNormalized('10', 2, 'QUEUED'), name },
+				});
+				server.assertSatisfied();
+			});
+		});
+	}
+
 	test('strips credentials from redacted log redirects', async () => {
 		await withServers(async (server, download) => {
 			server.enqueue(

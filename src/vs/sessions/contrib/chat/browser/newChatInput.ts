@@ -102,7 +102,7 @@ import { IChatSubmitRequestHandlerService } from '../../../../workbench/contrib/
 import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from './newChatModelPicker.js';
 import { ISessionModelSelection, SessionModelSelection } from './sessionModelSelection.js';
-import { IModelPickerWorkflow } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerWorkflow.js';
+import { IModelPickerComparison } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerComparison.js';
 import { hasSendableModelSelection } from './sessionModelPickerState.js';
 import { createNewSessionConfigToolbar, createNewSessionControlToolbar } from './newSessionConfigToolbars.js';
 import { trackChatInputPickerFocus } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
@@ -448,6 +448,14 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	/** The current model-selection state. Exposed so host widgets can react to model changes. */
 	get selectedModelState() { return this._modelSelection.state; }
 
+	getComparisonModels() {
+		return this._modelSelection.getComparisonModels();
+	}
+
+	resolveComparisonModel(modelIdentifier: string) {
+		return this._modelSelection.resolveComparisonModel(modelIdentifier);
+	}
+
 	get modelPicker(): INewSessionComposerPicker | undefined {
 		return this._newChatModelPickerService.activePicker;
 	}
@@ -583,7 +591,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	// Slash commands
 	private _agentHostInputCompletionHandler: AgentHostInputCompletionHandler | undefined;
 	private readonly _scopedInstantiationService: IInstantiationService;
-	private readonly _newChatModelPickerService = new NewChatModelPickerService();
+	private readonly _newChatModelPickerService = new NewChatModelPickerService(() => this.focus());
 	readonly pickerVisibility = this._register(new SessionInputPickerVisibility());
 	private readonly _modelSelection: SessionModelSelection;
 	private readonly _canSendRequest: IObservable<boolean>;
@@ -634,7 +642,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			sessionTypePickerOptions?: ISessionTypePickerOptions;
 			supportsBackground?: boolean;
 			sendButtonLabel?: IObservable<string | undefined>;
-			modelPickerWorkflow?: IModelPickerWorkflow;
+			modelPickerComparison?: IModelPickerComparison;
 			deferredNotificationsEnabled?: IObservable<boolean>;
 			petHostPreferred?: IObservable<boolean>;
 			getChatPetPlatformElements?: () => readonly HTMLElement[];
@@ -678,7 +686,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	) {
 		super();
 		this._modelSelection = this._register(this.instantiationService.createInstance(SessionModelSelection, this.options.session, {
-			workflow: this.options.modelPickerWorkflow,
+			comparison: this.options.modelPickerComparison,
 			modelConfiguration: true,
 			fallbackModelConfiguration: this.languageModelsService,
 		}));

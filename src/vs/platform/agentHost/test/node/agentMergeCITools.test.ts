@@ -61,6 +61,18 @@ suite('Agent Merge CI diagnostics', () => {
 		return store.add(service.acquireRepositoryApiClient(new AbortController().signal));
 	}
 
+	for (const name of [undefined, null, '']) {
+		test(`workflow discovery preserves an unavailable or empty workflow name (${name})`, async () => {
+			const client = createApiClient(async () => Response.json({
+				total_count: 1, workflow_runs: [createTestWorkflowRun(1, { name })],
+			}));
+			const runs = await getWorkflowRuns(client, ref, 'head', new AbortController().signal);
+			assert.deepStrictEqual(runs.map(run => ({ id: run.id, name: run.name, headSha: run.head_sha })), [
+				{ id: 1, name, headSha: 'head' },
+			]);
+		});
+	}
+
 	test('paginates typed runs, attempt jobs and annotations while preserving diagnostic output', async () => {
 		const requests: string[] = [];
 		const client = createApiClient(async input => {

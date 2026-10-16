@@ -3642,19 +3642,24 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(provider.getSessions().map(session => session.title.get()), ['Old Session', 'New Session']);
 	}));
 
-	test('a malformed session artifact does not prevent new sessions from appearing after reconnect', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const metadata = createSession('old-session', {
-			summary: 'Old Session',
-			_meta: withSessionArtifacts(undefined, [
-				{ id: 'bad', type: SessionArtifactType.File, label: 'Bad', isArtifact: true, uri: 'custom:opaque-file' },
-			]),
-		});
+	test('a malformed session label does not prevent new sessions from appearing after reconnect', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const metadata = createSession('old-session', { summary: 'Old Session' });
 		connection.addSession(metadata);
 		const errors: string[] = [];
 		const logService = new class extends NullLogService {
 			override error(message: string | Error): void { errors.push(String(message)); }
 		}();
-		const provider = createProvider(disposables, connection, { logService });
+		const provider = createProvider(disposables, connection, {
+			logService,
+			ctor: class extends RemoteAgentHostSessionsProvider {
+				protected override getResourceLabelHomeLabel(session: ISession): string {
+					if (session.resource.path === '/old-session') {
+						throw new Error('Malformed session label');
+					}
+					return super.getResourceLabelHomeLabel(session);
+				}
+			},
+		});
 		await timeout(0);
 		provider.clearConnection();
 		const reconnected = disposables.add(new MockAgentConnection());
