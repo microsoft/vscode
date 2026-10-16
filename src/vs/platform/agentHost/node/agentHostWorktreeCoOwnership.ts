@@ -84,45 +84,88 @@ function uses(folders: readonly string[], worktree: string): boolean {
  * its session also uses: such a move is refused (D2). Pure, from recorded state only.
  */
 export function sharedOwnAdditionalWorktree(additional: readonly ISessionAdditionalWorktree[], moved: readonly string[], chatFolders: readonly string[], remainingFolders: readonly (readonly string[])[]): ISessionAdditionalWorktree | undefined {
-	return additional.find(worktree => worktree.chat !== undefined && moved.includes(worktree.chat)
-		&& uses(chatFolders, worktree.workingDirectory)
-		&& remainingFolders.some(folders => uses(folders, worktree.workingDirectory)));
+	const users = new AdditionalWorktreeUsers(additional);
+	const movedChats = new Set(moved);
+	// The staying chats need no identity of their own, only one no moved chat has.
+	remainingFolders.forEach((folders, index) => users.addChat(`staying:${index}`, folders));
+	return users.sharedOwnOf(movedChats, chatFolders);
+}
+
+/** A folder's key for finding the worktrees recorded at it, as {@link uses} compares them. */
+function folderKey(folder: URI): string {
+	return extUriBiasedIgnorePathCase.getComparisonKey(extUriBiasedIgnorePathCase.removeTrailingPathSeparator(folder));
 }
 
 /**
- * The chats of a session that work in each additional worktree recorded for a chat (keyed by that worktree): what
- * {@link sharedOwnAdditionalWorktree} checks the staying chats against, indexed once for every chat of a session.
- * `chats` are the chats that count as staying when they don't move (not tool chats), with their folders.
+ * The additional worktrees a session records for its chats, and the chats of the session working in each: what D2
+ * ({@link sharedOwnAdditionalWorktree}) is decided by, for every chat of a session at once. Indexed by the chat each
+ * worktree was created for, and by folder, so a chat's folder finds the worktrees containing it in one lookup per
+ * ancestor: each chat costs its own folders and worktrees, never every worktree of its session.
  */
-export function additionalWorktreeUsers(additional: readonly ISessionAdditionalWorktree[], chats: Iterable<{ readonly chat: string; readonly folders: readonly string[] }>): Map<ISessionAdditionalWorktree, string[]> {
-	const users = new Map<ISessionAdditionalWorktree, string[]>();
-	const own = additional.filter(worktree => worktree.chat !== undefined);
-	if (own.length === 0) {
-		return users;
-	}
-	for (const { chat, folders } of chats) {
-		for (const worktree of own) {
-			if (uses(folders, worktree.workingDirectory)) {
-				let chatsOfWorktree = users.get(worktree);
-				if (!chatsOfWorktree) {
-					chatsOfWorktree = [];
-					users.set(worktree, chatsOfWorktree);
-				}
-				chatsOfWorktree.push(chat);
+export class AdditionalWorktreeUsers {
+
+	private readonly _byChat = new Map<string, ISessionAdditionalWorktree[]>();
+	private readonly _byFolder = new Map<string, ISessionAdditionalWorktree[]>();
+	private readonly _users = new Map<ISessionAdditionalWorktree, string[]>();
+
+	constructor(additional: readonly ISessionAdditionalWorktree[]) {
+		for (const worktree of additional) {
+			if (worktree.chat !== undefined) {
+				pushTo(this._byChat, worktree.chat, worktree);
+				pushTo(this._byFolder, folderKey(URI.parse(worktree.workingDirectory)), worktree);
 			}
 		}
 	}
-	return users;
-}
 
-/** {@link sharedOwnAdditionalWorktree} over the {@link additionalWorktreeUsers} of the moved chats' session. */
-export function sharedOwnAdditionalWorktreeOf(users: ReadonlyMap<ISessionAdditionalWorktree, readonly string[]>, moved: ReadonlySet<string>, chatFolders: readonly string[]): ISessionAdditionalWorktree | undefined {
-	for (const [worktree, chats] of users) {
-		if (moved.has(worktree.chat!) && uses(chatFolders, worktree.workingDirectory) && chats.some(chat => !moved.has(chat))) {
-			return worktree;
+	/** Whether the session records no additional worktree for a chat: no chat of it is refused by D2. */
+	get isEmpty(): boolean {
+		return this._byChat.size === 0;
+	}
+
+	/** Records that `chat` works in `folders` (a chat that stays when it doesn't move). */
+	addChat(chat: string, folders: readonly string[]): void {
+		if (this.isEmpty) {
+			return;
+		}
+		for (const folder of folders) {
+			for (let candidate = URI.parse(folder); ;) {
+				for (const worktree of this._byFolder.get(folderKey(candidate)) ?? []) {
+					const users = this._users.get(worktree);
+					if (!users) {
+						this._users.set(worktree, [chat]);
+					} else if (users[users.length - 1] !== chat) {
+						users.push(chat);
+					}
+				}
+				const parent = extUriBiasedIgnorePathCase.dirname(candidate);
+				if (parent.path === candidate.path) {
+					break;
+				}
+				candidate = parent;
+			}
 		}
 	}
-	return undefined;
+
+	/** The worktree that refuses moving `moved` working in `chatFolders` (D2), if any. */
+	sharedOwnOf(moved: ReadonlySet<string>, chatFolders: readonly string[]): ISessionAdditionalWorktree | undefined {
+		for (const chat of moved) {
+			for (const worktree of this._byChat.get(chat) ?? []) {
+				if (uses(chatFolders, worktree.workingDirectory) && this._users.get(worktree)?.some(user => !moved.has(user))) {
+					return worktree;
+				}
+			}
+		}
+		return undefined;
+	}
+}
+
+function pushTo<K, V>(map: Map<K, V[]>, key: K, value: V): void {
+	const values = map.get(key);
+	if (values) {
+		values.push(value);
+	} else {
+		map.set(key, [value]);
+	}
 }
 
 /**

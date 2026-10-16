@@ -16,7 +16,7 @@ import { ActionType, type StateAction } from '../common/state/sessionActions.js'
 import { ChatOriginKind, isSessionStatusArchived, readSessionWorkspaceless, type ChatSummary, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import type { IAgentConfigurationService } from './agentConfigurationService.js';
 import type { AgentHostStateManager } from './agentHostStateManager.js';
-import { additionalWorktreeUsers, sharedOwnAdditionalWorktreeOf } from './agentHostWorktreeCoOwnership.js';
+import { AdditionalWorktreeUsers } from './agentHostWorktreeCoOwnership.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY, type ISessionAdditionalWorktree, parseSessionAdditionalWorktrees } from './shared/sessionAdditionalWorktrees.js';
 
 /** The in-memory state, held by other services, that decides whether a chat's session refuses its move (Block 4). */
@@ -53,8 +53,8 @@ interface ISourceSessionContext {
 	readonly summaries: Map<ProtocolURI, ChatSummary>;
 	/** The session's chats by the chat whose tool call spawned them. */
 	readonly children: Map<ProtocolURI, ProtocolURI[]>;
-	/** The staying chats using each additional worktree recorded for a chat, built on first use (see {@link additionalWorktreeUsers}). */
-	worktreeUsers: Map<ISessionAdditionalWorktree, ProtocolURI[]> | undefined;
+	/** The chats using each additional worktree recorded for a chat, built on first use (see {@link AdditionalWorktreeUsers}). */
+	worktreeUsers: AdditionalWorktreeUsers | undefined;
 }
 
 /**
@@ -87,7 +87,7 @@ const SESSION_INPUT_ACTIONS: ReadonlySet<StateAction['type']> = new Set([
 	ActionType.SessionWorkingDirectoryReplaced,
 ]);
 
-const EMPTY_WORKTREE_USERS: ReadonlyMap<ISessionAdditionalWorktree, readonly ProtocolURI[]> = new Map();
+const EMPTY_WORKTREE_USERS = new AdditionalWorktreeUsers([]);
 
 /** Session values recording the worktrees a session owns that decide whether its chats may move. */
 const WORKTREE_VALUES: ReadonlySet<string> = new Set([ADDITIONAL_WORKTREES_METADATA_KEY]);
@@ -275,7 +275,7 @@ export class AgentHostChatMovability extends Disposable {
 			converting: context.quarantined || [...subtree].some(candidate => this._sources.conversions.isPending(candidate)),
 			// Worktrees are shared by moves (Block 5): only a chat's own one that a staying chat also uses keeps it (D2).
 			// Asked for another owner, this checks that owner's list, so it may miss D2; `planWorktreeMove` refuses it.
-			worktreeFolder: sharedOwnAdditionalWorktreeOf(this._worktreeUsers(context, currentContext), subtree, folders) !== undefined,
+			worktreeFolder: this._worktreeUsers(context, currentContext).sharedOwnOf(subtree, folders) !== undefined,
 			agentMergeOwner: [...subtree].some(candidate => context.agentMergeChats.has(candidate)),
 			legacyCatalog: context.legacyCatalog,
 		});
@@ -333,14 +333,7 @@ export class AgentHostChatMovability extends Disposable {
 				}
 			}
 			if (context.worktreeUsers && summary.origin?.kind !== ChatOriginKind.Tool) {
-				for (const [worktree, users] of additionalWorktreeUsers(context.additionalWorktrees, [{ chat, folders: summary.workingDirectories ?? context.folders }])) {
-					const known = context.worktreeUsers.get(worktree);
-					if (!known) {
-						context.worktreeUsers.set(worktree, [...users]);
-					} else if (!known.includes(chat)) {
-						known.push(chat);
-					}
-				}
+				context.worktreeUsers.addChat(chat, summary.workingDirectories ?? context.folders);
 			}
 		}
 		return current.pass;
@@ -350,13 +343,19 @@ export class AgentHostChatMovability extends Disposable {
 	 * The chats of `chats`' session (not tool chats) using each additional worktree `context`'s session records for a
 	 * chat; none, without building anything, when it records none for a chat. Cached on the context for its own chats.
 	 */
-	private _worktreeUsers(context: ISourceSessionContext, chats: ISourceSessionContext): ReadonlyMap<ISessionAdditionalWorktree, readonly ProtocolURI[]> {
+	private _worktreeUsers(context: ISourceSessionContext, chats: ISourceSessionContext): AdditionalWorktreeUsers {
 		if (!context.additionalWorktrees.some(worktree => worktree.chat !== undefined)) {
 			return EMPTY_WORKTREE_USERS;
 		}
-		const build = () => additionalWorktreeUsers(context.additionalWorktrees, [...chats.summaries.values()]
-			.filter(candidate => candidate.origin?.kind !== ChatOriginKind.Tool)
-			.map(candidate => ({ chat: candidate.resource, folders: candidate.workingDirectories ?? context.folders })));
+		const build = () => {
+			const users = new AdditionalWorktreeUsers(context.additionalWorktrees);
+			for (const candidate of chats.summaries.values()) {
+				if (candidate.origin?.kind !== ChatOriginKind.Tool) {
+					users.addChat(candidate.resource, candidate.workingDirectories ?? context.folders);
+				}
+			}
+			return users;
+		};
 		if (context !== chats) {
 			return build();
 		}

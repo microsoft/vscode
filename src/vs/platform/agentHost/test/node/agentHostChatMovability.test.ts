@@ -7,6 +7,7 @@ import assert from 'assert';
 import { timeout } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -316,6 +317,61 @@ suite('AgentHostChatMovability', () => {
 			// The first peer's own worktree, which staying chats use: refused (D2), at the same cost.
 			ownWorktree: [{ ...linear, refused: true }, { ...linear, refused: true }],
 		});
+	});
+
+	test('with an additional worktree for every chat, recomputing them costs a linear number of URI comparisons (PR review)', async () => {
+		/** Counts the comparisons of folders with recorded worktrees, the work a scan of every worktree per chat multiplies. */
+		const counted = ['isEqualOrParent', 'getComparisonKey', 'dirname'] as const;
+		const run = async (chats: number) => {
+			const store = new DisposableStore();
+			const originals = counted.map(name => extUriBiasedIgnorePathCase[name]);
+			let comparisons = 0;
+			try {
+				const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
+				const configuration = store.add(new AgentConfigurationService(stateManager, new NullLogService()));
+				const sources = new TestSources();
+				store.add(new AgentHostChatMovability(stateManager, configuration, sources));
+				stateManager.createSession(summary(session));
+				const defaultChat = buildDefaultChatUri(session);
+				const own = (i: number) => URI.file(`/repo.worktrees/peer-${i}`).toString();
+				const worktrees = [];
+				for (let i = 0; i < chats; i++) {
+					const peer = buildChatUri(session, `peer-${i}`);
+					// Each chat works in its own worktree; the second one also in the first one's, which keeps the first (D2).
+					stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer, defaultChat), { workingDirectories: i === 1 ? [`${own(1)}/src`, own(0)] : [`${own(i)}/src`] });
+					worktrees.push({ handle: generateUuid(), workingDirectory: own(i), repositoryRoot: folder, chat: peer });
+				}
+				sources.values.set(ADDITIONAL_WORKTREES_METADATA_KEY, JSON.stringify(worktrees));
+				await timeout(0);
+				for (const [index, name] of counted.entries()) {
+					const original = originals[index] as (...args: unknown[]) => unknown;
+					(extUriBiasedIgnorePathCase as unknown as Record<string, unknown>)[name] = (...args: unknown[]) => {
+						comparisons++;
+						return original.apply(extUriBiasedIgnorePathCase, args);
+					};
+				}
+				configuration.updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
+				const recompute = comparisons;
+				comparisons = 0;
+				stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+				const ready = comparisons;
+				const registered = stateManager.getSessionState(session)!.chats.length;
+				const movable = (i: number) => stateManager.getSessionState(session)!.chats.find(chat => chat.resource === buildChatUri(session, `peer-${i}`))?.movable;
+				return { recompute: Math.ceil(recompute / registered), ready: Math.ceil(ready / registered), refused: movable(0) !== true, othersMovable: movable(chats - 1) === true };
+			} finally {
+				for (const [index, name] of counted.entries()) {
+					delete (extUriBiasedIgnorePathCase as unknown as Record<string, unknown>)[name];
+					if (extUriBiasedIgnorePathCase[name] !== originals[index]) {
+						(extUriBiasedIgnorePathCase as unknown as Record<string, unknown>)[name] = originals[index];
+					}
+				}
+				store.dispose();
+			}
+		};
+
+		const results = [await run(100), await run(400)];
+		assert.deepStrictEqual(results[1], results[0], JSON.stringify(results));
+		assert.deepStrictEqual({ refused: results[0].refused, othersMovable: results[0].othersMovable }, { refused: true, othersMovable: true });
 	});
 
 	test('a session\'s chats published one by one, as a restore registers them or once the session is ready, cost a linear number of lookups, with moving chats off and on (perf, Block 5)', async () => {
