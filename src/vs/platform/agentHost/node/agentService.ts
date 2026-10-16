@@ -2884,11 +2884,12 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const ownedOverrides = Object.fromEntries(Object.entries(metadataOverrides).filter(([key]) => key !== AH_META_IS_READ_DB_KEY && getSessionStateValueKey(key)));
 		const rollbackKeys = rollbackOverrides ? Object.keys(ownedOverrides).filter(key => rollbackOverrides[key] === ownedOverrides[key]) : [];
-		let previousOwned: ReadonlyMap<string, string | undefined> | undefined;
+		// Filled before the owned write commits, so a failure after the commit (recording the mirror) still rolls it back.
+		const previousOwned = new Map<string, string | undefined>();
 		const ownedWrite = Object.keys(ownedOverrides).length === 0
 			? Promise.resolve()
 			: (rollbackKeys.length > 0
-				? this._swapOwnedSessionValues(session, ownedOverrides, rollbackKeys).then(previous => { previousOwned = previous; })
+				? this._swapOwnedSessionValues(session, ownedOverrides, rollbackKeys, previousOwned)
 				: persistSessionMetadataValues(this._sessionStateStore, sessionKey, ownedOverrides)
 			).catch(error => this._logService.warn(`[AgentService] Failed to persist owned list-visible state for ${sessionKey}`, error));
 		let attempted: Readonly<Record<string, string>> | undefined;
@@ -2908,8 +2909,9 @@ export class AgentService extends Disposable implements IAgentService {
 				return request;
 			});
 		} catch (error) {
+			// A synchronization that committed the catalog but could not acknowledge its receipt reports pending instead of throwing.
 			await ownedWrite;
-			if (previousOwned) {
+			if (previousOwned.size > 0) {
 				await this._rollBackOwnedSessionValues(session, ownedOverrides, attempted, previousOwned)
 					.catch(rollbackError => this._logService.error(`[AgentService] Failed to roll back owned list-visible state for ${sessionKey}`, rollbackError));
 			}
@@ -2923,15 +2925,17 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
-	 * Writes owned session values (mirrored to session.db before returning) and returns what `rollbackKeys` held
-	 * before, read in the same exclusive section. The central write marks the catalog payload dirty in the same
-	 * agent-host.db transaction, so a crash before any rollback recovers to these values everywhere.
+	 * Writes owned session values (mirrored to session.db before returning) after recording into `previous` what
+	 * `rollbackKeys` held, read in the same exclusive section before the write commits. The central write marks the
+	 * catalog payload dirty in the same agent-host.db transaction, so a crash before any rollback recovers to these
+	 * values everywhere.
 	 */
-	private _swapOwnedSessionValues(session: URI, values: Readonly<Record<string, string>>, rollbackKeys: readonly string[]): Promise<ReadonlyMap<string, string | undefined>> {
-		return this._sessionStateStore.runExclusive(session, async exclusive => {
-			const previous = new Map(rollbackKeys.map(key => [key, exclusive.snapshot.values.get(key)]));
+	private async _swapOwnedSessionValues(session: URI, values: Readonly<Record<string, string>>, rollbackKeys: readonly string[], previous: Map<string, string | undefined>): Promise<void> {
+		await this._sessionStateStore.runExclusive(session, async exclusive => {
+			for (const key of rollbackKeys) {
+				previous.set(key, exclusive.snapshot.values.get(key));
+			}
 			await exclusive.write(sessionStatePatch({ values }), SessionStateMirrorFlush.Immediate);
-			return previous;
 		});
 	}
 
