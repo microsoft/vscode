@@ -94,6 +94,24 @@ suite('McpGalleryMarketplaceProvider', () => {
 		});
 	});
 
+	test('keeps native page sizes below the registry continuation failure boundary', async () => {
+		const requests: IMcpGalleryQueryPageOptions[] = [];
+		const gallery = new class extends mock<IMcpGalleryService>() {
+			override async queryPage(options: IMcpGalleryQueryPageOptions) {
+				requests.push(options);
+				return { items: [server], nextCursor: options.cursor ? undefined : 'next' };
+			}
+		}();
+		const provider = new McpGalleryMarketplaceProvider('custom', gallery, manifest(customUrl), configuration(), product);
+		const first = await provider.query({ pageSize: 100 }, CancellationToken.None);
+		await provider.query({ pageSize: 100, cursor: first.nextCursor }, CancellationToken.None);
+
+		assert.deepStrictEqual(requests, [
+			{ text: undefined, pageSize: 99, cursor: undefined },
+			{ text: undefined, pageSize: 99, cursor: 'next' },
+		]);
+	});
+
 	test('advertises only the MCP Gallery platform source', () => {
 		assert.deepStrictEqual(getCustomizationMarketplaceSourceInfos().map(source => source.id), ['mcpGallery']);
 	});

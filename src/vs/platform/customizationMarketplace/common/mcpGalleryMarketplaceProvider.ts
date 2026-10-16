@@ -16,6 +16,8 @@ import { IProductService } from '../../product/common/productService.js';
 import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceIcon, CustomizationMarketplaceMediaType, ICustomizationMarketplaceProvider, ICustomizationMarketplaceSourceEntry, ICustomizationMarketplaceSourceInfo, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from './customizationMarketplaceService.js';
 import { CustomizationMarketplaceSources } from './customizationMarketplaceSources.js';
 
+const maxMcpGalleryPageSize = 99;
+
 export function normalizeMcpGalleryUrl(value: string | undefined): string | undefined {
 	const normalized = typeof value === 'string' ? value.replace(/\/+$/, '') : undefined;
 	return normalized || undefined;
@@ -127,7 +129,7 @@ export class McpGalleryMarketplaceProvider implements ICustomizationMarketplaceP
 		for (let attempt = 0; attempt < 5; attempt++) {
 			const page = await this.galleryService.queryPage({
 				text: options.query,
-				pageSize: options.pageSize ?? 30,
+				pageSize: Math.min(options.pageSize ?? 30, maxMcpGalleryPageSize),
 				cursor,
 			}, token, manifest);
 			if (page.items.length || !page.nextCursor) {
