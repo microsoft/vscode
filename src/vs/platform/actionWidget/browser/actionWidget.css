@@ -151,8 +151,7 @@
 	border-radius: 0;
 }
 
-.action-widget .monaco-list-row.separator:first-of-type,
-.action-widget.multi-select-dropdown .monaco-list-row.separator[data-index="0"] {
+.action-widget .monaco-list-row.separator:first-of-type {
 	border-top: none;
 	margin-top: 0;
 }

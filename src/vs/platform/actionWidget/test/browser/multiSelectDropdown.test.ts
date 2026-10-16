@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import * as dom from '../../../../base/browser/dom.js';
-import { timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { mock } from '../../../../base/test/common/mock.js';
@@ -78,7 +77,7 @@ suite('MultiSelectDropdown', () => {
 		const { container, rows } = create();
 		assert.deepStrictEqual({
 			label: container.querySelector('[role="menu"]')?.getAttribute('aria-label'),
-			sections: [...container.querySelectorAll('.separator')].map(row => row.textContent),
+			sections: [...container.querySelectorAll('.group-header')].map(row => row.textContent),
 			checks: rows().map(row => row.getAttribute('aria-checked')),
 		}, { label: 'Days', sections: ['Weekdays', 'Weekend'], checks: ['true', 'false', 'true', 'false'] });
 	});
@@ -97,13 +96,13 @@ suite('MultiSelectDropdown', () => {
 	test('shows dividers only between sections and no keyboard hint footer', () => {
 		const { container, filter } = create({ searchable: true });
 		container.style.setProperty('--vscode-editorHoverWidget-border', 'currentColor');
-		const borders = () => [...container.querySelectorAll('.separator')].map(row => dom.getWindow(row).getComputedStyle(row).borderTopWidth);
+		const borders = () => [...container.querySelectorAll('.group-header, .separator')].map(row => parseFloat(dom.getWindow(row).getComputedStyle(row).borderTopWidth) > 0);
 		assert.deepStrictEqual({
 			borders: borders(),
 			footer: container.querySelector('.action-list-footer'),
-		}, { borders: ['0px', '1px'], footer: null });
+		}, { borders: [false, true, false], footer: null });
 		filter('Saturday');
-		assert.deepStrictEqual(borders(), ['0px']);
+		assert.deepStrictEqual(borders(), []);
 	});
 
 	test('Enter and Space toggle, arrows skip disabled rows, Escape restores trigger focus', () => {
@@ -120,17 +119,17 @@ suite('MultiSelectDropdown', () => {
 		}, { changes: [['fri'], ['wed', 'fri'], ['wed', 'fri', 'sat']], visible: false, focused: true, expanded: 'false', hides: 1 });
 	});
 
-	test('search retains matching sections and selection across filtering and no results', () => {
+	test('search follows ActionList header filtering and retains selection across no results', () => {
 		const { row, rows, filter, changes, container, dropdown } = create({ searchable: true });
 		filter('WED');
 		row('Wednesday').click();
-		const filtered = [...container.querySelectorAll('.separator')].map(row => row.textContent);
+		const filtered = [...container.querySelectorAll('.group-header, .separator')].map(row => row.textContent);
 		filter('no matching day');
 		const empty = rows().length;
 		filter('');
 		assert.deepStrictEqual({
 			filtered, empty, changes, visible: dropdown.isVisible, checks: rows().map(row => row.getAttribute('aria-checked')),
-		}, { filtered: ['Weekdays'], empty: 0, changes: [['mon', 'wed', 'fri']], visible: true, checks: ['true', 'true', 'true', 'false'] });
+		}, { filtered: [], empty: 0, changes: [['mon', 'wed', 'fri']], visible: true, checks: ['true', 'true', 'true', 'false'] });
 	});
 
 	test('Space remains text input and IME key events do not toggle or dismiss', () => {
@@ -159,9 +158,14 @@ suite('MultiSelectDropdown', () => {
 	});
 
 	test('leaving the popup closes without stealing focus', async () => {
-		const { nextButton, dropdown, hides } = create();
+		const { container, nextButton, dropdown, hides } = create();
+		const list = container.querySelector<HTMLElement>('.monaco-list')!;
+		// Hidden Electron test windows do not emit native focus events.
+		list.dispatchEvent(new FocusEvent('focus'));
+		const hidden = new Promise<void>(resolve => store.add(dropdown.onDidHide(resolve)));
 		nextButton.focus();
-		await timeout(0);
+		list.dispatchEvent(new FocusEvent('blur'));
+		await hidden;
 		assert.deepStrictEqual({
 			visible: dropdown.isVisible, hides: hides(), focused: document.activeElement === nextButton,
 		}, { visible: false, hides: 1, focused: true });

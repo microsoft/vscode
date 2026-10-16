@@ -70,8 +70,9 @@ export class MultiSelectDropdown extends Disposable {
 		this.hide();
 
 		const selected = new Set(options.selectedIds);
-		const buildItems = (): IActionListItem<IMultiSelectDropdownItem>[] => options.sections.flatMap(section => section.items.length ? [
-			{ kind: ActionListItemKind.Separator, label: section.label },
+		const buildItems = (): IActionListItem<IMultiSelectDropdownItem>[] => options.sections.filter(section => section.items.length).flatMap((section, index) => [
+			...(index > 0 ? [{ kind: ActionListItemKind.Separator }] : []),
+			{ kind: ActionListItemKind.Header, label: section.label },
 			...section.items.map(item => ({
 				kind: ActionListItemKind.Action,
 				item,
@@ -80,7 +81,7 @@ export class MultiSelectDropdown extends Disposable {
 				disabled: item.disabled,
 				group: { title: '', icon: selected.has(item.id) ? Codicon.check : Codicon.blank },
 			})),
-		] : []);
+		]);
 
 		const popup = new DisposableStore();
 		this.popup.value = popup;
