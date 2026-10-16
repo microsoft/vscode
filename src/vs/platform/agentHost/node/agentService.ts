@@ -150,7 +150,7 @@ import { GIT_DB_METADATA_KEYS, IAgentHostGitStateService, META_GIT_DATA_STATE, M
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
 import { AgentHostCatalogSourceResolver, CHAT_BACKING_METADATA_KEY, chatCatalogV2ToCatalogChats, fromCatalogChatOrigin, isAgentHostChatBacking } from './agentHostCatalogSourceResolver.js';
 import { AgentHostPeerChatStore, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, IAgentHostPeerChatPersistenceService, IPersistedPeerChat, type IOlderBuildEditsImport } from './agentHostPeerChatStore.js';
-import { migrateChatCatalogV2 } from './agentHostChatCatalogMigration.js';
+import { chatCatalogAwaitsReprojection, migrateChatCatalogV2 } from './agentHostChatCatalogMigration.js';
 import { IAgentHostChatContributions } from '../common/agentHostChatContributionsService.js';
 import { IAgentHostTurnService } from './agentHostTurnService.js';
 
@@ -2975,14 +2975,13 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _migrateChatMetadataWrite(session: URI, resource: URI, values: Readonly<Record<string, string>>): Promise<Readonly<Record<string, string>>> {
-		const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([session.toString()]);
-		if (snapshot?.authorityVersion === 2) {
-			return values;
-		}
 		// A conversion is not ready while the aggregate is unverified or awaits its re-projection: one read, not a
 		// conversion attempt per write (which would also delay the write and mark the payload dirty each time).
-		const source = await this._orchestratorDatabase.getSessionV2(session.toString());
-		if (!source?.verified || source.payloadDirty !== 0) {
+		const readiness = await this._readChatCatalogConversionReadiness(session);
+		if (readiness === 'normalized') {
+			return values;
+		}
+		if (readiness === 'awaitsReprojection') {
 			this._catalogReconciliationService.convertAfterReprojection(session.toString());
 			return values;
 		}
@@ -3000,6 +2999,19 @@ export class AgentService extends Disposable implements IAgentService {
 		return values;
 	}
 
+	/**
+	 * Whether a session's chat catalog is normalized, can convert, or must wait for its aggregate (unverified, or its
+	 * re-projection pending), from central state alone: deciding this never opens the session's database.
+	 */
+	private async _readChatCatalogConversionReadiness(session: URI): Promise<'normalized' | 'awaitsReprojection' | 'ready'> {
+		const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([session.toString()]);
+		if (snapshot?.authorityVersion === 2) {
+			return 'normalized';
+		}
+		const source = await this._orchestratorDatabase.getSessionV2(session.toString());
+		return !source?.verified || source.payloadDirty !== 0 ? 'awaitsReprojection' : 'ready';
+	}
+
 	private async _migrateChatCatalog(
 		session: URI,
 		token: CancellationToken,
@@ -3009,6 +3021,14 @@ export class AgentService extends Disposable implements IAgentService {
 	): Promise<Awaited<ReturnType<typeof migrateChatCatalogV2>> | undefined> {
 		if (token.isCancellationRequested || lifetimeValidator && !lifetimeValidator()) {
 			return;
+		}
+		// A conversion that can only end not ready opens no session database, writes nothing and wakes nothing: the
+		// re-projection it waits for is already owed (an unverified or dirty aggregate is one), and converts it right after.
+		// A catalog override stages its own aggregate first. The check under the session's lock below stays authoritative.
+		if (!catalogOverrideFactory && await this._readChatCatalogConversionReadiness(session) === 'awaitsReprojection') {
+			this._catalogReconciliationService.convertAfterReprojection(session.toString());
+			this._reportCatalogMigration(session, chatCatalogAwaitsReprojection);
+			return chatCatalogAwaitsReprojection;
 		}
 		await this._peerChatStore.reconcileLegacy(session);
 		if (lifetimeValidator && !lifetimeValidator()) {
