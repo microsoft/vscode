@@ -282,6 +282,45 @@ suite('AgentHostWorktreeRemovalDatabase', () => {
 		assert.deepStrictEqual(await database.findAdditionalWorktreeOwners(handle), [OWNER]);
 	});
 
+	test('a profile without the removal table migrates to 20, and one already at 20 with the old kind check is repaired (M4, Block 5)', async () => {
+		const outcomes: Record<string, unknown> = {};
+		for (const [name, prepare] of [
+			// A pre-release build that skipped the removal table.
+			['missingTable', ['DROP TABLE worktree_co_owners', 'DROP TABLE pending_worktree_removals', 'PRAGMA user_version = 19']],
+			// Another numbering reached 20 without widening the check.
+			['oldCheck', ['DROP TABLE pending_worktree_removals', `CREATE TABLE pending_worktree_removals (kind TEXT NOT NULL CHECK (kind IN ('session', 'detached')), owner TEXT NOT NULL, owner_session TEXT, worktree_path TEXT NOT NULL, repository_root TEXT NOT NULL, branch TEXT,
+				mode TEXT NOT NULL CHECK (mode IN ('commit', 'synced', 'delete')), owner_deleted INTEGER NOT NULL DEFAULT 0, attempts INTEGER NOT NULL DEFAULT 0, requested_at INTEGER NOT NULL, next_attempt_at INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (kind, owner)) WITHOUT ROWID`]],
+		] as const) {
+			const path = join(tmpdir(), `agent-host-m4-${generateUuid()}.db`);
+			try {
+				let database = new AgentHostDatabase(path);
+				await database.upsertPendingWorktreeRemoval(request());
+				for (const statement of prepare) {
+					await sql(database, statement);
+				}
+				await database.close();
+				database = new AgentHostDatabase(path);
+				try {
+					await database.upsertPendingWorktreeRemoval(request({ kind: 'coOwned', owner: `${OWNER}|${WORKTREE}`, requestedAt: 2 }));
+					outcomes[name] = {
+						version: (await sql(database, 'PRAGMA user_version'))[0].user_version,
+						removals: (await database.listPendingWorktreeRemovals()).map(removal => removal.kind),
+					};
+				} finally {
+					await database.close();
+				}
+			} catch (error) {
+				outcomes[name] = String(error);
+			} finally {
+				await fs.rm(path, { force: true });
+			}
+		}
+		assert.deepStrictEqual(outcomes, {
+			missingTable: { version: 20, removals: ['coOwned'] },
+			oldCheck: { version: 20, removals: ['coOwned'] },
+		});
+	});
+
 	test('a database at version 19 keeps its pending removals and accepts co-owner removals after migrating to 20 (Block 5)', async () => {
 		const path = join(tmpdir(), `agent-host-co-owners-${generateUuid()}.db`);
 		try {

@@ -4336,6 +4336,11 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 							}
 							if (currentVersion >= WORKTREE_CO_OWNER_MIGRATION_VERSION) {
 								await exec(database, WORKTREE_CO_OWNER_SCHEMA_SQL);
+								// Another pre-release numbering may have reached 20 without widening the removal table's `kind` check.
+								const removalTable = await get(database, `SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'pending_worktree_removals'`, []);
+								if (typeof removalTable?.sql !== 'string' || !removalTable.sql.includes('coOwned')) {
+									await exec(database, WORKTREE_CO_OWNER_MIGRATION_SQL);
+								}
 							}
 							await exec(database, 'COMMIT');
 						} catch (error) {

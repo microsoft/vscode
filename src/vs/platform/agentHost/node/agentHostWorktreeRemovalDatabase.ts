@@ -57,8 +57,14 @@ CREATE TABLE IF NOT EXISTS worktree_co_owners (
 ) WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS worktree_co_owners_session ON worktree_co_owners(session_uri)`;
 
-/** Migration {@link WORKTREE_CO_OWNER_MIGRATION_VERSION}: the co-owner table, and the removal table rebuilt for its wider `kind` check. */
+/**
+ * Migration {@link WORKTREE_CO_OWNER_MIGRATION_VERSION}: the co-owner table, and the removal table rebuilt for its wider
+ * `kind` check. Created first when missing (a profile shared with a pre-release build that skipped it), so the rebuild
+ * always has a source. Also repairs a profile at 20 or later whose removal table still has the old check.
+ */
 export const WORKTREE_CO_OWNER_MIGRATION_SQL = `${WORKTREE_CO_OWNER_SCHEMA_SQL};
+${WORKTREE_REMOVAL_SCHEMA_SQL};
+DROP TABLE IF EXISTS pending_worktree_removals_rebuilt;
 ${WORKTREE_REMOVAL_SCHEMA_SQL.replace('pending_worktree_removals', 'pending_worktree_removals_rebuilt')};
 INSERT INTO pending_worktree_removals_rebuilt SELECT kind, owner, owner_session, worktree_path, repository_root, branch, mode, owner_deleted, attempts, requested_at, next_attempt_at FROM pending_worktree_removals;
 DROP TABLE pending_worktree_removals;
