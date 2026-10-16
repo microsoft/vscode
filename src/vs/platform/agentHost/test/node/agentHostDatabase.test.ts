@@ -3640,6 +3640,32 @@ suite('AgentHostDatabase sessions_v2', () => {
 			});
 		});
 
+		test('a chat\'s attachment copy record goes with the chat, however it is deleted, and a late copy step records nothing (Block 4b)', async () => {
+			const { instance, raw } = await seedAll();
+			const copy = (origin: string) => ({ origin, storage: 'file:///storage', copied: ['shot/screen.png'], complete: false });
+			for (const chat of [`${sessionA}#peer`, `${sessionA}#sub`, `${sessionB}#peer`, `${sessionB}#sub`, `${sessionC}#peer`]) {
+				await instance.writeChatAttachmentCopy(chat, copy(sessionA));
+			}
+
+			// A private chat removed alone; a peer removed from its catalog, with its private descendant; a deleted session's chats.
+			const removedPrivate = await instance.removePrivateChatV2(sessionA, `${sessionA}#sub`, await revision(instance, sessionA));
+			const replaced = await instance.replaceSessionChatCatalog(sessionB, [], await revision(instance, sessionB));
+			await instance.tombstoneAndUnregisterSession(sessionC);
+			const lateStep = await instance.writeChatAttachmentCopy(`${sessionC}#peer`, copy(sessionA));
+
+			assert.deepStrictEqual({
+				removedPrivate: removedPrivate.status,
+				replaced: replaced.status,
+				lateStep,
+				records: (await all(raw, `SELECT key FROM metadata WHERE key LIKE 'chatAttachmentCopy:%' ORDER BY key`)).map(row => row.key),
+			}, {
+				removedPrivate: 'applied',
+				replaced: 'applied',
+				lateStep: false,
+				records: [`chatAttachmentCopy:${sessionA}#peer`],
+			});
+		});
+
 		test('refuses invalid moves without changing anything', async () => {
 			const { instance, raw } = await seedAll();
 			const before = await rows(raw, sessionA, sessionB);

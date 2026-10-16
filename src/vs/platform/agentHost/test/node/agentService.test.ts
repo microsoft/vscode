@@ -459,7 +459,7 @@ class TransientRegistryWriteDatabase extends SessionStateUnsupportedDatabase imp
 	async listMovedChatsV2(): ReturnType<IAgentHostDatabase['listMovedChatsV2']> { return new Map(); }
 	async listAttachmentOriginsV2(): ReturnType<IAgentHostDatabase['listAttachmentOriginsV2']> { return new Set(); }
 	async readChatAttachmentCopies(): ReturnType<IAgentHostDatabase['readChatAttachmentCopies']> { return new Map(); }
-	async writeChatAttachmentCopy(): ReturnType<IAgentHostDatabase['writeChatAttachmentCopy']> { }
+	async writeChatAttachmentCopy(): ReturnType<IAgentHostDatabase['writeChatAttachmentCopy']> { return true; }
 	async reorderChatV2(..._args: Parameters<IAgentHostDatabase['reorderChatV2']>): ReturnType<IAgentHostDatabase['reorderChatV2']> { return { status: 'notReady', reason: 'test', awaitsReprojection: false }; }
 	upsertSessionV2FromChatCatalog(...[envelope, expectedSessionGeneration]: Parameters<IAgentHostDatabase['upsertSessionV2FromChatCatalog']>): ReturnType<IAgentHostDatabase['upsertSessionV2FromChatCatalog']> {
 		return this.upsertSessionV2(envelope, expectedSessionGeneration);
@@ -1027,7 +1027,7 @@ class TestAgentHostOrchestratorDatabase extends SessionStateUnsupportedDatabase 
 	async listMovedChatsV2(): ReturnType<IAgentHostDatabase['listMovedChatsV2']> { return new Map(); }
 	async listAttachmentOriginsV2(): ReturnType<IAgentHostDatabase['listAttachmentOriginsV2']> { return new Set(); }
 	async readChatAttachmentCopies(): ReturnType<IAgentHostDatabase['readChatAttachmentCopies']> { return new Map(); }
-	async writeChatAttachmentCopy(): ReturnType<IAgentHostDatabase['writeChatAttachmentCopy']> { }
+	async writeChatAttachmentCopy(): ReturnType<IAgentHostDatabase['writeChatAttachmentCopy']> { return true; }
 	async reorderChatV2(..._args: Parameters<IAgentHostDatabase['reorderChatV2']>): ReturnType<IAgentHostDatabase['reorderChatV2']> { return { status: 'notReady', reason: 'test', awaitsReprojection: false }; }
 	upsertSessionV2FromChatCatalog(...[envelope, expectedSessionGeneration]: Parameters<IAgentHostDatabase['upsertSessionV2FromChatCatalog']>): ReturnType<IAgentHostDatabase['upsertSessionV2FromChatCatalog']> {
 		return this.upsertSessionV2(envelope, expectedSessionGeneration);
@@ -32532,6 +32532,56 @@ suite('AgentService (node dispatcher)', () => {
 						resumed: { copied: ['note/note.txt', 'shot/screen.png'], source: [SESSION_ATTACHMENTS_DIRNAME] },
 						again: ['note/note.txt', 'shot/screen.png'],
 						copies: [[peer.toString(), { origin: source.toString(), storage: peer.toString(), copied: ['shot/screen.png', 'note/note.txt'], complete: true }]],
+					});
+				});
+
+				test('deleting a moved chat removes its attachment copy record; a restart resumes no copy for it (B4-2)', async () => {
+					const copyRecords = async (database: AgentHostDatabase) => {
+						const raw = await (database as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+						return new Promise<string[]>((resolve, reject) => raw.all(`SELECT key FROM metadata WHERE key LIKE 'chatAttachmentCopy:%'`,
+							(error, rows: { key: string }[]) => error ? reject(error) : resolve(rows.map(row => row.key))));
+					};
+					// A completed copy, then the chat is deleted.
+					const complete = await setupCopy();
+					await complete.service.moveChat(complete.source, complete.peer, { kind: 'session', session: complete.target, after: undefined });
+					await migrationOf(complete.service).whenIdle();
+					const beforeDelete = await copyRecords(complete.orchestratorDatabase);
+					await complete.service.disposeChat(complete.target, complete.peer);
+					const afterDelete = await copyRecords(complete.orchestratorDatabase);
+
+					// A partial copy, the chat deleted before it finished, then a restart.
+					const partial = await setupCopy({ copyAttachments: false });
+					await partial.service.moveChat(partial.source, partial.peer, { kind: 'session', session: partial.target, after: undefined });
+					await partial.orchestratorDatabase.writeChatAttachmentCopy(partial.peer.toString(), { origin: partial.source.toString(), storage: partial.peer.toString(), copied: [], complete: false });
+					await partial.service.disposeChat(partial.target, partial.peer);
+					await partial.service.whenCatalogReconciliationIdle();
+					await getTestSessionStateStore(partial.service).whenIdle(undefined);
+					const restarted = partial.createService({ copyAttachments: true });
+					const scheduled: string[] = [];
+					const migration = migrationOf(restarted);
+					const schedule = migration.schedule.bind(migration);
+					migration.schedule = chats => {
+						scheduled.push(...chats);
+						schedule(chats);
+					};
+					await restarted.listSessions();
+					await restarted.restoreSession(partial.target);
+					await getStateManager(restarted).whenMovedChatOriginsSettled();
+					await timeout(0);
+					await migration.whenIdle();
+
+					assert.deepStrictEqual({
+						beforeDelete,
+						afterDelete,
+						afterRestart: await copyRecords(partial.orchestratorDatabase),
+						scheduled,
+						storage: await partial.contentsOf(partial.peer),
+					}, {
+						beforeDelete: [`chatAttachmentCopy:${complete.peer.toString()}`],
+						afterDelete: [],
+						afterRestart: [],
+						scheduled: [],
+						storage: undefined,
 					});
 				});
 

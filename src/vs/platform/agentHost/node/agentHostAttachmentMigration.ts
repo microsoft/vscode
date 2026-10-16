@@ -167,27 +167,37 @@ export class AgentHostAttachmentMigration extends Disposable {
 		}
 		const pending = referencedAttachmentPaths(state, originRoot).filter(path => !copied.has(path));
 		for (let index = 0; index < pending.length; index += ATTACHMENT_COPY_FILES_PER_STEP) {
-			if (this._store.isDisposed) {
+			// A chat deleted (or unloaded) meanwhile: copying on would recreate its deleted storage. An unloaded chat's
+			// copy resumes on its next restore.
+			if (this._store.isDisposed || this._chatOwnership.getChatStorageResource(chat) !== storage) {
 				return;
 			}
 			for (const path of pending.slice(index, index + ATTACHMENT_COPY_FILES_PER_STEP)) {
 				await this._copyFile(originRoot, ownRoot, path);
 				copied.add(path);
 			}
-			await this._record(chat, { origin, storage, copied: [...copied], complete: false });
+			if (!await this._record(chat, { origin, storage, copied: [...copied], complete: false })) {
+				return;
+			}
 			// Off every hot path: one step, then whatever else is waiting.
 			await timeout(0);
 		}
-		await this._record(chat, { origin, storage, copied: [...copied], complete: true });
-		await this._onDidComplete(origin);
+		if (await this._record(chat, { origin, storage, copied: [...copied], complete: true })) {
+			await this._onDidComplete(origin);
+		}
 	}
 
-	private async _record(chat: string, copy: IAgentHostChatAttachmentCopy): Promise<void> {
-		await this._database.writeChatAttachmentCopy(chat, copy);
+	/** Records a step of the copy; `false` when the chat was deleted, whose copy then stops and is forgotten. */
+	private async _record(chat: string, copy: IAgentHostChatAttachmentCopy): Promise<boolean> {
+		if (!await this._database.writeChatAttachmentCopy(chat, copy)) {
+			this._copies.delete(chat);
+			return false;
+		}
 		this._copies.set(chat, copy);
 		for (const path of copy.copied) {
 			this._indexCopy(copy, path);
 		}
+		return true;
 	}
 
 	private _indexCopy(copy: IAgentHostChatAttachmentCopy, path: string): void {

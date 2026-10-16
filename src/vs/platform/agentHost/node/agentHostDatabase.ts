@@ -580,8 +580,11 @@ export interface IAgentHostDatabase extends IDisposable, IAgentHostSessionStateD
 	listAttachmentOriginsV2(): Promise<ReadonlySet<string>>;
 	/** The recorded attachment copies of live moved chats (Block 4b); records of chats that are gone are dropped. */
 	readChatAttachmentCopies(): Promise<ReadonlyMap<string, IAgentHostChatAttachmentCopy>>;
-	/** Records the progress of a moved chat's attachment copy (Block 4b). */
-	writeChatAttachmentCopy(chat: string, copy: IAgentHostChatAttachmentCopy): Promise<void>;
+	/**
+	 * Records the progress of a moved chat's attachment copy (Block 4b). Returns `false`, recording nothing, when the chat
+	 * is gone: a deleted chat's record is removed with it and a copy still running must not bring it back.
+	 */
+	writeChatAttachmentCopy(chat: string, copy: IAgentHostChatAttachmentCopy): Promise<boolean>;
 	/** Places a visible chat after `after` (`undefined`: first) within its own normalized catalog. */
 	reorderChatV2(session: string, chat: string, after: string | undefined, expectedCatalogRevision: number): Promise<AgentHostDatabaseChatV2WriteResult>;
 	/**
@@ -3191,9 +3194,15 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		});
 	}
 
-	writeChatAttachmentCopy(chat: string, copy: IAgentHostChatAttachmentCopy): Promise<void> {
-		return this._run(`INSERT INTO metadata (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-			[CHAT_ATTACHMENT_COPY_KEY_PREFIX + chat, JSON.stringify({ origin: copy.origin, storage: copy.storage, copied: copy.copied, complete: copy.complete })]);
+	async writeChatAttachmentCopy(chat: string, copy: IAgentHostChatAttachmentCopy): Promise<boolean> {
+		return this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			const changes = await runReturningChanges(database, `INSERT INTO metadata (key, value)
+				SELECT ?, ? WHERE EXISTS (SELECT 1 FROM chats_v2 WHERE chat_uri = ? AND tombstoned = 0)
+				ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+				[CHAT_ATTACHMENT_COPY_KEY_PREFIX + chat, JSON.stringify({ origin: copy.origin, storage: copy.storage, copied: copy.copied, complete: copy.complete }), chat]);
+			return changes > 0;
+		});
 	}
 
 	async listMovedChatsV2(): Promise<ReadonlyMap<string, string>> {
@@ -3363,8 +3372,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					}
 					for (const row of rows) {
 						if (removed.has(row.chat_uri as string)) {
-							await run(database, 'UPDATE chats_v2 SET tombstoned = 1, ownership_revision = ? WHERE chat_uri = ?',
-								[this._nextRevision(row.ownership_revision as number), row.chat_uri]);
+							await this._tombstoneChatV2(database, row);
 						}
 					}
 				}
@@ -3880,7 +3888,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		}
 		for (const row of rows) {
 			if (removedUris.has(row.chat_uri as string)) {
-				await run(database, 'UPDATE chats_v2 SET tombstoned = 1, ownership_revision = ? WHERE chat_uri = ?', [this._nextRevision(row.ownership_revision as number), row.chat_uri]);
+				await this._tombstoneChatV2(database, row);
 			}
 		}
 		await run(database, 'UPDATE chats_v2 SET chat_order = NULL WHERE owner_session_uri = ? AND chat_order IS NOT NULL AND tombstoned = 0', [session]);
@@ -3933,8 +3941,14 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	private async _tombstoneOwnedChats(database: Database, session: string): Promise<void> {
 		const rows = await all(database, 'SELECT chat_uri, ownership_revision FROM chats_v2 WHERE owner_session_uri = ? AND tombstoned = 0', [session]);
 		for (const row of rows) {
-			await run(database, 'UPDATE chats_v2 SET tombstoned = 1, ownership_revision = ? WHERE chat_uri = ?', [this._nextRevision(row.ownership_revision as number), row.chat_uri]);
+			await this._tombstoneChatV2(database, row);
 		}
+	}
+
+	/** Tombstones a chat, inside the caller's transaction; its attachment copy record (Block 4b) goes with it. */
+	private async _tombstoneChatV2(database: Database, row: Record<string, unknown>): Promise<void> {
+		await run(database, 'UPDATE chats_v2 SET tombstoned = 1, ownership_revision = ? WHERE chat_uri = ?', [this._nextRevision(row.ownership_revision as number), row.chat_uri]);
+		await run(database, 'DELETE FROM metadata WHERE key = ?', [CHAT_ATTACHMENT_COPY_KEY_PREFIX + (row.chat_uri as string)]);
 	}
 
 	private _decodeChatV2Directories(payload: string): readonly string[] {

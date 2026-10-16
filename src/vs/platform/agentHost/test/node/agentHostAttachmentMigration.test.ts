@@ -16,7 +16,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { NullLogService } from '../../../log/common/log.js';
 import { SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
 import { buildChatUri, buildDefaultChatUri, ChatOriginKind, MessageAttachmentKind, MessageKind, SessionStatus, TurnState, type Turn } from '../../common/state/sessionState.js';
-import { AgentHostAttachmentMigration } from '../../node/agentHostAttachmentMigration.js';
+import { ATTACHMENT_COPY_FILES_PER_STEP, AgentHostAttachmentMigration } from '../../node/agentHostAttachmentMigration.js';
 import type { IAgentHostChatAttachmentCopy, IAgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { createNullSessionDataService } from '../common/sessionTestHelpers.js';
@@ -30,7 +30,7 @@ suite('AgentHostAttachmentMigration', () => {
 	const sessionDataService = createNullSessionDataService();
 	const attachmentsOf = (resource: string) => joinPath(sessionDataService.getSessionDataDir(URI.parse(resource)), SESSION_ATTACHMENTS_DIRNAME);
 
-	function setup(recorded: ReadonlyMap<string, IAgentHostChatAttachmentCopy> = new Map()) {
+	function setup(recorded: ReadonlyMap<string, IAgentHostChatAttachmentCopy> = new Map(), deleted: ReadonlySet<string> = new Set()) {
 		const fileService = disposables.add(new FileService(new NullLogService()));
 		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
@@ -38,7 +38,13 @@ suite('AgentHostAttachmentMigration', () => {
 		const records = new Map(recorded);
 		const database = upcastPartial<IAgentHostDatabase>({
 			readChatAttachmentCopies: async () => new Map(records),
-			writeChatAttachmentCopy: async (chat, copy) => { records.set(chat, copy); },
+			writeChatAttachmentCopy: async (chat, copy) => {
+				if (deleted.has(chat)) {
+					return false;
+				}
+				records.set(chat, copy);
+				return true;
+			},
 		});
 		const completed: string[] = [];
 		const migration = disposables.add(new AgentHostAttachmentMigration(database, stateManager, chatOwnership, fileService, sessionDataService, new NullLogService(), async origin => { completed.push(origin); }));
@@ -90,6 +96,45 @@ suite('AgentHostAttachmentMigration', () => {
 			],
 			completed: [source, source],
 			fallback: joinPath(attachmentsOf(peer), 'one', 'screen.png').toString(),
+		});
+	});
+
+	test('stops copying for a chat deleted while its copy runs, records nothing and reports no completion', async () => {
+		const source = 'copilot:/deleted-source';
+		const target = 'copilot:/deleted-target';
+		const peer = buildChatUri(source, 'peer');
+		const { fileService, stateManager, records, completed, migration } = setup(undefined, new Set([peer]));
+		stateManager.createSession(summary(source));
+		stateManager.createSession(summary(target));
+		// Two steps' worth of files.
+		const paths = Array.from({ length: ATTACHMENT_COPY_FILES_PER_STEP + 2 }, (_, index) => `file${index}/note.txt`);
+		for (const path of paths) {
+			await fileService.writeFile(joinPath(attachmentsOf(source), ...path.split('/')), VSBuffer.fromString(path));
+		}
+		stateManager.addChat(source, peer, peer, {
+			turns: [{
+				id: 'turn',
+				message: { text: 'See', origin: { kind: MessageKind.User }, attachments: paths.map(path => ({ type: MessageAttachmentKind.Resource, uri: joinPath(attachmentsOf(source), ...path.split('/')).toString(), label: path })) },
+				responseParts: [], usage: undefined, state: TurnState.Complete,
+			}],
+		});
+		stateManager.transferChats(source, target, [peer], undefined);
+
+		migration.schedule([peer]);
+		await migration.whenIdle();
+		const copied = await Promise.all(paths.map(path => fileService.exists(joinPath(attachmentsOf(peer), ...path.split('/')))));
+
+		assert.deepStrictEqual({
+			copiedFiles: copied.filter(Boolean).length,
+			records: [...records],
+			completed,
+			fallback: migration.resolveFallback(joinPath(attachmentsOf(source), ...paths[0].split('/'))),
+		}, {
+			// The first step ran before its record was refused; nothing after it.
+			copiedFiles: ATTACHMENT_COPY_FILES_PER_STEP,
+			records: [],
+			completed: [],
+			fallback: undefined,
 		});
 	});
 
