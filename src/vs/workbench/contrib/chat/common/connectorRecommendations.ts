@@ -3,20 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const knownConnectorDomains: Readonly<Record<string, readonly string[]>> = {
-	kusto: ['dataexplorer.azure.com', 'kusto.windows.net'],
-	linear: ['linear.app'],
-	notion: ['notion.so', 'notion.site'],
-	sentry: ['sentry.io'],
-	workiq: ['microsoft365.com', 'office.com', 'outlook.office.com', 'outlook.office365.com', 'sharepoint.com', 'teams.microsoft.com'],
-	'workiq-mail': ['microsoft365.com', 'office.com', 'outlook.office.com', 'outlook.office365.com', 'sharepoint.com', 'teams.microsoft.com'],
-};
-
 export function findMatchingConnectorRecommendationIds(
 	input: string,
-	recommendationIds: Iterable<string> | undefined,
+	recommendationDomains: ReadonlyMap<string, readonly string[]> | undefined,
 ): ReadonlySet<string> {
-	if (!input || !recommendationIds) {
+	if (!input || !recommendationDomains) {
 		return new Set();
 	}
 
@@ -26,9 +17,12 @@ export function findMatchingConnectorRecommendationIds(
 	}
 
 	const matches = new Set<string>();
-	for (const id of recommendationIds) {
-		const domains = knownConnectorDomains[id] ?? [];
-		if (domains.some(domain => [...hostnames].some(hostname => hostname === domain || hostname.endsWith(`.${domain}`)))) {
+	for (const [id, domains] of recommendationDomains) {
+		if (domains.some(domain => {
+			const normalizedDomain = domain.toLowerCase().replace(/\.$/, '');
+			return normalizedDomain.length > 0
+				&& [...hostnames].some(hostname => hostname === normalizedDomain || hostname.endsWith(`.${normalizedDomain}`));
+		})) {
 			matches.add(id);
 		}
 	}

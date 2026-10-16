@@ -25,9 +25,9 @@ import { NewChatConnectorRecommendations } from '../../browser/newChatConnectorR
 import { NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING } from '../../common/constants.js';
 
 const connectorRecommendations: NonNullable<IProductService['connectorRecommendations']> = {
-	linear: { name: 'Linear', description: 'Plan and track product work.', iconUrl: 'https://example.com/linear.png' },
-	notion: { name: 'Notion', description: 'Search team knowledge and documentation.', iconUrl: 'https://example.com/notion.png' },
-	'workiq-mail': { name: 'WorkIQ', description: 'Bring Microsoft 365 work context into chats.', iconUrl: 'https://example.com/workiq.png' },
+	linear: { name: 'Linear', description: 'Plan and track product work.', iconUrl: 'https://example.com/linear.png', urlDomains: ['linear.app'] },
+	notion: { name: 'Notion', description: 'Search team knowledge and documentation.', iconUrl: 'https://example.com/notion.png', urlDomains: ['notion.so', 'notion.site'] },
+	'workiq-mail': { name: 'WorkIQ', description: 'Bring Microsoft 365 work context into chats.', iconUrl: 'https://example.com/workiq.png', urlDomains: ['microsoft365.com', 'teams.microsoft.com'] },
 };
 
 suite('NewChatConnectorRecommendations', () => {
@@ -215,16 +215,16 @@ suite('NewChatConnectorRecommendations', () => {
 		});
 	});
 
-	test('supports only the five approved connector families when those recommendations are available', () => {
+	test('uses product-configured URL domains and static visibility', () => {
 		const fixture = setup(true, true, true, {
-			kusto: { name: 'Azure Data Explorer', description: 'Query Azure Data Explorer.', iconUrl: 'https://example.com/kusto.png' },
-			workiq: { name: 'Work IQ', description: 'Use Microsoft 365 work data.', iconUrl: 'https://example.com/workiq.png' },
-			'atlassian-rovo': { name: 'Atlassian Rovo', description: 'Search Jira and Confluence.', iconUrl: 'https://example.com/atlassian.png' },
-			cloudflare: { name: 'Cloudflare', description: 'Inspect Cloudflare resources.', iconUrl: 'https://example.com/cloudflare.png' },
+			kusto: { name: 'Azure Data Explorer', description: 'Query Azure Data Explorer.', iconUrl: 'https://example.com/kusto.png', showStatically: false, urlDomains: ['dataexplorer.azure.com', 'kusto.windows.net'] },
+			'atlassian-rovo': { name: 'Atlassian Rovo', description: 'Search Jira and Confluence.', iconUrl: 'https://example.com/atlassian.png', showStatically: false },
+			cloudflare: { name: 'Cloudflare', description: 'Inspect Cloudflare resources.', iconUrl: 'https://example.com/cloudflare.png', showStatically: false },
 			linear: connectorRecommendations.linear,
 			notion: connectorRecommendations.notion,
-			sentry: { name: 'Sentry', description: 'Search and triage Sentry issues.', iconUrl: 'https://example.com/sentry.png' },
-			microsoftlearndocsmcpserver: { name: 'Microsoft Learn Docs', description: 'Search Microsoft Learn.', iconUrl: 'https://example.com/learn.png' },
+			'workiq-mail': connectorRecommendations['workiq-mail'],
+			sentry: { name: 'Sentry', description: 'Search and triage Sentry issues.', iconUrl: 'https://example.com/sentry.png', showStatically: false, urlDomains: ['sentry.io'] },
+			microsoftlearndocsmcpserver: { name: 'Microsoft Learn Docs', description: 'Search Microsoft Learn.', iconUrl: 'https://example.com/learn.png', showStatically: false },
 		});
 		const visibleCards = () => [...fixture.recommendations.element.querySelectorAll<HTMLElement>('.new-session-connector-recommendation-card')]
 			.filter(card => !card.hidden)
@@ -246,11 +246,14 @@ suite('NewChatConnectorRecommendations', () => {
 
 		assert.deepStrictEqual(visibleCards(), [
 			'kusto',
-			'workiq',
 			'linear',
 			'notion',
+			'workiq-mail',
 			'sentry',
 		]);
+
+		fixture.setInput('');
+		assert.deepStrictEqual(visibleCards(), ['linear', 'notion', 'workiq-mail']);
 	});
 
 	test('keeps static and dynamic dismissals independent', () => {
