@@ -871,6 +871,39 @@ suite('AgentSideEffects', () => {
 			}, { sends: 1, error: false });
 		});
 
+		for (const [outcome, expectedUsed, expectedDiscardReason] of [
+			['used', true, undefined],
+			['discarded', undefined, 'modelChanged'],
+			['none', undefined, undefined],
+		] as const) {
+			test(`reports on turn telemetry whether the send used or discarded a pre-warmed session: ${outcome}`, async () => {
+				const recording = new TestTelemetryService();
+				const localSideEffects = createOverlapSideEffects(NULL_CHECKPOINT_SERVICE, disposables.add(new AgentHostTelemetryService(recording)));
+				const sendMessage = agent.chats.sendMessage;
+				agent.chats.sendMessage = async (chat, prompt, workingDirectories, attachments, turnId, senderClientId, clientType, context) => {
+					if (outcome !== 'none' && context && !URI.isUri(context)) {
+						context.reportPrewarmedSession?.(outcome === 'discarded' ? 'modelChanged' : undefined);
+					}
+					return sendMessage(chat, prompt, workingDirectories, attachments, turnId, senderClientId, clientType, context);
+				};
+				try {
+					stateManager.dispatchServerAction(defaultChatUri, turnStarted);
+					localSideEffects.handleAction(defaultChatUri, turnStarted);
+					await waitForSendMessageCalls(1);
+					agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action: { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 50 } });
+				} finally {
+					agent.chats.sendMessage = sendMessage;
+				}
+				const data = recording.events.find(event => event.eventName === 'agentHost.turnCompleted')?.data as Record<string, unknown> | undefined;
+
+				assert.deepStrictEqual({ completed: !!data, used: data?.usedPrewarmedSession, discardReason: data?.prewarmedSessionDiscardReason }, {
+					completed: true,
+					used: expectedUsed,
+					discardReason: expectedDiscardReason,
+				});
+			});
+		}
+
 		test('holds the overlap experiment trigger until the assignment context arrives', async () => {
 			const telemetry = new TestExperimentTriggerTelemetryService();
 			const localSideEffects = createOverlapSideEffects(NULL_CHECKPOINT_SERVICE, telemetry);

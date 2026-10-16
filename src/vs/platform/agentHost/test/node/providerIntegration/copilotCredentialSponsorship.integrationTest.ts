@@ -306,6 +306,9 @@ suite('Copilot Agent credential sponsorship', function () {
 		const [a, b] = await Promise.all([createScope('scope-a'), createScope('scope-b')]);
 		await agent.authenticate(resource, 'legacy-l', 7200);
 		await Promise.all([createChat('A', a), createChat('B', b), createChat('L')]);
+		const prewarmed = await Promise.all([context('A', a), context('L')].map(chatContext =>
+			agent.chats.warmChat!(URI.parse(buildDefaultChatUri(chatContext.resource)), chatContext)));
+		assert.deepStrictEqual(prewarmed, [true, true]);
 		await Promise.all([send('A', a), send('B', b), send('L')]);
 		await a.authenticate({ resource, token: 'scope-a-rotated', expiresIn: 7200 }, [resource]);
 		await Promise.all([send('A-ROTATED', a), send('B-UNCHANGED', b), send('L-UNCHANGED')]);
