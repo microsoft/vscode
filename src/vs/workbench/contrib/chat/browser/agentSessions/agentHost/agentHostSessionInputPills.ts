@@ -21,6 +21,7 @@ import { isDefined } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { isCopilotAgentHostProvider } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { ChangesetKind, resolveChangesetUriTemplate, resolveChatChangesetCatalogue, selectDefaultChangeset, type DefaultChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { affectsAgentHostProviderPreference, isLocalAgentHostProviderDisabledByPolicy } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -39,6 +40,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { CHAT_INPUT_PILLS_ROW_HEIGHT, chatPillCopyHashHoverLabel, chatPillCopyUrlHoverLabel, chatPillRemoveArtifactHoverLabel, chatPillRemoveReferenceHoverLabel, getChatPillEntries, getChatPillResourceLocation, getChatReferencePillPresentation, IChatPillEntry, IChatPillSection, type ChatPillsCompactMode, withChatPillHoverLabel } from '../../../../../browser/chatPills.js';
 import { chatChangesStatsEqual, EMPTY_CHAT_CHANGES_STATS, IChatChangesStats } from '../../../../../browser/chatChangesPill.js';
@@ -50,7 +52,7 @@ import { computeAggregateIssueIcon, computeIssueIcon } from '../../../../../comm
 import { computePullRequestIcon, getHighestPriorityPullRequestIcon } from '../../../../../common/chatPullRequest.js';
 import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind, type IChatBackgroundShell } from '../../../common/sessionChatPills.js';
 import { createCustomizationIndexObservable, createProgressiveChatCustomizations, type ICustomizationJobScheduler } from '../../../common/agentHostSessionCustomizations.js';
-import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../../common/constants.js';
+import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatConfiguration } from '../../../common/constants.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { getLocalAgentHostSessionProvider } from './agentHostSessionUri.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
@@ -539,6 +541,7 @@ export class AgentHostSessionInputPills extends Disposable {
 		const gitHubCommitResolver = this._register(instantiationService.createInstance(GitHubCommitResolver));
 
 		const sessionResource = observableFromEvent(this, this._widget.onDidChangeViewModel, () => this._widget.viewModel?.sessionResource);
+		const workingSetConfigured = observableConfigValue(ChatConfiguration.EditorWorkingSetEnabled, false, this._configurationService);
 		const transcriptArtifacts = this._register(instantiationService.createInstance(ChatArtifactPillSource, sessionResource));
 		const sessionResolutionChanged = observableSignalFromEvent(this, connectionsService.onDidChangeSessionResolution);
 		const provisionalSessionChanged = observableSignalFromEvent(this, provisionalSessions.onDidChange);
@@ -597,16 +600,27 @@ export class AgentHostSessionInputPills extends Disposable {
 			return !!resource && !!sessionState.read(reader)?.chats.some(chat =>
 				isEqual(URI.parse(chat.resource), resource) && chat.origin?.kind === ChatOriginKind.Tool);
 		});
+		const selectableChangesets = derived(this, reader => {
+			const chat = chatResource.read(reader);
+			if (!chat) {
+				return undefined;
+			}
+			const session = sessionState.read(reader);
+			return resolveChatChangesetCatalogue(chat.toString(), chatState.read(reader)?.changesets, session?.changesets, defaultChat.read(reader))
+				?.filter(({ changeset }) => !changeset.uriTemplate.includes('{'));
+		});
+		const workingSetEnabled = derived(this, reader => workingSetConfigured.read(reader)
+			&& isCopilotAgentHostProvider(sessionState.read(reader)?.provider)
+			&& !subagentChat.read(reader)
+			&& selectableChangesets.read(reader)?.some(({ changeset }) => changeset.changeKind === ChangesetKind.Session) === true);
 		const changesetTarget = derivedOpts({ owner: this, equalsFn: changesetTargetEquals }, reader => {
 			const currentResolution = resolution.read(reader);
 			const chat = chatResource.read(reader);
 			if (!currentResolution || !chat) {
 				return undefined;
 			}
-			const session = sessionState.read(reader);
-			const resolvedCatalogue = resolveChatChangesetCatalogue(chat.toString(), chatState.read(reader)?.changesets, session?.changesets, defaultChat.read(reader));
-			const selectableEntries = resolvedCatalogue?.filter(({ changeset }) => !changeset.uriTemplate.includes('{'));
-			const defaultKind = currentResolution.defaultChangesetKind ?? CHANGES_PILL_DEFAULT_CHANGESET_KIND;
+			const selectableEntries = selectableChangesets.read(reader);
+			const defaultKind = workingSetEnabled.read(reader) ? ChangesetKind.Session : currentResolution.defaultChangesetKind ?? CHANGES_PILL_DEFAULT_CHANGESET_KIND;
 			const selectedChangeset = selectDefaultChangeset(selectableEntries?.map(({ changeset }) => changeset), defaultKind);
 			const selectedEntry = selectableEntries?.find(({ changeset }) => changeset === selectedChangeset);
 			return resolveAgentHostChangeset(
@@ -652,6 +666,17 @@ export class AgentHostSessionInputPills extends Disposable {
 				.map(file => agentHostChangesetFileToEntryDiff(file, currentResolution.connectionAuthority))
 				.filter(isDefined);
 		});
+		const workingSetChanges = derived(this, reader => {
+			if (!workingSetEnabled.read(reader)) {
+				return undefined;
+			}
+			return changes.read(reader);
+		});
+		this._register(autorun(reader => {
+			if (workingSetEnabled.read(reader)) {
+				reader.store.add(this._widget.inputPart.registerSessionFileChanges(workingSetChanges));
+			}
+		}));
 		const changeStats = derivedOpts<IChatChangesStats>({ owner: this, equalsFn: chatChangesStatsEqual }, reader => {
 			const diffs = changes.read(reader);
 			return diffs.length === 0
@@ -841,7 +866,10 @@ export class AgentHostSessionInputPills extends Disposable {
 				if (subagentChat.read(reader)) {
 					return sources.sources.filter(source => source.kind === SessionChatPillKind.Artifacts);
 				}
-				return canvases.offered.read(reader) ? sources.sources : sources.sources.filter(source => source.kind !== SessionChatPillKind.Canvases);
+				const offeredSources = canvases.offered.read(reader) ? sources.sources : sources.sources.filter(source => source.kind !== SessionChatPillKind.Canvases);
+				return workingSetEnabled.read(reader)
+					? offeredSources.filter(source => source.kind !== SessionChatPillKind.Changes)
+					: offeredSources;
 			}),
 			offeredKinds: SESSION_CHAT_PILL_KINDS,
 			focusFallback: () => this._widget.focusInput(),

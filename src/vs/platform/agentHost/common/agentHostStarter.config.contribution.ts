@@ -19,15 +19,13 @@ import {
 	AgentHostGitHubMcpServerEnabledSettingId,
 	AgentHostMcpToolRoutingEnabledSettingId,
 	AgentHostClaudeAgentEnabledSettingId,
-	AgentHostClaudeMultiRootEnabledSettingId,
 	AgentHostCodexAgentBinaryArgsSettingId,
 	AgentHostCodexAgentEnabledSettingId,
-	AgentHostCodexMultiRootEnabledSettingId,
 	AgentHostCodexAgentSdkRootSettingId,
 	AgentHostCodexAgentCodexHomeSettingId,
-	AgentHostCopilotMultiRootEnabledSettingId,
 	AgentHostMarkdownPlanRichLinksEnabledSettingId,
 	AgentHostOverlapProviderPreparationSettingId,
+	AgentHostPrewarmSessionsSettingId,
 	AgentHostOTelCaptureContentSettingId,
 	AgentHostOTelCaptureIdentitySettingId,
 	AgentHostOTelDbSpanExporterEnabledSettingId,
@@ -48,18 +46,17 @@ import {
 	AgentHostByokModelsEnabledConfigKey,
 	AgentHostByokModelsEnabledDefault,
 	AgentHostCanvasesEnabledConfigKey,
-	AgentHostClaudeMultiRootEnabledConfigKey,
 	AgentHostCodexEnabledConfigKey,
-	AgentHostCodexMultiRootEnabledConfigKey,
-	AgentHostCopilotMultiRootEnabledConfigKey,
 	AgentHostGitHubMcpServerEnabledConfigKey,
 	AgentHostMcpToolRoutingEnabledConfigKey,
 	AgentHostMarkdownPlanRichLinksEnabledConfigKey,
 	AgentHostOverlapProviderPreparationConfigKey,
+	AgentHostPrewarmSessionsConfigKey,
 	AgentHostSystemProxyEnabledConfigKey,
 	AgentHostWorkspaceSnapshotEnabledConfigKey,
 } from './agentHostSchema.js';
 import { AgentMergeConfigKey, AgentMergeSettingId, AGENT_MERGE_SETTING_TAG } from './agentMerge.js';
+import { ChatMoveConfigKey, ChatMoveSettingId } from './agentHostChatMove.js';
 import { artifactToolsConfigurationProperties } from './artifactToolsConfiguration.js';
 import { titleGenerationConfigurationProperties } from './titleGenerationConfiguration.js';
 import { isAhpJsonlLoggingEnabled } from './ahpJsonlLogger.js';
@@ -203,6 +200,14 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', AGENT_MERGE_SETTING_TAG],
 			agentHost: { key: AgentMergeConfigKey.ReplyAttribution },
 		},
+		[ChatMoveSettingId.Enabled]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.moveChats.enabled', "Enables moving chats between Agent Host sessions and into new sessions."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			agentHost: { key: ChatMoveConfigKey.Enabled },
+		},
 		...titleGenerationConfigurationProperties,
 		...artifactToolsConfigurationProperties,
 		[CanvasesEnabledSettingId]: {
@@ -240,6 +245,15 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostOverlapProviderPreparationConfigKey },
+		},
+		[AgentHostPrewarmSessionsSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.experimental.prewarmSessions', "When enabled, new Agent Host Copilot chats start their runtime and MCP servers before the first message is sent, so connectors are ready sooner. Changes apply to new chats."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'advanced'],
+			experiment: { mode: 'auto' },
+			agentHost: { key: AgentHostPrewarmSessionsConfigKey },
 		},
 		[AgentHostWorkspaceSnapshotEnabledSettingId]: {
 			type: 'boolean',
@@ -286,36 +300,6 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostMcpToolRoutingEnabledConfigKey },
-		},
-		[AgentHostCopilotMultiRootEnabledSettingId]: {
-			type: 'boolean',
-			description: nls.localize('chat.agentHost.copilotAgent.multiRootEnabled', "When enabled, Copilot agent-host sessions advertise support for multiple working directories, so a session created in a multi-root workspace can span every workspace folder. Experimental; newly created sessions pick up a change without restarting the agent host."),
-			default: false,
-			// Hidden from the Settings UI while the feature is dogfooded internally.
-			// Still settable via `settings.json`; flip `default` (e.g. to
-			// `product.quality !== 'stable'`) to enable it for a build channel.
-			included: false,
-			experiment: { mode: 'auto' },
-			agentHost: { key: AgentHostCopilotMultiRootEnabledConfigKey },
-		},
-		[AgentHostClaudeMultiRootEnabledSettingId]: {
-			type: 'boolean',
-			description: nls.localize('chat.agentHost.claudeAgent.multiRootEnabled', "When enabled, Claude agent-host sessions advertise support for multiple working directories, so a session created in a multi-root workspace can span every workspace folder. Experimental; newly created sessions pick up a change without restarting the agent host."),
-			default: false,
-			// Hidden from the Settings UI while the feature is dogfooded internally.
-			// Still settable via `settings.json`; flip `default` (e.g. to
-			// `product.quality !== 'stable'`) to enable it for a build channel.
-			included: false,
-			experiment: { mode: 'auto' },
-			agentHost: { key: AgentHostClaudeMultiRootEnabledConfigKey },
-		},
-		[AgentHostCodexMultiRootEnabledSettingId]: {
-			type: 'boolean',
-			description: nls.localize('chat.agentHost.codexAgent.multiRootEnabled', "When enabled, Codex agent-host sessions advertise support for multiple working directories, so a session created in a multi-root workspace can span every workspace folder. Experimental; newly created sessions pick up a change without restarting the agent host."),
-			default: false,
-			included: false,
-			experiment: { mode: 'auto' },
-			agentHost: { key: AgentHostCodexMultiRootEnabledConfigKey },
 		},
 		[AgentHostClaudeAgentEnabledSettingId]: {
 			type: 'boolean',

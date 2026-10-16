@@ -9,6 +9,7 @@ import * as dom from '../../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../../base/browser/keyboardEvent.js';
 import { EventType as TouchEventType, Gesture } from '../../../../../../../base/browser/touch.js';
 import { renderIcon } from '../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { getBaseLayerHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegate2.js';
 import { getDefaultHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
@@ -30,10 +31,11 @@ import { IProductService } from '../../../../../../../platform/product/common/pr
 import { onUnexpectedError } from '../../../../../../../base/common/errors.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { logSettingExperimentTrigger } from '../../../../../../../platform/telemetry/common/experimentTrigger.js';
-import { AgentHostEnsembleIntelligenceUsesHydraFusionSettingId, COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostFusionBalanceUsesHydraFusionSettingId, COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { COPILOT_VENDOR_ID, getLanguageModelProviderDisplayName, IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isUserProvidedModel } from '../../../../common/languageModels.js';
 import { SessionType } from '../../../../common/chatSessionsService.js';
+import { ChatConfiguration } from '../../../../common/constants.js';
 import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../../common/languageModelSourcePresentation.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
 import { IModelPickerDelegate } from './modelPickerActionItem.js';
@@ -53,8 +55,9 @@ import { ITabbedModelPickerContext, TabbedModelPicker } from './modelPickerTabbe
 import { IModelPickerOpenTrigger, ModelPickerTelemetrySession } from './modelPickerTelemetry.js';
 import { getModelConfigProperty, MODEL_CONFIG_GROUP_EFFORT, setModelConfigValues, whenModelConfigValuesSaved } from './modelPickerModelConfig.js';
 import { IModelPickerProviderPlaceholder } from './modelPickerTabs.js';
+import { getOrganizationDefaultDescription, getOrganizationDefaultModel } from './modelPickerBadges.js';
 import { formatLocalModelOnDeviceName, ILocalModelPickerActionEvent, isLocalModelDirectRow, ModelPickerLocalModels } from './modelPickerLocalModelItems.js';
-import { getEnsembleTierLabel, getHydraFusionTierLabel, getModelPickerUnavailableReason, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly, ModelPickerUnavailableReason, modelPickerRequiresSetup, shouldShowCacheBreakHint as computeShouldShowCacheBreakHint } from './modelPickerPresentation.js';
+import { getFusionTierLabel, getHydraFusionTierLabel, getModelPickerUnavailableReason, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly, ModelPickerUnavailableReason, modelPickerRequiresSetup, shouldShowCacheBreakHint as computeShouldShowCacheBreakHint } from './modelPickerPresentation.js';
 
 /** Trusted caller options for opening a searchable picker without toggling it closed. */
 export interface IModelPickerOpenOptions {
@@ -128,6 +131,8 @@ export class ModelPickerWidget extends Disposable {
 	readonly onDidChangeMinimumWidth: Event<number> = this._onDidChangeMinimumWidth.event;
 
 	private _selectedModel: ILanguageModelChatMetadataAndIdentifier | undefined;
+	/** Reused by the hover without rebuilding the model catalog. */
+	private _organizationDefaultDescription: string | undefined;
 	private _badge: ModelPickerBadge | undefined;
 	private _compact: IObservable<boolean> | undefined;
 	private _minimal: IObservable<boolean> | undefined;
@@ -196,10 +201,11 @@ export class ModelPickerWidget extends Disposable {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
-		if (this._delegate.workflow) {
+		if (this._delegate.comparison) {
 			this._register(autorun(reader => {
-				this._delegate.workflow?.summary.read(reader);
-				if (!this._delegate.workflow?.available.read(reader)) {
+				this._delegate.comparison?.summary.read(reader);
+				this._delegate.comparison?.summaryModelIds?.read(reader);
+				if (!this._delegate.comparison?.available.read(reader)) {
 					this._tabbedPicker.value?.hide();
 				}
 				this._renderLabel();
@@ -213,7 +219,7 @@ export class ModelPickerWidget extends Disposable {
 			// While unavailable the picker explains why instead of listing models, so it
 			// only takes on new models once they can be used.
 			if (this._unavailableReason() === undefined) {
-				this._tabbedPicker.value?.refresh(this._delegate.getModels());
+				this._tabbedPicker.value?.refresh(this._delegate.getModels(), this._delegate.getComparisonModels?.());
 			}
 		}));
 
@@ -255,6 +261,11 @@ export class ModelPickerWidget extends Disposable {
 		this._register(this._entitlementService.onDidChangeEntitlement(() => this.setSelectedModel(this._selectedModel)));
 		this._register(this._entitlementService.onDidChangeSentiment(() => this._renderLabel()));
 		this._register(this._entitlementService.onDidChangeAnonymous(() => this._renderLabel()));
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.DefaultModel)) {
+				this._renderLabel();
+			}
+		}));
 
 		// Also refresh the label when the per-editor config layer (if any) reports
 		// a change. The global service path is already covered above via
@@ -311,64 +322,63 @@ export class ModelPickerWidget extends Disposable {
 				?? models.find(model => !isHydraFusionModel(model) || isUserProvidedModel(model, this._languageModelsService))
 				?? model;
 		}
-		return this._normalizeEnsembleIntelligence(model, models);
+		return this._normalizeFusionBalance(model, models);
 	}
 
-	/** Ensemble's Intelligence is HydraFusion when it routes there and its own tier otherwise, so a chat on the other moves. */
-	private _normalizeEnsembleIntelligence(model: ILanguageModelChatMetadataAndIdentifier, models: readonly ILanguageModelChatMetadataAndIdentifier[]): ILanguageModelChatMetadataAndIdentifier {
-		const routing = this._getEnsembleRouting(models);
+	/** Fusion's Balance is HydraFusion when it routes there and its own tier otherwise, so a chat on the other moves. */
+	private _normalizeFusionBalance(model: ILanguageModelChatMetadataAndIdentifier, models: readonly ILanguageModelChatMetadataAndIdentifier[]): ILanguageModelChatMetadataAndIdentifier {
+		const routing = this._getFusionRouting(models);
 		if (!routing) {
 			return model;
 		}
-		const { ensemble, hydraFusion } = routing;
+		const { fusion, hydraFusion } = routing;
 		const configurationAccess = this._delegate.modelConfiguration ?? this._languageModelsService;
-		const tier = getModelConfigProperty(ensemble, configurationAccess, MODEL_CONFIG_GROUP_EFFORT);
+		const tier = getModelConfigProperty(fusion, configurationAccess, MODEL_CONFIG_GROUP_EFFORT);
 		const onHydraFusion = model.identifier === hydraFusion.identifier;
-		if (!tier?.schema.enum?.includes('intelligence') || (!onHydraFusion && (model.identifier !== ensemble.identifier || tier.value !== 'intelligence'))) {
+		if (!tier?.schema.enum?.includes('intelligence') || (!onHydraFusion && (model.identifier !== fusion.identifier || tier.value !== 'intelligence'))) {
 			return model;
 		}
-		logSettingExperimentTrigger(this._telemetryService, AgentHostEnsembleIntelligenceUsesHydraFusionSettingId);
-		if (ensemble.metadata.autoModelEnsemble?.intelligenceUsesHydraFusion) {
+		logSettingExperimentTrigger(this._telemetryService, AgentHostFusionBalanceUsesHydraFusionSettingId);
+		if (fusion.metadata.autoModelFusion?.balanceUsesHydraFusion) {
 			return hydraFusion;
 		}
 		if (onHydraFusion) {
 			const scopedConfiguration = this._delegate.modelConfiguration;
 			if (scopedConfiguration?.presentModelConfiguration) {
-				scopedConfiguration.presentModelConfiguration(ensemble.identifier, { [tier.key]: 'intelligence' });
+				scopedConfiguration.presentModelConfiguration(fusion.identifier, { [tier.key]: 'intelligence' });
 			} else {
-				setModelConfigValues(ensemble, configurationAccess, { [tier.key]: 'intelligence' }).catch(onUnexpectedError);
+				setModelConfigValues(fusion, configurationAccess, { [tier.key]: 'intelligence' }).catch(onUnexpectedError);
 			}
-			return ensemble;
+			return fusion;
 		}
 		return model;
 	}
 
-	/** Ensemble and the HydraFusion its Intelligence can route to, when routing it there can make a difference. */
-	private _getEnsembleRouting(models: readonly ILanguageModelChatMetadataAndIdentifier[]): { readonly ensemble: ILanguageModelChatMetadataAndIdentifier; readonly hydraFusion: ILanguageModelChatMetadataAndIdentifier } | undefined {
+	/** Fusion and the HydraFusion its Balance can route to, when routing it there can make a difference. */
+	private _getFusionRouting(models: readonly ILanguageModelChatMetadataAndIdentifier[]): { readonly fusion: ILanguageModelChatMetadataAndIdentifier; readonly hydraFusion: ILanguageModelChatMetadataAndIdentifier } | undefined {
 		if (isHydraFusionUpgradeOnly(this._entitlementService.entitlement)) {
 			return undefined;
 		}
-		const ensemble = models.find(model => model.metadata.autoModelEnsemble && !isUserProvidedModel(model, this._languageModelsService));
+		const fusion = models.find(model => model.metadata.autoModelFusion && !isUserProvidedModel(model, this._languageModelsService));
 		const hydraFusion = models.find(model => model.metadata.id === COPILOT_HYDRA_FUSION_MODEL_ID && isHydraFusionModel(model) && !isUserProvidedModel(model, this._languageModelsService));
-		return ensemble && hydraFusion ? { ensemble, hydraFusion } : undefined;
+		return fusion && hydraFusion ? { fusion, hydraFusion } : undefined;
 	}
 
 	/**
-	 * The model a HydraFusion tier is shown as, with that tier: Ensemble for one of
-	 * Ensemble's tiers, or HydraFusion for HydraFusion's own Default or Max.
+	 * The model a HydraFusion tier is shown as, with that tier: Fusion for one of
+	 * Fusion's tiers, or HydraFusion for HydraFusion's own Default or Max.
 	 */
-	private _getRoutingTier(model: ILanguageModelChatMetadataAndIdentifier): { readonly shownModel: ILanguageModelChatMetadataAndIdentifier; readonly label: string } | undefined {
+	private _getRoutingTier(model: ILanguageModelChatMetadataAndIdentifier, models: readonly ILanguageModelChatMetadataAndIdentifier[]): { readonly shownModel: ILanguageModelChatMetadataAndIdentifier; readonly label: string } | undefined {
 		if (!isHydraFusionModel(model) || isUserProvidedModel(model, this._languageModelsService)) {
 			return undefined;
 		}
-		const models = this._delegate.getModels();
 		// Matches the picker, which only offers models this build can run.
 		const controlModels = getModelPickerControlModels(this._languageModelsService.getModelsControlManifest(), this._entitlementService.entitlement, models);
 		const runnable = (candidate: ILanguageModelChatMetadataAndIdentifier) => !isUserProvidedModel(candidate, this._languageModelsService) && !requiresNewerVSCode(candidate, controlModels, this._productService.version);
-		const ensemble = models.find(candidate => candidate.metadata.autoModelEnsemble && runnable(candidate));
-		if (ensemble) {
-			const label = getEnsembleTierLabel(ensemble.metadata, model.metadata.id);
-			return label ? { shownModel: ensemble, label } : undefined;
+		const fusion = models.find(candidate => candidate.metadata.autoModelFusion && runnable(candidate));
+		if (fusion) {
+			const label = getFusionTierLabel(fusion.metadata, model.metadata.id);
+			return label ? { shownModel: fusion, label } : undefined;
 		}
 		// HydraFusion's own tiers need both of its models.
 		const hydraFusion = (id: string) => models.find(candidate => candidate.metadata.id === id && isHydraFusionModel(candidate) && runnable(candidate));
@@ -395,11 +405,11 @@ export class ModelPickerWidget extends Disposable {
 	 * sign-in/setup), or `undefined` when a model is available. See
 	 * {@link getModelPickerUnavailableReason}.
 	 */
-	private _unavailableReason(): ModelPickerUnavailableReason | undefined {
+	private _unavailableReason(models: readonly ILanguageModelChatMetadataAndIdentifier[] = this._delegate.getModels()): ModelPickerUnavailableReason | undefined {
 		return getModelPickerUnavailableReason({
 			trustInitialized: this._workspaceTrustInitialized,
 			trusted: this._workspaceTrustManagementService.isWorkspaceTrusted(),
-			pickerModels: this._delegate.getModels(),
+			pickerModels: models,
 			liveModelIds: this._languageModelsService.getLanguageModelIds(),
 			requiresSetup: this._requiresSetup(),
 		});
@@ -533,11 +543,11 @@ export class ModelPickerWidget extends Disposable {
 	 * The picker's current availability, derived once so the label states and the "nothing to switch
 	 * to" hint suppression (#325185) cannot disagree.
 	 */
-	private _availability(): IModelPickerAvailability {
+	private _availability(models: readonly ILanguageModelChatMetadataAndIdentifier[] = this._delegate.getModels()): IModelPickerAvailability {
 		// Queried directly rather than through the isRestrictedMode()/isSetupRequired() wrappers,
 		// which would each recompute it.
-		const reason = this._unavailableReason();
-		const empty = this._delegate.getModels().length === 0;
+		const reason = this._unavailableReason(models);
+		const empty = models.length === 0;
 		const activating = reason === undefined && empty && this._activatingAfterTrust;
 		const genericNoModels = reason === undefined && !activating && empty && !this._delegate.getPresentationOptions().showAutoModel;
 		return { reason, activating, genericNoModels, noModels: reason !== undefined || activating || genericNoModels };
@@ -662,12 +672,16 @@ export class ModelPickerWidget extends Disposable {
 		const picker = this._tabbedPicker.value ?? (this._tabbedPicker.value = this._instantiationService.createInstance(TabbedModelPicker));
 		const previouslyFocusedElement = dom.getActiveElement();
 		const trigger = detailsModelId ? this._configButton : this._nameButton;
-		this._tabbedPickerHideListener.value = picker.onDidHide(() => {
+		this._tabbedPickerHideListener.value = picker.onDidHide(({ finishedComparison }) => {
 			this._tabbedPickerHideListener.clear();
 			telemetrySession.close(whenModelConfigValuesSaved(context.configurationAccess));
 			this._nameButton?.setAttribute('aria-expanded', 'false');
 			this._configButton?.setAttribute('aria-expanded', 'false');
 			this._domNode?.classList.remove('model-picker-active');
+			if (finishedComparison && this._delegate.focusInput) {
+				this._delegate.focusInput();
+				return;
+			}
 			const previous = dom.isHTMLElement(previouslyFocusedElement) && previouslyFocusedElement.isConnected && previouslyFocusedElement.style.display !== 'none' ? previouslyFocusedElement : undefined;
 			const target = detailsModelId
 				? (trigger?.isConnected && trigger.style.display !== 'none' ? trigger : this._nameButton)
@@ -676,8 +690,8 @@ export class ModelPickerWidget extends Disposable {
 		});
 		trigger?.setAttribute('aria-expanded', 'true');
 		this._domNode?.classList.add('model-picker-active');
-		if (this._getEnsembleRouting(context.models)) {
-			logSettingExperimentTrigger(this._telemetryService, AgentHostEnsembleIntelligenceUsesHydraFusionSettingId);
+		if (this._getFusionRouting(context.models)) {
+			logSettingExperimentTrigger(this._telemetryService, AgentHostFusionBalanceUsesHydraFusionSettingId);
 		}
 		picker.show(anchor, context, detailsModelId, focusConfiguration, this._contextViewLayer, options);
 		if (!picker.isVisible) {
@@ -735,6 +749,7 @@ export class ModelPickerWidget extends Disposable {
 		const restrictedMode = this.isRestrictedMode();
 		const unavailable = this._unavailableReason() !== undefined;
 		const models = unavailable ? [] : this._delegate.getModels();
+		const comparisonModels = unavailable ? [] : this._delegate.getComparisonModels?.();
 		const presentation = this._delegate.getPresentationOptions();
 		const canShowManageModelsAction = presentation.showManageModelsAction && shouldShowManageModelsAction(this._entitlementService);
 		const manageModelsAction = canShowManageModelsAction ? createManageModelsAction(this._commandService, this._delegate.getSessionType?.()) : undefined;
@@ -771,8 +786,9 @@ export class ModelPickerWidget extends Disposable {
 		const showCacheBreakHint = this.shouldShowCacheBreakHint(/* excludeAutoModel */ true);
 		const showConfigurationCacheBreakHint = this.shouldShowCacheBreakHint(/* excludeAutoModel */ false);
 		this._showTabbedPicker(anchorElement, {
-			workflow: this._delegate.workflow,
+			comparison: this._delegate.comparison,
 			models,
+			comparisonModels,
 			selectedModelId: this._selectedModel?.identifier,
 			recentModelIds: this._languageModelsService.getRecentlyUsedModelIds().filter(id => !this._languageModelsService.isModelHidden(id)),
 			pinnedModelIds: this._languageModelsService.getPinnedModelIds().filter(id => !this._languageModelsService.isModelHidden(id)),
@@ -825,33 +841,58 @@ export class ModelPickerWidget extends Disposable {
 		}
 	}
 
+	get organizationDefaultDescription(): string | undefined {
+		return this._organizationDefaultDescription;
+	}
+
 	private _renderLabel(): void {
 		if (!this._domNode || !this._nameButton) {
 			return;
 		}
 
-		const workflow = this._delegate.workflow?.summary.get();
-		const routingTier = !workflow && this._selectedModel ? this._getRoutingTier(this._selectedModel) : undefined;
+		const models = this._delegate.getModels();
+		const comparisonSummary = this._delegate.comparison?.summary.get();
+		const routingTier = !comparisonSummary && this._selectedModel ? this._getRoutingTier(this._selectedModel, models) : undefined;
 		const shownModel = routingTier?.shownModel ?? this._selectedModel;
 		const shownName = shownModel ? getLanguageModelDisplayNameWithSubscriptionSource(shownModel) : undefined;
 		// A directly selected on-device model reads "<model> · On-device", like the Copilot CLI and app.
-		const name = workflow ?? (shownModel && shownName !== undefined && isLocalModelDirectRow(shownModel) ? formatLocalModelOnDeviceName(shownName) : shownName);
+		const name = comparisonSummary ?? (shownModel && shownName !== undefined && isLocalModelDirectRow(shownModel) ? formatLocalModelOnDeviceName(shownName) : shownName);
 
-		const { reason, activating, genericNoModels, noModels: noModelsAvailable } = this._availability();
+		const { reason, activating, genericNoModels, noModels: noModelsAvailable } = this._availability(models);
 		const restrictedMode = reason === ModelPickerUnavailableReason.Restricted;
 		const setupRequired = reason === ModelPickerUnavailableReason.SetupRequired;
 		const unavailable = reason !== undefined;
+		const organizationDefaultModel = !unavailable && !comparisonSummary ? getOrganizationDefaultModel(this._configurationService, models) : undefined;
+		this._organizationDefaultDescription = organizationDefaultModel ? getOrganizationDefaultDescription(organizationDefaultModel.metadata.name) : undefined;
 
 		// --- Name section ---
 		const nameChildren: (HTMLElement | string)[] = [];
-		const modelIcon = workflow ? Codicon.layers : shownModel
-			? (this._delegate.getPresentationOptions().showModelIcon
-				? getCompactModelPickerIcon(shownModel)
-				: shownModel.metadata.statusIcon ? getCompactCodicon(shownModel.metadata.statusIcon) : undefined)
+		// A comparison of distinct models shows one icon per attempt instead of the generic
+		// layers icon when every model resolves to one. Repeated models keep the labeled
+		// summary so configured variants remain distinguishable.
+		const summaryModelIds = comparisonSummary && this._delegate.getPresentationOptions().showModelIcon
+			? this._delegate.comparison?.summaryModelIds?.get()
 			: undefined;
+		const hasRepeatedSummaryModelIds = !!summaryModelIds && new Set(summaryModelIds).size !== summaryModelIds.length;
 		const compact = this._compact?.get() ?? false;
 		const minimal = this._minimal?.get() ?? false;
-		if (modelIcon && !noModelsAvailable) {
+		const summaryIcons = summaryModelIds?.length
+			? summaryModelIds.map(modelId => {
+				const model = (this._delegate.getComparisonModels?.() ?? models).find(candidate => candidate.identifier === modelId);
+				return model && getCompactModelPickerIcon(model);
+			})
+			: undefined;
+		const showSummaryIcons = !compact && !minimal && !hasRepeatedSummaryModelIds && !!summaryIcons?.every((icon): icon is ThemeIcon => !!icon);
+		const modelIcon = showSummaryIcons
+			? undefined
+			: comparisonSummary ? Codicon.layers : shownModel
+				? (this._delegate.getPresentationOptions().showModelIcon
+					? getCompactModelPickerIcon(shownModel)
+					: shownModel.metadata.statusIcon ? getCompactCodicon(shownModel.metadata.statusIcon) : undefined)
+				: undefined;
+		if (showSummaryIcons && summaryIcons && !noModelsAvailable) {
+			nameChildren.push(dom.$('span.chat-input-picker-comparison-attempt-icons', undefined, ...summaryIcons.map(icon => renderIcon(icon))));
+		} else if (modelIcon && !noModelsAvailable) {
 			nameChildren.push(renderIcon(modelIcon));
 		}
 		// A "Models" placeholder (no badge) beats a dead-end label while unavailable — the hover and
@@ -865,7 +906,7 @@ export class ModelPickerWidget extends Disposable {
 				: genericNoModels
 					? localize('chat.modelPicker.noModels', "No models available")
 					: (name ?? localize('chat.modelPicker.auto', "Auto"));
-		const showModelLabel = !compact || !modelIcon || noModelsAvailable;
+		const showModelLabel = hasRepeatedSummaryModelIds || (!compact || !modelIcon || noModelsAvailable) && !showSummaryIcons;
 		if (showModelLabel) {
 			nameChildren.push(dom.$('span.chat-input-picker-label', undefined, modelLabel));
 		}
@@ -881,7 +922,7 @@ export class ModelPickerWidget extends Disposable {
 			const localModelReadout = this._selectedModel && isLocalModelDirectRow(this._selectedModel)
 				? this._getLocalModels()?.getPresentation()?.getDirectModel(this._selectedModel, configurationAccess)?.readout
 				: undefined;
-			renderModelConfigurationButton(this._configButton, shownModel, configurationAccess, !!workflow || minimal || compact || noModelsAvailable, routingTier?.label, localModelReadout);
+			renderModelConfigurationButton(this._configButton, shownModel, configurationAccess, !!comparisonSummary || minimal || compact || noModelsAvailable, routingTier?.label, localModelReadout);
 		}
 		const configVisible = !!this._configButton && this._configButton.style.display !== 'none';
 		this._domNode.classList.toggle('has-config', configVisible);
@@ -899,6 +940,7 @@ export class ModelPickerWidget extends Disposable {
 				: localize('chat.modelPicker.ariaLabel', "Models, {0}", modelLabel);
 		this._domNode.ariaLabel = ariaLabel;
 		this._nameButton.ariaLabel = ariaLabel;
+		this._nameButton.ariaDescription = this.organizationDefaultDescription ?? '';
 
 		const nameMinimumWidth = showModelLabel ? this._getNameMinimumWidth(this._nameButton) : MODEL_PICKER_COMPACT_NAME_WIDTH;
 		// A name narrower than the minimum is held at exactly its own width; a pixel value

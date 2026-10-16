@@ -375,12 +375,79 @@ suite('Changes View Actions', () => {
 		const onlyEnabledFallback = snapshot();
 
 		assert.deepStrictEqual({ defaultSelected, nonDefaultSelected, changedDefault, matchingLabelSelected, loadingCatalogue, onlyEnabledFallback }, {
-			defaultSelected: { label: 'Session Changes', nonDefault: false, ariaLabel: 'Versions: Session Changes' },
-			nonDefaultSelected: { label: 'Branch Changes', nonDefault: true, ariaLabel: 'Versions: Branch Changes' },
-			changedDefault: { label: 'Branch Changes', nonDefault: false, ariaLabel: 'Versions: Branch Changes' },
-			matchingLabelSelected: { label: 'Session Changes', nonDefault: true, ariaLabel: 'Versions: Session Changes' },
-			loadingCatalogue: { label: 'Branch Changes', nonDefault: true, ariaLabel: 'Versions: Branch Changes' },
-			onlyEnabledFallback: { label: 'Branch Changes', nonDefault: false, ariaLabel: 'Versions: Branch Changes' },
+			defaultSelected: { label: 'Session Changes', nonDefault: false, ariaLabel: 'Session Changes' },
+			nonDefaultSelected: { label: 'Branch Changes', nonDefault: true, ariaLabel: 'Branch Changes' },
+			changedDefault: { label: 'Branch Changes', nonDefault: false, ariaLabel: 'Branch Changes' },
+			matchingLabelSelected: { label: 'Session Changes', nonDefault: true, ariaLabel: 'Session Changes' },
+			loadingCatalogue: { label: 'Branch Changes', nonDefault: true, ariaLabel: 'Branch Changes' },
+			onlyEnabledFallback: { label: 'Branch Changes', nonDefault: false, ariaLabel: 'Branch Changes' },
+		});
+	});
+
+	test('uses the branch description in the picker tooltip while preserving its accessible label', () => {
+		const createChangeset = (id: string, label: string, description?: string) => upcastPartial<ISessionChangeset>({
+			id,
+			label,
+			description,
+			isEnabled: constObservable(true),
+			isDefault: constObservable(true),
+		});
+		const branch = createChangeset('branch', 'Branch Changes', 'feature -> main');
+		const updatedBranch = createChangeset('branch', 'Branch Changes', 'feature -> release');
+		const withoutDescription = createChangeset('branch', 'Branch Changes');
+		const emptyDescription = createChangeset('branch', 'Branch Changes', '');
+		const session = createChangeset('session', 'Session Changes', 'Session description');
+		const selected = observableValue<ISessionChangeset | undefined>('picker.selected', branch);
+		const loading = observableValue('picker.loading', false);
+		const changesViewService = new class extends mock<IChangesViewService>() {
+			override readonly activeSessionChangesetsObs = constObservable([branch]);
+			override readonly activeSessionChangesetsLoadingObs = loading;
+			override readonly activeSessionChangesetObs = selected;
+			override readonly activeSessionResourceObs = constObservable(URI.parse('test-session:/session'));
+		}();
+		const contextKeyService = new MockContextKeyService();
+		const action = new MenuItemAction({ id: 'test.versionsPicker', title: 'Versions' }, undefined, undefined, undefined, undefined, contextKeyService, new class extends mock<ICommandService>() { }());
+		const container = document.createElement('div');
+		const picker = disposables.add(new class extends ChangesPickerActionItem {
+			override getTooltip(): string {
+				return super.getTooltip();
+			}
+		}(action, undefined, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }()));
+		picker.render(container);
+		const snapshot = () => ({
+			label: container.querySelector('.changes-picker-label')?.textContent,
+			tooltip: picker.getTooltip(),
+			ariaLabel: container.querySelector<HTMLElement>('.action-label')?.ariaLabel,
+		});
+
+		const initial = snapshot();
+		selected.set(updatedBranch, undefined);
+		const updated = snapshot();
+		transaction(tx => {
+			loading.set(true, tx);
+			selected.set(undefined, tx);
+		});
+		const loadingCatalogue = snapshot();
+		transaction(tx => {
+			loading.set(false, tx);
+			selected.set(withoutDescription, tx);
+		});
+		const missing = snapshot();
+		selected.set(emptyDescription, undefined);
+		const empty = snapshot();
+		selected.set(session, undefined);
+		const otherChangeset = snapshot();
+		selected.set(undefined, undefined);
+		const noChangeset = snapshot();
+
+		assert.deepStrictEqual({ initial, updated, loadingCatalogue, missing, empty, otherChangeset, noChangeset }, {
+			initial: { label: 'Branch Changes', tooltip: 'feature -> main', ariaLabel: 'Branch Changes: feature -> main' },
+			updated: { label: 'Branch Changes', tooltip: 'feature -> release', ariaLabel: 'Branch Changes: feature -> release' },
+			loadingCatalogue: { label: 'Branch Changes', tooltip: 'feature -> release', ariaLabel: 'Branch Changes: feature -> release' },
+			missing: { label: 'Branch Changes', tooltip: 'Branch Changes', ariaLabel: 'Branch Changes' },
+			empty: { label: 'Branch Changes', tooltip: 'Branch Changes', ariaLabel: 'Branch Changes' },
+			otherChangeset: { label: 'Session Changes', tooltip: 'Session Changes', ariaLabel: 'Session Changes' },
+			noChangeset: { label: 'Versions', tooltip: 'Versions', ariaLabel: 'Versions' },
 		});
 	});
 
@@ -388,6 +455,7 @@ suite('Changes View Actions', () => {
 		const changeset = upcastPartial<ISessionChangeset>({
 			id: 'branch',
 			label: 'Branch Changes',
+			description: 'feature -> main',
 			isEnabled: constObservable(true),
 			isDefault: constObservable(true),
 		});
@@ -427,9 +495,9 @@ suite('Changes View Actions', () => {
 		const empty = snapshot();
 
 		assert.deepStrictEqual({ initial, updated, empty }, {
-			initial: { label: 'Branch Changes', ariaLabel: 'Versions: Branch Changes, 2 files, 5 additions, 1 deletions', summaryVisible: true, summary: ['2 Files', '+5', '-1'], summaryTags: ['SPAN', 'SPAN', 'SPAN'], sameSummaryElement: true },
-			updated: { label: 'Branch Changes', ariaLabel: 'Versions: Branch Changes, 1 file, 7 additions, 3 deletions', summaryVisible: true, summary: ['1 File', '+7', '-3'], summaryTags: ['SPAN', 'SPAN', 'SPAN'], sameSummaryElement: true },
-			empty: { label: 'Branch Changes', ariaLabel: 'Versions: Branch Changes', summaryVisible: false, summary: ['', '', ''], summaryTags: ['SPAN', 'SPAN', 'SPAN'], sameSummaryElement: true },
+			initial: { label: 'Branch Changes', ariaLabel: 'Branch Changes: feature -> main, 2 files, 5 additions, 1 deletions', summaryVisible: true, summary: ['2 Files', '+5', '-1'], summaryTags: ['SPAN', 'SPAN', 'SPAN'], sameSummaryElement: true },
+			updated: { label: 'Branch Changes', ariaLabel: 'Branch Changes: feature -> main, 1 file, 7 additions, 3 deletions', summaryVisible: true, summary: ['1 File', '+7', '-3'], summaryTags: ['SPAN', 'SPAN', 'SPAN'], sameSummaryElement: true },
+			empty: { label: 'Branch Changes', ariaLabel: 'Branch Changes: feature -> main', summaryVisible: false, summary: ['', '', ''], summaryTags: ['SPAN', 'SPAN', 'SPAN'], sameSummaryElement: true },
 		});
 	});
 

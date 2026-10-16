@@ -70,7 +70,7 @@ export class CopilotSessionSandbox extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
-		this._diagnostics = this._register(instantiationService.createInstance(CopilotSandboxDiagnostics, _options.ownerSession.toString(), _options.getHostSupport));
+		this._diagnostics = this._register(instantiationService.createInstance(CopilotSandboxDiagnostics, _options.ownerSession.toString(), _options.getHostSupport, _options.platform));
 	}
 
 	setPendingRequest(toolCallId: string, requestId: string): void {
@@ -181,7 +181,9 @@ export class CopilotSessionSandbox extends Disposable {
 		const sandbox = getSessionSandboxConfig(this._configurationService, target, this._options.platform);
 		const policy = this._configurationService.getSessionSandboxPolicy(target.session);
 		const readonlyPaths = getVSCodeSandboxReadRoots({
-			sessionDataDirectory: this._sessionDataService.getSessionDataDir(this._options.ownerSession),
+			sessionDataDirectories: [this._options.ownerSession.toString(), ...this._configurationService.getChatAttachmentScopes(target)]
+				.filter((scope, index, scopes) => scopes.indexOf(scope) === index)
+				.map(scope => this._sessionDataService.getSessionDataDir(URI.parse(scope))),
 			shellInitDirectory: this._options.getShellInitDirectory(),
 		}).map(root => root.fsPath);
 		return buildSandboxConfigForSdk(this._options.platform, sandbox, readonlyPaths, policy);

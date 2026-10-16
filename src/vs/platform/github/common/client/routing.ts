@@ -22,9 +22,16 @@ export function numberSegment(value: number): string {
 	return String(value);
 }
 
-/** Encodes a repository path while preserving directory separators. */
-export function encodePathSegments(path: string): string {
-	return path.split('/').map(encodeURIComponent).join('/');
+/** Encodes a relative path with a leading slash; null, undefined, and empty paths produce an empty string. */
+export function pathSegments(path: string | null | undefined): string {
+	if (path === null || path === undefined || path === '') {
+		return '';
+	}
+	const segments = path.split('/');
+	if (segments.some(segment => !segment || segment === '.' || segment === '..')) {
+		throw new GitHubRequestError('Expected a repository-relative path without empty or dot segments.', 'validation');
+	}
+	return `/${segments.map(encodeURIComponent).join('/')}`;
 }
 
 /** Appends query parameters, repeating array values and omitting undefined entries. */

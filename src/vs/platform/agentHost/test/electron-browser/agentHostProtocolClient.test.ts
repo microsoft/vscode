@@ -8,7 +8,7 @@ import sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { CancellationError } from '../../../../base/common/errors.js';
+import { CancellationError, getErrorCode, transformErrorForSerialization, transformErrorFromSerialization } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../base/common/observable.js';
@@ -20,9 +20,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentHostClientState, AgentHostProtocolClient, type IAgentHostProtocolClientOptions } from '../../browser/agentHostProtocolClient.js';
 import { WebPubSubRelayTransport, type IWebSocketLike } from '../../browser/webPubSubRelayTransport.js';
-import { DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, type IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
+import { AgentHostSessionMoveUnsupportedError, DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, type IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
 import { McpAuthRequiredReason } from '../../common/state/protocol/channels-session/state.js';
-import { AuthenticateParams } from '../../common/agent.js';
+import { AgentPolicyError, AuthenticateParams } from '../../common/agent.js';
 import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
 import { agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js';
 import { AgentHostFileSystemProvider } from '../../common/agentHostFileSystemProvider.js';
@@ -1019,6 +1019,23 @@ suite('AgentHostProtocolClient', () => {
 
 		transport.fireMessage({ jsonrpc: '2.0', id: 1, result: { entries: [{ name: 'late', type: 'file' }] } });
 		assert.strictEqual(transport.sentMessages.length, 1);
+	});
+
+	test('restores retryable policy errors from JSON-RPC and preserves them over IPC', async () => {
+		const { client, transport } = createClient();
+		const request = client.resolveSessionConfig({ provider: 'copilotcli' });
+		const rejected = assert.rejects(request, error => {
+			assert.ok(error instanceof AgentPolicyError);
+			const forwarded = transformErrorFromSerialization(JSON.parse(JSON.stringify(transformErrorForSerialization(error))));
+			assert.deepStrictEqual({ message: forwarded.message, code: getErrorCode(forwarded) }, { message: 'Policy unavailable', code: 'policyResolutionFailed' });
+			return true;
+		});
+		transport.fireMessage(JSON.parse(JSON.stringify({
+			jsonrpc: '2.0', id: 1, error: {
+				code: -32603, message: 'Policy unavailable', data: { _meta: { 'vscode.policyResolutionFailed': true } },
+			}
+		})));
+		await rejected;
 	});
 
 	test('does not retain revoked authentication for reconnect replay', async () => {
@@ -2683,6 +2700,31 @@ suite('AgentHostProtocolClient', () => {
 			});
 			const saved = await pending;
 			assert.deepStrictEqual(saved.availability, current ? { kind: 'continued', destination: URI.parse('ahp-session:/copy') } : undefined);
+		}
+	});
+
+	test('moveSession requires its capability and sends every parameter, `after` as null when absent', async () => {
+		const sessions = { session: URI.parse('copilotcli:/single'), destination: URI.parse('copilotcli:/target'), after: URI.parse('ahp-chat:/anchor') };
+		for (const supported of [false, true]) {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, supported));
+			transport.sentMessages.length = 0;
+			if (!supported) {
+				await assert.rejects(client.moveSession(sessions.session, sessions.destination, undefined), error => error instanceof AgentHostSessionMoveUnsupportedError);
+				assert.deepStrictEqual(transport.sentMessages, []);
+				continue;
+			}
+			const first = client.moveSession(sessions.session, sessions.destination, undefined);
+			transport.fireMessage({ jsonrpc: '2.0', id: 2, result: { session: 'copilotcli:/target' } });
+			const anchored = client.moveSession(sessions.session, sessions.destination, sessions.after);
+			transport.fireMessage({ jsonrpc: '2.0', id: 3, result: { session: 'copilotcli:/target' } });
+			assert.deepStrictEqual({ results: [(await first).toString(), (await anchored).toString()], sent: transport.sentMessages }, {
+				results: ['copilotcli:/target', 'copilotcli:/target'],
+				sent: [
+					{ jsonrpc: '2.0', id: 2, method: 'vscode/moveSession', params: { session: 'copilotcli:/single', destination: 'copilotcli:/target', after: null } },
+					{ jsonrpc: '2.0', id: 3, method: 'vscode/moveSession', params: { session: 'copilotcli:/single', destination: 'copilotcli:/target', after: 'ahp-chat:/anchor' } },
+				],
+			});
 		}
 	});
 

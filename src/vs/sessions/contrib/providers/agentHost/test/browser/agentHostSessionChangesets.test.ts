@@ -39,7 +39,7 @@ import { IsSessionsWindowContext } from '../../../../../../workbench/common/cont
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
 import { Menus } from '../../../../../browser/menus.js';
-import { SessionIdContext } from '../../../../../common/contextkeys.js';
+import { SessionActiveChatResourceContext, SessionIdContext } from '../../../../../common/contextkeys.js';
 import { IChat, ISessionChangeset, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionTurnFileChange, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationStatus } from '../../../../../services/sessions/common/session.js';
 import { SessionContext } from '../../../../../services/sessions/browser/sessionContext.js';
 import { ISessionsPartService } from '../../../../../services/sessions/browser/sessionsPartService.js';
@@ -1663,6 +1663,7 @@ suite('AgentHostSessionChangesets', () => {
 				})],
 			}));
 			const chat = upcastPartial<IChat>({
+				resource: sessionUri,
 				changesets: constObservable(changesets),
 				workspace,
 			});
@@ -1676,6 +1677,7 @@ suite('AgentHostSessionChangesets', () => {
 			const sessionsService = new class extends mock<ISessionsService>() {
 				override readonly activeSession = constObservable(session);
 				override readonly visibleSessions = constObservable([session]);
+				override readonly visibleSessionPanes = constObservable([session]);
 			}();
 			instantiationService.stub(ISessionsService, sessionsService);
 			instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
@@ -1690,6 +1692,7 @@ suite('AgentHostSessionChangesets', () => {
 			}();
 			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 			SessionIdContext.bindTo(contextKeyService).set(session.sessionId);
+			SessionActiveChatResourceContext.bindTo(contextKeyService).set(chat.resource.toString());
 			IsSessionsWindowContext.bindTo(contextKeyService).set(true);
 			ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
 			const menuService = disposables.add(new MenuService(commandService, new MockKeybindingService(), disposables.add(new TestStorageService())));

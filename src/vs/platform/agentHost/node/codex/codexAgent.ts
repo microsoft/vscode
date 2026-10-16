@@ -27,7 +27,7 @@ import { ILogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { IAgentHostStartupPerformance } from '../agentHostStartupPerformance.js';
-import { createSchema, platformRootSchema, platformSessionSchema, schemaProperty, AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostCodexMultiRootEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostWorkspaceTrustConfigKey, type ISchemaProperty, type SessionMode } from '../../common/agentHostSchema.js';
+import { createSchema, platformRootSchema, platformSessionSchema, schemaProperty, AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostWorkspaceTrustConfigKey, type ISchemaProperty, type SessionMode } from '../../common/agentHostSchema.js';
 import { createPricingMetaFromBilling, normalizeCAPIBilling, type ICAPIModelBilling } from '../../common/meta/agentModelMeta.js';
 import { ContextSizeConfigKey, createContextSizeConfigSchemaProperty, createContextSizeConfigSchemaPropertyFromLimits, getModelContextSize } from '../../common/agentModelConfiguration.js';
 import { CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID, createAgentModelGroupMeta, createAgentModelSourceMeta } from '../../common/agentModelSource.js';
@@ -708,7 +708,6 @@ interface ICodexSession {
 	 * existing thread.
 	 */
 	workingDirectories?: readonly URI[];
-	readonly multiRootEnabled: boolean;
 	/**
 	 * Set to the temp folder created for this session when no working
 	 * directory was supplied, so the chat-dispose ref-tracking reclaim
@@ -1983,7 +1982,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private _isMultiRootActive(session: ICodexSession): boolean {
-		return session.multiRootEnabled && (session.workingDirectories?.length ?? 0) > 1;
+		return (session.workingDirectories?.length ?? 0) > 1;
 	}
 
 	private async _selectedCapabilityRoots(session: ICodexSession): Promise<SelectedCapabilityRoot[]> {
@@ -3175,7 +3174,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 */
 	private _handleItemStarted(session: ICodexSession, params: ItemStartedNotification): (SessionAction | ChatAction)[] {
 		if (params.item.type === 'userMessage') {
-			return this._handleSteeredUserMessage(session, params.item.content);
+			return this._handleSteeredUserMessage(session, params.item.content, params.item.clientId);
 		}
 		return mapItemStarted(session.mapState, this._withHostTurnId(session, params));
 	}
@@ -3187,9 +3186,9 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * {@link ICodexSession.pendingSteeringFlips}; a buffered match is
 	 * promoted into its own visible turn and everything else is dropped.
 	 */
-	private _handleSteeredUserMessage(session: ICodexSession, content: readonly UserInput[]): (SessionAction | ChatAction)[] {
+	private _handleSteeredUserMessage(session: ICodexSession, content: readonly UserInput[], clientId: string | null): (SessionAction | ChatAction)[] {
 		const text = extractUserInputText(content);
-		const steering = this._takeMatchingPendingSteering(session, text);
+		const steering = this._takeMatchingPendingSteering(session, text, clientId);
 		if (!steering) {
 			return [];
 		}
@@ -3197,12 +3196,14 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Pop the buffered steering message whose resolved input text matches the echoed
-	 * `userMessage` content. Matching by content (not FIFO) keeps the
-	 * mapping correct when several steering messages with different texts
-	 * are in flight.
+	 * Correlates echoes by submission ID, falling back to resolved input text for older servers.
 	 */
-	private _takeMatchingPendingSteering(session: ICodexSession, text: string): PendingMessage | undefined {
+	private _takeMatchingPendingSteering(session: ICodexSession, text: string, clientId?: string | null): PendingMessage | undefined {
+		if (clientId !== undefined && clientId !== null) {
+			const steering = session.pendingSteeringFlips.get(clientId);
+			session.pendingSteeringFlips.delete(clientId);
+			return steering?.pendingMessage;
+		}
 		for (const [id, steering] of session.pendingSteeringFlips) {
 			if (steering.inputText === text) {
 				session.pendingSteeringFlips.delete(id);
@@ -3767,7 +3768,6 @@ export class CodexAgent extends Disposable implements IAgent {
 			threadOwner: parent.threadOwner,
 			workingDirectory: parent.workingDirectory,
 			workingDirectories: parent.workingDirectories,
-			multiRootEnabled: parent.multiRootEnabled,
 			managedWorkingDirectory: undefined,
 			mapState: createCodexSessionMapState(new Set(this._serverToolHost?.toolNames ?? []), clientToolSet),
 			pendingCommandApprovals: new PendingRequestRegistry<CommandExecutionApprovalDecision>(),
@@ -4279,13 +4279,9 @@ export class CodexAgent extends Disposable implements IAgent {
 			description: localize('codexAgent.description', "Codex agent using session-selected model providers"),
 			capabilities: {
 				multipleChats: { fork: true, sideChat: true },
-				...(this._isMultiRootEnabled() ? { multipleWorkingDirectories: { immutablePrimary: true } } : {}),
+				multipleWorkingDirectories: { immutablePrimary: true },
 			},
 		};
-	}
-
-	private _isMultiRootEnabled(): boolean {
-		return this._configurationService.getRootValue(platformRootSchema, AgentHostCodexMultiRootEnabledConfigKey) === true;
 	}
 
 	async setWorkingDirectory(chat: URI, context: URI | IAgentChatContext, workingDirectory: URI): Promise<void> {
@@ -4435,9 +4431,6 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * reads files to decide the picker — it never surfaces them as customizations.
 	 */
 	async computeFolderPickerDecision(workingDirectories: readonly URI[], token: CancellationToken = CancellationToken.None): Promise<ISessionFolderPickerDecision | undefined> {
-		if (!this._isMultiRootEnabled()) {
-			return undefined;
-		}
 		return computeFolderPickerDecisionForRoots(workingDirectories, (directory, t) => codexDirectoryHasHooks(this._fileService, directory, t), token);
 	}
 
@@ -4974,8 +4967,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 */
 	private _deferChatBacking(sessionId: string, options: IAgentCreateChatOptions | undefined, target: ICodexTargetChat): ICodexSession {
 		const model = this._resolveCreationModel(options?.model);
-		const multiRootEnabled = this._isMultiRootEnabled();
-		const workingDirectories = multiRootEnabled && (options?.workingDirectories?.length ?? 0) > 1
+		const workingDirectories = (options?.workingDirectories?.length ?? 0) > 1
 			? distinctWorkingDirectories(options?.workingDirectories)
 			: undefined;
 		const clientToolSet = new ActiveClientToolSet();
@@ -4994,7 +4986,6 @@ export class CodexAgent extends Disposable implements IAgent {
 			threadOwner: undefined,
 			workingDirectory: options?.workingDirectories?.[0],
 			workingDirectories,
-			multiRootEnabled,
 			managedWorkingDirectory: undefined,
 			mapState: createCodexSessionMapState(new Set(this._serverToolHost?.toolNames ?? []), clientToolSet),
 			pendingCommandApprovals: new PendingRequestRegistry<CommandExecutionApprovalDecision>(),
@@ -5121,7 +5112,7 @@ export class CodexAgent extends Disposable implements IAgent {
 
 			// The freshly started thread is live and subscribed, so build a
 			// materialized (not resumed) entry keyed by the thread id.
-			const session = this._createResumedSessionEntry(threadId, threadId, workingDirectory, model, target, undefined, undefined, options?.agent);
+			const session = this._createResumedSessionEntry(threadId, threadId, workingDirectory, model, target, undefined, options?.agent);
 			session.needsResume = !startedOnCurrentConnection;
 			session.firstTurnSent = false;
 			session.materializedEventFired = false;
@@ -5219,7 +5210,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			this._throwIfShuttingDown();
 			// Codex's session id == thread id convention: the backing thread already
 			// exists on the app-server, so the entry resumes on first send.
-			session = this._createResumedSessionEntry(sessionId, threadId, workingDirectory, model, target, undefined, undefined, overlay.agent);
+			session = this._createResumedSessionEntry(sessionId, threadId, workingDirectory, model, target, undefined, overlay.agent);
 			if (managedWorkingDirectory) {
 				session.managedWorkingDirectory = managedWorkingDirectory;
 			}
@@ -5313,7 +5304,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * `sessionUri` is *derived* from `sessionId` rather than supplied — see
 	 * {@link ICodexSession.sessionUri} for why that must always hold.
 	 */
-	private _createResumedSessionEntry(sessionId: string, threadId: string, workingDirectory: URI | undefined, model: ModelSelection | undefined, target?: ICodexTargetChat, workingDirectories?: readonly URI[], multiRootEnabled?: boolean, agent?: AgentSelection, materializedModelProvider?: string): ICodexSession {
+	private _createResumedSessionEntry(sessionId: string, threadId: string, workingDirectory: URI | undefined, model: ModelSelection | undefined, target?: ICodexTargetChat, workingDirectories?: readonly URI[], agent?: AgentSelection, materializedModelProvider?: string): ICodexSession {
 		const clientToolSet = new ActiveClientToolSet();
 		const effectiveWorkingDirectories = distinctWorkingDirectories(workingDirectories);
 		const now = Date.now();
@@ -5331,7 +5322,6 @@ export class CodexAgent extends Disposable implements IAgent {
 			threadOwner: undefined,
 			workingDirectory: effectiveWorkingDirectories?.[0] ?? workingDirectory,
 			workingDirectories: effectiveWorkingDirectories,
-			multiRootEnabled: multiRootEnabled ?? (effectiveWorkingDirectories?.length ?? 0) > 1,
 			managedWorkingDirectory: undefined,
 			mapState: createCodexSessionMapState(new Set(this._serverToolHost?.toolNames ?? []), clientToolSet),
 			pendingCommandApprovals: new PendingRequestRegistry<CommandExecutionApprovalDecision>(),
@@ -5418,8 +5408,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		const inheritedWorkingDirectories = sourcePrimary
 			? distinctWorkingDirectories([sourcePrimary, ...(sourceStoredWorkingDirectories?.slice(1) ?? [])])
 			: undefined;
-		const multiRootEnabled = sourceSession?.multiRootEnabled ?? (inheritedWorkingDirectories?.length ?? 0) > 1;
-		const runtimeWorkspaceRoots = multiRootEnabled && inheritedWorkingDirectories && inheritedWorkingDirectories.length > 1
+		const runtimeWorkspaceRoots = inheritedWorkingDirectories && inheritedWorkingDirectories.length > 1
 			? distinctAbsolutePaths(inheritedWorkingDirectories.map(directory => directory.fsPath))
 			: undefined;
 
@@ -5531,9 +5520,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			?? (forkResult.cwd
 				? URI.file(forkResult.cwd)
 				: (sourceRead.thread.cwd ? URI.file(sourceRead.thread.cwd) : options?.workingDirectories?.[0]));
-		const forkWorkingDirectories = multiRootEnabled
-			? distinctWorkingDirectories(forkManagedWorkingDirectory ? [forkManagedWorkingDirectory] : inheritedWorkingDirectories)
-			: undefined;
+		const forkWorkingDirectories = distinctWorkingDirectories(forkManagedWorkingDirectory ? [forkManagedWorkingDirectory] : inheritedWorkingDirectories);
 
 		const session = this._createResumedSessionEntry(
 			sessionId,
@@ -5542,7 +5529,6 @@ export class CodexAgent extends Disposable implements IAgent {
 			model,
 			target,
 			forkWorkingDirectories,
-			multiRootEnabled,
 			options?.agent ?? sourceSession?.agent,
 			forkResult.thread.modelProvider ?? resolvedModel?.modelProvider ?? sourceRead.thread.modelProvider,
 		);
@@ -5795,7 +5781,7 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	/**
 	 * Restarts a pre-turn Codex thread so current `dynamicTools`, MCP servers, and customizations are applied at `thread/start`.
-	 * Only safe before history exists; the first send remains responsible for publishing materialization.
+	 * Only safe before history exists; refreshes an already-published materialization receipt but keeps unsent drafts provisional.
 	 */
 	private async _restartThreadWithCurrentTools(session: ICodexSession, configResource: URI = this._launchOwner(session)): Promise<void> {
 		const conn = this._connection;
@@ -5815,7 +5801,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		session.threadId = undefined;
 		this._applyMcpInventoryToSession(session);
 		session.materializePromise = undefined;
-		await this._materializeIfNeeded(session, configResource, false);
+		const wasMaterialized = session.materializedEventFired;
+		session.materializedEventFired = false;
+		await this._materializeIfNeeded(session, configResource, wasMaterialized);
 	}
 
 	private _fireMaterialized(session: ICodexSession): void {
@@ -6042,7 +6030,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		// constructed. A missing snapshot is retained only for legacy cold-resume
 		// callers that rely on restored metadata.
 		if (workingDirectories) {
-			session.workingDirectories = session.multiRootEnabled && workingDirectories.length > 1
+			session.workingDirectories = workingDirectories.length > 1
 				? distinctWorkingDirectories([
 					session.workingDirectory ?? workingDirectories[0],
 					...workingDirectories.slice(1),
@@ -6313,40 +6301,44 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	setPendingMessages(chat: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): void {
+	sendSteeringMessage(chat: URI, message: PendingMessage): boolean {
+		return this.setPendingMessages(chat, message, []);
+	}
+
+	setPendingMessages(chat: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): boolean {
 		// Queued messages are consumed server-side (AgentSideEffects drives a
 		// fresh turn per `idle`); only the single steering message reaches the
 		// agent for mid-turn injection.
 		if (!steeringMessage) {
-			return;
+			return true;
 		}
 		// Steering is always addressed by a concrete chat channel URI, which
 		// resolves through the binding recorded when that chat was provisioned
 		// or restored — never through URI shape.
 		const sessionUri = this._resolveConversationSession(chat);
 		if (!sessionUri) {
-			return;
+			return false;
 		}
 		const sessionId = AgentSession.id(sessionUri);
 		const session = this._sessions.get(sessionId);
 		if (!session) {
-			return;
+			return false;
 		}
 		// `_syncPendingMessages` re-sends the current steering message on every
 		// pending-state change; ignore a steering message already in flight.
 		if (session.pendingSteeringFlips.has(steeringMessage.id)) {
-			return;
+			return true;
 		}
 		const appTurnId = session.currentAppTurnId;
 		const conn = this._connection;
 		const text = steeringMessage.message.text;
 		const hasContent = text.length > 0 || (steeringMessage.message.attachments?.length ?? 0) > 0;
-		// Steering only makes sense mid-turn. Without an active codex turn, a
-		// ready connection, a thread, or any content we cannot steer — clear
-		// the pending bubble so it doesn't stick (the model never saw it).
-		if (!appTurnId || conn.kind !== 'ready' || session.threadId === undefined || !hasContent) {
+		if (!appTurnId || conn.kind !== 'ready' || session.threadId === undefined) {
+			return false;
+		}
+		if (!hasContent) {
 			this._fireSteeringConsumed(session, steeringMessage.id);
-			return;
+			return true;
 		}
 		const { input } = resolveCodexInput(text, steeringMessage.message.attachments);
 		const threadId = session.threadId;
@@ -6360,6 +6352,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		});
 		void conn.client.request<'turn/steer'>('turn/steer', {
 			threadId,
+			clientUserMessageId: steeringMessage.id,
 			input: input.slice(),
 			expectedTurnId: appTurnId,
 		}).catch(err => {
@@ -6375,6 +6368,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 			this._logService.warn(`[Codex:${sessionId}] turn/steer failed: ${err instanceof Error ? err.message : String(err)}`);
 		});
+		return true;
 	}
 
 	private async _abort(chat: URI, context: URI | IAgentChatContext): Promise<void> {
@@ -7259,7 +7253,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			const materializedModelProvider = read.rolloutMetadata?.selectedModel?.modelProvider
 				?? read.rolloutMetadata?.originModelProvider
 				?? read.thread.modelProvider;
-			const restored = this._createResumedSessionEntry(sessionId, threadId, workingDirectory, restoredModel, undefined, metadata.workingDirectories, undefined, overlay.agent, materializedModelProvider);
+			const restored = this._createResumedSessionEntry(sessionId, threadId, workingDirectory, restoredModel, undefined, metadata.workingDirectories, overlay.agent, materializedModelProvider);
 			// Not bound to the chat yet (a metadata read never binds), but owned by the session that asked.
 			restored.owner = resolvedContext.owner;
 			restored.hasNativeHistory ||= read.rolloutMetadata?.originModelProvider === CODEX_OPENAI_MODEL_PROVIDER;
@@ -8312,6 +8306,10 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (session.mcpPublisherOwner !== undefined && session.mcpPublisherOwner !== session.owner.get().toString()) {
 			// The chat changed owner: withdraw what was published under the previous one.
 			this._releaseMcpPublisher(session);
+		}
+		if (session.threadOwner !== undefined && !isEqual(session.threadOwner, session.owner.get())) {
+			// Started for its previous owner (Block 4, C6): it publishes for its new owner once its next send relaunches it.
+			return;
 		}
 		if (this._preferredMcpPublisher(session.owner.get()) !== session) {
 			return;
