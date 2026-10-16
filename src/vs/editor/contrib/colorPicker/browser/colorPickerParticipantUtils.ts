@@ -8,10 +8,11 @@ import { Color, RGBA } from '../../../../base/common/color.js';
 import { IActiveCodeEditor } from '../../../browser/editorBrowser.js';
 import { ISingleEditOperation } from '../../../common/core/editOperation.js';
 import { DocumentColorProvider, IColorInformation } from '../../../common/languages.js';
-import { ITextModel, TrackedRangeStickiness } from '../../../common/model.js';
+import { TrackedRangeStickiness } from '../../../common/model.js';
 import { getColorPresentations } from './color.js';
 import { ColorPickerModel } from './colorPickerModel.js';
 import { IRange, Range } from '../../../common/core/range.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
 
 export const enum ColorPickerWidgetType {
 	Hover = 'hover',
@@ -24,13 +25,14 @@ export interface BaseColor {
 	readonly provider: DocumentColorProvider;
 }
 
-export async function createColorHover(editorModel: ITextModel, colorInfo: IColorInformation, provider: DocumentColorProvider): Promise<BaseColor> {
+export async function createColorHover(editor: IActiveCodeEditor, colorInfo: IColorInformation, provider: DocumentColorProvider): Promise<BaseColor> {
+	const editorModel = editor.getModel();
 	const originalText = editorModel.getValueInRange(colorInfo.range);
 	const { red, green, blue, alpha } = colorInfo.color;
 	const rgba = new RGBA(Math.round(red * 255), Math.round(green * 255), Math.round(blue * 255), alpha);
 	const color = new Color(rgba);
 
-	const colorPresentations = await getColorPresentations(editorModel, colorInfo, provider, CancellationToken.None);
+	const colorPresentations = await getColorPresentations(editorModel, colorInfo, provider, CancellationToken.None, editor.getOption(EditorOption.colorPickerUseModernSyntax));
 	const model = new ColorPickerModel(color, [], 0);
 	model.colorPresentations = colorPresentations || [];
 	model.guessColorPresentation(color, originalText);
@@ -61,8 +63,8 @@ export function updateEditorModel(editor: IActiveCodeEditor, range: Range, model
 	return editor.getModel()._getTrackedRange(trackedRange) ?? replaceRange;
 }
 
-export async function updateColorPresentations(editorModel: ITextModel, colorPickerModel: ColorPickerModel, color: Color, range: Range, colorHover: BaseColor): Promise<void> {
-	const colorPresentations = await getColorPresentations(editorModel, {
+export async function updateColorPresentations(editor: IActiveCodeEditor, colorPickerModel: ColorPickerModel, color: Color, range: Range, colorHover: BaseColor): Promise<void> {
+	const colorPresentations = await getColorPresentations(editor.getModel(), {
 		range: range,
 		color: {
 			red: color.rgba.r / 255,
@@ -70,6 +72,6 @@ export async function updateColorPresentations(editorModel: ITextModel, colorPic
 			blue: color.rgba.b / 255,
 			alpha: color.rgba.a
 		}
-	}, colorHover.provider, CancellationToken.None);
+	}, colorHover.provider, CancellationToken.None, editor.getOption(EditorOption.colorPickerUseModernSyntax));
 	colorPickerModel.colorPresentations = colorPresentations || [];
 }

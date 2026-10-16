@@ -420,6 +420,10 @@ export interface IEditorOptions {
 	 */
 	colorDecoratorsLimit?: number;
 	/**
+	 * Use modern CSS syntax for color picker presentations. Defaults to false.
+	 */
+	colorPickerUseModernSyntax?: boolean;
+	/**
 	 * Control the behaviour of comments in the editor.
 	 */
 	comments?: IEditorCommentsOptions;
@@ -6024,7 +6028,8 @@ export const enum EditorOption {
 	doubleClickSelectsBlock,
 	fullwidthCharacterWidth,
 	// Must come after `fullwidthCharacterWidth`, which it is computed from.
-	effectiveFullwidthCharacterWidth
+	effectiveFullwidthCharacterWidth,
+	colorPickerUseModernSyntax
 }
 
 export const EditorOptions = {
@@ -6238,6 +6243,10 @@ export const EditorOptions = {
 	columnSelection: register(new EditorBooleanOption(
 		EditorOption.columnSelection, 'columnSelection', false,
 		{ description: nls.localize('columnSelection', "Enable that the selection with the mouse and keys is doing column selection.") }
+	)),
+	colorPickerUseModernSyntax: register(new EditorBooleanOption(
+		EditorOption.colorPickerUseModernSyntax, 'colorPickerUseModernSyntax', false,
+		{ markdownDescription: nls.localize('colorPickerUseModernSyntax', "Controls whether the color picker uses modern CSS color syntax, with space-separated channels, percentage alpha values after a slash, and explicit hue units (for example, `rgb(255 0 0 / 50%)` and `hsl(0deg 100% 50%)`). Applies to CSS color presentations in all languages, including embedded CSS. Hex colors and custom non-CSS presentations are unchanged.") }
 	)),
 	comments: register(new EditorComments()),
 	contextmenu: register(new EditorBooleanOption(

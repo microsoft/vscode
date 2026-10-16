@@ -20,8 +20,40 @@ export async function getColors(colorProviderRegistry: LanguageFeatureRegistry<D
 	return _findColorData<IColorData>(new ColorDataCollector(), colorProviderRegistry, model, token, defaultColorDecoratorsEnablement);
 }
 
-export function getColorPresentations(model: ITextModel, colorInfo: IColorInformation, provider: DocumentColorProvider, token: CancellationToken): Promise<IColorPresentation[] | null | undefined> {
-	return Promise.resolve(provider.provideColorPresentations(model, colorInfo, token));
+export async function getColorPresentations(model: ITextModel, colorInfo: IColorInformation, provider: DocumentColorProvider, token: CancellationToken, useModernSyntax = false): Promise<IColorPresentation[] | null | undefined> {
+	const presentations = await provider.provideColorPresentations(model, colorInfo, token);
+	return useModernSyntax && presentations ? presentations.map(toModernColorPresentation) : presentations;
+}
+
+function toModernColorPresentation(presentation: IColorPresentation): IColorPresentation {
+	if (presentation.textEdit && presentation.textEdit.text !== presentation.label) {
+		return presentation;
+	}
+	const match = /^(?<name>rgba?|hsla?|hwb|lab|lch|oklab|oklch)\((?<body>[^()]+)\)$/i.exec(presentation.label);
+	if (!match?.groups) {
+		return presentation;
+	}
+	const name = match.groups.name.toLowerCase().replace(/^(rgb|hsl)a$/, '$1');
+	const parts = match.groups.body.trim().split(/\s*\/\s*/);
+	const channels = parts[0].split(/[\s,]+/);
+	const alpha = parts.length === 2 ? parts[1] : channels.length === 4 ? channels.pop() : undefined;
+	const number = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?%?$/i;
+	const hue = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?(?:deg|grad|rad|turn)?$/i;
+	const hueIndex = name === 'hsl' || name === 'hwb' ? 0 : name === 'lch' || name === 'oklch' ? 2 : -1;
+	const validChannels = channels.every((channel, index) => (index === hueIndex ? hue : number).test(channel));
+	if (parts.length > 2 || channels.length !== 3 || !validChannels || (alpha !== undefined && !number.test(alpha))) {
+		return presentation;
+	}
+	if (hueIndex !== -1 && number.test(channels[hueIndex])) {
+		channels[hueIndex] += 'deg';
+	}
+	const opacity = alpha === undefined ? '' : ` / ${alpha.endsWith('%') ? alpha : `${Number((Number(alpha) * 100).toFixed(10))}%`}`;
+	const label = `${name}(${channels.join(' ')}${opacity})`;
+	return {
+		...presentation,
+		label,
+		textEdit: presentation.textEdit ? { ...presentation.textEdit, text: label } : undefined
+	};
 }
 
 export interface IColorData {
@@ -111,4 +143,3 @@ export function _setupColorCommand(accessor: ServicesAccessor, resource: URI): {
 	const defaultColorDecoratorsEnablement = accessor.get(IConfigurationService).getValue<'auto' | 'always' | 'never'>('editor.defaultColorDecorators', { resource });
 	return { model, colorProviderRegistry, defaultColorDecoratorsEnablement };
 }
-
