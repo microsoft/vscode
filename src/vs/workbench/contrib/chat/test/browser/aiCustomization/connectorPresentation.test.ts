@@ -91,6 +91,51 @@ suite('Connector presentation', () => {
 		]);
 	});
 
+	test('detail shows disconnecting progress until the disconnect request completes', async () => {
+		const container = DOM.append(document.body, DOM.$('.connector-detail-test'));
+		disposables.add(toDisposable(() => container.remove()));
+		const change = disposables.add(new Emitter<void>());
+		const result = new DeferredPromise<void>();
+		let connectors: readonly ICopilotConnector[] = [connector('connected')];
+		const service = new class extends mock<ICopilotConnectorsService>() {
+			override readonly onDidChange = change.event;
+			override get connectors() { return connectors; }
+			override async disconnect(): Promise<void> {
+				await result.p;
+			}
+			override async getConnectors(): Promise<readonly ICopilotConnector[]> {
+				return connectors;
+			}
+		}();
+		const detail = disposables.add(new EmbeddedConnectorDetail(
+			container, () => { }, service, new class extends mock<INotificationService>() { }(), new class extends mock<IOpenerService>() { }(),
+		));
+		const snapshot = () => {
+			const button = container.querySelector<HTMLElement>('.embedded-detail-title-actions .monaco-button');
+			return {
+				status: container.querySelector('.connector-detail-facts .embedded-detail-fact-value')?.textContent,
+				action: button?.textContent,
+				disabled: button?.getAttribute('aria-disabled'),
+				busy: button?.getAttribute('aria-busy') ?? null,
+			};
+		};
+		detail.setInput(connectors[0]);
+		container.querySelector<HTMLElement>('.embedded-detail-title-actions .monaco-button')?.click();
+		const pending = snapshot();
+		change.fire();
+		const pendingAfterChange = snapshot();
+		connectors = [connector('not_connected')];
+		result.complete();
+		await result.p;
+		await timeout(0);
+
+		assert.deepStrictEqual([pending, pendingAfterChange, snapshot()], [
+			{ status: 'Disconnecting', action: 'Disconnecting...', disabled: 'true', busy: 'true' },
+			{ status: 'Disconnecting', action: 'Disconnecting...', disabled: 'true', busy: 'true' },
+			{ status: 'Not connected', action: 'Connect', disabled: 'false', busy: null },
+		]);
+	});
+
 	test('disposing detail cancels an in-flight connector consent action', async () => {
 		const container = DOM.append(document.body, DOM.$('.connector-detail-test'));
 		disposables.add(toDisposable(() => container.remove()));
