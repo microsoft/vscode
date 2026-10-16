@@ -492,6 +492,23 @@ suite('AgentHostWorktreeCleanupService', () => {
 			});
 		});
 
+		test('a co-owner that no longer works in the folder doesn\'t keep it: once its moved chat is gone, deleting the original owner removes the worktree (M1)', async () => {
+			const { database, worktree, cleanup } = create();
+			// The moved chat was deleted in OTHER_SESSION, which lives on working elsewhere; its share row stays.
+			await useWorktree(database, OTHER_SESSION, recorded('unrelated'));
+			await share(database, SESSION, shared);
+			await share(database, OTHER_SESSION, shared);
+			await database.tombstoneAndUnregisterSession(SESSION.toString(), await cleanup.prepareSessionDeletion(SESSION, [], 'delete'));
+			await cleanup.runPass();
+
+			assert.deepStrictEqual({ calls: worktree.calls, pending: await pending(database), marker: (await database.readWorktreeCoOwners(sharedKey)).map(row => `${row.session}:${row.live}`) }, {
+				calls: [`remove:${sessionId}:commit:agents/archived`],
+				pending: [],
+				// The marker row only forces commit mode.
+				marker: [`${OTHER_SESSION.toString()}:false`],
+			});
+		});
+
 		test('deleting a session whose worktree was ever shared commits it rather than force-removing it, when requested and when the removal runs', async () => {
 			const { database, worktree, cleanup } = create();
 			await share(database, SESSION, shared);

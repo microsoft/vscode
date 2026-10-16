@@ -262,6 +262,7 @@ const worktreeInUseSql = `
 	SELECT 1 FROM worktree_co_owners o
 	WHERE o.session_uri <> ?2 AND rtrim(lower(o.worktree_path), '/') = lower(?1)
 		AND ${sessionLiveSql('o.session_uri')}
+		AND ${sessionUsesFolderSql('o.session_uri')}
 		AND NOT COALESCE(${sessionArchivedSql('o.session_uri')}, 0)
 	LIMIT 1`;
 
