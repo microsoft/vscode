@@ -32,6 +32,11 @@ const MAX_CHANGED_FILES = 200;
  */
 const DIFF_RETRIEVAL_TIMEOUT_MS = 30_000; // 30 seconds
 
+/**
+ * Timeout for refreshing the repository state before reading changes (in milliseconds).
+ */
+const STATUS_REFRESH_TIMEOUT_MS = 5_000; // 5 seconds
+
 interface IGetScmChangesToolParams {
 	repositoryPath?: string;
 	sourceControlState?: ('unstaged' | 'staged' | 'merge-conflicts')[];
@@ -74,6 +79,21 @@ class GetScmChangesTool implements ICopilotTool<IGetScmChangesToolParams> {
 
 		this.logService.trace(`[GetScmChangesTool][invoke] Uri: ${uri?.toString()}`);
 		this.logService.trace(`[GetScmChangesTool][invoke] Repository: ${repository.rootUri.toString()}`);
+
+		// The git extension state can lag behind the actual state of the repository
+		// (ex: changes staged in the terminal right before this tool is invoked, or
+		// `git.autorefresh` being disabled), so refresh the repository state before
+		// reading the changes (https://github.com/microsoft/vscode/issues/269452)
+		const rawRepository = await this.gitService.getRepository2(repository.rootUri);
+		if (rawRepository) {
+			try {
+				await raceTimeout(rawRepository.status(), STATUS_REFRESH_TIMEOUT_MS);
+			} catch (err) {
+				this.logService.warn(`[GetScmChangesTool][invoke] Failed to refresh repository state: ${err}`);
+			}
+		}
+
+		checkCancellation(token);
 
 		let truncatedCount = 0;
 
