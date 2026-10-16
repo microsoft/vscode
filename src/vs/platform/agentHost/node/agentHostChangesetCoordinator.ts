@@ -9,14 +9,14 @@ import { IAgentSessionMetadata } from '../common/agent.js';
 import { buildBranchChangesetUri, buildSessionChangesetUri, changesetSession, ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
 import { ChangesetFileMonitorCoordinator } from './agentHostChangesetFileMonitorCoordinator.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
-import { IAgentHostChangesetService, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS } from '../common/agentHostChangesetService.js';
+import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { isAnyAgentMergeEnabled } from '../common/agentMerge.js';
 import { getWorkingDirectoryKey } from '../common/agentHostWorkingDirectories.js';
-import { isAhpChatChannel, parseSubagentSessionUri, type SessionConfigState } from '../common/state/sessionState.js';
+import { ChatOriginKind, isAhpChatChannel, parseSubagentSessionUri, type SessionConfigState } from '../common/state/sessionState.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { getSummaryChangesetKind } from './agentHostChangesetSummary.js';
 import { resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource } from './agentHostBranchChangesetScope.js';
@@ -24,9 +24,8 @@ import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.
 
 /**
  * Raw metadata blob values for the session DB, batch-read by the caller.
- * Keys are the changeset-specific metadata keys ({@link META_CHANGESET_BRANCH}
- * etc.); values are the raw `string | undefined` payloads as returned by
- * `ISessionDatabase.getMetadataObject`.
+ * Keys are the changeset-specific metadata keys (the durable changes summary); values are
+ * the raw `string | undefined` payloads as returned by `ISessionDatabase.getMetadataObject`.
  */
 export type IChangesetSessionMetadata = Record<string, string | undefined>;
 
@@ -98,7 +97,9 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		this._changesets.refreshChangesetCatalog(chat);
 		this._changesets.registerStaticChangesets(chat);
 		this._changesets.ensureChatChangesSummary(chat);
-		void this._gitStateService.refreshSessionGitState(chat);
+		if (!this._isSubagentChat(chat)) {
+			void this._gitStateService.refreshSessionGitState(chat);
+		}
 		const session = this._chatOwnership.getChatOwner(chat);
 		if (session
 			&& this._changesetSubscriptions.getSessionSubscriptions(session).has(session)
@@ -108,21 +109,13 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	}
 
 	/**
-	 * Called at session restore time. Registers the static changeset URIs
-	 * and reseeds them from any persisted blobs already read from the DB.
-	 * `metadata` must come from the same batched `getMetadataObject` call
-	 * `AgentService` already issues for title / read / archive / config
-	 * keys.
+	 * Called at session restore time. Registers the static changeset URIs;
+	 * their contents are computed live, never reseeded from persisted state.
 	 */
-	onSessionRestored(sessionStr: string, metadata: IChangesetSessionMetadata): void {
+	onSessionRestored(sessionStr: string): void {
 		this._changesets.refreshChangesetCatalog(sessionStr);
 		this._changesets.registerStaticChangesets(sessionStr);
 		this._onDefaultChatAvailable(sessionStr);
-		this._changesets.restorePersistedStaticChangesets(sessionStr, {
-			branchRaw: metadata[META_CHANGESET_BRANCH],
-			sessionRaw: metadata[META_CHANGESET_SESSION],
-			legacyRaw: metadata[META_LEGACY_DIFFS],
-		});
 		// Recompute the current subscriptions now that the restored working
 		// directory is available.
 		this._changesets.onWorkingDirectoryAvailable(sessionStr);
@@ -214,7 +207,6 @@ export class AgentHostChangesetCoordinator extends Disposable {
 			} else {
 				this._clearBranchSummaryResources(session);
 				this._changesets.recomputeSubscribedChangesets(session);
-				this._changesetFileMonitor.trackSessionChanges(session, session);
 			}
 		}
 	}
@@ -270,10 +262,6 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		if (parsed?.kind === ChangesetKind.Session) {
 			this._addSubscription(parsed.ownerUri, resourceStr);
 			this._changesets.refreshSessionChangeset(parsed.ownerUri);
-			// Chat-scoped Session Changes come only from tracked edits, which external file changes do not affect.
-			if (!isAhpChatChannel(parsed.ownerUri)) {
-				this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.ownerUri);
-			}
 			return;
 		}
 
@@ -301,7 +289,6 @@ export class AgentHostChangesetCoordinator extends Disposable {
 			this._reconcileBranchSummaryResources(session);
 		} else {
 			this._changesets.refreshSessionChangeset(session);
-			this._changesetFileMonitor.trackSessionChanges(session, session);
 		}
 	}
 
@@ -449,7 +436,6 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		}
 		if (parsed?.kind === ChangesetKind.Session) {
 			this._removeSubscription(parsed.ownerUri, resourceStr);
-			this._changesetFileMonitor.untrackSessionChanges(resourceStr);
 			return;
 		}
 		if (parsed?.kind === ChangesetKind.Turn && parsed.turnId !== undefined) {
@@ -459,7 +445,6 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		if (!parsed) {
 			this._removeSubscription(resourceStr, resourceStr);
 			this._clearBranchSummaryResources(resourceStr);
-			this._changesetFileMonitor.untrackSessionChanges(resourceStr);
 		}
 	}
 
@@ -590,8 +575,8 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	 * aggregate computation lives in the changeset service; the coordinator
 	 * only projects the result onto the entry.
 	 */
-	decorateListEntry(entry: IAgentSessionMetadata, metadata: IChangesetSessionMetadata): IAgentSessionMetadata {
-		const changes = this._changesets.computeListEntryChanges(entry.session.toString(), metadata);
+	decorateListEntry(entry: IAgentSessionMetadata, metadata: IChangesetSessionMetadata, persistMigration: boolean): IAgentSessionMetadata {
+		const changes = this._changesets.computeListEntryChanges(entry.session.toString(), metadata, persistMigration);
 		return changes ? { ...entry, changes } : entry;
 	}
 
@@ -694,7 +679,9 @@ export class AgentHostChangesetCoordinator extends Disposable {
 			this._changesetFileMonitor.onSessionWorkingDirectoriesChanged(chat.resource);
 			this._changesets.recomputeSubscribedChangesets(chat.resource);
 			this._changesets.refreshChatChangesSummary(chat.resource);
-			void this._gitStateService.refreshSessionGitState(chat.resource);
+			if (!this._isSubagentChat(chat.resource)) {
+				void this._gitStateService.refreshSessionGitState(chat.resource);
+			}
 		}
 		for (const candidate of this._stateManager.getSessionUris()) {
 			if (parseSubagentSessionUri(candidate)?.parentSession.toString() === sessionStr) {
@@ -707,5 +694,13 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	private _getChatsAffectedBySessionWorkingDirectoryChange(session: string) {
 		return this._stateManager.getSessionState(session)?.chats
 			.filter(chat => this._stateManager.getChatState(chat.resource)?.workingDirectories === undefined) ?? [];
+	}
+
+	/**
+	 * A subagent works in the folders of the chat that spawned it, whose Git
+	 * state its scope shares, so it computes none of its own.
+	 */
+	private _isSubagentChat(chat: string): boolean {
+		return this._stateManager.getChatOrigin(chat)?.kind === ChatOriginKind.Tool;
 	}
 }

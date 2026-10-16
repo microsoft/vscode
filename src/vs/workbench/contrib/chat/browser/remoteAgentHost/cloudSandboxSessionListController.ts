@@ -19,7 +19,7 @@ import { localize } from '../../../../../nls.js';
 import { AgentSession, IAgentConnection, IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
 import { agentHostAuthority, fromAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
-import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME, isCloudSandboxPlaceholderTitle } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -70,7 +70,7 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 		this.sessionType = remoteAgentHostSessionTypeId(authority, CLOUD_SANDBOX_AGENT_PROVIDER);
 		this._sessionListStore = this._register(instantiationService.createInstance(AgentHostSessionListStore, {
 			onDidNotification: this._notifications.event,
-			listSessions: () => this._requireConnection().listSessions(),
+			listSessions: async () => (await this._requireConnection().listSessions()).map(session => this._withListedTitle(session)),
 			disposeChat: chat => this._requireConnection().disposeChat(chat),
 			disposeSession: session => this._requireConnection().disposeSession(session),
 			dispatch: (channel, action) => this._requireConnection().dispatch(channel, action),
@@ -196,9 +196,57 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 		}
 		const store = new DisposableStore();
 		this._connectionStore.value = store;
-		store.add(connection.onDidNotification(notification => this._notifications.fire(notification)));
+		store.add(connection.onDidNotification(notification => this._notifications.fire(this._withListedNotificationTitle(notification))));
 		this._connection.set(connection, undefined);
 		void this.refresh(CancellationToken.None);
+	}
+
+	private _listedTitle(session: URI | string): string | undefined {
+		return this._sessionListStore.getSession(CLOUD_SANDBOX_AGENT_PROVIDER, typeof session === 'string' ? URI.parse(session) : session)?.summary.title;
+	}
+
+	/** A placeholder title keeps the label the list already shows. */
+	private _withListedTitle(session: IAgentSessionMetadata): IAgentSessionMetadata {
+		if (!isCloudSandboxPlaceholderTitle(session.summary, session.session) && !session.chats?.some(chat => isCloudSandboxPlaceholderTitle(chat.summary, session.session))) {
+			return session;
+		}
+		return {
+			...session,
+			summary: isCloudSandboxPlaceholderTitle(session.summary, session.session) ? this._listedTitle(session.session) : session.summary,
+			chats: session.chats?.map(chat => isCloudSandboxPlaceholderTitle(chat.summary, session.session) ? { ...chat, summary: undefined } : chat),
+		};
+	}
+
+	private _withListedNotificationTitle(notification: INotification): INotification {
+		if (notification.type === 'root/sessionAdded') {
+			const session = notification.summary.resource;
+			if (!isCloudSandboxPlaceholderTitle(notification.summary.title, session) && !notification.summary.chats?.some(chat => isCloudSandboxPlaceholderTitle(chat.title, session))) {
+				return notification;
+			}
+			return {
+				...notification,
+				summary: {
+					...notification.summary,
+					title: isCloudSandboxPlaceholderTitle(notification.summary.title, session) ? this._listedTitle(session) ?? notification.summary.title : notification.summary.title,
+					chats: notification.summary.chats?.map(chat => isCloudSandboxPlaceholderTitle(chat.title, session) ? { ...chat, title: '' } : chat),
+				},
+			};
+		}
+		if (notification.type === 'root/sessionSummaryChanged') {
+			const { title, chats, ...rest } = notification.changes;
+			if (!isCloudSandboxPlaceholderTitle(title, notification.session) && !chats?.some(chat => isCloudSandboxPlaceholderTitle(chat.title, notification.session))) {
+				return notification;
+			}
+			return {
+				...notification,
+				changes: {
+					...rest,
+					...(title !== undefined && !isCloudSandboxPlaceholderTitle(title, notification.session) ? { title } : {}),
+					...(chats ? { chats: chats.map(chat => isCloudSandboxPlaceholderTitle(chat.title, notification.session) ? { ...chat, title: '' } : chat) } : {}),
+				},
+			};
+		}
+		return notification;
 	}
 
 	setConnectionStatus(status: RemoteAgentHostConnectionStatus): void {

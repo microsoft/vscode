@@ -37,6 +37,31 @@ const sandbox = z.object({
 	pointerLock: z.optional(z.boolean()),
 	clipboardWrite: z.optional(z.boolean()),
 });
+export const codeBlockEditorPresentation = z.object({
+	resizable: z.optional(z.boolean()),
+	fullWidth: z.optional(z.boolean()),
+	fullView: z.optional(z.boolean()),
+	minHeight: z.optional(z.number().check(z.positive(), z.maximum(10_000))),
+});
+
+export function mergeCodeBlockEditorPresentation(
+	contributed: ResolvedCodeBlockEditor['presentation'],
+	resolved: ResolvedCodeBlockEditor['presentation'],
+): ResolvedCodeBlockEditor['presentation'] {
+	if (!contributed) {
+		return resolved;
+	}
+	if (!resolved) {
+		return contributed;
+	}
+	return {
+		resizable: resolved.resizable ?? contributed.resizable,
+		fullWidth: resolved.fullWidth ?? contributed.fullWidth,
+		fullView: resolved.fullView ?? contributed.fullView,
+		minHeight: resolved.minHeight ?? contributed.minHeight,
+	};
+}
+
 const resolvedCodeBlockEditor = z.object({
 	cacheKey: z.optional(z.string()),
 	html: z.string(),
@@ -45,6 +70,7 @@ const resolvedCodeBlockEditor = z.object({
 	hostTransport: z.optional(z.boolean()),
 	contentType: z.enum(['text', 'json']),
 	initialHeight: z.optional(z.number().check(z.positive())),
+	presentation: z.optional(codeBlockEditorPresentation),
 	sandbox: z.optional(sandbox),
 });
 const codeBlockEditorProvider = z.object({
@@ -115,11 +141,12 @@ export const markdownEditorHost = defineInterface({ id: 'markdown.editor.host' }
 	cancelCompletions: requestType(z.object({ requestId: offset }), z.void()),
 	pasteImages: requestType(z.extend(range, {
 		editEpoch: offset,
-		images: z.array(z.object({ name: z.string(), mime: z.string(), base64: z.string() })),
+		images: z.array(z.object({ id: z.string(), name: z.string(), mime: z.string(), size: offset })),
 	}), z.object({ offset: z.optional(offset), editEpoch: offset })),
 });
 
 export const markdownEditorRenderer = defineInterface({ id: 'markdown.editor.renderer' }, {
+	readClipboardMedia: requestType(z.object({ id: z.string(), offset, length: offset }), z.object({ base64: z.string() })),
 	configurationChanged: notificationType(editorConfiguration),
 	diagnosticsChanged: requestType(z.object({}), z.void()),
 	update: requestType(z.object({ content: z.string(), editEpoch: offset }), z.void()),

@@ -162,6 +162,9 @@ suite('EditorCanvasActions', () => {
 			await CommandsRegistry.getCommand(item.command.id)!.handler(upcastPartial<ServicesAccessor>({}));
 		}
 
+		definitionsChanged.fire();
+		await timeout(0);
+		const unchangedSubmenus = getSubmenus();
 		definitions = [{
 			canvasId: 'chart',
 			extensionId: 'project:chart',
@@ -198,6 +201,7 @@ suite('EditorCanvasActions', () => {
 			opened,
 			revealed,
 			reopened,
+			unchangedSubmenuRetained: unchangedSubmenus[0] === initialSubmenus[0],
 			refreshedTitles: refreshedItems.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value),
 			uninitializedItems: uninitializedItems.length,
 			uninitializedSubmenus: uninitializedSubmenus.length,
@@ -212,13 +216,14 @@ suite('EditorCanvasActions', () => {
 			initialTitles: ['Counter (Project Counter)', 'Counter (User Counter)', 'Preview'],
 			groups: ['1_available', '1_available', '2_open'],
 			requiresChat: [true, true, true],
-			listCalls: 3,
+			listCalls: 4,
 			opened: [{
 				canvas: 'project:counter',
 				instanceId: getCanvasDefinitionInstanceId(projectDefinition),
 			}],
 			revealed: ['agent-host-canvas:/project-counter', 'agent-host-canvas:/user-counter'],
 			reopened: ['agent-host-canvas:/preview'],
+			unchangedSubmenuRetained: true,
 			refreshedTitles: ['Chart', 'Counter', 'Preview'],
 			uninitializedItems: 0,
 			uninitializedSubmenus: 0,

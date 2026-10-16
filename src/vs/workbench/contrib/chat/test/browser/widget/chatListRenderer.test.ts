@@ -56,7 +56,7 @@ import { ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { ChatToolConfirmationCarouselPart } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolConfirmationCarouselPart.js';
 import { ChatSubagentContentPart } from '../../../browser/widget/chatContentParts/chatSubagentContentPart.js';
-import { OpenSubagentChatActionViewItem } from '../../../browser/widget/chatContentParts/chatSubagentOpenChat.js';
+import { getSubagentEditorResource, OpenSubagentChatActionViewItem } from '../../../browser/widget/chatContentParts/chatSubagentOpenChat.js';
 import { ChatThinkingContentPart } from '../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
 import { ChatMarkdownContentPart } from '../../../browser/widget/chatContentParts/chatMarkdownContentPart.js';
 import { ChatTurnPillsContentPart } from '../../../browser/widget/chatContentParts/chatTurnPillsPart.js';
@@ -67,7 +67,7 @@ import { ChatCollapsibleContentPart } from '../../../browser/widget/chatContentP
 import { IChatMarkdownAnchorService } from '../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatMcpAuthenticationRequired, IChatMcpAuthenticationRequiredServer, IChatMcpServersStartingSlow, IChatQuestionCarousel, IChatService, IChatSubagentToolInvocationData, IChatTask, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { formatChatRequestTimestamp, formatChatResponseDetails, formatElapsedTime } from '../../../common/chatProgressFormatting.js';
-import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatProgressAnimation, ChatProgressVerbosity, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../common/constants.js';
+import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, ChatProgressAnimation, ChatProgressVerbosity, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../common/constants.js';
 import { IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatModel, ChatResponseResource, ISerializedChatDataReference, isSerializableSessionData } from '../../../common/model/chatModel.js';
@@ -82,7 +82,7 @@ import { HookType } from '../../../common/promptSyntax/hookTypes.js';
 import { ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolResult, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { ILanguageModelToolsConfirmationService } from '../../../common/tools/languageModelToolsConfirmationService.js';
 import { ChatEditorOptions, IChatEditorConfiguration } from '../../../browser/widget/chatOptions.js';
-import { ChatToolInvocationPart, shouldRenderGeneratedImageResult, shouldRenderSessionCreatedResult } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
+import { ChatToolInvocationPart, shouldRenderGeneratedImageResult, shouldRenderSessionTargetResultPill } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
 import { ChatImageGenerationProgressPart } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatImageGenerationProgressPart.js';
 import { getGeneratedImageResultParts, getGeneratedImageResultPartsFromContent } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatGeneratedImageResultSubPart.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
@@ -164,6 +164,68 @@ suite('ChatListRenderer', () => {
 		});
 
 		suite('getFinalResponseStartIndex', () => {
+			for (const serialized of [false, true]) {
+				test(`completed response folding crosses only one trailing single-tool gap (serialized=${serialized})`, async () => {
+					const invocation = new ChatToolInvocation(
+						{ invocationMessage: 'Finish bookkeeping' },
+						{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
+						'bookkeeping', undefined, {},
+					);
+					await invocation.didExecuteTool(undefined);
+					const tool = serialized ? invocation.toJSON() : invocation;
+					const markdown = { kind: 'markdownContent', content: new MarkdownString('Detailed response') } as const;
+					const summary = { kind: 'markdownContent', content: new MarkdownString('Task completed.') } as const;
+					const thinking = { kind: 'thinking', value: 'Reasoning' } as const;
+					const references = { kind: 'references', references: [] } as const;
+					const cases: IChatRendererContent[][] = [
+						[thinking, markdown, tool, summary],
+						[thinking, markdown, markdown, tool, summary, summary, references],
+						[thinking, markdown, tool, tool, summary],
+						[markdown, tool, markdown, tool, summary],
+						[markdown, tool, thinking, summary],
+						[tool, summary],
+						[tool],
+					];
+					assert.deepStrictEqual(cases.map(content => ({
+						contiguous: getFinalResponseStartIndex(content),
+						singleToolGap: getFinalResponseStartIndex(content, true),
+					})), [
+						{ contiguous: 3, singleToolGap: 1 },
+						{ contiguous: 4, singleToolGap: 1 },
+						{ contiguous: 4, singleToolGap: 4 },
+						{ contiguous: 4, singleToolGap: 2 },
+						{ contiguous: 3, singleToolGap: 3 },
+						{ contiguous: 1, singleToolGap: 1 },
+						{ contiguous: undefined, singleToolGap: undefined },
+					]);
+				});
+			}
+
+			test('preserves the single-tool answer boundary when session outcomes move', async () => {
+				const outcome = new ChatToolInvocation(
+					{ invocationMessage: 'Created session', toolSpecificData: { kind: 'sessionCreated', openLink: 'agent-host-session://local/created', label: 'Created session' } },
+					{ id: 'create_session', displayName: 'Create Session', modelDescription: 'Create session', source: ToolDataSource.Internal },
+					'created-session', undefined, {},
+				);
+				await outcome.didExecuteTool(undefined);
+				const tool = new ChatToolInvocation(
+					{ invocationMessage: 'Finish bookkeeping' },
+					{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
+					'bookkeeping', undefined, {},
+				);
+				await tool.didExecuteTool(undefined);
+				const answer = { kind: 'markdownContent', content: new MarkdownString('Detailed response') } as const;
+				const summary = { kind: 'markdownContent', content: new MarkdownString('Task completed.') } as const;
+				const content = [outcome, answer, tool, summary];
+				const reordered = moveResponseOutcomeToolsAfterFinalResponse(content);
+				const index = getFinalResponseStartIndexAfterMovingResponseOutcomeTools(content, true);
+				assert.deepStrictEqual({ reordered, index, anchor: index === undefined ? undefined : reordered[index] }, {
+					reordered: [answer, tool, summary, outcome],
+					index: 0,
+					anchor: answer,
+				});
+			});
+
 			test('finds the trailing markdown response while leaving trailing adjuncts in place', () => {
 				assert.deepStrictEqual([
 					getFinalResponseStartIndex([
@@ -473,11 +535,11 @@ suite('ChatListRenderer', () => {
 				]);
 			});
 
-			test('renders the created-session result only after the response completes', () => {
+			test('renders the session target result pill only after the response completes', () => {
 				assert.deepStrictEqual([
-					shouldRenderSessionCreatedResult('sessionCreated', false),
-					shouldRenderSessionCreatedResult('sessionCreated', true),
-					shouldRenderSessionCreatedResult('terminal', true),
+					shouldRenderSessionTargetResultPill('sessionCreated', false),
+					shouldRenderSessionTargetResultPill('sessionCreated', true),
+					shouldRenderSessionTargetResultPill('terminal', true),
 				], [
 					false,
 					true,
@@ -966,6 +1028,186 @@ suite('ChatListRenderer', () => {
 			steeringDividerLabel: 'Steering',
 			systemNotificationDividerLabel: 'System notification',
 		});
+
+		disposables.dispose();
+	});
+
+	function createStickyScrollRenderer(requestCount: number, onRefreshStickyScroll?: () => void) {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration('chat.editRequests', 'hover');
+		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
+		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
+		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
+
+		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const viewModel = disposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+		for (let i = 0; i < requestCount; i++) {
+			const text = `request ${i}`;
+			model.addRequest({
+				text,
+				parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)]
+			}, { variables: [] }, Date.now());
+		}
+		const requests = viewModel.getItems().filter(isRequestVM);
+		assert.strictEqual(requests.length, requestCount);
+
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		const counters = { stickyScrollRefreshes: 0, valueReads: 0, rowReads: 0 };
+		const renderer = disposables.add(instantiationService.createInstance(
+			ChatListItemRenderer,
+			{} as ChatEditorOptions,
+			{},
+			{
+				getListLength: () => requests.length,
+				onDidScroll: () => toDisposable(() => { }),
+				container,
+				currentChatMode: () => ChatModeKind.Agent,
+				isStickyScrollEnabled: () => true,
+				refreshStickyScroll: () => {
+					counters.stickyScrollRefreshes++;
+					onRefreshStickyScroll?.();
+				},
+				stickyScrollTopPadding: 0,
+			},
+			undefined,
+			viewModel,
+		));
+		const node = (element: typeof requests[number]) => ({ element, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined });
+		const defaultRange = { start: 0, end: 1000 };
+		const ranges = () => requests.map(request => renderer.getStickyScrollSourceRange(request, defaultRange));
+		const renderRequests = () => {
+			requests.forEach((request, index) => {
+				const template = renderer.renderTemplate(container);
+				disposables.add(toDisposable(() => renderer.disposeTemplate(template)));
+				// Instance-level counters on the row elements; rows are only read by the sticky scroll measurement.
+				for (const [element, key] of [[template.value, 'valueReads'], [template.rowContainer, 'rowReads']] as const) {
+					const measure = element.getBoundingClientRect.bind(element);
+					element.getBoundingClientRect = () => {
+						counters[key]++;
+						return measure();
+					};
+				}
+				renderer.renderElement(node(request), index, template);
+			});
+		};
+		const nextFrame = () => new Promise<void>(resolve => disposables.add(dom.scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+		return { disposables, renderer, renderRequests, ranges, counters, nextFrame };
+	}
+
+	test('sticky scroll source ranges are measured once per frame instead of during row render', async () => {
+		const { disposables, renderRequests, ranges, counters, nextFrame } = createStickyScrollRenderer(3);
+
+		renderRequests();
+		const duringRender = { valueReads: counters.valueReads, rowReads: counters.rowReads, estimated: ranges().map(range => range?.estimated) };
+		await nextFrame();
+		await nextFrame();
+
+		assert.deepStrictEqual({
+			duringRender,
+			afterFrame: ranges().map(range => ({ estimated: range?.estimated, measured: !!range && range.end < 1000 && range.end > range.start })),
+			refreshed: counters.stickyScrollRefreshes > 0,
+			measuredRows: counters.valueReads > 0,
+		}, {
+			duringRender: { valueReads: 0, rowReads: 0, estimated: [true, true, true] },
+			afterFrame: [
+				{ estimated: undefined, measured: true },
+				{ estimated: undefined, measured: true },
+				{ estimated: undefined, measured: true },
+			],
+			refreshed: true,
+			measuredRows: true,
+		});
+
+		disposables.dispose();
+	});
+
+	test('rows rendered inside an animation frame are measured and sticky scroll refreshed in that same frame', async () => {
+		const { disposables, renderRequests, counters, nextFrame } = createStickyScrollRenderer(3);
+
+		const sameFrame = await new Promise<{ refreshes: number; valueReads: number }>(resolve => {
+			disposables.add(dom.scheduleAtNextAnimationFrame(mainWindow, () => {
+				renderRequests();
+				// Queued behind this callback in the current frame, so settle after it ran.
+				disposables.add(dom.runAtThisOrScheduleAtNextAnimationFrame(mainWindow, () => resolve({
+					refreshes: counters.stickyScrollRefreshes,
+					valueReads: counters.valueReads,
+				}), -1000));
+			}));
+		});
+		await nextFrame();
+
+		assert.deepStrictEqual(sameFrame, { refreshes: 1, valueReads: 3 });
+
+		disposables.dispose();
+	});
+
+	test('a sticky scroll refresh that re-renders rows does not queue another pass in the same frame', async () => {
+		let renderRequestsAgain: () => void = () => { };
+		const { disposables, renderRequests, counters, nextFrame } = createStickyScrollRenderer(3, () => renderRequestsAgain());
+		renderRequestsAgain = renderRequests;
+
+		const sameFrame = await new Promise<{ refreshes: number; valueReads: number }>(resolve => {
+			disposables.add(dom.scheduleAtNextAnimationFrame(mainWindow, () => {
+				renderRequests();
+				disposables.add(dom.runAtThisOrScheduleAtNextAnimationFrame(mainWindow, () => resolve({
+					refreshes: counters.stickyScrollRefreshes,
+					valueReads: counters.valueReads,
+				}), -1000));
+			}));
+		});
+		await nextFrame();
+		await nextFrame();
+
+		// The refresh re-renders the rows, whose follow-up pass must wait for the next frame.
+		assert.deepStrictEqual(sameFrame, { refreshes: 1, valueReads: 3 });
+
+		disposables.dispose();
+	});
+
+	test('sticky scroll source range measurement applies the changed ranges in the same frame and settles', async () => {
+		const { disposables, renderRequests, counters, nextFrame } = createStickyScrollRenderer(3);
+
+		renderRequests();
+		renderRequests();
+		await nextFrame();
+		const afterMeasurementFrame = { valueReads: counters.valueReads, refreshes: counters.stickyScrollRefreshes };
+		for (let i = 0; i < 4; i++) {
+			await nextFrame();
+		}
+		const afterSettling = { valueReads: counters.valueReads, refreshes: counters.stickyScrollRefreshes };
+		for (let i = 0; i < 4; i++) {
+			await nextFrame();
+		}
+
+		// Rendering the 3 requests twice in one frame yields a single pass reading each request's current row once,
+		// with sticky scroll refreshed in that same frame. Later height-driven passes settle instead of looping.
+		assert.deepStrictEqual({
+			afterMeasurementFrame,
+			stable: { valueReads: counters.valueReads, refreshes: counters.stickyScrollRefreshes },
+		}, {
+			afterMeasurementFrame: { valueReads: 3, refreshes: 1 },
+			stable: afterSettling,
+		});
+
+		disposables.dispose();
+	});
+
+	test('disposing the renderer cancels the pending sticky scroll source range measurement', async () => {
+		const { disposables, renderer, renderRequests, counters, nextFrame } = createStickyScrollRenderer(2);
+
+		renderRequests();
+		renderer.dispose();
+		await nextFrame();
+		await nextFrame();
+
+		assert.deepStrictEqual(counters, { stickyScrollRefreshes: 0, valueReads: 0, rowReads: 0 });
 
 		disposables.dispose();
 	});
@@ -1764,7 +2006,7 @@ suite('ChatListRenderer', () => {
 		assert.deepStrictEqual({ whileStarting, afterStarting }, { whileStarting: true, afterStarting: false });
 	});
 
-	function createPersistentProgressRenderer(options: { thinkingStyle?: ThinkingDisplayMode; progressVerbosity?: ChatProgressVerbosity; chatMode?: ChatModeKind; collapsedTools?: CollapsedToolsDisplayMode; persistentProgress?: ChatProgressAnimation; dockPlanReview?: boolean; renderFooterActions?: boolean; sessionResource?: URI; rendererOptions?: IChatListItemRendererOptions; editingSession?: IChatEditingSession; chatWidgetService?: IChatWidgetService; requestText?: string; backgroundShellCount?: IObservable<number | undefined>; initialData?: ISerializedChatDataReference } = {}) {
+	function createPersistentProgressRenderer(options: { thinkingStyle?: ThinkingDisplayMode; progressVerbosity?: ChatProgressVerbosity; chatMode?: ChatModeKind; permissionLevel?: ChatPermissionLevel; collapsedTools?: CollapsedToolsDisplayMode; persistentProgress?: ChatProgressAnimation; dockPlanReview?: boolean; renderFooterActions?: boolean; sessionResource?: URI; rendererOptions?: IChatListItemRendererOptions; editingSession?: IChatEditingSession; chatWidgetService?: IChatWidgetService; requestText?: string; backgroundShellCount?: IObservable<number | undefined>; initialData?: ISerializedChatDataReference } = {}) {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(ILanguageModelsService, { onDidChangeLanguageModels: Event.None, lookupLanguageModel: () => undefined });
@@ -1832,7 +2074,10 @@ suite('ChatListRenderer', () => {
 		const request = options.initialData ? model.getRequests()[0] : model.addRequest({
 			text: requestText,
 			parts: [new ChatRequestTextPart(new OffsetRange(0, requestText.length), new Range(1, 1, 1, requestText.length + 1), requestText)],
-		}, { variables: [] }, 0);
+		}, { variables: [] }, 0, options.permissionLevel === undefined ? undefined : {
+			kind: ChatModeKind.Agent, isBuiltin: true, modeInstructions: undefined,
+			telemetryModeId: 'agent', applyCodeBlockSuggestionId: undefined, permissionLevel: options.permissionLevel,
+		});
 		const response = viewModel.getItems().find(isResponseVM);
 		assert.ok(response);
 
@@ -1900,6 +2145,103 @@ suite('ChatListRenderer', () => {
 		const node = { element: response, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
 		return { disposables, instantiationService, configurationService, model, viewModel, request, response, container, renderer, template, node };
 	}
+
+	suite('single-tool completed response collapse', () => {
+		async function addCompletionResponse({ model, request }: ReturnType<typeof createPersistentProgressRenderer>, serialized: boolean): Promise<void> {
+			for (const id of ['initial-work', 'follow-up-work', 'final-bookkeeping']) {
+				const tool = new ChatToolInvocation(
+					{ invocationMessage: id, pastTenseMessage: id },
+					{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
+					id, undefined, {},
+				);
+				await tool.didExecuteTool(undefined);
+				model.acceptResponseProgress(request, serialized ? tool.toJSON() : tool);
+				if (id !== 'initial-work') {
+					model.acceptResponseProgress(request, {
+						kind: 'markdownContent',
+						content: new MarkdownString(id === 'final-bookkeeping' ? 'Task completed.' : 'Detailed answer with the full analysis.'),
+					});
+				}
+			}
+		}
+
+		for (const permissionLevel of [undefined, ...Object.values(ChatPermissionLevel)]) {
+			for (const progress of [ChatProgressAnimation.Off, ChatProgressAnimation.Draw]) {
+				for (const initiallyComplete of [false, true]) {
+					test(`preserves the detailed answer in every permission mode (${permissionLevel}, ${progress}, restored=${initiallyComplete})`, async () => {
+						const setup = createPersistentProgressRenderer({ permissionLevel, persistentProgress: progress, chatMode: ChatModeKind.Agent });
+						const { disposables, configurationService, request, renderer, template, node } = setup;
+						configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
+						await addCompletionResponse(setup, initiallyComplete);
+						if (!initiallyComplete) {
+							renderer.renderElement(node, 0, template);
+						}
+						request.response?.complete();
+						renderer.renderElement(node, 0, template);
+						await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+						await timeout(0);
+						const disclosure = template.completedResponseDisclosure;
+						const visibleMarkdown = Array.from(template.value.querySelectorAll(':scope > .chat-markdown-part'), part => part.textContent?.trim());
+						assert.deepStrictEqual({
+							collapsed: disclosure?.open,
+							collapsedTools: disclosure?.querySelectorAll('.chat-tool-invocation-part').length,
+							visibleMarkdown,
+						}, {
+							collapsed: false,
+							collapsedTools: 2,
+							visibleMarkdown: ['Detailed answer with the full analysis.', 'Task completed.'],
+						});
+						disposables.dispose();
+					});
+				}
+			}
+		}
+
+		for (const permissionLevel of [ChatPermissionLevel.Default, ChatPermissionLevel.Autopilot]) {
+			for (const subagent of [false, true]) {
+				test(`keeps folding after a mode switch and history restoration (${permissionLevel}, subagent=${subagent})`, async () => {
+					const sessionResource = subagent ? getSubagentEditorResource({
+						parentSessionResource: 'custom-chat-ui://conversation/session?revision=stable',
+						chatResource: 'conversation://opaque/child',
+					}) : undefined;
+					const setup = createPersistentProgressRenderer({ sessionResource, permissionLevel });
+					const snapshot = ({ renderer, template, node }: ReturnType<typeof createPersistentProgressRenderer>) => {
+						renderer.renderElement(node, 0, template);
+						return {
+							collapsedTools: template.completedResponseDisclosure?.querySelectorAll('.chat-tool-invocation-part').length,
+							visibleMarkdown: Array.from(template.value.querySelectorAll(':scope > .chat-markdown-part'), part => part.textContent?.trim()),
+						};
+					};
+					setup.configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
+					await addCompletionResponse(setup, true);
+					setup.request.response?.complete();
+					const before = snapshot(setup);
+					const nextPermissionLevel = permissionLevel === ChatPermissionLevel.Autopilot ? ChatPermissionLevel.Default : ChatPermissionLevel.Autopilot;
+					setup.model.inputModel.setState({ permissionLevel: nextPermissionLevel });
+					const afterSwitch = snapshot(setup);
+					const value: unknown = revive(JSON.parse(JSON.stringify(setup.model.toJSON())));
+					assert.ok(isSerializableSessionData(value));
+					setup.disposables.dispose();
+
+					const restored = createPersistentProgressRenderer({ sessionResource, initialData: { value, serializer: new ChatSessionOperationLog() } });
+					restored.configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
+					const expected = { collapsedTools: 2, visibleMarkdown: ['Detailed answer with the full analysis.', 'Task completed.'] };
+					assert.deepStrictEqual({
+						before,
+						afterSwitch,
+						afterRestore: snapshot(restored),
+						restoredPermissionLevel: restored.model.inputModel.state.get()?.permissionLevel,
+					}, {
+						before: expected,
+						afterSwitch: expected,
+						afterRestore: expected,
+						restoredPermissionLevel: nextPermissionLevel,
+					});
+					restored.disposables.dispose();
+				});
+			}
+		}
+	});
 
 	suite('request summaries', () => {
 		for (const summary of ['Judge Instructions', 'Synthesis Instructions']) {
@@ -6679,8 +7021,9 @@ suite('ChatListRenderer', () => {
 	}
 
 	for (const fontSize of [10, 13, 18]) {
-		test(`persistent reasoning, tool groups, and answers share nested geometry (fontSize=${fontSize})`, async () => {
-			const { container, configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({ progressVerbosity: ChatProgressVerbosity.Compact });
+		test(`persistent reasoning, tool groups, answers, and subagents share nested geometry (fontSize=${fontSize})`, async () => {
+			const { container, instantiationService, configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({ progressVerbosity: ChatProgressVerbosity.Compact });
+			installSubagentPillRenderer(instantiationService);
 			configurePersistentProgressTypography(container, fontSize);
 			container.style.width = '360px';
 			configurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
@@ -6701,6 +7044,17 @@ suite('ChatListRenderer', () => {
 			}], true, undefined, { scope: { selectedValue: 'all' } }, true);
 			question.answerPresentation = 'conversation';
 			model.acceptResponseProgress(request, question);
+			const subagent = createSubagentTool('layout-agent', {
+				kind: 'subagent', description: 'Review the layout', hasStarted: true, isActive: true, isChatAvailable: true,
+				chatResource: 'ahp-chat://subagent/layout-agent',
+			});
+			model.acceptResponseProgress(request, subagent);
+			await subagent.didExecuteTool(undefined);
+			model.acceptResponseProgress(request, new ChatToolInvocation(
+				{ invocationMessage: 'Read the subagent renderer' },
+				{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
+				'subagent-read', subagent.toolCallId, {},
+			));
 			renderer.renderElement(node, 0, template);
 			for (const button of template.value.querySelectorAll<HTMLElement>('.chat-thinking-box.chat-used-context-collapsed > .chat-used-context-label .monaco-button')) {
 				button.click();
@@ -6715,6 +7069,7 @@ suite('ChatListRenderer', () => {
 				{ container: '.chat-tool-chain', hook: ':scope > .chat-used-context-label', pseudo: '::after', icon: '.chat-thinking-icon', text: '.progress-container p' },
 				{ container: '.chat-persistent-reasoning', hook: ':scope > .chat-used-context-label', pseudo: '::after', icon: '.chat-thinking-icon', text: '.chat-thinking-item p' },
 				{ container: '.chat-question-summary-item', hook: '.chat-question-summary-decision', pseudo: '::before', icon: '.chat-question-summary-answer-icon', text: '.chat-question-summary-decision .chat-question-summary-prefix' },
+				{ container: '.chat-subagent-pill-widget', hook: '.chat-subagent-pill-active-tool-connector', pseudo: undefined, icon: '.chat-subagent-pill-active-tool-icon', text: '.chat-subagent-pill-active-tool-label' },
 			];
 			const snapshots = [16, 24].map(indent => {
 				template.value.style.setProperty('--chat-persistent-nested-indent', `${indent}px`);
@@ -6726,22 +7081,31 @@ suite('ChatListRenderer', () => {
 					assert.ok(group && hook && icon && text);
 					const curve = mainWindow.getComputedStyle(hook, selectors.pseudo);
 					const hookBounds = hook.getBoundingClientRect();
+					const hookLeft = hookBounds.left + (selectors.pseudo ? parseFloat(curve.left) : 0);
+					const hookTop = hookBounds.top + (selectors.pseudo ? parseFloat(curve.top) : 0);
 					const iconBounds = icon.getBoundingClientRect();
 					const groupLeft = group.getBoundingClientRect().left;
 					return {
+						groupIndent: Math.round(groupLeft - template.value.getBoundingClientRect().left),
 						childIndent: Math.round(iconBounds.left - groupLeft - 2.4),
 						textIndent: Math.round(text.getBoundingClientRect().left - groupLeft),
-						railAligned: Math.abs(hookBounds.left + parseFloat(curve.left) + parseFloat(curve.borderLeftWidth) / 2 - groupLeft - 8.4) < 0.1,
-						iconClearance: Math.round(iconBounds.left - hookBounds.left - parseFloat(curve.left) - parseFloat(curve.width)),
-						hookCentered: Math.abs(hookBounds.top + parseFloat(curve.top) + parseFloat(curve.height) - parseFloat(curve.borderBottomWidth) / 2 - iconBounds.top - iconBounds.height / 2) < 0.1,
+						railAligned: Math.abs(hookLeft + parseFloat(curve.borderLeftWidth) / 2 - groupLeft - 8.4) < 0.1,
+						iconClearance: Math.round(iconBounds.left - hookLeft - parseFloat(curve.width)),
+						hookCentered: Math.abs(hookTop + parseFloat(curve.height) - parseFloat(curve.borderBottomWidth) / 2 - iconBounds.top - iconBounds.height / 2) < 0.1,
 						stroke: curve.borderLeftWidth,
 						radius: curve.borderBottomLeftRadius,
 					};
 				});
 			});
-			assert.deepStrictEqual(snapshots, [16, 24].map(indent => rows.map(() => ({
-				childIndent: indent, textIndent: indent + 24, railAligned: true, iconClearance: 4, hookCentered: true, stroke: '1px', radius: '6px',
-			}))));
+			const questionHeader = template.value.querySelector('.chat-question-summary-question')!;
+			const decision = template.value.querySelector('.chat-question-summary-decision')!;
+			const questionClearance = decision.getBoundingClientRect().top + parseFloat(mainWindow.getComputedStyle(decision, '::before').top) - questionHeader.getBoundingClientRect().bottom;
+			assert.deepStrictEqual({ snapshots, questionClearance }, {
+				snapshots: [16, 24].map(indent => rows.map(() => ({
+					groupIndent: 0, childIndent: indent, textIndent: indent + 24, railAligned: true, iconClearance: 4, hookCentered: true, stroke: '1px', radius: '6px',
+				}))),
+				questionClearance: 4,
+			});
 			request.response?.complete();
 			renderer.renderElement(node, 0, template);
 		});
@@ -7313,7 +7677,7 @@ suite('ChatListRenderer', () => {
 					assert.deepStrictEqual({ enabled, restoredOff: legacySnapshot() }, {
 						enabled: {
 							markdownWrapper: markdown, label: 'Edited', labelTop: 0, labelLeft: 24, rowHeight: nativeLineHeight + (includeProse ? fontSize * 3 + 32 : 0),
-							iconCentered: true, visibleToolIcons: 1, pillBaselineAligned: true, textGaps: [16, 16], blockGaps: includeProse ? [16, 16] : [], counts: ['+18', '-4'], focusablePill: true, insideDisclosure: completed,
+							iconCentered: true, visibleToolIcons: 1, pillBaselineAligned: true, textGaps: [16, 16], blockGaps: includeProse ? [16, 16] : [], counts: ['+18', '-4'], focusablePill: true, insideDisclosure: completed && !markdown,
 						},
 						restoredOff: before,
 					});
@@ -7539,13 +7903,15 @@ suite('ChatListRenderer', () => {
 			kind: 'markdownContent',
 			content: new MarkdownString('```typescript\n<vscode_codeblock_uri isEdit>file:///workspace/progress.ts</vscode_codeblock_uri>\nexport const enabled = true;\n```'),
 		});
-		const verify = new ChatToolInvocation(
-			{ invocationMessage: 'Verify the change' },
-			{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
-			'verify', undefined, {},
-		);
-		model.acceptResponseProgress(request, verify);
-		await verify.didExecuteTool(undefined);
+		for (const id of ['verify-renderer', 'verify-model']) {
+			const verify = new ChatToolInvocation(
+				{ invocationMessage: 'Verify the change' },
+				{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
+				id, undefined, {},
+			);
+			model.acceptResponseProgress(request, verify);
+			await verify.didExecuteTool(undefined);
+		}
 		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('The edit is ready to review.') });
 		request.response?.complete();
 		renderer.renderElement(node, 0, template);
@@ -12493,7 +12859,7 @@ suite('ChatListRenderer', () => {
 			{ id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal },
 			'launch', undefined, { mode: 'background' },
 		);
-		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Starting a background review.') });
+		model.acceptResponseProgress(request, { kind: 'progressMessage', content: new MarkdownString('Starting a background review.') });
 		model.acceptResponseProgress(request, invocation);
 		await invocation.didExecuteTool({ content: [{ kind: 'text', value: 'Agent started in background.' }] });
 		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Task completed.') });
@@ -12774,7 +13140,7 @@ suite('ChatListRenderer', () => {
 			assert.ok(subagent);
 			assert.strictEqual(IChatToolInvocation.confirmWith(invocation, { type: ToolConfirmKind.UserAction }), true);
 			await invocation.didExecuteTool(undefined);
-			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Parent work finished.') });
+			model.acceptResponseProgress(request, { kind: 'progressMessage', content: new MarkdownString('Parent work finished.') });
 			const ordinary = new ChatToolInvocation(
 				{ invocationMessage: 'Final check', pastTenseMessage: 'Checked work' },
 				{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
@@ -12909,7 +13275,7 @@ suite('ChatListRenderer', () => {
 		const invocation = createSubagentTool('launch', data);
 		model.acceptResponseProgress(request, invocation);
 		await invocation.didExecuteTool(undefined);
-		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Parent work finished.') });
+		model.acceptResponseProgress(request, { kind: 'progressMessage', content: new MarkdownString('Parent work finished.') });
 		const ordinary = new ChatToolInvocation(
 			{ invocationMessage: 'Final check', pastTenseMessage: 'Checked work' },
 			{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
@@ -12998,7 +13364,7 @@ suite('ChatListRenderer', () => {
 			text: 'next',
 			parts: [new ChatRequestTextPart(new OffsetRange(0, 4), new Range(1, 1, 1, 5), 'next')],
 		}, { variables: [] }, 0);
-		model.acceptResponseProgress(replacementRequest, { kind: 'markdownContent', content: new MarkdownString('Replacement work.') });
+		model.acceptResponseProgress(replacementRequest, { kind: 'progressMessage', content: new MarkdownString('Replacement work.') });
 		const ordinary = new ChatToolInvocation(
 			{ invocationMessage: 'Replacement check', pastTenseMessage: 'Checked replacement' },
 			{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },

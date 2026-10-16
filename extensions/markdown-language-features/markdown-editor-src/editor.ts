@@ -123,6 +123,7 @@ class Editor extends Disposable {
 	#rename: RenameController | undefined;
 	#completion: CompletionController | undefined;
 	#diagnostics: DiagnosticsController | undefined;
+	#imagePaste: ImagePasteController | undefined;
 	#view: EditorView | undefined;
 	#embeddedCodeEditorFactory: LazyCodeBlockEditorFactory | undefined;
 	/** Identifies the authoritative text baseline against which local edits are computed. */
@@ -182,6 +183,10 @@ class Editor extends Disposable {
 		this.model.readonlyMode.set(initialState.readonly, undefined);
 
 		this._register(this.#connection.register(markdownEditorRenderer, {
+			readClipboardMedia: (request, _context, { signal }) => {
+				if (!this.#imagePaste) { throw new Error('The Markdown editor is not ready to paste media.'); }
+				return this.#imagePaste.readClipboardMedia(request, signal);
+			},
 			diagnosticsChanged: () => this.#diagnostics?.refresh(),
 			update: ({ content, editEpoch }) => {
 				// Applying authoritative text maps selection and clears stale pending-paragraph state.
@@ -447,7 +452,7 @@ class Editor extends Disposable {
 		// the TextDocument owns the history, and a second local stack would drift
 		// from the Edit menu, dirty state and hot exit.
 		this.#controller = this._register(new EditorController(model, view, {
-			clipboardStrategy: this._register(new ImagePasteController(model, view, this.#host, () => this.#editEpoch)),
+			clipboardStrategy: this.#imagePaste = this._register(new ImagePasteController(model, view, this.#host, () => this.#editEpoch)),
 			keyboardProfile: vscodeLocalKeyboardProfile,
 			forwardedKeyboardProfile: vscodeHostKeyboardProfile,
 			historyStrategy: {

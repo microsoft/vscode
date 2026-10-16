@@ -50,6 +50,7 @@ import { chatSessionResourceToId, LocalChatSessionUri } from './chatUri.js';
 import { ObjectMutationLog } from './objectMutationLog.js';
 import type { ICanvasContext } from '../../../canvases/common/canvas.js';
 import type { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
+import type { IAgentModelConfigurationReport } from '../../../../../platform/agentHost/common/agentModelConfiguration.js';
 
 
 /**
@@ -1364,6 +1365,8 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	public readonly id: string;
 	public readonly requestId: string;
 	private _session: ChatModel;
+	/** Last known position of the owning request, so {@link request} avoids a scan per call. Parity with `find()` assumes request ids are unique. */
+	private _requestIndexHint = 0;
 	private _agent: IChatAgentData | undefined;
 	private _slashCommand: IChatAgentCommand | undefined;
 	private _modelState = observableValue<ResponseModelStateT>(this, { value: ResponseModelState.Pending });
@@ -1389,7 +1392,17 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	}
 
 	public get request(): IChatRequestModel | undefined {
-		return this.session.getRequests().find(r => r.id === this.requestId);
+		const requests = this.session.getRequests();
+		const hinted = requests[this._requestIndexHint];
+		if (hinted?.id === this.requestId) {
+			return hinted;
+		}
+		const index = requests.findIndex(r => r.id === this.requestId);
+		if (index === -1) {
+			return undefined;
+		}
+		this._requestIndexHint = index;
+		return requests[index];
 	}
 
 	public get session() {
@@ -2034,6 +2047,7 @@ export interface IChatModel extends IDisposable {
 	readonly isReadOnly: IObservable<boolean>;
 	readonly isInputBlocked: IObservable<boolean>;
 	readonly historyStatus?: IObservable<IChatSessionHistoryStatus | undefined>;
+	readonly modelConfigurationState?: IObservable<IAgentModelConfigurationReport | undefined>;
 	/** Provider-reported active shells across all turns; undefined allows transcript-based detection. */
 	readonly backgroundShellCount?: IObservable<number | undefined>;
 	readonly canvasContext?: IObservable<ICanvasContext | undefined>;
@@ -2895,6 +2909,7 @@ export class ChatModel extends Disposable implements IChatModel {
 	readonly isReadOnly: IObservable<boolean>;
 	readonly isInputBlocked: IObservable<boolean>;
 	readonly historyStatus: IObservable<IChatSessionHistoryStatus | undefined>;
+	readonly modelConfigurationState: IObservable<IAgentModelConfigurationReport | undefined> | undefined;
 	readonly backgroundShellCount: IObservable<number | undefined> | undefined;
 	readonly canvasContext: IObservable<ICanvasContext | undefined> | undefined;
 
@@ -3012,7 +3027,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	constructor(
 		dataRef: ISerializedChatDataReference | undefined,
-		initialModelProps: { initialLocation: ChatAgentLocation; canUseTools: boolean; sessionTypeSelectionReason?: SessionTypeSelectionReason; inputState?: ISerializableChatModelInputState; resource?: URI; disableBackgroundKeepAlive?: boolean; isReadOnly?: IObservable<boolean>; isInputBlocked?: IObservable<boolean>; historyStatus?: IObservable<IChatSessionHistoryStatus | undefined>; backgroundShellCount?: IObservable<number | undefined>; canvasContext?: IObservable<ICanvasContext | undefined> },
+		initialModelProps: { initialLocation: ChatAgentLocation; canUseTools: boolean; sessionTypeSelectionReason?: SessionTypeSelectionReason; inputState?: ISerializableChatModelInputState; resource?: URI; disableBackgroundKeepAlive?: boolean; isReadOnly?: IObservable<boolean>; isInputBlocked?: IObservable<boolean>; historyStatus?: IObservable<IChatSessionHistoryStatus | undefined>; modelConfigurationState?: IObservable<IAgentModelConfigurationReport | undefined>; backgroundShellCount?: IObservable<number | undefined>; canvasContext?: IObservable<ICanvasContext | undefined> },
 		@ILogService private readonly logService: ILogService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
@@ -3074,6 +3089,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		this.isReadOnly = initialModelProps.isReadOnly ?? constObservable(false);
 		this.isInputBlocked = initialModelProps.isInputBlocked ?? constObservable(false);
 		this.historyStatus = initialModelProps.historyStatus ?? constObservable(undefined);
+		this.modelConfigurationState = initialModelProps.modelConfigurationState;
 		this.backgroundShellCount = initialModelProps.backgroundShellCount;
 		this.canvasContext = initialModelProps.canvasContext;
 

@@ -6,12 +6,14 @@
 import '../media/automationsCards.css';
 import './automationsAccessibility.js';
 import * as DOM from '../../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Button, ButtonBar, IButton } from '../../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { disposableTimeout } from '../../../../../base/common/async.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
@@ -26,7 +28,7 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import type { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { type AutomationCatalogueState, type IAutomationProviderDescriptor, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { type AutomationCatalogueState, type IAutomationProviderDescriptor, type IAutomationRefreshOptions, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationRunner } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { type AutomationDialogCreateInitialValues, IAutomationDialogService } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
@@ -131,6 +133,8 @@ interface IAutomationCardEntry {
 	readonly canUpdateContext: IContextKey<boolean>;
 	readonly enabledContext: IContextKey<boolean>;
 	readonly nameText: HTMLElement;
+	readonly startingIcon: HTMLElement;
+	readonly startingRuns: ISettableObservable<ReadonlySet<string> | undefined>;
 	readonly scheduleEl: HTMLElement;
 	readonly folderEl: HTMLElement;
 	readonly folderHover: MutableDisposable<IDisposable>;
@@ -209,7 +213,6 @@ export class AutomationsCardsWidget extends Disposable {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
-		@INotificationService private readonly notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
 	) {
 		super();
@@ -282,7 +285,24 @@ export class AutomationsCardsWidget extends Disposable {
 			}
 			this.historySection.render(allRuns, sessions);
 		}));
-		void refreshAutomations(this.automationService, this.logService, this.notificationService);
+		const refreshScheduler = this._register(new RunOnceScheduler(() => {
+			void refresh();
+		}, 60_000));
+		const refresh = async (): Promise<void> => {
+			refreshScheduler.cancel();
+			await refreshAutomations(this.automationService, this.logService, undefined, { background: true });
+			if (!this._store.isDisposed && !this.automationService.isRefreshing?.get()) {
+				refreshScheduler.schedule();
+			}
+		};
+		this._register(autorun(reader => {
+			if (this.automationService.isRefreshing?.read(reader)) {
+				refreshScheduler.cancel();
+			} else {
+				refreshScheduler.schedule();
+			}
+		}));
+		void refresh();
 	}
 
 	layout(width: number, height: number): void {
@@ -648,6 +668,8 @@ class AutomationCardsSection extends Disposable {
 
 		const nameRow = DOM.append(main, $('.automations-card-name'));
 		const nameTextEl = DOM.append(nameRow, $('span.automations-card-name-text'));
+		const startingIcon = DOM.append(nameRow, $('span' + ThemeIcon.asCSSSelector(ThemeIcon.modify(Codicon.loading, 'spin')), { 'aria-hidden': 'true' }));
+		const startingRuns = observableValue<ReadonlySet<string> | undefined>(this, undefined);
 
 		const promptEl = DOM.append(main, $('.automations-card-prompt'));
 		const promptHover = disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), promptEl, () => promptEl.textContent ?? ''));
@@ -667,24 +689,17 @@ class AutomationCardsSection extends Disposable {
 		actions.setAttribute('role', 'group');
 		const buttonBar = disposables.add(new ButtonBar(actions));
 		const runNowLabel = localize('runNow', "Run now");
-		const runningLabel = localize('running', "Running");
 		const runBtn = this.createIconButton(buttonBar, Codicon.play, runNowLabel, !this.automationService.canRunAutomation(automation.id));
 		runBtn.element.classList.add('automations-card-run-button');
 		disposables.add(runBtn.onDidClick((e) => {
 			e?.stopPropagation();
 			const currentAutomation = this.latestAutomations.get(automation.id);
-			if (!currentAutomation || !this.automationService.canRunAutomation(automation.id)) {
+			if (!currentAutomation || startingRuns.get() || !this.automationService.canRunAutomation(automation.id)) {
 				return;
 			}
-			runBtn.enabled = false;
-			runBtn.setAriaLabel(runningLabel);
-			runBtn.setTitle(runningLabel);
-			disposableTimeout(() => {
-				runBtn.enabled = this.automationService.canRunAutomation(automation.id);
-				runBtn.setAriaLabel(runNowLabel);
-				runBtn.setTitle(runNowLabel);
-			}, 10_000, disposables);
-			void this.runNow(currentAutomation);
+			startingRuns.set(new Set(this.automationService.runs.get().map(run => run.id)), undefined);
+			status(localize('automationStartingStatus', "Starting automation {0}", currentAutomation.name));
+			void this.runNow(currentAutomation, entry);
 		}));
 
 		const moreActionsButton = this.createIconButton(buttonBar, Codicon.kebabVertical, localize('moreActions', "More Actions..."), false);
@@ -737,6 +752,8 @@ class AutomationCardsSection extends Disposable {
 			canUpdateContext,
 			enabledContext,
 			nameText: nameTextEl,
+			startingIcon,
+			startingRuns,
 			scheduleEl,
 			folderEl,
 			folderHover,
@@ -744,12 +761,23 @@ class AutomationCardsSection extends Disposable {
 			disposables,
 		};
 		this.updateCard(entry, automation);
+		disposables.add(autorun(reader => {
+			const starting = startingRuns.read(reader);
+			const runs = this.automationService.runs.read(reader);
+			const state = this.automationService.catalogueState.read(reader);
+			const historyState = this.automationService.historyState?.read(reader);
+			if (starting && (runs.some(run => run.automationId === automation.id && !starting.has(run.id))
+				|| (state === 'unavailable' && !this.automationService.canRunAutomation(automation.id)) || state === 'error' || historyState === 'error')) {
+				startingRuns.set(undefined, undefined);
+			}
+			this.updateCardRunState(entry, this.latestAutomations.get(automation.id) ?? automation);
+		}));
 		return entry;
 	}
 
 	private updateCard(card: IAutomationCardEntry, automation: IAutomationDescriptor, previous?: IAutomationDescriptor): void {
 		card.main.disabled = !this.automationService.canUpdateAutomation(automation.id);
-		card.runButton.enabled = this.automationService.canRunAutomation(automation.id);
+		this.updateCardRunState(card, automation);
 		card.canDeleteContext.set(this.automationService.canDeleteAutomation(automation.id));
 		card.hasExternalResourceContext.set(automation.externalResource !== undefined);
 		card.canUpdateContext.set(this.automationService.canUpdateAutomation(automation.id));
@@ -791,10 +819,16 @@ class AutomationCardsSection extends Disposable {
 				? this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), card.folderEl, folderLabel)
 				: undefined;
 		}
+	}
 
-		if (!previous || previous.prompt !== automation.prompt) {
-			card.promptEl.textContent = automation.prompt;
-		}
+	private updateCardRunState(card: IAutomationCardEntry, automation: IAutomationDescriptor): void {
+		const starting = card.startingRuns.get() !== undefined;
+		card.startingIcon.style.display = starting ? '' : 'none';
+		card.promptEl.textContent = starting ? localize('automationStarting', "Starting run...") : automation.prompt;
+		card.runButton.enabled = !starting && this.automationService.canRunAutomation(automation.id);
+		const label = starting ? localize('running', "Running") : localize('runNow', "Run now");
+		card.runButton.setAriaLabel(label);
+		card.runButton.setTitle(label);
 	}
 
 	private createIconButton(buttonBar: ButtonBar, icon: ThemeIcon, tooltip: string, disabled: boolean): IButton {
@@ -809,15 +843,17 @@ class AutomationCardsSection extends Disposable {
 		return button;
 	}
 
-	private async runNow(automation: IAutomationDescriptor): Promise<void> {
-		if (!await this.ensureEnabled()) {
-			return;
-		}
+	private async runNow(automation: IAutomationDescriptor, card: IAutomationCardEntry): Promise<void> {
+		let accepted = false;
 		try {
+			if (!await this.ensureEnabled()) {
+				return;
+			}
 			const operation = this.automationRunner.runOnce(automation, CancellationToken.None);
 			const dispatch = await operation.whenDispatched;
 			switch (dispatch.kind) {
 				case 'accepted':
+					accepted = true;
 					status(localize('automationAcceptedStatus', "Run requested for {0}. Its history will update when available.", automation.name));
 					break;
 				case 'started':
@@ -830,13 +866,21 @@ class AutomationCardsSection extends Disposable {
 					status(localize('automationNotStartedStatus', "Automation {0} did not start", automation.name));
 					break;
 			}
+			if (!accepted) {
+				card.startingRuns.set(undefined, undefined);
+			}
 			await operation.whenCompleted;
 		} catch (error) {
+			accepted = false;
 			this.logService.error('[AutomationsCards] Failed to run automation', error);
 			await this.dialogService.error(
 				localize('automationRunActionFailed', "Failed to run automation."),
 				getErrorMessage(error),
 			);
+		} finally {
+			if (!accepted) {
+				card.startingRuns.set(undefined, undefined);
+			}
 		}
 	}
 
@@ -1368,6 +1412,7 @@ class AutomationHistorySection extends Disposable {
 		@IHoverService private readonly hoverService: IHoverService,
 		@IChatService chatService: IChatService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
 		this.chatModels = chatService.chatModels.map(models => [...models]);
@@ -1495,7 +1540,7 @@ class AutomationHistorySection extends Disposable {
 		this.markAllButton.label = localize('markAllRead', "Mark all as read");
 		this.markAllButton.element.classList.add('automations-mark-all-read');
 		this.headerDisposables.add(this.markAllButton.onDidClick(() => {
-			void this.markAllRunsRead(this.currentRuns.get());
+			void this.markAllRunsRead();
 		}));
 		this.headerDisposables.add(autorun(reader => {
 			const runs = this.currentRuns.read(reader);
@@ -1959,25 +2004,12 @@ class AutomationHistorySection extends Disposable {
 		this.shouldRestoreFocus = false;
 	}
 
-	private async markAllRunsRead(runs: readonly IAutomationRun[]): Promise<void> {
+	private async markAllRunsRead(): Promise<void> {
 		this.isMarkingAllRead.set(true, undefined);
-		const sessions = new Map<string, ISession>();
 		try {
-			for (const run of runs) {
-				const projected = this.currentSessions.get().get(run.id);
-				if (projected && (projected.status.get() === SessionStatus.Completed || projected.status.get() === SessionStatus.Error) && run.sessionResource) {
-					const session = this.sessionsManagementService.getSession(run.sessionResource);
-					if (session && !session.isRead.get()) {
-						sessions.set(session.resource.toString(), session);
-					}
-				}
-			}
-			await this.sessionsManagementService.markAllRead([...sessions.values()]);
-		} catch (error) {
-			this.logService.error('[AutomationsCards] Failed to mark automation runs read', error);
-			await this.dialogService.error(
-				localize('automationMarkAllReadFailed', "Failed to mark automation runs as read."),
-				getErrorMessage(error),
+			await markAllAutomationRunsRead(
+				this.automationService, this.sessionsManagementService, this.uriIdentityService,
+				this.chatModels.get(), this.logService, this.dialogService,
 			);
 		} finally {
 			this.isMarkingAllRead.set(false, undefined);
@@ -1988,6 +2020,48 @@ class AutomationHistorySection extends Disposable {
 //#endregion
 
 //#region Helpers
+
+async function markAllAutomationRunsRead(
+	automationService: IAutomationService,
+	sessionsManagementService: ISessionsManagementService,
+	uriIdentityService: IUriIdentityService,
+	chatModels: Iterable<IChatModel>,
+	logService: ILogService,
+	dialogService: IDialogService,
+): Promise<void> {
+	try {
+		const runs = automationService.runs.get();
+		const models = [...chatModels];
+		const sessionsByResource = new Map(sessionsManagementService.getSessions().map(session => [
+			uriIdentityService.extUri.getComparisonKey(session.resource), session,
+		]));
+		const unreadSessions = new Map<string, ISession>();
+		for (const run of runs) {
+			if (!run.sessionResource) {
+				continue;
+			}
+			const key = uriIdentityService.extUri.getComparisonKey(run.sessionResource);
+			const session = sessionsByResource.get(key);
+			if (!session || session.isRead.get()) {
+				continue;
+			}
+			const progress = automationRunWithLocalProgress(run, models);
+			const completed = run.externalResource
+				? progress.status === 'completed' || progress.status === 'failed'
+				: session.status.get() === SessionStatus.Completed || session.status.get() === SessionStatus.Error;
+			if (completed) {
+				unreadSessions.set(key, session);
+			}
+		}
+		await sessionsManagementService.markAllRead([...unreadSessions.values()]);
+	} catch (error) {
+		logService.error('[AutomationsCards] Failed to mark automation runs read', error);
+		await dialogService.error(
+			localize('automationMarkAllReadFailed', "Failed to mark automation runs as read."),
+			getErrorMessage(error),
+		);
+	}
+}
 
 function isUnreadAutomationRun(run: IAutomationRun, session: ISession | undefined, reader: IReader): boolean {
 	const state = run.externalResource ? session?.status.read(reader) : undefined;
@@ -2356,7 +2430,9 @@ export class AutomationsCustomViewContribution extends Disposable {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
-			return instantiationService.createInstance(AutomationHeaderButtonActionViewItem, undefined, action, options, true);
+			const refreshing = derived(reader => automationService.isRefreshing?.read(reader)
+				|| automationService.catalogueState.read(reader) === 'loading');
+			return instantiationService.createInstance(AutomationHeaderButtonActionViewItem, undefined, action, options, true, refreshing);
 		}));
 	}
 }
@@ -2444,23 +2520,63 @@ function registerAutomationHistoryItemActions(archiveWording: ChatSessionArchive
 class AutomationHeaderButtonActionViewItem extends BaseActionViewItem {
 
 	private button: Button | undefined;
+	private refreshRequested = false;
+	private actionRunning = false;
 
-	constructor(context: unknown, action: IAction, options: IActionViewItemOptions, private readonly secondary: boolean) {
+	constructor(context: unknown, action: IAction, options: IActionViewItemOptions, private readonly secondary: boolean, private readonly refreshing?: IObservable<boolean>) {
 		super(context, action, options);
 	}
 
 	override render(container: HTMLElement): void {
 		this.element = container;
 		container.classList.add('chat-pill-item');
-		const button = this.button = this._register(new Button(container, { secondary: this.secondary, ...defaultButtonStyles }));
+		const button = this.button = this._register(new Button(container, { secondary: this.secondary, supportIcons: !!this.refreshing, ariaLabel: this._action.label, title: this._action.label, ...defaultButtonStyles }));
 		button.element.classList.add('monaco-text-button', 'chat-pill-button');
-		this._register(button.onDidClick(() => {
-			if (this._action.enabled) {
-				this.actionRunner.run(this._action, this._context);
+		for (const type of [DOM.EventType.KEY_DOWN, DOM.EventType.KEY_UP]) {
+			this._register(DOM.addDisposableListener(button.element, type, event => {
+				const keyEvent = new StandardKeyboardEvent(event);
+				if (!button.enabled && (keyEvent.equals(KeyCode.Enter) || keyEvent.equals(KeyCode.Space))) {
+					DOM.EventHelper.stop(event, true);
+				}
+			}));
+		}
+		this._register(button.onDidClick(async () => {
+			if (!button.enabled) {
+				return;
+			}
+			if (this.refreshing) {
+				this.refreshRequested = true;
+				this.updateLabel();
+				this.updateEnabled();
+				if (this.refreshing.get()) {
+					return;
+				}
+			}
+			this.actionRunning = true;
+			this.updateLabel();
+			try {
+				await this.actionRunner.run(this._action, this._context);
+			} finally {
+				this.actionRunning = false;
+				if (!this.refreshing?.get()) {
+					this.refreshRequested = false;
+				}
+				this.updateLabel();
+				this.updateEnabled();
 			}
 		}));
 		this.updateLabel();
 		this.updateEnabled();
+		const refreshing = this.refreshing;
+		if (refreshing) {
+			this._register(autorun(reader => {
+				if (!refreshing.read(reader) && !this.actionRunning) {
+					this.refreshRequested = false;
+				}
+				this.updateLabel();
+				this.updateEnabled();
+			}));
+		}
 	}
 
 	// Focus must restore the tab stop that `blur` removed, otherwise arrow
@@ -2470,25 +2586,56 @@ class AutomationHeaderButtonActionViewItem extends BaseActionViewItem {
 	override setFocusable(focusable: boolean): void { if (this.button) { this.button.element.tabIndex = focusable ? 0 : -1; } }
 
 	protected override updateEnabled(): void {
-		if (this.button) { this.button.enabled = this._action.enabled; }
+		if (this.button) {
+			const tabIndex = this.button.element.tabIndex;
+			this.button.enabled = this._action.enabled && !this.refreshRequested;
+			this.button.element.tabIndex = tabIndex;
+		}
 	}
 
 	protected override updateLabel(): void {
 		if (!this.button) { return; }
+		if (this.refreshing) {
+			const busy = this.refreshRequested;
+			this.button.element.setAttribute('aria-busy', String(busy));
+			this.button.label = `$(${busy ? ThemeIcon.modify(Codicon.loading, 'spin').id : Codicon.refresh.id})`;
+			return;
+		}
 		DOM.reset(this.button.element, this._action.label);
 	}
 }
 
-async function refreshAutomations(automationService: IAutomationService, logService: ILogService, notificationService: INotificationService): Promise<void> {
+async function refreshAutomations(automationService: IAutomationService, logService: ILogService, notificationService?: INotificationService, options?: IAutomationRefreshOptions): Promise<void> {
 	try {
-		await automationService.refresh?.();
+		await automationService.refresh?.(options);
 	} catch (error) {
 		if (!isCancellationError(error)) {
 			logService.error('[Automations] Failed to refresh', error);
-			notificationService.error(localize('automationsRefreshFailed', "Could not refresh automations: {0}", getErrorMessage(error)));
+			notificationService?.error(localize('automationsRefreshFailed', "Could not refresh automations: {0}", getErrorMessage(error)));
 		}
 	}
 }
+
+registerAction2(class MarkAllAutomationRunsReadAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.automations.markAllRead',
+			title: localize2('markAllAutomationRunsRead', "Mark All as Read"),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext),
+			menu: {
+				id: Menus.AutomationsContext,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext),
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		await markAllAutomationRunsRead(
+			accessor.get(IAutomationService), accessor.get(ISessionsManagementService), accessor.get(IUriIdentityService),
+			accessor.get(IChatService).chatModels.get(), accessor.get(ILogService), accessor.get(IDialogService),
+		);
+	}
+});
 
 MenuRegistry.appendMenuItem(Menus.CustomViewAutomations, {
 	submenu: Menus.AutomationsViewSettings,

@@ -140,6 +140,35 @@ export class CompatibleSessionDatabase implements ISessionDatabase {
 		return result.map(record => ({ ...record, chatUri: this.identity.toRuntime(record.chatUri), payload: this.identity.turnPayload(record.payload, 'runtime') }));
 	}
 
+	async getPersistedTurnsForChat(...[chatUri]: Parameters<ISessionDatabase['getPersistedTurnsForChat']>): ReturnType<ISessionDatabase['getPersistedTurnsForChat']> {
+		const result = await this.raw.getPersistedTurnsForChat(this.identity.toStorage(chatUri));
+		return result.map(record => ({ ...record, chatUri: this.identity.toRuntime(record.chatUri), payload: this.identity.turnPayload(record.payload, 'runtime') }));
+	}
+
+	async getTurnsWithCheckpointRefs(...[]: Parameters<ISessionDatabase['getTurnsWithCheckpointRefs']>): ReturnType<ISessionDatabase['getTurnsWithCheckpointRefs']> {
+		return this.raw.getTurnsWithCheckpointRefs();
+	}
+
+	async getMaxTurnRowid(...[]: Parameters<ISessionDatabase['getMaxTurnRowid']>): ReturnType<ISessionDatabase['getMaxTurnRowid']> {
+		return this.raw.getMaxTurnRowid();
+	}
+
+	async setForeignRows(...[ownerChat, turnIds]: Parameters<ISessionDatabase['setForeignRows']>): ReturnType<ISessionDatabase['setForeignRows']> {
+		return this.raw.setForeignRows(this.identity.toStorage(ownerChat), turnIds);
+	}
+
+	async getMetadataByPrefix(...[prefix]: Parameters<ISessionDatabase['getMetadataByPrefix']>): ReturnType<ISessionDatabase['getMetadataByPrefix']> {
+		const result = await this.raw.getMetadataByPrefix(this.identity.metadataKey(prefix, 'storage'));
+		return Object.fromEntries(Object.entries(result).map(([key, value]) => {
+			const runtimeKey = this.identity.metadataKey(key, 'runtime');
+			return [runtimeKey, this.identity.metadata(runtimeKey, value, 'runtime')!];
+		}));
+	}
+
+	async applyMetadataChanges(...[set, remove]: Parameters<ISessionDatabase['applyMetadataChanges']>): ReturnType<ISessionDatabase['applyMetadataChanges']> {
+		return this.raw.applyMetadataChanges(this.identity.metadataValues(set, 'storage'), remove.map(key => this.identity.metadataKey(key, 'storage')));
+	}
+
 	async deletePersistedTurns(...[turnIds]: Parameters<ISessionDatabase['deletePersistedTurns']>): ReturnType<ISessionDatabase['deletePersistedTurns']> {
 		const result = await this.raw.deletePersistedTurns(turnIds);
 		return result;

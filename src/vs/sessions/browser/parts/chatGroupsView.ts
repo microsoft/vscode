@@ -146,6 +146,14 @@ export class ChatGroupsView extends Themable {
 		// Snapshot the outgoing session's layout (captures final grid sizes) before tearing it down.
 		this._persistLayout();
 
+		// A lone group's view (and the chat widget inside it) is expensive to build, so hand it to the
+		// next session instead of tearing it down. ChatGroupView.setContext rebinds all per-session state.
+		let reusableView: ChatGroupView | undefined;
+		if (session && this._session && this._groups.length === 1) {
+			reusableView = this._groups[0].view;
+			this._groupDisposables.get(this._groups[0].id)?.deleteAndLeak(reusableView);
+		}
+
 		this._session = session;
 
 		const store = new DisposableStore();
@@ -169,12 +177,28 @@ export class ChatGroupsView extends Themable {
 			this.element.replaceChildren();
 			return;
 		}
+		// Ownership invariant: the view is owned by exactly one store. Here it is the session store (so it
+		// is disposed if setup throws or the layout is restored); takeReusableView hands it to the group store.
+		store.add(toDisposable(() => reusableView?.dispose()));
+		// Disposing the previous session store detached the old grid together with the reused view. Re-attach
+		// the view before it is rebound: a detached chat list measures every row as 0px and can spin forever.
+		if (reusableView) {
+			this.element.replaceChildren(reusableView.element);
+		}
 
 		this._mainChatResource = derived(reader => session.mainChat.read(reader).resource.toString());
 
+		const takeReusableView = () => {
+			const view = reusableView;
+			reusableView = undefined;
+			return view;
+		};
 		const grid = session.isCreated.get()
-			? this._tryRestoreLayout(session, store) ?? this._createSingleGroupGrid(session, store)
-			: this._createSingleGroupGrid(session, store);
+			? this._tryRestoreLayout(session, store) ?? this._createSingleGroupGrid(session, store, takeReusableView())
+			: this._createSingleGroupGrid(session, store, takeReusableView());
+		// A restored layout never claims the reusable view; release it now instead of keeping it detached.
+		reusableView?.dispose();
+		reusableView = undefined;
 		this._grid = grid;
 		store.add(grid);
 		this.element.replaceChildren(grid.element);
@@ -199,8 +223,8 @@ export class ChatGroupsView extends Themable {
 		this._applyLayout();
 	}
 
-	private _createSingleGroupGrid(session: IActiveSession, store: DisposableStore): SerializableGrid<ChatGroupView> {
-		const firstGroup = this._createGroupEntry(session);
+	private _createSingleGroupGrid(session: IActiveSession, store: DisposableStore, reusableView?: ChatGroupView): SerializableGrid<ChatGroupView> {
+		const firstGroup = this._createGroupEntry(session, reusableView);
 		this._groups = [firstGroup];
 		this._activeGroup = firstGroup;
 		firstGroup.view.setGroupActive(true);
@@ -282,12 +306,21 @@ export class ChatGroupsView extends Themable {
 		return grid;
 	}
 
-	private _createGroupEntry(session: IActiveSession): IGroupEntry {
+	private _createGroupEntry(session: IActiveSession, reusableView?: ChatGroupView): IGroupEntry {
 		const id = this._nextGroupId++;
 		const store = new DisposableStore();
 		this._groupDisposables.set(id, store);
-		const resourceIds = observableValue<string[]>(`chatGroup.${id}.resourceIds`, []);
-		const activeResourceId = observableValue<string>(`chatGroup.${id}.activeResourceId`, '');
+		// Register the view first so a throw below leaves it owned by this group store (never orphaned).
+		const view = store.add(reusableView ?? this._instantiationService.createInstance(ChatGroupView));
+		// A reused view must not see an empty group before the first reconcile, or it would swap its
+		// chat view for a composer. Seed what reconcile would assign to a lone group anyway.
+		const activeChat = reusableView ? session.activeChat.get() : undefined;
+		const visibleIds = reusableView ? session.visibleChatTabs.get().map(chat => chat.resource.toString()) : [];
+		const activeId = activeChat?.resource.toString();
+		const seededActive = activeId !== undefined && visibleIds.includes(activeId) ? activeId : undefined;
+		const seededIds = seededActive === undefined ? [] : this.showChatAsSessionView.get() ? [seededActive] : visibleIds;
+		const resourceIds = observableValue<string[]>(`chatGroup.${id}.resourceIds`, seededIds);
+		const activeResourceId = observableValue<string>(`chatGroup.${id}.activeResourceId`, seededActive ?? '');
 		const pinnedResourceId = observableValue<string | undefined>(`chatGroup.${id}.pinnedResourceId`, undefined);
 
 		const chats = derived<readonly IChat[]>(reader => {
@@ -317,7 +350,6 @@ export class ChatGroupsView extends Themable {
 		const showSessionActions = derived(reader => this._singleGroupTabsReplaceHeader.read(reader) && this._groupCount.read(reader) === 1 && tabsVisible.read(reader));
 		const activeChatIsPinned = derived(reader => pinnedResourceId.read(reader) === activeResourceId.read(reader));
 
-		const view = store.add(this._instantiationService.createInstance(ChatGroupView));
 		const entry: IGroupEntry = { id, view, resourceIds, activeResourceId, pinnedResourceId, chats, tabsVisible };
 
 		// Focusing a group promotes it to active and, when the layout is in the

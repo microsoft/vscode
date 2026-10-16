@@ -14,7 +14,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { AgentSession } from '../../../../../platform/agentHost/common/agent.js';
 import { getAgentHostChatId } from '../../../../../platform/agentHost/common/agentHostChatIdentity.js';
-import { ICloudSandboxApiService } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { ICloudSandboxApiService, isCloudSandboxPlaceholderTitle } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { ChatState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IReplayedSession, IReplayedTaskHistory } from '../../../../../platform/agentHost/common/taskEventReplay.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -166,6 +166,6 @@ export class CloudSandboxReadOnlySessionHandler extends Disposable implements IC
 		this._logService.info(`${LOG_PREFIX} Opened ${sessionResource.toString()} read-only with ${history.length} history item(s) from ${chat?.turns.length ?? 0} turn(s); chats=[${[...session.chats.keys()].join(', ')}], default=${session.defaultChat}.`);
 		const title = session.state.chats.find(summary => summary.resource === chatResource)?.title
 			|| (chatResource === session.defaultChat ? session.state.title : undefined);
-		return new ReadOnlyChatSession(sessionResource, history, title || undefined, this._isReadOnly);
+		return new ReadOnlyChatSession(sessionResource, history, title && !isCloudSandboxPlaceholderTitle(title, sessionResource) ? title : undefined, this._isReadOnly);
 	}
 }

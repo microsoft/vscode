@@ -240,7 +240,7 @@ export class DesktopMainEditorPart extends MainEditorPart {
 	}
 
 	private _createEmptyGroupAddTabControl(group: EditorGroupView): IDisposable {
-		return this._instantiationService.createInstance(EmptyEditorGroupAddTab, group, Menus.SessionsEditorTabsBarAddTab);
+		return this._instantiationService.createInstance(EmptyEditorGroupAddTab, group, Menus.SessionsEditorTabsBarAddTab, Menus.SessionsEmptyEditorGroupAddTab);
 	}
 
 	/** Also exposes the inset to CSS so content centered in an empty group avoids the docked detail panel. */
