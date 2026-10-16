@@ -1605,7 +1605,7 @@ suite('Mission Control WPS', () => {
 		}
 	});
 
-	test('relay authentication metadata preserves the identity authority across handshake generations', async () => {
+	test('relay authentication metadata preserves the identity authority and canonical owner across handshake generations', async () => {
 		await MissionControlSealing.ready();
 		const sealing = store.add(new MissionControlSealing());
 		const resource = 'https://api.enterprise.example';
@@ -1634,9 +1634,9 @@ suite('Mission Control WPS', () => {
 		const authorized = lane.relayAuthentication;
 		authentication.beginHandshake();
 		assert.deepStrictEqual({ before, authorized, after: lane.relayAuthentication }, {
-			before: { resource, authenticated: false },
-			authorized: { resource, authenticated: true },
-			after: { resource, authenticated: false },
+			before: { resource, owner: '123', authenticated: false },
+			authorized: { resource, owner: '123', authenticated: true },
+			after: { resource, owner: '123', authenticated: false },
 		});
 	});
 
@@ -1980,7 +1980,7 @@ suite('Mission Control WPS', () => {
 			}, 120_000, false, { sessionEventsFormats: ['batch-v1'], manualPublishAcks: true });
 		});
 
-		test('delegates only when opted in, fences prior lanes on mode/token changes, and withdraws immediately', async () => {
+		test('preserves client credentials, fences prior lanes on registration credential changes, and withdraws immediately', async () => {
 			await withEnvironment([], async ({ service, options, sockets, attachments, signedSpawn, delayIdentity }) => {
 				const openLane = (clientId: string) => {
 					const server = attachments[attachments.length - 1].server;
@@ -2005,29 +2005,23 @@ suite('Mission Control WPS', () => {
 				const resource = 'https://api.github.com';
 				const remoteToken = await sealRemote(resource, 'auth-token', 'mobile-token');
 				const defaultLane = openLane('default-client');
-				assert.deepStrictEqual(await defaultLane.relayAuthenticate!({ resource, token: remoteToken }), { resource, token: 'mobile-token' });
-				await service.configure({ ...options, useLocalCredentials: true });
-				await assert.rejects(defaultLane.relayAuthenticate!({ resource, token: remoteToken }), /closed/);
-				const delegated = openLane('delegated-client');
-				assert.deepStrictEqual(await delegated.relayAuthenticate!({ resource, token: remoteToken, expiresIn: 1, scopes: ['mobile'] }), {
-					resource, token: 'fake-token',
+				assert.deepStrictEqual(await defaultLane.relayAuthenticate!({ resource, token: remoteToken, expiresIn: 1, scopes: ['mobile'] }), {
+					resource, token: 'mobile-token', scopes: ['mobile'],
 				});
 				const delayed = delayIdentity();
-				const pending = delegated.relayAuthenticate!({ resource, token: remoteToken });
+				const pending = defaultLane.relayAuthenticate!({ resource, token: remoteToken });
 				const rejected = assert.rejects(pending, /expired handshake|closed/);
 				await delayed.started;
-				await service.configure({ ...options, useLocalCredentials: true, credential: 'refreshed-token' });
+				await service.configure({ ...options, credential: 'refreshed-token' });
 				await delayed.complete(Response.json({ id: 123, type: 'User' }));
 				await rejected;
-				await assert.rejects(delegated.relayAuthenticate!({ resource, token: remoteToken }), /closed/);
+				await assert.rejects(defaultLane.relayAuthenticate!({ resource, token: remoteToken }), /closed/);
 				const refreshed = openLane('refreshed-client');
-				assert.deepStrictEqual(await refreshed.relayAuthenticate!({ resource, token: remoteToken }), { resource, token: 'refreshed-token' });
+				assert.deepStrictEqual(await refreshed.relayAuthenticate!({ resource, token: remoteToken }), { resource, token: 'mobile-token' });
 				await service.configure({ ...options, credential: 'refreshed-token' });
-				await assert.rejects(refreshed.relayAuthenticate!({ resource, token: remoteToken }), /closed/);
-				const disabled = openLane('disabled-client');
-				assert.deepStrictEqual(await disabled.relayAuthenticate!({ resource, token: remoteToken }), { resource, token: 'mobile-token' });
+				assert.deepStrictEqual(await refreshed.relayAuthenticate!({ resource, token: remoteToken }), { resource, token: 'mobile-token' });
 				await service.configure(undefined, options.accountId);
-				await assert.rejects(disabled.relayAuthenticate!({ resource, token: remoteToken }), /closed/);
+				await assert.rejects(refreshed.relayAuthenticate!({ resource, token: remoteToken }), /closed/);
 			});
 		});
 

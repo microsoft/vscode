@@ -358,8 +358,8 @@ export interface IDownloadFileSpec {
 	readonly relativePath: string;
 	readonly url: string;
 	readonly sizeBytes: number;
-	/** Lowercase hex SHA-256 from `x-ms-meta-sha256`. */
-	readonly sha256: string;
+	/** Lowercase hex SHA-256 from `x-ms-meta-sha256`; regional replicas don't carry it, so the strong {@link etag} then binds the file. */
+	readonly sha256?: string;
 	readonly etag?: string;
 }
 
@@ -367,7 +367,7 @@ export interface IDownloadFileSpec {
 export interface IPartialSidecar {
 	readonly modelId: string;
 	readonly totalBytes: number;
-	readonly sha256: string;
+	readonly sha256?: string;
 	readonly etag: string | undefined;
 }
 
@@ -405,6 +405,8 @@ export interface ILocalModelDownloadResult {
 	readonly reusedFiles: readonly string[];
 	readonly resumed: boolean;
 	readonly sasRenewals: number;
+	/** The SHA-256 of each file as placed, in order: the published one, or the one computed for a file without it. */
+	readonly sha256s: readonly string[];
 }
 
 export interface IModelDownloaderOptions {
@@ -557,6 +559,7 @@ export class ModelDownloader {
 				let completed = 0;
 				let downloadedBytes = 0;
 				const reusedFiles: string[] = [];
+				const sha256s: string[] = [];
 				for (let index = 0; index < files.length; index++) {
 					const outcome = await this._downloadFile(request, files[index], index, completed, progress, async () => {
 						if (!request.renewFiles || sasRenewals >= DOWNLOAD_MAX_SAS_RENEWALS) {
@@ -574,9 +577,10 @@ export class ModelDownloader {
 						reusedFiles.push(files[index].relativePath);
 					}
 					completed += files[index].sizeBytes;
+					sha256s.push(outcome.sha256);
 				}
 				progress.report('placing', totalBytes, files.length - 1, true);
-				const result: ILocalModelDownloadResult = { downloadedBytes, reusedFiles, resumed, sasRenewals };
+				const result: ILocalModelDownloadResult = { downloadedBytes, reusedFiles, resumed, sasRenewals, sha256s };
 				this._report(request, 'success', undefined, started, totalBytes, resumed, sasRenewals);
 				return result;
 			} finally {
@@ -592,7 +596,7 @@ export class ModelDownloader {
 
 	private _validateFiles(files: readonly IDownloadFileSpec[]): void {
 		for (const file of files) {
-			if (!SHA256_HEX.test(file.sha256)) {
+			if (file.sha256 !== undefined ? !SHA256_HEX.test(file.sha256) : !strongEtag(file.etag)) {
 				throw new LocalModelDownloadError('noChecksum');
 			}
 			if (!isSafeModelFileName(file.relativePath) || !Number.isSafeInteger(file.sizeBytes) || file.sizeBytes < 0) {
@@ -618,7 +622,7 @@ export class ModelDownloader {
 		completedBefore: number,
 		progress: ProgressReporter,
 		renew: () => Promise<IDownloadFileSpec>,
-	): Promise<{ readonly reused: boolean; readonly resumed: boolean; readonly downloadedBytes: number }> {
+	): Promise<{ readonly reused: boolean; readonly resumed: boolean; readonly downloadedBytes: number; readonly sha256: string }> {
 		let spec = initialSpec;
 		const finalPath = resolveModelFilePath(request.targetDir, spec.relativePath);
 		if (!finalPath) {
@@ -627,15 +631,19 @@ export class ModelDownloader {
 		const partialPath = finalPath + PARTIAL_FILE_SUFFIX;
 		const sidecarPath = partialPath + '.json';
 
-		// Reuse a verified final copy.
+		// Reuse a verified final copy; one without a published checksum can't be verified, so it downloads again.
 		const finalStat = await statOrUndefined(finalPath);
-		if (finalStat?.isFile() && finalStat.size === spec.sizeBytes) {
+		if (spec.sha256 && finalStat?.isFile() && finalStat.size === spec.sizeBytes) {
 			progress.report('verifying', completedBefore, index, true);
 			const hash = await computeFileSha256(finalPath, { signal: request.signal, onBytes: bytes => progress.report('verifying', completedBefore + bytes, index, false) });
 			if (hash === spec.sha256) {
 				this._options.log.info(`[LocalModelDownloader] Reusing a verified file (${spec.sizeBytes} bytes)`);
-				return { reused: true, resumed: false, downloadedBytes: 0 };
+				return { reused: true, resumed: false, downloadedBytes: 0, sha256: hash };
 			}
+		}
+		// Removed before downloading again so a retry doesn't need room for a second copy.
+		if (finalStat) {
+			await fs.promises.rm(finalPath, { force: true });
 		}
 
 		// Resume only against an identical sidecar.
@@ -673,7 +681,9 @@ export class ModelDownloader {
 					discardResponse(response);
 					throw new LocalModelDownloadError('network', `HTTP ${response.status} from ${hostForLog(spec.url)}`, true);
 				}
-				if (response.status === 412 || !etagsMatch(response.headers.etag, spec.etag)) {
+				// Without a published checksum only the strong ETag binds the bytes, so it must be present and identical.
+				const unbound = spec.sha256 === undefined && (!strongEtag(response.headers.etag) || response.headers.etag !== spec.etag);
+				if (response.status === 412 || unbound || !etagsMatch(response.headers.etag, spec.etag)) {
 					discardResponse(response);
 					await this._resetPartial(partialPath, sidecarPath);
 					throw new LocalModelDownloadError('identityChanged');
@@ -742,7 +752,7 @@ export class ModelDownloader {
 		const hash = partialSize === spec.sizeBytes
 			? await computeFileSha256(partialPath, { signal: request.signal, onBytes: bytes => progress.report('verifying', completedBefore + bytes, index, false) })
 			: undefined;
-		if (hash !== spec.sha256) {
+		if (hash === undefined || (spec.sha256 !== undefined && hash !== spec.sha256)) {
 			await this._resetPartial(partialPath, sidecarPath);
 			throw new LocalModelDownloadError('integrity');
 		}
@@ -752,7 +762,7 @@ export class ModelDownloader {
 		progress.report('placing', completedBefore + spec.sizeBytes, index, true);
 		await this._place(partialPath, finalPath, request.signal);
 		await fs.promises.rm(sidecarPath, { force: true });
-		return { reused: false, resumed, downloadedBytes };
+		return { reused: false, resumed, downloadedBytes, sha256: hash };
 	}
 
 	private async _get(url: string, range: { readonly range: string; readonly ifMatch: string | undefined } | undefined, signal: AbortSignal): Promise<ILocalModelHttpResponse> {
@@ -954,10 +964,10 @@ async function readSidecar(sidecarPath: string): Promise<IPartialSidecar | undef
 			return undefined;
 		}
 		const record = value as Partial<Record<keyof IPartialSidecar, unknown>>;
-		if (typeof record.modelId !== 'string' || typeof record.totalBytes !== 'number' || typeof record.sha256 !== 'string') {
+		if (typeof record.modelId !== 'string' || typeof record.totalBytes !== 'number' || (record.sha256 !== undefined && typeof record.sha256 !== 'string')) {
 			return undefined;
 		}
-		return { modelId: record.modelId, totalBytes: record.totalBytes, sha256: record.sha256, etag: typeof record.etag === 'string' ? record.etag : undefined };
+		return { modelId: record.modelId, totalBytes: record.totalBytes, ...(typeof record.sha256 === 'string' ? { sha256: record.sha256 } : {}), etag: typeof record.etag === 'string' ? record.etag : undefined };
 	} catch {
 		return undefined;
 	}

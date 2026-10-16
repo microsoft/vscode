@@ -94,6 +94,8 @@ import { IWorkbenchEnvironmentService } from '../../../../../../workbench/servic
 import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
 import { ChatAgentFilesLocationsSettingId, ChatHookFilesLocationsSettingId } from '../../../../../../platform/chat/common/chatSettings.js';
 import { IPathService } from '../../../../../../workbench/services/path/common/pathService.js';
+import { ICopilotHomeService } from '../../../../../../platform/environment/common/copilotHome.js';
+import { TestCopilotHomeService } from '../../../../../../platform/environment/test/common/testCopilotHomeService.js';
 import { MockLabelService } from '../../../../../../workbench/services/label/test/common/mockLabelService.js';
 import { TestPathService } from '../../../../../../workbench/test/browser/workbenchTestServices.js';
 import type { CanvasState } from '../../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
@@ -767,7 +769,9 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 		override findPullRequestNumberByHeadBranch = async () => undefined;
 	}());
 	instantiationService.stub(IPullRequestIconCache, instantiationService.createInstance(PullRequestIconCache));
-	instantiationService.stub(IPathService, options?.pathService ?? new TestPathService(URI.file('/home/test')));
+	const pathService = options?.pathService ?? new TestPathService(URI.file('/home/test'));
+	instantiationService.stub(IPathService, pathService);
+	instantiationService.stub(ICopilotHomeService, new TestCopilotHomeService(pathService.userHome({ preferLocal: true })));
 	const activeSessionObs = options?.activeSession ?? constObservable<IActiveSession | undefined>(undefined);
 	const visibleSessionsObs = options?.visibleSessions ?? constObservable<readonly (IActiveSession | undefined)[]>([]);
 	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
@@ -807,6 +811,7 @@ function createManagementService(disposables: DisposableStore, provider: ISessio
 	}());
 	instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 	instantiationService.stub(IPathService, new TestPathService(URI.file('/home/test')));
+	instantiationService.stub(ICopilotHomeService, new TestCopilotHomeService(URI.file('/home/test')));
 	instantiationService.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() { }());
 	instantiationService.stub(IWorkspaceTrustManagementService, {
 		getUriTrustInfo: async uri => ({ uri, trusted: true }),
@@ -12869,7 +12874,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, agentHost, undefined, { pathService, labelService });
 		provider.getSessions();
 		await timeout(0);
-		const copilotStateHome = URI.joinPath(buildLocalSessionStateUri(await pathService.userHome({ preferLocal: true })), 'copilot-session');
+		const copilotStateHome = URI.joinPath(buildLocalSessionStateUri(URI.file('/home/test/.copilot')), 'copilot-session');
 		const getHomeLabel = (resource: URI): string | undefined => {
 			const home = labelService.getUriHome(resource);
 			return home ? labelService.getUriLabel(home) : undefined;
@@ -12933,7 +12938,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 		provider.getSessions();
 		await timeout(0);
-		const stateHome = URI.joinPath(buildLocalSessionStateUri(userHome), 'session-42');
+		const stateHome = URI.joinPath(buildLocalSessionStateUri(URI.joinPath(userHome, '.copilot')), 'session-42');
 		const resource = URI.joinPath(stateHome, 'artifact.md');
 		const home = labelService.getUriHome(resource);
 
@@ -12969,7 +12974,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	test('registers the SDK session state home from recorded artifacts', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const userHome = URI.file('/home/test');
-		const sdkStateHome = URI.joinPath(buildLocalSessionStateUri(userHome), 'sdk-session');
+		const sdkStateHome = URI.joinPath(buildLocalSessionStateUri(URI.joinPath(userHome, '.copilot')), 'sdk-session');
 		const artifactUri = URI.joinPath(sdkStateHome, 'files', 'plan.md');
 		const metadata = createSession('ahp-session', { summary: 'Artifact Session' });
 		agentHost.addSession({
