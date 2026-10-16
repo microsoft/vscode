@@ -140,6 +140,32 @@ suite('ActivitybarPart', () => {
 
 	// --- Static constants ---------------------------------------------------
 
+	test('shows a visible focus indicator on the selected activity bar item', () => {
+		const workbench = document.createElement('div');
+		workbench.className = 'monaco-workbench';
+		const activitybar = document.createElement('div');
+		activitybar.className = 'activitybar left';
+		const content = document.createElement('div');
+		content.className = 'content';
+		const actionBar = document.createElement('div');
+		actionBar.className = 'monaco-action-bar';
+		const action = document.createElement('div');
+		action.className = 'action-item checked';
+		action.tabIndex = 0;
+		const label = document.createElement('div');
+		label.className = 'action-label codicon';
+
+		action.appendChild(label);
+		actionBar.appendChild(action);
+		content.appendChild(actionBar);
+		activitybar.appendChild(content);
+		workbench.appendChild(activitybar);
+		fixture.appendChild(workbench);
+		action.focus();
+
+		assert.strictEqual(mainWindow.getComputedStyle(label).outlineStyle, 'solid');
+	});
+
 	test('default constants match expected dimensions', () => {
 		assert.deepStrictEqual(
 			{
