@@ -17,7 +17,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IAgentHostService, IMissionControlOptions } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IConfigurationChangeEvent, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -69,6 +69,7 @@ suite('Mission Control sharing service', () => {
 
 	function fixture(options: {
 		backend?: AgentHostRemoteConnectionsBackend;
+		configuration?: TestConfigurationService;
 		emptyWindow?: boolean;
 		storage?: InMemoryStorageService;
 		getSessions?: IAuthenticationService['getSessions'];
@@ -84,10 +85,12 @@ suite('Mission Control sharing service', () => {
 		localSettingConfig?: IConfigurationValue<boolean>;
 	} = {}) {
 		const instantiation = store.add(new TestInstantiationService());
-		const configuration = new TestConfigurationService({ [AgentHostRemoteConnectionsSettingId]: options.backend ?? 'githubEnvironment', ...removedSettings });
+		const configuration = options.configuration ?? new TestConfigurationService({ [AgentHostRemoteConnectionsSettingId]: options.backend ?? 'githubEnvironment', ...removedSettings });
 		const fixtureHome = options.userHome ?? home;
 		const storage = options.storage ?? store.add(new InMemoryStorageService());
-		store.add(configuration.onDidChangeConfigurationEmitter);
+		if (!options.configuration) {
+			store.add(configuration.onDidChangeConfigurationEmitter);
+		}
 		if (options.localSetting && options.localSettingConfig) {
 			stub(configuration, 'inspect').callThrough().withArgs(options.localSetting).returns(options.localSettingConfig);
 		}
@@ -166,7 +169,14 @@ suite('Mission Control sharing service', () => {
 		};
 	}
 
-	test('registers a backend selector rather than an enablement setting', () => {
+	async function setBackend(configuration: TestConfigurationService, backend: AgentHostRemoteConnectionsBackend): Promise<void> {
+		await configuration.setUserConfiguration(AgentHostRemoteConnectionsSettingId, backend);
+		configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(section: string) { return section === AgentHostRemoteConnectionsSettingId; }
+		});
+	}
+
+	test('registers a preview backend setting without the removed enablement settings', () => {
 		assert.deepStrictEqual({
 			removed: registeredMissionControlSettings,
 			localCredentialSettingRegistered,
@@ -174,8 +184,15 @@ suite('Mission Control sharing service', () => {
 			backend: {
 				default: remoteConnectionsSetting.default,
 				enum: remoteConnectionsSetting.enum,
+				scope: remoteConnectionsSetting.scope,
+				restricted: remoteConnectionsSetting.restricted,
+				tags: remoteConnectionsSetting.tags,
+				dataHandling: remoteConnectionsSetting.enumDescriptions?.[1].includes('Session actions are mirrored to GitHub for catalog and history storage. Conversation content is not end-to-end encrypted.'),
 			},
-		}, { removed: [], localCredentialSettingRegistered: false, remoteControlPolicyOverrideSettingRegistered: false, backend: { default: 'devTunnel', enum: ['devTunnel', 'githubEnvironment'] } });
+		}, {
+			removed: [], localCredentialSettingRegistered: false, remoteControlPolicyOverrideSettingRegistered: false,
+			backend: { default: 'devTunnel', enum: ['devTunnel', 'githubEnvironment'], scope: ConfigurationScope.APPLICATION, restricted: true, tags: ['preview', 'advanced'], dataHandling: true },
+		});
 	});
 
 	for (const backend of ['devTunnel', 'githubEnvironment', 'missionControl'] as const) {
@@ -376,11 +393,8 @@ suite('Mission Control sharing service', () => {
 	test('changing backends withdraws registration and requires a new opt-in', () => runWithFakedTimers({}, async () => {
 		const { sharing, calls, configuration, storage } = fixture();
 		await sharing.setEnabled(true);
-		for (const backend of ['devTunnel', 'githubEnvironment']) {
-			await configuration.setUserConfiguration(AgentHostRemoteConnectionsSettingId, backend);
-			configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
-				override affectsConfiguration(section: string) { return section === AgentHostRemoteConnectionsSettingId; }
-			}());
+		for (const backend of ['devTunnel', 'githubEnvironment'] as const) {
+			await setBackend(configuration, backend);
 			await timeout(0);
 		}
 		const restored = fixture({ storage });
@@ -395,6 +409,33 @@ suite('Mission Control sharing service', () => {
 				{ options: undefined, withdrawingAccountId: 'account' },
 			],
 		});
+	}));
+
+	test('changing the method in another window withdraws sharing in both windows', () => runWithFakedTimers({}, async () => {
+		const first = fixture();
+		await first.sharing.setEnabled(true);
+		const second = fixture({ storage: first.storage, configuration: first.configuration });
+		await timeout(0);
+		await setBackend(second.configuration, 'devTunnel');
+		await timeout(0);
+		assert.deepStrictEqual([first, second].map(({ configuration, sharing, calls }) => ({
+			backend: configuration.getValue(AgentHostRemoteConnectionsSettingId),
+			state: sharing.state.get(),
+			calls,
+		})), [
+			{
+				backend: 'devTunnel', state: 'disabled', calls: [
+					{ options: expectedOptions, withdrawingAccountId: undefined },
+					{ options: undefined, withdrawingAccountId: 'account' },
+				],
+			},
+			{
+				backend: 'devTunnel', state: 'disabled', calls: [
+					{ options: expectedOptions, withdrawingAccountId: undefined },
+					{ options: undefined, withdrawingAccountId: 'account' },
+				],
+			},
+		]);
 	}));
 
 	for (const backend of ['githubEnvironment', 'missionControl'] as const) {
