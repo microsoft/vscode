@@ -427,7 +427,7 @@ export class BrowserTunnelAgentHostService extends Disposable implements ITunnel
 		);
 		return {
 			connection: this._instantiationService.createInstance(
-				AgentHostProtocolClient, result.address, transportFactory, { clientInfo: agentsWindowAgentHostClientInfo },
+				AgentHostProtocolClient, result.address, transportFactory, { clientInfo: agentsWindowAgentHostClientInfo, displayName: tunnel.name },
 			),
 		};
 	}

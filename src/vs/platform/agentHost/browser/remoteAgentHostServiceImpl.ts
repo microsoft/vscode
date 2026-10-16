@@ -146,6 +146,7 @@ class WebSocketConnectionFactory extends Disposable implements IRemoteAgentHostC
 		try {
 			const connection = this._instantiationService.createInstance(AgentHostProtocolClient, address, transportFactory, {
 				clientInfo: this._clientInfo(),
+				displayName: entry.name,
 				resolveAdvertisedAuthentication: agents => authentication.resolve(agents),
 				onDispose: () => authentication.dispose(),
 			});
