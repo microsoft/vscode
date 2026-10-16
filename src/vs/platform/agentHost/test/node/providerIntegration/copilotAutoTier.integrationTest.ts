@@ -121,7 +121,6 @@ suite('Copilot SDK managed model configuration', function () {
 				COPILOT_DEBUG_GITHUB_API_URL: baseUrl,
 				COPILOT_MANAGED_SETTINGS_CACHE: '0',
 				COPILOT_TELEMETRY_ENABLED: 'false',
-				COPILOT_CLI_PATH: process.env.COPILOT_CLI_PATH,
 			}),
 		};
 		client = new CopilotClient(clientOptions);

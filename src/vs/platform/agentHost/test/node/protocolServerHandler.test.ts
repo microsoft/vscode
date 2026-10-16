@@ -43,6 +43,7 @@ import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMeth
 import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from '../../common/meta/agentHostSavedChatMeta.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult, ResourceType } from '../../common/state/protocol/commands.js';
 import type { AutomationCapabilities, Implementation } from '../../common/state/protocol/common/commands.js';
+import type { InvokeChangesetOperationParams } from '../../common/state/protocol/channels-changeset/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../common/state/protocol/channels-automation/commands.js';
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type IRootConfigChangedAction, type ProgressParams, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
@@ -60,6 +61,8 @@ import { MissionControlCopilotExtension } from '../../node/missionControl/missio
 import { missionControlSessionConfigAdapter } from '../../node/missionControl/missionControlSessionConfig.js';
 import { toMissionControlSessionList } from '../../node/missionControl/missionControlSessionList.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
+import { AgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
+import type { IAgentHostAuthenticationScope, IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 import type { IMissionControlSocket } from '../../node/missionControl/missionControlProtocolServer.js';
 import { CompositeProtocolServer } from '../../node/compositeProtocolServer.js';
 import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
@@ -447,7 +450,7 @@ class MockAgentService implements IAgentService {
 		this.createTerminalClientTypes.push(clientType);
 	}
 	async disposeTerminal(): Promise<void> { }
-	async invokeChangesetOperation(): Promise<{}> { return {}; }
+	async invokeChangesetOperation(_params: InvokeChangesetOperationParams, _credentials?: IAgentHostCredentialSource): Promise<{}> { return {}; }
 	async handleMcpRequest(_channel: string, _method: string, _params: Record<string, unknown> | undefined): Promise<unknown> { throw new Error('Method not found'); }
 
 	dispose(): void {
@@ -3448,6 +3451,230 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
+	suite('scoped relay credentials', () => {
+		const resource = 'https://api.github.com';
+
+		async function fixture(extension?: IProtocolServerExtension) {
+			const authentication = disposables.add(new AgentHostAuthenticationService(new NullLogService()));
+			const providerTokens: string[] = [];
+			const handledTokens: string[] = [];
+			const changedTokens: (string | undefined)[] = [];
+			const authentications: { params: AuthenticateParams; scope: IAgentHostAuthenticationScope | undefined }[] = [];
+			const provider = new class extends mock<IAgent>() {
+				override getProtectedResources() { return [{ resource }]; }
+				override async authenticate(_resource: string, token: string) {
+					providerTokens.push(token);
+					return true;
+				}
+				override async handleAuthenticationToken(params: AuthenticateParams) {
+					handledTokens.push(params.token);
+					return true;
+				}
+			}();
+			disposables.add(authentication.onDidChangeAuthToken(event => changedTokens.push(event.token)));
+			await authentication.authenticate({ resource, token: 'desktop-token' }, [provider]);
+			agentService.authenticate = async (params, scope?: IAgentHostAuthenticationScope) => {
+				authentications.push({ params, scope });
+				return authentication.authenticate(params, [provider], scope);
+			};
+			const relay = disposables.add(new MockProtocolServer());
+			const scopedHandler = disposables.add(new ProtocolServerHandler(
+				agentService, stateManager, relay, { scopedRelayCredentials: true, allowExtensionMethods: false, extension },
+				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
+			));
+			const connect = (clientId: string, passive = false, owner = '123') => {
+				const transport = disposables.add(new class extends MockProtocolTransport {
+					override get relayAuthentication(): IProtocolTransport['relayAuthentication'] {
+						return { resource, owner, authenticated: this.relayAuthenticated === true };
+					}
+				}(AgentHostTransportKind.WebSocket, clientId, passive));
+				transport.relayAuthenticated = false;
+				transport.relayAuthenticate = async params => {
+					if (params.resource === resource) {
+						transport.relayAuthenticated = true;
+					}
+					return params;
+				};
+				relay.simulateConnection(transport);
+				transport.simulateMessage(request(1, 'initialize', { clientId, protocolVersions: [PROTOCOL_VERSION] }));
+				return transport;
+			};
+			const authenticate = async (transport: MockProtocolTransport, token: string, scopes?: readonly string[]) => {
+				transport.simulateMessage(request(2, 'authenticate', { resource, token, ...(scopes ? { scopes } : {}) }));
+				await scopedHandler.whenIdle();
+				assert.deepStrictEqual(findResponse(transport.sent, 2), { jsonrpc: '2.0', id: 2, result: {} });
+				const scope = authentications.at(-1)?.scope;
+				assert.ok(scope);
+				return scope;
+			};
+			return { authentication, provider, providerTokens, handledTokens, changedTokens, authentications, scopedHandler, connect, authenticate };
+		}
+
+		test('same-owner lanes retain separate client credentials without changing desktop providers, storage or replay', async () => {
+			const f = await fixture();
+			const broad = await f.authenticate(f.connect('broad-client'), 'broad-token', ['read:user', 'repo']);
+			const narrow = await f.authenticate(f.connect('narrow-client'), 'narrow-token', ['read:user']);
+			await f.authentication.replay(f.provider);
+			assert.deepStrictEqual({
+				distinctSources: broad !== narrow,
+				principals: [broad.principal, narrow.principal],
+				broad: f.authentication.getAuthToken({ resource, scopes: ['repo'] }, broad),
+				narrow: f.authentication.getAuthToken({ resource, scopes: ['read:user'] }, narrow),
+				narrowRepository: f.authentication.getAuthToken({ resource, scopes: ['repo'] }, narrow),
+				desktop: f.authentication.getAuthToken({ resource }),
+				providerTokens: f.providerTokens,
+				handledTokens: f.handledTokens,
+				changedTokens: f.changedTokens,
+			}, {
+				distinctSources: true,
+				principals: [{ apiOrigin: resource, userId: '123' }, { apiOrigin: resource, userId: '123' }],
+				broad: 'broad-token', narrow: 'narrow-token', narrowRepository: 'narrow-token', desktop: 'desktop-token',
+				providerTokens: ['desktop-token', 'desktop-token'],
+				handledTokens: ['desktop-token', 'desktop-token'],
+				changedTokens: ['desktop-token'],
+			});
+		});
+
+		test('forwards the exact connection source to session creation, dispatch, changesets and listener extensions', async () => {
+			const extensionSources: (IAgentHostCredentialSource | undefined)[] = [];
+			const extension: IProtocolServerExtension = {
+				rootMeta: {},
+				rootConfig: { schema: { type: 'object', properties: {} }, values: {} },
+				onDidEmitAction: Event.None,
+				initialize: async () => { },
+				requests: new Map([['example/scoped', {
+					readOnly: false,
+					handle: async (_params, checkAuthorization, source) => {
+						checkAuthorization();
+						extensionSources.push(source);
+						return null;
+					},
+				}]]),
+			};
+			const f = await fixture(extension);
+			const dispatchedSources: (IAgentHostCredentialSource | undefined)[] = [];
+			const changesetSources: (IAgentHostCredentialSource | undefined)[] = [];
+			const dispatch: IAgentService['dispatchAction'] = async (_channel, _action, _clientId, _clientSeq, _context, source) => {
+				dispatchedSources.push(source);
+			};
+			const invokeChangeset: IAgentService['invokeChangesetOperation'] = async (_params, source) => {
+				changesetSources.push(source);
+				return {};
+			};
+			agentService.dispatchAction = dispatch;
+			agentService.invokeChangesetOperation = invokeChangeset;
+			const sources: IAgentHostCredentialSource[] = [];
+			const transports: MockProtocolTransport[] = [];
+			for (const clientId of ['client-a', 'client-b']) {
+				const transport = f.connect(clientId);
+				transports.push(transport);
+				sources.push(await f.authenticate(transport, `${clientId}-token`));
+				const channel = URI.from({ scheme: 'copilot', path: `/${clientId}` }).toString();
+				transport.simulateMessage(request(3, 'createSession', {
+					provider: 'copilot', channel, credentials: { token: 'forged-token' },
+					_meta: { credentialSource: 'forged-source' },
+				}));
+				await f.scopedHandler.whenIdle();
+				transport.simulateMessage(notification('dispatchAction', {
+					channel, clientSeq: 1, credentials: { token: 'forged-token' },
+					action: { type: ActionType.SessionTitleChanged, title: 'Scoped title' },
+				}));
+				transport.simulateMessage(request(4, 'invokeChangesetOperation', { channel, operationId: 'test', credentials: { token: 'forged-token' } }));
+				transport.simulateMessage(request(5, 'example/scoped', { credentials: { token: 'forged-token' } }));
+				await f.scopedHandler.whenIdle();
+			}
+			assert.deepStrictEqual({
+				created: agentService.createSessionConfigs.map((config, index) => config?.credentials === sources[index]),
+				dispatched: dispatchedSources.map((source, index) => source === sources[index]),
+				changesets: changesetSources.map((source, index) => source === sources[index]),
+				extensions: extensionSources.map((source, index) => source === sources[index]),
+				responses: transports.map(transport => [3, 4, 5].map(id => {
+					const response = findResponse(transport.sent, id);
+					return response && hasKey(response, { result: true });
+				})),
+				tokenPublished: transports.some(transport => JSON.stringify(transport.sent).includes('-token')),
+			}, {
+				created: [true, true], dispatched: [true, true], changesets: [true, true], extensions: [true, true],
+				responses: [[true, true, true], [true, true, true]], tokenPublished: false,
+			});
+		});
+
+		test('disconnect closes only its own source and a fresh initialization of the same client ID gets a fresh source', async () => {
+			const f = await fixture();
+			const previous = f.connect('reconnecting-client');
+			const previousSource = await f.authenticate(previous, 'previous-token');
+			const otherSource = await f.authenticate(f.connect('other-client'), 'other-token');
+			previous.simulateClose();
+			assert.throws(() => previousSource.getCredential({ resource }), { code: AHP_AUTH_REQUIRED });
+			const reconnected = f.connect('reconnecting-client');
+			reconnected.simulateMessage(request(3, 'createSession', { provider: 'copilot', channel: sessionUri }));
+			await f.scopedHandler.whenIdle();
+			const before = findResponse(reconnected.sent, 3);
+			const freshSource = await f.authenticate(reconnected, 'fresh-token');
+			previous.simulateClose();
+			assert.deepStrictEqual({
+				freshSource: freshSource !== previousSource && freshSource !== otherSource,
+				before: before && hasKey(before, { error: true }) ? before.error.code : undefined,
+				fresh: freshSource.getCredential({ resource })?.token,
+				other: otherSource.getCredential({ resource })?.token,
+				desktop: f.authentication.getAuthToken({ resource }),
+			}, { freshSource: true, before: AHP_AUTH_REQUIRED, fresh: 'fresh-token', other: 'other-token', desktop: 'desktop-token' });
+		});
+
+		test('unauthenticated requests require identity and passive authentication captures only its own identity without updating providers', async () => {
+			const f = await fixture();
+			const active = f.connect('unauthenticated-client');
+			active.simulateMessage(request(3, 'listSessions', {}));
+			active.simulateMessage(request(4, 'createSession', { provider: 'copilot', channel: sessionUri }));
+			const passive = f.connect('passive-client', true);
+			passive.simulateMessage(request(2, 'authenticate', { resource, token: 'passive-token' }));
+			await f.scopedHandler.whenIdle();
+			passive.simulateMessage(request(3, 'listSessions', {}));
+			passive.simulateMessage(request(4, 'createSession', { provider: 'copilot', channel: sessionUri }));
+			passive.simulateMessage(request(5, 'authenticate', { resource: 'https://mcp.test', token: 'mcp-token' }));
+			await f.scopedHandler.whenIdle();
+			const responseCode = (transport: MockProtocolTransport, id: number) => {
+				const response = findResponse(transport.sent, id);
+				return response && hasKey(response, { error: true }) ? response.error.code : undefined;
+			};
+			assert.deepStrictEqual({
+				active: [responseCode(active, 3), responseCode(active, 4)],
+				passiveAuthentication: findResponse(passive.sent, 2),
+				passiveList: findResponse(passive.sent, 3),
+				passiveMutation: responseCode(passive, 4),
+				authentications: f.authentications.map(authentication => f.authentication.getAuthToken({ resource }, authentication.scope)),
+				passiveMcp: responseCode(passive, 5),
+				created: agentService.createSessionConfigs,
+				desktop: f.authentication.getAuthToken({ resource }),
+				providerTokens: f.providerTokens,
+				changedTokens: f.changedTokens,
+			}, {
+				active: [undefined, AHP_AUTH_REQUIRED],
+				passiveAuthentication: { jsonrpc: '2.0', id: 2, result: {} },
+				passiveList: { jsonrpc: '2.0', id: 3, result: { items: [] } },
+				passiveMutation: JsonRpcErrorCodes.InvalidRequest,
+				authentications: ['passive-token'], passiveMcp: AhpErrorCodes.PermissionDenied,
+				created: [], desktop: 'desktop-token', providerTokens: ['desktop-token'], changedTokens: ['desktop-token'],
+			});
+		});
+
+		test('wire credential metadata cannot supply a missing host-owned relay principal', async () => {
+			const f = await fixture();
+			const transport = f.connect('missing-owner', false, '');
+			transport.simulateMessage(request(2, 'authenticate', {
+				resource, token: 'remote-token', owner: '123', credentials: { principal: { apiOrigin: resource, userId: '123' } },
+			}));
+			await f.scopedHandler.whenIdle();
+			const response = findResponse(transport.sent, 2);
+			assert.deepStrictEqual({
+				code: response && hasKey(response, { error: true }) ? response.error.code : undefined,
+				authentications: f.authentications,
+				desktop: f.authentication.getAuthToken({ resource }),
+			}, { code: AHP_AUTH_REQUIRED, authentications: [], desktop: 'desktop-token' });
+		});
+	});
+
 	test('authenticated relay identity does not substitute for provider or MCP resource authentication', async () => {
 		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'relay-client', false));
 		transport.relayAuthenticated = true;
@@ -3471,12 +3698,12 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
-	test('relay authentication forwards a delegated credential internally without publishing it to clients', async () => {
+	test('relay authentication forwards an opened client credential internally without publishing it to clients', async () => {
 		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'relay-client', false));
 		transport.relayAuthenticated = false;
 		transport.relayAuthenticate = async params => {
 			transport.relayAuthenticated = true;
-			return { resource: params.resource, token: 'desktop-credential' };
+			return { resource: params.resource, token: 'mobile-credential', scopes: params.scopes };
 		};
 		const installed: AuthenticateParams[] = [];
 		agentService.authenticate = async params => {
@@ -3492,9 +3719,9 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual({
 			installed,
 			response: findResponse(transport.sent, 2),
-			credentialPublished: JSON.stringify(transport.sent).includes('desktop-credential'),
+			credentialPublished: JSON.stringify(transport.sent).includes('mobile-credential'),
 		}, {
-			installed: [{ resource: 'https://api.github.com', token: 'desktop-credential' }],
+			installed: [{ resource: 'https://api.github.com', token: 'mobile-credential', scopes: ['mobile-only'] }],
 			response: { jsonrpc: '2.0', id: 2, result: {} },
 			credentialPublished: false,
 		});

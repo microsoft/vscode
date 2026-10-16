@@ -29,7 +29,6 @@ import { AuthenticationSessionAccount, IAuthenticationService } from '../../../.
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 
 const sharingStorageKey = 'agentHost.missionControl.sharing';
-const missionControlUseLocalCredentials = 'chat.agentHost.experimentalMissionControl.useLocalCredentials';
 const missionControlIgnoreRemoteControlPolicy = 'chat.agentHost.experimentalMissionControl.ignoreRemoteControlPolicy';
 
 export class MissionControlSharingService extends Disposable implements IMissionControlSharingService {
@@ -71,7 +70,7 @@ export class MissionControlSharingService extends Disposable implements IMission
 		this._register(this._configuration.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AgentHostRemoteConnectionsSettingId)) {
 				void this.setEnabled(false).catch(error => this._reportWithdrawalError(error));
-			} else if (e.affectsConfiguration(missionControlUseLocalCredentials) || e.affectsConfiguration(missionControlIgnoreRemoteControlPolicy)) {
+			} else if (e.affectsConfiguration(missionControlIgnoreRemoteControlPolicy)) {
 				void this._withdraw().catch(error => this._reportWithdrawalError(error));
 				this._update.schedule();
 			}
@@ -296,11 +295,6 @@ export class MissionControlSharingService extends Disposable implements IMission
 			}
 			this._accountId = sessions[0].account.id;
 			this._accountSessionIds = new Set(sessions.map(session => session.id));
-			const localCredentialSetting = this._configuration.inspect<boolean>(missionControlUseLocalCredentials);
-			const useLocalCredentials = (localCredentialSetting.userLocalValue ?? localCredentialSetting.applicationValue) === true;
-			if (useLocalCredentials) {
-				this._logService.warn('[Mission Control] Local credential delegation enabled: same-owner remote clients will run Copilot work with the desktop credential and its permissions');
-			}
 			const remoteControlPolicySetting = this._configuration.inspect<boolean>(missionControlIgnoreRemoteControlPolicy);
 			const ignoreRemoteControlPolicy = (remoteControlPolicySetting.userLocalValue ?? remoteControlPolicySetting.applicationValue) === true;
 			if (ignoreRemoteControlPolicy) {
@@ -314,7 +308,6 @@ export class MissionControlSharingService extends Disposable implements IMission
 				projects,
 				defaultDirectory: home.fsPath,
 				live: true,
-				...(useLocalCredentials ? { useLocalCredentials: true } : {}),
 				...(ignoreRemoteControlPolicy ? { ignoreRemoteControlPolicy: true } : {}),
 			});
 			if (generation === this._generation && !this._store.isDisposed) {

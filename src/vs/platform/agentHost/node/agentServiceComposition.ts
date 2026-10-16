@@ -39,6 +39,7 @@ import { AgentService, type IAgentServiceCollaborators, type IAgentServiceCore, 
 import { IAgentSessionRegistry } from './agentSessionRegistry.js';
 import { AgentSideEffects } from './agentSideEffects.js';
 import { AgentMergeController } from './agentMergeController.js';
+import { URI } from '../../../base/common/uri.js';
 import { AgentMergeTools } from './agentMergeTools.js';
 import { AgentServerToolHost, IAgentHostServerToolService } from './shared/agentServerToolHost.js';
 import { buildServerToolGroups } from './shared/serverToolGroups.js';
@@ -154,7 +155,7 @@ export function createAgentServiceComposition(
 		const customizationEnablementService = accessor.get(IAgentHostCustomizationEnablementService);
 		const gitStateService = accessor.get(IAgentHostGitStateService);
 		const agentMergeController = owned.add(instantiationService.createInstance(AgentMergeController, {
-			startTurn: (session, turnId, prompt) => callbackAdapter.value.startAgentMergeTurn(session, turnId, prompt),
+			startTurn: (session, turnId, prompt, credentials) => callbackAdapter.value.startAgentMergeTurn(session, turnId, prompt, credentials),
 			cancelTurn: (session, turnId) => callbackAdapter.value.cancelAgentMergeTurn(session, turnId),
 			postNotice: (session, kind, content) => callbackAdapter.value.postAgentMergeNotice(session, kind, content),
 		}));
@@ -190,7 +191,7 @@ export function createAgentServiceComposition(
 			AgentMergeTools,
 			() => agentMergeController.isEnabled(),
 			chat => agentMergeController.getTurnContext(chat),
-			(chat, enabled, overrides) => agentMergeController.setEnabled(chat, enabled, overrides),
+			(chat, enabled, overrides) => agentMergeController.setEnabled(chat, enabled, overrides, callbackAdapter.sessionServerToolAccessor.getCredentialSource(URI.parse(chat))),
 		));
 		const turnTracker = accessor.get(IAgentHostTurnTracker);
 		const workspaceConversionService: { value: ISessionWorkspaceConversionService | undefined } = { value: undefined };
@@ -198,12 +199,12 @@ export function createAgentServiceComposition(
 			...callbackAdapter.sessionServerToolAccessor,
 			getChatOwner: chat => chatOwnership.getChatOwner(chat),
 			getDefaultChat: session => chatOwnership.getDefaultChat(session),
-			requestSessionWorkspaceUpdate: (chat, turnId, workspaceFolder, isolation) => {
+			requestSessionWorkspaceUpdate: (chat, turnId, workspaceFolder, isolation, credentials) => {
 				const initiatingClientId = turnTracker.getInitiatorClientId(chat.toString(), turnId);
 				if (!workspaceConversionService.value) {
 					throw new Error('Session workspace conversion is unavailable.');
 				}
-				return workspaceConversionService.value.requestSessionWorkspaceUpdate(chat, turnId, workspaceFolder, isolation, initiatingClientId);
+				return workspaceConversionService.value.requestSessionWorkspaceUpdate(chat, turnId, workspaceFolder, isolation, initiatingClientId, credentials);
 			},
 		};
 		const serverToolHost = new AgentServerToolHost(

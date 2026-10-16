@@ -28,6 +28,7 @@ import { getRepositoryRootFromWorktree, getWorktreesRoot } from '../../common/wo
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, ResponsePart, ResponsePartKind, Turn } from '../../common/state/sessionState.js';
 import { AGENT_BRANCH_PREFIX, IAgentBranchNameGenerator } from './agentBranchNameGenerator.js';
 import { IAgentHostPullRequestResolver } from './pullRequestResolver.js';
+import type { IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY, readSessionAdditionalWorktrees } from './sessionAdditionalWorktrees.js';
 import type { WorktreeRemovalMode } from '../agentHostWorktreeRemovalDatabase.js';
 
@@ -480,6 +481,7 @@ export interface IIsolationConfigContribution {
 /** Parameters for {@link WorktreeIsolation.resolveWorkingDirectory}. */
 export interface IResolveWorkingDirectoryRequest {
 	readonly sessionUri: URI;
+	readonly credentialSource?: IAgentHostCredentialSource;
 	readonly sessionId: string;
 	readonly workingDirectory: URI | undefined;
 	readonly config: Record<string, unknown> | undefined;
@@ -1073,7 +1075,8 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		// Pull request session
 		const pullRequestUrl = getSessionPullRequestUrl(config);
 		if (pullRequestUrl !== undefined) {
-			return this._resolvePullRequestWorkingDirectory(request, pullRequestUrl);
+			const credentialSource = this._pullRequestResolver.captureSessionCredentialSource(request.sessionUri.toString(), request.credentialSource);
+			return this._resolvePullRequestWorkingDirectory({ ...request, credentialSource }, pullRequestUrl);
 		}
 
 		if (
@@ -1198,7 +1201,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 
 		onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.FetchingPullRequest));
 
-		const pullRequest = await this._pullRequestResolver.resolve(pullRequestUrl);
+		const pullRequest = await this._pullRequestResolver.resolve(pullRequestUrl, request.credentialSource, request.credentialSource ? request.sessionUri.toString() : undefined);
 		const remotes = await this._gitService.getFetchRemotes(repositoryRoot) ?? [];
 		const remote = findRemoteForRepository(remotes, pullRequest.webHost, pullRequest.owner, pullRequest.repo);
 		if (!remote) {
