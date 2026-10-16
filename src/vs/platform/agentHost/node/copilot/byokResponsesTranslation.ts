@@ -434,11 +434,11 @@ function outputText(items: readonly ResponsesOutputItem[]): string {
 		.join('');
 }
 
-function responseEnvelope(responseId: string, model: string, status: 'in_progress' | 'completed', output: readonly ResponsesOutputItem[], usage: unknown) {
+function responseEnvelope(responseId: string, model: string, status: 'in_progress' | 'completed', output: readonly ResponsesOutputItem[], usage: unknown, createdAt: number) {
 	return {
 		id: responseId,
 		object: 'response',
-		created_at: Math.floor(Date.now() / 1000),
+		created_at: createdAt,
 		status,
 		error: null,
 		incomplete_details: null,
@@ -455,7 +455,7 @@ function responseEnvelope(responseId: string, model: string, status: 'in_progres
 	};
 }
 
-function prepareResponse(result: IByokLmChatResult, model: string) {
+function prepareResponse(result: IByokLmChatResult, model: string, createdAt: number = Math.floor(Date.now() / 1000)) {
 	const responseId = result.responseId ?? nextId('resp');
 	const output = result.output.map(item => toResponsesOutputItem(item));
 	const inputTokens = result.usage?.inputTokens ?? 0;
@@ -470,7 +470,7 @@ function prepareResponse(result: IByokLmChatResult, model: string) {
 	return {
 		responseId,
 		output,
-		completed: responseEnvelope(responseId, model, 'completed', output, usage),
+		completed: responseEnvelope(responseId, model, 'completed', output, usage, createdAt),
 	};
 }
 
@@ -603,7 +603,7 @@ export function bridgeResultToResponsesSseFrames(result: IByokLmChatResult, mode
 	const { responseId, output, completed } = prepareResponse(result, model);
 	const sequence = { value: 0 };
 	const frames: string[] = [];
-	const skeleton = responseEnvelope(responseId, model, 'in_progress', [], undefined);
+	const skeleton = responseEnvelope(responseId, model, 'in_progress', [], undefined, completed.created_at);
 	frames.push(sseEvent('response.created', { type: 'response.created', sequence_number: sequence.value++, response: skeleton }));
 	frames.push(sseEvent('response.in_progress', { type: 'response.in_progress', sequence_number: sequence.value++, response: skeleton }));
 
@@ -645,6 +645,7 @@ export function bridgeResultToResponsesSseFrames(result: IByokLmChatResult, mode
 /** Encodes live bridge deltas without replaying them when the final result arrives. */
 export class ByokResponsesStream {
 	readonly responseId = nextId('resp');
+	private readonly _createdAt = Math.floor(Date.now() / 1000);
 	private readonly _sequence = { value: 0 };
 	private readonly _bridgeOutput: IByokLmOutputItem[] = [];
 	private readonly _output: ResponsesOutputItem[] = [];
@@ -689,13 +690,13 @@ export class ByokResponsesStream {
 			frames.forEach(frame => this._write(frame));
 			this._event('response.output_item.done', { output_index: outputIndex, item });
 		});
-		const { completed } = prepareResponse(result, this._model);
+		const { completed } = prepareResponse(result, this._model, this._createdAt);
 		this._event('response.completed', { response: { ...completed, id: this.responseId, output: this._output } });
 	}
 
 	fail(message: string): void {
 		this._event('response.failed', {
-			response: { ...responseEnvelope(this.responseId, this._model, 'in_progress', this._output, undefined), status: 'failed', error: { code: 'server_error', message } },
+			response: { ...responseEnvelope(this.responseId, this._model, 'in_progress', this._output, undefined, this._createdAt), status: 'failed', error: { code: 'server_error', message } },
 		});
 	}
 
@@ -706,7 +707,7 @@ export class ByokResponsesStream {
 	private _syncItem(outputIndex: number, bridgeItem: IByokLmOutputItem): void {
 		if (!this._started) {
 			this._started = true;
-			const response = responseEnvelope(this.responseId, this._model, 'in_progress', [], undefined);
+			const response = responseEnvelope(this.responseId, this._model, 'in_progress', [], undefined, this._createdAt);
 			this._event('response.created', { response });
 			this._event('response.in_progress', { response });
 		}

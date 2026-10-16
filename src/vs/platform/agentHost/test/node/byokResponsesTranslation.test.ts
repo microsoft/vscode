@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { IByokLmChatRequest, IByokLmChatResult, IByokLmInputItem, IByokLmOutputItem, IByokLmTool } from '../../common/agentHostByokLm.js';
 import {
@@ -22,6 +23,51 @@ import {
 suite('byokResponsesTranslation', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	teardown(() => sinon.restore());
+
+	for (const outcome of ['completed', 'failed'] as const) {
+		test(`preserves response identity and creation time across ${outcome} lifecycle events`, () => {
+			const clock = sinon.useFakeTimers({ now: 1500, toFake: ['Date'] });
+			const frames: string[] = [];
+			const stream = new ByokResponsesStream('model', frame => frames.push(frame));
+			const output: IByokLmOutputItem[] = [{ type: 'message', content: [{ type: 'text', text: 'hello' }] }];
+			clock.tick(2000);
+			stream.progress({ outputIndex: 0, item: output[0] });
+			clock.tick(3000);
+			if (outcome === 'completed') {
+				stream.complete({ responseId: 'provider-state', output });
+			} else {
+				stream.fail('provider failed');
+			}
+			const lifecycle = frames.map(frame => JSON.parse(frame.split('\n')[1].slice(6)) as {
+				type: string;
+				response?: { id: string; created_at: number };
+			}).flatMap(event => event.response ? [{
+				type: event.type,
+				id: event.response.id,
+				createdAt: event.response.created_at,
+			}] : []);
+			assert.deepStrictEqual(lifecycle, ['response.created', 'response.in_progress', `response.${outcome}`].map(type => ({
+				type, id: stream.responseId, createdAt: 1,
+			})));
+		});
+	}
+
+	test('captures creation time once for buffered SSE lifecycle events', () => {
+		sinon.useFakeTimers({ now: 1500, toFake: ['Date'] });
+		const now = sinon.spy(Date, 'now');
+		const lifecycle = bridgeResultToResponsesSseFrames({ responseId: 'resp_provider', output: [] }, 'model').map(frame => {
+			const event = JSON.parse(frame.split('\n')[1].slice(6)) as { type: string; response: { id: string; created_at: number } };
+			return { type: event.type, id: event.response.id, createdAt: event.response.created_at };
+		});
+		assert.deepStrictEqual({ lifecycle, clockReads: now.callCount }, {
+			lifecycle: ['response.created', 'response.in_progress', 'response.completed'].map(type => ({
+				type, id: 'resp_provider', createdAt: 1,
+			})),
+			clockReads: 1,
+		});
+	});
 
 	test('does not start SSE for metadata-only reasoning', () => {
 		const frames: string[] = [];
