@@ -523,7 +523,14 @@ export class AgentHostCatalogSyncService {
 				continue;
 			}
 			if (upsertResult !== 'applied' && upsertResult !== 'replayed') {
-				this._logService.warn(`[AgentHostCatalogSync] sessions_v2 payload for ${sessionKey} remains pending: ${upsertResult}`);
+				// A chat catalog that moved on under the request (an import or a conversion) is retried by
+				// synchronizeWithFactory, whose callers warn if it never settles.
+				const message = `[AgentHostCatalogSync] sessions_v2 payload for ${sessionKey} remains pending: ${upsertResult}`;
+				if (upsertResult === 'conflict' && request.chatCatalogRevision !== undefined) {
+					this._logService.trace(message);
+				} else {
+					this._logService.warn(message);
+				}
 				return { status: 'pending', sourceRevision, reason: upsertResult };
 			}
 
