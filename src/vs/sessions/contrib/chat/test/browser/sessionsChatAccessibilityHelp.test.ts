@@ -60,8 +60,9 @@ suite('SessionsChatAccessibilityHelp', () => {
 			independentDrag: content.includes('without moving its parent.'),
 			independentVisibility: content.includes('Closing the parent pane leaves independent sub-session panes open.'),
 			positionalPaneFocus: content.includes('Focus Session 1 in Grid<keybinding:sessions.focusSessionInGrid1>'),
+			keyboardDetach: content.includes('Detach Chat into New Pane<keybinding:sessions.detachChat> from the Command Palette'),
 			keyboardMove: content.includes('<keybinding:sessions.moveChatToNextGroup>'),
-		}, { back: true, forward: true, singletonViews: true, parentContext: true, independentDrag: true, independentVisibility: true, positionalPaneFocus: true, keyboardMove: true });
+		}, { back: true, forward: true, singletonViews: true, parentContext: true, independentDrag: true, independentVisibility: true, positionalPaneFocus: true, keyboardDetach: true, keyboardMove: true });
 	});
 
 	test('documents connector recommendations when the marketplace is available', () => {

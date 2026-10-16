@@ -1158,11 +1158,14 @@ suite('Sessions - ChatGroupsView', () => {
 			dataTransfer.setData(SessionsDataTransfers.SESSION, JSON.stringify({ sessionId: session.sessionId, resource: session.resource.toString() }));
 			const group = view.element.querySelector<HTMLElement>('.chat-group-view');
 			assert.ok(group);
-			group.dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer }));
+			const bounds = group.getBoundingClientRect();
+			const clientX = bounds.left + 1;
+			const clientY = bounds.top + bounds.height / 2;
+			group.dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer, clientX, clientY }));
 			const chatOverlay = view.element.querySelector<HTMLElement>('#monaco-workbench-chat-group-drop-overlay');
 			const sessionOverlay = container.querySelector('#monaco-workbench-session-drop-overlay');
-			chatOverlay?.dispatchEvent(new DragEvent('dragover', { bubbles: true, dataTransfer }));
-			chatOverlay?.dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer }));
+			chatOverlay?.dispatchEvent(new DragEvent('dragover', { bubbles: true, dataTransfer, clientX, clientY }));
+			chatOverlay?.dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer, clientX, clientY }));
 			await timeout(0);
 
 			assert.deepStrictEqual({

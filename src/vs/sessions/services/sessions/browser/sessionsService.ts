@@ -256,6 +256,8 @@ export interface ISessionsService {
 	openChat(session: ISession, chatUri: URI, options?: IOpenSessionOptions): Promise<void>;
 	/** Place a child chat in the outer grid without changing its owning session. */
 	moveChatToGrid(sessionId: string, chatResource: URI, referenceSlotId: string, direction: SessionGridDirection): Promise<void>;
+	/** Place a chat beside its current pane without changing provider ownership. */
+	detachChat(session: IActiveSession, chatResource: URI): Promise<void>;
 	/** Return a standalone chat to its owning session's chat grid. */
 	attachChat(session: ISession, chatResource: URI): void;
 
@@ -1052,6 +1054,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	async closeChat(session: IActiveSession, chat: IChat, options?: ICloseChatOptions): Promise<void> {
+		this._cancelRestore();
+		this._startOpenSession();
 		// Closing hides the chat from the tab strip; it stays reopenable from the
 		// session header's chats dropdown.
 		this._visibility.closeChat(session, chat);
@@ -1095,6 +1099,19 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._visibility.moveChatToGrid(session, chat, referenceSlotId,
 			direction === 'left' ? Direction.Left : direction === 'right' ? Direction.Right : direction === 'up' ? Direction.Up : Direction.Down);
 		this.sessionsPartService.focusSession(this.activeSession.get());
+	}
+
+	async detachChat(session: IActiveSession, chatResource: URI): Promise<void> {
+		if (this.uriIdentityService.extUri.isEqual(chatResource, session.mainChat.get().resource)
+			|| this.uriIdentityService.extUri.isEqual(chatResource, session.scopedChatResource)) {
+			return;
+		}
+		const index = this._visibility.gridSessions.get().indexOf(session);
+		const reference = this._visibility.getRenderedGridSlots()[index];
+		if (!reference) {
+			throw new Error(`Cannot detach a chat from unavailable pane '${session.sessionId}'`);
+		}
+		await this.moveChatToGrid(session.sessionId, chatResource, reference.id, 'right');
 	}
 
 	attachChat(session: ISession, chatResource: URI): void {

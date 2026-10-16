@@ -61,8 +61,8 @@ import { INewSessionComposerService, NewSessionComposerService } from '../../../
 import { ISessionSection, NEW_SESSION_FOR_WORKSPACE_ACTION_ID } from '../../browser/views/sessionsList.js';
 import { ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
 import { WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
-import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
-import { IsPhoneLayoutContext, MultipleSessionsVisibleContext, SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionIdContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionsFocusContext, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
+import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, DETACH_CHAT_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { IsPhoneLayoutContext, MultipleSessionsVisibleContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatResourceContext, SessionIdContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionsFocusContext, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -788,6 +788,41 @@ suite('Sessions - Actions', () => {
 			sessionHeaderTooltip: 'Close Session',
 			editorClass: 'codicon codicon-close-small',
 		});
+	});
+
+	test('the Detach Chat command is keyboard-discoverable and detaches the active child', async () => {
+		const { session } = createTestSession('detach-child');
+		const child: IChat = { ...session.mainChat.get(), resource: URI.parse('test-chat:/child') };
+		const active = upcastPartial<IActiveSession>({ ...session, activeChat: constObservable(child) });
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const calls: { session: IActiveSession; resource: string }[] = [];
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable(active);
+			override async detachChat(session: IActiveSession, resource: URI): Promise<void> { calls.push({ session, resource: resource.toString() }); }
+		});
+		const command = CommandsRegistry.getCommand(DETACH_CHAT_COMMAND_ID);
+		assert.ok(command);
+		await command.handler(instantiationService);
+		const palette = MenuRegistry.getMenuItems(MenuId.CommandPalette).filter(isIMenuItem).find(item => item.command.id === DETACH_CHAT_COMMAND_ID);
+		const context = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		IsSessionsWindowContext.bindTo(context).set(true);
+		SessionIsCreatedContext.bindTo(context).set(true);
+		const closable = SessionActiveChatIsClosableContext.bindTo(context);
+		closable.set(true);
+		const aiEnabled = ChatContextKeys.enabled.bindTo(context);
+		aiEnabled.set(true);
+		const enabledForChild = context.contextMatchesRules(palette?.when);
+		closable.set(false);
+		const enabledForMain = context.contextMatchesRules(palette?.when);
+		closable.set(true);
+		aiEnabled.set(false);
+		assert.deepStrictEqual({
+			palette: !!palette,
+			enabledForChild,
+			enabledForMain,
+			enabledWithAiDisabled: context.contextMatchesRules(palette?.when),
+			calls,
+		}, { palette: true, enabledForChild: true, enabledForMain: false, enabledWithAiDisabled: false, calls: [{ session: active, resource: child.resource.toString() }] });
 	});
 
 	test('positional focus commands follow visual pane order and work with only a standalone child', async () => {

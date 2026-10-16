@@ -408,7 +408,7 @@ export class VisibleSessions extends Disposable {
 		return pane?.sessionId === sessionId ? pane : undefined;
 	}
 
-	insertAtGridSlot(session: ISession | undefined, reference: string, side: 'left' | 'right' | 'up' | 'down', activate: boolean): void {
+	insertAtGridSlot(session: ISession | undefined, reference: string, side: 'left' | 'right' | 'up' | 'down', activate: boolean, transaction?: ITransaction): void {
 		const sessionId = session?.sessionId;
 		const slots = this.getRenderedGridSlots();
 		const index = slots.findIndex(slot => slot.id === reference);
@@ -416,7 +416,7 @@ export class VisibleSessions extends Disposable {
 			return;
 		}
 		const target = this._gridSessions.get()[index];
-		transaction(tx => {
+		subtransaction(transaction, tx => {
 			if (target?.scopedChatResource && !this._visibleList.includes(target.sessionId)) {
 				if (!this._visibleList.includes(sessionId)) {
 					if (session) {
@@ -984,10 +984,23 @@ export class VisibleSessions extends Disposable {
 			transaction(tx => this._setActiveSession(detached.wrapper, this._activePreserveFocus.get(), tx));
 			return;
 		}
-		this._wrappers.get(session.sessionId)?.setActiveChat(chat);
-		if (this._activeSession.get()?.scopedChatResource && this._activeSession.get()?.sessionId === session.sessionId) {
-			transaction(tx => this._setActiveSession(this._wrappers.get(session.sessionId), this._activePreserveFocus.get(), tx));
-		}
+		transaction(tx => {
+			let wrapper = this._wrappers.get(session.sessionId);
+			const active = this._activeSession.get();
+			const activeChild = active?.scopedChatResource && active.sessionId === session.sessionId
+				? this._detached.get(active.scopedChatResource.toString())
+				: undefined;
+			if (!wrapper && activeChild) {
+				const owner = session instanceof VisibleSession ? session.session : session;
+				this.insertAtGridSlot(owner, activeChild.slot.id, 'right', false, tx);
+				wrapper = this._wrappers.get(session.sessionId);
+				wrapper?.openChat(chat);
+			}
+			wrapper?.setActiveChat(chat);
+			if (wrapper && activeChild) {
+				this._setActiveSession(wrapper, this._activePreserveFocus.get(), tx);
+			}
+		});
 	}
 
 	/** The chat the session's view last fell back from because the session stopped listing it; see {@link VisibleSession.chatFallenBackFrom}. */
