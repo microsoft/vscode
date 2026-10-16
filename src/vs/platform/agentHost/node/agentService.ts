@@ -876,6 +876,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _chatMoveSequencer = new Sequencer();
 	/** Sessions a chat move is changing; they stay resident until it ends. */
 	private readonly _chatMoveSessions = new Set<string>();
+	private readonly _chatMovability: AgentHostChatMovability;
 	private readonly _defaultChatBackingWrites = new Map<string, Promise<void>>();
 	private readonly _chatHistoryRefreshes = this._register(new ThrottlerByKey<string>());
 	private readonly _chatWatches = this._register(new DisposableResourceMap());
@@ -1167,7 +1168,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}));
 		this._register(this._stateManager.onDidEmitNotification(e => this._onDidNotification.fire(e)));
-		this._register(new AgentHostChatMovability(this._stateManager, this._configurationService));
+		this._chatMovability = this._register(new AgentHostChatMovability(this._stateManager, this._configurationService));
 		this._register(this._sessionRegistry.onDidAdoptSession(session => {
 			const key = session.toString();
 			const state = this._stateManager.getSessionState(key);
@@ -6595,7 +6596,8 @@ export class AgentService extends Disposable implements IAgentService {
 		if (sessionMove) {
 			// The session ends with the move: its applied sandbox states are read first.
 			const sandboxStates = inMemory.map(candidate => [candidate, readChatSandboxState(this._stateManager.getSessionState(source), candidate)] as const);
-			this._stateManager.transferSession(source, target, inMemory, anchor);
+			// No longer its session's default chat, the chat joins the target as the peer it now is: announced movable, never as a transient non-movable chat.
+			this._stateManager.transferSession(source, target, inMemory, anchor, this._chatMovability.isMovableIn(chat, target) ?? false);
 			for (const [candidate, applied] of sandboxStates) {
 				if (applied) {
 					this._configurationService.setChatSandboxEnabled({ session: target, chat: candidate }, applied.enabled, applied.error);

@@ -3417,26 +3417,29 @@ suite('AgentHostStateManager', () => {
 			disposables.add(manager.onDidEmitEnvelope(envelope => published.push(`${envelope.channel === sessionUri ? 'source' : envelope.channel === target ? 'target' : 'other'} ${envelope.action.type}`)));
 			disposables.add(manager.onDidEmitNotification(notification => published.push(`notification ${notification.type}`)));
 
-			manager.transferSession(sessionUri, target, [sessionChatUri, sub], undefined);
+			manager.transferSession(sessionUri, target, [sessionChatUri, sub], undefined, true);
 
 			assert.deepStrictEqual({
 				published: published.filter(entry => !entry.includes('activeSessionsChanged') && !entry.includes('chatUpdated') && !entry.includes('sessionSummaryChanged')),
 				source: manager.getSessionState(sessionUri),
-				targetChats: manager.getSessionState(target)?.chats.map(chat => [chat.resource, chat.title]),
+				targetChats: manager.getSessionState(target)?.chats.map(chat => [chat.resource, chat.title, chat.movable ?? false]),
+				movable: manager.getChatState(sessionChatUri)?.movable,
 				owners: [sessionChatUri, sub].map(chat => manager.getChatOwner(chat)),
 				activeTurn: manager.getChatState(sessionChatUri)?.activeTurn?.id,
 				origin: manager.getMovedChatOrigin(sessionChatUri),
 				targetActive: manager.getSessionState(target)!.status & SessionStatus.InProgress,
 			}, {
-				published: ['target session/chatAdded', 'target session/chatAdded', 'target session/chatsReordered', 'notification root/sessionRemoved'],
+				// The former default chat is announced as the movable peer it is now; its own state follows once the target lists it.
+				published: ['target session/chatAdded', 'target session/chatAdded', 'other chat/movableChanged', 'target session/chatsReordered', 'notification root/sessionRemoved'],
 				source: undefined,
-				targetChats: [[sessionChatUri, 'Moved session'], [sub, ''], [targetDefault, 'Test']],
+				targetChats: [[sessionChatUri, 'Moved session', true], [sub, '', false], [targetDefault, 'Test', false]],
+				movable: true,
 				owners: [target, target],
 				activeTurn: 'turn',
 				origin: sessionUri,
 				targetActive: SessionStatus.InProgress,
 			});
-			assert.throws(() => manager.transferSession(target, sessionUri, [targetDefault], undefined), /both sessions must be loaded/);
+			assert.throws(() => manager.transferSession(target, sessionUri, [targetDefault], undefined, true), /both sessions must be loaded/);
 		});
 
 		test('places the chat first without an anchor and refuses the default chat or a foreign chat', () => {

@@ -53,16 +53,28 @@ export class AgentHostChatMovability extends Disposable {
 	/** Publishes the current eligibility of `chat`. */
 	update(chat: ProtocolURI): void {
 		const owner = this._stateManager.getChatOwner(chat);
-		const summary = owner === undefined ? undefined : this._stateManager.getSessionState(owner)?.chats.find(candidate => candidate.resource === chat);
-		if (owner === undefined || !summary) {
-			return;
+		const movable = owner === undefined ? undefined : this.isMovableIn(chat, owner);
+		if (movable !== undefined) {
+			this._stateManager.setChatMovable(chat, movable);
 		}
-		this._stateManager.setChatMovable(chat, isChatMovable({
+	}
+
+	/**
+	 * Whether `chat`, listed by its current owner, is eligible to move once `owner` owns it; `undefined` when its
+	 * owner doesn't list it. A move asks before the chat joins `owner`, so its new session announces it as it is.
+	 */
+	isMovableIn(chat: ProtocolURI, owner: ProtocolURI): boolean | undefined {
+		const current = this._stateManager.getChatOwner(chat);
+		const summary = current === undefined ? undefined : this._stateManager.getSessionState(current)?.chats.find(candidate => candidate.resource === chat);
+		if (!summary) {
+			return undefined;
+		}
+		return isChatMovable({
 			enabled: this._configurationService.getRootValue(chatMoveRootConfigSchema, ChatMoveConfigKey.Enabled) === true,
 			isDefault: this._stateManager.isDefaultChat(owner, chat),
 			origin: summary.origin,
 			interactivity: summary.interactivity,
-		}));
+		});
 	}
 
 	/** Publishes whether `session` can move under another session; written only when it changes. */

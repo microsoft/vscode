@@ -32713,6 +32713,45 @@ suite('AgentService (node dispatcher)', () => {
 					}, { draft: 'After the move', strayDirectory: false });
 				});
 
+				test('the session\'s chat joins the destination announced as the movable peer it is now, and moves on from there', async () => {
+					const { service, source, target, chat } = await setupSessionMove();
+					const stateManager = getStateManager(service);
+					await stateManager.resolveChatState(chat.toString());
+					const announced: unknown[] = [];
+					disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+						const action = envelope.action;
+						if (action.type === ActionType.SessionChatAdded && action.summary.resource === chat.toString()) {
+							announced.push({ added: action.summary.movable });
+						} else if (action.type === ActionType.SessionChatUpdated && action.chat === chat.toString() && action.changes.movable !== undefined) {
+							announced.push({ updated: action.changes.movable });
+						} else if (action.type === ActionType.ChatMovableChanged && envelope.channel === chat.toString()) {
+							announced.push({ chat: action.movable, listed: stateManager.getSessionState(target.toString())?.chats.some(candidate => candidate.resource === chat.toString()) });
+						}
+					}));
+
+					await service.moveSession(source, target, undefined);
+					await timeout(0);
+					const announcedByMove = [...announced];
+					const other = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+					const reordered = await refusalOf(service.moveChat(target, chat, { kind: 'session', session: target, after: URI.parse(buildDefaultChatUri(target)) }));
+					const moved = await refusalOf(service.moveChat(target, chat, { kind: 'session', session: other, after: undefined }));
+
+					assert.deepStrictEqual({
+						announced: announcedByMove,
+						movable: { summary: stateManager.getSessionState(other.toString())?.chats.find(candidate => candidate.resource === chat.toString())?.movable, state: stateManager.getChatState(chat.toString())?.movable },
+						reordered,
+						moved,
+						owner: stateManager.getChatOwner(chat.toString()),
+					}, {
+						// Announced movable in the same `session/chatAdded`; its own state follows once the destination lists it. Nothing corrects it afterwards.
+						announced: [{ added: true }, { chat: true, listed: true }],
+						movable: { summary: true, state: true },
+						reordered: 'moved',
+						moved: 'moved',
+						owner: other.toString(),
+					});
+				});
+
 				test('refuses a session with other chats, a session moving under itself, and while moves are disabled; changes nothing', async () => {
 					const { service, source, target, chat } = await setupSessionMove();
 					await service.createChat(source, URI.parse(buildChatUri(source, 'peer')));
