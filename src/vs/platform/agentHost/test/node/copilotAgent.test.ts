@@ -6322,6 +6322,9 @@ suite('CopilotAgent', () => {
 			try {
 				await database.object.createTurn('question');
 				await database.object.storeTerminalOutput('question', 'shell', VSBuffer.fromString('retained output').buffer);
+				const batchedLookups = spy(database.object, 'getTerminalOutputSizes');
+				const singleLookups = spy(database.object, 'getTerminalOutputSize');
+				disposables.add(toDisposable(() => { batchedLookups.restore(); singleLookups.restore(); }));
 				await agent.materializeChat(chat, context, undefined);
 				const parentRead = agent.chats.getMessages(chat, context);
 				await readStarted.p;
@@ -6345,6 +6348,7 @@ suite('CopilotAgent', () => {
 					sibling: { question: siblingTurns[0].message.text, markdown: markdown(siblingTurns) },
 					childAgain: markdown(childAgain),
 					terminal: shell?.kind === ResponsePartKind.ToolCall && shell.toolCall.status === 'completed' ? shell.toolCall.content?.find(content => content.type === ToolResultContentType.Terminal)?.resource : undefined,
+					storedOutputLookups: { batched: batchedLookups.callCount, single: singleLookups.callCount },
 					launches: launches.length,
 					clients: options.map(option => option.mode),
 				}, {
@@ -6354,6 +6358,7 @@ suite('CopilotAgent', () => {
 					sibling: { question: 'Sibling question', markdown: ['Sibling answer'] },
 					childAgain: ['Child answer'],
 					terminal: buildNonPtyShellTerminalUri(storage, owner, chat, 'shell'),
+					storedOutputLookups: { batched: 1, single: 0 },
 					launches: 0, clients: ['empty'],
 				});
 				await agent.chats.releaseChat(chat, context);
