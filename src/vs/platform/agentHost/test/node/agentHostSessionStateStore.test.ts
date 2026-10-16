@@ -20,11 +20,14 @@ import { SessionStateDeletedError, SessionStateMirrorFlush, readSessionBaseBranc
 import { type ISessionDatabase, type ISessionDataService } from '../../common/sessionDataService.js';
 import { AgentHostCatalogSyncService } from '../../node/agentHostCatalogSyncService.js';
 import { AgentHostDatabase, type IAgentHostDatabase } from '../../node/agentHostDatabase.js';
-import { mirrorEntryId } from '../../node/agentHostSessionStateMirror.js';
+import { mirrorEntryId, OLDER_BUILD_WORKTREE_WITHHELD_KEY } from '../../node/agentHostSessionStateMirror.js';
+import { AgentHostWorktreeCoOwnership } from '../../node/agentHostWorktreeCoOwnership.js';
+import { NullAgentHostWorktreeIsolation, WORKTREE_META_PATH, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
 import { AgentHostSessionStateStore } from '../../node/agentHostSessionStateStore.js';
 import { AH_CHAT_CONFIG_VALUES_DB_KEY } from '../../node/agentHostChatRowStore.js';
 import { CompatibleAgentHostDatabase } from '../../node/compatibleAgentHostDatabase.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
+import { SESSION_WORKING_DIRECTORIES_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { createLegacySessionFixture, InMemorySessionDataService, legacySessionMetadata, readOldBuildView, writeLegacySessionState, type ILegacySessionFixture } from './sessionStateCompatibilityFixtures.js';
 
 /** Long enough that no mirror flush runs unless a test asks for it. */
@@ -72,6 +75,53 @@ suite('AgentHostSessionStateStore', () => {
 			reference.dispose();
 		}
 	}
+
+	test('a shared worktree\'s branch is withheld from older builds until it is no longer shared; an older build writing it back keeps the value and has it withheld again (Block 5)', async () => {
+		const session = URI.parse('copilotcli:/shared-owner');
+		const coOwner = 'copilotcli:/co-owner';
+		const worktree = 'file:///repo.worktrees/shared';
+		const branchKey = 'copilot.worktree.branchName';
+		await database.registerSessionV2(session.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		await database.registerSessionV2(coOwner, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		await database.importSessionState(coOwner, { importVersion: 1, importedAt: 1, values: { [SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify([worktree]) }, folders: [], chats: [], legacyMirrorBase: '{}', launchDirsBackfilled: true });
+		const first = createStore();
+		await first.writeMetadata(session, session, {
+			[WORKTREE_META_PATH]: worktree, [branchKey]: 'agents/shared', [WORKTREE_META_REPOSITORY_ROOT]: 'file:///repo', [SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify([worktree]),
+		}, SessionStateMirrorFlush.Immediate);
+		const raw = await (database as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+		for (const owner of [session.toString(), coOwner]) {
+			await new Promise<void>((resolve, reject) => raw.run('INSERT INTO worktree_co_owners (worktree_path, session_uri, repository_root, branch) VALUES (?, ?, ?, ?)', [worktree, owner, 'file:///repo', 'agents/shared'], error => error ? reject(error) : resolve()));
+		}
+		// What 1.140-1.142 resolve as the session's worktree: nothing without its branch, so they never remove it.
+		const olderBuildWorktree = async () => {
+			const values = await sessionDb(session, [WORKTREE_META_PATH, branchKey]);
+			return values[branchKey] === undefined ? undefined : values[WORKTREE_META_PATH];
+		};
+		const central = async (sessionStore: AgentHostSessionStateStore) => (await sessionStore.readWithoutImport(session, [branchKey, OLDER_BUILD_WORKTREE_WITHHELD_KEY])).get(branchKey);
+		const states: Record<string, unknown> = {};
+
+		states.before = await olderBuildWorktree();
+		const coOwnership = new AgentHostWorktreeCoOwnership(database, first, new NullAgentHostWorktreeIsolation(), new NullLogService());
+		await coOwnership.withhold(session);
+		await coOwnership.releaseWithholding(session);
+		states.shared = { olderBuild: await olderBuildWorktree(), central: await central(first) };
+		// An older build writes the branch back; the next import keeps its (same) value and withholds it again.
+		await oldBuildEdit(session.toString(), { [branchKey]: 'agents/shared' });
+		const second = createStore();
+		await second.load(session);
+		states.writtenBack = { olderBuild: await olderBuildWorktree(), central: await central(second) };
+		// The co-owner is deleted by an older build: once published, older builds see the branch again.
+		await new Promise<void>((resolve, reject) => raw.run('DELETE FROM sessions_v2 WHERE session_uri = ?', [coOwner], error => error ? reject(error) : resolve()));
+		await new AgentHostWorktreeCoOwnership(database, second, new NullAgentHostWorktreeIsolation(), new NullLogService()).releaseWithholding(session);
+		states.released = { olderBuild: await olderBuildWorktree(), central: await central(second), withheld: (await second.readWithoutImport(session, [OLDER_BUILD_WORKTREE_WITHHELD_KEY])).get(OLDER_BUILD_WORKTREE_WITHHELD_KEY) };
+
+		assert.deepStrictEqual(states, {
+			before: worktree,
+			shared: { olderBuild: undefined, central: 'agents/shared' },
+			writtenBack: { olderBuild: undefined, central: 'agents/shared' },
+			released: { olderBuild: worktree, central: 'agents/shared', withheld: undefined },
+		});
+	});
 
 	test('imports an older build\'s session once, without changing what older builds read', async () => {
 		const { fixture, session } = await oldBuildSession();

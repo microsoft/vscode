@@ -19,7 +19,7 @@ import { ISessionDataService } from '../common/sessionDataService.js';
 import { AgentHostChatRowStore } from './agentHostChatRowStore.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
 import type { IAgentHostSessionChatStateData, IAgentHostSessionChatStateFields, IAgentHostSessionStateImport, IAgentHostSessionStatePatch } from './agentHostSessionStateDatabase.js';
-import { BASE_BRANCH_MIRROR_KEY, COPILOT_LAUNCH_DIRECTORY_KEYS, getSessionStateValueKey, IMirrorReadPlan, isProjectedMirrorEntry, isRetiredLegacyKey, legacyMapWritePatch, legacyWriteEntry, ILiveChat, baseBranchSources, CHAT_WORKING_DIRECTORIES_MIRROR_KEY, MirrorReads, mergePatches, mirroredChatFields, mirrorEntryId, observedMirrorEntries, observeLegacyArchived, observeMirrorEntry, parseMirrorEntryId, patchFromMirror, patchMirrorEntries, planMirrorReads, renderLegacyMetadata, renderMirrorEntry, renderMirrorWrites, SESSION_STATE_VALUE_KEYS, sessionFolderKey, SessionStateMirrorEntry, SessionStateModel } from './agentHostSessionStateMirror.js';
+import { BASE_BRANCH_MIRROR_KEY, COPILOT_LAUNCH_DIRECTORY_KEYS, getSessionStateValueKey, IMirrorReadPlan, isProjectedMirrorEntry, isRetiredLegacyKey, legacyMapWritePatch, legacyWriteEntry, ILiveChat, baseBranchSources, CHAT_WORKING_DIRECTORIES_MIRROR_KEY, MirrorReads, mergePatches, mirroredChatFields, mirrorEntryId, observedMirrorEntries, observeLegacyArchived, observeMirrorEntry, parseMirrorEntryId, patchFromMirror, patchMirrorEntries, planMirrorReads, renderLegacyMetadata, renderMirrorWrites, renderOlderBuildEntry, SESSION_STATE_VALUE_KEYS, sessionFolderKey, SessionStateMirrorEntry, SessionStateModel } from './agentHostSessionStateMirror.js';
 import { META_GITHUB_STATE } from '../common/agentHostGitStateService.js';
 import { SESSION_WORKING_DIRECTORIES_KEY } from './shared/persistSessionMetadata.js';
 import { creationTimeChatStorageResource, mirrorsAtChatUri } from './agentHostStateManager.js';
@@ -279,7 +279,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 					}
 					// Only entries the caller's raw write leaves exactly as rendered may be noted as mirrored.
 					const entries = patchMirrorEntries(patch)
-						.filter(entry => entry.kind === 'folder' || (entry.kind === 'value' && renderMirrorEntry(record.model, entry) === values[entry.key]))
+						.filter(entry => entry.kind === 'folder' || (entry.kind === 'value' && renderOlderBuildEntry(record.model, entry) === values[entry.key]))
 						.map(mirrorEntryId);
 					return { revision, entries };
 				},
@@ -509,7 +509,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			for (const key of keys) {
 				const entry: SessionStateMirrorEntry = { kind: 'value', key };
 				const observed = observeMirrorEntry(record.key, record.model, entry, reads, () => false)?.content;
-				if (observed !== renderMirrorEntry(record.model, entry)) {
+				if (observed !== renderOlderBuildEntry(record.model, entry)) {
 					changes[key] = observed ?? null;
 				}
 				this._setBase(record, mirrorEntryId(entry), observed);
@@ -1038,24 +1038,32 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			}
 		}
 		const patches: Partial<ISessionStatePatch>[] = [];
+		const imported: string[] = [];
 		const base = new Map(record.base);
 		for (const [id, entry] of entries) {
 			const observed = observeMirrorEntry(record.key, model, entry, reads, isDefault);
 			if (observed?.compare !== record.base.get(id)) {
 				patches.push(patchFromMirror(model, entry, observed, isDefault));
+				imported.push(id);
 				if (observed) {
 					base.set(id, observed.compare);
 				} else {
 					base.delete(id);
 				}
-			} else if (renderMirrorEntry(model, entry) !== observed?.compare) {
+			} else if (renderOlderBuildEntry(model, entry) !== observed?.compare) {
 				record.dirty.add(id);
 			}
 		}
 		if (patches.length > 0) {
 			const revision = await this._writeCentral(record, mergePatches(patches), false, true);
 			record.base = base;
-			await this._database.recordSessionStateLegacyMirrorPayload(record.key, revision, serializeBase(base));
+			await this._database.recordSessionStateLegacyMirrorPayload(record.key, revision, serializeBase(record.base));
+			for (const id of imported) {
+				// An imported value older builds' copy doesn't show as written (a withheld worktree branch) is withheld again.
+				if (base.get(id) !== renderOlderBuildEntry(record.model, entries.get(id)!)) {
+					record.dirty.add(id);
+				}
+			}
 		}
 		await this._flushLocked(record);
 		return patches.length > 0;
@@ -1160,7 +1168,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			const entry = parseMirrorEntryId(id);
 			if (record.model.entryRevision(entry) <= revision) {
 				record.dirty.delete(id);
-				this._setBase(record, id, renderMirrorEntry(record.model, entry));
+				this._setBase(record, id, renderOlderBuildEntry(record.model, entry));
 			}
 		}
 	}
