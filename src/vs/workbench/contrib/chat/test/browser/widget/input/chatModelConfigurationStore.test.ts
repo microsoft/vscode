@@ -198,7 +198,6 @@ suite('ChatModelConfigurationStore', () => {
 			},
 		}, ['tier']);
 		const editor = createStore(store.add(new InMemoryStorageService()), control.service, () => false);
-		// The host reports only the tiers this chat can select, with its own labels.
 		editor.setSessionModelConfiguration({
 			models: { [MODEL]: { defaults: { tier: 'hydrafusion' }, readOnly: [], choices: { tier: { values: ['balance', 'hydrafusion'], labels: ['Lite', 'Balance'], descriptions: ['Quick', 'Thorough'] } } } },
 		});
@@ -1207,7 +1206,6 @@ suite('ChatModelConfigurationStore', () => {
 		const storage = store.add(new InMemoryStorageService());
 		const control = createControllableService();
 		control.setAutoModel();
-		// Tiers the runtime discovered from CAPI `/meta`, which need not be the built-in profiles.
 		control.setSchema({ properties: { tier: { type: 'string', enum: ['balance', 'hydrafusion', 'premium-v2'], default: 'balance' } } });
 		const advertised = createStore(storage, control.service);
 		const stale = createStore(store.add(new InMemoryStorageService()), control.service);

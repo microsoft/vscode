@@ -361,10 +361,6 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 		}
 		const source = values[AutoTierSourceConfigKey];
 		const inherited = isInheritedAutoTier(values);
-		// With the model's schema loaded, `filtered.tier` already matched its advertised tiers,
-		// which may come from the provider rather than the built-in list. Before the model
-		// registers there is no schema, so a provider tier is kept as captured, with its
-		// provenance, until a later sync validates it against the schema.
 		const isRoutingTier = (tier: unknown) => this._isAutoTier(modelId, tier);
 		if (isRoutingTier(filtered.tier)) {
 			if (source === 'session' || (!this.isEmpty() && inherited)) {
@@ -403,11 +399,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 			: restoredDefaults);
 	}
 
-	/**
-	 * Whether a value is one of Auto's routing tiers: a built-in one, or any tier of the Auto model,
-	 * whose schema may list the provider's own. Before the model registers there is no schema, so a
-	 * provider tier is kept as captured until a later sync validates it against the schema.
-	 */
+	/** Before the model registers there is no schema, so a provider tier is kept until a later sync validates it. */
 	private _isAutoTier(modelId: string, tier: unknown): boolean {
 		if (isAutoModeRoutingTier(tier)) {
 			return true;
@@ -513,11 +505,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 type IModelConfigurationPropertySchema = NonNullable<ILanguageModelConfigurationSchema['properties']>[string];
 type IScopedChoices = NonNullable<IAgentModelConfigurationReport['models'][string]['choices']>[string];
 
-/**
- * A chat's own choices for a property. The host reports only the values the chat can select, so
- * values the shared schema lists as unavailable are kept, disabled, in the shared order, and every
- * parallel array is rebuilt to match.
- */
+/** The host reports only selectable values, so the shared schema's unavailable ones are merged back in. */
 function withScopedChoices(property: IModelConfigurationPropertySchema, choices: IScopedChoices): Partial<IModelConfigurationPropertySchema> {
 	const scoped = { enum: choices.values, enumItemLabels: choices.labels, enumDescriptions: choices.descriptions };
 	const shared = property.enum ?? [];

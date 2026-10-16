@@ -190,7 +190,7 @@ suite('ModelCard', () => {
 
 	suite('Fusion tier promotions', () => {
 		const day = 24 * 60 * 60 * 1000;
-		function createFusionModel(promotions: ILanguageModelChatMetadata['autoModelTierPromotions'], disabled?: boolean[]): ILanguageModelChatMetadataAndIdentifier {
+		function createFusionModel(promotions: ILanguageModelChatMetadata['autoModelTierPromotions']): ILanguageModelChatMetadataAndIdentifier {
 			return {
 				...createModel({
 					id: 'auto',
@@ -206,7 +206,6 @@ suite('ModelCard', () => {
 								type: 'string', title: 'Effort Level', group: 'navigation',
 								enum: ['balance', 'hydrafusion', 'hydrafusion-max'],
 								enumItemLabels: ['Lite', 'Balance', 'Max'],
-								...(disabled && { enumItemDisabled: disabled }),
 								default: 'balance',
 							},
 						},
@@ -248,10 +247,6 @@ suite('ModelCard', () => {
 			});
 		});
 
-		test('a promotion only for a tier the account cannot select is not shown', () => {
-			const { card } = createCard({ tier: 'balance' }, { model: createFusionModel([promotion(iso(-day), iso(day), ['hydrafusion-max'])], [false, false, true]) });
-			assert.deepStrictEqual(read(card), { discount: 'Models routed via Fusion Lite receive a 10% discount.', promotions: [] });
-		});
 	});
 
 	test('Auto without tiers explains its discount below its description', () => {

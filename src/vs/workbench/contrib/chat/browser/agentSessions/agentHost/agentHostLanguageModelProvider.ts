@@ -97,7 +97,6 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 		this._schedulePromotionChange();
 	}
 
-	/** Re-publishes when a tier promotion starts or ends, since both change what the picker shows. */
 	private _schedulePromotionChange(): void {
 		const now = Date.now();
 		const next = Math.min(...this._models
@@ -107,17 +106,14 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 			.map(date => date ? Date.parse(date) : NaN)
 			.filter(time => time > now));
 		this._promotionChange.value = Number.isFinite(next)
-			// Timers cannot wait longer than about 24.8 days, so a far boundary is approached in steps.
+			// Timers cannot wait longer than about 24.8 days.
 			? disposableTimeout(() => { this._onDidChange.fire(); this._schedulePromotionChange(); }, Math.min(next - now, AgentHostLanguageModelProvider._maxPromotionWaitMs))
 			: undefined;
 	}
 
 	private static readonly _maxPromotionWaitMs = 24 * 60 * 60 * 1000;
 
-	/**
-	 * A running promotion's discount when it covers every tier Auto offers, so it is the model's
-	 * discount wherever a tier is not named. Otherwise each tier describes its own in the picker.
-	 */
+	/** A running promotion's discount when it covers every tier Auto offers. */
 	private static _wholeModelPromotionDiscount(model: SessionModelInfo, promotions: readonly IAgentModelAutoTierPromotion[], now: number): number | undefined {
 		const tiers = (model.configSchema?.properties.tier?.enum ?? []).filter((tier): tier is string => typeof tier === 'string');
 		if (!tiers.length) {
@@ -151,7 +147,6 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				// Guard against a non-finite or out-of-range value from the open `_meta` bag so we never render
 				// nonsense like "Infinity% discount"; the documented range is a whole number in (0, 100].
 				const hasDiscount = typeof discountPercent === 'number' && discountPercent > 0 && discountPercent <= 100;
-				// The service's tier promotions are part of how Fusion presents its discount.
 				const tierPromotions = fusion ? readAgentModelAutoTierPromotionsMeta(m) : [];
 				const promotionDiscount = AgentHostLanguageModelProvider._wholeModelPromotionDiscount(m, tierPromotions, Date.now());
 				const { detail, description } = this._routingPresentationFor(m, promotionDiscount ?? (hasDiscount ? discountPercent : undefined));
@@ -320,13 +315,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 		};
 	}
 
-	/**
-	 * Lists the Auto tiers the provider marks unavailable beside the selectable ones, in the
-	 * provider's order, as disabled entries described by the provider's reason.
-	 *
-	 * The schema `enum` stays authoritative for what can be selected: an enabled tier the host left
-	 * out of it (for example one Ensemble does not offer) is not added back.
-	 */
+	/** Adds the provider's unavailable tiers as disabled entries; enabled tiers missing from `enum` stay out. */
 	private static _withUnavailableAutoTiers(property: NonNullable<ILanguageModelConfigurationSchema['properties']>[string], autoTiers: IAgentModelAutoTiersMeta): NonNullable<ILanguageModelConfigurationSchema['properties']>[string] {
 		const selectable = property.enum ?? [];
 		if (!autoTiers.tiers.some(tier => !tier.enabled && !selectable.includes(tier.id))) {

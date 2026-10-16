@@ -123,7 +123,6 @@ export function filterConfigurationToSchema(
 	return result;
 }
 
-/** Whether the schema lists the value but marks it unavailable, so it cannot be kept as a configuration. */
 export function isDisabledEnumValue(value: unknown, schema: { enum?: unknown[]; enumItemDisabled?: boolean[] }): boolean {
 	const index = Array.isArray(schema.enum) ? schema.enum.indexOf(value) : -1;
 	return index >= 0 && schema.enumItemDisabled?.[index] === true;

@@ -87,7 +87,6 @@ export function getModelConfigChoices(
 		checked: value === property.value,
 		isDefault: value === property.schema.default,
 		readOnly: !!property.schema.readOnly || property.schema.enumItemDisabled?.[index] === true,
-		/** Listed by the provider but not available to select; `description` says why. */
 		unavailable: property.schema.enumItemDisabled?.[index] === true,
 	}));
 }
@@ -124,7 +123,7 @@ export function getModelConfigProperty(
 	return undefined;
 }
 
-/** Counts the legacy `fast` tier, which still shows as Automatic beside Efficiency, but not a tier listed as unavailable. */
+/** Counts the legacy `fast` tier, which still shows as Automatic beside Efficiency. */
 function isOfferedAutoTier(schema: IModelConfigPropertySchema, value: unknown): boolean {
 	return (!!schema.enum?.includes(value) && !isDisabledEnumValue(value, schema)) || (value === 'fast' && !!schema.enum?.includes('efficiency'));
 }

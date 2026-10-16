@@ -29,7 +29,6 @@ export class CopilotAgentStartupConfig {
 		readonly legacyApprovalRestricted = false,
 		/** `chat.copilot.localModel.enabled`: the request handler can only be installed when the client starts. */
 		readonly localModel = false,
-		/** Launches the runtime with `DYNAMIC_AUTO_TIERS`, which the runtime reads only at startup. */
 		readonly dynamicAutoTiers = false,
 	) { }
 

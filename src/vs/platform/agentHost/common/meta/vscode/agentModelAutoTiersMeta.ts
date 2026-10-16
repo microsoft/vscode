@@ -9,21 +9,14 @@ import type { IAgentModelInfo } from '../../agent.js';
 
 const VSCODE_AUTO_TIERS_META_KEY = 'vscode.chat.autoTiers';
 
-/** One Auto tier the picker lists, in the provider's order. */
 export interface IAgentModelAutoTier {
 	readonly id: string;
 	readonly label: string;
-	/** `false` when the provider lists the tier but does not let this account select it. */
 	readonly enabled: boolean;
-	/** Why the tier is unavailable, from the provider. */
 	readonly message?: string;
 }
 
-/**
- * The provider's Auto tiers for the picker, including ones it lists as unavailable. The model's
- * `tier` schema `enum` holds only the selectable ones, so clients that do not read this keep
- * working; clients that do can show the unavailable ones as disabled.
- */
+/** Includes unavailable tiers, which the `tier` schema `enum` leaves out. */
 export interface IAgentModelAutoTiersMeta {
 	readonly tiers: readonly IAgentModelAutoTier[];
 }
@@ -59,29 +52,18 @@ export function readAgentModelAutoTiersMeta(model: IAgentModelInfo | SessionMode
 
 const VSCODE_AUTO_TIER_PROMOTIONS_META_KEY = 'vscode.chat.autoTierPromotions';
 
-/**
- * A promotion the Copilot service attaches to Auto tiers (a `/meta` `service_messages[]` entry of
- * kind `promotion`), scoped to the caller. See github/copilot-api#39882.
- */
+/** A `/meta` `service_messages[]` promotion for Auto tiers. See github/copilot-api#39882. */
 export interface IAgentModelAutoTierPromotion {
 	readonly id: string;
 	readonly message: string;
-	/** Whole-number percentage (0-100); `0` is a message-only promotion. */
 	readonly discountPercent: number;
-	/** The Auto tier IDs the promotion applies to. */
 	readonly tierIds: readonly string[];
-	/** ISO 8601 start; before it the promotion is upcoming. Absent means already started. */
 	readonly startsAt?: string;
-	/** ISO 8601 end; after it the promotion is hidden. Absent means open-ended. */
 	readonly endsAt?: string;
 	readonly showBanner?: boolean;
 }
 
-/**
- * Reads the promotions for Auto tiers from a `/meta` `service_messages` list, in either the wire's
- * snake_case or an SDK's camelCase. Unknown kinds and target types, and malformed entries, are
- * ignored, as the service requires.
- */
+/** Accepts snake_case and camelCase; ignores unknown kinds, target types, and malformed entries. */
 export function parseAutoTierPromotions(serviceMessages: unknown): IAgentModelAutoTierPromotion[] {
 	if (!Array.isArray(serviceMessages)) {
 		return [];
@@ -104,7 +86,6 @@ export function parseAutoTierPromotions(serviceMessages: unknown): IAgentModelAu
 			message: entry.message,
 			discountPercent: entry.discountPercent ?? entry.discount_percent,
 			tierIds: [...new Set(tierIds)],
-			// The wire may send `null` for an absent date or flag.
 			startsAt: entry.startsAt ?? entry.starts_at ?? undefined,
 			endsAt: entry.endsAt ?? entry.ends_at ?? undefined,
 			showBanner: entry.showBanner ?? entry.show_banner ?? undefined,

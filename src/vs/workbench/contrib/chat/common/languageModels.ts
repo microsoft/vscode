@@ -241,11 +241,7 @@ export interface ILanguageModelConfigurationSchema extends IJSONSchema {
 			group?: string;
 			/** Labels for enum values. If provided, these are shown instead of the raw enum values. */
 			enumItemLabels?: string[];
-			/**
-			 * Enum values shown but not selectable, parallel to `enum`, such as Auto tiers the
-			 * provider lists as unavailable to the account. A disabled value is never kept as the
-			 * configuration; its `enumDescriptions` entry explains why it is unavailable.
-			 */
+			/** Enum values shown but not selectable, parallel to `enum`; `enumDescriptions` says why. */
 			enumItemDisabled?: boolean[];
 			/** When `true`, the property is displayed but cannot be modified by the user. */
 			readOnly?: boolean;
@@ -253,13 +249,10 @@ export interface ILanguageModelConfigurationSchema extends IJSONSchema {
 	};
 }
 
-/** A service promotion for some of Auto's tiers, active from {@link startsAt} until {@link endsAt}. */
 export interface IAutoModelTierPromotion {
 	readonly id: string;
 	readonly message: string;
-	/** Whole-number percentage; `0` is a message-only promotion. */
 	readonly discountPercent: number;
-	/** The Auto tier values the promotion applies to. */
 	readonly tierIds: readonly string[];
 	readonly startsAt?: string;
 	readonly endsAt?: string;
@@ -286,10 +279,7 @@ export interface ILanguageModelChatMetadata {
 	readonly autoModelDiscountPercent?: number;
 	/** How the agent host presents its Auto model as Fusion, when it does. */
 	readonly autoModelFusion?: { readonly balanceUsesHydraFusion: boolean };
-	/**
-	 * Promotions the Copilot service attaches to Fusion's tiers, by tier value. Set only on the agent
-	 * host's Auto model presented as Fusion. See {@link ILanguageModelChatMetadata.getAutoTierPromotion}.
-	 */
+	/** Set only on the agent host's Auto model presented as Fusion. */
 	readonly autoModelTierPromotions?: readonly IAutoModelTierPromotion[];
 	readonly multiplierNumeric?: number;
 	readonly isBYOK?: boolean;
@@ -449,7 +439,6 @@ export namespace ILanguageModelChatMetadata {
 		return localize('chat.promo.endsAt', "Ends {0}.", formattedDate);
 	}
 
-	/** The localized "Starts {date}." sentence, or `undefined` for a missing or unparsable start date. */
 	export function getPromoStartsAtLabel(startsAt: string | undefined): string | undefined {
 		const startsAtDate = startsAt ? new Date(startsAt) : undefined;
 		if (!startsAtDate || isNaN(startsAtDate.getTime())) {
@@ -459,27 +448,21 @@ export namespace ILanguageModelChatMetadata {
 		return localize('chat.promo.startsAt', "Starts {0}.", formattedDate);
 	}
 
-	/** Whether a promotion has started and not yet ended at `now`. */
 	export function isAutoTierPromotionActive(promotion: IAutoModelTierPromotion, now: number): boolean {
 		return !(promotion.startsAt && now < Date.parse(promotion.startsAt)) && !(promotion.endsAt && now >= Date.parse(promotion.endsAt));
 	}
 
-	/** Whether a promotion has not started yet at `now`. */
 	export function isAutoTierPromotionUpcoming(promotion: IAutoModelTierPromotion, now: number): boolean {
 		return !!promotion.startsAt && now < Date.parse(promotion.startsAt) && !(promotion.endsAt && now >= Date.parse(promotion.endsAt));
 	}
 
-	/**
-	 * The promotion to show for one of Auto's tiers at `now`: the active one with the largest
-	 * discount, else the one starting soonest. Ended promotions are never shown.
-	 */
+	/** The active promotion with the largest discount, else the one starting soonest. */
 	export function getAutoTierPromotion(metadata: ILanguageModelChatMetadata, tier: unknown, now: number = Date.now()): IAutoModelTierPromotion | undefined {
 		const promotions = (metadata.autoModelTierPromotions ?? []).filter(promotion => typeof tier === 'string' && promotion.tierIds.includes(tier));
 		const active = promotions.filter(promotion => isAutoTierPromotionActive(promotion, now)).sort((a, b) => b.discountPercent - a.discountPercent)[0];
 		return active ?? promotions.filter(promotion => isAutoTierPromotionUpcoming(promotion, now)).sort((a, b) => Date.parse(a.startsAt!) - Date.parse(b.startsAt!))[0];
 	}
 
-	/** Auto's discount on one of its tiers at `now`: an active promotion's, else Auto's own. */
 	export function getAutoTierDiscountPercent(metadata: ILanguageModelChatMetadata, tier: unknown, now: number = Date.now()): number | undefined {
 		const promotion = getAutoTierPromotion(metadata, tier, now);
 		return promotion && promotion.discountPercent > 0 && isAutoTierPromotionActive(promotion, now) ? promotion.discountPercent : metadata.autoModelDiscountPercent;

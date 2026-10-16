@@ -532,7 +532,6 @@ export class ModelCard extends DisposableStore {
 				const { label, description, checked, readOnly, unavailable } = choice!;
 				return {
 					text: label,
-					// An unavailable tier can never be selected to show its reason below the control.
 					tooltip: unavailable ? description : tooltip(description),
 					ariaLabel: description ? localize('chat.modelPicker.optionDescription', "{0}, {1}", label, description) : label,
 					isActive: checked && !selectedAlternative,
@@ -572,7 +571,6 @@ export class ModelCard extends DisposableStore {
 			items,
 		}));
 		const alternativeDescriptions = new Map<IModelCardRoutingAlternative, HTMLElement>();
-		// A service promotion on a tier replaces Auto's own discount on it while it runs.
 		const discountFor = (choice: typeof choices[number] | undefined) => isAuto && group === MODEL_CONFIG_GROUP_EFFORT
 			? ILanguageModelChatMetadata.getAutoTierDiscountPercent(this._options.model.metadata, choice?.value)
 			: undefined;
@@ -697,10 +695,6 @@ export class ModelCard extends DisposableStore {
 		}
 	}
 
-	/**
-	 * The service's promotions for any of Auto's selectable tiers, in the service's words: running
-	 * ones first, then upcoming ones with their start date. Ended ones are not shown.
-	 */
 	private _renderAutoTierPromotions(effort: IModelConfigProperty): void {
 		const metadata = this._options.model.metadata;
 		const now = Date.now();

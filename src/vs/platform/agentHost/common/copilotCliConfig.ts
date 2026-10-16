@@ -68,7 +68,7 @@ export const enum CopilotCliConfigKey {
 	Fusion = 'fusion',
 	/** With {@link Fusion}, Fusion's Balance uses HydraFusion. Off by default. */
 	FusionBalanceUsesHydraFusion = 'fusionBalanceUsesHydraFusion',
-	/** Launch the runtime with `DYNAMIC_AUTO_TIERS` so Auto's tiers come from CAPI `/meta`. Startup key; off by default. */
+	/** Launch the runtime with `DYNAMIC_AUTO_TIERS`. Startup key; off by default. */
 	DynamicAutoTiers = 'dynamicAutoTiers',
 	/** Enable Copilot Memory for Copilot SDK sessions. Off by default. */
 	Memory = 'memory',

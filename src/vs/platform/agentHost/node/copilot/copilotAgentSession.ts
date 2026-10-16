@@ -164,7 +164,7 @@ function readSubagentTaskModelSource(data: object): AgentSubagentTaskModelSource
 	}
 }
 
-/** The runtime-reported Auto tier, only while the model is Auto; never inferred or defaulted. Includes tiers the provider advertises. */
+/** The runtime-reported Auto tier, only while the model is Auto; never inferred or defaulted. */
 function getCommittedAutoTier(model: string | undefined, autoTier: unknown): string | undefined {
 	return isAutoModel(model) && (isAutoModeRoutingTier(autoTier) || isSupportedAutoModeTier(autoTier)) ? autoTier : undefined;
 }

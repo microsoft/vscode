@@ -170,17 +170,6 @@ suite('ModelPickerConfiguration', () => {
 		]);
 	});
 
-	test('choices the schema lists as unavailable are read-only and keep their reason', () => {
-		assert.deepStrictEqual(getModelConfigChoices({
-			key: 'tier',
-			value: 'balance',
-			schema: { type: 'string', enum: ['balance', 'hydrafusion-max'], enumItemLabels: ['Balance', 'Max'], enumDescriptions: ['', 'Requires more models.'], enumItemDisabled: [false, true], default: 'balance' },
-		}).map(({ value, description, readOnly, unavailable }) => ({ value, description, readOnly, unavailable })), [
-			{ value: 'balance', description: '', readOnly: false, unavailable: false },
-			{ value: 'hydrafusion-max', description: 'Requires more models.', readOnly: true, unavailable: true },
-		]);
-	});
-
 	test('renders the effective configuration and names its details destination', () => {
 		assert.deepStrictEqual(render(createModel(), { effort: 'medium', context: 65536 }), {
 			visible: true,

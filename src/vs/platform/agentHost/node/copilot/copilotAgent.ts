@@ -160,7 +160,6 @@ function setCopilotTgrepEnvironment(env: Record<string, string | undefined>, ena
 	}
 }
 
-/** Adds a runtime feature flag to `COPILOT_CLI_ENABLED_FEATURE_FLAGS`, keeping any already enabled. */
 function addCopilotFeatureFlag(env: Record<string, string | undefined>, flag: string): void {
 	const enabledFlags = env['COPILOT_CLI_ENABLED_FEATURE_FLAGS'];
 	const flags = new Set((enabledFlags ?? '').split(',').map(f => f.trim()).filter(Boolean));
@@ -168,54 +167,39 @@ function addCopilotFeatureFlag(env: Record<string, string | undefined>, flag: st
 	env['COPILOT_CLI_ENABLED_FEATURE_FLAGS'] = [...flags].join(',');
 }
 
-/** The provider's Auto tier metadata from server-level `models.list` (CAPI `/meta`). */
 export type CopilotAutoTierMetadata = NonNullable<Awaited<ReturnType<CopilotClient['rpc']['models']['list']>>['auto']>;
 type CopilotAutoTierDescriptor = CopilotAutoTierMetadata['tiers'][number];
 
-/**
- * Tiers this runtime can run as an Auto preference: enabled `auto` routing or HydraFusion `fusion`
- * executions. The runtime rejects HydraFusion Max unless the session has HydraFusion plan v2.
- */
+/** The runtime rejects HydraFusion Max without HydraFusion plan v2. */
 function isRunnableAutoTier(tier: CopilotAutoTierDescriptor, hydraFusionV2: boolean): boolean {
 	return tier.status.enabled && isPickerAutoTierKind(tier, hydraFusionV2);
 }
 
-/** Tiers this client could run if the provider enabled them, without the integrator-only `fast` latency preset. */
 function isPickerAutoTierKind(tier: CopilotAutoTierDescriptor, hydraFusionV2: boolean): boolean {
 	return (tier.type === 'auto' || tier.type === 'fusion')
 		&& (tier.id !== COPILOT_HYDRA_FUSION_MAX_MODEL_ID || hydraFusionV2);
 }
 
-/**
- * The tiers listed in Auto's "Optimize for" picker, in the provider's order, including ones the
- * provider lists as unavailable to this account, which the picker shows disabled with their
- * message. Leaves out tiers the provider keeps out of the picker (`tier_picker_enabled: false`,
- * github/copilot-api#39882), and `fast`, as the Copilot CLI does.
- */
+/** Includes unavailable tiers; hides `fast`, as the Copilot CLI does. See github/copilot-api#39882. */
 export function getPickerAutoTiers(metadata: CopilotAutoTierMetadata, hydraFusionV2: boolean): CopilotAutoTierDescriptor[] {
 	return metadata.tiers.filter(tier => isPickerAutoTierKind(tier, hydraFusionV2) && tier.id !== 'fast' && isInAutoTierPicker(tier));
 }
 
-/** Read defensively until the SDK types it; absent means the picker shows the tier. */
+/** Not typed by the SDK yet. */
 function isInAutoTierPicker(tier: CopilotAutoTierDescriptor): boolean {
 	const status = tier.status as { readonly tierPickerEnabled?: unknown; readonly tier_picker_enabled?: unknown };
 	return (status.tierPickerEnabled ?? status.tier_picker_enabled) !== false;
 }
 
-/**
- * Whether Fusion offers an Auto tier: never Efficiency, and not Intelligence when the provider's
- * HydraFusion tier is Fusion's Balance instead, so Balance is offered once.
- */
+/** Intelligence would be a second Balance beside the provider's HydraFusion tier. */
 function isFusionTier(tier: string, offersHydraFusion: boolean): boolean {
 	return tier !== 'efficiency' && !(offersHydraFusion && tier === 'intelligence');
 }
 
-/** Fusion's name for a tier it knows, else the provider's own label for it. */
 function getFusionTierLabel(tier: string, providerLabel: string | undefined): string {
 	return isFusionNamedAutoModeTier(tier) || !providerLabel ? getFusionAutoModeTierLabel(tier) : providerLabel;
 }
 
-/** The provider's name for a tier, else the built-in one for a familiar ID, else the ID. */
 function getProviderAutoTierLabel(tier: CopilotAutoTierDescriptor): string {
 	return tier.displayName || getAutoModeTierLabel(tier.id);
 }
@@ -951,7 +935,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _fallbackAutoModels = new WeakSet<IAgentModelInfo>();
 	private readonly _fallbackAutoModelsByMetadata = new WeakMap<CopilotAutoTierMetadata, IAgentModelInfo>();
 	private _builtInFallbackAutoModel: IAgentModelInfo | undefined;
-	/** Auto routing tiers the provider advertised in the last `models.list`, when the runtime reads CAPI `/meta`. */
 	private _autoTierMetadata: CopilotAutoTierMetadata | undefined;
 	private _fusionExperimentTriggerPending = false;
 	private _byokModels: readonly IAgentModelInfo[] = [];
@@ -1782,12 +1765,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// it and would recurse.
 		// Until the refresh lands, keep publishing the last-known list: an empty
 		// one makes clients drop the conversation's selected model. A replacement
-		// without `DYNAMIC_AUTO_TIERS` rejects provider tiers, so stop accepting them;
-		// one with it accepts the same tiers until the refresh says otherwise.
+		// without `DYNAMIC_AUTO_TIERS` rejects provider tiers.
 		if (!this._lastStartupConfig.dynamicAutoTiers) {
 			this._setAutoTierMetadata(undefined);
 		} else {
-			// The replacement may run without HydraFusion v2, which rejects HydraFusion Max.
+			// HydraFusion v2 decides whether Max is accepted.
 			this._applyAdvertisedAutoModeTiers();
 		}
 		void this._scheduleModelRefresh();
@@ -3326,10 +3308,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 					// Fusion's tiers read as an effort level, like other models' effort setting.
 					title: localize('copilotAgent.fusionTier.title', "Effort Level"),
 					enum: keptValues,
-					// Fusion names the tiers it knows itself, so the provider's Auto labels would mislabel them.
 					enumLabels: kept.map(index => getFusionTierLabel(String(tier.enum![index]), tier.enumLabels?.[index])),
 					...(tier.enumDescriptions && { enumDescriptions: kept.map(index => tier.enumDescriptions![index]) }),
-					// Fusion offers no Efficiency, so its default falls back to Balance when offered, else the first tier.
 					default: keptValues.some(value => value === tier.default) ? tier.default : keptValues.includes(defaultAutoModeTier) ? defaultAutoModeTier : keptValues[0],
 				},
 			},
@@ -3343,7 +3323,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		};
 	}
 
-	/** Names the provider's tiers, including unavailable ones, as Fusion names them, leaving out Efficiency as Fusion does. */
 	private _asFusionAutoTiersMeta(model: IAgentModelInfo): Record<string, unknown> | undefined {
 		const autoTiers = readAgentModelAutoTiersMeta(model);
 		const offersHydraFusion = !!autoTiers?.tiers.some(tier => tier.id === COPILOT_HYDRA_FUSION_MODEL_ID);
@@ -3576,9 +3555,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				addCopilotFeatureFlag(env, 'SHELL_SPAWN_BACKEND');
 			}
 
-			// Have the runtime list models and Auto routing tiers from CAPI `/meta`, so
-			// `models.list` returns the provider's tiers as `auto` and sessions accept them.
-			// This also moves the runtime's whole catalog to `/meta`, so it stays opt-in.
+			// Opt-in: this also moves the runtime's whole model catalog to CAPI `/meta`.
 			if (startupConfig.dynamicAutoTiers) {
 				addCopilotFeatureFlag(env, DynamicAutoTiersFeatureFlag);
 				this._logService.info(`[Copilot] Enabled runtime feature flag ${DynamicAutoTiersFeatureFlag}`);
@@ -3782,14 +3759,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const title = localize('copilot.modelAutoTier.title', "Optimize for");
 		const description = localize('copilot.modelAutoTier.description', "Biases which models Auto routes this session to.");
 		if (metadata) {
-			// Only selectable tiers go in `enum`; unavailable ones reach the picker through `_meta`.
+			// Unavailable tiers reach the picker through `_meta`.
 			const pickerTiers = getPickerAutoTiers(metadata, this._isHydraFusionV2Enabled());
 			if (!pickerTiers.length) {
 				return undefined;
 			}
 			const tiers = pickerTiers.filter(tier => tier.status.enabled);
 			const ids = tiers.map(tier => tier.id);
-			// With every tier unavailable the property stays, without a default, so the picker can still list them disabled with their reasons.
 			return {
 				type: 'string',
 				title,
@@ -3811,11 +3787,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		};
 	}
 
-	/**
-	 * Records the provider's Auto tiers from `models.list`. Present only when the runtime runs with
-	 * `DYNAMIC_AUTO_TIERS` and CAPI `/meta` returned an `auto` block; otherwise the built-in tiers apply.
-	 * Call only with the metadata of the catalog being published, so validation matches the picker.
-	 */
+	/** Call only with the metadata of the catalog being published, so validation matches the picker. */
 	private _setAutoTierMetadata(metadata: CopilotAutoTierMetadata | undefined): void {
 		if (metadata === this._autoTierMetadata) {
 			return;
@@ -3829,7 +3801,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	/** Accepts the recorded provider tiers this client can run now, which depends on the HydraFusion v2 setting. */
 	private _applyAdvertisedAutoModeTiers(): void {
 		const hydraFusionV2 = this._isHydraFusionV2Enabled();
 		setAdvertisedAutoModeTiers(this._autoTierMetadata?.tiers.filter(tier => isRunnableAutoTier(tier, hydraFusionV2)).map(tier => tier.id));
@@ -3843,10 +3814,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return isAuto ? this._withAutoTiersMeta(meta, autoTierMetadata, promotions) : meta;
 	}
 
-	/**
-	 * Lists the provider's picker tiers, including unavailable ones, so the picker can show those
-	 * disabled, and the service's promotions for those tiers.
-	 */
 	private _withAutoTiersMeta(meta: Record<string, unknown> | undefined, autoTierMetadata: CopilotAutoTierMetadata | undefined, promotions: readonly IAgentModelAutoTierPromotion[]): Record<string, unknown> | undefined {
 		if (!autoTierMetadata) {
 			return meta;
@@ -4509,17 +4476,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		};
 	}
 
-	/**
-	 * Lists the runtime's models with the Auto tier metadata they were built from. The caller
-	 * applies both together, and only while it still owns the catalog, so a superseded response
-	 * cannot leave sessions validating tiers the published picker does not show.
-	 */
+	/** Returns the tier metadata with the models, so the caller applies both under one ownership check. */
 	private async _listModels(gitHubToken: string): Promise<{ readonly models: IAgentModelInfo[]; readonly autoTierMetadata: CopilotAutoTierMetadata | undefined }> {
 		this._logService.info('[Copilot] Listing models...');
 		const client = await this._ensureClient();
 		const response = await client.rpc.models.list(this._getEnterpriseHost() ? {} : { gitHubToken });
 		const { models, auto } = response;
-		// `/meta` service messages (github/copilot-api#39882), read defensively until the SDK types them.
+		// Not typed by the SDK yet.
 		const serviceMessages = response as { readonly serviceMessages?: unknown; readonly service_messages?: unknown };
 		const promotions = auto ? parseAutoTierPromotions(serviceMessages.serviceMessages ?? serviceMessages.service_messages) : [];
 		// Empty SDK results can also mean discovery failed, so do not replace an already loaded catalog.
@@ -4563,10 +4526,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return { models: result, autoTierMetadata: auto };
 	}
 
-	/**
-	 * The Auto entry offered when the runtime lists no models, with its routing profiles. One
-	 * instance per tier metadata, so a catalog that already holds it can be recognized.
-	 */
+	/** The Auto entry offered when the runtime lists no models, with its routing profiles. */
 	private _getFallbackAutoModel(autoTierMetadata: CopilotAutoTierMetadata | undefined, promotions: readonly IAgentModelAutoTierPromotion[]): IAgentModelInfo {
 		let model = autoTierMetadata ? this._fallbackAutoModelsByMetadata.get(autoTierMetadata) : this._builtInFallbackAutoModel;
 		if (!model) {

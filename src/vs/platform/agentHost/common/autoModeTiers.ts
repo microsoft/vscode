@@ -63,39 +63,22 @@ export function isAutoModeTier(value: unknown): value is AutoModeTier {
 	return autoModeTiers.some(tier => tier === value);
 }
 
-/**
- * Runtime feature flag that makes the Copilot runtime discover models and Auto routing tiers from
- * CAPI `/meta`, and return those tiers from server-level `models.list` as `auto`.
- */
 export const DynamicAutoTiersFeatureFlag = 'DYNAMIC_AUTO_TIERS';
 
-/**
- * Tier IDs the runtime accepts from the provider's `models.list` `auto` metadata, or `undefined`
- * when the provider sent none. Only populated in the agent host process; the workbench validates
- * tiers against the model's configuration schema instead.
- */
+/** Only populated in the agent host process. */
 let advertisedAutoModeTiers: ReadonlySet<string> | undefined;
 
-/**
- * Replaces the provider-advertised tier IDs accepted by {@link isSupportedAutoModeTier}.
- * `undefined` means the provider sent no Auto metadata, so the built-in profiles apply. An empty
- * list means it sent metadata but none of its tiers can run, so no preference is accepted.
- */
+/** `undefined` means no provider metadata, so the built-in tiers apply; `[]` accepts nothing. */
 export function setAdvertisedAutoModeTiers(tiers: Iterable<string> | undefined): void {
 	advertisedAutoModeTiers = tiers ? new Set(tiers) : undefined;
 }
 
-/**
- * Whether the runtime accepts a value as an Auto routing preference: one the provider advertises
- * when it sent Auto metadata (the runtime rejects unlisted IDs then), otherwise a built-in profile.
- */
 export function isSupportedAutoModeTier(value: unknown): value is string {
 	return advertisedAutoModeTiers
 		? typeof value === 'string' && advertisedAutoModeTiers.has(value)
 		: isAutoModeTier(value);
 }
 
-/** The supported tier IDs, for diagnostics. */
 export function getSupportedAutoModeTiers(): readonly string[] {
 	return advertisedAutoModeTiers ? [...advertisedAutoModeTiers] : autoModeTiers;
 }
@@ -123,16 +106,11 @@ export function getAutoModeTierLabel(tier: string): string {
 	}
 }
 
-/** Whether Fusion names a tier itself, rather than using the provider's or the built-in Auto label. */
 export function isFusionNamedAutoModeTier(tier: string): boolean {
 	return tier === 'balance' || tier === 'intelligence' || tier === 'hydrafusion' || tier === 'hydrafusion-max';
 }
 
-/**
- * Localized picker label for a routing profile when Auto is presented as Fusion, which names the
- * runtime's balance tier Lite and its intelligence tier Balance. With the provider's tiers, Fusion's
- * Balance and Max are the HydraFusion tiers.
- */
+/** Localized picker label for a routing profile when Auto is presented as Fusion, which names the runtime's balance tier Lite and its intelligence tier Balance. */
 export function getFusionAutoModeTierLabel(tier: string): string {
 	switch (tier) {
 		case 'balance': return localize('autoModeTier.fusionLite', "Lite");

@@ -1236,8 +1236,7 @@ export class TabbedModelPicker extends Disposable {
 		const routingModel = isAutoModel(model) || isHydraFusionModel(model);
 		const comparisonStep = context.comparison?.state.get();
 		const isCheckedAttempt = !!(context.comparison && comparisonStep?.multiple && comparisonStep.selectedModelIds.includes(model.identifier));
-		// With the provider's tiers, Fusion already offers HydraFusion as a tier, so it is not offered again
-		// beside them, unless the chat is on that HydraFusion model, which the card must still show as selected.
+		// Fusion's provider tiers already offer HydraFusion, unless the chat is on the HydraFusion model itself.
 		const autoTierValues = isAutoModel(model) ? getModelConfigProperty(model, context.configurationAccess, MODEL_CONFIG_GROUP_EFFORT)?.schema.enum ?? [] : [];
 		const hydraFusionModels = isAutoModel(model) && this._hostsHydraFusion(context)
 			? this._hydraFusionModels(context).filter(hydraFusion => !autoTierValues.includes(hydraFusion.metadata.id) || hydraFusion.identifier === context.selectedModelId)

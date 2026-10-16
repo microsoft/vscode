@@ -554,10 +554,7 @@ function resolveConfiguredAutoTierOverride(model: ModelSelection | undefined, co
 	return toFusionTier(tier, configurationService, logService, sessionId);
 }
 
-/**
- * Fusion offers no Efficiency, so it runs as Fusion's default instead, or as the runtime's own
- * default when the provider does not accept that one.
- */
+/** Fusion offers no Efficiency, so it runs as Fusion's default instead, when the provider accepts it. */
 function toFusionTier(tier: string, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string): string | undefined {
 	if (tier !== 'efficiency' || configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Fusion) !== true) {
 		return tier;

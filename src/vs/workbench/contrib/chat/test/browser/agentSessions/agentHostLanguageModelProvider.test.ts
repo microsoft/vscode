@@ -277,10 +277,8 @@ suite('AgentHostLanguageModelProvider', () => {
 
 		assert.deepStrictEqual({
 			withUnavailable: await tierOf({ ...makeModel('auto', meta), configSchema }),
-			// Only Auto's tier carries provider availability; other models and a plain Auto are unchanged.
 			plain: await tierOf({ ...makeModel('auto'), configSchema }),
 			notAuto: await tierOf({ ...makeModel('gpt-5', meta), configSchema }),
-			// With every tier unavailable the host sends an empty tier, which still lists them all, disabled.
 			allUnavailable: await tierOf({
 				...makeModel('auto', withAgentModelAutoTiersMeta(undefined, { tiers: [{ id: 'balance', label: 'Balance', enabled: false, message: 'Paused' }, { id: 'hydrafusion-max', label: 'Max', enabled: false }] })),
 				configSchema: { type: 'object', properties: { tier: { type: 'string', title: 'Optimize for', enum: [] } } },
@@ -323,9 +321,7 @@ suite('AgentHostLanguageModelProvider', () => {
 			notFusion: await presented(false, [running]),
 		}, {
 			running: { detail: '30% discount', discount: 10, promotions: ['launch'] },
-			// Not yet running, so Fusion keeps its own discount while the picker announces it.
 			upcoming: { detail: '10% discount', discount: 10, promotions: ['launch'] },
-			// Only the tier it covers describes it.
 			oneTier: { detail: '10% discount', discount: 10, promotions: ['launch'] },
 			notFusion: { detail: '10% discount', discount: 10, promotions: undefined },
 		});

@@ -317,10 +317,8 @@ export class ModelPickerWidget extends Disposable {
 	}
 
 	/**
-	 * With the provider's tiers, Fusion offers a HydraFusion model as one of its own tiers, so a chat
-	 * on that model is shown as Fusion with that tier. The tier is presented for this chat only: the
-	 * chat may be on the model only because it was the first one available, so it must never become
-	 * a saved preference. Without a chat to present it in, the selection is left as it is.
+	 * Shows a chat on a HydraFusion model as Fusion with that tier. Presented for this chat only: the
+	 * chat may be on the model just because it was the first available, so it must not become a preference.
 	 */
 	private _normalizeHydraFusionTier(model: ILanguageModelChatMetadataAndIdentifier, models: readonly ILanguageModelChatMetadataAndIdentifier[]): ILanguageModelChatMetadataAndIdentifier | undefined {
 		const scopedConfiguration = this._delegate.modelConfiguration;

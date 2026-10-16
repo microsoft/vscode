@@ -567,10 +567,8 @@ suite('ModelPickerTelemetry', () => {
 		presentsConfiguration = false;
 		const withoutChatConfiguration = await open(false);
 		assert.deepStrictEqual({ available, unavailable, withoutChatConfiguration }, {
-			// Shown, not saved: the chat may be on HydraFusion only because it was the first model available.
 			available: { selected: autoModel.identifier, tier: 'hydrafusion-max', savedConfigurations: [] },
 			unavailable: { selected: max.identifier, tier: undefined, savedConfigurations: [] },
-			// Without a chat to present the tier in, nothing is saved as a preference and the chat stays put.
 			withoutChatConfiguration: { selected: max.identifier, tier: undefined, savedConfigurations: [] },
 		});
 	});

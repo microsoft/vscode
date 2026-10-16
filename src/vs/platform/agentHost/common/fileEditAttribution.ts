@@ -67,7 +67,6 @@ export interface IAgentEditAttribution {
 	readonly afterText: string;
 	readonly changes: readonly IOffsetEdit[];
 	readonly modelId: string | undefined;
-	/** The committed Auto tier: a built-in tier, `fast`, or one the provider advertises. */
 	readonly autoTier?: string;
 	/** The HydraFusion model (`hydrafusion` or `hydrafusion-max`) that routed the edit, when known. */
 	readonly fusionModel?: string;
