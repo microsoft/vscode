@@ -151,14 +151,20 @@ jobs:
       unit_tests: false
       smoke_tests: false
 
-  linux-electron-smoke-tests:
-    name: Linux
+  linux-electron-smoke-test-shards:
+    name: Linux (shard ${{ matrix.shard }}/${{ strategy.job-total }})
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     uses: ./.github/workflows/pr-linux-test.yml
     with:
       job_name: Electron-Smoke
       electron_tests: true
       unit_tests: false
       integration_tests: false
+      smoke_shard_index: ${{ matrix.shard }}
+      smoke_shard_total: ${{ strategy.job-total }}
 
   linux-browser-tests:
     name: Linux
@@ -192,14 +198,20 @@ jobs:
       unit_tests: false
       smoke_tests: false
 
-  macos-electron-smoke-tests:
-    name: macOS
+  macos-electron-smoke-test-shards:
+    name: macOS (shard ${{ matrix.shard }}/${{ strategy.job-total }})
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     uses: ./.github/workflows/pr-darwin-test.yml
     with:
       job_name: Electron-Smoke
       electron_tests: true
       unit_tests: false
       integration_tests: false
+      smoke_shard_index: ${{ matrix.shard }}
+      smoke_shard_total: ${{ strategy.job-total }}
 
   macos-browser-tests:
     name: macOS
@@ -233,14 +245,20 @@ jobs:
       unit_tests: false
       smoke_tests: false
 
-  windows-electron-smoke-tests:
-    name: Windows
+  windows-electron-smoke-test-shards:
+    name: Windows (shard ${{ matrix.shard }}/${{ strategy.job-total }})
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     uses: ./.github/workflows/pr-win32-test.yml
     with:
       job_name: Electron-Smoke
       electron_tests: true
       unit_tests: false
       integration_tests: false
+      smoke_shard_index: ${{ matrix.shard }}
+      smoke_shard_total: ${{ strategy.job-total }}
 
   windows-browser-tests:
     name: Windows
@@ -255,6 +273,27 @@ jobs:
     with:
       job_name: Remote
       remote_tests: true
+
+  # Reports the required "<OS> / Electron-Smoke" checks from the smoke test shards.
+  # Uses always() because a skipped job counts as passing for required checks.
+  electron-smoke-checks:
+    name: ${{ matrix.check }}
+    needs: [linux-electron-smoke-test-shards, macos-electron-smoke-test-shards, windows-electron-smoke-test-shards]
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - check: Linux / Electron-Smoke
+            shards: linux-electron-smoke-test-shards
+          - check: macOS / Electron-Smoke
+            shards: macos-electron-smoke-test-shards
+          - check: Windows / Electron-Smoke
+            shards: windows-electron-smoke-test-shards
+    steps:
+      - name: Check shard result (${{ needs[matrix.shards].result }})
+        run: exit ${{ needs[matrix.shards].result == 'success' && '0' || '1' }}
 
   copilot-check-test-cache:
     name: Copilot - Check Test Cache
