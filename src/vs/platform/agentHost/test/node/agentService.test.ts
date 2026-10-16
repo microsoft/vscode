@@ -33253,6 +33253,69 @@ suite('AgentService (node dispatcher)', () => {
 				assert.deepStrictEqual({ shared, afterPublish: await withheld() }, { shared: 'true', afterPublish: undefined });
 			});
 
+			test('a session move lists the handed-over worktree in the target\'s older-build copy before its record names the target; into a promoted session, which has no copy, it hands nothing over (F1, Block 5)', async () => {
+				const outcomes: Record<string, unknown> = {};
+				for (const kind of ['legacy', 'opaque', 'promoted', 'crash'] as const) {
+					const service = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+					registerTestAgentProvider(service, disposables.add(new MovingAgent('copilot', true)));
+					getConfigurationService(service).updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
+					const worktree = URI.file('/repo.worktrees/source');
+					const source = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [worktree] });
+					let target = await service.createSession({ legacyChatUris: kind !== 'opaque', provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+					if (kind === 'promoted') {
+						const peer = URI.parse(buildChatUri(target, 'promoted'));
+						await service.createChat(target, peer);
+						await timeout(0);
+						completeTurn(service, peer);
+						target = await service.moveChat(target, peer, { kind: 'newSession' });
+					}
+					await timeout(0);
+					const sessionData = (service as unknown as { _sessionDataService: ISessionDataService })._sessionDataService;
+					const olderBuildList = async (session: URI) => {
+						const ref = sessionData.openDatabase(session);
+						try {
+							return (JSON.parse(await ref.object.getMetadata(ADDITIONAL_WORKTREES_METADATA_KEY) ?? '[]') as { handle: string }[]).map(entry => entry.handle === handle ? 'handle' : entry.handle);
+						} finally {
+							ref.dispose();
+						}
+					};
+					const handle = generateUuid();
+					const events: string[] = [];
+					setTestAgentHostWorktreeIsolation(service, createTestAgentHostWorktreeIsolation({
+						readSessionWorktreeForRemoval: async session => session.toString() === source.toString() ? { worktree, repositoryRoot: URI.file('/repo'), branchName: 'agents/source' } : undefined,
+						prepareWorktreeHandOver: async () => {
+							events.push('prepare');
+							return { handle, workingDirectory: worktree.toString(), repositoryRoot: URI.file('/repo').toString(), dispose: () => { } };
+						},
+						completeWorktreeHandOver: async () => {
+							// Older builds find the owner a record names by its session.db listing the handle.
+							events.push(`owner:${(await olderBuildList(target)).join()}`);
+							if (kind === 'crash') {
+								throw new Error('crashed before the record named the target');
+							}
+						},
+					}));
+
+					await service.moveSession(source, target, undefined);
+
+					outcomes[kind] = {
+						events,
+						olderBuildList: await olderBuildList(target),
+						central: (await readSessionAdditionalWorktrees(getTestSessionStateStore(service), target)).map(entry => entry.handle === handle ? 'handle' : entry.handle),
+						coOwners: (await getTestAgentHostDatabase(service).readWorktreeCoOwners(worktree.toString())).map(row => row.session === target.toString() ? 'target' : row.session),
+					};
+				}
+				const handedOver = () => ({ events: ['prepare', 'owner:handle'], olderBuildList: ['handle'], central: ['handle'], coOwners: [] });
+				assert.deepStrictEqual(outcomes, {
+					legacy: handedOver(),
+					opaque: handedOver(),
+					// A promoted session's default chat stores elsewhere: older builds read no session values of it. Its worktree is shared instead.
+					promoted: { events: [], olderBuildList: [], central: [], coOwners: ['target'] },
+					// The record still names the ended source, which the target's listing re-owns at the next start (reconciliation).
+					crash: handedOver(),
+				});
+			});
+
 			test('a session that moves under another hands its own worktree to it: the target lists it for the chat, and its record names the target (Block 5)', async () => {
 				const { service, source, target } = await setupMove();
 				const defaultChat = getStateManager(service).getSessionState(source.toString())!.defaultChat!;
