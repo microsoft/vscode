@@ -292,30 +292,12 @@
 	background-color: var(--vscode-diffEditor-insertedTextBackground);
 }
 
-.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat-block-selection {
-	background-color: var(--vscode-inlineChat-regionHighlight);
-}
-
 .monaco-workbench .notebookOverlay .cell-chat-part .inline-chat-slash-command {
 	opacity: 0;
 }
 
 .monaco-workbench .notebookOverlay .cell-chat-part .inline-chat-slash-command-detail {
 	opacity: 0.5;
-}
-
-/* diff zone */
-
-.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat-diff-widget .monaco-diff-editor .monaco-editor-background,
-.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat-diff-widget .monaco-diff-editor .monaco-editor .margin-view-overlays {
-	background-color: var(--vscode-inlineChat-regionHighlight);
-}
-
-/* create zone */
-
-.monaco-workbench .notebookOverlay .cell-chat-part .inline-chat-newfile-widget {
-	padding: 3px 0 6px 0;
-	background-color: var(--vscode-inlineChat-regionHighlight);
 }
 
 .monaco-workbench .notebookOverlay .cell-chat-part .inline-chat-newfile-widget .title {
