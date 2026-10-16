@@ -36,7 +36,10 @@ CREATE TABLE IF NOT EXISTS pending_worktree_removals (
 /**
  * Migration version of the worktree co-owner table, which also rebuilds
  * `pending_worktree_removals` to accept the `coOwned` kind. Older builds never
- * read either table.
+ * read either table. Version 20 is taken by this migration (Move Chats, Block
+ * 5): a migration added in parallel must take the next free version, and the
+ * open-time repair re-applies this one where another numbering reached 20
+ * without it.
  */
 export const WORKTREE_CO_OWNER_MIGRATION_VERSION = 20;
 

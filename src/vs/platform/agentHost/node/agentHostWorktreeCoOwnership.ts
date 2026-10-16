@@ -218,11 +218,6 @@ export function presentedWorktreeFolders(presented: readonly IWorktreeCoOwnedFol
 		.map(folder => ({ workingDirectory: folder.worktreePath, repositoryRoot: folder.repositoryRoot, branch: folder.branch }));
 }
 
-/**
- * The worktree side of moving chats between sessions (Block 5): reads what a move needs, withholds a shared
- * worktree's branch from older builds, hands records over in the order older builds rely on, and stops withholding
- * once a worktree is no longer shared. Queries run only on moves, publishes and clean-up, never on a hot path.
- */
 /** A move's withholding of a session's worktree branch, while the move shares it: it ends with the move. */
 export interface IWorktreeWithholding {
 	/** The move committed: its co-owner rows keep the branch withheld from now on. */
@@ -231,6 +226,11 @@ export interface IWorktreeWithholding {
 	undo(): Promise<void>;
 }
 
+/**
+ * The worktree side of moving chats between sessions (Block 5): reads what a move needs, withholds a shared
+ * worktree's branch from older builds, hands records over in the order older builds rely on, and stops withholding
+ * once a worktree is no longer shared. Queries run only on moves, publishes and clean-up, never on a hot path.
+ */
 export class AgentHostWorktreeCoOwnership implements IOlderBuildCopyParticipant {
 
 	/** Moves sharing a session's worktree that haven't committed or been refused yet, by session. */
