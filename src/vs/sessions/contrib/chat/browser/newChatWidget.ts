@@ -6,6 +6,7 @@
 import './media/chatWidget.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { Action, toAction } from '../../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -1412,6 +1413,7 @@ export class NewChatWidget extends Disposable {
 		this._newChatInput.placeRepositoryControls(repositoryControlsHost);
 		const toggle = store.add(new Button(row, {
 			...defaultButtonStyles,
+			hoverDelegate: getDefaultHoverDelegate('mouse'),
 			buttonBackground: undefined,
 			buttonHoverBackground: undefined,
 			buttonForeground: undefined,

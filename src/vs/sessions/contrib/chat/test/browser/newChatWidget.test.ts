@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
+import { getBaseLayerHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate2.js';
+import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IAction, toAction } from '../../../../../base/common/actions.js';
 import { DeferredPromise, raceCancellationError, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
@@ -472,6 +475,8 @@ suite('NewChatWidget', () => {
 	});
 
 	test('workspace remains visible while repository and harness controls expand without being recreated', () => {
+		const setupManagedHover = sinon.spy(getBaseLayerHoverDelegate(), 'setupManagedHover');
+		disposables.add(toDisposable(() => setupManagedHover.restore()));
 		const container = document.createElement('div');
 		document.body.appendChild(container);
 		disposables.add(toDisposable(() => container.remove()));
@@ -541,6 +546,7 @@ suite('NewChatWidget', () => {
 		workspaceVisibility.push(pickerVisibility.visibility.get().workspace);
 		const details = harness._workspaceSessionOptionsHost!;
 		const toggle = container.querySelector<HTMLElement>('.new-chat-session-options-toggle')!;
+		assert.strictEqual(setupManagedHover.getCalls().find(call => call.args[1] === toggle)?.args[0], getDefaultHoverDelegate('mouse'));
 		const legacy = {
 			rowClass: harness._workspacePickerRow?.classList.contains('new-chat-session-options'),
 			detailsClass: details.classList.contains('legacy-session-options-details'),
