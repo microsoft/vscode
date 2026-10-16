@@ -1734,6 +1734,13 @@ configurationRegistry.registerConfiguration({
 			agentHost: { key: CopilotCliConfigKey.ImageGeneration },
 		},
 		...fusionConfigurationProperties,
+		[ChatConfiguration.FusionModelPickerInlineTiers]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.modelPicker.fusionInlineTiers', "Show Fusion tiers directly in the model picker when `#{0}#` is enabled.", AgentHostFusionEnabledSettingId),
+			default: false,
+			included: false,
+			scope: ConfigurationScope.APPLICATION,
+		},
 		[AgentHostFusionHighUsesHydraFusionSettingId]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.copilot.ensemble.intelligenceUsesHydraFusion', "When enabled together with `#{0}#`, Fusion's High tier uses HydraFusion v2. When HydraFusion is unavailable, Fusion High routes like Auto's Intelligence.", AgentHostFusionEnabledSettingId),
