@@ -2554,6 +2554,7 @@ suite('SessionsManagementService', () => {
 					const { customViewService, view, sessionsPartService, contextKeyService } = createSessionsManagementService(first, disposables, provider);
 					sessionsPartService.sessionViews.set(target.sessionId, upcastPartial<SessionView>({
 						openChatToSide: resource => view.openChat(target, resource),
+						reopenChat: async () => { },
 					}));
 					const destination = () => customViewService.activeCustomView.get()?.id ?? view.activeSession.get()?.activeChat.get().resource.toString() ?? 'newSession';
 
@@ -2609,6 +2610,7 @@ suite('SessionsManagementService', () => {
 			const { customViewService, view, sessionsPartService, contextKeyService } = createSessionsManagementService(first, disposables, provider);
 			sessionsPartService.sessionViews.set(target.sessionId, upcastPartial<SessionView>({
 				openChatToSide: resource => view.openChat(target, resource),
+				reopenChat: async () => { },
 			}));
 			const destination = () => customViewService.activeCustomView.get()?.id ?? view.activeSession.get()?.activeChat.get().resource.toString() ?? 'newSession';
 
@@ -3529,7 +3531,7 @@ suite('SessionsManagementService', () => {
 			}
 			const activeSession = view.activeSession.get();
 			const reopened: { resource: string; selected: string | undefined }[] = [];
-			sessionsPartService.sessionViews.set(session.sessionId, upcastPartial<SessionView & { reopenChat(resource: URI): Promise<void> }>({
+			sessionsPartService.sessionViews.set(session.sessionId, upcastPartial<SessionView>({
 				reopenChat: async resource => {
 					reopened.push({ resource: resource.toString(), selected: view.activeSession.get()?.activeChat.get().resource.toString() });
 				},

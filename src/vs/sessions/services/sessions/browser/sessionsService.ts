@@ -1017,6 +1017,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 				}
 				this.sessionOpenTelemetryService.sessionLoaded(telemetryAttempt);
 			}
+			if (chat && intent === 'explicit' && !token.isCancellationRequested) {
+				await this.sessionsPartService.getSessionView(session.sessionId)?.reopenChat(chat.resource);
+			}
 
 			if (chat && chat.status.get() === SessionStatus.Untitled) {
 				this.logService.trace(`[SessionsView] openChat done total=${Date.now() - startTime}ms uri=${chatUri.toString()} path=untitled`);
@@ -1133,7 +1136,14 @@ export class SessionsService extends Disposable implements ISessionsService {
 				if (intent !== 'history') {
 					navigation.complete();
 				}
-				await this.sessionsProvidersService.getProvider(sessionData.providerId)?.prepareSessionForOpen?.(sessionData, 'open');
+				const activeSession = this.activeSession.get();
+				const reopening = intent === 'explicit' && activeSession?.sessionId === sessionData.sessionId && !token.isCancellationRequested
+					? this.sessionsPartService.getSessionView(sessionData.sessionId)?.reopenChat(activeSession.activeChat.get().resource)
+					: undefined;
+				await Promise.all([
+					reopening,
+					this.sessionsProvidersService.getProvider(sessionData.providerId)?.prepareSessionForOpen?.(sessionData, 'open'),
+				]);
 				if (token.isCancellationRequested) {
 					return;
 				}

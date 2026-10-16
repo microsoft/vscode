@@ -11,7 +11,7 @@ import { ObjectTree } from '../../../../../base/browser/ui/tree/objectTree.js';
 import { DeferredPromise, retry, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Emitter, Event as VSCodeEvent } from '../../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -1428,6 +1428,7 @@ suite('Sessions - Chat View', () => {
 		const loading = observableValue('loading', false);
 		const view: {
 			setChat(chat: IChat, historyKey?: string, session?: ISession, onInput?: () => void): void;
+			reopenChat(resource: URI): Promise<void>;
 			_retryUnresolvedChatLoad(addedSessionTypes: readonly string[]): void;
 			dispose(): void;
 		} = Object.assign(Object.create(ChatView.prototype), {
@@ -1525,7 +1526,7 @@ suite('Sessions - Chat View', () => {
 		return { view, createChat, complete, fail, compose, snapshot, historyKeys, disposedReferences, boundModels, openOutcomes, widgetVisibility, requests, completions, loadCts, loadFailure, loading, setInput: (input: string) => { widgetState.input = input; } };
 	}
 
-	/** Uses real content resolution and shared model loads, with only model materialization replaced. */
+	/** Uses real content resolution and shared load coordination with in-memory models. */
 	function createProviderResolvingView() {
 		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
 		const contentService = disposables.add(instantiationService.createInstance(ChatSessionsService));
@@ -1610,6 +1611,32 @@ suite('Sessions - Chat View', () => {
 			assert.strictEqual(snapshot().input, 'draft typed before the failure');
 		});
 
+		test('explicit reopen does not restart a pending or bound chat', async () => {
+			const { view, createChat, complete, requests, boundModels } = createSwitchingView();
+			view.setChat(createChat(resourceA));
+			const pendingReopen = view.reopenChat(resourceA);
+			assert.strictEqual(requests.length, 1);
+			await complete(0, resourceA);
+			await pendingReopen;
+			await view.reopenChat(resourceA);
+
+			assert.deepStrictEqual({ requests: requests.length, bound: boundModels.at(-1) }, { requests: 1, bound: resourceA });
+		});
+
+		test('explicit reopen retries only the matching failure and coalesces repeated opens', async () => {
+			const { view, createChat, fail, complete, requests, boundModels, loadFailure } = createSwitchingView();
+			view.setChat(createChat(resourceA));
+			await fail(0, new Error('Provider unavailable'));
+			await view.reopenChat(resourceB);
+			assert.strictEqual(requests.length, 1);
+			const reopening = view.reopenChat(resourceA);
+			await view.reopenChat(resourceA);
+			await complete(1, resourceA);
+			await reopening;
+
+			assert.deepStrictEqual({ requests: requests.length, bound: boundModels.at(-1), failure: loadFailure.get() }, { requests: 2, bound: resourceA, failure: undefined });
+		});
+
 		test('binds the selected chat after shared-load provider replacement without another open', async () => {
 			const { view, createChat, contentService, completions, loadCts, boundModels, loadFailure, setInput, snapshot } = createProviderResolvingView();
 			const providerStarted = new DeferredPromise<void>();
@@ -1633,13 +1660,13 @@ suite('Sessions - Chat View', () => {
 			registration.value = contentService.registerChatSessionContentProvider(resourceA.scheme, {
 				provideChatSessionContent: async sessionResource => {
 					providerCalls++;
-					return { sessionResource, history: [], onWillDispose: Event.None, dispose: () => { } };
+					return { sessionResource, history: [], onWillDispose: VSCodeEvent.None, dispose: () => { } };
 				},
 			});
 			const activeLoadToken = loadCts.value?.token;
 			assert.ok(activeLoadToken);
 			await Promise.all(completions);
-			await pendingContent.complete({ sessionResource: resourceA, history: [], onWillDispose: Event.None, dispose: () => { lateDisposed++; } });
+			await pendingContent.complete({ sessionResource: resourceA, history: [], onWillDispose: VSCodeEvent.None, dispose: () => { lateDisposed++; } });
 
 			assert.deepStrictEqual({ activeLoadCancelled: activeLoadToken.isCancellationRequested, providerCalls, lateDisposed, bound: boundModels.at(-1), failure: loadFailure.get(), draft: snapshot().input }, {
 				activeLoadCancelled: false, providerCalls: 2, lateDisposed: 1, bound: resourceA, failure: undefined, draft: 'Draft typed while loading',
