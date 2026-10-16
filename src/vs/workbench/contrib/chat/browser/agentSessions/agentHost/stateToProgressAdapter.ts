@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, readMessageSystemInitiatedLabel, readAgentMessageRoundTripMetadata } from '../../../../../../platform/agentHost/common/meta/agentMessageMeta.js';
-import { readUsageInfoMeta, type UsageInfoMeta, type IAgentContextUsage } from '../../../../../../platform/agentHost/common/meta/agentUsageMeta.js';
+import { readUsageInfoMeta, type UsageInfoMeta, type IAgentContextUsage, type IAgentChatUsage } from '../../../../../../platform/agentHost/common/meta/agentUsageMeta.js';
 import { decodeBase64 } from '../../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { escapeMarkdownLinkLabel, escapeMarkdownSyntaxTokens, IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
@@ -50,7 +50,7 @@ import { type IQuotaSnapshot, type IRateLimitSnapshot } from '../../../../../ser
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
-import { type ChatRequestSource, type IChatRequestVariableData } from '../../../common/model/chatModel.js';
+import { type ChatRequestSource, type IChatRequestVariableData, type IChatSessionCost } from '../../../common/model/chatModel.js';
 import { ChatRequestOriginKind, type IChatRequestOrigin } from '../../../common/chatRequestOrigin.js';
 import { AgentHostCompletionReferenceKind, restoreChatTranscriptContextVariableEntry, restorePasteVariableEntryFromAttachment, toAgentHostCompletionVariableEntryFromMetadata, type IAgentFeedbackVariableEntry, type IChatRequestVariableEntry, type IElementVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { type IToolConfirmationMessages, type IToolData, type IPreparedToolInvocation, type IToolResult, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
@@ -889,6 +889,10 @@ function formatTurnModelName(model: ITurnResponseModel, billedModelId: string | 
 	return model.name;
 }
 
+export function chatUsageToSessionCost(usage: IAgentChatUsage): IChatSessionCost {
+	return { credits: usage.totalNanoAiu / 1_000_000_000, status: usage.aiCreditsStatus };
+}
+
 export function usageInfoToChatUsage(usage: UsageInfo | undefined, modelDisplayNameResolver?: (rawModelId: string) => string | undefined, contextUsage?: IAgentContextUsage): IChatUsage | undefined {
 	// Shared with the host's restore path, so "this turn has usage worth
 	// showing" cannot drift between the two.
@@ -903,6 +907,7 @@ export function usageInfoToChatUsage(usage: UsageInfo | undefined, modelDisplayN
 		completionTokens: usage?.outputTokens ?? 0,
 		copilotCredits: getCopilotCredits(usage),
 		sessionCopilotCredits: getSessionCopilotCredits(usage),
+		...(metadata.copilotUsage?.sessionAiCreditsStatus !== undefined ? { sessionCopilotCreditsStatus: metadata.copilotUsage.sessionAiCreditsStatus } : {}),
 		promptTokenDetails: contextAttributionToPromptTokenDetails(usage),
 		modelTotals: turnTokenTotals?.map(total => ({
 			...total,
@@ -2087,7 +2092,8 @@ function buildGeneratedImageToolData(tc: ToolCallState): IChatGeneratedImageData
 			? block.contentType.startsWith('image/') && block.data.length > 0
 			: block.type === ToolResultContentType.Resource && block.contentType?.startsWith('image/') && block.uri.length > 0);
 	const durationMs = readToolCallMeta(tc)['vscode.toolCallDurationMs'];
-	return hasImage ? { kind: 'generatedImage', ...(durationMs !== undefined ? { durationMs } : {}) } : undefined;
+	const imageGeneration = readImageGenerationToolMetadata(tc);
+	return hasImage ? { kind: 'generatedImage', ...(durationMs !== undefined ? { durationMs } : {}), ...(imageGeneration?.usage ? { imageGeneration } : {}) } : undefined;
 }
 
 function buildImageGenerationInputData(tc: ToolCallState): IChatToolInputInvocationData | undefined {
@@ -2718,15 +2724,14 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 				options: [localize('agentFeedback.reveal', "Reveal Selected")],
 			};
 		} else if (pendingEdits?.length) {
-			const wrap = (uri: URI) => connectionAuthority ? toAgentHostUri(uri, connectionAuthority) : uri;
 			const wrapContent = (uri: URI, fileUri: URI) => connectionAuthority ? toAgentHostContentUri(uri, connectionAuthority, fileUri) : uri;
 			const mapped = mapFileEdits(pendingEdits, tc.toolCallId);
 			toolSpecificData = {
 				kind: 'modifiedFilesConfirmation',
 				options: ['Allow'],
 				modifiedFiles: mapped.map(edit => {
-					const resource = wrap(edit.resource);
-					const originalResource = edit.originalResource ? wrap(edit.originalResource) : undefined;
+					const resource = resourceUris.fromAgentHost(edit.resource);
+					const originalResource = edit.originalResource ? resourceUris.fromAgentHost(edit.originalResource) : undefined;
 					const modifiedContent = edit.afterContentUri ? wrapContent(edit.afterContentUri, edit.resource) : undefined;
 					const originalContent = edit.beforeContentUri ? wrapContent(edit.beforeContentUri, edit.originalResource ?? edit.resource) : undefined;
 					return {

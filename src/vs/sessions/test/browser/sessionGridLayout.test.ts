@@ -16,6 +16,7 @@ import { getSessionDropDirection } from '../../browser/parts/sessionDropTarget.j
 import { ISessionGridState, isSessionGridState, projectSessionGrid } from '../../services/sessions/browser/sessionGridState.js';
 import '../../browser/media/workbench.css';
 import '../../browser/parts/media/chatCompositeBar.css';
+import '../../browser/parts/media/sessionsPart.css';
 
 suite('Sessions - Grid Layout', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -459,13 +460,75 @@ suite('Sessions - Grid Layout', () => {
 		}, { order: ['a', 'c', 'b'], above: 'a', right: 'b', focused: true, input: 'unsent input' });
 	});
 
+	test('explicit placement is not overwritten by the model order when a chat pane is appended', () => {
+		const { grid, a, b } = harness();
+		grid.element.style.width = '1200px';
+		grid.element.style.height = '600px';
+		const c = { id: 'c', view: new View() };
+		grid.reconcile([a, b, c], 'a');
+		grid.layout(1200, 600, 0, 0, false, 4);
+		const child = { id: 'child', view: new View(), placement: { reference: b.id, direction: Direction.Down } };
+		const entries = [a, b, c, child];
+		grid.reconcile(entries, child.id);
+		const snapshot = () => ({
+			order: grid.order,
+			allocations: [a, b, c, child].map(entry => {
+				const leaf = entry.view.element.parentElement!;
+				return { id: entry.id, allocated: [leaf.clientWidth, leaf.clientHeight], laidOut: [entry.view.size.width, entry.view.size.height] };
+			}),
+		});
+		const placed = snapshot();
+		grid.reconcile(entries, b.id);
+		const expected = {
+			order: ['a', 'b', 'child', 'c'],
+			allocations: [
+				{ id: 'a', allocated: [398, 600], laidOut: [398, 600] },
+				{ id: 'b', allocated: [396, 298], laidOut: [396, 298] },
+				{ id: 'c', allocated: [398, 600], laidOut: [398, 600] },
+				{ id: 'child', allocated: [396, 298], laidOut: [396, 298] },
+			],
+		};
+		assert.deepStrictEqual({ placed, afterFocus: snapshot() }, { placed: expected, afterFocus: expected });
+		grid.reconcile([b, c, child], child.id);
+		assert.deepStrictEqual({
+			order: grid.order,
+			geometry: [b, c, child].map(entry => ({ id: entry.id, ...entry.view.size })),
+		}, {
+			order: ['b', 'child', 'c'],
+			geometry: [{ id: 'b', width: 398, height: 298 }, { id: 'c', width: 798, height: 600 }, { id: 'child', width: 398, height: 298 }],
+		});
+	});
+
+	test('closing a restored parent preserves the topology of retained panes despite binding order', () => {
+		const { grid, a, b } = harness();
+		const child = { id: 'child', view: new View(), placement: { reference: b.id, direction: Direction.Left } };
+		grid.reconcile([a, b, child], child.id);
+		grid.resize(child.id, 300, 600);
+		const saved = grid.serialize()!;
+		const restored = harness();
+		const restoredChild = { id: child.id, view: new View() };
+		restored.grid.reconcile([restored.a, restored.b, restoredChild], child.id);
+		restored.grid.restore(saved);
+		restoredChild.view.element.value = 'retained draft';
+		restoredChild.view.element.focus();
+		grid.reconcile([b, child], child.id);
+		restored.grid.reconcile([restored.b, restoredChild], child.id);
+		assert.deepStrictEqual({
+			geometry: restored.grid.serialize(),
+			sizes: sizes(restored.grid),
+			connected: restoredChild.view.element.isConnected,
+			focused: document.activeElement === restoredChild.view.element,
+			input: restoredChild.view.element.value,
+		}, { geometry: grid.serialize(), sizes: sizes(grid), connected: true, focused: true, input: 'retained draft' });
+	});
+
 	test('reordering and balanced arrangement never steal external focus', () => {
 		const { grid, a, b, c } = harness();
 		const outside = document.createElement('input');
 		document.body.appendChild(outside);
 		store.add(toDisposable(() => outside.remove()));
 		outside.focus();
-		grid.reconcile([c, a, b], 'a');
+		grid.reconcile([{ id: c.id, view: c.view }, a, b], 'a');
 		grid.arrange();
 		assert.deepStrictEqual({ order: grid.order, focused: document.activeElement === outside }, { order: ['c', 'a', 'b'], focused: true });
 	});
@@ -639,6 +702,38 @@ suite('Sessions - Grid Layout', () => {
 		assert.deepStrictEqual({ maximized: grid.maximized, visible: [a, b].map(entry => entry.view.visible), sizes: sizes(grid) }, {
 			maximized: undefined, visible: [true, true],
 			sizes: [{ id: 'a', width: 400, height: 600 }, { id: 'b', width: 800, height: 600 }],
+		});
+	});
+
+	test('a partial restore does not leave a singleton branch that prevents closing its child', () => {
+		const { grid, a, b, c } = harness();
+		grid.reconcile([a, b, c], c.id);
+		const partial = projectSessionGrid(grid.serialize()!, id => id === b.id ? undefined : id)!;
+		grid.reconcile([a, c], c.id);
+		grid.restore(partial);
+		const restored = sizes(grid);
+		grid.reconcile([a], a.id);
+		assert.deepStrictEqual({ restored, closed: sizes(grid) }, {
+			restored: [{ id: a.id, width: 400, height: 600 }, { id: c.id, width: 800, height: 600 }],
+			closed: [{ id: a.id, width: 1200, height: 600 }],
+		});
+	});
+
+	test('pruning a singleton branch preserves the orientation and proportions of its nested split', () => {
+		const { grid, a, b, c } = harness();
+		const d = { id: 'd', view: new View(), placement: { reference: c.id, direction: Direction.Right } };
+		grid.reconcile([a, b, c, d], c.id);
+		const original = grid.serialize()!;
+		const originalJson = JSON.stringify(original);
+		const partial = projectSessionGrid(original, id => id === b.id ? undefined : id)!;
+		grid.reconcile([a, c, d], c.id);
+		grid.restore(partial);
+		const restored = sizes(grid);
+		grid.reconcile([a, c], c.id);
+		assert.deepStrictEqual({ restored, removed: sizes(grid), originalUnchanged: JSON.stringify(original) === originalJson }, {
+			restored: [{ id: a.id, width: 400, height: 600 }, { id: c.id, width: 400, height: 600 }, { id: d.id, width: 400, height: 600 }],
+			removed: [{ id: a.id, width: 400, height: 600 }, { id: c.id, width: 800, height: 600 }],
+			originalUnchanged: true,
 		});
 	});
 

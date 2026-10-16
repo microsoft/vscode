@@ -9,7 +9,7 @@ import { SessionView } from '../../browser/parts/sessionView.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { constObservable, disposableObservableValue, observableValue } from '../../../base/common/observable.js';
-import { mock, upcastPartial } from '../../../base/test/common/mock.js';
+import { mock } from '../../../base/test/common/mock.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { ISessionPreparationProgress } from '../../services/sessions/common/session.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../browser/parts/chatView.js';
@@ -18,8 +18,8 @@ import { ChatGroupView } from '../../browser/parts/chatGroupView.js';
 import { ChatGroupsView } from '../../browser/parts/chatGroupsView.js';
 import { GRID_GAP_SASH_CLASS } from '../../browser/parts/gridGap.js';
 import { URI } from '../../../base/common/uri.js';
-import { ConfigurationTarget, IConfigurationChangeEvent } from '../../../platform/configuration/common/configuration.js';
-import { SESSION_TOOLBAR_SETTING, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
+import { ConfigurationTarget } from '../../../platform/configuration/common/configuration.js';
+import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { createSessionViewTestServices, createTestActiveSession } from './sessionViewTestUtils.js';
 import { TestLayoutService, TestMenuService, workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
@@ -638,61 +638,49 @@ suite('Sessions - Session View', () => {
 		});
 	});
 
-	test('shows the session toolbar of the standalone new-session view only while its session is active, with room reserved beside the chat', () => {
+	test('shows the session activity bar in the new-session view and beside existing chats while the session is active', () => {
 		const store = disposables.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(IWorkbenchLayoutService, new class extends TestLayoutService {
 			readonly agentWorkbenchLayout = AgentWorkbenchLayout.Desktop;
 		}());
-		// Give the Session Toolbar an entry, as the desktop Add Tab actions do.
+		// Give the Session Activity Bar an entry, as the desktop Add Tab actions do.
 		instantiationService.stub(IMenuService, new class extends TestMenuService {
 			override createMenu(id: MenuId, contextKeyService: IContextKeyService): IMenu {
 				const menu = super.createMenu(id, contextKeyService);
-				return id === Menus.SessionToolbar
+				return id === Menus.SessionActivityBar
 					? { ...menu, getActions: () => [['navigation', [instantiationService.createInstance(MenuItemAction, { id: 'test.browser', title: 'Browser' }, undefined, undefined, undefined, undefined)]]] }
 					: menu;
 			}
 		}());
 		const { configurationService, chatViews } = createSessionViewTestServices(store, instantiationService);
-		const setToolbarEnabled = (enabled: boolean) => {
-			configurationService.setUserConfiguration(SESSION_TOOLBAR_SETTING, enabled);
-			configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([SESSION_TOOLBAR_SETTING]), affectsConfiguration: (key: string) => key === SESSION_TOOLBAR_SETTING }));
-		};
-		setToolbarEnabled(true);
+		configurationService.setUserConfiguration(SESSION_ACTIVITY_BAR_SETTING, true);
 		const chatLayout = () => ({
 			width: chatViews.at(-1)?.layouts.at(-1)?.width,
-			contentInset: chatViews.at(-1)?.element.style.getPropertyValue('--session-toolbar-reserved-width'),
+			contentInset: chatViews.at(-1)?.element.style.getPropertyValue('--session-activity-bar-reserved-width'),
 			headerWidth: view.element.querySelector<HTMLElement>('.session-view-centered-content')?.style.width,
 		});
 		const session = createTestActiveSession('draft', false);
 		const view = store.add(instantiationService.createInstance(SessionView));
 		mainWindow.document.body.appendChild(view.element);
 		store.add(toDisposable(() => view.element.remove()));
-		const activeToolbars = () => ({
-			standalone: !!view.element.querySelector(':scope > .session-toolbar:not(.inactive)'),
-			group: !!view.element.querySelector('.chat-group-view > .session-toolbar:not(.inactive)'),
+		const activityBars = () => ({
+			standalone: !!view.element.querySelector(':scope > .session-activity-bar:not(.inactive)'),
+			group: !!view.element.querySelector('.chat-group-view > .session-activity-bar:not(.inactive)'),
 		});
 
 		view.layout(1000, 600, 0, 0);
 		view.openSession(session, {});
-		const draft = { ...activeToolbars(), chatLayout: chatLayout() };
-		view.layout(1000, 600, 0, 0);
-		const repeatedLayout = chatLayout();
-		view.setActive(false);
-		const inactiveSession = { ...activeToolbars(), chatLayout: chatLayout() };
-		view.setActive(true);
-		setToolbarEnabled(false);
-		const disabledChatLayout = chatLayout();
-		setToolbarEnabled(true);
+		const draft = { ...activityBars(), chatLayout: chatLayout() };
 		session.isCreated.set(true, undefined);
-		const created = { ...activeToolbars(), chatLayout: chatLayout() };
+		const created = { ...activityBars(), chatLayout: chatLayout() };
+		view.setActive(false);
+		const inactiveSession = { ...activityBars(), chatLayout: chatLayout() };
 
-		assert.deepStrictEqual({ draft, repeatedLayout, inactiveSession, disabledChatLayout, created }, {
-			draft: { standalone: true, group: false, chatLayout: { width: 1000, contentInset: '38px', headerWidth: '1000px' } },
-			repeatedLayout: { width: 1000, contentInset: '38px', headerWidth: '1000px' },
-			inactiveSession: { standalone: false, group: false, chatLayout: { width: 1000, contentInset: '38px', headerWidth: '1000px' } },
-			disabledChatLayout: { width: 1000, contentInset: '0px', headerWidth: '1000px' },
-			created: { standalone: false, group: true, chatLayout: { width: 1000, contentInset: '38px', headerWidth: '1000px' } },
+		assert.deepStrictEqual({ draft, created, inactiveSession }, {
+			draft: { standalone: true, group: false, chatLayout: { width: 1000, contentInset: '30px', headerWidth: '1000px' } },
+			created: { standalone: false, group: true, chatLayout: { width: 1000, contentInset: '30px', headerWidth: '1000px' } },
+			inactiveSession: { standalone: false, group: false, chatLayout: { width: 1000, contentInset: '30px', headerWidth: '1000px' } },
 		});
 	});
 
@@ -727,6 +715,8 @@ suite('Sessions - Session View', () => {
 		const groupsView = Reflect.get(view, '_groupsView') as { _setGroupCount(count: number): void };
 		groupsView._setGroupCount(2);
 		const singleSideBySide = getState();
+		await setChatTabsMode(SessionsChatTabsMode.Multiple);
+		const multipleSideBySide = getState();
 		groupsView._setGroupCount(1);
 		await setChatTabsMode(SessionsChatTabsMode.Multiple);
 
@@ -734,11 +724,13 @@ suite('Sessions - Session View', () => {
 			multiple,
 			single,
 			singleSideBySide,
+			multipleSideBySide,
 			restoredMultiple: getState(),
 		}, {
 			multiple: { headerDisplay: 'none', tabBarDisplay: '', tabsReplaceHeader: true },
 			single: { headerDisplay: '', tabBarDisplay: 'none', tabsReplaceHeader: false },
 			singleSideBySide: { headerDisplay: 'none', tabBarDisplay: 'none', tabsReplaceHeader: false },
+			multipleSideBySide: { headerDisplay: 'none', tabBarDisplay: '', tabsReplaceHeader: true },
 			restoredMultiple: { headerDisplay: 'none', tabBarDisplay: '', tabsReplaceHeader: true },
 		});
 	});

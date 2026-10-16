@@ -36,7 +36,7 @@ suite('Copilot managed model configuration', () => {
 	};
 
 	test('prefers resolved Ensemble policy, including unmanaged, over the legacy Auto value', () => {
-		const policies = ['balance', 'high', 'max', 'unmanaged', undefined].map(ensembleTier => ({
+		const policies = (['balance', 'high', 'max', 'unmanaged', undefined] as const).map(ensembleTier => ({
 			values: { autoTier: 'efficiency', ...(ensembleTier ? { ensembleTier } : {}) },
 		}));
 		assert.deepStrictEqual(policies.map(policy => getCopilotManagedAutoPreference(policy)), ['balance', 'high', 'max', undefined, 'efficiency']);
@@ -44,7 +44,7 @@ suite('Copilot managed model configuration', () => {
 
 	test('response-only Ensemble aliases preserve the original legacy execution preference', () => {
 		const policy = {
-			values: { autoTier: 'intelligence', ensembleTier: 'high' },
+			values: { autoTier: 'intelligence', ensembleTier: 'high' } as const,
 			layers: [{ source: 'server', settings: { autoTier: 'intelligence' } }],
 		};
 		const report = createCopilotModelConfigurationReport([auto], policy, {
@@ -84,7 +84,7 @@ suite('Copilot managed model configuration', () => {
 	});
 
 	test('applies an editable Ensemble default only when the runtime offers it', () => {
-		const policy = { values: { autoTier: 'efficiency', ensembleTier: 'max' } };
+		const policy = { values: { autoTier: 'efficiency', ensembleTier: 'max' } } as const;
 		const available = projectCopilotManagedModelConfiguration(withCopilotAutoTierMetadata(auto, autoMetadata), policy, new NullLogService());
 		const unavailable = projectCopilotManagedModelConfiguration(withCopilotAutoTierMetadata(auto, {
 			...autoMetadata, tiers: autoMetadata.tiers.filter(tier => tier.id === 'balance'),
@@ -106,7 +106,7 @@ suite('Copilot managed model configuration', () => {
 	});
 
 	test('uses the exact session tier catalog and reports the applied native tier', () => {
-		const policy = { values: { ensembleTier: 'high', model: 'auto' } };
+		const policy = { values: { ensembleTier: 'high', model: 'auto' } } as const;
 		const report = createCopilotModelConfigurationReport([auto], policy, {
 			modelId: 'auto', autoTier: 'max',
 		}, { id: 'auto', config: { tier: 'max', [modelConfigurationSourceKey('tier')]: 'explicit' } }, new NullLogService(), autoMetadata);

@@ -607,6 +607,6 @@ function makeSnapshot(count: number, headSha = 'head'): PullRequestSnapshot {
 			},
 		},
 		checks: { status: 'ready', complete: true, headSha, value: { headSha, requirednessComplete: true, expectedSuitesComplete: true, expectedSuites: [], checks } },
-		topLevelComments: missing, submittedReviews: missing, inlineComments: missing, reviewThreads: missing, mergeability: missing, participants: missing,
+		topLevelComments: missing, submittedReviews: missing, reviewThreads: missing, mergeability: missing,
 	};
 }

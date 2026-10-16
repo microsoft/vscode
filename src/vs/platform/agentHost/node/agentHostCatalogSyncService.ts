@@ -523,7 +523,14 @@ export class AgentHostCatalogSyncService {
 				continue;
 			}
 			if (upsertResult !== 'applied' && upsertResult !== 'replayed') {
-				this._logService.warn(`[AgentHostCatalogSync] sessions_v2 payload for ${sessionKey} remains pending: ${upsertResult}`);
+				// A chat catalog that moved on under the request (an import or a conversion) is retried by
+				// synchronizeWithFactory, whose callers warn if it never settles.
+				const message = `[AgentHostCatalogSync] sessions_v2 payload for ${sessionKey} remains pending: ${upsertResult}`;
+				if (upsertResult === 'conflict' && request.chatCatalogRevision !== undefined) {
+					this._logService.trace(message);
+				} else {
+					this._logService.warn(message);
+				}
 				return { status: 'pending', sourceRevision, reason: upsertResult };
 			}
 
@@ -648,6 +655,7 @@ export class AgentHostCatalogSyncService {
 	/**
 	 * Adopts the request's store-owned values into central state, then runs the
 	 * session.db write (mirror and outbox in one transaction) and records what it mirrored.
+	 * A replayed write leaves session.db's values untouched, so its entries stay dirty for the store to mirror.
 	 */
 	private async _writeThroughCentral<T extends string>(exclusive: ISessionStateExclusive | undefined, request: IAgentHostCatalogSyncRequest, writeValidator: (() => boolean) | undefined, write: () => Promise<T>): Promise<T> {
 		if (!exclusive || writeValidator?.() === false) {
@@ -664,7 +672,7 @@ export class AgentHostCatalogSyncService {
 			throw error;
 		}
 		const result = await write();
-		if (result !== 'cancelled' && result !== 'generationMismatch') {
+		if (result === 'applied') {
 			exclusive.noteMirrored(adopted.revision, adopted.entries);
 		}
 		return result;

@@ -33,7 +33,7 @@ import { linkKey } from '../../../../common/sessionLinks.js';
 import { getSessionApplication } from '../../../../common/sessionApplication.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
-import { IAutomationSessionConfiguration, IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionConfigProvider, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProvider, ISessionsProviderCreateSessionOptions } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionConfigProvider, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProvider, ISessionsProviderCreateSessionOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionOptionGroup } from '../../../chat/browser/newSession.js';
 import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
 import { CancellationToken, CancellationTokenSource, cancelOnDispose } from '../../../../../base/common/cancellation.js';
@@ -1080,6 +1080,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	private readonly _onDidChangeSessions = this._register(new Emitter<ISessionChangeEvent>());
 	readonly onDidChangeSessions: Event<ISessionChangeEvent> = this._onDidChangeSessions.event;
+	/** Copilot Chat sessions never move their chats. */
+	readonly onDidMoveChat: Event<IChatMovedEvent> = Event.None;
 
 	private readonly _onDidReplaceSession = this._register(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 	readonly onDidReplaceSession: Event<{ readonly from: ISession; readonly to: ISession }> = this._onDidReplaceSession.event;
@@ -1929,7 +1931,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 					throw new Error(localize('sandbox.quickChatUnavailable', "The sandbox could not start a chat without a workspace. Your prompt was not sent."));
 				}
 			}
-			const sessionConfig = config ? await provisioned.provider.resolveInitialSessionConfig(provisioned.session.sessionId, config, token) : undefined;
+			const sessionConfig = await provisioned.provider.resolveInitialSessionConfig(provisioned.session.sessionId, config ?? {}, token);
 			await raceCancellationError(this._carryModelToSandbox(provisioned, chat.resource, selectedModel), token);
 			// Preserve the prompt-derived title rather than the host's branch-name default.
 			await raceCancellationError(provisioned.provider.setInitialSessionTitle(provisioned.session.sessionId, session.title.get()), token);

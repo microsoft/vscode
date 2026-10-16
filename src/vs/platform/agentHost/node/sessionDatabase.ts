@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import { Sequencer, SequencerByKey } from '../../../base/common/async.js';
 import type { Database, RunResult } from '@vscode/sqlite3';
-import { MAX_TERMINAL_OUTPUT_BYTES, MAX_TOOL_RESULT_RESOURCE_BYTES, type IFileEditContent, type IFileEditRecord, type IPersistedTurnRecord, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type IToolResultResource, type SessionCatalogSyncTransitionResult, type SessionCatalogSyncWriteResult, type SessionCatalogSyncWriteValidator, SESSION_FOREIGN_TURN_IDS_METADATA_KEY, SESSION_ROW_OWNER_CHAT_METADATA_KEY, type ITurnCheckpointRecord } from '../common/sessionDataService.js';
+import { MAX_TERMINAL_OUTPUT_BYTES, MAX_TOOL_RESULT_RESOURCE_BYTES, type IFileEditContent, type IFileEditRecord, type IPersistedTurnRecord, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type ISessionRowsWatermark, type IToolResultResource, type SessionCatalogSyncTransitionResult, type SessionCatalogSyncWriteResult, type SessionCatalogSyncWriteValidator, SESSION_FOREIGN_TURN_IDS_METADATA_KEY, SESSION_ROW_OWNER_CHAT_METADATA_KEY, type ITurnCheckpointRecord } from '../common/sessionDataService.js';
 import { dirname } from '../../../base/common/path.js';
 import { URI } from '../../../base/common/uri.js';
 import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, type Message } from '../common/state/sessionState.js';
@@ -320,6 +320,29 @@ function dbOpen(path: string): Promise<Database> {
 			});
 		}, reject);
 	});
+}
+
+async function insertFileEdit(db: Database, edit: IFileEditRecord & IFileEditContent): Promise<void> {
+	// Ensure the turn exists — lazily insert since the turn record
+	// may not have been created by an explicit createTurn() call.
+	await dbRun(db, 'INSERT OR IGNORE INTO turns (id) VALUES (?)', [edit.turnId]);
+	await dbRun(
+		db,
+		`INSERT OR REPLACE INTO file_edits
+			(turn_id, tool_call_id, file_path, edit_type, original_path, before_content, after_content, added_lines, removed_lines)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		[
+			edit.turnId,
+			edit.toolCallId,
+			edit.filePath,
+			edit.kind,
+			edit.originalPath ?? null,
+			edit.beforeContent ? Buffer.from(edit.beforeContent) : null,
+			edit.afterContent ? Buffer.from(edit.afterContent) : null,
+			edit.addedLines ?? null,
+			edit.removedLines ?? null,
+		],
+	);
 }
 
 function validateCatalogSyncInteger(name: string, value: number): void {
@@ -861,6 +884,24 @@ export class SessionDatabase implements ISessionDatabase {
 		return row?.max_rowid as number;
 	}
 
+	async getRowsWatermark(): Promise<ISessionRowsWatermark> {
+		const db = await this._ensureDb();
+		// One statement: a single row without a draft when there are none.
+		const rows = await dbAll(db, `SELECT (SELECT COALESCE(MAX(rowid), 0) FROM turns) AS max_rowid, d.chat_uri, d.draft
+			FROM (SELECT 1) LEFT JOIN chat_drafts d ON 1 = 1`, []);
+		const drafts = new Map<string, Message>();
+		for (const row of rows) {
+			if (typeof row.chat_uri === 'string' && typeof row.draft === 'string') {
+				try {
+					drafts.set(row.chat_uri, JSON.parse(row.draft) as Message);
+				} catch {
+					// A malformed draft reads as none, as getChatDraft reads it.
+				}
+			}
+		}
+		return { maxTurnRowid: rows[0].max_rowid as number, drafts };
+	}
+
 	setForeignRows(ownerChat: string, turnIds: readonly string[]): Promise<void> {
 		let cleared: number | undefined;
 		return this._mutateMetadataAndTurnUsage(async db => {
@@ -963,27 +1004,22 @@ export class SessionDatabase implements ISessionDatabase {
 	// ---- File edits -----------------------------------------------------
 
 	storeFileEdit(edit: IFileEditRecord & IFileEditContent): Promise<void> {
-		return this._track(() => this._fileEditSequencer.queue(edit.filePath, () => this._queueMutation(async db => {
-			// Ensure the turn exists — lazily insert since the turn record
-			// may not have been created by an explicit createTurn() call.
-			await dbRun(db, 'INSERT OR IGNORE INTO turns (id) VALUES (?)', [edit.turnId]);
-			await dbRun(
-				db,
-				`INSERT OR REPLACE INTO file_edits
-					(turn_id, tool_call_id, file_path, edit_type, original_path, before_content, after_content, added_lines, removed_lines)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-				[
-					edit.turnId,
-					edit.toolCallId,
-					edit.filePath,
-					edit.kind,
-					edit.originalPath ?? null,
-					edit.beforeContent ? Buffer.from(edit.beforeContent) : null,
-					edit.afterContent ? Buffer.from(edit.afterContent) : null,
-					edit.addedLines ?? null,
-					edit.removedLines ?? null,
-				],
-			);
+		return this._track(() => this._fileEditSequencer.queue(edit.filePath, () => this._queueMutation(db => insertFileEdit(db, edit))));
+	}
+
+	storeFileEdits(edits: readonly (IFileEditRecord & IFileEditContent)[], beforeCommit?: () => Promise<void> | void): Promise<void> {
+		if (edits.length === 0) {
+			return Promise.resolve();
+		}
+		const filePath = edits[0].filePath;
+		if (edits.some(edit => edit.filePath !== filePath)) {
+			return Promise.reject(new Error('storeFileEdits requires edits of a single file'));
+		}
+		return this._track(() => this._fileEditSequencer.queue(filePath, () => this._queueTransaction(async db => {
+			for (const edit of edits) {
+				await insertFileEdit(db, edit);
+			}
+			await beforeCommit?.();
 		})));
 	}
 

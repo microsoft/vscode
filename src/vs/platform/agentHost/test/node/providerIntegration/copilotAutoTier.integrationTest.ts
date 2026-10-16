@@ -146,14 +146,11 @@ suite('Copilot SDK managed model configuration', function () {
 			await client.start();
 		}
 
-		setup(async function () {
+		setup(async () => {
 			const { schema } = await client.rpc.managedSettings.schema();
 			assert.ok(schema && typeof schema === 'object' && !Array.isArray(schema));
 			const properties = schema.properties;
-			if (!properties || typeof properties !== 'object' || !Object.hasOwn(properties, 'ensembleTier')) {
-				// Enabled with the Ensemble-capable runtime; tracked in e2e/KNOWN_ISSUES.md until the SDK bump.
-				this.skip();
-			}
+			assert.ok(properties && typeof properties === 'object' && Object.hasOwn(properties, 'ensembleTier'), 'Bundled runtime must support ensembleTier');
 			nativeTiers = ['balance', 'high', 'max'].map(id => ({ id, display_name: id, description: `${id} tier`, type: 'auto', status: { enabled: true } }));
 			await restartWithDynamicTiers(true);
 		});

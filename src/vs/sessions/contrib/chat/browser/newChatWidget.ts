@@ -6,6 +6,7 @@
 import './media/chatWidget.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { Action, toAction } from '../../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -64,6 +65,7 @@ import { IChatPetService } from '../../../../workbench/contrib/chat/browser/chat
 import { IChatTipService } from '../../../../workbench/contrib/chat/browser/chatTipService.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
+import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -89,6 +91,7 @@ import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/a
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { ISessionsRecentWorkspacesService } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
+import { filterConfigurationToSchema } from '../../../../workbench/contrib/chat/browser/widget/input/chatModelConfigurationLogic.js';
 
 // #region --- New Chat Widget ---
 
@@ -228,6 +231,7 @@ export class NewChatWidget extends Disposable {
 		@ISessionComparisonService private readonly sessionComparisonService: ISessionComparisonService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 	) {
 		super();
 		this._welcomePhraseIndex = NewChatWidget._takeNextWelcomePhraseIndex(storageService);
@@ -365,7 +369,7 @@ export class NewChatWidget extends Disposable {
 			session?.workspace.read(reader);
 			session?.loading.read(reader);
 			return !this._isQuickChatComposer.read(reader) && this._shouldShowComparisonAction();
-		}), comparisonConfigResolving));
+		}), comparisonConfigResolving, modelId => this.languageModelsService.lookupLanguageModel(modelId)?.name));
 		const canSendRequest = derived(reader => {
 			const session = this._session.read(reader);
 			if (!session) {
@@ -409,7 +413,7 @@ export class NewChatWidget extends Disposable {
 			canApplyWorkspaceDefault: () => this._canApplyWorkspaceDefault(),
 			sendRequest: async ({ query, attachments, background, userInteraction }) => this._send(query, attachments, background, userInteraction),
 			clearInputOnSendStart: () => this._comparisonSelection.enabled.get(),
-			modelPickerWorkflow: this._comparisonSelection,
+			modelPickerComparison: this._comparisonSelection,
 			sendButtonLabel: derived(this, reader => this._comparisonSelection.enabled.read(reader)
 				? localize('comparisonPicker.runAttempts', "Run {0} Attempts", this._comparisonSelection.attemptModelIds.read(reader).length)
 				: undefined),
@@ -448,11 +452,9 @@ export class NewChatWidget extends Disposable {
 				this._comparisonSelection.reset();
 				comparisonHarness = harness;
 			}
-			const state = newChatInput.selectedModelState.read(reader);
+			newChatInput.selectedModelState.read(reader);
 			if (!session?.loading.read(reader) && !comparisonConfigResolving.read(reader)) {
-				this._comparisonSelection.retainModels(new Set(state.models
-					.filter(model => !isAutoModel(model) && !isHydraFusionModel(model))
-					.map(model => model.identifier)));
+				this._comparisonSelection.retainModels(this._getComparisonModelIds());
 			}
 		}));
 		this.pickerVisibility = derived(this, reader => this._activeEmptyState.read(reader)
@@ -1412,6 +1414,7 @@ export class NewChatWidget extends Disposable {
 		this._newChatInput.placeRepositoryControls(repositoryControlsHost);
 		const toggle = store.add(new Button(row, {
 			...defaultButtonStyles,
+			hoverDelegate: getDefaultHoverDelegate('mouse'),
 			buttonBackground: undefined,
 			buttonHoverBackground: undefined,
 			buttonForeground: undefined,
@@ -1528,6 +1531,12 @@ export class NewChatWidget extends Disposable {
 			return workspaceBranch;
 		}
 		return undefined;
+	}
+
+	private _getComparisonModelIds(): Set<string> {
+		return new Set(this._newChatInput.getComparisonModels()
+			.filter(model => !isAutoModel(model) && !isHydraFusionModel(model))
+			.map(model => model.identifier));
 	}
 
 	private _shouldShowComparisonAction(): boolean {
@@ -1715,27 +1724,36 @@ export class NewChatWidget extends Disposable {
 			if (!permission || permission.locked) {
 				throw new Error(localize('comparisonPicker.permissionsUnavailable', "The current permissions are unavailable for comparison. Update the draft permissions and try again."));
 			}
-			const resolveHarness = (modelId: string): ISessionComparisonHarness => {
-				const resolution = provider.getModelsSnapshotForCreation?.(workspace, session.sessionType, modelId).desiredModelResolution;
-				if (resolution?.kind !== 'available') {
+			const resolveHarness = (modelId: string, configurationOverride?: Readonly<Record<string, string | number | boolean | null>>): ISessionComparisonHarness => {
+				const resolved = this._newChatInput.resolveComparisonModel(modelId);
+				if (!resolved?.sessionType.supportsWorktreeConfiguration) {
 					throw new Error(localize('comparisonPicker.modelUnavailable', "A selected comparison model is no longer available. Update the model picker selection."));
 				}
+				const harnessPermission = provider.getComparisonPermissionOptionForSession?.(session.sessionId, resolved.sessionType.id)
+					?? (resolved.sessionType.id === session.sessionType ? permission : undefined);
+				if (!harnessPermission || harnessPermission.locked) {
+					throw new Error(localize('comparisonPicker.permissionsUnavailable', "The current permissions are unavailable for comparison. Update the draft permissions and try again."));
+				}
+				const requestedConfiguration = {
+					...provider.getAutomationModelConfiguration?.(session.sessionId)?.getModelConfiguration(resolved.model.identifier),
+					...configurationOverride,
+				};
 				const modelConfiguration: Record<string, string | number | boolean | null> = {};
-				for (const [key, value] of Object.entries(provider.getAutomationModelConfiguration?.(session.sessionId)?.getModelConfiguration(resolution.model.identifier) ?? {})) {
+				for (const [key, value] of Object.entries(filterConfigurationToSchema(requestedConfiguration, resolved.model.metadata.configurationSchema))) {
 					if (value === null || typeof value === 'string' || typeof value === 'boolean' || typeof value === 'number' && Number.isFinite(value)) {
 						modelConfiguration[key] = value;
 					}
 				}
 				return {
 					providerId: session.providerId,
-					sessionTypeId: session.sessionType,
-					label: type.sessionType.label,
-					modelId: resolution.model.identifier,
-					modelLabel: resolution.model.metadata.name,
+					sessionTypeId: resolved.sessionType.id,
+					label: resolved.sessionType.label,
+					modelId: resolved.model.identifier,
+					modelLabel: resolved.model.metadata.name,
 					modelConfiguration: Object.keys(modelConfiguration).length ? modelConfiguration : undefined,
-					permissionId: permission?.id,
-					permissionLabel: permission?.label,
-					modeId: permission.comparisonModeId,
+					permissionId: harnessPermission.id,
+					permissionLabel: harnessPermission.label,
+					modeId: harnessPermission.comparisonModeId,
 				};
 			};
 			const judgeModelId = this._comparisonSelection.judgeModelId.get();
@@ -1744,7 +1762,7 @@ export class NewChatWidget extends Disposable {
 				workspace,
 				prompt: request,
 				attachedContext: requestContext.size ? [...requestContext.values()] : undefined,
-				attempts: this._comparisonSelection.attemptModelIds.get().map(modelId => ({ id: generateUuid(), harness: resolveHarness(modelId) })),
+				attempts: this._comparisonSelection.attempts.get().map(attempt => ({ id: generateUuid(), harness: resolveHarness(attempt.modelId, attempt.configuration) })),
 				judgeHarness: judgeModelId ? resolveHarness(judgeModelId) : undefined,
 				synthesisHarness: synthesisModelId ? resolveHarness(synthesisModelId) : undefined,
 				branch,

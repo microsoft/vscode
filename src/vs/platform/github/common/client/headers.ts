@@ -37,3 +37,15 @@ export function parseRetryAfter(value: string | null, now: number): number | und
 	const date = Date.parse(isAsctime ? `${trimmedValue} GMT` : trimmedValue);
 	return Number.isFinite(date) ? Math.max(0, Math.ceil((date - now) / 1000)) : undefined;
 }
+
+export type ContentType =
+	| 'application/json'
+	| 'application/vnd.github.ahp+json'
+	| 'application/vnd.github+json'
+	| 'application/vnd.github.object+json'
+	| 'application/vnd.github.raw+json'
+	| 'application/vnd.github.sha'
+	| 'application/vnd.github.diff'
+	| 'application/vnd.github.patch'
+	| 'text/plain, application/octet-stream'
+	| 'text/event-stream, application/json';

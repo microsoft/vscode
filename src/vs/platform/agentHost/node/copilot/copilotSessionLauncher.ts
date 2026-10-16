@@ -58,6 +58,8 @@ import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, agentHostModelSupportsToolSearch } f
 import { createCopilotExtensionTools } from './copilotExtensionTools.js';
 
 export const ThinkingLevelConfigKey = 'thinkingLevel';
+export const CopilotReasoningEffortConfigKey = 'reasoningEffort';
+export const CopilotAutoTierConfigKey = 'autoTier';
 export { ContextSizeConfigKey };
 /**
  * @deprecated Legacy config key that stored the resolved tier string (`'default'` / `'long_context'`)
@@ -412,7 +414,7 @@ export function getCopilotReasoningEffort(model: ModelSelection | undefined, eff
 	if (isCopilotReasoningEffort(effortOverride)) {
 		return toSdkReasoningEffort(effortOverride);
 	}
-	const thinkingLevel = model?.config?.[ThinkingLevelConfigKey];
+	const thinkingLevel = model?.config?.[ThinkingLevelConfigKey] ?? model?.config?.[CopilotReasoningEffortConfigKey];
 	return isCopilotReasoningEffort(thinkingLevel) ? toSdkReasoningEffort(thinkingLevel) : undefined;
 }
 
@@ -530,7 +532,7 @@ export function getCopilotAutoTier(model: ModelSelection | undefined, autoTierVa
 	if (!isAutoModel(model?.id)) {
 		return undefined;
 	}
-	const value = model?.config?.[AutoTierConfigKey];
+	const value = model?.config?.[AutoTierConfigKey] ?? model?.config?.[CopilotAutoTierConfigKey];
 	if (isAutoModeTier(value)) {
 		return value;
 	}
@@ -556,15 +558,15 @@ function resolveConfiguredAutoTierOverride(model: ModelSelection | undefined, co
 		return undefined;
 	}
 	logService.info(`[Copilot:${sessionId}] Applying Auto "Optimize for" override '${tier}'`);
-	return toEnsembleTier(tier, configurationService, logService, sessionId);
+	return toFusionTier(tier, configurationService, logService, sessionId);
 }
 
-/** Ensemble offers no Efficiency, so it runs as Ensemble's default instead. */
-function toEnsembleTier(tier: AutoModeTier, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string): AutoModeTier {
-	if (tier !== 'efficiency' || configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Ensemble) !== true) {
+/** Fusion offers no Efficiency, so it runs as Fusion's default instead. */
+function toFusionTier(tier: AutoModeTier, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string): AutoModeTier {
+	if (tier !== 'efficiency' || configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Fusion) !== true) {
 		return tier;
 	}
-	logService.info(`[Copilot:${sessionId}] Using Ensemble's '${defaultAutoModeTier}' in place of Auto "Optimize for" '${tier}'`);
+	logService.info(`[Copilot:${sessionId}] Using Fusion's '${defaultAutoModeTier}' in place of Auto "Optimize for" '${tier}'`);
 	return defaultAutoModeTier;
 }
 
@@ -579,7 +581,7 @@ export function resolveCopilotAutoTier(model: ModelSelection | undefined, config
 		return undefined;
 	}
 	logService.info(`[Copilot:${sessionId}] Using Auto "Optimize for" preference '${tier}'`);
-	return isAutoModeTier(tier) ? toEnsembleTier(tier, configurationService, logService, sessionId) : tier;
+	return isAutoModeTier(tier) ? toFusionTier(tier, configurationService, logService, sessionId) : tier;
 }
 
 /**
@@ -1026,7 +1028,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		if (isGpt56Model(modelId)) {
 			await this._applyVerbosity(raw, 'medium', plan.sessionId);
 		}
-		return new CopilotSessionWrapper(raw, config.requestCanvasRenderer === true, { providers: config.providers, models: config.models }, this._logService);
+		return new CopilotSessionWrapper(raw, config.requestCanvasRenderer === true, { providers: config.providers, models: config.models }, config.imageGeneration?.enabled === true, this._logService);
 	}
 
 	/**
@@ -1138,9 +1140,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// Synthesize BYOK provider/model config (empty when BYOK is gated off or the
 		// renderer reports no BYOK models), merged into the returned config so both
 		// createSession and resumeSession advertise the models to the runtime.
-		const ensembleEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Ensemble) === true;
-		const hydraFusionEnabled = ensembleEnabled || this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusion) === true;
-		const hydraFusionV2Enabled = hydraFusionEnabled && (ensembleEnabled || this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusionV2) === true);
+		const fusionEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Fusion) === true;
+		const hydraFusionEnabled = fusionEnabled || this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusion) === true;
+		const hydraFusionV2Enabled = hydraFusionEnabled && (fusionEnabled || this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusionV2) === true);
 		const hydraFusionMultiRootEnabled = hydraFusionV2Enabled && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusionMultiRoot) === true;
 		// Throwaway chat surfaces skip memory, like the other heavyweight features they omit.
 		const memoryEnabled = !plan.isEphemeral && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Memory) === true;
@@ -1234,6 +1236,12 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			// Keep dynamic workflows disabled until Agent Host support is validated.
 			'builtin:run_dynamic_workflow',
 			'builtin:dynamic_workflows_manage',
+			// Disable the runtime's `semantic_code_search` in favor of our own
+			// `semantic_search` client tool. The runtime tool is remote-only (no
+			// local chunking/embedding or external ingest), and the CLI is still
+			// A/B testing its prompt variations and deferred-loading strategies.
+			// Revisit (possibly via our own A/B experiment) in a future iteration.
+			`builtin:${CopilotToolName.SemanticCodeSearch}`,
 			// Keep the runtime's search subagent disabled until it is validated in the Agent Host.
 			...(searchSubagentEnabled ? [] : [`builtin:${CopilotToolName.SearchCodeSubagent}`]),
 			...(plan.isEphemeral ? EPHEMERAL_DISABLED_COPILOT_TOOLS : []),
@@ -1330,9 +1338,11 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				}
 			},
 			clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
+			imageGeneration: {
+				enabled: this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ImageGeneration) === true,
+			},
 			...(hydraFusionEnabled ? { enableExperimentalMode: true } : {}),
 			interactiveUser: true,
-			imageGeneration: { enabled: true },
 			featureFlags,
 			...toSdkExpAssignments(this._configurationService.getRootConfigValues?.()[CopilotCliVSCodeAssignmentContextKey]),
 			streaming: true,

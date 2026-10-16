@@ -19,12 +19,8 @@ const modelOptionKeys = ['thinkingLevel', 'contextSize', 'tier'] as const;
 
 /** Reads the runtime-composed Auto startup default. */
 export function getCopilotManagedAutoPreference(policy: CopilotManagedModelPolicy, autoTierValues?: readonly JsonPrimitive[]): string | undefined {
-	// Older SDK declarations do not yet include this additive runtime response field.
-	const ensembleTier = (policy.values as { ensembleTier?: unknown } | undefined)?.ensembleTier;
+	const ensembleTier = policy.values?.ensembleTier;
 	if (ensembleTier !== undefined) {
-		if (typeof ensembleTier !== 'string') {
-			throw new Error('Copilot runtime returned an invalid managed Ensemble tier.');
-		}
 		// Response-only aliases do not replace the original legacy wire preference.
 		const explicitEnsemble = !policy.layers || policy.layers.some(layer => layer.settings && typeof layer.settings === 'object' && Object.hasOwn(layer.settings, 'ensembleTier'));
 		if (!explicitEnsemble && policy.values?.autoTier !== undefined && (!autoTierValues || autoTierValues.includes(policy.values.autoTier))) {

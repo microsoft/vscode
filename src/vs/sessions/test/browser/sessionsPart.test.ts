@@ -36,6 +36,13 @@ suite('Sessions - Sessions Part', () => {
 
 	const activateCodicon = Reflect.get(SessionsPart.prototype, 'activateCodicon') as (this: ICodiconActivationTestHarness, element: HTMLElement) => void;
 
+	test('positional pane lookup distinguishes the empty composer from an absent pane', () => {
+		const { part } = createSessionsPartTestHarness(store);
+		const session = createTestActiveSession('session');
+		part.updateVisibleSessions([undefined, session], session);
+		assert.deepStrictEqual([part.getSessionAtPosition(0), part.getSessionAtPosition(-1)?.sessionId, part.getSessionAtPosition(2)], [null, session.sessionId, undefined]);
+	});
+
 	test('session gaps omit separators while compact density preserves themed separators', () => {
 		const colors = { [agentsPanelBorder]: '#ff0000', [agentsCardBorder]: '#00ff00', [contrastBorder]: '#00000000' };
 		const themes = [
