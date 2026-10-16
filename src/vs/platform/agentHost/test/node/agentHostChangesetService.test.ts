@@ -2109,6 +2109,50 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		});
 	});
 
+	test('opens the databases, folders, and folder scope that Session Changes is computed from', () => {
+		const peer = buildChatUri(sessionStr, 'peer');
+		const db = new TestSessionDatabase();
+		const peerDb = new TestSessionDatabase();
+		let peerDisposals = 0;
+		const { svc } = build({
+			workingDirectories: ['file:///repoA'],
+			git: createNoopGitService(),
+			checkpoint: NULL_CHECKPOINT_SERVICE,
+			db,
+			// Stored somewhere else than its URI, as a moved chat is: sources still name the chat.
+			peer: { resource: peer, db: peerDb, turnId: 'peer-turn', workingDirectories: ['file:///repoB'], storage: 'copilot:/moved-in-storage', onDispose: () => { peerDisposals++; } },
+		});
+		const describe = (candidate: unknown) => candidate === db ? 'session' : candidate === peerDb ? 'peer' : 'other';
+		const open = (owner: string) => {
+			const tracked = svc.openTrackedSessionDatabases(owner);
+			tracked.dispose();
+			return {
+				sources: tracked.sources.map(source => ({ chat: source.chat, db: describe(source.db) })),
+				otherChatDatabases: tracked.otherChatDatabases.map(describe),
+				workingDirectories: tracked.workingDirectories,
+				folderScope: tracked.folderScope?.map(folder => folder.toString()),
+				peerDisposals,
+			};
+		};
+
+		assert.deepStrictEqual({ session: open(sessionStr), peer: open(peer) }, {
+			session: {
+				sources: [{ chat: buildDefaultChatUri(sessionStr), db: 'session' }, { chat: peer, db: 'peer' }],
+				otherChatDatabases: [],
+				workingDirectories: ['file:///repoA', 'file:///repoB'],
+				folderScope: ['file:///repoA', 'file:///repoB'],
+				peerDisposals: 1,
+			},
+			peer: {
+				sources: [{ chat: peer, db: 'peer' }],
+				otherChatDatabases: ['session'],
+				workingDirectories: ['file:///repoB'],
+				folderScope: ['file:///repoB'],
+				peerDisposals: 3,
+			},
+		});
+	});
+
 	test('partitions git vs non-git folders so git-folder edits are not double-counted by the DB', async () => {
 		const db = new TestSessionDatabase();
 		// The DB edit tracker is path-based (no folder column) so it records

@@ -64,3 +64,25 @@ export function createFileEditDiscardRecord(turnId: string, filePath: string, sp
 		removedLines: undefined,
 	};
 }
+
+/**
+ * Builds the rows that record discarding every turn's changes to a file,
+ * given the file's edit records and one step per record: one row per turn
+ * spanning that turn's records, including earlier discard rows. They're
+ * ordered newest turn first, so the last row restores the content the file
+ * had before its first recorded edit. Rows that change nothing are kept for
+ * that reason.
+ */
+export function createSessionFileEditDiscardRecords(records: readonly IFileEditRecord[], steps: readonly IFileEditRevertStep[]): (IFileEditRecord & IFileEditContent)[] {
+	const turns = new Map<string, IFileEditRevertStep[]>();
+	records.forEach((record, index) => {
+		let turnSteps = turns.get(record.turnId);
+		if (!turnSteps) {
+			turnSteps = [];
+			turns.set(record.turnId, turnSteps);
+		}
+		turnSteps.push(steps[index]);
+	});
+	const filePath = records[records.length - 1].filePath;
+	return [...turns].map(([turnId, turnSteps]) => createFileEditDiscardRecord(turnId, filePath, spanFileEditRevertSteps(turnSteps))).reverse();
+}
