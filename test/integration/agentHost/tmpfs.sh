@@ -12,6 +12,18 @@ fi
 TEST_TMPDIR=$(mktemp -d "${TMPDIR:-/tmp}/agent-host-e2e-tmpfs.XXXXXX")
 MOUNTED=false
 
+# Describes each holder so it can be traced to the test that leaked it: its parent and process group, its age (match it
+# against the test log's timestamps), its full command line, and what it holds open on the mount.
+describe_holders() {
+	local pids pid
+	pids=$(sudo -n timeout --signal=KILL 10s fuser -m "$TEST_TMPDIR" 2>/dev/null || true)
+	for pid in $pids; do
+		echo "Agent Host tmpfs holder $pid (PID, parent PID, process group, age in seconds, command line):" >&2
+		ps -o pid=,ppid=,pgid=,etimes=,args= -p "$pid" >&2 || true
+		sudo -n find "/proc/$pid/cwd" "/proc/$pid/root" "/proc/$pid/fd" -maxdepth 1 -lname "$TEST_TMPDIR*" -printf '  %p -> %l\n' >&2 2>/dev/null || true
+	done
+}
+
 cleanup() {
 	local status=$?
 	trap - EXIT
@@ -25,6 +37,7 @@ cleanup() {
 				local diagnostic_status=$?
 				echo "Agent Host tmpfs holder diagnostics exited with status $diagnostic_status; the unmount failure remains fatal." >&2
 			fi
+			describe_holders
 			exit 1
 		fi
 	fi
