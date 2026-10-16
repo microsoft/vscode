@@ -1138,6 +1138,11 @@ export class ChatGroupsView extends Themable {
 		this._activeGroup?.view.focus();
 	}
 
+	reopenChat(resource: URI): Promise<void> {
+		const group = this._groups.find(group => group.activeResourceId.get() === resource.toString());
+		return group?.view.reopenChat(resource) ?? Promise.resolve();
+	}
+
 	layout(width: number, height: number, top: number, left: number, gap = 0): void {
 		this._lastLayout = { width, height, top, left, gap: Math.max(0, gap) };
 		this._applyLayout();

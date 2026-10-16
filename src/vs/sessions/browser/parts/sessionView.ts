@@ -398,6 +398,10 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		return this._groupsView.getActiveChat();
 	}
 
+	reopenChat(resource: URI): Promise<void> {
+		return this._visibleStandaloneView?.reopenChat(resource) ?? this._groupsView.reopenChat(resource);
+	}
+
 	toggleActiveChatPin(): void {
 		this._groupsView.toggleActiveChatPin();
 	}
