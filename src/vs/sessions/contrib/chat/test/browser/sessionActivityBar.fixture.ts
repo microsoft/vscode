@@ -19,12 +19,12 @@ import { PromptTimelineRulerRail } from '../../../../../workbench/contrib/chat/b
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import type { IChatWidgetFixtureHandle, IFixtureMessage } from '../../../../../workbench/test/browser/componentFixtures/chat/chatWidget.fixture.js';
 import { AbstractChatView } from '../../../../browser/parts/chatView.js';
-import { ChatViewSessionToolbar } from '../../../../browser/parts/sessionToolbar.js';
+import { ChatViewSessionActivityBar } from '../../../../browser/parts/sessionActivityBar.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../../common/layoutConstants.js';
-import { SESSION_TOOLBAR_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
+import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
-import { FixtureContextViewService, FixtureKeybindingService, FixtureMenuService, fixtureBrowser, fixtureCanvas, fixtureChanges, fixtureFiles, IFixtureEntry } from '../../../../test/browser/addTabFixtureUtils.js';
+import { FixtureContextViewService, FixtureKeybindingService, FixtureMenuService, fixtureBrowser, fixtureCanvas, fixtureChanges, fixtureFiles, fixtureTogglePanel, fixtureToggleSidePanel, IFixtureEntry } from '../../../../test/browser/addTabFixtureUtils.js';
 import { ExternalSessionBanner } from '../../browser/externalSessionBanner.js';
 import '../../browser/media/chatView.css';
 import '../../../../browser/parts/media/chatCompositeBar.css';
@@ -36,7 +36,7 @@ interface IFixtureOptions {
 	readonly entries?: readonly IFixtureEntry[];
 	/** Width of the chat; the session header and transcript center within it. Defaults to 640. */
 	readonly width?: number;
-	/** The `sessions.showSessionToolbar` setting. Defaults to `true`. */
+	/** The `sessions.showSessionActivityBar` setting. Defaults to `true`. */
 	readonly enabled?: boolean;
 	/** Renders the chat as one group of a multi-group grid, whose content is not capped to the centered band. */
 	readonly split?: boolean;
@@ -49,49 +49,50 @@ interface IFixtureOptions {
 	readonly dragBy?: number;
 }
 
-const workspaceChatEntries = [fixtureChanges, fixtureFiles, fixtureBrowser, fixtureCanvas];
+const workspaceChatEntries = [fixtureToggleSidePanel, fixtureChanges, fixtureFiles, fixtureBrowser, fixtureCanvas, fixtureTogglePanel];
 const highContrastThemes: ['darkHighContrast', 'lightHighContrast'] = ['darkHighContrast', 'lightHighContrast'];
 
-function toolbarFixture(options: IFixtureOptions, additionalThemes?: typeof highContrastThemes) {
+function activityBarFixture(options: IFixtureOptions, additionalThemes?: typeof highContrastThemes) {
 	return defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		// The transcript settles through native resize and scroll callbacks.
 		virtualTime: { enabled: false },
 		additionalThemes,
-		render: context => renderToolbar(context, options),
+		render: context => renderActivityBar(context, options),
 	});
 }
 
-export default defineThemedFixtureGroup({ path: 'sessions/sessionToolbar/' }, {
-	// Chat widths: the content gives up the toolbar's room only while the centered band would reach the strip.
-	Narrow: toolbarFixture({ width: 480 }),
-	WorkspaceChat: toolbarFixture({}, highContrastThemes),
-	NearlyWide: toolbarFixture({ width: 1000 }),
-	Wide: toolbarFixture({ width: 1280 }),
+export default defineThemedFixtureGroup({ path: 'sessions/sessionActivityBar/' }, {
+	// Chat widths: the content gives up the activity bar's room only while the centered band would reach the strip.
+	Narrow: activityBarFixture({ width: 480 }),
+	WorkspaceChat: activityBarFixture({}, highContrastThemes),
+	NearlyWide: activityBarFixture({ width: 1000 }),
+	Wide: activityBarFixture({ width: 1280 }),
 	// Disabled, the content uses the full width, for comparison with the cases above.
-	NarrowToolbarDisabled: toolbarFixture({ width: 480, enabled: false }),
-	WideToolbarDisabled: toolbarFixture({ width: 1280, enabled: false }),
-	SplitGroup: toolbarFixture({ split: true }),
-	RulerTimeline: toolbarFixture({ rulerTimeline: true }, highContrastThemes),
-	RulerTimelineWide: toolbarFixture({ width: 1280, rulerTimeline: true }),
-	ExternalSessionBanner: toolbarFixture({ externalBanner: true }),
-	ExternalSessionBannerWide: toolbarFixture({ width: 1280, externalBanner: true }),
-	ChatWithoutWorkspace: toolbarFixture({ entries: [fixtureBrowser, fixtureCanvas] }),
-	Moved: toolbarFixture({ dragBy: 60 }),
-	AtBottom: toolbarFixture({ dragBy: 2000 }),
-	SubmenuOpen: toolbarFixture({ openSubmenu: true }, highContrastThemes),
+	NarrowActivityBarDisabled: activityBarFixture({ width: 480, enabled: false }),
+	WideActivityBarDisabled: activityBarFixture({ width: 1280, enabled: false }),
+	SplitGroup: activityBarFixture({ split: true }),
+	RulerTimeline: activityBarFixture({ rulerTimeline: true }, highContrastThemes),
+	RulerTimelineWide: activityBarFixture({ width: 1280, rulerTimeline: true }),
+	ExternalSessionBanner: activityBarFixture({ externalBanner: true }),
+	ExternalSessionBannerWide: activityBarFixture({ width: 1280, externalBanner: true }),
+	ChatWithoutWorkspace: activityBarFixture({ entries: [fixtureToggleSidePanel, fixtureBrowser, fixtureCanvas, fixtureTogglePanel] }),
+	WithoutLayoutActions: activityBarFixture({ entries: [fixtureChanges, fixtureFiles, fixtureBrowser, fixtureCanvas] }),
+	Moved: activityBarFixture({ dragBy: 60 }),
+	AtBottom: activityBarFixture({ dragBy: 2000 }),
+	SubmenuOpen: activityBarFixture({ openSubmenu: true }, highContrastThemes),
 });
 
 const HEIGHT = 500;
 const HEADER_HEIGHT = 35;
 
 const conversation: readonly IFixtureMessage[] = [{
-	user: 'Keep the Session Toolbar clear of the conversation.',
+	user: 'Keep the Session Activity Bar clear of the conversation.',
 	assistant: [{
 		kind: 'markdown', text: [
-			'The conversation stays centered with the header and only moves aside where the toolbar would cover it.',
+			'The conversation stays centered with the header and only moves aside where the activity bar would cover it.',
 			'```ts\nconst viewport = { scrollbar: "at the outer edge" };\n```',
-			...Array.from({ length: 14 }, () => 'The toolbar has its own space beside the conversation while the transcript scrolls underneath the header.'),
+			...Array.from({ length: 14 }, () => 'The activity bar has its own space beside the conversation while the transcript scrolls underneath the header.'),
 		].join('\n\n')
 	}],
 }];
@@ -104,7 +105,7 @@ const timelineConversation: readonly IFixtureMessage[] = ['Add a settings page',
 	}],
 }));
 
-/** A chat view without a hosted widget, so the fixture lays out the real view element and its toolbar reservation. */
+/** A chat view without a hosted widget, so the fixture lays out the real view element and its activity bar reservation. */
 class FixtureChatView extends AbstractChatView {
 	readonly kind = 'chat';
 	protected doLayout(): void { }
@@ -112,7 +113,7 @@ class FixtureChatView extends AbstractChatView {
 	focus(): void { }
 }
 
-async function renderToolbar(context: ComponentFixtureContext, options: IFixtureOptions): Promise<void> {
+async function renderActivityBar(context: ComponentFixtureContext, options: IFixtureOptions): Promise<void> {
 	const { container, disposableStore, theme } = context;
 	const { renderChatWidget } = await import('../../../../../workbench/test/browser/componentFixtures/chat/chatWidget.fixture.js');
 	const width = options.width ?? 640;
@@ -123,7 +124,7 @@ async function renderToolbar(context: ComponentFixtureContext, options: IFixture
 
 	// The session view's DOM, so the header and chat take their production alignment.
 	const part = append(container, $('.part.sessionspart'));
-	// The toolbar only shows in the active session, so render that session's styling.
+	// The activity bar only shows in the active session, so render that session's styling.
 	const sessionView = append(part, $('.session-view.is-active'));
 	sessionView.classList.toggle('grid-layout', !!options.split);
 	sessionView.style.setProperty('--session-view-centered-content-max-width', `${AGENTS_CENTERED_CONTENT_MAX_WIDTH}px`);
@@ -137,7 +138,7 @@ async function renderToolbar(context: ComponentFixtureContext, options: IFixture
 	bar.style.height = `${HEADER_HEIGHT}px`;
 	const header = append(bar, $('.chat-composite-bar.session-header-bar'));
 	header.style.height = `${HEADER_HEIGHT}px`;
-	append(append(header, $('.chat-composite-bar-header')), $('.chat-composite-bar-header-main')).textContent = 'Session Toolbar';
+	append(append(header, $('.chat-composite-bar-header')), $('.chat-composite-bar-header-main')).textContent = 'Session Activity Bar';
 
 	const menuService = new FixtureMenuService(entries);
 	const instantiationService = createEditorServices(disposableStore, {
@@ -148,7 +149,7 @@ async function renderToolbar(context: ComponentFixtureContext, options: IFixture
 			reg.defineInstance(IKeybindingService, new FixtureKeybindingService(entries));
 			reg.defineInstance(IContextViewService, new FixtureContextViewService(container));
 			reg.defineInstance(IConfigurationService, new TestConfigurationService({
-				[SESSION_TOOLBAR_SETTING]: options.enabled ?? true,
+				[SESSION_ACTIVITY_BAR_SETTING]: options.enabled ?? true,
 				[SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: true,
 			}));
 			reg.defineInstance(IProductService, new class extends mock<IProductService>() {
@@ -164,9 +165,9 @@ async function renderToolbar(context: ComponentFixtureContext, options: IFixture
 	menuService.commandService = instantiationService.get(ICommandService);
 
 	const areaHeight = HEIGHT - HEADER_HEIGHT;
-	const toolbar = disposableStore.add(instantiationService.createInstance(ChatViewSessionToolbar, chatGroup));
-	toolbar.layout(HEADER_HEIGHT, areaHeight);
-	const reservedWidth = toolbar.reservedWidth.get();
+	const activityBar = disposableStore.add(instantiationService.createInstance(ChatViewSessionActivityBar, chatGroup));
+	activityBar.layout(HEADER_HEIGHT, areaHeight);
+	const reservedWidth = activityBar.reservedWidth.get();
 
 	const view = disposableStore.add(new FixtureChatView());
 	view.element.classList.add('chat-view-chat');
@@ -186,7 +187,8 @@ async function renderToolbar(context: ComponentFixtureContext, options: IFixture
 	}
 	// As in `ChatView`, only the external-session banner precedes the widget in normal flow.
 	const widgetHeight = areaHeight - widgetContainer.offsetTop;
-	const contentWidth = Math.max(0, width - reservedWidth);
+	// As in `ChatView`, content is inset by the reserved width on both sides.
+	const contentWidth = Math.max(0, width - 2 * reservedWidth);
 	// Mirrors `ChatWidget`, which caps its renderer to the centered band outside a multi-group grid.
 	const rendererWidth = options.split ? contentWidth : Math.min(AGENTS_CENTERED_CONTENT_MAX_WIDTH, contentWidth);
 
@@ -227,11 +229,11 @@ async function renderToolbar(context: ComponentFixtureContext, options: IFixture
 	if (options.rulerTimeline) {
 		await mountRulerTimeline(context, renderedChat!, widgetContainer);
 	}
-	toolbar.setActive(true);
-	const element = toolbar.element!;
+	activityBar.setActive(true);
+	const element = activityBar.element!;
 
 	if (options.dragBy) {
-		const handle = element.querySelector<HTMLElement>('.session-toolbar-drag-handle')!;
+		const handle = element.querySelector<HTMLElement>('.session-activity-bar-drag-handle')!;
 		const pointer = { pointerId: 1, button: 0, buttons: 1, bubbles: true, clientX: 0 };
 		handle.dispatchEvent(new PointerEvent('pointerdown', { ...pointer, clientY: 0 }));
 		handle.dispatchEvent(new PointerEvent('pointermove', { ...pointer, clientY: options.dragBy }));

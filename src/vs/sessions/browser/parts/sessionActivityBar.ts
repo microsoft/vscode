@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/sessionToolbar.css';
+import './media/sessionActivityBar.css';
 import { $, addDisposableListener, append, EventHelper, EventLike, EventType, getWindow } from '../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { GlobalPointerMoveMonitor } from '../../../base/browser/globalPointerMoveMonitor.js';
@@ -28,17 +28,17 @@ import { IKeybindingService } from '../../../platform/keybinding/common/keybindi
 import { Menus } from '../menus.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../workbench.js';
 import { AGENTS_CONTENT_HORIZONTAL_PADDING } from '../../common/layoutConstants.js';
-import { SESSION_TOOLBAR_SETTING } from '../../common/sessionConfig.js';
+import { SESSION_ACTIVITY_BAR_SETTING } from '../../common/sessionConfig.js';
 import { isPhoneLayout } from './mobile/mobileLayout.js';
 import { SubmenuFlyout } from './submenuFlyout.js';
 
 /**
- * A vertical toolbar of icon-only actions that open session tabs, docked by {@link ChatViewSessionToolbar}.
+ * A vertical activity bar of icon-only actions that open session tabs and toggle the panel and side panel, docked by {@link ChatViewSessionActivityBar}.
  * Each entry opens or activates its side pane tab, revealing the side pane
  * through the regular reveal-on-open path when it is closed. Users can turn the
- * strip off with the `sessions.showSessionToolbar` setting.
+ * strip off with the `sessions.showSessionActivityBar` setting.
  */
-export class SessionToolbar extends Disposable {
+export class SessionActivityBar extends Disposable {
 
 	readonly element: HTMLElement;
 
@@ -59,26 +59,28 @@ export class SessionToolbar extends Disposable {
 	) {
 		super();
 
-		this.element = append(container, $('.session-toolbar'));
+		this.element = append(container, $('.session-activity-bar'));
 
 		const hoverDelegate = this._register(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', undefined, { position: { hoverPosition: HoverPosition.LEFT } }));
-		const toolbar = this._register(instantiationService.createInstance(MenuWorkbenchToolBar, this.element, Menus.SessionToolbar, {
+		const toolbar = this._register(instantiationService.createInstance(MenuWorkbenchToolBar, this.element, Menus.SessionActivityBar, {
 			orientation: ActionsOrientation.VERTICAL,
-			ariaLabel: localize('sessionToolbar', "Session Toolbar"),
-			telemetrySource: 'sessionToolbar',
+			ariaLabel: localize('sessionActivityBar', "Session Activity Bar"),
+			telemetrySource: 'sessionActivityBar',
 			hoverDelegate,
 			// Entries hidden from the context menu leave the strip; a vertical strip has no overflow menu.
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
-			contextMenu: Menus.SessionToolbarContext,
+			contextMenu: Menus.SessionActivityBarContext,
 			menuOptions: { shouldForwardArgs: true },
+			// Every group shows in the strip: the tab entries, then the layout toggles.
+			toolbarOptions: { primaryGroup: () => true, useSeparatorsInPrimaryActions: true },
 			actionViewItemProvider: (action, options) => action instanceof SubmenuItemAction
-				? instantiationService.createInstance(SessionToolbarSubmenuViewItem, action, { ...options, icon: true, label: false })
+				? instantiationService.createInstance(SessionActivityBarSubmenuViewItem, action, { ...options, icon: true, label: false })
 				: undefined,
 		}));
 
 		const update = () => {
 			const itemCount = toolbar.getItemsLength();
-			const visible = !!this.configurationService.getValue<boolean>(SESSION_TOOLBAR_SETTING) && itemCount > 0;
+			const visible = !!this.configurationService.getValue<boolean>(SESSION_ACTIVITY_BAR_SETTING) && itemCount > 0;
 			this.element.classList.toggle('hidden', !visible);
 			transaction(tx => {
 				this._itemCount.set(itemCount, tx);
@@ -92,12 +94,12 @@ export class SessionToolbar extends Disposable {
 			EventHelper.stop(e, true);
 			contextMenuService.showContextMenu({
 				getAnchor: () => new StandardMouseEvent(getWindow(this.element), e),
-				menuId: Menus.SessionToolbarContext,
+				menuId: Menus.SessionActivityBarContext,
 				contextKeyService,
 			});
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(SESSION_TOOLBAR_SETTING)) {
+			if (e.affectsConfiguration(SESSION_ACTIVITY_BAR_SETTING)) {
 				update();
 			}
 		}));
@@ -110,32 +112,35 @@ const DEFAULT_TOP_OFFSET = 4;
 /** Keeps the strip's bottom level with the chat input's: the composer's 22px footer controls, 4px gap, and 4px bottom padding. */
 const BOTTOM_CLEARANCE = 30;
 
-/** Width the strip occupies at the chat's right edge: the 34px strip (28px buttons, 2px padding, 1px border) and its 16px scrollbar clearance in `sessionToolbar.css`. */
-const COLUMN_WIDTH = 50;
+/** Width the strip occupies at the chat's right edge: the 30px strip (24px buttons, 2px padding, 1px border) and its 12px scrollbar clearance in `sessionActivityBar.css`. */
+const COLUMN_WIDTH = 42;
 
 /** Minimum space between the chat content and the strip. */
 const CONTENT_GAP = 12;
 
 /** Where the strip sits: a distance from the top or bottom of the chat area, whichever it was dragged nearer. */
-interface IToolbarPosition {
+interface IActivityBarPosition {
 	readonly edge: 'top' | 'bottom';
 	readonly distance: number;
 }
 
-const DEFAULT_POSITION: IToolbarPosition = { edge: 'top', distance: DEFAULT_TOP_OFFSET };
+const DEFAULT_POSITION: IActivityBarPosition = { edge: 'top', distance: DEFAULT_TOP_OFFSET };
 
 /**
- * Docks the {@link SessionToolbar} strip at the right edge of a chat area in the
- * desktop layout. Hosts reserve {@link reservedWidth} at the right of the chat so
+ * Docks the {@link SessionActivityBar} strip at the right edge of a chat area in the
+ * desktop layout. Hosts inset the chat's content by {@link reservedWidth} on each side so
  * the strip never covers it, call {@link setActive} so that only the active chat
  * view shows it, and call {@link layout} with the area's top offset and height.
  * Users can drag the strip up and down by its grip within that area;
  * double-clicking the grip restores the default position. Each host keeps its own
  * position.
  */
-export class ChatViewSessionToolbar extends Disposable {
+export class ChatViewSessionActivityBar extends Disposable {
 
-	/** The room reserved beyond the chat's own content padding so the content stays {@link CONTENT_GAP} clear of the strip. */
+	/**
+	 * The inset kept on each side of the chat's content, beyond its own content padding, so the content stays
+	 * {@link CONTENT_GAP} clear of the strip and evenly spaced on both sides.
+	 */
 	static readonly RESERVED_WIDTH = COLUMN_WIDTH + CONTENT_GAP - AGENTS_CONTENT_HORIZONTAL_PADDING;
 
 	/**
@@ -145,7 +150,7 @@ export class ChatViewSessionToolbar extends Disposable {
 	 */
 	readonly reservedWidth: IObservable<number>;
 
-	private readonly toolbar: SessionToolbar | undefined;
+	private readonly activityBar: SessionActivityBar | undefined;
 	private position = DEFAULT_POSITION;
 	private area = { top: 0, height: 0 };
 	private active = false;
@@ -154,7 +159,7 @@ export class ChatViewSessionToolbar extends Disposable {
 
 	/** The strip, or `undefined` outside the desktop layout. */
 	get element(): HTMLElement | undefined {
-		return this.toolbar?.element;
+		return this.activityBar?.element;
 	}
 
 	constructor(
@@ -170,25 +175,25 @@ export class ChatViewSessionToolbar extends Disposable {
 			return;
 		}
 
-		container.classList.add('session-toolbar-host');
+		container.classList.add('session-activity-bar-host');
 		// Lets chat surfaces that sit beside the strip, such as the ruler prompt timeline, clear it.
-		container.style.setProperty('--session-toolbar-column-width', `${COLUMN_WIDTH}px`);
-		const toolbar = this.toolbar = this._register(instantiationService.createInstance(SessionToolbar, container));
-		toolbar.element.classList.add('docked', 'inactive');
+		container.style.setProperty('--session-activity-bar-column-width', `${COLUMN_WIDTH}px`);
+		const activityBar = this.activityBar = this._register(instantiationService.createInstance(SessionActivityBar, container));
+		activityBar.element.classList.add('docked', 'inactive');
 
-		const dragHandle = $('.session-toolbar-drag-handle');
+		const dragHandle = $('.session-activity-bar-drag-handle');
 		// A pointer-only affordance; the strip's entries carry its accessible semantics.
 		dragHandle.setAttribute('aria-hidden', 'true');
-		append(dragHandle, $('span.session-toolbar-drag-handle-icon')).classList.add(...ThemeIcon.asClassNameArray(Codicon.gripper));
-		toolbar.element.prepend(dragHandle);
+		append(dragHandle, $('span.session-activity-bar-drag-handle-icon')).classList.add(...ThemeIcon.asClassNameArray(Codicon.gripper));
+		activityBar.element.prepend(dragHandle);
 		this._register(this.registerDragListeners(dragHandle));
 
 		const phoneLayout = observableFromEvent(this, layoutService.onDidLayoutMainContainer, () => isPhoneLayout(layoutService));
-		this.reservedWidth = derived(this, reader => toolbar.visible.read(reader) && !phoneLayout.read(reader) ? ChatViewSessionToolbar.RESERVED_WIDTH : 0);
+		this.reservedWidth = derived(this, reader => activityBar.visible.read(reader) && !phoneLayout.read(reader) ? ChatViewSessionActivityBar.RESERVED_WIDTH : 0);
 
 		this._register(autorun(reader => {
-			toolbar.itemCount.read(reader);
-			if (toolbar.visible.read(reader)) {
+			activityBar.itemCount.read(reader);
+			if (activityBar.visible.read(reader)) {
 				this.height = undefined;
 				this.applyPosition();
 			}
@@ -234,7 +239,7 @@ export class ChatViewSessionToolbar extends Disposable {
 	}
 
 	private applyPosition(): void {
-		if (this.element && this.active && this.toolbar?.visible.get()) {
+		if (this.element && this.active && this.activityBar?.visible.get()) {
 			this.element.style.top = `${this.area.top + this.getOffset()}px`;
 		}
 	}
@@ -243,7 +248,7 @@ export class ChatViewSessionToolbar extends Disposable {
 		const store = new DisposableStore();
 		const monitor = store.add(new GlobalPointerMoveMonitor());
 		store.add(this.hoverService.setupDelayedHover(dragHandle, {
-			content: localize('sessionToolbar.dragHandle', "Drag to move. Double-click to reset the position."),
+			content: localize('sessionActivityBar.dragHandle', "Drag to move. Double-click to reset the position."),
 			position: { hoverPosition: HoverPosition.LEFT },
 		}));
 		store.add(addDisposableListener(dragHandle, EventType.DBLCLICK, () => {
@@ -275,7 +280,7 @@ export class ChatViewSessionToolbar extends Disposable {
 }
 
 /** An icon-only entry that opens its submenu beside the strip, to the left since the strip sits at the right edge. */
-class SessionToolbarSubmenuViewItem extends ActionViewItem {
+class SessionActivityBarSubmenuViewItem extends ActionViewItem {
 
 	private submenuFlyout: SubmenuFlyout | undefined;
 

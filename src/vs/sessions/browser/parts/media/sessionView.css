@@ -172,7 +172,7 @@
 	filter: grayscale(1);
 }
 
-.monaco-workbench.session-comparison-grid-active .part.sessionspart.multiple-sessions-visible .session-view.is-active::after {
+.monaco-workbench.session-comparison-grid-active .part.sessionspart .session-view.is-active::after {
 	content: '';
 	position: absolute;
 	inset: 0;
@@ -183,12 +183,12 @@
 	z-index: 101;
 }
 
-:is(.hc-black, .hc-light).monaco-workbench.session-comparison-grid-active .part.sessionspart.multiple-sessions-visible .session-view.is-active::after {
+:is(.hc-black, .hc-light).monaco-workbench.session-comparison-grid-active .part.sessionspart .session-view.is-active::after {
 	border-color: var(--vscode-contrastActiveBorder);
 }
 
-.monaco-workbench.session-comparison-hide-inactive-inputs
-	.part.sessionspart.multiple-sessions-visible
+.monaco-workbench.session-comparison-grid-active.session-comparison-hide-inactive-inputs
+	.part.sessionspart
 	.session-view:not(.is-active)
 	.interactive-session > .interactive-input-part {
 	display: none;

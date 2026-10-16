@@ -63,9 +63,10 @@ export class ModelPicker extends Disposable {
 		const currentModel = derived(this, reader => this._selectionModel.state.read(reader).currentModel);
 
 		this._delegate = {
-			workflow: this._selectionModel.workflow,
+			comparison: this._selectionModel.comparison,
 			currentModel,
 			modelConfiguration: this._selectionModel.modelConfiguration,
+			focusInput: () => this._newChatModelPickerService.focusInput(),
 			setModel: model => {
 				const previousModel = this._selectionModel.state.get().currentModel;
 				if (this._selectionModel.selectModel(model.identifier)) {
@@ -86,6 +87,7 @@ export class ModelPicker extends Disposable {
 				this._selectionModel.selectModel(model.identifier, false);
 			},
 			getModels: () => [...this._selectionModel.state.get().models],
+			getComparisonModels: () => [...(this._selectionModel.getComparisonModels?.() ?? this._selectionModel.state.get().models)],
 			getProvider: () => getAgentHostProviderForTelemetry(this._sessionContext.session.get()?.sessionType, this._chatSessionsService),
 			getSessionType: () => {
 				const state = this._selectionModel.state.get();

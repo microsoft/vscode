@@ -171,7 +171,8 @@
 	min-width: 0;
 	min-height: var(--vscode-spacing-size240);
 	overflow: hidden;
-	margin-top: var(--vscode-spacing-size40);
+	/* Padding instead of margin keeps the raised connector inside the clipped padding box. */
+	padding-top: var(--vscode-spacing-size40);
 	margin-left: var(--vscode-spacing-size80);
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-body2);

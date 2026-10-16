@@ -22,8 +22,9 @@ import { IChat } from '../../services/sessions/common/session.js';
 import { AbstractChatView, IChatViewOptions, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from './chatView.js';
 import { ChatGroupsView } from './chatGroupsView.js';
 import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
+import { ChatViewSessionActivityBar } from './sessionActivityBar.js';
 import { ISessionContext, SessionContext } from '../../services/sessions/browser/sessionContext.js';
-import { autorun, derived, disposableObservableValue, IObservable, observableValue } from '../../../base/common/observable.js';
+import { autorun, derived, disposableObservableValue, IObservable, observableValue, runOnChange } from '../../../base/common/observable.js';
 import { SessionIsMaximizedContext } from '../../common/contextkeys.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../common/layoutConstants.js';
 import { setActiveSessionContextKeys } from '../../services/sessions/common/sessionContextKeys.js';
@@ -66,8 +67,10 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 	private readonly _header: SessionHeader;
 	private readonly _groupsView: ChatGroupsView;
 	private readonly _standaloneView = this._register(disposableObservableValue<AbstractChatView | undefined>(this, undefined));
-	private _preparationView: AbstractChatView | undefined;
+	private readonly _preparationView = observableValue<AbstractChatView | undefined>(this, undefined);
 	private readonly _floatingToolbar: SessionViewFloatingToolbar;
+	/** Created once a standalone view is shown; chat groups host their own Session Activity Bar. */
+	private _standaloneSessionActivityBar: ChatViewSessionActivityBar | undefined;
 	private readonly _centeredContentContainer: HTMLElement;
 	private readonly _contentContainer: HTMLElement;
 
@@ -157,6 +160,12 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		this._floatingToolbar = this._register(this._scopedInstantiationService.createInstance(SessionViewFloatingToolbar));
 		this.element.appendChild(this._floatingToolbar.element);
 
+		this._register(autorun(reader => {
+			this._standaloneView.read(reader);
+			this._preparationView.read(reader);
+			this._updateStandaloneSessionActivityBar();
+		}));
+
 		this._applyActiveSessionStyles();
 		this._register(this.themeService.onDidColorThemeChange(() => this._applyActiveSessionStyles()));
 
@@ -232,11 +241,12 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 					const moveFocus = isAncestorOfActiveElement(view.element);
 					view.setVisible(false);
 					reader.store.add(toDisposable(() => {
-						restoreComposerFocus = !!this._preparationView && isAncestorOfActiveElement(this._preparationView.element);
-						this._preparationView = undefined;
+						const current = this._preparationView.read(undefined);
+						restoreComposerFocus = !!current && isAncestorOfActiveElement(current.element);
+						this._preparationView.set(undefined, undefined);
 					}));
 					const preparationView = reader.store.add(this._chatViewFactory.createChatView(this._scopedInstantiationService));
-					this._preparationView = preparationView;
+					this._preparationView.set(preparationView, undefined);
 					preparationView.setChat(session.mainChat.read(reader), session.sessionId, session);
 					preparationView.setActive(this._isActive);
 					preparationView.setVisible(this._isVisible);
@@ -280,7 +290,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 	}
 
 	private get _visibleStandaloneView(): AbstractChatView | undefined {
-		return this._preparationView ?? this._standaloneView.get();
+		return this._preparationView.get() ?? this._standaloneView.get();
 	}
 
 	private _handleContextKeys(session: IActiveSession | undefined): IDisposable {
@@ -326,6 +336,8 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		const barHeight = this._header.visible ? this._header.height : 0;
 		const contentHeight = Math.max(0, height - barHeight);
 		const contentTop = top + barHeight;
+		this._standaloneSessionActivityBar?.layout(barHeight, contentHeight);
+		const contentInset = this._standaloneSessionActivityBar?.reservedWidth.get() ?? 0;
 		const previous = this._lastContentLayout;
 		if (previous?.view === view && previous.width === width && previous.height === contentHeight && previous.top === contentTop && previous.left === left && previous.gap === gap) {
 			return;
@@ -340,7 +352,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		if (view === this._groupsView) {
 			view.layout(width, contentHeight, contentTop, left, gap);
 		} else {
-			view.layout(width, contentHeight, contentTop, left);
+			view.layout(width, contentHeight, contentTop, left, contentInset);
 		}
 	}
 
@@ -478,6 +490,21 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		this._applyActiveSessionStyles();
 		this._groupsView.setSessionActive(active);
 		this._visibleStandaloneView?.setActive(active);
+		this._updateStandaloneSessionActivityBar();
+	}
+
+	private _updateStandaloneSessionActivityBar(): void {
+		const standaloneView = this._visibleStandaloneView;
+		if (standaloneView && !this._standaloneSessionActivityBar) {
+			// Every standalone view reserves room for the strip, active or not, so activating it does not shift its content.
+			const activityBar = this._standaloneSessionActivityBar = this._register(this._scopedInstantiationService.createInstance(ChatViewSessionActivityBar, this.element));
+			this._register(runOnChange(activityBar.reservedWidth, () => {
+				this._lastContentLayout = undefined;
+				this._layoutChildren();
+			}));
+			this._lastContentLayout = undefined;
+		}
+		this._standaloneSessionActivityBar?.setActive(this._isActive && this._isVisible && !!standaloneView);
 	}
 
 	/**
@@ -524,6 +551,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		this._isVisibleObs.set(visible, undefined);
 		this._groupsView.setSessionVisible(visible);
 		this._visibleStandaloneView?.setVisible(visible);
+		this._updateStandaloneSessionActivityBar();
 		if (visible) {
 			// Catch up on the layout passes that were skipped while hidden.
 			this._layoutChildren();

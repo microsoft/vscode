@@ -64,12 +64,14 @@ import '../../../../../workbench/browser/media/style.css';
 import '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/media/chatAgentMergeContent.css';
 import '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/media/chatRequestOrigin.css';
 import { AbstractChatView, ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
-import { ChatViewSessionToolbar } from '../../../../browser/parts/sessionToolbar.js';
+import { ChatViewSessionActivityBar } from '../../../../browser/parts/sessionActivityBar.js';
 import '../../../../browser/parts/media/chatCompositeBar.css';
 import '../../../../browser/parts/media/chatGroupsView.css';
 import '../../../../browser/parts/media/sessionView.css';
 import '../../../../browser/parts/media/sessionsPart.css';
 import '../../browser/media/externalSessionBanner.css';
+import '../../browser/media/chatWidget.css';
+import '../../browser/media/newChatInSession.css';
 import '../../../../../workbench/contrib/chat/browser/promptTimeline/media/promptTimeline.css';
 
 suite('Sessions - Chat View', () => {
@@ -465,9 +467,9 @@ suite('Sessions - Chat View', () => {
 		let offsetReads = 0;
 		let bannerHeight = 35;
 		Object.defineProperty(widgetContainer, 'offsetTop', { get: () => { offsetReads++; return bannerHeight; } });
-		const view: { contentRightInset: number; _layoutChatWidget(): void } = Object.assign(Object.create(ChatView.prototype), {
+		const view: { contentInset: number; _layoutChatWidget(): void } = Object.assign(Object.create(ChatView.prototype), {
 			element,
-			contentRightInset: 0,
+			contentInset: 0,
 			_lastLayout: { width: 500, height: 400 },
 			_externalSessionBanner: { domNode: banner },
 			_widgetContainer: widgetContainer,
@@ -487,27 +489,30 @@ suite('Sessions - Chat View', () => {
 		banner.classList.add('hidden');
 		view._layoutChatWidget();
 		progressOffsets.push(progress.style.top);
-		view.contentRightInset = ChatViewSessionToolbar.RESERVED_WIDTH;
+		view.contentInset = ChatViewSessionActivityBar.RESERVED_WIDTH;
 		view._layoutChatWidget();
 		assert.deepStrictEqual({ hiddenReads, offsetReads, layouts, progressOffsets, viewportWidth: widgetContainer.style.width }, {
 			hiddenReads: 0, offsetReads: 2,
-			layouts: [[400, 500], [365, 500], [340, 500], [400, 500], [400, 462]],
+			// With the toolbar, embedded editors are laid out for the content between the insets on both sides.
+			layouts: [[400, 500], [365, 500], [340, 500], [400, 500], [400, 440]],
 			progressOffsets: ['0px', '35px', '60px', '0px'],
 			viewportWidth: '500px',
 		});
 	});
 
-	test('keeps chat content centered with the header, moving it aside only where the toolbar would cover it, and retains the outer scrollbar', async () => {
+	test('keeps chat content centered with even space on both sides when the toolbar is shown, and retains the outer scrollbar', async () => {
 		const root = dom.append(dom.getActiveDocument().body, dom.$('.monaco-workbench.agent-sessions-workbench'));
 		disposables.add(toDisposable(() => root.remove()));
 		root.style.setProperty('--vscode-spacing-size240', '24px');
+		root.style.setProperty('--vscode-spacing-size120', '12px');
 		root.style.setProperty('--vscode-spacing-size40', '4px');
+		root.style.setProperty('--vscode-spacing-size60', '6px');
 		root.style.setProperty('--session-view-centered-content-max-width', '950px');
 		const part = dom.append(root, dom.$('.part.sessionspart'));
 		const session = dom.append(part, dom.$('.session-view'));
 		const groups = dom.append(session, dom.$('.chat-groups-view.single-group'));
 		// The toolbar's host publishes its column for surfaces that sit beside it.
-		groups.style.setProperty('--session-toolbar-column-width', '50px');
+		groups.style.setProperty('--session-activity-bar-column-width', '42px');
 		const headerHost = dom.append(groups, dom.$('.chat-group-view-bar'));
 		const header = dom.append(dom.append(headerHost, dom.$('.chat-composite-bar.session-header-bar')), dom.$('.chat-composite-bar-header'));
 		const view = disposables.add(new class extends AbstractChatView {
@@ -520,7 +525,7 @@ suite('Sessions - Chat View', () => {
 		groups.appendChild(view.element);
 		const widget = dom.append(dom.append(view.element, dom.$('.chat-view-widget')), dom.$('.interactive-session'));
 		const listContainer = dom.append(widget, dom.$('.interactive-list'));
-		const tree = disposables.add(new ObjectTree<number>('session-toolbar-layout-test', listContainer, {
+		const tree = disposables.add(new ObjectTree<number>('session-activity-bar-layout-test', listContainer, {
 			getHeight: () => 80,
 			getTemplateId: () => 'message',
 		}, [{
@@ -534,13 +539,15 @@ suite('Sessions - Chat View', () => {
 		const suggestion = dom.append(widget, dom.$('.chat-suggest-next-widget'));
 		const banner = dom.append(view.element, dom.$('.external-session-banner'));
 		const rail = dom.append(widget, dom.$('.prompt-timeline-rail'));
+		// A resting ruler mark: a short bar at the right of the rail's marks lane.
+		const markBar = dom.append(dom.append(dom.append(rail, dom.$('.prompt-timeline-ruler-marks')), dom.$('button.prompt-timeline-ruler-mark')), dom.$('span.prompt-timeline-ruler-bar'));
 		await retry(async () => {
 			const targetWindow = dom.getWindow(root);
 			if (targetWindow.getComputedStyle(header).maxWidth !== '950px'
 				|| targetWindow.getComputedStyle(widget).maxWidth !== 'none'
 				|| targetWindow.getComputedStyle(banner).boxSizing !== 'border-box'
 				|| targetWindow.getComputedStyle(rail).position !== 'absolute'
-				|| !targetWindow.getComputedStyle(view.element).getPropertyValue('--session-toolbar-content-inset')) {
+				|| !targetWindow.getComputedStyle(view.element).getPropertyValue('--session-activity-bar-content-inset')) {
 				throw new Error('Session header and chat styles have not loaded');
 			}
 		}, 10, 100);
@@ -552,7 +559,7 @@ suite('Sessions - Chat View', () => {
 			part.style.width = `${width}px`;
 			headerHost.style.width = `${width}px`;
 			view.layout(width, 300, 0, 0, inset);
-			tree.layout(160, Math.min(split ? Infinity : 950, width - inset));
+			tree.layout(160, Math.min(split ? Infinity : 950, width - 2 * inset));
 			const origin = view.element.getBoundingClientRect();
 			const band = (element: HTMLElement) => {
 				const bounds = element.getBoundingClientRect();
@@ -568,39 +575,80 @@ suite('Sessions - Chat View', () => {
 				scrollbarRight: Math.round(scrollbar.getBoundingClientRect().right - origin.left),
 			};
 		};
-		// The ruler prompt timeline beside the transcript: its offset from the right edge and where response content ends.
+		// The ruler prompt timeline: where response content and the input sit, and the center of a resting mark.
 		const rulerSnapshot = (width: number, inset: number) => {
 			snapshot(width, inset);
 			widget.classList.add('prompt-timeline-host', 'prompt-timeline-with-rail');
 			const origin = view.element.getBoundingClientRect();
 			const response = listContainer.querySelector<HTMLElement>('.interactive-item-container')!;
 			const responseBounds = response.getBoundingClientRect();
+			const responseStyle = dom.getWindow(root).getComputedStyle(response);
+			const markBounds = markBar.getBoundingClientRect();
+			const inputBounds = input.getBoundingClientRect();
 			return {
-				railRightOffset: Math.round(origin.right - rail.getBoundingClientRect().right),
-				contentRight: Math.round(responseBounds.right - Number.parseFloat(dom.getWindow(root).getComputedStyle(response).paddingRight) - origin.left),
+				content: [Math.round(responseBounds.left + Number.parseFloat(responseStyle.paddingLeft) - origin.left), Math.round(responseBounds.right - Number.parseFloat(responseStyle.paddingRight) - origin.left)],
+				input: [Math.round(inputBounds.left - origin.left), Math.round(inputBounds.width)],
+				markCenter: Math.round(markBounds.left + markBounds.width / 2 - origin.left),
 			};
 		};
 
 		assert.deepStrictEqual({
-			narrow: snapshot(600, 38),
-			wide: snapshot(1200, 38),
-			split: snapshot(1200, 38, true),
-			// Just wide enough that the centered band would reach the strip.
-			nearlyWide: snapshot(1000, 38),
+			narrow: snapshot(600, 30),
+			wide: snapshot(1200, 30),
+			split: snapshot(1200, 30, true),
+			// Just wide enough that the full-width centered band would reach the strip.
+			nearlyWide: snapshot(1000, 30),
 			disabled: snapshot(600, 0),
 			wideDisabled: snapshot(1200, 0),
-			ruler: rulerSnapshot(600, 38),
+			ruler: rulerSnapshot(600, 30),
 			rulerDisabled: rulerSnapshot(600, 0),
 		}, {
-			narrow: { header: [0, 600], response: [0, 562], input: [0, 562], suggestion: [0, 562], banner: [24, 514], scrollbarRight: 600 },
+			narrow: { header: [0, 600], response: [30, 540], input: [30, 540], suggestion: [30, 540], banner: [54, 492], scrollbarRight: 600 },
 			wide: { header: [125, 950], response: [125, 950], input: [125, 950], suggestion: [125, 950], banner: [125, 950], scrollbarRight: 1200 },
-			split: { header: [0, 1200], response: [0, 1162], input: [0, 1162], suggestion: [0, 1162], banner: [106, 950], scrollbarRight: 1200 },
-			nearlyWide: { header: [25, 950], response: [12, 950], input: [12, 950], suggestion: [12, 950], banner: [24, 926], scrollbarRight: 1000 },
+			split: { header: [0, 1200], response: [30, 1140], input: [30, 1140], suggestion: [30, 1140], banner: [125, 950], scrollbarRight: 1200 },
+			nearlyWide: { header: [25, 950], response: [30, 940], input: [30, 940], suggestion: [30, 940], banner: [54, 892], scrollbarRight: 1000 },
 			disabled: { header: [0, 600], response: [0, 600], input: [0, 600], suggestion: [0, 600], banner: [24, 552], scrollbarRight: 600 },
 			wideDisabled: { header: [125, 950], response: [125, 950], input: [125, 950], suggestion: [125, 950], banner: [125, 950], scrollbarRight: 1200 },
-			// The rail clears the 50px toolbar column by 4px and reserves the transcript room itself.
-			ruler: { railRightOffset: 54, contentRight: 486 },
-			rulerDisabled: { railRightOffset: 10, contentRight: 530 },
+			// The ruler shares the toolbar's column: content keeps the same even band, and the resting marks are
+			// centered on the 30px strip 12px from the edge (center 27px from the edge).
+			ruler: { content: [54, 546], input: [30, 540], markCenter: 573 },
+			// Without the toolbar, the ruler keeps its own right-side reservation beside the scrollbar.
+			rulerDisabled: { content: [24, 530], input: [0, 600], markCenter: 580 },
+		});
+	});
+	test('keeps the new-chat-in-session composer clear of the activity bar', async () => {
+		const root = dom.append(dom.getActiveDocument().body, dom.$('.monaco-workbench.agent-sessions-workbench'));
+		disposables.add(toDisposable(() => root.remove()));
+		root.style.setProperty('--vscode-spacing-size240', '24px');
+		const part = dom.append(root, dom.$('.part.sessionspart'));
+		const view = disposables.add(new class extends AbstractChatView {
+			readonly kind = 'newChatInSession';
+			protected doLayout(): void { }
+			toJSON(): object { return {}; }
+			focus(): void { }
+		}());
+		view.element.classList.add('chat-view-new');
+		part.appendChild(view.element);
+		const content = dom.append(dom.append(view.element, dom.$('.sessions-chat-widget.new-chat-in-session')), dom.$('.new-chat-widget-content'));
+		const inputArea = dom.append(content, dom.$('.new-chat-input-area'));
+		await retry(async () => {
+			if (dom.getWindow(root).getComputedStyle(content).boxSizing !== 'border-box') {
+				throw new Error('New chat styles have not loaded');
+			}
+		}, 10, 100);
+
+		const inputBounds = (width: number, inset: number) => {
+			part.style.width = `${width}px`;
+			view.layout(width, 300, 0, 0, inset);
+			const origin = view.element.getBoundingClientRect();
+			const bounds = inputArea.getBoundingClientRect();
+			return [Math.round(bounds.left - origin.left), Math.round(bounds.right - origin.left)];
+		};
+
+		assert.deepStrictEqual({ activityBar: inputBounds(600, ChatViewSessionActivityBar.RESERVED_WIDTH), disabled: inputBounds(600, 0) }, {
+			// Ends 12px before the activity bar, which starts 42px from the right edge, like the chat transcript.
+			activityBar: [54, 546],
+			disabled: [10, 590],
 		});
 	});
 

@@ -87,7 +87,7 @@ suite('AgentHostChatInputService', () => {
 		stateManager.removeChat(source, buildChatUri(source, 'peer'));
 		service.setBlocked(chat, { errorType: 'CodexThreadInUse', message: 'In use' });
 
-		stateManager.transferSession(source, target, [chat], undefined);
+		stateManager.transferSession(source, target, [chat], undefined, true);
 
 		assert.deepStrictEqual(inputOf(stateManager, target, chat), { input: 'blocked', interactivity: ChatInteractivity.ReadOnly });
 	});

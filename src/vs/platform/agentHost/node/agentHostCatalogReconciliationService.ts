@@ -5,6 +5,7 @@
 
 import { disposableTimeout, Limiter } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { Emitter, type Event } from '../../../base/common/event.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
@@ -136,6 +137,9 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 	 * become hidden permanent state.
 	 */
 	private readonly _parkedSessions = new Set<string>();
+	private readonly _onDidChangeParkedSessions = this._register(new Emitter<string | undefined>());
+	/** Fires a session that was parked or released, or `undefined` when every parked session was released. */
+	readonly onDidChangeParkedSessions: Event<string | undefined> = this._onDidChangeParkedSessions.event;
 	/** Sessions whose chat catalog conversion waits for their aggregate re-projection, retried right after it. */
 	private readonly _conversionsAwaitingReprojection = new Set<string>();
 	/** How many such retries each session got in this process, bounded by {@link CONVERSION_REPROJECTION_RETRY_LIMIT}. */
@@ -459,7 +463,10 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 		if (currentDirty !== observedDirty) {
 			return { session, status: 'retry', reason: 'superseded' };
 		}
-		this._parkedSessions.add(session);
+		if (!this._parkedSessions.has(session)) {
+			this._parkedSessions.add(session);
+			this._onDidChangeParkedSessions.fire(session);
+		}
 		return { session, status: 'retry', reason: 'sourceUnresolvable' };
 	}
 
@@ -471,10 +478,20 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 	 */
 	wakeParkedSessions(session?: string): void {
 		if (session === undefined) {
-			this._parkedSessions.clear();
+			if (this._parkedSessions.size > 0) {
+				this._parkedSessions.clear();
+				this._onDidChangeParkedSessions.fire(undefined);
+			}
 			return;
 		}
-		this._parkedSessions.delete(session);
+		if (this._parkedSessions.delete(session)) {
+			this._onDidChangeParkedSessions.fire(session);
+		}
+	}
+
+	/** Whether `session` is parked: its source can't be resolved, so its catalog waits for a wake signal (see {@link wakeParkedSessions}). */
+	isParked(session: string): boolean {
+		return this._parkedSessions.has(session);
 	}
 
 	/**
