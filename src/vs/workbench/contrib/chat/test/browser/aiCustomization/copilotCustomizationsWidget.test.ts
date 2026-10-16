@@ -194,10 +194,12 @@ suite('CopilotCustomizationsWidget', () => {
 			],
 		});
 		await timeout(0);
+		const renderedRows = [...harness.container.querySelectorAll<HTMLElement>('.copilot-customization-tree-item')];
 
 		assert.deepStrictEqual({
 			groups: [...harness.container.querySelectorAll<HTMLElement>('.copilot-customizations-tree .group-label')].map(element => element.textContent),
-			switches: harness.container.querySelectorAll('[role="switch"]').length,
+			switchesPresent: harness.container.querySelector('[role="switch"]') !== null,
+			switchCoverage: renderedRows.length > 0 && renderedRows.every(row => row.querySelector('[role="switch"]') !== null),
 			refreshInTitle: harness.container.querySelector('.section-title-actions [aria-label="Refresh Copilot extensions"]') !== null,
 			refreshInSearch: harness.container.querySelector('.tools-list-search-and-button-container [aria-label="Refresh Copilot extensions"]') !== null,
 			standardTreeScrollHost: harness.container.querySelector('.copilot-customizations-tree .monaco-scrollable-element') !== null,
@@ -205,7 +207,8 @@ suite('CopilotCustomizationsWidget', () => {
 			statusPills: harness.container.querySelectorAll('.plugin-list-item-status').length,
 		}, {
 			groups: ['User', 'Plugins'],
-			switches: 2,
+			switchesPresent: true,
+			switchCoverage: true,
 			refreshInTitle: true,
 			refreshInSearch: false,
 			standardTreeScrollHost: true,
