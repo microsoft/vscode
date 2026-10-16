@@ -18,9 +18,10 @@ import { LayoutDensityMenu } from '../../../workbench/browser/actions/layoutDens
 import { PanelVisibleContext, SecondarySideBarVisibleContext } from '../../../workbench/common/contextkeys.js';
 import { LayoutSettings, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { Menus } from '../../browser/menus.js';
-
-// Import layout actions to trigger menu registration
-import '../../browser/layoutActions.js';
+import { TOGGLE_SESSION_TOOLBAR_COMMAND_ID } from '../../browser/layoutActions.js';
+import { SESSION_TOOLBAR_SETTING } from '../../common/sessionConfig.js';
+import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
+import { upcastPartial } from '../../../base/test/common/mock.js';
 
 const TOGGLE_PANEL_ACTION_ID = 'workbench.action.togglePanel';
 const LEGACY_TOGGLE_PANEL_ALIGNMENT_ACTION_ID = 'workbench.action.agentSessions.togglePanelAlignment';
@@ -34,7 +35,8 @@ suite('Sessions - Layout Actions', () => {
 	suiteSetup(async () => {
 		await Promise.all([
 			import('../../contrib/editor/browser/editor.contribution.js'),
-			import('../../contrib/terminal/browser/sessionsTerminalContribution.js')
+			import('../../contrib/terminal/browser/sessionsTerminalContribution.js'),
+			import('../../contrib/chat/browser/chat.contribution.js'),
 		]);
 	});
 
@@ -60,6 +62,56 @@ suite('Sessions - Layout Actions', () => {
 				registered: true,
 				toggled: ContextKeyExpr.equals(`config.${LayoutSettings.MODERN_UI_DENSITY}`, density),
 			})),
+		});
+	});
+
+	test('toggles the session toolbar setting from the desktop View > Appearance menu', async () => {
+		const item = MenuRegistry.getMenuItems(Menus.ViewAppearance)
+			.filter(isIMenuItem)
+			.find(item => item.command.id === TOGGLE_SESSION_TOOLBAR_COMMAND_ID);
+		const appearance = MenuRegistry.getMenuItems(MenuId.MenubarViewMenu).filter(isISubmenuItem).find(item => item.submenu === Menus.ViewAppearance);
+		const configurationService = new class extends TestConfigurationService {
+			override updateValue(key: string, value: unknown): Promise<void> {
+				return this.setUserConfiguration(key, value);
+			}
+		}({ [SESSION_TOOLBAR_SETTING]: true });
+		const accessor = upcastPartial<ServicesAccessor>({ get: <T>() => configurationService as T });
+		const run = async () => {
+			await CommandsRegistry.getCommand(TOGGLE_SESSION_TOOLBAR_COMMAND_ID)!.handler(accessor);
+			return configurationService.getValue(SESSION_TOOLBAR_SETTING);
+		};
+
+		assert.deepStrictEqual({
+			appearance: { title: appearance?.title, group: appearance?.group, when: appearance?.when?.serialize() },
+			appearanceItems: MenuRegistry.getMenuItems(Menus.ViewAppearance).length,
+			group: item?.group,
+			when: item?.when?.serialize(),
+			toggled: item?.command.toggled,
+			afterFirstRun: await run(),
+			afterSecondRun: await run(),
+		}, {
+			appearance: { title: '&&Appearance', group: '2_appearance', when: 'agentSessionsDesktopLayout' },
+			appearanceItems: 1,
+			group: '1_workbench_layout',
+			when: 'agentSessionsDesktopLayout',
+			toggled: ContextKeyExpr.equals(`config.${SESSION_TOOLBAR_SETTING}`, true),
+			afterFirstRun: false,
+			afterSecondRun: true,
+		});
+	});
+
+	test('hides the session toolbar from its context menu and toggles it from the chat background context menus', () => {
+		const find = (menu: MenuId) => MenuRegistry.getMenuItems(menu).filter(isIMenuItem).find(item => item.command.id === TOGGLE_SESSION_TOOLBAR_COMMAND_ID);
+		const describe = (item: ReturnType<typeof find>) => ({ title: item?.command.title, toggled: item?.command.toggled, group: item?.group, when: item?.when?.serialize() });
+
+		assert.deepStrictEqual({
+			toolbar: describe(find(Menus.SessionToolbarContext)),
+			chat: describe(find(MenuId.ChatContext)),
+			newSession: describe(find(Menus.SessionChatBackgroundContext)),
+		}, {
+			toolbar: { title: 'Hide Session Toolbar', toggled: undefined, group: 'navigation', when: undefined },
+			chat: { title: 'Session Toolbar', toggled: ContextKeyExpr.equals(`config.${SESSION_TOOLBAR_SETTING}`, true), group: 'zz_view', when: 'agentSessionsDesktopLayout && chatContextMenuIsBackground && isSessionsWindow && !sessionsIsPhoneLayout' },
+			newSession: { title: 'Session Toolbar', toggled: ContextKeyExpr.equals(`config.${SESSION_TOOLBAR_SETTING}`, true), group: 'zz_view', when: 'agentSessionsDesktopLayout && isSessionsWindow && !sessionsIsPhoneLayout' },
 		});
 	});
 

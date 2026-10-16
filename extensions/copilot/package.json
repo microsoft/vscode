@@ -82,6 +82,7 @@
     "onLanguageModelChat:copilot",
     "onUri",
     "onCommand:_github.copilot.chat.reportModelFeedbackSurvey",
+    "onSpeech",
     "onFileSystem:ccreq",
     "onFileSystem:ccsettings"
   ],
@@ -89,6 +90,7 @@
   "l10n": "./l10n",
   "enabledApiProposals": [
     "agentSessionsWorkspace",
+    "speech",
     "agentsWindowConfiguration",
     "chatDebug",
     "chatHooks",
@@ -1799,6 +1801,10 @@
       {
         "vendor": "openrouter",
         "displayName": "OpenRouter",
+        "icon": {
+          "light": "assets/openrouter-light.svg",
+          "dark": "assets/openrouter-dark.svg"
+        },
         "configuration": {
           "type": "object",
           "properties": {

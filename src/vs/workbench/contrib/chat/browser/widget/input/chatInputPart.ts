@@ -1532,10 +1532,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this.renderAttachedContext();
 			},
 			setModelProgrammatically: (model: ILanguageModelChatMetadataAndIdentifier) => {
-				this._applyProgrammaticLanguageModel(model);
-				if (!this.options.suppressModelPersistence) {
-					storeSelectedModel(this.storageService, this.location, this.getSelectedModelTarget(), model.identifier);
-				}
+				// Not stored: the pick it stands in for is, and is presented the same way when restored.
+				this._modelSelectionController.applyEquivalentSelection(model);
 				this.renderAttachedContext();
 			},
 			getModels: () => this.getModels(),
@@ -2017,12 +2015,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (this.cachedWidth) {
 				this.layout(this.cachedWidth);
 			}
-			if (persistSelection && this._currentLanguageModel.get()?.identifier === model.identifier) {
-				storeSelectedModel(this.storageService, this.location, this.getSelectedModelTarget(), model.identifier);
-			}
 			this._syncInputStateToModel();
 		};
 		this._modelSelectionController.applySelection(model, apply, isUserAction);
+		// Not in `apply`, which is skipped when the picker shows an equivalent in place of this model.
+		if (persistSelection) {
+			storeSelectedModel(this.storageService, this.location, this.getSelectedModelTarget(), model.identifier);
+		}
 	}
 
 	private _applyProgrammaticLanguageModel(model: ILanguageModelChatMetadataAndIdentifier): void {

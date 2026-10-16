@@ -298,6 +298,7 @@ const permissionsProperty = schemaProperty<IPermissionsValue>({
 	},
 	default: { allow: [], deny: [] },
 	sessionMutable: true,
+	chatMutable: true,
 });
 
 /**
@@ -373,6 +374,7 @@ export const platformSessionSchema = createSchema({
 		description: localize('agentHost.sessionConfig.sandboxEnabledDescription', "Sandbox behavior for this session. Default follows the global setting."),
 		enum: ['default', 'on', 'off'],
 		sessionMutable: true,
+		chatMutable: true,
 	}),
 	[SessionConfigKey.AutoApprove]: schemaProperty<AutoApproveLevel>({
 		type: 'string',
@@ -391,6 +393,7 @@ export const platformSessionSchema = createSchema({
 		],
 		default: 'default',
 		sessionMutable: true,
+		chatMutable: true,
 	}),
 	[SessionConfigKey.Permissions]: permissionsProperty,
 	[SessionConfigKey.Mode]: schemaProperty<SessionMode>({
@@ -410,6 +413,7 @@ export const platformSessionSchema = createSchema({
 		],
 		default: 'interactive',
 		sessionMutable: true,
+		chatMutable: true,
 	}),
 	[SessionConfigKey.ShellInitScripts]: shellInitScriptsProperty,
 	[SessionConfigKey.SensitiveEditLocations]: sensitiveEditLocationsProperty,
@@ -635,6 +639,8 @@ export const AgentHostArtifactToolsConfigKey = 'artifactTools';
 
 /** Root config key controlling Canvas extensions in Copilot sessions. */
 export const AgentHostCanvasesEnabledConfigKey = 'canvasesEnabled';
+
+export const AgentHostAhpJsonlLoggingEnabledConfigKey = 'ahpJsonlLoggingEnabled';
 
 /** Root config key controlling automatic pull request association for the checked-out branch. */
 export const AgentHostAutoAttachPullRequestsConfigKey = 'autoAttachPullRequests';
@@ -866,6 +872,12 @@ const mcpServersValueProperties: Record<string, SessionConfigPropertySchema> = {
 
 export const platformRootSchema = createSchema({
 	...agentHostProxyConfigDefinition,
+	[AgentHostAhpJsonlLoggingEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.ahpJsonlLogging.title', "AHP Transport Logging"),
+		description: localize('agentHost.config.ahpJsonlLogging.description', "Capture Mission Control AHP transport messages on the host."),
+		readOnly: true,
+	}),
 	[SessionConfigKey.Permissions]: permissionsProperty,
 	[AgentHostDisableRepoInfoTelemetryConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',

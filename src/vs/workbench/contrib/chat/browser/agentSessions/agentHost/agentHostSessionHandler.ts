@@ -65,7 +65,7 @@ import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../..
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ChatTruncatedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { CompletionItemKind as AhpCompletionItemKind, ContentEncoding, type CompletionItem as AhpCompletionItem } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { BackgroundWorkKind, ConfirmationOptionKind, CustomizationType, JsonPrimitive, McpServerAuthRequiredState, McpServerStatus, SessionInputRequestKind, TerminalClaimKind, ToolCallContributorKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type SessionActiveClient, type SessionInputRequest, type SessionToolClientExecutionRequest } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { BackgroundWorkKind, ConfirmationOptionKind, CustomizationType, JsonPrimitive, McpServerAuthRequiredState, McpServerStatus, SessionInputRequestKind, SessionLifecycle, TerminalClaimKind, ToolCallContributorKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type SessionActiveClient, type SessionInputRequest, type SessionToolClientExecutionRequest } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { compareProtocolVersions } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { ActionType, ChatTurnStartedAction, isChatAction, type ClientChatAction, type ClientSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, AHP_NOT_FOUND, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
@@ -839,7 +839,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 			const owner = derivedOpts<ICanvasOwner | undefined>({ owner: this, equalsFn: (first, second) => first === second || (!!first && !!second && isCanvasOwner(first, second)) }, reader => {
 				const session = this._sessionState.read(reader).read(reader);
 				const chat = this._chatState.read(reader).read(reader);
-				return !this._disposed.read(reader) && session && chat
+				return !this._disposed.read(reader) && session?.lifecycle === SessionLifecycle.Ready && chat
 					? { providerId: canvasProvider.providerId, session: backendSession, chat: URI.parse(chat.resource, true) }
 					: undefined;
 			});
@@ -1031,6 +1031,8 @@ export interface IAgentHostSessionHandlerConfig {
 	 * type a session was drafted under before it was bound to this one.
 	 */
 	readonly modelIdentifierAliases?: readonly string[];
+	/** Whether a title the host reports is a stand-in (e.g. the session id) that must not replace the chat's title. */
+	readonly isSessionTitlePlaceholder?: (title: string, sessionResource: URI) => boolean;
 	/** Called after a locally-created session has been accepted by the backend. */
 	readonly onSessionMaterialized?: (sessionResource: URI) => void;
 	/**
@@ -1697,7 +1699,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					this._logService.trace(`[AgentHost] provideChatSessionContent: chat state hydrated for ${chatURI}`);
 					const sessionState = this._getSessionState(resolvedSession.toString(), chatURI);
 					if (sessionState) {
-						chatTitle = getChatTitle(sessionState, chatURI, sessionState.defaultChat);
+						chatTitle = this._getHostChatTitle(sessionResource, sessionState, chatURI);
 						const draft = sessionState.draft ?? emptyDraftFromLastTurn(sessionState);
 						draftInputState = this._draftToInputState(sessionResource, draft);
 						if (!sessionState.draft && draft) {
@@ -2652,6 +2654,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	// ---- Server-initiated turn detection ------------------------------------
 
+	/** The host's title for a chat, unless the connection flags it as a stand-in. */
+	private _getHostChatTitle(sessionResource: URI, state: Pick<SessionState, 'chats' | 'title' | 'defaultChat'>, chatURI: string): string | undefined {
+		const title = getChatTitle(state, chatURI, state.defaultChat);
+		return title !== undefined && this._config.isSessionTitlePlaceholder?.(title, sessionResource) ? undefined : title;
+	}
+
 	/**
 	 * Sets up a persistent listener on the session's protocol state that
 	 * detects server-initiated turns (e.g. auto-consumed queued messages).
@@ -2672,7 +2680,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		let lastSeenTurnId: string | undefined = currentState?.activeTurn?.id;
 		let previousQueuedIds: Set<string> | undefined;
 		let previousSteeringId: string | undefined = currentState?.steeringMessage?.id;
-		let previousTitle: string | undefined = currentState ? getChatTitle(currentState, chatURI, currentState.defaultChat) : undefined;
+		let previousTitle: string | undefined = currentState ? this._getHostChatTitle(sessionResource, currentState, chatURI) : undefined;
 		let previousTurnIds = new Set(currentState?.turns.map(turn => turn.id) ?? []);
 
 		const disposables = new DisposableStore();
@@ -2753,7 +2761,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 			previousSteeringId = currentSteeringId;
 
-			const currentTitle = getChatTitle(e.state, chatURI, e.state.defaultChat);
+			const currentTitle = this._getHostChatTitle(sessionResource, e.state, chatURI);
 			if (currentTitle && currentTitle !== previousTitle) {
 				this._chatService.setChatSessionTitle(sessionResource, currentTitle);
 			}

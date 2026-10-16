@@ -81,7 +81,7 @@ export class ModelPicker extends Disposable {
 					if (!context || context.readOnly) {
 						throw new CancellationError();
 					}
-					await context.provider.setSessionConfigValue(context.sessionId, SessionConfigKey.ImageGenerationEnabled, enabled);
+					await context.provider.setSessionConfigValue(context.sessionId, context.chat, SessionConfigKey.ImageGenerationEnabled, enabled);
 				},
 			},
 			workflow: this._selectionModel.workflow,
@@ -140,7 +140,7 @@ export class ModelPicker extends Disposable {
 				}
 			});
 			if (session && configProvider) {
-				configProvider.isSessionConfigResolving(session.sessionId).read(reader);
+				configProvider.isSessionConfigResolving(session.sessionId, session.activeChat.read(reader).resource).read(reader);
 			}
 			this._onDidChangeImageGeneration.fire();
 		}));
@@ -200,16 +200,20 @@ export class ModelPicker extends Disposable {
 		const session = this._sessionContext.session.get();
 		const provider = session && this._sessionsProvidersService.getProvider(session.providerId);
 		const configProvider = provider && getSessionConfigProvider(provider);
-		const config = session && configProvider?.getSessionConfig(session.sessionId);
+		if (!session || !configProvider) {
+			return undefined;
+		}
+		const chat = session.activeChat.get().resource;
+		const config = configProvider.getSessionConfig(session.sessionId, chat);
 		const schema = config?.schema.properties[SessionConfigKey.ImageGenerationEnabled];
 		const value = config?.values[SessionConfigKey.ImageGenerationEnabled] ?? schema?.default;
-		if (!session || !configProvider || schema?.type !== 'boolean' || typeof value !== 'boolean') {
+		if (schema?.type !== 'boolean' || typeof value !== 'boolean') {
 			return undefined;
 		}
 		return {
-			provider: configProvider, sessionId: session.sessionId, enabled: value,
+			provider: configProvider, sessionId: session.sessionId, chat, enabled: value,
 			readOnly: !isSessionConfigWritable(schema, configProvider.getCreateSessionConfig(session.sessionId) !== undefined)
-				|| configProvider.isSessionConfigResolving(session.sessionId).get(),
+				|| configProvider.isSessionConfigResolving(session.sessionId, chat).get(),
 		};
 	}
 

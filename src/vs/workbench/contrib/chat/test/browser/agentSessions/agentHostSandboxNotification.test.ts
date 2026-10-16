@@ -19,11 +19,11 @@ import { IAgentHostEnablementService } from '../../../../../../platform/agentHos
 import { IAgentConnection, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { agentSandboxDiagnosticsMetaKey } from '../../../../../../platform/agentHost/common/meta/agentSandboxDiagnostics.js';
 import { withSessionSandboxPolicy } from '../../../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
-import { withSessionSandboxState } from '../../../../../../platform/agentHost/common/meta/agentSandboxStateMeta.js';
+import { withChatSandboxState, withSessionSandboxState } from '../../../../../../platform/agentHost/common/meta/agentSandboxStateMeta.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { createSessionState, SessionState, SessionStatus } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { createSessionState, SessionState, SessionStatus, StateComponents, type ChatState, type ComponentToState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -294,6 +294,41 @@ suite('AgentHostSandboxNotification', () => {
 		});
 	}
 
+	test('turns off the sandboxing of its chat, which the chat set for itself', async () => {
+		await configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.Off);
+		const chat = 'ahp-chat://default/opaque';
+		const subscription = store.add(new TestSubscription());
+		subscription.setValue(['Missing dependencies.']);
+		subscription.setSandboxConfig('off', false);
+		// The session's sandboxing is off; the chat turned its own on and the host applied it.
+		const session = subscription.verifiedValue;
+		subscription.value = {
+			...session,
+			defaultChat: chat,
+			config: { ...session.config!, schema: { ...session.config!.schema, properties: { [SessionConfigKey.SandboxEnabled]: { ...session.config!.schema.properties[SessionConfigKey.SandboxEnabled], chatMutable: true } } } },
+			_meta: withChatSandboxState(session._meta, chat, { enabled: true }),
+		};
+		const chatState: ChatState = { resource: chat, title: 'Session', status: SessionStatus.Idle, modifiedAt: '2026-09-25T00:00:00.000Z', turns: [], config: { values: { [SessionConfigKey.SandboxEnabled]: AgentSandboxEnabledValue.On } } };
+		resolution = {
+			...resolution!,
+			connection: new class extends mock<IAgentConnection>() {
+				override dispatch(...args: Parameters<IAgentConnection['dispatch']>): void {
+					dispatched.push(args);
+				}
+				override getSubscriptionUnmanaged<T extends StateComponents>(_kind: T, uri: URI): IAgentSubscription<ComponentToState[T]> | undefined {
+					const value = (uri.toString() === chat ? chatState : undefined) as ComponentToState[T] | undefined;
+					return { value, verifiedValue: value, onDidChange: Event.None, onWillApplyAction: Event.None, onDidApplyAction: Event.None };
+				}
+			},
+		};
+		const service = new NotificationService();
+		stub(configurationService, 'updateValue').resolves();
+		createNotification(resource, subscription, service);
+		await instantiationService.invokeFunction(CommandsRegistry.getCommand(getDisableCommand(service))!.handler);
+
+		assert.deepStrictEqual(dispatched, [[chat, { type: ActionType.ChatConfigChanged, config: { [SessionConfigKey.SandboxEnabled]: AgentSandboxEnabledValue.Off } }]]);
+	});
+
 	test('does not send a redundant session update when sandboxing is already off', async () => {
 		const subscription = store.add(new TestSubscription());
 		subscription.setValue(['Missing dependencies.']);
@@ -366,9 +401,6 @@ suite('AgentHostSandboxNotification', () => {
 
 	for (const scenario of [
 		{ name: 'bypass is disallowed', allowBypass: false, value: 'on', confirmed: true },
-		{ name: 'bypass is allowed but not approved', allowBypass: true, value: 'on', confirmed: true },
-		{ name: 'off selection is not runtime-confirmed', allowBypass: true, value: 'off', confirmed: undefined },
-		{ name: 'sandbox has been re-enabled after an approved bypass', allowBypass: true, value: 'on', confirmed: false },
 		{ name: 'bypass has been revoked', allowBypass: false, value: 'off', confirmed: false },
 	]) {
 		test(`blocks a managed disable when ${scenario.name}`, async () => {
@@ -386,6 +418,20 @@ suite('AgentHostSandboxNotification', () => {
 			});
 		});
 	}
+
+	test('permits requesting a managed session bypass before runtime confirmation', async () => {
+		const subscription = store.add(new TestSubscription());
+		subscription.setValue(['Missing dependencies.'], true, true);
+		subscription.setSandboxConfig('on', true);
+		const service = new NotificationService();
+		const update = stub(configurationService, 'updateValue').resolves();
+		createNotification(resource, subscription, service);
+		await instantiationService.invokeFunction(CommandsRegistry.getCommand(getDisableCommand(service))!.handler);
+		assert.deepStrictEqual({ dispatched, writes: update.args }, {
+			dispatched: [['custom-host://opaque/session', { type: ActionType.SessionConfigChanged, config: { [SessionConfigKey.SandboxEnabled]: 'off' } }]],
+			writes: [[AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.Off]],
+		});
+	});
 
 	test('permits saving Off after an approved managed session opt-out', async () => {
 		const subscription = store.add(new TestSubscription());
@@ -416,7 +462,7 @@ suite('AgentHostSandboxNotification', () => {
 		});
 	});
 
-	test('local bypass permission only unlocks a runtime-confirmed opt-out', () => {
+	test('local bypass permission unlocks session opt-out', () => {
 		assert.ok(resolution);
 		resolution = { ...resolution, connection: localHost };
 		managedSandboxEnforced.set(true, undefined);
@@ -430,7 +476,7 @@ suite('AgentHostSandboxNotification', () => {
 		subscription.setSandboxConfig('off', false);
 		const confirmed = !!getDisableCommand(service);
 		managedSandboxAllowsBypass.set(false, undefined);
-		assert.deepStrictEqual([initial, allowed, confirmed, !!getDisableCommand(service)], [isWeb, isWeb, true, isWeb]);
+		assert.deepStrictEqual([initial, allowed, confirmed, !!getDisableCommand(service)], [isWeb, true, true, isWeb]);
 	});
 
 	test('surfaces configuration update failures', async () => {

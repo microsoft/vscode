@@ -189,19 +189,19 @@ export class MobileChatPhoneInputPresenter extends Disposable implements IChatPh
 		const access: IImageGenerationPickerAccess | undefined = configProvider ? {
 			onDidChange: Event.any(
 				Event.map(Event.filter(configProvider.onDidChangeSessionConfig, id => id === session.sessionId), () => undefined),
-				Event.fromObservableLight(configProvider.isSessionConfigResolving(session.sessionId)),
+				Event.fromObservableLight(configProvider.isSessionConfigResolving(session.sessionId, session.chatResource)),
 			),
 			getState: () => {
-				const config = configProvider.getSessionConfig(session.sessionId);
+				const config = configProvider.getSessionConfig(session.sessionId, session.chatResource);
 				const schema = config?.schema.properties[SessionConfigKey.ImageGenerationEnabled];
 				const value = config?.values[SessionConfigKey.ImageGenerationEnabled] ?? schema?.default;
 				return schema?.type === 'boolean' && typeof value === 'boolean' ? {
 					enabled: value,
 					readOnly: !isSessionConfigWritable(schema, configProvider.getCreateSessionConfig(session.sessionId) !== undefined)
-						|| configProvider.isSessionConfigResolving(session.sessionId).get(),
+						|| configProvider.isSessionConfigResolving(session.sessionId, session.chatResource).get(),
 				} : undefined;
 			},
-			setEnabled: enabled => configProvider.setSessionConfigValue(session.sessionId, SessionConfigKey.ImageGenerationEnabled, enabled),
+			setEnabled: enabled => configProvider.setSessionConfigValue(session.sessionId, session.chatResource, SessionConfigKey.ImageGenerationEnabled, enabled),
 		} : undefined;
 		return {
 			models: provider.getModelsSnapshot(session.sessionId).models,
@@ -308,7 +308,7 @@ export class MobileChatPhoneInputPresenter extends Disposable implements IChatPh
 		registerAction: RegisterChatPhonePickerAction,
 	): IMobilePickerSheetItem[] {
 		const items: IMobilePickerSheetItem[] = [];
-		const config = provider.getSessionConfig(session.sessionId);
+		const config = provider.getSessionConfig(session.sessionId, session.chatResource);
 		const modeSchema = config?.schema.properties[SessionConfigKey.Mode];
 		const modeItems = (modeSchema && isWellKnownModeSchema(modeSchema))
 			? (modeSchema.enum ?? []).map((value, index) => ({
@@ -411,11 +411,11 @@ export class MobileChatPhoneInputPresenter extends Disposable implements IChatPh
 				break;
 			case 'agentHostMode':
 				if (session && agentHostProvider) {
-					const config = agentHostProvider.getSessionConfig(session.sessionId);
+					const config = agentHostProvider.getSessionConfig(session.sessionId, session.chatResource);
 					const schema = config?.schema.properties[SessionConfigKey.Mode];
 					if (schema && isWellKnownModeValue(schema, action.value)) {
 						const previousMode = String(config?.values[SessionConfigKey.Mode] ?? schema.default ?? '');
-						agentHostProvider.setSessionConfigValue(session.sessionId, SessionConfigKey.Mode, action.value)
+						agentHostProvider.setSessionConfigValue(session.sessionId, session.chatResource, SessionConfigKey.Mode, action.value)
 							.then(() => {
 								if (didExplicitlyEnableChatPetAutopilot(previousMode, action.value)) {
 									this._chatPetService.unlockAchievement(ChatPetAchievementIds.AutopilotEnabled);

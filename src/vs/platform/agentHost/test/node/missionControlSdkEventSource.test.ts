@@ -12,7 +12,7 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import type { IAgent, IAgentChatSessionEvent } from '../../common/agent.js';
+import type { IAgent, IAgentChatContext, IAgentChatSessionEvent } from '../../common/agent.js';
 import type { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
@@ -21,6 +21,7 @@ import { IAgentHostProviderService } from '../../node/agentHostProviderService.j
 import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { MissionControlSdkEventSource } from '../../node/missionControl/missionControlSdkEventSource.js';
 import { MissionControlSessionMirror, type MissionControlMirrorEvent } from '../../node/missionControl/missionControlSessionMirror.js';
+import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 
@@ -82,6 +83,13 @@ suite('MissionControlSdkEventSource', () => {
 		}();
 		instantiation.stub(ISessionDataService, new class extends mock<ISessionDataService>() {
 			override openDatabase() { return { object: db, dispose: () => { } }; }
+		}());
+		// The cursors are the default chat's own data in its own db: the central store must never be asked for them.
+		instantiation.stub(IAgentHostSessionStateStore, new class extends mock<IAgentHostSessionStateStore>() {
+			override peek() { return undefined; }
+			override async load(): Promise<never> { throw new Error('Mission Control cursors must not go through the session state store'); }
+			override legacyMetadata(): never { throw new Error('Mission Control cursors must not go through the session state store'); }
+			override async writeMetadata(): Promise<never> { throw new Error('Mission Control cursors must not go through the session state store'); }
 		}());
 		const events: MissionControlMirrorEvent[] = [];
 		const mirror = store.add(instantiation.createInstance(MissionControlSessionMirror, 'env', {}));
@@ -217,6 +225,25 @@ suite('MissionControlSdkEventSource', () => {
 			types: f.events.flatMap(value => value.event === 'sessionEvents' && value.data.ns === 'sdk' ? [value.data.payload.type] : []),
 			logged: f.errors.called,
 		}, { types: ['session.idle', 'assistant.turn_start'], logged: true });
+	});
+
+	test('reconciles the history of a chat that changed owner under its current owner', async () => {
+		const f = fixture();
+		const other = 'copilotcli:/mission-control-other-owner';
+		f.state.createSession({ resource: other, defaultChat: buildDefaultChatUri(other), provider: 'copilotcli', title: 'Other', status: SessionStatus.Idle, createdAt: at, modifiedAt: at }, { emitNotification: false });
+		f.state.reassignChatOwner(chat.toString(), other);
+		const owners: string[] = [];
+		sinon.stub(f.provider, 'readChatSessionEvents').callsFake(async function* (...args: unknown[]) {
+			owners.push((args[1] as IAgentChatContext).owner.get().toString());
+			yield event('idle');
+		});
+		await f.source.whenIdle();
+		clock.runAll();
+		assert.deepStrictEqual({
+			owners,
+			types: f.events.flatMap(value => value.event === 'sessionEvents' && value.data.ns === 'sdk' ? [value.data.payload.type] : []),
+			logged: f.errors.called,
+		}, { owners: [other], types: ['session.idle'], logged: false });
 	});
 
 	test('an unreadable journal is reported without preventing fresh native metadata', async () => {

@@ -65,7 +65,8 @@ suite('MobileChatPhoneInputPresenter images', () => {
 			getSessionConfig: () => config,
 			getCreateSessionConfig: () => ({}),
 			isSessionConfigResolving: () => resolving,
-			setSessionConfigValue: async (session, property, value) => {
+			setSessionConfigValue: async (session, chat, property, value) => {
+				assert.strictEqual(chat.toString(), scoped?.chatResource.toString());
 				assert.strictEqual(property, key);
 				if (options.writeError) { throw options.writeError; }
 				writes.push({ session, value });

@@ -2173,18 +2173,19 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		}
 	}
 
-	sendQuery(text: string): void {
+	async sendQuery(text: string): Promise<boolean> {
 		// A submit is already in flight (e.g. a rapid second transcript before the
 		// session is created); don't clobber the in-flight text or double-submit.
 		if (this._sending) {
-			return;
+			return false;
 		}
 		const model = this._editor?.getModel();
 		if (model) {
 			const combined = combineVoiceInput(model.getValue(), text);
 			model.setValue(combined);
-			this._send();
+			return this._send();
 		}
+		return false;
 	}
 
 	attach(uris: URI[]): void {

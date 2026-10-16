@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
+import * as sinon from 'sinon';
 import assert from 'assert';
 import * as fs from 'fs';
 import { tmpdir } from 'os';
@@ -41,6 +41,9 @@ import { createSessionDataService, TestSessionDatabase } from '../common/session
 import { MockAgent } from './mockAgent.js';
 import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { SessionStateMirrorFlush } from '../../common/agentHostSessionStateStore.js';
+import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
+import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 
 class TestWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 	override readonly supported = true;
@@ -138,8 +141,25 @@ class GatedConversionDatabase extends TestSessionDatabase {
 	readonly releaseWrite = new DeferredPromise<void>();
 	readonly conversionMetadata: Readonly<Record<string, string>>[] = [];
 
+	private _mergeIntoLast = false;
+
+	// Session-level keys reach the database through the state store's mirror.
+	override async applyMetadataChanges(set: Readonly<Record<string, string>>, remove: readonly string[]): Promise<void> {
+		if (set[AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY] === undefined) {
+			this.conversionMetadata.push({ ...set });
+			this._mergeIntoLast = true;
+		}
+		await this._waitForRelease();
+		await super.applyMetadataChanges(set, remove);
+	}
+
 	override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
-		this.conversionMetadata.push(values);
+		if (this._mergeIntoLast) {
+			this._mergeIntoLast = false;
+			Object.assign(this.conversionMetadata[this.conversionMetadata.length - 1], values);
+		} else {
+			this.conversionMetadata.push(values);
+		}
 		await this._waitForRelease();
 		await super.setMetadataValues(values);
 	}
@@ -170,6 +190,7 @@ suite('SessionWorkspaceConversionService', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
 		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
 		const sessionDataService = createSessionDataService(database);
+		const stateStore = disposables.add(createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionDataService));
 		const agent = new MockAgent(providerId, { multipleChats: { fork: true }, multipleWorkingDirectories: { immutablePrimary: true } }, { workspaceConversion: true });
 		disposables.add({ dispose: () => agent.dispose() });
 		const providerService = createTestAgentHostProviderService(() => agent);
@@ -258,7 +279,7 @@ suite('SessionWorkspaceConversionService', () => {
 					type: ActionType.SessionChatUpdated, chat: chat.toString(), changes: { workingDirectories: [directory.toString()] },
 				});
 			},
-		}, stateManager, providerService, sessionDataService, worktreeIsolation, configurationService, clientConnections, turnService, serverToolHost, logService, gitStateService, createTestChatOwnershipService(stateManager)));
+		}, stateManager, providerService, sessionDataService, worktreeIsolation, configurationService, clientConnections, turnService, serverToolHost, logService, gitStateService, createTestChatOwnershipService(stateManager), stateStore));
 		const session = URI.from({ scheme: providerId, path: '/workspace-less' });
 		const chat = URI.parse(buildDefaultChatUri(session));
 		const scratch = URI.file('/tmp/copilot-scratch/workspace-less');
@@ -273,7 +294,7 @@ suite('SessionWorkspaceConversionService', () => {
 			_meta: withSessionWorkspaceless(undefined, true),
 			defaultChat: buildDefaultChatUri(session.toString()),
 		});
-		return { service, stateManager, configurationService, sessionDataService, database, agent, session, chat, scratch, continuations, outcomeKindsAtContinuation, deferredContinuations, failedContinuations, trustRequests, connectedClientIds, refreshedServerTools, serverToolHost, gitRefreshes };
+		return { service, stateStore, stateManager, configurationService, sessionDataService, database, agent, session, chat, scratch, continuations, outcomeKindsAtContinuation, deferredContinuations, failedContinuations, trustRequests, connectedClientIds, refreshedServerTools, serverToolHost, gitRefreshes };
 	}
 
 	function setSessionConfig(harness: ReturnType<typeof createHarness>, values: Record<string, unknown>): void {
@@ -431,9 +452,9 @@ suite('SessionWorkspaceConversionService', () => {
 				});
 				const callingChat = target === 'main' ? harness.chat : peer;
 				const otherChat = target === 'main' ? peer : harness.chat;
-				const calls: { chat: string; directory: string }[] = [];
+				const calls: { chat: string; owner: string; storage: string; directory: string }[] = [];
 				const provider: IAgent = harness.agent;
-				provider.setChatWorkingDirectory = async (chat, _context, directory) => { calls.push({ chat: chat.toString(), directory: directory.toString() }); };
+				provider.setChatWorkingDirectory = async (chat, context, directory) => { calls.push({ chat: chat.toString(), owner: context.owner.get().toString(), storage: context.resource.toString(), directory: directory.toString() }); };
 				completePriorTurn(harness.stateManager, callingChat);
 				startTurn(harness.stateManager, callingChat);
 				startTurn(harness.stateManager, otherChat, 'other-turn');
@@ -452,7 +473,7 @@ suite('SessionWorkspaceConversionService', () => {
 					available: harness.service.canIsolateChat(callingChat),
 					persisted: await harness.database.getMetadata('agentHost.chatIsolationDirectory'),
 				}, {
-					calls: [{ chat: callingChat.toString(), directory: worktree.toString() }],
+					calls: [{ chat: callingChat.toString(), owner: harness.session.toString(), storage: (target === 'main' ? harness.session : peer).toString(), directory: worktree.toString() }],
 					sessionRoots: [harness.scratch.toString(), ...sharedFolder ? [] : [otherFolder.toString()], worktree.toString()], config: previous.config,
 					roots: previous.chats.map(chat => [chat.resource, chat.resource === callingChat.toString() ? [worktree.toString()] : chat.workingDirectories]),
 					otherTurn: 'other-turn', continuations: [callingChat.toString()], available: false, persisted: worktree.toString(),
@@ -1765,7 +1786,7 @@ suite('SessionWorkspaceConversionService', () => {
 		const harness = createHarness(new NullAgentHostWorktreeIsolation(), () => trustDecision.p);
 		const workspaceFolder = URI.file('/workspace/project');
 		const providerMutation = new DeferredPromise<void>();
-		const providerCalls: { chat: string; session: string; workspaceFolder: string }[] = [];
+		const providerCalls: { chat: string; owner: string; storage: string; workspaceFolder: string }[] = [];
 		const customization = {
 			type: CustomizationType.Plugin,
 			id: customizationId('file:///workspace/project/plugin'),
@@ -1786,7 +1807,9 @@ suite('SessionWorkspaceConversionService', () => {
 		provider.setWorkingDirectory = async (chat, context, workingDirectory) => {
 			providerCalls.push({
 				chat: chat.toString(),
-				session: URI.isUri(context) ? context.toString() : context.resource.toString(),
+				// A host-built context: the chat's current owner and recorded storage, never a bare session URI.
+				owner: URI.isUri(context) ? 'bare session URI' : context.owner.get().toString(),
+				storage: URI.isUri(context) ? 'bare session URI' : context.resource.toString(),
 				workspaceFolder: workingDirectory.toString(),
 			});
 			await providerMutation.p;
@@ -1879,7 +1902,8 @@ suite('SessionWorkspaceConversionService', () => {
 		}, {
 			providerCalls: [{
 				chat: harness.chat.toString(),
-				session: harness.session.toString(),
+				owner: harness.session.toString(),
+				storage: harness.session.toString(),
 				workspaceFolder: 'file:///workspace/project',
 			}],
 			trustRequests: [{
@@ -1952,6 +1976,26 @@ suite('SessionWorkspaceConversionService', () => {
 			outcomeNotifications: [],
 			outcomeKindsAtContinuation: [[]],
 			continuations: 1,
+		});
+	});
+
+	test('session-level conversion keys go to the session resource through the store and never to the chat database', async () => {
+		const harness = createHarness();
+		harness.agent.setWorkingDirectory = async () => { };
+		const storeWrites = sinon.spy(harness.stateStore, 'writeMetadata');
+		const chatWrites = sinon.spy(harness.database, 'setMetadataValues');
+		startTurn(harness.stateManager, harness.chat);
+		harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', URI.file('/workspace/project'), false, 'client-1');
+		completeTurn(harness.stateManager, harness.chat);
+
+		await updateSessionWorkspace(harness);
+
+		assert.deepStrictEqual({
+			store: storeWrites.getCalls().map(call => ({ session: call.args[0].toString(), resource: call.args[1].toString(), keys: Object.keys(call.args[2]).sort(), flush: call.args[3] })),
+			chat: chatWrites.getCalls().flatMap(call => Object.keys(call.args[0])).filter(key => key === AH_META_WORKSPACELESS_DB_KEY || key === 'configValues'),
+		}, {
+			store: [{ session: harness.session.toString(), resource: harness.session.toString(), keys: [AH_META_WORKSPACELESS_DB_KEY], flush: SessionStateMirrorFlush.Immediate }],
+			chat: [],
 		});
 	});
 
@@ -2264,6 +2308,8 @@ suite('SessionWorkspaceConversionService', () => {
 			createdWorktrees: worktreeIsolation.createdWorktrees,
 			project: harness.stateManager.getSessionSummary(harness.session.toString())?.project,
 			workingDirectories: state?.workingDirectories,
+			// The worktree's recorded base branch is session state: what Branch Changes and reviews read.
+			baseBranch: await harness.stateStore.readBaseBranchWithoutImport(harness.session, undefined),
 		}, {
 			externalProjectRequests: [worktree.toString()],
 			createdWorktrees: [],
@@ -2272,6 +2318,7 @@ suite('SessionWorkspaceConversionService', () => {
 				displayName: 'project',
 			},
 			workingDirectories: [worktree.toString()],
+			baseBranch: 'main',
 		});
 	});
 
@@ -2316,6 +2363,27 @@ suite('SessionWorkspaceConversionService', () => {
 			trustRequests: [],
 			workingDirectories: [workspaceFolder.toString()],
 		});
+	});
+
+	test('requests workspace trust by the converting chat\'s own approvals', async () => {
+		// A workspace-less session converts as a whole; a folder session changes only the chat's workspace.
+		const run = async (folderSession: boolean, session: string, chat: string) => {
+			const harness = createHarness(new NullAgentHostWorktreeIsolation(), async () => true);
+			harness.agent.setWorkingDirectory = async () => { };
+			if (folderSession) {
+				makeFolderSession(harness);
+				completePriorTurn(harness.stateManager, harness.chat);
+			}
+			setSessionConfig(harness, { ...harness.stateManager.getSessionState(harness.session.toString())?.config?.values, [SessionConfigKey.AutoApprove]: session });
+			harness.configurationService.updateChatConfig({ session: harness.session.toString(), chat: harness.chat.toString() }, { [SessionConfigKey.AutoApprove]: chat });
+			await changeWorkspaceViaTool(harness, harness.chat, URI.file('/workspace/project'));
+			return harness.trustRequests.length;
+		};
+
+		assert.deepStrictEqual({
+			chatAllowsAll: [await run(false, 'default', 'autoApprove'), await run(true, 'default', 'autoApprove')],
+			sessionAllowsAll: [await run(false, 'autoApprove', 'default'), await run(true, 'autoApprove', 'default')],
+		}, { chatAllowsAll: [0, 0], sessionAllowsAll: [1, 1] });
 	});
 
 	test('does not request workspace, repository, or worktree trust when global auto-approve is enabled', async () => {
@@ -2726,6 +2794,32 @@ suite('SessionWorkspaceConversionService', () => {
 		});
 	});
 
+	test('persists the quarantine in central state and its mirror', async () => {
+		class FailingConversionDatabase extends TestSessionDatabase {
+			override async setWorkspaceConversion(): Promise<void> {
+				throw new Error('transition write failed');
+			}
+		}
+		const database = new FailingConversionDatabase();
+		const harness = createHarness(new NullAgentHostWorktreeIsolation(), async () => true, database);
+		const provider: IAgent = harness.agent;
+		provider.setWorkingDirectory = async () => { };
+		const sessionUri = harness.session;
+		await harness.stateStore.load(sessionUri);
+		completePriorTurn(harness.stateManager, harness.chat);
+		startTurn(harness.stateManager, harness.chat);
+		harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', URI.file('/workspace/project'), false, 'client-1');
+		completeTurn(harness.stateManager, harness.chat);
+
+		await updateSessionWorkspace(harness);
+		await harness.stateStore.whenIdle(undefined);
+
+		assert.deepStrictEqual({
+			central: harness.stateStore.legacyMetadata(sessionUri, [AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY]).values[AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY],
+			mirror: await database.getMetadata(AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY),
+		}, { central: 'true', mirror: 'true' });
+	});
+
 	test('atomically persists conversion metadata or quarantines before publishing state', async () => {
 		class FailingConversionDatabase extends TestSessionDatabase {
 			override async setWorkspaceConversion(): Promise<void> {
@@ -2771,11 +2865,11 @@ suite('SessionWorkspaceConversionService', () => {
 				throw new Error('atomic commit failed');
 			}
 
-			override async setMetadata(key: string, value: string): Promise<void> {
-				if (key === AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY) {
+			override async applyMetadataChanges(set: Readonly<Record<string, string>>, remove: readonly string[]): Promise<void> {
+				if (set[AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY]) {
 					throw new Error('quarantine persistence failed');
 				}
-				await super.setMetadata(key, value);
+				await super.applyMetadataChanges(set, remove);
 			}
 		}
 		const database = new FailingQuarantineDatabase();
@@ -2837,6 +2931,41 @@ suite('SessionWorkspaceConversionService', () => {
 			workingDirectories: [harness.scratch.toString()],
 			workspaceless: true,
 			continuationText: 'The requested workspace setup did not complete successfully: An archived session cannot be converted to a workspace session. Do not run the user\'s task. Tell the user that workspace setup failed and include this error.',
+		});
+	});
+
+	test('converting a workspace-less session records the new folder as the launch folder of every non-tool chat', async () => {
+		const harness = createHarness();
+		const defaultChat = buildDefaultChatUri(harness.session.toString());
+		const peer = buildChatUri(harness.session, 'peer');
+		const tool = buildChatUri(harness.session, 'tool');
+		harness.stateManager.addChat(harness.session.toString(), peer, creationTimeChatStorageResource(harness.session.toString(), peer, defaultChat));
+		harness.stateManager.addChat(harness.session.toString(), tool, creationTimeChatStorageResource(harness.session.toString(), tool, defaultChat), {
+			origin: { kind: ChatOriginKind.Tool, chat: harness.chat.toString(), toolCallId: 'tool' },
+			interactivity: ChatInteractivity.ReadOnly,
+		});
+		const provider: IAgent = harness.agent;
+		provider.setWorkingDirectory = async () => { };
+		const workspace = URI.file('/workspace/project');
+		startTurn(harness.stateManager, harness.chat);
+		harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', workspace, false, 'client-1');
+		completeTurn(harness.stateManager, harness.chat);
+		const dispatched: string[] = [];
+		disposables.add(harness.stateManager.onDidEmitEnvelope(envelope => dispatched.push(envelope.action.type)));
+
+		await updateSessionWorkspace(harness);
+
+		const snapshot = await harness.stateStore.load(harness.session);
+		assert.deepStrictEqual({
+			launch: Object.fromEntries([harness.chat.toString(), peer, tool].map(chat => [chat, snapshot.chats.get(chat)?.launchWorkingDirectories])),
+			chatDispatches: dispatched.filter(type => type === ActionType.ChatWorkingDirectorySet || type === ActionType.SessionChatUpdated),
+		}, {
+			launch: {
+				[harness.chat.toString()]: [workspace.toString()],
+				[peer]: [workspace.toString()],
+				[tool]: undefined,
+			},
+			chatDispatches: [ActionType.SessionChatUpdated],
 		});
 	});
 

@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
@@ -27,6 +28,7 @@ import { ISessionContext, SessionContext } from '../../../../services/sessions/b
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionConfigProvider, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IChat } from '../../../../services/sessions/common/session.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ModelPicker, ModelPickerActionViewItem } from '../../browser/modelPicker.js';
@@ -200,20 +202,27 @@ suite('ModelPicker controls', () => {
 
 	test('the Images control persists the scoped session preference without selecting a chat model', async () => {
 		const key = SessionConfigKey.ImageGenerationEnabled;
+		const chat = URI.parse('opaque:/image-chat');
 		const config: ResolveSessionConfigResult = {
 			schema: { type: 'object', properties: { [key]: { type: 'boolean', title: 'Image Generation', default: true, sessionMutable: true } } },
 			values: { [key]: true },
 		};
 		const changed = disposables.add(new Emitter<string>());
 		const resolving = observableValue('resolving', false);
-		const writes: { session: string; property: string; value: unknown }[] = [];
+		const writes: { session: string; chat: URI; property: string; value: unknown }[] = [];
 		const sessionConfig: ISessionConfigProvider = {
 			onDidChangeSessionConfig: changed.event,
-			getSessionConfig: () => config,
+			getSessionConfig: (_session, target) => {
+				assert.strictEqual(target, chat);
+				return config;
+			},
 			getCreateSessionConfig: () => ({}),
-			isSessionConfigResolving: () => resolving,
-			setSessionConfigValue: async (session, property, value) => {
-				writes.push({ session, property, value });
+			isSessionConfigResolving: (_session, target) => {
+				assert.strictEqual(target, chat);
+				return resolving;
+			},
+			setSessionConfigValue: async (session, chat, property, value) => {
+				writes.push({ session, chat, property, value });
 				config.values[property] = value;
 				changed.fire(session);
 			},
@@ -225,6 +234,9 @@ suite('ModelPicker controls', () => {
 		const session = new class extends mock<IActiveSession>() {
 			override readonly sessionId = 'opaque-owner';
 			override readonly providerId = provider.id;
+			override readonly activeChat = constObservable(new class extends mock<IChat>() {
+				override readonly resource = chat;
+			}());
 		}();
 		const active = observableValue<IActiveSession | undefined>('active', session);
 		const rig = createControls(active, provider);
@@ -236,7 +248,7 @@ suite('ModelPicker controls', () => {
 		await control.setEnabled(false);
 		assert.deepStrictEqual(control.getState(), { enabled: false, readOnly: false });
 		assert.strictEqual(changes, 1);
-		assert.deepStrictEqual(writes, [{ session: session.sessionId, property: key, value: false }]);
+		assert.deepStrictEqual(writes, [{ session: session.sessionId, chat, property: key, value: false }]);
 		resolving.set(true, undefined);
 		assert.deepStrictEqual(control.getState(), { enabled: false, readOnly: true });
 		await assert.rejects(() => control.setEnabled(true), /Canceled/);

@@ -20,6 +20,8 @@ import { ConfigurationTarget, IConfigurationService } from '../../../platform/co
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
+import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../platform/actions/common/actions.js';
+import { Menus } from '../../browser/menus.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -28,7 +30,9 @@ import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { TestColorTheme, TestThemeService } from '../../../platform/theme/test/common/testThemeService.js';
 import { DEFAULT_EDITOR_PART_OPTIONS } from '../../../workbench/browser/parts/editor/editor.js';
 import { IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
-import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
+import { TestLayoutService, TestMenuService, workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
+import { IWorkbenchLayoutService } from '../../../workbench/services/layout/browser/layoutService.js';
+import { AgentWorkbenchLayout } from '../../browser/workbench.js';
 import { IChatSessionHistoryStatus } from '../../../platform/chat/common/chatSessionHistory.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../browser/parts/chatView.js';
 import { ChatGroupsView } from '../../browser/parts/chatGroupsView.js';
@@ -36,7 +40,7 @@ import { GRID_GAP_SASH_CLASS } from '../../browser/parts/gridGap.js';
 import { SessionDropTarget } from '../../browser/parts/sessionDropTarget.js';
 import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../browser/dnd.js';
 import { SessionActiveChatCanArchiveContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
-import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
+import { SESSION_TOOLBAR_SETTING, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
 import { agentsPanelBorder } from '../../common/theme.js';
 import { type IAgentHostAutoConnect, type IAgentHostConnectProgress, type IAgentHostConnectionLabels, IAgentHostSessionsProvider } from '../../common/agentHostSessionsProvider.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
@@ -59,6 +63,7 @@ class TestChatView extends AbstractChatView {
 	readonly layouts: { readonly width: number; readonly height: number }[] = [];
 	primary = false;
 	split = false;
+	active = true;
 	onInput: (() => void) | undefined;
 	readonly boundChats: { readonly chat: string; readonly sessionId: string | undefined }[] = [];
 	readonly connectedOnBind: boolean[] = [];
@@ -91,6 +96,10 @@ class TestChatView extends AbstractChatView {
 	override setPrimary(primary: boolean, split = false): void {
 		this.primary = primary;
 		this.split = split;
+	}
+
+	override setActive(active: boolean): void {
+		this.active = active;
 	}
 
 	override setChat(chat: IChat, _historyKey?: string, session?: ISession, onInput?: () => void): void {
@@ -281,9 +290,23 @@ interface IChatGroupsHarness {
 	readonly view: ChatGroupsView;
 }
 
-function createHarness(disposables: Pick<DisposableStore, 'add'>, tabsReplaceHeader = true): IChatGroupsHarness {
+function createHarness(disposables: Pick<DisposableStore, 'add'>, tabsReplaceHeader = true, desktop = false): IChatGroupsHarness {
 	const store = disposables.add(new DisposableStore());
 	const instantiationService = workbenchInstantiationService(undefined, store);
+	if (desktop) {
+		instantiationService.stub(IWorkbenchLayoutService, new class extends TestLayoutService {
+			readonly agentWorkbenchLayout = AgentWorkbenchLayout.Desktop;
+		}());
+		// Give the Session Toolbar an entry, as the desktop Add Tab actions do.
+		instantiationService.stub(IMenuService, new class extends TestMenuService {
+			override createMenu(id: MenuId, contextKeyService: IContextKeyService): IMenu {
+				const menu = super.createMenu(id, contextKeyService);
+				return id === Menus.SessionToolbar
+					? { ...menu, getActions: () => [['navigation', [instantiationService.createInstance(MenuItemAction, { id: 'test.browser', title: 'Browser' }, undefined, undefined, undefined, undefined)]]] }
+					: menu;
+			}
+		}());
+	}
 	const sessionsService = new TestSessionsService();
 	const chatViewFactory = new TestChatViewFactory();
 	const configurationService = new TestConfigurationService({ [SESSIONS_CHAT_TABS_SETTING]: SessionsChatTabsMode.Multiple });
@@ -345,6 +368,28 @@ suite('Sessions - ChatGroupsView', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const options = {};
 
+	test('only activates the focused chat in the active session, including newly mounted views', async () => {
+		const { view, chatViewFactory } = createHarness(disposables);
+		const main = createChat('main');
+		const peer = createChat('peer');
+		view.setSession(new TestActiveSession([main, peer]), options);
+		view.layout(800, 600, 0, 0);
+		const liveChats = () => chatViewFactory.views.filter(chat => chat.element.isConnected);
+		const states = [liveChats().map(chat => chat.active)];
+		await view.openChatInNewGroup(peer.resource, main.resource);
+		states.push(liveChats().map(chat => chat.active));
+		view.setSessionActive(false);
+		states.push(liveChats().map(chat => chat.active));
+		view.focusAdjacentGroup('previous');
+		states.push(liveChats().map(chat => chat.active));
+		view.setSessionActive(true);
+		states.push(liveChats().map(chat => chat.active));
+		view.focusAdjacentGroup('next');
+		states.push(liveChats().map(chat => chat.active));
+
+		assert.deepStrictEqual(states, [[true], [false, true], [false, false], [false, false], [true, false], [false, true]]);
+	});
+
 	test('releases the main chat resource observable when clearing the session', () => {
 		const { view } = createHarness(disposables);
 		view.setSession(new TestActiveSession([createChat('main')]), options);
@@ -396,7 +441,7 @@ suite('Sessions - ChatGroupsView', () => {
 	test('renders vertically split chats as independent panels', async () => {
 		const { view } = createHarness(disposables);
 		const workbench = $('.monaco-workbench.agent-sessions-workbench.mac.macos-tahoe.modern-ui-tabs.modern-ui-connected-editor-tabs.nopanel.noeditorpane.nosidebar');
-		workbench.style.cssText = '--agents-floating-panel-gap: 4px; --agents-part-corner-radius: 8px; --vscode-strokeThickness: 1px; --window-corner-radius: 16px; --modern-ui-connected-tab-border: #445566; --session-view-background: #112233;';
+		workbench.style.cssText = '--agents-floating-panel-gap: 4px; --agents-part-corner-radius: 8px; --vscode-strokeThickness: 1px; --window-corner-radius: 16px; --modern-ui-connected-tab-border: #445566; --session-view-background: #112233; --vscode-inactiveSessionView-background: #112233;';
 		const card = $('.part.sessionspart.agents-part-card');
 		const sessionView = $('.session-view.independent-chat-groups');
 		sessionView.appendChild(view.element);
@@ -567,6 +612,45 @@ suite('Sessions - ChatGroupsView', () => {
 			gapSashes: 2,
 			boundaryOverlays: 0,
 			splitViews: 2,
+		});
+	});
+
+	test('shows the session toolbar only in the active chat group of the active session, reserving room in every group', async () => {
+		const { view, configurationService } = createHarness(disposables, true, true);
+		configurationService.setUserConfiguration(SESSION_TOOLBAR_SETTING, true);
+		const main = createChat('main');
+		const child = createChat('child', SessionStatus.Completed, main.resource);
+		const session = new TestActiveSession([main, child]);
+		// Each group's position on screen, whether its Session Toolbar is active, and the width left for its chat.
+		const toolbars = () => {
+			const origin = view.element.getBoundingClientRect();
+			return [...view.element.querySelectorAll<HTMLElement>('.chat-group-view')]
+				.map(group => ({
+					left: Math.round(group.getBoundingClientRect().left - origin.left),
+					active: !!group.querySelector(':scope > .session-toolbar:not(.inactive)'),
+					chatWidth: group.querySelector<HTMLElement>('.chat-view')?.style.width,
+					contentInset: group.querySelector<HTMLElement>('.chat-view')?.style.getPropertyValue('--session-toolbar-reserved-width'),
+					headerWidth: group.querySelector<HTMLElement>('.chat-group-view-bar')?.style.width,
+				}))
+				.sort((first, second) => first.left - second.left);
+		};
+		view.setSession(session, options);
+		view.layout(1000, 600, 0, 0);
+
+		const single = toolbars();
+		view.splitActiveChat('right');
+		await timeout(0);
+		const split = toolbars();
+		view.focusAdjacentGroup('previous');
+		const previousFocused = toolbars();
+		view.setSessionActive(false);
+		const sessionInactive = toolbars();
+
+		assert.deepStrictEqual({ single, split, previousFocused, sessionInactive }, {
+			single: [{ left: 0, active: true, chatWidth: '1000px', contentInset: '38px', headerWidth: '1000px' }],
+			split: [{ left: 0, active: false, chatWidth: '500px', contentInset: '38px', headerWidth: '500px' }, { left: 500, active: true, chatWidth: '500px', contentInset: '38px', headerWidth: '500px' }],
+			previousFocused: [{ left: 0, active: true, chatWidth: '500px', contentInset: '38px', headerWidth: '500px' }, { left: 500, active: false, chatWidth: '500px', contentInset: '38px', headerWidth: '500px' }],
+			sessionInactive: [{ left: 0, active: false, chatWidth: '500px', contentInset: '38px', headerWidth: '500px' }, { left: 500, active: false, chatWidth: '500px', contentInset: '38px', headerWidth: '500px' }],
 		});
 	});
 

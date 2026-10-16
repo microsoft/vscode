@@ -1589,6 +1589,38 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
+		test('waits for a provisional session to become ready before publishing canvas context', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables, { provider: 'copilotcli' });
+			const backend = AgentSession.uri('copilotcli', 'provisional-canvas');
+			const defaultChat = URI.parse(buildDefaultChatUri(backend.toString()));
+			const summary: SessionSummary = {
+				resource: backend.toString(), provider: 'copilotcli', title: 'Canvases', status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+			};
+			agentHostService.sessionStates.set(backend.toString(), {
+				...createSessionState(summary),
+				lifecycle: SessionLifecycle.Creating,
+				defaultChat: defaultChat.toString(),
+				chats: [createDefaultChatSummary(summary, defaultChat.toString())],
+			});
+			agentHostService.chatStates.set(defaultChat.toString(), createChatState(createDefaultChatSummary(summary, defaultChat.toString())));
+			const provided = await sessionHandler.provideChatSessionContent(URI.parse('agent-host-copilot:/provisional-canvas'), CancellationToken.None);
+			disposables.add(provided);
+			const before = provided.canvasContext?.get();
+
+			agentHostService.fireAction({
+				channel: backend.toString(),
+				action: { type: ActionType.SessionReady },
+				serverSeq: 1,
+				origin: undefined,
+			});
+
+			assert.deepStrictEqual({ before, owner: provided.canvasContext?.get()?.owner.session.toString() }, {
+				before: undefined,
+				owner: backend.toString(),
+			});
+		});
+
 		test('does not expose a context for an unsupported provider', async () => {
 			const { sessionHandler } = createContribution(disposables);
 			const provided = await sessionHandler.provideChatSessionContent(URI.parse('agent-host-copilot:/no-canvases'), CancellationToken.None);
@@ -16111,6 +16143,58 @@ suite('AgentHostChatContribution', () => {
 					sessionResource: sessionResource.toString(),
 					title: 'Renamed session',
 				}],
+			});
+		});
+
+		test('does not surface a host title the connection flags as a placeholder', async () => {
+			const { instantiationService, agentHostService, chatService } = createTestServices(disposables);
+			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'agent-host-copilot',
+				sessionType: 'agent-host-copilot',
+				fullName: 'Agent Host - Copilot',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+				isSessionTitlePlaceholder: (title, resource) => title === AgentSession.id(resource),
+			}));
+			const backendSession = AgentSession.uri('copilot', 'placeholder-title');
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/placeholder-title' });
+			const defaultChat = buildDefaultChatUri(backendSession.toString());
+			const summary: SessionSummary = {
+				resource: backendSession.toString(),
+				provider: 'copilot',
+				title: 'placeholder-title',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			};
+			agentHostService.seedSessionMetadata(backendSession);
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState(summary),
+				lifecycle: SessionLifecycle.Ready,
+				defaultChat,
+				chats: [{ ...createDefaultChatSummary(summary, defaultChat), title: '' }],
+			});
+
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			for (const title of ['placeholder-title', 'Generated title']) {
+				agentHostService.fireAction({
+					channel: backendSession.toString(),
+					action: { type: ActionType.SessionTitleChanged, title },
+					serverSeq: 1,
+					origin: undefined,
+				});
+			}
+
+			assert.deepStrictEqual({
+				initialTitle: chatSession.title,
+				titleChanges: chatService.setChatSessionTitleCalls.map(call => call.title),
+			}, {
+				initialTitle: undefined,
+				titleChanges: ['Generated title'],
 			});
 		});
 
