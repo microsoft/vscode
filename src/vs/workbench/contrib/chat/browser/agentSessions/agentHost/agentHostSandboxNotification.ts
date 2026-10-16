@@ -204,7 +204,7 @@ export class AgentHostSandboxNotification extends Disposable {
 			const chat = getAgentHostBackendChat(this._sessionResource, state);
 			const certificate = chat !== undefined ? readAgentSandboxCertificate(state, chat) : undefined;
 			const resolution = this._connectionsService.resolveSessionResource(this._sessionResource);
-			if (certificate && ((certificate.state === 'notInstalled' && certificate.canInstall) || ((this._certificateOperation === 'remove' || this._certificateOperation === 'rotate') && certificate.state === 'installed')) && resolution
+			if (certificate && ((certificate.state === 'notInstalled' && certificate.canInstall) || (this._certificateOperation !== undefined && certificate.state === 'installed')) && resolution
 				&& readAgentHostChatSandboxState(state, chat)?.enabled !== false) {
 				const key = JSON.stringify([resolution.connectionAuthority, certificate.scopeId]);
 				if (!this._dismissedCertificateScopes.has(key) || this._certificateBusy) {

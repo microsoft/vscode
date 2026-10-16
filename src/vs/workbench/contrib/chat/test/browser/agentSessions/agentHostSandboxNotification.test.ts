@@ -839,6 +839,47 @@ suite('AgentHostSandboxNotification', () => {
 			}, { calls: 1, replacement: true, restart: true });
 		});
 
+		for (const fails of [false, true]) {
+			test(`Install shows progress for an installed incompatible CA until ${fails ? 'failure' : 'completion'}, but stays hidden while idle`, async () => {
+				const subscription = store.add(new TestSubscription());
+				subscription.setValue();
+				subscription.setCertificate({ ...certificate, state: 'installed', requiresRotation: true });
+				const service = new NotificationService();
+				const started = new DeferredPromise<void>();
+				const authorization = new DeferredPromise<void>();
+				enableInstallation(async () => {
+					await started.complete();
+					await authorization.p;
+					if (fails) {
+						throw new Error('OS authorization denied');
+					}
+					subscription.setCertificate({ ...certificate, state: 'installed' });
+				});
+				focus(resource);
+				createNotification(resource, subscription, service);
+				const idleNotices = service.notifications.size;
+
+				const installing = runDeveloperCommand(service);
+				await started.p;
+				const notice = service.notifications.get(id);
+				const pending = {
+					message: notice?.message,
+					progress: !!notice?.progress,
+					installLink: hasInstallLink(service),
+					inputUri: notice?.inputUri,
+				};
+				await authorization.complete();
+				await installing;
+
+				assert.deepStrictEqual({ idleNotices, pending, remaining: service.notifications.size, errors: installationErrors }, {
+					idleNotices: 0,
+					pending: { message: 'Installing sandbox certificate', progress: true, installLink: false, inputUri },
+					remaining: 0,
+					errors: fails ? ['Could not install the sandbox certificate: OS authorization denied'] : [],
+				});
+			});
+		}
+
 		test('uses connection-level installation support when the local AHP handshake omits it', async () => {
 			const subscription = store.add(new TestSubscription());
 			subscription.setValue();
