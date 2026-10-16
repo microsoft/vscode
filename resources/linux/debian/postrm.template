@@ -12,7 +12,7 @@ fi
 
 # Update mimetype database for removed workspace mimetype
 if hash update-mime-database 2>/dev/null; then
-	update-mime-database /usr/share/mime
+	update-mime-database -n /usr/share/mime
 fi
 
 RET=true
