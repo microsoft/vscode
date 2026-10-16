@@ -41,7 +41,7 @@ import { getCopilotHomePath, getCopilotMcpConfigurationPath } from '../../../env
 import { AgentHostHydraFusionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, isCopilotHydraFusionModelId } from '../../common/copilotCliConfig.js';
 import { logSettingExperimentTrigger } from '../../../telemetry/common/experimentTrigger.js';
 import { withCustomizationEnablement } from '../../common/customizationEnablement.js';
-import { isAutoModeRoutingTier, type AutoModeRoutingTier, type AutoModeTier } from '../../common/autoModeTiers.js';
+import { isAutoModeRoutingTier, type AutoModeRoutingTier } from '../../common/autoModeTiers.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from '../../common/agentHostPlanReview.js';
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
@@ -56,6 +56,9 @@ import { measureAgentProviderOperation } from '../../common/agentHostProviderTim
 import { AgentSession, type IAgentChatOwnerRef, COPILOT_CLI_AGENT_PROVIDER_ID, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, subagentChatTitle, type AgentCanvasExtensionSource, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
 import { isReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { agentModelConfigurationMetaKey, IAgentRuntimeModelConfiguration, readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
+import { agentModelConfigurationReportKey, type IAgentModelConfigurationReport } from '../../common/agentModelConfiguration.js';
+import { createCopilotModelConfigurationReport } from './copilotManagedModelConfiguration.js';
+import { resolveCopilotManagedSettings } from './copilotManagedSettings.js';
 import { ObservedTokenUsage } from './observedTokenUsage.js';
 import { META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
@@ -72,9 +75,9 @@ import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri
 import { isHostSnapshotAttachment } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { ISessionDatabase, ISessionDataService, MAX_TERMINAL_OUTPUT_BYTES } from '../../common/sessionDataService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
-import { BackgroundWorkKind, ConfirmationOptionKind, MessageAttachmentKind, ToolCallContributorKind, type BackgroundWork, type FileEdit, type MessageAttachment, type ToolCallContributor } from '../../common/state/protocol/state.js';
+import { BackgroundWorkKind, ConfirmationOptionKind, MessageAttachmentKind, ToolCallContributorKind, type BackgroundWork, type FileEdit, type MessageAttachment, type ModelSelection, type ToolCallContributor } from '../../common/state/protocol/state.js';
 import { ActionType, isChatAction, type ChatAction, type ChatToolCallReadyAction, type SessionAction } from '../../common/state/sessionActions.js';
-import { subagentChatUri, type ChatUriFormat } from '../../common/agentHostChatMinting.js';
+import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentSessionUri, createErrorResponsePart, isSubagentSession, type CanvasState, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
 import { buildCanvasUri } from '../../common/canvasUri.js';
 import { IAgentConfigurationService, type IAgentChatConfigurationChangeEvent, type IAgentChatConfigurationTarget } from '../agentConfigurationService.js';
@@ -628,8 +631,6 @@ export interface ICopilotAgentSessionOptions {
 	/** The chat's owner, read at each use: it can change while this runtime lives. */
 	readonly owner: IAgentChatOwnerRef;
 	readonly chatChannelUri: URI;
-	/** Format of the subagent chat ids minted for this chat's session. */
-	readonly subagentChatUriFormat: ChatUriFormat;
 	/** Exact persistence/config scope for this chat (`IAgentChatContext.resource` when supplied). */
 	readonly resource?: URI;
 	readonly rawSessionId: string;
@@ -1060,7 +1061,6 @@ export class CopilotAgentSession extends Disposable {
 	/** @deprecated Compatibility alias for SDK callbacks; this is the exact persistence resource. */
 	get sessionUri(): URI { return this.resourceUri; }
 	private readonly _chatChannelUri: URI;
-	private readonly _subagentChatUriFormat: ChatUriFormat;
 	/** Fixed persistence scope for this chat; never re-derived from the mutable routing channel. Config reads/writes go through {@link _configTarget} instead — peer chats share that scope but have distinct storage. */
 	private readonly _storageUri: URI;
 
@@ -1670,6 +1670,10 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private readonly _shellInitScriptInstanceId = generateUuid().substring(0, 8);
 	private readonly _launchPlan: CopilotSessionLaunchPlan;
+	private readonly _modelConfigurationOwner = generateUuid();
+	private _modelConfigurationGeneration = 0;
+	private readonly _modelConfigurationRefresh = this._register(new Throttler());
+	private _requestedModel: ModelSelection | undefined;
 	private readonly _onSessionEvent: ((event: SessionEvent) => void) | undefined;
 	private readonly _canvasByInstanceId = new Map<string, ICanvasProjectionEntry>();
 	private _canvasExtensions: SessionEventPayload<'session.extensions_loaded'>['data']['extensions'] | undefined;
@@ -1803,7 +1807,6 @@ export class CopilotAgentSession extends Disposable {
 		this._onConnectorRefreshRetryable = options.onConnectorRefreshRetryable ?? (() => { });
 		this.resourceUri = options.resource ?? this.launchOwner;
 		this._chatChannelUri = options.chatChannelUri;
-		this._subagentChatUriFormat = options.subagentChatUriFormat;
 		this._storageUri = this.resourceUri;
 		const sandboxPolicyDisplay = this._instantiationService.createInstance(CopilotSandboxPolicyDisplay, this.sessionId, this._storageUri);
 		this._slashCommandProvider = new CopilotSlashCommandProvider(
@@ -1820,6 +1823,8 @@ export class CopilotAgentSession extends Disposable {
 		}
 		this._sessionLauncher = options.sessionLauncher;
 		this._launchPlan = options.launchPlan;
+		this._requestedModel = options.launchPlan.kind === 'create' ? options.launchPlan.model : options.launchPlan.fallback.model;
+		this._register(toDisposable(() => this._publishModelConfiguration(undefined)));
 		this._register(toDisposable(() => this._disposeLocalModelState()));
 		const directRequestWaits = options.launchPlan.localModelProvider?.onDidDirectRequestWait;
 		if (directRequestWaits) {
@@ -2694,7 +2699,7 @@ export class CopilotAgentSession extends Disposable {
 
 	/** The id of the subagent chat spawned by `toolCallId` of this chat's conversation. */
 	private _subagentChatUri(toolCallId: string): string {
-		return subagentChatUri(this._subagentChatUriFormat, this._ownerSessionUri.toString(), this._chatChannelUri.toString(), toolCallId);
+		return subagentChatUri(this._owner.getSubagentChatUriFormat(), this._ownerSessionUri.toString(), this._chatChannelUri.toString(), toolCallId);
 	}
 
 	private _directUsageFor(parentToolCallId: string | undefined, create: boolean): DirectUsageAccumulator | undefined {
@@ -3728,6 +3733,7 @@ export class CopilotAgentSession extends Disposable {
 			this._readCommittedAutoTier(wrapper);
 			this._subscribeForMemoInvalidation(this._wrapperDisposables);
 			this._subscribeForInstructionsCollectedTelemetry(this._wrapperDisposables);
+			this.refreshModelConfiguration();
 			await this._sandbox.updateDiagnostics();
 			await this._waitForCanvasExtensions(wrapper);
 			await this._reconcileCanvasHandoff(wrapper);
@@ -5671,7 +5677,7 @@ export class CopilotAgentSession extends Disposable {
 		});
 	}
 
-	async setModel(model: string, reasoningEffort?: SessionConfig['reasoningEffort'], contextTier?: SessionConfig['contextTier'], autoTier?: AutoModeTier | null): Promise<void> {
+	async setModel(model: string, reasoningEffort?: SessionConfig['reasoningEffort'], contextTier?: SessionConfig['contextTier'], autoTier?: NonNullable<SessionConfig['capi']>['autoTier'] | null, requested?: ModelSelection): Promise<void> {
 		// The runtime rejects a BYOK model that is not registered on the session.
 		try {
 			await this.syncByokModels();
@@ -5682,13 +5688,73 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to register BYOK models before changing model`, err);
 		}
 		this._logService.info(`[Copilot:${this.sessionId}] Changing model to: ${model}`);
-		await this._awaitControlPlaneRpc('session.setModel', this._wrapper.session.setModel(model, {
-			reasoningEffort,
-			contextTier,
-			...(autoTier !== undefined ? { autoTier } : {}),
-		}));
+		try {
+			await this._awaitControlPlaneRpc('session.setModel', this._wrapper.session.setModel(model, {
+				reasoningEffort,
+				contextTier,
+				...(autoTier !== undefined ? { autoTier } : {}),
+			}));
+			this._requestedModel = requested ?? { id: model };
+		} finally {
+			this.refreshModelConfiguration();
+		}
 		this._lastSeenModelId = model;
 		this._reportLocalModelSelection(model);
+	}
+
+	refreshModelConfiguration(): void {
+		if (this._store.isDisposed) {
+			return;
+		}
+		const generation = ++this._modelConfigurationGeneration;
+		void this._modelConfigurationRefresh.queue(() => this._refreshManagedModelConfiguration(generation)).catch(error => {
+			if (!isCancellationError(error) && !this._store.isDisposed) {
+				this._logService.error(error, '[Copilot] Failed to schedule model configuration refresh');
+			}
+		});
+	}
+
+	private async _refreshManagedModelConfiguration(generation: number): Promise<void> {
+		if (!this._wrapper || this._store.isDisposed) {
+			return;
+		}
+		try {
+			const policy = await resolveCopilotManagedSettings(this._launchPlan.client.rpc.managedSettings, this._launchPlan.githubCredentials.token, 30_000, this.workingDirectory?.fsPath);
+			await this._awaitControlPlaneRpc('session.model.list', this._wrapper.session.rpc.model.list());
+			const current = await this._awaitControlPlaneRpc('session.model.getCurrent', this._wrapper.session.rpc.model.getCurrent());
+			if (generation !== this._modelConfigurationGeneration || this._store.isDisposed) {
+				return;
+			}
+			const models = this._launchPlan.modelPolicyModels?.() ?? [];
+			this._publishModelConfiguration(createCopilotModelConfigurationReport(models, policy, current, this._requestedModel, this._logService));
+		} catch (error) {
+			if (generation === this._modelConfigurationGeneration && !this._store.isDisposed) {
+				this._publishModelConfiguration(undefined);
+				this._logService.error(error, '[Copilot] Failed to refresh session model configuration');
+			}
+		}
+	}
+
+	private _publishModelConfiguration(report: IAgentModelConfigurationReport | undefined): void {
+		const owner = this._ownerSessionUri.toString();
+		const chat = this._chatChannelUri.toString();
+		const previous = this._configurationService.getSessionConfigValues(owner)?.[agentModelConfigurationReportKey];
+		const reports: Record<string, unknown> = isObject(previous) ? { ...previous } : {};
+		const current = reports[chat];
+		const currentOwner: { owner?: unknown } = isObject(current) ? current : {};
+		if (!report && currentOwner.owner !== this._modelConfigurationOwner) {
+			return;
+		}
+		const next = report ? { ...report, owner: this._modelConfigurationOwner } : null;
+		if (!equals(current, next)) {
+			const updated = { ...reports };
+			if (next) {
+				updated[chat] = next;
+			} else {
+				delete updated[chat];
+			}
+			this._configurationService.updateSessionConfig(owner, { [agentModelConfigurationReportKey]: updated });
+		}
 	}
 
 	/**
@@ -10101,12 +10167,14 @@ export class CopilotAgentSession extends Disposable {
 					this._setPromptCacheState(undefined);
 				}
 				void this._refreshSessionUsageMetrics();
+				this.refreshModelConfiguration();
 			}
 		}));
 
 		store.add(wrapper.onManagedSettingsResolved(e => {
 			if (!e.agentId) {
 				void this._managedSettingsResolved.complete();
+				this.refreshModelConfiguration();
 			}
 			this._logService.info(`[Copilot:${sessionId}] Managed settings resolved: source=${e.data.source}, managedKeys=${e.data.managedKeys.join(',') || '(none)'}, bypassPermissionsDisabled=${e.data.bypassPermissionsDisabled}, failClosed=${e.data.failClosed}`);
 		}));

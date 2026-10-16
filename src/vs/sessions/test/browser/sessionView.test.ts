@@ -8,8 +8,8 @@ import { $, append } from '../../../base/browser/dom.js';
 import { SessionView } from '../../browser/parts/sessionView.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
-import { constObservable, disposableObservableValue, observableValue } from '../../../base/common/observable.js';
-import { mock, upcastPartial } from '../../../base/test/common/mock.js';
+import { disposableObservableValue, observableValue } from '../../../base/common/observable.js';
+import { mock } from '../../../base/test/common/mock.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { ISessionPreparationProgress } from '../../services/sessions/common/session.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../browser/parts/chatView.js';
@@ -18,7 +18,7 @@ import { ChatGroupView } from '../../browser/parts/chatGroupView.js';
 import { ChatGroupsView } from '../../browser/parts/chatGroupsView.js';
 import { GRID_GAP_SASH_CLASS } from '../../browser/parts/gridGap.js';
 import { URI } from '../../../base/common/uri.js';
-import { ConfigurationTarget, IConfigurationChangeEvent } from '../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget } from '../../../platform/configuration/common/configuration.js';
 import { SESSION_TOOLBAR_SETTING, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { createSessionViewTestServices, createTestActiveSession } from './sessionViewTestUtils.js';
@@ -66,7 +66,7 @@ suite('Sessions - Session View', () => {
 		const group: ChatGroupView = Object.assign(Object.create(ChatGroupView.prototype), { _currentView: currentView });
 		const groups: ChatGroupsView = Object.assign(Object.create(ChatGroupsView.prototype), { _activeGroup: { view: group } });
 		const standalone = observableValue<AbstractChatView | undefined>('standalone', undefined);
-		const sessionView: SessionView = Object.assign(Object.create(SessionView.prototype), { _standaloneView: standalone, _preparationView: constObservable(undefined), _groupsView: groups });
+		const sessionView: SessionView = Object.assign(Object.create(SessionView.prototype), { _standaloneView: standalone, _groupsView: groups });
 		const results = [sessionView.selectWorkspace(folder, options)];
 		currentView.value = missingPicker;
 		results.push(sessionView.selectWorkspace(folder, options));
@@ -91,7 +91,6 @@ suite('Sessions - Session View', () => {
 			_lastLayout: undefined,
 			_groupsView: { setSessionVisible: (visible: boolean) => forwarded.push(visible) },
 			_standaloneView: { get: () => undefined },
-			_preparationView: constObservable(undefined),
 		});
 
 		// A sibling session is maximized, hiding this leaf.
@@ -388,7 +387,6 @@ suite('Sessions - Session View', () => {
 			themeService: { getColorTheme: () => ({ getColor: () => undefined }) },
 			_groupsView: { setSessionActive: () => { } },
 			_standaloneView: { get: () => undefined },
-			_preparationView: constObservable(undefined),
 		});
 
 		view.setActive(false);
@@ -416,7 +414,6 @@ suite('Sessions - Session View', () => {
 			_header: { visible: true, height: 35 },
 			_groupsView: { layout: (...dimensions: number[]) => groupsLayout.push(...dimensions) },
 			_standaloneView: { get: () => undefined },
-			_preparationView: constObservable(undefined),
 		});
 
 		view.layout(1200, 800, 10, 20);
@@ -449,7 +446,6 @@ suite('Sessions - Session View', () => {
 				setSessionVisible: () => { },
 			},
 			_standaloneView: { get: () => undefined },
-			_preparationView: constObservable(undefined),
 		});
 		view.layoutContainer(1200, 800, 10, 20);
 		const beforeContents = { calls: layouts.length, headerWidth: centeredContentContainer.style.width };
@@ -515,7 +511,6 @@ suite('Sessions - Session View', () => {
 				focus: () => groupsInput.focus(),
 			},
 			_standaloneView: standaloneView,
-			_preparationView: observableValue<AbstractChatView | undefined>('preparation', undefined),
 			_scopedInstantiationService: scopedInstantiationService,
 			_floatingToolbar: { setSession: () => { } },
 			_contentContainer: contentContainer,
@@ -638,7 +633,7 @@ suite('Sessions - Session View', () => {
 		});
 	});
 
-	test('shows the session toolbar of the standalone new-session view only while its session is active, with room reserved beside the chat', () => {
+	test('shows the session toolbar only once the session has an existing chat, never in the new-session view', () => {
 		const store = disposables.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(IWorkbenchLayoutService, new class extends TestLayoutService {
@@ -654,11 +649,7 @@ suite('Sessions - Session View', () => {
 			}
 		}());
 		const { configurationService, chatViews } = createSessionViewTestServices(store, instantiationService);
-		const setToolbarEnabled = (enabled: boolean) => {
-			configurationService.setUserConfiguration(SESSION_TOOLBAR_SETTING, enabled);
-			configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([SESSION_TOOLBAR_SETTING]), affectsConfiguration: (key: string) => key === SESSION_TOOLBAR_SETTING }));
-		};
-		setToolbarEnabled(true);
+		configurationService.setUserConfiguration(SESSION_TOOLBAR_SETTING, true);
 		const chatLayout = () => ({
 			width: chatViews.at(-1)?.layouts.at(-1)?.width,
 			contentInset: chatViews.at(-1)?.element.style.getPropertyValue('--session-toolbar-reserved-width'),
@@ -668,31 +659,23 @@ suite('Sessions - Session View', () => {
 		const view = store.add(instantiationService.createInstance(SessionView));
 		mainWindow.document.body.appendChild(view.element);
 		store.add(toDisposable(() => view.element.remove()));
-		const activeToolbars = () => ({
-			standalone: !!view.element.querySelector(':scope > .session-toolbar:not(.inactive)'),
+		const toolbars = () => ({
+			standalone: !!view.element.querySelector(':scope > .session-toolbar'),
 			group: !!view.element.querySelector('.chat-group-view > .session-toolbar:not(.inactive)'),
 		});
 
 		view.layout(1000, 600, 0, 0);
 		view.openSession(session, {});
-		const draft = { ...activeToolbars(), chatLayout: chatLayout() };
-		view.layout(1000, 600, 0, 0);
-		const repeatedLayout = chatLayout();
-		view.setActive(false);
-		const inactiveSession = { ...activeToolbars(), chatLayout: chatLayout() };
-		view.setActive(true);
-		setToolbarEnabled(false);
-		const disabledChatLayout = chatLayout();
-		setToolbarEnabled(true);
+		const draft = { ...toolbars(), chatLayout: chatLayout() };
 		session.isCreated.set(true, undefined);
-		const created = { ...activeToolbars(), chatLayout: chatLayout() };
+		const created = { ...toolbars(), chatLayout: chatLayout() };
+		view.setActive(false);
+		const inactiveSession = { ...toolbars(), chatLayout: chatLayout() };
 
-		assert.deepStrictEqual({ draft, repeatedLayout, inactiveSession, disabledChatLayout, created }, {
-			draft: { standalone: true, group: false, chatLayout: { width: 1000, contentInset: '38px', headerWidth: '1000px' } },
-			repeatedLayout: { width: 1000, contentInset: '38px', headerWidth: '1000px' },
-			inactiveSession: { standalone: false, group: false, chatLayout: { width: 1000, contentInset: '38px', headerWidth: '1000px' } },
-			disabledChatLayout: { width: 1000, contentInset: '0px', headerWidth: '1000px' },
+		assert.deepStrictEqual({ draft, created, inactiveSession }, {
+			draft: { standalone: false, group: false, chatLayout: { width: 1000, contentInset: '0px', headerWidth: '1000px' } },
 			created: { standalone: false, group: true, chatLayout: { width: 1000, contentInset: '38px', headerWidth: '1000px' } },
+			inactiveSession: { standalone: false, group: false, chatLayout: { width: 1000, contentInset: '38px', headerWidth: '1000px' } },
 		});
 	});
 

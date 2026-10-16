@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { restore, stub } from 'sinon';
 import { Action } from '../../../../../base/common/actions.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -15,7 +17,8 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationService, IConfigurationUpdateOverrides } from '../../../../../platform/configuration/common/configuration.js';
 import { NullActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { TestConfigurationService as TestBackendConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId, IMissionControlSharingService } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
@@ -122,6 +125,7 @@ class TestConfigurationService extends mock<IConfigurationService>() {
 
 suite('ToggleRemoteConnectionsActionViewItem', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	teardown(() => restore());
 
 	test('GitHub sharing hover explains machine-wide read/write access and OS permissions', () => {
 		const viewItem = Object.assign(Object.create(ToggleRemoteConnectionsActionViewItem.prototype), {
@@ -143,12 +147,14 @@ suite('ToggleRemoteConnectionsActionViewItem', () => {
 		return configuration;
 	}
 
-	function toggle(remoteTunnelService: IRemoteTunnelService, commandService: ICommandService, startOptions?: IRemoteTunnelStartOptions, backend: AgentHostRemoteConnectionsBackend = 'devTunnel', sharing = new TestMissionControlSharingService()) {
+	function toggle(remoteTunnelService: IRemoteTunnelService, commandService: ICommandService, startOptions?: IRemoteTunnelStartOptions, backend: AgentHostRemoteConnectionsBackend = 'devTunnel', sharing = new TestMissionControlSharingService(), notificationService = new TestNotificationService(), logService = store.add(new NullLogService())) {
 		const instantiation = store.add(new TestInstantiationService());
 		instantiation.stub(IRemoteTunnelService, remoteTunnelService);
 		instantiation.stub(ICommandService, commandService);
 		instantiation.stub(IConfigurationService, backendConfiguration(backend));
 		instantiation.stub(IMissionControlSharingService, sharing);
+		instantiation.stub(INotificationService, notificationService);
+		instantiation.stub(ILogService, logService);
 		return instantiation.invokeFunction(accessor => executeToggleRemoteConnections(accessor, startOptions));
 	}
 
@@ -304,6 +310,37 @@ suite('ToggleRemoteConnectionsActionViewItem', () => {
 	});
 
 	for (const backend of ['githubEnvironment', 'missionControl'] as const) {
+		for (const operation of ['enable', 'disable', 'stop tunnel', 'cancel sign-in'] as const) {
+			test(`reports ${backend} toggle failures but not sign-in cancellation (${operation})`, async () => {
+				const remoteTunnel = store.add(new TestRemoteTunnelService());
+				const commands = new TestCommandService();
+				const sharing = new TestMissionControlSharingService();
+				const error = operation === 'cancel sign-in' ? new CancellationError() : new Error('Sharing failed');
+				if (operation === 'disable') {
+					sharing.state.set('enabled', undefined);
+				}
+				if (operation === 'stop tunnel') {
+					stub(remoteTunnel, 'stopTunnel').rejects(error);
+				} else {
+					stub(sharing, 'setEnabled').rejects(error);
+				}
+				const notificationService = new TestNotificationService();
+				const notify = stub(notificationService, 'error').callThrough();
+				const logService = store.add(new NullLogService());
+				const log = stub(logService, 'error');
+				await toggle(remoteTunnel, commands, undefined, backend, sharing, notificationService, logService);
+				assert.deepStrictEqual({
+					notifications: notify.args,
+					logs: log.args,
+					commands: commands.commands,
+				}, {
+					notifications: operation === 'cancel sign-in' ? [] : [[error]],
+					logs: operation === 'cancel sign-in' ? [] : [['Failed to toggle GitHub environment sharing', error]],
+					commands: [],
+				});
+			});
+		}
+
 		test(`routes ${backend} enable, disable and cancellation without Dev Tunnel commands`, async () => {
 			const remoteTunnel = store.add(new TestRemoteTunnelService());
 			const commands = new TestCommandService();

@@ -109,6 +109,7 @@ import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
 import { ChatErrorLevel, ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestionAnswers, IChatService, IChatToolInvocation, IRemotePendingRequest, ToolConfirmKind, type IChatAutoModeResolutionPart, type IChatMcpAuthenticationRequired, type IChatMcpAuthenticationRequiredServer, type IChatMcpStartingServer, type IChatMultiSelectAnswer, type IChatPlanReviewResult, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatSubagentToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { isInConversationModelChoice } from '../../../common/modelSelection.js';
 import { readAgentRuntimeModelConfiguration } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
+import { readAgentModelConfigurationReport, type IAgentModelConfigurationReport } from '../../../../../../platform/agentHost/common/agentModelConfiguration.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, isTerminalCommandPrompt, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult, type IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
@@ -757,6 +758,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	readonly isInputBlocked: IObservable<boolean>;
 	readonly retryInput: (() => Promise<void>) | undefined;
 	readonly canvasContext: IObservable<ICanvasContext | undefined> | undefined;
+	readonly modelConfigurationState: IObservable<IAgentModelConfigurationReport | undefined>;
 	private readonly _inputState: AgentHostChatInputState | undefined;
 	private readonly _sessionState = observableValue<IObservable<SessionState | undefined>>(this, constObservable(undefined));
 	private readonly _chatState = observableValue<IObservable<ChatState | undefined>>(this, constObservable(undefined));
@@ -795,6 +797,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 		readonly historyLoadError: IChatSession['historyLoadError'],
 		readonly title: string | undefined,
 		backendSession: URI,
+		toLanguageModelId: (rawModelId: string) => string | undefined,
 		sessionSubscription: IAgentSubscription<SessionState> | undefined,
 		chatSubscription: IAgentSubscription<ChatState> | undefined,
 		canvasProvider: AgentHostCanvasCollection | undefined,
@@ -811,6 +814,21 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
+
+		this.modelConfigurationState = derived(this, reader => {
+			const session = this._sessionState.read(reader).read(reader);
+			const chat = this._chatState.read(reader).read(reader);
+			const report = chat ? readAgentModelConfigurationReport(session?.config?.values, chat.resource) : undefined;
+			if (!report || this._disposed.read(reader)) {
+				return undefined;
+			}
+			const models = Object.fromEntries(Object.entries(report.models).flatMap(([rawId, options]) => {
+				const id = toLanguageModelId(rawId);
+				return id ? [[id, options]] : [];
+			}));
+			const id = report.current ? toLanguageModelId(report.current.id) : undefined;
+			return { models, ...(id && report.current ? { current: { ...report.current, id } } : {}) };
+		});
 
 		const providerInputState = derived(this, reader => {
 			const session = this._sessionState.read(reader).read(reader);
@@ -1842,6 +1860,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				historyLoadError,
 				chatTitle,
 				resolvedSession,
+				rawModelId => this._toLanguageModelId(sessionResource, rawModelId),
 				sessionSubscription,
 				chatSubscription,
 				this._canvasProvider,
@@ -3101,14 +3120,19 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return invocation;
 	}
 
-	/** The workbench tool a runtime client-tool call maps to, or `undefined` when it is not installed. */
+	/** Resolves a client tool without considering MCP tools, which the host executes separately. */
 	private _resolveClientTool(toolName: string): IToolData | undefined {
 		const isCopilotSession = isCopilotAgentHostSessionType(this._config.sessionType);
 		if (isCopilotSession && toolName === SEMANTIC_SEARCH_TOOL_NAME) {
 			return this._toolsService.getTool(CLIENT_SEMANTIC_SEARCH_TOOL_ID);
 		}
 		const clientToolName = toolName === RUNTIME_TOOL_SEARCH_TOOL_NAME ? CLIENT_TOOL_SEARCH_REFERENCE_NAME : toolName;
-		return this._toolsService.getToolByName(clientToolName);
+		for (const tool of this._toolsService.getAllToolsIncludingDisabled()) {
+			if (tool.source.type !== 'mcp' && tool.toolReferenceName === clientToolName) {
+				return tool;
+			}
+		}
+		return undefined;
 	}
 
 	/**
@@ -4764,9 +4788,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (!canOwnSubagentChat(toolCall)) {
 			return;
 		}
-		// A background task can return before its child starts, so discovery must also follow the chat catalog.
-		const childChat = subagentContext.chats.read(reader).find(chat => chat.parentChat === opts.chatURI && chat.toolCallId === toolCallId);
-
 		const observation = subagentContext.observations.get(toolCallId);
 		const isObserved = !!observation;
 		const currentData = invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData : undefined;
@@ -4775,8 +4796,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (!protocolData) {
 			return;
 		}
+		// Host-advertised resources are authoritative when duplicate catalog edges exist.
+		const advertisedChatResource = readToolCallMeta(toolCall).subagentChatUri;
+		const childChats = subagentContext.chats.read(reader).filter(chat => chat.parentChat === opts.chatURI && chat.toolCallId === toolCallId);
+		const childChat = advertisedChatResource === undefined
+			? childChats[0]
+			: childChats.find(chat => chat.resource === advertisedChatResource);
 		// Only positively identified older hosts get a derived URI; any other host stamps the resource or lists the chat in the catalog.
-		const chatResource = childChat?.resource ?? protocolData.chatResource ?? currentData?.chatResource;
+		const chatResource = advertisedChatResource ?? childChat?.resource ?? protocolData.chatResource ?? currentData?.chatResource;
 		const childChatUri = chatResource ?? this._getOlderHostSubagentChatUri(opts.backendSession.toString(), toolCallId);
 		// A settled child that registers after restore is deferred like one registered at restore, but must stay openable.
 		const isSettledDeferred = !observation && !!opts.subagentSnapshot?.waitForActivity && !!childChat && isSettledSubagentChat(childChat.status);

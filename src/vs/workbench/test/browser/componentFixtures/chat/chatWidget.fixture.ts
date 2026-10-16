@@ -20,7 +20,7 @@ import { IMenuItem, IMenuService, MenuId, MenuItemAction } from '../../../../../
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { ChatRequestTextPart } from '../../../../contrib/chat/common/requestParser/chatParserTypes.js';
-import { ChatModel, ChatRequestModel, ChatRequestSource } from '../../../../contrib/chat/common/model/chatModel.js';
+import { ChatModel, ChatRequestModel, ChatRequestSource, IChatRequestModeInfo } from '../../../../contrib/chat/common/model/chatModel.js';
 import { ChatViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
 import { ChatListWidget } from '../../../../contrib/chat/browser/widget/chatListWidget.js';
 import { chatFloatingPersistentContentClass, chatPersistentContentHeightVariable } from '../../../../contrib/chat/browser/widget/chatWidget.js';
@@ -82,6 +82,7 @@ export interface IFixtureMessage {
 	readonly user: string; // user prompt text
 	readonly variables?: readonly IChatRequestVariableEntry[];
 	readonly timestamp?: number;
+	readonly modeInfo?: IChatRequestModeInfo;
 	readonly assistant?: ReadonlyArray<
 		| { kind: 'markdown'; text: string }
 		| { kind: 'progress'; text: string }
@@ -89,7 +90,7 @@ export interface IFixtureMessage {
 		| IChatExternalEdit
 		| { kind: 'systemNotification'; notification: IChatSystemNotificationPart }
 		| { kind: 'tool'; toolId: string; displayName: string; invocationMessage: string; pastTenseMessage?: string; progressMessage?: string; streaming?: boolean; complete?: boolean; source?: ToolDataSource; approval?: 'pre' | 'post' | 'denied'; toolSpecificData?: IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatGeneratedImageData | IChatToolInputInvocationData; resultDetails?: IToolResultInputOutputDetails; resultError?: string | true }
-		| { kind: 'questionCarousel'; questions: IChatQuestion[]; message?: string; allowSkip?: boolean; data?: IChatQuestionAnswers; isUsed?: boolean; answerPresentation?: 'conversation' }
+		| { kind: 'questionCarousel'; questions: IChatQuestion[]; message?: string; allowSkip?: boolean; data?: IChatQuestionAnswers; isUsed?: boolean; autoReply?: boolean; answerPresentation?: 'conversation' }
 		| { kind: 'planReview'; title: string; content: string }
 		| { kind: 'mcpStarting'; servers: readonly string[]; local?: boolean; blocking?: boolean; background?: boolean }
 		| { kind: 'terminal'; command: string; output?: string; intention?: string; complete?: boolean; exitCode?: number; background?: boolean }
@@ -426,7 +427,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 			makeUserMessage(message.user),
 			{ variables: message.variables ?? [] },
 			0,
-			undefined,
+			message.modeInfo,
 			undefined,
 			undefined,
 			undefined,
@@ -504,6 +505,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 			} else if (part.kind === 'questionCarousel') {
 				const carousel = new ChatQuestionCarouselData(part.questions, part.allowSkip ?? true, undefined, part.data, part.isUsed, part.message);
 				carousel.answerPresentation = part.answerPresentation;
+				carousel.autoReply = part.autoReply;
 				model.acceptResponseProgress(request, carousel);
 			} else if (part.kind === 'planReview') {
 				model.acceptResponseProgress(request, new ChatPlanReviewData(part.title, part.content, [{ label: 'Implement', default: true }], true));
@@ -1797,7 +1799,7 @@ async function renderPersistentProgressAlignment(context: ComponentFixtureContex
 		persistentProgressVerbosity: ChatProgressVerbosity.Compact,
 		collapseCompletedResponses: false,
 		messages: [{
-			user: 'Compare the tool, reasoning, and answer indentation',
+			user: 'Compare the tool, reasoning, question, and subagent indentation',
 			assistant: [
 				{ kind: 'tool', toolId: 'read_file', displayName: 'Read file', invocationMessage: 'Read the progress renderer', complete: true },
 				{ kind: 'tool', toolId: 'search_workspace', displayName: 'Search workspace', invocationMessage: 'Found the related layout tests', complete: true },
@@ -1812,13 +1814,18 @@ async function renderPersistentProgressAlignment(context: ComponentFixtureContex
 					isUsed: true,
 					answerPresentation: 'conversation',
 				},
+				{ kind: 'subagent', id: 'alignment-agent', description: 'Review the shared chain layout' },
 			],
 		}],
 	});
 	for (const button of context.container.querySelectorAll<HTMLElement>('.chat-thinking-box.chat-used-context-collapsed > .chat-used-context-label .monaco-button')) {
 		button.click();
 	}
-	await timeout(250);
+	for (const animation of context.container.getAnimations({ subtree: true })) {
+		if (animation instanceof CSSTransition) {
+			animation.finish();
+		}
+	}
 }
 
 async function renderPersistentReasoningTitle(context: ComponentFixtureContext, multipleHeaders: boolean, complete: boolean): Promise<void> {
@@ -2726,8 +2733,8 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 			MultipleHeadingsCompleted: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentReasoningTitle(context, true, true) }),
 		}),
 		Compact: defineThemedFixtureGroup({
-			Alignment: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentProgressAlignment(context) }),
-			AlignmentNarrow: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentProgressAlignment(context, 360) }),
+			Alignment: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => renderPersistentProgressAlignment(context) }),
+			AlignmentNarrow: defineComponentFixture({ render: context => renderPersistentProgressAlignment(context, 360) }),
 			Running: defineComponentFixture({ render: context => renderPersistentToolPreview(context, 'running') }),
 			Collapsed: defineComponentFixture({ render: context => renderPersistentToolPreview(context, 'collapsed') }),
 			Expanded: defineComponentFixture({ render: context => renderPersistentToolPreview(context, 'expanded') }),
