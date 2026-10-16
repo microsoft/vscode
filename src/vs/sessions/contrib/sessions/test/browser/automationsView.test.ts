@@ -22,6 +22,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { ExtUri } from '../../../../../base/common/resources.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -47,6 +48,7 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { InMemoryStorageService, IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialogOptions } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { automationScheduleToLocal, DAYS_OF_WEEK } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
@@ -3604,6 +3606,78 @@ suite('AutomationsCardsWidget', () => {
 			markAllReadCalls: 1,
 			markAllReadSessionCount: 1,
 			markAllVisible: false,
+		});
+	});
+
+	test('mark all as read selects only eligible automation sessions without a view and reports failures', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const automationService = new FakeAutomationService();
+		const dialogService = new FakeDialogService();
+		const logService = new TestLogService();
+		const cases = [
+			['local-completed', SessionStatus.Completed, 'completed', false],
+			['local-failed', SessionStatus.Error, 'running', false],
+			['local-running', SessionStatus.InProgress, 'completed', false],
+			['local-needs-input', SessionStatus.NeedsInput, 'completed', false],
+			['already-read', SessionStatus.Completed, 'completed', false],
+			['cloud-completed', SessionStatus.InProgress, 'completed', true],
+			['cloud-failed', SessionStatus.Completed, 'failed', true],
+			['cloud-running', SessionStatus.Completed, 'running', true],
+			['cloud-pending', SessionStatus.Completed, 'pending', true],
+			['cloud-follow-up', SessionStatus.Completed, 'completed', true],
+			['cloud-needs-input', SessionStatus.Completed, 'failed', true],
+		] as const;
+		const sessions = cases.map(([id, status]) => upcastPartial<ISession>({
+			sessionId: id, resource: SESSION_RESOURCE.with({ path: `/${id}` }),
+			status: constObservable(status), isRead: constObservable(id === 'already-read'),
+		}));
+		automationService.setRuns([
+			...cases.map(([id, , status, cloud], index) => run({
+				id, status,
+				sessionResource: index === 1 ? sessions[index].resource.with({ path: '/LOCAL-FAILED' }) : sessions[index].resource,
+				externalResource: cloud ? URI.parse('https://github.com/owner/private/tasks/exact') : undefined,
+			})),
+			run({ id: 'duplicate', sessionResource: sessions[0].resource.with({ path: '/LOCAL-COMPLETED' }) }),
+			run({ id: 'missing', sessionResource: SESSION_RESOURCE.with({ path: '/missing' }) }),
+			run({ id: 'sessionless', sessionResource: undefined }),
+		]);
+		const models = sessions.slice(-2).map((session, index) => upcastPartial<IChatModel>({
+			sessionResource: session.resource,
+			requestInProgress: constObservable(index === 0),
+			requestNeedsInput: constObservable(index === 1 ? { title: 'Approval' } : undefined),
+			lastRequestObs: constObservable(undefined),
+		}));
+		const selected: ISession[][] = [];
+		const failure = new Error('mark read failed');
+		instantiationService.stub(IAutomationService, automationService);
+		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override getSessions(): ISession[] { return [...sessions, upcastPartial<ISession>({ ...sessions[0], resource: SESSION_RESOURCE })]; }
+			override async markAllRead(sessions: readonly ISession[]): Promise<void> {
+				if (selected.length) {
+					throw failure;
+				}
+				selected.push([...sessions]);
+			}
+		});
+		instantiationService.stub(IUriIdentityService, new class extends mock<IUriIdentityService>() {
+			override readonly extUri = new ExtUri(() => true);
+		});
+		instantiationService.stub(IChatService, new class extends mock<IChatService>() {
+			override readonly chatModels = constObservable(models);
+		});
+		instantiationService.stub(IDialogService, dialogService);
+		instantiationService.stub(ILogService, logService);
+		const command = CommandsRegistry.getCommand('sessions.automations.markAllRead')!;
+		await instantiationService.invokeFunction(accessor => command.handler(accessor));
+		await instantiationService.invokeFunction(accessor => command.handler(accessor));
+		assert.deepStrictEqual({
+			selected: selected[0],
+			loggedErrors: logService.errors.map(error => error.args),
+			dialogErrors: dialogService.errors.length,
+		}, {
+			selected: [sessions[0], sessions[1], sessions[5], sessions[6]],
+			loggedErrors: [[failure]],
+			dialogErrors: 1,
 		});
 	});
 
