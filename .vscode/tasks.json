@@ -2,6 +2,13 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
+			"label": "Dev Workspace: Linked Named-pipe Server",
+			"type": "shell",
+			"command": "$connection = Get-Content .tmp\\workspace-connection.json -Raw | ConvertFrom-Json; $env:LINKRPC_ENDPOINT = 'listen:' + $connection.endpoint; $env:LINKRPC_TOKEN = $connection.token; node .tmp\\dev-workspace\\dist\\cli.js serve dev.workspace.ts --log trace --log-file .tmp\\workspace-trace.jsonl",
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
 			"label": "Install & Watch (Client)",
 			"detail": "Install dependencies, compile and watch VS Code core for fixing a bug or implementing a feature.",
 			"dependsOn": [
