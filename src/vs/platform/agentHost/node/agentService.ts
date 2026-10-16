@@ -1037,7 +1037,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._serverToolHost = collaborators.serverToolHost;
 		this._catalogSyncService = new AgentHostCatalogSyncService(this._sessionDataService, this._orchestratorDatabase, this._sessionStateStore, this._logService);
 		this._sessionPrewarmer = this._register(instantiationService.createInstance(AgentHostSessionPrewarmer, {
-			getDefaultChatContext: (session, defaultChat) => this._chatContext(session, defaultChat, this._defaultChatStorageResource(session, defaultChat)),
+			getDefaultChatContext: (session, defaultChat) => this._chatContext(session, defaultChat, this._knownDefaultChatStorageResource(session, defaultChat) ?? this._newDefaultChatStorageResource(session, defaultChat)),
 		}));
 		this._catalogSourceResolver = new AgentHostCatalogSourceResolver({
 			isUnpersistedChatBacking: session => this._unpersistedChatBackings.has(session.toString()),
