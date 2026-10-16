@@ -563,5 +563,20 @@ suite('AgentHostWorktreeCleanupService', () => {
 				pending: [],
 			});
 		});
+
+		test('unarchiving a session doesn\'t recreate the folder of a share it no longer works in (L3)', async () => {
+			const { database, worktree, cleanup } = create();
+			// OTHER_SESSION's chat left the shared folder: its row is stale, kept only as the folder's forced-commit marker.
+			await useWorktree(database, OTHER_SESSION, recorded('unrelated'), true);
+			await share(database, OTHER_SESSION, shared);
+			await cleanup.requestSessionWorktreeRemoval(OTHER_SESSION, 'commit');
+			await cleanup.restoreSessionWorktree(OTHER_SESSION);
+
+			assert.deepStrictEqual({ calls: worktree.calls, pending: await pending(database), marker: (await database.readWorktreeCoOwners(sharedKey)).map(row => `${row.session}:${row.live}`) }, {
+				calls: [`recreate:${AgentSession.id(OTHER_SESSION)}`],
+				pending: [],
+				marker: [`${OTHER_SESSION.toString()}:false`],
+			});
+		});
 	});
 });

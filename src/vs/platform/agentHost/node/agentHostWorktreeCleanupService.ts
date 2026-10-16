@@ -133,10 +133,16 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 		const sessionId = AgentSession.id(session);
 		await this._worktree.runExclusive(sessionId, () => this._database.deletePendingWorktreeRemoval('session', session.toString()));
 		await this._worktree.recreateWorktreeOnUnarchive(session, sessionId);
-		// Its shares of worktrees come back too, recreated from the branch the share recorded when the folder is gone.
+		// Its shares of worktrees come back too, recreated from the branch the share recorded when the folder is gone; not
+		// a share it no longer works in (stale, or kept only as the folder's forced-commit marker): nothing would remove it.
 		for (const coOwner of await this._database.listWorktreeCoOwnersOfSession(session.toString())) {
-			await this._worktree.runExclusive(coOwner.worktreePath, () => this._database.deletePendingWorktreeRemoval('coOwned', coOwnedWorktreeRemovalOwner(session.toString(), coOwner.worktreePath)));
-			await this._worktree.recreateSharedWorktree(this._recordedCoOwned(coOwner));
+			const live = await this._worktree.runExclusive(coOwner.worktreePath, async () => {
+				await this._database.deletePendingWorktreeRemoval('coOwned', coOwnedWorktreeRemovalOwner(session.toString(), coOwner.worktreePath));
+				return (await this._database.pruneWorktreeCoOwners(coOwner.worktreePath)).some(row => row.session === session.toString() && row.live);
+			});
+			if (live) {
+				await this._worktree.recreateSharedWorktree(this._recordedCoOwned(coOwner));
+			}
 		}
 	}
 
