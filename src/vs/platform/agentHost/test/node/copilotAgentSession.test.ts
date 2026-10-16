@@ -62,7 +62,7 @@ import { buildMcpResourceUri, buildToolResultResourceUri } from '../../common/mc
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { ActionType, isChatAction, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction, type StateAction } from '../../common/state/sessionActions.js';
 import { TestChatOwnerRef } from './agentChatContextTestUtils.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, createChatState, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfoMeta } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, createChatState, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type StringOrMarkdown, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { chatReducer, sessionReducer } from '../../common/state/sessionReducers.js';
 import { BackgroundWorkKind, TerminalClaimKind, type BackgroundWork } from '../../common/state/protocol/state.js';
 import { canStopBackgroundWork, toStoppableBackgroundWorkMeta } from '../../common/meta/agentHostBackgroundWorkStopMeta.js';
@@ -14469,6 +14469,91 @@ Use the attached image as context.
 				],
 				parentReasoningParts: 2,
 			});
+		});
+
+		test('notifications delivered to a subagent never surface in the parent chat', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			const shellCompleted = (description: string): SessionEventPayload<'system.notification'>['data'] => ({
+				content: 'Shell completed',
+				kind: { type: 'shell_completed', shellId: description, exitCode: 0, description },
+			});
+			session.resetTurnState('turn-active');
+			mockSession.fire('subagent.started', {
+				toolCallId: 'task-running',
+				agentName: 'explore',
+				agentDisplayName: 'Running reviewer',
+				agentDescription: 'Continue reviewing',
+			}, { agentId: 'agent-running' });
+			mockSession.fire('system.notification', shellCompleted('Type-check client sources'), { agentId: 'agent-running' });
+			mockSession.fire('system.notification', shellCompleted('Unknown agent shell'), { agentId: 'agent-unknown' });
+
+			// Once the subagent and the parent are idle, the notice waits for the subagent's next turn.
+			mockSession.backgroundTasks = [{
+				type: 'agent',
+				id: 'agent-running',
+				toolCallId: 'task-running',
+				description: 'Continue reviewing',
+				status: 'idle',
+				agentType: 'explore',
+				prompt: 'Review',
+				startedAt: new Date(0).toISOString(),
+				idleSince: new Date(1).toISOString(),
+			}];
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			mockSession.fire('system.notification', shellCompleted('Run tests'), { agentId: 'agent-running' });
+			mockSession.fire('system.notification', shellCompleted('Lint'), { agentId: 'agent-running' });
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-subagent-turn' }, { agentId: 'agent-running' });
+
+			assert.deepStrictEqual({
+				turnsStarted: getActions(signals).filter(action => action.type === ActionType.ChatTurnStarted),
+				notifications: signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatResponsePart && signal.action.part.kind === ResponsePartKind.SystemNotification
+					? [{ scope: signal.parentToolCallId ?? 'parent', content: signal.action.part.content }] : []),
+				resumed: signals.flatMap(signal => signal.kind === 'subagent_resumed' ? [{ toolCallId: signal.toolCallId, message: signal.message }] : []),
+			}, {
+				turnsStarted: [],
+				notifications: [{ scope: 'task-running', content: '`Type-check client sources` completed' }],
+				resumed: [{ toolCallId: 'task-running', message: { text: '`Run tests` completed', origin: { kind: MessageKind.SystemNotification } } }],
+			});
+		});
+
+		test('notifications during a running Fusion phase follow its tool calls', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			const notify = (description: string) => mockSession.fire('system.notification', {
+				content: 'Shell completed',
+				kind: { type: 'shell_completed', shellId: description, exitCode: 0, description },
+			});
+			const readShell = (toolCallId: string) => mockSession.fire('tool.execution_start', { toolCallId, toolName: 'read_bash', arguments: { shellId: toolCallId } });
+			const repairPhase = { ...fusionTestData.started, phaseId: 'phase-2' };
+			session.resetTurnState('fusion-turn');
+			mockSession.fire('assistant.fusion_phase_started', fusionMainPassTestData.started);
+			notify('Main pass shell');
+			readShell('read-main');
+			mockSession.fire('assistant.fusion_phase_completed', fusionMainPassTestData.phaseCompleted);
+			mockSession.fire('assistant.fusion_phase_started', repairPhase);
+			notify('Repair shell');
+			readShell('read-repair');
+			mockSession.fire('assistant.fusion_phase_completed', { ...fusionTestData.phaseCompleted, phaseId: 'phase-2' });
+			notify('Between phases shell');
+
+			assert.deepStrictEqual(signals.flatMap((signal): Array<{ scope: string; notification?: StringOrMarkdown; toolCallId?: string }> => {
+				if (signal.kind !== 'action') {
+					return [];
+				}
+				const action = signal.action;
+				const scope = signal.parentToolCallId ?? 'root';
+				if (action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.SystemNotification) {
+					return [{ scope, notification: action.part.content }];
+				}
+				return action.type === ActionType.ChatToolCallStart && action.toolName === 'read_bash' ? [{ scope, toolCallId: action.toolCallId }] : [];
+			}), [
+				{ scope: 'root', notification: '`Main pass shell` completed' },
+				{ scope: 'root', toolCallId: 'read-main' },
+				{ scope: 'fusion:fusion-1:phase-2', notification: '`Repair shell` completed' },
+				{ scope: 'fusion:fusion-1:phase-2', toolCallId: 'read-repair' },
+				{ scope: 'root', notification: '`Between phases shell` completed' },
+			]);
 		});
 
 		test('generated system turn completes on session.idle', async () => {

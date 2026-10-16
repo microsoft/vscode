@@ -928,6 +928,23 @@ export async function mapSessionEvents(
 				if (!notification) {
 					break;
 				}
+				if (e.agentId) {
+					// A notification delivered to a subagent belongs to its chat, never the parent turn.
+					const parentToolCallId = resolveParentToolCallId(e.agentId, undefined);
+					if (!parentToolCallId || terminatedSubagentTurns.has(parentToolCallId)) {
+						break;
+					}
+					if (subagentBuilders.has(parentToolCallId)) {
+						ensureSubagentBuilder(parentToolCallId).responseParts.push({
+							kind: ResponsePartKind.SystemNotification,
+							content: notification.messageText,
+						});
+					} else if (notification.startsTurn) {
+						const builder = ensureSubagentBuilder(parentToolCallId);
+						builder.message = { ...builder.message, text: notification.messageText, origin: { kind: MessageKind.SystemNotification } };
+					}
+					break;
+				}
 				if (parentBuilder && (rootAssistantTurnActive || (notification.startsTurn && !(parentTurnTerminated && parentTurnState === TurnState.Error)))) {
 					rootRequestActive ||= notification.startsTurn;
 					parentBuilder.responseParts.push({

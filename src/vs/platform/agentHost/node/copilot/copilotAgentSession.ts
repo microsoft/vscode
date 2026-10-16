@@ -1158,6 +1158,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _subagentTaskCompletionDelay: number;
 	/** Bumped when a child starts a model round so a task snapshot taken earlier cannot complete it; entries are dropped on completion. */
 	private readonly _subagentActivityRevisions = new Map<string, number>();
+	/** A turn-starting notification delivered to an idle subagent, shown as the message of its next resumed turn. */
+	private readonly _pendingSubagentNotificationMessages = new Map<string, Message>();
 	private _backgroundTaskStatusRevision = 0;
 	private readonly _backgroundTaskStatusRefreshThrottler = this._register(new Throttler());
 	private readonly _backgroundWork = new Map<string, BackgroundWork>();
@@ -2370,11 +2372,15 @@ export class CopilotAgentSession extends Disposable {
 		if (!e.agentId) {
 			return;
 		}
+		const pendingNotification = this._pendingSubagentNotificationMessages.get(e.agentId);
+		this._pendingSubagentNotificationMessages.delete(e.agentId);
+		const isActive = this._subagents.isActive(e.agentId);
+		const resumeMessage = message ?? (isActive ? undefined : pendingNotification);
 		const parentToolCallId = this._subagents.getToolCallId(e.agentId);
-		if (parentToolCallId && message) {
+		if (parentToolCallId && resumeMessage) {
 			this._clearSubagentResponseParts(parentToolCallId);
 		}
-		if (this._subagents.isActive(e.agentId)) {
+		if (isActive) {
 			this._subagentTaskCompletionSchedulers.get(e.agentId)?.schedule();
 			return;
 		}
@@ -2388,7 +2394,7 @@ export class CopilotAgentSession extends Disposable {
 			kind: 'subagent_resumed',
 			chat: this._chatChannelUri,
 			toolCallId: parentToolCallId,
-			message,
+			message: resumeMessage,
 		});
 		const usage = this._lastSubagentUsageByToolCallId.get(parentToolCallId);
 		if (usage) {
@@ -2892,6 +2898,16 @@ export class CopilotAgentSession extends Disposable {
 		const state = this._getResponsePartState(parentToolCallId);
 		state?.markdownPartIds.delete(scope);
 		state?.reasoningPartIds.delete(scope);
+	}
+
+	private _emitSystemNotificationPart(content: string, parentToolCallId: string | undefined): void {
+		// Later reasoning in this chat belongs after the notice; other chats keep their own reasoning streams.
+		this._getResponsePartState(parentToolCallId)?.reasoningPartIds.delete(parentToolCallId ?? '');
+		this._emitAction({
+			type: ActionType.ChatResponsePart,
+			turnId: this._turnId,
+			part: { kind: ResponsePartKind.SystemNotification, content },
+		}, parentToolCallId);
 	}
 
 	/**
@@ -7605,18 +7621,25 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 
-			this._logService.info(`[Copilot:${sessionId}] System notification received: kind=${e.data.kind.type}`);
+			this._logService.info(`[Copilot:${sessionId}] System notification received: kind=${e.data.kind.type}${e.agentId ? `, agentId=${e.agentId}` : ''}`);
+			if (e.agentId) {
+				// A notification delivered to a subagent, e.g. for a background shell it started,
+				// belongs to that subagent's chat and must never surface in the parent chat.
+				if (this._shouldDropUnmappedSubagentEvent(e, 'system.notification')) {
+					return;
+				}
+				if (this._subagents.isActive(e.agentId)) {
+					this._resumeSubagentForEvent(e);
+					this._emitSystemNotificationPart(notification.messageText, this._parentToolCallIdForSubagentEvent(e));
+				} else if (notification.startsTurn && !this._pendingSubagentNotificationMessages.has(e.agentId)) {
+					// The runtime may not continue an idle subagent, so wait for its next turn rather than resuming it here.
+					this._pendingSubagentNotificationMessages.set(e.agentId, { text: notification.messageText, origin: { kind: MessageKind.SystemNotification } });
+				}
+				return;
+			}
 			if (this._turnId) {
-				// Later parent reasoning belongs after this notice; child reasoning keeps its own stream.
-				this._currentTurn.value?.reasoningPartIds.delete('');
-				this._emitAction({
-					type: ActionType.ChatResponsePart,
-					turnId: this._turnId,
-					part: {
-						kind: ResponsePartKind.SystemNotification,
-						content: notification.messageText,
-					},
-				});
+				// Like its tool calls, a notification during a running Fusion phase belongs to that phase.
+				this._emitSystemNotificationPart(notification.messageText, this._fusionPhaseParentToolCallId(undefined, undefined));
 				return;
 			}
 			if (!notification.startsTurn) {
