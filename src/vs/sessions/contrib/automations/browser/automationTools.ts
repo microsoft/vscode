@@ -202,7 +202,7 @@ export class ListAutomationsTool implements IToolImpl {
 					}
 				} : {}),
 				...(unavailableReason !== undefined ? { unavailableReason } : {}),
-				automations: store.automations.get().map(automation => toAutomationListToolOutput(automation, this.automationService)),
+				automations: store.automations.get().filter(automation => automation.isAgentAccessible !== false).map(automation => toAutomationListToolOutput(automation, this.automationService)),
 			}];
 		}));
 		if (token.isCancellationRequested) {
@@ -835,7 +835,7 @@ The change uses the current tool-approval policy. When approval is required, the
 
 		const automationId = readOptionalNonEmptyString(input, 'automationId');
 		const existing = automationId ? this.automationService.getAutomation(automationId) : undefined;
-		if (automationId && !existing) {
+		if (automationId && (!existing || existing.isAgentAccessible === false)) {
 			throw new AutomationToolInputError(`Automation "${automationId}" does not exist. Call listAutomations to refresh the available IDs.`);
 		}
 
@@ -1307,7 +1307,7 @@ function resolveAutomationInput(automationService: IAutomationService, rawInput:
 		throw new AutomationToolInputError('"automationId" is required.');
 	}
 	const automation = automationService.getAutomation(automationId);
-	if (!automation) {
+	if (!automation || automation.isAgentAccessible === false) {
 		throw new AutomationToolInputError(`Automation "${automationId}" does not exist. Call listAutomations to refresh the available IDs.`);
 	}
 	return automation;

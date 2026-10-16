@@ -61,6 +61,8 @@ Sessions management marks Automation configuration drafts with `isAutomationDraf
 
 `IAutomationDescriptor` contains immutable identity, editable name and prompt, schedule, execution target, optional session template, enabled state, and host-projected runtime timestamps.
 
+Cloud ownership is separate from the execution target and creator: `user` (Only me) or `repository`, defaulting to `user` for legacy responses. Ownership is accepted only on creation, never in updates. Repository write access is required for cloud mutations; repository-owned definitions can be managed by any writer. Cloud descriptors mark collaborator-created definitions as inaccessible to agent tools even when the human catalogue exposes them.
+
 An `AutomationTarget` separates concrete provider identity (`providerId`) from its agent (`sessionTypeId`). Workspace targets also carry the workspace URI and isolation choice. Session type or display name alone cannot determine ownership. Creation requires an explicit, available Automation-capable provider.
 
 Cloud definitions retain UTC schedule semantics. Unsupported triggers project as a custom, non-editable schedule rather than a manual schedule. Portable local-time blueprints and AHP mutations reject cloud schedules they cannot preserve.

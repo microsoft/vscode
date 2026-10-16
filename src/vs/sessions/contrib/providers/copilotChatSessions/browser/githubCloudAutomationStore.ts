@@ -59,6 +59,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 	private readonly uncertain = observableValue(this, false);
 	readonly mutationUncertain: IObservable<boolean> = this.uncertain;
 	private readonly targetEligibility = new Map<string, ReturnType<typeof observableValue<IAutomationWorkspaceTarget>>>();
+	private readonly repositoryWriteAccess = new Map<string, boolean>();
 	private readonly targetEligibilityLimiter = this._register(new Limiter<void>(5));
 	private readonly cachedTools = observableValue<CloudAutomationToolCatalog | undefined>(this, undefined);
 	readonly toolCatalog: IObservable<CloudAutomationToolCatalog | undefined> = this.cachedTools;
@@ -99,17 +100,18 @@ export class GitHubCloudAutomationStore extends Disposable {
 				signal.throwIfAborted();
 				const repository = await this.resolveRepository(workspace);
 				signal.throwIfAborted();
-				const eligible = repository && await this.withClient(signal, async (client, signal) =>
-					(await client.repositories.get(repository, signal)).private);
+				const metadata = repository && await this.withClient(signal, (client, signal) => client.repositories.get(repository, signal));
 				signal.throwIfAborted();
 				if (this.targetEligibility.get(key) !== result) {
 					return;
 				}
-				result.set(eligible ? {
+				result.set(repository && metadata?.private && metadata.permissions?.push ? {
 					workspace: URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repository.owner}/${repository.name}/HEAD` }),
 				} : {
-					disabledReason: repository ? localize('cloudAutomations.privateRepositoryTargetRequired', "This repository must be private") : required,
-					isPublicRepository: repository !== undefined,
+					disabledReason: metadata?.private
+						? localize('cloudAutomations.writeAccessRequired', "Repository write access is required to manage cloud automations.")
+						: repository ? localize('cloudAutomations.privateRepositoryTargetRequired', "This repository must be private") : required,
+					isPublicRepository: metadata !== undefined && !metadata.private,
 				}, undefined);
 			} catch (error) {
 				if (!isCancellationError(error)) {
@@ -121,6 +123,10 @@ export class GitHubCloudAutomationStore extends Disposable {
 			}
 		});
 		return result;
+	}
+
+	canWriteRepository(repository: RepositoryRef): boolean {
+		return this.repositoryWriteAccess.get(repositoryKey(repository)) === true;
 	}
 
 	/** Loads the account's tool catalog once per account lifetime; a failed load can be retried. */
@@ -347,8 +353,14 @@ export class GitHubCloudAutomationStore extends Disposable {
 			try {
 				const signal = AbortSignal.any([lifetime, CancellationToken.toAbortSignal(token, resources)]);
 				return await this.withClient(signal, async (client, signal) => {
-					if (!(await client.repositories.get(repository, signal)).private) {
+					const metadata = await client.repositories.get(repository, signal);
+					signal.throwIfAborted();
+					this.repositoryWriteAccess.set(repositoryKey(repository), metadata.permissions?.push === true);
+					if (!metadata.private) {
 						throw new Error(localize('cloudAutomations.privateRepositoryRequired', "Cloud automations currently require a private GitHub repository."));
+					}
+					if (!metadata.permissions?.push) {
+						throw new AutomationUnavailableError(localize('cloudAutomations.writeAccessRequired', "Repository write access is required to manage cloud automations."));
 					}
 					return operation(client, repository, signal);
 				});
@@ -407,7 +419,10 @@ export class GitHubCloudAutomationStore extends Disposable {
 		const eligible: RepositoryRef[] = [];
 		for (const [key, repository] of repositories) {
 			try {
-				if (!(await client.repositories.get(repository, signal)).private) {
+				const metadata = await client.repositories.get(repository, signal);
+				signal.throwIfAborted();
+				this.repositoryWriteAccess.set(key, metadata.permissions?.push === true);
+				if (!metadata.private) {
 					snapshot.delete(key);
 					continue;
 				}
@@ -457,6 +472,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 	private reset(): void {
 		this.lifetime.abort(new CancellationError());
 		this.clearTargetEligibility();
+		this.repositoryWriteAccess.clear();
 		this.lifetime = new AbortController();
 		this.clientPromise = undefined;
 		this.clientStore.clear();

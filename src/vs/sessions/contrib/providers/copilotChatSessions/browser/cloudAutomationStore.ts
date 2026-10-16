@@ -277,7 +277,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 	}
 
 	canRunAutomation(id: string): boolean {
-		return this.canCreateAutomation.get() && this.getAutomation(id)?.enabled === true;
+		return this.canDeleteAutomation(id) && this.getAutomation(id)?.enabled === true;
 	}
 
 	canUpdateAutomation(id: string): boolean {
@@ -285,7 +285,10 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 	}
 
 	canDeleteAutomation(id: string): boolean {
-		return this.canCreateAutomation.get() && this.getAutomation(id) !== undefined;
+		const automation = this.getAutomation(id);
+		const entry = this.store.get()?.entries.get().find(entry => this.toAutomation(entry).id === id);
+		return this.canCreateAutomation.get() && !!entry && this.store.get()!.canWriteRepository(entry.repository)
+			&& (automation?.ownership === 'repository' || automation?.isAgentAccessible === true);
 	}
 
 	async createAutomation(options: ICreateAutomationOptions, guard?: AutomationMutationGuard): Promise<IAutomationDescriptor> {
@@ -296,6 +299,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 			name: options.name, description: '', prompt: options.prompt, disabled: !(options.enabled ?? true),
 			triggers: cloudAutomationTriggers(options.schedule), ...templateMutation(options.sessionTemplate),
 			...(options.modelId !== undefined && options.sessionTemplate === undefined ? { model: options.modelId } : {}),
+			...(options.ownership === 'repository' ? { ownership: options.ownership } : {}),
 		};
 		const entry = await store.create(options.target.folderUri, value, guard);
 		this.assertCurrentStore(store);
@@ -316,7 +320,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		const store = this.requireWritableStore();
 		const entry = this.requireEntry(id);
 		const result = await store.update(entry, current => {
-			const latest = this.toAutomation({ repository: entry.repository, definition: current });
+			const latest = this.toAutomation({ ...entry, definition: current });
 			return serializeAutomationEditableState(latest) === serializeAutomationEditableState(expected)
 				? this.updateValue(current, id, patch) : undefined;
 		}, guard);
@@ -329,7 +333,10 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 	}
 
 	async deleteAutomation(id: string, guard?: AutomationMutationGuard): Promise<void> {
-		await this.requireWritableStore().delete(this.requireEntry(id), guard);
+		await this.requireWritableStore().delete(this.requireEntry(id), () => {
+			this.assertCanManage(id);
+			guard?.();
+		});
 	}
 
 	async runAutomation(id: string, token: CancellationToken = CancellationToken.None): Promise<IAutomationRunRequestResult> {
@@ -376,6 +383,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 	}
 
 	private updateValue(definition: AutomationDetail, id: string, patch: IUpdateAutomationOptions): EditAutomationRequest {
+		this.assertCanManage(id);
 		validateLocalOptions(patch);
 		if (patch.sessionTemplate === null) {
 			throw new Error(localize('cloudAutomations.resetUnsupported', "Resetting cloud automation configuration is not supported."));
@@ -442,12 +450,20 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		return entry;
 	}
 
+	private assertCanManage(id: string): void {
+		if (!this.canDeleteAutomation(id)) {
+			throw new AutomationUnavailableError(localize('cloudAutomations.manageUnavailable', "Repository write access and ownership of this automation are required. Repository automations can be managed by any repository writer."));
+		}
+	}
+
 	private toAutomation(entry: ICloudAutomationEntry): IAutomationDescriptor {
 		const { definition, repository } = entry;
 		const schedule = cloudAutomationSchedule(definition.triggers);
 		return {
 			id: JSON.stringify([this.providerId, this.defaultAccountService.currentDefaultAccount?.accountName, repository.owner.toLowerCase(), repository.name.toLowerCase(), definition.id]),
 			name: definition.name, prompt: definition.prompt, schedule,
+			ownership: definition.ownership ?? definition.owner_type ?? 'user',
+			isAgentAccessible: !!definition.created_by.login && definition.created_by.login.toLowerCase() === this.defaultAccountService.currentDefaultAccount?.accountName.toLowerCase(),
 			targetDisplay: { label: `${repository.owner}/${repository.name}`, icon: Codicon.cloud },
 			externalResource: URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${repository.owner}/${repository.name}/agents/automations/${definition.id}` }),
 			target: { kind: 'workspace', providerId: this.providerId, sessionTypeId: this.sessionTypeId, isolation: { kind: 'default' }, folderUri: URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repository.owner}/${repository.name}/HEAD` }) },

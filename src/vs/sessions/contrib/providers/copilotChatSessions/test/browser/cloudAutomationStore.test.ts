@@ -77,6 +77,7 @@ class TestApi extends mock<IAutomationsClient>() {
 	lastSignal: AbortSignal | undefined;
 	patch: EditAutomationRequest | undefined;
 	created: CreateAutomationRequest | undefined;
+	canWrite = true;
 	async isPrivateRepository(_repository: GitHubRepositoryRef, signal: AbortSignal): Promise<boolean> {
 		this.calls.push('visibility');
 		this.lastSignal = signal;
@@ -99,11 +100,11 @@ class TestApi extends mock<IAutomationsClient>() {
 		}
 		return { data: { tasks: this.tasks } };
 	}
-	override async get(): Promise<AutomationDetail> {
+	override async get(_repository: RepositoryRef, id: string): Promise<AutomationDetail> {
 		if (this.getError) {
 			throw this.getError;
 		}
-		return this.definitions[0];
+		return this.definitions.find(definition => definition.id === id)!;
 	}
 	override async create(_repository: RepositoryRef, value: CreateAutomationRequest): Promise<AutomationDetail> {
 		this.calls.push('create');
@@ -184,7 +185,10 @@ suite('CloudAutomationStore', () => {
 			override readonly repositories = new class extends mock<IRepositoriesClient>() {
 				override async get(ref: RepositoryRef, signal: AbortSignal) {
 					const isPrivate = await api.isPrivateRepository({ host: 'api.github.com', accountId: account.accountName, owner: ref.owner, repo: ref.name }, signal);
-					return new class extends mock<Repository>() { override readonly private = isPrivate; }();
+					return new class extends mock<Repository>() {
+						override readonly private = isPrivate;
+						override readonly permissions = { push: api.canWrite, pull: true, admin: false };
+					}();
 				}
 			}();
 			override readonly tasks = new class extends mock<ITasksClient>() {
@@ -1232,6 +1236,77 @@ suite('CloudAutomationStore', () => {
 		assert.strictEqual(created.enabled, true);
 		const disabled = await provider.createAutomation({ ...options, enabled: false });
 		assert.strictEqual(disabled.enabled, false);
+	});
+
+	test('ownership defaults to Only me, accepts both response fields and is sent only on Repository create', async () => {
+		const { provider, api, set } = setup();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		const legacy = provider.automations.get()[0];
+		const options = { name: 'Review', prompt: 'Review issues', schedule: manual, target: legacy.target };
+		await provider.createAutomation(options);
+		const personal = api.created;
+		await provider.createAutomation({ ...options, ownership: 'repository' });
+		const shared = api.created;
+		api.definitions = [{ ...definition, owner_type: 'repository' }];
+		await provider.refresh();
+		const repository = provider.automations.get()[0];
+		await provider.updateAutomation(repository.id, { name: 'Renamed' });
+		assert.deepStrictEqual({
+			legacy: legacy.ownership, alias: repository.ownership, personal, shared, patch: api.patch,
+		}, {
+			legacy: 'user', alias: 'repository',
+			personal: { name: 'Review', description: '', prompt: 'Review issues', disabled: false, triggers: {}, model: '' },
+			shared: { name: 'Review', description: '', prompt: 'Review issues', disabled: false, triggers: {}, model: '', ownership: 'repository' },
+			patch: { name: 'Renamed' },
+		});
+	});
+
+	test('repository writers can manage collaborator Repository automations but readers and nonowners cannot', async () => {
+		const { provider, api, set } = setup();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		for (const canWrite of [true, false]) {
+			api.canWrite = canWrite;
+			for (const ownership of ['user', 'repository'] as const) {
+				api.definitions = [{ ...definition, ownership, created_by: { login: 'teammate' } }];
+				await provider.refresh();
+				const automation = provider.automations.get()[0];
+				const allowed = canWrite && ownership === 'repository';
+				assert.deepStrictEqual({
+					update: provider.canUpdateAutomation(automation.id), delete: provider.canDeleteAutomation(automation.id),
+					run: provider.canRunAutomation(automation.id), agent: automation.isAgentAccessible,
+				}, { update: allowed, delete: allowed, run: allowed, agent: false });
+				if (allowed) {
+					await provider.updateAutomation(automation.id, { name: 'Updated' });
+				} else {
+					await assert.rejects(provider.updateAutomation(automation.id, { name: 'Updated' }), AutomationUnavailableError);
+					await assert.rejects(provider.deleteAutomation(automation.id), AutomationUnavailableError);
+					await assert.rejects(provider.runAutomation(automation.id), AutomationUnavailableError);
+				}
+			}
+		}
+	});
+
+	test('agent tools never list or resolve a collaborator Repository prompt', async () => {
+		const { provider, api, set, tools, invoke } = setupTools();
+		api.definitions = [
+			{ ...definition, ownership: 'repository' },
+			{ ...definition, id: 'shared', ownership: 'repository', created_by: { login: 'teammate' }, prompt: 'Teammate private instructions' },
+		];
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		const shared = provider.automations.get().find(automation => !automation.isAgentAccessible)!;
+		const [listed] = await invoke(tools.list, {});
+		const results = [];
+		for (const tool of [tools.configure, tools.run]) {
+			results.push(await tool.invoke({ callId: 'call', toolId: 'tool', parameters: { automationId: shared.id }, context: undefined }, async () => 0, { report: () => { } }, CancellationToken.None));
+		}
+		assert.deepStrictEqual({
+			names: listed.automations.map((automation: { name: string }) => automation.name),
+			leaked: JSON.stringify([listed, results]).includes('Teammate private instructions'),
+			rejected: results.map(result => !!result.toolResultError),
+			mutations: api.calls.filter(call => call === 'update' || call === 'run'),
+		}, { names: ['Review'], leaked: false, rejected: [true, true], mutations: [] });
 	});
 
 	test('creation forwards the raw Cloud model and rejects unsupported templates before dispatch', async () => {

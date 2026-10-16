@@ -191,7 +191,10 @@ suite('GitHubCloudAutomationStore', () => {
 					override readonly repositories = new class extends mock<IRepositoriesClient>() {
 						override async get(ref: RepositoryRef, signal: AbortSignal) {
 							const isPrivate = await api.isPrivateRepository({ host: 'api.github.com', accountId: selected.accountName, owner: ref.owner, repo: ref.name }, signal);
-							return new class extends mock<Repository>() { override readonly private = isPrivate; }();
+							return new class extends mock<Repository>() {
+								override readonly private = isPrivate;
+								override readonly permissions = { push: true, pull: true, admin: false };
+							}();
 						}
 					}();
 					override readonly tasks = new class extends mock<ITasksClient>() {
