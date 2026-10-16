@@ -32470,14 +32470,24 @@ suite('AgentService (node dispatcher)', () => {
 					};
 				}
 
-				/** Moves `env.peer` to `target` after `arrange`, and returns its refusal and whether the move changed anything. */
+				/** Reports a pending workspace change of `chat` (its own, or its session's default chat's), as the conversion service does. */
+				function firePendingChanged(service: AgentService, chat: string): void {
+					(service as unknown as { _workspaceConversionService: { _onDidChangePending: Emitter<string> } })._workspaceConversionService._onDidChangePending.fire(chat);
+				}
+
+				/**
+				 * Moves `env.peer` to `target` after `arrange`, and returns its refusal, whether the move changed anything, and
+				 * whether the peer was movable before it (strict: false when its own session refuses its move).
+				 */
 				async function refuse(env: MoveEnv, target: URI, arrange?: () => void | Promise<void>) {
 					// Resolved first, as a move resolves it, so the footprint compares like with like.
 					await getStateManager(env.service).resolveChatState(env.peer.toString());
+					// `movable` follows its session's inputs synchronously, so the footprint before the move is final.
 					await arrange?.();
 					const before = await moveFootprint(env, target);
 					const reason = await refusalOf(env.service.moveChat(env.source, env.peer, { kind: 'session', session: target, after: undefined }));
-					return { actual: { reason, footprint: await moveFootprint(env, target) }, before };
+					const movable = getStateManager(env.service).getSessionState(env.source.toString())?.chats.find(chat => chat.resource === env.peer.toString())?.movable ?? false;
+					return { actual: { reason, footprint: await moveFootprint(env, target) }, before, movable };
 				}
 
 				/** The outcome of a refusal for `reason` that changed nothing. */
@@ -32502,11 +32512,15 @@ suite('AgentService (node dispatcher)', () => {
 						const quarantined = env[side].toString();
 						outcomes[side] = await refuse(env, env.target, () => {
 							(env.service as unknown as IMoveInternals)._workspaceConversionService.isPending = (resource, sessionWide) => sessionWide === true && resource === quarantined;
+							// A session-wide change is reported for the session's default chat.
+							firePendingChanged(env.service, getStateManager(env.service).getSessionState(quarantined)!.defaultChat!);
 						});
 					}
-					assert.deepStrictEqual({ source: outcomes.source.actual, target: outcomes.target.actual }, {
+					assert.deepStrictEqual({ source: outcomes.source.actual, target: outcomes.target.actual, movable: { source: outcomes.source.movable, target: outcomes.target.movable } }, {
 						source: refused(AgentChatMoveRefusal.SessionQuarantined, outcomes.source),
 						target: refused(AgentChatMoveRefusal.SessionQuarantined, outcomes.target),
+						// Only its own session's quarantine makes the chat not movable; a quarantined destination is refused per request.
+						movable: { source: false, target: true },
 					});
 				});
 
@@ -32515,8 +32529,9 @@ suite('AgentService (node dispatcher)', () => {
 
 					const outcome = await refuse(env, env.target, () => {
 						(env.service as unknown as IMoveInternals)._workspaceConversionService.isPending = (resource, sessionWide) => sessionWide !== true && resource === env.peer.toString();
+						firePendingChanged(env.service, env.peer.toString());
 					});
-					assert.deepStrictEqual(outcome.actual, refused(AgentChatMoveRefusal.ConversionInProgress, outcome));
+					assert.deepStrictEqual({ ...outcome.actual, movable: outcome.movable }, { ...refused(AgentChatMoveRefusal.ConversionInProgress, outcome), movable: false });
 				});
 
 				test('a workspace-less session on either side, and a chat without a folder', async () => {
@@ -32539,10 +32554,15 @@ suite('AgentService (node dispatcher)', () => {
 					await timeout(0);
 					outcomes.noFolder = await refuse({ service, source, peer }, target);
 
-					assert.deepStrictEqual({ source: outcomes.source.actual, target: outcomes.target.actual, noFolder: outcomes.noFolder.actual }, {
+					assert.deepStrictEqual({
+						source: outcomes.source.actual, target: outcomes.target.actual, noFolder: outcomes.noFolder.actual,
+						movable: { source: outcomes.source.movable, target: outcomes.target.movable, noFolder: outcomes.noFolder.movable },
+					}, {
 						source: refused(AgentChatMoveRefusal.Workspaceless, outcomes.source),
 						target: refused(AgentChatMoveRefusal.Workspaceless, outcomes.target),
 						noFolder: refused(AgentChatMoveRefusal.Workspaceless, outcomes.noFolder),
+						// A workspace-less destination is refused per request; the chat's own session, or its missing folder, makes it not movable.
+						movable: { source: false, target: true, noFolder: false },
 					});
 				});
 

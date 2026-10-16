@@ -91,14 +91,15 @@ suite('AgentHostChatMovability', () => {
 			summary: stateManager.getSessionState(session)?.chats.find(chat => chat.resource === peer)?.movable ?? false,
 			state: stateManager.getChatState(peer)?.movable ?? false,
 		});
-		/** Applies `refuse`, then `allow`, and reports the peer's movability before, after each, and what its session announced. */
+		/**
+		 * Applies `refuse`, then `allow`, and reports the peer's movability before, right after each (never stale, so
+		 * without waiting), and what its session announced.
+		 */
 		const flip = async (refuse: () => void, allow: () => void) => {
 			const before = movable();
 			refuse();
-			await timeout(0);
 			const refused = movable();
 			allow();
-			await timeout(0);
 			return { before, refused, allowed: movable(), announced: [...announced] };
 		};
 		return { stateManager, sources, peer, flip };

@@ -99,7 +99,10 @@ export class AgentHostChatMovability extends Disposable {
 
 	private readonly _pending = new Set<ProtocolURI>();
 	private readonly _pendingSessions = new Set<ProtocolURI>();
-	/** Registration happens before a chat joins its session's catalog, so its flag is published right after. */
+	/**
+	 * Registration and owner changes happen before a chat joins its session's catalog, so its flag is published right
+	 * after. A change of an input of a session's chats is published synchronously.
+	 */
 	private readonly _scheduler = this._register(new RunOnceScheduler(() => this._flush(), 0));
 
 	constructor(
@@ -126,30 +129,30 @@ export class AgentHostChatMovability extends Disposable {
 			} else if (action.type === ActionType.SessionChatAdded || action.type === ActionType.SessionChatRemoved) {
 				this._schedule(undefined, envelope.channel);
 			} else if (SESSION_INPUT_ACTIONS.has(action.type)) {
-				this._scheduleSessionChats(envelope.channel);
+				this._updateSessionChats(envelope.channel);
 			} else if (action.type === ActionType.SessionChatUpdated && action.changes.workingDirectories !== undefined) {
-				this._schedule(action.chat, undefined);
+				this.update(action.chat);
 			} else if (action.type === ActionType.ChatWorkingDirectorySet || action.type === ActionType.ChatWorkingDirectoryRemoved) {
-				this._schedule(envelope.channel, undefined);
+				this.update(envelope.channel);
 			}
 		}));
 		this._register(_sources.conversions.onDidChangePending(chat => {
 			// A session-wide change is recorded for the session's default chat: every chat of its session is affected.
 			const owner = _stateManager.getChatOwner(chat) ?? (_stateManager.getSessionState(chat) ? chat : undefined);
 			if (owner !== undefined) {
-				this._scheduleSessionChats(owner);
+				this._updateSessionChats(owner);
 			}
 		}));
 		this._register(_sources.sessionState.onDidChangeLoadedState(change => {
 			if (change.authority || change.values.some(key => WORKTREE_VALUES.has(key))) {
-				this._scheduleSessionChats(change.session);
+				this._updateSessionChats(change.session);
 			}
 		}));
 		this._register(_sources.catalogs.onDidChangeParkedSessions(session => {
 			if (session === undefined) {
 				this._updateAll();
 			} else {
-				this._scheduleSessionChats(session);
+				this._updateSessionChats(session);
 			}
 		}));
 	}
@@ -274,11 +277,15 @@ export class AgentHostChatMovability extends Disposable {
 		}
 	}
 
-	private _scheduleSessionChats(session: ProtocolURI): void {
+	/**
+	 * Publishes the eligibility of every chat of `session` now: an input of its session changed, and its chats are in
+	 * its catalog, so nothing waits for them (unlike a chat being registered). `movable` is never stale after the change.
+	 */
+	private _updateSessionChats(session: ProtocolURI): void {
+		const contexts = new Map<ProtocolURI, ISourceSessionContext | undefined>();
 		for (const chat of this._stateManager.getSessionState(session)?.chats ?? []) {
-			this._pending.add(chat.resource);
+			this.update(chat.resource, contexts);
 		}
-		this._scheduler.schedule();
 	}
 
 	private _schedule(chat: ProtocolURI | undefined, session: ProtocolURI | undefined): void {
