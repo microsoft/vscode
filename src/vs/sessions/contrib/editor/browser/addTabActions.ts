@@ -91,7 +91,7 @@ export class NewFileTabAction extends Action2 {
 				order: 1,
 				when: filesAddTabWhen
 			}, {
-				id: Menus.SessionToolbar,
+				id: Menus.SessionActivityBar,
 				group: 'navigation',
 				order: 1,
 				when: filesTabActionWhen
@@ -139,7 +139,7 @@ export class NewBrowserTabAction extends Action2 {
 				order: 2,
 				when: addTabLayoutWhen
 			}, {
-				id: Menus.SessionToolbar,
+				id: Menus.SessionActivityBar,
 				group: 'navigation',
 				order: 2,
 				when: addTabActionWhen
@@ -215,7 +215,7 @@ export class NewChangesTabAction extends Action2 {
 				order: 0,
 				when: changesAddTabWhen
 			}, {
-				id: Menus.SessionToolbar,
+				id: Menus.SessionActivityBar,
 				group: 'navigation',
 				order: 0,
 				// Offered whenever the tab is available; an open tab is activated in place.

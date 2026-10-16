@@ -15,6 +15,8 @@ import { Parts } from '../../../../../workbench/services/layout/browser/layoutSe
 import { ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { TERMINAL_VIEW_ID } from '../../../../../workbench/contrib/terminal/common/terminal.js';
 import { BaseLayoutController } from '../../browser/baseSessionLayoutController.js';
+import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { Menus } from '../../../../browser/menus.js';
 import { SessionEditorWorkingSetService } from '../../common/sessionEditorWorkingSet.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { addPeerChat, createTestHarness, ICreateOptions, ITestLayoutHarness, makePaneComposite, makeSession, setActiveChat, TestStubEditorInput } from './layoutControllerTestUtils.js';
@@ -59,6 +61,22 @@ suite('BaseLayoutController', () => {
 		const { owner, restoring, applying } = harness.editorWorkingSetService.restoreState.get();
 		return { owner: owner && { session: owner.sessionResource.toString(), chat: owner.chatResource?.toString() }, restoring, applying };
 	}
+
+	test('moves the side panel toggle from the title bar to the session activity bar while it is enabled', () => {
+		const registration = BaseLayoutController.registerSidePaneToggleAction();
+		try {
+			const describe = (menu: MenuId) => MenuRegistry.getMenuItems(menu).filter(isIMenuItem)
+				.filter(item => item.command.id === 'workbench.action.agentToggleSidePanel')
+				.map(item => ({ group: item.group, order: item.order, when: item.when?.serialize() }));
+
+			assert.deepStrictEqual({ titleBar: describe(Menus.TitleBarSessionMenu), activityBar: describe(Menus.SessionActivityBar) }, {
+				titleBar: [{ group: 'navigation', order: 11, when: '!agentSessionsDesktopLayout && !isAuxiliaryWindow && !sessionsWelcomeVisible || !config.sessions.showSessionActivityBar && !isAuxiliaryWindow && !sessionsWelcomeVisible' }],
+				activityBar: [{ group: 'layout', order: 11, when: 'agentSessionsDesktopLayout && config.sessions.showSessionActivityBar && !isAuxiliaryWindow' }],
+			});
+		} finally {
+			registration.dispose();
+		}
+	});
 
 	// --- [B1] Panel visibility ---
 

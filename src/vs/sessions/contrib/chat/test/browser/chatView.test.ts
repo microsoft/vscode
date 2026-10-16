@@ -64,7 +64,7 @@ import '../../../../../workbench/browser/media/style.css';
 import '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/media/chatAgentMergeContent.css';
 import '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/media/chatRequestOrigin.css';
 import { AbstractChatView, ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
-import { ChatViewSessionToolbar } from '../../../../browser/parts/sessionToolbar.js';
+import { ChatViewSessionActivityBar } from '../../../../browser/parts/sessionActivityBar.js';
 import '../../../../browser/parts/media/chatCompositeBar.css';
 import '../../../../browser/parts/media/chatGroupsView.css';
 import '../../../../browser/parts/media/sessionView.css';
@@ -487,7 +487,7 @@ suite('Sessions - Chat View', () => {
 		banner.classList.add('hidden');
 		view._layoutChatWidget();
 		progressOffsets.push(progress.style.top);
-		view.contentInset = ChatViewSessionToolbar.RESERVED_WIDTH;
+		view.contentInset = ChatViewSessionActivityBar.RESERVED_WIDTH;
 		view._layoutChatWidget();
 		assert.deepStrictEqual({ hiddenReads, offsetReads, layouts, progressOffsets, viewportWidth: widgetContainer.style.width }, {
 			hiddenReads: 0, offsetReads: 2,
@@ -510,7 +510,7 @@ suite('Sessions - Chat View', () => {
 		const session = dom.append(part, dom.$('.session-view'));
 		const groups = dom.append(session, dom.$('.chat-groups-view.single-group'));
 		// The toolbar's host publishes its column for surfaces that sit beside it.
-		groups.style.setProperty('--session-toolbar-column-width', '42px');
+		groups.style.setProperty('--session-activity-bar-column-width', '42px');
 		const headerHost = dom.append(groups, dom.$('.chat-group-view-bar'));
 		const header = dom.append(dom.append(headerHost, dom.$('.chat-composite-bar.session-header-bar')), dom.$('.chat-composite-bar-header'));
 		const view = disposables.add(new class extends AbstractChatView {
@@ -523,7 +523,7 @@ suite('Sessions - Chat View', () => {
 		groups.appendChild(view.element);
 		const widget = dom.append(dom.append(view.element, dom.$('.chat-view-widget')), dom.$('.interactive-session'));
 		const listContainer = dom.append(widget, dom.$('.interactive-list'));
-		const tree = disposables.add(new ObjectTree<number>('session-toolbar-layout-test', listContainer, {
+		const tree = disposables.add(new ObjectTree<number>('session-activity-bar-layout-test', listContainer, {
 			getHeight: () => 80,
 			getTemplateId: () => 'message',
 		}, [{
@@ -545,7 +545,7 @@ suite('Sessions - Chat View', () => {
 				|| targetWindow.getComputedStyle(widget).maxWidth !== 'none'
 				|| targetWindow.getComputedStyle(banner).boxSizing !== 'border-box'
 				|| targetWindow.getComputedStyle(rail).position !== 'absolute'
-				|| !targetWindow.getComputedStyle(view.element).getPropertyValue('--session-toolbar-content-inset')) {
+				|| !targetWindow.getComputedStyle(view.element).getPropertyValue('--session-activity-bar-content-inset')) {
 				throw new Error('Session header and chat styles have not loaded');
 			}
 		}, 10, 100);

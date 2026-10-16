@@ -19,9 +19,9 @@ import { TogglePanelAction } from '../../workbench/browser/parts/panel/panelActi
 import { LayoutDensityMenu } from '../../workbench/browser/actions/layoutDensityActions.js';
 import { IsAuxiliaryWindowContext, IsWindowAlwaysOnTopContext, PanelVisibleContext, SideBarVisibleContext } from '../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../workbench/services/layout/browser/layoutService.js';
-import { SessionsWelcomeVisibleContext, CustomViewVisibleContext, DesktopLayoutContext, IsPhoneLayoutContext } from '../common/contextkeys.js';
+import { SessionsWelcomeVisibleContext, CustomViewVisibleContext, DesktopLayoutContext, IsPhoneLayoutContext, SessionActivityBarEnabledContext } from '../common/contextkeys.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
-import { SESSION_TOOLBAR_SETTING } from '../common/sessionConfig.js';
+import { SESSION_ACTIVITY_BAR_SETTING } from '../common/sessionConfig.js';
 
 for (const menu of [Menus.TitleBarContext, MenuId.MenubarViewMenu]) {
 	MenuRegistry.appendMenuItem(menu, {
@@ -33,7 +33,7 @@ for (const menu of [Menus.TitleBarContext, MenuId.MenubarViewMenu]) {
 	});
 }
 
-export const TOGGLE_SESSION_TOOLBAR_COMMAND_ID = 'workbench.action.agentSessions.toggleSessionToolbar';
+export const TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID = 'workbench.action.agentSessions.toggleSessionActivityBar';
 
 MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	title: localize({ key: 'miAppearance', comment: ['&& denotes a mnemonic'] }, "&&Appearance"),
@@ -43,11 +43,11 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	when: DesktopLayoutContext,
 });
 
-registerAction2(class ToggleSessionToolbarAction extends Action2 {
+registerAction2(class ToggleSessionActivityBarAction extends Action2 {
 	constructor() {
 		super({
-			id: TOGGLE_SESSION_TOOLBAR_COMMAND_ID,
-			title: localize2('toggleSessionToolbar', "Toggle Session Toolbar"),
+			id: TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID,
+			title: localize2('toggleSessionActivityBar', "Toggle Session Activity Bar"),
 			category: Categories.View,
 			f1: true,
 			precondition: DesktopLayoutContext,
@@ -56,26 +56,26 @@ registerAction2(class ToggleSessionToolbarAction extends Action2 {
 
 	override run(accessor: ServicesAccessor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
-		return configurationService.updateValue(SESSION_TOOLBAR_SETTING, !configurationService.getValue<boolean>(SESSION_TOOLBAR_SETTING));
+		return configurationService.updateValue(SESSION_ACTIVITY_BAR_SETTING, !configurationService.getValue<boolean>(SESSION_ACTIVITY_BAR_SETTING));
 	}
 });
 
 MenuRegistry.appendMenuItem(Menus.ViewAppearance, {
 	command: {
-		id: TOGGLE_SESSION_TOOLBAR_COMMAND_ID,
-		title: localize({ key: 'miSessionToolbar', comment: ['&& denotes a mnemonic'] }, "Session &&Toolbar"),
-		toggled: ContextKeyExpr.equals(`config.${SESSION_TOOLBAR_SETTING}`, true),
+		id: TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID,
+		title: localize({ key: 'miSessionActivityBar', comment: ['&& denotes a mnemonic'] }, "Session &&Activity Bar"),
+		toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_SETTING}`, true),
 	},
 	group: '1_workbench_layout',
 	order: 1,
 	when: DesktopLayoutContext,
 });
 
-// The toolbar is only shown while enabled, so toggling from its own context menu hides it.
-MenuRegistry.appendMenuItem(Menus.SessionToolbarContext, {
+// The activity bar is only shown while enabled, so toggling from its own context menu hides it.
+MenuRegistry.appendMenuItem(Menus.SessionActivityBarContext, {
 	command: {
-		id: TOGGLE_SESSION_TOOLBAR_COMMAND_ID,
-		title: localize('hideSessionToolbar', "Hide Session Toolbar"),
+		id: TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID,
+		title: localize('hideSessionActivityBar', "Hide Session Activity Bar"),
 	},
 	group: 'navigation',
 	order: 1,
@@ -146,30 +146,49 @@ MenuRegistry.appendMenuItem(Menus.TitleBarAccessibility, {
 	when: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, IsPhoneLayoutContext.negate())
 });
 
-const titleBarPanelWhen = ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsPhoneLayoutContext.negate());
+// The Session Activity Bar hosts these toggles in place of the title bar while it is enabled.
+const titleBarPanelWhen = ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsPhoneLayoutContext.negate(), SessionActivityBarEnabledContext.negate());
+const sessionActivityBarPanelWhen = ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionActivityBarEnabledContext);
+
+const showPanelCommand = {
+	id: TogglePanelAction.ID,
+	title: localize('showPanel', "Show Panel"),
+	icon: Codicon.layoutPanelOff,
+	precondition: CustomViewVisibleContext.negate()
+};
+const hidePanelCommand = {
+	id: TogglePanelAction.ID,
+	title: localize('hidePanel', "Hide Panel"),
+	icon: Codicon.layoutPanel,
+	precondition: CustomViewVisibleContext.negate()
+};
 
 MenuRegistry.appendMenuItem(Menus.TitleBarSessionMenu, {
-	command: {
-		id: TogglePanelAction.ID,
-		title: localize('showPanel', "Show Panel"),
-		icon: Codicon.layoutPanelOff,
-		precondition: CustomViewVisibleContext.negate()
-	},
+	command: showPanelCommand,
 	group: 'navigation',
 	order: 10,
 	when: ContextKeyExpr.and(titleBarPanelWhen, PanelVisibleContext.toNegated())
 });
 
 MenuRegistry.appendMenuItem(Menus.TitleBarSessionMenu, {
-	command: {
-		id: TogglePanelAction.ID,
-		title: localize('hidePanel', "Hide Panel"),
-		icon: Codicon.layoutPanel,
-		precondition: CustomViewVisibleContext.negate()
-	},
+	command: hidePanelCommand,
 	group: 'navigation',
 	order: 10,
 	when: ContextKeyExpr.and(titleBarPanelWhen, PanelVisibleContext)
+});
+
+MenuRegistry.appendMenuItem(Menus.SessionActivityBar, {
+	command: showPanelCommand,
+	group: 'layout',
+	order: 10,
+	when: ContextKeyExpr.and(sessionActivityBarPanelWhen, PanelVisibleContext.toNegated())
+});
+
+MenuRegistry.appendMenuItem(Menus.SessionActivityBar, {
+	command: hidePanelCommand,
+	group: 'layout',
+	order: 10,
+	when: ContextKeyExpr.and(sessionActivityBarPanelWhen, PanelVisibleContext)
 });
 
 MenuRegistry.appendMenuItem(Menus.PanelTitle, {

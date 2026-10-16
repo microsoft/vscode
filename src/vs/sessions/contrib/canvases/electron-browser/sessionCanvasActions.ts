@@ -129,7 +129,7 @@ export function registerSessionCanvasActions(canvasService: ICanvasService, regi
 			? combinedDisposable(
 				appendCanvasSubmenu(Menus.SessionsEditorTabsBarAddTab, reopenCanvasWhen),
 				appendCanvasSubmenu(Menus.SessionsEmptyEditorGroupAddTab, reopenCanvasWhen),
-				appendCanvasSubmenu(Menus.SessionToolbar, canvasAvailableWhen),
+				appendCanvasSubmenu(Menus.SessionActivityBar, canvasAvailableWhen),
 			)
 			: undefined;
 	}));
