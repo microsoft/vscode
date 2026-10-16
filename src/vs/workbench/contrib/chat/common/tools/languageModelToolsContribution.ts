@@ -216,7 +216,7 @@ export function addContributedToolSetMembers(languageModelToolsService: ILanguag
 				continue;
 			}
 			const memberToolSet = languageModelToolsService.getToolSetByName(name);
-			if (memberToolSet) {
+			if (memberToolSet && memberToolSet !== toolSet) {
 				toolSets.push(memberToolSet);
 				pending.delete(name);
 			}
