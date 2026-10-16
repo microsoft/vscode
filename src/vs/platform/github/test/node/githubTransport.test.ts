@@ -70,6 +70,74 @@ suite('GitHubTransport', () => {
 		});
 	});
 
+	test('forwards serialized bodies and returns text without JSON decoding', async () => {
+		const bodyText = '{\n\t"value" : "request"\n}\n';
+		const responseText = ' \r\nnot JSON \u00e9\r\n ';
+		const requests: { body: RequestInit['body']; contentType: string | null }[] = [];
+		const transport = disposables.add(new GitHubTransport(async (_input, init) => {
+			requests.push({ body: init?.body, contentType: new Headers(init?.headers).get('Content-Type') });
+			return new Response(responseText, { status: 201 });
+		}));
+
+		const response = await transport.restText(accountA, 'token-a', {
+			method: 'POST', url: 'https://github.example.test/repos/o/r', bodyText,
+		}, signal());
+
+		assert.deepStrictEqual({ requests, data: response.data, status: response.statusCode }, {
+			requests: [{ body: bodyText, contentType: 'application/json' }],
+			data: responseText,
+			status: 201,
+		});
+	});
+
+	test('coalesces buffered and legacy JSON reads without changing either result shape', async () => {
+		const started = new DeferredPromise<void>();
+		const release = new DeferredPromise<Response>();
+		const bodyText = ' {\n"value": 1\n} ';
+		let requests = 0;
+		const transport = disposables.add(new GitHubTransport(async () => {
+			requests++;
+			void started.complete();
+			return release.p;
+		}));
+		const request = { method: 'GET' as const, url: 'https://github.example.test/repos/o/r' };
+		const buffered = transport.restText(accountA, 'token-a', request, signal());
+		await started.p;
+		const parsed = transport.rest<{ value: number }>(accountA, 'token-a', request, signal());
+		await release.complete(new Response(bodyText));
+		const [text, json] = await Promise.all([buffered, parsed]);
+
+		assert.deepStrictEqual({ requests, text: text.data, json: json.data }, {
+			requests: 1, text: bodyText, json: { value: 1 },
+		});
+	});
+
+	test('isolates text and JSON body modes and revalidates unparsed text', async () => {
+		const validators: (string | null)[] = [];
+		const transport = disposables.add(new GitHubTransport(async (_input, init) => {
+			const validator = new Headers(init?.headers).get('If-None-Match');
+			validators.push(validator);
+			if (validator) {
+				return new Response(null, { status: 304 });
+			}
+			return validators.length === 1
+				? new Response(' plain text ', { headers: { etag: '"text"' } })
+				: Response.json({ value: 1 }, { headers: { etag: '"json"' } });
+		}));
+		const request = { method: 'GET' as const, url: 'https://github.example.test/repos/o/r' };
+		const text = await transport.restText(accountA, 'token-a', { ...request, responseBody: 'text' }, signal());
+		const json = await transport.rest(accountA, 'token-a', request, signal());
+		const revalidated = await transport.restText(accountA, 'token-a', { ...request, responseBody: 'text' }, signal());
+
+		assert.deepStrictEqual({
+			validators, text: text.data, json: json.data, cachedText: revalidated.data,
+			status: revalidated.statusCode, originalStatus: revalidated.revalidatedStatusCode,
+		}, {
+			validators: [null, null, '"text"'], text: ' plain text ', json: { value: 1 },
+			cachedText: ' plain text ', status: 304, originalStatus: 200,
+		});
+	});
+
 	test('reuses only the exact account-scoped body after authoritative 304', async () => {
 		await withServer(async server => {
 			server.enqueue(
@@ -312,6 +380,48 @@ suite('GitHubTransport', () => {
 		});
 	});
 
+	test('shares legacy and buffered GraphQL reads while serializing variables once', async () => {
+		const started = new DeferredPromise<void>();
+		const response = new DeferredPromise<Response>();
+		const scheduler = disposables.add(new FakeScheduler({ now: 123 }));
+		const requests: RequestInit['body'][] = [];
+		const transport = disposables.add(new GitHubTransport(async (_input, init) => {
+			requests.push(init?.body);
+			void started.complete();
+			return response.p;
+		}, scheduler));
+		const query = 'query Viewer($a: String, $b: Int) { viewer { login } }';
+		let serializations = 0;
+		const legacy = transport.graphql<{ viewer: { login: string } }>(accountA, 'token-a', 'https://github.example.test/graphql', query, {
+			toJSON() { serializations++; return { a: 'value', b: 1 }; },
+		}, signal());
+		const buffered = transport.graphqlText(accountA, 'token-a', 'https://github.example.test/graphql', JSON.stringify({ variables: { b: 1, a: 'value' }, query }), signal());
+		await started.p;
+		const text = ' { "data" : { "viewer": { "login": "viewer" } }, "errors": [] } ';
+		await response.complete(new Response(text));
+		const raw = await buffered;
+		assert.deepStrictEqual({
+			legacy: await legacy, raw: { data: raw.data, status: raw.statusCode, errors: raw.errors, observedAt: raw.observedAt },
+			requests, serializations,
+		}, {
+			legacy: { data: { viewer: { login: 'viewer' } }, errors: [], observedAt: 123 },
+			raw: { data: text, status: 200, errors: [], observedAt: 123 },
+			requests: [JSON.stringify({ query, variables: { a: 'value', b: 1 } })], serializations: 1,
+		});
+	});
+
+	for (const operation of ['query { viewer { login } }', 'mutation { updateIssue(input: {}) { clientMutationId } }']) {
+		test(`counts GraphQL serialization against the caller deadline: ${operation}`, async () => {
+			const scheduler = disposables.add(new FakeScheduler({ now: 1_000 }));
+			let calls = 0;
+			const transport = disposables.add(new GitHubTransport(async () => { calls++; return Response.json({ data: {} }); }, scheduler));
+			await assert.rejects(transport.graphql(accountA, 'token-a', 'https://github.example.test/graphql', operation, {
+				toJSON() { scheduler.advanceBy(11); return {}; },
+			}, signal(), undefined, { deadline: 1_010 }), { kind: 'timeout', requestDispatched: false });
+			assert.strictEqual(calls, 0);
+		});
+	}
+
 	test('purges every account cache entry and aborts in-flight work on invalidation', async () => {
 		await withServer(async server => {
 			const requestSeen = new DeferredPromise<void>();
@@ -485,13 +595,14 @@ suite('GitHubTransport', () => {
 		}));
 		const request = { method: 'GET' as const, url: 'https://github.example.test/alias' };
 		await transport.rest(accountA, 'token-a', request, signal());
-		await assert.rejects(transport.rest(accountA, 'token-a', { ...request, followRedirects: false }, signal()), { statusCode: 302 });
+		const redirect = await transport.rest(accountA, 'token-a', { ...request, followRedirects: false }, signal());
 		const ordinary = await transport.rest(accountA, 'token-a', request, signal());
-		assert.deepStrictEqual({ requests, data: ordinary.data, status: ordinary.statusCode }, {
+		assert.deepStrictEqual({ requests, redirect: { data: redirect.data, status: redirect.statusCode, url: redirect.redirectUrl }, data: ordinary.data, status: ordinary.statusCode }, {
 			requests: [
 				{ path: '/alias', etag: null }, { path: '/repos/o/r', etag: null },
 				{ path: '/alias', etag: null }, { path: '/repos/o/r', etag: '"target"' },
 			],
+			redirect: { data: undefined, status: 302, url: 'https://github.example.test/repos/o/r' },
 			data: { value: 1 }, status: 304,
 		});
 	});
@@ -1170,6 +1281,7 @@ suite('GitHubTransport', () => {
 			);
 
 			assert.deepStrictEqual(bounded, {
+				statusCode: 200,
 				text: 'abc',
 				truncated: true,
 				bytesRead: 3,

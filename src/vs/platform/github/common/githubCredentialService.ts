@@ -49,10 +49,13 @@ const defaultBackoffPolicy: BackoffPolicy = {
 const credentialResolutionTimeout = 5 * 60_000;
 
 /** Bounds credential selection and resolution, including providers that do not honor cancellation. */
-export async function withGitHubCredentialDeadline<T>(signal: AbortSignal, task: (signal: AbortSignal, deadline: number) => Promise<T>, scheduler: IRequestScheduler = systemRequestScheduler): Promise<T> {
+export async function withGitHubCredentialDeadline<T>(signal: AbortSignal, task: (signal: AbortSignal, deadline: number) => Promise<T>, scheduler: IRequestScheduler = systemRequestScheduler, requestDeadline?: number): Promise<T> {
+	if (requestDeadline !== undefined && !Number.isFinite(requestDeadline)) {
+		throw new GitHubRequestError('Invalid GitHub request deadline', 'validation');
+	}
 	const controller = new AbortController();
 	const combinedSignal = AbortSignal.any([signal, controller.signal]);
-	const deadline = scheduler.now() + credentialResolutionTimeout;
+	const deadline = Math.min(requestDeadline ?? Infinity, scheduler.now() + credentialResolutionTimeout);
 	const checkDeadline = () => {
 		combinedSignal.throwIfAborted();
 		if (deadline <= scheduler.now()) {
@@ -60,7 +63,7 @@ export async function withGitHubCredentialDeadline<T>(signal: AbortSignal, task:
 		}
 	};
 	checkDeadline();
-	const timer = scheduler.schedule(() => controller.abort(new GitHubRequestTimeoutError()), credentialResolutionTimeout);
+	const timer = scheduler.schedule(() => controller.abort(new GitHubRequestTimeoutError()), Math.max(0, deadline - scheduler.now()));
 	try {
 		const result = await waitForCredential(task(combinedSignal, deadline), combinedSignal);
 		checkDeadline();

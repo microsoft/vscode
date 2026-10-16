@@ -19,6 +19,7 @@ export const SANDBOX_SETTING_KEYS: readonly string[] = [
 	AgentSandboxSettingId.AgentSandboxLspServers,
 	AgentSandboxSettingId.AgentSandboxAuthenticateGit,
 	AgentSandboxSettingId.AgentSandboxAuthenticateGh,
+	AgentSandboxSettingId.AgentSandboxMaskedEnvironmentVariables,
 	AgentSandboxSettingId.AgentSandboxAllowDevToolAccess,
 	AgentSandboxSettingId.AgentSandboxUserConfiguredPaths,
 	AgentSandboxSettingId.AgentSandboxLinuxFileSystem,

@@ -28,6 +28,7 @@ import {
 	AgentHostCopilotMultiRootEnabledSettingId,
 	AgentHostMarkdownPlanRichLinksEnabledSettingId,
 	AgentHostOverlapProviderPreparationSettingId,
+	AgentHostPrewarmSessionsSettingId,
 	AgentHostOTelCaptureContentSettingId,
 	AgentHostOTelCaptureIdentitySettingId,
 	AgentHostOTelDbSpanExporterEnabledSettingId,
@@ -56,10 +57,12 @@ import {
 	AgentHostMcpToolRoutingEnabledConfigKey,
 	AgentHostMarkdownPlanRichLinksEnabledConfigKey,
 	AgentHostOverlapProviderPreparationConfigKey,
+	AgentHostPrewarmSessionsConfigKey,
 	AgentHostSystemProxyEnabledConfigKey,
 	AgentHostWorkspaceSnapshotEnabledConfigKey,
 } from './agentHostSchema.js';
 import { AgentMergeConfigKey, AgentMergeSettingId, AGENT_MERGE_SETTING_TAG } from './agentMerge.js';
+import { ChatMoveConfigKey, ChatMoveSettingId } from './agentHostChatMove.js';
 import { artifactToolsConfigurationProperties } from './artifactToolsConfiguration.js';
 import { titleGenerationConfigurationProperties } from './titleGenerationConfiguration.js';
 import { isAhpJsonlLoggingEnabled } from './ahpJsonlLogger.js';
@@ -203,6 +206,14 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', AGENT_MERGE_SETTING_TAG],
 			agentHost: { key: AgentMergeConfigKey.ReplyAttribution },
 		},
+		[ChatMoveSettingId.Enabled]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.moveChats.enabled', "Enables moving chats between Agent Host sessions and into new sessions."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			agentHost: { key: ChatMoveConfigKey.Enabled },
+		},
 		...titleGenerationConfigurationProperties,
 		...artifactToolsConfigurationProperties,
 		[CanvasesEnabledSettingId]: {
@@ -240,6 +251,15 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostOverlapProviderPreparationConfigKey },
+		},
+		[AgentHostPrewarmSessionsSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.experimental.prewarmSessions', "When enabled, new Agent Host Copilot chats start their runtime and MCP servers before the first message is sent, so connectors are ready sooner. Changes apply to new chats."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'advanced'],
+			experiment: { mode: 'auto' },
+			agentHost: { key: AgentHostPrewarmSessionsConfigKey },
 		},
 		[AgentHostWorkspaceSnapshotEnabledSettingId]: {
 			type: 'boolean',

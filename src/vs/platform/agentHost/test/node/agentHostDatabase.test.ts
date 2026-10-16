@@ -13,7 +13,7 @@ import { stableStringify } from '../../../../base/common/objects.js';
 import { join } from '../../../../base/common/path.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT, AgentHostDatabase, IAgentHostDatabase, IAgentHostDatabaseChatV2NormalizationCandidate, IAgentHostDatabaseSessionV2Envelope } from '../../node/agentHostDatabase.js';
+import { AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT, AgentHostDatabase, IAgentHostDatabase, IAgentHostDatabaseChatV2NormalizationCandidate, IAgentHostDatabaseChatV2Promotion, IAgentHostDatabaseSessionV2Envelope } from '../../node/agentHostDatabase.js';
 import { AGENT_HOST_CATALOG_CHILD_LIMIT, AGENT_HOST_CATALOG_PAYLOAD_VERSION, AgentHostCatalogData, decodeAgentHostCatalogPayload, projectAgentHostCatalogChatOrigin } from '../../node/agentHostCatalogProjection.js';
 import { ChatInteractivity, ChatOriginKind } from '../../common/state/protocol/channels-chat/state.js';
 import { encodeChatV2Metadata } from '../../node/agentHostChatCatalogV2.js';
@@ -271,7 +271,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				sessionV2ForeignKeys,
 				sessionChatColumns: sessionChatColumns.map(row => row.name),
 			}, {
-				version: [{ user_version: 18 }],
+				version: [{ user_version: 19 }],
 				tables: ['chat_row_mirror', 'chats_v2', 'metadata', 'pending_worktree_removals', 'session_chat_catalogs', 'session_chat_state', 'session_chats', 'session_folder_state', 'session_state', 'session_state_values', 'sessions', 'sessions_v2'],
 				sessionColumns: ['session_uri', 'provider', 'start_time', 'external', 'registration_source', 'modified_time'],
 				sessionV2Columns: [
@@ -412,6 +412,26 @@ suite('AgentHostDatabase sessions_v2', () => {
 			afterChange: [{ session: normalized, defaultChatUri: 'ahp-chat://recreated' }],
 			afterDelete: [],
 		});
+	});
+
+	test('a provisional marker is ignored for a session whose default chat is stored elsewhere, whoever wrote it', async () => {
+		const db = new AgentHostDatabase(':memory:');
+		const draft = 'session://draft';
+		const orphan = 'session://normalized-orphan';
+		const promoted = 'session://promoted';
+		for (const session of [draft, orphan, promoted]) {
+			await db.registerRuntimeSession(session, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		}
+		// A crash-orphaned draft whose list entry was normalized: its default chat stores at the session.
+		await db.registerChatCatalogV2(orphan, { defaultChat: { chat: 'ahp-chat://orphan-default', order: 0, storageResource: orphan }, peers: [], privateDescendants: [] });
+		// A promoted session: its default chat keeps the storage it had as a peer.
+		await db.registerChatCatalogV2(promoted, { defaultChat: { chat: 'ahp-chat://promoted', order: 0, storageResource: 'ahp-chat://promoted' }, peers: [], privateDescendants: [] });
+		// An older build marks sessions it can't resolve and finds no turns at their own storage.
+		for (const session of [draft, orphan, promoted]) {
+			await db.setSessionProvisional(session, true);
+		}
+
+		assert.deepStrictEqual([...await db.listProvisionalSessions()].sort(), [draft, orphan].sort());
 	});
 
 	test('finds a chat owner from the record that contains it, never from the chat URI', async () => {
@@ -721,7 +741,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 					directCurrent: await upgraded.getSessionV2Registration(direct),
 				}, {
 					version,
-					schemaVersion: [{ user_version: 18 }],
+					schemaVersion: [{ user_version: 19 }],
 					foreignKeys: [],
 					published: undefined,
 					directLegacy: undefined,
@@ -768,7 +788,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				version: await all(rawDatabase, 'PRAGMA user_version'),
 				tables: (await all(rawDatabase, `SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name`)).map(row => row.name),
 			}, {
-				version: [{ user_version: 18 }],
+				version: [{ user_version: 19 }],
 				tables: ['chat_row_mirror', 'chats_v2', 'metadata', 'pending_worktree_removals', 'session_chat_catalogs', 'session_chat_state', 'session_chats', 'session_folder_state', 'session_state', 'session_state_values', 'sessions', 'sessions_v2'],
 			});
 		} finally {
@@ -861,15 +881,15 @@ suite('AgentHostDatabase sessions_v2', () => {
 				legacyMirroredRevision: 0,
 				chats: [{ chat: 'ahp-chat://peer', ownerSession: 'session://v11', order: 0, providerData: 'peer' }],
 			},
-			version: [{ user_version: 18 }],
+			version: [{ user_version: 19 }],
 		});
 	});
 
 	test('repairs missing chat columns without lowering a future schema version', async () => {
-		const path = join(temporaryDirectory!, 'agent-host-future-v18.db');
+		const path = join(temporaryDirectory!, 'agent-host-future-v20.db');
 		database = new AgentHostDatabase(path);
-		await database.registerSessionV2('session://future-v18', { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
-		await database.replaceSessionChatCatalog('session://future-v18', [
+		await database.registerSessionV2('session://future-v20', { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		await database.replaceSessionChatCatalog('session://future-v20', [
 			{ chat: 'ahp-chat://peer', order: 0, providerData: 'peer' },
 		], undefined);
 		await database.close();
@@ -879,11 +899,11 @@ suite('AgentHostDatabase sessions_v2', () => {
 		await exec(futureDatabase, `ALTER TABLE session_chats DROP COLUMN is_read;
 			ALTER TABLE session_chats ADD COLUMN parent_chat TEXT;
 			ALTER TABLE session_chats ADD COLUMN storage_resource TEXT;
-			PRAGMA user_version = 18`);
+			PRAGMA user_version = 20`);
 		await close(futureDatabase);
 
 		database = new AgentHostDatabase(path);
-		const catalog = await database.getSessionChatCatalog('session://future-v18');
+		const catalog = await database.getSessionChatCatalog('session://future-v20');
 		await database.close();
 		database = undefined;
 
@@ -896,9 +916,9 @@ suite('AgentHostDatabase sessions_v2', () => {
 			catalog: {
 				revision: 1,
 				legacyMirroredRevision: 0,
-				chats: [{ chat: 'ahp-chat://peer', ownerSession: 'session://future-v18', order: 0, providerData: 'peer' }],
+				chats: [{ chat: 'ahp-chat://peer', ownerSession: 'session://future-v20', order: 0, providerData: 'peer' }],
 			},
-			version: [{ user_version: 18 }],
+			version: [{ user_version: 20 }],
 			columns: ['session_uri', 'chat_uri', 'chat_order', 'provider_data', 'origin', 'inherited_turn_id', 'archived', 'parent_chat', 'storage_resource', 'is_read'],
 		});
 	});
@@ -937,7 +957,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				external: false,
 				source: 'explicit',
 			},
-			version: [{ user_version: 18 }],
+			version: [{ user_version: 19 }],
 			marker: [{ name: 'future_v6_marker' }],
 		});
 	}).timeout(10_000);
@@ -1919,8 +1939,8 @@ suite('AgentHostDatabase sessions_v2', () => {
 				written: [defaultChat, peer, privateChat].sort().map(chat => ({ chat_uri: chat, origin_session_uri: session })),
 				olderBuildRow: session,
 				reopened: {
-					15: { listed: [session, session, session], version: [{ user_version: 18 }] },
-					17: { listed: [session, session, session], version: [{ user_version: 18 }] },
+					15: { listed: [session, session, session], version: [{ user_version: 19 }] },
+					17: { listed: [session, session, session], version: [{ user_version: 19 }] },
 				},
 			});
 		});
@@ -2184,7 +2204,139 @@ suite('AgentHostDatabase sessions_v2', () => {
 				});
 			}
 
-			test('legacy-only old writer edits are never imported and the next V2 mutation restores full SQL membership', async () => {
+			test('every normalized write that would re-project refuses over an older writer\'s edit; writes that do not, and private chats, go through and keep it', async () => {
+				const { instance, raw } = await seedNormalized();
+				// An older writer (1.141) marks the peer read in session_chats and advances the revision.
+				await exec(raw, `UPDATE session_chats SET is_read = 1 WHERE session_uri = '${session}';
+					UPDATE session_chat_catalogs SET revision = revision + 1 WHERE session_uri = '${session}';`);
+				const revision = () => instance.readOlderBuildCopyState(session).then(state => state!.revision);
+				const row = async (chat: string) => (await instance.readCatalogSnapshot([session]))[0].chats.find(entry => entry.chat === chat)!;
+				const results = {
+					replacePeers: (await instance.replaceSessionChatCatalog(session, [{ chat: peer, order: 0 }], await revision())).status,
+					replacePeersOnActivation: (await instance.ensureChatCatalogV2(session, expectation(), candidate(), { kind: 'replacePeers', expectedRevision: await revision(), chats: [{ chat: peer, order: 0 }] })).status,
+					projectedPatch: (await instance.updateChatV2Metadata(peer, await row(peer), { isRead: true })).status,
+					titlePatch: (await instance.updateChatV2Metadata(peer, await row(peer), { metadata: { ...(await row(peer)).metadata, summary: 'Renamed' } })).status,
+					privatePatch: (await instance.updateChatV2Metadata(privateChat, await row(privateChat), { providerData: 'private-provider' })).status,
+				};
+				assert.deepStrictEqual({
+					results,
+					legacy: (await readLegacySessionChatCatalog(raw, session)).map(entry => [entry.chat_uri, entry.is_read]),
+					stillEdited: (await instance.readOlderBuildCopyState(session))?.hasOlderBuildEdits,
+				}, {
+					results: { replacePeers: 'olderBuildEdits', replacePeersOnActivation: 'olderBuildEdits', projectedPatch: 'olderBuildEdits', titlePatch: 'applied', privatePatch: 'applied' },
+					legacy: [[peer, 1]],
+					stillEdited: true,
+				});
+			});
+
+			test('this build\'s own writes keep the projection marker current; the scan reports every catalog another writer advanced, and only an unchanged list is recorded as projected', async () => {
+				const { instance, raw } = await seedNormalized();
+				const marker = async () => (await all(raw, 'SELECT revision, projected_revision FROM session_chat_catalogs WHERE session_uri = ?', [session]))[0];
+				const row = async (chat: string) => (await instance.readCatalogSnapshot([session]))[0].chats.find(entry => entry.chat === chat)!;
+				const current = async () => {
+					const { revision, projected_revision } = await marker();
+					return revision === projected_revision;
+				};
+				const afterOwnWrites: boolean[] = [];
+				await instance.updateChatV2Metadata(peer, await row(peer), { archived: true });
+				afterOwnWrites.push(await current());
+				await instance.updateChatV2Metadata(peer, await row(peer), { metadata: { ...(await row(peer)).metadata, summary: 'Renamed' } });
+				afterOwnWrites.push(await current());
+				await instance.updateChatV2Metadata(privateChat, await row(privateChat), { providerData: 'private-provider' });
+				afterOwnWrites.push(await current());
+				await instance.replaceSessionChatCatalog(session, [{ chat: peer, order: 0, archived: true }], (await instance.readOlderBuildCopyState(session))!.revision);
+				afterOwnWrites.push(await current());
+				// 1.141 re-mirrors session_chats unchanged at quit (its renames only in the session database), as does 1.142:
+				// a candidate whose import still reads the session database, and is recorded as projected after it.
+				await exec(raw, `UPDATE session_chat_catalogs SET revision = revision + 1 WHERE session_uri = '${session}';`);
+				const unchangedList = await instance.findOlderBuildChatCatalogEdits(AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT);
+				const behindAfterScan = (await instance.readOlderBuildCopyState(session))?.projectionBehind;
+				await instance.recordOlderBuildChatListProjected(session);
+				const recordedUnchanged = await current();
+				// 1.141 edits session_chats: never recorded as projected.
+				await exec(raw, `UPDATE session_chats SET archived = 0 WHERE session_uri = '${session}';
+					UPDATE session_chat_catalogs SET revision = revision + 1 WHERE session_uri = '${session}';`);
+				const edited = await instance.findOlderBuildChatCatalogEdits(AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT);
+				await instance.recordOlderBuildChatListProjected(session);
+				assert.deepStrictEqual({
+					afterOwnWrites,
+					unchangedList,
+					behindAfterScan,
+					recordedUnchanged,
+					edited,
+					editedState: { recorded: await current(), hasOlderBuildEdits: (await instance.readOlderBuildCopyState(session))?.hasOlderBuildEdits },
+				}, {
+					afterOwnWrites: [true, true, true, true],
+					unchangedList: [session],
+					behindAfterScan: true,
+					recordedUnchanged: true,
+					edited: [session],
+					editedState: { recorded: false, hasOlderBuildEdits: true },
+				});
+			});
+
+			test('the candidate scan returns only catalogs of listed registrations, so an excluded or tombstoned one never holds a slot', async () => {
+				const instance = new AgentHostDatabase(':memory:');
+				database = instance;
+				// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Write session_chats as an older build does.
+				const raw = await instance['_ensureDatabase']();
+				const sessions = ['copilot:/a-tombstoned', 'copilot:/b-excluded', 'copilot:/c-live'];
+				for (const owner of sessions) {
+					await instance.registerRuntimeSession(owner, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+					await instance.registerChatCatalogV2(owner, { defaultChat: { chat: `${owner}#default`, order: 0 }, peers: [{ chat: `${owner}#peer`, order: 1 }], privateDescendants: [] });
+					await exec(raw, `UPDATE session_chats SET archived = 1 WHERE session_uri = '${owner}';
+						UPDATE session_chat_catalogs SET revision = revision + 1 WHERE session_uri = '${owner}';`);
+				}
+				// A provider-absent exclusion keeps its normalized catalog; a tombstone, its rows until they are collected.
+				await exec(raw, `INSERT INTO metadata (key, value) VALUES ('sessionTombstone:${sessions[0]}', 'true'), ('sessionsV2Excluded:copilot:${sessions[1]}', '{}');`);
+
+				assert.deepStrictEqual(await instance.findOlderBuildChatCatalogEdits(1), [sessions[2]]);
+			});
+
+			// What each version leaves behind: 17 (Block 3b) adds chat origins, 18 the pending worktree removals.
+			const leftBehind: Record<number, string> = {
+				15: 'ALTER TABLE chats_v2 DROP COLUMN origin_session_uri; DROP TABLE pending_worktree_removals;',
+				17: 'DROP TABLE pending_worktree_removals;',
+				18: '',
+			};
+			for (const version of [15, 17, 18]) {
+				test(`a database at version ${version} migrates to 19 with the projection marker, and normalized catalogs start as candidates`, async () => {
+					const path = join(tmpdir(), `agent-host-projected-revision-${generateUuid()}.db`);
+					try {
+						let instance = new AgentHostDatabase(path);
+						database = instance;
+						await seed(instance);
+						await instance.ensureChatCatalogV2(session, expectation(), candidate());
+						await instance.close();
+						const old = await openDatabase(path);
+						await exec(old, `ALTER TABLE session_chat_catalogs DROP COLUMN projected_revision; ${leftBehind[version]} PRAGMA user_version = ${version}`);
+						await close(old);
+						instance = new AgentHostDatabase(path);
+						database = instance;
+						// A catalog upgraded from before the marker is a candidate once; its import records it as projected.
+						const candidates = await instance.findOlderBuildChatCatalogEdits(AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT);
+						await instance.recordOlderBuildChatListProjected(session);
+						// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Inspect the migrated schema.
+						const raw = await instance['_ensureDatabase']();
+						assert.deepStrictEqual({
+							version: await all(raw, 'PRAGMA user_version'),
+							columns: {
+								projectedRevision: (await all(raw, 'PRAGMA table_info(session_chat_catalogs)')).some(column => column.name === 'projected_revision'),
+								chatOrigins: (await all(raw, 'PRAGMA table_info(chats_v2)')).some(column => column.name === 'origin_session_uri'),
+							},
+							worktreeRemovals: (await all(raw, `SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'pending_worktree_removals'`)).length,
+							candidates,
+							recorded: (await all(raw, 'SELECT revision = projected_revision AS current FROM session_chat_catalogs WHERE session_uri = ?', [session]))[0].current,
+						}, { version: [{ user_version: 19 }], columns: { projectedRevision: true, chatOrigins: true }, worktreeRemovals: 1, candidates: [session], recorded: 1 });
+					} finally {
+						await database?.close();
+						database = undefined;
+						await fs.rm(path, { force: true });
+					}
+				});
+			}
+
+			test('an older writer\'s session_chats edit is refused by the next V2 mutation, never re-projected away, until it is imported', async () => {
 				const { instance, raw } = await seedNormalized();
 				const normalized = await instance.readCatalogSnapshot([session]);
 				await exec(raw, `DELETE FROM session_chats WHERE session_uri = '${session}';
@@ -2193,16 +2345,20 @@ suite('AgentHostDatabase sessions_v2', () => {
 				const stale = await instance.replaceSessionChatCatalog(session, [], 1);
 				const replay = await instance.ensureChatCatalogV2(session, expectation(), candidate());
 				const unchanged = (await instance.readCatalogSnapshot([session]))[0].chats;
-				const restored = await instance.replaceSessionChatCatalog(session, (await instance.getSessionChatCatalog(session))!.chats, 2);
+				const refused = await instance.replaceSessionChatCatalog(session, (await instance.getSessionChatCatalog(session))!.chats, 2);
+				const legacyAfterRefusal = (await readLegacySessionChatCatalog(raw, session)).map(row => [row.chat_uri, row.chat_order, row.revision]);
+				const imported = await instance.replaceSessionChatCatalogImportingOlderBuildEdits(session, [{ chat: peer, order: 0 }, { chat: 'chat://old-only', order: 1, providerData: 'old-write' }], 2);
 				assert.deepStrictEqual({
-					stale, replay, unchanged, restored,
+					stale, replay, unchanged, refused, legacyAfterRefusal, imported,
 					legacy: (await readLegacySessionChatCatalog(raw, session)).map(row => [row.chat_uri, row.chat_order, row.revision]),
-					oldIdentities: await all(raw, 'SELECT chat_uri FROM chats_v2 WHERE chat_uri = ?', ['chat://old-only']),
+					clean: (await instance.readOlderBuildCopyState(session))?.hasOlderBuildEdits,
 					importResult: await instance.upsertSessionV2(envelope(), 'catalog-generation'),
 				}, {
 					stale: { status: 'conflict' }, replay: { status: 'replayed', catalogRevision: 2 },
-					unchanged: normalized[0].chats, restored: { status: 'applied', revision: 3 },
-					legacy: [[peer, 0, 3]], oldIdentities: [], importResult: 'conflict',
+					unchanged: normalized[0].chats, refused: { status: 'olderBuildEdits' },
+					legacyAfterRefusal: [['chat://old-only', 0, 2]],
+					imported: { status: 'applied', revision: 3 },
+					legacy: [[peer, 0, 3], ['chat://old-only', 1, 3]], clean: false, importResult: 'conflict',
 				});
 			});
 
@@ -2336,7 +2492,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 			}
 			await database.markSessionV2PayloadDirty(session);
 			results.push(await database.ensureChatCatalogV2(session, current, candidate()));
-			assert.deepStrictEqual(results, [{ status: 'conflict' }, { status: 'conflict' }, { status: 'conflict' }, { status: 'conflict' }, { status: 'notReady' }]);
+			assert.deepStrictEqual(results, [{ status: 'conflict' }, { status: 'conflict' }, { status: 'conflict' }, { status: 'conflict' }, { status: 'notReady', reason: 'the session aggregate is unverified or awaits its re-projection', awaitsReprojection: true }]);
 		});
 
 		test('activation and first mutation roll back together on stale CAS and late SQL failure', async () => {
@@ -2533,7 +2689,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 					retained: (await all(inspect, `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('session_chats', 'sessions_v2') ORDER BY name`)).map(row => row.name),
 					legacy: (await database.getSessionChatCatalog(session))?.chats.map(chat => chat.chat),
 				}, {
-					restarted: before, before, version: [{ user_version: 18 }],
+					restarted: before, before, version: [{ user_version: 19 }],
 					retained: ['session_chats', 'sessions_v2'], legacy: [peer],
 				});
 			} finally {
@@ -3290,6 +3446,563 @@ suite('AgentHostDatabase sessions_v2', () => {
 			assert.deepStrictEqual({ missing, legacyAuthority, deletedInsert, deletedRemove }, {
 				missing: { status: 'missingSession' }, legacyAuthority: { status: 'conflict' },
 				deletedInsert: { status: 'tombstoned' }, deletedRemove: { status: 'tombstoned' },
+			});
+		});
+	});
+
+	suite('chat moves (Block 4)', () => {
+		const sessionA = 'session://a';
+		const sessionB = 'session://b';
+		const sessionC = 'session://c';
+
+		async function seedSession(target: IAgentHostDatabase, session: string): Promise<void> {
+			await target.registerSessionV2(session, { provider: 'copilot', startTime: 100, source: 'explicit' }, { checkTombstone: true });
+			const source = createEnvelope(session, `${session}-generation`, 10, {
+				payload: stableStringify({
+					payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
+					data: {
+						modifiedTime: 110, isRead: true, isArchived: false, workingDirectories: ['file:///project'],
+						chats: [
+							{ uri: `${session}#default`, kind: 'default', order: 0, summary: 'Default' },
+							{ uri: `${session}#peer`, kind: 'peer', order: 1, summary: 'Peer' },
+							{ uri: `${session}#sub`, kind: 'peer', order: 2, summary: 'Sub', interactivity: ChatInteractivity.Hidden },
+						],
+					},
+				}),
+			});
+			await target.upsertSessionV2(source, undefined);
+			const result = await target.ensureChatCatalogV2(session,
+				{ sessionGeneration: source.sessionGeneration, sourceRevision: source.sourceRevision, payloadHash: source.payloadHash, catalogRevision: 0 }, {
+				defaultChat: { chat: `${session}#default`, order: 0, storageResource: session },
+				peers: [{ chat: `${session}#peer`, order: 1, storageResource: `${session}#peer` }],
+				privateDescendants: [{ chat: `${session}#sub`, parentChat: `${session}#peer`, storageResource: `${session}#sub` }],
+			});
+			assert.strictEqual(result.status, 'applied');
+			await target.importSessionState(session, {
+				importVersion: 1, importedAt: 1, values: {}, legacyMirrorBase: '{}', launchDirsBackfilled: true,
+				folders: [
+					{ folderKey: '', kind: 'git', value: `git ${session}`, storageResource: undefined },
+					{ folderKey: 'key:project', kind: 'github', value: `github ${session}`, storageResource: undefined },
+				],
+				chats: [
+					{ chat: `${session}#default`, isDefault: true, storageResource: session, title: undefined, titleSource: undefined, isRead: undefined, workingDirectories: undefined, launchWorkingDirectories: ['file:///project'], changes: undefined },
+					{ chat: `${session}#peer`, isDefault: false, storageResource: `${session}#peer`, title: undefined, titleSource: undefined, isRead: undefined, workingDirectories: undefined, launchWorkingDirectories: ['file:///project'], changes: undefined },
+				],
+			});
+		}
+
+		function noState(chats: readonly string[] = []) {
+			return { expectedSourceRevision: 1, expectedTargetRevision: 1, chats: chats.map(chat => ({ chat, workingDirectories: ['file:///project'] })), folders: [] };
+		}
+
+		async function seedAll(): Promise<{ instance: AgentHostDatabase; raw: Database }> {
+			const instance = new AgentHostDatabase(':memory:');
+			database = instance;
+			for (const session of [sessionA, sessionB, sessionC]) {
+				await seedSession(instance, session);
+			}
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Read the stored rows, as older builds do.
+			return { instance, raw: await instance['_ensureDatabase']() };
+		}
+
+		function rows(raw: Database, ...sessions: string[]): Promise<readonly Record<string, unknown>[]> {
+			return all(raw, `SELECT chat_uri, owner_session_uri, origin_session_uri, chat_order, storage_resource, parent_chat, working_directories, ownership_revision
+				FROM chats_v2 WHERE tombstoned = 0 AND owner_session_uri IN (${sessions.map(() => '?').join(', ')}) ORDER BY owner_session_uri, chat_order, chat_uri`, sessions);
+		}
+
+		async function revision(instance: AgentHostDatabase, session: string): Promise<number> {
+			return (await instance.readCatalogSnapshot([session]))[0].header!.revision;
+		}
+
+		test('moves a peer with its private descendant, compacts both catalogs and keeps storage', async () => {
+			const { instance, raw } = await seedAll();
+			const result = await instance.moveChatV2({
+				chat: `${sessionA}#peer`, source: sessionA, target: sessionB, after: `${sessionB}#default`,
+				expectedSourceRevision: await revision(instance, sessionA), expectedTargetRevision: await revision(instance, sessionB),
+				workingDirectories: ['file:///project/packages/app'],
+				state: {
+					expectedSourceRevision: 1, expectedTargetRevision: 1,
+					chats: [{ chat: `${sessionA}#peer`, workingDirectories: ['file:///project/packages/app'] }],
+					folders: [
+						// Re-keyed: no other chat of A uses it.
+						{ kind: 'git', sourceKey: '', targetKey: 'key:app', keepInSource: false },
+						// Rule 3: B already tracks the folder, so B's row wins and A keeps its own (data is never dropped).
+						{ kind: 'github', sourceKey: 'key:project', targetKey: 'key:project', keepInSource: false },
+					],
+				},
+			});
+			const stateA = await instance.readSessionState(sessionA);
+			const stateB = await instance.readSessionState(sessionB);
+			assert.deepStrictEqual({
+				result,
+				stateA: { revision: stateA?.header.revision, chats: stateA?.chats.map(chat => chat.chat), folders: stateA?.folders.map(folder => [folder.kind, folder.folderKey, folder.value]) },
+				stateB: {
+					revision: stateB?.header.revision,
+					chats: stateB?.chats.map(chat => [chat.chat, chat.isDefault, chat.storageResource, chat.workingDirectories, chat.launchWorkingDirectories]),
+					folders: stateB?.folders.map(folder => [folder.kind, folder.folderKey, folder.value]),
+				},
+				rows: await rows(raw, sessionA, sessionB),
+				legacyA: (await readLegacySessionChatCatalog(raw, sessionA)).map(row => [row.chat_uri, row.chat_order, row.revision]),
+				legacyB: (await readLegacySessionChatCatalog(raw, sessionB)).map(row => [row.chat_uri, row.chat_order, row.revision]),
+				dirty: [await instance.getSessionV2PayloadDirty(sessionA), await instance.getSessionV2PayloadDirty(sessionB), await instance.getSessionV2PayloadDirty(sessionC)],
+			}, {
+				result: { status: 'applied', sourceRevision: 2, targetRevision: 2, sourceStateRevision: 2, targetStateRevision: 2, moved: [`${sessionA}#peer`, `${sessionA}#sub`], targetOrder: [`${sessionB}#default`, `${sessionA}#peer`, `${sessionB}#peer`] },
+				stateA: { revision: 2, chats: [`${sessionA}#default`], folders: [['github', 'key:project', `github ${sessionA}`]] },
+				stateB: {
+					revision: 2,
+					chats: [
+						[`${sessionA}#peer`, false, `${sessionA}#peer`, ['file:///project/packages/app'], ['file:///project']],
+						[`${sessionB}#default`, true, sessionB, undefined, ['file:///project']],
+						[`${sessionB}#peer`, false, `${sessionB}#peer`, undefined, ['file:///project']],
+					],
+					folders: [['git', '', `git ${sessionB}`], ['git', 'key:app', `git ${sessionA}`], ['github', 'key:project', `github ${sessionB}`]],
+				},
+				rows: [
+					{ chat_uri: `${sessionA}#default`, owner_session_uri: sessionA, origin_session_uri: sessionA, chat_order: 0, storage_resource: sessionA, parent_chat: null, working_directories: null, ownership_revision: 0 },
+					{ chat_uri: `${sessionA}#sub`, owner_session_uri: sessionB, origin_session_uri: sessionA, chat_order: null, storage_resource: `${sessionA}#sub`, parent_chat: `${sessionA}#peer`, working_directories: null, ownership_revision: 1 },
+					{ chat_uri: `${sessionB}#sub`, owner_session_uri: sessionB, origin_session_uri: sessionB, chat_order: null, storage_resource: `${sessionB}#sub`, parent_chat: `${sessionB}#peer`, working_directories: null, ownership_revision: 0 },
+					{ chat_uri: `${sessionB}#default`, owner_session_uri: sessionB, origin_session_uri: sessionB, chat_order: 0, storage_resource: sessionB, parent_chat: null, working_directories: null, ownership_revision: 0 },
+					{ chat_uri: `${sessionA}#peer`, owner_session_uri: sessionB, origin_session_uri: sessionA, chat_order: 1, storage_resource: `${sessionA}#peer`, parent_chat: null, working_directories: '["file:///project/packages/app"]', ownership_revision: 1 },
+					{ chat_uri: `${sessionB}#peer`, owner_session_uri: sessionB, origin_session_uri: sessionB, chat_order: 2, storage_resource: `${sessionB}#peer`, parent_chat: null, working_directories: null, ownership_revision: 0 },
+				],
+				// Older builds read the projection: A has no peer left, B lists both peers in order.
+				legacyA: [[null, null, 2]],
+				legacyB: [[`${sessionA}#peer`, 0, 2], [`${sessionB}#peer`, 1, 2]],
+				dirty: [1, 1, undefined],
+			});
+		});
+
+		test('reports the moved chats in placement order: the chat, its visible descendants in catalog order, then private ones', async () => {
+			const { instance, raw } = await seedAll();
+			// A's peer gets two visible descendants whose catalog order is the reverse of their lineage.
+			await exec(raw, `CREATE TEMP TABLE copied AS SELECT * FROM chats_v2 WHERE chat_uri = '${sessionA}#sub'`);
+			await exec(raw, `UPDATE copied SET chat_uri = '${sessionA}#sub2', parent_chat = '${sessionA}#sub', storage_resource = '${sessionA}#sub2'`);
+			await exec(raw, 'INSERT INTO chats_v2 SELECT * FROM copied');
+			await exec(raw, `UPDATE chats_v2 SET chat_order = 3 WHERE chat_uri = '${sessionA}#sub'`);
+			await exec(raw, `UPDATE chats_v2 SET chat_order = 2 WHERE chat_uri = '${sessionA}#sub2'`);
+			await exec(raw, `CREATE TEMP TABLE hidden AS SELECT * FROM chats_v2 WHERE chat_uri = '${sessionA}#sub2'`);
+			await exec(raw, `UPDATE hidden SET chat_uri = '${sessionA}#private', parent_chat = '${sessionA}#peer', storage_resource = '${sessionA}#private', chat_order = NULL`);
+			await exec(raw, 'INSERT INTO chats_v2 SELECT * FROM hidden');
+
+			const result = await instance.moveChatV2({
+				chat: `${sessionA}#peer`, source: sessionA, target: sessionB, after: `${sessionB}#default`,
+				expectedSourceRevision: await revision(instance, sessionA), expectedTargetRevision: await revision(instance, sessionB),
+				workingDirectories: undefined, state: noState([`${sessionA}#peer`]),
+			});
+
+			assert.deepStrictEqual(result.status === 'applied' ? { moved: result.moved, targetOrder: result.targetOrder } : result, {
+				moved: [`${sessionA}#peer`, `${sessionA}#sub2`, `${sessionA}#sub`, `${sessionA}#private`],
+				targetOrder: [`${sessionB}#default`, `${sessionA}#peer`, `${sessionA}#sub2`, `${sessionA}#sub`, `${sessionB}#peer`],
+			});
+		});
+
+		test('places a chat first without an anchor and keeps its first origin across moves', async () => {
+			const { instance, raw } = await seedAll();
+			const first = await instance.moveChatV2({
+				chat: `${sessionA}#peer`, source: sessionA, target: sessionB, after: undefined,
+				expectedSourceRevision: 1, expectedTargetRevision: 1, workingDirectories: undefined, state: noState([`${sessionA}#peer`]),
+			});
+			const second = await instance.moveChatV2({
+				chat: `${sessionA}#peer`, source: sessionB, target: sessionC, after: `${sessionC}#peer`,
+				expectedSourceRevision: 2, expectedTargetRevision: 1, workingDirectories: undefined,
+				state: { ...noState([`${sessionA}#peer`]), expectedSourceRevision: 2 },
+			});
+			assert.deepStrictEqual({
+				first: first.status, second: second.status,
+				rows: (await rows(raw, sessionB, sessionC)).map(row => [row.chat_uri, row.owner_session_uri, row.origin_session_uri, row.chat_order, row.working_directories]),
+			}, {
+				first: 'applied', second: 'applied',
+				rows: [
+					[`${sessionB}#sub`, sessionB, sessionB, null, null],
+					[`${sessionB}#default`, sessionB, sessionB, 0, null],
+					[`${sessionB}#peer`, sessionB, sessionB, 1, null],
+					[`${sessionA}#sub`, sessionC, sessionA, null, null],
+					[`${sessionC}#sub`, sessionC, sessionC, null, null],
+					[`${sessionC}#default`, sessionC, sessionC, 0, null],
+					[`${sessionC}#peer`, sessionC, sessionC, 1, null],
+					[`${sessionA}#peer`, sessionC, sessionA, 2, null],
+				],
+			});
+		});
+
+		test('lists the chats moved out of the session they were created in, until they move back; scans no chats before any moved', async () => {
+			const { instance, raw } = await seedAll();
+			const statements: string[] = [];
+			const traced = new DeferredPromise<void>();
+			const onTrace = (sql: string) => sql === 'SELECT 1 AS traced' ? traced.complete() : statements.push(sql);
+			raw.on('trace', onTrace);
+			const before = await instance.listMovedChatsV2();
+			// Trace events arrive later, in order: the sentinel's comes after the listing's.
+			await all(raw, 'SELECT 1 AS traced', []);
+			await traced.p;
+			raw.removeListener('trace', onTrace);
+			const scansBeforeAnyMove = statements.filter(sql => sql.includes('FROM chats_v2')).length;
+			await instance.moveChatV2({
+				chat: `${sessionA}#peer`, source: sessionA, target: sessionB, after: undefined,
+				expectedSourceRevision: await revision(instance, sessionA), expectedTargetRevision: await revision(instance, sessionB),
+				workingDirectories: undefined, state: noState([`${sessionA}#peer`]),
+			});
+			const moved = await instance.listMovedChatsV2();
+			await instance.moveChatV2({
+				chat: `${sessionA}#peer`, source: sessionB, target: sessionA, after: undefined,
+				expectedSourceRevision: await revision(instance, sessionB), expectedTargetRevision: await revision(instance, sessionA),
+				workingDirectories: undefined, state: { ...noState([`${sessionA}#peer`]), expectedSourceRevision: 2, expectedTargetRevision: 2 },
+			});
+			assert.deepStrictEqual({ scansBeforeAnyMove, before: [...before], moved: [...moved], back: [...await instance.listMovedChatsV2()] }, {
+				scansBeforeAnyMove: 0,
+				before: [],
+				moved: [[`${sessionA}#peer`, sessionA], [`${sessionA}#sub`, sessionA]],
+				back: [],
+			});
+		});
+
+		test('a chat\'s attachment copy record goes with the chat, however it is deleted, and a late copy step records nothing (Block 4b)', async () => {
+			const { instance, raw } = await seedAll();
+			// Only a move records copies: one out and back again.
+			for (const [source, target, expected] of [[sessionA, sessionB, 1], [sessionB, sessionA, 2]] as const) {
+				await instance.moveChatV2({
+					chat: `${sessionA}#peer`, source, target, after: undefined,
+					expectedSourceRevision: await revision(instance, source), expectedTargetRevision: await revision(instance, target),
+					workingDirectories: undefined, state: { ...noState([`${sessionA}#peer`]), expectedSourceRevision: expected, expectedTargetRevision: expected },
+				});
+			}
+			const copy = (origin: string) => ({ origin, storage: 'file:///storage', copied: ['shot/screen.png'], complete: false });
+			for (const chat of [`${sessionA}#peer`, `${sessionA}#sub`, `${sessionB}#peer`, `${sessionB}#sub`, `${sessionC}#peer`]) {
+				await instance.writeChatAttachmentCopy(chat, copy(sessionA));
+			}
+
+			// A private chat removed alone; a peer removed from its catalog, with its private descendant; a deleted session's chats.
+			const removedPrivate = await instance.removePrivateChatV2(sessionA, `${sessionA}#sub`, await revision(instance, sessionA));
+			const replaced = await instance.replaceSessionChatCatalog(sessionB, [], await revision(instance, sessionB));
+			await instance.tombstoneAndUnregisterSession(sessionC);
+			const lateStep = await instance.writeChatAttachmentCopy(`${sessionC}#peer`, copy(sessionA));
+
+			assert.deepStrictEqual({
+				removedPrivate: removedPrivate.status,
+				replaced: replaced.status,
+				lateStep,
+				records: (await all(raw, `SELECT key FROM metadata WHERE key LIKE 'chatAttachmentCopy:%' ORDER BY key`)).map(row => row.key),
+			}, {
+				removedPrivate: 'applied',
+				replaced: 'applied',
+				lateStep: false,
+				records: [`chatAttachmentCopy:${sessionA}#peer`],
+			});
+		});
+
+		test('without a move, reads the moved marker once and no attachment copy records, at startup and when chats are deleted (perf)', async () => {
+			const { instance, raw } = await seedAll();
+			const traced = async (action: () => Promise<unknown>) => {
+				const statements: string[] = [];
+				const done = new DeferredPromise<void>();
+				const onTrace = (sql: string) => sql === 'SELECT 1 AS traced' ? done.complete() : statements.push(sql);
+				raw.on('trace', onTrace);
+				await action();
+				// Trace events arrive later, in order: the sentinel's comes after the action's.
+				await all(raw, 'SELECT 1 AS traced', []);
+				await done.p;
+				raw.removeListener('trace', onTrace);
+				return statements.filter(sql => sql.includes('chatsV2Moved') || sql.includes('chatAttachmentCopy'));
+			};
+			const startup = await traced(async () => {
+				// What a start reads: the moved chats' origins, then the copies of their attachments.
+				await instance.listMovedChatsV2();
+				await instance.readChatAttachmentCopies();
+				await instance.removePrivateChatV2(sessionA, `${sessionA}#sub`, await revision(instance, sessionA));
+				await instance.hasMovedChatsV2();
+			});
+			await instance.moveChatV2({
+				chat: `${sessionB}#peer`, source: sessionB, target: sessionC, after: undefined,
+				expectedSourceRevision: await revision(instance, sessionB), expectedTargetRevision: await revision(instance, sessionC),
+				workingDirectories: undefined, state: noState([`${sessionB}#peer`]),
+			});
+			const afterMove = await traced(async () => ({ moved: await instance.hasMovedChatsV2(), copies: await instance.readChatAttachmentCopies() }));
+
+			assert.deepStrictEqual({ startup, afterMove: afterMove.map(sql => sql.replace(/'chatAttachmentCopy:[^']*'/g, '<prefix>')) }, {
+				startup: [`SELECT 1 AS present FROM metadata WHERE key = 'chatsV2Moved'`],
+				// Known once a move recorded it; the copies are read again.
+				afterMove: [
+					`DELETE FROM metadata WHERE key >= <prefix> AND key < 'chatAttachmentCopy;'\n\t\t\t\tAND NOT EXISTS (SELECT 1 FROM chats_v2 WHERE chat_uri = substr(metadata.key, 20) AND tombstoned = 0)`,
+					`SELECT key, value FROM metadata WHERE key >= <prefix> AND key < 'chatAttachmentCopy;'`,
+				],
+			});
+		});
+
+		test('refuses invalid moves without changing anything', async () => {
+			const { instance, raw } = await seedAll();
+			const before = await rows(raw, sessionA, sessionB);
+			const move = { chat: `${sessionA}#peer`, source: sessionA, target: sessionB, after: undefined, expectedSourceRevision: 1, expectedTargetRevision: 1, workingDirectories: undefined, state: noState([`${sessionA}#peer`]) };
+			const results = {
+				defaultChat: await instance.moveChatV2({ ...move, chat: `${sessionA}#default` }),
+				privateChat: await instance.moveChatV2({ ...move, chat: `${sessionA}#sub` }),
+				staleSource: await instance.moveChatV2({ ...move, expectedSourceRevision: 0 }),
+				staleTarget: await instance.moveChatV2({ ...move, expectedTargetRevision: 7 }),
+				foreignAnchor: await instance.moveChatV2({ ...move, after: `${sessionA}#default` }),
+				privateAnchor: await instance.moveChatV2({ ...move, after: `${sessionB}#sub` }),
+				notOwned: await instance.moveChatV2({ ...move, chat: `${sessionC}#peer` }),
+				missingTarget: await instance.moveChatV2({ ...move, target: 'session://missing' }),
+				staleState: await instance.moveChatV2({ ...move, state: { ...move.state, expectedTargetRevision: 0 } }),
+			};
+			await assert.rejects(instance.moveChatV2({ ...move, state: noState([`${sessionB}#peer`]) }), /central state of the chats it moves/);
+			await assert.rejects(instance.moveChatV2({ ...move, target: sessionA }), /two different sessions/);
+			await instance.tombstoneAndUnregisterSession(sessionC);
+			const tombstonedTarget = await instance.moveChatV2({ ...move, target: sessionC });
+			const stateRevisions = [(await instance.readSessionState(sessionA))?.header.revision, (await instance.readSessionState(sessionB))?.header.revision];
+			assert.deepStrictEqual({ results, tombstonedTarget, unchanged: await rows(raw, sessionA, sessionB), revisions: [await revision(instance, sessionA), await revision(instance, sessionB)], stateRevisions }, {
+				results: {
+					defaultChat: { status: 'conflict' }, privateChat: { status: 'conflict' }, staleSource: { status: 'conflict' }, staleTarget: { status: 'conflict' },
+					foreignAnchor: { status: 'conflict' }, privateAnchor: { status: 'conflict' }, notOwned: { status: 'conflict' }, missingTarget: { status: 'missingSession' },
+					staleState: { status: 'conflict' },
+				},
+				tombstonedTarget: { status: 'tombstoned' },
+				unchanged: before,
+				revisions: [1, 1],
+				stateRevisions: [1, 1],
+			});
+		});
+
+		function promotion(target: string, overrides: Partial<IAgentHostDatabaseChatV2Promotion> = {}): IAgentHostDatabaseChatV2Promotion {
+			return {
+				chat: `${sessionA}#peer`, source: sessionA, target, provider: 'copilot', startTime: 500, expectedSourceRevision: 1,
+				state: {
+					expectedSourceRevision: 1, importVersion: 1, importedAt: 600, legacyMirrorBase: '{"v":2,"entries":{}}', values: { configValues: '{"mode":"plan"}' },
+					chats: [{ chat: `${sessionA}#peer`, workingDirectories: ['file:///project'] }],
+					folders: [
+						{ kind: 'git', sourceKey: '', targetKey: '', keepInSource: true },
+						{ kind: 'github', sourceKey: 'key:project', targetKey: 'key:project', keepInSource: true },
+					],
+				},
+				...overrides,
+			};
+		}
+
+		test('a move, a session move, a promotion and a reorder refuse an older build\'s edit of any chat list they re-project, and record the projection they write (Block 4a)', async () => {
+			const { instance, raw } = await seedAll();
+			// An older build (1.140, 1.141) rewrites session_chats and advances only the revision.
+			const olderBuildEdit = (session: string) => exec(raw, `UPDATE session_chats SET is_read = 1 WHERE session_uri = '${session}';
+				UPDATE session_chat_catalogs SET revision = revision + 1 WHERE session_uri = '${session}';`);
+			// What importing the edit leaves behind: the projection current again.
+			const imported = (session: string) => exec(raw, `UPDATE session_chat_catalogs SET projected_revision = revision WHERE session_uri = '${session}'`);
+			const move = async (source: string, target: string, chat = `${source}#peer`) => instance.moveChatV2({
+				chat, source, target, after: undefined,
+				expectedSourceRevision: await revision(instance, source), expectedTargetRevision: await revision(instance, target),
+				workingDirectories: undefined, state: { ...noState([chat]), expectedSourceRevision: (await instance.readSessionState(source))!.header.revision, expectedTargetRevision: (await instance.readSessionState(target))!.header.revision },
+			});
+			const before = await rows(raw, sessionA, sessionB, sessionC);
+			await olderBuildEdit(sessionA);
+			const sourceEdited = (await move(sessionA, sessionB)).status;
+			const promotionEdited = (await instance.promoteChatV2(promotion('session://n', { expectedSourceRevision: await revision(instance, sessionA) }))).status;
+			const reorderEdited = (await instance.reorderChatV2(sessionA, `${sessionA}#peer`, undefined, await revision(instance, sessionA))).status;
+			await imported(sessionA);
+			await olderBuildEdit(sessionB);
+			const targetEdited = (await move(sessionA, sessionB)).status;
+			const unchanged = await rows(raw, sessionA, sessionB, sessionC);
+			await imported(sessionB);
+			const applied = (await move(sessionA, sessionB)).status;
+			const projected = await all(raw, 'SELECT session_uri, revision = projected_revision AS current FROM session_chat_catalogs ORDER BY session_uri');
+
+			assert.deepStrictEqual({ sourceEdited, promotionEdited, reorderEdited, targetEdited, unchanged: unchanged.length === before.length && unchanged.every((row, index) => row.chat_uri === before[index].chat_uri && row.owner_session_uri === before[index].owner_session_uri), applied, projected: projected.map(row => [row.session_uri, row.current]) }, {
+				sourceEdited: 'olderBuildEdits', promotionEdited: 'olderBuildEdits', reorderEdited: 'olderBuildEdits', targetEdited: 'olderBuildEdits',
+				unchanged: true,
+				applied: 'applied',
+				projected: [[sessionA, 1], [sessionB, 1], [sessionC, 1]],
+			});
+		});
+
+		test('a promotion refuses an older build\'s edit of its source\'s chat list, and applies once it is imported (Block 4a)', async () => {
+			const { instance, raw } = await seedAll();
+			await exec(raw, `UPDATE session_chats SET is_read = 1 WHERE session_uri = '${sessionA}'; UPDATE session_chat_catalogs SET revision = revision + 1 WHERE session_uri = '${sessionA}';`);
+			const refused = (await instance.promoteChatV2(promotion('session://promoted', { expectedSourceRevision: await revision(instance, sessionA) }))).status;
+			const created = (await all(raw, 'SELECT 1 AS present FROM sessions_v2 WHERE session_uri = ?', ['session://promoted'])).length;
+			await exec(raw, `UPDATE session_chat_catalogs SET projected_revision = revision WHERE session_uri = '${sessionA}'`);
+			const applied = (await instance.promoteChatV2(promotion('session://promoted', { expectedSourceRevision: await revision(instance, sessionA) }))).status;
+
+			assert.deepStrictEqual({ refused, created, applied }, { refused: 'olderBuildEdits', created: 0, applied: 'applied' });
+		});
+
+		test('a reorder refuses an older build\'s edit of its chat list, and applies once it is imported (Block 4a)', async () => {
+			const { instance, raw } = await seedAll();
+			await exec(raw, `UPDATE session_chats SET is_read = 1 WHERE session_uri = '${sessionA}'; UPDATE session_chat_catalogs SET revision = revision + 1 WHERE session_uri = '${sessionA}';`);
+			const order = async () => (await all(raw, 'SELECT chat_uri FROM chats_v2 WHERE owner_session_uri = ? AND chat_order IS NOT NULL ORDER BY chat_order', [sessionA])).map(row => row.chat_uri);
+			const before = await order();
+			const refused = (await instance.reorderChatV2(sessionA, `${sessionA}#peer`, undefined, await revision(instance, sessionA))).status;
+			const unchanged = await order();
+			await exec(raw, `UPDATE session_chat_catalogs SET projected_revision = revision WHERE session_uri = '${sessionA}'`);
+			const applied = (await instance.reorderChatV2(sessionA, `${sessionA}#peer`, undefined, await revision(instance, sessionA))).status;
+
+			assert.deepStrictEqual({ refused, unchanged: unchanged.join() === before.join(), applied, after: await order() }, {
+				refused: 'olderBuildEdits', unchanged: true, applied: 'applied', after: [`${sessionA}#peer`, `${sessionA}#default`],
+			});
+		});
+
+		test('a session move refuses an older build\'s edit of either chat list (Block 4a)', async () => {
+			const { instance, raw } = await seedAll();
+			await instance.moveChatV2({
+				chat: `${sessionA}#peer`, source: sessionA, target: sessionC, after: undefined,
+				expectedSourceRevision: await revision(instance, sessionA), expectedTargetRevision: await revision(instance, sessionC),
+				workingDirectories: undefined, state: noState([`${sessionA}#peer`]),
+			});
+			const sessionMove = async () => instance.moveSessionV2({
+				chat: `${sessionA}#default`, source: sessionA, target: sessionB, after: undefined,
+				expectedSourceRevision: await revision(instance, sessionA), expectedTargetRevision: await revision(instance, sessionB),
+				workingDirectories: undefined,
+				// A refused write changes no central state: A's is at 2 after the first move, B's at 1.
+				state: { expectedSourceRevision: 2, expectedTargetRevision: 1, chats: [], folders: [] },
+			});
+			const results: string[] = [];
+			// An older build lists a chat of its own in A (which lists no peers any more), and drops B's peer.
+			const edits = new Map([
+				[sessionA, `INSERT INTO session_chats (session_uri, chat_uri, chat_order, provider_data) VALUES ('${sessionA}', 'chat://old-only', 0, 'old-write')`],
+				[sessionB, `DELETE FROM session_chats WHERE session_uri = '${sessionB}'`],
+			]);
+			for (const session of [sessionA, sessionB]) {
+				await exec(raw, `${edits.get(session)}; UPDATE session_chat_catalogs SET revision = revision + 1 WHERE session_uri = '${session}';`);
+				results.push((await sessionMove()).status);
+				await exec(raw, `UPDATE session_chat_catalogs SET projected_revision = revision WHERE session_uri = '${session}'`);
+			}
+
+			assert.deepStrictEqual({ results, tombstoned: await instance.isSessionTombstoned(sessionA) }, { results: ['olderBuildEdits', 'olderBuildEdits'], tombstoned: false });
+		});
+
+		test('moves a single-chat session under another session: its default chat becomes a peer keeping its database, and the session ends', async () => {
+			const { instance, raw } = await seedAll();
+			// A keeps only its default chat.
+			await instance.moveChatV2({
+				chat: `${sessionA}#peer`, source: sessionA, target: sessionC, after: undefined,
+				expectedSourceRevision: await revision(instance, sessionA), expectedTargetRevision: await revision(instance, sessionC),
+				workingDirectories: undefined, state: noState([`${sessionA}#peer`]),
+			});
+			const sessionMove = {
+				chat: `${sessionA}#default`, source: sessionA, target: sessionB, after: `${sessionB}#default`,
+				expectedSourceRevision: await revision(instance, sessionA), expectedTargetRevision: await revision(instance, sessionB),
+				workingDirectories: undefined,
+				state: { expectedSourceRevision: 2, expectedTargetRevision: 1, chats: [], folders: [{ kind: 'github' as const, sourceKey: 'key:project', targetKey: 'key:project', keepInSource: false }] },
+			};
+			const refusals = {
+				peer: await instance.moveSessionV2({ ...sessionMove, chat: `${sessionB}#peer`, source: sessionB, target: sessionC, expectedSourceRevision: await revision(instance, sessionB), expectedTargetRevision: await revision(instance, sessionC) }),
+				notSingleChat: await instance.moveSessionV2({ ...sessionMove, chat: `${sessionB}#default`, source: sessionB, target: sessionC, expectedSourceRevision: await revision(instance, sessionB), expectedTargetRevision: await revision(instance, sessionC) }),
+				stale: await instance.moveSessionV2({ ...sessionMove, expectedSourceRevision: 0 }),
+			};
+
+			const result = await instance.moveSessionV2(sessionMove);
+			const stateB = await instance.readSessionState(sessionB);
+			assert.deepStrictEqual({
+				refusals,
+				result,
+				rows: (await rows(raw, sessionA, sessionB)).map(row => [row.chat_uri, row.owner_session_uri, row.origin_session_uri, row.chat_order, row.storage_resource]),
+				stateB: stateB?.chats.map(chat => [chat.chat, chat.isDefault, chat.storageResource]),
+				ended: {
+					tombstoned: await instance.isSessionTombstoned(sessionA),
+					catalog: (await instance.readCatalogSnapshot([sessionA]))[0]?.header,
+					state: await instance.readSessionState(sessionA),
+					legacy: (await readLegacySessionChatCatalog(raw, sessionA)).length,
+				},
+				legacyB: (await readLegacySessionChatCatalog(raw, sessionB)).map(row => [row.chat_uri, row.chat_order]),
+			}, {
+				refusals: { peer: { status: 'conflict' }, notSingleChat: { status: 'conflict' }, stale: { status: 'conflict' } },
+				result: { status: 'applied', sourceRevision: 3, targetRevision: 2, sourceStateRevision: 3, targetStateRevision: 2, moved: [`${sessionA}#default`], targetOrder: [`${sessionB}#default`, `${sessionA}#default`, `${sessionB}#peer`] },
+				rows: [
+					[`${sessionB}#sub`, sessionB, sessionB, null, `${sessionB}#sub`],
+					[`${sessionB}#default`, sessionB, sessionB, 0, sessionB],
+					// Its data stays in A's session database, recorded as its storage.
+					[`${sessionA}#default`, sessionB, sessionA, 1, sessionA],
+					[`${sessionB}#peer`, sessionB, sessionB, 2, `${sessionB}#peer`],
+				],
+				stateB: [
+					[`${sessionA}#default`, false, sessionA],
+					[`${sessionB}#default`, true, sessionB],
+					[`${sessionB}#peer`, false, `${sessionB}#peer`],
+				],
+				ended: { tombstoned: true, catalog: undefined, state: undefined, legacy: 0 },
+				// Older builds list it as B's first peer.
+				legacyB: [[`${sessionA}#default`, 0], [`${sessionB}#peer`, 1]],
+			});
+		});
+
+		test('promotes a peer with its private descendant into a new session', async () => {
+			const { instance, raw } = await seedAll();
+			const sessionN = 'session://n';
+			const result = await instance.promoteChatV2(promotion(sessionN));
+			const stateN = await instance.readSessionState(sessionN);
+			const stateA = await instance.readSessionState(sessionA);
+			assert.deepStrictEqual({
+				result,
+				header: (await instance.readCatalogSnapshot([sessionN]))[0].header && { default: (await instance.readCatalogSnapshot([sessionN]))[0].header?.defaultChatUri, revision: await revision(instance, sessionN) },
+				registered: [await instance.getSessionV2Registration(sessionN).then(entry => entry?.provider), (await all(raw, 'SELECT provider FROM sessions WHERE session_uri = ?', [sessionN])).map(row => row.provider)],
+				rows: await rows(raw, sessionA, sessionN),
+				legacyA: (await readLegacySessionChatCatalog(raw, sessionA)).map(row => [row.chat_uri, row.chat_order]),
+				stateN: {
+					header: stateN?.header.revision,
+					values: stateN?.values.map(value => [value.key, value.value]),
+					chats: stateN?.chats.map(chat => [chat.chat, chat.isDefault, chat.storageResource, chat.workingDirectories]),
+					folders: stateN?.folders.map(folder => [folder.kind, folder.folderKey, folder.value]),
+				},
+				stateA: { revision: stateA?.header.revision, chats: stateA?.chats.map(chat => chat.chat), folders: stateA?.folders.map(folder => [folder.kind, folder.folderKey]) },
+				dirty: [await instance.getSessionV2PayloadDirty(sessionA), await instance.getSessionV2PayloadDirty(sessionN)],
+			}, {
+				result: { status: 'applied', sourceRevision: 2, sourceStateRevision: 2, moved: [`${sessionA}#peer`, `${sessionA}#sub`] },
+				header: { default: `${sessionA}#peer`, revision: 1 },
+				registered: ['copilot', ['copilot']],
+				rows: [
+					{ chat_uri: `${sessionA}#default`, owner_session_uri: sessionA, origin_session_uri: sessionA, chat_order: 0, storage_resource: sessionA, parent_chat: null, working_directories: null, ownership_revision: 0 },
+					{ chat_uri: `${sessionA}#sub`, owner_session_uri: sessionN, origin_session_uri: sessionA, chat_order: null, storage_resource: `${sessionA}#sub`, parent_chat: `${sessionA}#peer`, working_directories: null, ownership_revision: 1 },
+					{ chat_uri: `${sessionA}#peer`, owner_session_uri: sessionN, origin_session_uri: sessionA, chat_order: 0, storage_resource: `${sessionA}#peer`, parent_chat: null, working_directories: null, ownership_revision: 1 },
+				],
+				legacyA: [[null, null]],
+				stateN: {
+					header: 1,
+					values: [['configValues', '{"mode":"plan"}']],
+					chats: [[`${sessionA}#peer`, true, `${sessionA}#peer`, ['file:///project']]],
+					folders: [['git', '', `git ${sessionA}`], ['github', 'key:project', `github ${sessionA}`]],
+				},
+				// A keeps its default chat and, since it still uses the folder, its folder state.
+				stateA: { revision: 2, chats: [`${sessionA}#default`], folders: [['git', ''], ['github', 'key:project']] },
+				dirty: [1, 1],
+			});
+		});
+
+		test('refuses invalid promotions without changing anything', async () => {
+			const { instance, raw } = await seedAll();
+			const before = await rows(raw, sessionA, sessionB);
+			const results = {
+				existingSession: await instance.promoteChatV2(promotion(sessionB)),
+				defaultChat: await instance.promoteChatV2(promotion('session://n', { chat: `${sessionA}#default`, state: { ...promotion('session://n').state, chats: [] } })),
+				privateChat: await instance.promoteChatV2(promotion('session://n', { chat: `${sessionA}#sub`, state: { ...promotion('session://n').state, chats: [] } })),
+				staleCatalog: await instance.promoteChatV2(promotion('session://n', { expectedSourceRevision: 0 })),
+				staleState: await instance.promoteChatV2(promotion('session://n', { state: { ...promotion('session://n').state, expectedSourceRevision: 0 } })),
+			};
+			await instance.tombstoneAndUnregisterSession(sessionC);
+			const tombstonedTarget = await instance.promoteChatV2(promotion(sessionC));
+			assert.deepStrictEqual({ results, tombstonedTarget, unchanged: await rows(raw, sessionA, sessionB), registered: await instance.getSessionV2Registration('session://n'), revision: await revision(instance, sessionA) }, {
+				results: { existingSession: { status: 'conflict' }, defaultChat: { status: 'conflict' }, privateChat: { status: 'conflict' }, staleCatalog: { status: 'conflict' }, staleState: { status: 'conflict' } },
+				tombstonedTarget: { status: 'conflict' },
+				unchanged: before,
+				registered: undefined,
+				revision: 1,
+			});
+		});
+
+		test('reorders within a session contiguously and replays an unchanged order', async () => {
+			const { instance, raw } = await seedAll();
+			const unchanged = await instance.reorderChatV2(sessionA, `${sessionA}#peer`, `${sessionA}#default`, 1);
+			const moved = await instance.reorderChatV2(sessionA, `${sessionA}#peer`, undefined, 1);
+			const stale = await instance.reorderChatV2(sessionA, `${sessionA}#default`, undefined, 1);
+			const selfAnchor = await instance.reorderChatV2(sessionA, `${sessionA}#peer`, `${sessionA}#peer`, 2);
+			const privateChat = await instance.reorderChatV2(sessionA, `${sessionA}#sub`, undefined, 2);
+			assert.deepStrictEqual({
+				unchanged, moved, stale, selfAnchor, privateChat,
+				order: (await rows(raw, sessionA)).filter(row => row.chat_order !== null).map(row => [row.chat_uri, row.chat_order]),
+				legacy: (await readLegacySessionChatCatalog(raw, sessionA)).map(row => [row.chat_uri, row.chat_order]),
+				dirty: await instance.getSessionV2PayloadDirty(sessionA),
+			}, {
+				unchanged: { status: 'replayed', catalogRevision: 1 },
+				moved: { status: 'applied', catalogRevision: 2 },
+				stale: { status: 'conflict' },
+				selfAnchor: { status: 'conflict' },
+				privateChat: { status: 'conflict' },
+				order: [[`${sessionA}#peer`, 0], [`${sessionA}#default`, 1]],
+				legacy: [[`${sessionA}#peer`, 0]],
+				dirty: 1,
 			});
 		});
 	});

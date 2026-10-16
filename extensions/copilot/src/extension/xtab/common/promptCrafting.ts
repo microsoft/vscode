@@ -458,41 +458,6 @@ function getRelatedInformation(langCtx: LanguageContextResponse | undefined): st
 	return `Consider this related information:\n${relatedInformation.join('\n')}`;
 }
 
-export function truncateCode(
-	lines: string[],
-	fromBeginning: boolean,
-	maxTokens: number
-): [number, number] {
-	if (!lines.length) {
-		return [0, 0];
-	}
-
-	const allowedLength = maxTokens * 4;
-	let totalLength = 0;
-	let i = fromBeginning ? lines.length - 1 : 0;
-
-	while (totalLength < allowedLength) {
-		totalLength += lines[i].length + 1; // +1 for \n
-		if (fromBeginning) {
-			i--;
-			if (i < 0) {
-				break;
-			}
-		} else {
-			i++;
-			if (i >= lines.length) {
-				break;
-			}
-		}
-	}
-
-	if (fromBeginning) {
-		return [i + 1, lines.length];
-	} else {
-		return [0, i];
-	}
-}
-
 export const N_LINES_ABOVE = 2;
 export const N_LINES_BELOW = 5;
 

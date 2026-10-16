@@ -1873,11 +1873,9 @@ suite('AgentMergeController', () => {
 				},
 				topLevelComments: { status: 'missing', complete: false },
 				submittedReviews: { status: 'missing', complete: false },
-				inlineComments: { status: 'missing', complete: false },
 				reviewThreads: { status: 'missing', complete: false },
 				checks: { status: 'missing', complete: false },
 				mergeability: { status: 'missing', complete: false },
-				participants: { status: 'missing', complete: false },
 			};
 			const { stateManager, configurationService, session, notices } = createControllerHarness(disposables, snapshot);
 			stateManager.setSessionMeta(session, withSessionGitHubState(
@@ -2223,7 +2221,6 @@ function repairSnapshot(): PullRequestSnapshot {
 		},
 		topLevelComments: { status: 'ready', complete: true, value: [] },
 		submittedReviews: { status: 'ready', complete: true, value: [] },
-		inlineComments: { status: 'missing', complete: false },
 		reviewThreads: { status: 'ready', complete: true, headSha: 'head', value: [] },
 		checks: {
 			status: 'ready',
@@ -2255,7 +2252,6 @@ function repairSnapshot(): PullRequestSnapshot {
 				queueRequirementKnown: true,
 			},
 		},
-		participants: { status: 'missing', complete: false },
 	};
 }
 

@@ -16,7 +16,7 @@ import { ILanguageModelChatMetadataAndIdentifier, type IModelConfigurationAccess
 import { ModelIdentifierResolution } from '../../../../workbench/contrib/chat/common/modelSelection.js';
 import { IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationUnavailableReasonCode, IAutomationProviderConfiguration, IAutomationStore } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { ChatModelSource, IChat, ISession, ISessionCanvasDefinition, ISessionCreationReference, ISessionEnvironment, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection } from './session.js';
+import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionEnvironment, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection } from './session.js';
 
 /**
  * Event fired when sessions change within a provider.
@@ -25,6 +25,22 @@ export interface ISessionChangeEvent {
 	readonly added: readonly ISession[];
 	readonly removed: readonly ISession[];
 	readonly changed: readonly ISession[];
+}
+
+/** One end of a chat move: the session and the chat's resource in it. */
+export interface IChatMoveEnd {
+	readonly session: ISession;
+	readonly chat: URI;
+}
+
+/**
+ * A chat moved from one session to another of the same provider, or became the
+ * main chat of a new session. Its resource changes with its session; its
+ * conversation, including a running turn, does not.
+ */
+export interface IChatMovedEvent {
+	readonly from: IChatMoveEnd;
+	readonly to: IChatMoveEnd;
 }
 
 /** Why a session resource is being resolved, so a provider can pick a latency budget. */
@@ -173,6 +189,8 @@ export interface ISessionsProviderAutomations extends IAutomationStore {
 	readonly unavailableReason?: IObservable<string | undefined>;
 	/** Optional category for grouped unavailability messages. */
 	readonly unavailableReasonCode?: IObservable<AutomationUnavailableReasonCode | undefined>;
+	/** A complete sentence describing this provider's unavailability, used instead of naming the provider. */
+	readonly unavailableMessage?: string;
 }
 
 /**
@@ -244,6 +262,12 @@ export interface ISessionsProvider {
 	readonly onDidChangeSessions: Event<ISessionChangeEvent>;
 
 	/**
+	 * Fires when a chat moved between this provider's sessions, after both
+	 * sessions reflect it. Providers whose chats never move return `Event.None`.
+	 */
+	readonly onDidMoveChat: Event<IChatMovedEvent>;
+
+	/**
 	 * Optional. Redirects a resource that this provider supersedes to the one it
 	 * should actually be opened as, or `undefined` to leave it unchanged.
 	 *
@@ -306,6 +330,8 @@ export interface ISessionsProvider {
 	readonly supportsPermissionsForCreation?: boolean;
 	/** Current draft's provider-owned permission choice, including its policy availability. */
 	getPermissionOptionForSession?(sessionId: string): ISessionPermissionOption | undefined;
+	/** Translates the current draft's permission intent to a comparison participant's session type. */
+	getComparisonPermissionOptionForSession?(sessionId: string, sessionTypeId: string): ISessionPermissionOption | undefined;
 	/** Whether Automation configuration can be restored at draft creation and captured through `getAutomationSessionConfiguration`. */
 	readonly supportsAutomationSessionConfiguration?: boolean;
 
@@ -418,6 +444,9 @@ export interface ISessionsProvider {
 
 	/** Open or focus one stable instance of a registered canvas type. */
 	openCanvas?(sessionId: string, chatResource: URI, canvas: ISessionCanvasDefinition, instanceId: string): Promise<void>;
+
+	/** Close one live canvas of a chat, notifying the extension that provides it. */
+	closeCanvas?(sessionId: string, chatResource: URI, canvas: ISessionCanvas): Promise<void>;
 
 	/**
 	 * Get selectable models and the current resolution of `desiredModelId`.

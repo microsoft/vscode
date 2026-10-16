@@ -87,7 +87,7 @@ function getPullRequestAttention(icon: ThemeIcon, status: IResolvedSessionPullRe
 }
 
 function getGitHubHoverLinkData(owner: string, repo: string, reference: URI, openerService: IOpenerService, onDidOpenReference?: () => void) {
-	const repository = URI.parse(`https://github.com/${owner}/${repo}`);
+	const repository = reference.with({ path: `/${owner}/${repo}`, query: null, fragment: null });
 	return {
 		repositoryHref: repository.toString(true),
 		referenceHref: reference.toString(true),
