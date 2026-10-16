@@ -167,9 +167,20 @@ export class AgentHostAttachmentMigration extends Disposable {
 		}
 		const pending = referencedAttachmentPaths(state, originRoot).filter(path => !copied.has(path));
 		for (let index = 0; index < pending.length; index += ATTACHMENT_COPY_FILES_PER_STEP) {
-			// A chat deleted (or unloaded) meanwhile: copying on would recreate its deleted storage. An unloaded chat's
-			// copy resumes on its next restore.
-			if (this._store.isDisposed || this._chatOwnership.getChatStorageResource(chat) !== storage) {
+			if (this._store.isDisposed) {
+				return;
+			}
+			const current = this._chatOwnership.getChatStorageResource(chat);
+			if (current === undefined) {
+				// Deleted or unloaded meanwhile: copying on could recreate a deleted chat's storage. Recording the progress
+				// tells them apart (only a live chat's is recorded); an unloaded chat's copy resumes once it is restored.
+				if (await this._record(chat, { origin, storage, copied: [...copied], complete: false })) {
+					this._awaitRegistration(chat);
+				}
+				return;
+			}
+			if (current !== storage) {
+				// Moved on meanwhile: its move schedules the copy again.
 				return;
 			}
 			for (const path of pending.slice(index, index + ATTACHMENT_COPY_FILES_PER_STEP)) {
@@ -184,6 +195,14 @@ export class AgentHostAttachmentMigration extends Disposable {
 		}
 		if (await this._record(chat, { origin, storage, copied: [...copied], complete: true })) {
 			await this._onDidComplete(origin);
+		}
+	}
+
+	/** Resumes the copy of `chat` once it is registered again, also if that happened while its copy was stopping. */
+	private _awaitRegistration(chat: string): void {
+		this._awaiting.add(chat);
+		if (this._chatOwnership.getChatStorageResource(chat) !== undefined && this._awaiting.delete(chat)) {
+			this.schedule([chat]);
 		}
 	}
 

@@ -32191,6 +32191,8 @@ suite('AgentService (node dispatcher)', () => {
 				const target = await first.moveChat(source, peer, { kind: 'newSession' });
 				await first.whenCatalogReconciliationIdle();
 				await getTestSessionStateStore(first).whenIdle(undefined);
+				// What older builds read: the session's catalog row.
+				const olderBuilds = catalogDataOf(await orchestratorDatabase.getSessionV2(target.toString()))?.summary;
 
 				const restarted = createService();
 				const listed = (await restarted.listSessions()).find(session => session.session.toString() === target.toString())?.summary;
@@ -32199,20 +32201,47 @@ suite('AgentService (node dispatcher)', () => {
 				// 4a's older-build copy of the new session: publishing and importing it changes nothing.
 				await (restarted as unknown as IMoveInternals)._peerChatStore.reconcileOlderBuildCopy(target);
 				const afterOlderBuildCopy = getStateManager(restarted).getSessionState(target.toString())?.title;
+				await restarted.whenCatalogReconciliationIdle();
+				const olderBuildsAfterRestart = catalogDataOf(await orchestratorDatabase.getSessionV2(target.toString()))?.summary;
 
 				assert.deepStrictEqual({
 					listed,
 					title: getStateManager(restarted).getSessionState(target.toString())?.title,
 					source: [values.get('customTitle'), values.get('customTitleSource'), chatTitleSource],
+					olderBuilds: [olderBuilds, olderBuildsAfterRestart],
 					afterOlderBuildCopy,
 					olderBuildEdits: (await orchestratorDatabase.readOlderBuildCopyState(target.toString()))?.hasOlderBuildEdits ?? false,
 				}, {
 					listed: 'Create promo file',
 					title: 'Create promo file',
 					source: ['Create promo file', 'agent', 'agent'],
+					olderBuilds: ['Create promo file', 'Create promo file'],
 					afterOlderBuildCopy: 'Create promo file',
 					olderBuildEdits: false,
 				});
+			});
+
+			test('a promoted session keeps a user rename of its chat that is not persisted yet as a user title (B4-1)', async () => {
+				const orchestratorDatabase = new AgentHostDatabase(':memory:');
+				const service = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+					undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, orchestratorDatabase));
+				registerTestAgentProvider(service, disposables.add(new MovingAgent('copilot')));
+				getConfigurationService(service).updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
+				const source = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+				const peer = URI.parse(buildChatUri(source, 'renamed'));
+				await service.createChat(source, peer, { title: 'Promo' });
+				await timeout(0);
+				completeTurn(service, peer);
+				await service.whenCatalogReconciliationIdle();
+				// Known in memory only: the rename's catalog sync hasn't landed when the chat is promoted.
+				getStateManager(service).updateChatTitle(source.toString(), peer.toString(), 'Renamed by the user');
+				(service as unknown as { readonly _sideEffects: { markTitleRenamed(channel: string, chat?: string): void } })._sideEffects.markTitleRenamed(source.toString(), peer.toString());
+
+				const target = await service.moveChat(source, peer, { kind: 'newSession' });
+				await service.whenCatalogReconciliationIdle();
+				const values = await getTestSessionStateStore(service).readWithoutImport(target, ['customTitle', 'customTitleSource']);
+
+				assert.deepStrictEqual([values.get('customTitle'), values.get('customTitleSource')], ['Renamed by the user', 'user']);
 			});
 
 			test('a chat promotes only once its first turn started, like a new session becomes durable; its session opens after a restart', async () => {

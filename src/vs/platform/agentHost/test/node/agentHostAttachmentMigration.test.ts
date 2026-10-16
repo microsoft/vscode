@@ -30,7 +30,7 @@ suite('AgentHostAttachmentMigration', () => {
 	const sessionDataService = createNullSessionDataService();
 	const attachmentsOf = (resource: string) => joinPath(sessionDataService.getSessionDataDir(URI.parse(resource)), SESSION_ATTACHMENTS_DIRNAME);
 
-	function setup(recorded: ReadonlyMap<string, IAgentHostChatAttachmentCopy> = new Map(), deleted: ReadonlySet<string> = new Set()) {
+	function setup(recorded: ReadonlyMap<string, IAgentHostChatAttachmentCopy> = new Map(), deleted: ReadonlySet<string> = new Set(), onRecord?: (chat: string) => void) {
 		const fileService = disposables.add(new FileService(new NullLogService()));
 		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
@@ -43,6 +43,7 @@ suite('AgentHostAttachmentMigration', () => {
 					return false;
 				}
 				records.set(chat, copy);
+				onRecord?.(chat);
 				return true;
 			},
 		});
@@ -135,6 +136,45 @@ suite('AgentHostAttachmentMigration', () => {
 			records: [],
 			completed: [],
 			fallback: undefined,
+		});
+	});
+
+	test('resumes the copy of a chat unloaded while its copy runs once it is restored', async () => {
+		const source = 'copilot:/unloaded-source';
+		const target = 'copilot:/unloaded-target';
+		const peer = buildChatUri(source, 'peer');
+		const paths = Array.from({ length: ATTACHMENT_COPY_FILES_PER_STEP + 2 }, (_, index) => `file${index}/note.txt`);
+		const turns: Turn[] = [{
+			id: 'turn',
+			message: { text: 'See', origin: { kind: MessageKind.User }, attachments: paths.map(path => ({ type: MessageAttachmentKind.Resource, uri: joinPath(attachmentsOf(source), ...path.split('/')).toString(), label: path })) },
+			responseParts: [], usage: undefined, state: TurnState.Complete,
+		}];
+		let unload: (() => void) | undefined;
+		const { fileService, stateManager, records, completed, migration } = setup(undefined, undefined, () => {
+			unload?.();
+			unload = undefined;
+		});
+		stateManager.createSession(summary(source));
+		stateManager.createSession(summary(target));
+		for (const path of paths) {
+			await fileService.writeFile(joinPath(attachmentsOf(source), ...path.split('/')), VSBuffer.fromString(path));
+		}
+		stateManager.addChat(source, peer, peer, { turns });
+		stateManager.transferChats(source, target, [peer], undefined);
+		// Its session is unloaded right after the first step was recorded.
+		unload = () => stateManager.removeSession(target);
+
+		migration.schedule([peer]);
+		await migration.whenIdle();
+		const whileUnloaded = { ...records.get(peer)!, copied: records.get(peer)!.copied.length };
+		stateManager.createSession(summary(target));
+		stateManager.addChat(target, peer, peer, { turns });
+		await migration.whenIdle();
+
+		assert.deepStrictEqual({ whileUnloaded, restored: { ...records.get(peer)!, copied: records.get(peer)!.copied.length }, completed }, {
+			whileUnloaded: { origin: source, storage: peer, copied: ATTACHMENT_COPY_FILES_PER_STEP, complete: false },
+			restored: { origin: source, storage: peer, copied: paths.length, complete: true },
+			completed: [source],
 		});
 	});
 
