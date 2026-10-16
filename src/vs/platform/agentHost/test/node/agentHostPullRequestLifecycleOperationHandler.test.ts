@@ -4,13 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
-import { mock } from '../../../../base/test/common/mock.js';
+import { ImmortalReference } from '../../../../base/common/lifecycle.js';
+import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { IGitHubClient } from '../../../github/common/githubService.js';
-import { createTestGitHubService } from './testGitHubService.js';
+import { IGitHubAccountClient } from '../../../github/common/account/account.js';
+import { IPullRequestsClient } from '../../../github/common/core/pullRequests.js';
+import { IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
+import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import type { PullRequestMergeOptions, PullRequestMergePreparation, PullRequestMutationApi } from '../../../github/common/githubPullRequestMutationService.js';
 import { AgentMergeConfigKey } from '../../common/agentMerge.js';
 import { buildBranchChangesetUri, buildFolderChangesetOwnerUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
@@ -60,6 +64,9 @@ function preparation(overrides?: { readonly mergeQueueRequired?: boolean; readon
 
 interface IRecordedCalls {
 	readonly calls: string[];
+	legacyAcquisitions: number;
+	apiAcquisitions: number;
+	apiDisposals: number;
 	prepareMergeError?: Error;
 }
 
@@ -73,11 +80,12 @@ suite('AgentHostPullRequestLifecycleOperationHandler', () => {
 			readonly preparation?: PullRequestMergePreparation;
 			readonly prepareMergeError?: Error;
 			readonly mergeMethod?: string;
+			readonly writeError?: Error;
 			/** Status per owner key; takes precedence over `status`. */
 			readonly statusByOwner?: ReadonlyMap<string, IAgentHostPullRequestStatus>;
 		},
 	): { readonly handler: AgentHostPullRequestLifecycleOperationHandler; readonly recorded: IRecordedCalls; readonly refreshes: string[]; readonly merged: string[] } {
-		const recorded: IRecordedCalls = { calls: [] };
+		const recorded: IRecordedCalls = { calls: [], legacyAcquisitions: 0, apiAcquisitions: 0, apiDisposals: 0 };
 		const refreshes: string[] = [];
 		const merged: string[] = [];
 		const currentStatus = options?.status === null ? undefined : options?.status ?? status();
@@ -98,12 +106,9 @@ suite('AgentHostPullRequestLifecycleOperationHandler', () => {
 				recorded.calls.push('enqueue');
 				return { outcome: 'succeeded' as const, mergeQueueEntryId: 'entry' };
 			}
-			override async markReadyForReview(): Promise<void> { recorded.calls.push('markReadyForReview'); }
-			override async enableAutoMerge(): Promise<void> { recorded.calls.push('enableAutoMerge'); }
-			override async disableAutoMerge(): Promise<void> { recorded.calls.push('disableAutoMerge'); }
 		}();
 
-		const gitHubService = createTestGitHubService(new class extends mock<IGitHubClient>() {
+		const legacyClient = new class extends mock<IGitHubClient>() {
 			override readonly mutations = mutations;
 			override readonly credentials = {
 				onDidInvalidate: Event.None,
@@ -112,7 +117,39 @@ suite('AgentHostPullRequestLifecycleOperationHandler', () => {
 				},
 				handleRequestError() { },
 			};
-		}());
+		}();
+		const pullRequests = new class extends mock<IPullRequestsClient>() {
+			override async markReadyForReview(id: string) {
+				recorded.calls.push('markReadyForReview');
+				if (options?.writeError) { throw options.writeError; }
+				return { id, isDraft: false };
+			}
+			override async enableAutoMerge(id: string) {
+				recorded.calls.push('enableAutoMerge');
+				if (options?.writeError) { throw options.writeError; }
+				return { id, merged: false, autoMergeRequest: null };
+			}
+			override async disableAutoMerge(id: string) {
+				recorded.calls.push('disableAutoMerge');
+				if (options?.writeError) { throw options.writeError; }
+				return { id, merged: false, autoMergeRequest: null };
+			}
+		}();
+		const gitHubService = new class extends mock<IAgentHostGitHubService>() {
+			override acquireRepositoryClient(signal: AbortSignal) {
+				signal.throwIfAborted();
+				recorded.legacyAcquisitions++;
+				return new ImmortalReference(legacyClient);
+			}
+			override acquireRepositoryApiClient(signal: AbortSignal) {
+				signal.throwIfAborted();
+				recorded.apiAcquisitions++;
+				return upcastPartial<IGitHubAccountClient>({
+					pullRequests,
+					dispose: () => { recorded.apiDisposals++; },
+				});
+			}
+		}();
 
 		const statusService: IAgentHostPullRequestStatusService = {
 			_serviceBrand: undefined,
@@ -135,6 +172,7 @@ suite('AgentHostPullRequestLifecycleOperationHandler', () => {
 			configurationService,
 			statusService,
 			gitHubService,
+			createTestGitHubEndpointService(),
 			new NullLogService(),
 		);
 		return { handler, recorded, refreshes, merged };
@@ -241,7 +279,7 @@ suite('AgentHostPullRequestLifecycleOperationHandler', () => {
 		});
 	});
 
-	test('runs the non-merge lifecycle actions through their own mutations', async () => {
+	test('uses only portable clients for non-merge lifecycle actions and releases their leases', async () => {
 		const markReady = createHandler('mark-ready', { status: status({ draft: true }) });
 		const enable = createHandler('enable-auto-merge', { status: status({ viewerCanEnableAutoMerge: true }) });
 		const disable = createHandler('disable-auto-merge', { status: status({ autoMergeEnabled: true }) });
@@ -250,14 +288,36 @@ suite('AgentHostPullRequestLifecycleOperationHandler', () => {
 		await invoke(enable.handler);
 		await invoke(disable.handler);
 
-		assert.deepStrictEqual({
-			markReady: markReady.recorded.calls,
-			enable: enable.recorded.calls,
-			disable: disable.recorded.calls,
-		}, {
-			markReady: ['markReadyForReview'],
-			enable: ['enableAutoMerge'],
-			disable: ['disableAutoMerge'],
+		assert.deepStrictEqual([markReady, enable, disable].map(value => value.recorded), [
+			{ calls: ['markReadyForReview'], legacyAcquisitions: 0, apiAcquisitions: 1, apiDisposals: 1 },
+			{ calls: ['enableAutoMerge'], legacyAcquisitions: 0, apiAcquisitions: 1, apiDisposals: 1 },
+			{ calls: ['disableAutoMerge'], legacyAcquisitions: 0, apiAcquisitions: 1, apiDisposals: 1 },
+		]);
+	});
+
+	for (const invalid of [{ url: 'https://other.example.test/octo/repo/pull/7' }, { pullRequestId: undefined }]) {
+		test(`rejects an unsafe lifecycle target ${JSON.stringify(invalid)}`, async () => {
+			const { handler, recorded } = createHandler('mark-ready', { status: status(invalid) });
+			await assert.rejects(invoke(handler));
+			assert.deepStrictEqual(recorded, { calls: [], legacyAcquisitions: 0, apiAcquisitions: 1, apiDisposals: 1 });
 		});
+	}
+
+	test('refreshes status after a failed portable write without retrying it', async () => {
+		const error = new Error('Write failed');
+		const { handler, recorded, refreshes } = createHandler('disable-auto-merge', { writeError: error });
+		await assert.rejects(invoke(handler), error);
+		assert.deepStrictEqual({ recorded, refreshes }, {
+			recorded: { calls: ['disableAutoMerge'], legacyAcquisitions: 0, apiAcquisitions: 1, apiDisposals: 1 },
+			refreshes: [sessionUri],
+		});
+	});
+
+	test('does not acquire a client for an already cancelled lifecycle action', async () => {
+		const source = disposables.add(new CancellationTokenSource());
+		source.cancel();
+		const { handler, recorded } = createHandler('mark-ready');
+		await assert.rejects(handler.invoke({ channel, operationId: 'pr-mark-ready' }, source.token), { name: 'AbortError' });
+		assert.deepStrictEqual(recorded, { calls: [], legacyAcquisitions: 0, apiAcquisitions: 0, apiDisposals: 0 });
 	});
 });

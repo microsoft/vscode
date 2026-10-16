@@ -9,9 +9,9 @@ import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { IGitHubAccountClient } from '../../../github/common/account/account.js';
 import { WorkflowJob, WorkflowRun } from '../../../github/common/core/actions.js';
 import { Issue } from '../../../github/common/core/issues.js';
-import { PullRequestSummary } from '../../../github/common/core/pullRequests.js';
+import { PullRequest, PullRequestSummary } from '../../../github/common/core/pullRequests.js';
 import { IGitHubCredentials } from '../../../github/common/githubCredentialService.js';
-import { GitHubPullRequestLookup, GitHubQueryApi } from '../../../github/common/githubQueryService.js';
+import { GitHubQueryApi } from '../../../github/common/githubQueryService.js';
 import { IGitHubClient } from '../../../github/common/githubService.js';
 import { PullRequestMutationApi } from '../../../github/common/githubPullRequestMutationService.js';
 import { IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
@@ -40,10 +40,11 @@ export function createTestGitHubClient(overrides: Partial<Pick<IGitHubClient, 'c
 	}();
 }
 
-export function createTestPullRequest(number: number, overrides: Partial<Omit<GitHubPullRequestLookup, 'ref'>> = {}): GitHubPullRequestLookup {
+export function createTestPullRequest(number: number, overrides: Partial<PullRequest> = {}): PullRequest {
 	return {
-		ref: { host: 'api.github.com', accountId: '1', owner: 'microsoft', repo: 'vscode', number },
-		url: `https://github.com/microsoft/vscode/pull/${number}`,
+		...createTestPullRequestSummary(number),
+		merged: false, mergeable: null, mergeable_state: 'unknown', maintainer_can_modify: false, merged_by: null,
+		commits: 1, changed_files: 1, additions: 0, deletions: 0, comments: 0, review_comments: 0, auto_merge: null,
 		...overrides,
 	};
 }
@@ -60,17 +61,6 @@ export function createTestPullRequestSummary(number: number, overrides: Partial<
 		closed_at: null, merged_at: null, merge_commit_sha: null,
 		...overrides,
 	};
-}
-
-export function toTestPullRequestSummary(pullRequest: GitHubPullRequestLookup, headSha = 'head'): PullRequestSummary {
-	return createTestPullRequestSummary(pullRequest.ref.number, {
-		node_id: pullRequest.id ?? '',
-		html_url: pullRequest.url,
-		title: pullRequest.title ?? '',
-		state: pullRequest.state ?? 'open',
-		created_at: pullRequest.createdAt ?? '',
-		head: { label: 'microsoft:feature', ref: 'feature', sha: headSha, repo: null },
-	});
 }
 
 export function createTestGitHubIssue(number: number, overrides: Partial<Issue> = {}): Issue {

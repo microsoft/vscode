@@ -19,11 +19,10 @@ import { IAgentHostAuthenticationService, IAgentHostAuthTokenChangeEvent } from 
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { RepositoryRef } from '../../../github/common/client/types.js';
 import { IPullRequestsClient, ListPullRequestsOptions, PullRequestSummary } from '../../../github/common/core/pullRequests.js';
-import { GitHubPullRequestLookup } from '../../../github/common/githubQueryService.js';
 import { GitHubRequestError } from '../../../github/common/githubTypes.js';
 import { RequestFetch } from '../../../github/common/types.js';
 import { createNoopGitService } from '../common/sessionTestHelpers.js';
-import { createTestGitHubService, createTestPullRequest, createTestPullRequestSummary, toTestPullRequestSummary } from './testGitHubService.js';
+import { createTestGitHubService, createTestPullRequestSummary } from './testGitHubService.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 
 const SESSION = 'mock:/session-1';
@@ -44,7 +43,7 @@ function pullRequestArtifact(number: number, isArtifact = true): PullRequestArti
 
 class TestPullRequestsClient extends mock<IPullRequestsClient>() {
 	readonly pageSizes: Array<number | undefined> = [];
-	branchResult: GitHubPullRequestLookup | undefined;
+	branchResult: PullRequestSummary | undefined;
 	branchError: Error | undefined;
 	onFindByBranch: (() => void) | undefined;
 
@@ -54,7 +53,7 @@ class TestPullRequestsClient extends mock<IPullRequestsClient>() {
 		if (this.branchError) {
 			throw this.branchError;
 		}
-		return this.branchResult ? [toTestPullRequestSummary(this.branchResult)] : [];
+		return this.branchResult ? [this.branchResult] : [];
 	}
 
 	override async listForCommit(): Promise<readonly PullRequestSummary[]> {
@@ -387,11 +386,11 @@ suite('AgentHostPullRequestAssociationResolver', () => {
 		const firstArtifact = pullRequestArtifact(1);
 		const secondArtifact = pullRequestArtifact(2);
 		const h = createHarness({ artifacts: [firstArtifact] });
-		h.query.branchResult = createTestPullRequest(1, { url: firstArtifact.link, state: 'open' });
+		h.query.branchResult = createTestPullRequestSummary(1, { html_url: firstArtifact.link, state: 'open' });
 		await h.reconcile();
 
 		h.setArtifacts([firstArtifact, secondArtifact]);
-		h.query.branchResult = createTestPullRequest(2, { url: secondArtifact.link, state: 'open' });
+		h.query.branchResult = createTestPullRequestSummary(2, { html_url: secondArtifact.link, state: 'open' });
 		await h.reconcile();
 
 		assert.deepStrictEqual({
@@ -415,11 +414,11 @@ suite('AgentHostPullRequestAssociationResolver', () => {
 		const firstArtifact = pullRequestArtifact(1);
 		const secondArtifact = pullRequestArtifact(2);
 		const h = createHarness({ artifacts: [firstArtifact, secondArtifact] });
-		h.query.branchResult = createTestPullRequest(2, { url: secondArtifact.link, state: 'open' });
+		h.query.branchResult = createTestPullRequestSummary(2, { html_url: secondArtifact.link, state: 'open' });
 		await h.reconcile();
 
 		h.updateGitHubState({ pullRequestState: 'closed', pullRequestStateUrl: secondArtifact.link });
-		h.query.branchResult = createTestPullRequest(1, { url: firstArtifact.link, state: 'open' });
+		h.query.branchResult = createTestPullRequestSummary(1, { html_url: firstArtifact.link, state: 'open' });
 		await h.reconcile();
 
 		assert.deepStrictEqual({
@@ -483,7 +482,7 @@ suite('AgentHostPullRequestAssociationResolver', () => {
 	test('removes branch association when its PR artifact is removed', async () => {
 		const artifact = pullRequestArtifact(1);
 		const h = createHarness({ artifacts: [artifact] });
-		h.query.branchResult = createTestPullRequest(1, { url: artifact.link, state: 'open' });
+		h.query.branchResult = createTestPullRequestSummary(1, { html_url: artifact.link, state: 'open' });
 		await h.reconcile();
 
 		h.setArtifacts([]);
@@ -519,7 +518,7 @@ suite('AgentHostPullRequestAssociationResolver', () => {
 	test('retains a verified PR under its previous branch after the checkout changes', async () => {
 		const artifact = pullRequestArtifact(1);
 		const h = createHarness({ artifacts: [artifact] });
-		h.query.branchResult = createTestPullRequest(1, { url: artifact.link, state: 'open' });
+		h.query.branchResult = createTestPullRequestSummary(1, { html_url: artifact.link, state: 'open' });
 		await h.reconcile();
 
 		h.setGitState({ branchName: 'other', baseBranchName: 'main' });
@@ -538,7 +537,7 @@ suite('AgentHostPullRequestAssociationResolver', () => {
 		const firstArtifact = pullRequestArtifact(1);
 		const secondArtifact = pullRequestArtifact(2);
 		const h = createHarness({ artifacts: [firstArtifact] });
-		h.query.branchResult = createTestPullRequest(1, { url: firstArtifact.link, state: 'open' });
+		h.query.branchResult = createTestPullRequestSummary(1, { html_url: firstArtifact.link, state: 'open' });
 		h.query.onFindByBranch = () => h.setArtifacts([firstArtifact, secondArtifact]);
 
 		const result = await h.reconcile();

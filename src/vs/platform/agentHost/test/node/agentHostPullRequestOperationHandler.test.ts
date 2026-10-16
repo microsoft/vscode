@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { ImmortalReference, type DisposableStore } from '../../../../base/common/lifecycle.js';
+import { type DisposableStore } from '../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -27,17 +27,15 @@ import { createTestGitHubEndpointService } from './testGitHubEndpointService.js'
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { IGitHubAccountClient } from '../../../github/common/account/account.js';
 import { ApiRequestOptions } from '../../../github/common/client/request.js';
+import { SchemaError } from '../../../github/common/client/schema.js';
 import { RepositoryRef } from '../../../github/common/client/types.js';
-import { IPullRequestsClient, ListPullRequestsOptions } from '../../../github/common/core/pullRequests.js';
+import { CreatePullRequestRequest, EnableAutoMergeRequest, IPullRequestsClient, ListPullRequestsOptions, PullRequest, PullRequestSummary } from '../../../github/common/core/pullRequests.js';
 import { IRepositoriesClient, Repository } from '../../../github/common/core/repositories.js';
-import { CreatedPullRequest, CreatePullRequestOptions, EnablePullRequestAutoMergeOptions, PullRequestMutationApi } from '../../../github/common/githubPullRequestMutationService.js';
 import { PullRequestMergeMethod } from '../../../github/common/githubPullRequestService.js';
-import { GitHubPullRequestLookup, GitHubRepositoryRef } from '../../../github/common/githubQueryService.js';
-import { IGitHubClient } from '../../../github/common/githubService.js';
 import { GitHubRequestTimeoutError } from '../../../github/common/githubTypes.js';
 import { RequestFetch } from '../../../github/common/types.js';
 import { AgentHostGitHubService, IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
-import { createTestGitHubClient, createTestPullRequest, createTestPullRequestSummary, toTestPullRequestSummary } from './testGitHubService.js';
+import { createTestPullRequest, createTestPullRequestSummary } from './testGitHubService.js';
 import type { ICopilotApiService, ICopilotApiServiceRequestOptions, ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
@@ -180,10 +178,10 @@ class TestGitService implements IAgentHostGitService {
 	async getDiffPatchBetweenRefs(): Promise<undefined> { return undefined; }
 }
 
-class TestGitHubClient extends mock<IGitHubClient>() {
+class TestGitHubClient {
 	readonly calls: string[] = [];
-	existing: GitHubPullRequestLookup | undefined;
-	existingAfterCreateFailure: GitHubPullRequestLookup | undefined;
+	existing: PullRequestSummary | undefined;
+	existingAfterCreateFailure: PullRequestSummary | undefined;
 	createError: Error | undefined;
 	findAfterCreateError: Error | undefined;
 	autoMergeError: Error | undefined;
@@ -193,14 +191,12 @@ class TestGitHubClient extends mock<IGitHubClient>() {
 	apiDisposals = 0;
 	readonly repositoryRequests: { repository: RepositoryRef; signal: AbortSignal; options?: ApiRequestOptions }[] = [];
 	onMutation: ((operation: string) => void) | undefined;
-	created = createTestPullRequest(123, { id: 'PR_node_123' });
+	created = createTestPullRequestSummary(123, { node_id: 'PR_node_123' });
 	lastTitle: string | undefined;
 	lastBody: string | undefined;
 	lastHead: string | undefined;
 	lastBase: string | undefined;
 	readonly findRequests: { branch: string; headOwner: string | undefined }[] = [];
-
-	override readonly credentials = createTestGitHubClient().credentials;
 
 	acquireApiClient(): IGitHubAccountClient {
 		this.apiAcquisitions++;
@@ -219,9 +215,31 @@ class TestGitHubClient extends mock<IGitHubClient>() {
 						if (client.findAfterCreateError) {
 							throw client.findAfterCreateError;
 						}
-						return client.existingAfterCreateFailure ? [toTestPullRequestSummary(client.existingAfterCreateFailure)] : [];
+						return client.existingAfterCreateFailure ? [client.existingAfterCreateFailure] : [];
 					}
-					return client.existing ? [toTestPullRequestSummary(client.existing)] : [];
+					return client.existing ? [client.existing] : [];
+				}
+
+				override async create(_repository: RepositoryRef, { title, body, head, base, draft }: CreatePullRequestRequest): Promise<PullRequest> {
+					client.onMutation?.('createPullRequest');
+					client.calls.push(`createPullRequest:${draft}`);
+					client.lastTitle = title;
+					client.lastBody = body;
+					client.lastHead = head;
+					client.lastBase = base;
+					if (client.createError) {
+						throw client.createError;
+					}
+					return createTestPullRequest(client.created.number, { ...client.created, title: title ?? client.created.title });
+				}
+
+				override async enableAutoMerge(pullRequestId: string, { mergeMethod }: EnableAutoMergeRequest) {
+					client.onMutation?.('enableAutoMerge');
+					client.calls.push(`enableAutoMerge:${pullRequestId}:${mergeMethod}`);
+					if (client.autoMergeError) {
+						throw client.autoMergeError;
+					}
+					return { id: pullRequestId, merged: false, autoMergeRequest: null };
 				}
 			}();
 			override readonly repositories = new class extends mock<IRepositoriesClient>() {
@@ -237,30 +255,6 @@ class TestGitHubClient extends mock<IGitHubClient>() {
 			override dispose(): void { client.apiDisposals++; }
 		}();
 	}
-	override readonly mutations = new class extends mock<PullRequestMutationApi>() {
-		constructor(private readonly client: TestGitHubClient) { super(); }
-
-		override async createPullRequest(_ref: GitHubRepositoryRef, { title, body, head, base, draft }: CreatePullRequestOptions): Promise<CreatedPullRequest> {
-			this.client.onMutation?.('createPullRequest');
-			this.client.calls.push(`createPullRequest:${draft}`);
-			this.client.lastTitle = title;
-			this.client.lastBody = body;
-			this.client.lastHead = head;
-			this.client.lastBase = base;
-			if (this.client.createError) {
-				throw this.client.createError;
-			}
-			return { ...this.client.created, title };
-		}
-
-		override async enableAutoMerge(_ref: GitHubRepositoryRef, { pullRequestId, method }: EnablePullRequestAutoMergeOptions): Promise<void> {
-			this.client.onMutation?.('enableAutoMerge');
-			this.client.calls.push(`enableAutoMerge:${pullRequestId}:${method}`);
-			if (this.client.autoMergeError) {
-				throw this.client.autoMergeError;
-			}
-		}
-	}(this);
 }
 
 function repositoryResponse(overrides: Partial<Repository> = {}): Repository {
@@ -368,7 +362,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 	const gitHubEndpointService = createTestGitHubEndpointService();
 	const logService = options?.logService ?? new NullLogService();
 	const gitHubService = gitHubClient instanceof TestGitHubClient ? new class extends mock<IAgentHostGitHubService>() {
-		override acquireRepositoryClient() { return new ImmortalReference(gitHubClient); }
+		override acquireRepositoryClient(): never { assert.fail('PR creation must not acquire a legacy client'); }
 		override acquireRepositoryApiClient() { return gitHubClient.acquireApiClient(); }
 	}() : gitHubClient;
 	const providerService = new class extends mock<IAgentHostProviderService>() {
@@ -632,7 +626,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 		for (const afterCreateFailure of [false, true]) {
 			test(`preserves the requesting chat when an existing PR is found${afterCreateFailure ? ' after create failure' : ''}`, async () => {
 				const { handler, channel, gitHubClient, chats, createdConversationChats } = setupSharedFolder();
-				const existing = createTestPullRequest(8);
+				const existing = createTestPullRequestSummary(8);
 				if (afterCreateFailure) {
 					gitHubClient.createError = new Error('Already exists');
 					gitHubClient.existingAfterCreateFailure = existing;
@@ -1334,7 +1328,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 		test(`submitted auto-merge options finalize an existing PR${existingAfterFailure ? ' recovered after a create race' : ''}`, async () => {
 			const gitService = new TestGitService();
 			const gitHubClient = new TestGitHubClient();
-			const existing = createTestPullRequest(8, { id: 'PR_8' });
+			const existing = createTestPullRequestSummary(8, { node_id: 'PR_8' });
 			if (existingAfterFailure) {
 				gitHubClient.createError = new Error('Already exists');
 				gitHubClient.existingAfterCreateFailure = existing;
@@ -1562,7 +1556,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 	test('returns an existing pull request without creating a duplicate', async () => {
 		const gitService = new TestGitService();
 		const gitHubClient = new TestGitHubClient();
-		gitHubClient.existing = createTestPullRequest(7);
+		gitHubClient.existing = createTestPullRequestSummary(7);
 		const { handler, session, createdEvents } = setup(disposables, gitService, gitHubClient);
 
 		const result = await handler.invoke({ channel: buildSessionChangesetUri(session.toString()), operationId: AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR }, CancellationToken.None);
@@ -1617,7 +1611,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 		const gitService = new TestGitService();
 		const gitHubClient = new TestGitHubClient();
 		gitHubClient.createError = new Error('Validation Failed');
-		gitHubClient.existingAfterCreateFailure = createTestPullRequest(8);
+		gitHubClient.existingAfterCreateFailure = createTestPullRequestSummary(8);
 		const { handler, session, createdEvents } = setup(disposables, gitService, gitHubClient);
 
 		const result = await handler.invoke({ channel: buildSessionChangesetUri(session.toString()), operationId: AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR }, CancellationToken.None);
@@ -1663,7 +1657,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 		const result = await handler.invoke({ channel: buildSessionChangesetUri(session.toString()), operationId: 'create-pr' }, CancellationToken.None);
 
 		assert.deepStrictEqual({ requests, message: result.message, createdEvents }, {
-			requests: ['GET:/user', 'GET:/user', 'GET:/repos/microsoft/vscode/pulls', 'POST:/repos/microsoft/vscode/pulls', 'GET:/repos/microsoft/vscode/pulls'],
+			requests: ['GET:/user', 'GET:/repos/microsoft/vscode/pulls', 'POST:/repos/microsoft/vscode/pulls', 'GET:/repos/microsoft/vscode/pulls'],
 			message: { markdown: 'Pull request [#8](https://github.com/microsoft/vscode/pull/8) already exists.' },
 			createdEvents: ['agent:/session:https://github.com/microsoft/vscode/pull/8'],
 		});
@@ -1699,7 +1693,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 		await assert.rejects(handler.invoke({ channel: buildSessionChangesetUri(session.toString()), operationId: 'create-pr' }, CancellationToken.None));
 
 		assert.deepStrictEqual({ requests, createdEvents }, {
-			requests: ['GET:/user:account-a', 'GET:/user:account-a', 'GET:/repos/microsoft/vscode/pulls:account-a', 'POST:/repos/microsoft/vscode/pulls:account-a'],
+			requests: ['GET:/user:account-a', 'GET:/repos/microsoft/vscode/pulls:account-a', 'POST:/repos/microsoft/vscode/pulls:account-a'],
 			createdEvents: [],
 		});
 	});
@@ -1725,7 +1719,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 			};
 			const createStarted = new DeferredPromise<void>();
 			const createResponse = new DeferredPromise<Response>();
-			const pullRequest = createTestPullRequestSummary(8, { title: 'Created title', node_id: 'PR8' });
+			const pullRequest = createTestPullRequest(8, { title: 'Created title', node_id: 'PR8' });
 			const requests: string[] = [];
 			let created = false;
 			let createSignal: AbortSignal | undefined;
@@ -1737,7 +1731,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 						return new Response('{"id":101}');
 					}
 					if (path === '/graphql') {
-						return new Response('{"data":{"enablePullRequestAutoMerge":{"pullRequest":{"id":"PR8"}}}}');
+						return Response.json({ data: { result: { pullRequest: { id: 'PR8', merged: false, autoMergeRequest: { mergeMethod: 'SQUASH' } } } } });
 					}
 					assert.strictEqual(path, '/repos/microsoft/vscode/pulls');
 					if (init?.method === 'POST') {
@@ -1756,7 +1750,9 @@ suite('AgentHostPullRequestOperationHandler', () => {
 					return new Response(JSON.stringify(created ? [pullRequest] : []));
 				},
 			}, authentication, endpoint, new NullLogService(), NullTelemetryService));
-			const client = disposables.add(service.acquireRepositoryClient(new AbortController().signal)).object;
+			const client = disposables.add(service.acquireRepositoryApiClient(new AbortController().signal));
+			let invalidations = 0;
+			disposables.add(client.onDidInvalidate(() => { invalidations++; }));
 			const source = disposables.add(new CancellationTokenSource());
 			const { handler, session, copilotApiService, createdEvents } = setup(disposables, new TestGitService(), service, { withCopilotToken: true, autoMergeMethod: 'SQUASH' });
 			if (scenario.renewal === 'before create') {
@@ -1775,7 +1771,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 					if (scenario.cancelled) {
 						source.cancel();
 					}
-					await client.credentials.getCredential(new AbortController().signal);
+					await client.pullRequests.list({ owner: 'microsoft', name: 'vscode' }, new AbortController().signal, { query: { page: 2 } });
 					await createResponse.complete(new Response(JSON.stringify(pullRequest), { status: 201 }));
 				})(),
 			]);
@@ -1783,7 +1779,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 			assert.deepStrictEqual({
 				message: result?.message,
 				createdEvents,
-				sameClient: disposables.add(service.acquireRepositoryClient(new AbortController().signal)).object === client,
+				invalidations,
 				interruptedCreate: scenario.renewal === 'during create' && createSignal?.aborted,
 				requests,
 			}, {
@@ -1793,16 +1789,16 @@ suite('AgentHostPullRequestOperationHandler', () => {
 						: 'Created pull request [#8](https://github.com/microsoft/vscode/pull/8) with auto-merge (squash) enabled.',
 				},
 				createdEvents: scenario.cancelled ? [] : ['agent:/session:https://github.com/microsoft/vscode/pull/8'],
-				sameClient: true,
+				invalidations: 0,
 				interruptedCreate: scenario.renewal === 'during create',
 				requests: [
-					'GET:/user:Bearer first-token',
 					'GET:/user:Bearer first-token',
 					'GET:/repos/microsoft/vscode/pulls:Bearer first-token',
 					...(scenario.renewal === 'before create' ? [] : ['POST:/repos/microsoft/vscode/pulls:Bearer first-token']),
 					'GET:/user:Bearer renewed-token',
 					...(scenario.renewal === 'before create' ? ['POST:/repos/microsoft/vscode/pulls:Bearer renewed-token'] : []),
-					...(scenario.renewal === 'during create' && !scenario.cancelled ? ['GET:/user:Bearer renewed-token', 'GET:/repos/microsoft/vscode/pulls:Bearer renewed-token'] : []),
+					...(scenario.renewal === 'during create' ? ['GET:/repos/microsoft/vscode/pulls:Bearer renewed-token'] : []),
+					...(scenario.renewal === 'during create' && !scenario.cancelled ? ['GET:/repos/microsoft/vscode/pulls:Bearer renewed-token'] : []),
 					...(scenario.cancelled ? [] : ['POST:/graphql:Bearer renewed-token']),
 				],
 			});
@@ -1813,7 +1809,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 		test(`only reconciles timed-out creation after dispatch (${dispatched})`, async () => {
 			const gitHubClient = new TestGitHubClient();
 			gitHubClient.createError = new GitHubRequestTimeoutError(dispatched);
-			gitHubClient.existingAfterCreateFailure = createTestPullRequest(8);
+			gitHubClient.existingAfterCreateFailure = createTestPullRequestSummary(8);
 			const { handler, session, createdEvents } = setup(disposables, new TestGitService(), gitHubClient);
 			const pending = handler.invoke({ channel: buildSessionChangesetUri(session.toString()), operationId: 'create-pr' }, CancellationToken.None);
 			if (dispatched) {
@@ -1997,22 +1993,21 @@ suite('AgentHostPullRequestOperationHandler', () => {
 		});
 	});
 
-	// Without a pull request node id we cannot issue the GraphQL mutation, so
-	// auto-merge is reported as not enabled rather than silently skipped.
-	test('reports when the pull request node id is missing for auto-merge', async () => {
+	test('reconciles a malformed create response without replaying the write', async () => {
 		const gitService = new TestGitService();
 		const gitHubClient = new TestGitHubClient();
-		gitHubClient.created = createTestPullRequest(55);
+		gitHubClient.createError = new SchemaError('Missing pull request node ID');
+		gitHubClient.existingAfterCreateFailure = createTestPullRequestSummary(55);
 		const { handler, session } = setup(disposables, gitService, gitHubClient, { autoMergeMethod: 'REBASE' });
 
 		const result = await handler.invoke({ channel: buildSessionChangesetUri(session.toString()), operationId: AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR_AUTO_REBASE }, CancellationToken.None);
 
 		assert.deepStrictEqual({
 			message: result.message,
-			enableCalled: gitHubClient.calls.some(call => call.startsWith('enableAutoMerge:')),
+			calls: gitHubClient.calls,
 		}, {
-			message: { markdown: 'Created pull request [#55](https://github.com/microsoft/vscode/pull/55), but auto-merge could not be enabled: the pull request identifier was not returned by GitHub.' },
-			enableCalled: false,
+			message: { markdown: 'Pull request [#55](https://github.com/microsoft/vscode/pull/55) already exists; enabled auto-merge (rebase).' },
+			calls: ['pullRequests.list:feature/test', 'createPullRequest:false', 'pullRequests.list:feature/test', 'enableAutoMerge:PR_55:REBASE'],
 		});
 	});
 });

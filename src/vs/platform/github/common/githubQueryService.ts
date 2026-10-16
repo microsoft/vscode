@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { IObservable } from '../../../base/common/observable.js';
-import { FragmentState, GitHubActor, PullRequestRef } from './githubPullRequestService.js';
+import { FragmentState, GitHubActor } from './githubPullRequestService.js';
 import { AccountHandle } from './types.js';
 
 export interface GitHubRepositoryRef extends AccountHandle {
@@ -93,15 +93,6 @@ export interface GitHubIssueSubscription extends IDisposable {
 export interface GitHubCommitSubscription extends IDisposable {
 	readonly resource: GitHubCommitResource;
 	refresh(token?: CancellationToken): Promise<void>;
-}
-
-export interface GitHubPullRequestLookup {
-	readonly ref: PullRequestRef;
-	readonly id?: string;
-	readonly url: string;
-	readonly title?: string;
-	readonly createdAt?: string;
-	readonly state?: GitHubIssueState;
 }
 
 export interface GitHubQueryApi {

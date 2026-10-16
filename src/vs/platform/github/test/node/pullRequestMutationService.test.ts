@@ -152,129 +152,19 @@ suite('PullRequestMutationService', () => {
 		return { ref, service };
 	}
 
-	test('creates pull requests and enables auto-merge through typed operations', async () => {
-		await withServers(async server => {
-			server.enqueue(
-				gitHubRestStep({
-					method: 'POST',
-					path: '/repos/octo/repo/pulls',
-					assert: request => assert.deepStrictEqual(request.bodyJson, {
-						title: 'PR',
-						body: 'Body',
-						head: 'feature',
-						base: 'main',
-						draft: true,
-					}),
-					response: gitHubJsonResponse({
-						number: 8,
-						node_id: 'PR8',
-						html_url: 'https://example.test/pull/8',
-						created_at: '2026-01-01T00:00:00Z',
-						title: 'Server title',
-						state: 'open',
-					}),
-				}),
-				gitHubGraphQLStep({
-					queryIncludes: 'AgentHostEnablePullRequestAutoMerge',
-					assert: request => assert.deepStrictEqual(request.graphQl?.variables, {
-						pullRequestId: 'PR8',
-						mergeMethod: 'SQUASH',
-					}),
-					response: gitHubGraphQLResponse({
-						enablePullRequestAutoMerge: { pullRequest: { id: 'PR8' } },
-					}),
-				}),
-			);
-			const { ref, service } = setup(server);
-
-			const created = await service.createPullRequest(ref, {
-				title: 'PR',
-				body: 'Body',
-				head: 'feature',
-				base: 'main',
-				draft: true,
-			}, signal());
-			await service.enableAutoMerge(ref, { pullRequestId: 'PR8', method: 'SQUASH' }, signal());
-
-			assert.deepStrictEqual(created, {
-				ref: { ...ref, number: 8 },
-				id: 'PR8',
-				url: 'https://example.test/pull/8',
-				title: 'PR',
-				createdAt: '2026-01-01T00:00:00Z',
-				state: 'open',
-			});
-			server.assertSatisfied();
-		});
-	});
-
-	test('rejects a malformed create response without replaying the write', async () => {
-		await withServers(async server => {
-			server.enqueue(gitHubRestStep({ method: 'POST', path: '/repos/octo/repo/pulls', response: gitHubJsonResponse({ number: 8 }) }));
-			const { ref, service } = setup(server);
-			await assert.rejects(service.createPullRequest(ref, { title: 'PR', body: '', head: 'feature', base: 'main', draft: false }, signal()), { kind: 'malformedResponse' });
-			assert.strictEqual(server.requests.length, 1);
-			server.assertSatisfied();
-		});
-	});
-
-	test('surfaces auto-merge GraphQL failures without replaying the mutation', async () => {
-		await withServers(async server => {
-			server.enqueue(gitHubGraphQLStep({
-				queryIncludes: 'AgentHostEnablePullRequestAutoMerge',
-				response: gitHubGraphQLResponse(undefined, [{ message: 'Auto-merge is not enabled', type: 'UNPROCESSABLE' }]),
-			}));
-			const { ref, service } = setup(server);
-			await assert.rejects(service.enableAutoMerge(ref, { pullRequestId: 'PR7', method: 'REBASE' }, signal()), /Auto-merge is not enabled/);
-			assert.strictEqual(server.requests.length, 1);
-			server.assertSatisfied();
-		});
-	});
-
-	test('marks a pull request ready and toggles auto-merge off through node mutations', async () => {
-		await withServers(async server => {
-			server.enqueue(
-				gitHubGraphQLStep({
-					queryIncludes: 'AgentHostMarkPullRequestReadyForReview',
-					assert: request => assert.deepStrictEqual(request.graphQl?.variables, { pullRequestId: 'PR7' }),
-					response: gitHubGraphQLResponse({
-						markPullRequestReadyForReview: { pullRequest: { id: 'PR7', isDraft: false } },
-					}),
-				}),
-				gitHubGraphQLStep({
-					queryIncludes: 'AgentHostDisablePullRequestAutoMerge',
-					assert: request => assert.deepStrictEqual(request.graphQl?.variables, { pullRequestId: 'PR7' }),
-					response: gitHubGraphQLResponse({
-						disablePullRequestAutoMerge: { pullRequest: { id: 'PR7' } },
-					}),
-				}),
-			);
-			const { ref, resources, service } = setup(server);
-
-			await service.markReadyForReview(ref, { pullRequestId: 'PR7' }, signal());
-			await service.disableAutoMerge(ref, { pullRequestId: 'PR7' }, signal());
-
-			assert.deepStrictEqual(resources.invalidations, [
-				{ fragments: ['core', 'mergeability'] },
-				{ fragments: ['mergeability'] },
-			]);
-			server.assertSatisfied();
-		});
-	});
-
 	for (const type of ['RATE_LIMIT', 'RATE_LIMITED']) {
 		test(`surfaces GraphQL ${type} without replaying or accepting a refused mutation`, async () => {
 			await withServers(async server => {
-				const errors = [{ type, message: 'Mutation rate limited', path: ['markPullRequestReadyForReview'] }];
+				const errors = [{ type, message: 'Mutation rate limited', path: ['addPullRequestReviewThreadReply'] }];
 				server.enqueue(gitHubGraphQLStep({
-					queryIncludes: 'AgentHostMarkPullRequestReadyForReview',
-					response: gitHubGraphQLResponse({ markPullRequestReadyForReview: null }, errors),
+					queryIncludes: 'AgentHostAddPullRequestReviewThreadReply',
+					response: gitHubGraphQLResponse({ addPullRequestReviewThreadReply: null }, errors),
 				}));
 				const { ref, resources, service } = setup(server);
 				let refreshes = 0;
 				resources.refreshHandler = () => { refreshes++; };
 
-				await assert.rejects(() => service.markReadyForReview(ref, { pullRequestId: 'PR7' }, signal()), {
+				await assert.rejects(() => service.replyAndResolveThread(ref, { operationId: 'operation-1', threadId: 'T1', body: 'reply', resolve: true }, signal()), {
 					name: 'GitHubRequestError', kind: 'rateLimit', statusCode: 200, graphQLErrors: errors,
 				});
 				assert.deepStrictEqual({ requests: server.requests.length, refreshes, invalidations: resources.invalidations }, {

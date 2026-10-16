@@ -9,9 +9,6 @@ import { escapeRegExpCharacters } from '../../../base/common/strings.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import {
-	CreatedPullRequest,
-	CreatePullRequestOptions,
-	EnablePullRequestAutoMergeOptions,
 	GitHubWorkflowLog,
 	GitHubWorkflowRerunOptions,
 	GitHubWorkflowRun,
@@ -22,7 +19,6 @@ import {
 	PullRequestMergeResult,
 	PullRequestMutationApi,
 	PullRequestMutationResult,
-	PullRequestNodeOptions,
 	PullRequestReplyAndResolveOptions,
 	PullRequestReplyAndResolveResult,
 	PullRequestReplyResult,
@@ -38,7 +34,7 @@ import {
 } from './githubPullRequestService.js';
 import { GitHubRequestTimeoutError, IGitHubEndpointProvider } from './githubTypes.js';
 import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from './githubCredentialService.js';
-import { asObject, booleanProperty, idProperty, normalizedEnumProperty, nullableStringProperty, numberProperty, objectAt, optionalObjectProperty, requiredId, requiredNumber, requiredString, stringProperty } from './githubResponse.js';
+import { asObject, booleanProperty, idProperty, normalizedEnumProperty, nullableStringProperty, numberProperty, objectAt, optionalObjectProperty, requiredId, requiredString, stringProperty } from './githubResponse.js';
 import { IRequestScheduler, systemRequestScheduler } from './scheduler.js';
 import { GitHubGraphQLError, GitHubRequestError, IGitHubTransport } from './githubTransport.js';
 import { IPullRequestResources } from './pullRequestResourceService.js';
@@ -81,24 +77,6 @@ const enqueuePullRequestMutation = `mutation AgentHostEnqueuePullRequest($pullRe
 	}
 }`;
 
-const enableAutoMergeMutation = `mutation AgentHostEnablePullRequestAutoMerge($pullRequestId: ID!, $mergeMethod: PullRequestMergeMethod!) {
-	enablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId, mergeMethod: $mergeMethod }) {
-		pullRequest { id }
-	}
-}`;
-
-const disableAutoMergeMutation = `mutation AgentHostDisablePullRequestAutoMerge($pullRequestId: ID!) {
-	disablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId }) {
-		pullRequest { id }
-	}
-}`;
-
-const markReadyForReviewMutation = `mutation AgentHostMarkPullRequestReadyForReview($pullRequestId: ID!) {
-	markPullRequestReadyForReview(input: { pullRequestId: $pullRequestId }) {
-		pullRequest { id isDraft }
-	}
-}`;
-
 export class PullRequestMutationService extends Disposable implements PullRequestMutationApi {
 
 	private readonly _mutationTails = new Map<string, Promise<void>>();
@@ -121,86 +99,6 @@ export class PullRequestMutationService extends Disposable implements PullReques
 	}
 
 	private readonly _clock: IRequestScheduler;
-
-	createPullRequest(
-		ref: GitHubRepositoryRef,
-		options: CreatePullRequestOptions,
-		signal: AbortSignal,
-	): Promise<CreatedPullRequest> {
-		return this._serializeRepository(ref, 'createPullRequest', async () => {
-			const created = await this._withCredential<CreatedPullRequest>(ref, signal, async (credential, combinedSignal) => {
-				const response = await this._transport.rest<unknown>(credential.account, credential.token, {
-					caller: 'github.mutations',
-					method: 'POST',
-					url: this._restUrl(ref, 'pulls'),
-					body: {
-						title: options.title,
-						body: options.body,
-						head: options.head,
-						base: options.base,
-						draft: options.draft,
-					},
-					priority: 'mutation',
-				}, combinedSignal);
-				const value = asObject(response.data, 'GitHub create pull request response was malformed');
-				const number = requiredNumber(value, 'number');
-				const state = stringProperty(value, 'state');
-				return {
-					ref: { ...ref, number },
-					id: idProperty(value, 'node_id'),
-					url: requiredString(value, 'html_url'),
-					title: options.title,
-					createdAt: stringProperty(value, 'created_at'),
-					...(state === 'open' || state === 'closed' ? { state } : {}),
-				};
-			});
-			return created;
-		});
-	}
-
-	enableAutoMerge(
-		ref: GitHubRepositoryRef,
-		options: EnablePullRequestAutoMergeOptions,
-		signal: AbortSignal,
-	): Promise<void> {
-		return this._serializeRepository(ref, 'enableAutoMerge', async () => {
-			await this._withCredential(ref, signal, async (credential, combinedSignal) => {
-				const response = await this._transport.graphql(
-					credential.account,
-					credential.token,
-					this._endpoint.getGraphQlUri(),
-					enableAutoMergeMutation,
-					{ pullRequestId: options.pullRequestId, mergeMethod: options.method },
-					combinedSignal,
-					'mutation',
-					{ caller: 'github.mutations' },
-				);
-				throwGraphQLErrors(response.errors);
-			});
-		});
-	}
-
-	disableAutoMerge(
-		ref: PullRequestRef,
-		options: PullRequestNodeOptions,
-		signal: AbortSignal,
-	): Promise<void> {
-		return this._serialize(ref, 'disableAutoMerge', async () => {
-			await this._pullRequestNodeMutation(ref, options, disableAutoMergeMutation, signal);
-			this._resources.invalidatePullRequest(ref, ['mergeability']);
-		});
-	}
-
-	markReadyForReview(
-		ref: PullRequestRef,
-		options: PullRequestNodeOptions,
-		signal: AbortSignal,
-	): Promise<void> {
-		return this._serialize(ref, 'markReadyForReview', async () => {
-			await this._pullRequestNodeMutation(ref, options, markReadyForReviewMutation, signal);
-			this._resources.invalidatePullRequest(ref, ['core', 'mergeability']);
-		});
-	}
 
 	replyAndResolveThread(
 		ref: PullRequestRef,
@@ -629,30 +527,6 @@ export class PullRequestMutationService extends Disposable implements PullReques
 		});
 	}
 
-	private async _pullRequestNodeMutation(
-		ref: PullRequestRef,
-		options: PullRequestNodeOptions,
-		mutation: string,
-		signal: AbortSignal,
-	): Promise<void> {
-		if (!options.pullRequestId) {
-			throw new GitHubRequestError('Pull request node ID is required for this mutation', 'validation');
-		}
-		await this._withCredential(ref, signal, async (credential, combinedSignal) => {
-			const response = await this._transport.graphql(
-				credential.account,
-				credential.token,
-				this._endpoint.getGraphQlUri(),
-				mutation,
-				{ pullRequestId: options.pullRequestId },
-				combinedSignal,
-				'mutation',
-				{ caller: 'github.mutations' },
-			);
-			throwGraphQLErrors(response.errors);
-		});
-	}
-
 	private async _withCredential<T>(
 		ref: GitHubRepositoryRef,
 		signal: AbortSignal,
@@ -684,26 +558,6 @@ export class PullRequestMutationService extends Disposable implements PullReques
 		const key = pullRequestMutationKey(ref);
 		const previous = this._mutationTails.get(key) ?? Promise.resolve();
 		const run = () => this._runMutation(operation, `${ref.owner}/${ref.repo}#${ref.number}`, task);
-		const result = previous.then(run, run);
-		const tail = result.then(() => undefined, () => undefined);
-		this._mutationTails.set(key, tail);
-		void tail.then(() => {
-			if (this._mutationTails.get(key) === tail) {
-				this._mutationTails.delete(key);
-			}
-		});
-		return result;
-	}
-
-	private _serializeRepository<T>(ref: GitHubRepositoryRef, operation: string, task: () => Promise<T>): Promise<T> {
-		const key = [
-			ref.host.toLowerCase(),
-			ref.accountId,
-			ref.owner.toLowerCase(),
-			ref.repo.toLowerCase(),
-		].join('\x00');
-		const previous = this._mutationTails.get(key) ?? Promise.resolve();
-		const run = () => this._runMutation(operation, `${ref.owner}/${ref.repo}`, task);
 		const result = previous.then(run, run);
 		const tail = result.then(() => undefined, () => undefined);
 		this._mutationTails.set(key, tail);

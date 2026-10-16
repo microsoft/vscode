@@ -10,7 +10,6 @@ import {
 	PullRequestRef,
 	PullRequestSnapshot,
 } from './githubPullRequestService.js';
-import { GitHubPullRequestLookup, GitHubRepositoryRef } from './githubQueryService.js';
 
 export interface PullRequestMutationResult<T> {
 	readonly outcome: 'succeeded' | 'reconciled' | 'indeterminate';
@@ -19,27 +18,6 @@ export interface PullRequestMutationResult<T> {
 
 export interface PullRequestOperation {
 	readonly operationId: string;
-}
-
-export interface CreatePullRequestOptions {
-	readonly title: string;
-	readonly body: string;
-	readonly head: string;
-	readonly base: string;
-	readonly draft: boolean;
-}
-
-export interface CreatedPullRequest extends GitHubPullRequestLookup {
-	readonly title: string;
-}
-
-export interface EnablePullRequestAutoMergeOptions {
-	readonly pullRequestId: string;
-	readonly method: PullRequestMergeMethod;
-}
-
-export interface PullRequestNodeOptions {
-	readonly pullRequestId: string;
 }
 
 export interface PullRequestReplyAndResolveOptions extends PullRequestOperation {
@@ -123,10 +101,6 @@ export interface PullRequestEnqueueResult {
 }
 
 export interface PullRequestMutationApi {
-	createPullRequest(ref: GitHubRepositoryRef, options: CreatePullRequestOptions, signal: AbortSignal): Promise<CreatedPullRequest>;
-	enableAutoMerge(ref: GitHubRepositoryRef, options: EnablePullRequestAutoMergeOptions, signal: AbortSignal): Promise<void>;
-	disableAutoMerge(ref: PullRequestRef, options: PullRequestNodeOptions, signal: AbortSignal): Promise<void>;
-	markReadyForReview(ref: PullRequestRef, options: PullRequestNodeOptions, signal: AbortSignal): Promise<void>;
 	replyAndResolveThread(ref: PullRequestRef, options: PullRequestReplyAndResolveOptions, signal: AbortSignal): Promise<PullRequestReplyAndResolveResult>;
 	downloadWorkflowJobLog(ref: PullRequestRef, jobId: string, signal: AbortSignal): Promise<GitHubWorkflowLog>;
 	rerunWorkflow(ref: PullRequestRef, options: GitHubWorkflowRerunOptions, signal: AbortSignal): Promise<PullRequestMutationResult<GitHubWorkflowRun>>;
