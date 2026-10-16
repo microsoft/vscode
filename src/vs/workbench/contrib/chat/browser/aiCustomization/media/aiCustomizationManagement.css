@@ -1370,7 +1370,6 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-management-editor .copilot-customization-tree-label {
 	overflow: hidden;
-	color: var(--vscode-foreground);
 	font-size: var(--vscode-fontSize-body1);
 	font-weight: var(--vscode-fontWeight-semiBold);
 	line-height: 18px;
@@ -1385,6 +1384,10 @@ per-word capitalization does not survive translation. */
 	line-height: 14px;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+.ai-customization-management-editor .copilot-customizations-tree .monaco-list-row:is(.selected, .focused) .copilot-customization-tree-detail {
+	color: inherit;
 }
 
 .ai-customization-management-editor .copilot-customization-tree-actions {
