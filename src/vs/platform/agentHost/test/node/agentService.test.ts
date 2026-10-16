@@ -33115,6 +33115,35 @@ suite('AgentService (node dispatcher)', () => {
 				assert.deepStrictEqual(outcomes, { sessionLevel: shared, otherChats: shared });
 			});
 
+			test('a share keeps its source\'s branch withheld when the source is published while the move retries after an older build\'s edit (H1, Block 5)', async () => {
+				const { service, source, target, peer, folder } = await setupMove();
+				const repositoryRoot = URI.file('/main');
+				setTestAgentHostWorktreeIsolation(service, createTestAgentHostWorktreeIsolation({
+					readSessionWorktreeForRemoval: async session => session.toString() === source.toString() ? { worktree: folder, repositoryRoot, branchName: 'agents/source' } : undefined,
+				}));
+				const store = getTestSessionStateStore(service);
+				await store.writeMetadata(source, source, { [WORKTREE_META_PATH]: folder.toString(), 'copilot.worktree.branchName': 'agents/source', [WORKTREE_META_REPOSITORY_ROOT]: repositoryRoot.toString() }, SessionStateMirrorFlush.Immediate);
+				const internals = service as unknown as IMoveInternals & { _peerChatStore: { scheduleOlderBuildCopyPublish(session: URI): void } };
+				const moveChat = internals._sessionStateStore.moveChat.bind(internals._sessionStateStore);
+				let attempts = 0;
+				internals._sessionStateStore.moveChat = async move => {
+					if (attempts++ === 0) {
+						// The source's older-build copy is due when the move retries: it is published before any co-owner row exists.
+						internals._peerChatStore.scheduleOlderBuildCopyPublish(source);
+						return { status: 'olderBuildEdits' };
+					}
+					return moveChat(move);
+				};
+				const withheld = async () => (await store.readWithoutImport(source, [OLDER_BUILD_WORKTREE_WITHHELD_KEY])).get(OLDER_BUILD_WORKTREE_WITHHELD_KEY);
+
+				await service.moveChat(source, peer, { kind: 'session', session: target, after: undefined });
+				const afterMove = await withheld();
+				internals._peerChatStore.scheduleOlderBuildCopyPublish(source);
+				await internals._peerChatStore.flushCompatibilityPublishes(source, undefined);
+
+				assert.deepStrictEqual({ attempts, afterMove, afterNextPublish: await withheld() }, { attempts: 2, afterMove: 'true', afterNextPublish: 'true' });
+			});
+
 			test('a session that moves under another hands its own worktree to it: the target lists it for the chat, and its record names the target (Block 5)', async () => {
 				const { service, source, target } = await setupMove();
 				const defaultChat = getStateManager(service).getSessionState(source.toString())!.defaultChat!;

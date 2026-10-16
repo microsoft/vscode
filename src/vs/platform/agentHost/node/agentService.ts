@@ -106,7 +106,7 @@ import { type IArtifactServerToolAccessor } from './shared/artifactServerTools.j
 import { SessionArtifacts } from './shared/sessionArtifacts.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY, readSessionAdditionalWorktrees, writeSessionAdditionalWorktrees, type ISessionAdditionalWorktree } from './shared/sessionAdditionalWorktrees.js';
 import { sessionWorktreeFolderRepositoryRoot, WORKTREE_FOLDERS_KEY, withSessionWorktreeFolders } from './shared/sessionWorktreeFolders.js';
-import { AgentHostWorktreeCoOwnership, type ISessionWorktreeRecords, type IWorktreeMoveDecisions, planWorktreeMove, presentedWorktreeFolders, withoutTransferred, withTransferred } from './agentHostWorktreeCoOwnership.js';
+import { AgentHostWorktreeCoOwnership, type ISessionWorktreeRecords, type IWorktreeMoveDecisions, type IWorktreeWithholding, planWorktreeMove, presentedWorktreeFolders, withoutTransferred, withTransferred } from './agentHostWorktreeCoOwnership.js';
 import { parseSessionArtifacts, readSessionArtifacts, SessionArtifactType, stringifySessionArtifacts, withSessionArtifacts, type ISessionArtifact } from '../common/sessionArtifacts.js';
 import { SessionArtifactCollection } from '../common/sessionArtifactCollection.js';
 import { AgentHostCatalogDatabaseReference, AgentHostCatalogSyncService, IAgentHostCatalogSyncRequest } from './agentHostCatalogSyncService.js';
@@ -6525,7 +6525,7 @@ export class AgentService extends Disposable implements IAgentService {
 			let restoreConfig: (() => Promise<void>) | undefined;
 			let committed: IMovedChats;
 			let worktreePlan: IWorktreeMoveDecisions;
-			const withholdings: (() => Promise<void>)[] = [];
+			const withholdings: IWorktreeWithholding[] = [];
 			let handOver: IWorktreeHandOver | undefined;
 			try {
 				for (const folder of missingFolders) {
@@ -6605,6 +6605,8 @@ export class AgentService extends Disposable implements IAgentService {
 					return refuse(this._moveRefusalOf(result.status), `Chat ${chatKey} couldn't be moved (${result.status}); try again.`);
 				}
 				committed = { ...result, config };
+				// Committed: the co-owner rows keep the branches withheld from now on.
+				withholdings.forEach(withholding => withholding.done());
 			} catch (error) {
 				await restoreConfig?.().catch(restoreError => this._logService.warn(`[AgentService] Failed to restore the config of ${chatKey} after a refused move`, restoreError));
 				await this._undoWorktreeMovePreparation(withholdings, handOver, chatKey);
@@ -6855,7 +6857,7 @@ export class AgentService extends Disposable implements IAgentService {
 		try {
 			let committed: readonly string[];
 			let worktreePlan: IWorktreeMoveDecisions;
-			const withholdings: (() => Promise<void>)[] = [];
+			const withholdings: IWorktreeWithholding[] = [];
 			const sourceConfig = this._stateManager.getSessionState(sourceKey)?.config;
 			// The chat's own values become the new session's: its future chats start from them.
 			const config: SessionConfigState | undefined = sourceConfig && { schema: sourceConfig.schema, values: { ...sourceConfig.values, ...this._movedChatConfig(sourceKey, sourceKey, chatKey), ...this._promotedIsolationConfig(sourceConfig, session, chatKey, promotedRepository) } };
@@ -6927,6 +6929,7 @@ export class AgentService extends Disposable implements IAgentService {
 					return refuse(this._moveRefusalOf(result.status), `Chat ${chatKey} couldn't be promoted (${result.status}); try again.`);
 				}
 				committed = result.moved;
+				withholdings.forEach(withholding => withholding.done());
 			} catch (error) {
 				await this._undoWorktreeMovePreparation(withholdings, undefined, chatKey);
 				if (error instanceof SessionStateDeletedError) {
@@ -7189,9 +7192,9 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/** Undoes what a refused move prepared for its worktrees: older builds see a branch it withheld again, and a hand-over record is dropped. */
-	private async _undoWorktreeMovePreparation(withholdings: readonly (() => Promise<void>)[], handOver: IWorktreeHandOver | undefined, chat: string): Promise<void> {
-		for (const undo of withholdings) {
-			await undo().catch(error => this._logService.warn(`[AgentService] Failed to undo withholding a worktree branch after the refused move of ${chat}`, error));
+	private async _undoWorktreeMovePreparation(withholdings: readonly IWorktreeWithholding[], handOver: IWorktreeHandOver | undefined, chat: string): Promise<void> {
+		for (const withholding of withholdings) {
+			await withholding.undo().catch(error => this._logService.warn(`[AgentService] Failed to undo withholding a worktree branch after the refused move of ${chat}`, error));
 		}
 		if (handOver) {
 			await this._worktree.deleteDetachedWorktreeRecord(handOver.handle).catch(error => this._logService.warn(`[AgentService] Failed to drop the hand-over record of a worktree after the refused move of ${chat}`, error));

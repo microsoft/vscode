@@ -103,7 +103,7 @@ suite('AgentHostSessionStateStore', () => {
 
 		states.before = await olderBuildWorktree();
 		const coOwnership = new AgentHostWorktreeCoOwnership(database, first, new NullAgentHostWorktreeIsolation(), new NullLogService());
-		await coOwnership.withhold(session);
+		(await coOwnership.withhold(session)).done();
 		await coOwnership.releaseWithholding(session);
 		states.shared = { olderBuild: await olderBuildWorktree(), central: await central(first) };
 		// An older build writes the branch back; the next import keeps its (same) value and withholds it again.
@@ -122,6 +122,40 @@ suite('AgentHostSessionStateStore', () => {
 			writtenBack: { olderBuild: undefined, central: 'agents/shared' },
 			released: { olderBuild: worktree, central: 'agents/shared', withheld: undefined },
 		});
+	});
+
+	test('withholding is never released while a share of the session is in flight: a publish in the window and a concurrent refused move keep it, the committed share keeps it after (H1, Block 5)', async () => {
+		const session = URI.parse('copilotcli:/in-flight');
+		const worktree = 'file:///repo.worktrees/in-flight';
+		await database.registerSessionV2(session.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		await database.registerSessionV2('copilotcli:/target', { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		await database.importSessionState('copilotcli:/target', { importVersion: 1, importedAt: 1, values: { [SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify([worktree]) }, folders: [], chats: [], legacyMirrorBase: '{}', launchDirsBackfilled: true });
+		const sessionStore = createStore();
+		await sessionStore.writeMetadata(session, session, { [WORKTREE_META_PATH]: worktree, 'copilot.worktree.branchName': 'agents/in-flight', [SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify([worktree]) }, SessionStateMirrorFlush.Immediate);
+		const coOwnership = new AgentHostWorktreeCoOwnership(database, sessionStore, new NullAgentHostWorktreeIsolation(), new NullLogService());
+		const withheld = async () => (await sessionStore.readWithoutImport(session, [OLDER_BUILD_WORKTREE_WITHHELD_KEY])).get(OLDER_BUILD_WORKTREE_WITHHELD_KEY);
+		const states: Record<string, unknown> = {};
+
+		const committing = await coOwnership.withhold(session);
+		// A publish of the session before the move commits: there are no co-owner rows yet.
+		await coOwnership.releaseWithholding(session);
+		states.publishInWindow = await withheld();
+		// A second move shares it too and is refused: its undo leaves the first move's share withheld.
+		await (await coOwnership.withhold(session)).undo();
+		states.refusedConcurrentMove = await withheld();
+		const raw = await (database as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+		for (const owner of [session.toString(), 'copilotcli:/target']) {
+			await new Promise<void>((resolve, reject) => raw.run('INSERT INTO worktree_co_owners (worktree_path, session_uri, repository_root, branch) VALUES (?, ?, \'file:///repo\', \'agents/in-flight\')', [worktree, owner], error => error ? reject(error) : resolve()));
+		}
+		committing.done();
+		await coOwnership.releaseWithholding(session);
+		states.committed = await withheld();
+		// A refused move with no share left releases by the same rule.
+		await new Promise<void>((resolve, reject) => raw.run('DELETE FROM worktree_co_owners', [], error => error ? reject(error) : resolve()));
+		await (await coOwnership.withhold(session)).undo();
+		states.refusedAlone = await withheld();
+
+		assert.deepStrictEqual(states, { publishInWindow: 'true', refusedConcurrentMove: 'true', committed: 'true', refusedAlone: undefined });
 	});
 
 	test('a session\'s worktree folders are central only: never written to older builds\' copy, read back as written, and a rebuilt catalog payload (Block 5)', async () => {

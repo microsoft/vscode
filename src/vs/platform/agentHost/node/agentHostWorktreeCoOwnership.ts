@@ -175,7 +175,18 @@ export function withTransferred(worktrees: readonly ISessionAdditionalWorktree[]
  * worktree's branch from older builds, hands records over in the order older builds rely on, and stops withholding
  * once a worktree is no longer shared. Queries run only on moves, publishes and clean-up, never on a hot path.
  */
+/** A move's withholding of a session's worktree branch, while the move shares it: it ends with the move. */
+export interface IWorktreeWithholding {
+	/** The move committed: its co-owner rows keep the branch withheld from now on. */
+	done(): void;
+	/** The move was refused: withholding stops unless the session shares its worktree or another share is in flight. */
+	undo(): Promise<void>;
+}
+
 export class AgentHostWorktreeCoOwnership {
+
+	/** Moves sharing a session's worktree that haven't committed or been refused yet, by session. */
+	private readonly _sharesInFlight = new Map<string, number>();
 
 	constructor(
 		private readonly _database: IAgentHostWorktreeRemovalDatabase,
@@ -206,18 +217,37 @@ export class AgentHostWorktreeCoOwnership {
 
 	/**
 	 * Withholds the worktree branch of `session` from older builds before a move shares its worktree, so no older
-	 * build can remove it once it is shared. Returns the undo for a refused move: withholding stops unless it was on.
+	 * build can remove it once it is shared. Until the move ends ({@link IWorktreeWithholding}), nothing releases it:
+	 * its co-owner rows are written only by its commit, so a publish or a refused move meanwhile would see none.
 	 */
-	async withhold(session: URI): Promise<() => Promise<void>> {
-		let previous: string | undefined;
-		await this._sessionStateStore.update(session, OLDER_BUILD_WORKTREE_WITHHELD_KEY, value => {
-			previous = value;
-			return 'true';
-		}, SessionStateMirrorFlush.Immediate);
-		return async () => {
-			if (previous !== 'true') {
-				await this._sessionStateStore.update(session, OLDER_BUILD_WORKTREE_WITHHELD_KEY, () => null, SessionStateMirrorFlush.Immediate);
+	async withhold(session: URI): Promise<IWorktreeWithholding> {
+		const key = session.toString();
+		this._sharesInFlight.set(key, (this._sharesInFlight.get(key) ?? 0) + 1);
+		let ended = false;
+		const end = () => {
+			if (!ended) {
+				ended = true;
+				const count = (this._sharesInFlight.get(key) ?? 1) - 1;
+				if (count > 0) {
+					this._sharesInFlight.set(key, count);
+				} else {
+					this._sharesInFlight.delete(key);
+				}
 			}
+		};
+		try {
+			await this._sessionStateStore.update(session, OLDER_BUILD_WORKTREE_WITHHELD_KEY, () => 'true', SessionStateMirrorFlush.Immediate);
+		} catch (error) {
+			end();
+			throw error;
+		}
+		return {
+			done: end,
+			// A refused move releases only by the rule a publish follows: never while the session shares its worktree or another share is in flight.
+			undo: async () => {
+				end();
+				await this.releaseWithholding(session);
+			},
 		};
 	}
 
@@ -269,11 +299,21 @@ export class AgentHostWorktreeCoOwnership {
 		if (values.get(OLDER_BUILD_WORKTREE_WITHHELD_KEY) !== 'true') {
 			return;
 		}
+		if (this._sharesInFlight.has(session.toString())) {
+			return;
+		}
 		const worktree = values.get(WORKTREE_META_PATH);
 		const coOwners = worktree ? await this._worktree.runExclusive(worktree, () => this._database.pruneWorktreeCoOwners(worktree)) : [];
 		if (coOwners.filter(coOwner => coOwner.live).length < 2) {
-			this._logService.info(`[AgentHostWorktreeCoOwnership] ${session.toString()} no longer shares its worktree; older builds see its branch again`);
-			await this._sessionStateStore.update(session, OLDER_BUILD_WORKTREE_WITHHELD_KEY, () => null, SessionStateMirrorFlush.Immediate);
+			// Decided again inside the store's section for the session: a share that started meanwhile keeps it.
+			let released = false;
+			await this._sessionStateStore.update(session, OLDER_BUILD_WORKTREE_WITHHELD_KEY, value => {
+				released = !this._sharesInFlight.has(session.toString());
+				return released ? null : value ?? null;
+			}, SessionStateMirrorFlush.Immediate);
+			if (released) {
+				this._logService.info(`[AgentHostWorktreeCoOwnership] ${session.toString()} no longer shares its worktree; older builds see its branch again`);
+			}
 		}
 	}
 }
