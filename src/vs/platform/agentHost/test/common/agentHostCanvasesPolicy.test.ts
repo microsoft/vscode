@@ -20,10 +20,15 @@ import { Registry } from '../../../registry/common/platform.js';
 import { CanvasesEnabledSettingId } from '../../common/agentService.js';
 import { AgentHostConfigurationSyncTarget, resolveAgentHostConfigurationSyncPatch } from '../../common/agentHostConfigurationSync.js';
 import { AgentHostCanvasesEnabledConfigKey } from '../../common/agentHostSchema.js';
-import '../../common/agentHostStarter.config.contribution.js';
+import { canvasesConfigurationProperties } from '../../common/canvasesConfiguration.js';
 
 suite('AgentHostCanvasesPolicy', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+	const configuration = { properties: canvasesConfigurationProperties };
+
+	suiteSetup(() => registry.registerConfiguration(configuration));
+	suiteTeardown(() => registry.deregisterConfigurations([configuration]));
 
 	async function createConfiguration(userValue?: boolean, policyValue?: boolean) {
 		const logService = new NullLogService();
@@ -51,7 +56,6 @@ suite('AgentHostCanvasesPolicy', () => {
 	}
 
 	test('registers an application-scoped Canvas policy', () => {
-		const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 		const property = registry.getConfigurationProperties()[CanvasesEnabledSettingId];
 
 		assert.deepStrictEqual({

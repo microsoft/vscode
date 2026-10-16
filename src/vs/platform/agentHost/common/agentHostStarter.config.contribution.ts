@@ -15,7 +15,6 @@ import {
 	AgentHostAgentOrchestrationLimitsSettingId,
 	AgentHostAutoAttachPullRequestsSettingId,
 	AgentHostByokModelsEnabledSettingId,
-	CanvasesEnabledSettingId,
 	AgentHostGitHubMcpServerEnabledSettingId,
 	AgentHostMcpToolRoutingEnabledSettingId,
 	AgentHostClaudeAgentEnabledSettingId,
@@ -48,7 +47,6 @@ import {
 	AgentHostAutoAttachPullRequestsConfigKey,
 	AgentHostByokModelsEnabledConfigKey,
 	AgentHostByokModelsEnabledDefault,
-	AgentHostCanvasesEnabledConfigKey,
 	AgentHostClaudeMultiRootEnabledConfigKey,
 	AgentHostCodexEnabledConfigKey,
 	AgentHostCodexMultiRootEnabledConfigKey,
@@ -64,6 +62,7 @@ import {
 import { AgentMergeConfigKey, AgentMergeSettingId, AGENT_MERGE_SETTING_TAG } from './agentMerge.js';
 import { ChatMoveConfigKey, ChatMoveSettingId } from './agentHostChatMove.js';
 import { artifactToolsConfigurationProperties } from './artifactToolsConfiguration.js';
+import { canvasesConfigurationProperties } from './canvasesConfiguration.js';
 import { titleGenerationConfigurationProperties } from './titleGenerationConfiguration.js';
 import { isAhpJsonlLoggingEnabled } from './ahpJsonlLogger.js';
 
@@ -216,26 +215,7 @@ configurationRegistry.registerConfiguration({
 		},
 		...titleGenerationConfigurationProperties,
 		...artifactToolsConfigurationProperties,
-		[CanvasesEnabledSettingId]: {
-			type: 'boolean',
-			description: nls.localize('chat.canvases.enabled', "Controls whether local Agent Host Copilot sessions can open Canvases with interactive content in the Agents Window and the Editor Window. Newly created sessions pick up changes to this setting."),
-			default: false,
-			scope: ConfigurationScope.APPLICATION,
-			tags: ['preview'],
-			experiment: { mode: 'auto' },
-			agentHost: { key: AgentHostCanvasesEnabledConfigKey },
-			policy: {
-				name: 'ChatCanvasesEnabled',
-				category: PolicyCategory.InteractiveSession,
-				minimumVersion: '1.143',
-				localization: {
-					description: {
-						key: 'chat.canvases.enabled',
-						value: nls.localize('chat.canvases.enabled', "Controls whether local Agent Host Copilot sessions can open Canvases with interactive content in the Agents Window and the Editor Window. Newly created sessions pick up changes to this setting."),
-					},
-				},
-			},
-		},
+		...canvasesConfigurationProperties,
 		[AgentHostAutoAttachPullRequestsSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.experimental.autoAttachPullRequests', "Controls whether the Agent Host automatically discovers and associates a pull request for the currently checked-out branch. When disabled, only pull requests recorded by the agent as artifacts or explicitly selected or created through session actions are considered."),
