@@ -17,10 +17,12 @@ import { CloudSandboxTelemetryService, ICloudSandboxTelemetryService } from './c
 import { EditorCloudSandboxContribution } from './editorCloudSandboxContribution.js';
 import { RemoteAgentHostContribution } from './remoteAgentHostChatContribution.js';
 import './missionControlEnvironmentActions.js';
-import { AgentHostRemoteConnectionsSettingId, IMissionControlEnvironmentService, IMissionControlSharingService } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { IMissionControlEnvironmentService, IMissionControlSharingService } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { MissionControlEnvironmentService } from './missionControlEnvironmentService.js';
 import { MissionControlSharingService } from './missionControlSharingService.js';
 import { IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostConnectionCustomizationService } from './remoteAgentHostConnectionCustomization.js';
+import { IRemoteConnectionsService } from '../../common/remoteConnections.js';
+import { RemoteConnectionsService } from './remoteConnectionsService.js';
 
 class MissionControlContribution {
 	static readonly ID = 'workbench.contrib.missionControl';
@@ -35,6 +37,7 @@ registerSingleton(ICloudSandboxModelCatalogService, CloudSandboxModelCatalogServ
 registerSingleton(ICloudSandboxAgentHostService, CloudSandboxAgentHostService, InstantiationType.Delayed);
 registerSingleton(IMissionControlEnvironmentService, MissionControlEnvironmentService, InstantiationType.Delayed);
 registerSingleton(IMissionControlSharingService, MissionControlSharingService, InstantiationType.Delayed);
+registerSingleton(IRemoteConnectionsService, RemoteConnectionsService, InstantiationType.Delayed);
 registerSingleton(IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostConnectionCustomizationService, InstantiationType.Delayed);
 
 registerWorkbenchContribution2(RemoteAgentHostContribution.ID, RemoteAgentHostContribution, WorkbenchPhase.AfterRestored);
@@ -43,19 +46,6 @@ registerWorkbenchContribution2(MissionControlContribution.ID, MissionControlCont
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	properties: {
-		[AgentHostRemoteConnectionsSettingId]: {
-			type: 'string',
-			enum: ['devTunnel', 'githubEnvironment'],
-			enumDescriptions: [
-				localize('remoteConnections.devTunnel', "Allow remote connections through a Dev Tunnel."),
-				localize('remoteConnections.githubEnvironment', "Register the native Agent Host as a GitHub environment through Azure Web PubSub. Remote clients receive trusted-owner access to sessions, tools, and workspace resources. Native session actions are mirrored for catalog/history storage; conversation content is not end-to-end encrypted."),
-			],
-			description: localize('remoteConnections', "Choose the backend used by Allow Remote Connections. Selecting a backend does not enable sharing. Changing the backend turns sharing off."),
-			default: 'devTunnel',
-			scope: ConfigurationScope.APPLICATION,
-			restricted: true,
-			tags: ['experimental', 'advanced'],
-		},
 		[RemoteAgentHostsEnabledSettingId]: {
 			type: 'boolean',
 			description: localize('chat.remoteAgentHosts.enabled', "Enable connecting to remote agent hosts."),

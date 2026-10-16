@@ -3,7 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-action-bar .action-item.tunnel-host-toggle {
+.monaco-action-bar .remote-connections-action {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.remote-connections-action:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.monaco-action-bar .tunnel-host-toggle {
 	display: flex;
 	align-items: center;
 	justify-content: center;

@@ -10,13 +10,13 @@ import { CancellationError } from '../../../../../base/common/errors.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { observableValue, runOnChange } from '../../../../../base/common/observable.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
-import { AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId, IMissionControlSharingService, isGitHubEnvironmentBackend } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { IMissionControlSharingService, isGitHubEnvironmentBackend } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../platform/files/common/files.js';
@@ -27,6 +27,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { AuthenticationSessionAccount, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { IRemoteConnectionsService } from '../../common/remoteConnections.js';
 
 const sharingStorageKey = 'agentHost.missionControl.sharing';
 const missionControlUseLocalCredentials = 'chat.agentHost.experimentalMissionControl.useLocalCredentials';
@@ -62,16 +63,18 @@ export class MissionControlSharingService extends Disposable implements IMission
 		@IPathService private readonly _pathService: IPathService,
 		@IFileService private readonly _fileService: IFileService,
 		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
+		@IRemoteConnectionsService private readonly _remoteConnectionsService: IRemoteConnectionsService,
 	) {
 		super();
 		if (!this._agentHost.configureMissionControl) {
 			return;
 		}
 		this._enabled = this._usesMissionControl() && this._storage.getBoolean(sharingStorageKey, StorageScope.APPLICATION, false);
+		this._register(runOnChange(this._remoteConnectionsService.backend, () => {
+			void this.setEnabled(false).catch(error => this._reportWithdrawalError(error));
+		}));
 		this._register(this._configuration.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(AgentHostRemoteConnectionsSettingId)) {
-				void this.setEnabled(false).catch(error => this._reportWithdrawalError(error));
-			} else if (e.affectsConfiguration(missionControlUseLocalCredentials) || e.affectsConfiguration(missionControlIgnoreRemoteControlPolicy)) {
+			if (e.affectsConfiguration(missionControlUseLocalCredentials) || e.affectsConfiguration(missionControlIgnoreRemoteControlPolicy)) {
 				void this._withdraw().catch(error => this._reportWithdrawalError(error));
 				this._update.schedule();
 			}
@@ -171,7 +174,7 @@ export class MissionControlSharingService extends Disposable implements IMission
 	}
 
 	private _usesMissionControl(): boolean {
-		return isGitHubEnvironmentBackend(this._configuration.getValue<AgentHostRemoteConnectionsBackend>(AgentHostRemoteConnectionsSettingId));
+		return isGitHubEnvironmentBackend(this._remoteConnectionsService.backend.get());
 	}
 
 	private _reportWithdrawalError(error: Error): void {

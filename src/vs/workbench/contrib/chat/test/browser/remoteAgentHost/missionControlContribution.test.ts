@@ -34,6 +34,8 @@ import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticati
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import '../../../browser/remoteAgentHost/remoteAgentHost.contribution.js';
 import { MissionControlSharingService } from '../../../browser/remoteAgentHost/missionControlSharingService.js';
+import { RemoteConnectionsService } from '../../../browser/remoteAgentHost/remoteConnectionsService.js';
+import { IRemoteConnectionsService } from '../../../common/remoteConnections.js';
 
 const localCredentialSetting = 'chat.agentHost.experimentalMissionControl.useLocalCredentials';
 const remoteControlPolicyOverrideSetting = 'chat.agentHost.experimentalMissionControl.ignoreRemoteControlPolicy';
@@ -133,6 +135,8 @@ suite('Mission Control sharing service', () => {
 		const logService = store.add(new NullLogService());
 		instantiation.stub(ILogService, logService);
 		instantiation.stub(IStorageService, storage);
+		const connections = store.add(new RemoteConnectionsService(storage, configuration));
+		instantiation.stub(IRemoteConnectionsService, connections);
 		const notificationService = new TestNotificationService();
 		instantiation.stub(INotificationService, notificationService);
 		instantiation.stub(IPathService, new class extends mock<IPathService>() {
@@ -160,22 +164,19 @@ suite('Mission Control sharing service', () => {
 			protected override get isWindowsPlatform(): boolean { return options.windows ?? false; }
 		}));
 		return {
-			calls, configuration, storage, sharing, hostStarted, sessionsChanged, createdFolders, logService, notificationService, starts: () => starts,
+			calls, configuration, storage, connections, sharing, hostStarted, sessionsChanged, createdFolders, logService, notificationService, starts: () => starts,
 			disableAI: () => { hidden = true; sentimentChanged.fire(); },
 			changeDefaultAccount: (account: IDefaultAccount | null) => { defaultAccount = account; defaultAccountChanged.fire(account); },
 		};
 	}
 
-	test('registers a backend selector rather than an enablement setting', () => {
+	test('does not register the legacy backend selector or removed enablement settings', () => {
 		assert.deepStrictEqual({
 			removed: registeredMissionControlSettings,
 			localCredentialSettingRegistered,
 			remoteControlPolicyOverrideSettingRegistered,
-			backend: {
-				default: remoteConnectionsSetting.default,
-				enum: remoteConnectionsSetting.enum,
-			},
-		}, { removed: [], localCredentialSettingRegistered: false, remoteControlPolicyOverrideSettingRegistered: false, backend: { default: 'devTunnel', enum: ['devTunnel', 'githubEnvironment'] } });
+			backendSettingRegistered: remoteConnectionsSetting !== undefined,
+		}, { removed: [], localCredentialSettingRegistered: false, remoteControlPolicyOverrideSettingRegistered: false, backendSettingRegistered: false });
 	});
 
 	for (const backend of ['devTunnel', 'githubEnvironment', 'missionControl'] as const) {
@@ -374,13 +375,10 @@ suite('Mission Control sharing service', () => {
 	}));
 
 	test('changing backends withdraws registration and requires a new opt-in', () => runWithFakedTimers({}, async () => {
-		const { sharing, calls, configuration, storage } = fixture();
+		const { sharing, calls, connections, storage } = fixture();
 		await sharing.setEnabled(true);
-		for (const backend of ['devTunnel', 'githubEnvironment']) {
-			await configuration.setUserConfiguration(AgentHostRemoteConnectionsSettingId, backend);
-			configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
-				override affectsConfiguration(section: string) { return section === AgentHostRemoteConnectionsSettingId; }
-			}());
+		for (const backend of ['devTunnel', 'githubEnvironment'] as const) {
+			connections.setBackend(backend);
 			await timeout(0);
 		}
 		const restored = fixture({ storage });
@@ -395,6 +393,33 @@ suite('Mission Control sharing service', () => {
 				{ options: undefined, withdrawingAccountId: 'account' },
 			],
 		});
+	}));
+
+	test('changing the method in another window withdraws sharing in both windows', () => runWithFakedTimers({}, async () => {
+		const first = fixture();
+		await first.sharing.setEnabled(true);
+		const second = fixture({ storage: first.storage });
+		await timeout(0);
+		second.connections.setBackend('devTunnel');
+		await timeout(0);
+		assert.deepStrictEqual([first, second].map(({ connections, sharing, calls }) => ({
+			backend: connections.backend.get(),
+			state: sharing.state.get(),
+			calls,
+		})), [
+			{
+				backend: 'devTunnel', state: 'disabled', calls: [
+					{ options: expectedOptions, withdrawingAccountId: undefined },
+					{ options: undefined, withdrawingAccountId: 'account' },
+				],
+			},
+			{
+				backend: 'devTunnel', state: 'disabled', calls: [
+					{ options: expectedOptions, withdrawingAccountId: undefined },
+					{ options: undefined, withdrawingAccountId: 'account' },
+				],
+			},
+		]);
 	}));
 
 	for (const backend of ['githubEnvironment', 'missionControl'] as const) {
