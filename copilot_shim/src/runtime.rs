@@ -114,8 +114,8 @@ pub(crate) struct NativeRuntime {
 
 impl PolicyEffects for NativeRuntime {
 	fn copilot_cli_command_disabled(&self) -> bool {
-		// Only Windows setup puts the shim on the system PATH. Elsewhere it is reachable from integrated terminals, and
-		// the Copilot extension applies the policy there.
+		// Only Windows setup puts the shim on the system PATH. Elsewhere it is reachable from integrated terminals; the
+		// Copilot extension and macOS workbench installation action apply the effective setting before invoking it.
 		#[cfg(windows)]
 		{
 			crate::setup::windows::copilot_cli_command_disabled()
