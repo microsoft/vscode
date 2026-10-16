@@ -13,7 +13,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { CancellationError, getErrorCode, getErrorMessage } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableResourceMap, DisposableSet, DisposableStore, type IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableResourceMap, DisposableSet, type IDisposable, type IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { equals } from '../../../../base/common/objects.js';
@@ -42,21 +42,22 @@ import { workspacelessChatsRoot, workspacelessScratchDir } from '../../common/wo
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import type { IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { IAgentHostReviewService } from '../../common/agentHostReviewService.js';
-import { createPricingMetaFromBilling, hasLongContextSurcharge, normalizeCAPIBilling, withAgentModelEnsembleMeta, type ICAPIModelBilling } from '../../common/meta/agentModelMeta.js';
-import { createContextSizeConfigSchemaProperty } from '../../common/agentModelConfiguration.js';
+import { createPricingMetaFromBilling, hasLongContextSurcharge, normalizeCAPIBilling, withAgentModelFusionMeta, type ICAPIModelBilling } from '../../common/meta/agentModelMeta.js';
+import { agentModelConfigurationReportKey, createContextSizeConfigSchemaProperty } from '../../common/agentModelConfiguration.js';
 import { createAgentModelNoticesMeta } from '../../common/agentModelNotices.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
-import { AgentHostEnsembleEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAMES, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, isCopilotHydraFusionModelId, normalizeSkillCharBudget, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
+import { AgentHostFusionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAMES, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, isCopilotHydraFusionModelId, normalizeSkillCharBudget, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
-import { getCopilotApprovalConfig, getCopilotApprovalPolicy, resolveCopilotManagedSettings } from './copilotApprovalPolicy.js';
+import { getCopilotApprovalConfig, getCopilotApprovalPolicy } from './copilotApprovalPolicy.js';
+import { AGENT_HOST_COPILOT_CLIENT_NAME, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
+import { getCopilotManagedAutoPreference, omitCopilotManagedModelDefaults, projectCopilotManagedModelConfiguration } from './copilotManagedModelConfiguration.js';
 import { buildCopilotBuiltinAgentsContainer, COPILOT_BUILTIN_AGENT_NAMES_BY_URI, CopilotBuiltinAgentsStore } from './copilotBuiltinAgents.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
-import { AgentChatOperationContext, AgentSession, fixedChatOwnerRef, type IAgentChatOwnerRef, resolveSessionBackedStorage, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatSessionSettings, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent } from '../../common/agent.js';
-import type { ChatUriFormat } from '../../common/agentHostChatMinting.js';
+import { AgentChatOperationContext, AgentSession, fixedChatOwnerRef, type IAgentChatOwnerRef, resolveSessionBackedStorage, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatSessionSettings, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent } from '../../common/agent.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
-import { autoModeTiers, defaultAutoModeTier, getAutoModeTierDescription, getAutoModeTierLabel, getEnsembleAutoModeTierLabel } from '../../common/autoModeTiers.js';
+import { autoModeTiers, defaultAutoModeTier, getAutoModeTierDescription, getAutoModeTierLabel, getFusionAutoModeTierLabel } from '../../common/autoModeTiers.js';
 import { AUTO_MODEL_ID, isAutoModel } from './modelIdentifiers.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
@@ -106,7 +107,7 @@ import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConver
 import { CopilotGitHubTelemetryForwarder, type ICopilotModelCallCorrelationTelemetry } from './copilotGitHubTelemetryForwarder.js';
 import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
 import { CopilotSecondaryAssignmentContext } from './copilotSecondaryAssignmentContext.js';
-import { AGENT_HOST_COPILOT_CLIENT_NAME, CopilotSessionLauncher, AutoTierConfigKey, ContextSizeConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, getLocalModelSelectionId, isCopilotReasoningEffort, resolveCopilotAutoTier, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
+import { CopilotSessionLauncher, AutoTierConfigKey, ContextSizeConfigKey, CopilotAutoTierConfigKey, CopilotReasoningEffortConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, getLocalModelSelectionId, isCopilotReasoningEffort, isCopilotSessionTelemetryEnabled, resolveCopilotAutoTier, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
 import { createLocalModelRowMeta } from '../../common/meta/localModelStatus.js';
 import { errorCodeForLog } from '../../common/logRedaction.js';
 import { withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
@@ -297,7 +298,47 @@ interface IProvisionalSession {
 	readonly project: IAgentSessionProjectInfo | undefined;
 	/** Whether this session is workspace-less (surfaced in the sessions UI as a "Quick Chat"). */
 	readonly workspaceless?: boolean;
+	/** The SDK session launched before the first send, read through {@link CopilotAgent._getEarlyLaunch}. */
+	earlyLaunch?: ICopilotEarlyLaunch;
+	/** Whether a torn-down early launch left runtime state under {@link sdkSessionId} that must be deleted before the id is launched again. */
+	hasStaleSdkState?: boolean;
 }
+
+/** A provisional chat's launched SDK session, before anything about it is persisted or announced. */
+interface ICopilotProvisionalLaunch {
+	readonly session: CopilotAgentSession;
+	/** The custom agent resolved for the launch, persisted when the launch is completed. */
+	readonly agent: AgentSelection | undefined;
+	readonly workingDirectory: URI;
+	readonly customizationDirectory: URI;
+	/** Where the chat's data is stored. */
+	readonly storage: URI;
+	/** The session that owned the chat at launch, for owner-level state such as the baseline checkpoint. */
+	readonly owner: URI;
+	readonly project: Promise<IAgentSessionProjectInfo | undefined>;
+}
+
+/**
+ * A provisional chat's launch that ran before its first send
+ * ({@link IAgentChats.warmChat}). The live session is registered like any
+ * other, so MCP status and sign-in requests reach it, but nothing about it is
+ * persisted until the first send completes it. Disposing it only stops its
+ * expiry; the session is torn down by {@link CopilotAgent._discardEarlyLaunch}.
+ */
+interface ICopilotEarlyLaunch extends IDisposable {
+	readonly launch: ICopilotProvisionalLaunch;
+	/** The model selection the launch used; any change before the first send starts that send cold. */
+	readonly model: ModelSelection | undefined;
+	/** The custom agent selection the launch used; any change before the first send starts that send cold. */
+	readonly agent: AgentSelection | undefined;
+}
+
+/**
+ * How long an early launch may stay unclaimed. A draft whose window closed is
+ * already disposed by the host's session GC once it loses its last
+ * subscriber; this bounds a draft that stays open but is never sent.
+ */
+const COPILOT_EARLY_LAUNCH_TTL_MS = 5 * 60_000;
 
 interface IResolvedCopilotChatContext {
 	/** The chat's owner when the operation resolved it; operations re-resolve inside their queue. */
@@ -329,13 +370,24 @@ interface IResolvedCopilotChatContext {
 	readonly launchWorkingDirectories: readonly URI[] | undefined;
 }
 
+/** What a configuration check runs for, and how it may wait. */
+interface ICopilotSessionRefreshCheckOptions {
+	readonly operation: 'sendMessage' | 'resumeTurn' | 'startMcpServer';
+	readonly token?: CancellationToken;
+	readonly launchedForTurn?: boolean;
+}
+
+interface ICopilotSessionRefreshOptions extends ICopilotSessionRefreshCheckOptions {
+	readonly allowRestart: 'whenIdle' | 'always';
+	readonly turnId?: string;
+}
+
 interface ICopilotAgentSessionIdentity {
 	/** The chat's owner, read at use by the runtime. */
 	readonly owner: IAgentChatOwnerRef;
 	readonly chatChannelUri: URI;
 	/** Host-chosen persistence/config scope (the {@link IAgentChatContext.resource}). */
 	readonly resource: URI;
-	readonly subagentChatUriFormat: ChatUriFormat;
 }
 
 interface IWorkingDirectoryMetadataSnapshot {
@@ -357,6 +409,11 @@ interface IWorkingDirectoryChangeTransactionOptions {
 	readonly previousCustomizationAdditionalDirectories: readonly URI[];
 	readonly previousMetadata: IWorkingDirectoryMetadataSnapshot;
 	readonly updateCustomizationAnchor?: boolean;
+	/**
+	 * Moves the published customization view with the default chat on a
+	 * chat-only move, without rebasing enablement or changing the project.
+	 */
+	readonly followCustomizationAnchor?: boolean;
 	readonly sharedCustomizationDirectories?: readonly URI[];
 }
 
@@ -580,24 +637,19 @@ export function rebaseUnder(uri: URI, fromDir: URI, toDir: URI): URI | undefined
 	return rel.length === 0 ? toDir : resourceJoinPath(toDir, rel);
 }
 
-/** Rebase `enablement` keys under `fromDir` onto `toDir`, preserving unmatched keys verbatim. */
-export function migrateEnablementKeys(enablement: ReadonlyMap<string, boolean>, fromDir: URI, toDir: URI): Map<string, boolean> {
-	const migrated = new Map<string, boolean>();
-	for (const [uri, enabled] of enablement) {
-		const rebased = rebaseUnder(URI.parse(uri), fromDir, toDir);
-		migrated.set(rebased ? rebased.toString() : uri, enabled);
-	}
-	return migrated;
-}
-
 class CopilotChatEntry extends Disposable {
 	constructor(
 		readonly chatSession: CopilotAgentSession,
 		activeClient: ActiveClient,
+		/** The chat's own customization anchor set, held so its discovery stays live as long as the chat is. */
+		anchor: IReference<CustomizationAnchor> | undefined,
 		onMcpNotification: Emitter<IMcpNotification>,
 		onDidRequireAuth: () => void,
 	) {
 		super();
+		if (anchor) {
+			this._register(anchor);
+		}
 		this._register(chatSession);
 		this._register(chatSession.onMcpNotification(notification => onMcpNotification.fire(notification)));
 		this._register(chatSession.onDidRequireAuth(onDidRequireAuth));
@@ -811,9 +863,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * picker.
 	 */
 	private _capiModels: readonly IAgentModelInfo[] = [];
+	private _managedModelPolicy: Parameters<typeof projectCopilotManagedModelConfiguration>[1] | undefined;
 	/** See {@link _getFallbackAutoModel}. */
 	private _fallbackAutoModel: IAgentModelInfo | undefined;
-	private _ensembleExperimentTriggerPending = false;
+	private _fusionExperimentTriggerPending = false;
 	private _byokModels: readonly IAgentModelInfo[] = [];
 
 	/** Model IDs whose long-context tier costs the same as the default tier (free long context). */
@@ -934,16 +987,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	/** Exact chat -> host-selected persistence scope. */
 	private readonly _chatStorageScopes = new Map<string, URI>();
 
-	/** Exact chat -> the format its session's subagent chat ids take. */
-	private readonly _chatSubagentFormats = new Map<string, ChatUriFormat>();
-
-	/** The subagent id format recorded for `chat` by the host context that created or restored it. Contextless legacy resumes only ever run after such a record exists. */
-	private _subagentFormatFor(chat: URI): ChatUriFormat {
-		return this._chatSubagentFormats.get(chat.toString()) ?? 'shaped';
-	}
-
-	private _rememberChatScope(chat: URI, owner: IAgentChatOwnerRef, storageScope: URI, format: ChatUriFormat): void {
-		this._chatSubagentFormats.set(chat.toString(), format);
+	private _rememberChatScope(chat: URI, owner: IAgentChatOwnerRef, storageScope: URI): void {
 		this._chatOwners.set(chat.toString(), owner);
 		this._chatStorageScopes.set(chat.toString(), storageScope);
 	}
@@ -1076,12 +1120,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._register(this._githubCredentials.onDidRequestRefresh(() => this._handleCopilotSessionAuthRequired(false)));
 		if (isAgentHostTelemetryService(this._telemetryService)) {
 			this._register(this._telemetryService.registerCopilotTelemetryProvider(this.id, () => this.getTelemetryContext()));
+			this._register(this._telemetryService.onDidChangeTelemetryLevel(() => {
+				this._revokeSessionTelemetryIfDisabled().catch(err =>
+					this._logService.error('[Copilot] Failed to revoke session telemetry', err)
+				);
+			}));
 		}
 		this._worktree = worktree;
 		this._configurationService.publishRootTransientValues?.({
 			[CopilotCliVSCodeAssignmentContextKey]: undefined,
 		});
 		this._lastStartupConfig = this._readClientStartupConfig();
+		this._sessionTelemetryRevoked = !isCopilotSessionTelemetryEnabled(this._configurationService, this._telemetryService);
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController, () => this._ensureClient()));
 		this._sessionLauncher = this._instantiationService.createInstance(CopilotSessionLauncher);
 		this._customizationInstallations = this._register(new CopilotCustomizationInstallations(
@@ -1089,13 +1139,23 @@ export class CopilotAgent extends Disposable implements IAgent {
 			session => this._findSessionChat(session)?.sessionId,
 			async (client, sessionId) => {
 				const copilotClient = client as CopilotClient;
-				const session = await this._sessionLauncher.createCustomizationPolicySession(
+				const createSession = () => this._sessionLauncher.createCustomizationPolicySession(
 					copilotClient,
 					sessionId,
 					getCopilotHomePath(this._environmentService.userHome.fsPath, process.env),
 					this._getGitHubSessionCredentials(),
 					this._getGitHubHostUri(),
 				);
+				const telemetryEnabledAtStart = isCopilotSessionTelemetryEnabled(this._configurationService, this._telemetryService);
+				let session = await createSession();
+				if (telemetryEnabledAtStart && !isCopilotSessionTelemetryEnabled(this._configurationService, this._telemetryService)) {
+					try {
+						await session.disconnect();
+					} catch {
+						// best-effort teardown before re-creating with telemetry disabled
+					}
+					session = await createSession();
+				}
 				return {
 					client,
 					sessionId: session.sessionId,
@@ -1121,11 +1181,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._secondaryAssignmentContext = this._instantiationService.createInstance(CopilotSecondaryAssignmentContext);
 		this._register(this._configurationService.onDidRootConfigChange(() => {
 			this._updateVSCodeAssignmentContext();
-			if (this._ensembleExperimentTriggerPending) {
+			if (this._fusionExperimentTriggerPending) {
 				// Deferred so that the listener installing the forwarded assignment context on telemetry runs first.
 				queueMicrotask(() => {
-					if (this._ensembleExperimentTriggerPending && !this._store.isDisposed) {
-						this._reportEnsembleExperimentTrigger();
+					if (this._fusionExperimentTriggerPending && !this._store.isDisposed) {
+						this._reportFusionExperimentTrigger();
 					}
 				});
 			}
@@ -1169,6 +1229,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._register(this._configurationService.onDidRootConfigChange(() => {
 			this._restartClientIfStartupConfigChanged().catch(err =>
 				this._logService.error('[Copilot] Failed to apply root config change', err)
+			);
+			this._revokeSessionTelemetryIfDisabled().catch(err =>
+				this._logService.error('[Copilot] Failed to revoke session telemetry', err)
 			);
 		}));
 		this._register(this._managedSettingsService.onDidChange(() => {
@@ -1228,9 +1291,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 */
 	private _emitSpawnedChatForSubagentSignal(signal: AgentSignal): void {
 		const spawn = SubagentChatSignal.toSpawnEvent(signal, chat => {
-			const owner = (this._chatOwners.get(chat)?.get() ?? this._findChatByUri(chat)?.ownerSessionUri)?.toString();
-			const format = this._chatSubagentFormats.get(chat);
-			return owner !== undefined && format !== undefined ? { owner, format } : undefined;
+			const owner = this._chatOwners.get(chat);
+			return owner && { owner: owner.get().toString(), format: owner.getSubagentChatUriFormat() };
 		});
 		if (spawn) {
 			this._onDidSpawnChat.fire(spawn);
@@ -1238,6 +1300,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _lastStartupConfig: CopilotAgentStartupConfig;
+	private _sessionTelemetryRevoked: boolean;
 	private _migrateLegacyEnabledSnapshot: boolean | undefined;
 
 	private _isSessionSyncEnabled(): boolean {
@@ -1261,11 +1324,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _isHydraFusionEnabled(): boolean {
-		return this._isEnsembleEnabled() || this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusion) === true;
+		return this._isFusionEnabled() || this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusion) === true;
 	}
 
 	private _isHydraFusionV2Enabled(): boolean {
-		return this._isHydraFusionEnabled() && (this._isEnsembleEnabled() || this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusionV2) === true);
+		return this._isHydraFusionEnabled() && (this._isFusionEnabled() || this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusionV2) === true);
 	}
 
 	/** Mirrors the launcher's gate: the sticky-root hint only affects HydraFusion v2 plans. */
@@ -1273,12 +1336,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._isHydraFusionV2Enabled() && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusionMultiRoot) === true;
 	}
 
-	private _isEnsembleEnabled(): boolean {
-		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Ensemble) === true;
+	private _isFusionEnabled(): boolean {
+		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Fusion) === true;
 	}
 
-	private _isEnsembleIntelligenceUsingHydraFusion(): boolean {
-		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.EnsembleIntelligenceUsesHydraFusion) === true;
+	private _isFusionBalanceUsingHydraFusion(): boolean {
+		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.FusionBalanceUsesHydraFusion) === true;
 	}
 
 	private _isLocalMemoryEnabled(): boolean {
@@ -1625,8 +1688,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// rather than serving the old client's catalog until the next token
 		// change. Not hooked in `_ensureClient`, since `_listModels` calls
 		// it and would recurse.
-		this._capiModels = [];
-		this._publishModels();
+		// Until the refresh lands, keep publishing the last-known list: an empty
+		// one makes clients drop the conversation's selected model.
 		void this._scheduleModelRefresh();
 	}
 
@@ -1640,6 +1703,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		for (const session of this._allLiveSessions()) {
 			void this._scheduleConnectorRefresh(session);
 		}
+		if (this._sessionTelemetryRevoked) {
+			queueMicrotask(() => {
+				this._disposeIdleTelemetryRevokedSessions().catch(err =>
+					this._logService.error('[Copilot] Failed to dispose telemetry-revoked session', err)
+				);
+			});
+		}
 		if (this._pendingClientRestartReasons.size === 0) {
 			return;
 		}
@@ -1648,6 +1718,58 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._logService.error('[Copilot] Failed to apply deferred client restart', err)
 			);
 		});
+	}
+
+	/**
+	 * Revokes session telemetry on existing runtime sessions when the effective
+	 * telemetry level drops below `USAGE`, without waiting for every chat across
+	 * the host to become idle. Idle sessions and the hidden customization policy
+	 * session are torn down immediately so they cannot be reused with telemetry
+	 * enabled; sessions with in-flight work are marked so they tear down as soon
+	 * as their own turn/subagents finish (or before their next turn in
+	 * {@link _refreshSessionConfiguration}).
+	 */
+	private async _revokeSessionTelemetryIfDisabled(): Promise<void> {
+		if (this._sessionTelemetryRevoked || isCopilotSessionTelemetryEnabled(this._configurationService, this._telemetryService)) {
+			return;
+		}
+		this._sessionTelemetryRevoked = true;
+		for (const session of [...this._allLiveSessions(), ...this._sessionsPendingRegistration]) {
+			session.markTelemetryRevocationRequiresRestart?.();
+		}
+		const policyRelease = this._customizationInstallations.releasePolicySession();
+		await Promise.all([
+			policyRelease,
+			this._disposeIdleTelemetryRevokedSessions(),
+		]);
+	}
+
+	/**
+	 * Tears down a telemetry-revoked session through its chat sequencer once it
+	 * has no active turn or subagent, so disposal never races a concurrently
+	 * queued operation on that chat.
+	 */
+	private _scheduleTelemetryRevokedSessionDisposal(session: CopilotAgentSession): Promise<void> {
+		if (this._shutdownPromise || !session.requiresRestartAfterTelemetryRevocation || session.isDisposed || session.hasActiveTurn || session.hasActiveSubagents) {
+			return Promise.resolve();
+		}
+		return this._queueChat(session.sessionId, session.sessionId, 'disposeTelemetryRevokedSession', async () => {
+			if (this._shutdownPromise || session.isDisposed || session.hasActiveTurn || session.hasActiveSubagents || this._findSessionBySdkId(session.sessionId) !== session) {
+				return;
+			}
+			const canvasHandoff = session.takeCanvasProjection();
+			if (canvasHandoff) {
+				this._canvasHandoffs.set(session.chatChannelUri, canvasHandoff);
+			}
+			await this._destroyLiveSession(session, true);
+		}).catch(error => this._logService.warn(`[Copilot:${session.sessionId}] Failed to dispose telemetry-revoked session`, error));
+	}
+
+	private async _disposeIdleTelemetryRevokedSessions(): Promise<void> {
+		if (this._shutdownPromise) {
+			return;
+		}
+		await Promise.all(this._allLiveSessions().map(session => this._scheduleTelemetryRevokedSessionDisposal(session)));
 	}
 
 	private async _handleClientOperationFailure(error: unknown, operation: CopilotClientOperation, correlation?: ICopilotFailureCorrelation): Promise<ICopilotClosedConnectionRecoveryResult | undefined> {
@@ -1718,8 +1840,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			stopSucceeded = false;
 			this._logService.error(error, '[Copilot] Failed to stop closed SDK client');
 		}
-		this._capiModels = [];
-		this._publishModels();
+		// Keep the last-known models; an empty list makes clients drop their selected model.
 		return { failedTurnIds, stopSucceeded };
 	}
 
@@ -2033,6 +2154,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 				const previousCustomizationDirectory = activeClient.pluginController.directory ?? previousWorkingDirectory;
 				const previousCustomizationAdditionalDirectories = [...activeClient.pluginController.additionalDirectories];
+				const defaultChatOnlyMove = chatOnly && !replaceSessionWorkspace && isEqual(resource, ownerSession);
+				// The roots older builds keep discovering from: those saved by the first chat-only move, else the folders it moves away from.
+				const savedSharedRoots = defaultChatOnlyMove ? this._parseWorkingDirectories(storedMetadata.snapshot.sharedCustomizationDirectories, undefined) : undefined;
 				const transaction = this._createWorkingDirectoryChangeTransaction({
 					resource,
 					activeClient,
@@ -2042,8 +2166,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 					previousCustomizationAdditionalDirectories,
 					previousMetadata: storedMetadata.snapshot,
 					updateCustomizationAnchor: !chatOnly || replaceSessionWorkspace,
-					sharedCustomizationDirectories: chatOnly && !replaceSessionWorkspace && isEqual(resource, ownerSession)
-						? [previousCustomizationDirectory, ...previousCustomizationAdditionalDirectories]
+					followCustomizationAnchor: defaultChatOnlyMove,
+					// Still written for older builds, which keep discovery at the original folders; this build does not read it.
+					sharedCustomizationDirectories: defaultChatOnlyMove
+						? savedSharedRoots?.length ? savedSharedRoots : [previousCustomizationDirectory, ...previousCustomizationAdditionalDirectories]
 						: undefined,
 				});
 				await entry.setWorkingDirectory(workingDirectory, transaction);
@@ -2120,9 +2246,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		};
 		const applyProviderState = async (directory: URI, additionalDirectories: readonly URI[], metadata: IWorkingDirectoryMetadataSnapshot): Promise<void> => {
 			const errors: string[] = [];
-			if (options.updateCustomizationAnchor !== false) {
+			if (options.updateCustomizationAnchor !== false || options.followCustomizationAnchor) {
 				try {
-					activeClient.pluginController.reanchor(directory);
+					activeClient.pluginController.reanchor(directory, options.updateCustomizationAnchor !== false);
 				} catch (error) {
 					errors.push(`customization anchor: ${getErrorMessage(error)}`);
 				}
@@ -2130,6 +2256,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 					activeClient.pluginController.setAdditionalDirectories(additionalDirectories);
 				} catch (error) {
 					errors.push(`customization additional roots: ${getErrorMessage(error)}`);
+				}
+				if (options.followCustomizationAnchor) {
+					activeClient.pluginController.publishWhenSettled();
 				}
 			}
 			try {
@@ -2238,12 +2367,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const context = this._resolveChatContext(chat, {
 			owner,
 			resource: this._resolveChatStorageScope(chat),
-			subagentChatUriFormat: this._subagentFormatFor(chat),
 			sessionSettings: undefined,
 			launchWorkingDirectories: undefined,
 		});
 		const provisional = this._provisionalSessions.get(context.provisionalKey);
-		return provisional && isEqual(provisional.chat, chat) ? undefined : context;
+		// An MCP request must never materialize an unsent draft, but it may address the draft's early launch.
+		const reachesEarlyLaunch = !!context.target && !!this._earlyLaunchReservation(context, context.target);
+		return provisional && isEqual(provisional.chat, chat) && !reachesEarlyLaunch ? undefined : context;
 	}
 
 	async getSessionPlan(session: URI) {
@@ -2336,6 +2466,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 	async openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI, operationContext: AgentChatOperationContext): Promise<void> {
 		const liveSession = await this._resolveSessionCanvasChat(session, chat, operationContext, 'openSessionCanvas');
 		await liveSession.openCanvas(request);
+	}
+
+	async closeSessionCanvas(session: URI, request: IAgentCanvasCloseRequest, chat: URI, operationContext: AgentChatOperationContext): Promise<void> {
+		// Only a live chat projects canvases, so closing one neither waits for
+		// queued chat work nor resumes a cold chat that has none to close.
+		const liveSession = this._resolveSessionCanvasChatContext(session, chat, operationContext).target;
+		if (liveSession && isEqual(liveSession.ownerSessionUri, session)) {
+			await liveSession.closeCanvas(request);
+		}
 	}
 
 	private async _resolveSessionCanvasChat(session: URI, chat: URI, operationContext: AgentChatOperationContext, operation: 'listSessionCanvases' | 'openSessionCanvas'): Promise<CopilotAgentSession> {
@@ -2471,12 +2610,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 					if (token.isCancellationRequested) {
 						throw new CancellationError();
 					}
-					const current = this._findSessionChat(session);
+					const context = this._resolveMcpRequestChatContext(controlChat.chat);
+					if (!context) {
+						throw new Error('Cannot start an MCP server because the session runtime is no longer available.');
+					}
+					const current = context.target ?? await this._ensureResolvedChatSession(context);
 					if (!current) {
 						throw new Error('Cannot start an MCP server because the session runtime is no longer available.');
 					}
 					return this._refreshSessionConfiguration(
-						this._resolveSendChatContext(controlChat.chat),
+						context,
 						current,
 						undefined,
 						{ operation: 'startMcpServer', allowRestart: 'whenIdle', token },
@@ -2533,7 +2676,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Resolves the customization anchor(s) for a session. `directory` is the
+	 * Resolves the customization anchor(s) of a session's published view, which
+	 * follows its default chat (each chat's own snapshot anchors to that chat's
+	 * folders, see {@link _acquireChatCustomizationAnchor}). `directory` is the
 	 * primary (index 0) anchor — the worktree for worktree-isolated sessions.
 	 * `additionalDirectories` are the non-primary roots to attach to discovery,
 	 * and are applied only when `applyAdditional` is true:
@@ -2955,13 +3100,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const tokenAtRefreshStart = this._githubCredentials.token;
 		if (!tokenAtRefreshStart) {
 			this._capiModels = [];
+			this._managedModelPolicy = undefined;
 			this._publishModels();
 			return;
 		}
 		try {
 			const models = await this._listModels(tokenAtRefreshStart);
+			const modelPolicy = await resolveCopilotManagedSettings((await this._ensureClient()).rpc.managedSettings, tokenAtRefreshStart, COPILOT_MANAGED_SETTINGS_QUERY_TIMEOUT_MS);
 			if (this._githubCredentials.token === tokenAtRefreshStart && this._modelCatalogGeneration === generation) {
 				this._capiModels = models;
+				this._managedModelPolicy = modelPolicy;
 				this._publishModels();
 			}
 		} catch (err) {
@@ -2997,7 +3145,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * allocated each call so the observable always notifies its consumers.
 	 */
 	private _publishModels(): void {
-		const ensemble = this._isEnsembleEnabled();
+		const fusion = this._isFusionEnabled();
 		const hydraFusionModels: IAgentModelInfo[] = [];
 		for (const [id, name] of COPILOT_HYDRA_FUSION_MODEL_NAMES) {
 			// The runtime only offers Max with HydraFusion v2.
@@ -3013,27 +3161,51 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 		}
 		const capiModels = this._capiModels
-			// Ensemble's tiers route through HydraFusion, so they only offer what its settings enable.
-			.filter(model => !ensemble || !isCopilotHydraFusionModelId(model.id) || (model.id === COPILOT_HYDRA_FUSION_MAX_MODEL_ID ? this._isHydraFusionV2Enabled() : this._isHydraFusionEnabled()))
-			.map(model => ensemble ? this._asEnsemble(model) : model);
+			.map(model => this._managedModelPolicy ? projectCopilotManagedModelConfiguration(model, this._managedModelPolicy, this._logService) : model)
+			// Fusion's tiers route through HydraFusion, so they only offer what its settings enable.
+			.filter(model => !fusion || !isCopilotHydraFusionModelId(model.id) || (model.id === COPILOT_HYDRA_FUSION_MAX_MODEL_ID ? this._isHydraFusionV2Enabled() : this._isHydraFusionEnabled()))
+			.map(model => this._asPresented(model, fusion));
 		if (this._capiModels.some(model => isAutoModel(model.id))) {
-			this._reportEnsembleExperimentTrigger();
+			this._reportFusionExperimentTrigger();
 		}
-		this._models.set([...capiModels, ...hydraFusionModels, ...this._byokModels, ...this._getLocalModelRows()], undefined);
+		this._models.set([...capiModels, ...hydraFusionModels, ...this._byokModels, ...this._getLocalModelRows()].map(model => this._withModelConfigAliases(model)), undefined);
+		for (const entry of this._chatEntriesBySdkId.values()) {
+			entry.chatSession.refreshModelConfiguration();
+		}
+	}
+
+	private _withModelConfigAliases(model: IAgentModelInfo): IAgentModelInfo {
+		if (!model.configSchema) {
+			return model;
+		}
+		const properties = { ...model.configSchema.properties };
+		for (const [legacyKey, aliasKey] of [[ThinkingLevelConfigKey, CopilotReasoningEffortConfigKey], [AutoTierConfigKey, CopilotAutoTierConfigKey]]) {
+			const property = properties[legacyKey];
+			if (property) {
+				// Only the legacy key supplies defaults, so they cannot shadow an explicit legacy selection.
+				properties[aliasKey] = { ...property, default: undefined };
+			}
+		}
+		return { ...model, configSchema: { ...model.configSchema, properties } };
 	}
 
 	/**
-	 * Ensemble's effects all start when a model list with Auto is published, in every arm. Held until the
+	 * Fusion's effects all start when a model list with Auto is published, in every arm. Held until the
 	 * workbench forwards its assignment context, without which agent host telemetry has no experiment.
 	 */
-	private _reportEnsembleExperimentTrigger(): void {
-		this._ensembleExperimentTriggerPending = typeof this._configurationService.getRootConfigValues?.()[CopilotCliVSCodeAssignmentContextKey] !== 'string';
-		if (!this._ensembleExperimentTriggerPending) {
-			logSettingExperimentTrigger(this._telemetryService, AgentHostEnsembleEnabledSettingId);
+	private _reportFusionExperimentTrigger(): void {
+		this._fusionExperimentTriggerPending = typeof this._configurationService.getRootConfigValues?.()[CopilotCliVSCodeAssignmentContextKey] !== 'string';
+		if (!this._fusionExperimentTriggerPending) {
+			logSettingExperimentTrigger(this._telemetryService, AgentHostFusionEnabledSettingId);
 		}
 	}
 
-	private _asEnsemble(model: IAgentModelInfo): IAgentModelInfo {
+	/** The model as the picker presents it, so per-chat reports offer the same choices as the catalog. */
+	private _asPresented(model: IAgentModelInfo, fusion = this._isFusionEnabled()): IAgentModelInfo {
+		return fusion ? this._asFusion(model) : model;
+	}
+
+	private _asFusion(model: IAgentModelInfo): IAgentModelInfo {
 		if (!isAutoModel(model.id)) {
 			return model;
 		}
@@ -3045,12 +3217,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 				...model.configSchema.properties,
 				[AutoTierConfigKey]: {
 					...tier,
-					// Ensemble's tiers read as an effort level, like other models' effort setting.
-					title: localize('copilotAgent.ensembleTier.title', "Effort Level"),
+					// Fusion's tiers read as an effort level, like other models' effort setting.
+					title: localize('copilotAgent.fusionTier.title', "Effort Level"),
 					enum: kept.map(index => tier.enum![index]),
-					enumLabels: kept.map(index => tier.enum![index] === 'intelligence' || !tier.enumLabels
-						? getEnsembleAutoModeTierLabel(String(tier.enum![index]))
-						: tier.enumLabels[index]),
+					// Fusion names its tiers itself, so the provider's Auto labels would mislabel them.
+					enumLabels: kept.map(index => getFusionAutoModeTierLabel(String(tier.enum![index]))),
 					...(tier.enumDescriptions && { enumDescriptions: kept.map(index => tier.enumDescriptions![index]) }),
 					default: tier.default === 'efficiency' ? defaultAutoModeTier : tier.default,
 				},
@@ -3058,10 +3229,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		} : model.configSchema;
 		return {
 			...model,
-			name: localize('copilotAgent.ensembleModelName', "Ensemble"),
+			name: localize('copilotAgent.fusionModelName', "Fusion"),
 			configSchema,
 			// HydraFusion stays published either way, so sessions that already selected it keep working.
-			_meta: withAgentModelEnsembleMeta(model._meta, { intelligenceUsesHydraFusion: this._isEnsembleIntelligenceUsingHydraFusion() }),
+			_meta: withAgentModelFusionMeta(model._meta, { balanceUsesHydraFusion: this._isFusionBalanceUsingHydraFusion() }),
 		};
 	}
 
@@ -3275,10 +3446,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// re-introduce a process-wide alias for every session behind its back.
 			delete env['COPILOT_MODEL_FAMILY'];
 			setCopilotBuiltinGitHubMcpEnvironment(env, startupConfig.githubMcpServer);
-			if (this._productService.quality !== 'stable') {
-				env['IMAGE_GENERATION_TOOL'] = 'true';
-			}
-
 			// On Linux the MXC bubblewrap sandbox backend does not forward a PTY into
 			// the container, so the CLI's default PTY-backed interactive shell can
 			// never start bash under the sandbox: the inner shell sees a non-tty
@@ -4468,12 +4635,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _listInstalledPlugins(sessionId: string) {
-		const session = this._findSessionChat(this._sessionResourceForCompletions(sessionId));
-		if (session) {
-			return session.listInstalledPlugins();
-		}
 		const client = await this._ensureClient();
-		return (await client.rpc.plugins.list()).plugins;
+		const installedPlugins = (await client.rpc.plugins.list()).plugins;
+		const session = this._findSessionChat(this._sessionResourceForCompletions(sessionId));
+		if (!session) {
+			return installedPlugins;
+		}
+		const sessionPlugins = await session.listInstalledPlugins();
+		const sessionPluginIds = new Set(sessionPlugins.map(plugin => JSON.stringify([plugin.name, plugin.marketplace, plugin.directSourceId])));
+		return [
+			...sessionPlugins,
+			...installedPlugins.filter(plugin => !sessionPluginIds.has(JSON.stringify([plugin.name, plugin.marketplace, plugin.directSourceId]))),
+		];
 	}
 
 	private async _listPluginMarketplacePlugins(sessionId: string): Promise<readonly { readonly name: string; readonly marketplace: string }[]> {
@@ -4506,6 +4679,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 */
 	readonly chats: IAgentChats = {
 		prepareTurn: (chat: URI, turnId: string, workingDirectories: readonly URI[] | undefined, context: URI | IAgentChatContext): Promise<void> => this._prepareTurn(chat, turnId, workingDirectories, context),
+		warmChat: (chat: URI, context: IAgentChatContext): Promise<boolean> => this._warmChat(chat, context),
 		createChat: (chat: URI, context: URI | IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult> => {
 			this._noteHostCustomizations(context);
 			return this._createChat(chat, resolveAgentChatContext(context, chat), options);
@@ -4571,7 +4745,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// runs (which re-records the same scope for an idempotent duplicate) so
 		// the check reflects what existed walking in, not what this call added.
 		const preexisting = this._chatOwners.has(chatKey) || this._chatBackings.has(chatKey) || !!this._findChatByUri(chat);
-		this._rememberChatScope(chat, context.owner, context.resource, context.subagentChatUriFormat);
+		this._rememberChatScope(chat, context.owner, context.resource);
 		try {
 			if (options.deferBacking) {
 				return await this._reserveChatBacking(chat, context, options);
@@ -4616,7 +4790,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// The scope was recorded optimistically before the create attempt; it
 		// never produced a backing, so it must stop counting as a live chat.
 		this._chatOwners.delete(chatKey);
-		this._chatSubagentFormats.delete(chatKey);
 		this._chatStorageScopes.delete(chatKey);
 		// A partially-completed reserve/import can record a backing before the
 		// operation that follows it fails (e.g. `_resumeSession` records one
@@ -4646,14 +4819,21 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const isWorkspaceless = options.workingDirectories === undefined;
 		const workingDirectory = await this._resolveCreateWorkingDirectory(options, sessionId, isWorkspaceless);
 		await this._ensureClient();
+		// Keyed by the storage the chat records, not its owner, so a later owner change still finds it and a
+		// peer's reservation never shares its session's key.
+		const sessionStorage = resolveSessionBackedStorage(context, chat);
+		const reservationKey = sessionStorage ? AgentSession.id(sessionStorage) : chat.toString();
+		const reserved = this._provisionalSessions.get(reservationKey);
 
 		// Idempotency: a duplicate creation for a chat that has already been
 		// promoted to a real SDK session (or restored from disk) is a no-op; we
 		// return the non-provisional result so the caller doesn't re-fire
 		// `SessionAdded`. This guards against client retries that race a
-		// successful first message.
+		// successful first message. An unclaimed warm runtime is live but not
+		// materialized, so a retry keeps the provisional reservation below and
+		// still syncs the retrying client's tools and customizations.
 		const existing = this._findChatByUri(chat);
-		if (existing) {
+		if (existing && reserved?.earlyLaunch?.launch.session !== existing) {
 			this._logService.info(`[Copilot] createChat is a no-op: chat ${chat.toString()} is already backed by a live runtime`);
 			const project = await projectFromCopilotContext({ cwd: workingDirectory.fsPath }, this._gitService);
 			return {
@@ -4671,11 +4851,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// which would clobber the user's selections accumulated since the
 		// original create. The active-client / plugin sync below still runs so
 		// the new connection's claim takes effect.
-		// Keyed by the storage the chat records, not its owner, so a later owner change still finds it and a
-		// peer's reservation never shares its session's key.
-		const sessionStorage = resolveSessionBackedStorage(context, chat);
-		const reservationKey = sessionStorage ? AgentSession.id(sessionStorage) : chat.toString();
-		const reserved = this._provisionalSessions.get(reservationKey);
 
 		// Seed active-client snapshot if the client claimed it eagerly. This
 		// runs identically for reserved and real backings; the SDK side of
@@ -4698,7 +4873,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 				// Eager pre-send claim: no session-state listener is hooked up
 				// yet, so suppress action events. The session reads the final
 				// view via its initial snapshot once it materializes.
-				await ac.pluginController.sync(seeded.clientId, seeded.customizations, { quiet: true });
+				// A warm session already listens for these events, so its updates publish normally.
+				await ac.pluginController.sync(seeded.clientId, seeded.customizations, { quiet: !reserved?.earlyLaunch });
 			}
 		}
 
@@ -5399,14 +5575,39 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return undefined;
 	}
 
-	/** Materializes a provisional chat into a real SDK session immediately before first send. */
-	private async _materializeProvisional(sessionId: string, resolvedWorkingDirectories?: readonly URI[], stageRecorder?: IAgentProviderSendStageRecorder): Promise<CopilotAgentSession> {
-		const provisional = this._provisionalSessions.get(sessionId);
+	/**
+	 * Materializes a provisional chat on its first send: launches its SDK
+	 * session, or uses the one launched before the send ({@link _warmChat})
+	 * when it still matches, then persists and announces it. The caller holds
+	 * the chat's queue.
+	 */
+	private async _materializeProvisional(context: IResolvedCopilotChatContext, resolvedWorkingDirectories: readonly URI[] | undefined, stageRecorder: IAgentProviderSendStageRecorder | undefined, send?: { readonly token?: CancellationToken; readonly operationContext?: URI | IAgentChatContext }): Promise<CopilotAgentSession> {
+		const provisional = this._provisionalSessions.get(context.provisionalKey);
 		if (!provisional) {
-			throw new Error(`Cannot materialize unknown provisional session: ${sessionId}`);
+			throw new Error(`Cannot materialize unknown provisional session: ${context.provisionalKey}`);
 		}
+		const early = await this._takeEarlyLaunch(provisional, context, resolvedWorkingDirectories, send?.token);
+		if (early.launch || early.discardReason) {
+			const operationContext = send?.operationContext;
+			if (operationContext && !URI.isUri(operationContext)) {
+				operationContext.reportPrewarmedSession?.(early.discardReason);
+			}
+		}
+		const launch = early.launch ?? await this._launchProvisional(provisional, resolvedWorkingDirectories, stageRecorder, false);
+		return this._completeProvisionalMaterialization(provisional, launch, resolvedWorkingDirectories, stageRecorder);
+	}
+
+	/**
+	 * Creates and registers the SDK session for a provisional chat without
+	 * persisting or announcing anything. This is the half of materialization a
+	 * pre-warmed chat runs before its first send; until
+	 * {@link _completeProvisionalMaterialization} runs, the SDK session leaves
+	 * nothing on disk except the runtime's in-use lock, so it is never listable.
+	 */
+	private async _launchProvisional(provisional: IProvisionalSession, resolvedWorkingDirectories: readonly URI[] | undefined, stageRecorder: IAgentProviderSendStageRecorder | undefined, warm: boolean): Promise<ICopilotProvisionalLaunch> {
 		stageRecorder?.mark('client');
 		const client = await this._ensureClientForSession();
+		await this._deleteStaleSdkState(provisional);
 		stageRecorder?.mark('snapshot');
 		// The reservation was made in the session the chat was created in. The chat's data goes to its recorded
 		// storage, and owner-level state (clients, MCP, shells, baseline) to the session that owns it now.
@@ -5422,8 +5623,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const workingDirectory = resolvedWorkingDirectories?.[0] ?? provisional.workingDirectory;
 		// Project resolution is read-only git work that only depends on the working
 		// directory, so run it alongside the launch instead of after it.
-		const projectPromise = projectFromCopilotContext({ cwd: workingDirectory?.fsPath }, this._gitService);
-		projectPromise.catch(() => { /* surfaced by the await below, or moot if the launch fails */ });
+		const project = projectFromCopilotContext({ cwd: workingDirectory?.fsPath }, this._gitService);
+		project.catch(() => { /* surfaced by the await at completion, or moot if the launch fails */ });
 		// The customization anchor follows the working directory: once a worktree
 		// is created the agent must discover skills/instructions/agents from the
 		// worktree (not the user-picked folder) so the model reads and edits files
@@ -5438,16 +5639,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 		activeClient.pluginController.reanchor(customizationDirectory);
 		// Multi-root: anchor customization discovery to the additional workspace
 		// roots (index 1..N of the resolved set). Empty when single-root / gated off.
-		activeClient.pluginController.setAdditionalDirectories(this._additionalCustomizationDirectories(resolvedWorkingDirectories));
-		// Advertise exactly the clients Agent Host fanned this chat out to.
-		const snapshot = await activeClient.snapshot(chat.toString());
-		const shellManager = this._instantiationService.createInstance(ShellManager, owner, chat, storage, workingDirectory);
-
+		const additionalDirectories = this._additionalCustomizationDirectories(resolvedWorkingDirectories);
+		activeClient.pluginController.setAdditionalDirectories(additionalDirectories);
+		// The chat's own anchor set (the published view follows the default chat's);
+		// held until the chat's entry holds it so it is discovered only once.
+		const anchor = await this._acquireChatCustomizationAnchor(activeClient, customizationDirectory, additionalDirectories);
 		let agentSession: CopilotAgentSession | undefined;
-		let agent: AgentSelection | undefined;
 		try {
+			// Advertise exactly the clients Agent Host fanned this chat out to.
+			const snapshot = await activeClient.snapshot(chat.toString(), anchor?.object, provisional.agent?.uri);
+			const shellManager = this._instantiationService.createInstance(ShellManager, owner, chat, storage, workingDirectory);
 			const resolvedAgent = provisional.isEphemeral ? undefined : await this._resolveAgentWhenMaterializing(provisional, snapshot, workingDirectory);
-			agent = resolvedAgent?.agent;
 			const launchPlan: CopilotSessionLaunchPlan = {
 				kind: 'create',
 				client,
@@ -5474,19 +5676,34 @@ export class CopilotAgent extends Disposable implements IAgent {
 				owner: this._resolveChatOwnerRef(chatChannelUri),
 				chatChannelUri,
 				resource: storage,
-				subagentChatUriFormat: this._subagentFormatFor(chatChannelUri),
-			});
+			}, { deferAutoSessionStart: warm });
+			if (warm) {
+				// Errors are held from before initialization, which is where a launch fails.
+				agentSession.holdSessionErrorTelemetry();
+			}
 			const initializingSession = agentSession;
 			await this._initializeAndRegisterSession(initializingSession, () => {
 				this._registerInitializedSession(sdkSessionId, initializingSession, activeClient, launchPlan.client);
 			});
+			return { session: agentSession, agent: resolvedAgent?.agent, workingDirectory, customizationDirectory, storage, owner, project };
 		} catch (error) {
 			agentSession?.dispose();
 			throw error;
+		} finally {
+			anchor?.dispose();
 		}
+	}
 
+	/**
+	 * Persists and announces a launched provisional chat: the half of
+	 * materialization that only the first send may run, because it is what
+	 * makes the session durable and listable.
+	 */
+	private async _completeProvisionalMaterialization(provisional: IProvisionalSession, launch: ICopilotProvisionalLaunch, resolvedWorkingDirectories: readonly URI[] | undefined, stageRecorder: IAgentProviderSendStageRecorder | undefined): Promise<CopilotAgentSession> {
+		const { sessionId, sdkSessionId, chat } = provisional;
+		const { session: agentSession, agent, workingDirectory, customizationDirectory, storage, owner } = launch;
 		stageRecorder?.mark('persist');
-		const project = await projectPromise;
+		const project = await launch.project;
 
 		// The resolved root set (index 0 = process root, e.g. a worktree).
 		// Shared by the persisted metadata, the baseline checkpoint and the
@@ -5519,6 +5736,198 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// replaces index 0 of the session set with it, preserving the tail.
 		this._onDidMaterializeChat.fire({ chat: provisional.chat, project, workingDirectories: materializedWorkingDirectories });
 		return agentSession;
+	}
+
+	/**
+	 * Launches a provisional chat's SDK session before its first send and starts
+	 * its MCP servers ({@link IAgentChats.warmChat}). This is the launch the
+	 * first send would run, started early and kept on the reservation
+	 * ({@link IProvisionalSession.earlyLaunch}) until that send completes it in
+	 * {@link _materializeProvisional}. Runs through the chat's queue, so a send
+	 * that arrives mid-launch waits for it, and a dispose never interleaves
+	 * with it. An in-flight SDK create cannot be aborted, so abandoning a draft
+	 * mid-launch lets the launch finish and then discards it.
+	 */
+	private async _warmChat(chat: URI, operationContext: IAgentChatContext): Promise<boolean> {
+		if (this._isShuttingDown) {
+			return false;
+		}
+		// Keep only the addressing for the expiry to re-resolve: replaying a
+		// stale host customization snapshot later would overwrite the retained one.
+		const context: IAgentChatContext = {
+			resource: operationContext.resource,
+			owner: operationContext.owner,
+			sessionSettings: operationContext.sessionSettings,
+			launchWorkingDirectories: operationContext.launchWorkingDirectories,
+		};
+		const initial = this._resolveChatContext(chat, operationContext);
+		return this._queueChat(initial.lifetimeId, initial.sequencerKey, 'warmChat', async () => {
+			const current = this._resolveChatContext(chat, context);
+			const provisional = this._provisionalSessions.get(current.provisionalKey);
+			if (!provisional || !isEqual(provisional.chat, chat) || provisional.sdkSessionId !== current.sdkSessionId || this._isShuttingDown) {
+				return false;
+			}
+			if (this._getEarlyLaunch(provisional)) {
+				return true;
+			}
+			if (current.target) {
+				return false;
+			}
+			try {
+				// Mirrors the send path, so the session is launched with the same plugin state.
+				await this._activeClients.get(current.ownerSession)?.pluginController.retryFailedClientSyncIfNeeded(CancellationToken.None);
+				const launch = await this._launchProvisional(provisional, provisional.workingDirectories, undefined, true);
+				const expiry = new MutableDisposable();
+				const early: ICopilotEarlyLaunch = {
+					launch,
+					model: provisional.model,
+					agent: provisional.agent,
+					dispose: () => expiry.dispose(),
+				};
+				expiry.value = disposableTimeout(() => void this._expireEarlyLaunch(chat, context, early), COPILOT_EARLY_LAUNCH_TTL_MS);
+				provisional.earlyLaunch = early;
+				this._logService.info(`[Copilot:${current.ownerSessionId}] [warm] Started pre-warmed session: sdkSessionId=${launch.session.sessionId}, chat=${chat.toString()}`);
+				// Listing runs outside the chat queue, so a send is never held behind slow MCP server startup.
+				launch.session.startMcpServers().catch(error => {
+					if (!launch.session.isDisposed) {
+						this._logService.warn(`[Copilot:${current.ownerSessionId}] [warm] Failed to start MCP servers for pre-warmed session ${launch.session.sessionId}`, error);
+					}
+				});
+				return true;
+			} catch (error) {
+				// The first send launches the session again and surfaces any error then.
+				this._logService.warn(`[Copilot:${current.ownerSessionId}] [warm] Pre-warmed session launch failed; the first send will launch it: chat=${chat.toString()}`, error);
+				return false;
+			}
+		});
+	}
+
+	/**
+	 * Takes a provisional chat's early launch for its first send, or discards it
+	 * when anything fixed at launch changed since. Every such change starts the
+	 * send cold; nothing is applied to the early launch live. The caller holds
+	 * the chat's queue.
+	 *
+	 * A worktree send always discards it: an SDK session cannot move to another
+	 * working directory, so a worktree chat's session always starts cold. The
+	 * early launch still pre-installed plugins and packages that outlive it.
+	 */
+	private async _takeEarlyLaunch(provisional: IProvisionalSession, context: IResolvedCopilotChatContext, workingDirectories: readonly URI[] | undefined, token: CancellationToken | undefined): Promise<{ readonly launch?: ICopilotProvisionalLaunch; readonly discardReason?: string }> {
+		const early = this._getEarlyLaunch(provisional);
+		if (!early) {
+			return {};
+		}
+		const discardReason = await this._earlyLaunchStaleReason(provisional, early, context, workingDirectories, token);
+		if (discardReason) {
+			await this._discardEarlyLaunch(provisional, discardReason);
+			return { discardReason };
+		}
+		const session = early.launch.session;
+		if (session.hasPendingConnectorRefresh) {
+			await session.refreshConnectors(token);
+		}
+		provisional.earlyLaunch = undefined;
+		early.dispose();
+		this._logService.info(`[Copilot:${context.ownerSessionId}] [warm] Claimed pre-warmed session: sdkSessionId=${session.sessionId}, chat=${provisional.chat.toString()}`);
+		session.releaseHeldSessionErrorTelemetry();
+		this._noteAutoSessionStarted(provisional.model?.id);
+		return { launch: early.launch };
+	}
+
+	/** Why an early launch no longer matches the launch its first send would run, or `undefined` when it still does. */
+	private async _earlyLaunchStaleReason(provisional: IProvisionalSession, early: ICopilotEarlyLaunch, context: IResolvedCopilotChatContext, workingDirectories: readonly URI[] | undefined, token: CancellationToken | undefined): Promise<string | undefined> {
+		const session = early.launch.session;
+		// The reservation has no stored working directory, so the refresh reason
+		// cannot see a moved primary directory; compare it explicitly.
+		if (workingDirectories?.[0] && !isEqual(workingDirectories[0], session.workingDirectory)) {
+			return 'workingDirectoryChanged';
+		}
+		// Model-specific launch configuration (system prompt, tool search, per-model
+		// overrides) and the resolved custom agent are fixed at launch.
+		// TODO@vritant24: Start cold only when the launch would differ (prompt contributor and overrides, `family` alias, tool search, per-model tool filters), and apply other model changes live by passing `modelCapabilities` and `verbosity` to `switchTo`. That also fixes live model changes clearing the runtime's capability overrides, which affects every session.
+		if (!structuralEquals(provisional.model, early.model)) {
+			return 'modelChanged';
+		}
+		if (!structuralEquals(provisional.agent, early.agent)) {
+			return 'agentChanged';
+		}
+		return this._sessionRefreshReason(context, session, workingDirectories, { operation: 'sendMessage', token });
+	}
+
+	/**
+	 * A provisional chat's early launch. One whose runtime was torn down
+	 * without {@link _discardEarlyLaunch} (a client restart, closed-connection
+	 * recovery or idle release) is forgotten, keeping the reservation so the
+	 * next launch starts afresh, and its leftover runtime state is deleted
+	 * before that launch ({@link _deleteStaleSdkState}).
+	 */
+	private _getEarlyLaunch(provisional: IProvisionalSession): ICopilotEarlyLaunch | undefined {
+		const early = provisional.earlyLaunch;
+		if (early?.launch.session.isDisposed) {
+			provisional.earlyLaunch = undefined;
+			provisional.hasStaleSdkState = true;
+			early.dispose();
+			this._logService.info(`[Copilot] [warm] Forgot pre-warmed session whose runtime was torn down: sdkSessionId=${early.launch.session.sessionId}, chat=${provisional.chat.toString()}`);
+			return undefined;
+		}
+		return early;
+	}
+
+	/** The reservation whose early launch is `entry`, when `entry` is an unclaimed early launch. */
+	private _earlyLaunchReservation(context: IResolvedCopilotChatContext, entry: CopilotAgentSession): IProvisionalSession | undefined {
+		const provisional = this._provisionalSessions.get(context.provisionalKey);
+		return provisional && this._getEarlyLaunch(provisional)?.launch.session === entry ? provisional : undefined;
+	}
+
+	/**
+	 * Tears down an unclaimed early launch. The caller holds the chat's queue.
+	 *
+	 * An early launch must never be restarted with `_resumeSession`: the SDK
+	 * only saves a session once its first message is recorded, so there is
+	 * nothing to resume. Its runtime state is deleted instead, so a later launch
+	 * creates the same SDK session id afresh, and crash recovery has nothing to
+	 * list.
+	 */
+	private async _discardEarlyLaunch(provisional: IProvisionalSession, reason: string): Promise<void> {
+		const early = provisional.earlyLaunch;
+		if (!early) {
+			return;
+		}
+		provisional.earlyLaunch = undefined;
+		early.dispose();
+		const session = early.launch.session;
+		this._logService.info(`[Copilot] [warm] Discarded pre-warmed session: sdkSessionId=${session.sessionId}, chat=${provisional.chat.toString()}, reason=${reason}`);
+		// Disposal stops its MCP servers, cancels pending sign-in requests and drops held error telemetry.
+		await this._destroyLiveSession(session, true);
+		await this._deleteSdkSession(session.sessionId, provisional.chat.toString()).catch(error => {
+			this._logService.warn(`[Copilot] [warm] Failed to delete discarded pre-warmed session ${session.sessionId}`, error);
+		});
+	}
+
+	/** Deletes runtime state a torn-down early launch left under the reservation's SDK id, if any. Best-effort: a failure is logged. */
+	private async _deleteStaleSdkState(provisional: IProvisionalSession): Promise<void> {
+		if (!provisional.hasStaleSdkState) {
+			return;
+		}
+		provisional.hasStaleSdkState = false;
+		await this._deleteSdkSession(provisional.sdkSessionId, provisional.chat.toString()).catch(error => {
+			this._logService.warn(`[Copilot] [warm] Failed to delete torn-down pre-warmed session ${provisional.sdkSessionId}`, error);
+		});
+	}
+
+	/** Discards an early launch that stayed unclaimed for {@link COPILOT_EARLY_LAUNCH_TTL_MS}. */
+	private async _expireEarlyLaunch(chat: URI, context: IAgentChatContext, early: ICopilotEarlyLaunch): Promise<void> {
+		try {
+			const initial = this._resolveChatContext(chat, context);
+			await this._queueChat(initial.lifetimeId, initial.sequencerKey, 'expireWarmChat', async () => {
+				const provisional = this._provisionalSessions.get(this._resolveChatContext(chat, context).provisionalKey);
+				if (provisional && this._getEarlyLaunch(provisional) === early) {
+					await this._discardEarlyLaunch(provisional, 'expired');
+				}
+			});
+		} catch (error) {
+			this._logService.warn(`[Copilot] [warm] Failed to expire pre-warmed session: chat=${chat.toString()}`, error);
+		}
 	}
 
 	private async _resolveAgentWhenMaterializing(provisional: IProvisionalSession, snapshot: IActiveClientSnapshot, workingDirectory: URI | undefined): Promise<{ agent: AgentSelection; name: string } | undefined> {
@@ -5570,9 +5979,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 					return;
 				}
 				const current = this._configurationService.getSessionConfigValues(key);
-				if (current && !equals(current.availableApprovalModes, resolved.values.availableApprovalModes)) {
+				if (current && (!equals(current.availableApprovalModes, resolved.values.availableApprovalModes) || current[agentModelConfigurationReportKey] !== undefined)) {
 					// Keep the last applied mode until a resumed runtime reports its actual selection.
-					this._configurationService.updateSessionConfig(key, { availableApprovalModes: resolved.values.availableApprovalModes });
+					this._configurationService.updateSessionConfig(key, {
+						availableApprovalModes: resolved.values.availableApprovalModes,
+						[agentModelConfigurationReportKey]: null,
+					});
 				}
 			} catch (error) {
 				this._logService.error(`[Copilot] Failed to refresh disconnected approval modes for ${session.toString()}`, error);
@@ -5600,8 +6012,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const policy = getCopilotApprovalPolicy(resolved.resolved,
 			this._configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true,
 			this._managedSettingsService.permissions);
-		return getCopilotApprovalConfig(values, policy,
+		const result = getCopilotApprovalConfig(values, policy,
 			this._configurationService.getRootValue(platformRootSchema, AgentHostGlobalAutoApproveEnabledConfigKey) === true);
+		result.schema.properties[agentModelConfigurationReportKey] = {
+			type: 'object', title: localize('copilot.runtimeModelConfiguration', "Runtime Model Configuration"), readOnly: true,
+		};
+		return result;
 	}
 
 	getInheritedChatConfig(config: Readonly<Record<string, unknown>>): Record<string, unknown> | undefined {
@@ -5679,13 +6095,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	/** Routes a completed client tool call to the runtime that owns it. */
+	/**
+	 * Routes a completed client tool call to the runtime of the chat that made it: the chat's own, else the runtime
+	 * of the chat that spawned it. Never to another chat of its owner, which a moved chat (Block 4) no longer shares.
+	 */
 	onClientToolCallComplete(chat: URI, toolCallId: string, result: ToolCallResult, context?: IAgentChatContext): void {
 		const spawnedFrom = resolveSubagentChatParent(context);
-		const target = this._findChatByUri(chat)
-			?? (spawnedFrom ? this._findChatByUri(spawnedFrom.chat) : undefined)
-			?? (context ? this._findSessionChat(context.owner.get()) : undefined);
-		target?.handleClientToolCallComplete(toolCallId, result);
+		const target = this._findChatByUri(chat) ?? (spawnedFrom ? this._findChatByUri(spawnedFrom.chat) : undefined);
+		if (!target) {
+			// Every `ChatToolCallComplete` is forwarded, also of SDK-owned tools and of chats without a runtime.
+			this._logService.trace(`[Copilot] No runtime of ${chat.toString()} completes client tool call ${toolCallId}`);
+			return;
+		}
+		target.handleClientToolCallComplete(toolCallId, result);
 	}
 
 	private async _sendMessage(chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientType = AgentHostClientType.Unknown, workingDirectories?: readonly URI[], operationContext?: URI | IAgentChatContext, clientTelemetryContext?: IAgentHostClientTelemetryContext): Promise<void> {
@@ -5700,23 +6122,51 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _refreshSessionConfiguration(
+	/**
+	 * Reports why a live session no longer matches the configuration it should
+	 * run with — a moved working directory, changed roots, a model that needs a
+	 * new runtime, changed client tools, plugins or MCP definitions, or a new
+	 * owner — or `undefined` when it can keep running. Acquires the chat's
+	 * customization anchor for the check; see {@link _sessionRefreshReasonWithAnchor}.
+	 */
+	private async _sessionRefreshReason(
 		context: IResolvedCopilotChatContext,
 		entry: CopilotAgentSession,
 		workingDirectories: readonly URI[] | undefined,
-		options: { readonly operation: 'sendMessage' | 'resumeTurn' | 'startMcpServer'; readonly allowRestart: 'whenIdle' | 'always'; readonly turnId?: string; readonly token?: CancellationToken; readonly launchedForTurn?: boolean },
-	): Promise<CopilotAgentSession> {
+		options: ICopilotSessionRefreshCheckOptions,
+	): Promise<string | undefined> {
 		const activeClient = this._activeClients.get(context.ownerSession);
+		const anchor = activeClient ? await this._acquireRefreshAnchor(activeClient, entry, workingDirectories) : undefined;
+		try {
+			return await this._sessionRefreshReasonWithAnchor(context, entry, workingDirectories, options, activeClient, anchor?.object);
+		} finally {
+			anchor?.dispose();
+		}
+	}
+
+	/** The chat's own anchor set as a relaunch would apply it. */
+	private _acquireRefreshAnchor(activeClient: ActiveClient, entry: CopilotAgentSession, workingDirectories: readonly URI[] | undefined) {
+		return this._acquireChatCustomizationAnchor(activeClient, entry.customizationDirectory ?? entry.workingDirectory, workingDirectories !== undefined ? workingDirectories.slice(1) : entry.appliedAdditionalDirectories);
+	}
+
+	private async _sessionRefreshReasonWithAnchor(
+		context: IResolvedCopilotChatContext,
+		entry: CopilotAgentSession,
+		workingDirectories: readonly URI[] | undefined,
+		options: ICopilotSessionRefreshCheckOptions,
+		activeClient: ActiveClient | undefined,
+		anchor: CustomizationAnchor | undefined,
+	): Promise<string | undefined> {
+		const selectedAgentUri = this._chatBackings.get(context.chatKey)?.agent?.uri;
 		// MCP Stop still needs the queued sync to finish before it can resolve the server to stop.
 		const waitToken = options.operation !== 'startMcpServer' ? options.token ?? CancellationToken.None : CancellationToken.None;
-		const { operation, allowRestart, turnId, launchedForTurn } = options;
 		const rootsChanged = workingDirectories !== undefined && !areAdditionalWorkingDirectoriesEqual(entry.appliedAdditionalDirectories, this._additionalCustomizationDirectories(workingDirectories));
 		// The turn `prepareTurn` launched for revalidates against the state already
 		// observed in memory: anything that changed since the launch is still caught,
 		// without re-awaiting the syncs and workspace scans the launch just completed.
 		// A sync or discovery refresh that started since then is not yet reflected
 		// in that state, so the turn then awaits it like any other send.
-		const useObservedState = launchedForTurn === true && !!activeClient?.pluginController.isSettled();
+		const useObservedState = options.launchedForTurn === true && !!activeClient?.pluginController.isSettled(anchor);
 		if (!useObservedState) {
 			await activeClient?.pluginController.retryFailedClientSyncIfNeeded(waitToken);
 		}
@@ -5725,12 +6175,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const [storedWorkingDirectory, currentSnapshot] = await Promise.all([
 			this._readStoredWorkingDirectory(context.resource),
 			!activeClient ? undefined
-				: useObservedState ? activeClient.currentSnapshot(context.chatKey)
-					: raceCancellationError(activeClient.snapshot(context.chatKey), waitToken),
+				: useObservedState ? activeClient.currentSnapshot(context.chatKey, anchor, selectedAgentUri)
+					: raceCancellationError(activeClient.snapshot(context.chatKey, anchor, selectedAgentUri), waitToken),
 		]);
 		const primaryDirectoryChanged = !!storedWorkingDirectory && !isEqual(entry.workingDirectory, storedWorkingDirectory);
-		const structuralRestartReason = !entry.requiresRestartAfterWorkingDirectoryChange && !entry.requiresRestartAfterModelChange && activeClient && currentSnapshot
-			? await raceCancellationError(activeClient.getRestartReason(entry.appliedSnapshot, context.chatKey, currentSnapshot), waitToken)
+		const structuralRestartReason = !entry.requiresRestartAfterWorkingDirectoryChange && !entry.requiresRestartAfterModelChange && !entry.requiresRestartAfterTelemetryRevocation && activeClient && currentSnapshot
+			? await raceCancellationError(activeClient.getRestartReason(entry.appliedSnapshot, context.chatKey, currentSnapshot, anchor), waitToken)
 			: undefined;
 		const currentDisabledRootMcpServers = currentSnapshot
 			? await raceCancellationError(this._disabledRootMcpServers(context.ownerSession, currentSnapshot), waitToken)
@@ -5739,9 +6189,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			[...new Set(entry.appliedDisabledRootMcpServers)].sort(),
 			[...new Set(currentDisabledRootMcpServers)].sort(),
 		);
-		const refreshReason = (entry.requiresRestartAfterWorkingDirectoryChange ? 'workingDirectoryChanged' : undefined)
+		return (entry.requiresRestartAfterWorkingDirectoryChange ? 'workingDirectoryChanged' : undefined)
 			?? (primaryDirectoryChanged ? 'primaryDirectoryChanged' : undefined)
 			?? (entry.requiresRestartAfterModelChange ? 'hydraFusionModelChanged' : undefined)
+			?? (entry.requiresRestartAfterTelemetryRevocation ? 'telemetryRevoked' : undefined)
 			?? (rootsChanged ? 'additionalDirectoriesChanged' : undefined)
 			?? structuralRestartReason
 			?? (disabledRootMcpServersChanged ? 'disabledRootMcpServersChanged' : undefined)
@@ -5749,6 +6200,42 @@ export class CopilotAgent extends Disposable implements IAgent {
 			?? (entry.requiresControlPlaneResync ? 'controlPlaneResync' : undefined)
 			// The chat changed owner since this runtime launched: relaunch with the new owner's configuration at this turn boundary.
 			?? (!isEqual(entry.launchOwner, context.ownerSession) ? 'ownerChanged' : undefined);
+	}
+
+	private async _refreshSessionConfiguration(
+		context: IResolvedCopilotChatContext,
+		entry: CopilotAgentSession,
+		workingDirectories: readonly URI[] | undefined,
+		options: ICopilotSessionRefreshOptions,
+	): Promise<CopilotAgentSession> {
+		if (this._earlyLaunchReservation(context, entry)) {
+			// An unclaimed early launch has nothing on disk, so it must never take
+			// the resume-based restart below. A turn completes (or replaces) it;
+			// starting an MCP server keeps the draft unsent.
+			return options.operation === 'startMcpServer'
+				? entry
+				: this._materializeProvisional(context, workingDirectories, undefined, { token: options.token });
+		}
+		const activeClient = this._activeClients.get(context.ownerSession);
+		// Held across a restart so the replacement reuses its discovery.
+		const anchor = activeClient ? await this._acquireRefreshAnchor(activeClient, entry, workingDirectories) : undefined;
+		try {
+			return await this._refreshSessionConfigurationWithAnchor(context, entry, workingDirectories, options, activeClient, anchor?.object);
+		} finally {
+			anchor?.dispose();
+		}
+	}
+
+	private async _refreshSessionConfigurationWithAnchor(
+		context: IResolvedCopilotChatContext,
+		entry: CopilotAgentSession,
+		workingDirectories: readonly URI[] | undefined,
+		options: ICopilotSessionRefreshOptions,
+		activeClient: ActiveClient | undefined,
+		anchor: CustomizationAnchor | undefined,
+	): Promise<CopilotAgentSession> {
+		const { operation, allowRestart, turnId } = options;
+		const refreshReason = await this._sessionRefreshReasonWithAnchor(context, entry, workingDirectories, options, activeClient, anchor);
 		if (!refreshReason) {
 			if (entry.hasPendingConnectorRefresh) {
 				await entry.refreshConnectors(options.token);
@@ -5762,7 +6249,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			throw new CopilotSessionConfigurationBusyError(entry);
 		}
 		this._logService.info(`[Copilot:${context.ownerSessionId}] Session configuration changed, refreshing session: operation=${operation}, sdkSessionId=${entry.sessionId}, chat=${context.chatKey}, turnId=${turnId ?? '(none)'}, reason=${refreshReason}, clients=[${activeClient ? [...activeClient.toolSet.clientIds()].join(', ') || '(none)' : '(none)'}]`);
-		const canvasHandoff = entry.takeCanvasProjection();
+		const canvasHandoff = entry.takeCanvasProjection() ?? this._canvasHandoffs.get(entry.chatChannelUri);
 		if (canvasHandoff) {
 			this._canvasHandoffs.set(entry.chatChannelUri, canvasHandoff);
 		}
@@ -5788,9 +6275,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/** Commits handed-over canvases to the replacement the refresh kept, or closes them when there is none. */
 	private _settleCanvasHandoff(chat: URI, handoff: ICopilotCanvasHandoff, replacement: CopilotAgentSession | undefined): void {
-		if (this._canvasHandoffs.get(chat) === handoff) {
-			this._canvasHandoffs.delete(chat);
+		if (this._canvasHandoffs.get(chat) !== handoff) {
+			return;
 		}
+		this._canvasHandoffs.delete(chat);
 		if (!replacement?.adoptCanvasHandoff(handoff)) {
 			this._onDidChatProgress.fire({ kind: 'action', resource: chat, action: { type: ActionType.ChatCanvasesChanged, canvases: undefined } });
 		}
@@ -5815,7 +6303,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// The turn `prepareTurn` launched this session for revalidates its
 			// configuration against the state already observed in memory.
 			const launchedForTurn = !!entry && turnId !== undefined && this._preparedTurnLaunches.get(entry) === turnId;
-			if (entry) {
+			if (entry && this._earlyLaunchReservation(current, entry)) {
+				entry = await this._materializeProvisional(current, workingDirectories, stageRecorder, { token, operationContext });
+			} else if (entry) {
 				this._preparedTurnLaunches.delete(entry);
 				entry = await this._refreshSessionConfiguration(current, entry, workingDirectories, { operation: 'sendMessage', allowRestart: 'always', turnId, token, launchedForTurn });
 			} else {
@@ -5983,7 +6473,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._logService.warn(`[Copilot] Subagent chat ${chat.toString()} addressed without its host-supplied tool-call origin; no turns to reconstruct`);
 			return [];
 		}
-		const { owner, subagentChatUriFormat } = resolveAgentChatContext(sessionOrContext, chat);
+		const { owner } = resolveAgentChatContext(sessionOrContext, chat);
 		// Subagent chats move with their parent, so the parent shares the subagent's owner. It resumes from the storage
 		// recorded when it was created or restored (a peer's own resource), or its live runtime's; a parent neither
 		// recorded nor live has no known storage.
@@ -5992,7 +6482,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._logService.warn(`[Copilot] Subagent chat ${chat.toString()}: its parent ${spawnedFrom.chat.toString()} is not restored; no turns to reconstruct`);
 			return [];
 		}
-		const parentContext = this._resolveChatContext(spawnedFrom.chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner, resource: parentStorage, subagentChatUriFormat });
+		const parentContext = this._resolveChatContext(spawnedFrom.chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner, resource: parentStorage });
 		const parentEntry = await this._ensureResolvedChatSession(parentContext).catch(err => {
 			this._logService.warn(`[Copilot:${parentContext.sdkSessionId ?? parentContext.ownerSessionId}] Failed to resume exact source chat for subagent restore`, err);
 			return undefined;
@@ -6091,6 +6581,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const queue = <T>(task: () => Promise<T>) => fork?.independentQueue
 			? this._queueChat(sessionId, chatKey, 'createChat', task)
 			: this._queueSession(forkSourceSessionId ?? sessionId, task);
+		let anchor: IReference<CustomizationAnchor> | undefined;
 		await queue(async () => {
 			const existing = this._chatBackings.get(chatKey);
 			if (existing) {
@@ -6117,12 +6608,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// SDK chat. Keying it by the chat URI instead would
 			// snapshot empty/stale tools and never see subsequent updates, and
 			// would also leak (nothing disposes a chat-keyed ActiveClient).
+			// Discovery, though, is the chat's own: it anchors to the chat's
+			// working directory, not to the session's folders.
 			const anchors = await this._getSessionCustomizationAnchors(session, context.sessionSettings);
 			const activeClient = this._getOrCreateActiveClient(session, anchors.directory ?? workingDirectory);
 			if (anchors.applyAdditional) {
 				activeClient.pluginController.setAdditionalDirectories(anchors.additionalDirectories);
 			}
-			const snapshot = await activeClient.snapshot(chatKey);
+			// Held until the chat's entry holds it so the set is discovered only once.
+			anchor = await this._acquireChatCustomizationAnchor(activeClient, workingDirectory, undefined);
+			const snapshot = await activeClient.snapshot(chatKey, anchor?.object, agent?.uri);
 			const shellManager = this._instantiationService.createInstance(ShellManager, session, chat, context.resource, workingDirectory);
 			// The database copy lands in the storage scope Agent Host chose for
 			// this chat, which is also the scope its runtime reads and writes.
@@ -6138,7 +6633,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			let sourceEntry: CopilotAgentSession | undefined;
 			let inheritedWorkingDirectories: readonly URI[] | undefined;
 			if (fork) {
-				sourceEntry = await this._ensureResolvedChatSession(this._resolveChatContext(fork.source, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: this._resolveChatOwnerRef(fork.source), resource: this._resolveChatStorageScope(fork.source), subagentChatUriFormat: context.subagentChatUriFormat }));
+				sourceEntry = await this._ensureResolvedChatSession(this._resolveChatContext(fork.source, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: this._resolveChatOwnerRef(fork.source), resource: this._resolveChatStorageScope(fork.source) }));
 				if (!sourceEntry) {
 					throw new Error(`[Copilot] createChat fork: source chat ${fork.source.toString()} not found`);
 				}
@@ -6197,7 +6692,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 			let agentSession: CopilotAgentSession | undefined;
 			try {
-				agentSession = this._createAgentSession(launchPlan, workingDirectory, activeClient, { owner: context.owner, chatChannelUri: chat, resource: storageScope, subagentChatUriFormat: context.subagentChatUriFormat });
+				agentSession = this._createAgentSession(launchPlan, workingDirectory, activeClient, { owner: context.owner, chatChannelUri: chat, resource: storageScope });
 				const initializingSession = agentSession;
 				await this._initializeAndRegisterSession(initializingSession, () => {
 					this._throwIfClientReplaced(client, initializingSession);
@@ -6235,7 +6730,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					this._logService.warn(`[Copilot] Failed to copy reviewed ref for fork: ${err instanceof Error ? err.message : String(err)}`);
 				}
 			}
-		});
+		}).finally(() => anchor?.dispose());
 		if (!result) {
 			throw new Error(`[Copilot] createChat: no backing was recorded for ${chatKey}`);
 		}
@@ -6260,7 +6755,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._throwIfWorkingDirectoryMutationBlocksChat(context.ownerSession, context.chat);
 		const provisional = this._provisionalSessions.get(context.provisionalKey);
 		if (provisional && provisional.sdkSessionId === context.sdkSessionId) {
-			return this._materializeProvisional(context.provisionalKey, workingDirectories, stageRecorder);
+			return this._materializeProvisional(context, workingDirectories, stageRecorder);
 		}
 		if (context.sdkSessionId !== undefined && context.sdkSessionId === context.sessionBackedId) {
 			return context.target ?? this._resumeSession(context.sdkSessionId, context.chat, workingDirectories, stageRecorder);
@@ -6366,20 +6861,22 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const isProvisional = provisional?.chat.toString() === chatKey;
 			const sdkSessionId = target?.sessionId ?? backing?.sdkSessionId;
 			const workspacelessHint = provisional?.workspaceless === true;
+			const early = isProvisional ? this._getEarlyLaunch(provisional) : undefined;
 
 			if (sdkSessionId && !isProvisional) {
 				await this._deleteSdkSession(sdkSessionId, chatKey);
 			}
-
 			if (isProvisional) {
+				await this._discardEarlyLaunch(provisional, 'chatDisposed');
+				await this._deleteStaleSdkState(provisional);
 				this._provisionalSessions.delete(provisionalKey);
 			}
+			this._canvasHandoffs.delete(chat);
 			this._chatBackings.delete(chatKey);
 			this._chatOwners.delete(chatKey);
-			this._chatSubagentFormats.delete(chatKey);
 			this._chatStorageScopes.delete(chatKey);
 
-			if (target) {
+			if (target && target !== early?.launch.session) {
 				await this._destroyLiveSession(target, true);
 			}
 
@@ -6472,7 +6969,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	async materializeChat(chat: URI, context: URI | IAgentChatContext, providerData: string | undefined): Promise<IAgentCreateChatResult | void> {
 		this._noteHostCustomizations(context);
 		const resolved = resolveAgentChatContext(context, chat);
-		this._rememberChatScope(chat, resolved.owner, resolved.resource, resolved.subagentChatUriFormat);
+		this._rememberChatScope(chat, resolved.owner, resolved.resource);
 		const chatKey = chat.toString();
 		// A chat stored in a session's database takes that session's SDK id and deferred-execution state, whichever session owns it now.
 		const sessionStorage = resolveSessionBackedStorage(resolved, chat);
@@ -6521,7 +7018,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	async recoverLegacyChat(chat: URI, context: URI | IAgentChatContext): Promise<IAgentCreateChatResult> {
 		const resolved = resolveAgentChatContext(context, chat);
-		this._rememberChatScope(chat, resolved.owner, resolved.resource, resolved.subagentChatUriFormat);
+		this._rememberChatScope(chat, resolved.owner, resolved.resource);
 		const backing = { sdkSessionId: AgentSession.id(resolveSessionBackedStorage(resolved, chat) ?? resolved.owner.get()) };
 		this._chatBackings.set(chat.toString(), backing);
 		return { providerData: encodeProviderData(backing) };
@@ -6664,9 +7161,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (!lease) {
 				return undefined;
 			}
+			const canvasHandoff = this._canvasHandoffs.get(chat);
+			let replacement: CopilotAgentSession | undefined;
 			try {
-				return await this._retryRestoreAfterClientReplacement(acquireClient => this._resumeChatSessionOnce(context, acquireClient, workingDirectories, stageRecorder));
+				replacement = await this._retryRestoreAfterClientReplacement(acquireClient => this._resumeChatSessionOnce(context, acquireClient, workingDirectories, stageRecorder));
+				return replacement;
 			} finally {
+				if (canvasHandoff) {
+					this._settleCanvasHandoff(chat, canvasHandoff, replacement);
+				}
 				lease.dispose();
 			}
 		});
@@ -6675,6 +7178,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private async _resumeChatSessionOnce(context: IResolvedCopilotChatContext, acquireClient: () => Promise<CopilotClient>, workingDirectories?: readonly URI[], stageRecorder?: IAgentProviderSendStageRecorder): Promise<CopilotAgentSession | undefined> {
 		const { ownerSession, ownerSessionId, chat, chatKey } = context;
 		let agentSession: CopilotAgentSession | undefined;
+		let anchor: IReference<CustomizationAnchor> | undefined;
 		try {
 			this._throwIfWorkingDirectoryMutationBlocksChat(ownerSession, chat);
 			const again = this._findChatByUri(chat);
@@ -6720,10 +7224,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 			stageRecorder?.mark('snapshot');
 			const anchors = await this._getSessionCustomizationAnchors(ownerSession, context.sessionSettings);
 			const activeClient = this._getOrCreateActiveClient(ownerSession, anchors.directory);
-			if (anchors.applyAdditional) {
+			const additionalDirectories = launchWorkingDirectories?.slice(1);
+			if (isEqual(context.resource, ownerSession)) {
+				// The default chat: the published view follows its own folders.
+				activeClient.pluginController.reanchor(workingDirectory, false);
+				activeClient.pluginController.setAdditionalDirectories(this._isMultiRootEnabled() ? additionalDirectories ?? [] : []);
+			} else if (anchors.applyAdditional) {
 				activeClient.pluginController.setAdditionalDirectories(anchors.additionalDirectories);
 			}
-			const snapshot = await activeClient.snapshot(chatKey);
+			// The chat's own anchor set, held until its entry holds it so the set is discovered only once.
+			anchor = await this._acquireChatCustomizationAnchor(activeClient, workingDirectory, additionalDirectories);
+			const snapshot = await activeClient.snapshot(chatKey, anchor?.object, info.agent?.uri);
 			const disabledRootMcpServers = await this._disabledRootMcpServers(ownerSession, snapshot);
 			const shellManager = this._instantiationService.createInstance(ShellManager, ownerSession, chat, context.resource, workingDirectory);
 			const launchPlan: CopilotSessionLaunchPlan = {
@@ -6732,7 +7243,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				extensionSdkPath: this._extensionSdkPathByClient.get(client),
 				sessionId: info.sdkSessionId,
 				workingDirectory,
-				additionalDirectories: launchWorkingDirectories?.slice(1),
+				additionalDirectories,
 				resolvedAgentName: info.agent ? this._resolveAgentName(snapshot, info.agent) : undefined,
 				snapshot,
 				disabledRootMcpServers,
@@ -6742,7 +7253,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				stageRecorder,
 				fallback: { model: info.model, longContextWindow: this._longContextWindowFor(info.model?.id), freeLongContext: this._isFreeLongContext(info.model?.id) },
 			};
-			agentSession = this._createAgentSession(launchPlan, workingDirectory, activeClient, { owner: context.ownerRef, chatChannelUri: chat, resource: context.resource, subagentChatUriFormat: this._subagentFormatFor(chat) });
+			agentSession = this._createAgentSession(launchPlan, workingDirectory, activeClient, { owner: context.ownerRef, chatChannelUri: chat, resource: context.resource });
 			const initializingSession = agentSession;
 			await this._initializeAndRegisterSession(initializingSession, () => {
 				this._throwIfClientReplaced(client, initializingSession);
@@ -6760,6 +7271,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			agentSession?.dispose();
 			this._logService.warn(`[Copilot] Failed to resume chat backing ${chatKey}: ${error instanceof Error ? error.message : String(error)}`);
 			throw error;
+		} finally {
+			anchor?.dispose();
 		}
 	}
 
@@ -6893,11 +7406,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 			} else {
 				const entry = current.target ?? await this._ensureResolvedChatSession(current);
 				const previousModelId = this._chatBackings.get(current.chatKey)?.model?.id;
+				const policy = entry
+					? await resolveCopilotManagedSettings((await this._ensureClient()).rpc.managedSettings, this._githubCredentials.token, COPILOT_MANAGED_SETTINGS_QUERY_TIMEOUT_MS, entry.workingDirectory?.fsPath)
+					: undefined;
+				const requestedModel = policy ? omitCopilotManagedModelDefaults(model, policy) : model;
+				const omittedContextDefault = model.config?.[ContextSizeConfigKey] !== undefined && requestedModel.config?.[ContextSizeConfigKey] === undefined;
 				// Clear stale SDK preferences when a selection or an override is removed.
 				const autoTier = isAutoModel(model.id)
-					? resolveCopilotAutoTier(model, this._configurationService, this._logService, current.ownerSessionId) ?? null
+					? resolveCopilotAutoTier(requestedModel, this._configurationService, this._logService, current.ownerSessionId) ?? (policy && getCopilotManagedAutoPreference(policy) ? undefined : null)
 					: undefined;
-				await entry?.setModel(model.id, resolveCopilotReasoningEffort(model, this._configurationService, this._logService, current.ownerSessionId), getCopilotContextTier(model, longContextWindow, freeLongContext), autoTier);
+				await entry?.setModel(model.id, resolveCopilotReasoningEffort(requestedModel, this._configurationService, this._logService, current.ownerSessionId), omittedContextDefault ? undefined : getCopilotContextTier(requestedModel, longContextWindow, freeLongContext), autoTier, model);
 				if (entry && previousModelId !== model.id && (isCopilotHydraFusionModelId(previousModelId) || isCopilotHydraFusionModelId(model.id))) {
 					entry.markModelChangeRequiresRestart();
 				}
@@ -6961,6 +7479,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 				}
 			}
 			this._sessionsPendingRegistration.clearAndDisposeAll();
+			// Early launches' live sessions are torn down with every other session below; only their expiry timers remain.
+			for (const provisional of this._provisionalSessions.values()) {
+				provisional.earlyLaunch?.dispose();
+				provisional.earlyLaunch = undefined;
+			}
 			this._githubCredentials.shutdown();
 			for (const lifetime of this._sessionLifetimes.values()) {
 				void lifetime.close();
@@ -7146,6 +7669,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		});
 	}
 
+	/** Tells the on-device model provider that a session using Auto (or no explicit model) started. */
+	private _noteAutoSessionStarted(modelId: string | undefined): void {
+		if (this._localModelProvider && (!modelId || isAutoModel(modelId))) {
+			this._localModelProvider.onAutoSessionStarted();
+		}
+	}
+
 	private _getOrCreateActiveClient(session: URI, directory: URI | undefined): ActiveClient {
 		let client = this._activeClients.get(session);
 		if (!client) {
@@ -7164,16 +7694,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return client;
 	}
 
-	/** Instantiates a session; the caller must initialize and register it on success. */
-	private _createAgentSession(launchPlan: CopilotSessionLaunchPlan, customizationDirectory: URI | undefined, activeClient: ActiveClient, identity: ICopilotAgentSessionIdentity): CopilotAgentSession {
+	/**
+	 * Instantiates a session; the caller must initialize and register it on success.
+	 * A pre-warmed launch defers the on-device Auto session start until a send claims it.
+	 */
+	private _createAgentSession(launchPlan: CopilotSessionLaunchPlan, customizationDirectory: URI | undefined, activeClient: ActiveClient, identity: ICopilotAgentSessionIdentity, options?: { readonly deferAutoSessionStart?: boolean }): CopilotAgentSession {
+		launchPlan = { ...launchPlan, modelPolicyModels: () => this._capiModels.map(model => this._asPresented(model)) };
 		const { owner, chatChannelUri } = identity;
 		// On-device models: the provider installed on this client contributes rows and attribution.
 		const localModelProvider = this._localModelProvider;
-		if (localModelProvider) {
-			const modelId = launchPlan.kind === 'create' ? launchPlan.model?.id : launchPlan.fallback.model?.id;
-			if (!modelId || isAutoModel(modelId)) {
-				localModelProvider.onAutoSessionStarted();
-			}
+		if (!options?.deferAutoSessionStart) {
+			this._noteAutoSessionStarted(launchPlan.kind === 'create' ? launchPlan.model?.id : launchPlan.fallback.model?.id);
 		}
 
 		const agentSession = this._instantiationService.createInstance(
@@ -7182,7 +7713,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 				owner,
 				chatChannelUri,
 				resource: identity.resource,
-				subagentChatUriFormat: identity.subagentChatUriFormat,
 				rawSessionId: launchPlan.sessionId,
 				onDidSessionProgress: this._onDidChatProgress,
 				onSessionEvent: event => {
@@ -7207,6 +7737,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 				getUserMcpServerNames: async () => {
 					const client = await this._ensureClient();
 					return new Set(Object.keys((await client.rpc.mcp.config.list()).servers));
+				},
+				getInstalledPlugins: async () => {
+					const client = await this._ensureClient();
+					return (await client.rpc.plugins.list()).plugins;
 				},
 				serverToolHost: this._serverToolHost,
 				onTurnEnded: () => this._onChatTurnEnded(),
@@ -7268,13 +7802,36 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _createChatEntry(session: CopilotAgentSession, activeClient: ActiveClient): CopilotChatEntry {
-		return new CopilotChatEntry(session, activeClient, this._onMcpNotification, () => this._handleCopilotSessionAuthRequired());
+		const anchor = this._acquireLiveChatCustomizationAnchor(activeClient, session.customizationDirectory ?? session.workingDirectory, session.appliedAdditionalDirectories);
+		return new CopilotChatEntry(session, activeClient, anchor, this._onMcpNotification, () => this._handleCopilotSessionAuthRequired());
+	}
+
+	/**
+	 * Acquires a chat's customization anchor set: its own first working
+	 * directory plus, when multi-root is enabled, its other working directories.
+	 * Never the session's folders: a peer working elsewhere discovers its own
+	 * folder's customizations.
+	 */
+	private async _acquireChatCustomizationAnchor(activeClient: ActiveClient, directory: URI | undefined, additionalDirectories: readonly URI[] | undefined): Promise<IReference<CustomizationAnchor> | undefined> {
+		if (!directory) {
+			return undefined;
+		}
+		const additional = this._isMultiRootEnabled() ? additionalDirectories ?? [] : [];
+		await activeClient.pluginController.resolveAnchorPaths([directory, ...additional]);
+		return activeClient.pluginController.acquireAnchor(directory, additional);
+	}
+
+	/** {@link _acquireChatCustomizationAnchor} for a chat's entry, whose launch already resolved the real paths. */
+	private _acquireLiveChatCustomizationAnchor(activeClient: ActiveClient, directory: URI | undefined, additionalDirectories: readonly URI[]): IReference<CustomizationAnchor> | undefined {
+		return directory ? activeClient.pluginController.acquireAnchor(directory, this._isMultiRootEnabled() ? additionalDirectories : []) : undefined;
 	}
 
 	private _registerLiveChat(chat: URI, session: CopilotAgentSession, activeClient: ActiveClient): void {
 		const current = this._chatBackings.get(chat.toString());
+		// Created before the previous entry is released so a shared anchor set is not torn down and rediscovered.
+		const entry = this._createChatEntry(session, activeClient);
 		this._chatEntriesBySdkId.deleteAndDispose(session.sessionId);
-		this._chatEntriesBySdkId.set(session.sessionId, this._createChatEntry(session, activeClient));
+		this._chatEntriesBySdkId.set(session.sessionId, entry);
 		this._chatBackings.set(chat.toString(), { ...current, sdkSessionId: session.sessionId });
 		this._backgroundWorkWatches.get(chat)?.attach(session);
 	}
@@ -7294,8 +7851,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _registerUnboundSession(session: CopilotAgentSession, activeClient: ActiveClient): void {
+		const entry = this._createChatEntry(session, activeClient);
 		this._chatEntriesBySdkId.deleteAndDispose(session.sessionId);
-		this._chatEntriesBySdkId.set(session.sessionId, this._createChatEntry(session, activeClient));
+		this._chatEntriesBySdkId.set(session.sessionId, entry);
 	}
 
 	/** Rejects a session initialized by a client that was stopped or replaced during launch. */
@@ -7354,6 +7912,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (session.hasPendingConnectorRefresh) {
 				await session.refreshConnectors();
 			}
+			await session.revalidateTelemetryBeforeRegistration?.();
 			if (!this._sessionsPendingRegistration.deleteAndLeak(session)) {
 				throw new CancellationError();
 			}
@@ -7384,7 +7943,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _doResumeSession(sessionId: string, chatChannelUri: URI, workingDirectories?: readonly URI[], stageRecorder?: IAgentProviderSendStageRecorder): Promise<CopilotAgentSession> {
-		return this._retryRestoreAfterClientReplacement(acquireClient => this._resumeSessionOnce(sessionId, chatChannelUri, acquireClient, workingDirectories, stageRecorder));
+		const canvasHandoff = this._canvasHandoffs.get(chatChannelUri);
+		let replacement: CopilotAgentSession | undefined;
+		return this._retryRestoreAfterClientReplacement(acquireClient => this._resumeSessionOnce(sessionId, chatChannelUri, acquireClient, workingDirectories, stageRecorder)).then(session => {
+			replacement = session;
+			return session;
+		}).finally(() => {
+			if (canvasHandoff) {
+				this._settleCanvasHandoff(chatChannelUri, canvasHandoff, replacement);
+			}
+		});
 	}
 
 	private async _resumeSessionOnce(sessionId: string, chatChannelUri: URI, acquireClient: () => Promise<CopilotClient>, workingDirectories?: readonly URI[], stageRecorder?: IAgentProviderSendStageRecorder): Promise<CopilotAgentSession> {
@@ -7419,8 +7987,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		} else {
 			resolvedWorkingDirectory = await this._resolveOwnedWorkingDirectoryForResume(this._sessionSettings.get(sessionUri), sessionUri, sessionId, workingDirectory);
 		}
-		// Only an explicit chat-only move decouples shared discovery from the main workspace.
-		const customizationDirectory = storedMetadata.sharedCustomizationDirectories?.[0] ?? resolvedWorkingDirectory;
+		// The default chat anchors to its own folders, including after a
+		// chat-only move (`copilot.sharedCustomizationDirectories` is kept only
+		// for older builds).
+		const customizationDirectory = resolvedWorkingDirectory;
 		// Always create an ActiveClient so the snapshot includes host +
 		// session-discovered customizations, even when no client has
 		// registered an active-client handle yet.
@@ -7430,52 +8000,59 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// root on resume. Empty when single-root / gated off. A send-time
 		// snapshot supersedes the persisted restoration seed.
 		const launchWorkingDirectories = this._workingDirectoriesForResume(storedMetadata, workingDirectories) ?? storedMetadata.workingDirectories;
-		activeClient.pluginController.setAdditionalDirectories(this._additionalCustomizationDirectories(storedMetadata.sharedCustomizationDirectories ?? launchWorkingDirectories));
-		// Prefer chat-scoped membership when this SDK session is already bound to a chat.
-		const snapshot = await activeClient.snapshot(this._findBoundSessionChatUri(sessionId)?.toString());
-
-		const disabledRootMcpServers = await this._disabledRootMcpServers(owner.get(), snapshot);
-		const shellManager = this._instantiationService.createInstance(ShellManager, owner.get(), this._findBoundSessionChatUri(sessionId) ?? sessionUri, sessionUri, resolvedWorkingDirectory);
-		const resolvedAgentName = storedMetadata.agent ? this._resolveAgentName(snapshot, storedMetadata.agent) : undefined;
-		if (storedMetadata.agent && !resolvedAgentName) {
-			this._logService.info(`[Copilot:${sessionId}] Stored custom agent is not available in the current plugin snapshot; resuming without a custom agent`);
-		}
-		const launchPlan: CopilotSessionLaunchPlan = {
-			kind: 'resume',
-			client,
-			extensionSdkPath: this._extensionSdkPathByClient.get(client),
-			sessionId,
-			workingDirectory: resolvedWorkingDirectory,
-			additionalDirectories: this._additionalCustomizationDirectories(launchWorkingDirectories),
-			resolvedAgentName,
-			snapshot,
-			disabledRootMcpServers,
-			activeClientToolSet: activeClient.toolSet,
-			shellManager,
-			githubCredentials: this._getGitHubSessionCredentials(),
-			workspaceless: storedMetadata.workspaceless,
-			stageRecorder,
-			fallback: {
-				model: storedMetadata.model,
-				longContextWindow: this._longContextWindowFor(storedMetadata.model?.id),
-				freeLongContext: this._isFreeLongContext(storedMetadata.model?.id),
-			},
-		};
-
-		const agentSession = this._createAgentSession(launchPlan, customizationDirectory, activeClient, { owner, chatChannelUri, resource: sessionUri, subagentChatUriFormat: this._subagentFormatFor(chatChannelUri) });
+		const additionalDirectories = this._additionalCustomizationDirectories(launchWorkingDirectories);
+		activeClient.pluginController.setAdditionalDirectories(additionalDirectories);
+		// The chat's own anchor set (the published view's), held until its entry holds it.
+		const anchor = await this._acquireChatCustomizationAnchor(activeClient, customizationDirectory, additionalDirectories);
 		try {
-			await this._initializeAndRegisterSession(agentSession, () => {
-				this._registerInitializedSession(sessionId, agentSession, activeClient, launchPlan.client);
-			}, async () => {
-				stageRecorder?.mark('persist');
-				await this._storeSessionMetadata(sessionUri, undefined, undefined, launchWorkingDirectories, undefined, undefined);
-			});
-		} catch (err) {
-			agentSession.dispose();
-			throw err;
-		}
+			// Prefer chat-scoped membership when this SDK session is already bound to a chat.
+			const snapshot = await activeClient.snapshot(this._findBoundSessionChatUri(sessionId)?.toString(), anchor?.object, storedMetadata.agent?.uri);
 
-		return agentSession;
+			const disabledRootMcpServers = await this._disabledRootMcpServers(owner.get(), snapshot);
+			const shellManager = this._instantiationService.createInstance(ShellManager, owner.get(), this._findBoundSessionChatUri(sessionId) ?? sessionUri, sessionUri, resolvedWorkingDirectory);
+			const resolvedAgentName = storedMetadata.agent ? this._resolveAgentName(snapshot, storedMetadata.agent) : undefined;
+			if (storedMetadata.agent && !resolvedAgentName) {
+				this._logService.info(`[Copilot:${sessionId}] Stored custom agent is not available in the current plugin snapshot; resuming without a custom agent`);
+			}
+			const launchPlan: CopilotSessionLaunchPlan = {
+				kind: 'resume',
+				client,
+				extensionSdkPath: this._extensionSdkPathByClient.get(client),
+				sessionId,
+				workingDirectory: resolvedWorkingDirectory,
+				additionalDirectories,
+				resolvedAgentName,
+				snapshot,
+				disabledRootMcpServers,
+				activeClientToolSet: activeClient.toolSet,
+				shellManager,
+				githubCredentials: this._getGitHubSessionCredentials(),
+				workspaceless: storedMetadata.workspaceless,
+				stageRecorder,
+				fallback: {
+					model: storedMetadata.model,
+					longContextWindow: this._longContextWindowFor(storedMetadata.model?.id),
+					freeLongContext: this._isFreeLongContext(storedMetadata.model?.id),
+				},
+			};
+
+			const agentSession = this._createAgentSession(launchPlan, customizationDirectory, activeClient, { owner, chatChannelUri, resource: sessionUri });
+			try {
+				await this._initializeAndRegisterSession(agentSession, () => {
+					this._registerInitializedSession(sessionId, agentSession, activeClient, launchPlan.client);
+				}, async () => {
+					stageRecorder?.mark('persist');
+					await this._storeSessionMetadata(sessionUri, undefined, undefined, launchWorkingDirectories, undefined, undefined);
+				});
+			} catch (err) {
+				agentSession.dispose();
+				throw err;
+			}
+
+			return agentSession;
+		} finally {
+			anchor?.dispose();
+		}
 	}
 
 	private _workingDirectoriesForResume(
@@ -7735,7 +8312,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _readSessionMetadata(session: URI): Promise<{ model?: ModelSelection; agent?: AgentSelection; workingDirectory?: URI; workingDirectories?: readonly URI[]; customizationDirectory?: URI; sharedCustomizationDirectories?: readonly URI[]; workspaceless?: boolean }> {
+	private async _readSessionMetadata(session: URI): Promise<{ model?: ModelSelection; agent?: AgentSelection; workingDirectory?: URI; workingDirectories?: readonly URI[]; customizationDirectory?: URI; workspaceless?: boolean }> {
 		const ref = await this._openMetadata(session);
 		if (!ref) {
 			return {};
@@ -7747,7 +8324,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 				[CopilotAgent._META_CWD]: true,
 				[CopilotAgent._META_CWDS]: true,
 				[CopilotAgent._META_CUSTOMIZATION_DIRECTORY]: true,
-				[CopilotAgent._META_SHARED_CUSTOMIZATION_DIRECTORIES]: true,
 				[AH_META_WORKSPACELESS_DB_KEY]: true,
 			});
 			const cwd = m[CopilotAgent._META_CWD];
@@ -7759,7 +8335,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 				workingDirectory,
 				workingDirectories: this._parseWorkingDirectories(m[CopilotAgent._META_CWDS], workingDirectory),
 				customizationDirectory: customizationDirectory ? URI.parse(customizationDirectory) : undefined,
-				sharedCustomizationDirectories: this._parseWorkingDirectories(m[CopilotAgent._META_SHARED_CUSTOMIZATION_DIRECTORIES], undefined),
 				workspaceless: m[AH_META_WORKSPACELESS_DB_KEY] === 'true',
 			};
 		} finally {
@@ -8109,9 +8684,9 @@ export function mapToParsedPlugin(customizations: readonly DirectoryCustomizatio
  *  - parsing + resolution helpers used by both host- and client-side
  *    customizations
  *
- * Per-session state (client-published customizations and on-disk
- * customization discovery for the session's working directory) lives on {@link SessionPluginController},
- * one per {@link CopilotAgentSession}. Each session controller holds
+ * Per-session state (client-published customizations, and the on-disk
+ * customization discovery of each anchor set its chats use) lives on
+ * {@link SessionPluginController}, one per session. Each session controller holds
  * a reference back to this shared controller for the resolve/sync
  * helpers it needs.
  */
@@ -8293,7 +8868,71 @@ interface ITopLevelMcpServers {
 	readonly owners?: ReadonlyMap<string, string>;
 }
 
-/** Per-session plugin/customization view that publishes session-scoped actions. */
+/**
+ * On-disk customization discovery (workspace and user-home conventions, and
+ * workspace MCP configuration) for one ordered anchor set. The chats of a
+ * session that anchor to the same set share one instance through
+ * {@link SessionPluginController.acquireAnchor}, so discovery never runs twice
+ * for the same set.
+ */
+class CustomizationAnchor extends Disposable {
+	private readonly _discovered = this._register(new MutableDisposable<SessionDiscoveredEntry>());
+	private readonly _mcpDiscovery = this._register(new MutableDisposable<SessionMcpDiscovery>());
+
+	/** Identifies the ordered anchor set; updated when its folders' real paths resolve, see {@link SessionPluginController.acquireAnchor}. */
+	key: string;
+
+	constructor(
+		key: string,
+		readonly directory: URI,
+		readonly additionalDirectories: readonly URI[],
+		/** The roots discovered as workspace folders; empty for a workspace-less scratch directory. */
+		private readonly _workspaceDirectories: readonly URI[],
+		private readonly _userHome: URI,
+		private readonly _getClient: () => Promise<CopilotClient>,
+		private readonly _onDidChange: () => void,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IFileService private readonly _fileService: IFileService,
+	) {
+		super();
+		this.key = key;
+	}
+
+	/** `undefined` once disposed (with the last chat using it, or the session), so a late read discovers nothing. */
+	discoveredEntry(): SessionDiscoveredEntry | undefined {
+		if (this._store.isDisposed) {
+			return undefined;
+		}
+		if (!this._discovered.value) {
+			this._discovered.value = this._instantiationService.createInstance(SessionDiscoveredEntry, this._workspaceDirectories, this._userHome, this._getClient, this._onDidChange);
+		}
+		return this._discovered.value;
+	}
+
+	mcpDiscoveryEntry(): SessionMcpDiscovery | undefined {
+		if (this._workspaceDirectories.length === 0 || this._store.isDisposed) {
+			return undefined;
+		}
+		if (!this._mcpDiscovery.value) {
+			const discovery = new SessionMcpDiscovery(this._workspaceDirectories, this._fileService);
+			this._mcpDiscovery.value = discovery;
+			this._register(discovery.onDidChange(() => this._onDidChange()));
+		}
+		return this._mcpDiscovery.value;
+	}
+
+	/** Whether no discovery refresh is queued or running for this anchor set. */
+	get isSettled(): boolean {
+		return (this._discovered.value?.isSettled ?? true) && (this._mcpDiscovery.value?.isSettled ?? true);
+	}
+}
+
+/**
+ * Per-session plugin/customization view that publishes session-scoped actions.
+ * The published view is anchored to the session's default chat; every chat's
+ * SDK snapshot is anchored to that chat's own folders through
+ * {@link acquireAnchor}.
+ */
 class SessionPluginController extends Disposable {
 	private readonly _onDidPublish = this._register(new Emitter<SessionAction>());
 	/** Per-session action stream (reset + per-item updates). */
@@ -8309,8 +8948,13 @@ class SessionPluginController extends Disposable {
 	/** Per-client customization state; published customizations are the stable first-wins union of these entries. */
 	private readonly _clients = new Map<string, IClientCustomizationState>();
 
-	private readonly _sessionDiscovered: MutableDisposable<SessionDiscoveredEntry> = this._register(new MutableDisposable());
-	private readonly _sessionMcpDiscovery = this._register(new MutableDisposable<{ readonly discovery: SessionMcpDiscovery; dispose(): void }>());
+	/** Symlink-resolved paths of anchor directories, by their spelling; filled by {@link resolveAnchorPaths}. */
+	private readonly _realPaths = new Map<string, string>();
+
+	/** Live anchor sets of this session, refcounted by the chats (and the published view) that use them. */
+	private readonly _anchors = new Map<string, { readonly anchor: CustomizationAnchor; refs: number }>();
+	/** The published view's reference to its anchor set, acquired lazily from {@link _directory} and {@link _additionalDirectories}. */
+	private readonly _published = this._register(new MutableDisposable<IReference<CustomizationAnchor>>());
 
 	/** Additional multi-root workspace folders (roots 1..N); the primary root is tracked separately. */
 	private _additionalDirectories: readonly URI[] = [];
@@ -8325,13 +8969,150 @@ class SessionPluginController extends Disposable {
 		private readonly _topLevelMcpServers: () => ITopLevelMcpServers,
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IFileService private readonly _fileService: IFileService,
 		@IAgentHostCustomizationEnablementService private readonly _customizationEnablementService: IAgentHostCustomizationEnablementService,
 	) {
 		super();
 		this._enablementReady = this._customizationEnablementService.initializeSession(this._session.toString()).then(() => {
 			this._isEnablementReady = true;
 		});
+		this._register(toDisposable(() => {
+			for (const { anchor } of this._anchors.values()) {
+				anchor.dispose();
+			}
+			this._anchors.clear();
+		}));
+	}
+
+	/**
+	 * Acquires the shared discovery for an ordered anchor set. Chats of this
+	 * session that anchor to the same set share one {@link CustomizationAnchor};
+	 * it is disposed when its last reference is released, or with this controller.
+	 */
+	public acquireAnchor(directory: URI, additionalDirectories: readonly URI[]): IReference<CustomizationAnchor> {
+		const key = this._anchorKey(directory, additionalDirectories);
+		let entry = this._anchors.get(key);
+		if (!entry) {
+			const workspaceDirectories = isEqual(directory, workspacelessScratchDir(this._parent.getUserHome(), AgentSession.id(this._session))) ? [] : [directory, ...additionalDirectories];
+			const anchor: CustomizationAnchor = this._instantiationService.createInstance(CustomizationAnchor, key, directory, additionalDirectories, workspaceDirectories, this._parent.getUserHome(), () => this._parent.getClient(), () => this._onDidChangeAnchor(anchor));
+			entry = { anchor, refs: 0 };
+			if (this._store.isDisposed) {
+				// A late acquisition after session finalize owns its anchor outright.
+				return { object: anchor, dispose: () => anchor.dispose() };
+			}
+			this._anchors.set(key, entry);
+		}
+		entry.refs++;
+		const held = entry;
+		let released = false;
+		return {
+			object: held.anchor,
+			dispose: () => {
+				if (released) {
+					return;
+				}
+				released = true;
+				if (--held.refs === 0 && this._anchors.get(held.anchor.key) === held) {
+					this._anchors.delete(held.anchor.key);
+					held.anchor.dispose();
+				}
+			},
+		};
+	}
+
+	/**
+	 * Resolves the real paths of `directories` so that {@link acquireAnchor}
+	 * keys a folder reached through different spellings (a symlink such as
+	 * `/tmp` and `/private/tmp`, or a different case where paths ignore case)
+	 * as one anchor set. Only the key is affected: an anchor set discovers the
+	 * directories it was first acquired with. A folder whose real path is not
+	 * yet resolved, or cannot be, is keyed by its own spelling; live anchor sets
+	 * acquired before their folders resolved are re-keyed once they do.
+	 */
+	public async resolveAnchorPaths(directories: readonly URI[]): Promise<void> {
+		let resolved = false;
+		await Promise.all(directories.map(async directory => {
+			if (directory.scheme !== Schemas.file || this._realPaths.has(directory.fsPath)) {
+				return;
+			}
+			try {
+				const realPath = await fs.realpath(directory.fsPath);
+				if (!this._realPaths.has(directory.fsPath)) {
+					this._realPaths.set(directory.fsPath, realPath);
+					resolved = true;
+				}
+			} catch {
+				// A missing folder keeps its own spelling.
+			}
+		}));
+		if (resolved) {
+			this._rekeyAnchors();
+		}
+	}
+
+	/**
+	 * Moves live anchor sets to the keys of their now-resolved folders, so a set
+	 * acquired under its spelling (e.g. by an early publish) is shared rather than
+	 * discovered again. When another live set already holds the resolved key,
+	 * both stay live until released; only new acquisitions share the holder.
+	 */
+	private _rekeyAnchors(): void {
+		for (const [key, entry] of [...this._anchors]) {
+			const resolvedKey = this._anchorKey(entry.anchor.directory, entry.anchor.additionalDirectories);
+			if (resolvedKey === key || this._anchors.has(resolvedKey)) {
+				continue;
+			}
+			this._anchors.delete(key);
+			entry.anchor.key = resolvedKey;
+			this._anchors.set(resolvedKey, entry);
+		}
+	}
+
+	/** The key of an ordered anchor set: the comparison keys of its directories' real paths. */
+	private _anchorKey(directory: URI, additionalDirectories: readonly URI[]): string {
+		return [directory, ...additionalDirectories].map(candidate => {
+			const realPath = candidate.scheme === Schemas.file ? this._realPaths.get(candidate.fsPath) : undefined;
+			return extUriBiasedIgnorePathCase.getComparisonKey(realPath !== undefined ? URI.file(realPath) : candidate);
+		}).join('\n');
+	}
+
+	/** The anchor sets currently alive for this session, each as the `[primary, ...additional]` directories it discovers. */
+	public liveAnchorKeys(): readonly string[] {
+		return [...this._anchors.values()].map(({ anchor }) => [anchor.directory, ...anchor.additionalDirectories].map(directory => directory.toString()).join('\n'));
+	}
+
+	private _onDidChangeAnchor(anchor: CustomizationAnchor): void {
+		// Only the published view's anchor set feeds session state; a chat on
+		// another set picks up its changes from its next snapshot. Compared by
+		// key: the published view may not have re-read its set since it moved.
+		if (this._published.value?.object === anchor || (this._directory && anchor.key === this._anchorKey(this._directory, this._additionalDirectories))) {
+			this._publish(() => ({
+				type: ActionType.SessionCustomizationsChanged,
+				customizations: [...this.getCustomizations()],
+			}));
+		}
+	}
+
+	/**
+	 * Publishes the whole view once its anchor set's discovery has settled, for
+	 * a move of the published view that no host operation republishes (a
+	 * chat-only move of the default chat): a set's initial scan does not notify.
+	 */
+	public publishWhenSettled(): void {
+		this.getCustomizationsSettled().then(() => this._publish(() => ({
+			type: ActionType.SessionCustomizationsChanged,
+			customizations: [...this.getCustomizations()],
+		})), error => this._logService.warn('[Copilot:SessionPluginController] Failed to publish customizations after the anchor moved', error));
+	}
+
+	/** The anchor set of the published view, or `undefined` before the session has a customization directory or once it is disposed. */
+	private _publishedAnchor(): CustomizationAnchor | undefined {
+		if (!this._directory || this._store.isDisposed) {
+			return undefined;
+		}
+		if (!this._published.value) {
+			this._published.value = this.acquireAnchor(this._directory, this._additionalDirectories);
+		}
+		return this._published.value.object;
 	}
 
 	public get directory(): URI | undefined {
@@ -8357,10 +9138,11 @@ class SessionPluginController extends Disposable {
 	}
 
 	/**
-	 * Set the additional (non-primary) workspace roots. Recreates the discovered
-	 * entry when the set actually changes so discovery re-scans every root —
-	 * important when this is set after a primary-only entry was already created
-	 * (e.g. on resume). A no-op for the single-root case (empty tail).
+	 * Set the published view's additional (non-primary) workspace roots. Moves
+	 * the published view to the matching anchor set when the set actually
+	 * changes so discovery covers every root — important when this is set after
+	 * a primary-only set was already in use (e.g. on resume). A no-op for the
+	 * single-root case (empty tail).
 	 */
 	public setAdditionalDirectories(directories: readonly URI[]): void {
 		if (this._additionalDirectories.length === directories.length
@@ -8368,30 +9150,31 @@ class SessionPluginController extends Disposable {
 			return;
 		}
 		this._additionalDirectories = directories;
-		this._sessionDiscovered.clear();
-		this._sessionMcpDiscovery.clear();
+		this._published.clear();
 	}
 
 	/**
 	 * Move the session's customization anchor to a new directory (e.g. from the
-	 * user-picked folder to the worktree at materialization). Recreates the
-	 * discovered entry so discovery/watchers re-scan the new directory.
+	 * user-picked folder to the worktree at materialization). The published view
+	 * moves to the new directory's anchor set so discovery/watchers cover it.
+	 *
+	 * @param rebaseEnablement whether enablement recorded for customizations under
+	 *   the previous directory carries over to the same paths under the new one.
 	 */
-	public reanchor(directory: URI): void {
+	public reanchor(directory: URI, rebaseEnablement = true): void {
 		if (this._directory && isEqual(this._directory, directory)) {
 			return;
 		}
 		const previous = this._directory;
 		this._directory = directory;
-		this._sessionDiscovered.clear();
-		this._sessionMcpDiscovery.clear();
-		if (previous && !this._previousDirectories.some(candidate => isEqual(candidate, previous))) {
+		this._published.clear();
+		if (rebaseEnablement && previous && !this._previousDirectories.some(candidate => isEqual(candidate, previous))) {
 			this._previousDirectories.push(previous);
 		}
 	}
 
 	public getCustomizations(): readonly Customization[] {
-		return this._resolveCustomizationEnablement().customizations;
+		return this._resolveCustomizationEnablement(this._publishedAnchor()).customizations;
 	}
 
 	/** The session's runtime-owned top-level MCP servers, with enablement resolved for publication. */
@@ -8400,7 +9183,8 @@ class SessionPluginController extends Disposable {
 		return resolveCustomizationEnablement(this._customizationEnablementService, this._session, customizations, this._clientChildEnablement(), undefined, owners).customizations;
 	}
 
-	private _resolveCustomizationEnablement() {
+	/** Host, client and the given anchor set's discovered customizations, with enablement resolved. */
+	private _resolveCustomizationEnablement(anchor: CustomizationAnchor | undefined) {
 		const hostCustomizations = this._parent.hostCustomizations();
 		const clientCustomizations = this._flattenClientCustomizations();
 		const explicitPluginIds = new Set([
@@ -8411,15 +9195,14 @@ class SessionPluginController extends Disposable {
 			...hostCustomizations.map(item => this._projectForPublish(item.customization)),
 			...clientCustomizations.map(item => this._projectForPublish(item.customization)),
 		];
-		const entry = this._discoveredEntry();
-		const discovered = entry?.currentCustomizations() ?? [];
+		const discovered = anchor?.discoveredEntry()?.currentCustomizations() ?? [];
 		for (const customization of discovered) {
 			if (customization.type === CustomizationType.Plugin && explicitPluginIds.has(customization.id)) {
 				continue;
 			}
 			result.push(this._projectForPublish(customization));
 		}
-		for (const definition of this._mcpDiscoveryEntry()?.definitions ?? []) {
+		for (const definition of anchor?.mcpDiscoveryEntry()?.definitions ?? []) {
 			result.push(this._projectForPublish(definition.customization));
 		}
 		result.push(buildCopilotBuiltinAgentsContainer());
@@ -8457,18 +9240,24 @@ class SessionPluginController extends Disposable {
 	 */
 	public async getCustomizationsSettled(): Promise<readonly Customization[]> {
 		await this._enablementReady;
-		const entry = this._discoveredEntry();
+		if (this._directory) {
+			await this.resolveAnchorPaths([this._directory, ...this._additionalDirectories]);
+		}
+		const anchor = this._publishedAnchor();
 		await Promise.all([
 			this._parent.hostSync().catch(err => this._logService.warn('[Copilot:SessionPluginController] Host customization update failed', err)),
 			...[...this._clients.values()].map(client => client.sync.catch(err => this._logService.warn('[Copilot:SessionPluginController] Client customization sync failed', err))),
-			entry?.whenSettled(),
-			this._mcpDiscoveryEntry()?.refresh(),
+			anchor?.discoveredEntry()?.whenSettled(),
+			anchor?.mcpDiscoveryEntry()?.refresh(),
 		]);
 		return this.getCustomizations();
 	}
 
-	/** Returns the parsed plugins currently enabled for this session, awaiting any pending sync. */
-	public async getAppliedPlugins(): Promise<readonly ICopilotPluginInfo[]> {
+	/**
+	 * Returns the parsed plugins enabled for a chat on `anchor` (the published
+	 * view's anchor set when omitted), awaiting any pending sync.
+	 */
+	public async getAppliedPlugins(anchor: CustomizationAnchor | undefined = this._publishedAnchor()): Promise<readonly ICopilotPluginInfo[]> {
 		await this._customizationEnablementService.initializeSession(this._session.toString());
 		const [host] = await Promise.all([
 			this._parent.hostSync().catch(err => {
@@ -8479,18 +9268,56 @@ class SessionPluginController extends Disposable {
 				this._logService.warn('[Copilot:SessionPluginController] Client customization sync failed', err);
 				return client.customizations;
 			})),
-			this._discoveredEntry()?.whenSettled(),
-			this._mcpDiscoveryEntry()?.refresh(),
+			anchor?.discoveredEntry()?.whenSettled(),
+			anchor?.mcpDiscoveryEntry()?.refresh(),
 		]);
-		return this._appliedPlugins(host);
+		return this._appliedPlugins(host, anchor);
 	}
 
 	/**
 	 * The plugins enabled from the state already observed in memory, without
 	 * awaiting pending syncs or re-scanning workspace MCP configuration.
 	 */
-	public currentAppliedPlugins(): readonly ICopilotPluginInfo[] {
-		return this._appliedPlugins(this._parent.hostCustomizations());
+	public currentAppliedPlugins(anchor: CustomizationAnchor | undefined = this._publishedAnchor()): readonly ICopilotPluginInfo[] {
+		return this._appliedPlugins(this._parent.hostCustomizations(), anchor);
+	}
+
+	/**
+	 * A chat's agent picker lists the published view's agents (the default
+	 * chat's), so a chat's selected custom agent that its own `anchor` set does
+	 * not discover is taken from the published view's anchor set, so that an
+	 * agent the picker shows always resolves. Only the agent carries over; the
+	 * chat's instructions and skills stay its own folder's.
+	 */
+	public async withSelectedAgent(plugins: readonly ICopilotPluginInfo[], anchor: CustomizationAnchor | undefined, selectedAgentUri: string | undefined): Promise<readonly ICopilotPluginInfo[]> {
+		const published = this._selectedAgentFallbackAnchor(plugins, anchor, selectedAgentUri);
+		return published ? this._withAgentFrom(plugins, await this.getAppliedPlugins(published), selectedAgentUri!) : plugins;
+	}
+
+	/** {@link withSelectedAgent} from the state already observed in memory. */
+	public currentWithSelectedAgent(plugins: readonly ICopilotPluginInfo[], anchor: CustomizationAnchor | undefined, selectedAgentUri: string | undefined): readonly ICopilotPluginInfo[] {
+		const published = this._selectedAgentFallbackAnchor(plugins, anchor, selectedAgentUri);
+		return published ? this._withAgentFrom(plugins, this.currentAppliedPlugins(published), selectedAgentUri!) : plugins;
+	}
+
+	private _selectedAgentFallbackAnchor(plugins: readonly ICopilotPluginInfo[], anchor: CustomizationAnchor | undefined, selectedAgentUri: string | undefined): CustomizationAnchor | undefined {
+		if (!selectedAgentUri || !anchor || plugins.some(plugin => plugin.agents.some(agent => agent.uri.toString() === selectedAgentUri))) {
+			return undefined;
+		}
+		const published = this._publishedAnchor();
+		return published !== anchor ? published : undefined;
+	}
+
+	private _withAgentFrom(plugins: readonly ICopilotPluginInfo[], source: readonly ICopilotPluginInfo[], selectedAgentUri: string): readonly ICopilotPluginInfo[] {
+		const agent = source.flatMap(plugin => plugin.agents).find(candidate => candidate.uri.toString() === selectedAgentUri);
+		return agent ? [...plugins, {
+			format: PluginFormat.Copilot,
+			hooks: [],
+			mcpServers: [],
+			skills: [],
+			agents: [agent],
+			instructions: [],
+		} satisfies ICopilotPluginInfo] : plugins;
 	}
 
 	/**
@@ -8499,19 +9326,17 @@ class SessionPluginController extends Disposable {
 	 * customizations `Loading` as soon as it starts and those are filtered out
 	 * of the applied plugins until it completes.
 	 */
-	public isSettled(): boolean {
+	public isSettled(anchor: CustomizationAnchor | undefined = this._publishedAnchor()): boolean {
 		const isLoading = (items: readonly IResolvedCustomization[]) => items.some(item => item.customization.load?.kind === CustomizationLoadStatus.Loading);
 		return this._isEnablementReady
 			&& !isLoading(this._parent.hostCustomizations())
 			&& ![...this._clients.values()].some(client => isLoading(client.customizations))
-			&& (this._sessionDiscovered.value?.isSettled ?? true)
-			&& (this._sessionMcpDiscovery.value?.discovery.isSettled ?? true);
+			&& (anchor?.isSettled ?? true);
 	}
 
-	private _appliedPlugins(host: readonly IResolvedCustomization[]): readonly ICopilotPluginInfo[] {
-		const entry = this._discoveredEntry();
-		const mcpDiscovery = this._mcpDiscoveryEntry();
-		const resolved = this._resolveCustomizationEnablement();
+	private _appliedPlugins(host: readonly IResolvedCustomization[], anchor: CustomizationAnchor | undefined): readonly ICopilotPluginInfo[] {
+		const mcpDiscovery = anchor?.mcpDiscoveryEntry();
+		const resolved = this._resolveCustomizationEnablement(anchor);
 		const desiredByUri = new Map(resolved.customizations.map(customization => [customization.uri, customization]));
 		const desiredById = new Map(resolved.customizations.map(customization => [customization.id, customization]));
 		const mcpEnablement = getSdkMcpServerEnablement(resolved);
@@ -8526,7 +9351,7 @@ class SessionPluginController extends Disposable {
 				: undefined;
 			return children?.length ? children : undefined;
 		};
-		const discovered = entry?.currentCustomizations() ?? [];
+		const discovered = anchor?.discoveredEntry()?.currentCustomizations() ?? [];
 		const discoveredDirectories = discovered.filter((customization): customization is DirectoryCustomization => customization.type === CustomizationType.Directory);
 		const sessionPlugin = discoveredDirectories.some(isEnabledForSdk) ? mapToParsedPlugin(discoveredDirectories) : undefined;
 		const withSdkRegistration = (plugin: IParsedPlugin, pluginDir: URI | undefined): ICopilotPluginInfo => ({
@@ -8536,7 +9361,7 @@ class SessionPluginController extends Disposable {
 		});
 		const sessionPlugins: ICopilotPluginInfo[] = sessionPlugin ? [withSdkRegistration(sessionPlugin, undefined)] : [];
 
-		const primaryCwd = this._directory;
+		const primaryCwd = anchor?.directory ?? this._directory;
 		const withClientDefaults = (item: IResolvedCustomization): ICopilotPluginInfo => {
 			const plugin = item.plugin!;
 			// Standalone customizations must not reach the SDK as plugin content: without a
@@ -8721,49 +9546,6 @@ class SessionPluginController extends Disposable {
 				this._logService.warn('[Copilot:SessionPluginController] Retried client customization sync failed', err);
 			}), token);
 		}
-	}
-
-	private _discoveredEntry(): SessionDiscoveredEntry | undefined {
-		if (!this._directory) {
-			return undefined;
-		}
-
-		if (!this._sessionDiscovered.value) {
-			this._sessionDiscovered.value = this._instantiationService.createInstance(SessionDiscoveredEntry,
-				this._workspaceCustomizationDirectories(),
-				this._parent.getUserHome(),
-				() => this._parent.getClient(),
-				() => this._publish(() => ({
-					type: ActionType.SessionCustomizationsChanged,
-					customizations: [...this.getCustomizations()],
-				}))
-			);
-		}
-		return this._sessionDiscovered.value;
-	}
-
-	private _mcpDiscoveryEntry(): SessionMcpDiscovery | undefined {
-		const workingDirectories = this._workspaceCustomizationDirectories();
-		if (workingDirectories.length === 0) {
-			return undefined;
-		}
-		if (!this._sessionMcpDiscovery.value) {
-			const store = new DisposableStore();
-			const discovery = store.add(new SessionMcpDiscovery(workingDirectories, this._fileService));
-			store.add(discovery.onDidChange(() => this._publish(() => ({
-				type: ActionType.SessionCustomizationsChanged,
-				customizations: [...this.getCustomizations()],
-			}))));
-			this._sessionMcpDiscovery.value = { discovery, dispose: () => store.dispose() };
-		}
-		return this._sessionMcpDiscovery.value.discovery;
-	}
-
-	private _workspaceCustomizationDirectories(): readonly URI[] {
-		if (!this._directory || isEqual(this._directory, workspacelessScratchDir(this._parent.getUserHome(), AgentSession.id(this._session)))) {
-			return [];
-		}
-		return [this._directory, ...this._additionalDirectories];
 	}
 
 	private _publish(action: () => SessionAction): void {
@@ -9100,11 +9882,16 @@ class ActiveClient extends Disposable {
 		this.pluginController.removeClient(clientId);
 	}
 
-	/** Builds the client/plugin/MCP snapshot a chat should advertise to its SDK session. */
-	async snapshot(chatKey?: string): Promise<IActiveClientSnapshot> {
+	/**
+	 * Builds the client/plugin/MCP snapshot a chat should advertise to its SDK
+	 * session: the session's client tools and plugins, plus the customizations
+	 * discovered for the chat's own `anchor` set (the published view's when omitted),
+	 * and the chat's selected custom agent (see {@link SessionPluginController.withSelectedAgent}).
+	 */
+	async snapshot(chatKey?: string, anchor?: CustomizationAnchor, selectedAgentUri?: string): Promise<IActiveClientSnapshot> {
 		return {
 			tools: chatKey === undefined ? this.toolSet.merged() : this.toolsForChat(chatKey),
-			plugins: await this.pluginController.getAppliedPlugins(),
+			plugins: await this.pluginController.withSelectedAgent(await this.pluginController.getAppliedPlugins(anchor), anchor, selectedAgentUri),
 			mcpServers: await this._getMcpServers(),
 		};
 	}
@@ -9113,10 +9900,10 @@ class ActiveClient extends Disposable {
 	 * The snapshot from the state already observed in memory, without awaiting
 	 * pending customization syncs or re-scanning workspace MCP configuration.
 	 */
-	currentSnapshot(chatKey: string): IActiveClientSnapshot {
+	currentSnapshot(chatKey: string, anchor?: CustomizationAnchor, selectedAgentUri?: string): IActiveClientSnapshot {
 		return {
 			tools: this.toolsForChat(chatKey),
-			plugins: this.pluginController.currentAppliedPlugins(),
+			plugins: this.pluginController.currentWithSelectedAgent(this.pluginController.currentAppliedPlugins(anchor), anchor, selectedAgentUri),
 			mcpServers: this._currentMcpServers(),
 		};
 	}
@@ -9135,8 +9922,8 @@ class ActiveClient extends Disposable {
 	}
 
 	/** Reports the first changed structural contribution without including its contents. */
-	async getRestartReason(snap: IActiveClientSnapshot, chatKey?: string, current?: IActiveClientSnapshot): Promise<string | undefined> {
-		current ??= await this.snapshot(chatKey);
+	async getRestartReason(snap: IActiveClientSnapshot, chatKey?: string, current?: IActiveClientSnapshot, anchor?: CustomizationAnchor): Promise<string | undefined> {
+		current ??= await this.snapshot(chatKey, anchor);
 		if (!parsedPluginsEqual(snap.plugins, current.plugins)) {
 			return 'clientPluginsChanged';
 		}

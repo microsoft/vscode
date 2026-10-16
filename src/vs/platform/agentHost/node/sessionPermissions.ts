@@ -315,8 +315,7 @@ export class SessionPermissionManager extends Disposable {
 
 		// 4. Read auto-approval
 		if (e.permissionKind === 'read' && e.permissionPath) {
-			const owner = this._ownerOf(sessionKey);
-			if (owner !== undefined && isSessionAttachmentPath(this._sessionDataService, URI.parse(owner), e.permissionPath)) {
+			if (this._isAttachmentPath(sessionKey, e.permissionPath)) {
 				this._logService.trace(`[SessionPermissionManager] Auto-approving session attachment read of ${e.permissionPath}`);
 				return ToolCallConfirmationReason.NotNeeded;
 			}
@@ -402,8 +401,14 @@ export class SessionPermissionManager extends Disposable {
 		if (e.permissionKind !== 'write' || !e.permissionPath) {
 			return false;
 		}
-		const owner = this._ownerOf(sessionKey);
-		return owner !== undefined && isSessionAttachmentPath(this._sessionDataService, URI.parse(owner), e.permissionPath);
+		return this._isAttachmentPath(sessionKey, e.permissionPath);
+	}
+
+	/** Whether `path` is an attachment snapshot of the chat (or session): in any directory its attachments are kept in. */
+	private _isAttachmentPath(sessionOrChat: ProtocolURI, path: string): boolean {
+		const owner = this._ownerOf(sessionOrChat);
+		const scopes = isAhpChatChannel(sessionOrChat) ? this._stateManager.getChatAttachmentScopes(sessionOrChat) : undefined;
+		return (scopes ?? (owner !== undefined ? [owner] : [])).some(scope => isSessionAttachmentPath(this._sessionDataService, URI.parse(scope), path));
 	}
 
 	/** Whether adding a persistent terminal auto-approve rule can suppress future prompts for this shell event. */

@@ -19,9 +19,15 @@ import { ChatGroupsView } from '../../browser/parts/chatGroupsView.js';
 import { GRID_GAP_SASH_CLASS } from '../../browser/parts/gridGap.js';
 import { URI } from '../../../base/common/uri.js';
 import { ConfigurationTarget } from '../../../platform/configuration/common/configuration.js';
-import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
+import { SESSION_TOOLBAR_SETTING, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { createSessionViewTestServices, createTestActiveSession } from './sessionViewTestUtils.js';
+import { TestLayoutService, TestMenuService, workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
+import { IWorkbenchLayoutService } from '../../../workbench/services/layout/browser/layoutService.js';
+import { AgentWorkbenchLayout } from '../../browser/workbench.js';
+import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
+import { Menus } from '../../browser/menus.js';
 
 suite('Sessions - Session View', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -624,6 +630,52 @@ suite('Sessions - Session View', () => {
 			preparationViewDisposed: true,
 			showsCreatedSession: true,
 			externalFocusPreserved: true,
+		});
+	});
+
+	test('shows the session toolbar only once the session has an existing chat, never in the new-session view', () => {
+		const store = disposables.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IWorkbenchLayoutService, new class extends TestLayoutService {
+			readonly agentWorkbenchLayout = AgentWorkbenchLayout.Desktop;
+		}());
+		// Give the Session Toolbar an entry, as the desktop Add Tab actions do.
+		instantiationService.stub(IMenuService, new class extends TestMenuService {
+			override createMenu(id: MenuId, contextKeyService: IContextKeyService): IMenu {
+				const menu = super.createMenu(id, contextKeyService);
+				return id === Menus.SessionToolbar
+					? { ...menu, getActions: () => [['navigation', [instantiationService.createInstance(MenuItemAction, { id: 'test.browser', title: 'Browser' }, undefined, undefined, undefined, undefined)]]] }
+					: menu;
+			}
+		}());
+		const { configurationService, chatViews } = createSessionViewTestServices(store, instantiationService);
+		configurationService.setUserConfiguration(SESSION_TOOLBAR_SETTING, true);
+		const chatLayout = () => ({
+			width: chatViews.at(-1)?.layouts.at(-1)?.width,
+			contentInset: chatViews.at(-1)?.element.style.getPropertyValue('--session-toolbar-reserved-width'),
+			headerWidth: view.element.querySelector<HTMLElement>('.session-view-centered-content')?.style.width,
+		});
+		const session = createTestActiveSession('draft', false);
+		const view = store.add(instantiationService.createInstance(SessionView));
+		mainWindow.document.body.appendChild(view.element);
+		store.add(toDisposable(() => view.element.remove()));
+		const toolbars = () => ({
+			standalone: !!view.element.querySelector(':scope > .session-toolbar'),
+			group: !!view.element.querySelector('.chat-group-view > .session-toolbar:not(.inactive)'),
+		});
+
+		view.layout(1000, 600, 0, 0);
+		view.openSession(session, {});
+		const draft = { ...toolbars(), chatLayout: chatLayout() };
+		session.isCreated.set(true, undefined);
+		const created = { ...toolbars(), chatLayout: chatLayout() };
+		view.setActive(false);
+		const inactiveSession = { ...toolbars(), chatLayout: chatLayout() };
+
+		assert.deepStrictEqual({ draft, created, inactiveSession }, {
+			draft: { standalone: false, group: false, chatLayout: { width: 1000, contentInset: '0px', headerWidth: '1000px' } },
+			created: { standalone: false, group: true, chatLayout: { width: 1000, contentInset: '30px', headerWidth: '1000px' } },
+			inactiveSession: { standalone: false, group: false, chatLayout: { width: 1000, contentInset: '30px', headerWidth: '1000px' } },
 		});
 	});
 

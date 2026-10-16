@@ -81,7 +81,6 @@ type CopilotConnectorsCatalogSnapshotClassification = {
 type CopilotConnectorConnectionActionEvent = {
 	action: 'connect' | 'disconnect';
 	outcome: 'success' | 'error' | 'cancelled';
-	connectorName: string;
 	connectionStatusBefore: CopilotConnectorConnectionStatus | 'not_loaded';
 	connectionStatusAfter: CopilotConnectorConnectionStatus | 'not_loaded';
 	durationMs: number;
@@ -94,7 +93,6 @@ type CopilotConnectorConnectionActionClassification = {
 	comment: 'Tracks explicit Copilot connector connection actions and outcomes for rollout and comparison with MCP server installation and usage.';
 	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user attempted to connect or disconnect a connector.' };
 	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the connection action succeeded, failed, or was cancelled.' };
-	connectorName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Public catalog identifier of the connector acted on.' };
 	connectionStatusBefore: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Last known connector connection status before the action.' };
 	connectionStatusAfter: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Last known connector connection status after the action.' };
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Duration of the connection action in milliseconds, including authorization and polling.' };
@@ -484,7 +482,6 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		this.telemetryService.publicLog2<CopilotConnectorConnectionActionEvent, CopilotConnectorConnectionActionClassification>('copilotConnectors.connectionAction', {
 			action,
 			outcome,
-			connectorName: name,
 			connectionStatusBefore,
 			connectionStatusAfter: connector?.connectionStatus ?? 'not_loaded',
 			durationMs,

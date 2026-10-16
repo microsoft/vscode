@@ -25,8 +25,7 @@ import { AgentHostSessionTitleController, type AutomaticTitleGenerationStrategy 
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { ActionType, NotificationType } from '../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, MessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, TurnState, type ResponsePart, type SessionSummary, type ToolCallCompletedState, type Turn } from '../../common/state/sessionState.js';
-import { GitHubIssueOrPullRequest, GitHubIssueRef } from '../../../github/common/githubQueryService.js';
-import { IGitHubQuery } from '../../../github/common/githubQueryServiceImpl.js';
+import { GitHubIssueOrPullRequest, GitHubIssueRef, GitHubQueryApi } from '../../../github/common/githubQueryService.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 import { AgentHostUtilityModelUnavailableError, AgentHostUtilityModelUnavailableReason, type IAgentHostUtilityModelContext, type IAgentHostUtilityModelService } from '../../node/agentHostUtilityModelService.js';
 import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
@@ -78,7 +77,7 @@ function createUtilityModelService(copilotApiService: TestCopilotApiService, get
 	};
 }
 
-class TestGitHubQuery extends mock<IGitHubQuery>() {
+class TestGitHubQuery extends mock<GitHubQueryApi>() {
 	readonly calls: { owner: string; repo: string; number: number; accountId: string; signal: AbortSignal }[] = [];
 	readonly responses = new Map<string, GitHubIssueOrPullRequest | Error>();
 	readonly pendingResponses = new Set<string>();

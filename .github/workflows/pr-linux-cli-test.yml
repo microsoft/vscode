@@ -7,6 +7,22 @@ on:
       rustup_toolchain:
         type: string
         required: true
+      working_directory:
+        type: string
+        required: false
+        default: cli
+      format:
+        type: boolean
+        required: false
+        default: false
+      locked:
+        type: boolean
+        required: false
+        default: false
+      all_targets:
+        type: boolean
+        required: false
+        default: false
 
 jobs:
   linux-cli-test:
@@ -33,16 +49,45 @@ jobs:
           rustup update $RUSTUP_TOOLCHAIN
           rustup component add clippy
 
+      - name: Install Rust formatting component
+        if: ${{ inputs.format }}
+        run: rustup component add rustfmt
+
       - name: Check Rust versions
         run: |
           set -e
           rustc --version
           cargo --version
 
+      - name: Check formatting
+        if: ${{ inputs.format }}
+        run: cargo fmt --check
+        working-directory: ${{ inputs.working_directory }}
+
       - name: Clippy lint
-        run: cargo clippy -- -D warnings
-        working-directory: cli
+        run: |
+          set -e
+          args=()
+          if [[ "$CARGO_ALL_TARGETS" == "true" ]]; then
+            args+=(--all-targets)
+          fi
+          if [[ "$CARGO_LOCKED" == "true" ]]; then
+            args+=(--locked)
+          fi
+          cargo clippy "${args[@]}" -- -D warnings
+        working-directory: ${{ inputs.working_directory }}
+        env:
+          CARGO_ALL_TARGETS: ${{ inputs.all_targets }}
+          CARGO_LOCKED: ${{ inputs.locked }}
 
       - name: 🧪 Run unit tests
-        run: cargo test
-        working-directory: cli
+        run: |
+          set -e
+          args=()
+          if [[ "$CARGO_LOCKED" == "true" ]]; then
+            args+=(--locked)
+          fi
+          cargo test "${args[@]}"
+        working-directory: ${{ inputs.working_directory }}
+        env:
+          CARGO_LOCKED: ${{ inputs.locked }}

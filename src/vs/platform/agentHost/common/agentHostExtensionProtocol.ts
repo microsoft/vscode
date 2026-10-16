@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { vBoolean, vEnum, vObj, vOptionalProp, vString, type ValidatorType } from '../../../base/common/validation.js';
+import { ValidatorBase, vBoolean, vEnum, vObj, vOptionalProp, vString, type ValidationError, type ValidatorType } from '../../../base/common/validation.js';
+import type { IJSONSchema } from '../../../base/common/jsonSchema.js';
 import type { IDevContainerAgentHostConnectResult } from './devContainerAgentHost.js';
 import type { AgentHostDebugLogsArtifactKind, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult } from './agentService.js';
 import type { InitializeResult } from './state/protocol/common/commands.js';
 import type { McpAuthRequirement } from './state/protocol/channels-session/state.js';
 import { AgentHostArtifactRemovalCapabilityMetaKey } from './meta/agentHostArtifactRemovalMeta.js';
 import { AgentHostSessionImportCapabilityMetaKey } from './meta/agentHostSessionImportMeta.js';
+import { AgentHostSessionMoveCapabilityMetaKey } from './meta/agentHostSessionMoveMeta.js';
 import { AgentHostSavedChatCapabilityMetaKey, AgentHostSavedChatContinuationCapabilityMetaKey } from './meta/agentHostSavedChatMeta.js';
 import { AgentHostDevContainersCapabilityMetaKey } from './meta/agentHostDevContainersMeta.js';
 import { AgentHostTimingCapabilityMetaKey, ChatUserInteractionCapability } from './meta/agentHostTimingMeta.js';
@@ -22,6 +24,7 @@ import { AgentHostDebugLogsCancellationCapabilityMetaKey } from './meta/agentHos
 
 export { supportsAgentHostArtifactRemoval } from './meta/agentHostArtifactRemovalMeta.js';
 export { supportsAgentHostDevContainers } from './meta/agentHostDevContainersMeta.js';
+export { supportsAgentHostSessionMove } from './meta/agentHostSessionMoveMeta.js';
 
 export const DevContainerIsDockerAvailableExtensionMethod = 'vscode/devContainers/isDockerAvailable';
 export const DevContainerConnectExtensionMethod = 'vscode/devContainers/connect';
@@ -63,6 +66,8 @@ export const RequestAgentHostMcpAuthenticationExtensionMethod = 'vscode/requestM
 export const RemoveSessionArtifactExtensionMethod = 'vscode/removeSessionArtifact';
 export const StopBackgroundWorkExtensionMethod = 'vscode/stopBackgroundWork';
 export const ImportSessionExtensionMethod = 'vscode/importSession';
+/** Moves a single-chat session under another session (Block 4); advertised by `vscode.sessionMove`. */
+export const MoveAgentHostSessionExtensionMethod = 'vscode/moveSession';
 export const ReadSavedChatExtensionMethod = 'vscode/readSavedChat';
 export const CompleteSavedChatContinuationExtensionMethod = 'vscode/completeSavedChatContinuation';
 export const ReportAgentHostFirstResponseExtensionMethod = 'vscode/reportAgentHostFirstResponse';
@@ -82,6 +87,7 @@ export interface IAgentHostExtensionInitializeResultMeta extends Record<string, 
 	readonly [AgentHostSavedChatContinuationCapabilityMetaKey]?: true;
 	readonly [AgentHostArtifactRemovalCapabilityMetaKey]?: true;
 	readonly [AgentHostSessionImportCapabilityMetaKey]?: true;
+	readonly [AgentHostSessionMoveCapabilityMetaKey]?: true;
 	readonly [AgentHostDevContainersCapabilityMetaKey]?: true;
 	readonly [AgentHostTimingCapabilityMetaKey]?: true;
 	readonly [ChatUserInteractionCapability]?: true;
@@ -94,7 +100,7 @@ export interface IAgentHostExtensionInitializeResult extends InitializeResult {
 	readonly _meta?: IAgentHostExtensionInitializeResultMeta;
 }
 
-export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true, devContainers = false, timing = false, sessionImport = false, savedChat = false, savedChatContinuation = false): IAgentHostExtensionInitializeResultMeta {
+export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true, devContainers = false, timing = false, sessionImport = false, savedChat = false, savedChatContinuation = false, sessionMove = false): IAgentHostExtensionInitializeResultMeta {
 	return {
 		[AgentHostDebugLogsCancellationCapabilityMetaKey]: true,
 		[AgentHostSessionUrisCapabilityMetaKey]: true,
@@ -107,6 +113,7 @@ export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true
 		...(savedChat ? { [AgentHostSavedChatCapabilityMetaKey]: true as const } : {}),
 		...(savedChatContinuation ? { [AgentHostSavedChatContinuationCapabilityMetaKey]: true as const } : {}),
 		...(sessionImport ? { [AgentHostSessionImportCapabilityMetaKey]: true as const } : {}),
+		...(sessionMove ? { [AgentHostSessionMoveCapabilityMetaKey]: true as const } : {}),
 		...(devContainers ? { [AgentHostDevContainersCapabilityMetaKey]: true as const } : {}),
 		...(timing ? { [AgentHostTimingCapabilityMetaKey]: true as const } : {}),
 		...(timing ? { [ChatUserInteractionCapability]: true as const } : {}),
@@ -144,6 +151,29 @@ export const stopBackgroundWorkParamsValidator = vObj({
 });
 
 export const importSessionParamsValidator = vObj({ session: vString() });
+
+class StringOrNullValidator extends ValidatorBase<string | null> {
+	validate(content: unknown): { content: string | null; error: undefined } | { content: undefined; error: ValidationError } {
+		return content === null || typeof content === 'string'
+			? { content, error: undefined }
+			: { content: undefined, error: { message: `Expected a string or null, but got ${typeof content}` } };
+	}
+
+	getJSONSchema(): IJSONSchema {
+		return { type: ['string', 'null'] };
+	}
+}
+
+/** Every property is required: `after` is the chat of `destination` to place the session's chat after, `null` places it first. */
+export const moveSessionParamsValidator = vObj({ session: vString(), destination: vString(), after: new StringOrNullValidator() });
+
+/** The host doesn't move sessions under other sessions: it doesn't advertise `vscode.sessionMove`. */
+export class AgentHostSessionMoveUnsupportedError extends Error {
+	constructor(message = 'This agent host can\'t move sessions under other sessions.') {
+		super(message);
+		this.name = 'AgentHostSessionMoveUnsupportedError';
+	}
+}
 export const readSavedChatParamsValidator = vObj({ session: vString(), chat: vOptionalProp(vString()) });
 export const completeSavedChatContinuationParamsValidator = vObj({ session: vString(), chat: vString(), identity: vString(), destination: vString() });
 
@@ -151,6 +181,7 @@ export interface IAgentHostExtensionCommandMap {
 	[ReadSavedChatExtensionMethod]: { params: ValidatorType<typeof readSavedChatParamsValidator>; result: IAgentHostSavedChatDto };
 	[CompleteSavedChatContinuationExtensionMethod]: { params: ValidatorType<typeof completeSavedChatContinuationParamsValidator>; result: IAgentHostSavedChatContinuationResult };
 	[ImportSessionExtensionMethod]: { params: ValidatorType<typeof importSessionParamsValidator>; result: void };
+	[MoveAgentHostSessionExtensionMethod]: { params: ValidatorType<typeof moveSessionParamsValidator>; result: { session: string } };
 	[ReportAgentHostFirstResponseExtensionMethod]: { params: IAgentHostFirstResponseDiagnostic; result: void };
 	[ReportChatUserInteractionExtensionMethod]: { params: IChatUserInteractionTiming; result: void };
 	[DevContainerIsDockerAvailableExtensionMethod]: { params: undefined; result: boolean };

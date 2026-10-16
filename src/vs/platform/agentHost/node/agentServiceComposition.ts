@@ -46,6 +46,7 @@ import type { ISessionServerToolAccessor } from './shared/sessionServerTools.js'
 import { type IAgentServiceFoundation } from './agentServiceFoundation.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { ISessionWorkspaceConversionService, SessionWorkspaceConversionService } from './chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
+import { IAgentHostArchivedChatWorkspaceService } from './chatContributions/chatArchive/archivedChatWorkspaceService.js';
 import { IAgentHostTurnTracker } from './agentHostTurnTracker.js';
 import { AgentHostSessionLifecycle, type IAgentHostSessionLifecycleAccessor } from './agentHostSessionLifecycle.js';
 import { persistSessionMetadataValues } from './shared/persistSessionMetadata.js';
@@ -125,7 +126,7 @@ export function createAgentServiceComposition(
 		const orchestratorDatabase = accessor.get(IAgentHostDatabase);
 		const chatOwnership = accessor.get(IAgentHostChatOwnershipService);
 		const sessionStateStore = accessor.get(IAgentHostSessionStateStore);
-		const peerChatStore = new AgentHostPeerChatStore(orchestratorDatabase, sessionDataService, logService, chatOwnership, sessionStateStore);
+		const peerChatStore = owned.add(new AgentHostPeerChatStore(orchestratorDatabase, sessionDataService, logService, chatOwnership, sessionStateStore));
 		services.set(IAgentHostPeerChatPersistenceService, peerChatStore);
 		services.set(IAgentHostLocalCommands, owned.add(instantiationService.createInstance(AgentHostLocalCommands)));
 		const debugLogsCollector = options.debugLogsEnvironment
@@ -231,6 +232,10 @@ export function createAgentServiceComposition(
 			setChatWorkingDirectory: (session, chat, directory, replaceSessionWorkspace, expectedSessionDirectories) => agentService!.setChatWorkingDirectory(session, chat, directory, replaceSessionWorkspace, expectedSessionDirectories),
 		}));
 		services.set(ISessionWorkspaceConversionService, workspaceConversionService.value);
+		services.set(IAgentHostArchivedChatWorkspaceService, {
+			_serviceBrand: undefined,
+			setChatWorkspaceAttached: (session, chat, attached) => agentService!.setArchivedChatWorkspaceAttached(session, chat, attached),
+		});
 
 		const collaborators: IAgentServiceCollaborators = {
 			gitHubEndpointService,

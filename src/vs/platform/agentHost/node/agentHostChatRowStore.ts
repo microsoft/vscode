@@ -27,8 +27,20 @@ function defaultChatOf(snapshot: ISessionStateSnapshot): string | undefined {
 function resolveStorage(session: URI, snapshot: ISessionStateSnapshot, chat: string): { readonly storage: URI; readonly mirrored: boolean } {
 	const sessionKey = session.toString();
 	const storage = snapshot.chats.get(chat)?.storage ?? creationTimeChatStorageResource(sessionKey, chat, defaultChatOf(snapshot));
-	return { storage: URI.parse(storage), mirrored: storage !== sessionKey };
+	return { storage: URI.parse(storage), mirrored: storage !== sessionKey && hasSessionDatabase(sessionKey, snapshot) };
 }
+
+/**
+ * Whether older builds read the session's rows from a database at the session URI: unless its default chat stores
+ * elsewhere (a promoted chat, Block 4), which leaves the session without one (Q8a).
+ */
+function hasSessionDatabase(session: string, snapshot: ISessionStateSnapshot): boolean {
+	const defaultStorage = [...snapshot.chats.values()].find(entry => entry.isDefault)?.storage;
+	return defaultStorage === undefined || defaultStorage === session;
+}
+
+/** Returned by an operation addressed to a session a chat moved out of (Block 4), to run it in the chat's new owner. */
+const movedChat = Symbol('movedChat');
 
 /** The turn row watermark recorded with the moved marker (`rows@<max rowid>`). */
 function parseWatermark(progress: string | undefined): number | undefined {
@@ -110,11 +122,18 @@ export class AgentHostChatRowStore implements IAgentHostChatRowStore {
 	}
 
 	setChatConfig(session: URI, chat: URI, values: Readonly<Record<string, unknown>>): Promise<void> {
+		return this._inCurrentOwner(session, chat, owningSession => this._setChatConfig(owningSession, chat, values), undefined);
+	}
+
+	private _setChatConfig(session: URI, chat: URI, values: Readonly<Record<string, unknown>>): Promise<undefined | typeof movedChat> {
 		return this._runExclusive(session, async exclusive => {
 			const owner = await this._owner(session, exclusive.snapshot, chat.toString());
+			if (!owner && await this._movedFrom(session, chat)) {
+				return movedChat;
+			}
 			if (!owner && this._isDeleted(session, chat.toString())) {
 				this._logService.trace(`[AgentHostChatRowStore] Dropping a late config write of deleted chat ${chat.toString()}`);
-				return;
+				return undefined;
 			}
 			// A chat not recorded yet (one being created) follows the creation-time rule.
 			const { storage } = owner ?? resolveStorage(session, exclusive.snapshot, chat.toString());
@@ -124,6 +143,7 @@ export class AgentHostChatRowStore implements IAgentHostChatRowStore {
 			} finally {
 				ref.dispose();
 			}
+			return undefined;
 		});
 	}
 
@@ -148,18 +168,57 @@ export class AgentHostChatRowStore implements IAgentHostChatRowStore {
 		if (entry) {
 			// A peer central state learned after its import (one this build created) records no storage: its catalog does.
 			const recorded = normalized.chat?.storageResource ?? creationTimeChatStorageResource(session.toString(), chat, defaultChatOf(snapshot));
-			return { storage: URI.parse(recorded), mirrored: recorded !== session.toString(), isDefault: false };
+			return { storage: URI.parse(recorded), mirrored: recorded !== session.toString() && hasSessionDatabase(session.toString(), snapshot), isDefault: false };
 		}
 		const recorded = normalized.normalized
 			? normalized.chat && (normalized.chat.storageResource ?? chat)
 			: (await this._database.getSessionChatCatalog(session.toString()))?.chats.some(row => row.chat === chat) ? chat : undefined;
-		return recorded === undefined ? undefined : { storage: URI.parse(recorded), mirrored: recorded !== session.toString(), isDefault: false };
+		return recorded === undefined ? undefined : { storage: URI.parse(recorded), mirrored: recorded !== session.toString() && hasSessionDatabase(session.toString(), snapshot), isDefault: false };
+	}
+
+	/**
+	 * Runs `task` for `chat` in `session`, or once more in the chat's current owner when the chat moved out of
+	 * `session` (Block 4) before the task ran: a read or write addressed to its previous owner follows it there.
+	 */
+	private async _inCurrentOwner<T>(session: URI, chat: URI, task: (session: URI) => Promise<T | typeof movedChat>, gone: T): Promise<T> {
+		const result = await task(session);
+		if (result !== movedChat) {
+			return result;
+		}
+		const owner = (await this._database.findCentralChatOwners([chat.toString()])).get(chat.toString())?.ownerSession;
+		if (owner === undefined) {
+			this._logService.trace(`[AgentHostChatRowStore] Dropping a row access of chat ${chat.toString()}: it was deleted while it was accessed`);
+			return gone;
+		}
+		const retried = await task(URI.parse(owner));
+		if (retried === movedChat) {
+			throw new Error(`Chat ${chat.toString()} moved again while its rows were accessed`);
+		}
+		return retried;
+	}
+
+	/** Whether `chat`, which `session` does not record, now belongs to another session. */
+	private async _movedFrom(session: URI, chat: URI): Promise<boolean> {
+		if (!await this._database.hasMovedChatsV2()) {
+			// No chat ever moved: none moved out of `session`.
+			return false;
+		}
+		const owner = (await this._database.findCentralChatOwners([chat.toString()])).get(chat.toString())?.ownerSession;
+		return owner !== undefined && owner !== session.toString();
 	}
 
 	private _read<T>(session: URI, chat: URI, read: (db: ISessionDatabase) => Promise<T>, fallback: T): Promise<T> {
+		return this._inCurrentOwner(session, chat, owningSession => this._readIn(owningSession, chat, read, fallback), fallback);
+	}
+
+	private _readIn<T>(session: URI, chat: URI, read: (db: ISessionDatabase) => Promise<T>, fallback: T): Promise<T | typeof movedChat> {
 		return this._runExclusive(session, async exclusive => {
+			const owner = await this._owner(session, exclusive.snapshot, chat.toString());
+			if (!owner && await this._movedFrom(session, chat)) {
+				return movedChat;
+			}
 			// A chat the session does not record has no authoritative storage; its rows, if any, are in the session database.
-			const storage = (await this._owner(session, exclusive.snapshot, chat.toString()))?.storage ?? session;
+			const storage = owner?.storage ?? session;
 			const ref = await this._sessionDataService.tryOpenDatabase(storage);
 			if (!ref) {
 				return fallback;
@@ -173,12 +232,20 @@ export class AgentHostChatRowStore implements IAgentHostChatRowStore {
 	}
 
 	private _write(session: URI, chat: URI, kind: 'draft' | 'localTurns', apply: (db: ISessionDatabase) => Promise<void>, base: (db: ISessionDatabase, chat: string) => Promise<string | undefined>, removal: boolean): Promise<void> {
+		return this._inCurrentOwner(session, chat, owningSession => this._writeIn(owningSession, chat, kind, apply, base, removal), undefined);
+	}
+
+	private _writeIn(session: URI, chat: URI, kind: 'draft' | 'localTurns', apply: (db: ISessionDatabase) => Promise<void>, base: (db: ISessionDatabase, chat: string) => Promise<string | undefined>, removal: boolean): Promise<undefined | typeof movedChat> {
 		return this._runExclusive(session, async exclusive => {
 			const owner = await this._owner(session, exclusive.snapshot, chat.toString());
+			if (!owner && await this._movedFrom(session, chat)) {
+				// Its new owner records it and mirrors it, if anyone does; this session never gets its rows again.
+				return movedChat;
+			}
 			if (!removal && !owner && this._isDeleted(session, chat.toString())) {
 				// A late write of a chat that was deleted (or whose session is being deleted) never recreates its storage.
 				this._logService.trace(`[AgentHostChatRowStore] Dropping a late ${kind} write of deleted chat ${chat.toString()}`);
-				return;
+				return undefined;
 			}
 			// A chat not recorded yet (a fork copying its rows before it is registered) follows the creation-time rule.
 			const { storage, mirrored } = owner ?? resolveStorage(session, exclusive.snapshot, chat.toString());
@@ -203,6 +270,7 @@ export class AgentHostChatRowStore implements IAgentHostChatRowStore {
 				// The chat's own database was never created, so its rows, if any, are only in the session database.
 				await this._mirror(session, chat, kind, apply, kind === 'draft' ? undefined : turnIdsBase([]), revision, removal);
 			}
+			return undefined;
 		});
 	}
 
@@ -232,13 +300,15 @@ export class AgentHostChatRowStore implements IAgentHostChatRowStore {
 	 * the session's exclusive section): copies the rows of every chat stored
 	 * outside the session database into its own database — originals stay for
 	 * older builds — and repairs mirrors a crash left stale.
+	 * @param draftMirrorBases each chat's mirrored draft as this build last left it: a peer's draft in the session
+	 * database that differs was edited by an older build (1.140 and 1.141 write a peer's draft there alone).
 	 */
-	async moveRows(session: URI, snapshot: ISessionStateSnapshot, catalog: ISessionStateKnownCatalog | undefined, progress: string | undefined, rowsRevision: number, rowsMirroredRevision: number, mirrorEdited: boolean): Promise<void> {
+	async moveRows(session: URI, snapshot: ISessionStateSnapshot, catalog: ISessionStateKnownCatalog | undefined, progress: string | undefined, rowsRevision: number, rowsMirroredRevision: number, mirrorEdited: boolean, draftMirrorBases: ReadonlyMap<string, string>): Promise<void> {
 		const sessionKey = session.toString();
 		const peers = await this._peers(session, snapshot, catalog);
 		const moved = progress?.startsWith(ROWS_MOVED_PROGRESS) ?? false;
 		const watermark = parseWatermark(progress);
-		if (moved && rowsRevision === rowsMirroredRevision && (peers.length === 0 || !mirrorEdited && watermark !== undefined && await this._maxTurnRowid(session) <= watermark)) {
+		if (moved && rowsRevision === rowsMirroredRevision && (peers.length === 0 || !mirrorEdited && watermark !== undefined && await this._isMirrorUnedited(session, peers, draftMirrorBases, watermark))) {
 			return;
 		}
 		const sessionRef = await this._sessionDataService.tryOpenDatabase(session);
@@ -248,9 +318,10 @@ export class AgentHostChatRowStore implements IAgentHostChatRowStore {
 		}
 		let maxRowid = 0;
 		try {
-			maxRowid = await sessionRef.object.getMaxTurnRowid();
-			// An old build writing after a downgrade is only visible as an edited mirror entry or as turn rows above the watermark.
-			const importEdits = moved && (mirrorEdited || watermark === undefined || maxRowid > watermark);
+			const rows = await sessionRef.object.getRowsWatermark();
+			maxRowid = rows.maxTurnRowid;
+			// An old build writing after a downgrade is only visible as an edited mirror entry, as turn rows above the watermark or as an edited peer draft.
+			const importEdits = moved && (mirrorEdited || watermark === undefined || maxRowid > watermark || hasEditedDraft(rows.drafts, peers, draftMirrorBases));
 			for (const [chat, storage] of peers) {
 				const lagging = rowsRevision > rowsMirroredRevision;
 				const hasRows = await this._hasRows(sessionRef.object, chat);
@@ -359,13 +430,15 @@ export class AgentHostChatRowStore implements IAgentHostChatRowStore {
 		return peers;
 	}
 
-	private async _maxTurnRowid(session: URI): Promise<number> {
+	/** Whether no older build wrote the session database's rows since the watermark: one read. */
+	private async _isMirrorUnedited(session: URI, peers: readonly (readonly [string, string])[], draftMirrorBases: ReadonlyMap<string, string>, watermark: number): Promise<boolean> {
 		const ref = await this._sessionDataService.tryOpenDatabase(session);
 		if (!ref) {
-			return 0;
+			return true;
 		}
 		try {
-			return await ref.object.getMaxTurnRowid();
+			const rows = await ref.object.getRowsWatermark();
+			return rows.maxTurnRowid <= watermark && !hasEditedDraft(rows.drafts, peers, draftMirrorBases);
 		} finally {
 			ref.dispose();
 		}
@@ -440,6 +513,18 @@ export class AgentHostChatRowStore implements IAgentHostChatRowStore {
 			await this._database.writeChatRowMirror(session, chat, 'localTurns', turnsBase_);
 		}
 	}
+}
+
+/**
+ * Whether a peer's draft in the session database differs from the one this build last mirrored there.
+ * Accepted false positive: a crash between mirroring a draft and recording its base reads this build's own
+ * draft as edited, and the import then writes the value its own database already holds.
+ */
+function hasEditedDraft(drafts: ReadonlyMap<string, Message>, peers: readonly (readonly [string, string])[], draftMirrorBases: ReadonlyMap<string, string>): boolean {
+	return peers.some(([chat]) => {
+		const draft = drafts.get(chat);
+		return (draft ? JSON.stringify(draft) : undefined) !== draftMirrorBases.get(chat);
+	});
 }
 
 async function turnsBase(db: ISessionDatabase, chat: string): Promise<string> {

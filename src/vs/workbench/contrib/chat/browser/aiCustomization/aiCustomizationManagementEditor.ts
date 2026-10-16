@@ -114,7 +114,7 @@ import { IAgentPluginService } from '../../common/plugins/agentPluginService.js'
 import { createWorkbenchMcpServerDetailInput, EmbeddedMcpServerDetail, IMcpServerDetailInput, isMcpServerDetailMigratable } from './embeddedMcpServerDetail.js';
 import { EmbeddedAgentPluginDetail } from './embeddedAgentPluginDetail.js';
 import { EmbeddedConnectorDetail } from './embeddedConnectorDetail.js';
-import { ICopilotConnector } from './copilotConnectorsService.js';
+import { ICopilotConnector, ICopilotConnectorsService } from './copilotConnectorsService.js';
 import { EmbeddedMarketplaceDetail } from './embeddedMarketplaceDetail.js';
 import { IMcpService, IMcpWorkbenchService, type IWorkbenchMcpServer, McpServerInstallState } from '../../../mcp/common/mcpTypes.js';
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
@@ -174,6 +174,21 @@ export function isCurrentPluginContributionNavigation(
 	isListView: boolean,
 ): boolean {
 	return requestGeneration === currentGeneration && requestedSection === selectedSection && isListView;
+}
+
+export function isCurrentConnectorDetailNavigation(
+	requestGeneration: number,
+	currentGeneration: number,
+	requestInput: object | undefined,
+	currentInput: object | undefined,
+): boolean {
+	return requestGeneration === currentGeneration && requestInput !== undefined && requestInput === currentInput;
+}
+
+export const enum CopilotConnectorDetailOpenResult {
+	Opened = 'opened',
+	NotFound = 'notFound',
+	Superseded = 'superseded',
 }
 
 type CustomizationEditorItemSelectedEvent = {
@@ -530,6 +545,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		@IEditorService private readonly editorService: IEditorService,
 		@ICustomizationMarketplaceService private readonly marketplaceService: ICustomizationMarketplaceService,
 		@ICustomizationMarketplaceInstallService private readonly marketplaceInstallService: ICustomizationMarketplaceInstallService,
+		@ICopilotConnectorsService private readonly copilotConnectorsService: ICopilotConnectorsService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
@@ -3872,6 +3888,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			await this.revealCustomizationByUri(target.uri);
 			return;
 		}
+
 		for (let attempt = 0; attempt < 10; attempt++) {
 			const revealed = target.section === AICustomizationManagementSection.Plugins && target.uri
 				? await this.pluginListWidget?.revealAndSelectItemByUri(target.uri)
@@ -3883,6 +3900,22 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}
 			await timeout(100);
 		}
+	}
+
+	public async showCopilotConnectorDetail(connectorName: string): Promise<CopilotConnectorDetailOpenResult> {
+		const navigationGeneration = this.contentNavigationGeneration;
+		const input = this.input;
+		const connectors = await this.copilotConnectorsService.getConnectors(CancellationToken.None);
+		if (!isCurrentConnectorDetailNavigation(navigationGeneration, this.contentNavigationGeneration, input, this.input)) {
+			return CopilotConnectorDetailOpenResult.Superseded;
+		}
+		const connector = connectors.find(candidate => candidate.name === connectorName);
+		if (!connector) {
+			return CopilotConnectorDetailOpenResult.NotFound;
+		}
+		this.selectSectionById(AICustomizationManagementSection.McpServers);
+		this.showEmbeddedConnectorDetail(connector);
+		return CopilotConnectorDetailOpenResult.Opened;
 	}
 
 	/**

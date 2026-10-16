@@ -45,8 +45,9 @@ function task(id: string, name: string, repositoryId: number | undefined, sessio
 	};
 }
 
-type ITestTask = Omit<ReturnType<typeof task>, 'current_environment'> & {
+type ITestTask = Omit<ReturnType<typeof task>, 'current_environment' | 'compute'> & {
 	readonly event_type?: string;
+	readonly compute?: { readonly provider?: string } | null;
 	readonly current_environment?: { readonly id: string; readonly kind: string };
 	readonly updated_at?: string;
 	readonly archived_at?: string;
@@ -1189,6 +1190,55 @@ suite('CloudSandboxApiService repository resolution', () => {
 		});
 	});
 
+	for (const slug of ['copilot-developer', 'copilot-swe-agent', undefined]) {
+		test(`discovers sandbox sessions independently of agent slug (${slug})`, async () => {
+			const { service } = createService(store, {
+				tasks: [{
+					...task('sandbox', 'Sandbox', undefined, 'session', 'environment'),
+					agent_collaborators: slug ? [{ slug }] : [],
+				}],
+				repositories: new Map(),
+			});
+
+			const result = await service.listSessions(CancellationToken.None);
+
+			assert.deepStrictEqual({
+				kind: result.kind,
+				sessions: result.kind === 'failed' ? [] : result.sessions.map(session => session.sessionId),
+			}, { kind: 'complete', sessions: ['session'] });
+		});
+	}
+
+	for (const { name, compute, kind, expected } of [
+		{ name: 'missing compute', compute: undefined, kind: 'managed-sandbox', expected: true },
+		{ name: 'null compute', compute: null, kind: 'managed-sandbox', expected: true },
+		{ name: 'missing compute provider', compute: {}, kind: 'managed-sandbox', expected: true },
+		{ name: 'compute only', compute: { provider: 'sandboxes' }, kind: undefined, expected: true },
+		{ name: 'explicit other compute', compute: { provider: 'other' }, kind: 'managed-sandbox', expected: false },
+		{ name: 'user-local environment', compute: undefined, kind: 'user-local', expected: false },
+		{ name: 'unknown environment kind', compute: undefined, kind: 'unknown', expected: false },
+		{ name: 'missing compute and environment', compute: undefined, kind: undefined, expected: false },
+	]) {
+		test(`recognizes sandbox metadata (${name})`, async () => {
+			const { service } = createService(store, {
+				tasks: [{
+					...task('sandbox', 'Sandbox', undefined, 'session', 'environment'),
+					agent_collaborators: [{ slug: 'copilot-developer' }],
+					compute,
+					current_environment: kind ? { id: 'environment', kind } : undefined,
+				}],
+				repositories: new Map(),
+			});
+
+			const result = await service.listSessions(CancellationToken.None);
+
+			assert.deepStrictEqual({
+				kind: result.kind,
+				sessions: result.kind === 'failed' ? [] : result.sessions.map(session => session.sessionId),
+			}, { kind: 'complete', sessions: expected ? ['session'] : [] });
+		});
+	}
+
 	test('scans past the first page and stays complete', async () => {
 		// A full first page means there may be more; a sandbox task on the second must be found.
 		const filler = Array.from({ length: 100 }, (_, i) => task(`filler-${i}`, 'x', undefined, `fs-${i}`, `fe-${i}`));
@@ -1232,30 +1282,60 @@ suite('CloudSandboxApiService repository resolution', () => {
 		});
 	});
 
-	test('a truncated scan is partial, so callers do not reconcile against it', async () => {
-		// Every page comes back full, so the page ceiling is hit with tasks still unscanned.
-		// Reporting `complete` here would let the caller tear down sessions it simply never saw.
-		const tasks = Array.from({ length: 100 * 12 }, (_, i) => task(`t-${i}`, 'x', undefined, `s-${i}`, `e-${i}`));
-		const { service, requestedUrls } = createService(store, { tasks, repositories: new Map() });
+	for (const repositoryId of [undefined, 42]) {
+		for (const archived of [false, true]) {
+			test(`discovers sessions past ten pages (repository=${repositoryId}, archived=${archived})`, async () => {
+				const tasks = Array.from({ length: 1000 }, (_, i) => ({
+					...task(`filler-${i}`, 'Other task', repositoryId, `s-${i}`, `e-${i}`),
+					agent_collaborators: [{ slug: 'other' }],
+					compute: { provider: 'other' },
+					...(archived ? { archived_at: '2026-10-01T00:00:00Z' } : {}),
+				}));
+				tasks.push({
+					...task('older', 'Older sandbox', repositoryId, 'older-session', 'older-environment'),
+					...(archived ? { archived_at: '2026-10-01T00:00:00Z' } : {}),
+				});
+				const { service, requestedUrls } = createService(store, {
+					tasks, repositories: new Map([[42, { full_name: 'owner/repository' }]]),
+				});
 
-		const result = await service.listSessions(CancellationToken.None);
+				const result = await service.listSessions(CancellationToken.None);
 
-		assert.deepStrictEqual({
-			kind: result.kind,
-			sessions: result.kind === 'failed' ? -1 : result.sessions.length,
-			listPages: requestedUrls.filter(u => /[?&]per_page=/.test(u)).length,
-		}, {
-			kind: 'partial',
-			sessions: 1000,
-			listPages: 13,
+				assert.deepStrictEqual({
+					kind: result.kind,
+					sessions: result.kind === 'failed' ? [] : result.sessions.map(session => session.sessionId),
+					listPages: requestedUrls.filter(u => /[?&]per_page=/.test(u)).length,
+				}, {
+					kind: 'complete',
+					sessions: ['older-session'],
+					listPages: 14,
+				});
+			});
+		}
+	}
+
+	test('pagination remains cancellable beyond ten pages', async () => {
+		const cancellation = store.add(new CancellationTokenSource());
+		const { service, requestedUrls } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: url => {
+				if (url.searchParams.get('page') === '11') {
+					cancellation.cancel();
+				}
+				return jsonResponse({ tasks: [] }, 200, { link: '<https://api.github.com/agents/tasks?page=2>; rel="next"' });
+			},
 		});
+
+		await assert.rejects(service.listSessions(cancellation.token), isCancellationError);
+		assert.deepStrictEqual(requestedUrls.map(url => new URL(url).searchParams.get('page')),
+			Array.from({ length: 11 }, (_, i) => String(i + 1)));
 	});
 });
 
 suite('CloudSandboxApiService discovery logs', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('logs only discovered sessions with their identity and display metadata', async () => {
+	test('logs discovered sessions and exclusion reasons without prompts', async () => {
 		const logService = new TestLogService();
 		const bound = {
 			...task('bound', 'Work on repository', 42, 'session-1', 'env-1'),
@@ -1269,6 +1349,7 @@ suite('CloudSandboxApiService discovery logs', () => {
 				bound,
 				{ ...task('archived', 'Old task', undefined, 'session-2', 'env-2'), archived_at: '2026-09-21T10:00:00Z' },
 				{ ...task('different-agent', 'Other agent', undefined, 'session-3', 'env-3'), agent_collaborators: [{ slug: 'other' }] },
+				{ ...task('other-compute', 'Other compute', undefined, 'session-5', 'env-5'), compute: { provider: 'other' } },
 				{ ...task('unbound', 'Not ready', undefined, 'session-4', 'env-4'), sessions: [] },
 			],
 			repositories: new Map([[42, { full_name: 'owner/repository' }]]),
@@ -1278,7 +1359,9 @@ suite('CloudSandboxApiService discovery logs', () => {
 		await service.listSessions(CancellationToken.None);
 
 		assert.deepStrictEqual({
-			sessions: logService.debugs,
+			sessions: logService.debugs.filter(message => message.includes('Discovered sandbox session ')),
+			filtering: logService.debugs.filter(message => !message.includes('Discovered sandbox session ')),
+			summary: logService.infos.filter(message => message.includes('Discovery filtering ')),
 			info: logService.infos.filter(message => message.includes('Discovered sandbox session ')),
 			exposedPrompt: [...logService.infos, ...logService.debugs].some(message => message.includes('not-for-logs')),
 		}, {
@@ -1287,8 +1370,16 @@ suite('CloudSandboxApiService discovery logs', () => {
 				name: 'Work on repository', repoName: 'owner/repository',
 				updatedAt: bound.updated_at, status: SessionStatus.InputNeeded,
 			})}`, `[CloudSandboxApi] Discovered sandbox session ${JSON.stringify({
+				taskId: 'different-agent', sessionId: 'session-3', environmentId: 'env-3', name: 'Other agent',
+			})}`, `[CloudSandboxApi] Discovered sandbox session ${JSON.stringify({
 				taskId: 'archived', sessionId: 'session-2', environmentId: 'env-2', name: 'Old task',
 			})}`],
+			filtering: [
+				'[CloudSandboxApi] Accepted task previously excluded by agent slug {"taskId":"different-agent"}',
+				'[CloudSandboxApi] Excluded task {"taskId":"other-compute","reason":"notSandboxCompute"}',
+				'[CloudSandboxApi] Excluded task {"taskId":"unbound","reason":"missingSessionBinding"}',
+			],
+			summary: ['[CloudSandboxApi] Discovery filtering {"notSandboxCompute":1,"missingSessionBinding":1,"stalledQueuedSession":0,"detailFetchFailed":0,"acceptedWithOtherAgent":1}'],
 			info: [],
 			exposedPrompt: false,
 		});
@@ -1460,7 +1551,7 @@ suite('CloudSandboxApiService stalled sandbox discovery', () => {
 		assert.deepStrictEqual(results, [['stalled'], []]);
 	}));
 
-	for (const truncation of ['scope failure', 'page failure', 'page limit']) {
+	for (const truncation of ['scope failure', 'page failure']) {
 		for (const observed of [false, true]) {
 			test(`only removes observed candidates during ${truncation} (observed=${observed})`, () => runWithFakedTimers({ useFakeTimers: true, startTime }, async () => {
 				const current = { ...unstartedTask('stalled', startTime - oneHour + 1_000), repository: observed ? { id: 123 } : undefined };
@@ -1550,14 +1641,27 @@ suite('CloudSandboxApiService stalled sandbox discovery', () => {
 	}));
 
 	test('reports filtered tasks as explicit removals even when another detail fetch leaves discovery partial', () => runWithFakedTimers({ useFakeTimers: true, startTime }, async () => {
+		const logService = new TestLogService();
 		const { service } = createService(store, {
 			tasks: [unstartedTask('stalled'), task('unresolved', 'Work', undefined, 'other-session', 'other-environment')],
 			repositories: new Map(),
+			logService,
 			onRequest: url => url.pathname.endsWith('/tasks/unresolved') ? jsonResponse({}, 503) : undefined,
 		});
 
-		assert.deepStrictEqual(await service.listSessions(CancellationToken.None), {
-			kind: 'partial', sessions: [], removedTaskIds: ['stalled'],
+		const result = await service.listSessions(CancellationToken.None);
+
+		assert.deepStrictEqual({
+			result,
+			reasons: logService.debugs,
+			summary: logService.infos.filter(message => message.includes('Discovery filtering ')),
+		}, {
+			result: { kind: 'partial', sessions: [], removedTaskIds: ['stalled'] },
+			reasons: [
+				'[CloudSandboxApi] Excluded task {"taskId":"stalled","reason":"stalledQueuedSession"}',
+				'[CloudSandboxApi] Excluded task {"taskId":"unresolved","reason":"detailFetchFailed"}',
+			],
+			summary: ['[CloudSandboxApi] Discovery filtering {"notSandboxCompute":0,"missingSessionBinding":0,"stalledQueuedSession":1,"detailFetchFailed":1,"acceptedWithOtherAgent":0}'],
 		});
 	}));
 });

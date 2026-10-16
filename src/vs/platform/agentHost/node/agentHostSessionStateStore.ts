@@ -13,7 +13,7 @@ import { ChatOriginKind } from '../common/state/protocol/state.js';
 import { ILogService } from '../../log/common/log.js';
 import { DETACHED_WORKTREE_OWNER_SCHEME } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
-import { baseBranchFolderKey, IAgentHostSessionStateStore, ISessionStateChatEntry, ISessionStateKnownCatalog, ISessionStateExclusive, ISessionStateFolderEntry, ISessionStateFolderPatch, ISessionStateLegacyMetadata, ISessionStateMetadataReader, ISessionStateMetadataReference, ISessionStatePatch, ISessionStateSnapshot, readSessionBaseBranch, SessionStateDeletedError, SessionStateFolderKind, SessionStateNotASessionError, SessionStateMirrorFlush, sessionStatePatch, SessionStateValuesPrefetch, ISessionStateValuesPrefetchEntry } from '../common/agentHostSessionStateStore.js';
+import { baseBranchFolderKey, chatMoveFolderTransfers, IAgentHostSessionStateStore, ISessionStateChatMove, ISessionStateChatPromotion, SessionStateChatMoveResult, SessionStateChatPromotionResult, ISessionStateChatEntry, ISessionStateKnownCatalog, ISessionStateExclusive, ISessionStateFolderEntry, ISessionStateFolderPatch, ISessionStateLegacyMetadata, ISessionStateMetadataReader, ISessionStateMetadataReference, ISessionStatePatch, ISessionStateSnapshot, readSessionBaseBranch, SessionStateDeletedError, SessionStateFolderKind, SessionStateNotASessionError, SessionStateMirrorFlush, sessionStatePatch, SessionStateValuesPrefetch, ISessionStateValuesPrefetchEntry } from '../common/agentHostSessionStateStore.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { AgentHostChatRowStore } from './agentHostChatRowStore.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
@@ -589,6 +589,162 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		});
 	}
 
+	moveChat(move: ISessionStateChatMove): Promise<SessionStateChatMoveResult> {
+		return this._moveChat(move, false);
+	}
+
+	moveSession(move: ISessionStateChatMove): Promise<SessionStateChatMoveResult> {
+		return this._moveChat(move, true);
+	}
+
+	private async _moveChat(move: ISessionStateChatMove, endSource: boolean): Promise<SessionStateChatMoveResult> {
+		const sourceKey = this._enter(move.source);
+		const targetKey = this._enter(move.target);
+		if (sourceKey === targetKey) {
+			throw new Error(`A chat move needs two different sessions: ${move.source.toString()}`);
+		}
+		// Both sessions are held in one order, so two moves between the same sessions can't deadlock.
+		const [first, second] = sourceKey < targetKey ? [sourceKey, targetKey] : [targetKey, sourceKey];
+		return this._sequencer.queue(first, () => this._sequencer.queue(second, async () => {
+			const source = await this._loadLocked(move.source, sourceKey, () => this._readCatalog(move.source));
+			const target = await this._loadLocked(move.target, targetKey, () => this._readCatalog(move.target));
+			for (const record of [source, target]) {
+				if (this._deleting.has(record.key)) {
+					throw new SessionStateDeletedError(record.key);
+				}
+				// Pending mirror writes of either session settle before its central state changes underneath them.
+				record.scheduler.cancel();
+				await this._flushLocked(record);
+			}
+			const chat = move.chat.toString();
+			const transfers = chatMoveFolderTransfers(move.folders);
+			const apply = (databaseMove: Parameters<IAgentHostDatabase['moveChatV2']>[0]) => endSource ? this._database.moveSessionV2(databaseMove) : this._database.moveChatV2(databaseMove);
+			const result = await apply({
+				chat,
+				source: source.key,
+				target: target.key,
+				after: move.after?.toString(),
+				expectedSourceRevision: move.expectedSourceCatalogRevision,
+				expectedTargetRevision: move.expectedTargetCatalogRevision,
+				workingDirectories: move.folders.chat,
+				state: {
+					expectedSourceRevision: source.model.revision,
+					expectedTargetRevision: target.model.revision,
+					chats: [{ chat, workingDirectories: move.folders.chat }],
+					folders: transfers,
+				},
+			});
+			if (result.status !== 'applied') {
+				return { status: result.status };
+			}
+			// Committed: from here on the move is reported as applied, so the caller always moves the chats in memory too.
+			if (endSource) {
+				// The source ended: its central state is gone, and so is what was loaded of it.
+				this._forget(source.key);
+				await this._refreshAfterMove(target);
+				return { status: 'applied', moved: result.moved, targetOrder: result.targetOrder };
+			}
+			const moved = new Set(result.moved);
+			let sourceRefreshed = true;
+			for (const record of [source, target]) {
+				const refreshed = await this._refreshAfterMove(record);
+				sourceRefreshed &&= record !== source || refreshed;
+			}
+			if (sourceRefreshed) {
+				// The moved chats and the folder rows the source no longer has leave the source's mirror bookkeeping, as for a deleted chat.
+				const removedFolderIds = new Set(transfers.filter(folder => !folder.keepInSource && !source.model.folder(folder.kind, folder.sourceKey))
+					.map(folder => mirrorEntryId({ kind: 'folder', folderKind: folder.kind, folderKey: folder.sourceKey })));
+				for (const id of [...source.dirty, ...source.base.keys()]) {
+					const entry = parseMirrorEntryId(id);
+					if ((entry.kind === 'chat' && moved.has(entry.chat)) || removedFolderIds.has(id)) {
+						source.dirty.delete(id);
+						source.base.delete(id);
+					}
+				}
+			}
+			return { status: 'applied', moved: result.moved, targetOrder: result.targetOrder };
+		}));
+	}
+
+	async promoteChat(promotion: ISessionStateChatPromotion): Promise<SessionStateChatPromotionResult> {
+		const sourceKey = this._enter(promotion.source);
+		const targetKey = this._enter(promotion.target);
+		if (sourceKey === targetKey) {
+			throw new Error(`A promotion needs a new session: ${promotion.source.toString()}`);
+		}
+		// Both sessions are held in one order, so a promotion can't deadlock with a move.
+		const [first, second] = sourceKey < targetKey ? [sourceKey, targetKey] : [targetKey, sourceKey];
+		return this._sequencer.queue(first, () => this._sequencer.queue(second, async () => {
+			const source = await this._loadLocked(promotion.source, sourceKey, () => this._readCatalog(promotion.source));
+			const target = promotion.target.toString();
+			if (this._deleting.has(source.key) || this._deleting.has(target)) {
+				throw new SessionStateDeletedError(this._deleting.has(source.key) ? source.key : target);
+			}
+			if (this._records.has(target)) {
+				return { status: 'conflict' };
+			}
+			source.scheduler.cancel();
+			await this._flushLocked(source);
+			const chat = promotion.chat.toString();
+			const transfers = chatMoveFolderTransfers({ ...promotion.folders, target: promotion.folders.chat });
+			const result = await this._database.promoteChatV2({
+				chat,
+				source: source.key,
+				target,
+				provider: promotion.provider,
+				startTime: promotion.startTime,
+				expectedSourceRevision: promotion.expectedSourceCatalogRevision,
+				state: {
+					expectedSourceRevision: source.model.revision,
+					importVersion: SESSION_STATE_IMPORT_VERSION,
+					importedAt: Date.now(),
+					legacyMirrorBase: serializeBase(new Map()),
+					values: promotion.values,
+					chats: [{ chat, workingDirectories: promotion.folders.chat }],
+					folders: transfers,
+				},
+			});
+			if (result.status !== 'applied') {
+				return { status: result.status };
+			}
+			// Committed: from here on the promotion is reported as applied.
+			this._noteCentralWrite(target);
+			const moved = new Set(result.moved);
+			if (await this._refreshAfterMove(source)) {
+				const removedFolderIds = new Set(transfers.filter(folder => !folder.keepInSource && !source.model.folder(folder.kind, folder.sourceKey))
+					.map(folder => mirrorEntryId({ kind: 'folder', folderKind: folder.kind, folderKey: folder.sourceKey })));
+				for (const id of [...source.dirty, ...source.base.keys()]) {
+					const entry = parseMirrorEntryId(id);
+					if ((entry.kind === 'chat' && moved.has(entry.chat)) || removedFolderIds.has(id)) {
+						source.dirty.delete(id);
+						source.base.delete(id);
+					}
+				}
+			}
+			return { status: 'applied', moved: result.moved };
+		}));
+	}
+
+	/**
+	 * Reloads a session's model after a committed chat move. When that fails the cached model is dropped instead,
+	 * so the next access loads the committed state; it never throws.
+	 */
+	private async _refreshAfterMove(record: ISessionRecord): Promise<boolean> {
+		try {
+			const state = await this._database.readSessionState(record.key);
+			if (state) {
+				record.model = new SessionStateModel(state, record.model.authority);
+				record.snapshot = undefined;
+				return true;
+			}
+			this._logService.warn(`[AgentHostSessionStateStore] Session state of ${record.key} is gone after a chat move; it reloads on next use`);
+		} catch (error) {
+			this._logService.error(error, `[AgentHostSessionStateStore] Failed to reload the session state of ${record.key} after a chat move; it reloads on next use`);
+		}
+		this._forget(record.key);
+		return false;
+	}
+
 	async whenIdle(session: URI | undefined): Promise<void> {
 		if (session) {
 			const record = this._records.get(session.toString());
@@ -720,7 +876,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		this._records.set(key, record);
 		this._createdDefaultChats.delete(key);
 		try {
-			await this.chatRows.moveRows(session, this._snapshot(record), readCatalogRow, state.rowsMoved, state.header.rowsRevision, state.header.rowsMirroredRevision, mirrorEdited);
+			await this.chatRows.moveRows(session, this._snapshot(record), readCatalogRow, state.rowsMoved, state.header.rowsRevision, state.header.rowsMirroredRevision, mirrorEdited, state.draftMirrorBases);
 		} catch (error) {
 			this._logService.warn(`[AgentHostSessionStateStore] Failed to move the chat rows of ${key}`, error);
 		}
@@ -1060,12 +1216,16 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			}
 			const isDefault = (chat: string) => record.model.chats.get(chat)?.isDefault ?? false;
 			const writes = renderMirrorWrites(record.key, record.model, entries, isDefault, live);
+			// Older builds read a session's values from the database its default chat stores in. A session whose default
+			// chat stores elsewhere (a promoted chat, Block 4) has none and gets none (Q8a).
+			const defaultChatStorage = [...record.model.chats.values()].find(chat => chat.isDefault)?.storageResource;
+			const sessionMirrored = defaultChatStorage === undefined || defaultChatStorage === record.key;
 			for (const [resource, write] of writes) {
 				const storage = record.model.chats.get(resource)?.storageResource;
 				// Older builds read a chat's mirror at its chat URI: a chat stored elsewhere gets none.
 				const mirrored = resource !== record.key && live.some(chat => chat.chat === resource) && (storage === undefined || mirrorsAtChatUri(resource, storage));
 				const reference = resource === record.key
-					? this._sessionDataService.openDatabase(record.session)
+					? sessionMirrored ? this._sessionDataService.openDatabase(record.session) : undefined
 					: mirrored ? await this._sessionDataService.tryOpenDatabase(URI.parse(resource)) : undefined;
 				if (!reference) {
 					// A chat that is gone, or whose database does not exist: there is nothing older builds could read there.

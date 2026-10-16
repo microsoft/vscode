@@ -133,6 +133,16 @@ export function getTestWorktreeCleanupService(agentService: AgentService): IAgen
 	return cleanup;
 }
 
+/**
+ * Resolves once the session workspace updates that archiving or unarchiving
+ * chats queued so far, including their persistence, have completed. They run
+ * asynchronously one at a time per session, so an update for an unknown chat
+ * completes only after them.
+ */
+export function whenArchivedChatWorkspaceUpdatesSettled(agentService: AgentService, session: URI): Promise<void> {
+	return agentService.setArchivedChatWorkspaceAttached(session, URI.from({ scheme: 'agent-host-test', path: '/unknown-chat' }), true);
+}
+
 export function getTestAgentHostProviderService(agentService: AgentService): IAgentHostProviderService {
 	return getTestAgentServiceComposition(agentService).providerService;
 }

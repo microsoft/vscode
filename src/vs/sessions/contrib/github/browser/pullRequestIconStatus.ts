@@ -8,7 +8,7 @@ import { derived, IObservable, IReaderWithStore } from '../../../../base/common/
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { getHighestPriorityPullRequestIcon, IGitHubPullRequestRef } from '../../../services/sessions/common/session.js';
 import { computePullRequestIcon, GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequest, IPullRequestIconStatus } from '../common/types.js';
-import { IGitHubService } from './githubService.js';
+import { IGitHubService, isGitHubReferenceSupported } from './githubService.js';
 import { IPullRequestIconCache } from './pullRequestIconCache.js';
 
 export interface IResolvedSessionPullRequest {
@@ -36,8 +36,9 @@ export class SessionPullRequestPresentationModel extends Disposable {
 		super();
 
 		this.pullRequests = derived(this, reader => pullRequestRefs.read(reader).map((ref, index) => {
-			const reference = reader.store.add(gitHubService.createPullRequestModelReference(ref.owner, ref.repo, ref.number));
-			const pullRequest = reference.object.pullRequest.read(reader);
+			const pullRequest = isGitHubReferenceSupported(ref.uri, gitHubService.enterpriseHost)
+				? reader.store.add(gitHubService.createPullRequestModelReference(ref.owner, ref.repo, ref.number)).object.pullRequest.read(reader)
+				: undefined;
 			const ciStatus = pullRequest?.state === GitHubPullRequestState.Open
 				? reader.store.add(gitHubService.createPullRequestCIModelReference(ref.owner, ref.repo, pullRequest.number, pullRequest.headSha)).object.overallStatus.read(reader)
 				: undefined;
@@ -92,6 +93,9 @@ export function computeLivePullRequestIcon(reader: IReaderWithStore, gitHubServi
 
 /** Computes the live title and icon used to present a pull request reference. */
 export function computePullRequestRefPresentation(reader: IReaderWithStore, gitHubService: IGitHubService, iconCache: IPullRequestIconCache, pullRequest: IGitHubPullRequestRef, fallbackIcon?: ThemeIcon): Pick<IGitHubPullRequestRef, 'icon' | 'title' | 'liveState'> {
+	if (!isGitHubReferenceSupported(pullRequest.uri, gitHubService.enterpriseHost)) {
+		return { icon: pullRequest.icon ?? fallbackIcon, title: pullRequest.title, liveState: undefined };
+	}
 	const prLink = pullRequest.uri.toString();
 	const prModelRef = reader.store.add(gitHubService.createPullRequestModelReference(pullRequest.owner, pullRequest.repo, pullRequest.number));
 	const livePullRequest = prModelRef.object.pullRequest.read(reader);
