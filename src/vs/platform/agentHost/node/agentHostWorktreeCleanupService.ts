@@ -11,7 +11,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentSession } from '../common/agent.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
-import { coOwnedWorktreeRemovalOwner, type IPendingWorktreeRemoval, type IWorktreeCoOwner, type IWorktreeRemovalRequest, type WorktreeRemovalMode } from './agentHostWorktreeRemovalDatabase.js';
+import { coOwnedWorktreeRemovalOwner, type IPendingWorktreeRemoval, type IWorktreeCoOwner, type IWorktreeCoOwnerState, type IWorktreeRemovalRequest, type WorktreeRemovalMode } from './agentHostWorktreeRemovalDatabase.js';
 import { DetachedWorktreeRemovalGuard, IAgentHostWorktreeIsolation, IRecordedWorktree } from './shared/worktreeIsolation.js';
 
 export const IAgentHostWorktreeCleanupService = createDecorator<IAgentHostWorktreeCleanupService>('agentHostWorktreeCleanupService');
@@ -290,57 +290,63 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 		const key = removal.kind === 'session' ? AgentSession.id(URI.parse(removal.owner)) : removal.kind === 'coOwned' ? removal.worktreePath : removal.owner;
 		// Co-owners that no longer work in the folder (deleted, also by an older build, or moved away) stop keeping it.
 		const coOwners = await this._worktree.runExclusive(removal.worktreePath, () => this._database.pruneWorktreeCoOwners(removal.worktreePath));
-		await this._worktree.runExclusive(key, async () => {
-			const current = await this._database.readPendingWorktreeRemoval(removal.kind, removal.owner);
-			if (!current || current.mode !== removal.mode || current.requestedAt !== removal.requestedAt) {
-				// The owner was unarchived, or asked again, since this pass listed it.
+		await this._worktree.runExclusive(key, () => removal.kind !== 'coOwned' && coOwners.length > 0
+			// A folder that was ever shared is also locked by its path, as its co-owners recreate it under that lock.
+			? this._worktree.runExclusive(removal.worktreePath, () => this._processLocked(removal, key, coOwners, now))
+			: this._processLocked(removal, key, coOwners, now));
+	}
+
+	/** Processes `removal` under its owner's lock, and its folder's lock when it was ever shared. */
+	private async _processLocked(removal: IPendingWorktreeRemoval, key: string, coOwners: readonly IWorktreeCoOwnerState[], now: number): Promise<void> {
+		const current = await this._database.readPendingWorktreeRemoval(removal.kind, removal.owner);
+		if (!current || current.mode !== removal.mode || current.requestedAt !== removal.requestedAt) {
+			// The owner was unarchived, or asked again, since this pass listed it.
+			return;
+		}
+		// An unarchive persists before it drops the request, so a crash in between leaves a request it cancelled.
+		const archiveOwner = removal.kind === 'session' ? removal.owner : removal.kind === 'coOwned' ? removal.ownerSession : undefined;
+		if (archiveOwner !== undefined && !removal.ownerDeleted && await this._database.readSessionArchived(archiveOwner) === false) {
+			this._logService.info(`[AgentHostWorktreeCleanup:${key}] Dropping the removal of '${removal.worktreePath}': its session is no longer archived`);
+			await this._database.deletePendingWorktreeRemoval(removal.kind, removal.owner, removal);
+			return;
+		}
+		const isUnused = async () => !await this._database.isWorktreeInUse(removal.worktreePath, removal.ownerSession);
+		if (!await isUnused()) {
+			this._logService.trace(`[AgentHostWorktreeCleanup:${key}] Keeping worktree '${removal.worktreePath}': another session or chat uses it`);
+			return;
+		}
+		const worktree: IRecordedWorktree = {
+			worktree: URI.parse(removal.worktreePath),
+			repositoryRoot: URI.parse(removal.repositoryRoot),
+			branchName: removal.branch ?? '',
+		};
+		const retryAt = now + Math.min(this._maxBackoffMs, this._backoffMs * 2 ** removal.attempts);
+		// A folder that was ever shared is committed rather than force-removed, also for a request recorded before it was.
+		const mode = removal.mode === 'delete' && coOwners.length > 0 ? 'commit' : removal.mode;
+		try {
+			// Asked again after the Git work that precedes the removal, which a folder coming into use meanwhile must stop.
+			const outcome = await this._worktree.removeRecordedWorktree(key, worktree, mode, isUnused);
+			if (outcome === 'inUse') {
 				return;
 			}
-			// An unarchive persists before it drops the request, so a crash in between leaves a request it cancelled.
-			const archiveOwner = removal.kind === 'session' ? removal.owner : removal.kind === 'coOwned' ? removal.ownerSession : undefined;
-			if (archiveOwner !== undefined && !removal.ownerDeleted && await this._database.readSessionArchived(archiveOwner) === false) {
-				this._logService.info(`[AgentHostWorktreeCleanup:${key}] Dropping the removal of '${removal.worktreePath}': its session is no longer archived`);
-				await this._database.deletePendingWorktreeRemoval(removal.kind, removal.owner, removal);
+			if (outcome === 'skipped') {
+				// Kept for now, such as an unsynced branch: try again later rather than strand the folder.
+				await this._database.recordPendingWorktreeRemovalFailure(removal, retryAt);
 				return;
 			}
-			const isUnused = async () => !await this._database.isWorktreeInUse(removal.worktreePath, removal.ownerSession);
-			if (!await isUnused()) {
-				this._logService.trace(`[AgentHostWorktreeCleanup:${key}] Keeping worktree '${removal.worktreePath}': another session or chat uses it`);
-				return;
+			if (removal.kind === 'detached' && removal.ownerDeleted) {
+				await this._worktree.deleteDetachedWorktreeRecord(removal.owner);
 			}
-			const worktree: IRecordedWorktree = {
-				worktree: URI.parse(removal.worktreePath),
-				repositoryRoot: URI.parse(removal.repositoryRoot),
-				branchName: removal.branch ?? '',
-			};
-			const retryAt = now + Math.min(this._maxBackoffMs, this._backoffMs * 2 ** removal.attempts);
-			// A folder that was ever shared is committed rather than force-removed, also for a request recorded before it was.
-			const mode = removal.mode === 'delete' && coOwners.length > 0 ? 'commit' : removal.mode;
-			try {
-				// Asked again after the Git work that precedes the removal, which a folder coming into use meanwhile must stop.
-				const outcome = await this._worktree.removeRecordedWorktree(key, worktree, mode, isUnused);
-				if (outcome === 'inUse') {
-					return;
-				}
-				if (outcome === 'skipped') {
-					// Kept for now, such as an unsynced branch: try again later rather than strand the folder.
-					await this._database.recordPendingWorktreeRemovalFailure(removal, retryAt);
-					return;
-				}
-				if (removal.kind === 'detached' && removal.ownerDeleted) {
-					await this._worktree.deleteDetachedWorktreeRecord(removal.owner);
-				}
-				await this._database.deletePendingWorktreeRemoval(removal.kind, removal.owner, removal);
-			} catch (error) {
-				const attempts = await this._database.recordPendingWorktreeRemovalFailure(removal, retryAt);
-				const message = `[AgentHostWorktreeCleanup:${key}] Failed to remove worktree '${worktree.worktree.fsPath}' (attempt ${attempts ?? removal.attempts + 1}): ${errorMessage(error)}`;
-				if ((attempts ?? 0) >= WARN_AFTER_ATTEMPTS) {
-					this._logService.warn(message);
-				} else {
-					this._logService.info(message);
-				}
+			await this._database.deletePendingWorktreeRemoval(removal.kind, removal.owner, removal);
+		} catch (error) {
+			const attempts = await this._database.recordPendingWorktreeRemovalFailure(removal, retryAt);
+			const message = `[AgentHostWorktreeCleanup:${key}] Failed to remove worktree '${worktree.worktree.fsPath}' (attempt ${attempts ?? removal.attempts + 1}): ${errorMessage(error)}`;
+			if ((attempts ?? 0) >= WARN_AFTER_ATTEMPTS) {
+				this._logService.warn(message);
+			} else {
+				this._logService.info(message);
 			}
-		});
+		}
 	}
 
 	private async _scheduleNext(): Promise<void> {

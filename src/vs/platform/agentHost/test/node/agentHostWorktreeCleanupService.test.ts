@@ -73,7 +73,9 @@ class RecordingWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 		this.calls.push(`recreate:${handle}`);
 	}
 	override async recreateSharedWorktree(worktree: IRecordedWorktree): Promise<void> {
-		this.calls.push(`recreateShared:${worktree.worktree.toString()}:${worktree.branchName}`);
+		await this.runExclusive(worktree.worktree.toString(), async () => {
+			this.calls.push(`recreateShared:${worktree.worktree.toString()}:${worktree.branchName}`);
+		});
 	}
 	override async deleteDetachedWorktreeRecord(handle: string): Promise<void> {
 		this.calls.push(`deleteRecord:${handle}`);
@@ -561,6 +563,31 @@ suite('AgentHostWorktreeCleanupService', () => {
 				recordedRemovals: ['coOwned:commit:0'],
 				calls: [`recreate:${AgentSession.id(OTHER_SESSION)}`, `recreateShared:${sharedKey}:agents/archived`],
 				pending: [],
+			});
+		});
+
+		test('a co-owner\'s recreate of a shared folder waits for its original owner\'s running removal, which holds the folder\'s lock (L5)', async () => {
+			const { database, worktree, cleanup } = create();
+			await useWorktree(database, SESSION, shared, true);
+			await useWorktree(database, OTHER_SESSION, shared, true);
+			await share(database, SESSION, shared);
+			await share(database, OTHER_SESSION, shared);
+			await cleanup.requestSessionWorktreeRemoval(SESSION, 'commit');
+			worktree.removal = new DeferredPromise<void>();
+
+			const pass = cleanup.runPass();
+			while (!worktree.calls.length) {
+				await timeout(0);
+			}
+			const restore = cleanup.restoreSessionWorktree(OTHER_SESSION);
+			await timeout(0);
+			const callsWhileRemoving = [...worktree.calls];
+			worktree.removal.complete();
+			await Promise.all([pass, restore]);
+
+			assert.deepStrictEqual({ callsWhileRemoving, calls: worktree.calls }, {
+				callsWhileRemoving: [`remove:${sessionId}:commit:agents/archived`, `recreate:${AgentSession.id(OTHER_SESSION)}`],
+				calls: [`remove:${sessionId}:commit:agents/archived`, `recreate:${AgentSession.id(OTHER_SESSION)}`, `recreateShared:${sharedKey}:agents/archived`],
 			});
 		});
 
