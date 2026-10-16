@@ -56,11 +56,13 @@ suite('git stack operations', () => {
 		await repository.rebase('main');
 		await repository.rebase('old-base', { onto: 'new-base', rebaseMerges: true });
 		await repository.rebaseAbort();
+		await repository.rebaseContinue();
 
 		assert.deepStrictEqual(calls, [
 			['rebase', 'main'],
 			['rebase', '--rebase-merges', '--onto', 'new-base', 'old-base'],
-			['rebase', '--abort']
+			['rebase', '--abort'],
+			['rebase', '--continue']
 		]);
 	});
 
@@ -249,6 +251,49 @@ suite('git stack operations', () => {
 			}
 
 			assert.strictEqual(fs.existsSync(worktreePath), false);
+		});
+
+		test('reports and continues a conflicting rebase in a linked worktree', async () => {
+			const oldBase = (await repository.getCommit('HEAD')).hash;
+			await repository.createBranch('feature', true);
+			const oldHead = await commit('feature\n', 'feature');
+			await repository.checkout('main');
+			const newBase = await commit('main\n', 'main');
+			const worktreePath = path.join(directory, 'conflict-worktree');
+			await repository.createWorktree({ path: worktreePath, commitish: oldHead });
+
+			try {
+				const temporaryRepository = await api.openRepository(Uri.file(worktreePath));
+				assert.ok(temporaryRepository);
+				await assert.rejects(temporaryRepository.rebase(oldBase, { onto: newBase }), { gitErrorCode: GitErrorCodes.Conflict });
+				await temporaryRepository.status();
+				const stopped = {
+					rebaseCommit: temporaryRepository.state.rebaseCommit?.hash,
+					conflicts: temporaryRepository.state.mergeChanges.map(change => path.basename(change.uri.fsPath))
+				};
+
+				const tracked = path.join(worktreePath, 'tracked.txt');
+				await fs.promises.writeFile(tracked, 'resolved\n');
+				await temporaryRepository.add([tracked]);
+				await temporaryRepository.rebaseContinue();
+				const rebased = await temporaryRepository.getCommit('HEAD');
+
+				assert.deepStrictEqual({
+					stopped,
+					rebaseCommit: temporaryRepository.state.rebaseCommit,
+					parent: rebased.parents[0],
+					message: rebased.message,
+					content: await fs.promises.readFile(tracked, 'utf8')
+				}, {
+					stopped: { rebaseCommit: oldHead, conflicts: ['tracked.txt'] },
+					rebaseCommit: undefined,
+					parent: newBase,
+					message: 'feature',
+					content: 'resolved\n'
+				});
+			} finally {
+				await repository.deleteWorktree(worktreePath, { force: true });
+			}
 		});
 
 		test('updates a branch by CAS, reads remote tips and rejects a stale push lease', async () => {

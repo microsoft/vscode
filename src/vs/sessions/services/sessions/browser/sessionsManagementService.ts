@@ -27,7 +27,7 @@ import { getSessionReferenceResource } from './sessionReference.js';
 import { IChatDeletedEvent, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IDeferredNewSessionRequestOptions, IMarkSessionReadOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
 import { IChatMovedEvent, IDeleteChatOptions, IPreparedNewSession, ISessionChangeEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
-import { ChatModelSource, IChat, ISession, ISessionCanvasDefinition, ISessionWorkspace, ISideChatSelection, isActiveSessionStatus, SessionStatus, ISessionType } from '../common/session.js';
+import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionWorkspace, ISideChatSelection, isActiveSessionStatus, SessionStatus, ISessionType } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -1469,6 +1469,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			throw new Error(localize('sessions.openCanvas.unsupported', "Opening canvases is not supported for this session."));
 		}
 		await provider.openCanvas(session.sessionId, chat.resource, canvas, instanceId);
+	}
+
+	async closeCanvas(session: ISession, chat: IChat, canvas: ISessionCanvas): Promise<void> {
+		const provider = this._getProvider(session);
+		if (!session.capabilities.get().supportsCanvases || !provider?.closeCanvas) {
+			throw new Error(localize('sessions.closeCanvas.unsupported', "Closing canvases is not supported for this session."));
+		}
+		await provider.closeCanvas(session.sessionId, chat.resource, canvas);
 	}
 
 	async removeSessionArtifact(session: ISession, artifactId: string): Promise<void> {
