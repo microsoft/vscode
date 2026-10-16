@@ -203,9 +203,9 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 			return;
 		}
 
-		this._trackActiveSessions(connection);
 		try {
 			await this._trackClientConnections(connection);
+			this._trackActiveSessions(connection);
 			if (this._options.githubEnvironment) {
 				const management = ProxyChannel.toService<IAgentHostManagementService>(connection.client.getChannel(AgentHostIpcChannels.Management));
 				await management.configureMissionControl(this._options.githubEnvironment);
