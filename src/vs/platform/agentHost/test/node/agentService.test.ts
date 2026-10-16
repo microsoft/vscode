@@ -2481,6 +2481,34 @@ suite('AgentService (node dispatcher)', () => {
 				assert.deepStrictEqual(order, ['other session written', 'released', 'busy session written']);
 			});
 
+			test('restoring a session waits for its own in-flight metadata writes, such as a rename persisted just before its release', async () => {
+				const orchestrator = disposables.add(new AgentHostDatabase(':memory:'));
+				const database = new TestSessionDatabase();
+				const writer = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(database), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, orchestrator));
+				registerTestAgentProvider(writer, copilotAgent);
+				const session = await writer.createSession({ legacyChatUris: true, provider: 'copilot' });
+				await writer.whenCatalogReconciliationIdle();
+				const restarted = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(database), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, orchestrator));
+				registerTestAgentProvider(restarted, copilotAgent);
+				// The rename's write is still in its pre-write step (the per-write conversion check) when the session is restored.
+				const peerStore = (restarted as unknown as IBarrierInternals)._peerChatStore as unknown as AgentHostPeerChatStore;
+				const held = new DeferredPromise<void>();
+				const internals = restarted as unknown as { _migrateChatMetadataWrite(session: URI, resource: URI, values: Readonly<Record<string, string>>): Promise<Readonly<Record<string, string>>> };
+				stub(internals, '_migrateChatMetadataWrite').callsFake(async (_session, _resource, values) => {
+					await held.p;
+					return values;
+				});
+				const renamed = peerStore.persistMetadata(session, session, { [SESSION_CUSTOM_TITLE_KEY]: 'Renamed', [SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user' });
+
+				// The title the restore produced, read when it resolves: before the rename lands it would be the provider's.
+				const restored = restarted.restoreSession(session).then(() => getStateManager(restarted).getSessionState(session.toString())?.title);
+				await Promise.race([restored, timeout(200)]);
+				held.complete();
+				await renamed;
+
+				assert.strictEqual(await restored, 'Renamed');
+			});
+
 			test('restoring a session does not wait for another session\'s peer-store writes', async () => {
 				const orchestrator = disposables.add(new AgentHostDatabase(':memory:'));
 				const database = new TestSessionDatabase();

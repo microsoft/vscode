@@ -2880,6 +2880,13 @@ export class AgentService extends Disposable implements IAgentService {
 		if (snapshot?.authorityVersion === 2) {
 			return values;
 		}
+		// A conversion is not ready while the aggregate is unverified or awaits its re-projection: one read, not a
+		// conversion attempt per write (which would also delay the write and mark the payload dirty each time).
+		const source = await this._orchestratorDatabase.getSessionV2(session.toString());
+		if (!source?.verified || source.payloadDirty !== 0) {
+			this._catalogReconciliationService.convertAfterReprojection(session.toString());
+			return values;
+		}
 		let prepared: ReturnType<AgentHostPeerChatStore['prepareMetadataMutation']> | undefined;
 		const result = await this._migrateChatCatalog(session, CancellationToken.None, candidate => {
 			prepared = this._peerChatStore.prepareMetadataMutation(session, resource, values, candidate);
@@ -10155,6 +10162,9 @@ export class AgentService extends Disposable implements IAgentService {
 			...GIT_DB_METADATA_KEYS,
 			...CHANGES_SUMMARY_METADATA_KEYS,
 		};
+		// Metadata writes still in flight for this session (a rename persisted fire-and-forget just before a release) land
+		// first: restore must not read what they are about to replace, and the restored state would then persist it.
+		await this._peerChatStore.whenSessionsIdle([session]);
 		const centralMetadata = this._sessionStateStore.legacyMetadata(session, Object.keys(restoreKeys));
 		const unownedKeys = Object.fromEntries(centralMetadata.unowned.map(key => [key, true] as const));
 		const ref = this._sessionDataService.tryOpenDatabase?.(session);
