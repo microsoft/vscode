@@ -364,49 +364,68 @@ suite('Sessions - Editor tabs trailing layout', () => {
 		const oldOptions = partOptions;
 		partOptions = { ...partOptions, tabActionLocation: 'left', tabActionReserveSpace: true, tabHeight: 'compact' };
 		control.updateOptions(oldOptions, partOptions);
-		for (const direction of ['ltr', 'rtl']) {
-			root.dir = direction;
-			for (const style of ['pill', 'connected']) {
-				root.classList.toggle('modern-ui-connected-editor-tabs', style === 'connected');
-				await layout(2000);
-				const strip = title.querySelector<HTMLElement>('.tabs-and-actions-container')!;
-				const tabs = Array.from(strip.querySelectorAll<HTMLElement>('.tabs-container > .tab'));
-				const add = strip.querySelector<HTMLElement>('.tabs-bar-add-tab')!;
-				const addButton = add.querySelector<HTMLElement>('.action-label')!;
-				const toolbar = strip.querySelector<HTMLElement>('.editor-toolbars')!;
-				const controlsWidth = getTotalWidth(add) + getTotalWidth(toolbar);
-				await layout(Math.ceil(controlsWidth) + 12);
-				const leadingTab = tabs.reduce((leading, tab) => {
-					const bounds = tab.getBoundingClientRect();
-					const leadingBounds = leading.getBoundingClientRect();
-					return direction === 'ltr' ? bounds.left < leadingBounds.left ? tab : leading : bounds.right > leadingBounds.right ? tab : leading;
-				});
-				const leadingTabStyle = mainWindow.getComputedStyle(leadingTab);
-				const desiredInset = Number.parseFloat(direction === 'ltr' ? leadingTabStyle.paddingLeft : leadingTabStyle.paddingRight);
-				const tabsBounds = strip.querySelector<HTMLElement>('.tabs-container')!.getBoundingClientRect();
-				const buttonBounds = addButton.getBoundingClientRect();
-				results.push({
-					direction, style,
-					...trailingBounds(strip),
-					controlsOnlyRow: add.classList.contains('controls-only-row'),
-					addOnlyLastRow: tabs.every(tab => tab.offsetTop < add.offsetTop),
-					buttonInlineStart: direction === 'ltr' ? buttonBounds.left - tabsBounds.left : tabsBounds.right - buttonBounds.right,
-					alignmentCapped: (direction === 'ltr' ? buttonBounds.left - tabsBounds.left : tabsBounds.right - buttonBounds.right) < desiredInset,
-				});
+		for (const zoom of [1, 1.25]) {
+			root.style.zoom = String(zoom);
+			for (const direction of ['ltr', 'rtl']) {
+				root.dir = direction;
+				for (const style of ['pill', 'connected']) {
+					root.classList.toggle('modern-ui-connected-editor-tabs', style === 'connected');
+					await layout(2000);
+					const strip = title.querySelector<HTMLElement>('.tabs-and-actions-container')!;
+					const tabsContainer = strip.querySelector<HTMLElement>('.tabs-container')!;
+					const tabs = Array.from(tabsContainer.querySelectorAll<HTMLElement>(':scope > .tab'));
+					const add = strip.querySelector<HTMLElement>('.tabs-bar-add-tab')!;
+					const addButton = add.querySelector<HTMLElement>('.action-label')!;
+					const toolbar = strip.querySelector<HTMLElement>('.editor-toolbars')!;
+					const controlsWidth = getTotalWidth(add) + getTotalWidth(toolbar);
+					await layout(Math.ceil(controlsWidth) + 12);
+					const leadingTab = tabs.reduce((leading, tab) => {
+						const bounds = tab.getBoundingClientRect();
+						const leadingBounds = leading.getBoundingClientRect();
+						return direction === 'ltr' ? bounds.left < leadingBounds.left ? tab : leading : bounds.right > leadingBounds.right ? tab : leading;
+					});
+					const leadingTabStyle = mainWindow.getComputedStyle(leadingTab);
+					const desiredInset = Number.parseFloat(direction === 'ltr' ? leadingTabStyle.paddingLeft : leadingTabStyle.paddingRight);
+					const tabsBounds = tabsContainer.getBoundingClientRect();
+					const buttonBounds = addButton.getBoundingClientRect();
+					const toolbarBounds = toolbar.getBoundingClientRect();
+					const scale = tabsContainer.offsetWidth > 0 ? tabsBounds.width / tabsContainer.offsetWidth : 1;
+					const buttonInlineStart = (direction === 'ltr' ? buttonBounds.left - tabsBounds.left : tabsBounds.right - buttonBounds.right) / scale;
+					const backingEndInset = Number.parseFloat(mainWindow.getComputedStyle(add, '::before').getPropertyValue('inset-inline-end'));
+					results.push({
+						zoom, direction, style,
+						...trailingBounds(strip),
+						controlsOnlyRow: add.classList.contains('controls-only-row'),
+						addOnlyLastRow: tabs.every(tab => tab.offsetTop < add.offsetTop),
+						buttonInlineStart,
+						alignmentCapped: buttonInlineStart < desiredInset,
+						alignmentWithinTarget: buttonInlineStart <= desiredInset + 1 / 64,
+						backingClear: style !== 'connected' || (direction === 'ltr'
+							? add.getBoundingClientRect().right - backingEndInset * scale <= toolbarBounds.left + 1 / 64
+							: add.getBoundingClientRect().left + backingEndInset * scale >= toolbarBounds.right - 1 / 64),
+					});
+				}
 			}
 		}
-		assert.deepStrictEqual(results, results.map(result => ({
-			...result,
-			actions: [2, 2],
-			visibleActions: [2, 2],
-			overlaps: false,
-			inBounds: true,
-			addPosition: 'relative',
-			tabsClear: true,
-			controlsOnlyRow: true,
-			addOnlyLastRow: true,
-			alignmentCapped: result.direction === 'ltr',
-		})));
+		root.style.zoom = '';
+		assert.deepStrictEqual(
+			{ capExercised: results.some(result => result.alignmentCapped), results },
+			{
+				capExercised: true,
+				results: results.map(result => ({
+					...result,
+					actions: [2, 2],
+					visibleActions: [2, 2],
+					overlaps: false,
+					inBounds: true,
+					addPosition: 'relative',
+					tabsClear: true,
+					controlsOnlyRow: true,
+					addOnlyLastRow: true,
+					alignmentWithinTarget: true,
+					backingClear: true,
+				}))
+			});
 	});
 
 	test('visible Add Tab does not disable the oversized-tab scrolling fallback', async () => {
