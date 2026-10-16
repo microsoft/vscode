@@ -150,6 +150,56 @@ suite('Shrink Empty Lines', () => {
 		]);
 	});
 
+	test('preserves whitespace font sizes and indentation alignment when shrinking punctuation', () => {
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		const editor = disposables.add(instantiationService.createInstance(CodeEditorWidget, container, {
+			fontSize: 20,
+			lineHeight: 30,
+			shrinkEmptyLines: 0.5,
+			renderWhitespace: 'none',
+			minimap: { enabled: false },
+		}, { contributions: [] }));
+		const model = disposables.add(instantiateTextModel(instantiationService, '    x\n    { }  \n\tx\n\t{ }\t\n    '));
+		editor.setModel(model);
+		disposables.add(new ShrinkEmptyLinesController(editor));
+		editor.layout({ width: 400, height: 200 });
+
+		const results = [];
+		for (const multiplier of [0.5, 0.25, 1, 0.5]) {
+			editor.updateOptions({ shrinkEmptyLines: multiplier });
+			editor.render(true);
+			const whitespaceFontSizes = new Set<string>();
+			const punctuationFontSizes = new Set<string>();
+			for (const token of container.querySelectorAll('.view-lines .view-line > span > span')) {
+				const fontSize = getWindow(container).getComputedStyle(token).fontSize;
+				if (/[{}]/.test(token.textContent ?? '')) {
+					punctuationFontSizes.add(fontSize);
+				} else if (token.textContent) {
+					whitespaceFontSizes.add(fontSize);
+				}
+			}
+			const positions = [1, 2, 3, 4].map(lineNumber =>
+				editor.getScrolledVisiblePosition({ lineNumber, column: lineNumber <= 2 ? 5 : 2 }));
+			assert.ok(positions.every(position => position !== null));
+			results.push({
+				whitespaceFontSizes: [...whitespaceFontSizes],
+				punctuationFontSizes: [...punctuationFontSizes],
+				spacesAligned: positions[0]?.left === positions[1]?.left,
+				tabsAligned: positions[2]?.left === positions[3]?.left,
+				punctuationHeight: editor.getTopForLineNumber(3) - editor.getTopForLineNumber(2),
+			});
+		}
+
+		assert.deepStrictEqual(results, [
+			{ whitespaceFontSizes: ['20px'], punctuationFontSizes: ['10px'], spacesAligned: true, tabsAligned: true, punctuationHeight: 15 },
+			{ whitespaceFontSizes: ['20px'], punctuationFontSizes: ['5px'], spacesAligned: true, tabsAligned: true, punctuationHeight: 8 },
+			{ whitespaceFontSizes: ['20px'], punctuationFontSizes: ['20px'], spacesAligned: true, tabsAligned: true, punctuationHeight: 30 },
+			{ whitespaceFontSizes: ['20px'], punctuationFontSizes: ['10px'], spacesAligned: true, tabsAligned: true, punctuationHeight: 15 },
+		]);
+	});
+
 	test('compresses braces and empty lines in the C# example from #66468', () => {
 		const { editor } = createEditor([
 			'internal class TestDbAsyncEnumerator<T> : IDbAsyncEnumerator<T>',

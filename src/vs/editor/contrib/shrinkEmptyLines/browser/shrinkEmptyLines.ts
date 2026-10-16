@@ -24,7 +24,7 @@ export class ShrinkEmptyLinesController extends Disposable implements IEditorCon
 
 	public static readonly ID = 'editor.contrib.shrinkEmptyLines';
 
-	private _decorationOptions: ModelDecorationOptions | undefined;
+	private _decorationOptions: { lineHeight: ModelDecorationOptions; fontSize: ModelDecorationOptions } | undefined;
 	private _decorationIds = new Set<string>();
 	private readonly _ruleFactory: DynamicCssRules;
 	private readonly _fontSizeRule = this._register(new MutableDisposable<ClassNameReference>());
@@ -59,14 +59,20 @@ export class ShrinkEmptyLinesController extends Disposable implements IEditorCon
 		}
 		const fontSize = `${this.editor.getOption(EditorOption.fontInfo).fontSize * multiplier}px`;
 		this._fontSizeRule.value = this._ruleFactory.createClassNameRef({ fontSize });
-		this._decorationOptions = ModelDecorationOptions.createDynamic({
-			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-			description: 'shrink-empty-line',
-			isWholeLine: true,
-			lineHeight: multiplier,
-			fontSize,
-			inlineClassName: this._fontSizeRule.value.className
-		});
+		this._decorationOptions = {
+			lineHeight: ModelDecorationOptions.createDynamic({
+				stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+				description: 'shrink-empty-line-line-height',
+				isWholeLine: true,
+				lineHeight: multiplier,
+			}),
+			fontSize: ModelDecorationOptions.createDynamic({
+				stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+				description: 'shrink-empty-line-font-size',
+				fontSize,
+				inlineClassName: this._fontSizeRule.value.className
+			}),
+		};
 	}
 
 	private _shouldShrinkLine(lineContent: string): boolean {
@@ -82,11 +88,23 @@ export class ShrinkEmptyLinesController extends Disposable implements IEditorCon
 		for (const range of ranges) {
 			for (let lineNumber = range.startLineNumber; lineNumber <= range.endLineNumber; lineNumber++) {
 				const isHidden = hiddenAreas.some(area => area.startLineNumber <= lineNumber && lineNumber <= area.endLineNumber);
-				if (!isHidden && this._shouldShrinkLine(model.getLineContent(lineNumber))) {
+				const lineContent = model.getLineContent(lineNumber);
+				if (!isHidden && this._shouldShrinkLine(lineContent)) {
 					decorations.push({
 						range: new Range(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber)),
-						options: this._decorationOptions,
+						options: this._decorationOptions.lineHeight,
 					});
+					const lineStartOffset = model.getOffsetAt({ lineNumber, column: 1 });
+					for (const match of lineContent.matchAll(/\S+/g)) {
+						const startOffset = lineStartOffset + match.index;
+						decorations.push({
+							range: Range.fromPositions(
+								model.getPositionAt(startOffset),
+								model.getPositionAt(startOffset + match[0].length),
+							),
+							options: this._decorationOptions.fontSize,
+						});
+					}
 				}
 			}
 		}
