@@ -67,17 +67,12 @@ export class ClaudeFileEditObserver extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
-		// Own the DB reference for this observer's lifetime so
-		// {@link FileEditTracker.takeCompletedEdit}'s `storeFileEdit` write
-		// has a live database. Disposed first — ahead of any owning
-		// session's WarmQuery abort — so any in-flight write completes
-		// against an open DB.
+		// Keep the connection warm; the tracker owns references for its writes.
 		this._register(dbRef);
 		this._editTracker = instantiationService.createInstance(
 			FileEditTracker,
 			sessionUri,
 			owner,
-			dbRef.object,
 			CLAUDE_AGENT_PROVIDER_ID,
 		);
 	}

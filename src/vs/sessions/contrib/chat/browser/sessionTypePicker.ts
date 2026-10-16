@@ -786,12 +786,25 @@ export class SessionTypePicker extends Disposable {
 	}
 
 	private _updateModelTargetChatSessionType(): void {
+		const selected = this._getPickedSessionType();
+		this._modelTargetChatSessionType.set(selected ? selected.chatSessionType ?? selected.id : undefined, undefined);
+	}
+
+	private _getPickedSessionType(): ISessionType | undefined {
 		const pick = this._picked;
 		const selected = pick ? this._folderSessionTypes.find(type =>
 			type.sessionType.id === pick.sessionTypeId
 			&& (pick.providerId === undefined || type.providerId === pick.providerId)
 		) : undefined;
-		this._modelTargetChatSessionType.set(selected ? selected.sessionType.chatSessionType ?? selected.sessionType.id : undefined, undefined);
+		if (selected) {
+			return selected.sessionType;
+		}
+		const session = this._session.get();
+		if (session && session.status.get() !== SessionStatus.Untitled
+			&& session.providerId === pick?.providerId && session.sessionType === pick.sessionTypeId) {
+			return this.sessionsProvidersService.getProvider(session.providerId)?.sessionTypes.find(type => type.id === session.sessionType);
+		}
+		return undefined;
 	}
 
 	private _readStoredPick(): IPreferredSessionType | undefined {
@@ -851,8 +864,7 @@ export class SessionTypePicker extends Disposable {
 		this._triggerElement.tabIndex = disabled ? -1 : 0;
 		this._triggerElement.setAttribute('aria-disabled', String(disabled));
 		this._isVisible.set(!disabled, undefined);
-		const currentType = this._folderSessionTypes.find(t =>
-			t.providerId === this._picked?.providerId && t.sessionType.id === this._picked?.sessionTypeId)?.sessionType
+		const currentType = this._getPickedSessionType()
 			?? this._folderSessionTypes.find(t => t.sessionType.id === this._picked?.sessionTypeId)?.sessionType;
 		const modeIcon = currentType?.icon ?? Codicon.terminal;
 		const modeLabel = currentType?.label ?? this._picked?.sessionTypeId ?? '';

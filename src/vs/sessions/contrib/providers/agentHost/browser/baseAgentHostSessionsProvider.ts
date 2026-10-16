@@ -22,6 +22,7 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { chatUriFormatOf } from '../../../../../platform/agentHost/common/agentHostChatMinting.js';
 import { newAgentHostChatUri, newAgentHostSessionUri } from '../../../../../platform/agentHost/common/agentHostSessionIdentity.js';
 import { getAgentHostChatId } from '../../../../../platform/agentHost/common/agentHostChatIdentity.js';
+import { agentModelConfigurationReportKey } from '../../../../../platform/agentHost/common/agentModelConfiguration.js';
 import { isNativeAgentHost } from '../../../../../platform/agentHost/common/meta/agentHostSessionUrisMeta.js';
 import { localize } from '../../../../../nls.js';
 import { AgentSession, AuthenticateParams, AuthenticateResult, CODEX_AGENT_PROVIDER_ID, type IAgentSessionChatMetadata, IAgentSessionMetadata, protectedResourcesRequireGitHubCopilotSignIn } from '../../../../../platform/agentHost/common/agent.js';
@@ -499,6 +500,7 @@ function isGloballyRememberedSessionConfigKey(property: string): boolean {
 		&& property !== 'effectiveApprovalMode'
 		&& property !== 'availableApprovalModes'
 		&& property !== 'effectiveAutoTier'
+		&& property !== agentModelConfigurationReportKey
 		&& property !== SessionConfigKey.SandboxEnabled
 		&& !UNSAFE_SESSION_CONFIG_KEYS.has(property);
 }
@@ -5967,11 +5969,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (equals(nextValues, runningConfig.values)) {
 			return;
 		}
-		const replacement = filterSessionConfigValues(runningConfig.schema, Object.fromEntries(Object.entries(nextValues).filter(([key]) => !agentMergeKeys.includes(key))));
+		const replacement = filterSessionConfigValues(runningConfig.schema, Object.fromEntries(Object.entries(nextValues).filter(([key]) => !agentMergeKeys.includes(key) && key !== agentModelConfigurationReportKey)));
 		const workspace = getSessionWorkspaceProperties(runningConfig.schema);
 		for (const [key, schema] of Object.entries(runningConfig.schema.properties)) {
 			if (schema.readOnly && Object.hasOwn(runningConfig.values, key)
-				&& !agentMergeKeys.includes(key) && !['effectiveApprovalMode', 'availableApprovalModes', 'effectiveAutoTier'].includes(key)
+				&& !agentMergeKeys.includes(key) && !['effectiveApprovalMode', 'availableApprovalModes', 'effectiveAutoTier', agentModelConfigurationReportKey].includes(key)
 				&& !(key === 'approvalMode' && Object.hasOwn(runningConfig.schema.properties, SessionConfigKey.AutoApprove))
 				&& !(workspace.isolationKey === SessionConfigKey.Isolation && (key === 'target' || key === 'baseBranch'))) {
 				replacement[key] = runningConfig.values[key];
@@ -7655,7 +7657,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._runningModelConfigurations.set(committedAdapter.sessionId, new AutomationModelConfiguration(this._languageModelsService, {
 				modelId,
 				modelConfiguration,
-			}));
+			}, true));
 		}
 		committedAdapter.setChatModelId(committedAdapter.resource, modelId, source);
 	}
@@ -8074,7 +8076,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 						this._runningModelConfigurations.set(cached.sessionId, new AutomationModelConfiguration(this._languageModelsService, {
 							modelId,
 							modelConfiguration: model.config,
-						}));
+						}, true));
 					}
 					cached.hydrateSelectedModel(model);
 				}

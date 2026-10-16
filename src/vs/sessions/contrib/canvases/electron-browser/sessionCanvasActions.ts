@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
-import { MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { Menus } from '../../../browser/menus.js';
@@ -19,10 +19,14 @@ import { getSessionCanvasDefinitionInstanceId, getSessionCanvasDefinitionLabels,
 export const OPEN_SESSION_CANVAS_COMMAND_ID = 'workbench.action.agentSessions.openCanvas';
 export const REOPEN_SESSION_CANVAS_COMMAND_ID = 'workbench.action.agentSessions.reopenCanvas';
 
-const reopenCanvasWhen = ContextKeyExpr.and(
+const canvasAvailableWhen = ContextKeyExpr.and(
 	ChatContextKeys.enabled,
 	IsSessionsWindowContext,
 	IsAuxiliaryWindowContext.toNegated(),
+);
+
+const reopenCanvasWhen = ContextKeyExpr.and(
+	canvasAvailableWhen,
 	IsTopRightEditorGroupContext,
 );
 
@@ -56,9 +60,21 @@ class CanvasMenuActionRegistration extends Disposable {
 			},
 			group,
 			order,
-			when: reopenCanvasWhen,
+			// Only reachable through a Canvas submenu entry, which applies the surface-specific gating.
+			when: canvasAvailableWhen,
 		});
 	}
+}
+
+function appendCanvasSubmenu(menu: MenuId, when: ContextKeyExpression | undefined): IDisposable {
+	return MenuRegistry.appendMenuItem(menu, {
+		submenu: Menus.SessionsEditorTabsBarAddTabCanvas,
+		title: localize('sessionCanvases.addTab', "Canvas"),
+		icon: Codicon.preview,
+		group: 'navigation',
+		order: 4,
+		when,
+	});
 }
 
 export function registerSessionCanvasActions(canvasService: ICanvasService, registryService: ISessionCanvasRegistryService): IDisposable {
@@ -110,14 +126,11 @@ export function registerSessionCanvasActions(canvasService: ICanvasService, regi
 			}
 		}
 		submenuRegistration.value = activeKeys.size > 0
-			? MenuRegistry.appendMenuItem(Menus.SessionsEditorTabsBarAddTab, {
-				submenu: Menus.SessionsEditorTabsBarAddTabCanvas,
-				title: localize('sessionCanvases.addTab', "Canvas"),
-				icon: Codicon.preview,
-				group: 'navigation',
-				order: 4,
-				when: reopenCanvasWhen,
-			})
+			? combinedDisposable(
+				appendCanvasSubmenu(Menus.SessionsEditorTabsBarAddTab, reopenCanvasWhen),
+				appendCanvasSubmenu(Menus.SessionsEmptyEditorGroupAddTab, reopenCanvasWhen),
+				appendCanvasSubmenu(Menus.SessionToolbar, canvasAvailableWhen),
+			)
 			: undefined;
 	}));
 	return store;

@@ -56,15 +56,17 @@ export function createChatOwnerRef(stateManager: AgentHostStateManager, chat: UR
 	const chatKey = toKey(chat);
 	let last = toKey(session);
 	let lastUri = toUri(session);
+	const getOwner = () => {
+		const owner = stateManager.getChatOwner(chatKey);
+		if (owner !== undefined && owner !== last) {
+			last = owner;
+			lastUri = URI.parse(owner);
+		}
+		return lastUri;
+	};
 	return {
-		get: () => {
-			const owner = stateManager.getChatOwner(chatKey);
-			if (owner !== undefined && owner !== last) {
-				last = owner;
-				lastUri = URI.parse(owner);
-			}
-			return lastUri;
-		},
+		get: getOwner,
+		getSubagentChatUriFormat: () => chatUriFormatOf(stateManager.getDefaultChat(getOwner().toString())),
 		onDidChange: Event.any(
 			Event.map(Event.filter(stateManager.onDidChangeChatOwner, change => change.chat === chatKey), change => ({ previous: URI.parse(change.previous), current: URI.parse(change.current) })),
 			// A chat that leaves the registry and registers again under another session changed owner too.

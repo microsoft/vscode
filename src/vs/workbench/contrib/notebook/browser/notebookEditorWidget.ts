@@ -30,7 +30,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Color, RGBA } from '../../../../base/common/color.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { combinedDisposable, Disposable, DisposableStore, dispose, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableStore, dispose, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { setTimeout0 } from '../../../../base/common/platform.js';
 import { extname, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -428,6 +428,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		container.appendChild(this._overlayLayout.root);
 
+		// Editor widgets must escape the notebook overlay's clipping and stacking context.
+		this._overflowContainer = DOM.append(container, DOM.$('.notebook-overflow-widget-container.monaco-editor'));
+		this._overflowContainer.style.position = 'absolute';
+		this._register(toDisposable(() => this._overflowContainer.remove()));
+		this._register(this.scopedContextKeyService.createScoped(this._overflowContainer));
+		DOM.setParentFlowTo(this._overflowContainer, this._overlayContainer);
+		this._overflowContainer.inert = true;
+		this._overflowContainer.style.display = 'none';
 		this._createBody(this._overlayContainer);
 		this._generateFontInfo();
 		this._isVisible = true;
@@ -626,10 +634,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._registerNotebookOverviewRuler();
 
 		this._register(this.instantiationService.createInstance(NotebookHorizontalTracker, this, this._list.scrollableElement));
-
-		this._overflowContainer = document.createElement('div');
-		this._overflowContainer.classList.add('notebook-overflow-widget-container', 'monaco-editor');
-		DOM.append(parent, this._overflowContainer);
 	}
 
 	private _generateFontFamily() {
@@ -1048,15 +1052,21 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}));
 
 		this._focusTracker = this._register(DOM.trackFocus(this.getDomNode()));
-		this._register(this._focusTracker.onDidBlur(() => {
-			this._editorFocus.set(false);
-			this.viewModel?.setEditorFocus(false);
-			this._onDidBlurEmitter.fire();
-		}));
-		this._register(this._focusTracker.onDidFocus(() => {
-			this._editorFocus.set(true);
-			this.viewModel?.setEditorFocus(true);
-			this._onDidFocusEmitter.fire();
+		const overflowFocusTracker = this._register(DOM.trackFocus(this._overflowContainer));
+		let hadFocus = this.editorHasDomFocus();
+		this._register(Event.any(this._focusTracker.onDidFocus, this._focusTracker.onDidBlur, overflowFocusTracker.onDidFocus, overflowFocusTracker.onDidBlur)(() => {
+			const focused = this.editorHasDomFocus();
+			if (focused === hadFocus) {
+				return;
+			}
+			hadFocus = focused;
+			this._editorFocus.set(focused);
+			this.viewModel?.setEditorFocus(focused);
+			if (focused) {
+				this._onDidFocusEmitter.fire();
+			} else {
+				this._onDidBlurEmitter.fire();
+			}
 		}));
 
 		this._registerNotebookActionsToolbar();
@@ -1915,6 +1925,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		this._overlayContainer.inert = false;
+		this._overflowContainer.inert = false;
 
 		this.layoutContainerOverShadowElement(shadowElement ?? this._shadowElement);
 
@@ -1939,8 +1950,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		const clippingContainer = isModal ? undefined : this.layoutService.getContainer(DOM.getWindow(this.getDomNode()), Parts.EDITOR_PART);
 
 		this._overlayContainer.style.visibility = 'visible';
+		this._overflowContainer.style.display = '';
 		this._overlayLayout.setAnchorElement(anchorElement, { clippingContainer });
 		this._overlayLayout.reapplyLayoutStyles();
+		this._overflowContainer.style.zIndex = isModal ? this._overlayContainer.style.zIndex : '';
 	}
 
 	//#endregion
@@ -2015,6 +2028,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._editorFocus.set(false);
 		this._overlayContainer.inert = true;
 		this._overlayContainer.style.visibility = 'hidden';
+		this._overflowContainer.inert = true;
+		this._overflowContainer.style.display = 'none';
 		this._overlayContainer.style.left = '-50000px';
 		this._notebookTopToolbarContainer.style.display = 'none';
 		this.clearActiveCellWidgets();
@@ -2038,7 +2053,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	private editorHasDomFocus(): boolean {
-		return DOM.isAncestorOfActiveElement(this.getDomNode());
+		return DOM.isAncestorOfActiveElement(this.getDomNode()) || DOM.isAncestorOfActiveElement(this._overflowContainer);
 	}
 
 	updateEditorFocus() {

@@ -332,7 +332,12 @@ export class ModelPickerWidget extends Disposable {
 			return hydraFusion;
 		}
 		if (onHydraFusion) {
-			setModelConfigValues(ensemble, configurationAccess, { [tier.key]: 'intelligence' }).catch(onUnexpectedError);
+			const scopedConfiguration = this._delegate.modelConfiguration;
+			if (scopedConfiguration?.presentModelConfiguration) {
+				scopedConfiguration.presentModelConfiguration(ensemble.identifier, { [tier.key]: 'intelligence' });
+			} else {
+				setModelConfigValues(ensemble, configurationAccess, { [tier.key]: 'intelligence' }).catch(onUnexpectedError);
+			}
 			return ensemble;
 		}
 		return model;

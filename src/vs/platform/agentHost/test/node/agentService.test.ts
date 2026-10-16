@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isShapedChatUri } from '../../common/agentHostChatIdentity.js';
+import { agentModelConfigurationReportKey } from '../../common/agentModelConfiguration.js';
 import assert from 'assert';
 import { spy, stub } from 'sinon';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
@@ -19,7 +20,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { DisposableStore, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { join } from '../../../../base/common/path.js';
 import { isEqual, joinPath } from '../../../../base/common/resources.js';
@@ -62,8 +63,8 @@ import { getSessionSandboxConfig } from '../../node/sessionSandbox.js';
 import { buildSandboxConfigForSdk } from '../../node/copilot/sandboxConfigForSdk.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { SessionDatabase, sessionDatabaseMigrations } from '../../node/sessionDatabase.js';
-import { ActionType, ActionEnvelope, NotificationType, type ChatConfigChangedAction, type INotification, type SessionAction, type SessionSummaryChanges } from '../../common/state/sessionActions.js';
-import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isMessageRequestHiddenFromTranscript, isSessionStatusArchived, isSessionStatusRead, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubData, readSessionGitHubState, readSessionGitState, readWorkingDirectoryKeys, readWorkingDirectoryScopeIds, SESSION_META_GITHUB_DATA_KEY, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, readSessionWorkspaceless, withSessionEhcliAdoptable, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type SessionSummaryMeta, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { ActionType, ActionEnvelope, NotificationType, type ChatAction, type ChatConfigChangedAction, type INotification, type SessionAction, type SessionSummaryChanges } from '../../common/state/sessionActions.js';
+import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isMessageRequestHiddenFromTranscript, isSessionStatusArchived, isSessionStatusRead, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubData, readSessionGitHubState, readSessionGitState, readWorkingDirectoryKeys, readWorkingDirectoryScopeIds, SESSION_META_GITHUB_DATA_KEY, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, readSessionWorkspaceless, withSessionEhcliAdoptable, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type SessionSummaryMeta, type ChatState, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { BackgroundWorkKind, ChatInteractivity, PendingMessageKind, type BackgroundWork, type Message, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
@@ -73,6 +74,8 @@ import { readCodexSessionModel, withCodexSessionModel } from '../../common/meta/
 import { AgentSystemNotificationWorkspaceKind, serializeAgentWorkspaceTransition } from '../../common/meta/agentSystemNotificationMeta.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
+import { toListedSessionSummary } from '../../node/protocolServerHandler.js';
+import { mintPeerChatUri } from '../../common/agentHostChatMinting.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { AgentHostDatabase, AgentHostDatabaseSessionChatCatalogReplaceResult, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionChat, IAgentHostDatabaseSessionChatCatalog, IAgentHostDatabaseSessionListCatalog, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionsV2ExclusionExpectation, IAgentHostDatabaseSessionOptions, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope, IAgentHostDatabaseSessionV2Receipt } from '../../node/agentHostDatabase.js';
 import { CHAT_INHERITED_TURN_METADATA_KEY, CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, type IPersistedPeerChat } from '../../node/agentHostPeerChatStore.js';
@@ -105,7 +108,7 @@ import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import type { IPendingWorktreeRemoval, IWorktreeRemovalRequest } from '../../node/agentHostWorktreeRemovalDatabase.js';
-import { createTestAgentHostWorktreeIsolation, createTestAgentService, getTestAgentHostDatabase, getTestWorktreeCleanupService, getTestAgentHostProviderService, getTestAgentHostWorktreeIsolation, getTestAgentServiceComposition, getTestAgentStateManager, getTestChatPersistenceService, getTestSessionStateStore, registerTestAgentProvider, setTestAgentHostWorktreeIsolation } from './agentServiceTestUtils.js';
+import { createTestAgentHostWorktreeIsolation, createTestAgentService, getTestAgentHostDatabase, getTestWorktreeCleanupService, getTestAgentHostProviderService, getTestAgentHostWorktreeIsolation, getTestAgentServiceComposition, getTestAgentStateManager, getTestChatPersistenceService, getTestSessionStateStore, registerTestAgentProvider, setTestAgentHostWorktreeIsolation, whenArchivedChatWorkspaceUpdatesSettled } from './agentServiceTestUtils.js';
 import { parseSessionArtifacts, readSessionArtifacts, SESSION_META_ARTIFACTS_KEY, SessionArtifactType, withSessionArtifacts } from '../../common/sessionArtifacts.js';
 import { creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { deriveLegacyDefaultChat } from '../../common/agentHostLegacyDefaultChat.js';
@@ -5013,6 +5016,713 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		/** Holds loading chat history, and so a restore after it has read the session's flags, while {@link historyGate} is open. */
+		class ReadPeerAgent extends MockAgent {
+			historyGate: DeferredPromise<void> | undefined;
+			historyHits = 0;
+			readonly historyReached = new DeferredPromise<void>();
+			override async createChat(): Promise<void> { }
+			override async getSessionMessages(session: URI) {
+				if (this.historyGate) {
+					this.historyHits++;
+					this.historyReached.complete();
+					await this.historyGate.p;
+				}
+				return super.getSessionMessages(session);
+			}
+		}
+
+		/** A normalized catalog that outlives one host, so a second service can restart from it. */
+		class RetainedAgentHostDatabase extends AgentHostDatabase {
+			override async close(): Promise<void> { }
+			override dispose(): void { }
+			release(): Promise<void> {
+				return super.close();
+			}
+		}
+
+		async function createSessionWithReadPeer(catalog: 'legacy' | 'normalized' = 'legacy'): Promise<{ svc: AgentService; agent: ReadPeerAgent; db: TestSessionDatabase; session: URI; defaultChat: string; peer: string; restart(): Promise<AgentService> }> {
+			const perSession = createPerSessionDataService();
+			let orchestratorDb: IAgentHostDatabase = new TestAgentHostOrchestratorDatabase();
+			if (catalog === 'normalized') {
+				const retained = new RetainedAgentHostDatabase(':memory:');
+				disposables.add(toDisposable(() => void retained.release()));
+				orchestratorDb = retained;
+			}
+			const createService = () => {
+				const service = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, orchestratorDb));
+				const agent = disposables.add(new ReadPeerAgent('copilot'));
+				registerTestAgentProvider(service, agent);
+				return { service, agent };
+			};
+			const { service: svc, agent } = createService();
+			const session = await svc.createSession({ legacyChatUris: false, provider: 'copilot' });
+			const db = perSession.database(session);
+			const defaultChat = getStateManager(svc).getDefaultChat(session.toString())!;
+			const peer = mintPeerChatUri('opaque', session.toString());
+			await svc.createChat(session, URI.parse(peer));
+			getStateManager(svc).dispatchServerAction(defaultChat, { type: ActionType.ChatIsReadChanged, isRead: true });
+			getStateManager(svc).dispatchServerAction(peer, { type: ActionType.ChatIsReadChanged, isRead: true });
+			await svc.whenCatalogReconciliationIdle();
+			const restart = async () => {
+				await svc.shutdown();
+				svc.dispose();
+				const restarted = createService();
+				(restarted.agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(session), session);
+				return restarted.service;
+			};
+			return { svc, agent, db, session, defaultChat, peer, restart };
+		}
+
+		/** The peer's persisted read flag, from the normalized catalog or the legacy peer catalog. */
+		async function readPersistedPeerRead(svc: AgentService, db: TestSessionDatabase, session: URI, peer: string): Promise<boolean | undefined> {
+			const normalized = await getTestChatPersistenceService(svc).readNormalizedChat(session, URI.parse(peer));
+			if (normalized.normalized) {
+				return normalized.chat?.isRead;
+			}
+			const peers: { uri: string; isRead?: boolean }[] = JSON.parse(await db.getMetadata('peerChats') ?? '[]');
+			return peers.find(entry => entry.uri === peer)?.isRead;
+		}
+
+		function unloadSession(svc: AgentService, session: URI): void {
+			const stateManager = getStateManager(svc);
+			stateManager.prepareSessionSummariesForListing([stateManager.getSessionSummary(session.toString())!]);
+			stateManager.removeSession(session.toString());
+		}
+
+		function clientEcho(svc: AgentService, clientSeq: number): Promise<ActionEnvelope> {
+			return Event.toPromise(Event.filter(Event.any(svc.onDidAction, getStateManager(svc).onDidRejectClientAction), envelope => envelope.origin?.clientId === 'test-client' && envelope.origin.clientSeq === clientSeq), disposables);
+		}
+
+		test('a chat read toggle on an unloaded session applies without restoring it or holding later actions', async () => {
+			const { svc, db, session, peer } = await createSessionWithReadPeer();
+			const warm = await svc.createSession({ legacyChatUris: false, provider: 'copilot' });
+			const warmChat = getStateManager(svc).getDefaultChat(warm.toString())!;
+			unloadSession(svc, session);
+			// A large session takes minutes to restore; hold it until a later timer fires.
+			const restoreCalls: string[] = [];
+			let restoreReleased = false;
+			const releaseRestore = new DeferredPromise<void>();
+			disposables.add(disposableTimeout(() => {
+				restoreReleased = true;
+				releaseRestore.complete();
+			}, 500));
+			const restoreSession = svc.restoreSession;
+			svc.restoreSession = async (resource, onRestoreStart) => {
+				restoreCalls.push(resource.toString());
+				await releaseRestore.p;
+				return restoreSession.call(svc, resource, onRestoreStart);
+			};
+			const order: number[] = [];
+			const echoes = [1, 2, 3].map(seq => clientEcho(svc, seq).then(envelope => {
+				order.push(seq);
+				return { envelope, restoreReleased };
+			}));
+
+			svc.dispatchAction(peer, { type: ActionType.ChatIsReadChanged, isRead: false }, 'test-client', 1);
+			svc.dispatchAction(warmChat, { type: ActionType.ChatIsReadChanged, isRead: false }, 'test-client', 2);
+			svc.dispatchAction(mintPeerChatUri('opaque', session.toString()), { type: ActionType.ChatIsReadChanged, isRead: true }, 'test-client', 3);
+			const [cold, warmEcho, unknown] = await Promise.all(echoes);
+			await svc.whenCatalogReconciliationIdle();
+
+			const surfaced = getStateManager(svc).getSurfacedSessionSummary(session.toString());
+			assert.deepStrictEqual({
+				order,
+				restoreCalls,
+				restoreReleasedBeforeEchoes: [cold.restoreReleased, warmEcho.restoreReleased],
+				rejections: [cold.envelope.rejectionReason, warmEcho.envelope.rejectionReason, unknown.envelope.rejectionReason],
+				resident: !!getStateManager(svc).getSessionState(session.toString()),
+				surfacedPeerRead: isSessionStatusRead(surfaced?.chats?.find(chat => chat.resource === peer)?.status),
+				surfacedSessionRead: isSessionStatusRead(surfaced?.status),
+				persistedPeerRead: await readPersistedPeerRead(svc, db, session, peer),
+				warmChatRead: isSessionStatusRead(getStateManager(svc).getChatState(warmChat)?.status),
+			}, {
+				order: [1, 2, 3],
+				restoreCalls: [],
+				restoreReleasedBeforeEchoes: [false, false],
+				rejections: [undefined, undefined, 'Only a known chat can change its read state.'],
+				resident: false,
+				surfacedPeerRead: false,
+				surfacedSessionRead: false,
+				persistedPeerRead: false,
+				warmChatRead: false,
+			});
+		});
+
+		for (const catalog of ['legacy', 'normalized'] as const) {
+			test(`a chat read toggle on a session listed cold by a fresh host applies without restoring it (${catalog})`, async () => {
+				const { session, peer, restart } = await createSessionWithReadPeer(catalog);
+				const svc = await restart();
+				const restoreCalls: string[] = [];
+				let restoreReleased = false;
+				const releaseRestore = new DeferredPromise<void>();
+				disposables.add(disposableTimeout(() => {
+					restoreReleased = true;
+					releaseRestore.complete();
+				}, 500));
+				const restoreSession = svc.restoreSession;
+				svc.restoreSession = async (resource, onRestoreStart) => {
+					restoreCalls.push(resource.toString());
+					await releaseRestore.p;
+					return restoreSession.call(svc, resource, onRestoreStart);
+				};
+				// The protocol `listSessions` reply: the surfaced summary is built from the catalog listing.
+				getStateManager(svc).prepareSessionSummariesForListing((await svc.listSessions()).map(toListedSessionSummary));
+				const listedChats = getStateManager(svc).getSurfacedSessionSummary(session.toString())?.chats?.map(chat => chat.resource);
+
+				const echo = clientEcho(svc, 1);
+				svc.dispatchAction(peer, { type: ActionType.ChatIsReadChanged, isRead: false }, 'test-client', 1);
+				const envelope = await echo;
+				const echoedBeforeRestoreReleased = !restoreReleased;
+				await svc.whenCatalogReconciliationIdle();
+
+				assert.deepStrictEqual({
+					listedPeer: listedChats?.includes(peer),
+					echoedBeforeRestoreReleased,
+					restoreCalls,
+					rejectionReason: envelope.rejectionReason,
+					resident: !!getStateManager(svc).getSessionState(session.toString()),
+					surfacedPeerRead: isSessionStatusRead(getStateManager(svc).getSurfacedSessionSummary(session.toString())?.chats?.find(chat => chat.resource === peer)?.status),
+				}, {
+					listedPeer: true,
+					echoedBeforeRestoreReleased: true,
+					restoreCalls: [],
+					rejectionReason: undefined,
+					resident: false,
+					surfacedPeerRead: false,
+				});
+			});
+		}
+
+		for (const catalog of ['legacy', 'normalized'] as const) {
+			test(`passive chat read toggles keep the session read aggregate and survive a restore (${catalog})`, async () => {
+				const { svc, db, session, defaultChat, peer } = await createSessionWithReadPeer(catalog);
+				const sessionKey = session.toString();
+				unloadSession(svc, session);
+				const stateManager = getStateManager(svc);
+				const step = async (channel: string, action: ChatAction | SessionAction, clientSeq: number) => {
+					const echo = clientEcho(svc, clientSeq);
+					svc.dispatchAction(channel, action, 'test-client', clientSeq);
+					await echo;
+					await svc.whenCatalogReconciliationIdle();
+					await getTestSessionStateStore(svc).whenIdle(undefined);
+					const surfaced = stateManager.getSurfacedSessionSummary(sessionKey);
+					return {
+						sessionRead: isSessionStatusRead(surfaced?.status),
+						chatsRead: surfaced?.chats?.map(chat => isSessionStatusRead(chat.status)),
+						persistedSessionRead: await db.getMetadata(AH_META_IS_READ_DB_KEY),
+					};
+				};
+
+				const steps = [
+					await step(peer, { type: ActionType.ChatIsReadChanged, isRead: false }, 1),
+					// The #339500 clamp: a session cannot become read while a chat is unread.
+					await step(sessionKey, { type: ActionType.SessionIsReadChanged, isRead: true }, 2),
+					await step(peer, { type: ActionType.ChatIsReadChanged, isRead: true }, 3),
+					await step(defaultChat, { type: ActionType.ChatIsReadChanged, isRead: false }, 4),
+					await step(defaultChat, { type: ActionType.ChatIsReadChanged, isRead: true }, 5),
+				];
+				const residentDuringToggles = !!stateManager.getSessionState(sessionKey);
+				await svc.restoreSession(session);
+				await stateManager.resolveChatState(peer);
+
+				assert.deepStrictEqual({
+					steps,
+					residentDuringToggles,
+					restored: {
+						sessionRead: isSessionStatusRead(stateManager.getSessionState(sessionKey)?.status),
+						defaultChatRead: isSessionStatusRead(stateManager.getChatState(defaultChat)?.status),
+						peerRead: isSessionStatusRead(stateManager.getChatState(peer)?.status),
+					},
+				}, {
+					steps: [
+						{ sessionRead: false, chatsRead: [true, false], persistedSessionRead: '' },
+						{ sessionRead: false, chatsRead: [true, false], persistedSessionRead: '' },
+						{ sessionRead: true, chatsRead: [true, true], persistedSessionRead: 'true' },
+						{ sessionRead: false, chatsRead: [false, true], persistedSessionRead: '' },
+						{ sessionRead: true, chatsRead: [true, true], persistedSessionRead: 'true' },
+					],
+					residentDuringToggles: false,
+					restored: { sessionRead: true, defaultChatRead: true, peerRead: true },
+				});
+			});
+		}
+
+		test('a chat read toggle on a restored peer applies without resolving its history', async () => {
+			const { svc, db, session, peer } = await createSessionWithReadPeer();
+			const sessionKey = session.toString();
+			const stateManager = getStateManager(svc);
+			stateManager.deleteSession(sessionKey);
+			await svc.restoreSession(session);
+			const resolvedChats: string[] = [];
+			const resolveChatState = stateManager.resolveChatState;
+			stateManager.resolveChatState = async chat => {
+				resolvedChats.push(chat);
+				return resolveChatState.call(stateManager, chat);
+			};
+
+			const unread = clientEcho(svc, 1);
+			const queued = svc.dispatchAction(peer, { type: ActionType.ChatIsReadChanged, isRead: false }, 'test-client', 1);
+			const appliedSynchronously = queued === undefined && !isSessionStatusRead(stateManager.getSessionState(sessionKey)?.chats.find(chat => chat.resource === peer)?.status);
+			const envelope = await unread;
+			const afterToggle = {
+				appliedSynchronously,
+				rejectionReason: envelope.rejectionReason,
+				resolvedChats: [...resolvedChats],
+				materialized: !!stateManager.getChatState(peer),
+				sessionChatRead: isSessionStatusRead(stateManager.getSessionState(sessionKey)?.chats.find(chat => chat.resource === peer)?.status),
+				sessionRead: isSessionStatusRead(stateManager.getSessionState(sessionKey)?.status),
+			};
+			await svc.whenCatalogReconciliationIdle();
+
+			assert.deepStrictEqual({
+				afterToggle,
+				persistedPeerRead: await readPersistedPeerRead(svc, db, session, peer),
+				resolvedPeerRead: isSessionStatusRead((await stateManager.resolveChatState(peer))?.status),
+			}, {
+				afterToggle: { appliedSynchronously: true, rejectionReason: undefined, resolvedChats: [], materialized: false, sessionChatRead: false, sessionRead: false },
+				persistedPeerRead: false,
+				resolvedPeerRead: false,
+			});
+		});
+
+		test('an unmaterialized peer keeps a read toggle when it later materializes', async () => {
+			const { svc, session, peer } = await createSessionWithReadPeer();
+			const sessionKey = session.toString();
+			const stateManager = getStateManager(svc);
+			const results = [];
+			for (const [clientSeq, isRead] of [[1, false], [2, true]] as const) {
+				stateManager.deleteSession(sessionKey);
+				await svc.restoreSession(session);
+				const before = stateManager.getChatState(peer);
+				const echo = clientEcho(svc, clientSeq);
+				svc.dispatchAction(peer, { type: ActionType.ChatIsReadChanged, isRead }, 'test-client', clientSeq);
+				await echo;
+				const materialized = await stateManager.resolveChatState(peer);
+				const snapshot = stateManager.getSnapshot(peer)?.state as ChatState | undefined;
+				await svc.whenCatalogReconciliationIdle();
+				results.push({
+					materializedBefore: !!before,
+					stateRead: isSessionStatusRead(materialized?.status),
+					snapshotRead: isSessionStatusRead(snapshot?.status),
+				});
+			}
+
+			assert.deepStrictEqual(results, [
+				{ materializedBefore: false, stateRead: false, snapshotRead: false },
+				{ materializedBefore: false, stateRead: true, snapshotRead: true },
+			]);
+		});
+
+		for (const { title, peerStartsRead, isRead, catalog } of [
+			{ title: 'reading the last unread peer makes the session read', peerStartsRead: false, isRead: true, catalog: 'legacy' },
+			{ title: 'an unread peer makes the session unread', peerStartsRead: true, isRead: false, catalog: 'legacy' },
+			{ title: 'reading the last unread peer makes the session read', peerStartsRead: false, isRead: true, catalog: 'normalized' },
+			{ title: 'an unread peer makes the session unread', peerStartsRead: true, isRead: false, catalog: 'normalized' },
+		] as const) {
+			test(`a passive chat read survives restore and restart (${catalog}): ${title}`, async () => {
+				const { svc, db, session, peer, restart } = await createSessionWithReadPeer(catalog);
+				const sessionKey = session.toString();
+				if (!peerStartsRead) {
+					getStateManager(svc).dispatchServerAction(peer, { type: ActionType.ChatIsReadChanged, isRead: false });
+					await svc.whenCatalogReconciliationIdle();
+				}
+				unloadSession(svc, session);
+				const echo = clientEcho(svc, 1);
+				svc.dispatchAction(peer, { type: ActionType.ChatIsReadChanged, isRead }, 'test-client', 1);
+				await echo;
+				await svc.whenCatalogReconciliationIdle();
+				const read = async (service: AgentService) => {
+					const stateManager = getStateManager(service);
+					await service.restoreSession(session);
+					return {
+						sessionRead: isSessionStatusRead(stateManager.getSessionState(sessionKey)?.status),
+						peerRead: isSessionStatusRead((await stateManager.resolveChatState(peer))?.status),
+					};
+				};
+				const central = catalogDataOf(await getTestAgentHostDatabase(svc).getSessionV2(sessionKey));
+				const passive = {
+					sessionRead: isSessionStatusRead(getStateManager(svc).getSurfacedSessionSummary(sessionKey)?.status),
+					persistedPeerRead: await readPersistedPeerRead(svc, db, session, peer),
+					centralSessionRead: central?.isRead,
+					centralPeerRead: central?.chats.find(chat => chat.uri === peer)?.isRead,
+				};
+				const restored = await read(svc);
+				await svc.whenCatalogReconciliationIdle();
+				const restarted = await read(await restart());
+
+				assert.deepStrictEqual({ passive, restored, restarted }, {
+					passive: { sessionRead: isRead, persistedPeerRead: isRead, centralSessionRead: isRead, centralPeerRead: isRead },
+					restored: { sessionRead: isRead, peerRead: isRead },
+					restarted: { sessionRead: isRead, peerRead: isRead },
+				});
+			});
+		}
+
+		for (const { catalog, fallback } of [
+			{ catalog: 'legacy', fallback: false },
+			{ catalog: 'legacy', fallback: true },
+			{ catalog: 'normalized', fallback: false },
+		] as const) {
+			for (const peerRead of [true, false]) {
+				test(`an archived ${peerRead ? 'read' : 'unread'} chat keeps its read state across restore and restart (${catalog}${fallback ? ', cached membership' : ''})`, async () => {
+					const { svc, session, peer, restart } = await createSessionWithReadPeer(catalog);
+					const sessionKey = session.toString();
+					const stateManager = getStateManager(svc);
+					stateManager.dispatchServerAction(peer, { type: ActionType.ChatIsReadChanged, isRead: false });
+					// Archiving marks the chat read; an unread archived chat is marked unread again.
+					svc.dispatchAction(peer, { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'test-client', 1);
+					if (!peerRead) {
+						svc.dispatchAction(peer, { type: ActionType.ChatIsReadChanged, isRead: false }, 'test-client', 2);
+					}
+					await svc.whenCatalogReconciliationIdle();
+					await getTestSessionStateStore(svc).whenIdle(undefined);
+					const read = async (service: AgentService) => {
+						if (fallback) {
+							// The provider cannot enumerate peers, so restore falls back to the cached catalog membership.
+							(service as unknown as { _readOrMigrateLegacyPeerChatCatalog(): Promise<never> })._readOrMigrateLegacyPeerChatCatalog = async () => { throw new Error('peer enumeration failed'); };
+						}
+						const manager = getStateManager(service);
+						await service.restoreSession(session);
+						const state = await manager.resolveChatState(peer);
+						return {
+							sessionRead: isSessionStatusRead(manager.getSessionState(sessionKey)?.status),
+							// The cached-membership fallback is only checked for read state here.
+							...(fallback ? {} : { peerArchived: isSessionStatusArchived(state?.status) }),
+							peerRead: isSessionStatusRead(state?.status),
+						};
+					};
+					const live = { sessionRead: isSessionStatusRead(stateManager.getSessionState(sessionKey)?.status) };
+					stateManager.deleteSession(sessionKey);
+					const restored = await read(svc);
+					await svc.whenCatalogReconciliationIdle();
+					const restarted = await read(await restart());
+
+					const expected = { sessionRead: peerRead, ...(fallback ? {} : { peerArchived: true }), peerRead };
+					assert.deepStrictEqual({ live, restored, restarted }, { live: { sessionRead: peerRead }, restored: expected, restarted: expected });
+				});
+			}
+		}
+
+		// Only the normalized catalog records peer flags centrally; a legacy catalog keeps them in the peer store.
+		for (const catalog of ['normalized'] as const) {
+			test(`an archived unread chat restores its session unread even when the session flag says read (${catalog})`, async () => {
+				const { svc, session, peer } = await createSessionWithReadPeer(catalog);
+				const sessionKey = session.toString();
+				svc.dispatchAction(peer, { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'test-client', 1);
+				svc.dispatchAction(peer, { type: ActionType.ChatIsReadChanged, isRead: false }, 'test-client', 2);
+				await svc.whenCatalogReconciliationIdle();
+				await getTestSessionStateStore(svc).writeMetadata(session, session, { [AH_META_IS_READ_DB_KEY]: 'true' }, SessionStateMirrorFlush.Immediate);
+				getStateManager(svc).deleteSession(sessionKey);
+
+				await svc.restoreSession(session);
+
+				assert.strictEqual(isSessionStatusRead(getStateManager(svc).getSessionState(sessionKey)?.status), false);
+			});
+		}
+
+		for (const [restoreFirst, catalog] of [[true, 'legacy'], [false, 'legacy'], [true, 'normalized'], [false, 'normalized']] as const) {
+			for (const isRead of [false, true]) {
+				test(`a passive chat ${isRead ? 'read' : 'unread'} racing a restore of its session settles once (${catalog}, ${restoreFirst ? 'restore first' : 'restore starts mid-write'})`, async () => {
+					const { svc, agent, db, session, peer } = await createSessionWithReadPeer(catalog);
+					const sessionKey = session.toString();
+					const stateManager = getStateManager(svc);
+					if (isRead) {
+						// The peer is the session's last unread chat, so reading it makes the session read.
+						stateManager.dispatchServerAction(peer, { type: ActionType.ChatIsReadChanged, isRead: false });
+						await svc.whenCatalogReconciliationIdle();
+					}
+					unloadSession(svc, session);
+					(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(session), session);
+					const envelopes: ActionEnvelope[] = [];
+					disposables.add(Event.any(svc.onDidAction, stateManager.onDidRejectClientAction)(envelope => {
+						if (envelope.origin?.clientId === 'test-client') {
+							envelopes.push(envelope);
+						}
+					}));
+					agent.historyGate = new DeferredPromise<void>();
+					let restore: Promise<void> | undefined;
+					if (restoreFirst) {
+						restore = svc.restoreSession(session);
+					} else {
+						// A restore starting during the write must not read the session's flags before it and then
+						// pause on the default chat's history.
+						const persistence = getTestChatPersistenceService(svc);
+						const setRead = persistence.setRead;
+						persistence.setRead = async (target, chat, read) => {
+							if (!restore) {
+								restore = svc.restoreSession(session);
+								await Promise.race([agent.historyReached.p, timeout(50)]);
+							}
+							await setRead.call(persistence, target, chat, read);
+						};
+					}
+					const echo = clientEcho(svc, 1);
+					const dispatched = svc.dispatchAction(peer, { type: ActionType.ChatIsReadChanged, isRead }, 'test-client', 1);
+					for (let i = 0; i < 100 && agent.historyHits === 0; i++) {
+						await timeout(1);
+					}
+					const historyHits = agent.historyHits;
+					agent.historyGate.complete();
+					agent.historyGate = undefined;
+					await Promise.all([restore, dispatched, echo]);
+					await svc.whenCatalogReconciliationIdle();
+
+					assert.deepStrictEqual({
+						historyHits: historyHits > 0,
+						envelopes: envelopes.map(envelope => ({ channel: envelope.channel, rejectionReason: envelope.rejectionReason })),
+						sessionRead: isSessionStatusRead(stateManager.getSessionState(sessionKey)?.status),
+						listedPeerRead: isSessionStatusRead(stateManager.getSessionState(sessionKey)?.chats.find(chat => chat.resource === peer)?.status),
+						peerRead: isSessionStatusRead((await stateManager.resolveChatState(peer))?.status),
+						persistedPeerRead: await readPersistedPeerRead(svc, db, session, peer),
+					}, {
+						historyHits: true,
+						envelopes: [{ channel: peer, rejectionReason: undefined }],
+						sessionRead: isRead,
+						listedPeerRead: isRead,
+						peerRead: isRead,
+						persistedPeerRead: isRead,
+					});
+				});
+			}
+		}
+
+		test('concurrent passive read toggles from two clients keep the session read aggregate consistent', async () => {
+			const { svc, db, session, defaultChat, peer } = await createSessionWithReadPeer('normalized');
+			const sessionKey = session.toString();
+			const stateManager = getStateManager(svc);
+			stateManager.dispatchServerAction(peer, { type: ActionType.ChatIsReadChanged, isRead: false });
+			await svc.whenCatalogReconciliationIdle();
+			unloadSession(svc, session);
+			const aggregateWrite = new DeferredPromise<void>();
+			const releaseAggregate = new DeferredPromise<void>();
+			const stateStore = getTestSessionStateStore(svc);
+			const writeMetadata = stateStore.writeMetadata;
+			stateStore.writeMetadata = async (target, resource, values, flush) => {
+				if (values[AH_META_IS_READ_DB_KEY] === 'true' && !aggregateWrite.isSettled) {
+					aggregateWrite.complete();
+					await releaseAggregate.p;
+				}
+				return writeMetadata.call(stateStore, target, resource, values, flush);
+			};
+			const readEcho = clientEcho(svc, 1);
+			const unreadEcho = Event.toPromise(Event.filter(Event.any(svc.onDidAction, stateManager.onDidRejectClientAction), envelope => envelope.origin?.clientId === 'other-client'), disposables);
+
+			// Client A reads the last unread peer and pauses in the session aggregate write ...
+			svc.dispatchAction(peer, { type: ActionType.ChatIsReadChanged, isRead: true }, 'test-client', 1);
+			await aggregateWrite.p;
+			// ... while client B marks another chat unread.
+			svc.dispatchAction(defaultChat, { type: ActionType.ChatIsReadChanged, isRead: false }, 'other-client', 1);
+			await timeout(10);
+			releaseAggregate.complete();
+			await Promise.all([readEcho, unreadEcho]);
+			await svc.whenCatalogReconciliationIdle();
+			await stateStore.whenIdle(undefined);
+
+			const surfaced = stateManager.getSurfacedSessionSummary(sessionKey);
+			assert.deepStrictEqual({
+				sessionRead: isSessionStatusRead(surfaced?.status),
+				chatsRead: surfaced?.chats?.map(chat => ({ default: chat.resource === defaultChat, read: isSessionStatusRead(chat.status) })),
+				persistedSessionRead: await db.getMetadata(AH_META_IS_READ_DB_KEY),
+			}, {
+				sessionRead: false,
+				chatsRead: [{ default: true, read: false }, { default: false, read: true }],
+				persistedSessionRead: '',
+			});
+		});
+
+		for (const deletion of ['disposing', 'catalog fence'] as const) {
+			test(`a chat read toggle is rejected without writing while its unloaded session is being deleted (${deletion})`, async () => {
+				const { svc, db, session, peer } = await createSessionWithReadPeer('normalized');
+				unloadSession(svc, session);
+				const persistence = getTestChatPersistenceService(svc);
+				const setRead = persistence.setRead;
+				const setReadCalls: string[] = [];
+				persistence.setRead = (target, chat, isRead) => {
+					setReadCalls.push(chat.toString());
+					return setRead.call(persistence, target, chat, isRead);
+				};
+				const validationStarted = new DeferredPromise<void>();
+				const finishValidation = new DeferredPromise<void>();
+				let deleting: Promise<unknown>;
+				if (deletion === 'disposing') {
+					deleting = svc.disposeSessionIf(session, async () => {
+						validationStarted.complete();
+						await finishValidation.p;
+						return false;
+					}, () => true);
+					await validationStarted.p;
+				} else {
+					const fence = (svc as unknown as { _catalogSyncService: { beginSessionDeletion(session: URI): IDisposable } })._catalogSyncService.beginSessionDeletion(session);
+					deleting = finishValidation.p.then(() => fence.dispose());
+				}
+
+				const echo = clientEcho(svc, 1);
+				svc.dispatchAction(peer, { type: ActionType.ChatIsReadChanged, isRead: false }, 'test-client', 1);
+				const envelope = await echo;
+				finishValidation.complete();
+				await deleting;
+
+				assert.deepStrictEqual({
+					rejectionReason: envelope.rejectionReason,
+					setReadCalls,
+					surfacedPeerRead: isSessionStatusRead(getStateManager(svc).getSurfacedSessionSummary(session.toString())?.chats?.find(chat => chat.resource === peer)?.status),
+					persistedPeerRead: await readPersistedPeerRead(svc, db, session, peer),
+				}, {
+					rejectionReason: 'Cannot change the read state of a chat while its session is being deleted.',
+					setReadCalls: [],
+					surfacedPeerRead: true,
+					persistedPeerRead: true,
+				});
+			});
+		}
+
+		test('a passive session read update keeps a concurrent change to the surfaced summary', async () => {
+			const { svc, session } = await createSessionWithReadPeer('normalized');
+			const sessionKey = session.toString();
+			unloadSession(svc, session);
+			const persisting = new DeferredPromise<void>();
+			const releasePersist = new DeferredPromise<void>();
+			const stateStore = getTestSessionStateStore(svc);
+			const writeMetadata = stateStore.writeMetadata;
+			stateStore.writeMetadata = async (target, resource, values, flush) => {
+				if (Object.hasOwn(values, AH_META_IS_READ_DB_KEY) && !persisting.isSettled) {
+					persisting.complete();
+					await releasePersist.p;
+				}
+				return writeMetadata.call(stateStore, target, resource, values, flush);
+			};
+			const unread = clientEcho(svc, 1);
+			svc.dispatchAction(sessionKey, { type: ActionType.SessionIsReadChanged, isRead: false }, 'test-client', 1);
+			await persisting.p;
+			// A surfaced-summary update outside the passive sequencer, as the saved-chat archive makes.
+			getStateManager(svc).setSurfacedSessionStatusFlag(sessionKey, SessionStatus.IsArchived, true);
+			releasePersist.complete();
+			await unread;
+
+			const status = getStateManager(svc).getSurfacedSessionSummary(sessionKey)?.status;
+			assert.deepStrictEqual({ read: isSessionStatusRead(status), archived: isSessionStatusArchived(status) }, { read: false, archived: true });
+		});
+
+		/** Announces an unloaded session to the listing with the given chats. */
+		function announceUnloadedSession(svc: AgentService, session: string, status: SessionStatus, chats: NonNullable<SessionSummary['chats']>, meta?: SessionSummary['_meta']): void {
+			const summary: SessionSummary = {
+				resource: session,
+				provider: 'copilot',
+				title: 'Unloaded',
+				status,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+				chats,
+				defaultChat: chats[0].resource,
+				...(meta !== undefined ? { _meta: meta } : {}),
+			};
+			getStateManager(svc).announceSurfacedSession(summary);
+			getStateManager(svc).prepareSessionSummariesForListing([summary]);
+		}
+
+		function createReadToggleService(): { svc: AgentService; restoreCalls: string[] } {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			registerTestAgentProvider(svc, disposables.add(new MockAgent('copilot')));
+			const restoreCalls: string[] = [];
+			svc.restoreSession = async resource => { restoreCalls.push(resource.toString()); };
+			(svc as unknown as { _restoreSubagentSession(session: string): Promise<void> })._restoreSubagentSession = async resource => { restoreCalls.push(resource); };
+			return { svc, restoreCalls };
+		}
+
+		test('a chat read toggle treats a listed chat without status as having its session status', async () => {
+			const { svc, restoreCalls } = createReadToggleService();
+			const session = AgentSession.uri('copilot', 'statusless').toString();
+			const peer = buildChatUri(session, 'peer');
+			const statusless = buildChatUri(session, 'statusless');
+			announceUnloadedSession(svc, session, SessionStatus.Idle, [
+				{ resource: buildDefaultChatUri(session), title: '', status: SessionStatus.Idle | SessionStatus.IsRead },
+				{ resource: peer, title: 'Peer', status: SessionStatus.Idle },
+				{ resource: statusless, title: 'Statusless' },
+			]);
+
+			const echo = clientEcho(svc, 1);
+			svc.dispatchAction(peer, { type: ActionType.ChatIsReadChanged, isRead: true }, 'test-client', 1);
+			const envelope = await echo;
+
+			const surfaced = getStateManager(svc).getSurfacedSessionSummary(session);
+			assert.deepStrictEqual({
+				rejectionReason: envelope.rejectionReason,
+				restoreCalls,
+				peerRead: isSessionStatusRead(surfaced?.chats?.find(chat => chat.resource === peer)?.status),
+				sessionRead: isSessionStatusRead(surfaced?.status),
+			}, { rejectionReason: undefined, restoreCalls: [], peerRead: true, sessionRead: false });
+		});
+
+		test('a chat read toggle on a hidden chat of an unloaded session leaves the session read aggregate untouched', async () => {
+			const { svc, restoreCalls } = createReadToggleService();
+			const session = AgentSession.uri('copilot', 'hidden-chat').toString();
+			const hidden = buildChatUri(session, 'hidden');
+			announceUnloadedSession(svc, session, SessionStatus.Idle | SessionStatus.IsRead, [
+				{ resource: buildDefaultChatUri(session), title: '', status: SessionStatus.Idle | SessionStatus.IsRead },
+				{ resource: hidden, title: 'Hidden', status: SessionStatus.Idle | SessionStatus.IsRead, interactivity: ChatInteractivity.Hidden },
+			]);
+
+			const echo = clientEcho(svc, 1);
+			svc.dispatchAction(hidden, { type: ActionType.ChatIsReadChanged, isRead: false }, 'test-client', 1);
+			await echo;
+
+			const surfaced = getStateManager(svc).getSurfacedSessionSummary(session);
+			assert.deepStrictEqual({
+				restoreCalls,
+				hiddenRead: isSessionStatusRead(surfaced?.chats?.find(chat => chat.resource === hidden)?.status),
+				sessionRead: isSessionStatusRead(surfaced?.status),
+			}, { restoreCalls: [], hiddenRead: false, sessionRead: true });
+		});
+
+		test('a chat read toggle falls back to restoring a subagent or an adoptable legacy session', async () => {
+			const { svc, restoreCalls } = createReadToggleService();
+			const parent = AgentSession.uri('copilot', 'fallback-parent').toString();
+			const subagent = buildSubagentSessionUri(parent, 'tool-call');
+			const subagentChat = buildChatUri(subagent, 'worker');
+			const adoptable = AgentSession.uri('copilot', 'fallback-adoptable').toString();
+			const adoptableChat = buildChatUri(adoptable, 'peer');
+			announceUnloadedSession(svc, subagent, SessionStatus.Idle, [{ resource: subagentChat, title: 'Worker', status: SessionStatus.Idle }]);
+			announceUnloadedSession(svc, adoptable, SessionStatus.Idle, [
+				{ resource: buildDefaultChatUri(adoptable), title: '', status: SessionStatus.Idle },
+				{ resource: adoptableChat, title: 'Peer', status: SessionStatus.Idle },
+			], withSessionEhcliAdoptable(undefined));
+
+			for (const [index, chat] of [subagentChat, adoptableChat].entries()) {
+				const echo = clientEcho(svc, index + 1);
+				svc.dispatchAction(chat, { type: ActionType.ChatIsReadChanged, isRead: true }, 'test-client', index + 1);
+				await echo;
+			}
+
+			assert.deepStrictEqual(restoreCalls, [subagent, adoptable]);
+		});
+
+		test('a chat read toggle falls back to restoring a session whose summary does not list the chat', async () => {
+			const { svc, session, peer } = await createSessionWithReadPeer('normalized');
+			const sessionKey = session.toString();
+			unloadSession(svc, session);
+			const stateManager = getStateManager(svc);
+			const surfaced = stateManager.getSurfacedSessionSummary(sessionKey)!;
+			// The central catalog still records the owner, but the listed summary no longer carries the chat.
+			stateManager.setSurfacedSessionStatusAndChats(sessionKey, surfaced.status, surfaced.chats!.filter(chat => chat.resource !== peer));
+			const restoreCalls: string[] = [];
+			const restoreSession = svc.restoreSession;
+			svc.restoreSession = async (resource, onRestoreStart) => {
+				restoreCalls.push(resource.toString());
+				return restoreSession.call(svc, resource, onRestoreStart);
+			};
+
+			const echo = clientEcho(svc, 1);
+			svc.dispatchAction(peer, { type: ActionType.ChatIsReadChanged, isRead: false }, 'test-client', 1);
+			const envelope = await echo;
+
+			assert.deepStrictEqual({
+				rejectionReason: envelope.rejectionReason,
+				restoreCalls,
+				peerRead: isSessionStatusRead(stateManager.getSessionState(sessionKey)?.chats.find(chat => chat.resource === peer)?.status),
+			}, { rejectionReason: undefined, restoreCalls: [sessionKey], peerRead: false });
+		});
+
 		test('rejects independent archive actions for tool chats', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = new MockAgent('copilot');
@@ -5414,6 +6124,37 @@ suite('AgentService (node dispatcher)', () => {
 				controllerState,
 			});
 		});
+
+		for (const scenario of ['replacement', 'stale echo', 'forged patch', 'disposed chat'] as const) {
+			test(`protects host model reports from client ${scenario}`, async () => {
+				const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				const agent = new MockAgent('copilot');
+				disposables.add(toDisposable(() => agent.dispose()));
+				registerTestAgentProvider(svc, agent);
+				const session = await svc.createSession({ legacyChatUris: true, provider: 'copilot' });
+				const state = getStateManager(svc);
+				const oldReport = { models: {}, current: { id: 'old-model' } };
+				const currentReport = { 'custom-chat:/one': scenario === 'disposed chat' ? null : { models: {}, current: { id: 'current-model' } }, 'custom-chat:/peer': { models: {} } };
+				state.setSessionConfig(session.toString(), {
+					schema: { type: 'object', properties: { [agentModelConfigurationReportKey]: { type: 'object', title: 'Runtime model configuration', readOnly: true } } },
+					values: { [agentModelConfigurationReportKey]: currentReport },
+				});
+				const response = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+				svc.dispatchAction(session.toString(), {
+					type: ActionType.SessionConfigChanged,
+					config: scenario === 'replacement' ? {} : { [agentModelConfigurationReportKey]: { 'custom-chat:/one': oldReport } },
+					replace: scenario !== 'forged patch',
+				}, 'agents-window-client', 1, AgentHostClientType.AgentsWindow);
+				const envelope = await response;
+				assert.deepStrictEqual({
+					rejectionReason: envelope.rejectionReason,
+					report: state.getSessionState(session.toString())?.config?.values[agentModelConfigurationReportKey],
+				}, {
+					rejectionReason: scenario === 'replacement' ? undefined : `Session config keys are host-owned and cannot be set by a client: ${agentModelConfigurationReportKey}.`,
+					report: currentReport,
+				});
+			});
+		}
 
 		test('keeps Agent Merge settings across a client config replacement that omits them', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
@@ -8690,7 +9431,7 @@ suite('AgentService (node dispatcher)', () => {
 			await svc.createChat(session, primaryPeer, { title: 'Primary Folder', workingDirectories: [primary] });
 			const stateManager = getStateManager(svc);
 			const sessionFolders = async () => {
-				await timeout(10);
+				await whenArchivedChatWorkspaceUpdatesSettled(svc, session);
 				return stateManager.getSessionSummary(session.toString())?.workingDirectories;
 			};
 
@@ -8723,6 +9464,214 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('subagents of unarchived chats keep only their spawning chat\'s folders attached when a peer chat is archived', async () => {
+			class MultiChatAgent extends MockAgent {
+				override async createChat(): Promise<IAgentCreateChatResult> {
+					return { providerData: 'peer-backing' };
+				}
+			}
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MultiChatAgent('copilot', {
+				multipleChats: { fork: true },
+				multipleWorkingDirectories: { immutablePrimary: true },
+			}));
+			registerTestAgentProvider(svc, agent);
+			const primary = URI.file('/workspace/primary');
+			const other = URI.file('/workspace/other');
+			const session = await svc.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: [primary] });
+			const peer = URI.parse(buildChatUri(session, 'other-folder-peer'));
+			await svc.createChat(session, peer, { title: 'Other Folder', workingDirectories: [await svc.addSessionWorkingDirectoryForChat(session, other, { isolation: 'folder' })] });
+			const stateManager = getStateManager(svc);
+			const defaultChat = buildDefaultChatUri(session);
+			// Subagents work in the folders of the chat that spawned them, whether they inherit them or were pinned to the complete session workspace.
+			stateManager.addChat(session.toString(), buildChatUri(session, 'main-subagent'), defaultChat, { origin: { kind: ChatOriginKind.Tool, chat: defaultChat, toolCallId: 'main-tool' } });
+			stateManager.addChat(session.toString(), buildChatUri(session, 'pinned-main-subagent'), defaultChat, { origin: { kind: ChatOriginKind.Tool, chat: defaultChat, toolCallId: 'pinned-main-tool' }, workingDirectories: [primary.toString(), other.toString()] });
+			stateManager.addChat(session.toString(), buildChatUri(session, 'peer-subagent'), peer.toString(), { origin: { kind: ChatOriginKind.Tool, chat: peer.toString(), toolCallId: 'peer-tool' }, workingDirectories: [primary.toString(), other.toString()] });
+
+			svc.dispatchAction(peer.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'client', 1);
+
+			await whenArchivedChatWorkspaceUpdatesSettled(svc, session);
+
+			assert.deepStrictEqual(stateManager.getSessionSummary(session.toString())?.workingDirectories, [primary.toString()]);
+		});
+
+		test('archiving a chat also detaches the folders of the subagents and side chats it spawned', async () => {
+			class MultiChatAgent extends MockAgent {
+				override async createChat(): Promise<IAgentCreateChatResult> {
+					return { providerData: 'peer-backing' };
+				}
+			}
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MultiChatAgent('copilot', {
+				multipleChats: { fork: true },
+				multipleWorkingDirectories: { immutablePrimary: true },
+			}));
+			registerTestAgentProvider(svc, agent);
+			const primary = URI.file('/workspace/primary');
+			const other = URI.file('/workspace/other');
+			const subagentOnly = URI.file('/workspace/subagent-only');
+			const sideChatOnly = URI.file('/workspace/side-chat-only');
+			const session = await svc.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: [primary] });
+			const peer = URI.parse(buildChatUri(session, 'other-folder-peer'));
+			await svc.createChat(session, peer, { title: 'Other Folder', workingDirectories: [await svc.addSessionWorkingDirectoryForChat(session, other, { isolation: 'folder' })] });
+			const subagentDirectory = await svc.addSessionWorkingDirectoryForChat(session, subagentOnly, { isolation: 'folder' });
+			const sideChatDirectory = await svc.addSessionWorkingDirectoryForChat(session, sideChatOnly, { isolation: 'folder' });
+			const stateManager = getStateManager(svc);
+			stateManager.addChat(session.toString(), buildChatUri(session, 'peer-subagent'), peer.toString(), { origin: { kind: ChatOriginKind.Tool, chat: peer.toString(), toolCallId: 'peer-tool' }, workingDirectories: [primary.toString(), subagentDirectory.toString()] });
+			stateManager.addChat(session.toString(), buildChatUri(session, 'peer-side-chat'), peer.toString(), { origin: { kind: ChatOriginKind.SideChat, chat: peer.toString(), turnId: 'turn' }, workingDirectories: [sideChatDirectory.toString()] });
+
+			svc.dispatchAction(peer.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'client', 1);
+			await whenArchivedChatWorkspaceUpdatesSettled(svc, session);
+			const afterArchive = stateManager.getSessionSummary(session.toString())?.workingDirectories;
+			svc.dispatchAction(peer.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: false }, 'client', 2);
+			await whenArchivedChatWorkspaceUpdatesSettled(svc, session);
+			const afterUnarchive = stateManager.getSessionSummary(session.toString())?.workingDirectories;
+
+			assert.deepStrictEqual({ afterArchive, afterUnarchive }, {
+				afterArchive: [primary.toString()],
+				// A subagent's folders are never considered, so only the chat's and its side chat's come back.
+				afterUnarchive: [primary.toString(), other.toString(), sideChatOnly.toString()],
+			});
+		});
+
+		test('deleting a peer chat detaches its folders that no remaining chat uses', async () => {
+			class MultiChatAgent extends MockAgent {
+				override async createChat(): Promise<IAgentCreateChatResult> {
+					return { providerData: 'peer-backing' };
+				}
+			}
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MultiChatAgent('copilot', {
+				multipleChats: { fork: true },
+				multipleWorkingDirectories: { immutablePrimary: true },
+			}));
+			registerTestAgentProvider(svc, agent);
+			const primary = URI.file('/workspace/primary');
+			const other = URI.file('/workspace/other');
+			const shared = URI.file('/workspace/shared');
+			const session = await svc.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: [primary] });
+			const deleted = URI.parse(buildChatUri(session, 'deleted-peer'));
+			const sharing = URI.parse(buildChatUri(session, 'sharing-peer'));
+			const otherDirectory = await svc.addSessionWorkingDirectoryForChat(session, other, { isolation: 'folder' });
+			const sharedDirectory = await svc.addSessionWorkingDirectoryForChat(session, shared, { isolation: 'folder' });
+			await svc.createChat(session, deleted, { title: 'Deleted', workingDirectories: [otherDirectory, sharedDirectory] });
+			await svc.createChat(session, sharing, { title: 'Sharing', workingDirectories: [sharedDirectory] });
+
+			await svc.disposeChat(session, deleted);
+
+			assert.deepStrictEqual(getStateManager(svc).getSessionSummary(session.toString())?.workingDirectories, [primary.toString(), shared.toString()]);
+		});
+
+		test('a chat being created keeps its folder attached while a chat deletion detaches folders', async () => {
+			const deletionGate = new DeferredPromise<void>();
+			class MultiChatAgent extends MockAgent {
+				override async createChat(): Promise<IAgentCreateChatResult> {
+					return { providerData: 'peer-backing' };
+				}
+				override async disposeChat(): Promise<void> {
+					await deletionGate.p;
+				}
+			}
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MultiChatAgent('copilot', {
+				multipleChats: { fork: true },
+				multipleWorkingDirectories: { immutablePrimary: true },
+			}));
+			registerTestAgentProvider(svc, agent);
+			const primary = URI.file('/workspace/primary');
+			const other = URI.file('/workspace/other');
+			const session = await svc.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: [primary] });
+			const deleted = URI.parse(buildChatUri(session, 'deleted-peer'));
+			const created = URI.parse(buildChatUri(session, 'created-peer'));
+			const otherDirectory = await svc.addSessionWorkingDirectoryForChat(session, other, { isolation: 'folder' });
+			await svc.createChat(session, deleted, { title: 'Deleted', workingDirectories: [otherDirectory] });
+
+			// The deletion holds the catalog while the new chat validates its folder and waits to be published.
+			const deleting = svc.disposeChat(session, deleted);
+			await timeout(0);
+			const creating = svc.createChat(session, created, { title: 'Created', workingDirectories: [otherDirectory] });
+			deletionGate.complete();
+			await Promise.all([deleting, creating]);
+			await whenArchivedChatWorkspaceUpdatesSettled(svc, session);
+
+			const stateManager = getStateManager(svc);
+			assert.deepStrictEqual({
+				session: stateManager.getSessionSummary(session.toString())?.workingDirectories,
+				created: stateManager.getSessionState(session.toString())?.chats.find(chat => chat.resource === created.toString())?.workingDirectories,
+			}, {
+				session: [primary.toString(), other.toString()],
+				created: [other.toString()],
+			});
+		});
+
+		test('a folder prepared for a new chat stays attached until the chat is created', async () => {
+			class MultiChatAgent extends MockAgent {
+				override async createChat(): Promise<IAgentCreateChatResult> {
+					return { providerData: 'peer-backing' };
+				}
+			}
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MultiChatAgent('copilot', {
+				multipleChats: { fork: true },
+				multipleWorkingDirectories: { immutablePrimary: true },
+			}));
+			registerTestAgentProvider(svc, agent);
+			const primary = URI.file('/workspace/primary');
+			const other = URI.file('/workspace/other');
+			const session = await svc.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: [primary] });
+			const archived = URI.parse(buildChatUri(session, 'archived-peer'));
+			const created = URI.parse(buildChatUri(session, 'created-peer'));
+			await svc.createChat(session, archived, { title: 'Archived', workingDirectories: [await svc.addSessionWorkingDirectoryForChat(session, other, { isolation: 'folder' })] });
+			const stateManager = getStateManager(svc);
+
+			const prepared = await svc.prepareChatWorkingDirectory(session, other, { isolation: 'folder' });
+			svc.dispatchAction(archived.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'client', 1);
+			await whenArchivedChatWorkspaceUpdatesSettled(svc, session);
+			const whilePrepared = stateManager.getSessionSummary(session.toString())?.workingDirectories;
+			await svc.createChat(session, created, { title: 'Created', workingDirectories: [prepared.directory] });
+			await prepared.release();
+
+			assert.deepStrictEqual({ whilePrepared, afterCreation: stateManager.getSessionSummary(session.toString())?.workingDirectories }, {
+				whilePrepared: [primary.toString(), other.toString()],
+				afterCreation: [primary.toString(), other.toString()],
+			});
+		});
+
+		test('deleting a peer chat of a session that is not loaded detaches its unused folders', async () => {
+			class MultiChatAgent extends MockAgent {
+				override async createChat(): Promise<IAgentCreateChatResult> {
+					return { providerData: 'peer-backing' };
+				}
+			}
+			const db = new TestSessionDatabase();
+			const catalogDatabase = disposables.add(new AgentHostDatabase(':memory:'));
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase));
+			const agent = disposables.add(new MultiChatAgent('copilot', {
+				multipleChats: { fork: true },
+				multipleWorkingDirectories: { immutablePrimary: true },
+			}));
+			registerTestAgentProvider(svc, agent);
+			const primary = URI.file('/workspace/primary');
+			const other = URI.file('/workspace/other');
+			const session = await svc.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: [primary] });
+			const peer = URI.parse(buildChatUri(session, 'other-folder-peer'));
+			await svc.createChat(session, peer, { title: 'Other Folder', workingDirectories: [await svc.addSessionWorkingDirectoryForChat(session, other, { isolation: 'folder' })] });
+			agent.sessionMetadataOverrides = { workingDirectories: [primary] };
+			const stateManager = getStateManager(svc);
+			stateManager.deleteSession(session.toString());
+
+			await svc.disposeChat(session, peer);
+			const afterDeletion = stateManager.getSessionSummary(session.toString())?.workingDirectories;
+			stateManager.deleteSession(session.toString());
+			await svc.restoreSession(session);
+
+			assert.deepStrictEqual({ afterDeletion, afterRestore: stateManager.getSessionSummary(session.toString())?.workingDirectories }, {
+				afterDeletion: [primary.toString()],
+				afterRestore: [primary.toString()],
+			});
+		});
+
 		test('archiving a peer chat in its own worktree detaches the worktree without deleting it', async () => {
 			const perSession = createPerSessionDataService();
 			const repository = URI.file('/workspace/repository');
@@ -8734,7 +9683,17 @@ suite('AgentService (node dispatcher)', () => {
 				getWorktreeRoots: async () => [repository, worktree],
 				getDefaultBranch: async () => ({ name: 'main', startPoint: 'origin/main' }),
 			};
-			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, gitService));
+			const releaseCatalogReads = new DeferredPromise<void>();
+			let catalogReads: Promise<void> | undefined;
+			class SlowCatalogDatabase extends AgentHostDatabase {
+				override async readCatalogSnapshot(...args: Parameters<AgentHostDatabase['readCatalogSnapshot']>) {
+					await catalogReads;
+					return super.readCatalogSnapshot(...args);
+				}
+			}
+			const catalogDatabase = disposables.add(new SlowCatalogDatabase(':memory:'));
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, gitService,
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase));
 			class MultiChatAgent extends MockAgent {
 				override async createChat(): Promise<IAgentCreateChatResult> {
 					return { providerData: 'peer-backing' };
@@ -8758,18 +9717,22 @@ suite('AgentService (node dispatcher)', () => {
 			await prepared.associateWithChat?.(peer);
 			await svc.createChat(session, peer, { title: 'Worktree', workingDirectories: [prepared.directory] });
 			const stateManager = getStateManager(svc);
-			const snapshot = async () => {
-				await timeout(10);
-				return {
-					session: stateManager.getSessionSummary(session.toString())?.workingDirectories,
-					peer: stateManager.getSessionState(session.toString())?.chats.find(chat => chat.resource === peer.toString())?.workingDirectories,
-					records: (await readSessionAdditionalWorktrees(getTestSessionStateStore(svc), session)).map(record => record.handle),
-				};
-			};
+			const snapshot = async () => ({
+				session: stateManager.getSessionSummary(session.toString())?.workingDirectories,
+				peer: stateManager.getSessionState(session.toString())?.chats.find(chat => chat.resource === peer.toString())?.workingDirectories,
+				records: (await readSessionAdditionalWorktrees(getTestSessionStateStore(svc), session)).map(record => record.handle),
+			});
 
+			// Unarchive while the archive is still persisting the detached worktree, as with slow disk I/O.
+			catalogReads = releaseCatalogReads.p;
+			const detached = Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope, envelope => envelope.action.type === ActionType.SessionWorkingDirectoryRemoved));
 			svc.dispatchAction(peer.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'client', 1);
+			await detached;
 			const afterArchive = await snapshot();
 			svc.dispatchAction(peer.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: false }, 'client', 2);
+			catalogReads = undefined;
+			releaseCatalogReads.complete();
+			await whenArchivedChatWorkspaceUpdatesSettled(svc, session);
 			const afterUnarchive = await snapshot();
 
 			assert.deepStrictEqual({ afterArchive, afterUnarchive, deleted }, {
@@ -15706,6 +16669,52 @@ suite('AgentService (node dispatcher)', () => {
 					afterRestore: [
 						{ resource: buildDefaultChatUri(session), title: 'Session' },
 						{ resource: peer, title: 'Cached peer' },
+					],
+				});
+			});
+
+			test('cached peer imports keep an archived chat\'s recorded read state', async () => {
+				const session = AgentSession.uri('copilot', 'cached-peer-read-state');
+				const unread = URI.parse(buildChatUri(session, 'unread'));
+				const unrecorded = URI.parse(buildChatUri(session, 'unrecorded'));
+				const seed = async () => {
+					const database = new TransientRegistryWriteDatabase();
+					await database.registerSessionV2(session.toString(), { provider: 'copilot', startTime: 1, source: 'discovery' }, { checkTombstone: true });
+					assert.strictEqual(await database.upsertSessionV2(catalogEnvelope(session, {
+						modifiedTime: 1,
+						summary: 'Cached peers',
+						isRead: false,
+						isArchived: false,
+						workingDirectories: [],
+						chats: [
+							{ uri: buildDefaultChatUri(session), order: 0, kind: 'default' },
+							{ uri: unread.toString(), order: 1, kind: 'peer', archived: true, isRead: false },
+							{ uri: unrecorded.toString(), order: 2, kind: 'peer', archived: true },
+						],
+					}, 'peer-generation', 0), undefined), 'applied');
+					return {
+						agent: disposables.add(new DirectImportAgent('copilot')),
+						internals: createService(database, createPerSessionDataService().service) as unknown as {
+							_readOrImportPeerChatCatalogWithoutLocalDatabase(agent: IAgent, session: URI): Promise<readonly IPersistedPeerChat[]>;
+							_readOrMigrateLegacyPeerChatCatalog(agent: IAgent, session: URI): Promise<readonly IPersistedPeerChat[]>;
+						},
+					};
+				};
+				const readState = (peers: readonly IPersistedPeerChat[]) => peers.map(peer => ({ uri: peer.uri, isRead: peer.isRead, archived: peer.archived }));
+
+				const withoutLocal = await seed();
+				const withoutLocalDatabase = readState(await withoutLocal.internals._readOrImportPeerChatCatalogWithoutLocalDatabase(withoutLocal.agent, session));
+				const legacy = await seed();
+				const legacyMigration = readState(await legacy.internals._readOrMigrateLegacyPeerChatCatalog(legacy.agent, session));
+
+				assert.deepStrictEqual({ withoutLocalDatabase, legacyMigration }, {
+					withoutLocalDatabase: [
+						{ uri: unread.toString(), isRead: false, archived: true },
+						{ uri: unrecorded.toString(), isRead: undefined, archived: true },
+					],
+					legacyMigration: [
+						{ uri: unread.toString(), isRead: false, archived: true },
+						{ uri: unrecorded.toString(), isRead: true, archived: true },
 					],
 				});
 			});
@@ -22816,9 +23825,7 @@ suite('AgentService (node dispatcher)', () => {
 				modifiedAt: new Date().toISOString(),
 			});
 
-			localService.dispatchAction(sessionStr, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 1, AgentHostClientType.EditorWindow);
-			await timeout(25);
-			await timeout(25);
+			await localService.dispatchAction(sessionStr, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 1, AgentHostClientType.EditorWindow);
 
 			assert.deepStrictEqual({
 				persisted: await db.getMetadata(AH_META_IS_ARCHIVED_DB_KEY),
@@ -22847,9 +23854,7 @@ suite('AgentService (node dispatcher)', () => {
 				modifiedAt: new Date().toISOString(),
 			});
 
-			localService.dispatchAction(sessionStr, { type: ActionType.SessionIsArchivedChanged, isArchived: false }, 'test-client', 1, AgentHostClientType.EditorWindow);
-			await timeout(25);
-			await timeout(25);
+			await localService.dispatchAction(sessionStr, { type: ActionType.SessionIsArchivedChanged, isArchived: false }, 'test-client', 1, AgentHostClientType.EditorWindow);
 
 			assert.deepStrictEqual({
 				persisted: await db.getMetadata(AH_META_IS_ARCHIVED_DB_KEY),
@@ -22940,9 +23945,7 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(localService, disposables.add(new MockAgent('copilot')));
 
 			const sessionStr = AgentSession.uri('copilot', 'never-surfaced').toString();
-			localService.dispatchAction(sessionStr, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 1, AgentHostClientType.EditorWindow);
-			await timeout(0);
-			await timeout(0);
+			await localService.dispatchAction(sessionStr, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 1, AgentHostClientType.EditorWindow);
 
 			assert.deepStrictEqual({
 				metadataWrites: db.setMetadataCalls,
@@ -22980,9 +23983,10 @@ suite('AgentService (node dispatcher)', () => {
 
 			// Both are queued while the session is still un-restored; the first restores it.
 			localService.dispatchAction(sessionStr, { type: ActionType.SessionTitleChanged, title: 'Renamed' }, 'test-client', 1, AgentHostClientType.EditorWindow);
-			localService.dispatchAction(sessionStr, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 2, AgentHostClientType.EditorWindow);
+			const archived = localService.dispatchAction(sessionStr, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 2, AgentHostClientType.EditorWindow);
 			await evicted;
-			await timeout(25);
+			await archived;
+			await getTestSessionStateStore(localService).whenIdle(undefined);
 
 			assert.deepStrictEqual({
 				resident: !!stateManager.getSessionState(sessionStr),
@@ -27288,6 +28292,21 @@ suite('AgentService (node dispatcher)', () => {
 
 			const parentChat = URI.parse(buildDefaultChatUri(session.toString()));
 			const spawned = URI.parse(buildChatUri(session, 'spawned-1'));
+			service.dispatchAction(parentChat.toString(), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'go', origin: { kind: MessageKind.User } },
+			}, 'client-test', 1);
+			service.dispatchAction(parentChat.toString(), {
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'tc-task-1',
+				toolName: 'task',
+				displayName: 'Task',
+				contributor: undefined,
+				_meta: { toolKind: 'subagent', subagentChatUri: buildSubagentChatUri(session.toString(), 'tc-task-1') },
+			}, 'client-test', 2);
 			agent.fireSpawn({
 				session,
 				chat: spawned,
@@ -27335,12 +28354,35 @@ suite('AgentService (node dispatcher)', () => {
 	suite('subagent membership sequencing', () => {
 
 		/** Fires a parent turn on the session's default chat. */
-		function startParentTurn(session: URI, turnId: string): void {
+		function startParentTurn(session: URI, turnId: string): string {
+			const defaultChat = getStateManager(service).getDefaultChat(session.toString());
+			assert.ok(defaultChat);
 			service.dispatchAction(
-				buildDefaultChatUri(session.toString()),
+				defaultChat,
 				{ type: ActionType.ChatTurnStarted, turnId, startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'go', origin: { kind: MessageKind.User } } },
 				'client-test', 1,
 			);
+			return defaultChat;
+		}
+
+		class BridgingSubagentAgent extends MockAgent {
+			private readonly _onDidSpawnChat = new Emitter<IAgentSpawnChatEvent>();
+			override readonly onDidSpawnChat = this._onDidSpawnChat.event;
+			private readonly _bridge = this.onDidChatProgress(signal => {
+				const e = SubagentChatSignal.toSpawnEvent(signal, chat => {
+					const owner = getStateManager(service).getChatOwner(chat);
+					return owner === undefined ? undefined : { owner, format: 'shaped' };
+				});
+				if (e) {
+					this._onDidSpawnChat.fire(e);
+				}
+			});
+
+			override dispose(): void {
+				this._bridge.dispose();
+				this._onDidSpawnChat.dispose();
+				super.dispose();
+			}
 		}
 
 		test('a subagent_started signal yields exactly one catalog entry with the parent origin, title, and a started turn', async () => {
@@ -27429,23 +28471,6 @@ suite('AgentService (node dispatcher)', () => {
 			// progress sequencer and the agent's spawn bridge both funnel to the
 			// idempotent _onChatSpawned, so the catalog must gain exactly
 			// one entry no matter which listener runs first.
-			class BridgingSubagentAgent extends MockAgent {
-				private readonly _onDidSpawnChat = new Emitter<IAgentSpawnChatEvent>();
-				override readonly onDidSpawnChat = this._onDidSpawnChat.event;
-				private readonly _bridge = this.onDidChatProgress(signal => {
-					const e = SubagentChatSignal.toSpawnEvent(signal, chat => { const owner = mintedTestChatOwner(chat); return owner === undefined ? undefined : { owner, format: 'shaped' }; });
-					if (e) {
-						this._onDidSpawnChat.fire(e);
-					}
-				});
-
-				override dispose(): void {
-					this._bridge.dispose();
-					this._onDidSpawnChat.dispose();
-					super.dispose();
-				}
-			}
-
 			const agent = new BridgingSubagentAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
 			registerTestAgentProvider(service, agent);
