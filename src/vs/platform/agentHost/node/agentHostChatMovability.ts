@@ -50,11 +50,20 @@ interface ISourceSessionContext {
 	/** Chats that run Agent Merge for a folder of the session. */
 	readonly agentMergeChats: ReadonlySet<string>;
 	/** The session's chats by resource. */
-	readonly summaries: ReadonlyMap<ProtocolURI, ChatSummary>;
+	readonly summaries: Map<ProtocolURI, ChatSummary>;
 	/** The session's chats by the chat whose tool call spawned them. */
-	readonly children: ReadonlyMap<ProtocolURI, readonly ProtocolURI[]>;
+	readonly children: Map<ProtocolURI, ProtocolURI[]>;
 	/** The staying chats using each additional worktree recorded for a chat, built on first use (see {@link additionalWorktreeUsers}). */
-	worktreeUsers: ReadonlyMap<ISessionAdditionalWorktree, readonly ProtocolURI[]> | undefined;
+	worktreeUsers: Map<ISessionAdditionalWorktree, ProtocolURI[]> | undefined;
+}
+
+/**
+ * What one recompute of many chats shares, so it is linear in their number: each session's chats by resource (all a
+ * chat that isn't structurally eligible needs) and its full context, each built at most once and only when needed.
+ */
+class MovabilityPass {
+	readonly summaries = new Map<ProtocolURI, Map<ProtocolURI, ChatSummary> | undefined>();
+	readonly contexts = new Map<ProtocolURI, ISourceSessionContext | undefined>();
 }
 
 /** `chat` and the chats of its session whose recorded parent chain reaches it, from the session's {@link ISourceSessionContext.children}. */
@@ -119,6 +128,11 @@ export class AgentHostChatMovability extends Disposable {
 	 * after. A change of an input of a session's chats is published synchronously.
 	 */
 	private readonly _scheduler = this._register(new RunOnceScheduler(() => this._flush(), 0));
+	/**
+	 * The pass the restored chats of one session share while they register in one synchronous run (a restore registers
+	 * them one by one, each published at once): each registration adds its chat to it. Any other input drops it.
+	 */
+	private _registrationPass: { readonly session: ProtocolURI; readonly pass: MovabilityPass } | undefined;
 
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
@@ -128,36 +142,50 @@ export class AgentHostChatMovability extends Disposable {
 		super();
 		this._register(_stateManager.onDidRegisterChat(({ chat, session }) => {
 			// A chat its session already lists when it registers (a restored chat) is published at once.
-			if (_stateManager.getSessionState(session)?.chats.some(candidate => candidate.resource === chat)) {
-				this.update(chat);
+			const summary = _stateManager.getSessionState(session)?.chats.find(candidate => candidate.resource === chat);
+			if (summary) {
+				this.update(chat, this._registrationPassWith(session, chat, summary));
+			} else {
+				this._registrationPass = undefined;
 			}
 			this._schedule(chat, session);
 		}));
-		this._register(_stateManager.onDidUnregisterChat(({ session }) => this._schedule(undefined, session)));
+		this._register(_stateManager.onDidUnregisterChat(({ session }) => {
+			this._registrationPass = undefined;
+			this._schedule(undefined, session);
+		}));
 		// An owner change happens before the chat joins its new session's catalog.
 		this._register(_stateManager.onDidChangeChatOwner(({ chat, previous, current }) => {
+			this._registrationPass = undefined;
 			this._schedule(chat, current);
 			this._schedule(undefined, previous);
 		}));
-		this._register(_configurationService.onDidRootConfigChange(() => this._updateAll()));
+		this._register(_configurationService.onDidRootConfigChange(() => {
+			this._registrationPass = undefined;
+			this._updateAll();
+		}));
 		this._register(_stateManager.onDidEmitEnvelope(envelope => {
 			const action = envelope.action;
 			if (action.type === ActionType.SessionDefaultChatChanged || action.type === ActionType.SessionReady) {
-				for (const chat of _stateManager.getSessionState(envelope.channel)?.chats ?? []) {
-					this.update(chat.resource);
-				}
+				this._registrationPass = undefined;
+				this._updateSessionChats(envelope.channel);
 				this.updateSession(envelope.channel);
 			} else if (action.type === ActionType.SessionChatAdded || action.type === ActionType.SessionChatRemoved) {
+				this._registrationPass = undefined;
 				this._schedule(undefined, envelope.channel);
 			} else if (SESSION_INPUT_ACTIONS.has(action.type)) {
+				this._registrationPass = undefined;
 				this._updateSessionChats(envelope.channel);
 			} else if (action.type === ActionType.SessionChatUpdated && action.changes.workingDirectories !== undefined) {
+				this._registrationPass = undefined;
 				this.update(action.chat);
 			} else if (action.type === ActionType.ChatWorkingDirectorySet || action.type === ActionType.ChatWorkingDirectoryRemoved) {
+				this._registrationPass = undefined;
 				this.update(envelope.channel);
 			}
 		}));
 		this._register(_sources.conversions.onDidChangePending(chat => {
+			this._registrationPass = undefined;
 			// A session-wide change is recorded for the session's default chat: every chat of its session is affected.
 			const owner = _stateManager.getChatOwner(chat) ?? (_stateManager.getSessionState(chat) ? chat : undefined);
 			if (owner !== undefined) {
@@ -166,10 +194,12 @@ export class AgentHostChatMovability extends Disposable {
 		}));
 		this._register(_sources.sessionState.onDidChangeLoadedState(change => {
 			if (change.authority || change.values.some(key => WORKTREE_VALUES.has(key))) {
+				this._registrationPass = undefined;
 				this._updateSessionChats(change.session);
 			}
 		}));
 		this._register(_sources.catalogs.onDidChangeParkedSessions(session => {
+			this._registrationPass = undefined;
 			if (session === undefined) {
 				this._updateAll();
 			} else {
@@ -179,9 +209,9 @@ export class AgentHostChatMovability extends Disposable {
 	}
 
 	/** Publishes the current eligibility of `chat`. */
-	update(chat: ProtocolURI, contexts?: Map<ProtocolURI, ISourceSessionContext | undefined>): void {
+	update(chat: ProtocolURI, pass?: MovabilityPass): void {
 		const owner = this._stateManager.getChatOwner(chat);
-		const movable = owner === undefined ? undefined : this._isMovableIn(chat, owner, contexts);
+		const movable = owner === undefined ? undefined : this._isMovableIn(chat, owner, pass);
 		if (movable !== undefined) {
 			this._stateManager.setChatMovable(chat, movable);
 		}
@@ -215,22 +245,23 @@ export class AgentHostChatMovability extends Disposable {
 	}
 
 	/**
-	 * Linear in a pass: each session's context, with its chats indexed, is built once and reused for all its chats, so
-	 * a chat costs its own subtree, not its session's chats.
+	 * Linear in a pass: each session's chats and context are built once and reused for all its chats, so a chat costs
+	 * its own subtree, not its session's chats. A chat that isn't structurally eligible (moving chats is off, by default)
+	 * needs only its summary: no context is built for it.
 	 */
-	private _isMovableIn(chat: ProtocolURI, owner: ProtocolURI, contexts: Map<ProtocolURI, ISourceSessionContext | undefined> | undefined): boolean | undefined {
+	private _isMovableIn(chat: ProtocolURI, owner: ProtocolURI, pass: MovabilityPass | undefined): boolean | undefined {
 		const current = this._stateManager.getChatOwner(chat);
-		const currentContext = current === undefined ? undefined : this._context(current, contexts);
-		const summary = currentContext?.summaries.get(chat);
-		if (!summary || !currentContext) {
+		const summary = current === undefined ? undefined : this._listedSummary(current, chat, pass);
+		if (!summary || current === undefined) {
 			return undefined;
 		}
 		const structural = this._structuralEligibility(chat, owner, summary);
 		if (!isChatStructurallyMovable(structural)) {
 			return false;
 		}
-		const context = owner === current ? currentContext : this._context(owner, contexts);
-		if (!context) {
+		const currentContext = this._context(current, pass);
+		const context = owner === current ? currentContext : this._context(owner, pass);
+		if (!context || !currentContext) {
 			return false;
 		}
 		// A chat without folders of its own works in its current owner's; a move to `owner` pins those (`_movedChatFolders`).
@@ -250,13 +281,69 @@ export class AgentHostChatMovability extends Disposable {
 		});
 	}
 
-	private _context(session: ProtocolURI, contexts: Map<ProtocolURI, ISourceSessionContext | undefined> | undefined): ISourceSessionContext | undefined {
-		if (contexts?.has(session)) {
-			return contexts.get(session);
+	/** The summary of `chat` that `session` lists: from the pass's index of the session's chats, or found for a lone call. */
+	private _listedSummary(session: ProtocolURI, chat: ProtocolURI, pass: MovabilityPass | undefined): ChatSummary | undefined {
+		return pass ? this._passSummaries(session, pass)?.get(chat) : this._stateManager.getSessionState(session)?.chats.find(candidate => candidate.resource === chat);
+	}
+
+	private _passSummaries(session: ProtocolURI, pass: MovabilityPass): Map<ProtocolURI, ChatSummary> | undefined {
+		if (!pass.summaries.has(session)) {
+			const chats = this._stateManager.getSessionState(session)?.chats;
+			pass.summaries.set(session, chats && new Map(chats.map(chat => [chat.resource, chat])));
 		}
-		const context = this._sourceContext(session);
-		contexts?.set(session, context);
+		return pass.summaries.get(session);
+	}
+
+	private _context(session: ProtocolURI, pass: MovabilityPass | undefined): ISourceSessionContext | undefined {
+		if (pass?.contexts.has(session)) {
+			return pass.contexts.get(session);
+		}
+		const context = this._sourceContext(session, pass ? this._passSummaries(session, pass) : undefined);
+		pass?.contexts.set(session, context);
 		return context;
+	}
+
+	/**
+	 * The pass of the restored chats `session` registers in this synchronous run, with `chat` (which it lists) added to
+	 * what the pass already indexed: its summary, its parent's children, the worktrees it uses. Dropped at the end of
+	 * the run, and by any other input.
+	 */
+	private _registrationPassWith(session: ProtocolURI, chat: ProtocolURI, summary: ChatSummary): MovabilityPass {
+		const current = this._registrationPass;
+		if (current?.session !== session) {
+			const started = { session, pass: new MovabilityPass() };
+			this._registrationPass = started;
+			queueMicrotask(() => {
+				if (this._registrationPass === started) {
+					this._registrationPass = undefined;
+				}
+			});
+			return started.pass;
+		}
+		current.pass.summaries.get(session)?.set(chat, summary);
+		const context = current.pass.contexts.get(session);
+		if (context) {
+			const parent = this._stateManager.getChatParent(chat);
+			if (parent !== undefined) {
+				const siblings = context.children.get(parent);
+				if (!siblings) {
+					context.children.set(parent, [chat]);
+				} else if (!siblings.includes(chat)) {
+					siblings.push(chat);
+				}
+			}
+			if (context.worktreeUsers && summary.origin?.kind !== ChatOriginKind.Tool) {
+				for (const [worktree, users] of additionalWorktreeUsers(context.additionalWorktrees, [{ chat, folders: summary.workingDirectories ?? context.folders }])) {
+					const known = context.worktreeUsers.get(worktree);
+					if (!known) {
+						context.worktreeUsers.set(worktree, [...users]);
+					} else if (!known.includes(chat)) {
+						known.push(chat);
+					}
+				}
+			}
+		}
+		return current.pass;
 	}
 
 	/**
@@ -278,7 +365,7 @@ export class AgentHostChatMovability extends Disposable {
 	}
 
 	/** What the chats of `session` share, from in-memory state only; `undefined` when the session isn't loaded. */
-	private _sourceContext(session: ProtocolURI): ISourceSessionContext | undefined {
+	private _sourceContext(session: ProtocolURI, summaries: Map<ProtocolURI, ChatSummary> | undefined): ISourceSessionContext | undefined {
 		const state = this._stateManager.getSessionState(session);
 		if (!state) {
 			return undefined;
@@ -313,7 +400,7 @@ export class AgentHostChatMovability extends Disposable {
 			folders,
 			additionalWorktrees: parseSessionAdditionalWorktrees(snapshot?.values.get(ADDITIONAL_WORKTREES_METADATA_KEY)),
 			agentMergeChats,
-			summaries: new Map(state.chats.map(chat => [chat.resource, chat])),
+			summaries: summaries ?? new Map(state.chats.map(chat => [chat.resource, chat])),
 			children,
 			worktreeUsers: undefined,
 		};
@@ -337,9 +424,9 @@ export class AgentHostChatMovability extends Disposable {
 	 * its catalog, so nothing waits for them (unlike a chat being registered). `movable` is never stale after the change.
 	 */
 	private _updateSessionChats(session: ProtocolURI): void {
-		const contexts = new Map<ProtocolURI, ISourceSessionContext | undefined>();
+		const pass = new MovabilityPass();
 		for (const chat of this._stateManager.getSessionState(session)?.chats ?? []) {
-			this.update(chat.resource, contexts);
+			this.update(chat.resource, pass);
 		}
 	}
 
@@ -358,9 +445,9 @@ export class AgentHostChatMovability extends Disposable {
 		const sessions = [...this._pendingSessions];
 		this._pending.clear();
 		this._pendingSessions.clear();
-		const contexts = new Map<ProtocolURI, ISourceSessionContext | undefined>();
+		const pass = new MovabilityPass();
 		for (const chat of chats) {
-			this.update(chat, contexts);
+			this.update(chat, pass);
 		}
 		for (const session of sessions) {
 			this.updateSession(session);
@@ -368,10 +455,10 @@ export class AgentHostChatMovability extends Disposable {
 	}
 
 	private _updateAll(): void {
-		const contexts = new Map<ProtocolURI, ISourceSessionContext | undefined>();
+		const pass = new MovabilityPass();
 		for (const session of this._stateManager.getSessionUris()) {
 			for (const chat of this._stateManager.getSessionState(session)?.chats ?? []) {
-				this.update(chat.resource, contexts);
+				this.update(chat.resource, pass);
 			}
 			this.updateSession(session);
 		}

@@ -64,6 +64,28 @@ suite('AgentHostChatMovability', () => {
 		};
 	}
 
+	/** Counts the per-chat lookups a recompute makes, which a per-chat scan of the session's chats multiplies. */
+	class CountingStateManager extends AgentHostStateManager {
+		parentLookups = 0;
+		sessionLookups = 0;
+		override getChatParent(chat: ProtocolURI): string | undefined {
+			this.parentLookups++;
+			return super.getChatParent(chat);
+		}
+		override getSessionState(candidate: ProtocolURI) {
+			this.sessionLookups++;
+			return super.getSessionState(candidate);
+		}
+		/** The lookups since the last call, per registered chat of `session` (`perChat`) and beyond that (`overhead`). */
+		takeLookups(session: ProtocolURI): { readonly perChat: number; readonly overhead: number } {
+			const lookups = this.parentLookups + this.sessionLookups;
+			this.parentLookups = 0;
+			this.sessionLookups = 0;
+			const chats = super.getSessionState(session)!.chats.length;
+			return { perChat: Math.floor(lookups / chats), overhead: lookups % chats };
+		}
+	}
+
 	/** A source session with a peer, both sessions working in `/repo`, and moving chats enabled. */
 	async function setupStrict(workingDirectories?: string[]) {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
@@ -247,19 +269,6 @@ suite('AgentHostChatMovability', () => {
 	});
 
 	test('a recompute of every chat is linear in the number of chats, with or without additional worktrees recorded for a chat (perf, Block 5)', async () => {
-		/** Counts the per-chat lookups a pass makes, which a per-chat scan of the session's chats multiplies. */
-		class CountingStateManager extends AgentHostStateManager {
-			parentLookups = 0;
-			sessionLookups = 0;
-			override getChatParent(chat: ProtocolURI): string | undefined {
-				this.parentLookups++;
-				return super.getChatParent(chat);
-			}
-			override getSessionState(candidate: ProtocolURI) {
-				this.sessionLookups++;
-				return super.getSessionState(candidate);
-			}
-		}
 		const pass = async (chats: number, ownWorktree: boolean) => {
 			const store = new DisposableStore();
 			try {
@@ -300,13 +309,57 @@ suite('AgentHostChatMovability', () => {
 		};
 
 		const results = { none: [await pass(100, false), await pass(400, false)], ownWorktree: [await pass(100, true), await pass(400, true)] };
-		const linear = { perChat: 2, overhead: 9 };
+		const linear = { perChat: 1, overhead: 10 };
 		assert.deepStrictEqual(results, {
-			// Two passes (off, on): each looks up each chat's parent once, and its session a fixed number of times, whatever its size.
+			// Two passes: off looks up no chat's parent (no chat is eligible), on each chat's once; sessions a fixed number of times.
 			none: [{ ...linear, refused: false }, { ...linear, refused: false }],
 			// The first peer's own worktree, which staying chats use: refused (D2), at the same cost.
 			ownWorktree: [{ ...linear, refused: true }, { ...linear, refused: true }],
 		});
+	});
+
+	test('a session\'s chats published one by one, as a restore registers them or once the session is ready, cost a linear number of lookups, with moving chats off and on (perf, Block 5)', async () => {
+		const run = async (chats: number, enabled: boolean) => {
+			const store = new DisposableStore();
+			try {
+				const stateManager = store.add(new CountingStateManager(new NullLogService()));
+				const configuration = store.add(new AgentConfigurationService(stateManager, new NullLogService()));
+				const sources = new TestSources();
+				store.add(new AgentHostChatMovability(stateManager, configuration, sources));
+				stateManager.createSession(summary(session));
+				const firstPeer = buildChatUri(session, 'peer-0');
+				if (enabled) {
+					// The first peer's own worktree, which every other chat of the session also works in (D2).
+					sources.values.set(ADDITIONAL_WORKTREES_METADATA_KEY, JSON.stringify([{ handle: generateUuid(), workingDirectory: folder, repositoryRoot: folder, chat: firstPeer }]));
+					configuration.updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
+				}
+				await timeout(0);
+				stateManager.takeLookups(session);
+				// A restore registers the chats its session lists one by one, and publishes each at once.
+				for (let i = 0; i < chats; i++) {
+					const peer = buildChatUri(session, `peer-${i}`);
+					stateManager.registerRestoredChatSummary(session, peer, { storageResource: peer });
+					if (i % 10 === 0) {
+						const subagent = buildChatUri(session, `subagent-${i}`);
+						stateManager.registerRestoredChatSummary(session, subagent, { storageResource: subagent, origin: { kind: ChatOriginKind.Tool, chat: peer, toolCallId: `call-${i}` } });
+					}
+				}
+				const movable = (chat: string) => stateManager.getSessionState(session)!.chats.find(candidate => candidate.resource === chat)?.movable ?? false;
+				// Read without waiting, as a client of the session would right after the restore.
+				const restored = { ...stateManager.takeLookups(session), first: movable(firstPeer), last: movable(buildChatUri(session, `peer-${chats - 1}`)) };
+				stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+				return { restored, ready: stateManager.takeLookups(session) };
+			} finally {
+				store.dispose();
+			}
+		};
+
+		const results = { off: [await run(100, false), await run(400, false)], onWithWorktree: [await run(100, true), await run(400, true)] };
+		// Off: a restored chat costs the lookup of its session's listing only, and a ready session builds nothing per chat.
+		const off = { restored: { perChat: 1, overhead: 0, first: false, last: false }, ready: { perChat: 0, overhead: 5 } };
+		// On: the restore and the ready session each share one index of the session's chats; the first peer is refused (D2) at once.
+		const onWithWorktree = { restored: { perChat: 2, overhead: 1, first: false, last: true }, ready: { perChat: 2, overhead: 9 } };
+		assert.deepStrictEqual(results, { off: [off, off], onWithWorktree: [onWithWorktree, onWithWorktree] });
 	});
 
 	test('a chat that runs Agent Merge for a folder of its session is not movable until it stops', async () => {

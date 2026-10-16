@@ -94,7 +94,7 @@ export function sharedOwnAdditionalWorktree(additional: readonly ISessionAdditio
  * {@link sharedOwnAdditionalWorktree} checks the staying chats against, indexed once for every chat of a session.
  * `chats` are the chats that count as staying when they don't move (not tool chats), with their folders.
  */
-export function additionalWorktreeUsers(additional: readonly ISessionAdditionalWorktree[], chats: Iterable<{ readonly chat: string; readonly folders: readonly string[] }>): ReadonlyMap<ISessionAdditionalWorktree, readonly string[]> {
+export function additionalWorktreeUsers(additional: readonly ISessionAdditionalWorktree[], chats: Iterable<{ readonly chat: string; readonly folders: readonly string[] }>): Map<ISessionAdditionalWorktree, string[]> {
 	const users = new Map<ISessionAdditionalWorktree, string[]>();
 	const own = additional.filter(worktree => worktree.chat !== undefined);
 	if (own.length === 0) {
