@@ -19,6 +19,7 @@ import type { IAgentHostSavedChatDto, IAgentHostSavedChatContinuationResult } fr
 import { AgentHostAutonomousAutomationsCapabilityMetaKey } from './meta/agentHostAutomationsMeta.js';
 import { AgentHostChatUrisCapabilityMetaKey, AgentHostNativeImplementationMetaKey, AgentHostSessionUrisCapabilityMetaKey } from './meta/agentHostSessionUrisMeta.js';
 import { AgentHostDebugLogsCancellationCapabilityMetaKey } from './meta/agentHostDebugLogsMeta.js';
+import { AgentHostSerializedTerminalCreationCapabilityMetaKey } from './meta/agentHostTerminalMeta.js';
 
 export { supportsAgentHostArtifactRemoval } from './meta/agentHostArtifactRemovalMeta.js';
 export { supportsAgentHostDevContainers } from './meta/agentHostDevContainersMeta.js';
@@ -72,6 +73,7 @@ const AgentHostDetachedWorktreeCapabilityMetaKey = 'vscode.detachedWorktrees';
 
 /** Namespaced VS Code implementation capabilities carried alongside standardized AHP initialize capabilities. */
 export interface IAgentHostExtensionInitializeResultMeta extends Record<string, unknown> {
+	readonly [AgentHostSerializedTerminalCreationCapabilityMetaKey]?: true;
 	readonly [AgentHostDebugLogsCancellationCapabilityMetaKey]?: true;
 	readonly [AgentHostSessionUrisCapabilityMetaKey]?: true;
 	readonly [AgentHostChatUrisCapabilityMetaKey]?: true;
@@ -96,6 +98,7 @@ export interface IAgentHostExtensionInitializeResult extends InitializeResult {
 
 export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true, devContainers = false, timing = false, sessionImport = false, savedChat = false, savedChatContinuation = false): IAgentHostExtensionInitializeResultMeta {
 	return {
+		[AgentHostSerializedTerminalCreationCapabilityMetaKey]: true,
 		[AgentHostDebugLogsCancellationCapabilityMetaKey]: true,
 		[AgentHostSessionUrisCapabilityMetaKey]: true,
 		[AgentHostChatUrisCapabilityMetaKey]: true,
