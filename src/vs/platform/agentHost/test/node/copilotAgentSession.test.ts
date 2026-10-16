@@ -16490,11 +16490,11 @@ Use the attached image as context.
 				setAdvertisedAutoModeTiers(['balance', 'hydrafusion']);
 				mockSession.fire('session.model_change', { previousModel: 'auto', newModel: 'auto', autoTier: 'hydrafusion' });
 				await edit('advertised');
-				setAdvertisedAutoModeTiers([]);
+				setAdvertisedAutoModeTiers(undefined);
 				mockSession.fire('session.model_change', { previousModel: 'auto', newModel: 'auto', autoTier: 'hydrafusion' });
 				await edit('no-longer-advertised');
 			} finally {
-				setAdvertisedAutoModeTiers([]);
+				setAdvertisedAutoModeTiers(undefined);
 			}
 
 			assert.deepStrictEqual(taken, [

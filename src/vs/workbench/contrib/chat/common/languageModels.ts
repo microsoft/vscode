@@ -240,6 +240,12 @@ export interface ILanguageModelConfigurationSchema extends IJSONSchema {
 			group?: string;
 			/** Labels for enum values. If provided, these are shown instead of the raw enum values. */
 			enumItemLabels?: string[];
+			/**
+			 * Enum values shown but not selectable, parallel to `enum`, such as Auto tiers the
+			 * provider lists as unavailable to the account. A disabled value is never kept as the
+			 * configuration; its `enumDescriptions` entry explains why it is unavailable.
+			 */
+			enumItemDisabled?: boolean[];
 			/** When `true`, the property is displayed but cannot be modified by the user. */
 			readOnly?: boolean;
 		};
@@ -1082,7 +1088,7 @@ export function createModelConfigurationActions(
 				id: `configureModel.${key}.${value}`,
 				label: displayLabel,
 				class: undefined,
-				enabled: true,
+				enabled: propSchema.enumItemDisabled?.[index] !== true,
 				tooltip,
 				checked: currentValue === value,
 				run: () => setValue(key, value)

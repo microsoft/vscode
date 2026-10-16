@@ -2158,15 +2158,23 @@ suite('getCopilotAutoTier', () => {
 	});
 
 	// With DYNAMIC_AUTO_TIERS the runtime accepts only the tiers CAPI `/meta` advertises.
-	test('accepts exactly the provider-advertised tiers while any are advertised', () => {
+	test('accepts exactly the provider-advertised tiers while the provider sends Auto metadata', () => {
 		const tiersOf = () => ['balance', 'hydrafusion', 'efficiency', 'premium-v2'].map(tier => getCopilotAutoTier({ id: 'auto', config: { tier } }));
+		let advertised, noneRunnable;
 		try {
 			setAdvertisedAutoModeTiers(['balance', 'hydrafusion', 'premium-v2']);
-			assert.deepStrictEqual(tiersOf(), ['balance', 'hydrafusion', undefined, 'premium-v2']);
-		} finally {
+			advertised = tiersOf();
+			// Metadata whose tiers are all unavailable accepts nothing, not the built-in profiles.
 			setAdvertisedAutoModeTiers([]);
+			noneRunnable = tiersOf();
+		} finally {
+			setAdvertisedAutoModeTiers(undefined);
 		}
-		assert.deepStrictEqual(tiersOf(), ['balance', undefined, 'efficiency', undefined]);
+		assert.deepStrictEqual({ advertised, noneRunnable, noMetadata: tiersOf() }, {
+			advertised: ['balance', 'hydrafusion', undefined, 'premium-v2'],
+			noneRunnable: [undefined, undefined, undefined, undefined],
+			noMetadata: ['balance', undefined, 'efficiency', undefined],
+		});
 	});
 
 	test('resolves the override before picker preferences', () => {

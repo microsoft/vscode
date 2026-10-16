@@ -70,36 +70,34 @@ export function isAutoModeTier(value: unknown): value is AutoModeTier {
 export const DynamicAutoTiersFeatureFlag = 'DYNAMIC_AUTO_TIERS';
 
 /**
- * Tier IDs the provider currently advertises through the runtime's `models.list` `auto` metadata.
- * Only populated in the agent host process; the workbench validates tiers against the model's
- * configuration schema instead.
+ * Tier IDs the runtime accepts from the provider's `models.list` `auto` metadata, or `undefined`
+ * when the provider sent none. Only populated in the agent host process; the workbench validates
+ * tiers against the model's configuration schema instead.
  */
-const advertisedAutoModeTiers = new Set<string>();
+let advertisedAutoModeTiers: ReadonlySet<string> | undefined;
 
 /**
- * Replaces the provider-advertised tier IDs accepted by {@link isSupportedAutoModeTier}. An empty
- * list means the provider sent no Auto metadata, so the built-in profiles apply.
+ * Replaces the provider-advertised tier IDs accepted by {@link isSupportedAutoModeTier}.
+ * `undefined` means the provider sent no Auto metadata, so the built-in profiles apply. An empty
+ * list means it sent metadata but none of its tiers can run, so no preference is accepted.
  */
-export function setAdvertisedAutoModeTiers(tiers: Iterable<string>): void {
-	advertisedAutoModeTiers.clear();
-	for (const tier of tiers) {
-		advertisedAutoModeTiers.add(tier);
-	}
+export function setAdvertisedAutoModeTiers(tiers: Iterable<string> | undefined): void {
+	advertisedAutoModeTiers = tiers ? new Set(tiers) : undefined;
 }
 
 /**
  * Whether the runtime accepts a value as an Auto routing preference: one the provider advertises
- * when it advertises any (the runtime rejects unlisted IDs then), otherwise a built-in profile.
+ * when it sent Auto metadata (the runtime rejects unlisted IDs then), otherwise a built-in profile.
  */
 export function isSupportedAutoModeTier(value: unknown): value is string {
-	return advertisedAutoModeTiers.size > 0
+	return advertisedAutoModeTiers
 		? typeof value === 'string' && advertisedAutoModeTiers.has(value)
 		: isAutoModeTier(value);
 }
 
 /** The supported tier IDs, for diagnostics. */
 export function getSupportedAutoModeTiers(): readonly string[] {
-	return advertisedAutoModeTiers.size > 0 ? [...advertisedAutoModeTiers] : autoModeTiers;
+	return advertisedAutoModeTiers ? [...advertisedAutoModeTiers] : autoModeTiers;
 }
 
 /** Maps retired picker and override values to the current runtime names, matching the Copilot extension. */

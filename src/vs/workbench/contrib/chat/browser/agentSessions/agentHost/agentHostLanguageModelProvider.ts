@@ -14,7 +14,7 @@ import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../../../platform/agentH
 import { LOCAL_MODEL_SENTINEL_PROVIDER_NAME } from '../../../../../../platform/agentHost/common/localModel.js';
 import { readLocalModelRowMeta } from '../../../../../../platform/agentHost/common/meta/localModelStatus.js';
 import { ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { readAgentModelEnsembleMeta, readAgentModelPricingMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
+import { readAgentModelAutoTiersMeta, readAgentModelEnsembleMeta, readAgentModelPricingMeta, type IAgentModelAutoTiersMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { readAgentModelGroupId, readAgentModelSourceId } from '../../../../../../platform/agentHost/common/agentModelSource.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../../../../../platform/agentHost/common/reasoningEffort.js';
@@ -173,7 +173,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 							toolCalling: true,
 							agentMode: true,
 						},
-						configurationSchema: this._toLanguageModelConfigurationSchema(m.configSchema),
+						configurationSchema: this._toLanguageModelConfigurationSchema(m.configSchema, isAuto ? readAgentModelAutoTiersMeta(m) : undefined),
 					},
 				};
 			});
@@ -240,7 +240,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	 * will honour it, and a new model, a staged rollout and an unresolved catalogue all look
 	 * identical from here.
 	 */
-	private _toLanguageModelConfigurationSchema(schema: ConfigSchema | undefined): ILanguageModelConfigurationSchema | undefined {
+	private _toLanguageModelConfigurationSchema(schema: ConfigSchema | undefined, autoTiers?: IAgentModelAutoTiersMeta): ILanguageModelConfigurationSchema | undefined {
 		if (!schema) {
 			return undefined;
 		}
@@ -265,12 +265,56 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				readOnly: property.readOnly,
 				group: AgentHostLanguageModelProvider._groupForConfigKey(key),
 			};
+			if (key === 'tier' && autoTiers) {
+				properties[key] = AgentHostLanguageModelProvider._withUnavailableAutoTiers(properties[key], autoTiers);
+			}
 		}
 
 		return {
 			type: schema.type,
 			required: schema.required,
 			properties,
+		};
+	}
+
+	/**
+	 * Lists the Auto tiers the provider marks unavailable beside the selectable ones, in the
+	 * provider's order, as disabled entries described by the provider's reason.
+	 *
+	 * The schema `enum` stays authoritative for what can be selected: an enabled tier the host left
+	 * out of it (for example one Ensemble does not offer) is not added back.
+	 */
+	private static _withUnavailableAutoTiers(property: NonNullable<ILanguageModelConfigurationSchema['properties']>[string], autoTiers: IAgentModelAutoTiersMeta): NonNullable<ILanguageModelConfigurationSchema['properties']>[string] {
+		const selectable = property.enum ?? [];
+		if (!autoTiers.tiers.some(tier => !tier.enabled && !selectable.includes(tier.id))) {
+			return property;
+		}
+		const entries: { value: unknown; label: string | undefined; description: string | undefined; disabled: boolean }[] = [];
+		const listed = new Set<unknown>();
+		const pushSelectable = (value: unknown) => {
+			const index = selectable.indexOf(value);
+			entries.push({ value, label: property.enumItemLabels?.[index], description: property.enumDescriptions?.[index], disabled: false });
+			listed.add(value);
+		};
+		for (const tier of autoTiers.tiers) {
+			if (selectable.includes(tier.id)) {
+				pushSelectable(tier.id);
+			} else if (!tier.enabled && !listed.has(tier.id)) {
+				entries.push({ value: tier.id, label: tier.label, description: tier.message ?? localize('agentHost.autoTierUnavailable', "Not available for your account."), disabled: true });
+				listed.add(tier.id);
+			}
+		}
+		for (const value of selectable) {
+			if (!listed.has(value)) {
+				pushSelectable(value);
+			}
+		}
+		return {
+			...property,
+			enum: entries.map(entry => entry.value),
+			enumItemLabels: entries.map(entry => entry.label ?? String(entry.value)),
+			enumDescriptions: entries.map(entry => entry.description ?? ''),
+			enumItemDisabled: entries.map(entry => entry.disabled),
 		};
 	}
 

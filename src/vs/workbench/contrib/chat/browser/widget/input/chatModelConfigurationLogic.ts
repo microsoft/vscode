@@ -29,7 +29,7 @@ export function extractSchemaDefaults(schema: ILanguageModelConfigurationSchema 
  * as an invalid override. A value is kept only when its property is declared and every
  * constraint this understands is satisfied:
  *   1. Keys absent from the current schema are dropped (removed properties).
- *   2. `enum` and `const` must contain the value.
+ *   2. `enum` and `const` must contain the value, and `enumItemDisabled` must not mark it.
  *   3. `type` must match, including a union of types.
  *   4. Numeric bounds and string `pattern`/length are enforced when declared.
  * A property using a composite schema (`anyOf`, `oneOf`, `allOf`, `not`, `$ref`) is failed
@@ -50,11 +50,17 @@ export function filterConfigurationToSchema(
 		if (!propSchema) {
 			continue;
 		}
-		if (satisfiesPropertySchema(value, propSchema)) {
+		if (satisfiesPropertySchema(value, propSchema) && !isDisabledEnumValue(value, propSchema)) {
 			result[key] = value;
 		}
 	}
 	return result;
+}
+
+/** Whether the schema lists the value but marks it unavailable, so it cannot be kept as a configuration. */
+export function isDisabledEnumValue(value: unknown, schema: { enum?: unknown[]; enumItemDisabled?: boolean[] }): boolean {
+	const index = Array.isArray(schema.enum) ? schema.enum.indexOf(value) : -1;
+	return index >= 0 && schema.enumItemDisabled?.[index] === true;
 }
 
 function satisfiesPropertySchema(value: unknown, schema: IJSONSchema): boolean {

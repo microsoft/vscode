@@ -10,7 +10,7 @@ import { Emitter } from '../../../../../../base/common/event.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { PolicyState, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { withAgentModelEnsembleMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
+import { withAgentModelAutoTiersMeta, withAgentModelEnsembleMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { createLocalModelRowMeta } from '../../../../../../platform/agentHost/common/meta/localModelStatus.js';
 import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
@@ -227,6 +227,44 @@ suite('AgentHostLanguageModelProvider', () => {
 			],
 			plain: undefined,
 			malformed: [undefined, undefined],
+		});
+	});
+
+	test('lists the provider\'s unavailable Auto tiers as disabled entries in the provider\'s order', async () => {
+		const tierOf = async (model: SessionModelInfo) => {
+			const host = createProvider();
+			host.updateModels([model]);
+			const property = (await host.provideLanguageModelChatInfo(undefined, CancellationToken.None))[0].metadata.configurationSchema?.properties?.tier;
+			return { enum: property?.enum, labels: property?.enumItemLabels, descriptions: property?.enumDescriptions, disabled: property?.enumItemDisabled, default: property?.default };
+		};
+		const configSchema: SessionModelInfo['configSchema'] = {
+			type: 'object',
+			properties: { tier: { type: 'string', title: 'Optimize for', enum: ['balance', 'hydrafusion'], enumLabels: ['Balance', 'High'], enumDescriptions: ['', 'Fusion'], default: 'balance' } },
+		};
+		const meta = withAgentModelAutoTiersMeta(undefined, {
+			tiers: [
+				{ id: 'balance', label: 'Balance', enabled: true },
+				{ id: 'premium', label: 'Premium', enabled: false },
+				{ id: 'hydrafusion', label: 'High', enabled: true },
+				{ id: 'hydrafusion-max', label: 'Max', enabled: false, message: 'This tier requires models that the user does not have access to.' },
+			],
+		});
+
+		assert.deepStrictEqual({
+			withUnavailable: await tierOf({ ...makeModel('auto', meta), configSchema }),
+			// Only Auto's tier carries provider availability; other models and a plain Auto are unchanged.
+			plain: await tierOf({ ...makeModel('auto'), configSchema }),
+			notAuto: await tierOf({ ...makeModel('gpt-5', meta), configSchema }),
+		}, {
+			withUnavailable: {
+				enum: ['balance', 'premium', 'hydrafusion', 'hydrafusion-max'],
+				labels: ['Balance', 'Premium', 'High', 'Max'],
+				descriptions: ['', 'Not available for your account.', 'Fusion', 'This tier requires models that the user does not have access to.'],
+				disabled: [false, true, false, true],
+				default: 'balance',
+			},
+			plain: { enum: ['balance', 'hydrafusion'], labels: ['Balance', 'High'], descriptions: ['', 'Fusion'], disabled: undefined, default: 'balance' },
+			notAuto: { enum: ['balance', 'hydrafusion'], labels: ['Balance', 'High'], descriptions: ['', 'Fusion'], disabled: undefined, default: 'balance' },
 		});
 	});
 

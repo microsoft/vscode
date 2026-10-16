@@ -101,6 +101,20 @@ suite('chatModelConfigurationLogic', () => {
 			assert.deepStrictEqual(filtered, {});
 		});
 
+		test('drops an enum value the schema lists as unavailable', () => {
+			const tierSchema: ILanguageModelConfigurationSchema = {
+				type: 'object',
+				properties: { tier: { type: 'string', enum: ['balance', 'hydrafusion-max'], enumItemDisabled: [false, true], default: 'balance' } },
+			};
+			assert.deepStrictEqual({
+				available: filterConfigurationToSchema({ tier: 'balance' }, tierSchema),
+				unavailable: filterConfigurationToSchema({ tier: 'hydrafusion-max' }, tierSchema),
+			}, {
+				available: { tier: 'balance' },
+				unavailable: {},
+			});
+		});
+
 		test('keeps values for non-enum properties (no constraint to validate)', () => {
 			const filtered = filterConfigurationToSchema({ contextSize: 2000 }, effortSchema);
 			assert.deepStrictEqual(filtered, { contextSize: 2000 });

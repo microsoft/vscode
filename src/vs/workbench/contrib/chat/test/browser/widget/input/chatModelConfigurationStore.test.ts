@@ -514,6 +514,26 @@ suite('ChatModelConfigurationStore', () => {
 		});
 	}
 
+	for (const tierSource of ['explicit', 'session']) {
+		test(`restoring a ${tierSource} provider-advertised tier before model registration keeps it`, () => {
+			const control = createControllableService();
+			control.setAutoModel();
+			control.setSchema({ properties: { tier: { type: 'string', enum: ['balance', 'hydrafusion'], default: 'balance' } } });
+			control.setRegistered(false);
+			const editor = createStore(store.add(new InMemoryStorageService()), control.service, () => false);
+
+			editor.restoreModelConfiguration(MODEL, { tier: 'hydrafusion', tierSource });
+			const beforeRegistration = editor.getModelConfiguration(MODEL)?.tier;
+			control.setRegistered(true);
+			control.fireModelsChanged();
+
+			assert.deepStrictEqual({ beforeRegistration, registered: editor.getModelConfiguration(MODEL)?.tier }, {
+				beforeRegistration: 'hydrafusion',
+				registered: 'hydrafusion',
+			});
+		});
+	}
+
 	for (const tierSource of ['managed', 'managedFallback', 'default']) {
 		test(`restored ${tierSource} tier before model registration never becomes a saved preference`, () => {
 			const storage = store.add(new InMemoryStorageService());

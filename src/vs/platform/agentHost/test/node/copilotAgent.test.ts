@@ -54,7 +54,7 @@ import { CodexProxyService, ICodexProxyService } from '../../node/codex/codexPro
 import { RecordingAgentSdkDownloader } from './testAgentSdkDownloader.js';
 import { IAgentHostSessionOpenTelemetry } from '../../node/agentHostSessionOpenTelemetry.js';
 import { AgentHostEnsembleEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, COPILOT_HYDRA_FUSION_MODEL_ID } from '../../common/copilotCliConfig.js';
-import { readAgentModelEnsembleMeta } from '../../common/meta/agentModelMeta.js';
+import { readAgentModelAutoTiersMeta, readAgentModelEnsembleMeta } from '../../common/meta/agentModelMeta.js';
 import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
@@ -746,12 +746,14 @@ class TestCopilotClient implements ITestCopilotClient {
 				this.modelListRequests.push(params);
 				const gate = this.modelListGates.shift() ?? this.modelListGate;
 				const models = this.modelListResponses.shift() ?? this._models;
+				const queuedAuto = this.modelListAutoResponses.shift();
+				const auto = queuedAuto === undefined ? this.autoTierMetadata : queuedAuto ?? undefined;
 				const error = this.modelListErrors.shift();
 				await gate;
 				if (error) {
 					throw error;
 				}
-				return { models: models.map(toSdkModelInfo), ...(this.autoTierMetadata ? { auto: this.autoTierMetadata } : {}) };
+				return { models: models.map(toSdkModelInfo), ...(auto ? { auto } : {}) };
 			}
 		},
 		plugins: {
@@ -813,6 +815,8 @@ class TestCopilotClient implements ITestCopilotClient {
 	/** Per-request gates and results, captured when each request starts. */
 	readonly modelListGates: Promise<void>[] = [];
 	readonly modelListResponses: ITestCopilotModelInfo[][] = [];
+	/** Per-request `auto` metadata, captured when each request starts; `null` sends none. */
+	readonly modelListAutoResponses: (NonNullable<Awaited<ReturnType<CopilotModelsList>>['auto']> | null)[] = [];
 	readonly getSessionMetadataCalls: string[] = [];
 	readonly deletedSessionIds: string[] = [];
 
@@ -9766,7 +9770,7 @@ suite('CopilotAgent', () => {
 			} finally {
 				gate.complete();
 				await disposeAgent(agent);
-				setAdvertisedAutoModeTiers([]);
+				setAdvertisedAutoModeTiers(undefined);
 			}
 		});
 
@@ -10321,6 +10325,11 @@ suite('CopilotAgent', () => {
 					[{ id: 'stale', name: 'Stale' }],
 					[{ id: 'replacement', name: 'Replacement' }],
 				);
+				// The superseded runtime advertised provider tiers; its replacement sends none.
+				client.modelListAutoResponses.push(
+					{ defaultTier: 'hydrafusion', tiers: [{ id: 'hydrafusion', displayName: 'High', description: '', type: 'fusion', status: { enabled: true } }] },
+					null,
+				);
 				const requestsBefore = client.modelListRequests.length;
 				const staleRefresh = agent.refreshModels();
 				for (let i = 0; i < 500 && client.modelListRequests.length < requestsBefore + 1; i++) {
@@ -10338,9 +10347,19 @@ suite('CopilotAgent', () => {
 				staleGate.complete();
 				await staleRefresh;
 
-				assert.deepStrictEqual(agent.models.get().map(model => model.id), ['replacement']);
+				assert.deepStrictEqual({
+					models: agent.models.get().map(model => model.id),
+					// The stale response's tiers must not replace the replacement's built-in ones.
+					acceptsStaleTier: getCopilotAutoTier({ id: 'auto', config: { tier: 'hydrafusion' } }),
+					acceptsBuiltInTier: getCopilotAutoTier({ id: 'auto', config: { tier: 'balance' } }),
+				}, {
+					models: ['replacement'],
+					acceptsStaleTier: undefined,
+					acceptsBuiltInTier: 'balance',
+				});
 			} finally {
 				await disposeAgent(agent);
+				setAdvertisedAutoModeTiers(undefined);
 			}
 		});
 
@@ -11501,7 +11520,76 @@ suite('CopilotAgent', () => {
 			});
 		} finally {
 			await disposeAgent(agent);
-			setAdvertisedAutoModeTiers([]);
+			setAdvertisedAutoModeTiers(undefined);
+		}
+	});
+
+	test('lists the provider\'s unavailable Auto tiers in _meta with their reason, never as selectable', async () => {
+		const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
+		// The shape of the `/meta` example in github/copilot-api#39882: Max listed but not eligible.
+		client.autoTierMetadata = {
+			defaultTier: 'balance',
+			tiers: [
+				{ id: 'balance', displayName: 'Balance', description: '', type: 'auto', status: { enabled: true } },
+				{ id: 'hydrafusion', displayName: 'High', description: '', type: 'fusion', status: { enabled: true } },
+				{ id: 'hydrafusion-max', displayName: 'Max', description: '', type: 'fusion', status: { enabled: false, reason: 'model_pool_not_eligible', message: 'This tier requires models that the user does not have access to.' } },
+			],
+		};
+		const { agent } = createTestAgentContext(disposables, {
+			copilotClient: client,
+			rootConfig: { [CopilotCliConfigKey.HydraFusion]: true, [CopilotCliConfigKey.HydraFusionV2]: true },
+		});
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			const published = await waitForState(agent.models, published => published.some(model => model.id === 'auto'));
+			const auto = published.find(model => model.id === 'auto')!;
+
+			assert.deepStrictEqual({
+				enum: auto.configSchema?.properties.tier?.enum,
+				meta: readAgentModelAutoTiersMeta(auto),
+				acceptsMax: getCopilotAutoTier({ id: 'auto', config: { tier: 'hydrafusion-max' } }),
+			}, {
+				enum: ['balance', 'hydrafusion'],
+				meta: {
+					tiers: [
+						{ id: 'balance', label: 'Balance', enabled: true },
+						{ id: 'hydrafusion', label: 'High', enabled: true },
+						{ id: 'hydrafusion-max', label: 'Max', enabled: false, message: 'This tier requires models that the user does not have access to.' },
+					],
+				},
+				acceptsMax: undefined,
+			});
+		} finally {
+			await disposeAgent(agent);
+			setAdvertisedAutoModeTiers(undefined);
+		}
+	});
+
+	test('accepts no Auto preference, not the built-in ones, when the provider enables none of its tiers', async () => {
+		const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
+		client.autoTierMetadata = {
+			defaultTier: 'balance',
+			tiers: [
+				{ id: 'balance', displayName: 'Balance', description: '', type: 'auto', status: { enabled: false, message: 'Paused' } },
+				// HydraFusion v2 is off, so this client cannot run Max.
+				{ id: 'hydrafusion-max', displayName: 'Max', description: '', type: 'fusion', status: { enabled: true } },
+			],
+		};
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			const published = await waitForState(agent.models, published => published.some(model => model.id === 'auto'));
+
+			assert.deepStrictEqual({
+				tierSchema: published.find(model => model.id === 'auto')?.configSchema?.properties.tier,
+				accepted: ['balance', 'efficiency', 'intelligence', 'hydrafusion-max'].map(tier => getCopilotAutoTier({ id: 'auto', config: { tier } })),
+			}, {
+				tierSchema: undefined,
+				accepted: [undefined, undefined, undefined, undefined],
+			});
+		} finally {
+			await disposeAgent(agent);
+			setAdvertisedAutoModeTiers(undefined);
 		}
 	});
 
@@ -11528,7 +11616,7 @@ suite('CopilotAgent', () => {
 				};
 			} finally {
 				await disposeAgent(agent);
-				setAdvertisedAutoModeTiers([]);
+				setAdvertisedAutoModeTiers(undefined);
 			}
 		};
 

@@ -255,8 +255,10 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 		const source = values[AutoTierSourceConfigKey];
 		const inherited = isInheritedAutoTier(values);
 		// With the model's schema loaded, `filtered.tier` already matched its advertised tiers,
-		// which may come from the provider rather than the built-in list.
-		const isRoutingTier = (tier: unknown) => isAutoModeRoutingTier(tier) || (metadata?.id === 'auto' && typeof tier === 'string');
+		// which may come from the provider rather than the built-in list. Before the model
+		// registers there is no schema, so a provider tier is kept as captured, with its
+		// provenance, until a later sync validates it against the schema.
+		const isRoutingTier = (tier: unknown) => isAutoModeRoutingTier(tier) || ((metadata === undefined || metadata.id === 'auto') && typeof tier === 'string' && tier.length > 0);
 		if (isRoutingTier(filtered.tier)) {
 			if (source === 'session' || (!this.isEmpty() && inherited)) {
 				this._sessionAutoTiers.add(modelId);

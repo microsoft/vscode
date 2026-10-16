@@ -471,10 +471,11 @@ export class ModelCard extends DisposableStore {
 		const tooltip = (description: string | undefined) => isAuto && ensemble && group === MODEL_CONFIG_GROUP_EFFORT ? undefined : description;
 		const items = entries.map(({ choice, alternative }, index): IRadioOptionItem => {
 			if (!alternative) {
-				const { label, description, checked, readOnly } = choice!;
+				const { label, description, checked, readOnly, unavailable } = choice!;
 				return {
 					text: label,
-					tooltip: tooltip(description),
+					// An unavailable tier can never be selected to show its reason below the control.
+					tooltip: unavailable ? description : tooltip(description),
 					ariaLabel: description ? localize('chat.modelPicker.optionDescription', "{0}, {1}", label, description) : label,
 					isActive: checked && !selectedAlternative,
 					disabled: readOnly,
