@@ -58,6 +58,8 @@ import { ASK_QUICK_QUESTION_ACTION_ID } from '../../chat/browser/actions/chatQui
 import { IChatWidgetService, IQuickChatService } from '../../chat/browser/chat.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ICustomEditorLabelService } from '../../../services/editor/common/customEditorLabelService.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { getSelectionSearchString } from '../../../../editor/contrib/find/browser/findController.js';
 
 export interface IAnythingQuickPickItem extends IPickerQuickAccessItem, IQuickPickItemWithResource {
 	readonly editor?: EditorInput | IResourceEditorInput;
@@ -112,9 +114,15 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	private readonly pickState: IAnythingPickState;
 
-	get defaultFilterValue(): DefaultQuickAccessFilterValue | undefined {
+	get defaultFilterValue(): DefaultQuickAccessFilterValue | string | undefined {
 		if (this.configuration.preserveInput) {
 			return DefaultQuickAccessFilterValue.LAST;
+		}
+
+		// Prefer the current editor selection as default filter, but only an explicit selection (unlike Ctrl+T, an idle cursor's word would fire on nearly every invocation)
+		const editor = this.codeEditorService.getFocusedCodeEditor();
+		if (editor) {
+			return getSelectionSearchString(editor, 'single', true) ?? undefined;
 		}
 
 		return undefined;
@@ -143,7 +151,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		@IQuickChatService private readonly quickChatService: IQuickChatService,
 		@ILogService private readonly logService: ILogService,
 		@ICustomEditorLabelService private readonly customEditorLabelService: ICustomEditorLabelService,
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService
 	) {
 		super(AnythingQuickAccessProvider.PREFIX, {
 			canAcceptInBackground: true,
