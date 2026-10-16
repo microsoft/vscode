@@ -97,13 +97,13 @@ jobs:
           npm --prefix extensions/markdown-language-features run test-markdown-editor-clipboard
 
       - name: Compile & Hygiene
-        run: npm exec -- npm-run-all2 -lp core-ci hygiene valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
+        run: bash .github/tmp-mem-sampler.sh new-compile npm exec -- npm-run-all2 -lp core-ci hygiene vscode-dts-compile-check test-build-scripts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Avoid overlapping ESLint's worker memory with the parallel compilation checks.
-      - name: ESLint
-        run: npm run eslint
+      # Run the checks that each build a TypeScript program after core-ci's bundling to limit peak memory.
+      - name: ESLint & Type-Aware Checks
+        run: bash .github/tmp-mem-sampler.sh new-checks npm exec -- npm-run-all2 -lp eslint tsec-compile-check define-class-fields-check valid-layers-check
 
       - name: Check Codex protocol client is in sync
         run: |
@@ -114,6 +114,92 @@ jobs:
 
       - name: Check cyclic dependencies
         run: node build/lib/checkCyclicDependencies.ts out-build
+
+  tmp-compile-baseline-mem:
+    name: TEMP baseline memory
+    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=tmpbase-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    steps:
+      - name: Checkout microsoft/vscode
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          lfs: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+
+      - name: Restore node_modules cache
+        id: cache-node-modules
+        uses: ./.github/actions/restore-node-modules
+        with:
+          key-prefix: node_modules-compile
+          key-args: "compile $(node -p process.arch)"
+
+      - name: Install build tools
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: sudo apt update -y && sudo apt install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libnotify-bin libkrb5-dev
+
+      - name: Install Electron headers
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: node build/npm/preinstall.ts
+
+      - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: |
+          set -e
+
+          for i in {1..5}; do # try 5 times
+            npm ci && break
+            if [ $i -eq 5 ]; then
+              echo "Npm install failed too many times" >&2
+              exit 1
+            fi
+            echo "Npm install failed $i, trying again..."
+          done
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Prepare Electron types
+        run: node build/npm/electronTypes.ts
+
+      - name: Type check /build/ scripts
+        run: npm run typecheck
+        working-directory: build
+
+      - name: Prepare built-in extensions cache key
+        shell: pwsh
+        run: node build/azure-pipelines/common/computeBuiltInDepsCacheKey.ts > .build/builtindepshash
+
+      - name: Restore built-in extensions cache
+        id: cache-builtin-extensions
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          enableCrossOsArchive: true
+          path: .build/builtInExtensions
+          key: "builtin-extensions-${{ hashFiles('.build/builtindepshash') }}"
+
+      - name: Download built-in extensions
+        if: steps.cache-builtin-extensions.outputs.cache-hit != 'true'
+        run: node build/lib/builtInExtensions.ts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check Markdown editor manifests and clipboard
+        run: |
+          npm run markdown-editor-package-json-check
+          npm --prefix extensions/markdown-language-features run test-markdown-editor-package-json
+          npm --prefix extensions/markdown-language-features run test-markdown-editor-clipboard
+
+      - name: Compile & Hygiene
+        run: bash .github/tmp-mem-sampler.sh base-compile npm exec -- npm-run-all2 -lp core-ci hygiene valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: ESLint
+        run: bash .github/tmp-mem-sampler.sh base-eslint npm run eslint
 
   linux-cli-tests:
     name: Linux
