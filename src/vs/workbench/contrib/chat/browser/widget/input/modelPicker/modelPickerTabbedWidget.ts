@@ -1274,7 +1274,7 @@ export class TabbedModelPicker extends Disposable {
 					replacesTier: tier.replacesTier,
 					description: hydraFusion.metadata.id === COPILOT_HYDRA_FUSION_MAX_MODEL_ID
 						? localize('chat.modelPicker.fusionMaxDescription', "Max uses multiple models on every task for the most thorough results.")
-						: localize('chat.modelPicker.fusionBalanceDescription', "Balance picks a workflow per task, using one or more models."),
+						: localize('chat.modelPicker.fusionBalanceDescription', "High picks a workflow per task, using one or more models."),
 					learnMoreUrl: HYDRA_FUSION_LEARN_MORE_URL,
 					selected: context.selectedModelId === hydraFusion.identifier,
 				};
