@@ -4,14 +4,65 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { spawn } from 'child_process';
+import { once } from 'events';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 import { createRequire } from 'module';
 import { pathToFileURL } from 'url';
 import { suite, test } from 'node:test';
+import { setTimeout as delay } from 'timers/promises';
 import { createExtensionTasks } from '../../gulpfile.extensions.ts';
 import * as task from '../gulp/task.ts';
+
+test('extension watcher recompiles edits and recovers from compiler errors', async () => {
+	const root = await fs.mkdtemp(path.join(os.tmpdir(), 'vscode-extension-watch-'));
+	const extension = path.join(root, 'extensions', 'watch-fixture');
+	const source = path.join(extension, 'src', 'entry.ts');
+	await fs.mkdir(path.dirname(source), { recursive: true });
+	await fs.writeFile(path.join(extension, 'tsconfig.json'), JSON.stringify({
+		compilerOptions: { module: 'commonjs', target: 'es2024', rootDir: './src', outDir: './out', types: [] },
+		include: ['src/**/*'],
+	}));
+	await fs.writeFile(source, 'export const value: number = 1;');
+	const child = spawn(process.execPath, ['--input-type=module', '-e', `
+		process.once('message', () => process.exit(0));
+		const { createExtensionTasks } = await import(${JSON.stringify(new URL('../../gulpfile.extensions.ts', import.meta.url).href)});
+		const task = await import(${JSON.stringify(new URL('../gulp/task.ts', import.meta.url).href)});
+		await task.series(createExtensionTasks('extensions/watch-fixture/tsconfig.json', process.cwd()).watchTask)();
+	`], { cwd: root, env: { ...process.env, DEV_WORKSPACE_BUILD_EVENTS: '1' }, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] });
+	const exited = once(child, 'exit');
+	let stdout = '';
+	let stderr = '';
+	child.stdout.on('data', data => { stdout += data; });
+	child.stderr.on('data', data => { stderr += data; });
+	async function waitFor(marker: string, count = 1) {
+		const deadline = Date.now() + 30_000;
+		while (stdout.split(marker).length - 1 < count) {
+			assert.strictEqual(child.exitCode, null, stderr);
+			assert.ok(Date.now() < deadline, stdout + stderr);
+			await delay(50);
+		}
+	}
+	try {
+		await waitFor('DEV_WORKSPACE_BUILD_DONE');
+		await fs.writeFile(source, 'export const value: number = 2;');
+		await waitFor('DEV_WORKSPACE_BUILD_DONE', 2);
+		assert.match(await fs.readFile(path.join(extension, 'out', 'entry.js'), 'utf8'), /value = 2/);
+		await fs.writeFile(source, 'export const value: number = "invalid";');
+		await waitFor('DEV_WORKSPACE_BUILD_FAILED');
+		await fs.writeFile(source, 'export const value: number = 3;');
+		await waitFor('DEV_WORKSPACE_BUILD_DONE', 3);
+		assert.match(await fs.readFile(path.join(extension, 'out', 'entry.js'), 'utf8'), /value = 3/);
+	} finally {
+		if (child.connected) {
+			child.send('stop');
+		}
+		await exited;
+		await fs.rm(root, { recursive: true, force: true });
+	}
+});
 
 suite('extension transpilation pipeline', () => {
 	test('emits loadable modules for ts, mts and cts without copying sources or declarations', async () => {
