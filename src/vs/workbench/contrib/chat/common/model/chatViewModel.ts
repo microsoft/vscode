@@ -388,8 +388,14 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	}
 
 	private computeItems(): (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] {
-		let items: (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] = this._items.filter((item) => {
+		let items: (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] = this._items.filter((item, index) => {
 			if (item.isHiddenFromTranscript || (isRequestVM(item) && item.isRequestHiddenFromTranscript) || (item.shouldBeRemovedOnSend && !item.shouldBeRemovedOnSend.afterUndoStop)) {
+				return false;
+			}
+			if (isResponseVM(item) && index < this._items.length - 1
+				&& item.isComplete && !item.isCanceled && !item.errorDetails
+				&& item.response.value.length === 0 && item.contentReferences.length === 0 && item.codeCitations.length === 0
+				&& !item.replyFollowups?.length && !item.result?.details) {
 				return false;
 			}
 			return true;

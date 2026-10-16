@@ -28,6 +28,7 @@ import { ILogService } from '../../log/common/log.js';
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import { chatUriFormatOf, createChatUriError, mintDefaultChatUri, subagentChatUri } from '../common/agentHostChatMinting.js';
 import { AgentChatMigrationDeferred, AgentProvider, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IAgent, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDiscoveredChat, IAgentLegacyChat, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, type IAgentSessionChatMetadata, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
+import { getPendingSteeringMessages } from '../common/agentSessionMessage.js';
 import { type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentService, type IAgentServiceCreateSessionConfig } from '../common/agentService.js';
 import { ISessionDatabase, ISessionDataService, ISessionStorageAccessCounts, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { EDIT_ATTRIBUTION_RESOURCE_SCHEME, IAgentEditAttributionService } from '../common/fileEditAttribution.js';
@@ -2250,8 +2251,8 @@ export class AgentService extends Disposable implements IAgentService {
 			turns: chatState.turns,
 			...(chatState.activeTurn ? { activeTurn: { message: chatState.activeTurn.message, responseParts: chatState.activeTurn.responseParts } } : {}),
 			pendingMessages: [
-				...(chatState.steeringMessage ? [{ kind: PendingMessageKind.Steering, pending: chatState.steeringMessage }] : []),
-				...(chatState.queuedMessages?.map(pending => ({ kind: PendingMessageKind.Queued, pending })) ?? []),
+				...getPendingSteeringMessages(chatState).map(pending => ({ kind: PendingMessageKind.Steering, pending })),
+				...(chatState.queuedMessages?.filter(pending => pending.kind !== PendingMessageKind.Steering).map(pending => ({ kind: PendingMessageKind.Queued, pending })) ?? []),
 			],
 			hasMoreHistory: !!chatState.turnsNextCursor,
 		};
@@ -10496,6 +10497,22 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private _dispatchActionNow(channel: string, sessionChannel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientContext: IAgentHostClientTelemetryContext): void {
 		const origin = { clientId, clientSeq };
+		if (action.type === ActionType.ChatPendingMessageSet || action.type === ActionType.ChatPendingMessageRemoved) {
+			const id = action.id;
+			const state = this._stateManager.getChatState(channel);
+			const existing = state?.queuedMessages?.find(message => message.id === id);
+			if (action.type === ActionType.ChatPendingMessageSet && action.kind === PendingMessageKind.Steering && !this._providerService.getProviderForSession(sessionChannel)?.sendSteeringMessage) {
+				this._stateManager.rejectClientAction(channel, action, origin, 'The session provider does not support steering messages.');
+				return;
+			}
+			if (state?.activeTurn && existing?.kind === PendingMessageKind.Steering
+				&& (action.type === ActionType.ChatPendingMessageRemoved
+					? action.kind === PendingMessageKind.Steering
+					: action.kind !== existing.kind || !equals(existing.message, action.message))) {
+				this._stateManager.rejectClientAction(channel, action, origin, 'Cannot change a steering message while it is being processed.');
+				return;
+			}
+		}
 		if (this._rejectUnknownChatAction(channel, action, origin)) {
 			return;
 		}
