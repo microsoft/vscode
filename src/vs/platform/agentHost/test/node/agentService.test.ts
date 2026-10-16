@@ -32161,6 +32161,60 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			});
 
+			test('a promoted session keeps its chat\'s title and title source across a restart, in its state and in the list, not its first prompt (B4-1)', async () => {
+				const orchestratorDatabase = new AgentHostDatabase(':memory:');
+				const sessionDataService = createSessionDataService(new TestSessionDatabase());
+				// The agent describes the chat by its first prompt, as Copilot does.
+				class FirstPromptAgent extends MovingAgent {
+					override async getChatMetadata(chat: URI, context: URI | IAgentChatContext, providerData?: string): Promise<IAgentChatMetadata | undefined> {
+						const metadata = await super.getChatMetadata(chat, context, providerData);
+						return metadata && { ...metadata, summary: 'Create a file promo.txt with the single line promoted' };
+					}
+				}
+				const createService = () => {
+					const service = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+						undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, orchestratorDatabase));
+					registerTestAgentProvider(service, disposables.add(new FirstPromptAgent('copilot')));
+					getConfigurationService(service).updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
+					return service;
+				};
+				const first = createService();
+				const source = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+				const peer = URI.parse(buildChatUri(source, 'promoted'));
+				await first.createChat(source, peer, { title: 'Promo' });
+				await timeout(0);
+				completeTurn(first, peer);
+				// The agent renamed the chat: the new session keeps that title source, not 'auto'.
+				await (first as unknown as { _renameChatFromTool(session: URI, chat: URI, title: string): Promise<unknown> })._renameChatFromTool(source, peer, 'Create promo file');
+				await first.whenCatalogReconciliationIdle();
+				const chatTitleSource = (await orchestratorDatabase.readCatalogSnapshot([source.toString()]))[0].chats.find(chat => chat.chat === peer.toString())?.metadata?.titleSource;
+				const target = await first.moveChat(source, peer, { kind: 'newSession' });
+				await first.whenCatalogReconciliationIdle();
+				await getTestSessionStateStore(first).whenIdle(undefined);
+
+				const restarted = createService();
+				const listed = (await restarted.listSessions()).find(session => session.session.toString() === target.toString())?.summary;
+				await restarted.restoreSession(target);
+				const values = await getTestSessionStateStore(restarted).readWithoutImport(target, ['customTitle', 'customTitleSource']);
+				// 4a's older-build copy of the new session: publishing and importing it changes nothing.
+				await (restarted as unknown as IMoveInternals)._peerChatStore.reconcileOlderBuildCopy(target);
+				const afterOlderBuildCopy = getStateManager(restarted).getSessionState(target.toString())?.title;
+
+				assert.deepStrictEqual({
+					listed,
+					title: getStateManager(restarted).getSessionState(target.toString())?.title,
+					source: [values.get('customTitle'), values.get('customTitleSource'), chatTitleSource],
+					afterOlderBuildCopy,
+					olderBuildEdits: (await orchestratorDatabase.readOlderBuildCopyState(target.toString()))?.hasOlderBuildEdits ?? false,
+				}, {
+					listed: 'Create promo file',
+					title: 'Create promo file',
+					source: ['Create promo file', 'agent', 'agent'],
+					afterOlderBuildCopy: 'Create promo file',
+					olderBuildEdits: false,
+				});
+			});
+
 			test('a chat promotes only once its first turn started, like a new session becomes durable; its session opens after a restart', async () => {
 				const orchestratorDatabase = new AgentHostDatabase(':memory:');
 				const sessionDataService = createSessionDataService(new TestSessionDatabase());

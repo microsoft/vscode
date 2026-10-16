@@ -6668,6 +6668,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// Read before validating: the database refuses the promotion if the catalog changes after this point.
 		const [catalog] = await this._orchestratorDatabase.readCatalogSnapshot([sourceKey]);
 		let expectedSourceCatalogRevision = catalog?.header?.revision ?? 0;
+		let recordedTitleSource = catalog?.chats.find(candidate => candidate.chat === chatKey)?.metadata?.titleSource;
 		const moved = this._chatSubtree(sourceKey, chatKey);
 		const sourceSummary = this._stateManager.getSessionState(sourceKey)?.chats.find(candidate => candidate.resource === chatKey);
 		const chatFolders = await this._movedChatFolders(session, chatKey);
@@ -6725,6 +6726,7 @@ export class AgentService extends Disposable implements IAgentService {
 					await this._prepareCatalogsForMove([sourceKey]);
 					const [refreshed] = await this._orchestratorDatabase.readCatalogSnapshot([sourceKey]);
 					expectedSourceCatalogRevision = refreshed?.header?.revision ?? 0;
+					recordedTitleSource = refreshed?.chats.find(candidate => candidate.chat === chatKey)?.metadata?.titleSource;
 					const imported = this._chatSubtree(sourceKey, chatKey);
 					if (imported.length !== moved.length || imported.some(candidate => !moved.includes(candidate))) {
 						refuse(AgentChatMoveRefusal.Conflict, `Chat ${chatKey} changed while it was being promoted; try again.`);
@@ -6744,11 +6746,20 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 
 			// Committed: the promotion is reported as done whatever happens to memory below; the database is authoritative.
+			const chatTitle = this._stateManager.getSessionState(sourceKey)?.chats.find(candidate => candidate.resource === chatKey)?.title;
 			try {
 				this._promoteMovedChats(provider, sourceKey, targetKey, chatKey, committed, chatFolders, config, sourceSummary?.workingDirectories === undefined);
 			} catch (error) {
 				this._logService.error(error, `[AgentService] Chat ${chatKey} was promoted to ${targetKey}, but its in-memory move failed; it shows up after the sessions reload`);
 				await this._reloadAfterFailedMove([sourceKey, targetKey]);
+			}
+			if (chatTitle) {
+				// The new session is titled by its chat, as the chat was titled (user, agent or auto): restore and the session
+				// list read the session's own title keys, and would otherwise fall back to the agent's summary (B4-1).
+				await persistSessionMetadataValues(this._sessionStateStore, targetKey, {
+					[SESSION_CUSTOM_TITLE_KEY]: chatTitle,
+					[SESSION_CUSTOM_TITLE_SOURCE_KEY]: recordedTitleSource ?? AGENT_HOST_TITLE_SOURCE_AUTO,
+				}).catch(error => this._logService.warn(`[AgentService] Failed to persist the title of promoted session ${targetKey}`, error));
 			}
 			// The new session is created with the chat's folders, so none were in transit; the source lets go of those no other chat uses.
 			await this._detachMovedChatWorkingDirectories(session, chatKey, chatFolders);
