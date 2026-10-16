@@ -17,7 +17,7 @@ import { AgentHostProtocolClient, InitialAuthenticationError, type IAgentHostPro
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { WebPubSubRelayTransport, type IWebPubSubRelayTransportOptions } from '../../../../../../platform/agentHost/browser/webPubSubRelayTransport.js';
 import { AgentHostTransportFailureReason, NonReconnectableTransportError, type IProtocolTransport } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
-import { IAgentConnection, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostAhpJsonlLoggingSettingId, IAgentConnection, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostClientConnectionKind } from '../../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import {
 	CloudSandboxAuthenticationRequiredError,
@@ -43,6 +43,7 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { ITelemetryData, ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { CloudSandboxAgentHostService, MAX_SEALED_TOKEN_RETRIES } from '../../../browser/remoteAgentHost/cloudSandboxAgentHostService.js';
 import { CloudSandboxTelemetryService, ICloudSandboxTelemetryService } from '../../../browser/remoteAgentHost/cloudSandboxTelemetry.js';
+import { AhpJsonlLogger } from '../../../../../../platform/agentHost/common/ahpJsonlLogger.js';
 
 function clientToken(sealed: string | undefined, clientId = 'client-1'): ICloudSandboxClientToken {
 	return {
@@ -197,6 +198,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	return {
 		service: store.add(instantiationService.createInstance(TestCloudSandboxAgentHostService)),
 		instantiationService,
+		configurationService,
 		getFactory(): IRemoteAgentHostConnectionFactory {
 			assert.ok(factory);
 			return factory;
@@ -235,6 +237,42 @@ suite('CloudSandboxAgentHostService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	teardown(() => sinon.restore());
+
+	for (const environmentKind of ['user-local', undefined] as const) {
+		test(`captures wire traffic only on the ${environmentKind ? 'host for Mission Control' : 'client for cloud sandboxes'}`, async () => {
+			const fixture = createService(store, [{ kind: 'token', token: clientToken('copilot-sealed.v1.key.box') }]);
+			fixture.service.connectThroughFactory = true;
+			await fixture.configurationService.setUserConfiguration(AgentHostAhpJsonlLoggingSettingId, true);
+			fixture.instantiationService.stubInstance(AhpJsonlLogger, new class extends mock<AhpJsonlLogger>() {
+				override dispose(): void { }
+			}());
+			const connecting = fixture.service.connect({ environmentId: 'test-host', name: 'Host', environmentKind }, CancellationToken.None);
+			await fixture.started;
+			fixture.settle();
+			await connecting;
+			fixture.instantiationService.stubInstance(AgentHostProtocolClient, new class extends mock<AgentHostProtocolClient>() {
+				override dispose(): void { }
+				override readonly onDidChangeConnectionState = Event.None;
+				override readonly onDidConnectionDiagnostic = Event.None;
+			}());
+			const spy = sinon.spy(fixture.instantiationService, 'createInstance');
+			const created = await fixture.getFactory().createConnection(fixture.entries()[0], { userInitiated: true });
+			store.add(created.connection);
+			if (created.transportDisposable) {
+				store.add(created.transportDisposable);
+			}
+			const makeTransport = spy.getCalls().find(call => call.args[0] === AgentHostProtocolClient)!.args[2] as () => IProtocolTransport;
+			store.add(makeTransport());
+			const options = spy.getCalls().find(call => call.args[0] === WebPubSubRelayTransport)!.args[1] as IWebPubSubRelayTransportOptions;
+			assert.deepStrictEqual({
+				kind: options.clientConnectionKind,
+				clientCaptures: !!options.ahpLogger,
+			}, {
+				kind: environmentKind ? AgentHostClientConnectionKind.MissionControl : AgentHostClientConnectionKind.WebPubSub,
+				clientCaptures: !environmentKind,
+			});
+		});
+	}
 
 	test('user-local connect refuses the owning native host instead of relaying to itself', async () => {
 		const fixture = createService(store, [{ kind: 'token', token: clientToken('copilot-sealed.v1.key.box') }]);

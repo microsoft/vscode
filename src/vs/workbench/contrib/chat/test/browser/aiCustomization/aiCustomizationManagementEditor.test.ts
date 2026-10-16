@@ -27,7 +27,7 @@ import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME } from '../../../../../../platform/a
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { AICustomizationManagementEditor, isCurrentPluginContributionNavigation } from '../../../browser/aiCustomization/aiCustomizationManagementEditor.js';
+import { AICustomizationManagementEditor, isCurrentConnectorDetailNavigation, isCurrentPluginContributionNavigation } from '../../../browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { AgentPluginItemKind, IAgentPluginItem } from '../../../browser/agentPluginEditor/agentPluginItems.js';
 import { ChatConfiguration } from '../../../common/constants.js';
@@ -90,6 +90,16 @@ suite('aiCustomizationManagementEditor', () => {
 			isCurrentPluginContributionNavigation(1, 2, AICustomizationManagementSection.Skills, AICustomizationManagementSection.Skills, true),
 			isCurrentPluginContributionNavigation(2, 2, AICustomizationManagementSection.Skills, AICustomizationManagementSection.Agents, true),
 			isCurrentPluginContributionNavigation(2, 2, AICustomizationManagementSection.Skills, AICustomizationManagementSection.Skills, false),
+		], [true, false, false, false]);
+	});
+
+	test('rejects superseded connector detail navigation', () => {
+		const requestInput = {};
+		assert.deepStrictEqual([
+			isCurrentConnectorDetailNavigation(2, 2, requestInput, requestInput),
+			isCurrentConnectorDetailNavigation(1, 2, requestInput, requestInput),
+			isCurrentConnectorDetailNavigation(2, 2, requestInput, {}),
+			isCurrentConnectorDetailNavigation(2, 2, undefined, undefined),
 		], [true, false, false, false]);
 	});
 

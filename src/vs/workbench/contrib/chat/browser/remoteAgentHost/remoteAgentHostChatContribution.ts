@@ -452,6 +452,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			isNewSession,
 			resolveInitialSessionConfig: customization?.resolveInitialSessionConfig,
 			modelIdentifierAliases: customization?.modelIdentifierAliases,
+			isSessionTitlePlaceholder: customization?.isSessionTitlePlaceholder,
 			onSessionMaterialized: sessionResource => this._chatSessionsService.notifySessionMaterialized?.(sessionResource),
 			resolveAuthentication: (resources) => this._resolveAuthenticationInteractively(address, connection, resources),
 		}));

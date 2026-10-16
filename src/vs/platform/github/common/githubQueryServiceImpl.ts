@@ -9,30 +9,21 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { ISettableObservable, observableValue } from '../../../base/common/observable.js';
 import { hasKey } from '../../../base/common/types.js';
 import { ILogService } from '../../log/common/log.js';
+import { getGraphQLErrorKind } from './client/graphql.js';
 import {
-	GitHubChangedFile,
 	GitHubCommit,
 	GitHubCommitRef,
 	GitHubCommitResource,
 	GitHubCommitSubscription,
-	GitHubComparison,
-	GitHubComparisonCommit,
 	GitHubHydratableResourceRef,
 	GitHubIssue,
 	GitHubIssueOrPullRequest,
 	GitHubIssueRef,
 	GitHubIssueResource,
 	GitHubIssueSubscription,
-	GitHubPullRequestContext,
-	GitHubPullRequestContextComment,
 	GitHubPullRequestLookup,
 	GitHubPullRequestLookupOptions,
-	GitHubPullRequestsPage,
-	GitHubPullRequestSummary,
 	GitHubQueryApi,
-	GitHubRecentIssue,
-	GitHubRecentPullRequest,
-	GitHubRecentPullRequestReviewThread,
 	GitHubRepositoriesPage,
 	GitHubRepository,
 	GitHubRepositoryListOptions,
@@ -46,10 +37,10 @@ import {
 	GitHubResourcePriority,
 	GitHubResourceSubscriptionOptions,
 } from './githubQueryService.js';
-import { FragmentState, GitHubActor, PullRequestMergeMethod, PullRequestRef } from './githubPullRequestService.js';
+import { FragmentState, GitHubActor, PullRequestMergeMethod } from './githubPullRequestService.js';
 import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from './githubCredentialService.js';
 import { IGitHubCapabilities } from './githubHostCapabilitiesService.js';
-import { arrayProperty, asArray, asObject, booleanProperty, idProperty, nextLink, nullableStringProperty, numberProperty, objectAt, objectProperty, optionalObjectProperty, requiredNumber, requiredString, stringProperty } from './githubResponse.js';
+import { arrayProperty, asArray, asObject, booleanProperty, idProperty, nextLink, nullableStringProperty, numberProperty, objectProperty, optionalObjectProperty, requiredNumber, requiredString, stringProperty } from './githubResponse.js';
 import { IRequestScheduler, systemRequestScheduler } from './scheduler.js';
 import { GitHubGraphQLError, GitHubRequestError, IGitHubTransport } from './githubTransport.js';
 import { BackoffPolicy, backoffDelay } from './backoff.js';
@@ -57,10 +48,6 @@ import { IGitHubEndpointProvider } from './githubTypes.js';
 import { getPullRequestUrlKey } from './githubUrls.js';
 import { PullRequestScheduler } from './pullRequestScheduler.js';
 import { AccountHandle } from './types.js';
-
-export interface IGitHubQuery extends GitHubQueryApi {
-	clear(): void;
-}
 
 export interface GitHubEntityPollingPolicy {
 	readonly dormantGrace: number;
@@ -80,7 +67,6 @@ const defaultPollingPolicy: GitHubEntityPollingPolicy = {
 	jitter: 5_000,
 };
 
-const maximumPaginationPages = 100;
 const maximumRepositoryPageSize = 100;
 const maximumRepositorySearchResults = 1_000;
 const maximumHydrationBatchSize = 25;
@@ -114,62 +100,6 @@ const issueHydrationFields = `
 	closedAt
 `;
 const maximumCommitPullRequests = 100;
-const maximumIssueLinkageBatchSize = 20;
-
-const listPullRequestsQuery = `query AgentHostListPullRequests($owner: String!, $repo: String!, $cursor: String) {
-	repository(owner: $owner, name: $repo) {
-		pullRequests(first: 100, after: $cursor, states: OPEN, orderBy: { field: UPDATED_AT, direction: DESC }) {
-			nodes { number title author { login ... on User { databaseId } } headRefName isDraft updatedAt additions deletions }
-			pageInfo { endCursor hasNextPage }
-		}
-	}
-	rateLimit { limit remaining used resetAt }
-}`;
-
-const searchPullRequestsQuery = `query AgentHostSearchPullRequests($query: String!) {
-	search(first: 100, query: $query, type: ISSUE) {
-		nodes {
-			... on PullRequest {
-				number title author { login ... on User { databaseId } } headRefName isDraft updatedAt additions deletions
-			}
-		}
-	}
-	rateLimit { limit remaining used resetAt }
-}`;
-
-const recentIssuesQuery = `query AgentHostRecentAssignedIssues($query: String!) {
-	search(query: $query, type: ISSUE, first: 5) {
-		nodes { ... on Issue { number title url updatedAt } }
-	}
-	rateLimit { limit remaining used resetAt }
-}`;
-
-const recentPullRequestsQuery = `query AgentHostRecentAuthoredPullRequests($query: String!) {
-	search(query: $query, type: ISSUE, first: 5) {
-		nodes {
-			... on PullRequest {
-				number title url updatedAt
-				commits(last: 1) {
-					nodes { commit { committedDate statusCheckRollup { state } } }
-				}
-			}
-		}
-	}
-	rateLimit { limit remaining used resetAt }
-}`;
-
-const reviewThreadSummaryQuery = `query AgentHostPullRequestReviewThreadSummary($owner: String!, $repo: String!, $number: Int!, $after: String) {
-	repository(owner: $owner, name: $repo) {
-		pullRequest(number: $number) {
-			reviewThreads(first: 100, after: $after) {
-				nodes { isResolved comments(last: 1) { nodes { createdAt } } }
-				pageInfo { hasNextPage endCursor }
-			}
-		}
-	}
-	rateLimit { limit remaining used resetAt }
-}`;
-
 type EntityKind = 'repository' | 'issue' | 'commit';
 type EntityRef = GitHubRepositoryRef | GitHubIssueRef | GitHubCommitRef;
 type EntityValue = GitHubRepository | GitHubIssue | GitHubCommit;
@@ -307,7 +237,7 @@ class EntitySubscription<TRef extends EntityRef, TValue extends EntityValue> {
 	}
 }
 
-export class GitHubQueryService extends Disposable implements IGitHubQuery {
+export class GitHubQueryService extends Disposable implements GitHubQueryApi {
 
 	private readonly _entriesByKey = new Map<string, EntityEntry<EntityRef, EntityValue>>();
 	private readonly _entries = new Set<EntityEntry<EntityRef, EntityValue>>();
@@ -503,20 +433,6 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 		return subscription;
 	}
 
-	async getRepository(ref: GitHubRepositoryRef, signal: AbortSignal): Promise<GitHubRepository> {
-		const normalized = normalizeRepositoryRef(ref);
-		return this._withCredential(normalized, signal, async (credential, combinedSignal) => {
-			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
-				caller: 'github.query',
-				method: 'GET',
-				url: this._restUrl(normalized, ''),
-				etag: true,
-				priority: 'interactive',
-			}, combinedSignal);
-			return toRepository(response.data);
-		});
-	}
-
 	async listRepositories(account: AccountHandle, signal: AbortSignal, options?: GitHubRepositoryListOptions): Promise<GitHubRepositoriesPage> {
 		const { page, perPage } = repositoryPagination(options);
 		const params = new URLSearchParams({ page: String(page), per_page: String(perPage) });
@@ -577,126 +493,6 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 				totalCount,
 				incompleteResults,
 				limitReached: totalCount > maximumRepositorySearchResults,
-			};
-		});
-	}
-
-	async compare(ref: GitHubRepositoryRef, base: string, head: string, signal: AbortSignal): Promise<GitHubComparison> {
-		const normalized = normalizeRepositoryRef(ref);
-		if (!base || !head) {
-			throw new Error('GitHub comparison requires base and head refs');
-		}
-		return this._withCredential(normalized, signal, async (credential, combinedSignal) => {
-			const commits: GitHubComparisonCommit[] = [];
-			let files: GitHubChangedFile[] = [];
-			let filesPresent = false;
-			let first: object | undefined;
-			let totalCommits = 0;
-			for (let page = 1; page <= maximumPaginationPages; page++) {
-				const response = await this._transport.rest<unknown>(credential.account, credential.token, {
-					caller: 'github.query',
-					method: 'GET',
-					url: `${this._restUrl(normalized, `compare/${encodeURIComponent(base)}...${encodeURIComponent(head)}`)}?per_page=100&page=${page}`,
-					etag: true,
-					priority: 'interactive',
-				}, combinedSignal);
-				const value = asObject(response.data, 'GitHub comparison response was malformed');
-				first ??= value;
-				totalCommits = numberProperty(value, 'total_commits') ?? totalCommits;
-				commits.push(...arrayProperty(value, 'commits').map(toComparisonCommit));
-				if (page === 1) {
-					const fileValues = optionalArrayProperty(value, 'files');
-					filesPresent = fileValues !== undefined;
-					files = (fileValues ?? []).map(toChangedFile);
-				}
-				if (commits.length >= totalCommits || arrayProperty(value, 'commits').length < 100) {
-					break;
-				}
-			}
-			if (!first) {
-				throw new GitHubRequestError('GitHub comparison did not return a response', 'malformedResponse');
-			}
-			const mergeBaseSha = requiredString(objectProperty(first, 'merge_base_commit'), 'sha');
-			const commitsComplete = commits.length >= totalCommits;
-			return {
-				baseSha: requiredString(objectProperty(first, 'base_commit'), 'sha'),
-				mergeBaseSha,
-				headSha: commitsComplete ? commits.at(-1)?.sha ?? mergeBaseSha : undefined,
-				status: enumProperty(first, 'status', ['ahead', 'behind', 'diverged', 'identical'], 'diverged'),
-				aheadBy: numberProperty(first, 'ahead_by') ?? 0,
-				behindBy: numberProperty(first, 'behind_by') ?? 0,
-				totalCommits,
-				commits,
-				commitsComplete,
-				files,
-				filesComplete: filesPresent && files.length < 300,
-			};
-		});
-	}
-
-	async listPullRequests(ref: GitHubRepositoryRef, cursor: string | undefined, signal: AbortSignal): Promise<GitHubPullRequestsPage> {
-		return this._graphqlWithCredential(ref, listPullRequestsQuery, {
-			owner: ref.owner,
-			repo: ref.repo,
-			cursor: cursor ?? null,
-		}, signal, data => {
-			const repository = objectProperty(asObject(data, 'GitHub pull request page was malformed'), 'repository');
-			const connection = objectProperty(repository, 'pullRequests');
-			const pageInfo = objectProperty(connection, 'pageInfo');
-			return {
-				pullRequests: arrayProperty(connection, 'nodes').map(value => toPullRequestSummary(value, false, false)),
-				cursor: nullableStringProperty(pageInfo, 'endCursor'),
-				hasNextPage: booleanProperty(pageInfo, 'hasNextPage') ?? false,
-			};
-		});
-	}
-
-	listPullRequestsWaitingForReview(ref: GitHubRepositoryRef, signal: AbortSignal): Promise<readonly GitHubPullRequestSummary[]> {
-		return this._searchPullRequests(ref, `repo:${ref.owner}/${ref.repo} is:pr is:open review-requested:@me sort:updated-desc`, true, false, signal);
-	}
-
-	listPullRequestsAssignedToViewer(ref: GitHubRepositoryRef, signal: AbortSignal): Promise<readonly GitHubPullRequestSummary[]> {
-		return this._searchPullRequests(ref, `repo:${ref.owner}/${ref.repo} is:pr is:open assignee:@me sort:updated-desc`, false, true, signal);
-	}
-
-	async getPullRequestContext(ref: PullRequestRef, signal: AbortSignal): Promise<GitHubPullRequestContext> {
-		const repositoryRef = normalizeRepositoryRef(ref);
-		return this._withCredential(repositoryRef, signal, async (credential, combinedSignal) => {
-			const root = `pulls/${ref.number}`;
-			const [coreResponse, files, issueComments, reviewComments] = await Promise.all([
-				this._transport.rest<unknown>(credential.account, credential.token, {
-					caller: 'github.query',
-					method: 'GET',
-					url: this._restUrl(repositoryRef, root),
-					etag: true,
-					priority: 'interactive',
-				}, combinedSignal),
-				this._fetchRestPages(repositoryRef, credential, `${root}/files`, combinedSignal),
-				this._fetchRestPages(repositoryRef, credential, `issues/${ref.number}/comments`, combinedSignal),
-				this._fetchRestPages(repositoryRef, credential, `${root}/comments`, combinedSignal),
-			]);
-			const pullRequest = asObject(coreResponse.data, 'GitHub pull request context was malformed');
-			const base = objectProperty(pullRequest, 'base');
-			const head = objectProperty(pullRequest, 'head');
-			const comments: GitHubPullRequestContextComment[] = [
-				...issueComments.map(value => toContextComment('issue', value)),
-				...reviewComments.map(value => toContextComment('review', value)),
-			].sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.updatedAt.localeCompare(right.updatedAt));
-			return {
-				ref,
-				url: requiredString(pullRequest, 'html_url'),
-				title: requiredString(pullRequest, 'title'),
-				description: nullableStringProperty(pullRequest, 'body') ?? '',
-				author: requiredString(objectProperty(pullRequest, 'user'), 'login'),
-				draft: booleanProperty(pullRequest, 'draft') ?? false,
-				baseRef: requiredString(base, 'ref'),
-				branchName: requiredString(head, 'ref'),
-				headRef: requiredString(head, 'ref'),
-				updatedAt: requiredString(pullRequest, 'updated_at'),
-				patch: createPatch(files),
-				filesComplete: files.length < 3_000,
-				comments,
-				commentsComplete: true,
 			};
 		});
 	}
@@ -817,75 +613,6 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 		});
 	}
 
-	getRecentAssignedIssues(ref: GitHubRepositoryRef, signal: AbortSignal): Promise<readonly GitHubRecentIssue[]> {
-		return this._graphqlWithCredential(ref, recentIssuesQuery, {
-			query: `repo:${ref.owner}/${ref.repo} is:issue is:open assignee:@me sort:updated-desc`,
-		}, signal, data => arrayProperty(objectProperty(asObject(data, 'GitHub recent issues response was malformed'), 'search'), 'nodes')
-			.filter(isObject)
-			.map(toRecentIssue));
-	}
-
-	getRecentAuthoredPullRequests(ref: GitHubRepositoryRef, signal: AbortSignal): Promise<readonly GitHubRecentPullRequest[]> {
-		return this._graphqlWithCredential(ref, recentPullRequestsQuery, {
-			query: `repo:${ref.owner}/${ref.repo} is:pr is:open author:@me sort:updated-desc`,
-		}, signal, data => arrayProperty(objectProperty(asObject(data, 'GitHub recent pull requests response was malformed'), 'search'), 'nodes')
-			.filter(isObject)
-			.map(toRecentPullRequest));
-	}
-
-	async getPullRequestReviewThreadSummary(ref: PullRequestRef, signal: AbortSignal): Promise<readonly GitHubRecentPullRequestReviewThread[]> {
-		const result: GitHubRecentPullRequestReviewThread[] = [];
-		let after: string | undefined;
-		for (let page = 0; page < maximumPaginationPages; page++) {
-			const response = await this._graphqlRaw(ref, reviewThreadSummaryQuery, {
-				owner: ref.owner,
-				repo: ref.repo,
-				number: ref.number,
-				after,
-			}, signal);
-			const connection = objectAt(response, 'repository', 'pullRequest', 'reviewThreads');
-			result.push(...arrayProperty(connection, 'nodes').filter(isObject).map(toReviewThreadSummary));
-			const pageInfo = objectProperty(connection, 'pageInfo');
-			if (!booleanProperty(pageInfo, 'hasNextPage')) {
-				return result;
-			}
-			after = requiredString(pageInfo, 'endCursor');
-		}
-		throw new GitHubRequestError('GitHub review-thread summary pagination exceeded its page limit', 'malformedResponse');
-	}
-
-	async getIssuesWithLinkedPullRequests(
-		ref: GitHubRepositoryRef,
-		issueNumbers: readonly number[],
-		signal: AbortSignal,
-	): Promise<readonly number[]> {
-		const normalizedNumbers = [...new Set(issueNumbers.filter(number => Number.isInteger(number) && number > 0))];
-		const linked: number[] = [];
-		for (let offset = 0; offset < normalizedNumbers.length; offset += maximumIssueLinkageBatchSize) {
-			const batch = normalizedNumbers.slice(offset, offset + maximumIssueLinkageBatchSize);
-			const variableDefinitions = batch.map((_, index) => `$issue${index}: Int!`).join(', ');
-			const selections = batch.map((_, index) => `issue${index}: issue(number: $issue${index}) {
-				closedByPullRequestsReferences(first: 1, includeClosedPrs: true) { totalCount }
-			}`).join('\n');
-			const query = `query AgentHostIssueLinkage($owner: String!, $repo: String!, ${variableDefinitions}) {
-				repository(owner: $owner, name: $repo) { ${selections} }
-				rateLimit { limit remaining used resetAt }
-			}`;
-			const variables: Record<string, string | number> = { owner: ref.owner, repo: ref.repo };
-			batch.forEach((number, index) => variables[`issue${index}`] = number);
-			const data = await this._graphqlRaw(ref, query, variables, signal);
-			const repository = objectProperty(asObject(data, 'GitHub issue linkage response was malformed'), 'repository');
-			batch.forEach((number, index) => {
-				const issue = optionalObjectProperty(repository, `issue${index}`);
-				const references = issue ? optionalObjectProperty(issue, 'closedByPullRequestsReferences') : undefined;
-				if ((references ? numberProperty(references, 'totalCount') ?? 0 : 0) > 0) {
-					linked.push(number);
-				}
-			});
-		}
-		return linked;
-	}
-
 	updateEntitySubscription(entry: EntityEntry<EntityRef, EntityValue>): void {
 		if (entry.operation?.requestSignal) {
 			this._transport.promote(entry.operation.requestSignal, toRequestPriority(this._effectivePriority(entry)));
@@ -945,16 +672,12 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 		this._trimDormant();
 	}
 
-	clear(): void {
+	override dispose(): void {
 		for (const entry of [...this._entries]) {
 			this._disposeEntity(entry);
 		}
 		this._scheduler.clear();
 		this._unsupportedGraphQLQueries.clear();
-	}
-
-	override dispose(): void {
-		this.clear();
 		super.dispose();
 	}
 
@@ -1072,19 +795,6 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 		}
 	}
 
-	private async _searchPullRequests(
-		ref: GitHubRepositoryRef,
-		query: string,
-		reviewRequested: boolean,
-		assigned: boolean,
-		signal: AbortSignal,
-	): Promise<readonly GitHubPullRequestSummary[]> {
-		return this._graphqlWithCredential(ref, searchPullRequestsQuery, { query }, signal, data =>
-			arrayProperty(objectProperty(asObject(data, 'GitHub pull request search response was malformed'), 'search'), 'nodes')
-				.filter(isObject)
-				.map(value => toPullRequestSummary(value, reviewRequested, assigned)));
-	}
-
 	private async _graphqlRaw(
 		ref: GitHubRepositoryRef,
 		query: string,
@@ -1092,7 +802,7 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 		signal: AbortSignal,
 	): Promise<unknown> {
 		return this._withCredential(ref, signal, async (credential, combinedSignal) => {
-			const capabilities = await this._capabilities.getCapabilities(credential, undefined, combinedSignal);
+			const capabilities = await this._capabilities.getCapabilities(credential, combinedSignal);
 			if (!capabilities.graphql) {
 				throw new GitHubRequestError('GitHub GraphQL is unavailable on this host', 'schema');
 			}
@@ -1120,48 +830,6 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 				throw error;
 			}
 		});
-	}
-
-	private async _graphqlWithCredential<T>(
-		ref: GitHubRepositoryRef,
-		query: string,
-		variables: Readonly<Record<string, unknown>>,
-		signal: AbortSignal,
-		map: (data: unknown) => T,
-	): Promise<T> {
-		return map(await this._graphqlRaw(ref, query, variables, signal));
-	}
-
-	private async _fetchRestPages(
-		ref: GitHubRepositoryRef,
-		credential: GitHubCredential,
-		route: string,
-		signal: AbortSignal,
-	): Promise<readonly unknown[]> {
-		const result: unknown[] = [];
-		let url: string | undefined = `${this._restUrl(ref, route)}?per_page=100&page=1`;
-		for (let page = 0; url && page < maximumPaginationPages; page++) {
-			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
-				caller: 'github.query',
-				method: 'GET',
-				url,
-				etag: true,
-				priority: 'interactive',
-			}, signal);
-			const values = asArray(response.data, 'GitHub paginated response was not an array');
-			result.push(...values);
-			url = nextLink(response.link);
-			if (!url && values.length === 100) {
-				url = `${this._restUrl(ref, route)}?per_page=100&page=${page + 2}`;
-			}
-			if (values.length < 100) {
-				url = undefined;
-			}
-		}
-		if (url) {
-			throw new GitHubRequestError('GitHub pagination exceeded its page limit', 'malformedResponse');
-		}
-		return result;
 	}
 
 	private async _withCredential<T>(
@@ -1462,7 +1130,7 @@ function toIssue(value: unknown): GitHubIssue {
 		body: nullableStringProperty(item, 'body') ?? '',
 		url: requiredString(item, 'html_url'),
 		state: stringProperty(item, 'state') === 'closed' ? 'closed' : 'open',
-		stateReason: enumProperty(item, 'state_reason', ['completed', 'not_planned', 'duplicate', 'reopened'], undefined),
+		stateReason: enumProperty(item, 'state_reason', ['completed', 'not_planned', 'duplicate', 'reopened']),
 		author: author ? requiredActor(author) : { login: 'ghost' },
 		assignees: arrayProperty(item, 'assignees').filter(isObject).map(requiredActor),
 		labels: arrayProperty(item, 'labels').flatMap(label => {
@@ -1492,52 +1160,6 @@ function toCommit(value: unknown): GitHubCommit {
 		url: requiredString(item, 'html_url'),
 		author: author ? requiredActor(author) : { login: requiredString(commitAuthor, 'name') },
 		committedAt: requiredString(commitAuthor, 'date'),
-	};
-}
-
-function toChangedFile(value: unknown): GitHubChangedFile {
-	const item = asObject(value, 'GitHub changed file was malformed');
-	return {
-		filename: requiredString(item, 'filename'),
-		previousFilename: stringProperty(item, 'previous_filename'),
-		status: enumProperty(item, 'status', ['added', 'removed', 'modified', 'renamed', 'copied', 'changed', 'unchanged'], 'changed'),
-		additions: numberProperty(item, 'additions') ?? 0,
-		deletions: numberProperty(item, 'deletions') ?? 0,
-		changes: numberProperty(item, 'changes') ?? 0,
-		patch: stringProperty(item, 'patch'),
-		blobUrl: stringProperty(item, 'blob_url'),
-	};
-}
-
-function toComparisonCommit(value: unknown): GitHubComparisonCommit {
-	const item = asObject(value, 'GitHub comparison commit was malformed');
-	const commit = objectProperty(item, 'commit');
-	const author = optionalObjectProperty(item, 'author');
-	return {
-		sha: requiredString(item, 'sha'),
-		message: requiredString(commit, 'message'),
-		author: author ? requiredActor(author) : undefined,
-		committedAt: optionalObjectProperty(commit, 'committer') ? stringProperty(objectProperty(commit, 'committer'), 'date') : undefined,
-		url: stringProperty(item, 'html_url'),
-	};
-}
-
-function toPullRequestSummary(value: unknown, reviewRequested: boolean, assigned: boolean): GitHubPullRequestSummary {
-	const item = asObject(value, 'GitHub pull request summary was malformed');
-	const number = requiredNumber(item, 'number');
-	const author = optionalObjectProperty(item, 'author');
-	return {
-		number,
-		title: requiredString(item, 'title'),
-		author: author ? requiredActor(author) : { login: 'ghost' },
-		headRef: requiredString(item, 'headRefName'),
-		checkoutRef: `refs/pull/${number}/head`,
-		draft: booleanProperty(item, 'isDraft') ?? false,
-		updatedAt: requiredString(item, 'updatedAt'),
-		additions: numberProperty(item, 'additions') ?? 0,
-		deletions: numberProperty(item, 'deletions') ?? 0,
-		reviewRequestedFromViewer: reviewRequested,
-		assignedToViewer: assigned,
 	};
 }
 
@@ -1581,82 +1203,13 @@ function isMissingCommitResponse(error: unknown): boolean {
 	return isObject(body) && stringProperty(body, 'message')?.startsWith('No commit found for SHA: ') === true;
 }
 
-function toContextComment(kind: 'issue' | 'review', value: unknown): GitHubPullRequestContextComment {
-	const item = asObject(value, 'GitHub pull request context comment was malformed');
-	return {
-		kind,
-		author: requiredString(objectProperty(item, 'user'), 'login'),
-		body: requiredString(item, 'body'),
-		createdAt: requiredString(item, 'created_at'),
-		updatedAt: requiredString(item, 'updated_at'),
-		path: kind === 'review' ? stringProperty(item, 'path') : undefined,
-		line: kind === 'review' ? numberProperty(item, 'line') ?? numberProperty(item, 'original_line') : undefined,
-	};
-}
-
-function createPatch(values: readonly unknown[]): string {
-	return values.map(value => {
-		const file = asObject(value, 'GitHub pull request file was malformed');
-		return [
-			`diff --git a/${requiredString(file, 'filename')} b/${requiredString(file, 'filename')}`,
-			stringProperty(file, 'patch') ?? `[Patch unavailable: ${stringProperty(file, 'status') ?? 'changed'}, +${numberProperty(file, 'additions') ?? 0} -${numberProperty(file, 'deletions') ?? 0}]`,
-		].join('\n');
-	}).join('\n\n');
-}
-
-function toRecentIssue(value: object): GitHubRecentIssue {
-	return {
-		number: requiredNumber(value, 'number'),
-		title: requiredString(value, 'title'),
-		url: requiredString(value, 'url'),
-		updatedAt: requiredString(value, 'updatedAt'),
-	};
-}
-
-function toRecentPullRequest(value: object): GitHubRecentPullRequest {
-	const commits = objectProperty(value, 'commits');
-	const node = arrayProperty(commits, 'nodes').find(isObject);
-	const commit = node ? optionalObjectProperty(node, 'commit') : undefined;
-	const rollup = commit ? optionalObjectProperty(commit, 'statusCheckRollup') : undefined;
-	return {
-		number: requiredNumber(value, 'number'),
-		title: requiredString(value, 'title'),
-		url: requiredString(value, 'url'),
-		updatedAt: requiredString(value, 'updatedAt'),
-		statusCheckRollupState: rollup ? stringProperty(rollup, 'state') : undefined,
-		latestCommitAt: commit ? stringProperty(commit, 'committedDate') : undefined,
-	};
-}
-
-function toReviewThreadSummary(value: object): GitHubRecentPullRequestReviewThread {
-	const comments = objectProperty(value, 'comments');
-	const latest = arrayProperty(comments, 'nodes').find(isObject);
-	return {
-		isResolved: booleanProperty(value, 'isResolved') ?? false,
-		latestCommentAt: latest ? stringProperty(latest, 'createdAt') : undefined,
-	};
-}
-
 function throwGraphQLErrors(errors: readonly GitHubGraphQLError[]): void {
 	if (errors.length === 0) {
 		return;
 	}
-	const types = errors.map(error => error.type?.toUpperCase());
-	const codes = errors.map(error => error.extensions?.code?.toUpperCase());
-	const kind = types.includes('RATE_LIMIT') || types.includes('RATE_LIMITED')
-		? 'rateLimit'
-		: types.some(type => type === 'FORBIDDEN' || type === 'UNAUTHORIZED')
-			? 'authorization'
-			: types.some(type => type?.includes('NOT_FOUND'))
-				? 'notFound'
-				: types.some(type => type?.includes('VALIDATION'))
-					? 'schema'
-					: codes.some(code => code === 'UNDEFINEDFIELD' || code === 'ARGUMENTNOTACCEPTED' || code === 'VARIABLEMISMATCH')
-						? 'schema'
-						: 'server';
 	throw new GitHubRequestError(
 		`GitHub GraphQL query failed: ${errors.map(error => error.message ?? error.type ?? 'unknown error').join('; ')}`,
-		kind,
+		getGraphQLErrorKind(errors),
 		200,
 		undefined,
 		errors,
@@ -1667,18 +1220,9 @@ function isObject(value: unknown): value is object {
 	return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
-function optionalArrayProperty(value: object, key: string): readonly unknown[] | undefined {
-	const property = Reflect.get(value, key);
-	return property === null || property === undefined
-		? undefined
-		: asArray(property, `GitHub response property ${key} was not an array`);
-}
-
-function enumProperty<T extends string>(value: object, key: string, allowed: readonly T[], fallback: T): T;
-function enumProperty<T extends string>(value: object, key: string, allowed: readonly T[], fallback: undefined): T | undefined;
-function enumProperty<T extends string>(value: object, key: string, allowed: readonly T[], fallback: T | undefined): T | undefined {
+function enumProperty<T extends string>(value: object, key: string, allowed: readonly T[]): T | undefined {
 	const property = stringProperty(value, key);
-	return property && allowed.includes(property as T) ? property as T : fallback;
+	return property && allowed.includes(property as T) ? property as T : undefined;
 }
 
 function requiredActor(value: object): GitHubActor {

@@ -241,6 +241,23 @@ suite('GitHubPullRequestPollingContribution', () => {
 		assert.strictEqual(existingSession.isArchived.get(), false);
 	});
 
+	for (const enterpriseHost of [undefined, 'ghe.example.com']) {
+		test(`polls only references on ${enterpriseHost ?? 'github.com'}`, () => {
+			gitHubService.enterpriseHost = enterpriseHost;
+			sessionsManagementService.addSession('session', {
+				owner: 'owner', repo: 'repo',
+				pullRequests: ['github.com', 'ghe.example.com'].map((host, index) => ({
+					owner: 'owner', repo: 'repo', number: index + 1,
+					uri: URI.parse(`https://${host}/owner/repo/pull/${index + 1}`),
+				})),
+			});
+			store.add(createContribution());
+			assert.deepStrictEqual(gitHubService.snapshot(), {
+				[`owner/repo/${enterpriseHost ? 2 : 1}`]: { startPollingCalls: 1, stopPollingCalls: 0, disposeCalls: 0 },
+			});
+		});
+	}
+
 	test('polls every pull request associated with a session', () => {
 		const gitHubInfo = makeGitHubInfo(2);
 		const session = sessionsManagementService.addSession('session', {
@@ -608,6 +625,7 @@ class TestSession implements ISession {
 
 class TestGitHubService extends mock<IGitHubService>() {
 
+	override enterpriseHost: string | undefined;
 	private readonly _models = new Map<string, TestPullRequestModel>();
 	private readonly _ciModels = new Map<string, TestStatusModel>();
 	private readonly _threadModels = new Map<string, TestStatusModel>();

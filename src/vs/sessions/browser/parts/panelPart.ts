@@ -36,6 +36,15 @@ import { Extensions } from '../../../workbench/browser/panecomposite.js';
 import { isPhoneLayout } from './mobile/mobileLayout.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { getSessionsPartFrameInset } from './agentsPartCard.js';
+import { EditorHeaderControl } from '../../../workbench/browser/parts/editor/editorHeaderControl.js';
+
+function getPanelTabBarHeight(showLabels: boolean, compact: boolean): number | undefined {
+	if (!showLabels) {
+		return undefined;
+	}
+
+	return compact ? EditorHeaderControl.COMPACT_HEIGHT : EditorHeaderControl.DEFAULT_HEIGHT;
+}
 
 /**
  * Panel part specifically for agent sessions workbench.
@@ -93,7 +102,14 @@ export class PanelPart extends AbstractPaneCompositePart {
 	) {
 		super(
 			Parts.PANEL_PART,
-			{ hasTitle: true, trailingSeparator: true },
+			{
+				hasTitle: true,
+				trailingSeparator: true,
+				titleHeight: () => getPanelTabBarHeight(
+					configurationService.getValue('workbench.panel.showLabels') !== false,
+					configurationService.getValue<'default' | 'compact'>('window.density.editorTabHeight') === 'compact'
+				)
+			},
 			PanelPart.activePanelSettingsKey,
 			ActivePanelContext.bindTo(contextKeyService),
 			PanelFocusContext.bindTo(contextKeyService),
@@ -120,8 +136,14 @@ export class PanelPart extends AbstractPaneCompositePart {
 		);
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('workbench.panel.showLabels')) {
-				this.updateCompositeBar(true);
+			const panelLabelsChanged = e.affectsConfiguration('workbench.panel.showLabels');
+			const editorTabHeightChanged = e.affectsConfiguration('window.density.editorTabHeight');
+			if (panelLabelsChanged || editorTabHeightChanged) {
+				this.updatePanelTabBarStyles();
+				if (panelLabelsChanged) {
+					this.updateCompositeBar(true);
+				}
+				this.relayoutForInsets();
 			}
 		}));
 		this._register(this.layoutService.onDidChangePanelAlignment(() => this.relayoutForInsets()));
@@ -136,6 +158,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 		super.updateStyles();
 
 		const container = assertReturnsDefined(this.getContainer());
+		this.updatePanelTabBarStyles();
 
 		// Store background and border as CSS variables for the card styling on .part
 		container.style.setProperty('--part-background', this.getColor(agentsPanelBackground) || '');
@@ -147,6 +170,19 @@ export class PanelPart extends AbstractPaneCompositePart {
 		container.style.borderTopColor = '';
 		container.style.borderTopStyle = '';
 		container.style.borderTopWidth = '';
+	}
+
+	private updatePanelTabBarStyles(): void {
+		const container = this.getContainer();
+		const showLabels = this.configurationService.getValue('workbench.panel.showLabels') !== false;
+		container?.classList.toggle('panel-labels', showLabels);
+
+		const tabBarHeight = getPanelTabBarHeight(showLabels, this.configurationService.getValue<'default' | 'compact'>('window.density.editorTabHeight') === 'compact');
+		if (tabBarHeight === undefined) {
+			this.titleArea?.style.removeProperty('height');
+		} else {
+			this.titleArea?.style.setProperty('height', `${tabBarHeight}px`);
+		}
 	}
 
 	protected getCompositeBarOptions(): IPaneCompositeBarOptions {

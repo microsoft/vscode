@@ -1523,6 +1523,21 @@ suite('SessionDatabase', () => {
 			});
 		});
 
+		test('the rows watermark reads the turn watermark and every draft together, also without turns or drafts', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			const empty = await db.getRowsWatermark();
+			await populate(db);
+			await db.setChatDraft(URI.parse('ahp-chat://peer'), { text: 'Peer draft', origin: { kind: MessageKind.User } });
+			const populated = await db.getRowsWatermark();
+			assert.deepStrictEqual({
+				empty: { maxTurnRowid: empty.maxTurnRowid, drafts: [...empty.drafts] },
+				populated: { maxTurnRowid: populated.maxTurnRowid, drafts: [...populated.drafts] },
+			}, {
+				empty: { maxTurnRowid: 0, drafts: [] },
+				populated: { maxTurnRowid: 5, drafts: [['ahp-chat://peer', { text: 'Peer draft', origin: { kind: MessageKind.User } }]] },
+			});
+		});
+
 		test('without foreign rows recorded the scans see every row, as older builds do', async () => {
 			db = disposables.add(await SessionDatabase.open(':memory:'));
 			await populate(db, false);

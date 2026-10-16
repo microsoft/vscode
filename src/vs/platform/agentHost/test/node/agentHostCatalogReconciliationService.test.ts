@@ -205,6 +205,7 @@ suite('AgentHostCatalogReconciliationService', () => {
 				return database ? reference(database) : undefined;
 			},
 			deleteSessionData: async () => { },
+			deleteSessionDataExcept: async () => { },
 			onWillDeleteSessionData: Event.None,
 			cleanupOrphanedData: async () => { },
 			whenIdle: async () => { },
@@ -335,6 +336,104 @@ suite('AgentHostCatalogReconciliationService', () => {
 			migrated: ['agenthost:a', 'agenthost:b', 'agenthost:c', 'agenthost:a'],
 			databaseOpens: 0,
 		});
+	});
+
+	test('the chat conversion batch also hands normalized catalogs an older build edited to the import, and no others', async () => {
+		const harness = await createHarness(['a', 'b']);
+		for (const owner of ['a', 'b']) {
+			await harness.central.registerChatCatalogV2(`agenthost:${owner}`, {
+				defaultChat: { chat: `agenthost-chat:${owner}/default`, order: 0 },
+				peers: [{ chat: `agenthost-chat:${owner}/peer`, order: 1 }],
+				privateDescendants: [],
+			});
+		}
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Write session_chats as a build without normalized authority does: with the revision.
+		const raw = await harness.central['_ensureDatabase']();
+		await new Promise<void>((resolve, reject) => raw.exec(
+			`UPDATE session_chats SET archived = 1 WHERE session_uri = 'agenthost:a';
+			UPDATE session_chat_catalogs SET revision = revision + 1 WHERE session_uri = 'agenthost:a'`,
+			error => error ? reject(error) : resolve(),
+		));
+		const migrated: string[] = [];
+		await harness.createService(async () => {
+			throw new Error('Chat conversion must not resolve a provider');
+		}, { migrateChatCatalog: async session => { migrated.push(session.toString()); } }).runPass();
+		assert.deepStrictEqual(migrated, ['agenthost:a']);
+	});
+
+	test('a conversion that waits for the session\'s re-projection is retried right after it, in the same pass', async () => {
+		const harness = await createHarness(['a']);
+		const attempts: string[] = [];
+		const scheduler = new TestScheduler();
+		const service: AgentHostCatalogReconciliationService = harness.createService(undefined, {
+			schedule: scheduler.schedule,
+			// As the agent service's conversion: not ready until the aggregate is verified and clean.
+			migrateChatCatalog: async session => {
+				const source = await harness.central.getSessionV2(session.toString());
+				if (!source?.verified || source.payloadDirty !== 0) {
+					attempts.push('notReady');
+					service.convertAfterReprojection(session.toString());
+				} else {
+					attempts.push('converted');
+				}
+			},
+		});
+		await service.runPass();
+		assert.deepStrictEqual(attempts, ['notReady', 'converted']);
+	});
+
+	test('a conversion that stays not ready is retried after re-projection at most five times, then at the batches\' cadence', async () => {
+		const harness = await createHarness(['a']);
+		const scheduler = new TestScheduler();
+		let attempts = 0;
+		const service: AgentHostCatalogReconciliationService = harness.createService(undefined, {
+			schedule: scheduler.schedule,
+			migrateChatCatalog: async session => {
+				attempts++;
+				service.convertAfterReprojection(session.toString());
+			},
+		});
+		const perPass: number[] = [];
+		for (let pass = 0; pass < 7; pass++) {
+			attempts = 0;
+			await service.runPass();
+			perPass.push(attempts);
+		}
+		// One conversion batch attempt per pass, plus a prompt retry while the budget lasts.
+		assert.deepStrictEqual(perPass, [2, 2, 2, 2, 2, 1, 1]);
+	});
+
+	test('older-build imports run one batch per pass, the rest carried to the next passes', async () => {
+		const owners = ['a', 'b', 'c', 'd', 'e'];
+		const harness = await createHarness(owners);
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Write session_chats as a build without normalized authority does: with the revision.
+		const raw = await harness.central['_ensureDatabase']();
+		const exec = (sql: string) => new Promise<void>((resolve, reject) => raw.exec(sql, error => error ? reject(error) : resolve()));
+		for (const owner of owners) {
+			await harness.central.registerChatCatalogV2(`agenthost:${owner}`, {
+				defaultChat: { chat: `agenthost-chat:${owner}/default`, order: 0 },
+				peers: [{ chat: `agenthost-chat:${owner}/peer`, order: 1 }],
+				privateDescendants: [],
+			});
+			await exec(`UPDATE session_chats SET archived = 1 WHERE session_uri = 'agenthost:${owner}';
+				UPDATE session_chat_catalogs SET revision = revision + 1 WHERE session_uri = 'agenthost:${owner}'`);
+		}
+		let migrated: string[] = [];
+		const service = harness.createService(undefined, {
+			batchSize: 2,
+			// The import leaves the catalog current, as the peer store's does.
+			migrateChatCatalog: async session => {
+				migrated.push(session.toString());
+				await exec(`UPDATE session_chat_catalogs SET projected_revision = revision WHERE session_uri = '${session.toString()}'`);
+			},
+		});
+		const passes: string[][] = [];
+		for (let pass = 0; pass < 4; pass++) {
+			await service.runPass();
+			passes.push(migrated);
+			migrated = [];
+		}
+		assert.deepStrictEqual(passes, [['agenthost:a', 'agenthost:b'], ['agenthost:c', 'agenthost:d'], ['agenthost:e'], []]);
 	});
 
 	test('damaged normalized private metadata and a failed conversion do not block healthy repair or migration progress', async () => {
@@ -1174,6 +1273,19 @@ suite('AgentHostCatalogReconciliationService', () => {
 			woken: [{ session: 'agenthost:one', status: 'succeeded', reason: 'synchronized', sourceRevision: 0 }],
 			sourceResolutions: 2,
 		});
+	});
+
+	test('marks an empty source-unresolvable session provisional only when its default chat stores at the session', async () => {
+		const harness = await createHarness(['empty', 'promoted']);
+		const promoted = 'agenthost:promoted';
+		// A promoted session's default chat keeps the storage it had as a peer; nothing is at the session's own storage.
+		await harness.central.registerChatCatalogV2(promoted, { defaultChat: { chat: 'ahp-chat://promoted', order: 0, storageResource: 'ahp-chat://promoted' }, peers: [], privateDescendants: [] });
+		const marked: string[] = [];
+		const service = harness.createService(async () => ({ status: 'sourceUnresolvable' }), { onDidMarkSessionsProvisional: sessions => marked.push(...sessions) });
+
+		await service.runPass();
+
+		assert.deepStrictEqual(marked, ['agenthost:empty']);
 	});
 
 	test('a mutation arriving during source resolution is not parked away', async () => {

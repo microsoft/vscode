@@ -41,10 +41,11 @@ import { IChatWidgetService } from '../chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { getCopilotCliSessionRawId } from '../copilotCliEventsUri.js';
-import { getRemoteConnectionForSession, isAgentHostSession } from '../chatDebug/agentHostLogSources.js';
+import { getAgentHostWireLogDirectory, getRemoteConnectionForSession, isAgentHostSession, listAgentHostWireLogFiles } from '../chatDebug/agentHostLogSources.js';
 import { buildAgentHostCustomizationsUri, buildAgentHostUsageUri } from '../chatDebug/agentHostUsageSidecar.js';
 import { MISSION_CONTROL_AHP_LOG_ID } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { isAgentHostDebugLogsProgress } from '../../../../../platform/agentHost/common/meta/agentHostDebugLogsMeta.js';
+import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
 
 const SHARED_PROCESS_LOG_FILE_NAME = 'sharedprocess.log';
 const OUTPUT_LOG_FOLDER_PREFIX = 'output_';
@@ -363,7 +364,7 @@ export async function collectAgentHostDebugLogs(
 	let hostCollectionError: string | undefined;
 	const token = options?.token ?? CancellationToken.None;
 	throwIfExportCancelled(token);
-	if (connection) {
+	if (connection && connection.clientConnectionKind !== AgentHostClientConnectionKind.MissionControl) {
 		const listeners = new DisposableStore();
 		try {
 			const progressToken = generateUuid();
@@ -437,6 +438,8 @@ export async function collectAgentHostDebugLogs(
 			appendFile(file);
 		}
 	};
+	const missionControlWireDirectory = connection?.clientConnectionKind === AgentHostClientConnectionKind.MissionControl
+		? getAgentHostWireLogDirectory(connection) : undefined;
 
 	// 1. Local VS Code process and forwarded Agent Host logs.
 	const processLogs = [
@@ -489,6 +492,21 @@ export async function collectAgentHostDebugLogs(
 	}
 
 	// 3. Keep transport history after process logs and sidecars so reconnect loops cannot crowd them out.
+	if (connection?.clientConnectionKind === AgentHostClientConnectionKind.MissionControl) {
+		if (missionControlWireDirectory) {
+			const wireFiles = await listAgentHostWireLogFiles(fileService, missionControlWireDirectory, MISSION_CONTROL_AHP_LOG_ID, logService);
+			for (const file of wireFiles.slice(0, MAX_AHP_LOG_FILES_PER_HOST)) {
+				try {
+					appendFile(await createDebugLogFile(`ahp/mission-control/${file.name}`, file.resource, fileService, file.size));
+				} catch (error) {
+					logService.warn('[ExportAgentHostDebugLogs] Failed to read Mission Control AHP log', file.resource.toString(), error);
+				}
+			}
+			omittedFiles += Math.max(0, wireFiles.length - MAX_AHP_LOG_FILES_PER_HOST);
+		} else {
+			logService.warn('[ExportAgentHostDebugLogs] Mission Control host does not advertise its AHP log directory');
+		}
+	}
 	try {
 		const missionControlLogsIncluded = hostArtifact?.kind === 'archive' && hostArtifact.entries.some(entry => entry.path.startsWith('ahp/mission-control/'));
 		const ahpDir = joinPath(environmentService.logsHome, 'ahp');
@@ -498,6 +516,7 @@ export async function collectAgentHostDebugLogs(
 				|| ahpLogId && isAhpLogFileFor(ahpLogId, child.name)
 				|| activeSession.isLocal && isAhpLogFileFor(MISSION_CONTROL_AHP_LOG_ID, child.name)))
 			.filter(child => !missionControlLogsIncluded || !isAhpLogFileFor(MISSION_CONTROL_AHP_LOG_ID, child.name))
+			.filter(child => !missionControlWireDirectory || !ahpLogId || !isAhpLogFileFor(ahpLogId, child.name))
 			.sort((a, b) => (b.mtime ?? 0) - (a.mtime ?? 0) || b.name.localeCompare(a.name));
 		const filesPerHost = new Map<string, number>();
 		for (const child of candidates) {

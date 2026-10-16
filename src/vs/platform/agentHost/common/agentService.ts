@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { AgentChatMoveDestination } from './agentHostChatMove.js';
 import type { CancellationToken } from '../../../base/common/cancellation.js';
 import type { VSBuffer } from '../../../base/common/buffer.js';
 import { Event } from '../../../base/common/event.js';
@@ -158,6 +159,9 @@ export const AgentHostAutoAttachPullRequestsSettingId = 'chat.agentHost.experime
 
 /** Configuration key controlling whether providers prepare a turn alongside the turn-start checkpoint. */
 export const AgentHostOverlapProviderPreparationSettingId = 'chat.agentHost.experimental.overlapProviderPreparation';
+
+/** Configuration key controlling whether new Copilot drafts start their runtime and MCP servers before the first message. */
+export const AgentHostPrewarmSessionsSettingId = 'chat.agentHost.experimental.prewarmSessions';
 
 /**
  * Configuration key gating multiple-working-directory support for the Copilot
@@ -993,6 +997,21 @@ export interface IAgentService {
 	/** Dispose an additional chat created via {@link createChat}. */
 	disposeChat(session: URI, chat: URI): Promise<void>;
 
+	/**
+	 * Moves a chat that `session` owns (AHP `moveChat`): within `session`, into another existing session with its
+	 * descendants, or into a new session. Resolves to the chat's owner afterwards. Throws
+	 * `AgentChatMoveRefusedError` without changing anything when the move is refused.
+	 */
+	moveChat(session: URI, chat: URI, destination: AgentChatMoveDestination): Promise<URI>;
+
+	/**
+	 * Moves a session whose only chat is its default chat (with that chat's descendants) under `destination`, placed
+	 * after `after` (`undefined`: first), VS Code-internal (Block 4). The chat becomes a peer of `destination` and
+	 * `session` ends. Resolves to `destination`. Throws `AgentChatMoveRefusedError` without changing anything when the
+	 * move is refused.
+	 */
+	moveSession(session: URI, destination: URI, after: URI | undefined): Promise<URI>;
+
 	/** Resolve the dynamic configuration schema for creating a session. */
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult>;
 
@@ -1310,6 +1329,12 @@ export interface IAgentConnection {
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
 	/** Requires the VS Code session import capability advertised by initialize. */
 	importSession?(session: URI): Promise<void>;
+	/**
+	 * Moves a session whose only chat is its default chat under `destination` (placed after `after`, `undefined`:
+	 * first) and resolves to `destination`. Rejects with `AgentHostSessionMoveUnsupportedError`, without a request,
+	 * when the host doesn't advertise `vscode.sessionMove`.
+	 */
+	moveSession(session: URI, destination: URI, after: URI | undefined): Promise<URI>;
 	/** Requires the VS Code artifact removal capability advertised by initialize. */
 	removeSessionArtifact?(session: URI, artifactId: string): Promise<void>;
 	/** Only for background work whose `_meta` the host marked stoppable. Resolves false when it had already finished. */

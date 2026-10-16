@@ -10,10 +10,34 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import type { AhpNotification } from '../../common/state/sessionProtocol.js';
 import { createErrorResponsePart, ResponsePartKind } from '../../common/state/sessionState.js';
 import { AhpSnapshotRecorder, waitForChatTurnComplete, waitForChatUnreadAfterTurn, waitForFinalServerMessage } from './e2e/harness/ahpSnapshot.js';
+import { agentModelConfigurationReportKey } from '../../common/agentModelConfiguration.js';
 
 suite('AhpSnapshotRecorder', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('omits only unsolicited model-report patches from traffic summaries', () => {
+		const report = { [agentModelConfigurationReportKey]: { 'custom-chat:/one': { models: {} } } };
+		const cases = [
+			{ direction: 's2c', config: report, expected: false },
+			{ direction: 's2c', config: { [agentModelConfigurationReportKey]: null }, expected: false },
+			{ direction: 's2c', config: report, replace: true, expected: true },
+			{ direction: 's2c', config: report, origin: { clientId: 'client', clientSeq: 1 }, expected: true },
+			{ direction: 's2c', config: report, rejectionReason: 'host-owned', expected: true },
+			{ direction: 's2c', config: { ...report, autoApprove: 'default' }, expected: true },
+			{ direction: 's2c', config: {}, expected: true },
+			{ direction: 'c2s', config: report, expected: true },
+		] as const;
+		for (const { direction, config, expected, ...params } of cases) {
+			const { replace, ...envelope } = { replace: false, ...params };
+			const recorder = new AhpSnapshotRecorder();
+			recorder.record(direction, {
+				method: direction === 's2c' ? 'action' : 'dispatchAction',
+				params: { channel: 'session', ...envelope, action: { type: ActionType.SessionConfigChanged, config, replace } },
+			});
+			assert.strictEqual(recorder.serialize().includes('session/configChanged'), expected, JSON.stringify({ direction, config, ...params }));
+		}
+	});
 
 	test('omits tool success by provider name before snapshot normalization', () => {
 		const recorder = new AhpSnapshotRecorder();
