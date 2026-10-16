@@ -117,6 +117,18 @@ CLI's files, its `PATH` entry, its updates, its uninstallation, and its data.
 The shim installs Copilot CLI only when there is none, never updates it, and
 uninstalling VS Code never removes it or its data (`~/.copilot`).
 
+### macOS Shell Command installation
+
+On macOS, the Shell Command action in the Command Palette offers a localized Yes/No choice to also install GitHub Copilot CLI, with Yes initially active:
+
+- **Yes** starts the packaged shim's [interactive install-only mode](#install) in a visible local transient terminal, then continues the existing code-command installation without waiting for that terminal. Each Yes starts an independent terminal.
+- **No** keeps the existing code-command flow.
+- Dismissing the picker cancels both flows.
+
+Startup failures are shown explicitly but still continue the code-command installation; its success dialog confirms only that command, not Copilot CLI completion.
+
+The Copilot choice is offered only while the effective `chat.copilotCliCommand.enabled` setting allows it and Copilot is not hidden; otherwise the original code-only title and flow remain. The action does not create a VS Code-owned `/usr/local/bin/copilot` link. Copilot's installer owns PATH/profile changes; see [post-install behavior](./SHIM_POST_INSTALL.md#macos-workbench-install-only-flow).
+
 ### `copilot` on PATH on Windows
 
 Setup decides whether the shim folder is on `PATH` (the user `PATH` for the user
@@ -137,10 +149,7 @@ installer, the machine `PATH` for the system installer), in this order:
    page, including once for existing installs that predate the shim. The
    result is remembered like a choice.
 
-Background updates never download Copilot CLI; only Install now on the page or
-`/copilotcli=install` in the user installer does. VS Code has no commands or
-prompt of its own for this; the Copilot extension adds the shim to integrated
-terminals on every platform.
+Background updates never download Copilot CLI; only Install now on the page or `/copilotcli=install` in the user installer does. The Copilot extension continues to add the shim to integrated terminals on every platform.
 
 ### Publishing the shim on Windows
 
@@ -881,9 +890,7 @@ quality, the `HKLM` value takes precedence over the `HKCU` value, as in VS Code.
 A disabled policy in any quality wins, because the shim of any installed quality
 can be the one on `PATH`; VS Code setup applies the same rule.
 
-On macOS and Linux the shim doesn't read the policy. It is reachable only from
-integrated terminals there, and the Copilot extension applies the policy
-through the setting.
+On macOS and Linux the shim doesn't read the policy. It is reachable from integrated terminals there, where the Copilot extension applies the policy through the setting; the macOS workbench Shell Command action also applies that effective setting before advertising or invoking its install-only shim route.
 
 `CopilotCliCommand` is the only local control over the shim and installation.
 It doesn't turn Copilot CLI itself on or off: that's a GitHub organization or
@@ -929,8 +936,9 @@ copilot --vscode-shim install --non-interactive --consent=installer
 ```
 
 `install` runs the Windows installation described under
-[Installation commands](#installation-commands). Other
-platforms report that it is unsupported.
+[Installation commands](#installation-commands), including its result-file status contract. On macOS x64/arm64 only, `copilot --vscode-shim install --interactive` is an install-only route for the workbench action after it has collected consent: it discovers an existing CLI first without executing, probing, updating, or reinstalling it; otherwise it uses the normal Homebrew-then-temporary-file official-script routes, rediscovery, and installer-owned prompts. It never launches the discovered CLI. Linux and macOS noninteractive setup semantics are unchanged, including their existing-CLI reporting; only macOS interactive mode gains this route.
+
+The macOS interactive install-only route exits `0` after finding a usable existing or newly installed CLI and reports its availability path on stderr; it exits `1` for discovery or installer failures, `127` when a missing CLI cannot be installed without an interactive terminal, and `130` for handled cancellation. These are not Windows setup result-file statuses. On macOS, the [workbench action](#macos-shell-command-installation) checks the effective Copilot CLI setting/policy before starting the shim; the native macOS shim does not read that policy or return a policy-denial exit code.
 
 `--non-interactive` requires `--consent=installer`, the consent that setup
 collected on its page or command line. In that mode the command:

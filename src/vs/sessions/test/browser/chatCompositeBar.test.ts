@@ -42,6 +42,7 @@ import '../../browser/parts/media/chatGroupsView.css';
 import '../../browser/parts/media/sessionsPart.css';
 import '../../browser/parts/media/sessionView.css';
 import '../../browser/media/workbench.css';
+import '../../services/chatBackground/browser/media/chatBackground.css';
 // eslint-disable-next-line local/code-import-patterns -- Test the presentation supplied by the editor contribution.
 import '../../../workbench/contrib/modernUI/browser/media/tabs.css';
 // eslint-disable-next-line local/code-import-patterns -- Test the presentation supplied by the editor contribution.
@@ -609,6 +610,51 @@ suite('Sessions - ChatCompositeBar', () => {
 			frame: '""',
 			frameColor: 'rgb(171, 205, 239)',
 			outerBorder: 'rgba(0, 0, 0, 0)',
+		});
+	});
+
+	test('confines shared background corner masks to session and chat group bounds', () => {
+		const root = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench.modern-ui-tabs'));
+		disposables.add({ dispose: () => root.remove() });
+		root.style.setProperty('--vscode-cornerRadius-large', '8px');
+		root.style.setProperty('--vscode-strokeThickness', '1px');
+		root.style.setProperty('--vscode-agents-background', '#102030');
+		const part = append(root, $('.part.sessionspart.has-chat-background'));
+		const session = append(part, $('.session-view'));
+		const groups = append(session, $('.chat-groups-view.chat-groups-view-has-gaps'));
+		const group = append(groups, $('.chat-group-view'));
+		const surface = append(group, $('.chat-group-view-surface'));
+		const readFrames = () => [session, surface].map(element => {
+			const style = mainWindow.getComputedStyle(element);
+			return { radius: style.borderRadius, mask: style.boxShadow, clip: style.clipPath };
+		});
+
+		for (const connected of [false, true]) {
+			root.classList.toggle('modern-ui-connected-editor-tabs', connected);
+			for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
+				root.classList.add(theme);
+				assert.deepStrictEqual(readFrames(), [
+					{ radius: '7px', mask: 'rgb(16, 32, 48) 0px 0px 0px 8px', clip: 'inset(0px)' },
+					{ radius: '7px', mask: 'rgb(16, 32, 48) 0px 0px 0px 8px', clip: 'inset(0px)' },
+				], `${theme}, connected: ${connected}`);
+				root.classList.remove(theme);
+			}
+		}
+
+		groups.classList.remove('chat-groups-view-has-gaps');
+		const singleGroup = readFrames().map(frame => frame.mask);
+		groups.classList.add('chat-groups-view-has-gaps');
+		part.classList.remove('has-chat-background');
+		const plainBackground = readFrames().map(frame => frame.mask);
+		part.classList.add('has-chat-background');
+		root.classList.add('modern-ui-compact');
+		const compact = readFrames().map(frame => frame.mask);
+		root.classList.add('phone-layout');
+		assert.deepStrictEqual({ singleGroup, plainBackground, compact, phone: readFrames().map(frame => frame.mask) }, {
+			singleGroup: ['rgb(16, 32, 48) 0px 0px 0px 8px', 'none'],
+			plainBackground: ['none', 'none'],
+			compact: ['rgb(16, 32, 48) 0px 0px 0px 0px', 'rgb(16, 32, 48) 0px 0px 0px 0px'],
+			phone: ['none', 'none'],
 		});
 	});
 

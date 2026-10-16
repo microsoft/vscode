@@ -44,7 +44,7 @@ import { isAgentDevContainerWorktreeHandle } from '../common/meta/agentDevContai
 import { isActionEnvelopeRelevantToSubscriptionUris } from '../common/state/agentSubscription.js';
 import { IS_CLIENT_DISPATCHABLE } from '../common/state/protocol/action-origin.generated.js';
 import { ChatMoveDestinationKind, ChatSourceKind } from '../common/state/protocol/channels-chat/commands.js';
-import { AgentChatMoveRefusedError, ChatMoveConfigKey, type AgentChatMoveDestination } from '../common/agentHostChatMove.js';
+import { AgentChatMoveRefusedError, type AgentChatMoveDestination } from '../common/agentHostChatMove.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
 import type { ChatConfigChangedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
 import type { AutomationEntry, RootConfigState } from '../common/state/protocol/state.js';
@@ -1003,7 +1003,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						[AgentHostChatUrisCapabilityMetaKey]: true,
 						...transport.relayHandshakeMeta,
 					} : {
-						...getAgentHostExtensionInitializeResultMeta(!!this._agentService.removeSessionArtifact, !!client.devContainers, this._otelService?.diagnosticsEnabled, !!this._agentService.importSession, !!this._agentService.readSavedChat && transport.relayClientId === undefined && !transport.relayPassive, !!this._agentService.completeSavedChatContinuation && transport.relayClientId === undefined && !transport.relayPassive, this._isChatMoveEnabled()),
+						...getAgentHostExtensionInitializeResultMeta(!!this._agentService.removeSessionArtifact, !!client.devContainers, this._otelService?.diagnosticsEnabled, !!this._agentService.importSession, !!this._agentService.readSavedChat && transport.relayClientId === undefined && !transport.relayPassive, !!this._agentService.completeSavedChatContinuation && transport.relayClientId === undefined && !transport.relayPassive, true),
 						...(this._config.allowExtensionMethods !== false && this._agentService.installSandboxCertificate && transport.relayClientId === undefined && !transport.relayPassive
 							? { [sandboxCertificateInstallationCapability]: true } : {}),
 						...(this._config.allowExtensionMethods !== false && this._agentService.rotateSandboxCertificate && transport.relayClientId === undefined && !transport.relayPassive
@@ -2124,6 +2124,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				throw error;
 			}
 		},
+		createTcpConnection: async () => {
+			throw new ProtocolError(JsonRpcErrorCodes.MethodNotFound, 'Method not found: createTcpConnection');
+		},
 		disposeChat: async (_client, params) => {
 			const chat = URI.parse(params.channel);
 			const owner = isAhpChatChannel(params.channel) ? await this._resolveChatOwner(params.channel) : undefined;
@@ -3101,11 +3104,6 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 	}
 
-	/** Whether moving chats is enabled on this host (Block 4), which also enables moving sessions under other sessions. */
-	private _isChatMoveEnabled(): boolean {
-		return this._stateManager.rootState.config?.values[ChatMoveConfigKey.Enabled] === true;
-	}
-
 	private async _handleMoveSessionRequest(client: IConnectedClient, params: unknown): Promise<{ session: string }> {
 		const validated = moveSessionParamsValidator.validate(params);
 		if (validated.error) {
@@ -3199,8 +3197,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		if (method === ImportSessionExtensionMethod) {
 			return this._handleImportSessionRequest(params);
 		}
-		// Session data, so it works over the renderer's data plane too; relay transports are never offered it.
-		if (method === MoveAgentHostSessionExtensionMethod && this._isChatMoveEnabled() && !this._config.relayRoots && !this._config.relayRootMeta) {
+		// Session data, so it works over the renderer's data plane too; relay transports are never offered it. Offered and
+		// routed whether or not moving chats is enabled, which a client may turn on after connecting: a move while it is
+		// off is refused with `disabled`.
+		if (method === MoveAgentHostSessionExtensionMethod && !this._config.relayRoots && !this._config.relayRootMeta) {
 			return this._handleMoveSessionRequest(client, params);
 		}
 		if (method === ReportAgentHostFirstResponseExtensionMethod) {

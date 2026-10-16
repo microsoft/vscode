@@ -24,6 +24,7 @@ import { IAgentHostChangesetService } from '../common/agentHostChangesetService.
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { IAgentHostChatContributions, type ISendTurnMessageOptions } from '../common/agentHostChatContributionsService.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
+import { getPendingSteeringMessages } from '../common/agentSessionMessage.js';
 import { isRenameChatTool } from '../common/serverToolNames.js';
 import { type CodexModelProvider, AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal, type AgentSubagentKind, type AgentSubagentTaskModelSource, type IAgentModelCallCompletedSignal, type IAgentModelCallFinishedSignal, type IAgentSubagentStartedSignal } from '../common/agent.js';
@@ -751,7 +752,8 @@ export class AgentSideEffects extends Disposable {
 		}
 
 		if (signal.kind === 'steering_consumed') {
-			this._stateManager.dispatchServerAction(signal.chat.toString(), {
+			const channel = signal.chat.toString();
+			this._stateManager.dispatchServerAction(channel, {
 				type: ActionType.ChatPendingMessageRemoved,
 				kind: PendingMessageKind.Steering,
 				id: signal.id,
@@ -881,9 +883,11 @@ export class AgentSideEffects extends Disposable {
 				this._logService.trace(`[AgentSideEffects] Dropping completion for cancelled turn ${action.turnId} on ${sessionKey}`);
 				return;
 			}
+			const state = this._stateManager.getChatState(sessionKey);
 			const startedWithSteering = action.type === ActionType.ChatTurnStarted
 				&& action.queuedMessageId !== undefined
-				&& this._stateManager.getChatState(sessionKey)?.steeringMessage?.id === action.queuedMessageId;
+				&& state !== undefined
+				&& getPendingSteeringMessages(state).some(message => message.id === action.queuedMessageId);
 			this._stateManager.dispatchServerAction(sessionKey, action);
 			if (action.type === ActionType.ChatTurnStarted && this._stateManager.getActiveTurnId(sessionKey) === action.turnId) {
 				// Provider-promoted turns are already running and must not enter the admission/send path again.

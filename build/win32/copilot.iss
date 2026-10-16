@@ -774,6 +774,9 @@ begin
   if Visible then begin
     CopilotInstallPage.Show;
     CopilotInstallPage.AbortButton.Visible := True;
+    // Nothing else on the page can take focus. Focusing Stop download lets screen readers announce it.
+    if CopilotInstallPage.AbortButton.CanFocus then
+      WizardForm.ActiveControl := CopilotInstallPage.AbortButton;
     CopilotShowInstallProgress(CopilotInstallPage, '', 0, 0);
   end;
 #endif

@@ -476,9 +476,9 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 			const error = new Error('Remote certificate operation is unavailable');
 			const fail = async () => { throw error; };
 			const service = createService({
-				sandboxCertificateInstallationSupported: constObservable(false),
-				sandboxCertificateRotationSupported: constObservable(false),
-				sandboxCertificateRemovalSupported: constObservable(false),
+				sandboxCertificateInstallationSupported: observableValue('installation', false),
+				sandboxCertificateRotationSupported: observableValue('rotation', false),
+				sandboxCertificateRemovalSupported: observableValue('removal', false),
 				installSandboxCertificate: fail,
 				rotateSandboxCertificate: fail,
 				removeSandboxCertificate: fail,

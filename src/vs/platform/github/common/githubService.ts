@@ -18,7 +18,8 @@ import { GitHubCredentialService, IGitHubCredentials } from './githubCredentialS
 import { BackoffGate } from './backoff.js';
 import { deriveGitHubEndpoints, normalizeReadApiBaseUri, resolveReadApiUrl } from './githubEndpoints.js';
 import { GitHubHostCapabilitiesService, IGitHubCapabilities } from './githubHostCapabilitiesService.js';
-import { GitHubQueryService, IGitHubQuery } from './githubQueryServiceImpl.js';
+import { GitHubQueryApi } from './githubQueryService.js';
+import { GitHubQueryService } from './githubQueryServiceImpl.js';
 import { GitHubRequestMetadata } from './githubRequestMetadata.js';
 import { GitHubRequestTelemetry } from './githubRequestTelemetry.js';
 import { RequestQueue } from './requestQueue.js';
@@ -80,7 +81,7 @@ export interface IGitHubClient {
 	readonly credentials: IGitHubCredentials;
 	readonly transport: IGitHubTransport;
 	readonly capabilities: IGitHubCapabilities;
-	readonly query: IGitHubQuery;
+	readonly query: GitHubQueryApi;
 	readonly pullRequests: IPullRequestResources;
 	readonly mutations: IPullRequestMutations;
 }
@@ -381,7 +382,7 @@ class GitHubClient extends Disposable implements IGitHubClient {
 	readonly endpoint: IGitHubEndpointProvider;
 	readonly credentials: IGitHubCredentials;
 	readonly capabilities: IGitHubCapabilities;
-	readonly query: IGitHubQuery;
+	readonly query: GitHubQueryApi;
 	readonly pullRequests: IPullRequestResources;
 	readonly mutations: IPullRequestMutations;
 

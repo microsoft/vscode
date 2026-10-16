@@ -4047,6 +4047,26 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return option ? { ...option, comparisonModeId: typeof mode === 'string' ? mode : undefined } : undefined;
 	}
 
+	getComparisonPermissionOptionForSession(sessionId: string, sessionTypeId: string): ISessionPermissionOption | undefined {
+		const sourceSession = this._getNewSession(sessionId);
+		const sourceSessionType = sourceSession?.agentProvider;
+		const sourceOption = this.getPermissionOptionForSession(sessionId);
+		if (!sourceSessionType || !sourceOption) {
+			return undefined;
+		}
+		if (sourceSessionType === sessionTypeId) {
+			return sourceOption;
+		}
+		const options = getAgentHostSessionPermissionOptions(
+			sessionTypeId,
+			isAutoApprovePolicyRestricted(this._baseConfigurationService, sourceSession.getConfig()?.schema),
+			true,
+		);
+		return sourceOption.isAllowAll
+			? options.find(option => option.isAllowAll)
+			: options.find(option => option.isDefault);
+	}
+
 	get order(): number { return 0; }
 
 	get sessionTypes(): readonly ISessionType[] { return this._sessionTypes; }
@@ -6820,21 +6840,36 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	async openCanvas(sessionId: string, chatResource: URI, canvas: ISessionCanvasDefinition, instanceId: string): Promise<void> {
+		const target = this._getCanvasChatTarget(sessionId, chatResource);
+		const connection = this.connection;
+		if (!connection?.openSessionCanvas) {
+			throw new Error(localize('openCanvasUnavailable', "Opening canvases is unavailable for this session."));
+		}
+		await connection.openSessionCanvas(target.session, {
+			canvasId: canvas.canvasId,
+			extensionId: canvas.extensionId,
+			instanceId,
+		}, target.chat);
+	}
+
+	async closeCanvas(sessionId: string, chatResource: URI, canvas: ISessionCanvas): Promise<void> {
+		const target = this._getCanvasChatTarget(sessionId, chatResource);
+		const connection = this.connection;
+		if (!connection?.closeSessionCanvas) {
+			throw new Error(localize('closeCanvasUnavailable', "Closing canvases is unavailable for this session."));
+		}
+		await connection.closeSessionCanvas(target.session, { resource: canvas.resource }, target.chat);
+	}
+
+	/** Resolves the host-supplied backend session and chat that a canvas operation addresses. */
+	private _getCanvasChatTarget(sessionId: string, chatResource: URI): { readonly session: URI; readonly chat: URI } {
 		const rawId = this._sessionKeyFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
-		const connection = this.connection;
 		const backendChat = this.getBackendChatResource(chatResource);
 		if (!cached || !backendChat) {
 			throw new Error(localize('canvasChatNotFound', "The chat could not be found."));
 		}
-		if (!connection?.openSessionCanvas) {
-			throw new Error(localize('openCanvasUnavailable', "Opening canvases is unavailable for this session."));
-		}
-		await connection.openSessionCanvas(cached.backendUri, {
-			canvasId: canvas.canvasId,
-			extensionId: canvas.extensionId,
-			instanceId,
-		}, backendChat);
+		return { session: cached.backendUri, chat: backendChat };
 	}
 
 	private _toSessionCanvasDefinition(canvas: IAgentCanvasInfo): ISessionCanvasDefinition {

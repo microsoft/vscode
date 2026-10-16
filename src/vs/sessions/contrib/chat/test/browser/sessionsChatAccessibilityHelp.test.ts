@@ -584,7 +584,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
-		const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
+		const provider = store.add(new SessionsChatAccessibilityHelp(true).getProvider(instantiationService));
 
 		assert.strictEqual(
 			provider.provideContent().split('\n').find(line => line.startsWith('When you select assistant response text')),
@@ -604,12 +604,32 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
-		const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
+		const provider = store.add(new SessionsChatAccessibilityHelp(true).getProvider(instantiationService));
 
 		assert.strictEqual(
 			provider.provideContent().split('\n').find(line => line.startsWith('When you select assistant response text')),
 			'When you select assistant response text, an action menu appears. Press Tab to focus the menu, use the Up Arrow and Down Arrow keys to move between actions, and press Enter to activate one. Press Escape to dismiss the menu. Ask in a Side Chat opens a question input anchored to the selected text. Quote appends the selection as a blockquote in the chat input when the conversation is interactive. Copy copies the selected text.',
 		);
+	});
+
+	test('omits response-selection help when the widget is unsupported', () => {
+		const selectionHelp = [false, true].map(enhancedSelectionMenu => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const configuration = new TestConfigurationService({
+				[AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING]: enhancedSelectionMenu,
+			});
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiationService.stub(IConfigurationService, configuration);
+			stubContextKeyService(instantiationService, configuration);
+			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			const provider = store.add(new SessionsChatAccessibilityHelp(false).getProvider(instantiationService));
+			return provider.provideContent().split('\n').find(line => line.startsWith('When you select assistant response text'));
+		});
+
+		assert.deepStrictEqual(selectionHelp, [undefined, undefined]);
 	});
 
 	test('describes forking to the side and the keyboard-only alternative', () => {
@@ -797,12 +817,12 @@ suite('SessionsChatAccessibilityHelp', () => {
 		assert.deepStrictEqual({
 			disabled: disabledContent.includes('activate Compare Models'),
 			enabled: enabledProvider.provideContent().includes('activate Compare Models'),
-			repeated: enabledProvider.provideContent().includes('choose one model and set Number of Runs from two to ten'),
+			doneAndNextGated: enabledProvider.provideContent().includes('Done and Next stay disabled until two to ten models are checked'),
 			optionalJudge: enabledProvider.provideContent().includes('run attempts without review'),
 			optionalSynthesizer: enabledProvider.provideContent().includes('Without a Synthesizer, review is available but synthesis is not'),
 			done: enabledProvider.provideContent().includes('Done returns to the composer'),
 			configRefresh: enabledProvider.provideContent().includes('Comparison selections are kept while draft permissions or mode are updating.'),
-			cancelSetup: enabledProvider.provideContent().includes('Cancel, Escape, or clicking outside the picker discards setup changes'),
+			cancelSetup: enabledProvider.provideContent().includes('Escape or clicking outside the picker discards setup changes'),
 			opensAttemptsGrid: enabledProvider.provideContent().includes('open every available attempt in a resizable grid'),
 			twoPaneInputs: enabledProvider.provideContent().includes('With two attempt panes, both chat inputs remain visible'),
 			threePaneInputs: enabledProvider.provideContent().includes('With three or more, only the active attempt pane shows its chat input'),
@@ -817,16 +837,18 @@ suite('SessionsChatAccessibilityHelp', () => {
 			gridOptOut: enabledProvider.provideContent().includes('Turn off sessions.chat.compareAgents.openInGrid to start them without automatic navigation.'),
 			deleteGroup: enabledProvider.provideContent().includes('Delete Group remains available from the comparison header context menu'),
 			inactivePaneNotification: enabledProvider.provideContent().includes('question tool needs attention in an inactive visible pane'),
-			rationaleOrder: enabledProvider.provideContent().includes('Comparison, Validation, Code quality, Solution'),
-			attemptLinks: enabledProvider.provideContent().includes('activate its link to reveal that session'),
+			rationaleOrder: enabledProvider.provideContent().includes('Solution, Comparison, Validation, Code quality'),
+			attemptRows: enabledProvider.provideContent().includes('Up Arrow or Down Arrow to move between them, then press Enter or Space to expand a row'),
+			attemptOpen: enabledProvider.provideContent().includes('Each row also has an Open button after its metrics that opens that attempt\'s session.'),
+			checksSummary: enabledProvider.provideContent().includes('a summary of its validation checks such as Tests passed or Not run'),
 			accessibleView: enabledProvider.provideContent().includes('use Open Accessible View<keybinding:editor.action.accessibleView>'),
-			focusAttempts: enabledProvider.provideContent().includes('use its adjacent dropdown to focus another attempt'),
+			openAttempts: enabledProvider.provideContent().includes('use its adjacent dropdown to open another attempt'),
 			additionalInstructions: enabledProvider.provideContent().includes('choose Additional Synthesis Instructions'),
 			submitInstructions: enabledProvider.provideContent().includes('Activate Start Synthesis with Instructions'),
 			customSynthesis: enabledProvider.provideContent().includes('activate Custom Synthesis to reveal a decision table'),
 		}, {
 			disabled: false,
-			enabled: true, repeated: true, optionalJudge: true, optionalSynthesizer: true, done: true,
+			enabled: true, doneAndNextGated: true, optionalJudge: true, optionalSynthesizer: true, done: true,
 			configRefresh: true,
 			cancelSetup: true,
 			opensAttemptsGrid: true,
@@ -844,9 +866,11 @@ suite('SessionsChatAccessibilityHelp', () => {
 			deleteGroup: true,
 			inactivePaneNotification: true,
 			rationaleOrder: true,
-			attemptLinks: true,
+			attemptRows: true,
+			attemptOpen: true,
+			checksSummary: true,
 			accessibleView: true,
-			focusAttempts: true,
+			openAttempts: true,
 			additionalInstructions: true,
 			submitInstructions: true,
 			customSynthesis: false,

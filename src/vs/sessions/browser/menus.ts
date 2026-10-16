@@ -103,13 +103,15 @@ export const Menus = {
 	 */
 	SessionsEmptyEditorGroupAddTab: new MenuId('SessionsEmptyEditorGroupAddTab'),
 	/**
-	 * The Session Toolbar, docked at the right edge of the active chat view. Each entry opens or
-	 * activates its side pane tab, revealing the side pane when it is closed.
-	 * Entries are gated on availability only.
+	 * The Session Activity Bar, docked at the right edge of the active chat view, grouped by
+	 * {@link SessionActivityBarGroup}. Each tab entry opens or activates its side pane tab, revealing
+	 * the side pane when it is closed; these entries are gated on availability only. The side panel
+	 * toggle above them and the panel toggle below them leave the title bar while the activity bar
+	 * shows its layout actions.
 	 */
-	SessionToolbar: new MenuId('SessionToolbar'),
-	/** The Session Toolbar's context menu, shown after the toolbar's own entry actions. */
-	SessionToolbarContext: new MenuId('SessionToolbarContext'),
+	SessionActivityBar: new MenuId('SessionActivityBar'),
+	/** The Session Activity Bar's context menu, shown after the activity bar's own entry actions. */
+	SessionActivityBarContext: new MenuId('SessionActivityBarContext'),
 	/**
 	 * The Agents window's View > Appearance submenu. It is separate from the
 	 * workbench `MenubarAppearanceMenu`, whose editor-window entries do not
@@ -132,4 +134,11 @@ export const Menus = {
 
 	SessionHeaderContext: MenuId.SessionHeaderContext,
 	SessionItemContextMenu: MenuId.SessionItemContextMenu,
+} as const;
+
+/** The groups of {@link Menus.SessionActivityBar}, top to bottom, each set apart by a separator. */
+export const SessionActivityBarGroup = {
+	SidePanel: '1_sidePanel',
+	Tabs: '2_tabs',
+	Panel: '3_panel',
 } as const;

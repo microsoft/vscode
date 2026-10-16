@@ -23,7 +23,7 @@ import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../.
 import { buildSessionDbUri } from '../../common/sessionDbUri.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
 import { buildCopilotSystemNotification, getCopilotSubagentDisplayNames } from './copilotSystemNotification.js';
-import { COPILOT_FUSION_PHASE_AGENT_NAME, formatFusionReviewContent, getFusionPhaseToolCallId, isCopilotFusionEvent, isProvisionalFusionConversationEvent } from './copilotFusionProgress.js';
+import { COPILOT_FUSION_PHASE_AGENT_NAME, formatFusionReviewContent, getFusionPhaseToolCallId, isCopilotFusionEvent, getFusionPhasePresentation, isProvisionalFusionConversationEvent } from './copilotFusionProgress.js';
 import { FusionReplayState } from './copilotFusionReplay.js';
 import { isSyntheticUserMessage } from './copilotFusionEventIdentity.js';
 import { CopilotFusionMessageChunks } from './copilotFusionMessageChunks.js';
@@ -506,7 +506,7 @@ export async function mapSessionEvents(
 		return toolCallId && fusionPhaseToolCallIds.has(toolCallId) ? toolCallId : undefined;
 	};
 	for (const event of events) {
-		if ((event.type === 'assistant.fusion_phase_completed' || event.type === 'assistant.fusion_phase_failed') && !event.agentId) {
+		if ((event.type === 'assistant.fusion_phase_completed' || event.type === 'assistant.fusion_phase_failed') && !event.agentId && getFusionPhasePresentation(event.data.phaseKind) === 'childChat') {
 			fusionPhaseToolCallIds.add(getFusionPhaseToolCallId(event.data.fusionId, event.data.phaseId));
 		}
 	}
@@ -996,17 +996,25 @@ export async function mapSessionEvents(
 					continue;
 				}
 				toolInfoByCallId.delete(d.toolCallId);
-				const parentToolCallId = resolveParentToolCallId(e.agentId, d.parentToolCallId) ?? resolveFusionPhaseToolCallId(e.agentId, d.fusion);
+				const subagentParentToolCallId = resolveParentToolCallId(e.agentId, d.parentToolCallId);
+				const parentToolCallId = subagentParentToolCallId ?? resolveFusionPhaseToolCallId(e.agentId, d.fusion);
 				if ((!parentToolCallId && parentTurnTerminated && parentTurnState === TurnState.Error)
 					|| (parentToolCallId && terminatedSubagentTurns.has(parentToolCallId) && subagentTurnStates.get(parentToolCallId) === TurnState.Error)) {
 					break;
 				}
 				if (isTaskCompleteTool(info.toolName)) {
-					const builder = targetBuilderFor(parentToolCallId);
+					const summary = getTaskCompleteMarkdown(info.parameters, d.error?.message ?? d.result?.content);
+					const phaseBuilder = parentToolCallId !== subagentParentToolCallId ? targetBuilderFor(parentToolCallId) : undefined;
+					if (summary && phaseBuilder) {
+						phaseBuilder.responseParts.push({ kind: ResponsePartKind.Markdown, id: generateUuid(), content: summary });
+					}
+					if (!subagentParentToolCallId && parentTurnTerminated && parentTurnState === TurnState.Error) {
+						continue;
+					}
+					const builder = targetBuilderFor(subagentParentToolCallId);
 					if (!builder) {
 						continue;
 					}
-					const summary = getTaskCompleteMarkdown(info.parameters, d.error?.message ?? d.result?.content);
 					if (summary) {
 						builder.responseParts.push({
 							kind: ResponsePartKind.Markdown,
@@ -1014,7 +1022,7 @@ export async function mapSessionEvents(
 							content: summary,
 						});
 					}
-					if (!parentToolCallId && d.success && builder === parentBuilder && !parentTurnTerminated) {
+					if (!subagentParentToolCallId && d.success && builder === parentBuilder && !parentTurnTerminated) {
 						parentTurnState = TurnState.Complete;
 						rootRequestActive = false;
 					}

@@ -1053,6 +1053,7 @@ class MockCopilotSession {
 	readonly extensions: Awaited<ReturnType<CopilotSession['rpc']['extensions']['list']>>['extensions'] = [];
 	readonly canvases: Awaited<ReturnType<CopilotSession['rpc']['canvas']['list']>>['canvases'] = [];
 	readonly canvasOpenCalls: Parameters<CopilotSession['rpc']['canvas']['open']>[0][] = [];
+	readonly canvasCloseCalls: Parameters<CopilotSession['rpc']['canvas']['close']>[0][] = [];
 	readonly mcpStartCalls: string[] = [];
 	readonly mcpStopCalls: string[] = [];
 	mcpStartGate: Promise<void> | undefined;
@@ -1112,6 +1113,9 @@ class MockCopilotSession {
 					extensionId: params.extensionId ?? 'project:preview',
 					canvasId: params.canvasId,
 				};
+			},
+			close: async (params: Parameters<CopilotSession['rpc']['canvas']['close']>[0]) => {
+				this.canvasCloseCalls.push(params);
 			},
 		},
 		options: {
@@ -1718,7 +1722,7 @@ suite('CopilotAgent', () => {
 				configValues: JSON.stringify(config),
 			};
 			try {
-				await agent['_storeSessionMetadata'](session, model, primary, [primary, secondary], customizationDirectory, project, true, config, true, true, 'last-migrated-turn');
+				await agent['_storeSessionMetadata']({ storage: session, owner: session }, model, primary, [primary, secondary], customizationDirectory, project, true, config, true, true, 'last-migrated-turn');
 
 				const ownedKeys = [AH_META_IS_ARCHIVED_DB_KEY, 'configValues', 'copilot.customizationDirectory', 'copilot.project.resolved', 'copilot.project.uri', 'copilot.project.displayName'];
 				const owned = Object.fromEntries(Object.entries(expected).filter(([key]) => ownedKeys.includes(key)));
@@ -1767,7 +1771,7 @@ suite('CopilotAgent', () => {
 			const mirrorWrites = spy(ref.object, 'applyMetadataChanges');
 			const expected = { 'copilot.workingDirectories': '[]', configValues: '{}' };
 			try {
-				await agent['_storeSessionMetadata'](session, undefined, undefined, [], undefined, undefined, false, {}, false, false, '');
+				await agent['_storeSessionMetadata']({ storage: session, owner: session }, undefined, undefined, [], undefined, undefined, false, {}, false, false, '');
 
 				assert.deepStrictEqual({
 					mirroredOwned: mirrorWrites.firstCall?.args[0],
@@ -1794,7 +1798,7 @@ suite('CopilotAgent', () => {
 			const batchedWrites = spy(ref.object, 'setMetadataValues');
 			const primary = URI.file('/workspace/peer');
 			try {
-				await agent['_storeSessionMetadata'](chat, undefined, primary, [primary], undefined, undefined, false, { isolation: 'folder' });
+				await agent['_storeSessionMetadata']({ storage: chat, owner: AgentSession.uri('copilotcli', 'owner') }, undefined, primary, [primary], undefined, undefined, false, { isolation: 'folder' });
 
 				assert.deepStrictEqual({
 					batched: batchedWrites.getCalls().map(call => call.args[0]),
@@ -1814,6 +1818,42 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('the chat of a session moved under another keeps its metadata in its storage\'s database, not the ended session\'s state', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const agent = createTestAgent(disposables, { sessionDataService });
+			// Recorded by the host: the chat stores in its former session's database and is owned by the destination.
+			const storage = AgentSession.uri('copilotcli', 'moved-source');
+			const owner = AgentSession.uri('copilotcli', 'destination');
+			const ref = sessionDataService.openDatabase(storage);
+			const batchedWrites = spy(ref.object, 'setMetadataValues');
+			const sessionStateWrites = spy(agent['_sessionStateStore'], 'writeMetadata');
+			const primary = URI.file('/workspace/moved');
+			try {
+				await agent['_storeSessionMetadata']({ storage, owner }, undefined, primary, [primary], undefined, undefined);
+				const read = await agent['_readSessionMetadata']({ storage, owner });
+
+				assert.deepStrictEqual({
+					batched: batchedWrites.getCalls().map(call => call.args[0]),
+					sessionStateWrites: sessionStateWrites.callCount,
+					loaded: agent['_sessionStateStore'].peek(storage),
+					read: read.workingDirectories?.map(directory => directory.toString()),
+				}, {
+					batched: [{
+						'copilot.workingDirectory': primary.toString(),
+						'copilot.workingDirectories': JSON.stringify([primary.toString()]),
+					}],
+					sessionStateWrites: 0,
+					loaded: undefined,
+					read: [primary.toString()],
+				});
+			} finally {
+				batchedWrites.restore();
+				sessionStateWrites.restore();
+				ref.dispose();
+				await disposeAgent(agent);
+			}
+		});
+
 		test('skips an empty write without opening the database', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const agent = createTestAgent(disposables, { sessionDataService });
@@ -1823,7 +1863,7 @@ suite('CopilotAgent', () => {
 			const individualWrites = spy(ref.object, 'setMetadata');
 			const batchedWrites = spy(ref.object, 'setMetadataValues');
 			try {
-				await agent['_storeSessionMetadata'](session, undefined, undefined, undefined, undefined, undefined);
+				await agent['_storeSessionMetadata']({ storage: session, owner: session }, undefined, undefined, undefined, undefined, undefined);
 
 				assert.deepStrictEqual({
 					individualWrites: individualWrites.callCount,
@@ -1854,7 +1894,7 @@ suite('CopilotAgent', () => {
 			const openDatabase = stub(sessionDataService, 'openDatabase').returns(ref);
 			try {
 				await assert.rejects(
-					agent['_storeSessionMetadata'](session, undefined, URI.file('/workspace/next'), undefined, undefined, undefined, false, { isolation: 'worktree' }),
+					agent['_storeSessionMetadata']({ storage: session, owner: session }, undefined, URI.file('/workspace/next'), undefined, undefined, undefined, false, { isolation: 'worktree' }),
 					error => error === failure,
 				);
 				await ref.object.whenIdle();
@@ -7532,7 +7572,7 @@ suite('CopilotAgent', () => {
 				};
 			}
 
-			test('canvas operations resume a cold exact chat without sending a message', async () => {
+			test('canvas list and open resume a cold exact chat without sending a message, while close only reaches a live chat', async () => {
 				const fixture = await createFixture(false, true);
 				let restored: CopilotAgent | undefined;
 				try {
@@ -7559,17 +7599,34 @@ suite('CopilotAgent', () => {
 						/outside session/,
 					);
 
+					const canvasChannels: URI[] = [];
+					disposables.add(restored.onDidChatProgress(signal => {
+						if (signal.kind === 'canvas') {
+							canvasChannels.push(signal.resource);
+						}
+					}));
+					await restored.closeSessionCanvas(session, { resource: URI.parse('ahp-canvas:/cold') }, chats[2], context);
+					const resumedByColdClose = fixture.resumed.filter(resume => resume.id === 'cold-sdk').length;
 					const canvases = await restored.listSessionCanvases(session, chats[2], context);
 					await restored.openSessionCanvas(session, {
 						canvasId: 'preview',
 						extensionId: 'project:preview',
 						instanceId: 'project-preview',
 					}, chats[2], context);
+					sdkSessions[2].emit({
+						type: 'session.canvas.opened',
+						data: { instanceId: 'project-preview', extensionId: 'project:preview', canvasId: 'preview', url: 'https://example.test/preview' },
+					} as SessionEventPayload<'session.canvas.opened'>);
+					const [channel] = canvasChannels;
+					assert.ok(channel);
+					await restored.closeSessionCanvas(session, { resource: channel }, chats[2], context);
 
 					assert.deepStrictEqual({
 						canvases,
+						resumedByColdClose,
 						resumed: fixture.resumed.filter(resume => resume.id === 'cold-sdk'),
 						openCalls: sdkSessions[2].canvasOpenCalls,
+						closeCalls: sdkSessions[2].canvasCloseCalls,
 						sends: fixture.sends(),
 					}, {
 						canvases: [{
@@ -7582,12 +7639,14 @@ suite('CopilotAgent', () => {
 							requiresInput: false,
 							actionCount: 0,
 						}],
+						resumedByColdClose: 0,
 						resumed: [{ id: 'cold-sdk', directory: previous.fsPath }],
 						openCalls: [{
 							canvasId: 'preview',
 							extensionId: 'project:preview',
 							instanceId: 'project-preview',
 						}],
+						closeCalls: [{ instanceId: 'project-preview' }],
 						sends: 0,
 					});
 				} finally {
@@ -18649,6 +18708,50 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('independent steering defers through preparation and bypasses legacy slot replacement', async () => {
+			const h = await createHarness();
+			const gate = new DeferredPromise<void>();
+			const delivered = new DeferredPromise<void>();
+			const sends: Array<{ prompt: string; mode?: string }> = [];
+			const send = stub(h.newRuntime, 'send').callsFake(async (options?: Parameters<CopilotSession['send']>[0]) => {
+				assert.ok(options);
+				sends.push({ prompt: options.prompt, mode: options.mode });
+				if (sends.filter(message => message.mode === 'immediate').length === 2) {
+					delivered.complete();
+				}
+				return '';
+			});
+			try {
+				h.blockResume(gate.p);
+				const sending = h.agent.chats.sendMessage(h.chat, 'original', undefined, undefined, 'turn-1', undefined, h.context);
+				await h.refreshStarted.p;
+				const messages = ['a', 'b'].map(id => ({ id, message: { text: id, origin: { kind: MessageKind.User } } }));
+				const beforeReady = messages.map(message => h.agent.sendSteeringMessage(h.chat, message));
+				gate.complete();
+				await sending;
+				h.newRuntime.emit({
+					id: 'original-user-message', timestamp: new Date().toISOString(), parentId: null,
+					type: 'user.message',
+					data: { content: 'original', messageId: 'sdk-message', turnId: 'sdk-turn' },
+				});
+				const afterReady = messages.map(message => h.agent.sendSteeringMessage(h.chat, message));
+				h.agent.setPendingMessages(h.chat, undefined, []);
+				const didDeliver = await raceTimeout(delivered.p.then(() => true), 1000);
+				assert.deepStrictEqual({ beforeReady, afterReady, didDeliver, sends }, {
+					beforeReady: [false, false], afterReady: [true, true], didDeliver: true,
+					sends: [
+						{ prompt: 'original', mode: undefined },
+						{ prompt: 'a', mode: 'immediate' },
+						{ prompt: 'b', mode: 'immediate' },
+					],
+				});
+			} finally {
+				gate.complete();
+				send.restore();
+				await disposeAgent(h.agent);
+			}
+		});
+
 		for (const phase of ['prepare', 'create', 'disconnect', 'resume', 'continue'] as const) {
 			test(`delivers steering after send preparation ${phase} to the current runtime`, async () => {
 				const h = await createHarness({ cold: phase === 'create' || phase === 'prepare' });
@@ -24211,7 +24314,7 @@ suite('CopilotAgent', () => {
 			_resolveAgentWhenMaterializing(provisional: unknown, snapshot: IActiveClientSnapshot, workingDirectory: URI | undefined): Promise<{ agent: AgentSelection; name: string } | undefined>;
 			_resolveAgentName(snapshot: IActiveClientSnapshot, agent: AgentSelection): string | undefined;
 			_createAgentSession(launchPlan: CopilotSessionLaunchPlan, customizationDirectory: URI | undefined, activeClient: unknown, identity: { owner: IAgentChatOwnerRef; chatChannelUri: URI }): CopilotAgentSession;
-			_readSessionMetadata(session: URI): Promise<{ agent?: AgentSelection }>;
+			_readSessionMetadata(scope: { readonly storage: URI; readonly owner: URI }): Promise<{ agent?: AgentSelection }>;
 		};
 
 		const repo = URI.file('/repo');
@@ -24382,7 +24485,7 @@ suite('CopilotAgent', () => {
 
 				// `_readSessionMetadata` reads back the exact agent field the
 				// resume path consumes, so asserting it stands in for restore.
-				const stored = await internals._readSessionMetadata(result.session);
+				const stored = await internals._readSessionMetadata({ storage: result.session, owner: result.session });
 				assert.deepStrictEqual(
 					{ storedAgent: stored.agent, launchAgentName },
 					{ storedAgent: { uri: worktreeAgentFile.toString() }, launchAgentName: 'My Agent' },

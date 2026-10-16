@@ -70,10 +70,10 @@ suite('CopilotFusionProgress', () => {
 			completedPart: completed?.part,
 			degradedContent: degraded?.part?.content,
 		}, {
-			activity: 'Main pass running',
-			progress: 'Main pass running',
+			activity: 'Fix-up pass running',
+			progress: 'Fix-up pass running',
 			model: 'model-a',
-			phaseContent: [{ type: 'text', text: 'Main&nbsp;pass&nbsp;completed\n\nDuration:&nbsp;2s' }],
+			phaseContent: [{ type: 'text', text: 'Fix-up&nbsp;pass&nbsp;completed\n\nDuration:&nbsp;2s' }],
 			completedPart: undefined,
 			degradedContent: { markdown: 'HydraFusion&nbsp;workflow&nbsp;completed&nbsp;with&nbsp;a&nbsp;fallback' },
 		});
