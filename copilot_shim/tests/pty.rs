@@ -502,6 +502,115 @@ fn unix_pty_ctrl_c_cancels_without_fallback() {
 	);
 }
 
+#[cfg(target_os = "macos")]
+#[test]
+fn macos_pty_install_only_keeps_installer_profile_consent_and_never_launches_cli() {
+	let root = tempfile::tempdir().expect("create install-only directory");
+	let home = root.path().join("home");
+	let tools = root.path().join("tools");
+	let working = root.path().join("working");
+	let prefix = root.path().join("prefix");
+	let state = root.path().join("state");
+	for directory in [&home, &tools, &working, &prefix.join("bin"), &state] {
+		fs::create_dir_all(directory).expect("create fixture directory");
+	}
+	std::os::unix::fs::symlink("/bin/bash", tools.join("bash")).expect("link Bash");
+	let installer = root.path().join("installer.sh");
+	let cli = root.path().join("cli");
+	write_executable(
+		&cli,
+		b"#!/bin/sh\n: > \"$COPILOT_SHIM_TEST_STATE/cli-launched\"\nexit 99\n",
+	);
+	fs::write(
+		&installer,
+		b"#!/bin/bash\n/bin/cp \"$COPILOT_SHIM_TEST_CLI\" \"$PREFIX/bin/copilot\"\nprintf 'Would you like to add it to %s/.profile? [y/N] ' \"$HOME\"\nread -r answer </dev/tty\nprintf '%s' \"$answer\" > \"$COPILOT_SHIM_TEST_STATE/profile-answer\"\n",
+	)
+	.expect("write installer");
+	write_executable(
+		&tools.join("curl"),
+		b"#!/bin/sh\n/bin/cp \"$COPILOT_SHIM_TEST_INSTALLER\" \"$4\"\n",
+	);
+	let mut process = PtyProcess::spawn(
+		&[
+			OsString::from("--vscode-shim"),
+			OsString::from("install"),
+			OsString::from("--interactive"),
+		],
+		tools.as_os_str(),
+		&working,
+		&[
+			("HOME", home.as_os_str()),
+			("PREFIX", prefix.as_os_str()),
+			("COPILOT_SHIM_TEST_STATE", state.as_os_str()),
+			("COPILOT_SHIM_TEST_INSTALLER", installer.as_os_str()),
+			("COPILOT_SHIM_TEST_CLI", cli.as_os_str()),
+		],
+	);
+	process.wait_for(b".profile? [y/N] ");
+	process.write(b"n\n");
+	let status = process.wait_for_exit();
+
+	assert_eq!(
+		(
+			status.code(),
+			read(&state.join("profile-answer")),
+			state.join("cli-launched").exists(),
+			count_bytes(process.transcript(), INSTALL_PROMPT),
+		),
+		(Some(0), b"n".to_vec(), false, 0),
+		"PTY transcript:\n{}",
+		String::from_utf8_lossy(process.transcript())
+	);
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn macos_pty_install_only_ctrl_c_stops_without_fallback() {
+	let root = tempfile::tempdir().expect("create cancellation test directory");
+	let tools = root.path().join("tools");
+	let working = root.path().join("working");
+	let state = root.path().join("state");
+	let temporary = root.path().join("temporary");
+	let home = root.path().join("home");
+	let prefix = root.path().join("prefix");
+	for directory in [&tools, &working, &state, &temporary, &home, &prefix] {
+		fs::create_dir_all(directory).expect("create fixture directory");
+	}
+	write_executable(&tools.join("curl"), blocking_curl_script());
+	write_executable(&tools.join("wget"), &marker_script("wget-started"));
+	write_executable(&tools.join("bash"), &marker_script("bash-started"));
+	let mut process = PtyProcess::spawn(
+		&[
+			OsString::from("--vscode-shim"),
+			OsString::from("install"),
+			OsString::from("--interactive"),
+		],
+		tools.as_os_str(),
+		&working,
+		&[
+			("COPILOT_SHIM_TEST_STATE", state.as_os_str()),
+			("TMPDIR", temporary.as_os_str()),
+			("HOME", home.as_os_str()),
+			("PREFIX", prefix.as_os_str()),
+		],
+	);
+	process.wait_for(b"CURL_READY\n");
+	process.write(&[3]);
+	let status = process.wait_for_exit();
+
+	assert_eq!(
+		(
+			status.code(),
+			state.join("wget-started").exists(),
+			state.join("bash-started").exists(),
+			count_bytes(process.transcript(), INSTALL_PROMPT),
+		),
+		(Some(130), false, false, 0),
+		"PTY transcript:\n{}",
+		String::from_utf8_lossy(process.transcript())
+	);
+}
+
 fn open_pty() -> io::Result<(RawFd, RawFd)> {
 	let mut master = -1;
 	let mut slave = -1;
