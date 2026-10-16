@@ -10,7 +10,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IDiffComputeService, IOffsetEdit } from '../../common/diffComputeService.js';
 import { AttributedToolResultFileEditContent, FILE_EDIT_ATTRIBUTION_PROPERTY, IAgentEditAttributionService, IFileEditAttributionMarker } from '../../common/fileEditAttribution.js';
-import { ISessionDatabase } from '../../common/sessionDataService.js';
+import { ISessionDataService } from '../../common/sessionDataService.js';
 import { buildSessionDbUri } from '../../common/sessionDbUri.js';
 import { FileEditKind, ToolResultContentType, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
@@ -28,9 +28,8 @@ interface ICompletedEdit {
 }
 
 /**
- * Tracks file edits made by tools in a session by snapshotting file content
- * before and after each edit tool invocation, persisting snapshots into the
- * session database.
+ * Snapshots file content before and after each edit tool invocation.
+ * Persistence holds its own database reference independently of the session's lifetime.
  */
 export class FileEditTracker {
 
@@ -52,9 +51,10 @@ export class FileEditTracker {
 
 	constructor(
 		private readonly _sessionUri: string,
-		private readonly _ownerSessionUri: string,
-		private readonly _db: ISessionDatabase,
+		/** The session that owns the chat, read when an edit is attributed: it can change while the chat runs. */
+		private readonly _owner: () => string,
 		private readonly _provider: string | undefined,
+		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
 		@IDiffComputeService private readonly _diffComputeService: IDiffComputeService,
@@ -158,16 +158,21 @@ export class FileEditTracker {
 		}
 
 		try {
-			await this._db.storeFileEdit({
-				turnId,
-				toolCallId,
-				filePath,
-				kind: isCreate ? FileEditKind.Create : FileEditKind.Edit,
-				beforeContent: beforeBytes,
-				afterContent: afterBytes,
-				addedLines,
-				removedLines,
-			});
+			const ref = this._sessionDataService.openDatabase(URI.parse(this._sessionUri));
+			try {
+				await ref.object.storeFileEdit({
+					turnId,
+					toolCallId,
+					filePath,
+					kind: isCreate ? FileEditKind.Create : FileEditKind.Edit,
+					beforeContent: beforeBytes,
+					afterContent: afterBytes,
+					addedLines,
+					removedLines,
+				});
+			} finally {
+				ref.dispose();
+			}
 		} catch (err) {
 			this._logService.warn(`[FileEditTracker] Failed to persist file edit to database: ${filePath}`, err);
 		}
@@ -177,7 +182,7 @@ export class FileEditTracker {
 		this._editSurvivalReporterFactory.launch({
 			clientContext,
 			sessionUri: this._sessionUri,
-			ownerSessionUri: this._ownerSessionUri,
+			ownerSessionUri: this._owner(),
 			...(this._provider ? { provider: this._provider } : {}),
 			turnId,
 			toolCallId,
@@ -208,7 +213,7 @@ export class FileEditTracker {
 		try {
 			marker = await this._editAttributionService.recordEdit({
 				sessionUri: this._sessionUri,
-				ownerSessionUri: this._ownerSessionUri,
+				ownerSessionUri: this._owner(),
 				...(this._provider ? { provider: this._provider } : {}),
 				chatUri,
 				turnId,
@@ -231,7 +236,7 @@ export class FileEditTracker {
 		this._editArcReporterService.reportEdit({
 			clientContext,
 			sessionUri: this._sessionUri,
-			ownerSessionUri: this._ownerSessionUri,
+			ownerSessionUri: this._owner(),
 			isSubagent,
 			...(this._provider ? { provider: this._provider } : {}),
 			turnId,

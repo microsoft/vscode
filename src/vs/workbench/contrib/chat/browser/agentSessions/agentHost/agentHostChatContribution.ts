@@ -390,6 +390,9 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			mcpServerMigrationProvider: agent.provider === 'copilotcli'
 				? store.add(this._instantiationService.createInstance(AgentHostMcpServerMigrationProvider))
 				: undefined,
+			mcpConfigurationProvider: marketplaceInstallProvider && this._agentHostService.addMcpServerConfiguration
+				? marketplaceInstallProvider
+				: undefined,
 			marketplaceInstallProvider,
 			marketplaceSearchProvider: marketplaceInstallProvider,
 			marketplaceManagementProvider,

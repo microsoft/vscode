@@ -546,19 +546,19 @@ export default defineThemedFixtureGroup({ path: 'sessions/grid/' }, {
 	SideBySide: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['Two full-height session panels sit side by side. Each has a session header, a completed conversation, a chat input, and a complete one-stroke panel border. The same floating-panel gap used elsewhere in the Agents window separates the bordered panels without an additional divider, a three-dot gripper is centered in the gap, and no frame surrounds the Sessions group.'],
+		expectedVisualDescriptions: ['Two full-height session panels sit side by side. Each has a completed conversation, a chat input, and a complete one-stroke panel border. Only the active panel shows its session header at rest; inactive headers reveal on panel hover or keyboard focus. The same floating-panel gap used elsewhere in the Agents window separates the bordered panels without an additional divider, a three-dot gripper is centered in the gap, and no frame surrounds the Sessions group.'],
 		render: context => renderSessionsGrid(context, { sideBySide: true }),
 	}),
 	NestedSplits: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The Agents workbench title bar sits above three session panels, with sidebars and panels hidden. A narrow full-height panel is on the left and two unequal-height panels are stacked on the right. Floating-panel gaps separate the sessions, each gap has a centered three-dot gripper, each session retains its complete one-stroke panel border, and no frame surrounds the Sessions group. Each panel has a session header, a completed conversation, and a chat input.'],
+		expectedVisualDescriptions: ['The Agents workbench title bar sits above three session panels, with sidebars and panels hidden. A narrow full-height panel is on the left and two unequal-height panels are stacked on the right. Floating-panel gaps separate the sessions, each gap has a centered three-dot gripper, each session retains its complete one-stroke panel border, and no frame surrounds the Sessions group. Each panel has a completed conversation and a chat input; only the active panel shows its session header at rest.'],
 		render: context => renderSessionsGrid(context),
 	}),
 	CustomBackground: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['A repeating custom background remains visible inside all three transparent session panels. The solid workbench-colored floating-panel gaps separate the complete panel frames, include centered three-dot grippers, and do not show the custom background through the gutters.'],
+		expectedVisualDescriptions: ['The active panel shows a repeating custom background at full strength. Inactive panels recess that background beneath a theme-colored veil, or a solid surface in high contrast. Their session headers, input pills, and turn indicators reveal on panel hover or keyboard focus. Pills, turn indicators, transcript text, and bubble fills fade in and out when motion is enabled; reduced motion reveals them immediately, and headers remain immediate. Chat content remains above the veil. Outside high contrast, inactive transcripts are subdued at rest and brighten to full opacity on panel hover or keyboard focus, while inputs stay dimmed. Inactive request bubble tints and response card backgrounds are transparent at rest and brighten to a subdued fill on panel hover or keyboard focus independently of the text. The solid workbench-colored floating-panel gaps separate the complete panel frames, include centered three-dot grippers, and do not show the custom background through the gutters.'],
 		render: context => renderSessionsGrid(context, { customBackground: true }),
 	}),
 	SidePanelGap: defineComponentFixture({

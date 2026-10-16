@@ -7,17 +7,20 @@ import assert from 'assert';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IIconLabelValueOptions } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { decodeBase64 } from '../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, IReference, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IResolvedTextEditorModel } from '../../../../../editor/common/services/resolverService.js';
 import { FileKind } from '../../../../../platform/files/common/files.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ColorScheme } from '../../../../../platform/theme/common/theme.js';
 import { FileThemeIcon, FolderThemeIcon } from '../../../../../platform/theme/common/themeService.js';
 import { IFileLabelOptions } from '../../../../../workbench/browser/labels.js';
@@ -26,6 +29,8 @@ import { ChatPasteAttachmentMetadata, IChatRequestVariableEntry, toPasteVariable
 import { NewChatContextAttachments } from '../../browser/newChatContextAttachments.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
 import { IChatDraft } from '../../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
+import { IChatImageCarouselService } from '../../../../../workbench/contrib/chat/browser/chatImageCarouselService.js';
+import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { NewChatModelPickerService } from '../../browser/newChatModelPicker.js';
 import { INewSessionComposerPicker } from '../../browser/newSessionComposerService.js';
 import { constObservable } from '../../../../../base/common/observable.js';
@@ -221,6 +226,8 @@ interface IAttachmentRenderingHarness {
 	readonly openerService: {
 		open(resource: URI): Promise<boolean>;
 	};
+	readonly configurationService?: IConfigurationService;
+	readonly chatImageCarouselService?: IChatImageCarouselService;
 	readonly themeService?: {
 		getFileIconTheme(): { hasFileIcons: boolean; hasFolderIcons: boolean };
 		getColorTheme(): { type: ColorScheme };
@@ -253,7 +260,70 @@ class InputModelReferenceHarness implements IInputModelReferenceHarness, IDispos
 }
 
 suite('NewChatInputWidget', () => {
+	test('notification model edits use the scoped configuration and fall back only when absent', async () => {
+		const writes: { scope: string; model: string; values: Record<string, unknown> }[] = [];
+		const access = (scope: string) => ({
+			setModelConfiguration: async (model: string, values: Record<string, unknown>) => { writes.push({ scope, model, values }); },
+		});
+		const selection: { modelConfiguration: ReturnType<typeof access> | undefined } = { modelConfiguration: access('chat') };
+		const widget: { _applyModelConfiguration(model: string, values: Record<string, unknown>): Promise<void> } = Object.assign(Object.create(NewChatInputWidget.prototype), {
+			_modelSelection: selection, languageModelsService: access('global'),
+		});
+		await widget._applyModelConfiguration('model', { thinkingLevel: 'high' });
+		selection.modelConfiguration = undefined;
+		await widget._applyModelConfiguration('model', { contextSize: 200_000 });
+		assert.deepStrictEqual(writes, [
+			{ scope: 'chat', model: 'model', values: { thinkingLevel: 'high' } },
+			{ scope: 'global', model: 'model', values: { contextSize: 200_000 } },
+		]);
+	});
+
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const accepted of [true, false]) {
+		test(`voice submission waits for the real send outcome (${accepted})`, async () => {
+			let text = 'Typed draft';
+			let completed = false;
+			const sent = new DeferredPromise<boolean>();
+			const input: NewChatInputWidget = Object.assign(Object.create(NewChatInputWidget.prototype), {
+				_sending: false,
+				_editor: { getModel: () => ({ getValue: () => text, setValue: (value: string) => text = value }) },
+				_send: () => sent.p,
+			});
+			const result = input.sendQuery('spoken input').then(value => {
+				completed = true;
+				return value;
+			});
+			await Promise.resolve();
+			const beforeSendResult = completed;
+			await sent.complete(accepted);
+			assert.deepStrictEqual({ text, beforeSendResult, accepted: await result }, {
+				text: 'Typed draft spoken input', beforeSendResult: false, accepted,
+			});
+		});
+	}
+
+	test('voice submission preserves the input and reports a disabled send gate', async () => {
+		let text = 'Typed draft';
+		const input: NewChatInputWidget = Object.assign(Object.create(NewChatInputWidget.prototype), {
+			_sending: false,
+			_editor: { getModel: () => ({ getValue: () => text, setValue: (value: string) => text = value }) },
+			_contextAttachments: { attachments: [] },
+			options: {},
+			_canSendRequest: constObservable(false),
+		});
+		const accepted = await input.sendQuery('spoken input');
+		assert.deepStrictEqual({ text, accepted }, { text: 'Typed draft spoken input', accepted: false });
+	});
+
+	test('voice submission does not overwrite an input that is already sending', async () => {
+		let text = 'In-flight input';
+		const input: NewChatInputWidget = Object.assign(Object.create(NewChatInputWidget.prototype), {
+			_sending: true,
+			_editor: { getModel: () => ({ getValue: () => text, setValue: (value: string) => text = value }) },
+		});
+		assert.deepStrictEqual({ accepted: await input.sendQuery('new input'), text }, { accepted: false, text: 'In-flight input' });
+	});
 
 	test('gets and sets the composer input without moving focus', () => {
 		let value = 'Initial prompt';
@@ -1017,6 +1087,70 @@ suite('NewChatInputWidget', () => {
 			name: 'microsoft/vscode#333845',
 			icon: Codicon.issues.id,
 		}]);
+	});
+
+	test('opens all draft images from the clicked attachment with its exact identity', async () => {
+		const container = document.createElement('div');
+		const bytes = decodeBase64('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aTfoAAAAASUVORK5CYII=').buffer;
+		const restored = URI.file('/restored.png');
+		const attachments: IChatRequestVariableEntry[] = [
+			{ kind: 'image', id: 'first', name: 'image.png', value: bytes },
+			{ kind: 'image', id: 'second', name: 'image.png', value: bytes },
+			{ kind: 'image', id: 'restored', name: 'restored.png', value: undefined, references: [{ kind: 'reference', reference: restored }] },
+		];
+		const opened: Parameters<IChatImageCarouselService['openCarouselAtResource']>[] = [];
+		const configuration = new TestConfigurationService({ [ChatConfiguration.ImageCarouselEnabled]: true });
+		disposables.add(configuration.onDidChangeConfigurationEmitter);
+		updateAttachmentRendering.call({
+			_container: container,
+			_attachedContext: attachments,
+			_renderDisposables: disposables.add(new DisposableStore()),
+			_resourceLabels: {
+				clear: () => { },
+				create: () => ({ dispose: () => { }, setLabel: () => { }, setFile: () => { } }),
+			},
+			openerService: { open: async () => { throw new Error('Images should open in the carousel'); } },
+			configurationService: configuration,
+			chatImageCarouselService: upcastPartial<IChatImageCarouselService>({
+				openCarouselAtResource: async (...args) => { opened.push(args); },
+			}),
+			removeAttachment: () => { },
+		});
+
+		const buttons = container.querySelectorAll<HTMLButtonElement>('.sessions-chat-attachment-open');
+		buttons[1].click();
+		buttons[2].click();
+		await Promise.resolve();
+
+		assert.deepStrictEqual(opened.map(([uri, data, options]) => [uri.toString(), data, options]), [
+			[URI.from({ scheme: Schemas.data, path: 'second/image.png' }).toString(), bytes, { preferCurrentInput: true, currentInput: { text: '', attachments } }],
+			[restored.toString(), undefined, { preferCurrentInput: true, currentInput: { text: '', attachments } }],
+		]);
+	});
+
+	test('opens a draft image resource normally when the carousel is disabled', async () => {
+		const container = document.createElement('div');
+		const resource = URI.file('/image.png');
+		const opened: URI[] = [];
+		const configuration = new TestConfigurationService({ [ChatConfiguration.ImageCarouselEnabled]: false });
+		disposables.add(configuration.onDidChangeConfigurationEmitter);
+		updateAttachmentRendering.call({
+			_container: container,
+			_attachedContext: [{ kind: 'image', id: 'image', name: 'image.png', value: resource }],
+			_renderDisposables: disposables.add(new DisposableStore()),
+			_resourceLabels: {
+				clear: () => { },
+				create: () => ({ dispose: () => { }, setLabel: () => { }, setFile: () => { } }),
+			},
+			openerService: { open: async uri => { opened.push(uri); return true; } },
+			configurationService: configuration,
+			removeAttachment: () => { },
+		});
+
+		container.querySelector<HTMLButtonElement>('.sessions-chat-attachment-open')!.click();
+		await Promise.resolve();
+
+		assert.deepStrictEqual(opened, [resource]);
 	});
 
 	test('renders GitHub context pills as openable with a keyboard-reachable remove button', async () => {

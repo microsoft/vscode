@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
 import assert from 'assert';
 import * as sinon from 'sinon';
 import type Anthropic from '@anthropic-ai/sdk';
@@ -24,8 +25,7 @@ import { AgentHostSessionTitleController, type AutomaticTitleGenerationStrategy 
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { ActionType, NotificationType } from '../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, MessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, TurnState, type ResponsePart, type SessionSummary, type ToolCallCompletedState, type Turn } from '../../common/state/sessionState.js';
-import { GitHubIssueOrPullRequest, GitHubIssueRef } from '../../../github/common/githubQueryService.js';
-import { IGitHubQuery } from '../../../github/common/githubQueryServiceImpl.js';
+import { GitHubIssueOrPullRequest, GitHubIssueRef, GitHubQueryApi } from '../../../github/common/githubQueryService.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 import { AgentHostUtilityModelUnavailableError, AgentHostUtilityModelUnavailableReason, type IAgentHostUtilityModelContext, type IAgentHostUtilityModelService } from '../../node/agentHostUtilityModelService.js';
 import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
@@ -77,7 +77,7 @@ function createUtilityModelService(copilotApiService: TestCopilotApiService, get
 	};
 }
 
-class TestGitHubQuery extends mock<IGitHubQuery>() {
+class TestGitHubQuery extends mock<GitHubQueryApi>() {
 	readonly calls: { owner: string; repo: string; number: number; accountId: string; signal: AbortSignal }[] = [];
 	readonly responses = new Map<string, GitHubIssueOrPullRequest | Error>();
 	readonly pendingResponses = new Set<string>();
@@ -104,6 +104,14 @@ class TestGitHubQuery extends mock<IGitHubQuery>() {
 		return response;
 	}
 
+}
+
+/** Reads session values straight from `db`, standing in for a session that has no central state. */
+function readDatabaseValues(db: TestSessionDatabase): (session: URI, keys: readonly string[]) => Promise<ReadonlyMap<string, string>> {
+	return async (_session, keys) => {
+		const values = await db.getMetadataObject(Object.fromEntries(keys.map(key => [key, true])));
+		return new Map(Object.entries(values).filter((entry): entry is [string, string] => entry[1] !== undefined));
+	};
 }
 
 suite('AgentHostSessionTitleController', () => {
@@ -289,6 +297,7 @@ suite('AgentHostSessionTitleController', () => {
 		controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
 		const restored = disposables.add(new AgentHostSessionTitleController(stateManager, {
 			sessionDataService: createSessionDataService(db),
+			readSessionValues: readDatabaseValues(db),
 			getInitialTitleGenerationStrategy: () => 'utility',
 			utilityModelService: createUtilityModelService(copilotApiService, () => 'gh-token'),
 		}, new NullLogService(), createTestChatOwnershipService(stateManager)));
@@ -651,6 +660,7 @@ suite('AgentHostSessionTitleController', () => {
 		controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
 		const restored = disposables.add(new AgentHostSessionTitleController(stateManager, {
 			sessionDataService: createSessionDataService(db),
+			readSessionValues: readDatabaseValues(db),
 			getInitialTitleGenerationStrategy: () => 'utility',
 			utilityModelService: createUtilityModelService(copilotApiService, () => 'gh-token'),
 		}, new NullLogService(), createTestChatOwnershipService(stateManager)));
@@ -669,7 +679,7 @@ suite('AgentHostSessionTitleController', () => {
 		}, { calls: 1, pendingSeed: '' });
 	});
 
-	test('normalized deferred peer fork restores its inherited-turn boundary without legacy title mirrors', async () => {
+	test('normalized deferred peer fork restores its inherited-turn boundary without importing legacy titles', async () => {
 		const { stateManager, session, db, copilotApiService } = setupDeferred();
 		const chat = buildChatUri(session, 'deferred-peer');
 		const inherited = firstTurn('Inherited request', [textPart('Inherited answer')]);
@@ -681,7 +691,7 @@ suite('AgentHostSessionTitleController', () => {
 			peers: [{ chat, order: 1 }],
 			privateDescendants: [],
 		});
-		const store = new AgentHostPeerChatStore(database, createSessionDataService(db), new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined));
+		const store = new AgentHostPeerChatStore(database, createSessionDataService(db), new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(database, createSessionDataService(db)));
 		const options = {
 			sessionDataService: createSessionDataService(db),
 			getInitialTitleGenerationStrategy: () => 'deferred' as const,
@@ -712,6 +722,7 @@ suite('AgentHostSessionTitleController', () => {
 		freshState.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'new-turn', duration: 10 });
 		restored.refineTitleFromFirstTurn(session.toString(), chat);
 		await waitForCondition(async () => (await store.readNormalizedChat(session, URI.parse(chat))).chat?.metadata?.summary === 'Generated title', 'restored normalized fork should refine');
+		// The stale legacy key is never imported and, as on main, a normalized chat's title is not rendered into it.
 		assert.deepStrictEqual({
 			calls: copilotApiService.utilityCalls.length,
 			title: freshState.getChatState(chat)?.title,

@@ -54,7 +54,7 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	left: calc(var(--vscode-codiconFontSize-compact) * 0.2);
+	left: var(--chat-persistent-icon-left, calc(var(--vscode-codiconFontSize-compact) * 0.2));
 	top: var(--chat-chain-icon-top, var(--chat-persistent-icon-top));
 	font-size: inherit;
 	width: var(--vscode-codiconFontSize-compact);
@@ -74,7 +74,7 @@
 /* Preserve the text-column width while anchoring artwork to the icon gutter. */
 .interactive-session .interactive-response .value .chat-tool-call-with-icon :is(.chat-image-generation-placeholder, .chat-generated-image-tool-result) {
 	position: relative;
-	left: calc(var(--vscode-codiconFontSize-compact) * 0.2);
+	left: var(--chat-persistent-icon-left, calc(var(--vscode-codiconFontSize-compact) * 0.2));
 	margin-left: calc(-1 * var(--vscode-spacing-size240));
 	margin-right: var(--vscode-spacing-size240);
 }
@@ -242,8 +242,9 @@
 	--chat-persistent-item-gap: var(--vscode-spacing-size160);
 	--chat-persistent-nested-indent: var(--vscode-spacing-size160);
 	--chat-persistent-nested-gap: var(--vscode-spacing-size60);
+	--chat-persistent-icon-left: calc(var(--vscode-codiconFontSize-compact) * 0.2);
 	--chat-persistent-icon-top: calc((var(--vscode-chat-font-size-body-m) * 1.5 - var(--vscode-codiconFontSize-compact)) / 2);
-	--chat-persistent-rail-left: calc(var(--vscode-codiconFontSize-compact) * 0.7 - var(--vscode-strokeThickness) / 2);
+	--chat-persistent-rail-left: calc(var(--chat-persistent-icon-left) + var(--vscode-codiconFontSize-compact) / 2 - var(--vscode-strokeThickness) / 2);
 	--chat-persistent-hook-width: calc(var(--chat-persistent-nested-indent) - var(--vscode-codiconFontSize-compact) / 2 - var(--vscode-spacing-size40) + var(--vscode-strokeThickness) / 2);
 }
 

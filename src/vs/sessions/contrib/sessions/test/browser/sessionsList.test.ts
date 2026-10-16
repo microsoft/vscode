@@ -110,7 +110,7 @@ function createSession(id: string, opts: {
 	isAutomation?: boolean;
 	isExternal?: boolean;
 	resource?: URI;
-}): ISession & { readonly isArchived: ISettableObservable<boolean, void> } {
+}): ISession & { readonly isArchived: ISettableObservable<boolean, void>; readonly isRead: ISettableObservable<boolean, void> } {
 	const createdAt = opts.createdAt ?? new Date();
 	const updatedAt = opts.updatedAt ?? createdAt;
 	const isArchived = observableValue(`isArchived-${id}`, opts.isArchived ?? false);
@@ -983,6 +983,10 @@ suite('Sessions - SessionsList', () => {
 			const archivedStatus = renderer.automationStatus.get();
 			session.isArchived.set(false, undefined);
 			const restoredStatus = renderer.automationStatus.get();
+			session.isRead.set(true, undefined);
+			const readStatus = renderer.automationStatus.get();
+			session.isRead.set(false, undefined);
+			const unreadStatus = renderer.automationStatus.get();
 
 			assert.deepStrictEqual({
 				resourcesAreDistinct: session.resource.toString() !== runResource.toString(),
@@ -990,6 +994,8 @@ suite('Sessions - SessionsList', () => {
 				statuses,
 				archivedStatus,
 				restoredStatus,
+				readStatus,
+				unreadStatus,
 				isRead: session.isRead.get(),
 				managementCalls,
 			}, {
@@ -998,6 +1004,8 @@ suite('Sessions - SessionsList', () => {
 				statuses: [SessionStatus.Completed, SessionStatus.Completed],
 				archivedStatus: undefined,
 				restoredStatus: SessionStatus.Completed,
+				readStatus: undefined,
+				unreadStatus: SessionStatus.Completed,
 				isRead: false,
 				managementCalls: [],
 			});
@@ -2917,11 +2925,12 @@ suite('Sessions - SessionsList', () => {
 			});
 		}
 
-		test('reacts to external identity and hides the section when its sessions are filtered out', () => {
+		test('reacts to external identity and hides the section when its sessions are filtered out', async () => {
 			const session = createTestSession('Session', { workspaceLabel: 'Alpha' });
 			const { list, container } = renderList([session.session], SessionsGrouping.Workspace, { groupExternalSessions: true });
 			const before = sectionLabels(container);
 			session.isExternal.set(true, undefined);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
 			const external = sectionLabels(container);
 			list.filters.setExcluded({ kind: 'harness', id: 'copilot' }, true);
 			const filtered = sectionLabels(container);
@@ -4582,7 +4591,7 @@ suite('Sessions - SessionsList', () => {
 			compact = false,
 			configure?: (instantiationService: TestInstantiationService) => void,
 			sorting = SessionsSorting.Created,
-		): { readonly container: HTMLElement; readonly list: SessionsList; readonly managementService: TestSessionsManagementService } {
+		): { readonly container: HTMLElement; readonly list: TestSessionsList; readonly managementService: TestSessionsManagementService } {
 			const harness = createListHarness(disposables, [session], instantiationService => {
 				if (enableMotion) {
 					instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
@@ -4592,7 +4601,7 @@ suite('Sessions - SessionsList', () => {
 				configure?.(instantiationService);
 			});
 			const container = harness.createContainer();
-			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
 				grouping: () => SessionsGrouping.Date,
 				sorting: () => sorting,
 				compact: () => compact,
@@ -5615,7 +5624,7 @@ suite('Sessions - SessionsList', () => {
 			);
 		});
 
-		test('updates nested chat rows when the session chat catalog changes', () => {
+		test('updates nested chat rows when the session chat catalog changes', async () => {
 			const main = createChat('Main chat');
 			const peer = createChat('Peer chat', ChatOriginKind.User);
 			const chats = observableValue<readonly IChat[]>('session-chats', [main]);
@@ -5630,6 +5639,7 @@ suite('Sessions - SessionsList', () => {
 			const before = chatRowTitles(container);
 
 			chats.set([main, peer], undefined);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
 			const twistie = container.querySelector<HTMLElement>('.session-chat-twistie.collapsible');
 			assert.ok(twistie);
 
@@ -5644,7 +5654,52 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('shows archived nested chats when archived items are included', () => {
+		test('does not leave overlapping rows when rendering a chat updates the catalog', async () => {
+			const main = createChat('Main chat');
+			const appended = createChat('Appended chat', ChatOriginKind.User);
+			const chats = observableValue<readonly IChat[]>('session-chats', [main]);
+			let didUpdateCatalog = false;
+			const target = {
+				...createChat('Target chat', ChatOriginKind.User),
+				title: derived(() => {
+					if (!didUpdateCatalog) {
+						didUpdateCatalog = true;
+						chats.set([...chats.get(), appended], undefined);
+					}
+					return 'Target chat';
+				}),
+			};
+			const peers = Array.from({ length: 30 }, (_, index) => createChat(`Peer ${index}`, ChatOriginKind.User));
+			chats.set([main, ...peers, target], undefined);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats,
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const { container, list } = renderSessionChatsList(session);
+
+			assert.strictEqual(list.revealItem({ session: session.resource, chat: target.resource }), true);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			const hasAppendedChat = list.revealItem({ session: session.resource, chat: appended.resource });
+
+			const rows = [...container.querySelectorAll<HTMLElement>('.monaco-list[aria-label="Sessions"] .monaco-list-rows > .monaco-list-row')];
+			const indices = rows.map(row => row.dataset.index);
+			assert.deepStrictEqual({
+				didUpdateCatalog,
+				hasAppendedChat,
+				renderedRowCount: rows.length,
+				uniqueRenderedRowCount: new Set(indices).size,
+			}, {
+				didUpdateCatalog: true,
+				hasAppendedChat: true,
+				renderedRowCount: rows.length,
+				uniqueRenderedRowCount: rows.length,
+			});
+		});
+
+		test('shows archived nested chats when archived items are included', async () => {
 			const main = createChat('Main chat');
 			const isArchived = observableValue('peer-is-archived', false);
 			const peer: IChat = { ...createChat('Peer chat', ChatOriginKind.User), isArchived };
@@ -5659,6 +5714,7 @@ suite('Sessions - SessionsList', () => {
 			const before = chatRowTitles(container);
 
 			isArchived.set(true, undefined);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
 			const hidden = chatRowTitles(container);
 			list.setExcludeArchived(false);
 			const archivedRow = container.querySelector<HTMLElement>('.session-chat-item');

@@ -9,7 +9,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { withSessionSandboxState } from '../../../../../../platform/agentHost/common/meta/agentSandboxStateMeta.js';
+import { withChatSandboxState, withSessionSandboxState } from '../../../../../../platform/agentHost/common/meta/agentSandboxStateMeta.js';
 import { ActionType, type ActionEnvelope } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
@@ -69,5 +69,39 @@ suite('AgentHostSandboxNotifications', () => {
 			logs: Array(2).fill('SDK rejected update'),
 			messagesAtRollback: [['Could not change sandbox access. SDK rejected update']],
 		});
+	});
+
+	test('reports a chat\'s failure once, also when the session-level state repeats it', () => {
+		const actions = store.add(new Emitter<ActionEnvelope>());
+		const messages: string[] = [];
+		const connection = new class extends mock<IAgentConnection>() {
+			override readonly clientId = 'local-client';
+			override readonly onDidAction = actions.event;
+		}();
+		store.add(new AgentHostSandboxNotifications(
+			new class extends mock<IAgentHostConnectionsService>() {
+				override readonly onDidChangeConnections = Event.None;
+				override readonly connections = [{ authority: 'remote', address: 'remote', name: 'Remote', isAmbient: false, connection }];
+			}(),
+			new NullLogService(),
+			new class extends mock<INotificationService>() {
+				override error(message: string | Error): void { messages.push(String(message)); }
+			}(),
+		));
+		const fire = (meta: Record<string, unknown>) => actions.fire({
+			channel: 'custom-host://sessions/one',
+			serverSeq: 1,
+			origin: undefined,
+			action: { type: ActionType.SessionMetaChanged, _meta: meta },
+		});
+		const error = (clientSeq: number, message: string) => ({ enabled: true, error: { clientId: 'local-client', clientSeq, message } });
+		// A peer chat's failure.
+		fire(withChatSandboxState(undefined, 'ahp-chat://peer/one', error(1, 'peer')));
+		// The default chat's failure is in its entry and the session-level state; a later change keeps both.
+		const defaultChatFailure = withSessionSandboxState(withChatSandboxState(undefined, 'ahp-chat://default/one', error(2, 'default')), error(2, 'default'));
+		fire(defaultChatFailure);
+		fire(withChatSandboxState(defaultChatFailure, 'ahp-chat://peer/one', { enabled: false }));
+
+		assert.deepStrictEqual(messages, ['Could not change sandbox access. peer', 'Could not change sandbox access. default']);
 	});
 });

@@ -31,7 +31,7 @@ import { ChatEntitlement, IChatEntitlementService } from '../../../../../../../s
 import { TestChatEntitlementService, TestWorkspaceTrustManagementService } from '../../../../../../../test/common/workbenchTestServices.js';
 import { ModelPickerActionItem, IModelPickerDelegate } from '../../../../../browser/widget/input/modelPicker/modelPickerActionItem.js';
 import { ModelPickerWidget } from '../../../../../browser/widget/input/modelPicker/modelPickerWidget.js';
-import { IModelPickerWorkflow, IModelPickerWorkflowState } from '../../../../../browser/widget/input/modelPicker/modelPickerWorkflow.js';
+import { IModelPickerComparison, IModelPickerComparisonState } from '../../../../../browser/widget/input/modelPicker/modelPickerComparison.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../common/languageModels.js';
 import { SessionType } from '../../../../../common/chatSessionsService.js';
 import { NullLanguageModelsService } from '../../../../common/languageModels.js';
@@ -64,17 +64,18 @@ suite('ModelPickerActionItem', () => {
 
 	/**
 	 * Renders the real picker as the chat input toolbar does, with the model's
-	 * name followed by its thinking effort / context size readout. The name has
-	 * no icon, so it keeps its label even when the picker is compact.
+	 * name followed by its thinking effort / context size readout. By default the
+	 * name has no icon, so it keeps its label even when the picker is compact.
 	 */
-	function renderPicker(model: ILanguageModelChatMetadataAndIdentifier, options: { readonly compact?: boolean; readonly itemWidth?: number; readonly workflow?: IModelPickerWorkflow } = {}) {
+	function renderPicker(model: ILanguageModelChatMetadataAndIdentifier, options: { readonly compact?: boolean; readonly minimal?: boolean; readonly comparison?: IModelPickerComparison; readonly itemWidth?: number; readonly models?: readonly ILanguageModelChatMetadataAndIdentifier[]; readonly showModelIcon?: boolean } = {}) {
+		const models = options.models ? [...options.models] : [model];
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IActionWidgetService, {});
 		instantiationService.stub(ICommandService, {});
 		instantiationService.stub(IOpenerService, {});
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(ILanguageModelsService, new class extends NullLanguageModelsService {
-			override getLanguageModelIds() { return [model.identifier]; }
+			override getLanguageModelIds() { return models.map(candidate => candidate.identifier); }
 		}());
 		instantiationService.stub(IProductService, {});
 		const entitlementService = new TestChatEntitlementService();
@@ -90,22 +91,22 @@ suite('ModelPickerActionItem', () => {
 
 		const action: IAction = { id: 'test.modelPicker', label: '', tooltip: '', class: undefined, enabled: true, run: async () => { } };
 		const delegate: IModelPickerDelegate = {
-			workflow: options.workflow,
+			comparison: options.comparison,
 			currentModel: constObservable(model),
 			setModel: () => { },
 			setModelProgrammatically: () => { },
-			getModels: () => [model],
+			getModels: () => models,
 			getPresentationOptions: () => ({
 				showManageModelsAction: false,
 				showUnavailableFeatured: false,
 				showAutoModel: true,
-				showModelIcon: false,
+				showModelIcon: options.showModelIcon ?? false,
 			}),
 		};
 		const item = disposables.add(new ModelPickerActionItem(
 			action,
 			delegate,
-			{ compact: constObservable(options.compact ?? false) },
+			{ compact: constObservable(options.compact ?? false), minimal: constObservable(options.minimal ?? false) },
 			instantiationService,
 			new MockContextKeyService(),
 			new MockKeybindingService(),
@@ -124,7 +125,7 @@ suite('ModelPickerActionItem', () => {
 		item.render(container);
 
 		const name = container.querySelector<HTMLElement>('.model-picker-name')!;
-		const label = name.querySelector<HTMLElement>('.chat-input-picker-label')!;
+		const label = name.querySelector<HTMLElement>('.chat-input-picker-label');
 		const configuration = container.querySelector<HTMLElement>('.model-picker-config')!;
 		return {
 			item,
@@ -132,8 +133,8 @@ suite('ModelPickerActionItem', () => {
 			minimumWidth: item.minimumWidth,
 			container: container.getBoundingClientRect(),
 			name: name.getBoundingClientRect(),
-			label: label.getBoundingClientRect(),
-			labelTruncated: label.scrollWidth > label.clientWidth,
+			label: label?.getBoundingClientRect() ?? name.getBoundingClientRect(),
+			labelTruncated: !!label && label.scrollWidth > label.clientWidth,
 			configuration: configuration.getBoundingClientRect(),
 			sections: [name, configuration].map(button => ({
 				padding: mainWindow.getComputedStyle(button).padding,
@@ -142,11 +143,11 @@ suite('ModelPickerActionItem', () => {
 		};
 	}
 
-	test('composer label follows committed workflow summary, not working selections', () => {
+	test('composer label follows committed comparison summary, not working selections', () => {
 		const summary = observableValue<string | undefined>('summary', undefined);
-		const state = observableValue<IModelPickerWorkflowState | undefined>('draft', undefined);
+		const state = observableValue<IModelPickerComparisonState | undefined>('draft', undefined);
 		const { domNode } = renderPicker(createModel('First'), {
-			workflow: upcastPartial<IModelPickerWorkflow>({ available: constObservable(true), summary, state }),
+			comparison: upcastPartial<IModelPickerComparison>({ available: constObservable(true), summary, state }),
 		});
 		const label = () => domNode.querySelector('.chat-input-picker-label')?.textContent;
 		const initial = label();
@@ -163,9 +164,66 @@ suite('ModelPickerActionItem', () => {
 		});
 	});
 
-	test('hover describes the committed workflow instead of one model', () => {
+	test('composer keeps the labeled summary when variants repeat a model icon', () => {
+		const model = createModel('First');
+		const { domNode } = renderPicker(model, {
+			compact: true,
+			showModelIcon: true,
+			comparison: upcastPartial<IModelPickerComparison>({
+				available: constObservable(true),
+				summary: constObservable('First, First Max'),
+				summaryModelIds: constObservable([model.identifier, model.identifier]),
+				state: constObservable(undefined),
+			}),
+		});
+
+		assert.deepStrictEqual({
+			label: domNode.querySelector('.chat-input-picker-label')?.textContent,
+			attemptIcons: domNode.querySelector('.chat-input-picker-comparison-attempt-icons')?.childElementCount,
+			ariaLabel: domNode.querySelector('.model-picker-name')?.getAttribute('aria-label'),
+		}, {
+			label: 'First, First Max',
+			attemptIcons: undefined,
+			ariaLabel: 'Models, First, First Max',
+		});
+	});
+
+	for (const presentation of [
+		{ name: 'expanded', compact: false, minimal: false, attemptIcons: 2, layers: false },
+		{ name: 'compact', compact: true, minimal: false, attemptIcons: undefined, layers: true },
+		{ name: 'minimal', compact: false, minimal: true, attemptIcons: undefined, layers: true },
+	]) {
+		test(`composer uses ${presentation.name === 'expanded' ? 'attempt icons' : 'the layers fallback'} for ${presentation.name === 'expanded' ? 'an' : 'a'} ${presentation.name} distinct-model comparison`, () => {
+			const first = createModel('First');
+			const second = createModel('Second');
+			const { domNode } = renderPicker(first, {
+				compact: presentation.compact,
+				minimal: presentation.minimal,
+				models: [first, second],
+				showModelIcon: true,
+				comparison: upcastPartial<IModelPickerComparison>({
+					available: constObservable(true),
+					summary: constObservable('First, Second'),
+					summaryModelIds: constObservable([first.identifier, second.identifier]),
+					state: constObservable(undefined),
+				}),
+			});
+
+			assert.deepStrictEqual({
+				attemptIcons: domNode.querySelector('.chat-input-picker-comparison-attempt-icons')?.childElementCount,
+				layers: !!domNode.querySelector('.codicon-layers'),
+				ariaLabel: domNode.querySelector('.model-picker-name')?.getAttribute('aria-label'),
+			}, {
+				attemptIcons: presentation.attemptIcons,
+				layers: presentation.layers,
+				ariaLabel: 'Models, First, Second',
+			});
+		});
+	}
+
+	test('hover describes the committed comparison instead of one model', () => {
 		const { item } = renderPicker(createModel('First'), {
-			workflow: upcastPartial<IModelPickerWorkflow>({
+			comparison: upcastPartial<IModelPickerComparison>({
 				available: constObservable(true),
 				summary: constObservable('3 Attempts'),
 				state: constObservable(undefined),
