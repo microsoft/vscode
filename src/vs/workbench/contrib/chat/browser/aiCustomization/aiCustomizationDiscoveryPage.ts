@@ -1722,6 +1722,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			item.icon,
 			this.themeService.getColorTheme().type,
 			this.browseDisposables,
+			true,
 		);
 		const body = DOM.append(card, $('.customization-discovery-card-body'));
 		const heading = DOM.append(body, $('.customization-discovery-card-heading'));

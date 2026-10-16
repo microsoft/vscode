@@ -295,6 +295,10 @@ suite('AICustomizationDiscoveryPage', () => {
 		assert.ok(icon);
 		assert.ok(image);
 		assert.ok(fallback);
+		Object.defineProperties(image, {
+			naturalWidth: { configurable: true, value: 32 },
+			naturalHeight: { configurable: true, value: 32 },
+		});
 
 		const initial = {
 			isFallback: icon.classList.contains('is-fallback'),
@@ -318,6 +322,31 @@ suite('AICustomizationDiscoveryPage', () => {
 			initial: { isFallback: false, fallbackHidden: true, imagePresent: true },
 			loaded: { isFallback: false, fallbackHidden: true, imagePresent: true },
 			failed: { isFallback: true, fallbackHidden: false, imagePresent: false },
+		});
+	}
+
+	function assertWideImageReplacesFallback(container: HTMLElement, iconSelector: string): void {
+		const icon = container.querySelector<HTMLElement>(iconSelector);
+		const image = icon?.querySelector<HTMLImageElement>('img');
+		const fallback = icon?.querySelector<HTMLElement>('.codicon');
+		assert.ok(icon);
+		assert.ok(image);
+		assert.ok(fallback);
+		Object.defineProperties(image, {
+			naturalWidth: { configurable: true, value: 384 },
+			naturalHeight: { configurable: true, value: 216 },
+		});
+
+		image.dispatchEvent(new mainWindow.Event(DOM.EventType.LOAD));
+
+		assert.deepStrictEqual({
+			isFallback: icon.classList.contains('is-fallback'),
+			fallbackHidden: mainWindow.getComputedStyle(fallback).display === 'none',
+			imagePresent: icon.contains(image),
+		}, {
+			isFallback: false,
+			fallbackHidden: true,
+			imagePresent: true,
 		});
 	}
 
@@ -443,6 +472,19 @@ suite('AICustomizationDiscoveryPage', () => {
 		await timeout(0);
 
 		assertImageReplacesFallback(fixture.container, '.customization-discovery-card-icon');
+	});
+
+	test('browse cards retain wide catalog images', async () => {
+		const fixture = createPage(['agentFinder']);
+		fixture.container.style.position = 'absolute';
+		fixture.container.style.top = '100000px';
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({
+			items: [resource('with-wide-icon', { publisher: 'GitHub', icon: testIcon })],
+		});
+		await timeout(0);
+
+		assertWideImageReplacesFallback(fixture.container, '.customization-discovery-card-icon');
 	});
 
 	test('search results render compact star counts with exact accessible labels', async () => {
