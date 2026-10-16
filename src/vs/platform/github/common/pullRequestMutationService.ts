@@ -960,10 +960,11 @@ function toThreadReplyResult(value: PullRequestInlineComment, outcome: 'succeede
 
 function toWorkflowRun(value: unknown): GitHubWorkflowRun {
 	const item = asObject(value, 'GitHub workflow run was malformed');
+	const name: unknown = Reflect.get(item, 'name');
 	const runAttempt = numberProperty(item, 'run_attempt');
 	return {
 		id: requiredId(item, 'id'),
-		name: requiredString(item, 'name'),
+		name: name === null || name === undefined ? name : requiredString(item, 'name'),
 		event: stringProperty(item, 'event'),
 		status: normalizedEnumProperty(item, 'status'),
 		conclusion: normalizedEnumProperty(item, 'conclusion'),

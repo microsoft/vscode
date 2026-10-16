@@ -18,14 +18,36 @@ env:
   VSCODE_QUALITY: 'oss'
 
 jobs:
+  # Lists the files changed by the pull request so that jobs can skip checks the
+  # changes cannot affect (see .github/actions/detect-changes/detect.ts).
+  # Skip with a job-level `if:` (inside the reusable workflow when the job calls
+  # one): a skipped job still reports its check, which satisfies required status
+  # checks. Jobs also run when change detection fails.
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-24.04
+    outputs:
+      cli: ${{ steps.detect.outputs.cli }}
+      copilot-shim: ${{ steps.detect.outputs.copilot-shim }}
+      copilot: ${{ steps.detect.outputs.copilot }}
+    steps:
+      - name: Checkout microsoft/vscode
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: .github/actions/detect-changes
+
+      - name: Detect changes
+        id: detect
+        uses: ./.github/actions/detect-changes
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
   compile:
     name: Compile & Hygiene
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=compile-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     steps:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          lfs: true
 
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -117,21 +139,25 @@ jobs:
 
   linux-cli-tests:
     name: Linux
+    needs: changes
+    if: ${{ !cancelled() }}
     uses: ./.github/workflows/pr-linux-cli-test.yml
     with:
-      job_name: CLI
       rustup_toolchain: 1.88
+      affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.cli == 'true' }}
 
   linux-copilot-shim-tests:
     name: Linux Copilot Shim
+    needs: changes
+    if: ${{ !cancelled() }}
     uses: ./.github/workflows/pr-linux-cli-test.yml
     with:
-      job_name: Copilot-Shim
       rustup_toolchain: 1.88
       working_directory: copilot_shim
       format: true
       locked: true
       all_targets: true
+      affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.copilot-shim == 'true' }}
 
   linux-electron-unit-tests:
     name: Linux
@@ -351,6 +377,8 @@ jobs:
 
   copilot-check-test-cache:
     name: Copilot - Check Test Cache
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=copilot-check-test-cache-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     permissions:
       contents: read
@@ -396,14 +424,14 @@ jobs:
 
   copilot-check-telemetry:
     name: Copilot - Check Telemetry
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=copilot-check-telemetry-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     permissions:
       contents: read
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          lfs: true
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -417,6 +445,8 @@ jobs:
 
   copilot-linux-tests:
     name: Copilot - Test (Linux)
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=copilot-linux-tests-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     permissions:
       contents: read
@@ -515,6 +545,8 @@ jobs:
 
   copilot-windows-tests:
     name: Copilot - Test (Windows)
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=copilot-windows-tests-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     permissions:
       contents: read

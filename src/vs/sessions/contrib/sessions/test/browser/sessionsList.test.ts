@@ -1075,6 +1075,48 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
+	suite('sticky header collapse state', () => {
+		const group: ISessionGroup = { id: 'group-a', name: 'Group A', createdAt: 1 };
+
+		for (const kind of ['section', 'group'] as const) {
+			test(`updates the ${kind} chevron after its sticky copy is removed`, async () => {
+				const sessions = Array.from({ length: 12 }, (_, index) => createTestSession(`Session ${index}`).session);
+				const sessionIds = sessions.map(session => session.sessionId);
+				const harness = createListHarness(disposables, sessions, kind === 'section'
+					? { pinnedSessionIds: new Set(sessionIds) }
+					: { groups: [group], memberships: new Map(sessionIds.map(sessionId => [sessionId, group.id])) });
+				harness.instantiationService.get(IStorageService).store('sessionsListControl.sectionCollapseState', JSON.stringify({ pinned: false }), StorageScope.PROFILE, StorageTarget.USER);
+				const container = harness.createContainer();
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+					grouping: () => SessionsGrouping.Workspace,
+					sorting: () => SessionsSorting.Created,
+					onSessionOpen: () => { },
+				}));
+				list.layout(300, 400);
+				const label = kind === 'section' ? 'Pinned' : group.name;
+				const getHeader = () => [...container.querySelectorAll<HTMLElement>('.monaco-list-rows .session-section')]
+					.find(header => header.querySelector('.session-section-label')?.textContent === label);
+				const tree = Reflect.get(list, 'tree') as { scrollTop: number };
+
+				tree.scrollTop = 100;
+				await timeout(0);
+				const stickyHeaders = [...container.querySelectorAll('.monaco-tree-sticky-row .session-section-label')].map(header => header.textContent);
+				tree.scrollTop = 0;
+				await timeout(0);
+				getHeader()?.click();
+				const collapsed = getHeader()?.querySelector('.session-section-chevron')?.className;
+				getHeader()?.click();
+				const expanded = getHeader()?.querySelector('.session-section-chevron')?.className;
+
+				assert.deepStrictEqual({ stickyHeaders, collapsed, expanded }, {
+					stickyHeaders: [label],
+					collapsed: 'session-section-chevron collapsible codicon codicon-chevron-right',
+					expanded: 'session-section-chevron collapsible codicon codicon-chevron-down',
+				});
+			});
+		}
+	});
+
 	suite('row feedback', () => {
 		test('keeps custom group toolbar at the trailing edge', () => {
 			const group: ISessionGroup = { id: 'group', name: 'Custom Group', createdAt: 1 };
@@ -5292,6 +5334,71 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		for (const compact of [false, true]) {
+			test(`the main chat section of a multi-folder session hover matches its row while the main chat is open, reading only what the row observes (compact: ${compact})`, () => {
+				const first = { root: URI.file('/workspace/first'), workingDirectory: URI.file('/workspace/first'), name: 'first', description: undefined };
+				const second = { root: URI.file('/workspace/second'), workingDirectory: URI.file('/workspace/second'), name: 'second', description: undefined };
+				const base = createMultiFolderSession([first, second], [[first], [second]]);
+				// Computing the changes stands in for loading them; an observed derived is read from memory.
+				const changeReads: string[] = [];
+				const mainChat: IChat = {
+					...base.mainChat.get(),
+					changes: derived(() => {
+						changeReads.push('changes');
+						return [{ modifiedUri: URI.file('/workspace/first/main.ts'), insertions: 3, deletions: 1 }];
+					}),
+					changesSummary: constObservable({ files: 2, additions: 5, deletions: 1 }),
+				};
+				const session: ISession = {
+					...base,
+					changesSummary: constObservable({ files: 4, additions: 20, deletions: 10 }),
+					chats: constObservable([mainChat, ...base.chats.get().slice(1)]),
+					mainChat: constObservable(mainChat),
+				};
+				const activeSession = observableValue<IActiveSession | undefined>('active-session', undefined);
+				const hovers = new Map<HTMLElement, () => IDelayedHoverOptions>();
+				const { container } = renderSessionChatsList(session, undefined, false, true, compact, instantiationService => {
+					instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+						override readonly activeSession = activeSession;
+						override readonly visibleSessions = constObservable<readonly IActiveSession[]>([]);
+					});
+					instantiationService.stub(IHoverService, {
+						...NullHoverService,
+						setupDelayedHover: (target, options) => {
+							hovers.set(target, typeof options === 'function' ? options : () => options);
+							return toDisposable(() => hovers.delete(target));
+						},
+					});
+				});
+				const read = () => {
+					const row = container.querySelector<HTMLElement>('.session-item');
+					changeReads.length = 0;
+					const content = row ? hovers.get(row)?.().content : undefined;
+					const hoverReads = [...changeReads];
+					const location = content instanceof HTMLElement ? content.querySelector('.session-summary-hover-location') : undefined;
+					return {
+						row: [row?.querySelector('.session-diff-added')?.textContent, row?.querySelector('.session-diff-removed')?.textContent],
+						hover: [location?.querySelector('.session-summary-hover-insertions')?.textContent, location?.querySelector('.session-summary-hover-deletions')?.textContent],
+						hoverReads,
+					};
+				};
+
+				const beforeOpen = read();
+				activeSession.set(upcastPartial<IActiveSession>({ ...session, activeChat: session.mainChat }), undefined);
+				const whileOpen = read();
+				activeSession.set(undefined, undefined);
+				const afterSwitch = read();
+
+				const catalog = { row: compact ? [undefined, undefined] : ['+20', '-10'], hover: ['+5', '-1'], hoverReads: [] };
+				assert.deepStrictEqual({ beforeOpen, whileOpen, afterSwitch }, {
+					beforeOpen: catalog,
+					// A compact row shows no counts, so it observes nothing and the hover keeps the catalog counts.
+					whileOpen: compact ? catalog : { row: ['+3', '-1'], hover: ['+3', '-1'], hoverReads: [] },
+					afterSwitch: catalog,
+				});
+			});
+		}
+
 		test('shows the rich chat-scoped hover for peer chats', () => {
 			const mainRoot = URI.file('/workspace/main');
 			const peerRoot = URI.file('/workspace/peer');
@@ -5509,6 +5616,83 @@ suite('Sessions - SessionsList', () => {
 			}, {
 				worktreePending: false,
 				branch: 'peer-work',
+			});
+		});
+
+		test('hover counts come from catalog summaries without reading chat changes or changesets', () => {
+			const main = { root: URI.file('/workspace/main'), workingDirectory: URI.file('/workspace/main'), name: 'main', description: undefined };
+			const peer = { root: URI.file('/workspace/peer'), workingDirectory: URI.file('/workspace/peer'), name: 'peer', description: undefined };
+			// Reading changes or changesets subscribes an agent-host chat on its backend.
+			const reads: string[] = [];
+			const withCatalog = (chat: IChat, name: string, summary: ISessionChangesSummary): IChat => ({
+				...chat,
+				changes: derived(() => { reads.push(`${name}.changes`); return []; }),
+				changesets: derived(() => { reads.push(`${name}.changesets`); return undefined; }),
+				changesSummary: constObservable(summary),
+			});
+			const multiFolder = createMultiFolderSession([main, peer], [[main], [peer]]);
+			const mainChat = withCatalog(multiFolder.chats.get()[0], 'main', { files: 2, additions: 5, deletions: 1 });
+			const peerChat = withCatalog(multiFolder.chats.get()[1], 'peer', { files: 1, additions: 7, deletions: 2 });
+			const session: ISession = {
+				...multiFolder,
+				chats: constObservable([mainChat, peerChat]),
+				mainChat: constObservable(mainChat),
+				changesSummary: constObservable({ files: 4, additions: 20, deletions: 8 }),
+			};
+			const singleFolder: ISession = {
+				...createMultiFolderSession([main], [[main]]),
+				mainChat: constObservable(mainChat),
+				changesSummary: constObservable(undefined),
+			};
+			const services = [
+				upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }),
+				upcastPartial<IOpenerService>({ open: () => Promise.resolve(true) }),
+				upcastPartial<ILabelService>({ getUriLabel: resource => resource.path }),
+				upcastPartial<IPreferencesService>({}),
+			] as const;
+			const sessionData = getSessionSummaryHoverData(session, ...services);
+
+			assert.deepStrictEqual({
+				mainChat: sessionData.location?.changes,
+				session: sessionData.sessionSummary?.changes,
+				peerChat: getChatSummaryHoverData(session, peerChat, ...services).location?.changes,
+				singleFolderWithoutSessionSummary: getSessionSummaryHoverData(singleFolder, ...services).location?.changes,
+				reads,
+			}, {
+				mainChat: { files: 2, insertions: 5, deletions: 1 },
+				session: { files: 4, insertions: 20, deletions: 8 },
+				peerChat: { files: 1, insertions: 7, deletions: 2 },
+				singleFolderWithoutSessionSummary: { files: 2, insertions: 5, deletions: 1 },
+				reads: [],
+			});
+		});
+
+		test('hover counts of a provider without catalog summaries come from the main chat changes, not its default changeset', () => {
+			const main = { root: URI.file('/workspace/main'), workingDirectory: URI.file('/workspace/main'), name: 'main', description: undefined };
+			const base = createMultiFolderSession([main], [[main]]);
+			// A default changeset can compute a diff when its changes are read, e.g. an archived Copilot Chat session's All Changes.
+			const changesetReads: string[] = [];
+			const mainChat: IChat = {
+				...base.mainChat.get(),
+				changes: constObservable([{ modifiedUri: URI.file('/workspace/main/file.ts'), insertions: 3, deletions: 1 }]),
+				changesets: constObservable([upcastPartial<ISessionChangeset>({
+					id: 'allChanges',
+					isDefault: constObservable(true),
+					changes: derived(() => { changesetReads.push('allChanges'); return []; }),
+				})]),
+			};
+			const session: ISession = { ...base, mainChat: constObservable(mainChat), changesSummary: constObservable(undefined) };
+			const data = getSessionSummaryHoverData(
+				session,
+				upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }),
+				upcastPartial<IOpenerService>({ open: () => Promise.resolve(true) }),
+				upcastPartial<ILabelService>({ getUriLabel: resource => resource.path }),
+				upcastPartial<IPreferencesService>({}),
+			);
+
+			assert.deepStrictEqual({ changes: data.location?.changes, changesetReads }, {
+				changes: { files: 1, insertions: 3, deletions: 1 },
+				changesetReads: [],
 			});
 		});
 

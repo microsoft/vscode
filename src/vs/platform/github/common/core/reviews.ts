@@ -64,8 +64,8 @@ export interface ReviewComment {
 	readonly start_line?: number | null;
 	/** Original first line of a multi-line comment, when available. */
 	readonly original_start_line?: number | null;
-	/** Side of the last line, when reported. */
-	readonly side?: DiffSide;
+	/** Side of the last line, omitted or null when unavailable. */
+	readonly side?: DiffSide | null;
 	/** Side of the first line, when reported. */
 	readonly start_side?: DiffSide | null;
 	/** File-level or line-level subject, when reported. */

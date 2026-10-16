@@ -32,7 +32,7 @@ export interface PaginatedResponse<T> {
 export interface ActivationContext {
 	/** The activation context schema version. */
 	readonly version: 2;
-	/** The unsigned 64-bit activation sequence encoded as a decimal string. */
+	/** The positive uint64 activation sequence encoded as a decimal string without leading zeroes. */
 	readonly sequence: string;
 	/** The W3C traceparent identifying the activation trace. */
 	readonly traceparent: string;
