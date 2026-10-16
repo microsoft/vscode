@@ -184,6 +184,8 @@ export interface IAgentHostWorktreeRemovalDatabase {
 	 * committed handle transfer and its record's owner update left unrecorded. Startup repair only.
 	 */
 	findAdditionalWorktreeOwners(handle: string): Promise<readonly string[]>;
+	/** Whether `session` is registered and not deleted (tombstoned), by its recorded state. */
+	isSessionLive(session: string): Promise<boolean>;
 }
 
 const columns = 'kind, owner, owner_session, worktree_path, repository_root, branch, mode, owner_deleted, attempts, requested_at, next_attempt_at';
@@ -410,6 +412,10 @@ export class AgentHostWorktreeRemovalTables implements IAgentHostWorktreeRemoval
 			}
 			return rows.filter(row => !pruned.includes(row));
 		});
+	}
+
+	isSessionLive(session: string): Promise<boolean> {
+		return this._host.read(async connection => !!(await connection.get(`SELECT ${sessionLiveSql('?1')} AS live`, [session]))?.live);
 	}
 
 	findAdditionalWorktreeOwners(handle: string): Promise<readonly string[]> {

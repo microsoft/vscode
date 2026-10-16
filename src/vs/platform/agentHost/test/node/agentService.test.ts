@@ -33203,6 +33203,41 @@ suite('AgentService (node dispatcher)', () => {
 				assert.deepStrictEqual(outcomes, { sessionLevel: shared, otherChats: shared });
 			});
 
+			test('deleting a co-owner leaves a withheld session an older build deleted alone: its publish writes nothing to it and logs no error (D2, Block 5)', async () => {
+				const outcomes: Record<string, unknown> = {};
+				for (const kind of ['unregistered', 'tombstoned'] as const) {
+					const errors: string[] = [];
+					const logService = new class extends NullLogService {
+						override error(message: string | Error, ...args: unknown[]): void {
+							errors.push(`${message instanceof Error ? message.message : message} ${args.map(arg => arg instanceof Error ? arg.message : String(arg)).join(' ')}`);
+						}
+					}();
+					const { service, source, target, peer, folder } = await setupMove(true, undefined, false, logService);
+					const repositoryRoot = URI.file('/main');
+					setTestAgentHostWorktreeIsolation(service, createTestAgentHostWorktreeIsolation({
+						readSessionWorktreeForRemoval: async session => session.toString() === source.toString() ? { worktree: folder, repositoryRoot, branchName: 'agents/source' } : undefined,
+					}));
+					const store = getTestSessionStateStore(service);
+					await store.writeMetadata(source, source, { [WORKTREE_META_PATH]: folder.toString(), 'copilot.worktree.branchName': 'agents/source', [WORKTREE_META_REPOSITORY_ROOT]: repositoryRoot.toString() }, SessionStateMirrorFlush.Immediate);
+					await service.moveChat(source, peer, { kind: 'session', session: target, after: undefined });
+					// An older build deletes the source: its registration goes; the lift may since have tombstoned it, its state left.
+					const raw = await (getTestAgentHostDatabase(service) as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+					const run = (sql: string, args: unknown[]) => new Promise<void>((resolve, reject) => raw.run(sql, args, error => error ? reject(error) : resolve()));
+					await run('DELETE FROM sessions_v2 WHERE session_uri = ?', [source.toString()]);
+					await run('DELETE FROM sessions WHERE session_uri = ?', [source.toString()]);
+					if (kind === 'tombstoned') {
+						await run(`INSERT INTO metadata (key, value) VALUES (?, 'true')`, [`sessionTombstone:${source.toString()}`]);
+					}
+					const withheld = async () => (await getTestAgentHostDatabase(service).readSessionStateValues([source.toString()], [OLDER_BUILD_WORKTREE_WITHHELD_KEY])).get(source.toString())?.values.get(OLDER_BUILD_WORKTREE_WITHHELD_KEY);
+
+					await service.disposeSession(target);
+					await (service as unknown as { _peerChatStore: { flushCompatibilityPublishes(session: URI, database: undefined): Promise<void> } })._peerChatStore.flushCompatibilityPublishes(source, undefined);
+
+					outcomes[kind] = { errors, withheld: await withheld() };
+				}
+				assert.deepStrictEqual(outcomes, { unregistered: { errors: [], withheld: 'true' }, tombstoned: { errors: [], withheld: 'true' } });
+			});
+
 			test('a share keeps its source\'s branch withheld when the source is published while the move retries after an older build\'s edit (H1, Block 5)', async () => {
 				const { service, source, target, peer, folder } = await setupMove();
 				const repositoryRoot = URI.file('/main');

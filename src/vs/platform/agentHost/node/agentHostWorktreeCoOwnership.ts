@@ -357,6 +357,10 @@ export class AgentHostWorktreeCoOwnership implements IOlderBuildCopyParticipant 
 		if (this._sharesInFlight.has(session.toString())) {
 			return;
 		}
+		// A session deleted meanwhile (also by an older build) has nothing to publish to, and its state can't be written.
+		if (!await this._database.isSessionLive(session.toString())) {
+			return;
+		}
 		const worktree = values.get(WORKTREE_META_PATH);
 		const coOwners = worktree ? await this._worktree.runExclusive(worktree, () => this._database.pruneWorktreeCoOwners(worktree)) : [];
 		if (coOwners.filter(coOwner => coOwner.live).length < 2) {
