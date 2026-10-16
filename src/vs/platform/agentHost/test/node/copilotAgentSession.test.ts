@@ -17918,10 +17918,12 @@ Use the attached image as context.
 			});
 		});
 
-		test('reports runtime execution exposure in both enablement arms and every model arm, not for child turns', async () => {
+		test('reports runtime execution exposure in every model arm regardless of the enablement default, not for child turns', async () => {
 			const results: Record<string, { beforeParentTurn: readonly string[]; afterParentTurn: readonly string[] }> = {};
 			for (const [name, enabled, model] of [
 				['control', false, ''],
+				['runtime-specific', false, 'exec-agent-b'],
+				['runtime-unavailable', false, 'unavailable-model'],
 				['inherit', true, ''],
 				['specific', true, 'exec-agent-b'],
 				['unavailable', true, 'unavailable-model'],
@@ -17948,7 +17950,9 @@ Use the attached image as context.
 			const enabled = `config.${AgentHostCopilotExecutionSubagentEnabledSettingId}`;
 			const model = `config.${AgentHostCopilotExecutionSubagentModelSettingId}`;
 			assert.deepStrictEqual(results, {
-				control: { beforeParentTurn: [], afterParentTurn: [enabled] },
+				control: { beforeParentTurn: [], afterParentTurn: [enabled, model] },
+				'runtime-specific': { beforeParentTurn: [], afterParentTurn: [enabled, model] },
+				'runtime-unavailable': { beforeParentTurn: [], afterParentTurn: [enabled, model] },
 				inherit: { beforeParentTurn: [], afterParentTurn: [enabled, model] },
 				specific: { beforeParentTurn: [], afterParentTurn: [enabled, model] },
 				unavailable: { beforeParentTurn: [], afterParentTurn: [enabled, model] },
@@ -17960,7 +17964,7 @@ Use the attached image as context.
 			const { session, mockSession, setRootValue, fireRootConfigChange } = await createAgentSession(disposables, {
 				telemetryService,
 				rootValues: {
-					[CopilotCliConfigKey.ExecutionSubagent]: true,
+					[CopilotCliConfigKey.ExecutionSubagent]: false,
 					[CopilotCliConfigKey.ExecutionSubagentDefaultControlled]: true,
 					[CopilotCliConfigKey.ExecutionSubagentModelDefaultControlled]: true,
 				},
@@ -18021,7 +18025,7 @@ Use the attached image as context.
 			const { session, mockSession, setRootValue, fireRootConfigChange } = await createAgentSession(disposables, {
 				telemetryService,
 				rootValues: {
-					[CopilotCliConfigKey.ExecutionSubagent]: true,
+					[CopilotCliConfigKey.ExecutionSubagent]: false,
 					[CopilotCliConfigKey.ExecutionSubagentDefaultControlled]: true,
 					[CopilotCliConfigKey.ExecutionSubagentModelDefaultControlled]: true,
 				},
