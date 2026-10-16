@@ -158,6 +158,24 @@ suite('AgentHostChatMovability', () => {
 		});
 	});
 
+	test('a chat about to join another session is judged by the folders it brings, not the destination\'s', async () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const configuration = disposables.add(new AgentConfigurationService(stateManager, new NullLogService()));
+		const sources = new TestSources();
+		const movability = disposables.add(new AgentHostChatMovability(stateManager, configuration, sources));
+		const destinationFolder = URI.file('/destination').toString();
+		stateManager.createSession(summary(session));
+		stateManager.createSession(summary(target, [destinationFolder]));
+		const peer = buildChatUri(session, 'peer');
+		stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer, buildDefaultChatUri(session)));
+		configuration.updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
+		// The destination works in a worktree it records; the peer inherits its own session's folder, which isn't in it.
+		sources.values.set(WORKTREE_META_PATH, destinationFolder);
+		await timeout(0);
+
+		assert.deepStrictEqual({ inSource: movability.isMovableIn(peer, session), inTarget: movability.isMovableIn(peer, target) }, { inSource: true, inTarget: true });
+	});
+
 	test('a chat of an archived session is not movable until its session is unarchived', async () => {
 		const { stateManager, flip } = await setupStrict();
 		assert.deepStrictEqual(await flip(

@@ -212,7 +212,9 @@ export class AgentHostChatMovability extends Disposable {
 		}
 		const current = this._stateManager.getChatOwner(chat)!;
 		const summary = this._stateManager.getSessionState(current)?.chats.find(candidate => candidate.resource === chat);
-		const folders = this._stateManager.getChatState(chat)?.workingDirectories ?? summary?.workingDirectories ?? context.folders;
+		// A chat without folders of its own works in its current owner's; a move to `owner` pins those (`_movedChatFolders`).
+		const folders = this._stateManager.getChatState(chat)?.workingDirectories ?? summary?.workingDirectories
+			?? (current === owner ? context.folders : this._stateManager.getSessionSummary(current)?.workingDirectories ?? []);
 		const subtree = chatSubtree(this._stateManager, current, chat);
 		return isChatMovable({
 			...structural,
