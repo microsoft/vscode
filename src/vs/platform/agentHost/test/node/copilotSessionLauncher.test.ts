@@ -1151,6 +1151,8 @@ suite('synthesizeByokSessionConfig', () => {
 			{ vendor: 'acme', id: 'haiku', modelIdentifier: 'acme/haiku', maxContextWindowTokens: 1_000_000, maxPromptTokens: 968_000, maxOutputTokens: 32_000, contextSizeOptions: { values: [100_000, 968_000], default: 100_000 } },
 			// No sizes: advertised limits pass through untouched.
 			{ vendor: 'acme', id: 'plain', modelIdentifier: 'acme/plain', maxContextWindowTokens: 128_000, maxPromptTokens: 120_000, maxOutputTokens: 8_000 },
+			// One size below the advertised limit: no picker is offered, so the limit is not quietly lowered either.
+			{ vendor: 'acme', id: 'fixed', modelIdentifier: 'acme/fixed', maxContextWindowTokens: 1_000_000, maxPromptTokens: 968_000, maxOutputTokens: 32_000, contextSizeOptions: { values: [200_000], default: 200_000 } },
 		]));
 		const proxy = countingProxy();
 		const limitsOf = (config: ICopilotByokSessionConfig) => config.models!.map(m => [m.id, m.maxPromptTokens, m.maxContextWindowTokens]);
@@ -1160,18 +1162,23 @@ suite('synthesizeByokSessionConfig', () => {
 		// A size the model no longer offers falls back to its default, not to the stale number.
 		const selectedStale = await synthesizeByokSessionConfig(sessionId, registry, proxy.startProxy, log, { id: 'acme/haiku', config: { contextSize: 500_000 } });
 		const unselected = await synthesizeByokSessionConfig(sessionId, registry, proxy.startProxy, log, { id: 'claude-opus-4.8', config: { contextSize: 200_000 } });
+		// Selecting the single size changes nothing either.
+		const selectedFixed = await synthesizeByokSessionConfig(sessionId, registry, proxy.startProxy, log, { id: 'acme/fixed', config: { contextSize: 200_000 } });
 		registration.dispose();
 
+		const unchanged = [['haiku', 100_000, 132_000], ['plain', 120_000, 128_000], ['fixed', 968_000, 1_000_000]];
 		assert.deepStrictEqual({
 			selectedSmall: limitsOf(selectedSmall),
 			selectedFull: limitsOf(selectedFull),
 			selectedStale: limitsOf(selectedStale),
 			unselected: limitsOf(unselected),
+			selectedFixed: limitsOf(selectedFixed),
 		}, {
-			selectedSmall: [['opus', 200_000, 232_000], ['haiku', 100_000, 132_000], ['plain', 120_000, 128_000]],
-			selectedFull: [['opus', 968_000, 1_000_000], ['haiku', 100_000, 132_000], ['plain', 120_000, 128_000]],
-			selectedStale: [['opus', 968_000, 1_000_000], ['haiku', 100_000, 132_000], ['plain', 120_000, 128_000]],
-			unselected: [['opus', 968_000, 1_000_000], ['haiku', 100_000, 132_000], ['plain', 120_000, 128_000]],
+			selectedSmall: [['opus', 200_000, 232_000], ...unchanged],
+			selectedFull: [['opus', 968_000, 1_000_000], ...unchanged],
+			selectedStale: [['opus', 968_000, 1_000_000], ...unchanged],
+			unselected: [['opus', 968_000, 1_000_000], ...unchanged],
+			selectedFixed: [['opus', 968_000, 1_000_000], ...unchanged],
 		});
 	});
 });
