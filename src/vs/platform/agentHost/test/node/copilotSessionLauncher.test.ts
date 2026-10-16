@@ -1417,8 +1417,8 @@ suite('CopilotSessionLauncher shared session config', () => {
 					return compatible.imageGeneration;
 				}),
 			}, {
-				createImage: [{ enabled: true }, { enabled: true }],
-				resumeImage: [{ enabled: true }],
+				createImage: [{ enabled: true, watermark: false }, { enabled: true, watermark: false }],
+				resumeImage: [{ enabled: true, watermark: false }],
 			});
 
 			assert.deepStrictEqual({
@@ -1508,7 +1508,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			}, {
 				createClientName: 'vscode-agent-host',
 				createInteractiveUser: true,
-				createImageGeneration: { enabled: true },
+				createImageGeneration: { enabled: true, watermark: false },
 				createCustomAgents: buildCopilotBuiltinAgents(basePlan.snapshot.tools),
 				createGitHubMcpToolConfig: { disableFormDeferral: true },
 				createPluginDirectories: [pluginDir.fsPath, syntheticPluginDir.fsPath],
@@ -1542,7 +1542,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				createLocalMemoryStore: true,
 				resumeClientName: 'vscode-agent-host',
 				resumeInteractiveUser: true,
-				resumeImageGeneration: { enabled: true },
+				resumeImageGeneration: { enabled: true, watermark: false },
 				resumeCustomAgents: buildCopilotBuiltinAgents(basePlan.snapshot.tools),
 				resumeGitHubMcpToolConfig: { disableFormDeferral: true },
 				resumePluginDirectories: [pluginDir.fsPath, syntheticPluginDir.fsPath],
@@ -1576,7 +1576,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeLocalMemoryStore: true,
 				ephemeralMemory: { enabled: false },
 				ephemeralInteractiveUser: true,
-				ephemeralImageGeneration: { enabled: true },
+				ephemeralImageGeneration: { enabled: true, watermark: false },
 				ephemeralCustomAgents: [],
 				ephemeralAskUserVariant: 'elicitation',
 				ephemeralDetachLongLivedServices: true,
@@ -1626,15 +1626,20 @@ suite('CopilotSessionLauncher shared session config', () => {
 			configValues['vscode.imageGenerationEnabled'] = false;
 			for (const enabled of [undefined, false, true]) {
 				configValues[CopilotCliConfigKey.ImageGeneration] = enabled;
-				const createdWithSetting: CopilotSessionWrapper = sessions.add(await launcher.launch(createPlan, testRuntime));
-				const resumedWithSetting: CopilotSessionWrapper = sessions.add(await launcher.launch(resumePlan, testRuntime));
-				assert.deepStrictEqual({
-					launch: [createdWithSetting.launchImageGenerationEnabled, resumedWithSetting.launchImageGenerationEnabled],
-					config: [createConfigs.at(-1)?.imageGeneration, resumeConfigs.at(-1)?.imageGeneration],
-				}, {
-					launch: [enabled === true, enabled === true],
-					config: [{ enabled: enabled === true }, { enabled: enabled === true }],
-				});
+				for (const watermark of [undefined, false, true]) {
+					configValues[CopilotCliConfigKey.ImageGenerationWatermark] = watermark;
+					const createdWithSetting: CopilotSessionWrapper = sessions.add(await launcher.launch(createPlan, testRuntime));
+					const resumedWithSetting: CopilotSessionWrapper = sessions.add(await launcher.launch(resumePlan, testRuntime));
+					assert.deepStrictEqual({
+						launch: [createdWithSetting.launchImageGenerationEnabled, resumedWithSetting.launchImageGenerationEnabled],
+						watermark: [createdWithSetting.launchImageGenerationWatermark, resumedWithSetting.launchImageGenerationWatermark],
+						config: [createConfigs.at(-1)?.imageGeneration, resumeConfigs.at(-1)?.imageGeneration],
+					}, {
+						launch: [enabled === true, enabled === true],
+						watermark: [watermark === true, watermark === true],
+						config: [{ enabled: enabled === true, watermark: watermark === true }, { enabled: enabled === true, watermark: watermark === true }],
+					});
+				}
 			}
 		} finally {
 			sessions.dispose();
