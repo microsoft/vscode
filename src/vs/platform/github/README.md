@@ -11,7 +11,7 @@ Reusable GitHub engine and cross-target architecture.
 
 ## Current implementation
 
-[GitHubService](common/githubService.ts) owns shared admission, cooldowns and telemetry. It supplies explicit authorization-scoped clients composing credentials, capabilities, transport, queries, mutations, PR subscriptions, and Mission Control domains.
+[GitHubService](common/githubService.ts) owns shared admission, cooldowns and telemetry. Its legacy `IGitHubClient` combines credentials, capabilities, transport, queries, mutations, and PR subscriptions. Mission Control domains are exposed only by the portable [account facade](common/account/accountClient.ts) over execution-provider leases.
 
 - The [workbench binding](../../workbench/services/github/browser/githubService.ts) selects the default account or an explicit session in the renderer. Legacy consumers retain their in-process clients. Portable default-account clients execute locally on web and through the [desktop IPC binding](../../workbench/services/github/electron-browser/githubService.ts) on desktop.
 - The [Agent Host binding](../agentHost/node/agentHostGitHubService.ts) selects its host-owned repository credential resource without an attached workbench. Repository/PR association, creation, merge settings, auto-merge and issue/PR title context use its explicit clients. Copilot discovery and model requests still use the existing [Agent Host Copilot service](../agentHost/node/shared/copilotApiService.ts); migrating them is a separate change.
@@ -90,13 +90,21 @@ Private caches and request sharing remain token/base-specific. Host-supplied acc
 
 ### Repository queries
 
-Authorized clients expose one-shot `getRepository`, `listRepositories` and `searchRepositories` operations in addition to repository subscriptions. They use the existing repository response mapping and governed REST transport, including authorization-scoped ETags and coalescing with subscribed reads. REST results retain server-provided HTTPS and SSH clone URLs when available; GraphQL-hydrated resources may omit them.
+Legacy authorized clients expose `listRepositories` and `searchRepositories` alongside repository subscriptions and merge-setting reads. They use the existing repository response mapping and governed REST transport, including authorization-scoped ETags and coalescing with subscribed reads. REST results retain server-provided HTTPS and SSH clone URLs when available; GraphQL-hydrated resources may omit them. One-shot repository metadata reads use the portable [repositories domain](common/core/repositories.ts), not a duplicate legacy getter.
 
 Discovery takes an account handle, not a synthetic repository or Agent Host/session context. Each call fetches one page (1–100 items, default 100) and returns an optional `nextPage` from the server's pagination signal. Callers own iteration, selection, sorting, query qualifiers and operation budgets; the service does not fetch organizations, scope a search to the current user, or automatically drain every page. Empty queries and invalid pagination fail with a validation error before credential resolution or network dispatch.
 
 Search also returns `totalCount`, `incompleteResults` and `limitReached`. The last field identifies searches exceeding GitHub's 1,000 retrievable results; pagination never advertises a page beyond that ceiling. A missing `nextPage` does not imply a complete search when either flag is set. Malformed completeness fields are errors, not empty successful results.
 
-These contracts cover metadata/discovery requirements of core repository presentations, the legacy Sessions repository picker, and the built-in GitHub remote-source provider without taking over their UI, account selection or git workflows. Those legacy renderer/extension consumers remain unmigrated; shared-process authenticated-client IPC and repository creation/fork/branch APIs are separate work.
+Core repository presentations use subscriptions; the [Cloud Sandbox repository picker](../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxRepositoryPicker.ts) uses the legacy discovery operations. Sessions GitHub fetchers already use the portable domains. The built-in GitHub remote-source provider remains independent.
+
+### Legacy resource and mutation surface
+
+The [legacy query contract](common/githubQueryService.ts) retains repository/issue/commit subscriptions, batched resource hydration, repository discovery, issue/PR title context, repository merge settings, and branch/SHA association. Repository subscriptions expose only their resource and disposal; issue subscriptions additionally support priority updates and refresh, and commit subscriptions support refresh. Cache clearing is private lifecycle behavior. Capability probes are cached by host, without a caller-supplied Enterprise version.
+
+[PR resources](common/githubPullRequestService.ts) contain core, top-level comments, submitted reviews, review threads, checks, and mergeability. Inline review comments remain nested in review threads; there is no standalone inline-comment or participants fragment. Shared polling, body-release lifetimes, capability fallbacks, authoritative refreshes, and head/generation checks remain unchanged.
+
+The [legacy mutation contract](common/githubPullRequestMutationService.ts) retains PR creation, draft/auto-merge changes, guarded reply-and-resolve, workflow diagnostics/reruns, and prepared merge/queue operations. Standalone comment creation, reply, resolution, and branch updating are not exposed. Reply publication checks, uncertain-outcome reconciliation, and merge authorization remain part of the compound operations rather than being replaced with raw endpoint calls.
 
 ### Agent Host repository and PR operations
 
@@ -256,6 +264,8 @@ The [Sessions GitHub service](../../sessions/contrib/github/browser/githubServic
 Ordinary reads and polling never prompt for sign-in. The explicit repository-access action obtains the default account with `repo` scopes before acquisition. Default-account switches and grant invalidation cancel pending work, clear account-bound model snapshots and branch lookups, and prevent late results from repopulating the previous account's state. Same-account credential renewal remains provider-owned.
 
 Sessions retains domain-to-UI projections, polling cadence, issue freshness throttling and display snapshots, and review/CI actions. ETags and HTTP statuses stay in the provider; REST-backed models suppress notifications when mapped values are unchanged. Complete review, file, comment, CI, and thread reads use domain-client auto-pagination with `maxPages: 100`; nested review comments reuse the embedded first page and collect at most 99 more. Cloud automation discovery collects at most 10 pages before hydrating details with bounded concurrency. Collection failures do not publish partial snapshots. Lazy PR browsing and intentionally bounded search, recent-work, and automation-history reads remain single-page. Pending-review creation remains pending, and writes are never retried by the feature.
+
+The read-only [repository filesystem](../../sessions/contrib/fileTreeView/browser/githubFileSystemProvider.ts) uses the same selected-account binding and typed `content.getTree` / `content.getBlob` operations. Its GitHub.com resources never prompt for sign-in or route to an Enterprise account. The five-minute tree cache, one-minute missing-ref cache, and in-flight tree sharing are cleared on account or grant changes; disposal cancels outstanding work. Truncated recursive trees fail explicitly instead of becoming partial filesystems, and blobs are decoded to bytes at their cached Git object SHA. File reads accept at most 10 MiB of decoded content: known oversized files are rejected before downloading, and actual decoded bytes are checked independently of metadata. The shared 16 MiB response limit remains in force for base64 JSON; size failures report `FileTooLarge` with guidance to clone the repository for larger local reads.
 
 ### Authenticated IPC leases (Stage 5)
 

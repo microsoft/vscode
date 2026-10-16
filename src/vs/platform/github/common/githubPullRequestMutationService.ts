@@ -5,7 +5,6 @@
 
 import {
 	GitHubFragmentError,
-	PullRequestComment,
 	PullRequestInlineComment,
 	PullRequestMergeMethod,
 	PullRequestRef,
@@ -43,10 +42,6 @@ export interface EnablePullRequestAutoMergeOptions {
 
 export interface PullRequestNodeOptions {
 	readonly pullRequestId: string;
-}
-
-export interface PullRequestCommentOptions extends PullRequestOperation {
-	readonly body: string;
 }
 
 export interface PullRequestReplyOptions extends PullRequestOperation {
@@ -130,10 +125,6 @@ export interface GitHubWorkflowRerunOptions extends PullRequestOperation {
 	readonly failedJobsOnly?: boolean;
 }
 
-export interface PullRequestBranchUpdateOptions {
-	readonly expectedHeadSha: string;
-}
-
 export interface PullRequestMergePreparation {
 	readonly token: string;
 	readonly ref: PullRequestRef;
@@ -171,16 +162,12 @@ export interface PullRequestMutationApi {
 	enableAutoMerge(ref: GitHubRepositoryRef, options: EnablePullRequestAutoMergeOptions, signal: AbortSignal): Promise<void>;
 	disableAutoMerge(ref: PullRequestRef, options: PullRequestNodeOptions, signal: AbortSignal): Promise<void>;
 	markReadyForReview(ref: PullRequestRef, options: PullRequestNodeOptions, signal: AbortSignal): Promise<void>;
-	addComment(ref: PullRequestRef, options: PullRequestCommentOptions, signal: AbortSignal): Promise<PullRequestMutationResult<PullRequestComment>>;
-	replyToThread(ref: PullRequestRef, options: PullRequestReplyOptions, signal: AbortSignal): Promise<PullRequestReplyResult>;
-	resolveThread(ref: PullRequestRef, threadId: string, signal: AbortSignal): Promise<void>;
 	replyAndResolveThread(ref: PullRequestRef, options: PullRequestReplyAndResolveOptions, signal: AbortSignal): Promise<PullRequestReplyAndResolveResult>;
 	listWorkflowRuns(ref: PullRequestRef, headSha: string, signal: AbortSignal): Promise<readonly GitHubWorkflowRun[]>;
 	listWorkflowJobs(ref: PullRequestRef, runId: string, signal: AbortSignal, runAttempt?: number): Promise<readonly GitHubWorkflowJob[]>;
 	listCheckAnnotations(ref: PullRequestRef, checkRunId: string, signal: AbortSignal): Promise<readonly GitHubCheckAnnotation[]>;
 	downloadWorkflowJobLog(ref: PullRequestRef, jobId: string, signal: AbortSignal): Promise<GitHubWorkflowLog>;
 	rerunWorkflow(ref: PullRequestRef, options: GitHubWorkflowRerunOptions, signal: AbortSignal): Promise<PullRequestMutationResult<GitHubWorkflowRun>>;
-	updateBranch(ref: PullRequestRef, options: PullRequestBranchUpdateOptions, signal: AbortSignal): Promise<void>;
 	prepareMerge(ref: PullRequestRef, expectedHeadSha: string, signal: AbortSignal): Promise<PullRequestMergePreparation>;
 	merge(preparation: PullRequestMergePreparation, options: PullRequestMergeOptions, signal: AbortSignal): Promise<PullRequestMergeResult>;
 	enqueue(preparation: PullRequestMergePreparation, authorization: PullRequestMergeAuthorization, signal: AbortSignal): Promise<PullRequestEnqueueResult>;
