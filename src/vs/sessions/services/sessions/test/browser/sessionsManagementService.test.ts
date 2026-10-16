@@ -496,6 +496,80 @@ suite('SessionsManagementService', () => {
 			});
 		});
 
+		for (const open of ['openSession', 'openChat'] as const) {
+			test(`${open} stops awaiting a retained chat retry after newer navigation`, async () => {
+				const [first, second] = ['first', 'second'].map(created);
+				const { view, part, chatViews } = harness([first, second]);
+				await view.openSessionsInGrid([first, second]);
+				const retained = part.getSessionView(first.sessionId);
+				const leaf = chatViews.find(chat => chat.chat?.resource.toString() === first.mainChat.get().resource.toString());
+				assert.ok(leaf);
+				const retryStarted = new DeferredPromise<void>();
+				const releaseRetry = new DeferredPromise<void>();
+				const retryFinished = new DeferredPromise<void>();
+				Object.assign(leaf, {
+					reopenChat: async () => {
+						retryStarted.complete();
+						await releaseRetry.p;
+						leaf.input.value = 'history restored';
+						retryFinished.complete();
+					},
+				});
+				let openingSettled = false;
+				const opening = (open === 'openSession'
+					? view.openSession(first.resource)
+					: view.openChat(first, first.mainChat.get().resource)
+				).then(() => { openingSettled = true; });
+				await retryStarted.p;
+
+				await view.openSession(second.resource);
+				const afterNavigation = {
+					openingSettled,
+					retryFinished: retryFinished.isSettled,
+					sameView: part.getSessionView(first.sessionId) === retained,
+					disposed: leaf.disposed,
+					visible: view.visibleSessions.get().map(session => session?.sessionId),
+					active: view.activeSession.get()?.sessionId,
+				};
+				releaseRetry.complete();
+				await Promise.all([opening, retryFinished.p]);
+
+				assert.deepStrictEqual({ afterNavigation, input: leaf.input.value, active: view.activeSession.get()?.sessionId }, {
+					afterNavigation: { openingSettled: true, retryFinished: false, sameView: true, disposed: false, visible: ['first', 'second'], active: 'second' },
+					input: 'history restored', active: 'second',
+				});
+			});
+		}
+
+		test('navigation cancellation still waits for provider preparation', async () => {
+			const [first, second] = ['first', 'second'].map(created);
+			const preparationStarted = new DeferredPromise<void>();
+			const preparation = new DeferredPromise<void>();
+			let prepareFirst = false;
+			const { view } = harness([first, second], {
+				prepare: async session => {
+					if (prepareFirst && session === first) {
+						preparationStarted.complete();
+						await preparation.p;
+					}
+				},
+			});
+			await view.openSessionsInGrid([first, second]);
+			prepareFirst = true;
+			let openingSettled = false;
+			const opening = view.openSession(first.resource).then(() => { openingSettled = true; });
+			await preparationStarted.p;
+
+			await view.openSession(second.resource);
+			const afterNavigation = { openingSettled, active: view.activeSession.get()?.sessionId };
+			preparation.complete();
+			await opening;
+
+			assert.deepStrictEqual({ afterNavigation, openingSettled, active: view.activeSession.get()?.sessionId }, {
+				afterNavigation: { openingSettled: false, active: 'second' }, openingSettled: true, active: 'second',
+			});
+		});
+
 		test('balanced subset changes preserve caller order and retained widgets', async () => {
 			const [a, b, c] = ['a', 'b', 'c'].map(created);
 			const { view, part, chatViews } = harness([a, b, c]);
