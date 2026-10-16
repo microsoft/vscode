@@ -1792,8 +1792,8 @@ suite('authenticateProtectedResources', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	for (const connectors of [false, true]) {
-		test(`forwards same-account entitlement changes with connector session preference ${connectors}`, async () => {
+	for (const defaultSession of ['session', 'connector-session']) {
+		test(`forwards same-account entitlement changes when default account uses ${defaultSession}`, async () => {
 			const baseSession = { id: 'session', scopes: ['read'], accessToken: 'token', account: { id: 'account', label: 'Account' } };
 			const authentication = createMockAuthService({
 				getOrActivateProviderIdForServer: async () => 'github',
@@ -1803,10 +1803,10 @@ suite('authenticateProtectedResources', () => {
 			});
 			const instantiation = createAuthInstantiationService(disposables, authentication);
 			instantiation.stub(IConfigurationService, new TestConfigurationService({
-				[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: connectors,
+				[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: true,
 			}));
 			let sku = 'no_access';
-			let sessionId = 'session';
+			let sessionId = defaultSession;
 			instantiation.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
 				override get currentDefaultAccount(): IDefaultAccount {
 					return {
@@ -1830,6 +1830,11 @@ suite('authenticateProtectedResources', () => {
 			await instantiation.invokeFunction(authenticateProtectedResources, agents, options);
 			await instantiation.invokeFunction(authenticateProtectedResources, agents, options);
 			sku = 'free_limited_copilot';
+			await instantiation.invokeFunction(authenticateProtectedResources, agents, options);
+			await instantiation.invokeFunction(resolveAuthenticationInteractively, agents[0].protectedResources, options);
+			await instantiation.invokeFunction(revokeAuthenticationForRemovedSessions, agents, 'github', [
+				{ ...baseSession, id: 'removed-session', accessToken: 'removed-token' },
+			], options);
 			await instantiation.invokeFunction(authenticateProtectedResources, agents, options);
 			sessionId = 'another-session';
 			await instantiation.invokeFunction(authenticateProtectedResources, agents, options);

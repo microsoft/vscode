@@ -558,7 +558,8 @@ async function forwardAuthenticationToken(
 		...(session.authorizationServer ? { authorizationServer: session.authorizationServer.toString() } : {}),
 	} : undefined;
 	const defaultAccount = options.getDefaultAccount?.();
-	const data = defaultAccount?.authenticationProvider.id === providerId && defaultAccount?.sessionId === (entitlementSessionId ?? session?.id)
+	const data = defaultAccount?.authenticationProvider.id === providerId
+		&& (defaultAccount?.sessionId === session?.id || defaultAccount?.sessionId === entitlementSessionId)
 		? defaultAccount?.entitlementsData : undefined;
 	const entitlement = data?.analytics_tracking_id?.trim() && data.access_type_sku?.trim()
 		? { trackingId: data.analytics_tracking_id, sku: data.access_type_sku } : undefined;
@@ -680,7 +681,7 @@ export async function revokeAuthenticationForRemovedSessions(
 				// Another account still covers this resource; forward it so the host
 				// swaps credentials instead of losing them. Unchanged tokens are
 				// deduped by the cache.
-				if (await forwardAuthenticationToken(options, resource.resource, scopes, resolution.session, resolution.providerId, resolution.entitlementSessionId)) {
+				if (await forwardAuthenticationToken(resolvedOptions, resource.resource, scopes, resolution.session, resolution.providerId, resolution.entitlementSessionId)) {
 					logService.info(`${options.logPrefix} Authenticating for resource after session removal: ${resource.resource}`);
 				}
 				continue;
@@ -841,7 +842,7 @@ export async function resolveAuthenticationInteractively(
 		throwIfAuthenticationStale(options);
 		if (existingSessionResolution.kind === 'resolved') {
 			const existingSession = existingSessionResolution.session;
-			if (await forwardAuthenticationToken(options, resource.resource, scopes, existingSession, existingSessionResolution.providerId, existingSessionResolution.entitlementSessionId)) {
+			if (await forwardAuthenticationToken(resolvedOptions, resource.resource, scopes, existingSession, existingSessionResolution.providerId, existingSessionResolution.entitlementSessionId)) {
 				reportAgentHostAuthRecovery(telemetryService, {
 					trigger: 'sessionCreation',
 					action: 'forwardCurrent',

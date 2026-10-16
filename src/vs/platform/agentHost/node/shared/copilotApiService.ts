@@ -122,6 +122,7 @@ interface ICopilotSkuCacheCell {
 
 interface IClientRequest {
 	promise: Promise<ICachedClient> | undefined;
+	discoveryGeneration: number;
 	readonly skuCell: ICopilotSkuCacheCell;
 	telemetryCaptured: boolean;
 }
@@ -903,12 +904,15 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 		if (existing) {
 			return existing;
 		}
+		const generation = ++request.discoveryGeneration;
 		const pending = this._buildClientForToken(githubToken).then(refreshed => {
-			if (this._clientsByToken.get(githubToken) === request && request.skuCell.valid && request.skuCell.value === entry) {
+			if (this._clientsByToken.get(githubToken) === request && request.skuCell.valid && request.discoveryGeneration === generation) {
+				request.discoveryGeneration++;
 				request.skuCell.value = refreshed;
 			}
 		}).catch(error => {
-			if (this._clientsByToken.get(githubToken) === request && request.skuCell.value === entry) {
+			if (this._clientsByToken.get(githubToken) === request && request.skuCell.valid && request.discoveryGeneration === generation) {
+				request.discoveryGeneration++;
 				if (error instanceof CopilotApiError && (error.status === 401 || error.status === 403)) {
 					this._invalidateClientRequest(githubToken, request);
 				} else {
@@ -955,15 +959,21 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 		// Omit the caller's signal here: a deduped build is shared across
 		// concurrent callers, so aborting one must not cancel it for the
 		// others. Each caller still forwards its signal to the API call.
+		const generation = request.discoveryGeneration;
 		const pending = this._buildClientForToken(githubToken).then(entry => {
 			if (this._clientsByToken.get(githubToken) === request && request.skuCell.valid) {
 				request.promise = undefined;
-				request.skuCell.value = entry;
+				if (request.discoveryGeneration === generation && !this._entitlementRefreshes.has(request)) {
+					request.skuCell.value = entry;
+				}
 			}
 			return entry;
 		}).catch(err => {
 			if (this._clientsByToken.get(githubToken) === request && request.skuCell.valid) {
 				request.promise = undefined;
+				if (request.discoveryGeneration !== generation || this._entitlementRefreshes.has(request)) {
+					throw err;
+				}
 				if (err instanceof CopilotApiError && (err.status === 401 || err.status === 403)) {
 					this._invalidateClientRequest(githubToken, request);
 				} else if (existing && existing.expiresAt > Date.now() / 1000) {
@@ -986,6 +996,7 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 		if (!request) {
 			request = {
 				promise: undefined,
+				discoveryGeneration: 0,
 				skuCell: { valid: true },
 				telemetryCaptured: false,
 			};

@@ -5407,6 +5407,7 @@ suite('CopilotAgent', () => {
 			endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: sku, analytics_tracking_id: 'analytics',
 		}), new NullLogService(), TEST_PRODUCT_SERVICE, createTestGitHubEndpointService()));
 		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), copilotApiService });
+		const refresh = spy(copilotApiService, 'refreshCopilotUser');
 		try {
 			await agent.authenticate('https://api.github.com', 'token');
 			const before = agent.getTelemetryContext().copilotSku;
@@ -5414,11 +5415,16 @@ suite('CopilotAgent', () => {
 			await agent.authenticate('https://api.github.com', 'token', undefined, agentEntitlementMeta({ trackingId: 'other', sku: 'free' }));
 			const unrelated = agent.getTelemetryContext().copilotSku;
 			await agent.authenticate('https://api.github.com', 'token', undefined, agentEntitlementMeta({ trackingId: 'analytics', sku: 'free' }));
-			await copilotApiService.refreshCopilotUser('token', 'analytics', 'free');
+			assert.deepStrictEqual(refresh.args, [
+				['token', 'other', 'free'],
+				['token', 'analytics', 'free'],
+			]);
+			await refresh.lastCall.returnValue;
 			assert.deepStrictEqual({ before, unrelated, refreshed: agent.getTelemetryContext().copilotSku }, {
 				before: 'no_access', unrelated: 'no_access', refreshed: 'server-sku',
 			});
 		} finally {
+			refresh.restore();
 			await disposeAgent(agent);
 		}
 	});

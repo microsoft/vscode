@@ -171,6 +171,46 @@ suite('CopilotApiService', () => {
 			assert.deepStrictEqual({ pending, after: read() }, { pending: 'no_access', after: undefined });
 		});
 
+		for (const entitlementStartsFirst of [false, true]) {
+			for (const entitlementFinishesFirst of [false, true]) {
+				test(`entitlement cache writes supersede ordinary refresh: starts first ${entitlementStartsFirst}, finishes first ${entitlementFinishesFirst}`, async () => {
+					const clock = sinon.useFakeTimers({ now: Date.now(), toFake: ['Date'] });
+					const normalResponse = new DeferredPromise<Response>();
+					const entitlementResponse = new DeferredPromise<Response>();
+					let requests = 0;
+					const service = createService(async () => {
+						if (++requests === 1) {
+							return userResponse({ access_type_sku: 'no_access', analytics_tracking_id: 'analytics' });
+						}
+						return (requests === 2) === entitlementStartsFirst ? entitlementResponse.p : normalResponse.p;
+					});
+					await service.resolveCopilotSku('token');
+					clock.tick(26 * 60 * 1000);
+					let normal: Promise<string | undefined>;
+					let entitlement: Promise<void>;
+					if (entitlementStartsFirst) {
+						entitlement = service.refreshCopilotUser('token', 'analytics', 'free');
+						normal = service.resolveCopilotSku('token');
+					} else {
+						normal = service.resolveCopilotSku('token');
+						entitlement = service.refreshCopilotUser('token', 'analytics', 'free');
+					}
+					if (entitlementFinishesFirst) {
+						entitlementResponse.complete(userResponse({ access_type_sku: 'free', analytics_tracking_id: 'analytics' }));
+						await entitlement;
+						normalResponse.complete(userResponse({ access_type_sku: 'no_access', analytics_tracking_id: 'analytics' }));
+						await normal;
+					} else {
+						normalResponse.complete(userResponse({ access_type_sku: 'no_access', analytics_tracking_id: 'analytics' }));
+						await normal;
+						entitlementResponse.complete(userResponse({ access_type_sku: 'free', analytics_tracking_id: 'analytics' }));
+						await entitlement;
+					}
+					assert.deepStrictEqual({ requests, sku: service.getCachedCopilotSku('token') }, { requests: 3, sku: 'free' });
+				});
+			}
+		}
+
 		test('rejected entitlement refresh permanently invalidates the captured account context', async () => {
 			let status = 200;
 			const service = createService(async () => status === 200
