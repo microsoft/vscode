@@ -1445,7 +1445,7 @@ export class Repository {
 
 		args.push(key);
 
-		if (value) {
+		if (value !== undefined && value !== null) {
 			args.push(value);
 		}
 
