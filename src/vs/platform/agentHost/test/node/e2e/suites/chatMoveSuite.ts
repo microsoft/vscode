@@ -285,12 +285,11 @@ export function defineChatMoveTests(context: IAgentHostE2ETestContext): void {
 	// So these scenarios cross the model boundary: each session is materialized by a model turn on its default chat, and
 	// the moved chat's next turn recalls what it was told before the move.
 
-	/** `knownIssue` gates a variant `KNOWN_ISSUES.md` records; it runs only when known issues are recorded on purpose. */
-	function providerMoveTest(title: string, run: Mocha.AsyncFunc, knownIssue = false): void {
+	function providerMoveTest(title: string, run: Mocha.AsyncFunc): void {
 		if (context.tier !== 'parity') {
 			return;
 		}
-		const enabled = config.supportsMultipleChats && (config.supportsMultipleChatsE2E !== false || RECORDING) && (!knownIssue || context.runKnownIssueTests);
+		const enabled = config.supportsMultipleChats && (config.supportsMultipleChatsE2E !== false || RECORDING);
 		(enabled ? test : test.skip)(title, function () {
 			this.timeout(240_000);
 			return run.call(this);
@@ -384,8 +383,7 @@ export function defineChatMoveTests(context: IAgentHostE2ETestContext): void {
 				recalled: true,
 			});
 		});
-		// Copilot can't run the moved chat's next turn: see "A session moved under another can't continue its chat with Copilot" in KNOWN_ISSUES.md.
-	}, config.provider === 'copilotcli');
+	});
 
 	// #endregion
 }

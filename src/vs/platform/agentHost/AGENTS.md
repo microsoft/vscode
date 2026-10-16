@@ -710,6 +710,7 @@ Providers are being made pure consumers of host facts. Agent Host derives each f
 
 - key every queue, lifetime, deferred backing and per-turn record by the chat (its SDK session or its own key), never by the owner;
 - take a session-backed chat's SDK id, deferred-execution marker and stored metadata from its recorded storage (`resolveSessionBackedStorage`), never from its owner;
+- keep a chat's metadata in its owner's session state only when its recorded storage is its owner's own (a session's default chat), else in the database at that storage (a peer's, or a session's chat moved under another session): decided from the recorded storage and owner (Copilot `ICopilotMetadataScope`), never from either URI's shape;
 - configure a running process for one owner (its launch owner: SDK launch, sandbox policy, enablement, MCP ids and publication, server tools, config target), and relaunch at the next turn boundary after the owner changes: Copilot refresh reason `ownerChanged`, Codex `threadOwner` resume, Claude rebind before the turn;
 - read the live owner for per-turn identity (session actions, subagent chats, terminal links and claims, edit attribution, telemetry).
 
