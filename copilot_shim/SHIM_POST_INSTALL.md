@@ -100,6 +100,14 @@ terminal or the shim.
 
 ## Current Rust shim behavior
 
+### macOS workbench install-only flow
+
+The [macOS Shell Command action](./REQUIREMENTS.md#macos-shell-command-installation) uses the shim's [interactive install-only mode](./REQUIREMENTS.md#install) after collecting consent. This mode reports a usable CLI's availability path on stderr and exits without launching it; the linked command contract defines discovery, installation, and exit-code behavior.
+
+This route does not repeat the shim's first-use prompt. Normal `copilot` invocation retains its own prompt, installation, rediscovery, and final CLI launch behavior. Linux install-only behavior and Windows setup/result-file statuses are unchanged.
+
+Neither the macOS workbench action nor the shim creates a `/usr/local/bin/copilot` link or otherwise owns Copilot CLI files, PATH entries, updates, or uninstallation. The installer may offer its own profile edit: accepting it can require a new terminal before the profile takes effect, while declining it leaves the existing PATH unchanged and can require the CLI's absolute path or manual PATH configuration.
+
 ### Running the official script
 
 On macOS (after Homebrew, when it's available) and on GNU Linux x64 and arm64,
@@ -142,9 +150,7 @@ script, the shim runs discovery again:
    directory. The candidate gets the same checks as one on `PATH`: a regular,
    executable file that isn't a shim.
 
-So the CLI launches right away, with the original arguments, although the
-terminal's `PATH` hasn't changed. Later invocations use the same fallback before
-offering to install, so a terminal with a stale `PATH` doesn't install again.
+For ordinary shim invocation, the CLI launches right away with the original arguments, although the terminal's `PATH` hasn't changed. The macOS workbench install-only route instead reports the verified availability path and exits without launching the CLI. Later invocations use the same fallback before offering to install, so a terminal with a stale `PATH` doesn't install again.
 
 If neither finds the CLI, the shim prints, even without verbose mode:
 

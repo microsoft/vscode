@@ -42,6 +42,7 @@ import { AgentHostChatContributions } from '../../node/agentHostChatContribution
 import { IAgentHostPeerChatPersistenceService } from '../../node/agentHostPeerChatStore.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
 import { AgentHostChatInputService, IAgentHostChatInputService } from '../../node/agentHostChatInputService.js';
+import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentSessionRegistry, IAgentSessionRegistry } from '../../node/agentSessionRegistry.js';
@@ -99,6 +100,8 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	onToolCallEditsApplied(): void { }
 	onTurnComplete(): void { }
 	onSessionTruncated(): void { }
+	openTrackedTurnDatabase(): undefined { return undefined; }
+	onFileEditsDiscarded(): void { }
 	ensureChatChangesSummary(): void { }
 	refreshChatChangesSummary(): void { }
 }
@@ -278,9 +281,11 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			whenIdle: async () => { },
 		};
 		const worktreeIsolation = createNoopWorktreeIsolation();
+		const authenticationService = disposables.add(new AgentHostAuthenticationService(logService));
 		const sessionStateStore = createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionDataService);
 		const worktreeCleanup = createTestWorktreeCleanupService(disposables, worktreeIsolation);
 		const services = new ServiceCollection(
+			[IAgentHostAuthenticationService, authenticationService],
 			[ILogService, logService],
 			[IAgentConfigurationService, configService],
 			[IAgentHostChangesetService, new FakeChangesetService()],
@@ -313,6 +318,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 				requestSessionWorkspaceUpdate: () => true,
 				isPending: () => false,
 				isConversionTurn: () => false,
+				onDidChangePending: Event.None,
 				cancel: () => { },
 				updateSessionWorkspace: async () => { },
 			} satisfies ISessionWorkspaceConversionService],
@@ -331,7 +337,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		services.set(IAgentHostProviderService, providerService);
 		const chatOwnership = createTestChatOwnershipService(stateManager);
 		services.set(IAgentHostChatOwnershipService, chatOwnership);
-		services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, disposables.add(new AgentHostSubscriptionService(chatOwnership)), chatOwnership, createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionDataService))));
+		services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, disposables.add(new AgentHostSubscriptionService(chatOwnership)), chatOwnership, authenticationService, sessionStateStore)));
 		const telemetryReporter = new AgentHostTelemetryReporter(telemetryService);
 		services.set(IAgentHostTelemetryReporter, telemetryReporter);
 		turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
@@ -929,19 +935,21 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 
 		let previousTurnId = 'turn-original';
 		for (const turnId of ['turn-steering-1', 'turn-steering-2']) {
+			const id = `queued-${turnId}`;
+			const message: Message = { text: 'edit the file', origin: { kind: MessageKind.User } };
 			applyClientAction({
 				type: ActionType.ChatPendingMessageSet,
 				kind: PendingMessageKind.Steering,
-				id: `queued-${turnId}`,
-				message: { text: 'edit the file', origin: { kind: MessageKind.User } },
+				id,
+				message,
 			});
 			fire({ type: ActionType.ChatTurnComplete, turnId: previousTurnId, duration: 1000 });
 			fire({
 				type: ActionType.ChatTurnStarted,
 				turnId,
 				startedAt: new Date().toISOString(),
-				message: { text: 'edit the file', origin: { kind: MessageKind.User } },
-				queuedMessageId: `queued-${turnId}`,
+				message,
+				queuedMessageId: id,
 			});
 			fireModelCallFinished(turnId, `call-${turnId}`, 250, 'success', true);
 			previousTurnId = turnId;

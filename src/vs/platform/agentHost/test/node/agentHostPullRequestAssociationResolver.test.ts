@@ -16,8 +16,7 @@ import { AgentHostPullRequestAssociationResolver } from '../../node/agentHostPul
 import { AgentHostGitHubService, IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
 import { IAgentHostAuthenticationService, IAgentHostAuthTokenChangeEvent } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
-import { GitHubPullRequestLookup, GitHubPullRequestLookupOptions, GitHubRepositoryRef } from '../../../github/common/githubQueryService.js';
-import { IGitHubQuery } from '../../../github/common/githubQueryServiceImpl.js';
+import { GitHubPullRequestLookup, GitHubPullRequestLookupOptions, GitHubQueryApi, GitHubRepositoryRef } from '../../../github/common/githubQueryService.js';
 import { createNoopGitService } from '../common/sessionTestHelpers.js';
 import { createTestGitHubClient, createTestGitHubService, createTestPullRequest } from './testGitHubService.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
@@ -38,7 +37,7 @@ function pullRequestArtifact(number: number, isArtifact = true): PullRequestArti
 	};
 }
 
-class TestGitHubQuery extends mock<IGitHubQuery>() {
+class TestGitHubQuery extends mock<GitHubQueryApi>() {
 	readonly candidateCalls: Array<readonly string[] | undefined> = [];
 	branchResult: GitHubPullRequestLookup | undefined;
 	branchError: Error | undefined;

@@ -7,7 +7,7 @@ import { StringSHA1 } from '../../../base/common/hash.js';
 import type { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import type { IAgentHostCopilotSkuClassification, IAgentHostCopilotSkuTelemetry, toTelemetryModel } from './agentHostTelemetryReporter.js';
 
-export type AutomationRunOutcome = 'success' | 'error' | 'cancelled' | 'timeout' | 'interrupted';
+export type AutomationRunOutcome = 'success' | 'error' | 'cancelled' | 'interrupted';
 
 /** The content-free, saved session configuration; omitted selections retain the provider default. */
 export interface IAutomationConfigurationTelemetry extends IAgentHostCopilotSkuTelemetry {
@@ -107,7 +107,7 @@ type AutomationRunCompletedEvent = IAutomationRunTelemetry & {
 type AutomationRunCompletedClassification = AutomationRunClassification & {
 	owner: 'ulugbekna';
 	comment: 'Records the first persisted terminal transition of an Agent Host automation run, including pre-session failures and restart interruptions.';
-	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Run outcome: success, error, cancelled, timeout or interrupted.' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Run outcome: success, error, cancelled or interrupted.' };
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Wall-clock milliseconds from durable run claim to terminal state.' };
 };
 

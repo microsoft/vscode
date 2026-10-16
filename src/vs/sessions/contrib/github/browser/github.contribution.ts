@@ -19,7 +19,7 @@ import { GitHubPullRequestState } from '../common/types.js';
 import { getSessionGitHubReferences } from '../common/sessionGitHubReferences.js';
 import { getPullRequestKey } from '../common/utils.js';
 import { AUTO_DELETE_MARKED_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING } from '../common/sessionLifecycleSettings.js';
-import { GitHubService, IGitHubService } from './githubService.js';
+import { GitHubService, IGitHubService, isGitHubReferenceSupported } from './githubService.js';
 import { IPullRequestIconCache, PullRequestIconCache } from './pullRequestIconCache.js';
 
 import './pullRequestActions.js';
@@ -211,7 +211,7 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 					return { kind: 'archived' };
 				}
 
-				const { pullRequests } = getSessionGitHubReferences(session, reader);
+				const pullRequests = getSessionGitHubReferences(session, reader).pullRequests.filter(ref => isGitHubReferenceSupported(ref.uri, this._gitHubService.enterpriseHost));
 				if (pullRequests.length === 0) {
 					const workspace = session.workspace.read(reader);
 					if (!workspace) {

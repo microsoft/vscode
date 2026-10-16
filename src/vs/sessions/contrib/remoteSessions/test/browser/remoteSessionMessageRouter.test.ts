@@ -19,6 +19,7 @@ import { AgentHostConnectionsService } from '../../../../../platform/agentHost/b
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentConnection, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { getPendingSteeringMessages } from '../../../../../platform/agentHost/common/agentSessionMessage.js';
 import { readAgentMessageDelegationMeta } from '../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
 import { withRemoteSessionOrigin } from '../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
@@ -167,7 +168,7 @@ class TestConnection extends mock<IAgentHostService>() {
 		const subscription = this.chatStates.get(channel)!;
 		const state = subscription.verifiedValue!;
 		const next = state.queuedMessages?.[0];
-		if (!next || state.activeTurn || state.steeringMessage) {
+		if (!next || state.activeTurn || getPendingSteeringMessages(state).length > 0) {
 			return;
 		}
 		const action = {
@@ -559,7 +560,7 @@ suite('RemoteSessionMessageRouter', () => {
 		}));
 		const result = await router.send(sessions[0].resource, { session: sessions[1].resource.toString(), message: 'Later' }, 'steering', CancellationToken.None);
 		assert.deepStrictEqual({ status: result.status, started: first.started, queued: state.verifiedValue!.queuedMessages?.map(pending => pending.message.text) }, {
-			status: 'queued', started: [], queued: ['Later'],
+			status: 'queued', started: [], queued: ['Steer', 'Later'],
 		});
 	});
 

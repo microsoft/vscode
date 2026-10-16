@@ -196,6 +196,12 @@ export type SessionCatalogSyncWriteValidator = () => boolean;
  * Callers obtain an instance via {@link ISessionDataService.openDatabase} and
  * **must** dispose it when finished to close the underlying database connection.
  */
+/** See {@link ISessionDatabase.getRowsWatermark}. */
+export interface ISessionRowsWatermark {
+	readonly maxTurnRowid: number;
+	readonly drafts: ReadonlyMap<string, Message>;
+}
+
 export interface ISessionDatabase extends IDisposable {
 	/**
 	 * Create a turn record. Must be called before storing file edits that
@@ -330,6 +336,12 @@ export interface ISessionDatabase extends IDisposable {
 	getMaxTurnRowid(): Promise<number>;
 
 	/**
+	 * Returns, in one read, the largest `turns` rowid (`0` when there are no turns) and every chat draft by chat
+	 * URI: what tells whether another build changed the rows mirrored here.
+	 */
+	getRowsWatermark(): Promise<ISessionRowsWatermark>;
+
+	/**
 	 * Records the chat whose rows this database holds and the complete list of
 	 * turn ids kept for older builds on behalf of other chats. From then on
 	 * every turn scan and deletion of this database (event-id lookups,
@@ -386,6 +398,15 @@ export interface ISessionDatabase extends IDisposable {
 	 * it is replaced.
 	 */
 	storeFileEdit(edit: IFileEditRecord & IFileEditContent): Promise<void>;
+
+	/**
+	 * Store several file-edit snapshots of a single file in one transaction,
+	 * in order: either all of them are stored or none is. When provided,
+	 * `beforeCommit` runs after the snapshots are inserted and before the
+	 * transaction commits, which is rolled back if it throws. It can make a
+	 * change that must only happen if the snapshots are stored.
+	 */
+	storeFileEdits(edits: readonly (IFileEditRecord & IFileEditContent)[], beforeCommit?: () => Promise<void> | void): Promise<void>;
 
 	/**
 	 * Retrieve file-edit metadata for the given tool call IDs.
@@ -635,6 +656,14 @@ export interface ISessionDataService {
 	 * repositories they need to clean up.
 	 */
 	deleteSessionData(session: URI, workingDirectories?: readonly string[]): Promise<void>;
+
+	/**
+	 * Like {@link deleteSessionData}, but keeps the children of the session's
+	 * data directory named in `keep`: a deleted session keeps the attachments
+	 * that chats moved out of it still read. A later {@link deleteSessionData}
+	 * removes the rest.
+	 */
+	deleteSessionDataExcept(session: URI, keep: readonly string[], workingDirectories?: readonly string[]): Promise<void>;
 
 	/**
 	 * Fires immediately before a session's data directory (and the

@@ -26,7 +26,7 @@ import {
 	parseFolderChangesetOwnerUri,
 } from '../common/changesetUri.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
-import { IAgentHostSessionStateStore, readSessionBaseBranch, SessionStateMirrorFlush } from '../common/agentHostSessionStateStore.js';
+import { IAgentHostSessionStateStore, readSessionBaseBranch, SessionStateMirrorFlush, type ISessionStateSnapshot } from '../common/agentHostSessionStateStore.js';
 import { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
 import type { ChangesetState, ChangesSummary } from '../common/state/protocol/state.js';
 import { addMillisecondsToTimestamp } from '../common/state/protocol/common/timestamps.js';
@@ -51,7 +51,7 @@ import { IAgentHostGitService, resolveDiffBaseBranchName } from '../common/agent
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
 import { computeSessionDiffs, computeTurnDiffs, computeUnionedDiffs, type IIncrementalDiffOptions, type ISessionDiffSource } from './sessionDiffAggregator.js';
-import { IAgentHostChangesetService, CHANGES_SUMMARY_METADATA_KEYS, getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY, StaticChangesetKind, ChangesetDiffStrategy } from '../common/agentHostChangesetService.js';
+import { IAgentHostChangesetService, CHANGES_SUMMARY_METADATA_KEYS, getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY, StaticChangesetKind, ChangesetDiffStrategy, type ITrackedTurnDatabase } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
@@ -359,8 +359,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			}
 			: state;
 		const sessionUri = this._containingSessionUri(session);
+		const source = resolveBranchChangesetScopeForOwner(this._stateManager, branchChangesetOwner)?.sourceUri ?? session;
+		const baseBranch = this._getBranchBaseBranch(source, this._sessionStateStore.peek(URI.parse(sessionUri)));
 		this._stateManager.setChangesets(session, buildDefaultChangesetCatalog(session, this._chatOwnership.isRegisteredDefaultChat(session), catalogState, branchChangesetOwner,
-			(folderKey, recordedChat) => resolveAgentMergeOwningChat(this._stateManager, sessionUri, folderKey, recordedChat)));
+			(folderKey, recordedChat) => resolveAgentMergeOwningChat(this._stateManager, sessionUri, folderKey, recordedChat), baseBranch));
 	}
 
 	private _getBranchChangesetOwner(owner: ProtocolURI): ProtocolURI {
@@ -492,7 +494,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		this._scheduleStaticRecompute(branchChangesetOwner, 'branch');
 	}
 
-	refreshSessionChangeset(session: ProtocolURI, strategy: ChangesetDiffStrategy = 'auto'): void {
+	refreshSessionChangeset(session: ProtocolURI, strategy: ChangesetDiffStrategy = 'fileEditTracker'): void {
 		if (isAhpChatChannel(session)) {
 			this._refreshChatSessionChangeset(session);
 			return;
@@ -543,8 +545,6 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 					this.refreshBranchChangeset(parsed.ownerUri);
 					break;
 				case ChangesetKind.Session:
-					// Keep checkpoint-backed shell edits when a Git state refresh
-					// arrives after the end-of-turn checkpoint computation.
 					this.refreshSessionChangeset(session);
 					break;
 				case ChangesetKind.Uncommitted:
@@ -1406,6 +1406,92 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		}
 	}
 
+	openTrackedTurnDatabase(owner: ProtocolURI, turnId: string): ITrackedTurnDatabase | undefined {
+		// Resolves the database and folder scope exactly as the `fileEditTracker`
+		// per-turn computation does, so callers see the same file identities.
+		const ref = this._sessionDataService.openDatabase(URI.parse(this._getTrackedDatabaseUri(owner)));
+		let source: { readonly owner: ProtocolURI | undefined; readonly storage: ProtocolURI; readonly db: ISessionDatabase; dispose(): void };
+		try {
+			source = this._openTrackedTurnSource(owner, ref.object, turnId);
+		} catch (err) {
+			ref.dispose();
+			throw err;
+		}
+		const turnOwner = source.owner;
+		if (!turnOwner) {
+			source.dispose();
+			ref.dispose();
+			return undefined;
+		}
+		let others: ReturnType<ISessionDataService['openDatabase']>[];
+		try {
+			others = this._openOtherSessionChangesSources(turnOwner, source.storage);
+		} catch (err) {
+			source.dispose();
+			ref.dispose();
+			throw err;
+		}
+		return {
+			db: source.db,
+			folderScope: this._getTrackedEditFolderScope(turnOwner, this._configurationService.getEffectiveWorkingDirectories(turnOwner)),
+			otherChatDatabases: others.map(other => other.object),
+			dispose: () => {
+				for (const other of others) {
+					other.dispose();
+				}
+				source.dispose();
+				ref.dispose();
+			},
+		};
+	}
+
+	/**
+	 * Opens the databases whose edits the containing session's Session Changes
+	 * combine with those in `storage`: the session's own and each peer chat's.
+	 */
+	private _openOtherSessionChangesSources(owner: ProtocolURI, storage: ProtocolURI): ReturnType<ISessionDataService['openDatabase']>[] {
+		const session = this._containingSessionUri(owner);
+		const sessionStorage = this._getTrackedDatabaseUri(session);
+		const others = sessionStorage === storage ? [] : [this._sessionDataService.openDatabase(URI.parse(sessionStorage))];
+		try {
+			for (const peer of this._openPeerChatSources(session, true)) {
+				if (peer.sessionUri === storage) {
+					peer.ref.dispose();
+				} else {
+					others.push(peer.ref);
+				}
+			}
+		} catch (err) {
+			for (const other of others) {
+				other.dispose();
+			}
+			throw err;
+		}
+		return others;
+	}
+
+	onFileEditsDiscarded(owner: ProtocolURI, turnIds: readonly string[]): void {
+		// The discarded edits change past results, so recompute from scratch
+		// (no changedTurnId) rather than incrementally.
+		for (const turnId of turnIds) {
+			this._cancelDebouncedTurnDiffComputation(owner, turnId);
+			if (this._hasSubscription(owner, buildTurnChangesetUri(owner, turnId))) {
+				this._scheduleTurnRecompute(owner, turnId);
+			}
+		}
+		if (this._hasSubscription(owner, buildUncommittedChangesetUri(owner))) {
+			this._scheduleUncommittedRecompute(owner, undefined);
+		}
+		if (isAhpChatChannel(owner)) {
+			this._refreshChatSessionChangeset(owner);
+		}
+		if (this._shouldScheduleBranchRecompute(owner)) {
+			this._scheduleBranchRecompute(owner, undefined, false);
+		}
+		this._scheduleStaticRecompute(this._containingSessionUri(owner), 'session', undefined, false, undefined, 'fileEditTracker');
+		this._scheduleChatChangesSummary(owner, false);
+	}
+
 	onChangesetOwnerRemoved(owner: ProtocolURI): void {
 		this._debouncedBranchDiffTimers.deleteAndDispose(owner);
 		this._debouncedSessionDiffTimers.deleteAndDispose(owner);
@@ -2176,19 +2262,25 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 */
 	private async _resolveBranchBaseBranch(session: ProtocolURI, db: ISessionDatabase): Promise<string | undefined> {
 		const source = resolveBranchChangesetScopeForOwner(this._stateManager, session)?.sourceUri ?? session;
+		const snapshot = await this._sessionStateStore.load(URI.parse(this._containingSessionUri(source)));
+		return resolveDiffBaseBranchName(this._getBranchBaseBranch(source, snapshot), undefined);
+	}
+
+	/** Selects the persisted folder base before the Git-state fallback for both the catalogue and diff computation. */
+	private _getBranchBaseBranch(source: ProtocolURI, snapshot: ISessionStateSnapshot | undefined): string | undefined {
 		const isSessionFolder = resolveGitHubStateFolder(this._stateManager, source).isSessionFolder;
 		const sourceIsDefaultChat = this._chatOwnership.isRegisteredDefaultChat(source);
-		const persistedBaseBranch = !sourceIsDefaultChat || isSessionFolder
-			? readSessionBaseBranch(await this._sessionStateStore.load(URI.parse(this._containingSessionUri(source))), sourceIsDefaultChat ? undefined : source)
+		const persistedBaseBranch = snapshot && (!sourceIsDefaultChat || isSessionFolder)
+			? readSessionBaseBranch(snapshot, sourceIsDefaultChat ? undefined : source)
 			: undefined;
 		const gitStateBaseBranch = this._gitStateService.getSessionGitState?.(source)?.baseBranchName
 			?? (isSessionFolder && (!isAhpChatChannel(source) || sourceIsDefaultChat)
 				? readSessionGitState(this._stateManager.getSessionState(this._containingSessionUri(source))?._meta)?.baseBranchName
 				: undefined);
 		if (!persistedBaseBranch && gitStateBaseBranch) {
-			this._logService.debug(`[AgentHostChangesetService] Using _meta.git base branch fallback for Branch Changes in ${session}: ${gitStateBaseBranch}`);
+			this._logService.debug(`[AgentHostChangesetService] Using _meta.git base branch fallback for Branch Changes in ${source}: ${gitStateBaseBranch}`);
 		}
-		return resolveDiffBaseBranchName(persistedBaseBranch, gitStateBaseBranch);
+		return persistedBaseBranch || gitStateBaseBranch;
 	}
 
 	/**

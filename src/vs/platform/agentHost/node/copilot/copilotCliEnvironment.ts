@@ -16,12 +16,13 @@ const STRIPPED_ENV_KEYS = new Set<string>([...HYDRAFUSION_ENV_KEYS, ...RUNTIME_L
 const STRIPPED_FEATURE_FLAGS = new Set<string>([...HYDRAFUSION_ENV_KEYS, ...RUNTIME_LOCAL_MODEL_FLAG_KEYS]);
 const ENABLED_FEATURE_FLAGS_ENV_KEY = 'COPILOT_CLI_ENABLED_FEATURE_FLAGS';
 
-export function createCopilotCliEnvironment(environment: NodeJS.ProcessEnv = process.env, omittedKeys: readonly string[] = [], claudeAdvisorEnabled = false, skillCharBudget = DEFAULT_COPILOT_SKILL_CHAR_BUDGET): Record<string, string | undefined> {
+export function createCopilotCliEnvironment(environment: NodeJS.ProcessEnv = process.env, omittedKeys: readonly string[] = [], claudeAdvisorEnabled = false, skillCharBudget = DEFAULT_COPILOT_SKILL_CHAR_BUDGET, omitAmbientAuthentication = false): Record<string, string | undefined> {
 	const normalizedOmittedKeys = new Set(omittedKeys.map(key => isWindows ? key.toLowerCase() : key));
 	const env: Record<string, string | undefined> = {};
 	for (const [key, value] of Object.entries(environment)) {
 		const normalizedKey = isWindows ? key.toUpperCase() : key;
-		if (!normalizedOmittedKeys.has(isWindows ? key.toLowerCase() : key) && !STRIPPED_ENV_KEYS.has(normalizedKey)) {
+		if (!normalizedOmittedKeys.has(isWindows ? key.toLowerCase() : key) && !STRIPPED_ENV_KEYS.has(normalizedKey)
+			&& (!omitAmbientAuthentication || /^GIT_CONFIG_/i.test(key) || !/(?:TOKEN|_KEY|SECRET|PASSWORD)|^(?:COPILOT_|GITHUB_|GH_|ANTHROPIC_|OPENAI_|AZURE_OPENAI_|VSCODE_AGENT_HOST_CAPI_)/i.test(key))) {
 			env[key] = value;
 		}
 	}

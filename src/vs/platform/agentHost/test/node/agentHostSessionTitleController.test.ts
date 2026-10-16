@@ -25,8 +25,7 @@ import { AgentHostSessionTitleController, type AutomaticTitleGenerationStrategy 
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { ActionType, NotificationType } from '../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, MessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, TurnState, type ResponsePart, type SessionSummary, type ToolCallCompletedState, type Turn } from '../../common/state/sessionState.js';
-import { GitHubIssueOrPullRequest, GitHubIssueRef } from '../../../github/common/githubQueryService.js';
-import { IGitHubQuery } from '../../../github/common/githubQueryServiceImpl.js';
+import { GitHubIssueOrPullRequest, GitHubIssueRef, GitHubQueryApi } from '../../../github/common/githubQueryService.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 import { AgentHostUtilityModelUnavailableError, AgentHostUtilityModelUnavailableReason, type IAgentHostUtilityModelContext, type IAgentHostUtilityModelService } from '../../node/agentHostUtilityModelService.js';
 import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
@@ -78,7 +77,7 @@ function createUtilityModelService(copilotApiService: TestCopilotApiService, get
 	};
 }
 
-class TestGitHubQuery extends mock<IGitHubQuery>() {
+class TestGitHubQuery extends mock<GitHubQueryApi>() {
 	readonly calls: { owner: string; repo: string; number: number; accountId: string; signal: AbortSignal }[] = [];
 	readonly responses = new Map<string, GitHubIssueOrPullRequest | Error>();
 	readonly pendingResponses = new Set<string>();
@@ -152,7 +151,7 @@ suite('AgentHostSessionTitleController', () => {
 		title = '',
 		getGitHubCopilotToken = () => 'gh-token',
 		query = new TestGitHubQuery(),
-		getGitHubToken = () => 'github-token',
+		getGitHubToken: (session: string) => string | undefined = () => 'github-token',
 		gitHubContextRequestTimeout?: number,
 		getGitHubHost = () => 'github.com',
 		initialTitleGenerationStrategy: AutomaticTitleGenerationStrategy = 'utility',
@@ -1002,6 +1001,17 @@ suite('AgentHostSessionTitleController', () => {
 		});
 	});
 
+	test('GitHub title enrichment requests credentials for the authoritative session', async () => {
+		const sessions: string[] = [];
+		const { controller, session, db, query } = setup(undefined, undefined, undefined, undefined, key => {
+			sessions.push(key);
+			return undefined;
+		});
+		controller.seedTitleFromFirstMessage(session.toString(), 'Explain https://github.com/microsoft/vscode/issues/42');
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Generated title', 'generated title should be persisted');
+		assert.deepStrictEqual({ sessions, githubRequests: query.calls }, { sessions: [session.toString()], githubRequests: [] });
+	});
+
 	test('seedTitleFromFirstMessage applies fallback and persists generated title', async () => {
 		const copilotApiService = new TestCopilotApiService();
 		copilotApiService.response = '"Generated title."';
@@ -1123,6 +1133,8 @@ suite('AgentHostSessionTitleController', () => {
 				override readonly onDidChangeAuthToken = Event.None;
 				override getAuthAccount() { return undefined; }
 				override getAuthToken() { return 'test-token'; }
+				override getSessionCredentialSource() { return undefined; }
+				override getSessionCredentialPrincipal() { return undefined; }
 			}();
 			const gitHubService = disposables.add(new AgentHostGitHubService({
 				fetch: async (input, init) => {
