@@ -14843,6 +14843,136 @@ suite('AgentService (node dispatcher)', () => {
 				]);
 			});
 
+			test('a parked legacy session that restores through its own lookup is released, so it converts and its chats can move', async () => {
+				// Codex reads a session lazily: until a restore activates it, a passive lookup returns nothing and its
+				// catalog stays unreadable. Restoring one session neither makes the catalog readable nor marks it dirty.
+				class LazyCatalogAgent extends TimedExternalAgent {
+					override async listChatsToMigrate(): Promise<typeof AgentChatMigrationDeferred> {
+						return AgentChatMigrationDeferred;
+					}
+					override async listSessions() {
+						return [];
+					}
+					override async getChatMetadata(chat: URI, _context: URI | IAgentChatContext, _providerData?: string, options?: IAgentChatMetadataOptions): Promise<IAgentChatMetadata | undefined> {
+						return options?.activation === 'restore' ? { chat, startTime: 10, modifiedTime: 10, summary: 'Older' } : undefined;
+					}
+				}
+				const orchestratorDatabase = disposables.add(new AgentHostDatabase(':memory:'));
+				const session = AgentSession.uri('copilot', 'older-restored');
+				await orchestratorDatabase.registerRuntimeSession(session.toString(), {
+					provider: 'copilot', startTime: 10, modifiedTime: 10, source: 'explicit',
+				}, { checkTombstone: false });
+				const sessionData = createPerSessionDataService();
+				await sessionData.database(session).createTurn('turn-1');
+				const svc = disposables.add(createTestAgentService(
+					new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+					undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, orchestratorDatabase, undefined, undefined,
+					{ schedule: () => toDisposable(() => { }) },
+				));
+				await svc.whenCatalogReconciliationIdle();
+				const agent = disposables.add(new LazyCatalogAgent('copilot'));
+				registerTestAgentProvider(svc, agent);
+				await waitForInitialProviderMigration(svc, agent);
+				const internals = svc as unknown as {
+					readonly _catalogReconciliationService: { isParked(session: string): boolean; schedule(): void };
+					_normalizeCatalogForMove(session: string): Promise<void>;
+				};
+				await runCatalogReconciliationPass(svc);
+				const parkedBeforeRestore = internals._catalogReconciliationService.isParked(session.toString());
+				// Whether a pass is requested once the session is released (passes run only when the test runs them).
+				const reconciliation = internals._catalogReconciliationService;
+				const schedule = reconciliation.schedule.bind(reconciliation);
+				let passOwedAfterRelease = false;
+				reconciliation.schedule = () => {
+					passOwedAfterRelease ||= !reconciliation.isParked(session.toString());
+					schedule();
+				};
+
+				await svc.restoreSession(session);
+				const parkedAfterRestore = internals._catalogReconciliationService.isParked(session.toString());
+				await runCatalogReconciliationPass(svc);
+				const [converted] = await orchestratorDatabase.readCatalogSnapshot([session.toString()]);
+				const move = await internals._normalizeCatalogForMove(session.toString()).then(() => 'movable', error => String(error));
+
+				assert.deepStrictEqual({ parkedBeforeRestore, parkedAfterRestore, passOwedAfterRelease, authority: converted.authorityVersion, move }, {
+					parkedBeforeRestore: true,
+					parkedAfterRestore: false,
+					passOwedAfterRelease: true,
+					authority: 2,
+					move: 'movable',
+				});
+			});
+
+			test('legacy sessions their provider cannot read its catalog for are parked, then woken and converted when it becomes readable', async () => {
+				// Production: about 70 older codex sessions whose provider is registered but whose catalog is unreadable
+				// had their session database opened on every pass, indefinitely.
+				let catalogReadable = false;
+				class InitiallyUnreadableCatalogAgent extends TimedExternalAgent {
+					override async listChatsToMigrate(): Promise<IAgentListedChat[] | typeof AgentChatMigrationDeferred> {
+						return catalogReadable ? [] : AgentChatMigrationDeferred;
+					}
+					override async listSessions() {
+						return [];
+					}
+					override async getChatMetadata(chat: URI): Promise<IAgentChatMetadata | undefined> {
+						return catalogReadable ? { chat, startTime: 10, modifiedTime: 10, summary: 'Older' } : undefined;
+					}
+				}
+				// The real database: the test double cannot convert a catalog.
+				const orchestratorDatabase = disposables.add(new AgentHostDatabase(':memory:'));
+				const sessions = Array.from({ length: 70 }, (_, index) => AgentSession.uri('copilot', `older-${index}`));
+				for (const session of sessions) {
+					await orchestratorDatabase.registerRuntimeSession(session.toString(), {
+						provider: 'copilot', startTime: 10, modifiedTime: 10, source: 'explicit',
+					}, { checkTombstone: false });
+				}
+				const sessionData = createPerSessionDataService();
+				for (const session of sessions) {
+					await sessionData.database(session).createTurn('turn-1');
+				}
+				const svc = disposables.add(createTestAgentService(
+					new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+					undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, orchestratorDatabase, undefined, undefined,
+					// Passes run only when the test runs them, as user activity runs them every 30 s.
+					{ schedule: () => toDisposable(() => { }) },
+				));
+				await svc.whenCatalogReconciliationIdle();
+				const agent = disposables.add(new InitiallyUnreadableCatalogAgent('copilot'));
+				registerTestAgentProvider(svc, agent);
+				await waitForInitialProviderMigration(svc, agent);
+				const runPass = async () => {
+					sessionData.databaseOpens.length = 0;
+					const outcomes = await runCatalogReconciliationPass(svc) as readonly { readonly status: string; readonly reason: string }[];
+					return { databaseOpens: sessionData.databaseOpens.length, outcomes: [...new Set(outcomes.map(outcome => `${outcome.status} ${outcome.reason}`))] };
+				};
+
+				const unreadable: Awaited<ReturnType<typeof runPass>>[] = [];
+				for (let pass = 0; pass < 6; pass++) {
+					unreadable.push(await runPass());
+				}
+				catalogReadable = true;
+				await (svc as unknown as { _awaitInitialProviderMigrationForProvider(provider: IAgent, requireReadableCatalog: boolean): Promise<boolean> })._awaitInitialProviderMigrationForProvider(agent, true);
+				const readable = [await runPass(), await runPass()];
+				const snapshots = await orchestratorDatabase.readCatalogSnapshot(sessions.map(session => session.toString()));
+
+				assert.deepStrictEqual({
+					unreadable,
+					readable: readable.map(pass => pass.outcomes),
+					converted: snapshots.filter(snapshot => snapshot.authorityVersion === 2).length,
+				}, {
+					// Each session's storage is opened only by the re-projection that parks it, in a batch of 50 (unparked: 150 opens
+					// every pass, indefinitely). Conversion opens nothing while it cannot convert.
+					unreadable: [
+						{ databaseOpens: 150, outcomes: ['retry providerUnavailable'] },
+						{ databaseOpens: 60, outcomes: ['retry providerUnavailable'] },
+						...Array.from({ length: 4 }, () => ({ databaseOpens: 0, outcomes: [] })),
+					],
+					// Woken, each re-projection finds its aggregate current, which releases its conversion.
+					readable: [['skipped synchronized'], ['skipped synchronized']],
+					converted: sessions.length,
+				});
+			});
+
 			test('keeps a provisional session the provider can still describe', async () => {
 				// The marker survived but materialization did happen (a promotion
 				// write that never landed). The provider vouches, so the session
@@ -33351,8 +33481,8 @@ suite('AgentService (node dispatcher)', () => {
 
 				test('a target whose legacy catalog is parked (its chats can\'t be verified)', async () => {
 					const { env, database, target } = await setupLegacyTarget();
-					const reconciliation = (env.service as unknown as { _catalogReconciliationService: { _park(session: string, observedDirty: number | undefined): Promise<unknown> } })._catalogReconciliationService;
-					await reconciliation._park(target.toString(), await database.getSessionV2PayloadDirty(target.toString()));
+					const reconciliation = (env.service as unknown as { _catalogReconciliationService: { _park(registered: Pick<IRegisteredSession, 'session' | 'provider'>, observedDirty: number | undefined, observedWakeGeneration: number, reason: 'sourceUnresolvable'): Promise<unknown>; readonly _wakeGeneration: number } })._catalogReconciliationService;
+					await reconciliation._park({ session: target, provider: 'copilot' }, await database.getSessionV2PayloadDirty(target.toString()), reconciliation._wakeGeneration, 'sourceUnresolvable');
 
 					const first = await refuse(env, target);
 					// Refused again, it changes nothing either: an attempt leaves nothing behind for the next one to act on.
@@ -33367,10 +33497,10 @@ suite('AgentService (node dispatcher)', () => {
 
 				test('a target its conversion attempt finds unverifiable (parked meanwhile) is a legacy catalog', async () => {
 					const { env, database, target } = await setupLegacyTarget();
-					const internals = env.service as unknown as IMoveInternals & { _catalogReconciliationService: { _park(session: string, observedDirty: number | undefined): Promise<unknown> } };
+					const internals = env.service as unknown as IMoveInternals & { _catalogReconciliationService: { _park(registered: Pick<IRegisteredSession, 'session' | 'provider'>, observedDirty: number | undefined, observedWakeGeneration: number, reason: 'sourceUnresolvable'): Promise<unknown>; readonly _wakeGeneration: number } };
 					// The conversion fails because the provider can't vouch for the target's chats, and its reconciliation parks it.
 					internals._migrateChatCatalog = async session => {
-						await internals._catalogReconciliationService._park(session.toString(), await database.getSessionV2PayloadDirty(session.toString()));
+						await internals._catalogReconciliationService._park({ session, provider: 'copilot' }, await database.getSessionV2PayloadDirty(session.toString()), internals._catalogReconciliationService._wakeGeneration, 'sourceUnresolvable');
 					};
 
 					const outcome = await refuse(env, target);
@@ -33443,7 +33573,7 @@ suite('AgentService (node dispatcher)', () => {
 				const stateManager = getStateManager(service);
 				const internals = service as unknown as IMoveInternals & {
 					_workspaceConversionService: { restoreChatIsolation(session: string, chat: string, storage: string): Promise<void> };
-					_catalogReconciliationService: { _park(session: string, observedDirty: number | undefined): Promise<unknown>; wakeParkedSessions(session?: string): void };
+					_catalogReconciliationService: { _park(registered: Pick<IRegisteredSession, 'session' | 'provider'>, observedDirty: number | undefined, observedWakeGeneration: number, reason: 'sourceUnresolvable'): Promise<unknown>; readonly _wakeGeneration: number; wakeParkedSessions(session?: string): void };
 					_sessionStateStore: { peek(session: URI): { readonly authority: 1 | 2 } | undefined };
 					_sessionDataService: ISessionDataService;
 				};
@@ -33475,7 +33605,7 @@ suite('AgentService (node dispatcher)', () => {
 				// The catalog reconciliation reports a session it parked, and its release; a parked session's legacy catalog can't convert.
 				const peek = internals._sessionStateStore.peek.bind(internals._sessionStateStore);
 				internals._sessionStateStore.peek = resource => resource.toString() === source.toString() ? { ...peek(resource)!, authority: 1 } : peek(resource);
-				await internals._catalogReconciliationService._park(source.toString(), await getTestAgentHostDatabase(service).getSessionV2PayloadDirty(source.toString()));
+				await internals._catalogReconciliationService._park({ session: source, provider: 'copilot' }, await getTestAgentHostDatabase(service).getSessionV2PayloadDirty(source.toString()), internals._catalogReconciliationService._wakeGeneration, 'sourceUnresolvable');
 				const parked = await settled();
 				internals._catalogReconciliationService.wakeParkedSessions(source.toString());
 				outcomes.parked = { parked, released: await settled() };

@@ -1294,22 +1294,15 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
-	test('centers status bar items within the floating bottom rail', () => {
-		const measure = (className: string, statusbarHeight: number, railGap: number) => {
+	test('centers status bar items within the status bar background', () => {
+		const measure = (className: string, statusbarHeight: number) => {
 			const root = document.createElement('div');
 			root.className = className;
-			root.style.display = 'inline-flex';
-			root.style.flexDirection = 'column';
 			root.style.setProperty('--vscode-spacing-size20', '2px');
 			root.style.setProperty('--vscode-spacing-size40', '4px');
 			root.style.setProperty('--vscode-spacing-size60', '6px');
 			document.body.appendChild(root);
 			store.add(toDisposable(() => root.remove()));
-
-			const surface = appendElement(root, 'part editor');
-			surface.style.width = '240px';
-			surface.style.height = '20px';
-			surface.style.marginBottom = `${railGap}px`;
 
 			const statusbar = appendElement(root, 'part statusbar');
 			statusbar.style.width = '240px';
@@ -1318,7 +1311,6 @@ suite('ModernUIContribution', () => {
 			const item = appendElement(items, 'statusbar-item left');
 			const label = appendElement(item, 'statusbar-item-label');
 
-			const surfaceBounds = surface.getBoundingClientRect();
 			const statusbarBounds = statusbar.getBoundingClientRect();
 			const itemBounds = item.getBoundingClientRect();
 			const labelBounds = label.getBoundingClientRect();
@@ -1329,16 +1321,16 @@ suite('ModernUIContribution', () => {
 				paddingBottom: statusbarStyle.paddingBottom,
 				itemHeight: itemBounds.height,
 				labelHeight: labelBounds.height,
-				centerOffset: itemBounds.top + itemBounds.height / 2 - (surfaceBounds.bottom + statusbarBounds.bottom) / 2,
+				centerOffset: itemBounds.top + itemBounds.height / 2 - (statusbarBounds.top + statusbarBounds.bottom) / 2,
 			};
 		};
 
 		assert.deepStrictEqual({
-			defaultDensity: measure('monaco-workbench modern-ui floating-panels', 28, 4),
-			compactDensity: measure('monaco-workbench modern-ui modern-ui-compact floating-panels', 26, 0),
-			classic: measure('monaco-workbench', 22, 0),
+			defaultDensity: measure('monaco-workbench modern-ui floating-panels', 28),
+			compactDensity: measure('monaco-workbench modern-ui modern-ui-compact floating-panels', 26),
+			classic: measure('monaco-workbench', 22),
 		}, {
-			defaultDensity: { paddingTop: '0px', paddingBottom: '4px', itemHeight: 24, labelHeight: 24, centerOffset: 0 },
+			defaultDensity: { paddingTop: '2px', paddingBottom: '2px', itemHeight: 24, labelHeight: 24, centerOffset: 0 },
 			compactDensity: { paddingTop: '2px', paddingBottom: '2px', itemHeight: 22, labelHeight: 22, centerOffset: 0 },
 			classic: { paddingTop: '0px', paddingBottom: '0px', itemHeight: 22, labelHeight: 22, centerOffset: 0 },
 		});

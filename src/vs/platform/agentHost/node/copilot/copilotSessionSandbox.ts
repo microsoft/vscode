@@ -77,7 +77,7 @@ export class CopilotSessionSandbox extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
-		this._diagnostics = this._register(instantiationService.createInstance(CopilotSandboxDiagnostics, _options.ownerSession.toString(), _options.getHostSupport));
+		this._diagnostics = this._register(instantiationService.createInstance(CopilotSandboxDiagnostics, _options.ownerSession.toString(), _options.getHostSupport, _options.platform));
 		this._certificateDiagnostics = this._register(instantiationService.createInstance(CopilotSandboxCertificateDiagnostics, _options.getConfigWriteTarget, _options.getCertificateStatus));
 	}
 

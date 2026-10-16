@@ -19,7 +19,7 @@ import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../..
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentConnection, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { withAgentSandboxCertificate, type IAgentSandboxCertificateStatus } from '../../../../../../platform/agentHost/common/meta/agentSandboxCertificate.js';
-import { agentSandboxDiagnosticsMetaKey } from '../../../../../../platform/agentHost/common/meta/agentSandboxDiagnostics.js';
+import { agentSandboxDiagnosticsMetaKey, agentSandboxLocalNetworkRequiredMetaKey } from '../../../../../../platform/agentHost/common/meta/agentSandboxDiagnostics.js';
 import { withSessionSandboxPolicy } from '../../../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
 import { withChatSandboxState, withSessionSandboxState } from '../../../../../../platform/agentHost/common/meta/agentSandboxStateMeta.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -170,6 +170,16 @@ suite('AgentHostSandboxNotification', () => {
 				...this.verifiedValue,
 				defaultChat: this.verifiedValue.defaultChat ?? chat,
 				_meta: withAgentSandboxCertificate(this.verifiedValue._meta, chat, certificate),
+			};
+			this._onDidChange.fire(this.value);
+		}
+		setLocalNetworkRequired(required: boolean, managed = false): void {
+			this.value = {
+				...this.verifiedValue,
+				_meta: withSessionSandboxPolicy({
+					...this.verifiedValue._meta,
+					[agentSandboxLocalNetworkRequiredMetaKey]: required,
+				}, managed ? { enabled: true, allowLocalNetwork: false } : undefined),
 			};
 			this._onDidChange.fire(this.value);
 		}
@@ -1194,6 +1204,123 @@ suite('AgentHostSandboxNotification', () => {
 			other.dispose();
 			subscription.setCertificate(certificate);
 			assert.deepStrictEqual([reopened, shown, newWindow.notifications.size], [0, 1, 0]);
+		});
+	});
+
+	test('shows host-reported local network guidance as information with a trusted settings link', () => {
+		const subscription = store.add(new TestSubscription());
+		subscription.setValue();
+		subscription.setLocalNetworkRequired(true);
+		const service = new NotificationService();
+		createNotification(resource, subscription, service);
+		const notification = [...service.notifications.values()][0];
+		const message = notification.message;
+		assert.ok(isMarkdownString(message));
+		const invoked: { command: string; args: string[] }[] = [];
+		const rendered = store.add(renderMarkdown(message, {
+			actionHandler: url => {
+				const uri = URI.parse(url);
+				invoked.push({ command: uri.path, args: JSON.parse(decodeURIComponent(uri.query)) });
+			},
+		}));
+		const links = [...rendered.element.querySelectorAll('a')];
+		links[0].click();
+
+		assert.deepStrictEqual({
+			severity: notification.severity,
+			description: notification.description,
+			text: rendered.element.textContent?.replace(/\u00a0/g, ' '),
+			links: links.map(link => link.textContent),
+			trust: message.isTrusted,
+			invoked,
+			dismissible: notification.dismissible,
+			autoDismissOnMessage: notification.autoDismissOnMessage,
+			sessionResources: notification.sessionResources,
+			dispatched,
+		}, {
+			severity: ChatInputNotificationSeverity.Info,
+			description: undefined,
+			text: 'Sandboxing requires access to local network. Allow',
+			links: ['Allow'],
+			trust: { enabledCommands: ['workbench.action.openSettings'] },
+			invoked: [{ command: 'workbench.action.openSettings', args: [`@id:${AgentSandboxSettingId.AgentSandboxAllowLocalNetwork}`] }],
+			dismissible: true,
+			autoDismissOnMessage: false,
+			sessionResources: [resource],
+			dispatched: [],
+		});
+	});
+
+	test('clears local network guidance when the host resolves it or disconnects', () => {
+		const subscription = store.add(new TestSubscription());
+		subscription.setValue();
+		const service = new NotificationService();
+		createNotification(resource, subscription, service);
+		const snapshots = [service.notifications.size];
+		subscription.setLocalNetworkRequired(true);
+		snapshots.push(service.notifications.size);
+		subscription.setLocalNetworkRequired(false);
+		snapshots.push(service.notifications.size);
+		subscription.setLocalNetworkRequired(true);
+		snapshots.push(service.notifications.size);
+		subscription.setError();
+		snapshots.push(service.notifications.size);
+
+		assert.deepStrictEqual(snapshots, [0, 1, 0, 1, 0]);
+	});
+
+	test('does not republish unchanged local network guidance and retains dismissal on recreation', () => {
+		const subscription = store.add(new TestSubscription());
+		subscription.setValue();
+		subscription.setLocalNetworkRequired(true);
+		const service = new NotificationService();
+		const notification = createNotification(resource, subscription, service);
+		subscription.setLocalNetworkRequired(true);
+		service.dismissNotification([...service.notifications.keys()][0]);
+		notification.dispose();
+		createNotification(resource, subscription, service);
+
+		assert.deepStrictEqual({ updates: service.updates, notifications: service.notifications.size }, { updates: 1, notifications: 0 });
+	});
+
+	test('explains managed local network denial without offering to disable sandboxing', () => {
+		const subscription = store.add(new TestSubscription());
+		subscription.setValue();
+		subscription.setLocalNetworkRequired(true);
+		const service = new NotificationService();
+		createNotification(resource, subscription, service);
+		subscription.setLocalNetworkRequired(true, true);
+		const notification = [...service.notifications.values()][0];
+		assert.ok(isMarkdownString(notification.message));
+		const rendered = store.add(renderMarkdown(notification.message));
+
+		assert.deepStrictEqual({
+			severity: notification.severity,
+			text: rendered.element.textContent?.replace(/\u00a0/g, ' '),
+			links: [...rendered.element.querySelectorAll('a')].map(link => link.textContent),
+		}, {
+			severity: ChatInputNotificationSeverity.Info,
+			text: 'Your organization disables local network access, which some sandboxing features need. Allow',
+			links: ['Allow'],
+		});
+	});
+
+	test('dependency warnings take precedence over local network guidance', () => {
+		const subscription = store.add(new TestSubscription());
+		subscription.setValue(['Missing dependencies.']);
+		subscription.setLocalNetworkRequired(true);
+		const service = new NotificationService();
+		createNotification(resource, subscription, service);
+		const notification = [...service.notifications.values()][0];
+		assert.ok(isMarkdownString(notification.description));
+		const rendered = store.add(renderMarkdown(notification.description));
+
+		assert.deepStrictEqual({
+			severity: notification.severity,
+			links: [...rendered.element.querySelectorAll('a')].map(link => link.textContent),
+		}, {
+			severity: ChatInputNotificationSeverity.Warning,
+			links: ['Troubleshooting Guide', 'Disable Sandboxing'],
 		});
 	});
 
