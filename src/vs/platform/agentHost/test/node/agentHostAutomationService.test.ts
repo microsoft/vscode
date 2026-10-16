@@ -152,7 +152,7 @@ suite('AgentHostAutomationService', () => {
 			isSessionTemplateAvailable: execution?.isSessionTemplateAvailable ?? (() => true),
 			createSessionResource: execution?.createSessionResource ?? (() => AgentSession.uri('mock', generateUuid())),
 			createSession: execution?.createSession ?? (async () => { throw new Error('Unexpected session creation'); }),
-			hasSession: execution?.hasSession ?? (async session => stateManager.getSessionState(session.toString()) !== undefined),
+			getRecoverableSessionProvider: execution?.getRecoverableSessionProvider ?? (async session => stateManager.getSessionState(session.toString())?.provider),
 			deleteSession: execution?.deleteSession ?? (async session => { stateManager.deleteSession(session.toString()); }),
 			startSession: execution?.startSession ?? (async () => { throw new Error('Unexpected session start'); }),
 			cancelSession: execution?.cancelSession ?? (async () => false),
@@ -1324,7 +1324,7 @@ suite('AgentHostAutomationService', () => {
 				writeFailures = 1;
 				return requestedSession;
 			},
-			hasSession: async () => true,
+			getRecoverableSessionProvider: async () => 'mock',
 			startSession: async () => { startCalls++; },
 		});
 		await enableAndCreate(service);
@@ -1365,7 +1365,7 @@ suite('AgentHostAutomationService', () => {
 			const result = await service.runAutomation({ channel: 'ahp-automations://', automation: 'ahp-automation:/review-changes', requestId: 'interrupted-creation' });
 			await creating.p;
 			service.dispose();
-			const recovered = createService({ hasSession: async () => sessionCreated });
+			const recovered = createService({ getRecoverableSessionProvider: async () => sessionCreated ? 'mock' : undefined });
 			try {
 				await terminalRun(result.resource);
 			} finally {
@@ -1389,6 +1389,39 @@ suite('AgentHostAutomationService', () => {
 			});
 		});
 	}
+
+	test('restart recovery keeps the registered provider of a native ahp-session', async () => {
+		const session = URI.parse('ahp-session:/interrupted-native');
+		const creating = new DeferredPromise<void>();
+		const release = new DeferredPromise<URI>();
+		const service = createService({
+			createSessionResource: () => session,
+			createSession: async () => {
+				creating.complete();
+				return release.p;
+			},
+		});
+		await enableAndCreate(service);
+		const result = await service.runAutomation({ channel: 'ahp-automations://', automation: 'ahp-automation:/review-changes', requestId: 'interrupted-native' });
+		await creating.p;
+		service.dispose();
+		createService({ getRecoverableSessionProvider: async () => 'copilotcli' });
+		try {
+			await terminalRun(result.resource);
+		} finally {
+			await release.complete(session);
+		}
+
+		assert.deepStrictEqual({
+			uriProvider: AgentSession.provider(session),
+			primarySession: stateManager.getAutomationRunState(result.resource)?.primarySession,
+			storedProvider: storageService.get<{ runProviders?: Record<string, string> }>('automations')?.runProviders?.[result.resource],
+		}, {
+			uriProvider: undefined,
+			primarySession: session.toString(),
+			storedProvider: 'copilotcli',
+		});
+	});
 
 	test('keeps deleted Automation history paginated and non-runnable after restart', async () => {
 		const runs = await storeCompletedHistory(60);
@@ -1485,7 +1518,7 @@ suite('AgentHostAutomationService', () => {
 		let available = false;
 		const deleted: string[] = [];
 		const service = createService({
-			hasSession: async () => false,
+			getRecoverableSessionProvider: async () => undefined,
 			deleteSession: async session => {
 				if (!available) {
 					attempted.complete();

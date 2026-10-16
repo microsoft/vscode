@@ -84,7 +84,8 @@ export interface IAgentHostAutomationExecution {
 	isSessionTemplateAvailable(template: AutomationSessionTemplate, reader?: IReader): boolean;
 	createSessionResource(template: AutomationSessionTemplate): URI | Promise<URI>;
 	createSession(template: AutomationSessionTemplate, run: AutomationRunState, session: URI, activeClient?: SessionActiveClient): Promise<URI>;
-	hasSession(session: URI, run: AutomationRunState): Promise<boolean>;
+	/** The registered provider of `session` when it was durably created for `run`; otherwise `undefined`. */
+	getRecoverableSessionProvider(session: URI, run: AutomationRunState): Promise<string | undefined>;
 	deleteSession(session: URI): Promise<void>;
 	startSession(session: URI, message: Message): Promise<void>;
 	cancelSession(session: URI): Promise<boolean>;
@@ -965,9 +966,11 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		const sessionCreations = new Map(this._sessionCreationByRun);
 		let recoveredProvider: string | undefined;
 		if (pendingSession !== undefined && !this._sessionCreationsInFlight.has(resource)) {
-			if (await this._execution.hasSession(URI.parse(pendingSession), run)) {
+			const recoveredSessionProvider = await this._execution.getRecoverableSessionProvider(URI.parse(pendingSession), run);
+			if (recoveredSessionProvider !== undefined) {
 				run = { ...run, sessions: [...new Set([...run.sessions, pendingSession])], primarySession: pendingSession };
-				recoveredProvider = this._stateManager.getSessionSummary(pendingSession)?.provider ?? AgentSession.provider(pendingSession);
+				// Native `ahp-session` URIs carry no provider, and restart recovery runs before session summaries exist.
+				recoveredProvider = recoveredSessionProvider;
 				actions.push(
 					{ type: ActionType.AutomationRunSessionSet, session: pendingSession },
 					{ type: ActionType.AutomationRunPrimarySessionChanged, primarySession: pendingSession },

@@ -1027,17 +1027,18 @@ export class AgentService extends Disposable implements IAgentService {
 				automation: run.automation,
 				run: run.resource,
 			}),
-			hasSession: async (session, run) => {
-				if (await this._sessionRegistry.get(session) === undefined || (await this._sessionRegistry.listProvisional()).has(session.toString())) {
-					return false;
+			getRecoverableSessionProvider: async (session, run) => {
+				const registered = await this._sessionRegistry.get(session);
+				if (registered === undefined || (await this._sessionRegistry.listProvisional()).has(session.toString())) {
+					return undefined;
 				}
 				const database = await this._sessionDataService.tryOpenDatabase(session);
 				if (database === undefined) {
-					return false;
+					return undefined;
 				}
 				try {
 					const origin = readPersistedSessionOrigin(await database.object.getMetadata(SESSION_ORIGIN_KEY));
-					return origin?.kind === SessionOriginKind.Automation && origin.automation === run.automation && origin.run === run.resource;
+					return origin?.kind === SessionOriginKind.Automation && origin.automation === run.automation && origin.run === run.resource ? registered.provider : undefined;
 				} finally {
 					database.dispose();
 				}
