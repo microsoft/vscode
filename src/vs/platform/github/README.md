@@ -11,7 +11,7 @@ Reusable GitHub engine and cross-target architecture.
 
 ## Current implementation
 
-[GitHubService](common/githubService.ts) owns shared admission, cooldowns and telemetry. It supplies explicit authorization-scoped clients composing credentials, capabilities, transport, queries, mutations, PR subscriptions, and Mission Control domains.
+[GitHubService](common/githubService.ts) owns shared admission, cooldowns and telemetry. Its legacy `IGitHubClient` combines credentials, capabilities, transport, queries, mutations, and PR subscriptions. Mission Control domains are exposed only by the portable [account facade](common/account/accountClient.ts) over execution-provider leases.
 
 - The [workbench binding](../../workbench/services/github/browser/githubService.ts) selects the default account or an explicit session in the renderer. Legacy consumers retain their in-process clients. Portable default-account clients execute locally on web and through the [desktop IPC binding](../../workbench/services/github/electron-browser/githubService.ts) on desktop.
 - The [Agent Host binding](../agentHost/node/agentHostGitHubService.ts) selects its host-owned repository credential resource without an attached workbench. Repository/PR association, creation, merge settings, auto-merge and issue/PR title context use its explicit clients. Copilot discovery and model requests still use the existing [Agent Host Copilot service](../agentHost/node/shared/copilotApiService.ts); migrating them is a separate change.
