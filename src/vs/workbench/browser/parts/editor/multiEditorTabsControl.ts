@@ -2362,8 +2362,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 	private updateWrappedAddTabAlignment(tabsWrapMultiLine: boolean): void {
 		const addTabContainer = this.addTabContainer;
+		const editorToolbarsContainer = this.editorToolbarsContainer;
 		const tabsContainer = this.tabsContainer;
-		if (!addTabContainer || !tabsContainer) {
+		if (!addTabContainer || !editorToolbarsContainer || !tabsContainer) {
 			return;
 		}
 
@@ -2379,6 +2380,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			return;
 		}
 
+		addTabContainer.style.removeProperty('--modern-ui-editor-tab-left-inset');
 		const targetWindow = getWindow(tabsContainer);
 		const rightToLeft = targetWindow.getComputedStyle(tabsContainer).direction === 'rtl';
 		const leadingTab = precedingRowTabs.reduce((leading, tab) => {
@@ -2387,8 +2389,14 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			return rightToLeft ? bounds.right > leadingBounds.right ? tab : leading : bounds.left < leadingBounds.left ? tab : leading;
 		});
 		const leadingTabStyle = targetWindow.getComputedStyle(leadingTab);
-		const leadingContentInset = rightToLeft ? leadingTabStyle.paddingRight : leadingTabStyle.paddingLeft;
-		addTabContainer.style.setProperty('--modern-ui-editor-tab-left-inset', leadingContentInset);
+		const desiredInset = Number.parseFloat(rightToLeft ? leadingTabStyle.paddingRight : leadingTabStyle.paddingLeft);
+		const tabsContainerStyle = targetWindow.getComputedStyle(tabsContainer);
+		const baseInset = Number.parseFloat(tabsContainerStyle.getPropertyValue(this.parent.closest(CONNECTED_EDITOR_TABS_SELECTOR) ? '--vscode-spacing-size20' : '--vscode-spacing-size40'));
+		const addTabBounds = addTabContainer.getBoundingClientRect();
+		const toolbarBounds = editorToolbarsContainer.getBoundingClientRect();
+		const availableShift = rightToLeft ? addTabBounds.left + baseInset - toolbarBounds.right : toolbarBounds.left - (addTabBounds.right - baseInset);
+		const effectiveInset = baseInset + Math.min(Math.max(0, desiredInset - baseInset), Math.max(0, availableShift));
+		addTabContainer.style.setProperty('--modern-ui-editor-tab-left-inset', `${effectiveInset}px`);
 	}
 
 	private doLayoutTabsNonWrapping(options?: IMultiEditorTabsControlLayoutOptions): void {

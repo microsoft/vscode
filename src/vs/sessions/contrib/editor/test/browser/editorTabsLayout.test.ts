@@ -316,7 +316,7 @@ suite('Sessions - Editor tabs trailing layout', () => {
 					const oldOptions = partOptions;
 					partOptions = { ...partOptions, ...tabActionOptions, tabHeight };
 					control.updateOptions(oldOptions, partOptions);
-					for (const width of [300, 180]) {
+					for (const width of [300, 240]) {
 						await layout(width);
 						const add = title.querySelector<HTMLElement>('.tabs-bar-add-tab')!;
 						const button = add.querySelector<HTMLElement>('.action-label')!;
@@ -356,6 +356,56 @@ suite('Sessions - Editor tabs trailing layout', () => {
 		}
 		assert.deepStrictEqual(results, results.map(result => ({
 			...result, position: 'relative', stacking: 'isolate', controlsOnlyRow: true, buttonInlineStart: result.tabContentInlineStart, backingWidth: result.buttonWidth, backingCenter: result.buttonCenter, backingZIndex: '-1',
+		})));
+	});
+
+	test('wrapped Add button stays clear of trailing actions when the controls-only row is tight', async () => {
+		const results = [];
+		const oldOptions = partOptions;
+		partOptions = { ...partOptions, tabActionLocation: 'left', tabActionReserveSpace: true, tabHeight: 'compact' };
+		control.updateOptions(oldOptions, partOptions);
+		for (const direction of ['ltr', 'rtl']) {
+			root.dir = direction;
+			for (const style of ['pill', 'connected']) {
+				root.classList.toggle('modern-ui-connected-editor-tabs', style === 'connected');
+				await layout(2000);
+				const strip = title.querySelector<HTMLElement>('.tabs-and-actions-container')!;
+				const tabs = Array.from(strip.querySelectorAll<HTMLElement>('.tabs-container > .tab'));
+				const add = strip.querySelector<HTMLElement>('.tabs-bar-add-tab')!;
+				const addButton = add.querySelector<HTMLElement>('.action-label')!;
+				const toolbar = strip.querySelector<HTMLElement>('.editor-toolbars')!;
+				const controlsWidth = getTotalWidth(add) + getTotalWidth(toolbar);
+				await layout(Math.ceil(controlsWidth) + 12);
+				const leadingTab = tabs.reduce((leading, tab) => {
+					const bounds = tab.getBoundingClientRect();
+					const leadingBounds = leading.getBoundingClientRect();
+					return direction === 'ltr' ? bounds.left < leadingBounds.left ? tab : leading : bounds.right > leadingBounds.right ? tab : leading;
+				});
+				const leadingTabStyle = mainWindow.getComputedStyle(leadingTab);
+				const desiredInset = Number.parseFloat(direction === 'ltr' ? leadingTabStyle.paddingLeft : leadingTabStyle.paddingRight);
+				const tabsBounds = strip.querySelector<HTMLElement>('.tabs-container')!.getBoundingClientRect();
+				const buttonBounds = addButton.getBoundingClientRect();
+				results.push({
+					direction, style,
+					...trailingBounds(strip),
+					controlsOnlyRow: add.classList.contains('controls-only-row'),
+					addOnlyLastRow: tabs.every(tab => tab.offsetTop < add.offsetTop),
+					buttonInlineStart: direction === 'ltr' ? buttonBounds.left - tabsBounds.left : tabsBounds.right - buttonBounds.right,
+					alignmentCapped: (direction === 'ltr' ? buttonBounds.left - tabsBounds.left : tabsBounds.right - buttonBounds.right) < desiredInset,
+				});
+			}
+		}
+		assert.deepStrictEqual(results, results.map(result => ({
+			...result,
+			actions: [2, 2],
+			visibleActions: [2, 2],
+			overlaps: false,
+			inBounds: true,
+			addPosition: 'relative',
+			tabsClear: true,
+			controlsOnlyRow: true,
+			addOnlyLastRow: true,
+			alignmentCapped: result.direction === 'ltr',
 		})));
 	});
 
