@@ -14202,6 +14202,66 @@ suite('AgentService (node dispatcher)', () => {
 				]);
 			});
 
+			test('a parked legacy session that restores through its own lookup is released, so it converts and its chats can move', async () => {
+				// Codex reads a session lazily: until a restore activates it, a passive lookup returns nothing and its
+				// catalog stays unreadable. Restoring one session neither makes the catalog readable nor marks it dirty.
+				class LazyCatalogAgent extends TimedExternalAgent {
+					override async listChatsToMigrate(): Promise<typeof AgentChatMigrationDeferred> {
+						return AgentChatMigrationDeferred;
+					}
+					override async listSessions() {
+						return [];
+					}
+					override async getChatMetadata(chat: URI, _context: URI | IAgentChatContext, _providerData?: string, options?: IAgentChatMetadataOptions): Promise<IAgentChatMetadata | undefined> {
+						return options?.activation === 'restore' ? { chat, startTime: 10, modifiedTime: 10, summary: 'Older' } : undefined;
+					}
+				}
+				const orchestratorDatabase = disposables.add(new AgentHostDatabase(':memory:'));
+				const session = AgentSession.uri('copilot', 'older-restored');
+				await orchestratorDatabase.registerRuntimeSession(session.toString(), {
+					provider: 'copilot', startTime: 10, modifiedTime: 10, source: 'explicit',
+				}, { checkTombstone: false });
+				const sessionData = createPerSessionDataService();
+				await sessionData.database(session).createTurn('turn-1');
+				const svc = disposables.add(createTestAgentService(
+					new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+					undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, orchestratorDatabase, undefined, undefined,
+					{ schedule: () => toDisposable(() => { }) },
+				));
+				await svc.whenCatalogReconciliationIdle();
+				const agent = disposables.add(new LazyCatalogAgent('copilot'));
+				registerTestAgentProvider(svc, agent);
+				await waitForInitialProviderMigration(svc, agent);
+				const internals = svc as unknown as {
+					readonly _catalogReconciliationService: { isParked(session: string): boolean; schedule(): void };
+					_normalizeCatalogForMove(session: string): Promise<void>;
+				};
+				await runCatalogReconciliationPass(svc);
+				const parkedBeforeRestore = internals._catalogReconciliationService.isParked(session.toString());
+				// Whether a pass is requested once the session is released (passes run only when the test runs them).
+				const reconciliation = internals._catalogReconciliationService;
+				const schedule = reconciliation.schedule.bind(reconciliation);
+				let passOwedAfterRelease = false;
+				reconciliation.schedule = () => {
+					passOwedAfterRelease ||= !reconciliation.isParked(session.toString());
+					schedule();
+				};
+
+				await svc.restoreSession(session);
+				const parkedAfterRestore = internals._catalogReconciliationService.isParked(session.toString());
+				await runCatalogReconciliationPass(svc);
+				const [converted] = await orchestratorDatabase.readCatalogSnapshot([session.toString()]);
+				const move = await internals._normalizeCatalogForMove(session.toString()).then(() => 'movable', error => String(error));
+
+				assert.deepStrictEqual({ parkedBeforeRestore, parkedAfterRestore, passOwedAfterRelease, authority: converted.authorityVersion, move }, {
+					parkedBeforeRestore: true,
+					parkedAfterRestore: false,
+					passOwedAfterRelease: true,
+					authority: 2,
+					move: 'movable',
+				});
+			});
+
 			test('legacy sessions their provider cannot read its catalog for are parked, then woken and converted when it becomes readable', async () => {
 				// Production: about 70 older codex sessions whose provider is registered but whose catalog is unreadable
 				// had their session database opened on every pass, indefinitely.
