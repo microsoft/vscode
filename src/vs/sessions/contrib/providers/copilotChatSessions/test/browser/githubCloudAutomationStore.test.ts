@@ -498,15 +498,17 @@ suite('GitHubCloudAutomationStore', () => {
 		});
 	});
 
-	test('registration persists only repository references and leaves fetching to explicit refresh', async () => {
+	test('creation persists repository references for subsequent explicit refreshes', async () => {
 		const { store, api, storage } = setup();
-		await store.registerRepository(workspace);
+		await store.create(workspace, createValue);
 		assert.deepStrictEqual({
 			methods: api.calls.map(call => call.method), entries: store.entries.get(),
 			stored: JSON.parse(storage.get(storageKey, StorageScope.PROFILE)!),
-		}, { methods: ['visibility'], entries: [], stored: [repository] });
+		}, { methods: ['visibility'], entries: [{ repository, definition }], stored: [repository] });
+		const updated = { ...definition, name: 'Updated on GitHub' };
+		api.definitions.set(repository.name, [updated]);
 		await store.refresh();
-		assert.deepStrictEqual(store.entries.get(), [{ repository, definition }]);
+		assert.deepStrictEqual(store.entries.get(), [{ repository, definition: updated }]);
 	});
 
 	test('retains one default client lease across refreshes and releases it on disposal', async () => {
@@ -749,8 +751,7 @@ suite('GitHubCloudAutomationStore', () => {
 	test('client invalidation during local resolution cannot move creation into the new lifetime', async () => {
 		const resolved = new DeferredPromise<URI>();
 		const { store, api, clientInvalidated } = setup(() => resolved.p);
-		await store.registerRepository(workspace);
-		api.calls.length = 0;
+		await store.refresh();
 		const create = assert.rejects(store.create(URI.file('C:\\cold-repository'), createValue), isCancellationError);
 		clientInvalidated.fire();
 		await resolved.complete(workspace);
@@ -779,15 +780,15 @@ suite('GitHubCloudAutomationStore', () => {
 		await store.refresh();
 		api.visibility.set(repository.name, false);
 		await store.refresh();
-		await assert.rejects(store.registerRepository(workspace), /private GitHub repository/);
+		await assert.rejects(store.create(workspace, createValue), /private GitHub repository/);
 		assert.deepStrictEqual({ entries: store.entries.get(), state: store.catalogueState.get(), methods: api.calls.map(call => call.method) }, {
 			entries: [], state: 'ready', methods: ['visibility', 'list', 'visibility', 'visibility'],
 		});
 	});
 
-	test('rejects unsupported registration without requests or stored references', async () => {
+	test('rejects unsupported creation without requests or stored references', async () => {
 		const { store, api, storage } = setup();
-		await assert.rejects(store.registerRepository(workspace.with({ authority: 'enterprise.example' })), /GitHub.com repository/);
+		await assert.rejects(store.create(workspace.with({ authority: 'enterprise.example' }), createValue), /GitHub.com repository/);
 		assert.deepStrictEqual({ calls: api.calls, stored: storage.get(storageKey, StorageScope.PROFILE) }, { calls: [], stored: undefined });
 	});
 
@@ -843,7 +844,7 @@ suite('GitHubCloudAutomationStore', () => {
 
 	test('failed recent repository discovery does not discard a known catalogue', async () => {
 		const { store, api, recents } = setup();
-		await store.registerRepository(workspace);
+		await store.create(workspace, createValue);
 		recents.workspaces = [recentWorkspace(workspace.with({ path: '/microsoft/inaccessible/HEAD' }))];
 		api.visibility.set('inaccessible', new Error('Access denied'));
 		await assert.rejects(store.refresh(), /Some GitHub repositories/);
@@ -872,7 +873,7 @@ suite('GitHubCloudAutomationStore', () => {
 
 	test('account-scoped references survive switching accounts but definitions do not', async () => {
 		const { store, api, changeAccount } = setup();
-		await store.registerRepository(workspace);
+		await store.create(workspace, createValue);
 		await store.refresh();
 		changeAccount({ ...account, accountName: 'other', sessionId: 'auth-2' });
 		assert.deepStrictEqual(store.entries.get(), []);
@@ -934,46 +935,48 @@ suite('GitHubCloudAutomationStore', () => {
 		});
 	});
 
-	test('late eligibility checks cannot register repositories after an account reset', async () => {
+	test('late creation preflight cannot persist repositories or dispatch after an account reset', async () => {
 		const { store, api, changeAccount, storage } = setup();
 		const pending = new DeferredPromise<boolean>();
 		api.visibility.set(repository.name, pending.p);
-		const registration = store.registerRepository(workspace);
+		const create = store.create(workspace, createValue);
 		await api.visibilityStarted.p;
-		const rejected = assert.rejects(registration, isCancellationError);
+		const rejected = assert.rejects(create, isCancellationError);
 		changeAccount(account);
 		await pending.complete(true);
 		await rejected;
-		assert.strictEqual(storage.get(storageKey, StorageScope.PROFILE), undefined);
+		assert.deepStrictEqual({
+			stored: storage.get(storageKey, StorageScope.PROFILE), mutations: api.mutations, entries: store.entries.get(),
+		}, { stored: undefined, mutations: [], entries: [] });
 	});
 
-	test('registration during refresh is retained for the next refresh', async () => {
+	test('creation queued during refresh is retained for the next refresh', async () => {
 		const { store, api, recents, storage } = setup();
 		recents.workspaces = [recentWorkspace(workspace)];
 		const pending = new DeferredPromise<readonly AutomationDetail[]>();
 		api.definitions.set(repository.name, pending.p);
 		const refresh = store.refresh();
 		await api.listStarted.p;
-		await store.registerRepository(workspace.with({ path: '/microsoft/other/HEAD' }));
+		const create = store.create(workspace.with({ path: '/microsoft/other/HEAD' }), createValue);
 		await pending.complete([definition]);
-		await refresh;
+		await Promise.all([refresh, create]);
 		recents.workspaces = [];
 		await store.refresh();
 		assert.deepStrictEqual({
 			stored: JSON.parse(storage.get(storageKey, StorageScope.PROFILE)!),
 			repositories: store.entries.get().map(entry => entry.repository.name).sort(),
 		}, {
-			stored: [{ owner: 'microsoft', name: 'other' }, repository],
+			stored: [repository, { owner: 'microsoft', name: 'other' }],
 			repositories: ['other', repository.name].sort(),
 		});
 	});
 
 	for (const value of [null, { ...account, enterprise: true }]) {
-		test(`rejects reads and registration when ${value ? 'signed into enterprise' : 'signed out'}`, async () => {
+		test(`rejects reads and creation when ${value ? 'signed into enterprise' : 'signed out'}`, async () => {
 			const { store, api, changeAccount } = setup();
 			changeAccount(value);
 			await assert.rejects(store.refresh(), /Sign in to GitHub.com/);
-			await assert.rejects(store.registerRepository(workspace), /Sign in to GitHub.com/);
+			await assert.rejects(store.create(workspace, createValue), /Sign in to GitHub.com/);
 			assert.deepStrictEqual({ calls: api.calls, state: store.catalogueState.get() }, { calls: [], state: 'unavailable' });
 		});
 	}
