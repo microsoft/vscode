@@ -99,6 +99,11 @@ suite('Agent session GitHub references', () => {
 		assert.deepStrictEqual(withAgentSessionGitHubReferences({ workingDirectories: ['file:///repo'], _meta })._meta?.['copilot.githubReferences'], [{ ...reference, title: '' }]);
 	});
 
+	test('does not parse a working directory when there is no GitHub association to publish', () => {
+		const source = { workingDirectories: ['foo bar:/x'], _meta: withSessionGitState(undefined, { branchName: 'feature' }) };
+		assert.strictEqual(withAgentSessionGitHubReferences(source), source);
+	});
+
 	test('publishes and clears only the head-branch relation in a mixed reference list', () => {
 		const attached = { ...reference, number: 7, url: 'https://github.com/owner/repo/pull/7', relations: ['headBranch', 'attached'], future: true };
 		const created = { ...reference, relations: ['created'], future: { keep: true } };

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { readSessionFolderGitHubState, readSessionGitState, SESSION_META_GITHUB_DATA_KEY, SESSION_META_GITHUB_KEY } from '../state/sessionState.js';
+import { readSessionFolderGitHubState, readSessionGitHubData, readSessionGitState, SESSION_META_GITHUB_DATA_KEY, SESSION_META_GITHUB_KEY } from '../state/sessionState.js';
 import { hasAgentMetadata, type IAgentMetadataSource } from './metadata.js';
 import { parseHeadBranchPullRequestUrl, readCopilotHeadBranchPullRequest, withCopilotHeadBranchPullRequest, type IAgentHeadBranchPullRequest } from './copilotd/sessionGitHubReferences.js';
 
@@ -21,8 +21,8 @@ export function toAgentHeadBranchPullRequestMeta(source: IAgentMetadataSource): 
 
 /** Publishes the primary checkout's PR for clients using the Copilot GitHub-reference convention. */
 export function withAgentSessionGitHubReferences<T extends IAgentMetadataSource & { readonly workingDirectories?: readonly string[] }>(source: T): T {
-	const github = readSessionFolderGitHubState(source);
 	const git = readSessionGitState(source._meta);
+	const github = git?.branchName && readSessionGitHubData(source._meta).size ? readSessionFolderGitHubState(source) : undefined;
 	const url = github?.pullRequestUrls?.[0];
 	const parsed = url ? parseHeadBranchPullRequestUrl(url) : undefined;
 	const matchesBranch = !!git?.branchName && github?.pullRequestBranchName === git.branchName;
