@@ -9,6 +9,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { CCAModel } from '@vscode/copilot-api';
 
 import assert from 'assert';
+import { mock } from '../../../../base/test/common/mock.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import * as fs from 'fs/promises';
 import * as os from 'os';
@@ -375,11 +376,10 @@ class FakeClaudeProxyService implements IClaudeProxyService {
 	dispose(): void { this.onDidReportCreditsEmitter.dispose(); }
 }
 
-class FakeAgentHostAuthenticationService implements IAgentHostAuthenticationService {
-	declare readonly _serviceBrand: undefined;
+class FakeAgentHostAuthenticationService extends mock<IAgentHostAuthenticationService>() {
 	private readonly _tokens = new Map<string, string>();
 	private readonly _onDidChangeAuthToken = new Emitter<IAgentHostAuthTokenChangeEvent>();
-	readonly onDidChangeAuthToken = this._onDidChangeAuthToken.event;
+	override readonly onDidChangeAuthToken = this._onDidChangeAuthToken.event;
 
 	setToken(resource: string, token: string): void {
 		const previous = this._tokens.get(resource);
@@ -394,11 +394,13 @@ class FakeAgentHostAuthenticationService implements IAgentHostAuthenticationServ
 		}
 	}
 
-	getAuthToken(request: Parameters<IAgentHostAuthenticationService['getAuthToken']>[0]): string | undefined {
+	override getAuthToken(request: Parameters<IAgentHostAuthenticationService['getAuthToken']>[0]): string | undefined {
 		return this._tokens.get(request.resource);
 	}
 
-	getAuthAccount(): undefined { return undefined; }
+	override getAuthAccount(): undefined { return undefined; }
+	override getSessionCredentialSource(): undefined { return undefined; }
+	override getSessionCredentialPrincipal(): undefined { return undefined; }
 
 	dispose(): void {
 		this._onDidChangeAuthToken.dispose();
@@ -1207,7 +1209,7 @@ function createTestContext(
 		const session = explicit?.owner.get()
 			?? (context && URI.isUri(context) ? context : undefined)
 			?? (chat.scheme === 'ahp-chat' ? URI.parse(requireMintedTestChatOwner(chat.toString())) : chat);
-		return { ...createAgentChatContext(stateManager, session, chat, stateManager.resolveChatStorageResource(session.toString(), chat.toString()), undefined), ...explicit };
+		return { ...createAgentChatContext(stateManager, authenticationService, session, chat, stateManager.resolveChatStorageResource(session.toString(), chat.toString()), undefined), ...explicit };
 	};
 	const chats = agent.chats as {
 		createChat: typeof agent.chats.createChat;
@@ -8848,7 +8850,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			const session = explicit?.owner.get()
 				?? (explicitContext && URI.isUri(explicitContext) ? explicitContext : undefined)
 				?? (chat.scheme === 'ahp-chat' ? URI.parse(requireMintedTestChatOwner(chat.toString())) : chat);
-			return sendMessage(chat, prompt, workingDirectoriesOrDirectory, attachments, turnId, senderClientId, clientType, { ...createAgentChatContext(stateManager, session, chat, stateManager.resolveChatStorageResource(session.toString(), chat.toString()), undefined), ...explicit });
+			return sendMessage(chat, prompt, workingDirectoriesOrDirectory, attachments, turnId, senderClientId, clientType, { ...createAgentChatContext(stateManager, authenticationService, session, chat, stateManager.resolveChatStorageResource(session.toString(), chat.toString()), undefined), ...explicit });
 		};
 		return { agent, proxy, api, sdk, sessionData, stateManager, configService, otelService, instantiationService, fileService, sdkDownloader };
 	}
