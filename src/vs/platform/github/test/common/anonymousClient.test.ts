@@ -362,6 +362,22 @@ suite('GitHub public raw content', () => {
 		assert.deepStrictEqual(requests, [`${rawBaseUri}/microsoft/sample/${commitSha}/docs/a%20%23%3F%25.md`]);
 	});
 
+	test('resolves and downloads a revision pinned to a SHA-256 object ID', async () => {
+		const expectedSha = '0123456789abcdef'.repeat(4);
+		const requests: string[] = [];
+		const service = create(async input => {
+			requests.push(String(input));
+			return new Response(String(input).includes('/commits/') ? expectedSha : content);
+		});
+		const client = store.add(service.acquireAnonymousClient());
+		const sha = await client.content.resolveRef('microsoft', 'sample', 'HEAD', signal());
+		const result = await client.content.getRawFile('microsoft', 'sample', sha, path, signal());
+		assert.deepStrictEqual({ sha, result, requests }, {
+			sha: expectedSha, result: content,
+			requests: [`${apiBaseUri}/repos/microsoft/sample/commits/HEAD`, `${rawBaseUri}/microsoft/sample/${expectedSha}/${path}`],
+		});
+	});
+
 	for (const invalidPath of ['', '..', '../main/file.json', '/file.json', '//other.example.test/file.json', 'dir/../file.json', 'dir//file.json', 'dir\\file.json']) {
 		test(`rejects an invalid raw path before dispatch: ${JSON.stringify(invalidPath)}`, async () => {
 			const service = create(async () => assert.fail('No fetch expected'));
@@ -370,7 +386,7 @@ suite('GitHub public raw content', () => {
 		});
 	}
 
-	for (const invalidSha of ['', 'main', 'a'.repeat(39), 'z'.repeat(40), `${commitSha}\n`]) {
+	for (const invalidSha of ['', 'main', 'a'.repeat(39), 'z'.repeat(40), 'a'.repeat(63), 'a'.repeat(65), 'A'.repeat(64), `${commitSha}\n`, `${'a'.repeat(64)}\n`]) {
 		test(`rejects an invalid pinned revision: ${JSON.stringify(invalidSha)}`, async () => {
 			const service = create(async () => assert.fail('No fetch expected'));
 			const client = store.add(service.acquireAnonymousClient());
