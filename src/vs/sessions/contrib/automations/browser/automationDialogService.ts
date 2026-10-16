@@ -184,7 +184,8 @@ export class AutomationDialogService implements IAutomationDialogService {
 				const patch: IUpdateAutomationOptions = {
 					name: state.name,
 					prompt,
-					schedule,
+					...(existing.schedule.timeZone !== 'UTC' || state.interval !== initialSchedule?.interval || state.hour !== initialSchedule?.scheduleHour
+						|| state.minute !== initialSchedule?.scheduleMinute || state.day !== initialSchedule?.scheduleDay ? { schedule } : {}),
 					target,
 					...(sessionConfigurationCapture.kind === 'captured' ? {
 						sessionTemplate: sessionTemplate ?? null,

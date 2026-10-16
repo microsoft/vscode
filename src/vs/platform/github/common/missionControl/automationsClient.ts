@@ -126,7 +126,9 @@ export class AutomationsClient implements IAutomationsClient {
 			path: '/automations/triggers',
 			expectedStatus: 200,
 			options,
-		}, signal, response => parseTriggerDefinitions(response.data));
+		}, signal, response => Array.isArray(response.data)
+			? parseTriggerDefinitions(response.data)
+			: parse.object({ triggers: parseTriggerDefinitions })(response.data).triggers);
 	}
 }
 

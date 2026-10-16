@@ -88,6 +88,8 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 			targetChangeDisabledReason: localize('cloudAutomations.targetImmutable', "The repository and provider cannot be changed for an existing cloud automation. Duplicate this automation to use another target."),
 			tools: derived(this, reader => toToolCatalog(this.store.read(reader)?.toolCatalog.read(reader), !!this.store.read(reader))),
 			loadTools: () => this.store.get()?.loadTools(),
+			triggers: derived(this, reader => this.store.read(reader)?.triggerCatalog.read(reader) ?? { kind: 'loading' as const }),
+			loadTriggers: () => this.store.get()?.loadTriggers(),
 			pickWorkspace: token => this.pickWorkspace(token),
 			getWorkspaceTarget: workspace => derived(reader => this.store.read(reader)?.getWorkspaceTarget(workspace).read(reader)
 				?? { disabledReason: localize('cloudAutomations.targetUnavailable', "Cloud automations are unavailable.") }),
@@ -382,7 +384,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		}
 		const current = this.getAutomation(id)!;
 		assertAutomationSessionTemplateAuthority(current, patch);
-		if (cloudAutomationSchedule(definition.triggers).interval === 'custom') {
+		if (patch.schedule && cloudAutomationSchedule(definition.triggers).interval === 'custom') {
 			throw new Error(localize('cloudAutomations.unsupportedEdit', "This automation uses triggers that cannot be edited in VS Code."));
 		}
 		if (patch.target) {
@@ -448,6 +450,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		return {
 			id: JSON.stringify([this.providerId, this.defaultAccountService.currentDefaultAccount?.accountName, repository.owner.toLowerCase(), repository.name.toLowerCase(), definition.id]),
 			name: definition.name, prompt: definition.prompt, schedule,
+			cloudTrigger: { triggers: definition.triggers ?? {}, requireActorWritePermission: definition.require_actor_write_permission },
 			targetDisplay: { label: `${repository.owner}/${repository.name}`, icon: Codicon.cloud },
 			externalResource: URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${repository.owner}/${repository.name}/agents/automations/${definition.id}` }),
 			target: { kind: 'workspace', providerId: this.providerId, sessionTypeId: this.sessionTypeId, isolation: { kind: 'default' }, folderUri: URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repository.owner}/${repository.name}/HEAD` }) },

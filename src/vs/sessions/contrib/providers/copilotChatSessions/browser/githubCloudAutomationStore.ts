@@ -20,7 +20,7 @@ import { ApiRequestError, MutationUncertainError } from '../../../../../platform
 import { Task } from '../../../../../platform/github/common/missionControl/tasks.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { AutomationCatalogueState, AutomationMutationUncertainError, AutomationUnavailableError, IAutomationRefreshOptions, IAutomationWorkspaceTarget } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, AutomationMutationUncertainError, AutomationTriggerCatalog, AutomationUnavailableError, IAutomationRefreshOptions, IAutomationWorkspaceTarget } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../services/sessions/common/session.js';
@@ -62,6 +62,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 	private readonly targetEligibilityLimiter = this._register(new Limiter<void>(5));
 	private readonly cachedTools = observableValue<CloudAutomationToolCatalog | undefined>(this, undefined);
 	readonly toolCatalog: IObservable<CloudAutomationToolCatalog | undefined> = this.cachedTools;
+	readonly triggerCatalog = observableValue<AutomationTriggerCatalog | undefined>(this, undefined);
 
 	constructor(
 		private readonly resolveRepositoryUri: (workspace: URI) => URI | undefined | Promise<URI | undefined>,
@@ -145,6 +146,29 @@ export class GitHubCloudAutomationStore extends Disposable {
 					this.logService.warn('[CloudAutomations] Failed to load automation tools', error);
 				}
 				this.cachedTools.set({ kind: 'error' }, undefined);
+			}
+		})();
+	}
+
+	loadTriggers(): void {
+		const current = this.triggerCatalog.get();
+		if (current?.kind === 'loading' || current?.kind === 'ready') {
+			return;
+		}
+		const signal = this.lifetime.signal;
+		this.triggerCatalog.set({ kind: 'loading' }, undefined);
+		void (async () => {
+			try {
+				this.requireAccount();
+				const definitions = await this.withClient(signal, (client, signal) => client.automations.listTriggers(signal));
+				signal.throwIfAborted();
+				this.triggerCatalog.set({ kind: 'ready', definitions }, undefined);
+			} catch (error) {
+				if (signal.aborted || this._store.isDisposed) {
+					return;
+				}
+				this.logService.warn('[CloudAutomations] Failed to load automation triggers', error);
+				this.triggerCatalog.set({ kind: 'error', message: localize('cloudAutomations.triggersLoadFailed', "Available triggers could not be loaded.") }, undefined);
 			}
 		})();
 	}
@@ -468,6 +492,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 			this.cachedHistory.set([], tx);
 			this.uncertain.set(false, tx);
 			this.cachedTools.set(undefined, tx);
+			this.triggerCatalog.set(undefined, tx);
 			this.state.set(account && !account.enterprise ? 'loading' : 'unavailable', tx);
 		});
 	}

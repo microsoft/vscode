@@ -63,7 +63,7 @@ Sessions management marks Automation configuration drafts with `isAutomationDraf
 
 An `AutomationTarget` separates concrete provider identity (`providerId`) from its agent (`sessionTypeId`). Workspace targets also carry the workspace URI and isolation choice. Session type or display name alone cannot determine ownership. Creation requires an explicit, available Automation-capable provider.
 
-Cloud definitions retain UTC schedule semantics. Unsupported triggers project as a custom, non-editable schedule rather than a manual schedule. Portable local-time blueprints and AHP mutations reject cloud schedules they cannot preserve.
+Cloud definitions retain UTC schedule semantics and their raw event configuration separately from the schedule projection. Unsupported triggers project as a custom schedule rather than a manual schedule. Unrelated updates omit triggers, since the cloud API replaces a supplied trigger map as a whole. The editable-state conflict check includes raw triggers and actor-write permission. Portable local-time blueprints and AHP mutations reject cloud schedules they cannot preserve.
 
 Cloud schedule presentation uses local wall-clock values without changing canonical UTC definitions. The dialog captures the local UTC offset when opened and uses it for both load and save; provider changes do not convert the form fields again. Daily and weekly schedules remain fixed UTC recurrences on GitHub, so their displayed local time can shift across daylight-saving changes.
 

@@ -50,6 +50,7 @@ interface IAutomationToolOutput {
 	readonly name: string;
 	readonly prompt: string;
 	readonly schedule: IAutomationSchedule;
+	readonly cloudTrigger?: IAutomationDescriptor['cloudTrigger'];
 	readonly target:
 	| {
 		readonly kind: 'workspace';
@@ -1169,6 +1170,7 @@ function toAutomationToolOutput(automation: IAutomationDescriptor): IAutomationT
 		name: automation.name,
 		prompt: automation.prompt,
 		schedule: automation.schedule,
+		...(automation.cloudTrigger ? { cloudTrigger: automation.cloudTrigger } : {}),
 		target,
 		...(automation.sessionTemplate
 			? { sessionTemplate: automation.sessionTemplate }

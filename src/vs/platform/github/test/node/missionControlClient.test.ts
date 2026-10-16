@@ -323,6 +323,13 @@ suite('Mission Control client', () => {
 		]), [tools, triggers]);
 	});
 
+	for (const wrapped of [false, true]) {
+		test(`trigger catalog accepts ${wrapped ? 'wrapped' : 'array'} responses`, async () => {
+			const { client } = setup(() => Response.json(wrapped ? { triggers: triggerDefinitions } : triggerDefinitions));
+			assert.deepStrictEqual(await client.automations.listTriggers(signal()), triggerDefinitions);
+		});
+	}
+
 	for (const method of ['listTools', 'listTriggers'] as const) {
 		test(`${method} returns an empty catalog without pagination or additional requests`, async () => {
 			const { client, requests } = setup(() => Response.json([], { headers: { link: '<https://example.test/next>; rel="next"' } }));
@@ -346,7 +353,7 @@ suite('Mission Control client', () => {
 		{ method: 'listTools', name: 'a tool without a description', data: [{ id: 'issues', tools: [{ id: 'github/issue_read' }] }] },
 		{ method: 'listTools', name: 'an invalid permission scope', data: [{ id: 'issues', tools: [{ id: 'tool', description: '', scope: 'admin' }] }] },
 		{ method: 'listTools', name: 'a null optional name', data: [{ ...toolGroups[0], name: null }] },
-		{ method: 'listTriggers', name: 'a wrapped catalog', data: { triggers: triggerDefinitions } },
+		{ method: 'listTriggers', name: 'an invalid wrapped catalog', data: { triggers: null } },
 		{ method: 'listTriggers', name: 'missing fields', data: [{ title: 'Schedule', description: '' }] },
 		{ method: 'listTriggers', name: 'a missing required-field flag', data: [{ ...triggerDefinitions[0], fields: [{ name: 'types' }] }] },
 		{ method: 'listTriggers', name: 'non-string options', data: [{ ...triggerDefinitions[0], fields: [{ name: 'types', required: true, options: [1] }] }] },

@@ -569,7 +569,7 @@ suite('Automation dialog creation', () => {
 				});
 				dialog.saveButton.click();
 				const result = await dialog.result;
-				assert.deepStrictEqual({ schedule: result?.value.schedule, enabled: result?.value.enabled }, { schedule: automation.schedule, enabled: false });
+				assert.deepStrictEqual({ schedule: result?.value.schedule, enabled: result?.value.enabled }, { schedule: edit ? undefined : automation.schedule, enabled: false });
 			});
 		}
 	}
@@ -1469,7 +1469,7 @@ suite('Automation dialog creation', () => {
 		dialog.saveButton.click();
 		assert.deepStrictEqual(await dialog.result, {
 			kind: 'update', id: existing.id,
-			value: { name: existing.name, prompt: existing.prompt, schedule: existing.schedule, target: existing.target, sessionTemplate: existing.sessionTemplate, enabled: false },
+			value: { name: existing.name, prompt: existing.prompt, target: existing.target, sessionTemplate: existing.sessionTemplate, enabled: false },
 		});
 	});
 
