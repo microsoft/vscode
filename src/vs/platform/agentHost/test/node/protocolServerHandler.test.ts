@@ -13,6 +13,7 @@ import { dirname, join, parse } from '../../../../base/common/path.js';
 import { NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { supportsAgentHostTiming } from '../../common/meta/agentHostTimingMeta.js';
 import { supportsAgentHostSessionImport } from '../../common/meta/agentHostSessionImportMeta.js';
+import { readAgentHostAhpLogDirectory } from '../../common/meta/agentHostDebugLogsMeta.js';
 import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { readSessionInitiator, withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
 import { readCodexSessionModel, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
@@ -1334,6 +1335,29 @@ suite('ProtocolServerHandler', () => {
 			},
 			calls: [{ session: 'copilotcli:/session-1', chat }],
 		});
+	});
+
+	test('advertises host wire-log resources without enabling host-management methods', async () => {
+		const localServer = disposables.add(new MockProtocolServer());
+		const directory = URI.file('/logs/mission-control/ahp');
+		disposables.add(new ProtocolServerHandler(
+			agentService, stateManager, localServer, { allowExtensionMethods: false, relayRoots: ['/workspace'], ahpLogDirectory: directory },
+			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
+		));
+		const transport = disposables.add(new MockProtocolTransport());
+		localServer.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'wire-client' }));
+		const initialize = findResponse(transport.sent, 1);
+		assert.ok(initialize && hasKey(initialize, { result: true }));
+		const rejected = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'vscode/collectAgentHostDebugLogs', { kind: 'archive' }));
+		const response = await rejected;
+		assert.deepStrictEqual({
+			directory: readAgentHostAhpLogDirectory(initialize.result as InitializeResult)?.toString(),
+			error: hasKey(response, { error: true }) ? response.error.code : undefined,
+		}, { directory: directory.toString(), error: JsonRpcErrorCodes.MethodNotFound });
 	});
 
 	test('first-response diagnostics are opt-in, validated and content-free on the extension bridge', async () => {

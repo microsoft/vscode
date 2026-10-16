@@ -10,7 +10,7 @@ Shared Agent Host adaptation is specified in [AGENT_HOST_SESSIONS_PROVIDER.md](.
 
 ## Registration
 
-Kind-specific contributions create and register one provider for each remote host they own, disposing it when that host is removed. The workbench-owned [RemoteAgentHostContribution](../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHostChatContribution.ts) observes connections for shared filesystem, agent-discovery, model, terminal, and authentication wiring. The Agents Window owns host management and its native provider adapters; the Editor Window uses this shared integration for cloud sandboxes.
+Kind-specific contributions create and register one provider for each reusable remote host they own, disposing it when that host is removed. Cloud sandbox environments instead register internal session backends under the logical Cloud creation provider. These backends retain per-environment connections, caches, and routing identities but do not advertise independent workspace or session creation targets. The workbench-owned [RemoteAgentHostContribution](../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHostChatContribution.ts) observes connections for shared filesystem, agent-discovery, model, terminal, and authentication wiring. The Agents Window owns host management and its native provider adapters; the Editor Window uses this shared integration for cloud sandboxes.
 
 Agent discovery is dynamic. Changes to a host's advertised agents update the provider's session types without recreating the provider.
 
@@ -63,7 +63,7 @@ In the Agents Window, all sandbox sessions discovered through Mission Control ar
 
 By default one provider is one entry in the host filter. A provider whose config carries `hostGroup` (`IAgentHostGroup`) instead declares itself a member of a larger user-facing host: every provider sharing a `hostGroup.id` folds into one `IAgentHostFilterEntry` whose `providerIds` covers all of them, and whose `status` is the most alive status among its members. Members keep their own connection, address and session-type authority.
 
-Cloud sandboxes are the only group today. `CloudSandboxAgentHostContribution` registers one provider per sandbox environment and gives each the `githubsandbox` group (`order: 1`, `connectable: false`, cloud icon), so a user with many Mission Control tasks sees a single "Cloud" entry rather than one entry per task.
+Cloud sandboxes are the only group today. `CloudSandboxAgentHostContribution` gives each internal environment backend the `githubsandbox` group (`order: 1`, `connectable: false`, cloud icon). The host filter includes these backends when aggregating connection state and existing-session scope, so a user with many tasks sees a single "Cloud" entry rather than one entry per task. Creation catalogues enumerate only logical providers.
 
 A group can also be **declared** independently of its members via `IAgentHostFilterService.registerHostGroup`. A declared group always has an entry, so the place stays visible and selectable before the user has anything in it. The sandbox contribution declares its group while both `CloudSandboxEnabledSettingId` and `RemoteAgentHostsEnabledSettingId` are on and AI features are not disabled, so enabling the feature surfaces "Cloud" immediately rather than only once discovery finds an environment. Selecting an entry whose `providerIds` is empty scopes the sessions list to nothing.
 

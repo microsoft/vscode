@@ -43,6 +43,8 @@ import { IFileService } from '../../../files/common/files.js';
 import { MISSION_CONTROL_AHP_LOG_ID } from '../../common/missionControlEnvironment.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
+import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentHostAhpJsonlLoggingEnabledConfigKey, type ISchema, type SchemaDefinition, type SchemaValue } from '../../common/agentHostSchema.js';
 
 suite('Mission Control host integration', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -78,16 +80,31 @@ suite('Mission Control host integration', () => {
 		assert.strictEqual(getMissionControlEnvironmentName(product), `${hostname().replace(/\.local$/i, '')} (VS Code Insiders)`);
 	});
 
-	function createHost(instantiation = store.add(new TestInstantiationService()), stateManager?: AgentHostStateManager, providers?: IAgentHostProviderService, agentService?: IAgentService) {
+	function createHost(instantiation = store.add(new TestInstantiationService()), stateManager?: AgentHostStateManager, providers?: IAgentHostProviderService, agentService?: IAgentService, quality: IProductService['quality'] = 'stable') {
 		const counts = { requests: 0, handlers: 0 };
 		const events: { eventName: string; data: ITelemetryData | undefined }[] = [];
+		const rootConfigChanged = store.add(new Emitter<void>());
+		const rootValues: Record<string, unknown> = {};
+		instantiation.stub(IAgentConfigurationService, new class extends mock<IAgentConfigurationService>() {
+			override readonly onDidRootConfigChange = rootConfigChanged.event;
+			override getRootValue<D extends SchemaDefinition, K extends keyof D & string>(
+				schema: ISchema<D>, key: K,
+			): SchemaValue<D[K]> | undefined {
+				const value = rootValues[key];
+				if (value === undefined) {
+					return undefined;
+				}
+				schema.assertValid(key, value);
+				return value;
+			}
+		}());
 		instantiation.stub(INativeEnvironmentService, new class extends mock<INativeEnvironmentService>() {
 			override readonly isBuilt = true;
 			override readonly userDataPath = '/unused-mission-control-test-profile';
 			override readonly logsHome = URI.file('/mission-control-test-logs');
 		}());
 		instantiation.stub(IProductService, new class extends mock<IProductService>() {
-			override readonly quality = 'stable';
+			override readonly quality = quality;
 			override readonly nameShort = 'Visual Studio Code';
 		}());
 		instantiation.stub(IAgentHostProxyResolver, new class extends mock<IAgentHostProxyResolver>() {
@@ -125,7 +142,7 @@ suite('Mission Control host integration', () => {
 				return toDisposable(() => handler.dispose());
 			},
 		}));
-		return { host, counts, events };
+		return { host, counts, events, rootValues, rootConfigChanged };
 	}
 
 	suite('bounded publish telemetry', () => {
@@ -517,9 +534,10 @@ suite('Mission Control host integration', () => {
 			hostManagement: config.allowExtensionMethods,
 			diagnosticLogs: config.otlpLogEmitter,
 			modelProviders: config.advertisedModelProviders,
+			ahpLogDirectory: config.ahpLogDirectory?.toString(),
 			sessionConfig: config.sessionConfigAdapter === missionControlSessionConfigAdapter,
 			sessionList: config.sessionListAdapter === toMissionControlSessionList,
-		}, { hostManagement: false, diagnosticLogs: undefined, modelProviders: ['copilotcli'], sessionConfig: true, sessionList: true });
+		}, { hostManagement: false, diagnosticLogs: undefined, modelProviders: ['copilotcli'], ahpLogDirectory: 'file:///mission-control-test-logs/ahp', sessionConfig: true, sessionList: true });
 	});
 
 	test('keeps the browsing default and recent project catalogue separate from filesystem grants', () => {
@@ -560,7 +578,7 @@ suite('Mission Control host integration', () => {
 		instantiation.stubInstance(AhpJsonlLogger, new class extends mock<AhpJsonlLogger>() {
 			override dispose(): void { }
 		}());
-		createHost(instantiation);
+		createHost(instantiation, undefined, undefined, undefined, 'insider');
 		const environmentCreation = creations.getCalls().find(call => call.args[0] === MissionControlEnvironment)!;
 		const options = environmentCreation.args[1] as IMissionControlEnvironmentHost;
 		store.add(options.createAhpLogger!('mobile-client', 42));
@@ -571,6 +589,7 @@ suite('Mission Control host integration', () => {
 		const retentionCreation = creations.getCalls().find(call => call.args[0] === AhpJsonlLogRetention)!;
 		assert.deepStrictEqual({
 			...loggerOptions,
+			isEnabled: loggerOptions.isEnabled?.(),
 			retention: loggerOptions.retention instanceof AhpJsonlLogRetention,
 			sharedRetention: loggerOptions.retention === nextLoggerOptions.retention,
 		}, {
@@ -580,11 +599,43 @@ suite('Mission Control host integration', () => {
 			transport: 'mission-control',
 			retention: true,
 			sharedRetention: true,
+			isEnabled: true,
 		});
 		assert.deepStrictEqual(retentionCreation.args[1], {
 			logsHome: URI.file('/mission-control-test-logs'), logId: MISSION_CONTROL_AHP_LOG_ID,
 			maxFiles: 10, maxSizeBytes: 750 * 1024 * 1024,
 		});
+	});
+
+	test('does not enable Mission Control JSONL capture by default in Stable', () => {
+		const instantiation = store.add(new TestInstantiationService());
+		const creations = sinon.spy(instantiation, 'createInstance');
+		store.add(toDisposable(() => creations.restore()));
+		createHost(instantiation);
+		const { args } = creations.getCalls().find(call => call.args[0] === MissionControlEnvironment)!;
+		const options = args[1] as IMissionControlEnvironmentHost;
+		instantiation.stubInstance(AhpJsonlLogger, new class extends mock<AhpJsonlLogger>() { override dispose(): void { } }());
+		store.add(options.createAhpLogger!('mobile', 1));
+		const loggerOptions = creations.getCalls().find(call => call.args[0] === AhpJsonlLogger)!.args[1] as ConstructorParameters<typeof AhpJsonlLogger>[0];
+		assert.strictEqual(loggerOptions.isEnabled?.(), false);
+	});
+
+	test('applies live root configuration to an existing Mission Control logger', () => {
+		const instantiation = store.add(new TestInstantiationService());
+		const creations = sinon.spy(instantiation, 'createInstance');
+		store.add(toDisposable(() => creations.restore()));
+		instantiation.stubInstance(AhpJsonlLogger, new class extends mock<AhpJsonlLogger>() { override dispose(): void { } }());
+		const { rootValues, rootConfigChanged } = createHost(instantiation);
+		const options = creations.getCalls().find(call => call.args[0] === MissionControlEnvironment)!.args[1] as IMissionControlEnvironmentHost;
+		store.add(options.createAhpLogger!('mobile', 1));
+		const loggerOptions = creations.getCalls().find(call => call.args[0] === AhpJsonlLogger)!.args[1] as ConstructorParameters<typeof AhpJsonlLogger>[0];
+		const enabled = [loggerOptions.isEnabled?.()];
+		for (const value of [true, false, true]) {
+			rootValues[AgentHostAhpJsonlLoggingEnabledConfigKey] = value;
+			rootConfigChanged.fire();
+			enabled.push(loggerOptions.isEnabled?.());
+		}
+		assert.deepStrictEqual(enabled, [false, true, false, true]);
 	});
 
 	test('reports bounded host lifecycle metadata without exporting errors or successful heartbeat traffic', () => {

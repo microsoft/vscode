@@ -992,6 +992,23 @@ suite('ModelCard', () => {
 		});
 	});
 
+	test('reset leaves read-only options out of the write while resetting editable options', async () => {
+		const model = createModel({
+			configurationSchema: {
+				properties: {
+					effort: { type: 'string', group: 'navigation', enum: ['low', 'high'], default: 'high', readOnly: true },
+					context: { type: 'number', group: 'tokens', enum: [100, 200], default: 100 },
+				}
+			},
+		});
+		const result = createCard({ effort: 'high', context: 200 }, { model });
+		element(result.card.element, '[aria-label="Reset to Default"]').click();
+		await timeout(0);
+		assert.deepStrictEqual({ writes: result.writes, values: result.values }, {
+			writes: [{ context: 100 }], values: { effort: 'high', context: 100 },
+		});
+	});
+
 	test('model descriptions are available without configurable settings', () => {
 		const result = createCard({}, { model: createModel({ configurationSchema: undefined, tooltip: 'A model for **careful reasoning**.', maxContextWindowTokens: 200000 }) });
 		assert.deepStrictEqual({

@@ -28,7 +28,7 @@ import { AgentHostClientType, getAgentHostClientType } from '../common/agentHost
 import { AgentHostChatUrisCapabilityMetaKey, AgentHostNativeImplementationMetaKey, AgentHostSessionUrisCapabilityMetaKey, supportsAgentHostChatUris, supportsAgentHostSessionUris } from '../common/meta/agentHostSessionUrisMeta.js';
 import { withSessionInitiator } from '../common/meta/agentSessionInitiatorMeta.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, readClientConnectionKind, readClientDevDeviceId, readClientMachineId, readClientTelemetryLevel, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
-import { AgentSession, type IAgentCreateChatRequestOptions, type IMcpNotification } from '../common/agent.js';
+import { AgentSession, type IAgentCreateChatRequestOptions, type IAgentSessionMetadata, type IMcpNotification } from '../common/agent.js';
 import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
@@ -90,6 +90,7 @@ import {
 	type OtlpLogLevelName,
 } from '../common/otlp/otlpLogEmitter.js';
 import { isFileResourceRead } from '../common/resourceReadLogging.js';
+import { getAgentHostAhpLogDirectoryMeta } from '../common/meta/agentHostDebugLogsMeta.js';
 import type { Implementation } from '../common/state/protocol/common/commands.js';
 import { AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION, IAgentHostClientConnectionService, type IAgentHostClientConnectionSource } from './agentHostClientConnectionService.js';
 import { AgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
@@ -114,6 +115,46 @@ const UNSUPPORTED_CLIENT_ACTION_TYPES: ReadonlySet<ActionType> = new Set([
 	ActionType.ChatWorkingDirectorySet,
 	ActionType.ChatWorkingDirectoryRemoved,
 ]);
+
+/** Projects an agent session listing entry into the root-channel {@link SessionSummary} a `listSessions` reply carries. */
+export function toListedSessionSummary(s: IAgentSessionMetadata): ListSessionsResult['items'][number] {
+	const provider = s.provider ?? AgentSession.provider(s.session);
+	if (!provider) {
+		throw new Error(`Agent session URI has no provider scheme: ${s.session.toString()}`);
+	}
+	return {
+		resource: s.session.toString(),
+		provider,
+		title: s.summary ?? 'Session',
+		status: s.status ?? SessionStatus.Idle,
+		activity: s.activity,
+		createdAt: new Date(s.startTime).toISOString(),
+		modifiedAt: new Date(s.modifiedTime).toISOString(),
+		...(s.project ? { project: { uri: s.project.uri.toString(), displayName: s.project.displayName } } : {}),
+		workingDirectories: s.workingDirectories?.map(d => d.toString()),
+		changes: s.changes,
+		chats: s.chats?.map(chat => ({
+			resource: chat.chat.toString(),
+			title: chat.summary ?? '',
+			origin: chat.origin,
+			...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
+			// Forward the chat's activity bits so clients can present them without subscribing.
+			...(chat.status !== undefined || chat.isRead !== undefined ? {
+				status: withSessionStatusFlag(
+					withSessionStatusFlag(chat.status ?? SessionStatus.Idle, SessionStatus.IsArchived, chat.archived === true),
+					SessionStatus.IsRead,
+					chat.isRead ?? (chat.status !== undefined && (chat.status & SessionStatus.IsRead) === SessionStatus.IsRead),
+				),
+			} : {}),
+			...(chat.archived === true ? { archived: true } : {}),
+			...(chat.changes !== undefined ? { changes: chat.changes } : {}),
+		})),
+		defaultChat: s.chats?.find(chat => chat.kind === 'default')?.chat.toString(),
+		// `_meta` carries durable host provenance, including session kind
+		// and provider-native discovery provenance.
+		...(s._meta !== undefined ? { _meta: s._meta } : {}),
+	};
+}
 
 /** A client tool call in any of these statuses is still awaiting its result. */
 function isPendingToolCallStatus(status: ToolCallStatus): boolean {
@@ -464,6 +505,8 @@ export interface IProtocolServerConfig {
 	/** Restricts experimental relay clients to explicitly granted local roots. */
 	readonly relayRoots?: readonly string[];
 	readonly relayRootMeta?: Record<string, unknown>;
+	/** Host-owned Mission Control wire logs, readable through the normal resource authorization checks. */
+	readonly ahpLogDirectory?: URI;
 	/** When set, only these providers' model lists are advertised on this server's ingress. */
 	readonly advertisedModelProviders?: readonly string[];
 	readonly sessionConfigAdapter?: ISessionConfigAdapter;
@@ -891,14 +934,16 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			const response: IAgentHostExtensionInitializeResult = {
 				protocolVersion: negotiated,
 				serverSeq: this._stateManager.serverSeq,
-				_meta: this._config.relayRoots || this._config.relayRootMeta ? {
-					[AgentHostNativeImplementationMetaKey]: true,
-					[AgentHostSessionUrisCapabilityMetaKey]: true,
-					[AgentHostChatUrisCapabilityMetaKey]: true,
-					...transport.relayHandshakeMeta,
-				} : {
-					...getAgentHostExtensionInitializeResultMeta(!!this._agentService.removeSessionArtifact, !!client.devContainers, this._otelService?.diagnosticsEnabled, !!this._agentService.importSession, !!this._agentService.readSavedChat && transport.relayClientId === undefined && !transport.relayPassive, !!this._agentService.completeSavedChatContinuation && transport.relayClientId === undefined && !transport.relayPassive),
-					...transport.relayHandshakeMeta,
+				_meta: {
+					...(this._config.relayRoots || this._config.relayRootMeta ? {
+						[AgentHostNativeImplementationMetaKey]: true,
+						[AgentHostSessionUrisCapabilityMetaKey]: true,
+						[AgentHostChatUrisCapabilityMetaKey]: true,
+						...transport.relayHandshakeMeta,
+					} : {
+						...getAgentHostExtensionInitializeResultMeta(!!this._agentService.removeSessionArtifact, !!client.devContainers, this._otelService?.diagnosticsEnabled, !!this._agentService.importSession, !!this._agentService.readSavedChat && transport.relayClientId === undefined && !transport.relayPassive, !!this._agentService.completeSavedChatContinuation && transport.relayClientId === undefined && !transport.relayPassive),
+						...transport.relayHandshakeMeta,
+					}), ...getAgentHostAhpLogDirectoryMeta(this._config.ahpLogDirectory)
 				},
 				snapshots: snapshots.map(snapshot => this._projectRelayRootSnapshot(client, snapshot)),
 				defaultDirectory: this._config.defaultDirectory,
@@ -1993,44 +2038,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			const sessions = await this._agentService.listSessions();
 			const visible = await Promise.all(sessions.map(async s => this._isSessionVisible(client, s.session.toString(), s.chats?.find(chat => chat.kind === 'default')?.chat.toString() ?? this._chatOwnership.getDefaultChat(s.session.toString()))
 				&& (!this._config.relayRoots || (s.workingDirectories?.length && (await Promise.all(s.workingDirectories.map(directory => this._isGrantedRelayDirectory(directory.toString())))).every(Boolean)))));
-			const items = sessions.filter((_, index) => visible[index]).map(s => {
-				const provider = s.provider ?? AgentSession.provider(s.session);
-				if (!provider) {
-					throw new Error(`Agent session URI has no provider scheme: ${s.session.toString()}`);
-				}
-				return {
-					resource: s.session.toString(),
-					provider,
-					title: s.summary ?? 'Session',
-					status: s.status ?? SessionStatus.Idle,
-					activity: s.activity,
-					createdAt: new Date(s.startTime).toISOString(),
-					modifiedAt: new Date(s.modifiedTime).toISOString(),
-					...(s.project ? { project: { uri: s.project.uri.toString(), displayName: s.project.displayName } } : {}),
-					workingDirectories: s.workingDirectories?.map(d => d.toString()),
-					changes: s.changes,
-					chats: s.chats?.map(chat => ({
-						resource: chat.chat.toString(),
-						title: chat.summary ?? '',
-						origin: chat.origin,
-						...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
-						// Forward the chat's activity bits so clients can present them without subscribing.
-						...(chat.status !== undefined || chat.isRead !== undefined ? {
-							status: withSessionStatusFlag(
-								withSessionStatusFlag(chat.status ?? SessionStatus.Idle, SessionStatus.IsArchived, chat.archived === true),
-								SessionStatus.IsRead,
-								chat.isRead ?? (chat.status !== undefined && (chat.status & SessionStatus.IsRead) === SessionStatus.IsRead),
-							),
-						} : {}),
-						...(chat.archived === true ? { archived: true } : {}),
-						...(chat.changes !== undefined ? { changes: chat.changes } : {}),
-					})),
-					defaultChat: s.chats?.find(chat => chat.kind === 'default')?.chat.toString(),
-					// `_meta` carries durable host provenance, including session kind
-					// and provider-native discovery provenance.
-					...(s._meta !== undefined ? { _meta: s._meta } : {}),
-				} satisfies ListSessionsResult['items'][number];
-			});
+			const items = sessions.filter((_, index) => visible[index]).map(toListedSessionSummary);
 			let prepared = this._stateManager.prepareSessionSummariesForListing(items)
 				.filter(item => this._isSessionVisible(client, item.resource, item.defaultChat))
 				.map(item => item.chats ? { ...item, chats: [...this._filterVisibleChats(client, item.chats, chat => chat.resource)] } : item);

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
+import { GitStatusParser, parseGitCommits, parseGitFileLog, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
 import * as assert from 'assert';
 import { splitInChunks } from '../util';
 
@@ -533,6 +533,38 @@ suite('git', () => {
 				},
 				coAuthors: []
 			}]);
+		});
+	});
+
+	suite('parseGitFileLog', () => {
+		const header = (hash: string, date: number, parent: string, refNames: string, message: string) =>
+			`${hash}\nJohn Doe\njohn@doe.com\n${date}\n${date}\n${parent}\n${refNames}\n${message}\n\x00\n`;
+		const commits = [
+			header('3d54fbf697580e1c5984306761039cf7e39d5e10', 1767398400, 'd0eecfaa720105f947e2d1aa2754bb2142e391bc', 'HEAD -> main', 'Make binary'),
+			header('d0eecfaa720105f947e2d1aa2754bb2142e391bc', 1767312000, '428a48b6308ea84d416f21edd625c1729df96e3b', '', 'Rename file'),
+			header('428a48b6308ea84d416f21edd625c1729df96e3b', 1767225600, '', '', 'Add file'),
+		];
+		const shortStats = [
+			' 1 file changed, 0 insertions(+), 0 deletions(-)\n',
+			' 1 file changed, 0 insertions(+), 0 deletions(-)\n',
+			' 1 file changed, 1 insertion(+)\n',
+		];
+
+		test('resolves the path of a followed file at each commit', () => {
+			// `git log --format=... -z --shortstat --numstat --follow -- new.txt` for a binary change, a rename and an add
+			const numStats = ['-\t-\tnew.txt\x00', '0\t0\t\x00old name.txt\x00new.txt\x00', '1\t0\told name.txt\x00'];
+			const output = commits.map((commit, index) => commit + numStats[index] + shortStats[index]).join('');
+			const withoutNumStats = commits.map((commit, index) => commit + shortStats[index]).join('');
+
+			assert.deepStrictEqual(
+				parseGitFileLog(output),
+				parseGitCommits(withoutNumStats).map((commit, index) => ({ ...commit, filePath: ['new.txt', 'new.txt', 'old name.txt'][index] }))
+			);
+		});
+
+		test('leaves the path unset for commits without changes to the file', () => {
+			const output = commits[0] + shortStats[0] + commits[1] + '0\t0\tnew.txt\x00' + shortStats[1];
+			assert.deepStrictEqual(parseGitFileLog(output).map(commit => commit.filePath), [undefined, 'new.txt']);
 		});
 	});
 

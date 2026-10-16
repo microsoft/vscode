@@ -404,7 +404,7 @@ export class ModelCard extends DisposableStore {
 	private async _resetToDefaults(): Promise<void> {
 		const values = Object.fromEntries([...this._groupControls.keys()].flatMap(group => {
 			const property = this._configProperty(group);
-			return property ? [[property.key, property.schema.default]] : [];
+			return property && !property.schema.readOnly ? [[property.key, property.schema.default]] : [];
 		}));
 		await this._setValues(values);
 	}
