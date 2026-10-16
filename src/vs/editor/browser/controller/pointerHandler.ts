@@ -141,7 +141,7 @@ export class PointerHandler extends Disposable {
 
 	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
 		super();
-		const isPhone = platform.isIOS || (platform.isAndroid && platform.isMobile);
+		const isPhone = platform.isIOS || platform.isAndroid;
 		if (isPhone && BrowserFeatures.pointerEvents) {
 			this.handler = this._register(new PointerEventHandler(context, viewController, viewHelper));
 		} else if (mainWindow.TouchEvent) {
