@@ -1241,6 +1241,12 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			// Keep dynamic workflows disabled until Agent Host support is validated.
 			'builtin:run_dynamic_workflow',
 			'builtin:dynamic_workflows_manage',
+			// Disable the runtime's `semantic_code_search` in favor of our own
+			// `semantic_search` client tool. The runtime tool is remote-only (no
+			// local chunking/embedding or external ingest), and the CLI is still
+			// A/B testing its prompt variations and deferred-loading strategies.
+			// Revisit (possibly via our own A/B experiment) in a future iteration.
+			`builtin:${CopilotToolName.SemanticCodeSearch}`,
 			// Keep the runtime's search subagent disabled until it is validated in the Agent Host.
 			...(searchSubagentEnabled ? [] : [`builtin:${CopilotToolName.SearchCodeSubagent}`]),
 			...(plan.isEphemeral ? EPHEMERAL_DISABLED_COPILOT_TOOLS : []),

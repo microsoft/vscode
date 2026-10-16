@@ -26,6 +26,7 @@ import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataS
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, SessionStatus, ToolResultContentType } from '../../common/state/sessionState.js';
 import { createAgentChatContext } from '../../node/agentChatContext.js';
+import { AgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { ClaudeSdkMessageRouter } from '../../node/claude/claudeSdkMessageRouter.js';
 import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
@@ -357,7 +358,8 @@ suite('ClaudeSdkMessageRouter', () => {
 			const session = URI.parse('claude:/new-session');
 			const chat = URI.parse(mintDefaultChatUri(format, session.toString(), undefined));
 			const manager = disposables.add(new AgentHostStateManager(new NullLogService()));
-			const context = createAgentChatContext(manager, session, chat, session.toString(), undefined);
+			const authenticationService = disposables.add(new AgentHostAuthenticationService(new NullLogService()));
+			const context = createAgentChatContext(manager, authenticationService, session, chat, session.toString(), undefined);
 			const attribution = new RecordingAgentEditAttributionService();
 			const { router, fileService } = createRouter(disposables, chat, attribution, undefined, undefined, undefined, context.owner);
 			manager.createSession({

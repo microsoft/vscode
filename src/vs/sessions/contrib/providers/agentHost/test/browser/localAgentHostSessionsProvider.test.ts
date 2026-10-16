@@ -70,6 +70,7 @@ import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../.
 import type { IChatModel, IChatModelInputState, IInputModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ISessionChangeEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatModelSource, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, IChat, ISession, ISessionCanvas, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionStatus, TURN_CHANGES_CHANGESET_ID, toSessionId } from '../../../../../services/sessions/common/session.js';
+import { readSessionChangesStats } from '../../../../../services/sessions/common/sessionChangesStatsCache.js';
 import { getSessionGitHubReferences } from '../../../../github/common/sessionGitHubReferences.js';
 import { IActiveSession, ISessionsManagementService, WorkspaceNotTrustedError } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { SessionsManagementService } from '../../../../../services/sessions/browser/sessionsManagementService.js';
@@ -93,6 +94,8 @@ import { IWorkbenchEnvironmentService } from '../../../../../../workbench/servic
 import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
 import { ChatAgentFilesLocationsSettingId, ChatHookFilesLocationsSettingId } from '../../../../../../platform/chat/common/chatSettings.js';
 import { IPathService } from '../../../../../../workbench/services/path/common/pathService.js';
+import { ICopilotHomeService } from '../../../../../../platform/environment/common/copilotHome.js';
+import { TestCopilotHomeService } from '../../../../../../platform/environment/test/common/testCopilotHomeService.js';
 import { MockLabelService } from '../../../../../../workbench/services/label/test/common/mockLabelService.js';
 import { TestPathService } from '../../../../../../workbench/test/browser/workbenchTestServices.js';
 import type { CanvasState } from '../../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
@@ -766,7 +769,9 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 		override findPullRequestNumberByHeadBranch = async () => undefined;
 	}());
 	instantiationService.stub(IPullRequestIconCache, instantiationService.createInstance(PullRequestIconCache));
-	instantiationService.stub(IPathService, options?.pathService ?? new TestPathService(URI.file('/home/test')));
+	const pathService = options?.pathService ?? new TestPathService(URI.file('/home/test'));
+	instantiationService.stub(IPathService, pathService);
+	instantiationService.stub(ICopilotHomeService, new TestCopilotHomeService(pathService.userHome({ preferLocal: true })));
 	const activeSessionObs = options?.activeSession ?? constObservable<IActiveSession | undefined>(undefined);
 	const visibleSessionsObs = options?.visibleSessions ?? constObservable<readonly (IActiveSession | undefined)[]>([]);
 	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
@@ -806,6 +811,7 @@ function createManagementService(disposables: DisposableStore, provider: ISessio
 	}());
 	instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 	instantiationService.stub(IPathService, new TestPathService(URI.file('/home/test')));
+	instantiationService.stub(ICopilotHomeService, new TestCopilotHomeService(URI.file('/home/test')));
 	instantiationService.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() { }());
 	instantiationService.stub(IWorkspaceTrustManagementService, {
 		getUriTrustInfo: async uri => ({ uri, trusted: true }),
@@ -3163,6 +3169,31 @@ suite('LocalAgentHostSessionsProvider', () => {
 			{ branch: undefined, files: undefined },
 			{ branch: 'feature', files: 2 },
 		]);
+	}));
+
+	test('a reported zero changes summary is kept instead of being treated as unreported', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// A folder session without tracked edits reports an empty Session Changes
+		// summary. Dropping it lets the list fall back to the main chat's default
+		// changeset, which is only loaded while the session is active.
+		const zero = { additions: 0, deletions: 0, files: 0 };
+		agentHost.addSession({ ...createSession('zero-listed', { summary: 'Listed' }), changes: zero });
+		agentHost.addSession(createSession('zero-notified', { summary: 'Notified' }));
+		const provider = createProvider(disposables, agentHost);
+		await timeout(0);
+
+		fireSessionSummaryChanged(agentHost, 'zero-notified', { changes: zero });
+		await timeout(0);
+
+		const sessionFor = (title: string) => provider.getSessions().find(session => session.title.get() === title)!;
+		assert.deepStrictEqual({
+			listed: sessionFor('Listed').changesSummary?.get(),
+			notified: sessionFor('Notified').changesSummary?.get(),
+			listedStats: readSessionChangesStats(sessionFor('Listed'), undefined),
+		}, {
+			listed: zero,
+			notified: zero,
+			listedStats: { files: 0, insertions: 0, deletions: 0 },
+		});
 	}));
 
 	test('a summaryChanged delta clearing the adoptable marker opens the passive state subscription', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -12843,7 +12874,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, agentHost, undefined, { pathService, labelService });
 		provider.getSessions();
 		await timeout(0);
-		const copilotStateHome = URI.joinPath(buildLocalSessionStateUri(await pathService.userHome({ preferLocal: true })), 'copilot-session');
+		const copilotStateHome = URI.joinPath(buildLocalSessionStateUri(URI.file('/home/test/.copilot')), 'copilot-session');
 		const getHomeLabel = (resource: URI): string | undefined => {
 			const home = labelService.getUriHome(resource);
 			return home ? labelService.getUriLabel(home) : undefined;
@@ -12907,7 +12938,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 		provider.getSessions();
 		await timeout(0);
-		const stateHome = URI.joinPath(buildLocalSessionStateUri(userHome), 'session-42');
+		const stateHome = URI.joinPath(buildLocalSessionStateUri(URI.joinPath(userHome, '.copilot')), 'session-42');
 		const resource = URI.joinPath(stateHome, 'artifact.md');
 		const home = labelService.getUriHome(resource);
 
@@ -12943,7 +12974,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	test('registers the SDK session state home from recorded artifacts', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const userHome = URI.file('/home/test');
-		const sdkStateHome = URI.joinPath(buildLocalSessionStateUri(userHome), 'sdk-session');
+		const sdkStateHome = URI.joinPath(buildLocalSessionStateUri(URI.joinPath(userHome, '.copilot')), 'sdk-session');
 		const artifactUri = URI.joinPath(sdkStateHome, 'files', 'plan.md');
 		const metadata = createSession('ahp-session', { summary: 'Artifact Session' });
 		agentHost.addSession({
