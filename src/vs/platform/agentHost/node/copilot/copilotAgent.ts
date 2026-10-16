@@ -848,8 +848,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _onDidChatProgress = this._register(new Emitter<AgentSignal>());
 	readonly onDidChatProgress = this._onDidChatProgress.event;
 
-	private readonly _managedSettingsResolver = this._register(new CopilotManagedSettingsResolver(this._logService));
-	readonly onDidReportProgress = this._managedSettingsResolver.onDidReportProgress;
+	private readonly _managedSettingsResolver: CopilotManagedSettingsResolver;
+	readonly onDidReportProgress: CopilotManagedSettingsResolver['onDidReportProgress'];
 	private readonly _authenticationRequired = observableValueOpts<Omit<AuthRequiredParams, 'channel'> | undefined>(
 		{ owner: this, equalsFn: structuralEquals },
 		undefined,
@@ -1142,6 +1142,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
 	) {
 		super();
+		this._managedSettingsResolver = this._register(new CopilotManagedSettingsResolver(this._logService));
+		this.onDidReportProgress = this._managedSettingsResolver.onDidReportProgress;
 		this._register(new CopilotBuiltinAgentsStore(this._fileService));
 		this._register(this._githubCredentials.onDidRequestRefresh(() => this._handleCopilotSessionAuthRequired(false)));
 		if (isAgentHostTelemetryService(this._telemetryService)) {
