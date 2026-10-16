@@ -661,6 +661,14 @@ export class ChatView extends AbstractChatView {
 		this._historyKey = historyKey;
 		this._applyHistoryKey();
 
+		// A reused view still renders the previous transcript. Release it before the updates below read
+		// layout: laying out a large transcript that is about to be replaced blocks the switch.
+		const preparationInput = chatChanged && session?.preparationProgress?.get() && this.sessionsManagementService.getInFlightNewSessionRequest(session.resource);
+		if (chatChanged && !preparationInput && previousChatResource) {
+			this._loadCts.value?.cancel();
+			this._clearCurrentChat(previousSession, previousChatResource);
+		}
+
 		// Reflect this chat's last-turn changes, status, and background activity.
 		this._chatPills.setChat(chat);
 		this._selectionSideChatController.setChat(chat);
@@ -697,7 +705,6 @@ export class ChatView extends AbstractChatView {
 		this._currentChatResourceObs.set(resource, undefined);
 		this.logService.trace(`[ChatView] setChat start uri=${resource.toString()} session=${session?.resource.toString()}`);
 
-		const preparationInput = session?.preparationProgress?.get() && this.sessionsManagementService.getInFlightNewSessionRequest(session.resource);
 		if (preparationInput) {
 			this._loadCts.value?.cancel();
 			this._showPreparationInput(preparationInput);
@@ -705,7 +712,7 @@ export class ChatView extends AbstractChatView {
 			this._layoutChatWidget();
 		} else {
 			this._preparationModel.clear();
-			this._loadChat(resource, session, { previousChatResource, previousSession });
+			this._loadChat(resource, session);
 		}
 	}
 
@@ -829,15 +836,12 @@ export class ChatView extends AbstractChatView {
 		this.isLoadingTranscript.set(isLoading, undefined);
 	}
 
-	private _loadChat(resource: URI, session: ISession | undefined, options?: { previousChatResource?: URI; previousSession?: ISession; inputModelToPreserve?: IInputModel }): Promise<void> {
+	private _loadChat(resource: URI, session: ISession | undefined, options?: { inputModelToPreserve?: IInputModel }): Promise<void> {
 		this._loadFailure.set(undefined, undefined);
 		// A fresh load binds to whichever provider serves the chat now.
 		this._chatWithUnregisteredProvider = undefined;
 		// Cancel any in-flight load for the previous chat and start a fresh one.
 		this._loadCts.value?.cancel();
-		if (options?.previousChatResource) {
-			this._clearCurrentChat(options.previousSession, options.previousChatResource);
-		}
 		const cts = new CancellationTokenSource();
 		this._loadCts.value = cts;
 		const token = cts.token;
