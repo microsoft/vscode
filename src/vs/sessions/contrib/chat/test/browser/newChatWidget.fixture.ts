@@ -192,6 +192,7 @@ interface INewChatWidgetFixtureOptions {
 	readonly connectorRecommendationsSetting?: boolean;
 	readonly connectorPrompt?: string;
 	readonly expectedConnectorIds?: readonly string[];
+	readonly staticDismissedConnectorIds?: readonly string[];
 	readonly connectorProductIcons?: boolean;
 	readonly dismissedConnectorCount?: number;
 	readonly focusConnectorRecommendations?: boolean;
@@ -351,6 +352,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		connectorRecommendationsSetting = connectorRecommendations,
 		connectorPrompt,
 		expectedConnectorIds = [],
+		staticDismissedConnectorIds = [],
 		connectorProductIcons = true,
 		dismissedConnectorCount = 0,
 		focusConnectorRecommendations = false,
@@ -931,13 +933,17 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		}
 	}
 	if (connectorRecommendations) {
+		const recommendations = view.element.querySelector<HTMLElement>('.new-session-connector-recommendations');
+		const cards = recommendations?.querySelectorAll<HTMLElement>('.new-session-connector-recommendation-card');
+		assert(!!recommendations && cards?.length === 3);
+		for (const connectorId of staticDismissedConnectorIds) {
+			const card = [...cards].find(card => card.dataset.connectorId === connectorId);
+			card?.querySelector<HTMLElement>('.new-session-connector-recommendation-dismiss')?.click();
+		}
 		if (connectorPrompt !== undefined) {
 			view.prefillInput(connectorPrompt);
 			await nextFrame();
 		}
-		const recommendations = view.element.querySelector<HTMLElement>('.new-session-connector-recommendations');
-		const cards = recommendations?.querySelectorAll<HTMLElement>('.new-session-connector-recommendation-card');
-		assert(!!recommendations && cards?.length === 3);
 		const visibleCards = [...cards].filter(card => !card.hidden);
 		assert(visibleCards.length === expectedConnectorIds.length
 			&& visibleCards.every((card, index) => card.dataset.connectorId === expectedConnectorIds[index]),
@@ -1260,8 +1266,8 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	ConnectorRecommendationsBefore: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['With connector recommendations enabled but no URL in the prompt, the centered new-session composer shows no connector recommendation below it.'],
-		render: context => renderNewChatWidget(context, { height: 700, withWorkspace: true, connectorRecommendations: true, experimentalComposerLayout: true }),
+		expectedVisualDescriptions: ['With no URL in the prompt, the centered new-session composer retains the static Linear, Notion, and WorkIQ recommendation cards below it.'],
+		render: context => renderNewChatWidget(context, { height: 700, withWorkspace: true, connectorRecommendations: true, expectedConnectorIds: ['linear', 'notion', 'workiq-mail'], experimentalComposerLayout: true }),
 	}),
 	ConnectorRecommendationsDisabled: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -1283,6 +1289,11 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['Three URL matches reveal undismissed Linear, Notion, and WorkIQ recommendation cards in one evenly sized row below the composer.'],
 		render: context => renderNewChatWidget(context, { height: 700, withWorkspace: true, connectorRecommendations: true, connectorPrompt: 'Compare linear.app/a with notion.so/b and microsoft365.com/c', expectedConnectorIds: ['linear', 'notion', 'workiq-mail'], experimentalComposerLayout: true }),
+	}),
+	ConnectorRecommendationsAfterStaticDismissal: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['A Notion URL reveals the dynamic Notion recommendation even though its static card was dismissed first.'],
+		render: context => renderNewChatWidget(context, { height: 700, withWorkspace: true, connectorRecommendations: true, staticDismissedConnectorIds: ['notion'], connectorPrompt: 'Summarize notion.so/acme/project', expectedConnectorIds: ['notion'], experimentalComposerLayout: true }),
 	}),
 	ConnectorRecommendationsOneDismissed: defineComponentFixture({
 		labels: { kind: 'screenshot' },
