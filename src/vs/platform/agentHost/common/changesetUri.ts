@@ -10,7 +10,7 @@ import { readAgentMergeFolderState } from './agentMerge.js';
 import { getWorkingDirectoryKey } from './agentHostWorkingDirectories.js';
 import { isAgentMergeMessage } from './meta/agentMergeMessageMeta.js';
 import { AgentSystemNotificationKind, readAgentSystemNotificationMeta } from './meta/agentSystemNotificationMeta.js';
-import { isAhpChatChannel, MessageKind, readSessionGitState, readSessionWorkspaceless, ResponsePartKind, SessionLifecycle, type Changeset, type ISessionGitState, type ISessionWithDefaultChat, type URI } from './state/sessionState.js';
+import { isAhpChatChannel, MessageKind, readSessionGitState, readSessionWorkspaceless, ResponsePartKind, SessionLifecycle, type Changeset, type ISessionWithDefaultChat, type URI } from './state/sessionState.js';
 
 /**
  * Helpers for building / parsing the URI clients subscribe to in order to
@@ -94,16 +94,10 @@ const agentMergeChangesetLabel = (): string => localize('agentMergeChangeset.lab
 const agentMergeChangesetDescription = (): string => localize('agentMergeChangeset.description', "Show changes made by Agent Merge since the last user message");
 
 /**
- * Describes Branch Changes, preferring the known remote-tracking ref of the default base branch.
- * Other bases retain their recorded name; an unrelated upstream is not a diff target.
+ * Describes Branch Changes using the explicitly resolved base rather than inferring it from Git state.
  */
-export function formatBranchChangesetDescription(gitState: ISessionGitState): string | undefined {
-	const { baseBranchName, branchName, defaultBranchName, defaultRemoteBranchName } = gitState;
-	const comparisonBranchName = baseBranchName && baseBranchName === defaultBranchName
-		? defaultRemoteBranchName ?? baseBranchName
-		: baseBranchName;
-
-	return branchName && comparisonBranchName ? `${branchName} → ${comparisonBranchName}` : branchName;
+export function formatBranchChangesetDescription(branchName: string | undefined, baseBranchName: string | undefined): string | undefined {
+	return branchName && baseBranchName ? `${branchName} → ${baseBranchName}` : branchName;
 }
 
 /** Marker injected into a changeset URI's path. */
@@ -410,8 +404,9 @@ export function parseCompareTurnsChangesetUri(uri: URI): { ownerUri: URI; origin
  * whose transcript the repairs run in.
  * `branchChangesetOwnerUri` lets matching chat catalogues share one repository-level Branch Changes resource.
  * `isDefaultChat` is whether `ownerUri` is its session's recorded default chat.
+ * `branchChangesetBaseBranch` is resolved by the host using the same precedence as the branch diff.
  */
-export function buildDefaultChangesetCatalog(ownerUri: URI, isDefaultChat: boolean, state?: ISessionWithDefaultChat, branchChangesetOwnerUri: URI = ownerUri, resolveAgentMergeOwner?: (folderKey: string, recordedChat: URI | undefined) => URI | undefined): Changeset[] {
+export function buildDefaultChangesetCatalog(ownerUri: URI, isDefaultChat: boolean, state?: ISessionWithDefaultChat, branchChangesetOwnerUri: URI = ownerUri, resolveAgentMergeOwner?: (folderKey: string, recordedChat: URI | undefined) => URI | undefined, branchChangesetBaseBranch?: string): Changeset[] {
 	// Session that failed to create
 	if (!state || state.lifecycle === SessionLifecycle.Failed) {
 		return [];
@@ -477,9 +472,7 @@ export function buildDefaultChangesetCatalog(ownerUri: URI, isDefaultChat: boole
 	return [
 		{
 			label: branchChangesetLabel(),
-			description: gitState
-				? formatBranchChangesetDescription(gitState)
-				: undefined,
+			description: formatBranchChangesetDescription(gitState.branchName, branchChangesetBaseBranch),
 			uriTemplate: buildBranchChangesetUri(branchChangesetOwnerUri),
 			changeKind: ChangesetKind.Branch,
 			capabilities: { review: {} }

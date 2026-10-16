@@ -42,40 +42,38 @@ suite('changesetUri', () => {
 
 	const sessionUri = 'copilot:/abc-123';
 
-	test('branch descriptions prefer the known remote-tracking base rather than the current branch upstream', () => {
-		const gitState = { branchName: 'feature', baseBranchName: 'main', upstreamBranchName: 'origin/feature', defaultBranchName: 'main', defaultRemoteBranchName: 'origin/main' };
+	test('formats branch descriptions from the explicit base', () => {
 		assert.deepStrictEqual({
-			defaultBranch: formatBranchChangesetDescription({ ...gitState, branchName: 'main' }),
-			featureBranch: formatBranchChangesetDescription(gitState),
-			localBase: formatBranchChangesetDescription({ ...gitState, defaultRemoteBranchName: undefined }),
-			configuredBase: formatBranchChangesetDescription({ ...gitState, baseBranchName: 'release' }),
-			olderGitState: formatBranchChangesetDescription({ branchName: 'feature', baseBranchName: 'main' }),
-			noBase: formatBranchChangesetDescription({ ...gitState, baseBranchName: undefined }),
-			noBranch: formatBranchChangesetDescription({ ...gitState, branchName: undefined }),
+			persistedBase: formatBranchChangesetDescription('feature', 'origin/release'),
+			currentBranchBase: formatBranchChangesetDescription('main', 'origin/main'),
+			localBase: formatBranchChangesetDescription('feature', 'main'),
+			noBase: formatBranchChangesetDescription('feature', undefined),
+			noBranch: formatBranchChangesetDescription(undefined, 'origin/main'),
 		}, {
-			defaultBranch: 'main → origin/main',
-			featureBranch: 'feature → origin/main',
+			persistedBase: 'feature → origin/release',
+			currentBranchBase: 'main → origin/main',
 			localBase: 'feature → main',
-			configuredBase: 'feature → release',
-			olderGitState: 'feature → main',
 			noBase: 'feature',
 			noBranch: undefined,
 		});
 	});
 
-	test('the branch picker entry describes the remote-tracking default base', () => {
-		const catalogue = buildDefaultChangesetCatalog(buildDefaultChatUri(sessionUri), true, {
+	test('the branch catalogue uses the explicit base, not stale Git-state base or upstream', () => {
+		const chat = buildDefaultChatUri(sessionUri);
+		const readyState = {
 			...state(),
-			_meta: withSessionGitState(undefined, {
-				branchName: 'main',
-				baseBranchName: 'main',
-				upstreamBranchName: 'origin/main',
-				defaultBranchName: 'main',
-				defaultRemoteBranchName: 'origin/main',
-			}),
-		});
+			_meta: withSessionGitState(undefined, { branchName: 'feature', baseBranchName: 'stale-base', upstreamBranchName: 'origin/feature' }),
+		};
+		const description = (baseBranch: string | undefined) => buildDefaultChangesetCatalog(chat, true, readyState, chat, undefined, baseBranch)
+			.find(changeset => changeset.changeKind === ChangesetKind.Branch)?.description;
 
-		assert.strictEqual(catalogue.find(changeset => changeset.changeKind === ChangesetKind.Branch)?.description, 'main → origin/main');
+		assert.deepStrictEqual({
+			resolved: description('origin/release'),
+			unresolved: description(undefined),
+		}, {
+			resolved: 'feature → origin/release',
+			unresolved: 'feature',
+		});
 	});
 
 	function turn(id: string, kind: MessageKind, agentMerge = false): Turn {
