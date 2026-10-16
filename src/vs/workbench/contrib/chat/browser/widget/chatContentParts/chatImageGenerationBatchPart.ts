@@ -5,13 +5,11 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
-import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { autorun, observableSignalFromEvent } from '../../../../../../base/common/observable.js';
-import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
@@ -34,6 +32,10 @@ import '../../attachments/chatImageReveal.css';
 
 type ImageTool = IChatToolInvocation | IChatToolInvocationSerialized;
 type ImageStatus = 'running' | 'waiting' | 'ready' | 'failed' | 'cancelled';
+
+const MAX_THUMBNAILS_PER_ROW = 5;
+const THUMBNAIL_TARGET_WIDTH = 96;
+const THUMBNAIL_LANDSCAPE_RATIO = 3 / 2;
 
 function isWaiting(tool: ImageTool): boolean {
 	const state = tool.kind === 'toolInvocation' ? tool.state.get().type : undefined;
@@ -88,7 +90,7 @@ export class ChatImageGenerationBatchPart extends Disposable implements IChatCon
 	private readonly preview = dom.append(this.domNode, dom.$('.chat-image-generation-batch-preview'));
 	private readonly summary = dom.append(this.domNode, dom.$('.chat-image-generation-batch-summary', { role: 'status', 'aria-live': 'polite', 'aria-atomic': 'true' }));
 	private readonly thumbnails = dom.$('.chat-image-generation-batch-thumbnails', { role: 'group', 'aria-label': localize('chat.imageBatch.thumbnails', "Generated image previews") });
-	private readonly scrollable = this._register(new DomScrollableElement(this.thumbnails, { horizontal: ScrollbarVisibility.Auto, vertical: ScrollbarVisibility.Hidden }));
+	private readonly thumbnailRows: HTMLElement[] = [];
 	private readonly confirmations = dom.append(this.domNode, dom.$('.chat-image-generation-batch-confirmations'));
 	private readonly loading = this._register(new MutableDisposable<IDisposable>());
 	private readonly previewWidget = this._register(new MutableDisposable<ChatResourceGroupWidget>());
@@ -125,15 +127,17 @@ export class ChatImageGenerationBatchPart extends Disposable implements IChatCon
 		};
 		viewStates.set(owner.toolCallId, this.viewState);
 		ChatImageGenerationBatchPart.viewStates.set(response, viewStates);
-		this.summary.before(this.scrollable.getDomNode());
+		this.summary.before(this.thumbnails);
 		this._register(this.hoverService.setupDelayedHover(this.summary, () => ({ content: this.summary.textContent ?? '' })));
 		this._register(dom.addDisposableListener(this.preview, dom.EventType.DRAG_START, event => event.preventDefault()));
 		this._register(dom.addDisposableListener(this.thumbnails, dom.EventType.KEY_DOWN, event => {
 			const index = this.slots.findIndex(slot => slot.key === this.viewState.selected);
 			const next = event.key === 'ArrowRight' ? Math.min(index + 1, this.slots.length - 1)
 				: event.key === 'ArrowLeft' ? Math.max(index - 1, 0)
-					: event.key === 'Home' ? 0
-						: event.key === 'End' ? this.slots.length - 1 : undefined;
+					: event.key === 'ArrowDown' ? this.getVerticalThumbnailIndex(index, 1)
+						: event.key === 'ArrowUp' ? this.getVerticalThumbnailIndex(index, -1)
+							: event.key === 'Home' ? 0
+								: event.key === 'End' ? this.slots.length - 1 : undefined;
 			if (next !== undefined && this.slots[next]) {
 				event.preventDefault();
 				event.stopPropagation();
@@ -144,7 +148,7 @@ export class ChatImageGenerationBatchPart extends Disposable implements IChatCon
 		}));
 		const resizeObserver = this._register(new dom.DisposableResizeObserver('ChatImageGenerationBatch', () => {
 			this.layoutAfterResize.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this.domNode), () => {
-				this.scrollable.scanDomNode();
+				this.layoutThumbnails();
 				this._onDidChangeHeight.fire();
 			});
 		}));
@@ -253,7 +257,14 @@ export class ChatImageGenerationBatchPart extends Disposable implements IChatCon
 					thumbnail.icon.className = ThemeIcon.asClassName(Codicon.warning);
 					thumbnail.icon.hidden = false;
 					thumbnail.button.setAriaLabel(localize('chat.imageBatch.previewUnavailable', "Image {0}, preview unavailable", index + 1));
+					this.layoutThumbnails();
 				};
+				store.add(dom.addDisposableListener(image, dom.EventType.LOAD, () => {
+					if (!store.isDisposed && image.naturalWidth > 0 && image.naturalHeight > 0) {
+						this.viewState.imageDimensions.set(slot.part!.uri, { width: image.naturalWidth, height: image.naturalHeight });
+						this.layoutThumbnails();
+					}
+				}));
 				store.add(dom.addDisposableListener(image, dom.EventType.ERROR, showError));
 				void this.loadThumbnail(slot.part, image, store, showError);
 			} else if (!slot.part) {
@@ -272,11 +283,60 @@ export class ChatImageGenerationBatchPart extends Disposable implements IChatCon
 								: localize('chat.imageBatch.failedImage', "Image {0}, failed", index + 1);
 			item.button.setAriaLabel(label);
 			item.button.setTitle(label);
-			if (this.thumbnails.children[index] !== item.button.element) {
-				this.thumbnails.insertBefore(item.button.element, this.thumbnails.children[index] ?? null);
-			}
 		});
-		this.scrollable.scanDomNode();
+		this.layoutThumbnails();
+	}
+
+	private layoutThumbnails(): void {
+		const width = this.thumbnails.clientWidth || this.context.container.clientWidth || this.context.currentWidth.get();
+		const columns = Math.max(1, Math.min(MAX_THUMBNAILS_PER_ROW, Math.floor(width / THUMBNAIL_TARGET_WIDTH)));
+		const rowHeight = `min(144px, calc((100cqw - var(--vscode-spacing-size120) * ${columns - 1}) / ${columns * THUMBNAIL_LANDSCAPE_RATIO}))`;
+		const rowCount = Math.ceil(this.slots.length / columns);
+		const focused = dom.isAncestorOfActiveElement(this.thumbnails) ? dom.getActiveElement() : undefined;
+		let start = 0;
+		for (let rowIndex = 0; rowIndex < rowCount; rowIndex++) {
+			const row = this.thumbnailRows[rowIndex] ?? dom.append(this.thumbnails, dom.$('.chat-image-generation-batch-thumbnail-row'));
+			this.thumbnailRows[rowIndex] = row;
+			// Reserve landscape-sized slots before decoding; narrower images leave space at the row end.
+			row.style.height = rowHeight;
+			const rowSize = Math.ceil((this.slots.length - start) / (rowCount - rowIndex));
+			for (let column = 0; column < rowSize; column++) {
+				const slot = this.slots[start + column];
+				const item = this.thumbnailItems.get(slot.key)!;
+				const dimensions = slot.part && !item.previewUnavailable ? this.viewState.imageDimensions.get(slot.part.uri) : undefined;
+				const ratio = dimensions ? dimensions.width / dimensions.height : 1;
+				const heightScale = Math.min(1, THUMBNAIL_LANDSCAPE_RATIO / ratio);
+				item.button.element.style.aspectRatio = String(ratio);
+				item.button.element.style.height = `calc(${rowHeight} * ${heightScale})`;
+				item.button.element.style.width = `calc(${rowHeight} * ${heightScale * ratio})`;
+				if (row.children[column] !== item.button.element) {
+					row.insertBefore(item.button.element, row.children[column] ?? null);
+				}
+			}
+			start += rowSize;
+		}
+		for (const row of this.thumbnailRows.splice(rowCount)) {
+			row.remove();
+		}
+		if (focused && dom.isHTMLElement(focused) && dom.getActiveElement() !== focused) {
+			focused.focus({ preventScroll: true });
+		}
+	}
+
+	private getVerticalThumbnailIndex(index: number, direction: -1 | 1): number {
+		const current = this.thumbnailItems.get(this.slots[index]?.key)?.button.element;
+		if (!current) {
+			return index;
+		}
+		const rowIndex = this.thumbnailRows.findIndex(row => row === current.parentElement);
+		const row = this.thumbnailRows[rowIndex];
+		const nextRow = this.thumbnailRows[rowIndex + direction];
+		if (!row || !nextRow) {
+			return index;
+		}
+		const column = Array.from(row.children).indexOf(current);
+		const next = nextRow.children[Math.min(column, nextRow.children.length - 1)];
+		return this.slots.findIndex(slot => this.thumbnailItems.get(slot.key)?.button.element === next);
 	}
 
 	private async loadThumbnail(part: IChatCollapsibleIODataPart, image: HTMLImageElement, store: DisposableStore, onError: () => void): Promise<void> {
