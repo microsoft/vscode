@@ -260,6 +260,24 @@ class InputModelReferenceHarness implements IInputModelReferenceHarness, IDispos
 }
 
 suite('NewChatInputWidget', () => {
+	test('notification model edits use the scoped configuration and fall back only when absent', async () => {
+		const writes: { scope: string; model: string; values: Record<string, unknown> }[] = [];
+		const access = (scope: string) => ({
+			setModelConfiguration: async (model: string, values: Record<string, unknown>) => { writes.push({ scope, model, values }); },
+		});
+		const selection: { modelConfiguration: ReturnType<typeof access> | undefined } = { modelConfiguration: access('chat') };
+		const widget: { _applyModelConfiguration(model: string, values: Record<string, unknown>): Promise<void> } = Object.assign(Object.create(NewChatInputWidget.prototype), {
+			_modelSelection: selection, languageModelsService: access('global'),
+		});
+		await widget._applyModelConfiguration('model', { thinkingLevel: 'high' });
+		selection.modelConfiguration = undefined;
+		await widget._applyModelConfiguration('model', { contextSize: 200_000 });
+		assert.deepStrictEqual(writes, [
+			{ scope: 'chat', model: 'model', values: { thinkingLevel: 'high' } },
+			{ scope: 'global', model: 'model', values: { contextSize: 200_000 } },
+		]);
+	});
+
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const accepted of [true, false]) {

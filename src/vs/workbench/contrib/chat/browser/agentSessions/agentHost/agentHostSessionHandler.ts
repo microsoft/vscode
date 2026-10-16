@@ -109,6 +109,7 @@ import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
 import { ChatErrorLevel, ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestionAnswers, IChatService, IChatToolInvocation, IRemotePendingRequest, ToolConfirmKind, type IChatAutoModeResolutionPart, type IChatMcpAuthenticationRequired, type IChatMcpAuthenticationRequiredServer, type IChatMcpStartingServer, type IChatMultiSelectAnswer, type IChatPlanReviewResult, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatSubagentToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { isInConversationModelChoice } from '../../../common/modelSelection.js';
 import { readAgentRuntimeModelConfiguration } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
+import { readAgentModelConfigurationReport, type IAgentModelConfigurationReport } from '../../../../../../platform/agentHost/common/agentModelConfiguration.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, isTerminalCommandPrompt, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult, type IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
@@ -757,6 +758,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	readonly isInputBlocked: IObservable<boolean>;
 	readonly retryInput: (() => Promise<void>) | undefined;
 	readonly canvasContext: IObservable<ICanvasContext | undefined> | undefined;
+	readonly modelConfigurationState: IObservable<IAgentModelConfigurationReport | undefined>;
 	private readonly _inputState: AgentHostChatInputState | undefined;
 	private readonly _sessionState = observableValue<IObservable<SessionState | undefined>>(this, constObservable(undefined));
 	private readonly _chatState = observableValue<IObservable<ChatState | undefined>>(this, constObservable(undefined));
@@ -795,6 +797,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 		readonly historyLoadError: IChatSession['historyLoadError'],
 		readonly title: string | undefined,
 		backendSession: URI,
+		toLanguageModelId: (rawModelId: string) => string | undefined,
 		sessionSubscription: IAgentSubscription<SessionState> | undefined,
 		chatSubscription: IAgentSubscription<ChatState> | undefined,
 		canvasProvider: AgentHostCanvasCollection | undefined,
@@ -811,6 +814,21 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
+
+		this.modelConfigurationState = derived(this, reader => {
+			const session = this._sessionState.read(reader).read(reader);
+			const chat = this._chatState.read(reader).read(reader);
+			const report = chat ? readAgentModelConfigurationReport(session?.config?.values, chat.resource) : undefined;
+			if (!report || this._disposed.read(reader)) {
+				return undefined;
+			}
+			const models = Object.fromEntries(Object.entries(report.models).flatMap(([rawId, options]) => {
+				const id = toLanguageModelId(rawId);
+				return id ? [[id, options]] : [];
+			}));
+			const id = report.current ? toLanguageModelId(report.current.id) : undefined;
+			return { models, ...(id && report.current ? { current: { ...report.current, id } } : {}) };
+		});
 
 		const providerInputState = derived(this, reader => {
 			const session = this._sessionState.read(reader).read(reader);
@@ -1842,6 +1860,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				historyLoadError,
 				chatTitle,
 				resolvedSession,
+				rawModelId => this._toLanguageModelId(sessionResource, rawModelId),
 				sessionSubscription,
 				chatSubscription,
 				this._canvasProvider,
@@ -3117,14 +3136,19 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return invocation;
 	}
 
-	/** The workbench tool a runtime client-tool call maps to, or `undefined` when it is not installed. */
+	/** Resolves a client tool without considering MCP tools, which the host executes separately. */
 	private _resolveClientTool(toolName: string): IToolData | undefined {
 		const isCopilotSession = isCopilotAgentHostSessionType(this._config.sessionType);
 		if (isCopilotSession && toolName === SEMANTIC_SEARCH_TOOL_NAME) {
 			return this._toolsService.getTool(CLIENT_SEMANTIC_SEARCH_TOOL_ID);
 		}
 		const clientToolName = toolName === RUNTIME_TOOL_SEARCH_TOOL_NAME ? CLIENT_TOOL_SEARCH_REFERENCE_NAME : toolName;
-		return this._toolsService.getToolByName(clientToolName);
+		for (const tool of this._toolsService.getAllToolsIncludingDisabled()) {
+			if (tool.source.type !== 'mcp' && tool.toolReferenceName === clientToolName) {
+				return tool;
+			}
+		}
+		return undefined;
 	}
 
 	/**

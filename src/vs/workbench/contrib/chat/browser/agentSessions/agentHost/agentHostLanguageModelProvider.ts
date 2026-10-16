@@ -16,6 +16,7 @@ import { readLocalModelRowMeta } from '../../../../../../platform/agentHost/comm
 import { ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { readAgentModelEnsembleMeta, readAgentModelPricingMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { readAgentImageModels } from '../../../../../../platform/agentHost/common/meta/agentImageModels.js';
+import { readAgentManagedModelDefaults, readAgentModelConfigurationDefaults } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { readAgentModelGroupId, readAgentModelSourceId } from '../../../../../../platform/agentHost/common/agentModelSource.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../../../../../platform/agentHost/common/reasoningEffort.js';
@@ -110,6 +111,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				// "Auto" advertises the auto-mode discount (detail) + description (tooltip). microsoft/vscode#321778, #321659.
 				const isAuto = m.id === AUTO_RAW_MODEL_ID;
 				const ensemble = isAuto ? readAgentModelEnsembleMeta(m) : undefined;
+				const configurationDefaultKeys = readAgentModelConfigurationDefaults(m);
 				const notices = isAuto ? undefined : readAgentModelNoticesMeta(m);
 				const discountPercent = pricing.discountPercent;
 				// Guard against a non-finite or out-of-range value from the open `_meta` bag so we never render
@@ -176,6 +178,8 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 							agentMode: true,
 						},
 						configurationSchema: this._toLanguageModelConfigurationSchema(m.configSchema),
+						...(configurationDefaultKeys !== undefined ? { configurationDefaultKeys } : {}),
+						managedModelDefaults: readAgentManagedModelDefaults(m),
 					},
 				};
 			});

@@ -44,6 +44,15 @@ suite('Chat Accessibility Help', () => {
 		assert.ok(help.includes('use /sandbox policy to view the effective sandbox policy. In the response, use Tab to focus Open Sandbox Policy and Enter to open the formatted report.'));
 	});
 
+	test('explains read-only model options separately from overridable defaults', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			managed: help.includes('Its value is announced as managed by the agent host and cannot be changed.'),
+			overridable: help.includes('An overridable default remains selectable.'),
+			modelSpecific: help.includes('Changing models uses the options available for the newly selected model.'),
+		}, { managed: true, overridable: true, modelSpecific: true });
+	});
+
 	test('documents participant redirection only in workbench panel and editor chats', () => {
 		const keybindings = new MockKeybindingService();
 		assert.deepStrictEqual(
