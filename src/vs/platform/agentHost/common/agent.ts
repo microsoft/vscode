@@ -386,6 +386,7 @@ export interface IAgentCustomizationMarketplaceSearchRequest {
 	/** Retrieves an ordered saved feed instead of searching. */
 	readonly feedId?: string;
 	readonly mediaType?: string;
+	readonly canvasDiscovery?: boolean;
 	readonly limit: number;
 	readonly cursor?: string;
 }

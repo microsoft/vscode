@@ -233,7 +233,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 		if (request.feedId !== undefined) {
 			return this.getSavedFeed(request.feedId);
 		}
-		if (!request.query.trim()) {
+		if (!request.query.trim() && !request.canvasDiscovery) {
 			if (request.mediaType !== copilotPluginMediaType) {
 				return request.mediaType
 					? { kind: 'page', items: [] }
