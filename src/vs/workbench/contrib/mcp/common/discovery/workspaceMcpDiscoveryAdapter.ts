@@ -48,6 +48,9 @@ export class CursorWorkspaceMcpDiscoveryAdapter extends FilesystemMcpDiscovery i
 	}
 
 	private watchFolder(folder: IWorkspaceFolder) {
+		if (!folder.uri.path) {
+			return;
+		}
 		const configFile = joinPath(folder.uri, '.cursor', 'mcp.json');
 		const collection: WritableMcpCollectionDefinition = {
 			id: `${CURSOR_WORKSPACE_MCP_COLLECTION_ID_PREFIX}${folder.index}`,
