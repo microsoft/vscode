@@ -42,7 +42,6 @@ import { ISessionDataService } from '../common/sessionDataService.js';
 import { getSessionPullRequestUrl, SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { getEffectiveChatConfig } from '../common/sessionConfigProperties.js';
 import { resolveChatAttachment } from '../common/state/chatAttachmentContext.js';
-import { chatUriFormatOf, subagentChatUri } from '../common/agentHostChatMinting.js';
 import { buildOpenSessionLinkForChat } from '../common/openSessionLink.js';
 import { McpServerStatus, ToolCallContributorKind, type AgentInfo, type SessionActiveClient } from '../common/state/protocol/state.js';
 import type { CustomizationEnablement } from '../common/state/protocol/channels-session/state.js';
@@ -100,7 +99,7 @@ import { IAgentHostPeerChatPersistenceService } from './agentHostPeerChatStore.j
 import { targetForMcpServer, targetForPlugin } from './shared/customizationEnablementGate.js';
 import { IAgentHostWorktreeIsolation } from './shared/worktreeIsolation.js';
 import { IAgentHostWorktreeCleanupService } from './agentHostWorktreeCleanupService.js';
-import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
+import { IAgentHostChatOwnershipService, mintSubagentChatUri } from './agentHostChatOwnershipService.js';
 
 /**
  * Options for constructing an {@link AgentSideEffects} instance.
@@ -1004,7 +1003,7 @@ export class AgentSideEffects extends Disposable {
 			&& readToolCallMeta(action).toolKind === 'subagent'
 			&& readToolCallMeta(action).subagentChatUri === undefined
 		) {
-			action = { ...action, _meta: { ...action._meta, subagentChatUri: this._subagentChatUriOf(sessionUri, sessionKey, action.toolCallId) } };
+			action = { ...action, _meta: { ...action._meta, subagentChatUri: mintSubagentChatUri(this._chatOwnership, sessionUri, sessionKey, action.toolCallId) } };
 		}
 
 		// When a parent tool call has an associated subagent session,
@@ -1172,19 +1171,6 @@ export class AgentSideEffects extends Disposable {
 	 * owner is recorded while the chat is registered so late signals for a
 	 * removed chat still reach its session.
 	 */
-	/**
-	 * The id of the chat running the subagent spawned by `toolCallId`. The
-	 * root conversation chat is found through the recorded spawn edges, so a
-	 * nested subagent derives from the same root as its parent's siblings.
-	 */
-	private _subagentChatUriOf(session: ProtocolURI, issuingChat: ProtocolURI, toolCallId: string): ProtocolURI {
-		let root = issuingChat;
-		for (let parent = this._chatOwnership.getChatParent(root); parent !== undefined && parent !== root; parent = this._chatOwnership.getChatParent(root)) {
-			root = parent;
-		}
-		return subagentChatUri(chatUriFormatOf(this._chatOwnership.getDefaultChat(session)), session, root, toolCallId);
-	}
-
 	private _sessionOf(channel: ProtocolURI): ProtocolURI | undefined {
 		if (!isAhpChatChannel(channel)) {
 			return channel;
@@ -1287,7 +1273,7 @@ export class AgentSideEffects extends Disposable {
 			this._logService.warn(`[AgentSideEffects] Ignoring subagent start for unregistered chat ${chatURI}/${toolCallId}`);
 			return;
 		}
-		const subagentChatUri = this._subagentChatUriOf(parentSessionUri, chatURI, toolCallId);
+		const subagentChatUri = mintSubagentChatUri(this._chatOwnership, parentSessionUri, chatURI, toolCallId);
 		const immediateParentChatUri = spawningToolParentId
 			? this._subagentChats.get(chatURI, spawningToolParentId)?.chatUri
 			: chatURI;

@@ -19,12 +19,8 @@
 }
 
 /* Content stays centered on the chat's full width and only moves off center when the Session Toolbar
- * would otherwise cover it (see `--session-toolbar-content-inset`); the scroll viewport keeps the full width. */
-.chat-view-new > .sessions-chat-widget {
-	width: calc(100% - var(--session-toolbar-content-inset, 0px));
-}
-
-/* Inset row content, including rows replicated by sticky scroll. */
+ * would otherwise cover it (see `--session-toolbar-content-inset`); the scroll viewport keeps the full width.
+ * Row content is inset, including rows replicated by sticky scroll. */
 .agent-sessions-workbench .chat-view-chat .interactive-list > .monaco-list > .monaco-scrollable-element > :is(.monaco-list-rows, .monaco-tree-sticky-container) > .monaco-list-row > .monaco-tl-row > .monaco-tl-contents {
 	box-sizing: border-box;
 	padding-right: var(--session-toolbar-content-inset, 0px);

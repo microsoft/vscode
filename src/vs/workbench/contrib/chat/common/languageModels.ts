@@ -248,6 +248,9 @@ export interface ILanguageModelConfigurationSchema extends IJSONSchema {
 }
 
 export interface ILanguageModelChatMetadata {
+	/** Host-advertised options whose defaults are not explicit user choices. */
+	readonly configurationDefaultKeys?: readonly string[];
+	readonly managedModelDefaults?: { readonly model: boolean; readonly keys: readonly string[] };
 	readonly extension: ExtensionIdentifier;
 
 	readonly name: string;
@@ -1152,7 +1155,7 @@ export function createModelConfigurationActions(
 				id: `configureModel.${key}.${value}`,
 				label: displayLabel,
 				class: undefined,
-				enabled: true,
+				enabled: !propSchema.readOnly,
 				tooltip,
 				checked: currentValue === value,
 				run: () => setValue(key, value)
@@ -1724,8 +1727,13 @@ export class LanguageModelsService implements ILanguageModelsService {
 			return undefined;
 		}
 
-		// User config overrides defaults
-		return { ...defaults, ...userConfig };
+		const configuration = { ...defaults, ...userConfig };
+		for (const [key, property] of Object.entries(schema?.properties ?? {})) {
+			if (property.readOnly && property.default !== undefined) {
+				configuration[key] = property.default;
+			}
+		}
+		return configuration;
 	}
 
 	computeTokenLength(modelId: string, message: string | IChatMessage, token: CancellationToken): Promise<number> {
@@ -1792,7 +1800,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		if (schema?.properties) {
 			for (const [key, value] of Object.entries(updatedConfig)) {
 				const propSchema = schema.properties[key];
-				if (propSchema?.default !== undefined && propSchema.default === value) {
+				if (propSchema?.default !== undefined && propSchema.default === value && !metadata.configurationDefaultKeys?.includes(key)) {
 					delete updatedConfig[key];
 				}
 			}

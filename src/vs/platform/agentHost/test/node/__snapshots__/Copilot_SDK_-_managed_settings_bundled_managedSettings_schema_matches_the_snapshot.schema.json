@@ -739,6 +739,11 @@
 						"type": "string",
 						"format": "uri"
 					},
+					"filePath": {
+						"description": "Selects a file destination instead of the collector endpoint and automatically enables OTel unless this managed telemetry block sets enabled to false. Empty or non-string canonical policy values are validation errors. For Copilot runtime and VS Code Agent Host consumers, a relative path is resolved under COPILOT_HOME when that override is nonempty, otherwise under the exporting execution host's default <user-home>/.copilot directory; a COPILOT_HOME override must be absolute. A leading ~/ is expanded using the exporting execution host's home directory. This path-resolution contract does not claim behavior for server-side or other consumers. Parent directories are created as needed. Path-resolution and file I/O failures are logged and skipped without blocking Copilot or falling back to a network destination.",
+						"type": "string",
+						"minLength": 1
+					},
 					"protocol": {
 						"description": "OTLP transport protocol used for all exported telemetry. Equivalent to the OTEL_EXPORTER_OTLP_PROTOCOL environment variable; the managed value takes precedence over any user-provided value. Recognized values are \"http/json\" and \"http/protobuf\" (\"grpc\" is accepted for forward compatibility but is not implemented in this version and falls back to the default protocol).",
 						"type": "string"
@@ -1170,5 +1175,5 @@
 			}
 		}
 	},
-	"runtimeVersion": "1.0.99-0"
+	"runtimeVersion": "1.0.99-1"
 }

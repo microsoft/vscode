@@ -270,7 +270,7 @@ export function shouldScheduleInitialHeightChange(normalizedHeight: number, allo
 	return typeof allocatedHeight !== 'number' || normalizedHeight > allocatedHeight;
 }
 
-export function getFinalResponseStartIndex(content: ReadonlyArray<IChatRendererContent>): number | undefined {
+export function getFinalResponseStartIndex(content: ReadonlyArray<IChatRendererContent>, allowSingleToolGap = false): number | undefined {
 	let index = content.length - 1;
 	while (index >= 0) {
 		const part = content[index];
@@ -284,8 +284,18 @@ export function getFinalResponseStartIndex(content: ReadonlyArray<IChatRendererC
 		return undefined;
 	}
 
-	while (index > 0 && content[index - 1].kind === 'markdownContent') {
-		index--;
+	let canCrossTool = allowSingleToolGap;
+	while (index > 0) {
+		const previous = content[index - 1];
+		if (previous.kind === 'markdownContent') {
+			index--;
+		} else if (canCrossTool && (previous.kind === 'toolInvocation' || previous.kind === 'toolInvocationSerialized') && content[index - 2]?.kind === 'markdownContent') {
+			// A final tool can separate a detailed answer from its closing summary.
+			index -= 2;
+			canCrossTool = false;
+		} else {
+			break;
+		}
 	}
 	return index;
 }
@@ -325,8 +335,8 @@ function getFinalResponseLinkTargets(content: ReadonlyArray<IChatRendererContent
 	return targets;
 }
 
-export function getFinalResponseStartIndexAfterMovingResponseOutcomeTools(content: ReadonlyArray<IChatRendererContent>): number | undefined {
-	const finalResponseStartIndex = getFinalResponseStartIndex(content);
+export function getFinalResponseStartIndexAfterMovingResponseOutcomeTools(content: ReadonlyArray<IChatRendererContent>, allowSingleToolGap = false): number | undefined {
+	const finalResponseStartIndex = getFinalResponseStartIndex(content, allowSingleToolGap);
 	if (finalResponseStartIndex === undefined) {
 		return undefined;
 	}
@@ -3688,7 +3698,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		const responseContent = annotateSpecialMarkdownContent(element.response.value);
-		const responseFinalStartIndex = getFinalResponseStartIndexAfterMovingResponseOutcomeTools(responseContent);
+		const responseFinalStartIndex = getFinalResponseStartIndexAfterMovingResponseOutcomeTools(responseContent, true);
 		const finalResponseStartIndex = responseFinalStartIndex === undefined ? undefined : responseFinalStartIndex + 1;
 		if (finalResponseStartIndex === undefined || !isFinalResponseRendered(content, finalResponseStartIndex) || finalResponseStartIndex === 0 || !content.slice(0, finalResponseStartIndex).some(part => part.kind !== 'references' || part.references.length > 0)) {
 			this.removeCompletedResponseDisclosure(templateData);

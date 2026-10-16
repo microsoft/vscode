@@ -36,9 +36,9 @@ import { turnsToHistory } from '../../../browser/agentSessions/agentHost/stateTo
 const resource = URI.parse('remote-agent-host-test-copilot:/session');
 const peerChat = 'custom-chat:/opaque-peer';
 
-function recordedHistory(mainTitle = '', peerTitle = ''): IReplayedTaskHistory {
+function recordedHistory(mainTitle = '', peerTitle = '', sessionTitle = 'Recorded title'): IReplayedTaskHistory {
 	const summary = {
-		resource: 'ahp-session:/session', provider: 'copilot', title: 'Recorded title',
+		resource: 'ahp-session:/session', provider: 'copilot', title: sessionTitle,
 		status: SessionStatus.Idle, createdAt: '2026-01-01T00:00:00.000Z', modifiedAt: '2026-01-01T00:00:00.000Z',
 	};
 	const state = createSessionState(summary);
@@ -207,6 +207,13 @@ suite('CloudSandboxSessionHandler', () => {
 		assert.deepStrictEqual({ title: session.title, titles, shared: await sharesContent(handler, session) }, {
 			title: 'Updated conversation title', titles: ['Updated conversation title'], shared: true,
 		});
+	});
+
+	test('a recorded session titled after its id has no title until the agent names it', async () => {
+		const titles: string[] = [];
+		const handler = createHandler(async () => recordedHistory('', '', 'session'), undefined, undefined, undefined, undefined, undefined, (_resource, title) => titles.push(title));
+		const session = await handler.provideChatSessionContent(resource, CancellationToken.None);
+		assert.deepStrictEqual({ title: session.title, titles }, { title: undefined, titles: [] });
 	});
 
 	test('invalidates local submissions only for the matching open conversation and releases the listener on close', async () => {
