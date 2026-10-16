@@ -7,6 +7,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { fixedChatOwnerRef, type IAgentChatContext, type IAgentChatOwnerChange, type IAgentChatOwnerRef } from '../../common/agent.js';
+import type { ChatUriFormat } from '../../common/agentHostChatMinting.js';
 
 /** A host-shaped chat context for provider tests: `owner` owns the chat, which stores under `resource`. */
 export function createTestAgentChatContext(owner: URI | IAgentChatOwnerRef, resource: URI): IAgentChatContext {
@@ -19,15 +20,20 @@ export class TestChatOwnerRef implements IAgentChatOwnerRef, IDisposable {
 	private readonly _onDidChange = new Emitter<IAgentChatOwnerChange>();
 	readonly onDidChange = this._onDidChange.event;
 
-	constructor(private _owner: URI) { }
+	constructor(private _owner: URI, private _subagentChatUriFormat: ChatUriFormat = 'shaped') { }
 
 	get(): URI {
 		return this._owner;
 	}
 
-	set(owner: URI): void {
+	getSubagentChatUriFormat(): ChatUriFormat {
+		return this._subagentChatUriFormat;
+	}
+
+	set(owner: URI, subagentChatUriFormat: ChatUriFormat = this._subagentChatUriFormat): void {
 		const previous = this._owner;
 		this._owner = owner;
+		this._subagentChatUriFormat = subagentChatUriFormat;
 		this._onDidChange.fire({ previous, current: owner });
 	}
 

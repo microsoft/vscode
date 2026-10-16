@@ -626,7 +626,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	private _emitSpawnedChatEvents(signal: AgentSignal): void {
 		const spawn = SubagentChatSignal.toSpawnEvent(signal, chat => {
 			const scope = this._chatConfigScopes.get(chat);
-			return scope && { owner: scope.owner.get().toString(), format: scope.subagentChatUriFormat };
+			return scope && { owner: scope.owner.get().toString(), format: scope.owner.getSubagentChatUriFormat() };
 		});
 		if (spawn) {
 			this._onDidSpawnChat.fire(spawn);

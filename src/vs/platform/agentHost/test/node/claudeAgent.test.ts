@@ -46,6 +46,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { Schemas } from '../../../../base/common/network.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { AgentChatMigrationDeferred, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeChatEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, fixedChatOwnerRef } from '../../common/agent.js';
+import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostClaudeMultiRootEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -4251,6 +4252,34 @@ suite('ClaudeAgent', () => {
 				title: 'Count files',
 			}],
 		});
+	});
+
+	test('D3: subagent spawn follows the current owner chat format', () => {
+		const { agent } = createTestContext(disposables);
+		const first = AgentSession.uri('claude', 'spawn-format-first');
+		const second = AgentSession.uri('claude', 'spawn-format-second');
+		const parentChat = URI.parse(buildDefaultChatUri(first.toString()));
+		const owner = disposables.add(new TestChatOwnerRef(first, 'shaped'));
+		agent['_recordChatScope'](parentChat, owner, first, 'shaped');
+		const spawned: IAgentSpawnChatEvent[] = [];
+		disposables.add(agent.onDidSpawnChat(e => spawned.push(e)));
+		const start = (toolCallId: string) => agent['_emitSpawnedChatEvents']({
+			kind: 'subagent_started',
+			chat: parentChat,
+			toolCallId,
+			agentName: 'Explore',
+			agentDisplayName: 'Explore',
+			agentDescription: 'Explores',
+		});
+
+		start('before-change');
+		owner.set(second, 'opaque');
+		start('after-change');
+
+		assert.deepStrictEqual(spawned.map(event => ({ session: event.session.toString(), chat: event.chat.toString() })), [
+			{ session: first.toString(), chat: buildSubagentChatUri(first, 'before-change') },
+			{ session: second.toString(), chat: subagentChatUri('opaque', second.toString(), parentChat.toString(), 'after-change') },
+		]);
 	});
 
 	test('canonical SDKAssistantMessage with text content does not double-emit signals already produced by stream_event partials (Phase 6.1 / Cycle F)', async () => {

@@ -28052,6 +28052,21 @@ suite('AgentService (node dispatcher)', () => {
 
 			const parentChat = URI.parse(buildDefaultChatUri(session.toString()));
 			const spawned = URI.parse(buildChatUri(session, 'spawned-1'));
+			service.dispatchAction(parentChat.toString(), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'go', origin: { kind: MessageKind.User } },
+			}, 'client-test', 1);
+			service.dispatchAction(parentChat.toString(), {
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'tc-task-1',
+				toolName: 'task',
+				displayName: 'Task',
+				contributor: undefined,
+				_meta: { toolKind: 'subagent', subagentChatUri: buildSubagentChatUri(session.toString(), 'tc-task-1') },
+			}, 'client-test', 2);
 			agent.fireSpawn({
 				session,
 				chat: spawned,
@@ -28099,12 +28114,35 @@ suite('AgentService (node dispatcher)', () => {
 	suite('subagent membership sequencing', () => {
 
 		/** Fires a parent turn on the session's default chat. */
-		function startParentTurn(session: URI, turnId: string): void {
+		function startParentTurn(session: URI, turnId: string): string {
+			const defaultChat = getStateManager(service).getDefaultChat(session.toString());
+			assert.ok(defaultChat);
 			service.dispatchAction(
-				buildDefaultChatUri(session.toString()),
+				defaultChat,
 				{ type: ActionType.ChatTurnStarted, turnId, startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'go', origin: { kind: MessageKind.User } } },
 				'client-test', 1,
 			);
+			return defaultChat;
+		}
+
+		class BridgingSubagentAgent extends MockAgent {
+			private readonly _onDidSpawnChat = new Emitter<IAgentSpawnChatEvent>();
+			override readonly onDidSpawnChat = this._onDidSpawnChat.event;
+			private readonly _bridge = this.onDidChatProgress(signal => {
+				const e = SubagentChatSignal.toSpawnEvent(signal, chat => {
+					const owner = getStateManager(service).getChatOwner(chat);
+					return owner === undefined ? undefined : { owner, format: 'shaped' };
+				});
+				if (e) {
+					this._onDidSpawnChat.fire(e);
+				}
+			});
+
+			override dispose(): void {
+				this._bridge.dispose();
+				this._onDidSpawnChat.dispose();
+				super.dispose();
+			}
 		}
 
 		test('a subagent_started signal yields exactly one catalog entry with the parent origin, title, and a started turn', async () => {
@@ -28193,23 +28231,6 @@ suite('AgentService (node dispatcher)', () => {
 			// progress sequencer and the agent's spawn bridge both funnel to the
 			// idempotent _onChatSpawned, so the catalog must gain exactly
 			// one entry no matter which listener runs first.
-			class BridgingSubagentAgent extends MockAgent {
-				private readonly _onDidSpawnChat = new Emitter<IAgentSpawnChatEvent>();
-				override readonly onDidSpawnChat = this._onDidSpawnChat.event;
-				private readonly _bridge = this.onDidChatProgress(signal => {
-					const e = SubagentChatSignal.toSpawnEvent(signal, chat => { const owner = mintedTestChatOwner(chat); return owner === undefined ? undefined : { owner, format: 'shaped' }; });
-					if (e) {
-						this._onDidSpawnChat.fire(e);
-					}
-				});
-
-				override dispose(): void {
-					this._bridge.dispose();
-					this._onDidSpawnChat.dispose();
-					super.dispose();
-				}
-			}
-
 			const agent = new BridgingSubagentAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
 			registerTestAgentProvider(service, agent);
