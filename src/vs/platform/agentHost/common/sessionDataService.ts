@@ -196,6 +196,12 @@ export type SessionCatalogSyncWriteValidator = () => boolean;
  * Callers obtain an instance via {@link ISessionDataService.openDatabase} and
  * **must** dispose it when finished to close the underlying database connection.
  */
+/** See {@link ISessionDatabase.getRowsWatermark}. */
+export interface ISessionRowsWatermark {
+	readonly maxTurnRowid: number;
+	readonly drafts: ReadonlyMap<string, Message>;
+}
+
 export interface ISessionDatabase extends IDisposable {
 	/**
 	 * Create a turn record. Must be called before storing file edits that
@@ -328,6 +334,12 @@ export interface ISessionDatabase extends IDisposable {
 
 	/** Returns the largest `turns` rowid, or `0` when there are no turns. */
 	getMaxTurnRowid(): Promise<number>;
+
+	/**
+	 * Returns, in one read, the largest `turns` rowid (`0` when there are no turns) and every chat draft by chat
+	 * URI: what tells whether another build changed the rows mirrored here.
+	 */
+	getRowsWatermark(): Promise<ISessionRowsWatermark>;
 
 	/**
 	 * Records the chat whose rows this database holds and the complete list of
@@ -635,6 +647,14 @@ export interface ISessionDataService {
 	 * repositories they need to clean up.
 	 */
 	deleteSessionData(session: URI, workingDirectories?: readonly string[]): Promise<void>;
+
+	/**
+	 * Like {@link deleteSessionData}, but keeps the children of the session's
+	 * data directory named in `keep`: a deleted session keeps the attachments
+	 * that chats moved out of it still read. A later {@link deleteSessionData}
+	 * removes the rest.
+	 */
+	deleteSessionDataExcept(session: URI, keep: readonly string[], workingDirectories?: readonly string[]): Promise<void>;
 
 	/**
 	 * Fires immediately before a session's data directory (and the

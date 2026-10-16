@@ -7,8 +7,7 @@ import { Event } from '../../../../base/common/event.js';
 import { ImmortalReference } from '../../../../base/common/lifecycle.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { IGitHubCredentials } from '../../../github/common/githubCredentialService.js';
-import { GitHubPullRequestLookup } from '../../../github/common/githubQueryService.js';
-import { IGitHubQuery } from '../../../github/common/githubQueryServiceImpl.js';
+import { GitHubPullRequestLookup, GitHubQueryApi } from '../../../github/common/githubQueryService.js';
 import { IGitHubClient } from '../../../github/common/githubService.js';
 import { IPullRequestMutations } from '../../../github/common/pullRequestMutationService.js';
 import { IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
@@ -29,7 +28,7 @@ export function createTestGitHubClient(overrides: Partial<Pick<IGitHubClient, 'c
 				return { account: { host: 'api.github.com', accountId: '1' }, token: 'test-token', generation: 1, signal: new AbortController().signal };
 			}
 		}();
-		override readonly query = overrides.query ?? new class extends mock<IGitHubQuery>() { }();
+		override readonly query = overrides.query ?? new class extends mock<GitHubQueryApi>() { }();
 		override readonly mutations = overrides.mutations ?? new class extends mock<IPullRequestMutations>() { }();
 	}();
 }

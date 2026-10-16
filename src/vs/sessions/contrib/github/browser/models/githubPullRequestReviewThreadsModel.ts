@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
+import { cancelOnDispose } from '../../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Disposable, IDisposable, ReferenceCollection, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -37,13 +39,10 @@ export class GitHubPullRequestReviewThreadsModelReferenceCollection extends Refe
 	}
 }
 
-/**
- * Reactive model for GitHub pull request review threads. Review threads are
- * fetched through GraphQL, so they have a separate refresh and polling cadence
- * from lightweight pull request metadata.
- */
+/** Review threads with refresh and polling independent of pull request metadata. */
 export class GitHubPullRequestReviewThreadsModel extends Disposable {
 
+	private readonly _token = cancelOnDispose(this._store);
 	private readonly _reviewThreads = observableValue<readonly IGitHubPullRequestReviewThread[]>(this, []);
 	readonly reviewThreads: IObservable<readonly IGitHubPullRequestReviewThread[]> = this._reviewThreads;
 	private readonly _hasLoaded = observableValue(this, false);
@@ -51,7 +50,7 @@ export class GitHubPullRequestReviewThreadsModel extends Disposable {
 	private readonly _initialRefreshCompleted = observableValue(this, false);
 	readonly initialRefreshCompleted: IObservable<boolean> = this._initialRefreshCompleted;
 
-	private _refreshPromise: Promise<void> | undefined = undefined;
+	private _refreshPromise: Promise<void> | undefined;
 
 	private _pollingClientCount = 0;
 	private readonly _pollScheduler: RunOnceScheduler;
@@ -66,11 +65,21 @@ export class GitHubPullRequestReviewThreadsModel extends Disposable {
 		super();
 
 		this._pollScheduler = this._register(new RunOnceScheduler(() => this._poll(), DEFAULT_POLL_INTERVAL_MS));
+		this._register(_fetcher.client.onDidChange(() => {
+			const shouldRefresh = this._refreshPromise !== undefined || this._hasLoaded.get();
+			this._refreshPromise = undefined;
+			transaction(tx => {
+				this._reviewThreads.set([], tx);
+				this._hasLoaded.set(false, tx);
+				this._initialRefreshCompleted.set(false, tx);
+			});
+			if (shouldRefresh) {
+				void this.refresh();
+			}
+		}));
 	}
 
-	/**
-	 * Refresh review thread data.
-	 */
+	/** Refreshes review threads. */
 	refresh(force = false): Promise<void> {
 		if (force && this._refreshPromise) {
 			return this._refreshPromise.then(() => this.refresh(true));
@@ -80,20 +89,22 @@ export class GitHubPullRequestReviewThreadsModel extends Disposable {
 			return this._refresh();
 		}
 
-		if (!this._refreshPromise) {
-			this._refreshPromise = this._refresh()
-				.finally(() => {
-					this._refreshPromise = undefined;
-				});
-		}
-
-		return this._refreshPromise;
+		const pending = this._refreshPromise ??= this._refresh().finally(() => {
+			if (this._refreshPromise === pending) {
+				this._refreshPromise = undefined;
+			}
+		});
+		return pending;
 	}
 
 	private async _refresh(): Promise<void> {
+		const generation = this._fetcher.client.generation;
 		this._logService.trace(`${TRACE_PREFIX} [ReviewThreadsModel] Refreshing review threads for ${this.owner}/${this.repo}#${this.prNumber}`);
 		try {
-			const data = await this._fetcher.getReviewThreads(this.owner, this.repo, this.prNumber);
+			const data = await this._fetcher.getReviewThreads(this.owner, this.repo, this.prNumber, this._token);
+			if (this._store.isDisposed || generation !== this._fetcher.client.generation) {
+				return;
+			}
 			transaction(tx => {
 				this._reviewThreads.set(data, tx);
 				this._hasLoaded.set(true, tx);
@@ -102,8 +113,12 @@ export class GitHubPullRequestReviewThreadsModel extends Disposable {
 			const unresolved = data.filter(thread => !thread.isResolved).length;
 			this._logService.trace(`${TRACE_PREFIX} [ReviewThreadsModel] Refreshed review threads for ${this.owner}/${this.repo}#${this.prNumber}: ${data.length} thread(s), ${unresolved} unresolved`);
 		} catch (err) {
-			this._initialRefreshCompleted.set(true, undefined);
-			this._logService.error(`${TRACE_PREFIX} ${LOG_PREFIX} Failed to refresh threads for PR #${this.prNumber}:`, err);
+			if (!this._store.isDisposed && generation === this._fetcher.client.generation) {
+				this._initialRefreshCompleted.set(true, undefined);
+			}
+			if (!isCancellationError(err)) {
+				this._logService.error(`${TRACE_PREFIX} ${LOG_PREFIX} Failed to refresh threads for PR #${this.prNumber}:`, err);
+			}
 		}
 	}
 
@@ -111,7 +126,7 @@ export class GitHubPullRequestReviewThreadsModel extends Disposable {
 	 * Post a reply to an existing review thread and refresh threads.
 	 */
 	async postReviewComment(body: string, inReplyTo: number): Promise<IGitHubPRComment> {
-		const comment = await this._fetcher.postReviewComment(this.owner, this.repo, this.prNumber, body, inReplyTo);
+		const comment = await this._fetcher.postReviewComment(this.owner, this.repo, this.prNumber, body, inReplyTo, this._token);
 		await this.refresh(true);
 		return comment;
 	}
@@ -120,7 +135,7 @@ export class GitHubPullRequestReviewThreadsModel extends Disposable {
 	 * Resolve a review thread and refresh the thread list.
 	 */
 	async resolveThread(threadId: string): Promise<void> {
-		await this._fetcher.resolveThread(this.owner, this.repo, threadId);
+		await this._fetcher.resolveThread(this.owner, this.repo, threadId, this._token);
 		await this.refresh(true);
 	}
 
@@ -152,7 +167,4 @@ export class GitHubPullRequestReviewThreadsModel extends Disposable {
 		}
 	}
 
-	override dispose(): void {
-		super.dispose();
-	}
 }

@@ -410,7 +410,13 @@ export class MissionControlHost extends Disposable {
 		const summaries = this._stateManager.getOverlaySessionSummaries();
 		const workspaces = summaries.flatMap(summary => summary.workingDirectories ?? [])
 			.map(directory => URI.parse(directory)).filter(directory => directory.scheme === Schemas.file).map(directory => directory.fsPath);
-		const contentRoots = readOnly ? summaries.map(summary => this._sessionDataService.getSessionDataDir(URI.parse(summary.resource)).fsPath) : [];
+		// Each session's data and, for its loaded chats, every directory their content lives in: a peer stores in its
+		// own, and a moved chat also reads the session it came from (Block 4).
+		const contentScopes = readOnly ? new Set(summaries.flatMap(summary => [
+			summary.resource,
+			...(this._stateManager.getSessionState(summary.resource)?.chats ?? []).flatMap(chat => this._stateManager.getChatAttachmentScopes(chat.resource) ?? []),
+		])) : [];
+		const contentRoots = [...contentScopes].map(scope => this._sessionDataService.getSessionDataDir(URI.parse(scope)).fsPath);
 		return [...grantedRoots, ...this._projects.roots, ...workspaces, ...contentRoots];
 	}
 

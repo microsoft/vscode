@@ -145,6 +145,8 @@ export interface IAgentHostSessionState {
 	readonly launchDirsBackfilled: boolean;
 	/** Progress of the one-time per-chat row copy, written by the session state store. */
 	readonly rowsMoved: string | undefined;
+	/** The merge base of each chat's draft mirrored into the session database, by chat ({@link IAgentHostSessionStateDatabase.readChatRowMirror}). */
+	readonly draftMirrorBases: ReadonlyMap<string, string>;
 }
 
 export interface IAgentHostSessionStateValues {
@@ -278,6 +280,171 @@ export async function deleteSessionStateRows(connection: Pick<ISessionStateSqlCo
 	}
 }
 
+/** One folder row a moved chat takes from its source session to its target session. */
+export interface IAgentHostSessionFolderStateTransfer {
+	readonly kind: AgentHostSessionFolderStateKind;
+	readonly sourceKey: string;
+	readonly targetKey: string;
+	/** Other chats of the source still use the folder: copy instead of re-keying. */
+	readonly keepInSource: boolean;
+}
+
+/** The central rows a chat move carries from its source session to its target session (Block 4). */
+export interface IAgentHostSessionChatStateTransfer {
+	readonly expectedSourceRevision: number;
+	readonly expectedTargetRevision: number;
+	/** Working directories some moved chats show in the target; other moved chats keep their stored value. */
+	readonly chats: readonly { readonly chat: string; readonly workingDirectories: readonly string[] }[];
+	readonly folders: readonly IAgentHostSessionFolderStateTransfer[];
+}
+
+export type AgentHostSessionChatStateTransferCheck = 'ok' | 'conflict' | 'notImported' | 'tombstoned';
+
+/** Whether both sessions are imported at the expected revisions. Runs inside the caller's transaction before any write. */
+export async function checkSessionChatStateTransfer(connection: ISessionStateSqlConnection, source: string, target: string, transfer: IAgentHostSessionChatStateTransfer): Promise<AgentHostSessionChatStateTransferCheck> {
+	for (const [session, expected] of [[source, transfer.expectedSourceRevision], [target, transfer.expectedTargetRevision]] as const) {
+		validateRevision(expected, 'Expected session state revision');
+		if (await connection.isTombstoned(session)) {
+			return 'tombstoned';
+		}
+		const row = await connection.get('SELECT revision FROM session_state WHERE session_uri = ?', [session]);
+		if (!row) {
+			return 'notImported';
+		}
+		if (row.revision !== expected) {
+			return 'conflict';
+		}
+	}
+	return 'ok';
+}
+
+/**
+ * Moves the central rows of every chat in `moved` to `target` (never as its default chat), drops their row mirror bases in
+ * `source` (a moved chat gets no older-build row copies), and carries the given folder rows: re-keyed, or copied
+ * when `source` keeps using them. A folder row `target` already has wins, and then `source` keeps its own row.
+ * Bumps both revisions. Runs inside the
+ * caller's transaction after {@link checkSessionChatStateTransfer}.
+ */
+export async function transferSessionChatStateRows(connection: ISessionStateSqlConnection, source: string, target: string, transfer: IAgentHostSessionChatStateTransfer, moved: Iterable<string>, sourceDefaultChat: string | undefined): Promise<{ readonly sourceRevision: number; readonly targetRevision: number }> {
+	const sourceRevision = nextRevision(transfer.expectedSourceRevision);
+	const targetRevision = nextRevision(transfer.expectedTargetRevision);
+	await connection.run('UPDATE session_state SET revision = ? WHERE session_uri = ?', [sourceRevision, source]);
+	await connection.run('UPDATE session_state SET revision = ? WHERE session_uri = ?', [targetRevision, target]);
+	await moveChatStateRows(connection, source, target, moved, transfer.chats, targetRevision, undefined, sourceDefaultChat);
+	await carryFolderStateRows(connection, source, target, transfer.folders, targetRevision);
+	return { sourceRevision, targetRevision };
+}
+
+/** The central state a promoted chat's new session starts with (Block 4): imported, never read from older-build copies. */
+export interface IAgentHostSessionChatStatePromotion {
+	readonly expectedSourceRevision: number;
+	readonly importVersion: number;
+	readonly importedAt: number;
+	/** The merge base of the new session's old-format mirrors (it has nothing to mirror yet). */
+	readonly legacyMirrorBase: string;
+	/** The new session's session-level values. */
+	readonly values: Readonly<Record<string, string>>;
+	/** Working directories some moved chats show in the new session; other moved chats keep their stored value. */
+	readonly chats: readonly { readonly chat: string; readonly workingDirectories: readonly string[] }[];
+	readonly folders: readonly IAgentHostSessionFolderStateTransfer[];
+}
+
+/** Whether the source is imported at the expected revision and the new session has no state. Runs inside the caller's transaction before any write. */
+export async function checkSessionChatStatePromotion(connection: ISessionStateSqlConnection, source: string, target: string, promotion: IAgentHostSessionChatStatePromotion): Promise<AgentHostSessionChatStateTransferCheck> {
+	validateRevision(promotion.expectedSourceRevision, 'Expected session state revision');
+	if (!Number.isSafeInteger(promotion.importVersion) || promotion.importVersion < 1) {
+		throw new Error('Session state import version must be a positive safe integer');
+	}
+	if (await connection.isTombstoned(source) || await connection.isTombstoned(target)) {
+		return 'tombstoned';
+	}
+	const row = await connection.get('SELECT revision FROM session_state WHERE session_uri = ?', [source]);
+	if (!row) {
+		return 'notImported';
+	}
+	if (row.revision !== promotion.expectedSourceRevision
+		|| await connection.get('SELECT 1 AS present FROM metadata WHERE key = ?', [importedMarkerPrefix + target])) {
+		return 'conflict';
+	}
+	return 'ok';
+}
+
+/**
+ * Creates the imported central state of a promoted chat's new session (Block 4) and moves the central rows of
+ * every chat in `moved` into it, `defaultChat` as its default chat. Bumps the source's revision; the new session
+ * starts at revision 1, with nothing to mirror. Runs inside the caller's transaction after
+ * {@link checkSessionChatStatePromotion}.
+ */
+export async function promoteSessionChatStateRows(connection: ISessionStateSqlConnection, source: string, target: string, defaultChat: string, promotion: IAgentHostSessionChatStatePromotion, moved: Iterable<string>): Promise<{ readonly sourceRevision: number; readonly targetRevision: number }> {
+	const sourceRevision = nextRevision(promotion.expectedSourceRevision);
+	const targetRevision = 1;
+	await connection.run('UPDATE session_state SET revision = ? WHERE session_uri = ?', [sourceRevision, source]);
+	// A crashed or deleted import may have left rows without its marker.
+	await deleteSessionStateRows(connection, target);
+	await connection.run(`INSERT INTO session_state (session_uri, revision, legacy_mirrored_revision, import_version)
+		VALUES (?, ?, ?, ?)`, [target, targetRevision, targetRevision, promotion.importVersion]);
+	for (const [key, value] of Object.entries(promotion.values)) {
+		await connection.run('INSERT INTO session_state_values (session_uri, key, value, revision) VALUES (?, ?, ?, ?)', [target, key, value, targetRevision]);
+	}
+	await moveChatStateRows(connection, source, target, moved, promotion.chats, targetRevision, defaultChat);
+	await carryFolderStateRows(connection, source, target, promotion.folders, targetRevision);
+	for (const [prefix, value] of [[legacyMirrorPrefix, promotion.legacyMirrorBase], [launchDirsBackfilledPrefix, '1'], [importedMarkerPrefix, JSON.stringify({ v: promotion.importVersion, at: promotion.importedAt })]]) {
+		await connection.run('INSERT INTO metadata (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', [prefix + target, value]);
+	}
+	return { sourceRevision, targetRevision };
+}
+
+/** Moves the chat rows of `moved` from `source` to `target` (as its default chat only for `defaultChat`) and drops their row mirror bases in `source`. */
+async function moveChatStateRows(connection: ISessionStateSqlConnection, source: string, target: string, moved: Iterable<string>, chats: readonly { readonly chat: string; readonly workingDirectories: readonly string[] }[], targetRevision: number, defaultChat: string | undefined, sourceDefaultChat: string | undefined = undefined): Promise<void> {
+	const overrides = new Map(chats.map(chat => [chat.chat, chat.workingDirectories]));
+	for (const chat of moved) {
+		const workingDirectories = overrides.get(chat);
+		const isDefault = chat === defaultChat ? 1 : 0;
+		const row = await connection.get('SELECT * FROM session_chat_state WHERE session_uri = ? AND chat_uri = ?', [source, chat]);
+		// Only a session that moves under another one gives up its default chat, which keeps its session's database.
+		const demoted = row?.is_default === 1 && chat === sourceDefaultChat;
+		if (row?.is_default === 1 && !demoted) {
+			throw new Error(`Cannot move the default chat state of ${source}`);
+		}
+		if (row) {
+			await connection.run(`${chatInsertSql}
+				ON CONFLICT(session_uri, chat_uri) DO UPDATE SET is_default = excluded.is_default, storage_resource = excluded.storage_resource, title = excluded.title,
+					title_source = excluded.title_source, is_read = excluded.is_read, working_directories = excluded.working_directories,
+					launch_working_directories = excluded.launch_working_directories, changes_summary = excluded.changes_summary, revision = excluded.revision`, [
+				// A default chat's unrecorded storage would mean its session's: a promoted chat records its own.
+				target, chat, isDefault, row.storage_resource ?? (isDefault ? chat : demoted ? source : null), row.title, row.title_source, row.is_read,
+				workingDirectories === undefined ? row.working_directories : encodeDirectories(workingDirectories),
+				row.launch_working_directories, row.changes_summary, targetRevision,
+			]);
+		} else if (workingDirectories !== undefined || isDefault || chat === sourceDefaultChat) {
+			await connection.run(chatInsertSql, [target, chat, isDefault, isDefault ? chat : chat === sourceDefaultChat ? source : null, null, null, null, encodeDirectories(workingDirectories), null, null, targetRevision]);
+		}
+		await connection.run('DELETE FROM session_chat_state WHERE session_uri = ? AND chat_uri = ?', [source, chat]);
+		await connection.run('DELETE FROM chat_row_mirror WHERE session_uri = ? AND chat_uri = ?', [source, chat]);
+	}
+}
+
+/**
+ * Carries folder rows from `source` to `target`: re-keyed, or copied when `source` keeps using them. A folder row
+ * `target` already has wins, and then `source` keeps its own, so recorded data (pull requests, base branches) is never dropped.
+ */
+async function carryFolderStateRows(connection: ISessionStateSqlConnection, source: string, target: string, folders: readonly IAgentHostSessionFolderStateTransfer[], targetRevision: number): Promise<void> {
+	for (const folder of folders) {
+		const row = await connection.get('SELECT value, storage_resource FROM session_folder_state WHERE session_uri = ? AND folder_key = ? AND kind = ?', [source, folder.sourceKey, folder.kind]);
+		if (!row) {
+			continue;
+		}
+		if (await connection.get('SELECT 1 AS present FROM session_folder_state WHERE session_uri = ? AND folder_key = ? AND kind = ?', [target, folder.targetKey, folder.kind])) {
+			continue;
+		}
+		await connection.run(`INSERT INTO session_folder_state (session_uri, folder_key, kind, value, storage_resource, revision) VALUES (?, ?, ?, ?, ?, ?)`,
+			[target, folder.targetKey, folder.kind, row.value, row.storage_resource, targetRevision]);
+		if (!folder.keepInSource) {
+			await connection.run('DELETE FROM session_folder_state WHERE session_uri = ? AND folder_key = ? AND kind = ?', [source, folder.sourceKey, folder.kind]);
+		}
+	}
+}
+
 function nextRevision(value: number): number {
 	const next = value + 1;
 	if (!Number.isSafeInteger(next)) {
@@ -369,9 +536,11 @@ export class AgentHostSessionStateTables implements IAgentHostSessionStateDataba
 				connection.all('SELECT key, value, revision FROM session_state_values WHERE session_uri = ? ORDER BY key', [session]),
 				connection.all('SELECT folder_key, kind, value, storage_resource, revision FROM session_folder_state WHERE session_uri = ? ORDER BY folder_key, kind', [session]),
 				connection.all('SELECT * FROM session_chat_state WHERE session_uri = ? ORDER BY chat_uri', [session]),
-				connection.all('SELECT key, value FROM metadata WHERE key IN (?, ?, ?)', [legacyMirrorPrefix + session, launchDirsBackfilledPrefix + session, rowsMovedPrefix + session]),
+				// The draft mirror bases ride along with the markers: no statement of their own.
+				connection.all(`SELECT 0 AS draft, key, value FROM metadata WHERE key IN (?, ?, ?)
+					UNION ALL SELECT 1, chat_uri, base FROM chat_row_mirror WHERE session_uri = ? AND kind = 'draft'`, [legacyMirrorPrefix + session, launchDirsBackfilledPrefix + session, rowsMovedPrefix + session, session]),
 			]);
-			const marked = new Map(markers.map(row => [row.key as string, row.value as string]));
+			const marked = new Map(markers.filter(row => row.draft === 0).map(row => [row.key as string, row.value as string]));
 			return {
 				header: {
 					revision: header.revision as number,
@@ -392,6 +561,7 @@ export class AgentHostSessionStateTables implements IAgentHostSessionStateDataba
 				legacyMirrorBase: marked.get(legacyMirrorPrefix + session),
 				launchDirsBackfilled: marked.get(launchDirsBackfilledPrefix + session) === LAUNCH_DIRS_BACKFILL_VERSION,
 				rowsMoved: marked.get(rowsMovedPrefix + session),
+				draftMirrorBases: new Map(markers.filter(row => row.draft === 1).map(row => [row.key as string, row.value as string])),
 			};
 		});
 	}

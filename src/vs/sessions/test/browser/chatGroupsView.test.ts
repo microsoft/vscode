@@ -40,7 +40,7 @@ import { GRID_GAP_SASH_CLASS } from '../../browser/parts/gridGap.js';
 import { SessionDropTarget } from '../../browser/parts/sessionDropTarget.js';
 import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../browser/dnd.js';
 import { SessionActiveChatCanArchiveContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
-import { SESSION_TOOLBAR_SETTING, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
+import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
 import { agentsPanelBorder } from '../../common/theme.js';
 import { type IAgentHostAutoConnect, type IAgentHostConnectProgress, type IAgentHostConnectionLabels, IAgentHostSessionsProvider } from '../../common/agentHostSessionsProvider.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
@@ -297,11 +297,11 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, tabsReplaceHea
 		instantiationService.stub(IWorkbenchLayoutService, new class extends TestLayoutService {
 			readonly agentWorkbenchLayout = AgentWorkbenchLayout.Desktop;
 		}());
-		// Give the Session Toolbar an entry, as the desktop Add Tab actions do.
+		// Give the Session Activity Bar an entry, as the desktop Add Tab actions do.
 		instantiationService.stub(IMenuService, new class extends TestMenuService {
 			override createMenu(id: MenuId, contextKeyService: IContextKeyService): IMenu {
 				const menu = super.createMenu(id, contextKeyService);
-				return id === Menus.SessionToolbar
+				return id === Menus.SessionActivityBar
 					? { ...menu, getActions: () => [['navigation', [instantiationService.createInstance(MenuItemAction, { id: 'test.browser', title: 'Browser' }, undefined, undefined, undefined, undefined)]]] }
 					: menu;
 			}
@@ -615,21 +615,21 @@ suite('Sessions - ChatGroupsView', () => {
 		});
 	});
 
-	test('shows the session toolbar only in the active chat group of the active session, reserving room in every group', async () => {
+	test('shows the session activity bar only in the active chat group of the active session, reserving room in every group', async () => {
 		const { view, configurationService } = createHarness(disposables, true, true);
-		configurationService.setUserConfiguration(SESSION_TOOLBAR_SETTING, true);
+		configurationService.setUserConfiguration(SESSION_ACTIVITY_BAR_SETTING, true);
 		const main = createChat('main');
 		const child = createChat('child', SessionStatus.Completed, main.resource);
 		const session = new TestActiveSession([main, child]);
-		// Each group's position on screen, whether its Session Toolbar is active, and the width left for its chat.
-		const toolbars = () => {
+		// Each group's position on screen, whether its Session Activity Bar is active, and the width left for its chat.
+		const activityBars = () => {
 			const origin = view.element.getBoundingClientRect();
 			return [...view.element.querySelectorAll<HTMLElement>('.chat-group-view')]
 				.map(group => ({
 					left: Math.round(group.getBoundingClientRect().left - origin.left),
-					active: !!group.querySelector(':scope > .session-toolbar:not(.inactive)'),
+					active: !!group.querySelector(':scope > .session-activity-bar:not(.inactive)'),
 					chatWidth: group.querySelector<HTMLElement>('.chat-view')?.style.width,
-					contentInset: group.querySelector<HTMLElement>('.chat-view')?.style.getPropertyValue('--session-toolbar-reserved-width'),
+					contentInset: group.querySelector<HTMLElement>('.chat-view')?.style.getPropertyValue('--session-activity-bar-reserved-width'),
 					headerWidth: group.querySelector<HTMLElement>('.chat-group-view-bar')?.style.width,
 				}))
 				.sort((first, second) => first.left - second.left);
@@ -637,34 +637,34 @@ suite('Sessions - ChatGroupsView', () => {
 		view.setSession(session, options);
 		view.layout(1000, 600, 0, 0);
 
-		const single = toolbars();
+		const single = activityBars();
 		view.splitActiveChat('right');
 		await timeout(0);
-		const split = toolbars();
+		const split = activityBars();
 		view.focusAdjacentGroup('previous');
-		const previousFocused = toolbars();
+		const previousFocused = activityBars();
 		view.setSessionActive(false);
-		const sessionInactive = toolbars();
+		const sessionInactive = activityBars();
 
 		assert.deepStrictEqual({ single, split, previousFocused, sessionInactive }, {
-			single: [{ left: 0, active: true, chatWidth: '1000px', contentInset: '38px', headerWidth: '1000px' }],
-			split: [{ left: 0, active: false, chatWidth: '500px', contentInset: '38px', headerWidth: '500px' }, { left: 500, active: true, chatWidth: '500px', contentInset: '38px', headerWidth: '500px' }],
-			previousFocused: [{ left: 0, active: true, chatWidth: '500px', contentInset: '38px', headerWidth: '500px' }, { left: 500, active: false, chatWidth: '500px', contentInset: '38px', headerWidth: '500px' }],
-			sessionInactive: [{ left: 0, active: false, chatWidth: '500px', contentInset: '38px', headerWidth: '500px' }, { left: 500, active: false, chatWidth: '500px', contentInset: '38px', headerWidth: '500px' }],
+			single: [{ left: 0, active: true, chatWidth: '1000px', contentInset: '30px', headerWidth: '1000px' }],
+			split: [{ left: 0, active: false, chatWidth: '500px', contentInset: '30px', headerWidth: '500px' }, { left: 500, active: true, chatWidth: '500px', contentInset: '30px', headerWidth: '500px' }],
+			previousFocused: [{ left: 0, active: true, chatWidth: '500px', contentInset: '30px', headerWidth: '500px' }, { left: 500, active: false, chatWidth: '500px', contentInset: '30px', headerWidth: '500px' }],
+			sessionInactive: [{ left: 0, active: false, chatWidth: '500px', contentInset: '30px', headerWidth: '500px' }, { left: 500, active: false, chatWidth: '500px', contentInset: '30px', headerWidth: '500px' }],
 		});
 	});
 
-	test('does not show the session toolbar or reserve room for it in the new-chat view', () => {
+	test('shows the session activity bar and reserves room for it in the new-chat view', () => {
 		const { view, configurationService } = createHarness(disposables, true, true);
-		configurationService.setUserConfiguration(SESSION_TOOLBAR_SETTING, true);
+		configurationService.setUserConfiguration(SESSION_ACTIVITY_BAR_SETTING, true);
 		const main = createChat('main', SessionStatus.Untitled);
 		const session = new TestActiveSession([main]);
 		const state = () => {
 			const group = view.element.querySelector<HTMLElement>('.chat-group-view')!;
 			return {
 				kind: group.querySelector<HTMLElement>('.chat-view')?.dataset.kind,
-				toolbarShown: !!group.querySelector(':scope > .session-toolbar:not(.inactive)'),
-				contentInset: group.querySelector<HTMLElement>('.chat-view')?.style.getPropertyValue('--session-toolbar-reserved-width'),
+				activityBarShown: !!group.querySelector(':scope > .session-activity-bar:not(.inactive)'),
+				contentInset: group.querySelector<HTMLElement>('.chat-view')?.style.getPropertyValue('--session-activity-bar-reserved-width'),
 			};
 		};
 		view.setSession(session, options);
@@ -675,8 +675,8 @@ suite('Sessions - ChatGroupsView', () => {
 		const existingChat = state();
 
 		assert.deepStrictEqual({ newChat, existingChat }, {
-			newChat: { kind: 'newChatInSession', toolbarShown: false, contentInset: '0px' },
-			existingChat: { kind: 'chat', toolbarShown: true, contentInset: '38px' },
+			newChat: { kind: 'newChatInSession', activityBarShown: true, contentInset: '30px' },
+			existingChat: { kind: 'chat', activityBarShown: true, contentInset: '30px' },
 		});
 	});
 
