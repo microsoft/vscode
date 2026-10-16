@@ -164,6 +164,11 @@ export interface IAgentHostDatabaseOlderBuildCopyState {
 	readonly legacyMirroredPayload: string | undefined;
 	/** Whether an older build changed `session_chats` since this build projected it (see {@link hasOlderBuildChatCatalogEditsSql}). */
 	readonly hasOlderBuildEdits: boolean;
+	/**
+	 * Whether another writer advanced `revision` since this build last projected `session_chats`, edited or not: 1.141
+	 * re-mirrors an unchanged list at quit, with its renames only in the session database. Read that copy then.
+	 */
+	readonly projectionBehind: boolean;
 	/** The per-chat state last published to older builds ({@link IAgentHostDatabase.recordOlderBuildChatState}), opaque to the database. */
 	readonly publishedChatState: string | undefined;
 }
@@ -463,11 +468,17 @@ export interface IAgentHostDatabase extends IDisposable, IAgentHostSessionStateD
 	/** Selects live legacy owners eligible for migration without reading chat metadata. */
 	listLegacyChatCatalogSessions(sessions: readonly string[]): Promise<readonly string[]>;
 	/**
-	 * Up to `limit` (at most {@link AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT}) normalized catalogs whose
-	 * `session_chats` an older build edited. Examines only catalogs whose projection another writer replaced
-	 * (`projected_revision` behind `revision`) and records the unchanged ones as projected again.
+	 * Up to `limit` (at most {@link AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT}) normalized catalogs of listed
+	 * registrations whose projection another writer replaced (`projected_revision` behind `revision`), edited or not:
+	 * an unchanged list may still come with renames in the session database (1.141 re-mirrors at quit). The import
+	 * reads them, then records the list as projected ({@link recordOlderBuildChatListProjected}).
 	 */
 	findOlderBuildChatCatalogEdits(limit: number): Promise<readonly string[]>;
+	/**
+	 * Records a normalized catalog's `session_chats` as this build's projection again (`projected_revision` = `revision`)
+	 * when it equals the projection, after the import read what else the older build changed. One statement.
+	 */
+	recordOlderBuildChatListProjected(session: string): Promise<void>;
 	/** Reads one owner's chat and authority without materializing its other chats. */
 	readChatV2(session: string, chat: string): Promise<{ readonly normalized: boolean; readonly chat?: IAgentHostDatabaseChatV2 }>;
 	getChatV2ProviderDetail(chat: string): Promise<IAgentHostDatabaseChatV2ProviderDetail | undefined>;
@@ -914,7 +925,8 @@ export async function guardOlderBuildEdits(database: Database, session: string):
 const OLDER_BUILD_COPY_STATE_COLUMNS = `catalog.revision AS catalog_revision, catalog.legacy_mirrored_revision,
 	(SELECT value FROM metadata WHERE key = ?) AS legacy_mirrored_payload,
 	(SELECT value FROM metadata WHERE key = ?) AS published_chat_state,
-	${hasOlderBuildChatCatalogEditsSql('catalog')} AS has_older_build_edits`;
+	${hasOlderBuildChatCatalogEditsSql('catalog')} AS has_older_build_edits,
+	catalog.revision IS NOT catalog.projected_revision AS projection_behind`;
 
 /** Whether `session_chats` of the owner `sessionExpression` differs from its projection, row by row. */
 function olderBuildChatListDiffSql(sessionExpression: string): string {
@@ -2197,6 +2209,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			legacyMirroredRevision: row.legacy_mirrored_revision as number,
 			legacyMirroredPayload: row.legacy_mirrored_payload === null ? undefined : row.legacy_mirrored_payload as string,
 			hasOlderBuildEdits: row.has_older_build_edits === 1,
+			projectionBehind: row.projection_behind === 1,
 			publishedChatState: row.published_chat_state === null ? undefined : row.published_chat_state as string,
 		};
 	}
@@ -2618,6 +2631,11 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		});
 	}
 
+	async recordOlderBuildChatListProjected(session: string): Promise<void> {
+		await this._transactionSequencer.queue(async () => run(await this._ensureDatabase(), `UPDATE session_chat_catalogs SET projected_revision = revision
+			WHERE session_uri = ? AND authority_version = 2 AND revision IS NOT projected_revision AND NOT ${olderBuildChatListDiffSql('session_chat_catalogs.session_uri')}`, [session]));
+	}
+
 	async findOlderBuildChatCatalogEdits(limit: number): Promise<readonly string[]> {
 		if (!Number.isSafeInteger(limit) || limit <= 0 || limit > AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT) {
 			throw new Error(`Older-build edit check must examine 1 to ${AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT} catalogs`);
@@ -2626,23 +2644,17 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			const database = await this._ensureDatabase();
 			await exec(database, 'BEGIN IMMEDIATE');
 			try {
-				// Rows are compared only for catalogs whose projection something else wrote over since this build did.
 				// Only catalogs of listed registrations (as listSessionV2Registrations lists them), filtered before the
-				// limit: one the batch cannot reach (excluded, tombstoned) would otherwise hold a slot on every pass.
-				const candidates = await all(database, `SELECT catalog.session_uri, ${olderBuildChatListDiffSql('catalog.session_uri')} AS edited
+				// limit: one the batch cannot reach (excluded, tombstoned) would otherwise hold a slot on every pass. Rows
+				// are not compared here: an unchanged list is recorded as projected only after its import read the titles.
+				const candidates = await all(database, `SELECT catalog.session_uri
 					FROM session_chat_catalogs catalog JOIN sessions_v2 registration ON registration.session_uri = catalog.session_uri
 					WHERE catalog.authority_version = 2 AND catalog.revision IS NOT catalog.projected_revision
 						AND NOT EXISTS (SELECT 1 FROM metadata WHERE key = 'sessionTombstone:' || registration.session_uri AND value = 'true')
 						AND NOT EXISTS (SELECT 1 FROM metadata WHERE key = '${sessionsV2ExcludedKeyPrefix}' || registration.provider || ':' || registration.session_uri)
 					ORDER BY catalog.session_uri LIMIT ?`, [limit]);
-				const unchanged = candidates.filter(row => row.edited !== 1).map(row => row.session_uri as string);
-				if (unchanged.length) {
-					// Such a writer kept the projection (1.142 writes it itself): it stays this build's from now on.
-					await run(database, `UPDATE session_chat_catalogs SET projected_revision = revision
-						WHERE session_uri IN (${unchanged.map(() => '?').join(',')})`, unchanged);
-				}
 				await exec(database, 'COMMIT');
-				return candidates.filter(row => row.edited === 1).map(row => row.session_uri as string);
+				return candidates.map(row => row.session_uri as string);
 			} catch (error) {
 				return this._rollback(database, error, 'Failed to check chat catalogs for older-build edits');
 			}

@@ -2209,7 +2209,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				});
 			});
 
-			test('this build\'s own writes keep the projection marker current; the candidate scan reports only older-writer edits and records the rest', async () => {
+			test('this build\'s own writes keep the projection marker current; the scan reports every catalog another writer advanced, and only an unchanged list is recorded as projected', async () => {
 				const { instance, raw } = await seedNormalized();
 				const marker = async () => (await all(raw, 'SELECT revision, projected_revision FROM session_chat_catalogs WHERE session_uri = ?', [session]))[0];
 				const row = async (chat: string) => (await instance.readCatalogSnapshot([session]))[0].chats.find(entry => entry.chat === chat)!;
@@ -2226,19 +2226,33 @@ suite('AgentHostDatabase sessions_v2', () => {
 				afterOwnWrites.push(await current());
 				await instance.replaceSessionChatCatalog(session, [{ chat: peer, order: 0, archived: true }], (await instance.readOlderBuildCopyState(session))!.revision);
 				afterOwnWrites.push(await current());
-				// 1.142 re-projects session_chats itself and advances the revision: a candidate with nothing to import.
+				// 1.141 re-mirrors session_chats unchanged at quit (its renames only in the session database), as does 1.142:
+				// a candidate whose import still reads the session database, and is recorded as projected after it.
 				await exec(raw, `UPDATE session_chat_catalogs SET revision = revision + 1 WHERE session_uri = '${session}';`);
-				const reprojectedElsewhere = await instance.findOlderBuildChatCatalogEdits(AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT);
-				const recorded = await marker();
-				// 1.141 edits session_chats.
+				const unchangedList = await instance.findOlderBuildChatCatalogEdits(AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT);
+				const behindAfterScan = (await instance.readOlderBuildCopyState(session))?.projectionBehind;
+				await instance.recordOlderBuildChatListProjected(session);
+				const recordedUnchanged = await current();
+				// 1.141 edits session_chats: never recorded as projected.
 				await exec(raw, `UPDATE session_chats SET archived = 0 WHERE session_uri = '${session}';
 					UPDATE session_chat_catalogs SET revision = revision + 1 WHERE session_uri = '${session}';`);
+				const edited = await instance.findOlderBuildChatCatalogEdits(AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT);
+				await instance.recordOlderBuildChatListProjected(session);
 				assert.deepStrictEqual({
 					afterOwnWrites,
-					reprojectedElsewhere,
-					recorded: recorded.revision === recorded.projected_revision,
-					edited: await instance.findOlderBuildChatCatalogEdits(AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT),
-				}, { afterOwnWrites: [true, true, true, true], reprojectedElsewhere: [], recorded: true, edited: [session] });
+					unchangedList,
+					behindAfterScan,
+					recordedUnchanged,
+					edited,
+					editedState: { recorded: await current(), hasOlderBuildEdits: (await instance.readOlderBuildCopyState(session))?.hasOlderBuildEdits },
+				}, {
+					afterOwnWrites: [true, true, true, true],
+					unchangedList: [session],
+					behindAfterScan: true,
+					recordedUnchanged: true,
+					edited: [session],
+					editedState: { recorded: false, hasOlderBuildEdits: true },
+				});
 			});
 
 			test('the candidate scan returns only catalogs of listed registrations, so an excluded or tombstoned one never holds a slot', async () => {
@@ -2279,7 +2293,9 @@ suite('AgentHostDatabase sessions_v2', () => {
 						await close(old);
 						instance = new AgentHostDatabase(path);
 						database = instance;
+						// A catalog upgraded from before the marker is a candidate once; its import records it as projected.
 						const candidates = await instance.findOlderBuildChatCatalogEdits(AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT);
+						await instance.recordOlderBuildChatListProjected(session);
 						// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Inspect the migrated schema.
 						const raw = await instance['_ensureDatabase']();
 						assert.deepStrictEqual({
@@ -2291,7 +2307,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 							worktreeRemovals: (await all(raw, `SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'pending_worktree_removals'`)).length,
 							candidates,
 							recorded: (await all(raw, 'SELECT revision = projected_revision AS current FROM session_chat_catalogs WHERE session_uri = ?', [session]))[0].current,
-						}, { version: [{ user_version: 19 }], columns: { projectedRevision: true, chatOrigins: true }, worktreeRemovals: 1, candidates: [], recorded: 1 });
+						}, { version: [{ user_version: 19 }], columns: { projectedRevision: true, chatOrigins: true }, worktreeRemovals: 1, candidates: [session], recorded: 1 });
 					} finally {
 						await database?.close();
 						database = undefined;
