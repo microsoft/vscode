@@ -10,6 +10,7 @@ import { $, isHTMLElement, size } from '../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -280,6 +281,7 @@ export class ChatView extends AbstractChatView {
 
 	/** Tracks the currently loaded chat resource to avoid redundant reloads. */
 	private _currentChatResource: URI | undefined;
+	private _inputBeforeLoad: string | undefined;
 	private readonly _openDiagnostics = this._register(new MutableDisposable<IChatOpen>());
 	/**
 	 * The bound chat whose content provider was unregistered. Its model stays wired to the
@@ -655,6 +657,7 @@ export class ChatView extends AbstractChatView {
 		this._onInput = onInput ?? (!chatChanged && chat.interactivity.get() === ChatInteractivity.Full ? this._onInput : undefined);
 		if (chatChanged) {
 			this._saveCurrentViewState();
+			this._inputBeforeLoad = undefined;
 		}
 		this._historyKey = historyKey;
 		this._applyHistoryKey();
@@ -681,13 +684,20 @@ export class ChatView extends AbstractChatView {
 
 		// Skip loading if we're already showing this chat
 		if (!chatChanged) {
-			if (previousSession && !isEqual(previousSession.resource, session?.resource) && previousChatResource) {
-				this.sessionOpenTelemetryService.modelUnbound(previousSession.resource, previousChatResource);
+			const failure = this._loadFailure?.get();
+			if (failure && isEqual(failure.resource, resource) && failure.status.action) {
+				void failure.status.action.run();
+				return;
 			}
-			if (session && isEqual(this._modelRef.value?.object.sessionResource, resource)) {
-				this.sessionOpenTelemetryService.modelBound(session.resource, resource);
+			if (!failure) {
+				if (previousSession && !isEqual(previousSession.resource, session?.resource) && previousChatResource) {
+					this.sessionOpenTelemetryService.modelUnbound(previousSession.resource, previousChatResource);
+				}
+				if (session && isEqual(this._modelRef?.value?.object.sessionResource, resource)) {
+					this.sessionOpenTelemetryService.modelBound(session.resource, resource);
+				}
+				return;
 			}
-			return;
 		}
 
 		this.hasVisibleTranscriptContent.set(false, undefined);
@@ -739,7 +749,7 @@ export class ChatView extends AbstractChatView {
 		if (!resource || this._modelRef.value || this._preparationModel.value || !addedSessionTypes.includes(getChatSessionType(resource))) {
 			return;
 		}
-		this._loadChat(resource, this._currentSessionObs.get());
+		this._loadChat(resource, this._currentSessionObs.get(), { inputBeforeLoad: this._inputBeforeLoad });
 	}
 
 	/**
@@ -820,7 +830,7 @@ export class ChatView extends AbstractChatView {
 		this.isLoadingTranscript.set(isLoading, undefined);
 	}
 
-	private _loadChat(resource: URI, session: ISession | undefined, options?: { previousChatResource?: URI; previousSession?: ISession; inputModelToPreserve?: IInputModel }): Promise<void> {
+	private _loadChat(resource: URI, session: ISession | undefined, options?: { previousChatResource?: URI; previousSession?: ISession; inputModelToPreserve?: IInputModel; isCancellationRetry?: boolean; inputBeforeLoad?: string }): Promise<void> {
 		this._loadFailure.set(undefined, undefined);
 		// A fresh load binds to whichever provider serves the chat now.
 		this._chatWithUnregisteredProvider = undefined;
@@ -838,7 +848,8 @@ export class ChatView extends AbstractChatView {
 
 		// Capture the input draft before the load window opens so text typed
 		// during loading is preserved when the model binds. See #325323.
-		const inputBeforeLoad = this._widget.getInput();
+		const inputBeforeLoad = options?.inputBeforeLoad ?? this._inputBeforeLoad ?? this._widget.getInput();
+		this._inputBeforeLoad = inputBeforeLoad;
 
 		const loadPromise = (async (): Promise<boolean> => {
 			let ref: IChatModelReference | undefined;
@@ -853,6 +864,13 @@ export class ChatView extends AbstractChatView {
 					this._setLoading(false);
 					return false;
 				}
+				if (isCancellationError(err)) {
+					if (!options?.isCancellationRetry) {
+						this.logService.trace(`[ChatView] chat load cancelled by provider replacement, retrying uri=${resource.toString()}`);
+						this._loadChat(resource, this._currentSessionObs.get(), { inputModelToPreserve: options?.inputModelToPreserve, isCancellationRetry: true, inputBeforeLoad });
+						return false;
+					}
+				}
 				this.logService.error(`[ChatView] Failed to load chat model for chat uri=${resource.toString()}`, err);
 				this._loadFailure.set({
 					resource,
@@ -863,7 +881,7 @@ export class ChatView extends AbstractChatView {
 							label: localize('chatView.retryHistoryLoad', "Retry"),
 							run: async () => {
 								if (!token.isCancellationRequested && this._loadCts.value === cts && isEqual(this._currentChatResource, resource)) {
-									await this._loadChat(resource, this._currentSessionObs.get(), { inputModelToPreserve: options?.inputModelToPreserve });
+									await this._loadChat(resource, this._currentSessionObs.get(), { inputModelToPreserve: options?.inputModelToPreserve, inputBeforeLoad });
 								}
 							},
 						},
@@ -924,6 +942,7 @@ export class ChatView extends AbstractChatView {
 				this._widget.focusInput();
 			}
 			this._loadedChatResource.set(resource, undefined);
+			this._inputBeforeLoad = undefined;
 			this._setLoading(false);
 			if (session) {
 				this.sessionOpenTelemetryService.modelBound(session.resource, resource);
@@ -970,6 +989,7 @@ export class ChatView extends AbstractChatView {
 	}
 
 	private _clearCurrentChat(previousSession: ISession | undefined, previousChatResource: URI): void {
+		this._inputBeforeLoad = undefined;
 		if (previousSession) {
 			this.sessionOpenTelemetryService.modelUnbound(previousSession.resource, previousChatResource);
 		}

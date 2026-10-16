@@ -140,6 +140,7 @@ export class ChatGroupsView extends Themable {
 	setSession(session: IActiveSession | undefined, options: IChatViewOptions): void {
 		this._options = options;
 		if (this._session === session) {
+			this._activeGroup?.view.reopenActiveChat();
 			return;
 		}
 
@@ -1026,6 +1027,7 @@ export class ChatGroupsView extends Themable {
 
 	private _openChat(entry: IGroupEntry, resource: URI): void {
 		const resourceId = resource.toString();
+		const isSameChat = entry.activeResourceId.get() === resourceId;
 		transaction(tx => {
 			if (entry.pinnedResourceId.get() !== resourceId) {
 				entry.pinnedResourceId.set(undefined, tx);
@@ -1033,6 +1035,9 @@ export class ChatGroupsView extends Themable {
 			entry.activeResourceId.set(resourceId, tx);
 		});
 		this._setActiveGroup(entry);
+		if (isSameChat) {
+			entry.view.reopenActiveChat();
+		}
 		if (this._session) {
 			this._sessionsService.openChat(this._session, resource).catch(onUnexpectedError);
 		}

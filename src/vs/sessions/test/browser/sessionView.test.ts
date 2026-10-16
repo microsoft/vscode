@@ -756,4 +756,27 @@ suite('Sessions - Session View', () => {
 			restoredDefaultDensity: { hasGaps: true, independentChatGroups: true, gapSashes: 1 },
 		});
 	});
+
+	test('forwards hostVisible to chat groups view when re-opening the same session', () => {
+		const store = disposables.add(new DisposableStore());
+		const { instantiationService } = createSessionViewTestServices(store);
+		const session = createTestActiveSession('same-session-host-visible', true);
+		const forwardedSessionOptions: IChatViewOptions[] = [];
+		const view = store.add(instantiationService.createInstance(SessionView));
+		const groupsView = Reflect.get(view, '_groupsView') as { setSession: (s: IActiveSession | undefined, options: IChatViewOptions) => void };
+		const originalSetSession = groupsView.setSession.bind(groupsView);
+		groupsView.setSession = (s, opts) => {
+			forwardedSessionOptions.push(opts);
+			originalSetSession(s, opts);
+		};
+
+		view.openSession(session, {});
+		assert.strictEqual(forwardedSessionOptions.length, 1);
+		assert.ok(forwardedSessionOptions[0].hostVisible);
+
+		// Re-opening the same session
+		view.openSession(session, {});
+		assert.strictEqual(forwardedSessionOptions.length, 2);
+		assert.ok(forwardedSessionOptions[1].hostVisible);
+	});
 });
