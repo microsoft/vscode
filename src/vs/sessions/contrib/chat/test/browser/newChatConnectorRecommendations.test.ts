@@ -215,7 +215,7 @@ suite('NewChatConnectorRecommendations', () => {
 		});
 	});
 
-	test('supports only the eight known connector families when those recommendations are available', () => {
+	test('supports only the five approved connector families when those recommendations are available', () => {
 		const fixture = setup(true, true, true, {
 			kusto: { name: 'Azure Data Explorer', description: 'Query Azure Data Explorer.', iconUrl: 'https://example.com/kusto.png' },
 			workiq: { name: 'Work IQ', description: 'Use Microsoft 365 work data.', iconUrl: 'https://example.com/workiq.png' },
@@ -225,7 +225,6 @@ suite('NewChatConnectorRecommendations', () => {
 			notion: connectorRecommendations.notion,
 			sentry: { name: 'Sentry', description: 'Search and triage Sentry issues.', iconUrl: 'https://example.com/sentry.png' },
 			microsoftlearndocsmcpserver: { name: 'Microsoft Learn Docs', description: 'Search Microsoft Learn.', iconUrl: 'https://example.com/learn.png' },
-			figma: { name: 'Figma', description: 'Not in the supported connector list.', iconUrl: 'https://example.com/figma.png' },
 		});
 		const visibleCards = () => [...fixture.recommendations.element.querySelectorAll<HTMLElement>('.new-session-connector-recommendation-card')]
 			.filter(card => !card.hidden)
@@ -248,12 +247,9 @@ suite('NewChatConnectorRecommendations', () => {
 		assert.deepStrictEqual(visibleCards(), [
 			'kusto',
 			'workiq',
-			'atlassian-rovo',
-			'cloudflare',
 			'linear',
 			'notion',
 			'sentry',
-			'microsoftlearndocsmcpserver',
 		]);
 	});
 

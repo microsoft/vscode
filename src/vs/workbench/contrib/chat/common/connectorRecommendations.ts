@@ -4,12 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 const knownConnectorDomains: Readonly<Record<string, readonly string[]>> = {
-	atlassian: ['atlassian.net'],
-	'atlassian-rovo': ['atlassian.net'],
-	cloudflare: ['cloudflare.com'],
 	kusto: ['dataexplorer.azure.com', 'kusto.windows.net'],
 	linear: ['linear.app'],
-	microsoftlearndocsmcpserver: ['learn.microsoft.com'],
 	notion: ['notion.so', 'notion.site'],
 	sentry: ['sentry.io'],
 	workiq: ['microsoft365.com', 'office.com', 'outlook.office.com', 'outlook.office365.com', 'sharepoint.com', 'teams.microsoft.com'],
