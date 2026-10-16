@@ -12,6 +12,7 @@ import { ILogService } from '../../log/common/log.js';
 import { AgentSession } from '../common/agent.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
 import { coOwnedWorktreeRemovalOwner, type IPendingWorktreeRemoval, type IWorktreeCoOwner, type IWorktreeCoOwnerState, type IWorktreeRemovalRequest, type WorktreeRemovalMode } from './agentHostWorktreeRemovalDatabase.js';
+import { ADDITIONAL_WORKTREES_METADATA_KEY, parseSessionAdditionalWorktrees } from './shared/sessionAdditionalWorktrees.js';
 import { DetachedWorktreeRemovalGuard, IAgentHostWorktreeIsolation, IRecordedWorktree } from './shared/worktreeIsolation.js';
 
 export const IAgentHostWorktreeCleanupService = createDecorator<IAgentHostWorktreeCleanupService>('agentHostWorktreeCleanupService');
@@ -119,9 +120,12 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 			}
 			return worktree;
 		});
-		for (const coOwner of await this._database.listWorktreeCoOwnersOfSession(session.toString())) {
-			// One removal per folder: the session's own worktree's removal already covers its share of it.
-			if (!own || !isEqual(own.worktree, URI.parse(coOwner.worktreePath))) {
+		const coOwned = await this._database.listWorktreeCoOwnersOfSession(session.toString());
+		const recorded = coOwned.length > 0 ? await this._recordedWorktreeFolders(session, own) : [];
+		for (const coOwner of coOwned) {
+			// One removal per folder: the removal of a worktree the session records itself (its own, or an additional one,
+			// which its archive removes by handle) already covers its share of it.
+			if (!recorded.some(folder => isEqual(folder, URI.parse(coOwner.worktreePath)))) {
 				await this._worktree.runExclusive(coOwner.worktreePath, () => this._database.upsertPendingWorktreeRemoval(this._coOwnedRequest(session, coOwner, mode, false)));
 			}
 		}
@@ -135,15 +139,30 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 		await this._worktree.recreateWorktreeOnUnarchive(session, sessionId);
 		// Its shares of worktrees come back too, recreated from the branch the share recorded when the folder is gone; not
 		// a share it no longer works in (stale, or kept only as the folder's forced-commit marker): nothing would remove it.
-		for (const coOwner of await this._database.listWorktreeCoOwnersOfSession(session.toString())) {
+		// Nor a worktree it records itself, which its own unarchive recreates.
+		const coOwned = await this._database.listWorktreeCoOwnersOfSession(session.toString());
+		const recorded = coOwned.length > 0 ? await this._recordedWorktreeFolders(session, await this._worktree.readSessionWorktreeForRemoval(session)) : [];
+		for (const coOwner of coOwned) {
 			const live = await this._worktree.runExclusive(coOwner.worktreePath, async () => {
 				await this._database.deletePendingWorktreeRemoval('coOwned', coOwnedWorktreeRemovalOwner(session.toString(), coOwner.worktreePath));
 				return (await this._database.pruneWorktreeCoOwners(coOwner.worktreePath)).some(row => row.session === session.toString() && row.live);
 			});
-			if (live) {
+			if (live && !recorded.some(folder => isEqual(folder, URI.parse(coOwner.worktreePath)))) {
 				await this._worktree.recreateSharedWorktree(this._recordedCoOwned(coOwner));
 			}
 		}
+	}
+
+	/**
+	 * The worktree folders `session` records itself: `own`, and the additional worktrees its central list names (archive
+	 * and unarchive handle those by handle). A session that co-owns a folder has central state.
+	 */
+	private async _recordedWorktreeFolders(session: URI, own: IRecordedWorktree | undefined): Promise<readonly URI[]> {
+		const values = (await this._database.readSessionStateValues([session.toString()], [ADDITIONAL_WORKTREES_METADATA_KEY])).get(session.toString())?.values;
+		return [
+			...(own ? [own.worktree] : []),
+			...parseSessionAdditionalWorktrees(values?.get(ADDITIONAL_WORKTREES_METADATA_KEY)).map(worktree => URI.parse(worktree.workingDirectory)),
+		];
 	}
 
 	async setDetachedWorktreeArchived(handle: string, archived: boolean, strictCleanup?: boolean, ownerSession?: URI): Promise<void> {

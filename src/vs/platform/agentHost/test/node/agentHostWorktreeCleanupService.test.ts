@@ -19,6 +19,7 @@ import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentHostWorktreeCleanupService, IAgentHostWorktreeCleanupOptions } from '../../node/agentHostWorktreeCleanupService.js';
 import type { WorktreeRemovalMode } from '../../node/agentHostWorktreeRemovalDatabase.js';
 import { SESSION_WORKING_DIRECTORIES_KEY } from '../../node/shared/persistSessionMetadata.js';
+import { ADDITIONAL_WORKTREES_METADATA_KEY } from '../../node/shared/sessionAdditionalWorktrees.js';
 import { DetachedWorktreeRemovalGuard, IRecordedWorktree, NullAgentHostWorktreeIsolation, WorktreeRemovalOutcome } from '../../node/shared/worktreeIsolation.js';
 
 const SESSION = AgentSession.uri('copilotcli', 'archived');
@@ -563,6 +564,32 @@ suite('AgentHostWorktreeCleanupService', () => {
 				recordedRemovals: ['coOwned:commit:0'],
 				calls: [`recreate:${AgentSession.id(OTHER_SESSION)}`, `recreateShared:${sharedKey}:agents/archived`],
 				pending: [],
+			});
+		});
+
+		test('archiving a session records no co-owned removal for a shared folder that is its own additional worktree: the handle\'s removal covers it, and unarchive recreates it once (re-review LOW 2)', async () => {
+			const { database, worktree, cleanup } = create();
+			const additional = recorded('additional');
+			await database.registerSessionV2(SESSION.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			await database.importSessionState(SESSION.toString(), {
+				importVersion: 1, importedAt: 1, folders: [], chats: [], legacyMirrorBase: '{}', launchDirsBackfilled: true,
+				values: {
+					[SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify([shared.worktree.toString(), additional.worktree.toString()]),
+					[ADDITIONAL_WORKTREES_METADATA_KEY]: JSON.stringify([{ handle: HANDLE, workingDirectory: additional.worktree.toString(), repositoryRoot: additional.repositoryRoot.toString() }]),
+					[AH_META_IS_ARCHIVED_DB_KEY]: 'true',
+				},
+			});
+			await share(database, SESSION, shared);
+			await share(database, SESSION, additional);
+			worktree.detached.set(HANDLE, additional);
+			await cleanup.requestSessionWorktreeRemoval(SESSION, 'commit');
+			await cleanup.setDetachedWorktreeArchived(HANDLE, true, false, SESSION);
+			const archived = (await database.listPendingWorktreeRemovals()).map(removal => `${removal.kind}:${removal.worktreePath}`).sort();
+			await cleanup.restoreSessionWorktree(SESSION);
+
+			assert.deepStrictEqual({ archived, recreated: worktree.calls.filter(call => call.startsWith('recreate')) }, {
+				archived: [`detached:${additional.worktree.toString()}`, `session:${sharedKey}`],
+				recreated: [`recreate:${sessionId}`],
 			});
 		});
 
