@@ -79,8 +79,24 @@ suite('MultiSelectDropdown', () => {
 			label: container.querySelector('[role="menu"]')?.getAttribute('aria-label'),
 			sections: [...container.querySelectorAll('.group-header')].map(row => row.textContent),
 			checks: rows().map(row => row.getAttribute('aria-checked')),
-		}, { label: 'Days', sections: ['Weekdays', 'Weekend'], checks: ['true', 'false', 'true', 'false'] });
+			labels: rows().map(row => row.getAttribute('aria-label')),
+		}, {
+			label: 'Days', sections: ['Weekdays', 'Weekend'], checks: ['true', 'false', 'true', 'false'],
+			labels: ['Monday, Weekdays', 'Wednesday, Weekdays', 'Friday, Weekdays, disabled', 'Saturday, Weekend'],
+		});
 	});
+
+	for (const modifier of ['shiftKey', 'ctrlKey', 'metaKey'] as const) {
+		test(`${modifier} click toggles only the clicked item`, () => {
+			const { dropdown, changes, row } = create();
+			row('Wednesday').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, [modifier]: true }));
+			row('Wednesday').dispatchEvent(new MouseEvent('mouseup', { bubbles: true, [modifier]: true }));
+			row('Wednesday').dispatchEvent(new MouseEvent('click', { bubbles: true, [modifier]: true }));
+			assert.deepStrictEqual({ changes, visible: dropdown.isVisible }, {
+				changes: [['mon', 'wed', 'fri']], visible: true,
+			});
+		});
+	}
 
 	test('click toggles repeatedly without closing; disabled rows do not toggle', () => {
 		const { dropdown, changes, row } = create();

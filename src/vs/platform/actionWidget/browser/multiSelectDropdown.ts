@@ -10,6 +10,7 @@ import { Emitter } from '../../../base/common/event.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
 import { AnchorPosition } from '../../../base/common/layout.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { localize } from '../../../nls.js';
 import { IContextViewService } from '../../contextview/browser/contextView.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ActionList, ActionListItemKind, IActionListItem } from './actionList.js';
@@ -123,14 +124,19 @@ export class MultiSelectDropdown extends Disposable {
 					getWidgetRole: () => 'menu',
 					getRole: item => item.kind === ActionListItemKind.Action ? 'menuitemcheckbox' : 'separator',
 					isChecked: item => item.item ? selected.has(item.item.id) : undefined,
-					getAriaLabel: item => item.item
-						? [item.label, item.description, options.sections.find(section => section.items.includes(item.item!))?.label].filter(Boolean).join(', ')
-						: item.label ?? null,
+					getAriaLabel: item => {
+						if (!item.item) {
+							return item.label ?? null;
+						}
+						const label = [item.label, item.description, options.sections.find(section => section.items.includes(item.item!))?.label].filter(Boolean).join(', ');
+						return item.disabled ? localize('multiSelectDropdown.disabled', "{0}, disabled", label) : label;
+					},
 				}, {
 					showFilter: options.searchable,
 					filterPlaceholder: options.filterPlaceholder,
 					focusFilterOnOpen: options.searchable,
 					deferInitialFocus: true,
+					multipleSelectionSupport: false,
 					minWidth: options.width ?? 280,
 					maxWidth: options.width ?? 280,
 					hideDefaultKeybindingTooltip: true,

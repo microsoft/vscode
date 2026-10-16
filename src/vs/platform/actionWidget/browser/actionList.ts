@@ -812,6 +812,9 @@ export interface IActionListOptions {
 	/** Let the owner lay out the list before calling focus, so initial focus does not scroll past section headings. */
 	readonly deferInitialFocus?: boolean;
 
+	/** Controls List range selection independently of checked items. Defaults to true. */
+	readonly multipleSelectionSupport?: boolean;
+
 	/** Optional action item id to focus when the list opens. */
 	readonly initialFocusItemId?: string;
 
@@ -1117,6 +1120,7 @@ export class ActionListWidget<T> extends Disposable {
 			new SeparatorRenderer(this._hoverService),
 		], {
 			keyboardSupport: false,
+			multipleSelectionSupport: this._options?.multipleSelectionSupport ?? true,
 			typeNavigationEnabled: !this._options?.showFilter && !this._options?.onType,
 			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel },
 			accessibilityProvider: {
