@@ -3319,7 +3319,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('lists and opens canvases through the owning provider', async () => {
+		test('lists, opens and closes canvases through the owning provider', async () => {
 			const calls: unknown[] = [];
 			const provider: IAgent = copilotAgent;
 			provider.listSessionCanvases = async (session, chat, context) => {
@@ -3338,6 +3338,10 @@ suite('AgentService (node dispatcher)', () => {
 			provider.openSessionCanvas = async (session, request, chat, context) => {
 				const resolved = resolveAgentChatContext(context, chat);
 				calls.push(['open', session.toString(), chat.toString(), resolved.resource.toString(), resolved.owner.get().toString(), request]);
+			};
+			provider.closeSessionCanvas = async (session, request, chat, context) => {
+				const resolved = resolveAgentChatContext(context, chat);
+				calls.push(['close', session.toString(), chat.toString(), resolved.resource.toString(), resolved.owner.get().toString(), request.resource.toString()]);
 			};
 			registerTestAgentProvider(service, provider);
 			getConfigurationService(service).updateRootConfig({ [AgentHostCanvasesEnabledConfigKey]: true });
@@ -3367,6 +3371,7 @@ suite('AgentService (node dispatcher)', () => {
 				extensionId: 'project:preview',
 				instanceId: 'project-preview-preview',
 			}, chat);
+			await managementService.closeSessionCanvas(session, { resource: URI.parse('ahp-canvas:/preview') }, chat);
 
 			assert.deepStrictEqual({
 				canvases,
@@ -3390,8 +3395,50 @@ suite('AgentService (node dispatcher)', () => {
 						extensionId: 'project:preview',
 						instanceId: 'project-preview-preview',
 					}],
+					['close', 'copilot:/canvas-session', chat.toString(), 'copilot:/canvas-session', 'copilot:/canvas-session', 'ahp-canvas:/preview'],
 				],
 			});
+		});
+
+		test('closes canvases without restoring a cold session or resolving a cold chat', async () => {
+			const closed: string[] = [];
+			const provider: IAgent = copilotAgent;
+			provider.closeSessionCanvas = async (_session, _request, chat) => {
+				closed.push(chat.toString());
+			};
+			registerTestAgentProvider(service, provider);
+			getConfigurationService(service).updateRootConfig({ [AgentHostCanvasesEnabledConfigKey]: true });
+			const stateManager = getStateManager(service);
+			const now = new Date().toISOString();
+			const resident = AgentSession.uri('copilot', 'canvas-resident-session');
+			stateManager.restoreSession({
+				resource: resident.toString(),
+				defaultChat: buildDefaultChatUri(resident.toString()),
+				provider: provider.id,
+				title: 'Canvas session',
+				status: SessionStatus.Idle,
+				createdAt: now,
+				modifiedAt: now,
+			}, [], creationTimeChatStorageResource);
+			const coldPeer = URI.parse(buildChatUri(resident, 'peer'));
+			let resolverCalls = 0;
+			stateManager.registerRestoredChatSummary(resident.toString(), coldPeer.toString(), {
+				storageResource: creationTimeChatStorageResource(resident.toString(), coldPeer.toString(), buildDefaultChatUri(resident.toString())),
+				resolver: async () => {
+					resolverCalls++;
+					return { turns: [] };
+				},
+			});
+			let restoreCalls = 0;
+			service.restoreSession = async () => { restoreCalls++; };
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
+			const coldSession = AgentSession.uri('copilot', 'canvas-cold-session');
+			const resource = URI.parse('ahp-canvas:/preview');
+
+			await managementService.closeSessionCanvas(coldSession, { resource }, URI.parse(buildDefaultChatUri(coldSession.toString())));
+			await managementService.closeSessionCanvas(resident, { resource }, coldPeer);
+
+			assert.deepStrictEqual({ restoreCalls, resolverCalls, closed }, { restoreCalls: 0, resolverCalls: 0, closed: [coldPeer.toString()] });
 		});
 
 		test('rejects a foreign canvas chat before resolving it', async () => {

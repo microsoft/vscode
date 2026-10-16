@@ -310,6 +310,12 @@ export interface IAgentCanvasOpenRequest {
 	readonly instanceId: string;
 }
 
+/** Closes one canvas that a live provider chat presents, notifying its canvas provider. */
+export interface IAgentCanvasCloseRequest {
+	/** The canvas channel the chat advertised. It identifies one canvas lifetime: reopening a canvas advertises a new channel. */
+	readonly resource: URI;
+}
+
 export interface IAgentCustomizationInstallationCatalogue {
 	readonly resourceId?: string;
 	readonly itemUrl?: string;
@@ -1609,6 +1615,9 @@ export interface IAgent {
 
 	/** Open or focus one canvas instance in an initialized provider chat. */
 	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest, chat: URI, context: AgentChatOperationContext): Promise<void>;
+
+	/** Close one canvas that a live provider chat presents, notifying its canvas provider. Never resumes a cold chat. */
+	closeSessionCanvas?(session: URI, request: IAgentCanvasCloseRequest, chat: URI, context: AgentChatOperationContext): Promise<void>;
 
 	/** Install a plugin through the provider that owns its installation state. */
 	installPlugin?(request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void>;
