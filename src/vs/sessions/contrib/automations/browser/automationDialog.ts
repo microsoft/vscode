@@ -1504,11 +1504,17 @@ export function renderForm(
 		revalidate();
 	};
 	disposables.add(workspacePicker.onDidSelectWorkspace(uri => applyWorkspaceTarget(uri)));
+	// As in the workspace picker, a checkout that no provider can run Cloud from is selected through its repository.
+	const cloudFolderFor = (folder: URI, repository: URI | undefined) => repository && folder.scheme !== GITHUB_REMOTE_FILE_SCHEME
+		&& !sessionsManagementService.getSessionTypesForFolder(folder).some(type => availableCloudConfiguration.get()?.sessionTypes.includes(type.sessionType.id))
+		? repository
+		: folder;
 	const setRunInCloud = (checked: boolean) => {
 		// A folder whose repository access is still being checked stays selected; validation blocks Create until it resolves.
-		const target = checked && state.folderUri ? availableCloudConfiguration.get()?.getWorkspaceTarget(state.folderUri).get() : undefined;
+		const current = checked ? state.folderUri : undefined;
+		const target = current ? availableCloudConfiguration.get()?.getWorkspaceTarget(current).get() : undefined;
 		const folder = checked
-			? target?.workspace || target?.pending ? state.folderUri : undefined
+			? current && (target?.workspace || target?.pending) ? cloudFolderFor(current, target?.workspace) : undefined
 			: localTarget.folderUri;
 		switchingTarget = true;
 		runInCloud.set(checked, undefined);
@@ -1520,6 +1526,19 @@ export function renderForm(
 		switchingTarget = false;
 		applyWorkspaceTarget(folder, !checked);
 	};
+	// Repository access that resolves after switching replaces such a checkout too. Editing never changes the saved target.
+	disposables.add(autorun(reader => {
+		const folder = isolationModel.folderUriObs.read(reader);
+		const target = !isEdit && folder ? cloudConfiguration.read(reader)?.getWorkspaceTarget(folder).read(reader) : undefined;
+		if (!folder || !target || target.pending || switchingTarget) {
+			return;
+		}
+		const cloudFolder = cloudFolderFor(folder, target.workspace);
+		if (!isEqual(cloudFolder, folder)) {
+			workspacePicker.setSelectedWorkspace(cloudFolder, { fireEvent: false, persist: false });
+			applyWorkspaceTarget(cloudFolder);
+		}
+	}));
 	const connectFailureHover = disposables.add(new MutableDisposable());
 	const connectCloud = async (): Promise<boolean> => {
 		if (cloudCreatable()) {

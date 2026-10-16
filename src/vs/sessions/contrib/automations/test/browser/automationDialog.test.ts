@@ -104,13 +104,15 @@ suite('Automation dialog creation', () => {
 			sessionType: { id: 'copilotcli', label: 'Copilot', icon: Codicon.copilot, authRequirement: SessionTypeAuthRequirement.None },
 		}];
 		const cloudTypes = [{ providerId: 'cloud', sessionType: { ...types[0].sessionType, id: 'cloud-agent', label: 'Cloud' } }];
+		const getSessionTypesForFolder = sessionOverrides?.getSessionTypesForFolder
+			?? ((uri: URI) => uri.scheme === GITHUB_REMOTE_FILE_SCHEME ? cloudTypes : [...types, ...(cloudConfiguration ? cloudTypes : [])]);
 		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({
 			onDidChangeProviders: Event.None,
 			getProviders: () => [],
 			getProvider: <T extends ISessionsProvider>(id: string) => id === 'cloud' && cloudConfiguration ? upcastPartial<ISessionsProvider>({
 				id,
 				sessionTypes: cloudTypes.map(type => type.sessionType),
-				getSessionTypes: () => cloudTypes.map(type => type.sessionType),
+				getSessionTypes: uri => getSessionTypesForFolder(uri).filter(type => type.providerId === id).map(type => type.sessionType),
 			}) as T : undefined,
 		}));
 		const providers = observableValue('providers', [{ id: 'host', label: 'Host' }, ...(cloudConfiguration && cloudCreatable ? [{ id: 'cloud', label: 'Cloud' }] : [])]);
@@ -134,7 +136,7 @@ suite('Automation dialog creation', () => {
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
 			automationSession: constObservable(undefined),
 			onDidChangeSessionTypes: Event.None,
-			getSessionTypesForFolder: uri => uri.scheme === GITHUB_REMOTE_FILE_SCHEME ? cloudTypes : [...types, ...(cloudConfiguration ? cloudTypes : [])],
+			getSessionTypesForFolder,
 			getQuickChatSessionTypes: () => types,
 			getAllProviderSessionTypes: () => [...types, ...cloudTypes],
 			isNewSessionTargetAvailable: () => true,
@@ -379,6 +381,30 @@ suite('Automation dialog creation', () => {
 		dialog.cancelButton.click();
 		await dialog.result;
 	});
+
+	for (const eligibility of ['cached', 'pending'] as const) {
+		test(`turning cloud on selects the repository of a ${eligibility} private checkout that cannot run Cloud itself`, async () => {
+			const target = observableValue<IAutomationWorkspaceTarget>('target', eligibility === 'cached' ? { workspace: REPOSITORY } : { pending: true, disabledReason: 'Checking repository access...' });
+			const types = [{ providerId: 'host', sessionType: { id: 'copilotcli', label: 'Copilot', icon: Codicon.copilot, authRequirement: SessionTypeAuthRequirement.None } }];
+			const cloudTypes = [{ providerId: 'cloud', sessionType: { ...types[0].sessionType, id: 'cloud-agent', label: 'Cloud' } }];
+			// Without the unified workspace picker, only the GitHub repository offers Cloud, not its local checkout.
+			const dialog = openDialog({}, cloudConfiguration(target), { getSessionTypesForFolder: uri => uri.scheme === GITHUB_REMOTE_FILE_SCHEME ? cloudTypes : types });
+			dialog.setPrompt('Review changes');
+			await dialog.selectWorkspace(FOLDER);
+			await dialog.setCloud(true);
+			target.set({ workspace: REPOSITORY }, undefined);
+			await timeout(0);
+			assert.deepStrictEqual({
+				workspace: dialog.getTarget().workspace?.toString(),
+				sessionType: dialog.container.querySelector('.automation-target-toolbar [aria-label*="Session Type"]')?.getAttribute('aria-label'),
+				disabled: dialog.saveButton.getAttribute('aria-disabled'),
+			}, { workspace: REPOSITORY.toString(), sessionType: 'Session Type, Cloud', disabled: 'false' });
+			dialog.saveButton.click();
+			const result = await dialog.result;
+			assert.ok(result?.kind === 'create' && result.value.target.kind === 'workspace');
+			assert.deepStrictEqual({ folderUri: result.value.target.folderUri.toString(), providerId: result.value.target.providerId }, { folderUri: REPOSITORY.toString(), providerId: 'cloud' });
+		});
+	}
 
 	test('connecting to cloud keeps the local draft until its configuration is captured', async () => {
 		let discards = 0;
