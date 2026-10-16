@@ -106,7 +106,8 @@ import { AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../../node/shared/fileLinkIns
 import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION, COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS } from '../../node/copilot/prompts/toolInstructions.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostReviewService, NULL_REVIEW_SERVICE } from '../../common/agentHostReviewService.js';
-import { getCopilotHomePath } from '../../../environment/common/copilotHome.js';
+import { getCopilotHomePath, ICopilotHomeService } from '../../../environment/common/copilotHome.js';
+import { TestCopilotHomeService } from '../../../environment/test/common/testCopilotHomeService.js';
 import { readMcpServerSource, readMcpServerSourcePlugin } from '../../common/meta/mcpCustomizationMeta.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { createUnmanagedCopilotSettings } from './copilotTestEvents.js';
@@ -1354,8 +1355,9 @@ class ResumePathCopilotAgent extends CopilotAgent {
 		@IByokLmProxyService byokLmProxyService: IByokLmProxyService,
 		@ILocalModelSetupService localModelSetupService: ILocalModelSetupService,
 		@IAgentHostSessionStateStore sessionStateStore: IAgentHostSessionStateStore,
+		@ICopilotHomeService copilotHomeService: ICopilotHomeService,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, managedSettingsService, gitHubEndpointService, otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, customizationEnablementService, environmentService, productService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver, fileService, worktreeIsolation, startupPerformance, byokLmProxyService, localModelSetupService, sessionStateStore);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, managedSettingsService, gitHubEndpointService, otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, customizationEnablementService, environmentService, productService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver, fileService, worktreeIsolation, startupPerformance, byokLmProxyService, localModelSetupService, sessionStateStore, copilotHomeService);
 	}
 
 	protected override _createCopilotClient(options: CopilotClientOptions): CopilotClient {
@@ -1401,8 +1403,9 @@ class TestableCopilotAgent extends CopilotAgent {
 		@IByokLmProxyService byokLmProxyService: IByokLmProxyService,
 		@ILocalModelSetupService localModelSetupService: ILocalModelSetupService,
 		@IAgentHostSessionStateStore sessionStateStore: IAgentHostSessionStateStore,
+		@ICopilotHomeService copilotHomeService: ICopilotHomeService,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, managedSettingsService, gitHubEndpointService, otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, customizationEnablementService, environmentService, productService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver, fileService, worktreeIsolation, startupPerformance, byokLmProxyService, localModelSetupService, sessionStateStore);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, managedSettingsService, gitHubEndpointService, otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, customizationEnablementService, environmentService, productService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver, fileService, worktreeIsolation, startupPerformance, byokLmProxyService, localModelSetupService, sessionStateStore, copilotHomeService);
 		this._now = now;
 	}
 
@@ -1472,7 +1475,7 @@ async function centralCustomizationDirectory(agent: CopilotAgent, session: URI):
 	return values.get('copilot.customizationDirectory');
 }
 
-function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; logService?: ILogService; proxyResolver?: IAgentHostProxyResolver; byokBridgeRegistry?: IByokLmBridgeRegistry; byokProxyService?: IByokLmProxyService; otelService?: IAgentHostOTelService; customizationEnablementService?: ICustomizationEnablementService; useRealCustomizationEnablementService?: boolean; worktreeIsolation?: IAgentHostWorktreeIsolation; rootConfig?: Record<string, unknown>; now?: () => number; startupPerformance?: IAgentHostStartupPerformance; productService?: IProductService; localModelSetupService?: ILocalModelSetupService }): { agent: CopilotAgent; instantiationService: IInstantiationService; authenticationService: AgentHostAuthenticationService; configurationService: IAgentConfigurationService; worktreeIsolation: IAgentHostWorktreeIsolation; managedSettingsService: IAgentHostManagedSettingsService; fileService: FileService; stateManager: AgentHostStateManager } {
+function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; copilotHome?: string; logService?: ILogService; proxyResolver?: IAgentHostProxyResolver; byokBridgeRegistry?: IByokLmBridgeRegistry; byokProxyService?: IByokLmProxyService; otelService?: IAgentHostOTelService; customizationEnablementService?: ICustomizationEnablementService; useRealCustomizationEnablementService?: boolean; worktreeIsolation?: IAgentHostWorktreeIsolation; rootConfig?: Record<string, unknown>; now?: () => number; startupPerformance?: IAgentHostStartupPerformance; productService?: IProductService; localModelSetupService?: ILocalModelSetupService }): { agent: CopilotAgent; instantiationService: IInstantiationService; authenticationService: AgentHostAuthenticationService; configurationService: IAgentConfigurationService; worktreeIsolation: IAgentHostWorktreeIsolation; managedSettingsService: IAgentHostManagedSettingsService; fileService: FileService; stateManager: AgentHostStateManager } {
 	const services = new ServiceCollection();
 	const logService = options?.logService ?? new NullLogService();
 	const authenticationService = disposables.add(new AgentHostAuthenticationService(logService));
@@ -1528,6 +1531,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	services.set(ITelemetryService, telemetryService);
 	services.set(IAgentHostStartupPerformance, options?.startupPerformance ?? NullAgentHostStartupPerformance);
 	services.set(IProductService, options?.productService ?? TEST_PRODUCT_SERVICE);
+	services.set(ICopilotHomeService, new TestCopilotHomeService(options?.userHome ?? URI.file('/mock-home'), options?.copilotHome ? URI.file(options.copilotHome) : undefined));
 	services.set(IAgentHostSessionOpenTelemetry, {
 		_serviceBrand: undefined,
 		withSubscription: async (_resource, operation) => operation({
@@ -1561,7 +1565,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	return { agent, instantiationService, authenticationService, configurationService: configService, worktreeIsolation, managedSettingsService, fileService, stateManager };
 }
 
-function createTestAgent(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; logService?: ILogService; proxyResolver?: IAgentHostProxyResolver; byokBridgeRegistry?: IByokLmBridgeRegistry; byokProxyService?: IByokLmProxyService; otelService?: IAgentHostOTelService }): CopilotAgent {
+function createTestAgent(disposables: Pick<DisposableStore, 'add'>, options?: Parameters<typeof createTestAgentContext>[1]): CopilotAgent {
 	return createTestAgentContext(disposables, options).agent;
 }
 
@@ -1634,7 +1638,7 @@ function sdkSession(sessionId: string, cwd?: string, options?: ITestCopilotSessi
 
 /** Writes the extension-host Copilot CLI sidecar marker that makes a session adoptable-legacy. */
 async function writeExtensionHostMarker(userHome: URI, sessionId: string, metadata: Record<string, unknown> = { origin: 'vscode' }): Promise<void> {
-	const dir = join(getCopilotHomePath(userHome.fsPath, process.env), 'session-state', sessionId);
+	const dir = join(getCopilotHomePath(userHome.fsPath, {}), 'session-state', sessionId);
 	await fs.mkdir(dir, { recursive: true });
 	await fs.writeFile(join(dir, 'vscode.metadata.json'), JSON.stringify(metadata), 'utf8');
 }
@@ -3314,11 +3318,50 @@ suite('CopilotAgent', () => {
 					applicationName: 'vscode-agent-host',
 					applicationVersion: '1.2.3',
 				},
-				copilotHome: getCopilotHomePath('/mock-home', process.env),
+				copilotHome: join(URI.file('/mock-home').fsPath, '.copilot'),
 				onGitHubTelemetry: 'function',
 			});
 		} finally {
 			await disposeAgent(agent);
+		}
+	});
+
+	test('uses injected Copilot homes for SDK startup and plan files despite an inherited override', async () => {
+		const previous = process.env.COPILOT_HOME;
+		process.env.COPILOT_HOME = '/ambient/copilot-home';
+		try {
+			const actual: { sdkHome: string | undefined; plan: string | undefined }[] = [];
+			for (const copilotHome of [undefined, '/isolated/custom-copilot']) {
+				const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), copilotHome });
+				try {
+					await agent.listChatsToMigrate();
+					const session = AgentSession.uri('copilotcli', 'injected-home');
+					const chat = URI.parse(buildDefaultChatUri(session));
+					await agent.materializeChat(chat, exactChatContext(session, chat, session), JSON.stringify({ sdkSessionId: 'injected-home' }));
+					actual.push({
+						sdkHome: getCreatedClientOptions(agent).at(-1)?.env?.COPILOT_HOME,
+						plan: agent.getSessionPlanFile(session, chat)?.fsPath,
+					});
+				} finally {
+					await disposeAgent(agent);
+				}
+			}
+			assert.deepStrictEqual(actual, [
+				{
+					sdkHome: join(URI.file('/mock-home').fsPath, '.copilot'),
+					plan: URI.file(join('/mock-home', '.copilot', 'session-state', 'injected-home', 'plan.md')).fsPath,
+				},
+				{
+					sdkHome: URI.file('/isolated/custom-copilot').fsPath,
+					plan: URI.file(join('/isolated/custom-copilot', 'session-state', 'injected-home', 'plan.md')).fsPath,
+				},
+			]);
+		} finally {
+			if (previous === undefined) {
+				delete process.env.COPILOT_HOME;
+			} else {
+				process.env.COPILOT_HOME = previous;
+			}
 		}
 	});
 
@@ -5087,12 +5130,16 @@ suite('CopilotAgent', () => {
 	test('bounds native session metadata resolution while listing legacy chats', async () => {
 		class BlockingSessionDataService extends TestSessionDataService {
 			readonly gate = new DeferredPromise<void>();
+			readonly readsStarted = new DeferredPromise<void>();
 			activeReads = 0;
 			maxActiveReads = 0;
 
 			override async tryOpenDatabase(session: URI): Promise<IReference<SessionDatabase> | undefined> {
 				this.activeReads++;
 				this.maxActiveReads = Math.max(this.maxActiveReads, this.activeReads);
+				if (this.activeReads === 4) {
+					this.readsStarted.complete();
+				}
 				await this.gate.p;
 				this.activeReads--;
 				return super.tryOpenDatabase(session);
@@ -5104,9 +5151,7 @@ suite('CopilotAgent', () => {
 		const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
 		try {
 			const listing = agent.listChatsToMigrate();
-			for (let i = 0; i < 50 && sessionDataService.activeReads < 4; i++) {
-				await new Promise(resolve => setTimeout(resolve, 0));
-			}
+			await sessionDataService.readsStarted.p;
 			assert.strictEqual(sessionDataService.activeReads, 4);
 
 			sessionDataService.gate.complete();
@@ -14201,14 +14246,12 @@ suite('CopilotAgent', () => {
 		});
 	}
 
-	test('agent-created sessions can resolve session-state paths via INativeEnvironmentService', async () => {
+	test('agent-created sessions can resolve session-state paths via the injected Copilot home', async () => {
 		const sessionDataService = disposables.add(new TestSessionDataService());
 		const { agent, instantiationService } = createTestAgentContext(disposables, {
 			environmentServiceRegistration: 'native',
 			sessionDataService,
 		});
-		const previousCopilotHome = process.env['COPILOT_HOME'];
-		delete process.env['COPILOT_HOME'];
 		try {
 			const createdSession = createAgentSessionThroughAgent(agent, instantiationService);
 			const agentSession = disposables.add(createdSession.session);
@@ -14229,11 +14272,6 @@ suite('CopilotAgent', () => {
 				decisionContext: { source: 'host_policy', surface: 'sdk', outcome: 'auto_approved' },
 			});
 		} finally {
-			if (previousCopilotHome === undefined) {
-				delete process.env['COPILOT_HOME'];
-			} else {
-				process.env['COPILOT_HOME'] = previousCopilotHome;
-			}
 			await disposeAgent(agent);
 		}
 	});
@@ -14961,7 +14999,7 @@ suite('CopilotAgent', () => {
 
 		async function createLiveDiscoveryAgent(sessions: TestCopilotSessionMetadata[], options?: { gitService?: TestAgentHostGitService; logService?: ILogService; useRealResumePath?: boolean }) {
 			const userHome = URI.file(await fs.mkdtemp(join(os.tmpdir(), 'live-copilot-discovery-')));
-			const root = URI.file(join(getCopilotHomePath(userHome.fsPath, process.env), 'session-state'));
+			const root = URI.file(join(getCopilotHomePath(userHome.fsPath, {}), 'session-state'));
 			await fs.mkdir(root.fsPath, { recursive: true });
 			const logService = options?.logService ?? new NullLogService();
 			const fileService = disposables.add(new FileService(logService));
@@ -18918,7 +18956,7 @@ suite('CopilotAgent', () => {
 					// the per-model effort beats the picker's 'medium'
 					reasoningEffort: 'xhigh',
 					availableTools: ['builtin:*', 'mcp:*', 'custom:*'],
-					excludedTools: ['mcp:*', 'builtin:*', 'custom:*', 'builtin:run_dynamic_workflow', 'builtin:dynamic_workflows_manage', 'builtin:search_code_subagent', `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
+					excludedTools: ['mcp:*', 'builtin:*', 'custom:*', 'builtin:run_dynamic_workflow', 'builtin:dynamic_workflows_manage', 'builtin:semantic_code_search', 'builtin:search_code_subagent', `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
 					modelCapabilities: { supports: { vision: false } },
 				});
 			} finally {
@@ -20017,6 +20055,7 @@ suite('CopilotAgent', () => {
 			services.set(ITelemetryService, NullTelemetryService);
 			services.set(IAgentHostStartupPerformance, NullAgentHostStartupPerformance);
 			services.set(IProductService, TEST_PRODUCT_SERVICE);
+			services.set(ICopilotHomeService, new TestCopilotHomeService(URI.file('/mock-home')));
 			services.set(INativeEnvironmentService, {
 				_serviceBrand: undefined,
 				userHome: URI.from({ scheme: Schemas.inMemory, path: '/mock-home' }),
@@ -20335,6 +20374,7 @@ suite('CopilotAgent', () => {
 			services.set(ITelemetryService, NullTelemetryService);
 			services.set(IAgentHostStartupPerformance, NullAgentHostStartupPerformance);
 			services.set(IProductService, TEST_PRODUCT_SERVICE);
+			services.set(ICopilotHomeService, new TestCopilotHomeService(URI.file('/mock-home')));
 			services.set(IAgentHostPromptCache, new AgentHostPromptCache(stateManager));
 			services.set(IAgentHostSessionTitleSignal, titleSignal);
 			services.set(INativeEnvironmentService, {
@@ -25355,27 +25395,14 @@ suite('CopilotAgent', () => {
 			sessionStateRootStatus: 'notChecked', sessionDirectoryStatus: 'notChecked', eventsFileStatus: 'notChecked',
 			workspaceMetadataStatus: 'missing', lastKnownClient: 'unavailable',
 		};
-		let previousCopilotHome: string | undefined;
-		setup(() => {
-			previousCopilotHome = process.env['COPILOT_HOME'];
-			delete process.env['COPILOT_HOME'];
-		});
-		teardown(() => {
-			if (previousCopilotHome === undefined) {
-				delete process.env['COPILOT_HOME'];
-			} else {
-				process.env['COPILOT_HOME'] = previousCopilotHome;
-			}
-		});
-
-		async function writeExtensionHostMarker(userHome: URI, sessionId: string, metadata: Record<string, unknown> = { origin: 'vscode' }): Promise<void> {
-			const dir = join(getCopilotHomePath(userHome.fsPath, process.env), 'session-state', sessionId);
+		async function writeExtensionHostMarker(userHome: URI, sessionId: string, metadata: Record<string, unknown> = { origin: 'vscode' }, copilotHome = getCopilotHomePath(userHome.fsPath, {})): Promise<void> {
+			const dir = join(copilotHome, 'session-state', sessionId);
 			await fs.mkdir(dir, { recursive: true });
 			await fs.writeFile(join(dir, 'vscode.metadata.json'), JSON.stringify(metadata), 'utf8');
 		}
 
 		async function writeExtensionHostRequestDetails(userHome: URI, sessionId: string, details: readonly Record<string, unknown>[]): Promise<void> {
-			const dir = join(getCopilotHomePath(userHome.fsPath, process.env), 'session-state', sessionId);
+			const dir = join(getCopilotHomePath(userHome.fsPath, {}), 'session-state', sessionId);
 			await fs.mkdir(dir, { recursive: true });
 			await fs.writeFile(join(dir, 'vscode.requests.metadata.json'), JSON.stringify(details), 'utf8');
 		}
@@ -25738,7 +25765,7 @@ suite('CopilotAgent', () => {
 				await writeExtensionHostMarker(userHome, sessionId);
 				// Classify it as legacy while the marker is readable, then corrupt it.
 				await (agent as unknown as { _isExtensionHostCliSession(id: string): Promise<boolean> })._isExtensionHostCliSession(sessionId);
-				await fs.writeFile(join(getCopilotHomePath(userHome.fsPath, process.env), 'session-state', sessionId, 'vscode.metadata.json'), '{ not json', 'utf8');
+				await fs.writeFile(join(getCopilotHomePath(userHome.fsPath, {}), 'session-state', sessionId, 'vscode.metadata.json'), '{ not json', 'utf8');
 
 				const adopted = await ensureDefaultChatAdopted(agent, session);
 
@@ -26264,7 +26291,7 @@ suite('CopilotAgent', () => {
 				const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
 				try {
 					await agent.authenticate('https://api.github.com', 'token');
-					const directory = join(getCopilotHomePath(userHome.fsPath, process.env), 'session-state', sessionId);
+					const directory = join(getCopilotHomePath(userHome.fsPath, {}), 'session-state', sessionId);
 					const markerPath = join(directory, 'vscode.metadata.json');
 					await fs.mkdir(directory, { recursive: true });
 					if (raw === undefined) {
@@ -26323,11 +26350,11 @@ suite('CopilotAgent', () => {
 				const sessionId = 'storage-evidence';
 				const sessionDataService = disposables.add(new TestSessionDataService());
 				const client = new TestCopilotClient([sdkSession(sessionId, '/workspace')]);
-				const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
+				const copilotHome = join(userHome.fsPath, 'custom-home');
+				const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome, copilotHome });
 				try {
-					process.env.COPILOT_HOME = join(userHome.fsPath, 'custom-home');
-					await fs.mkdir(process.env.COPILOT_HOME, { recursive: true });
-					const root = join(process.env.COPILOT_HOME, 'session-state');
+					await fs.mkdir(copilotHome, { recursive: true });
+					const root = join(copilotHome, 'session-state');
 					if (layout === 'rootIsFile') {
 						await fs.writeFile(root, '');
 					} else if (layout !== 'rootMissing') {
@@ -26365,7 +26392,6 @@ suite('CopilotAgent', () => {
 						metadataCalls: [], databases: [],
 					});
 				} finally {
-					delete process.env.COPILOT_HOME;
 					await fs.rm(userHome.fsPath, { recursive: true, force: true });
 					await disposeAgent(agent);
 				}
@@ -26396,7 +26422,7 @@ suite('CopilotAgent', () => {
 				const client = new TestCopilotClient([]);
 				const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
 				try {
-					const directory = join(getCopilotHomePath(userHome.fsPath, process.env), 'session-state', sessionId);
+					const directory = join(getCopilotHomePath(userHome.fsPath, {}), 'session-state', sessionId);
 					await fs.mkdir(directory, { recursive: true });
 					const metadataPath = join(directory, 'workspace.yaml');
 					if (raw === undefined) {
@@ -26432,7 +26458,7 @@ suite('CopilotAgent', () => {
 				let close: { callCount: number } | undefined;
 				let openFlags: string | number | undefined;
 				try {
-					const directory = join(getCopilotHomePath(userHome.fsPath, process.env), 'session-state', sessionId);
+					const directory = join(getCopilotHomePath(userHome.fsPath, {}), 'session-state', sessionId);
 					await fs.mkdir(directory, { recursive: true });
 					await fs.writeFile(join(directory, 'workspace.yaml'), 'client_name: vscode');
 					const replacement = join(directory, 'replacement.yaml');
@@ -26482,7 +26508,7 @@ suite('CopilotAgent', () => {
 				const sessionId = 'client-symlink';
 				const agent = createTestAgent(disposables, { userHome });
 				try {
-					const directory = join(getCopilotHomePath(userHome.fsPath, process.env), 'session-state', sessionId);
+					const directory = join(getCopilotHomePath(userHome.fsPath, {}), 'session-state', sessionId);
 					await fs.mkdir(directory, { recursive: true });
 					await fs.writeFile(join(directory, 'workspace.yaml'), 'client_name: vscode');
 					const replacement = join(directory, 'replacement.yaml');
@@ -26506,11 +26532,11 @@ suite('CopilotAgent', () => {
 		test('refreshes last-client evidence without overwriting explicit marker provenance', async () => {
 			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-client-retry-`));
 			const sessionId = 'client-retry';
-			const agent = createTestAgent(disposables, { userHome });
+			const copilotHome = join(userHome.fsPath, 'custom-home');
+			const agent = createTestAgent(disposables, { userHome, copilotHome });
 			try {
-				process.env.COPILOT_HOME = join(userHome.fsPath, 'custom-home');
-				await writeExtensionHostMarker(userHome, sessionId, { origin: 'other' });
-				const path = join(process.env.COPILOT_HOME, 'session-state', sessionId, 'workspace.yaml');
+				await writeExtensionHostMarker(userHome, sessionId, { origin: 'other' }, copilotHome);
+				const path = join(copilotHome, 'session-state', sessionId, 'workspace.yaml');
 				const results: IAgentChatAdoptionResult[] = [];
 				for (const client of ['vscode', 'github/cli']) {
 					await fs.writeFile(path, `client_name: ${client}`);
@@ -26534,7 +26560,7 @@ suite('CopilotAgent', () => {
 			const sessionId = 'nested/session';
 			const agent = createTestAgent(disposables, { userHome });
 			try {
-				const directory = join(getCopilotHomePath(userHome.fsPath, process.env), 'session-state', sessionId);
+				const directory = join(getCopilotHomePath(userHome.fsPath, {}), 'session-state', sessionId);
 				await fs.mkdir(directory, { recursive: true });
 				await fs.writeFile(join(directory, 'workspace.yaml'), 'client_name: github/cli');
 				const result = await ensureDefaultChatAdopted(agent, AgentSession.uri('copilotcli', sessionId));

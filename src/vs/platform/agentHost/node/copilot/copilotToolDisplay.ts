@@ -66,6 +66,7 @@ export const enum CopilotToolName {
 	Rg = 'rg',
 	Glob = 'glob',
 	SearchCodeSubagent = 'search_code_subagent',
+	SemanticCodeSearch = 'semantic_code_search',
 	ReplyToComment = 'reply_to_comment',
 	CodeReview = 'code_review',
 	ApplyPatch = 'apply_patch',

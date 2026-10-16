@@ -92,6 +92,8 @@ import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../.
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
+import { ICopilotHomeService } from '../../../../../../platform/environment/common/copilotHome.js';
+import { TestCopilotHomeService } from '../../../../../../platform/environment/test/common/testCopilotHomeService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
@@ -919,6 +921,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 			return options?.preferLocal ? userHome : Promise.resolve(userHome);
 		}
 	}());
+	instantiationService.stub(ICopilotHomeService, new TestCopilotHomeService(URI.file('/home/test-user')));
 	instantiationService.stub(IRemoteAgentHostService, { connections: [], ...remoteAgentHostServiceOverride });
 	const modelService = new MockModelService(disposables);
 	const workingCopyService = new MockWorkingCopyService();

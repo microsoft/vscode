@@ -37,7 +37,7 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import product from '../../../product/common/product.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
-import { getCopilotHomePath, getCopilotMcpConfigurationPath } from '../../../environment/common/copilotHome.js';
+import { ICopilotHomeService } from '../../../environment/common/copilotHome.js';
 import { AgentHostHydraFusionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, isCopilotHydraFusionModelId } from '../../common/copilotCliConfig.js';
 import { logSettingExperimentTrigger } from '../../../telemetry/common/experimentTrigger.js';
 import { withCustomizationEnablement } from '../../common/customizationEnablement.js';
@@ -572,10 +572,6 @@ function askUserAnswerToFieldValue(field: ElicitationSchemaField, answer: ChatIn
 		case ChatInputAnswerValueKind.SelectedMany:
 			return field.type === 'array' ? [...value.value, ...(value.freeformValues ?? [])] : undefined;
 	}
-}
-
-function getCopilotCLISessionStateDir(userHome: string): string {
-	return join(getCopilotHomePath(userHome, process.env), SESSION_STATE_DIRECTORY);
 }
 
 function isCopilotSdkToolOutputTempFile(filePath: string, tmpDir: string): boolean {
@@ -1835,6 +1831,7 @@ export class CopilotAgentSession extends Disposable {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
+		@ICopilotHomeService private readonly _copilotHomeService: ICopilotHomeService,
 	) {
 		super();
 		this._register(toDisposable(() => {
@@ -6743,7 +6740,7 @@ export class CopilotAgentSession extends Disposable {
 			return undefined;
 		}
 
-		const sessionStateDir = normalizePath(URI.file(getCopilotCLISessionStateDir(this._environmentService.userHome.fsPath)));
+		const sessionStateDir = normalizePath(URI.joinPath(this._copilotHomeService.home, SESSION_STATE_DIRECTORY));
 		const sessionDir = normalizePath(URI.joinPath(sessionStateDir, this.sessionId));
 		if (!extUriBiasedIgnorePathCase.isEqualOrParent(sessionDir, sessionStateDir)) {
 			return undefined;
@@ -9710,7 +9707,7 @@ export class CopilotAgentSession extends Disposable {
 			source,
 			sourcePlugin: reported?.sourcePlugin,
 			sourceUri: source === 'user'
-				? URI.file(getCopilotMcpConfigurationPath(this._environmentService.userHome.fsPath, process.env)).toString()
+				? URI.joinPath(this._copilotHomeService.home, 'mcp-config.json').toString()
 				: undefined,
 		};
 	}
