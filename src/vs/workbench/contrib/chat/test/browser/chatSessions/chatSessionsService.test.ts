@@ -1101,6 +1101,111 @@ suite('ChatSessionsService - session resolution', () => {
 		});
 	});
 
+	test('acquires fresh content when a new caller arrives after cached resolution was cancelled', async () => {
+		const type = 'reacquired-cached-content';
+		const resource = URI.from({ scheme: type, path: '/saved' });
+		const cancellation = store.add(new CancellationTokenSource());
+		const joined = new DeferredPromise<IChatSession>();
+		const willDispose = store.add(new Emitter<void>());
+		let disposed = 0;
+		let provideCalls = 0;
+		const content = store.add(toDisposable(() => { disposed++; willDispose.fire(); }));
+		const cancelledSession: IChatSession = {
+			sessionResource: resource, history: [], options: new Map([['model', 'cancelled-model']]),
+			onWillDispose: willDispose.event, dispose: () => content.dispose(),
+		};
+		const currentSession: IChatSession = {
+			sessionResource: resource, history: [], options: new Map([['model', 'current-model']]),
+			onWillDispose: Event.None, dispose: () => { },
+		};
+		store.add(service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: async () => ++provideCalls === 1 ? cancelledSession : currentSession,
+		}));
+		store.add(Event.once(service.onDidChangeSessionOptions)(() => {
+			queueMicrotask(() => {
+				cancellation.cancel();
+				void joined.settleWith(service.getOrCreateChatSession(resource, CancellationToken.None));
+			});
+		}));
+		const cancelled = assert.rejects(service.getOrCreateChatSession(resource, cancellation.token), isCancellationError);
+		const joinedSession = await joined.p;
+		await cancelled;
+
+		assert.deepStrictEqual({
+			provideCalls, disposed, joinedCurrentSession: joinedSession === currentSession, cachedModel: service.getSessionOption(resource, 'model'),
+		}, {
+			provideCalls: 2, disposed: 1, joinedCurrentSession: true, cachedModel: 'current-model',
+		});
+	});
+
+	test('a cancelled newcomer does not acquire content while the previous resolution settles', async () => {
+		const type = 'cancelled-newcomer';
+		const resource = URI.from({ scheme: type, path: '/saved' });
+		const cancellation = store.add(new CancellationTokenSource());
+		const joined = new DeferredPromise<IChatSession>();
+		const willDispose = store.add(new Emitter<void>());
+		let disposed = 0;
+		let provideCalls = 0;
+		const content = store.add(toDisposable(() => { disposed++; willDispose.fire(); }));
+		store.add(service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: async () => {
+				provideCalls++;
+				return {
+					sessionResource: resource, history: [], options: new Map([['model', 'cancelled-model']]),
+					onWillDispose: willDispose.event, dispose: () => content.dispose(),
+				};
+			},
+		}));
+		store.add(Event.once(service.onDidChangeSessionOptions)(() => {
+			queueMicrotask(() => {
+				cancellation.cancel();
+				void joined.settleWith(service.getOrCreateChatSession(resource, CancellationToken.Cancelled));
+			});
+		}));
+		await Promise.all([
+			assert.rejects(service.getOrCreateChatSession(resource, cancellation.token), isCancellationError),
+			assert.rejects(joined.p, isCancellationError),
+		]);
+
+		assert.deepStrictEqual({ provideCalls, disposed, cachedModel: service.getSessionOption(resource, 'model') }, {
+			provideCalls: 1, disposed: 1, cachedModel: undefined,
+		});
+	});
+
+	test('reacquires an untitled session while cancelled input-state resolution is still pending', async () => {
+		const type = 'cancelled-untitled-options';
+		const resource = URI.from({ scheme: type, path: '/untitled-saved' });
+		const cancellation = store.add(new CancellationTokenSource());
+		const started = new DeferredPromise<void>();
+		const stalled = new DeferredPromise<undefined>();
+		let optionCalls = 0;
+		store.add(service.registerChatSessionItemController(type, {
+			onDidChangeChatSessionItems: Event.None, items: [], refresh: async () => { },
+			getNewChatSessionInputState: async () => {
+				if (++optionCalls === 1) {
+					started.complete();
+					return stalled.p;
+				}
+				return [{ id: 'model', name: 'Model', items: [{ id: 'current-model', name: 'Current model' }] }];
+			},
+		}));
+		store.add(service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: async () => ({ sessionResource: resource, history: [], onWillDispose: Event.None, dispose: () => { } }),
+		}));
+		const cancelled = assert.rejects(service.getOrCreateChatSession(resource, cancellation.token), isCancellationError);
+		await started.p;
+		cancellation.cancel();
+		await cancelled;
+		try {
+			const current = await service.getOrCreateChatSession(resource, CancellationToken.None);
+			assert.deepStrictEqual({ optionCalls, oldOptionsSettled: stalled.isSettled, model: current.options?.get('model') }, {
+				optionCalls: 2, oldOptionsSettled: false, model: { id: 'current-model', name: 'Current model' },
+			});
+		} finally {
+			await stalled.complete(undefined);
+		}
+	});
+
 	for (const terminalAction of ['provider removal', 'session deletion', 'all callers cancelling'] as const) {
 		test(`${terminalAction} after caching terminates the shared resolution and disposes content once`, async () => {
 			const type = 'cancelled-cached-content';
