@@ -18,13 +18,14 @@ import { RootState, TerminalClaimKind, TerminalLifecycleStatus, type TerminalSta
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../../../../platform/agentHost/common/state/protocol/channels-automation/commands.js';
 import type { ActionEnvelope, ChatAction, ClientAnnotationsAction, ClientAutomationAction, ClientAutomationRunAction, ClientChangesetAction, IRootConfigChangedAction, SessionAction, TerminalAction, INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, ResourceMkdirParams, ResourceMkdirResult } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { AgentHostConnectionClosedError, AHP_CLIENT_CONNECTION_CLOSED, JSON_RPC_INTERNAL_ERROR, ProtocolError, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWriteParams, type ResourceWriteResult, type CreateResourceWatchParams, type CreateResourceWatchResult, type ResourceMkdirParams, type ResourceMkdirResult } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import type { ITerminalLogService } from '../../../../../platform/terminal/common/terminal.js';
 import { AgentHostPty } from '../../browser/agentHostPty.js';
 import { AgentHostOutputChannel } from '../../browser/agentHostOutputChannel.js';
-import { IActiveSubscriptionInfo, IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { AgentSubscriptionMissingError, IActiveSubscriptionInfo, IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { AhpErrorCodes } from '../../../../../platform/agentHost/common/state/protocol/common/errors.js';
 import { StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { terminalReducer } from '../../../../../platform/agentHost/common/state/protocol/reducers.js';
 import type { IRemoteWatchHandle } from '../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
@@ -605,6 +606,212 @@ suite('AgentHostPty', () => {
 			result: { message: 'transport disconnected' },
 			disposeCount: 1,
 			disposedTerminals: [terminalUri.toString()],
+		});
+	});
+
+	suite('lost terminal creation response', () => {
+		const lostResponse = () => new AgentHostConnectionClosedError('Connection appears dead: My Machine; no data received for 25131ms.');
+
+		/** A subscription whose result is controlled by the test. */
+		function createControlledSubscription<T>(): { readonly reference: IReference<IAgentSubscription<T>>; fireError(error: Error): void; fireChange(state: TerminalState): void } {
+			const onDidChange = new Emitter<TerminalState>();
+			const onDidError = new Emitter<Error>();
+			let value: TerminalState | Error | undefined;
+			const sub: IAgentSubscription<TerminalState> = {
+				get value() { return value; },
+				get verifiedValue() { return value instanceof Error ? undefined : value; },
+				onDidChange: onDidChange.event,
+				onDidError: onDidError.event,
+				onWillApplyAction: Event.None,
+				onDidApplyAction: Event.None,
+			};
+			return {
+				reference: {
+					object: sub as IAgentSubscription<T>,
+					dispose: () => {
+						onDidChange.dispose();
+						onDidError.dispose();
+					},
+				},
+				fireError: error => {
+					value = error;
+					onDidError.fire(error);
+				},
+				fireChange: state => {
+					value = state;
+					onDidChange.fire(state);
+				},
+			};
+		}
+
+		/** Routes the first subscription (the probe) to `probe` and later ones to the connection's default. */
+		function useProbeSubscription(conn: MockAgentConnection, probe: { readonly reference: IReference<IAgentSubscription<unknown>> }): void {
+			const defaultGetSubscription = conn.getSubscription.bind(conn);
+			let subscriptions = 0;
+			conn.getSubscription = <T>(kind: StateComponents, resource: URI): IReference<IAgentSubscription<T>> =>
+				subscriptions++ === 0 ? probe.reference as IReference<IAgentSubscription<T>> : defaultGetSubscription<T>(kind, resource);
+		}
+
+		test('attaches when the host reports the terminal after reconnecting', async () => {
+			const conn = disposables.add(new MockAgentConnection());
+			conn.createTerminal = async params => {
+				conn.createdTerminals.push(params);
+				throw lostResponse();
+			};
+			const probe = createControlledSubscription<TerminalState>();
+			useProbeSubscription(conn, probe);
+			const pty = new TestAgentHostPty(1, conn, terminalUri, undefined, logService);
+			let ready = false;
+			disposables.add(pty.onProcessReady(() => ready = true));
+
+			const start = pty.start();
+			await timeout(0);
+			assert.strictEqual(ready, false, 'startup must wait for the probe to settle');
+			probe.fireChange({
+				title: 'Test Terminal', content: [], claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
+				lifecycle: { status: TerminalLifecycleStatus.Running },
+			});
+			const result = await start;
+			pty.shutdown(false);
+			await timeout(0);
+
+			assert.deepStrictEqual({ result, ready, created: conn.createdTerminals.length }, { result: undefined, ready: true, created: 1 });
+		});
+
+		test('does not probe or retry when the host itself rejects creation with the connection-closed code', async () => {
+			const conn = disposables.add(new MockAgentConnection());
+			conn.createTerminal = async params => {
+				conn.createdTerminals.push(params);
+				throw new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, 'host error');
+			};
+			const defaultGetSubscription = conn.getSubscription.bind(conn);
+			let subscriptions = 0;
+			conn.getSubscription = <T>(kind: StateComponents, resource: URI): IReference<IAgentSubscription<T>> => {
+				subscriptions++;
+				return defaultGetSubscription<T>(kind, resource);
+			};
+			const pty = new TestAgentHostPty(1, conn, terminalUri, undefined, logService);
+
+			const result = await pty.start();
+			pty.shutdown(false);
+			await timeout(0);
+
+			assert.deepStrictEqual({ result, created: conn.createdTerminals.length, subscriptions }, {
+				result: { message: 'host error' },
+				created: 1,
+				subscriptions: 0,
+			});
+		});
+
+		test('attaches when the host created the terminal before the response was lost', async () => {
+			const conn = disposables.add(new MockAgentConnection());
+			conn.createTerminal = async params => {
+				conn.createdTerminals.push(params);
+				throw lostResponse();
+			};
+			const pty = new TestAgentHostPty(1, conn, terminalUri, undefined, logService);
+			let ready = false;
+			disposables.add(pty.onProcessReady(() => ready = true));
+
+			const result = await pty.start();
+			pty.shutdown(false);
+			await timeout(0);
+
+			assert.deepStrictEqual({ result, ready, created: conn.createdTerminals.length }, { result: undefined, ready: true, created: 1 });
+		});
+
+		test('retries creation when the host reports the terminal missing', async () => {
+			const conn = disposables.add(new MockAgentConnection());
+			let creations = 0;
+			conn.createTerminal = async params => {
+				conn.createdTerminals.push(params);
+				if (creations++ === 0) {
+					throw lostResponse();
+				}
+			};
+			const probe = createControlledSubscription<TerminalState>();
+			useProbeSubscription(conn, probe);
+			const pty = new TestAgentHostPty(1, conn, terminalUri, undefined, logService);
+			let ready = false;
+			disposables.add(pty.onProcessReady(() => ready = true));
+
+			const start = pty.start();
+			await timeout(0);
+			// What the host sends when subscribing to a terminal URI it has never created.
+			probe.fireError(new ProtocolError(AhpErrorCodes.SessionNotFound, `No agent for session: ${terminalUri.toString()}`));
+			const result = await start;
+			pty.shutdown(false);
+			await timeout(0);
+
+			assert.deepStrictEqual({ result, ready, created: conn.createdTerminals.length }, { result: undefined, ready: true, created: 2 });
+		});
+
+		test('reports the original error when the connection is still unavailable', async () => {
+			const conn = disposables.add(new MockAgentConnection());
+			conn.createTerminal = async params => {
+				conn.createdTerminals.push(params);
+				throw lostResponse();
+			};
+			const probe = createControlledSubscription<TerminalState>();
+			conn.getSubscription = <T>(): IReference<IAgentSubscription<T>> => probe.reference as IReference<IAgentSubscription<T>>;
+			const pty = new TestAgentHostPty(1, conn, terminalUri, undefined, logService);
+
+			const start = pty.start();
+			await timeout(0);
+			probe.fireError(new AgentHostConnectionClosedError('Connection closed: My Machine'));
+			const result = await start;
+			pty.shutdown(false);
+			await timeout(0);
+
+			assert.deepStrictEqual({ result, created: conn.createdTerminals.length }, {
+				result: { message: 'Connection appears dead: My Machine; no data received for 25131ms.' },
+				created: 1,
+			});
+		});
+
+		test('does not retry when the probe fails for an unrelated reason', async () => {
+			const conn = disposables.add(new MockAgentConnection());
+			conn.createTerminal = async params => {
+				conn.createdTerminals.push(params);
+				throw lostResponse();
+			};
+			const probe = createControlledSubscription<TerminalState>();
+			conn.getSubscription = <T>(): IReference<IAgentSubscription<T>> => probe.reference as IReference<IAgentSubscription<T>>;
+			const pty = new TestAgentHostPty(1, conn, terminalUri, undefined, logService);
+
+			const start = pty.start();
+			await timeout(0);
+			probe.fireError(new ProtocolError(JSON_RPC_INTERNAL_ERROR, 'Not authorized'));
+			const result = await start;
+			pty.shutdown(false);
+			await timeout(0);
+
+			assert.deepStrictEqual({ result, created: conn.createdTerminals.length }, {
+				result: { message: 'Connection appears dead: My Machine; no data received for 25131ms.' },
+				created: 1,
+			});
+		});
+
+		test('attaches when a retry races the original creation', async () => {
+			const conn = disposables.add(new MockAgentConnection());
+			let creations = 0;
+			conn.createTerminal = async params => {
+				conn.createdTerminals.push(params);
+				creations++;
+				throw creations === 1 ? lostResponse() : new Error(`Terminal already exists: ${terminalUri.toString()}`);
+			};
+			const probe = createControlledSubscription<TerminalState>();
+			useProbeSubscription(conn, probe);
+			const pty = new TestAgentHostPty(1, conn, terminalUri, undefined, logService);
+
+			const start = pty.start();
+			await timeout(0);
+			probe.fireError(new AgentSubscriptionMissingError(terminalUri));
+			const result = await start;
+			pty.shutdown(false);
+			await timeout(0);
+
+			assert.deepStrictEqual({ result, created: conn.createdTerminals.length }, { result: undefined, created: 2 });
 		});
 	});
 

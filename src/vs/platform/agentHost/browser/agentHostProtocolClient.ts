@@ -51,7 +51,7 @@ import type { AgentChatMoveDestination } from '../common/agentHostChatMove.js';
 import { ChatMoveDestinationKind } from '../common/state/protocol/channels-chat/commands.js';
 import { normalizeLegacyActionEnvelope } from '../common/state/legacyProtocolCompatibility.js';
 import { getAgentHostSupportedProtocolVersions } from '../common/agentHostProtocolCompatibility.js';
-import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, JSON_RPC_INTERNAL_ERROR, type ProtocolMessage, type IStateSnapshot, type SubscribeResult } from '../common/state/sessionProtocol.js';
+import { AgentHostConnectionClosedError, AHP_CLIENT_CONNECTION_CLOSED, isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, JSON_RPC_INTERNAL_ERROR, type ProtocolMessage, type IStateSnapshot, type SubscribeResult } from '../common/state/sessionProtocol.js';
 import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
 import { isClientTransport, NonReconnectableTransportError, type AgentHostTransportFailureReason, type IProtocolTransport } from '../common/state/sessionTransport.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../common/state/protocol/errors.js';
@@ -83,8 +83,6 @@ import { getConnectionDiagnosticError, sanitizeConnectionDiagnosticText, traceCo
 import { DevContainerAgentHostProtocolClient } from '../common/devContainerAgentHostProtocolClient.js';
 import type { IDevContainerAgentHostMainService } from '../common/devContainerAgentHost.js';
 
-const AHP_CLIENT_CONNECTION_CLOSED = -32000;
-
 /**
  * After this much inbound silence, send an application-level `ping` to
  * the remote so we have something to time out on. Reset on any inbound
@@ -106,23 +104,22 @@ const PING_INTERVAL_MS = 5_000;
  */
 const LIVENESS_TIMEOUT_MS = 20_000;
 
-function connectionTimeoutError(address: string, silenceMs: number): ProtocolError {
-	return new ProtocolError(
-		AHP_CLIENT_CONNECTION_CLOSED,
-		`Connection appears dead: ${address}; no data received for ${silenceMs}ms.`,
+function connectionTimeoutError(hostLabel: string, silenceMs: number): ProtocolError {
+	return new AgentHostConnectionClosedError(
+		`Connection appears dead: ${hostLabel}; no data received for ${silenceMs}ms.`,
 	);
 }
 
-function connectionClosedError(address: string): ProtocolError {
-	return new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, `Connection closed: ${address}`);
+function connectionClosedError(hostLabel: string): ProtocolError {
+	return new AgentHostConnectionClosedError(`Connection closed: ${hostLabel}`);
 }
 
-function connectionDisposedError(address: string): ProtocolError {
-	return new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, `Connection disposed: ${address}`);
+function connectionDisposedError(hostLabel: string): ProtocolError {
+	return new AgentHostConnectionClosedError(`Connection disposed: ${hostLabel}`);
 }
 
-function transportLostError(address: string): ProtocolError {
-	return new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, `Transport lost (reconnecting): ${address}`);
+function transportLostError(hostLabel: string): ProtocolError {
+	return new AgentHostConnectionClosedError(`Transport lost (reconnecting): ${hostLabel}`);
 }
 
 /**
@@ -134,11 +131,15 @@ function isConnectionClosedError(error: unknown): boolean {
 	return error instanceof ProtocolError && error.code === AHP_CLIENT_CONNECTION_CLOSED;
 }
 
+/** Maximum number of pending requests named in a watchdog diagnostic. */
+const MAX_LOGGED_PENDING_REQUESTS = 5;
+
 interface IRemoteAgentHostExtensionNotificationMap {
 	'setClientManagedSettingsPermissions': { params: { permissions: IAgentHostManagedSettingsPermissions } };
 }
 
 interface IPendingRequest {
+	readonly method: string;
 	readonly deferred: DeferredPromise<unknown>;
 	readonly suppressNotFoundWarning: boolean;
 	readonly sentAt: number;
@@ -211,6 +212,8 @@ export interface IAgentHostProtocolClientOptions {
 	readonly loadEstimator?: ILoadEstimator;
 	/** Stable client identity. Generated when omitted. */
 	readonly clientId?: string;
+	/** User-recognizable host name for user-facing connection errors. Defaults to the address. */
+	readonly displayName?: string;
 	/** Client implementation metadata advertised during the handshake. */
 	readonly clientInfo?: Implementation;
 	/** How a dropped transport is restored. Defaults to {@link DEFAULT_RECONNECT_POLICY}. */
@@ -279,6 +282,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	private readonly _clientId: string;
 	private readonly _address: string;
+	/** User-recognizable host name included in user-facing connection errors. */
+	private readonly _hostLabel: string;
 	private readonly _resourceIdentity: AgentHostResourceIdentity;
 	private readonly _transportFactory: (() => IProtocolTransport) | undefined;
 	private _transport!: IProtocolTransport;
@@ -498,6 +503,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		super();
 		this._resourceIdentity = identity;
 		this._address = identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY ? AMBIENT_AGENT_HOST_AUTHORITY : identity;
+		this._hostLabel = options?.displayName?.trim() || this._address;
 		this._clientId = options?.clientId ?? generateUuid();
 		this._connectionAuthority = identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY ? AMBIENT_AGENT_HOST_AUTHORITY : agentHostAuthority(identity);
 		this.resourceUris = identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY
@@ -724,7 +730,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		const message = localize('agentHost.reconnectTimedOut', "Automatic reconnect timed out after {0}ms.", this._reconnectPolicy.maxElapsedTimeMs);
 		this._diagnostic('reconnect.timedOut', message);
 		this._logService.warn(`[RemoteAgentHostProtocol] ${message}`);
-		this._handleFatalClose(new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, message));
+		this._handleFatalClose(new AgentHostConnectionClosedError(message));
 	}
 
 	private _checkReconnectState(reconnect: IReconnectState): boolean {
@@ -747,7 +753,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				this._logService.warn('[AgentHostProtocolClient] Dispose callback failed', error);
 			}
 		}
-		this._handleClose(connectionDisposedError(this._address));
+		this._handleClose(connectionDisposedError(this._hostLabel));
 		super.dispose();
 	}
 
@@ -763,7 +769,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				await this._traceConnection('transport.connect', () => this._raceClose(transport.connect()));
 			}
 			if (this._state.kind !== AgentHostClientState.Connecting) {
-				throw transportLostError(this._address);
+				throw transportLostError(this._hostLabel);
 			}
 			// Arm the watchdog before the handshake, as a reconnect does. A relay can be up and
 			// acknowledging publishes while the host behind it never answers `initialize`; without a
@@ -791,7 +797,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				stage = 'authentication';
 				await this._traceConnection('protocol.authentication', () => this._restoreAuthentication(AgentHostClientState.Connecting));
 				if (this._state.kind !== AgentHostClientState.Connecting) {
-					throw transportLostError(this._address);
+					throw transportLostError(this._hostLabel);
 				}
 			}
 
@@ -808,7 +814,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			this._logService.warn(`[RemoteAgentHostProtocol] Connection failed: address=${this._address} clientId=${this._clientId} stage=${stage} durationMs=${watch.elapsed()} pendingRequests=${this._pendingRequests.size}`);
 			const protocolError = error instanceof ProtocolError
 				? error
-				: new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, error instanceof Error ? error.message : String(error));
+				: new AgentHostConnectionClosedError(error instanceof Error ? error.message : String(error));
 			if (protocolError.code === AhpErrorCodes.UnsupportedProtocolVersion || error instanceof InitialAuthenticationError) {
 				this._cancelLivenessTimers();
 				if (this._state.kind === AgentHostClientState.Connecting) {
@@ -867,12 +873,12 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			case AgentHostClientState.Closed:
 				return;
 			case AgentHostClientState.Connecting:
-				if (!this._beginReconnectFromConnecting(connectionClosedError(this._address))) {
-					this._handleClose(connectionClosedError(this._address));
+				if (!this._beginReconnectFromConnecting(connectionClosedError(this._hostLabel))) {
+					this._handleClose(connectionClosedError(this._hostLabel));
 				}
 				return;
 			case AgentHostClientState.Incompatible:
-				this._handleClose(connectionClosedError(this._address));
+				this._handleClose(connectionClosedError(this._hostLabel));
 				return;
 			case AgentHostClientState.Connected: {
 				if (!this._transportFactory) {
@@ -880,11 +886,11 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 					// can't be reconstructed from here, so we surface the
 					// close and let the service decide whether to spin up
 					// a fresh client.
-					this._handleClose(connectionClosedError(this._address));
+					this._handleClose(connectionClosedError(this._hostLabel));
 					return;
 				}
 				if (!this._reconnectPolicy.autoRestore) {
-					const error = connectionClosedError(this._address);
+					const error = connectionClosedError(this._hostLabel);
 					this._logService.info(`[RemoteAgentHostProtocol] Transport lost for ${this._address}; automatic reconnect is disabled.`);
 					this._handleFatalClose(error);
 					return;
@@ -894,7 +900,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				this._cancelLivenessTimers();
 				// In-flight requests can't be answered — the new transport has a
 				// separate request-id space. Reject them so callers can retry.
-				this._rejectPendingRequests(transportLostError(this._address));
+				this._rejectPendingRequests(transportLostError(this._hostLabel));
 				this._scheduleReconnect();
 				return;
 			}
@@ -908,7 +914,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				this._logService.info(`[RemoteAgentHostProtocol] Transport lost for ${this._address} mid-reconnect; aborting the current attempt.`);
 				this._state.reconnect.transportConnected = false;
 				this._cancelLivenessTimers();
-				this._rejectPendingRequests(transportLostError(this._address));
+				this._rejectPendingRequests(transportLostError(this._hostLabel));
 				return;
 		}
 	}
@@ -977,14 +983,14 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			return;
 		}
 		if (!userInitiated && !this._reconnectPolicy.autoRestore) {
-			const error = connectionClosedError(this._address);
+			const error = connectionClosedError(this._hostLabel);
 			this._logService.info(`[RemoteAgentHostProtocol] Automatic reconnect to ${this._address} is disabled.`);
 			this._handleFatalClose(error);
 			return;
 		}
 		if (!userInitiated && hasExhaustedReconnectAttempts(this._reconnectPolicy, reconnect.attempt)) {
 			this._diagnostic('reconnect.exhausted', `attempts=${reconnect.attempt}`);
-			const error = new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, `Automatic reconnect gave up after ${reconnect.attempt} attempts.`);
+			const error = new AgentHostConnectionClosedError(`Automatic reconnect gave up after ${reconnect.attempt} attempts.`);
 			this._logService.warn(`[RemoteAgentHostProtocol] Automatic reconnect to ${this._address} gave up after ${reconnect.attempt} attempts.`);
 			this._handleFatalClose(error);
 			return;
@@ -1109,12 +1115,12 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				return;
 			}
 			if (err instanceof NonReconnectableTransportError) {
-				const protocolError = new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, err.message);
+				const protocolError = new AgentHostConnectionClosedError(err.message);
 				this._handleFatalClose(protocolError, err.reason);
 				return;
 			}
 			if (err instanceof InitialAuthenticationError) {
-				const protocolError = new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, err.message);
+				const protocolError = new AgentHostConnectionClosedError(err.message);
 				this._cancelLivenessTimers();
 				this._rejectPendingRequests(protocolError);
 				reconnect.gate.error(err);
@@ -1277,7 +1283,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		const authenticationKeys = [...this._authentication.keys()];
 		const restoreAuthentication = async (key: string) => {
 			if (this._state !== state || this._transport !== transport) {
-				throw transportLostError(this._address);
+				throw transportLostError(this._hostLabel);
 			}
 			const authentication = this._authentication.get(key);
 			if (!authentication) {
@@ -1588,7 +1594,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			throw this._state.error;
 		}
 		if (this._state.kind === AgentHostClientState.Reconnecting) {
-			throw transportLostError(this._address);
+			throw transportLostError(this._hostLabel);
 		}
 		const resource = URI.parse(channel);
 		const held = isAhpRootChannel(channel) ? this.rootState : this._subscriptionManager.getSubscriptionUnmanaged<T>(resource);
@@ -1600,7 +1606,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		let clientSeq: number | undefined;
 		store.add(token.onCancellationRequested(() => confirmed.error(new CancellationError())));
 		store.add(Event.once(Event.filter(this.onDidAction, envelope => envelope.channel === channel && clientSeq !== undefined && envelope.origin?.clientId === this._clientId && envelope.origin.clientSeq === clientSeq))(envelope => confirmed.complete(envelope)));
-		store.add(Event.once(Event.filter(this.onDidChangeConnectionState, state => state === AgentHostClientState.Closed || state === AgentHostClientState.Incompatible || state === AgentHostClientState.Reconnecting))(() => confirmed.error(transportLostError(this._address))));
+		store.add(Event.once(Event.filter(this.onDidChangeConnectionState, state => state === AgentHostClientState.Closed || state === AgentHostClientState.Incompatible || state === AgentHostClientState.Reconnecting))(() => confirmed.error(transportLostError(this._hostLabel))));
 		if (subscription.onDidError) {
 			store.add(Event.once(subscription.onDidError)(error => confirmed.error(error)));
 		}
@@ -1975,7 +1981,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		try {
 			const result = await this._dispatchRequest<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI }, { bypassInitializeQueue: true, bypassReconnectGate: true, timeoutMs: 30_000 });
 			if (transport !== this._transport) {
-				throw transportLostError(this._address);
+				throw transportLostError(this._hostLabel);
 			}
 			const snapshot = result.snapshot;
 			if (!snapshot || !isAhpRootChannel(snapshot.resource) || !hasKey(snapshot.state, { agents: true })) {
@@ -2513,7 +2519,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 		let closeListener = Disposable.None;
 		const closePromise = new Promise<never>((_resolve, reject) => {
-			closeListener = Event.once(this.onDidClose)(() => reject(this._state.kind === AgentHostClientState.Closed ? this._state.error : connectionClosedError(this._address)));
+			closeListener = Event.once(this.onDidClose)(() => reject(this._state.kind === AgentHostClientState.Closed ? this._state.error : connectionClosedError(this._hostLabel)));
 		});
 
 		try {
@@ -2887,7 +2893,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private _createRequest<TResult>(method: string, params: unknown, timeoutMs?: number): { request: JsonRpcRequest; result: Promise<TResult> } {
 		const id = this._nextRequestId++;
 		const deferred = new DeferredPromise<unknown>();
-		this._pendingRequests.set(id, { deferred, suppressNotFoundWarning: isFileResourceRead(method, params), sentAt: Date.now() });
+		this._pendingRequests.set(id, { method, deferred, suppressNotFoundWarning: isFileResourceRead(method, params), sentAt: Date.now() });
 		if (timeoutMs !== undefined) {
 			const deadline = disposableTimeout(() => {
 				if (this._pendingRequests.get(id)?.deferred === deferred) {
@@ -3045,8 +3051,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			return;
 		}
 		const silence = Date.now() - this._lastReadTime;
+		const hostDescription = this._hostLabel === this._address ? this._address : `${this._address} ('${this._hostLabel}')`;
 		this._logService.info(
-			`[RemoteAgentHostProtocol] Liveness: no data from ${this._address} for ${silence}ms; forcing close to trigger reconnect.`,
+			`[RemoteAgentHostProtocol] Liveness: no data from ${hostDescription} for ${silence}ms; forcing close to trigger reconnect. ${this._describePendingRequests()}`,
 		);
 		// Tear down the dead transport so it can't keep delivering messages
 		// to a Reconnecting/Closed client (and, on the non-factory path,
@@ -3054,15 +3061,29 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		// WebSocketClientTransport.dispose() disposes its emitters
 		// synchronously before the native close event arrives, so this
 		// won't re-enter {@link _handleTransportClose}.
-		this._diagnostic('watchdog.timeout', `sinceLastDataMs=${silence}`);
+		this._diagnostic('watchdog.timeout', `sinceLastDataMs=${silence}; pendingRequests=${this._pendingRequests.size}`);
 		this._transportListeners.clear();
 		if (this._transportFactory) {
 			// In factory mode, route directly through the soft-reconnect path.
-			this._rejectPendingRequests(connectionTimeoutError(this._address, silence));
+			this._rejectPendingRequests(connectionTimeoutError(this._hostLabel, silence));
 			this._handleTransportClose();
 			return;
 		}
-		this._handleClose(connectionTimeoutError(this._address, silence));
+		this._handleClose(connectionTimeoutError(this._hostLabel, silence));
+	}
+
+	/** Summarizes requests whose responses will be lost, so callers' failures can be correlated. */
+	private _describePendingRequests(): string {
+		if (this._pendingRequests.size === 0) {
+			return 'pendingRequests=0';
+		}
+		const now = Date.now();
+		const pending = [...this._pendingRequests]
+			.sort(([, a], [, b]) => a.sentAt - b.sentAt)
+			.slice(0, MAX_LOGGED_PENDING_REQUESTS)
+			.map(([id, request]) => `${request.method}#${id}(${now - request.sentAt}ms)`);
+		const omitted = this._pendingRequests.size - pending.length;
+		return `pendingRequests=${this._pendingRequests.size} oldest=[${pending.join(', ')}${omitted > 0 ? `, +${omitted} more` : ''}]`;
 	}
 
 	private _deferLivenessCheck(pendingReverseRequests: number): void {

@@ -312,7 +312,7 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 		);
 		return {
 			connection: this._instantiationService.createInstance(
-				AgentHostProtocolClient, address, transportFactory, { clientInfo: agentsWindowAgentHostClientInfo },
+				AgentHostProtocolClient, address, transportFactory, { clientInfo: agentsWindowAgentHostClientInfo, displayName: entry.name },
 			),
 		};
 	}
