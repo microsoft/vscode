@@ -6,7 +6,9 @@
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { ByteSize } from '../../../../platform/files/common/files.js';
+import { SideBySideEditor } from '../../../browser/parts/editor/sideBySideEditor.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IEditorPane } from '../../../common/editor.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
 import { ImagePreviewEditor } from './imagePreviewEditor.js';
@@ -38,7 +40,8 @@ export class MediaPreviewStatusBarContribution extends Disposable implements IWo
 	private readonly _zoomEntry = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly _dimensionsEntry = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly _fileSizeEntry = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
-	private readonly _activeEditorListener = this._register(new MutableDisposable());
+	private readonly _containerListener = this._register(new MutableDisposable());
+	private readonly _paneListener = this._register(new MutableDisposable());
 
 	constructor(
 		@IEditorService private readonly _editorService: IEditorService,
@@ -52,29 +55,41 @@ export class MediaPreviewStatusBarContribution extends Disposable implements IWo
 
 	private _onDidActiveEditorChange(): void {
 		const activePane = this._editorService.activeEditorPane;
-		if (activePane instanceof ImagePreviewEditor) {
+		if (activePane instanceof SideBySideEditor) {
+			// Show the status of the focused side of diffs
+			const update = () => this._showStatusOf(activePane.getLastFocusedEditorPane());
+			this._containerListener.value = activePane.onDidChangeControl(update);
+			update();
+		} else {
+			this._containerListener.clear();
+			this._showStatusOf(activePane);
+		}
+	}
+
+	private _showStatusOf(pane: IEditorPane | undefined): void {
+		if (pane instanceof ImagePreviewEditor) {
 			const update = () => {
-				const viewer = activePane.imageViewer;
+				const viewer = pane.imageViewer;
 				this._update({
 					scale: viewer?.hasImage ? viewer.scale : undefined,
 					dimensions: viewer?.naturalSize,
-					fileSize: activePane.fileSize,
+					fileSize: pane.fileSize,
 				});
 			};
-			this._activeEditorListener.value = activePane.onDidChangeImageInfo(update);
+			this._paneListener.value = pane.onDidChangeImageInfo(update);
 			update();
 			return;
 		}
 
-		const activeEditor = activePane?.input;
-		if (activeEditor instanceof MediaPlayerEditorInput) {
-			const update = () => this._update({ fileSize: activeEditor.fileSize });
-			this._activeEditorListener.value = activeEditor.onDidChangeFileSize(update);
+		const input = pane?.input;
+		if (input instanceof MediaPlayerEditorInput) {
+			const update = () => this._update({ fileSize: input.fileSize });
+			this._paneListener.value = input.onDidChangeFileSize(update);
 			update();
 			return;
 		}
 
-		this._activeEditorListener.clear();
+		this._paneListener.clear();
 		this._update({});
 	}
 

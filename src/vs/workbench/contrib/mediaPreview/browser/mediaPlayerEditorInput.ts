@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { escapeDoubleQuotes } from '../../../../base/common/htmlContent.js';
 import { basename, dirname, isEqual } from '../../../../base/common/resources.js';
@@ -12,7 +13,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { FileChangeType, IFileService } from '../../../../platform/files/common/files.js';
+import { FileChangesEvent, FileChangeType, IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
@@ -189,12 +190,16 @@ export class MediaPlayerEditorInput extends WebviewInput {
 
 		this._render();
 
-		const watcher = this._register(this._fileService.createWatcher(this._resource, { recursive: false, excludes: [] }));
-		this._register(watcher.onDidChange(e => {
+		const renderScheduler = this._register(new RunOnceScheduler(() => this._render(), 100));
+		const onDidFilesChange = (e: FileChangesEvent) => {
 			if (e.contains(this._resource, FileChangeType.UPDATED, FileChangeType.ADDED)) {
-				this._render();
+				renderScheduler.schedule();
 			}
-		}));
+		};
+		const watcher = this._register(this._fileService.createWatcher(this._resource, { recursive: false, excludes: [] }));
+		this._register(watcher.onDidChange(onDidFilesChange));
+		// File systems contributed by extensions only report uncorrelated changes
+		this._register(this._fileService.onDidFilesChange(onDidFilesChange));
 	}
 
 	private _render(): void {

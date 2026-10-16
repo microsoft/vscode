@@ -18,6 +18,9 @@ import { IClipboardService } from '../../../../../platform/clipboard/common/clip
 import { TestClipboardService } from '../../../../../platform/clipboard/test/common/testClipboardService.js';
 import { FileChangesEvent, FileChangeType, IFileContent, IFileService } from '../../../../../platform/files/common/files.js';
 import { TestEditorGroupView, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestFileService } from '../../../../test/common/workbenchTestServices.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { IWebWorkerService } from '../../../../../platform/webWorker/browser/webWorkerService.js';
 import { ImagePreviewEditor } from '../../browser/imagePreviewEditor.js';
 import { ImagePreviewEditorInput } from '../../browser/imagePreviewEditorInput.js';
 
@@ -41,6 +44,7 @@ suite('Media Preview - ImagePreviewEditor', () => {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(IClipboardService, new TestClipboardService());
+		instantiationService.stub(IWebWorkerService, new class extends mock<IWebWorkerService>() { }());
 
 		const imageA = URI.file('/images/a.png');
 		const imageB = URI.file('/images/b.png');
@@ -94,6 +98,7 @@ suite('Media Preview - ImagePreviewEditor', () => {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(IClipboardService, new TestClipboardService());
+		instantiationService.stub(IWebWorkerService, new class extends mock<IWebWorkerService>() { }());
 
 		const image = URI.file('/images/generated.png');
 		const versions = [createPng(40, 20), createPng(10, 10)];
@@ -126,6 +131,39 @@ suite('Media Preview - ImagePreviewEditor', () => {
 		await initialRead.complete({ resource: image, value: versions[0], size: versions[0].byteLength } as IFileContent);
 		await setInput;
 
+		for (let i = 0; i < 50 && editor.imageViewer?.naturalSize?.width !== 10; i++) {
+			await timeout(20);
+		}
+
+		assert.deepStrictEqual({ reads, naturalSize: editor.imageViewer?.naturalSize }, { reads: 2, naturalSize: { width: 10, height: 10 } });
+	});
+
+	test('reloads an image on changes that are not reported to its watcher', async () => {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(IClipboardService, new TestClipboardService());
+		instantiationService.stub(IWebWorkerService, new class extends mock<IWebWorkerService>() { }());
+
+		// Extension file systems report changes to `IFileService.onDidFilesChange` only
+		const image = URI.from({ scheme: 'extension-fs', path: '/images/generated.png' });
+		const versions = [createPng(40, 20), createPng(10, 10)];
+		let reads = 0;
+		const fileService = instantiationService.get(IFileService) as TestFileService;
+		fileService.readFile = async resource => {
+			const value = versions[Math.min(reads++, 1)];
+			return { resource, value, size: value.byteLength } as IFileContent;
+		};
+
+		const container = $('div');
+		mainWindow.document.body.appendChild(container);
+		disposables.add({ dispose: () => container.remove() });
+
+		const editor = disposables.add(instantiationService.createInstance(ImagePreviewEditor, new TestEditorGroupView(1)));
+		editor.create(container);
+		const input = disposables.add(instantiationService.createInstance(ImagePreviewEditorInput, image, undefined));
+		await editor.setInput(input, undefined, {}, CancellationToken.None);
+
+		fileService.fireFileChanges(new FileChangesEvent([{ resource: image, type: FileChangeType.UPDATED }], false));
 		for (let i = 0; i < 50 && editor.imageViewer?.naturalSize?.width !== 10; i++) {
 			await timeout(20);
 		}

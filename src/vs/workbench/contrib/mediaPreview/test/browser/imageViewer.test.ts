@@ -13,16 +13,51 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { IContextMenuMenuDelegate, IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { getNextZoomLevel, getPreviousZoomLevel, ImageViewer, ImageViewerContextMenuId, ImageViewerScale } from '../../browser/imageViewer.js';
+import { IWebWorkerClient, Proxied } from '../../../../../base/common/worker/webWorker.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { IWebWorkerService } from '../../../../../platform/webWorker/browser/webWorkerService.js';
+import { ImageEncoderWorker } from '../../browser/imageEncoderWorker.js';
+import { getNextZoomLevel, getPreviousZoomLevel, IImageViewerOptions, ImageViewer, ImageViewerContextMenuId, ImageViewerScale } from '../../browser/imageViewer.js';
 
-function createImageDataUrl(width: number, height: number): string {
+function createImageDataUrl(width: number, height: number, type = 'image/png'): string {
 	const canvas = $<HTMLCanvasElement>('canvas');
 	canvas.width = width;
 	canvas.height = height;
 	const context = canvas.getContext('2d')!;
 	context.fillStyle = 'rgb(200, 50, 50)';
 	context.fillRect(0, 0, width, height);
-	return canvas.toDataURL('image/png');
+	return canvas.toDataURL(type);
+}
+
+function toBytes(dataUrl: string): Uint8Array {
+	return Uint8Array.from(atob(dataUrl.split(',')[1]), c => c.charCodeAt(0));
+}
+
+const pngSignature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+
+function getSignature(data: Uint8Array | undefined): number[] | undefined {
+	return data && Array.from(data.subarray(0, pngSignature.length));
+}
+
+/**
+ * Runs the image encoder worker's code in-process, or fails like an unavailable worker.
+ */
+class TestWebWorkerService extends mock<IWebWorkerService>() {
+	created = 0;
+	fail = false;
+
+	override createWorkerClient<T extends object>(): IWebWorkerClient<T> {
+		this.created++;
+		const encoder = new ImageEncoderWorker();
+		const fail = this.fail;
+		const client: Pick<IWebWorkerClient<ImageEncoderWorker>, 'dispose'> & { proxy: Pick<Proxied<ImageEncoderWorker>, '$encodePng'> } = {
+			proxy: {
+				$encodePng: bitmap => fail ? Promise.reject(new Error('Worker unavailable')) : encoder.$encodePng(bitmap),
+			},
+			dispose: () => { },
+		};
+		return client as unknown as IWebWorkerClient<T>;
+	}
 }
 
 class RecordingClipboardService extends TestClipboardService {
@@ -40,6 +75,7 @@ suite('ImageViewer', () => {
 	let container: HTMLElement;
 	let contextMenuDelegates: IContextMenuMenuDelegate[];
 	let clipboardService: RecordingClipboardService;
+	let webWorkerService: TestWebWorkerService;
 
 	setup(() => {
 		container = $('div');
@@ -48,23 +84,25 @@ suite('ImageViewer', () => {
 		mainWindow.document.body.appendChild(container);
 		contextMenuDelegates = [];
 		clipboardService = new RecordingClipboardService();
+		webWorkerService = new TestWebWorkerService();
 	});
 
 	teardown(() => {
 		container.remove();
 	});
 
-	function createViewer(): ImageViewer {
+	function createViewer(options: IImageViewerOptions = {}): ImageViewer {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		instantiationService.stub(IClipboardService, clipboardService);
+		instantiationService.stub(IWebWorkerService, webWorkerService);
 		instantiationService.stub(IContextMenuService, {
 			showContextMenu: (delegate: IContextMenuMenuDelegate) => {
 				contextMenuDelegates.push(delegate);
 			},
 		});
 
-		const viewer = store.add(instantiationService.createInstance(ImageViewer, {}));
+		const viewer = store.add(instantiationService.createInstance(ImageViewer, options));
 		container.appendChild(viewer.element);
 		return viewer;
 	}
@@ -169,9 +207,89 @@ suite('ImageViewer', () => {
 		clipboardService.events.push('returned');
 		await copy;
 
-		const copied = clipboardService.writtenImage;
-		const pngSignature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
-		assert.deepStrictEqual({ events: clipboardService.events, signature: copied && Array.from(copied.subarray(0, pngSignature.length)) }, { events: ['writeImage', 'returned'], signature: pngSignature });
+		assert.deepStrictEqual({ events: clipboardService.events, signature: getSignature(clipboardService.writtenImage) }, { events: ['writeImage', 'returned'], signature: pngSignature });
+	});
+
+	test('copies PNG sources as is and encodes other images in a worker', async () => {
+		const viewer = createViewer();
+		const copy = async (src: string, mimeType: string, read: () => Promise<Uint8Array>) => {
+			await viewer.setSource(src, { alt: 'image', data: { mimeType, read } });
+			const workersBefore = webWorkerService.created;
+			await viewer.copyImage();
+			return { workers: webWorkerService.created - workersBefore, signature: getSignature(clipboardService.writtenImage), written: clipboardService.writtenImage };
+		};
+
+		const pngUrl = createImageDataUrl(40, 20);
+		const png = toBytes(pngUrl);
+		const jpegUrl = createImageDataUrl(40, 20, 'image/jpeg');
+		const jpeg = toBytes(jpegUrl);
+
+		const pngCopy = await copy(pngUrl, 'image/png', async () => png);
+		const jpegCopy = await copy(jpegUrl, 'image/jpeg', async () => jpeg);
+		const mislabeledCopy = await copy(jpegUrl, 'image/png', async () => jpeg);
+		webWorkerService.fail = true;
+		const fallbackCopy = await copy(jpegUrl, 'image/jpeg', async () => jpeg);
+
+		assert.deepStrictEqual({
+			png: { workers: pngCopy.workers, sameBytes: pngCopy.written === png },
+			jpeg: { workers: jpegCopy.workers, signature: jpegCopy.signature },
+			mislabeled: { workers: mislabeledCopy.workers, signature: mislabeledCopy.signature },
+			fallback: { workers: fallbackCopy.workers, signature: fallbackCopy.signature },
+		}, {
+			png: { workers: 0, sameBytes: true },
+			jpeg: { workers: 1, signature: pngSignature },
+			mislabeled: { workers: 1, signature: pngSignature },
+			fallback: { workers: 1, signature: pngSignature },
+		});
+	});
+
+	test('copies the image on the native copy event when focused', async () => {
+		const copyOnNativeEvent = async (viewer: ImageViewer, focusTarget: HTMLElement) => {
+			await viewer.setSource(createImageDataUrl(40, 20), { alt: 'red' });
+			focusTarget.tabIndex = 0;
+			focusTarget.focus();
+			const event = new ClipboardEvent('copy', { bubbles: true, cancelable: true });
+			viewer.element.dispatchEvent(event);
+			const copied = clipboardService.events.length > 0;
+			clipboardService.events.length = 0;
+			return { copied, defaultPrevented: event.defaultPrevented };
+		};
+
+		const viewer = createViewer();
+		const preview = await copyOnNativeEvent(viewer, viewer.element);
+
+		const unfocused = createViewer();
+		await unfocused.setSource(createImageDataUrl(40, 20), { alt: 'red' });
+		const unfocusedEvent = new ClipboardEvent('copy', { bubbles: true, cancelable: true });
+		unfocused.element.dispatchEvent(unfocusedEvent);
+
+		const parent = $('div');
+		container.appendChild(parent);
+		const carouselViewer = createViewer({ focusTarget: parent });
+		parent.appendChild(carouselViewer.element);
+		const carousel = await copyOnNativeEvent(carouselViewer, parent);
+
+		assert.deepStrictEqual({
+			preview,
+			unfocused: { copied: clipboardService.events.length > 0, defaultPrevented: unfocusedEvent.defaultPrevented },
+			carousel,
+		}, {
+			preview: { copied: true, defaultPrevented: true },
+			unfocused: { copied: false, defaultPrevented: false },
+			carousel: { copied: true, defaultPrevented: true },
+		});
+	});
+
+	test('a cancelled pending source does not replace the current image', async () => {
+		const viewer = createViewer();
+		await viewer.setSource(createImageDataUrl(40, 20), { alt: 'current' });
+		const pending = viewer.setSource(createImageDataUrl(10, 10), { alt: 'stale' });
+		viewer.cancelPendingSource();
+
+		assert.deepStrictEqual({ loaded: await pending, naturalSize: viewer.naturalSize }, {
+			loaded: false,
+			naturalSize: { width: 40, height: 20 },
+		});
 	});
 
 	test('a newer source supersedes a pending one', async () => {

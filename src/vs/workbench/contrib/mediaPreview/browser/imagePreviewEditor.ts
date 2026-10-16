@@ -13,7 +13,7 @@ import { getMediaMime } from '../../../../base/common/mime.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
 import { localize } from '../../../../nls.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
-import { FileChangeType, IFileContent, IFileService } from '../../../../platform/files/common/files.js';
+import { FileChangesEvent, FileChangeType, IFileContent, IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -112,12 +112,15 @@ export class ImagePreviewEditor extends EditorPane implements IImageViewerEditor
 		// Watch before loading so changes made while the image loads aren't missed. A reload
 		// supersedes a load that is still in progress.
 		const reloadScheduler = this._inputDisposables.add(new RunOnceScheduler(() => this._reloadImage(input, viewState), 100));
-		const watcher = this._inputDisposables.add(this._fileService.createWatcher(input.resource, { recursive: false, excludes: [] }));
-		this._inputDisposables.add(watcher.onDidChange(e => {
+		const onDidFilesChange = (e: FileChangesEvent) => {
 			if (e.contains(input.resource, FileChangeType.UPDATED, FileChangeType.ADDED)) {
 				reloadScheduler.schedule();
 			}
-		}));
+		};
+		const watcher = this._inputDisposables.add(this._fileService.createWatcher(input.resource, { recursive: false, excludes: [] }));
+		this._inputDisposables.add(watcher.onDidChange(onDidFilesChange));
+		// File systems contributed by extensions only report uncorrelated changes
+		this._inputDisposables.add(this._fileService.onDidFilesChange(onDidFilesChange));
 
 		await this._loadImage(input, viewState, token);
 	}
@@ -222,9 +225,15 @@ export class ImagePreviewEditor extends EditorPane implements IImageViewerEditor
 			return false;
 		}
 
-		const blob = new Blob([content.value.buffer as Uint8Array<ArrayBuffer>], { type: getMediaMime(input.resource.path) ?? '' });
+		const mimeType = getMediaMime(input.resource.path) ?? '';
+		const blob = new Blob([content.value.buffer as Uint8Array<ArrayBuffer>], { type: mimeType });
 		const url = URL.createObjectURL(blob);
-		const loaded = await viewer.setSource(url, { alt: input.getName(), viewState });
+		const loaded = await viewer.setSource(url, {
+			alt: input.getName(),
+			viewState,
+			// Read the file again when copying instead of keeping a second copy of it in memory
+			data: { mimeType, read: async () => (await this._fileService.readFile(input.resource)).value.buffer },
+		});
 		if (!this._isCurrentLoad(loadId, input)) {
 			URL.revokeObjectURL(url);
 			return false;

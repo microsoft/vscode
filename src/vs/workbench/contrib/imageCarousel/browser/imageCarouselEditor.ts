@@ -417,6 +417,8 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 			this._elements.videoContainer.style.display = 'none';
 			if (this._viewer) {
 				this._viewer.element.style.display = '';
+				// An image that is still decoding from an earlier navigation must not replace this one
+				this._viewer.cancelPendingSource();
 			}
 
 			const url = await this._loadBlobUrl(currentImage);
@@ -428,7 +430,10 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 
 			// The viewer decodes the image before showing it and resets the zoom. Invalid images
 			// are still shown so that the browser renders its broken image fallback.
-			void this._viewer?.setSource(url, { alt: currentImage.name });
+			void this._viewer?.setSource(url, {
+				alt: currentImage.name,
+				data: { mimeType: currentImage.mimeType, read: () => this._loadRawData(currentImage) },
+			});
 		}
 
 		// Update info bar: caption + separator + counter

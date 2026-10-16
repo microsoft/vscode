@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -12,8 +13,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IResourceEditorInput } from '../../../../../platform/editor/common/editor.js';
 import { EditorInputCapabilities } from '../../../../common/editor.js';
 import { TestFileDialogService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestFileService } from '../../../../test/common/workbenchTestServices.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
+import { FileChangesEvent, FileChangeType, IFileService } from '../../../../../platform/files/common/files.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOverlayWebview } from '../../../webview/browser/webview.js';
@@ -114,6 +116,29 @@ suite('Media Preview - MediaPlayerEditorInput', () => {
 		const target = URI.file('/media/renamed/song.mp3');
 		const renamed = (await audio.rename(1, target))?.editor as IResourceEditorInput | undefined;
 		assert.deepStrictEqual({ resource: renamed?.resource.toString(), override: renamed?.options?.override }, { resource: target.toString(), override: undefined });
+	});
+
+	test('renders again on changes that are not reported to its watcher', async () => {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		let renders = 0;
+		const input = disposables.add(instantiationService.createInstance(MediaPlayerEditorInput, 'video', URI.from({ scheme: 'extension-fs', path: '/media/clip.webm' }), new class extends mock<IOverlayWebview>() {
+			override readonly onMessage = Event.None;
+			override setHtml() { renders++; }
+			override dispose() { }
+		}));
+		await input.resolve();
+
+		// Extension file systems report changes to `IFileService.onDidFilesChange` only
+		const fileService = instantiationService.get(IFileService) as TestFileService;
+		fileService.fireFileChanges(new FileChangesEvent([{ resource: input.resource, type: FileChangeType.UPDATED }], false));
+		fileService.fireFileChanges(new FileChangesEvent([{ resource: input.resource, type: FileChangeType.UPDATED }], false));
+		for (let i = 0; i < 50 && renders < 2; i++) {
+			await timeout(20);
+		}
+		await timeout(150);
+
+		assert.strictEqual(renders, 2);
 	});
 });
 

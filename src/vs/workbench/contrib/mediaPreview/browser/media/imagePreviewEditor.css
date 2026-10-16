@@ -9,8 +9,8 @@
 	overflow: hidden;
 }
 
-.image-preview-editor .image-viewer:focus,
-.image-preview-editor .image-viewer:focus-visible {
+/* Keep the workbench focus ring for keyboard focus only */
+.image-preview-editor .image-viewer:focus:not(:focus-visible) {
 	outline: none !important;
 }
 
