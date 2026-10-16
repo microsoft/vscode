@@ -109,7 +109,8 @@ function wrapAgentHostUri(originalUri: URI, connectionAuthority: string, content
 		return originalUri;
 	}
 
-	const path = fileUri?.path ?? originalUri.path;
+	const displayPath = fileUri?.path ?? originalUri.path;
+	const path = displayPath && !displayPath.startsWith('/') ? `/${displayPath}` : displayPath;
 	const meta: IAgentHostUriMeta = {
 		scheme: originalUri.scheme,
 		...(originalUri.authority ? { authority: originalUri.authority } : {}),
