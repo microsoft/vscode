@@ -83,14 +83,14 @@ suite('AgentHostAuthenticationScope', () => {
 			broadAfter: broad.getCredential({ resource, scopes: ['repo'] })?.token,
 			broadRevision: broad.getCredential({ resource, scopes: ['repo'] })?.revision,
 		}, {
-			before: { broad: 'broad', narrow: undefined, narrowIdentity: 'narrow' },
+			before: { broad: 'broad', narrow: 'narrow', narrowIdentity: 'narrow' },
 			broadAfter: 'broad',
 			broadRevision: 1,
 		});
 		assert.throws(() => narrow.getCredential({ resource }), { code: AhpErrorCodes.AuthRequired });
 	});
 
-	test('rotation replaces the resource slot and never combines old scopes or other resources', async () => {
+	test('rotation replaces the resource slot and scope hints never select an older or different credential', async () => {
 		const scope = createScope();
 		await scope.authenticate({ resource, token: 'broad', scopes: ['gist', 'repo', 'read:user'] }, resources);
 		await scope.authenticate({ resource: repository, token: 'repository', scopes: ['repo', 'repo'] }, resources);
@@ -98,10 +98,10 @@ suite('AgentHostAuthenticationScope', () => {
 		assert.deepStrictEqual({
 			repository: scope.getCredential({ resource: repository, scopes: ['repo'] })?.token,
 			combined: scope.getCredential({ resource, scopes: ['repo', 'read:user'] })?.token,
-			missing: scope.getCredential({ resource, scopes: ['repo', 'workflow'] }),
-			previousGrant: scope.getCredential({ resource, scopes: ['repo'] }),
+			missing: scope.getCredential({ resource, scopes: ['repo', 'workflow'] })?.token,
+			previousGrant: scope.getCredential({ resource, scopes: ['repo'] })?.token,
 			unscoped: scope.getCredential({ resource })?.token,
-		}, { repository: 'repository', combined: undefined, missing: undefined, previousGrant: undefined, unscoped: 'identity' });
+		}, { repository: 'repository', combined: 'identity', missing: 'identity', previousGrant: 'identity', unscoped: 'identity' });
 	});
 
 	test('legacy unscoped compatibility stays within the same connection and resource', async () => {
@@ -209,7 +209,7 @@ suite('AgentHostAuthenticationScope', () => {
 			session: service.getAuthToken({ resource, scopes: ['read:user'], session: 'session' }),
 			chatA: service.getAuthToken({ resource, scopes: ['repo'], session: 'chat-a' }),
 			chatB: service.getAuthToken({ resource, scopes: ['repo'], session: 'chat-b' }),
-		}, { session: 'narrow', chatA: undefined, chatB: 'broad' });
+		}, { session: 'narrow', chatA: 'narrow', chatB: 'broad' });
 		service.restoreSessionCredentialPrincipal('session', principal, 'restored-chat');
 		assert.throws(() => service.getAuthToken({ resource, session: 'restored-chat' }), { code: AhpErrorCodes.AuthRequired });
 		service.releaseSessionCredentials('session');
@@ -249,6 +249,21 @@ suite('AgentHostAuthenticationScope', () => {
 		}, { validations: 1, credential: 'desktop', principal });
 		await service.authenticate({ resource, token: '' }, [provider]);
 		assert.strictEqual(service.getAuthToken({ resource, session: 'session' }), undefined);
+	});
+
+	test('local continuation does not require advertised OAuth scope hints or alter legacy lookup', async () => {
+		const service = store.add(new AgentHostAuthenticationService(new NullLogService(), async () =>
+			new Response(JSON.stringify({ id: 1, type: 'User' }))));
+		const provider = new class extends mock<IAgent>() {
+			override getProtectedResources() { return [{ resource }]; }
+			override async authenticate() { return true; }
+		}();
+		await service.authenticate({ resource, token: 'desktop', scopes: ['contents:read'] }, [provider]);
+		const source = await service.createLocalCredentialSource(principal, [{ resource, scopes_supported: ['read:user', 'user:email'] }]);
+		assert.deepStrictEqual({
+			captured: captureCredentialSource(source, [{ resource, scopes_supported: ['user:email'] }]).getCredential({ resource, scopes: ['user:email'] })?.token,
+			legacy: service.getAuthToken({ resource, scopes: ['user:email'] }),
+		}, { captured: 'desktop', legacy: undefined });
 	});
 
 	test('local continuation cannot adopt a different GitHub owner', async () => {

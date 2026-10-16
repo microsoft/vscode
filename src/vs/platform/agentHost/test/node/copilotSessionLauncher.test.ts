@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BuiltInTools, ToolSet, type CopilotClient, type CopilotSession, type ResumeSessionConfig, type SessionConfig, type Verbosity } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotSession, ResumeSessionConfig, SessionConfig, Verbosity } from '@github/copilot-sdk';
 import assert from 'assert';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -19,7 +19,7 @@ import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import type { TerminalSandboxEngine } from '../../../sandbox/common/terminalSandboxEngine.js';
 import { type ITelemetryService, TelemetryConfiguration, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostTelemetryLevelConfigKey, platformSessionSchema, type SchemaValues } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTelemetryLevelConfigKey, platformSessionSchema, type SchemaValues } from '../../common/agentHostSchema.js';
 import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
 import { toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { readSessionSandboxState } from '../../common/meta/agentSandboxStateMeta.js';
@@ -71,18 +71,6 @@ const testWorkingDirectory = URI.file(process.cwd());
 const disabledWorkflowTools = ['builtin:run_dynamic_workflow', 'builtin:dynamic_workflows_manage'];
 const defaultDisabledTools = [...disabledWorkflowTools, 'builtin:search_code_subagent'];
 const catalogInstallationFeatureFlags = { CATALOG_SEARCH: true, AGENT_FINDER_SKILL_INSTALL: true };
-const scopedCodingTools = [
-	...BuiltInTools.Isolated,
-	'view', 'edit', 'create', 'grep', 'rg', 'glob', 'apply_patch', 'git_apply_patch',
-	'str_replace_editor', 'str_replace', 'insert',
-	'bash', 'read_bash', 'write_bash', 'stop_bash', 'bash_shutdown', 'list_bash',
-	'powershell', 'read_powershell', 'write_powershell', 'stop_powershell', 'powershell_shutdown', 'list_powershell',
-	'lsp', 'search_code_subagent', 'code_review', 'parallel_validation', 'codeql_checker',
-	'web_fetch', 'web_search', 'gh-advisory-database',
-	'report_intent', 'think', 'report_progress', 'update_todo', 'show_file', 'fetch_copilot_cli_documentation',
-	'tool_search_tool_regex', 'mcp_reload', 'mcp_validate', 'catalog_search',
-];
-
 function reportManagedSettings(config: ResumeSessionConfig | undefined): void {
 	config?.onEvent?.({
 		id: 'policy', parentId: null, timestamp: '2026-01-01T00:00:00Z',
@@ -1260,15 +1248,8 @@ suite('CopilotSessionLauncher shared session config', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('pins the SDK isolated tool inventory so additions require scoped-profile review', () => {
-		assert.deepStrictEqual(BuiltInTools.Isolated, [
-			'ask_user', 'task_complete', 'exit_plan_mode', 'task', 'read_agent', 'write_agent',
-			'list_agents', 'send_inbox', 'context_board', 'skill',
-		]);
-	});
-
 	for (const scoped of [false, true]) {
-		test(`keeps ${scoped ? 'scoped profile bounds' : 'legacy defaults'} under tool capability overrides`, async () => {
+		test(`keeps configured tools and defaults with ${scoped ? 'client-owned' : 'legacy'} credentials`, async () => {
 			const configs: SessionConfig[] = [];
 			const session = {
 				sessionId: 'tool-profile', on: () => () => { }, disconnect: async () => { },
@@ -1302,14 +1283,9 @@ suite('CopilotSessionLauncher shared session config', () => {
 					environment: configs[0].systemMessage?.mode === 'customize' ? configs[0].systemMessage.sections?.environment_context : undefined,
 					rejectedTools: logService.warnings.filter(warning => warning.message.includes('Scoped profile rejected')).map(warning => warning.message),
 				}, {
-					tools: scoped ? [...scopedCodingTools.map(name => `builtin:${name}`), 'custom:host-tool', 'mcp:server-tool'] : configuredTools,
-					instructions: scoped ? false : undefined,
-					coauthor: scoped ? true : undefined,
-					builtinSkills: scoped ? ['customize-cloud-agent', 'discover-resources'] : undefined,
-					telemetry: scoped ? true : undefined,
-					gitContext: scoped ? true : undefined,
-					environment: scoped ? { action: 'preserve' } : undefined,
-					rejectedTools: scoped ? ['[Copilot:tool-profile] Scoped profile rejected configured built-in tools: builtin:store_memory, builtin:create_pull_request'] : [],
+					tools: configuredTools,
+					instructions: undefined, coauthor: undefined, builtinSkills: undefined,
+					telemetry: undefined, gitContext: undefined, environment: undefined, rejectedTools: [],
 				});
 			} finally {
 				wrapper.dispose();
@@ -1317,7 +1293,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 		});
 	}
 
-	test('scoped credentials disable ambient discovery, connectors and BYOK without dropping host policy or customizations', async () => {
+	test('client-owned credentials preserve workspace discovery, tools, BYOK and host policy on create and resume', async () => {
 		const configs: SessionConfig[] = [];
 		const session = {
 			sessionId: 'scoped-session',
@@ -1331,8 +1307,9 @@ suite('CopilotSessionLauncher shared session config', () => {
 			rpc: { managedSettings: createUnmanagedCopilotSettings(), sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
 		} as unknown as CopilotClient;
 		const permissions: IAgentHostManagedSettingsPermissions = { disableBypassPermissionsMode: 'disable', deny: ['Shell'] };
-		const launcher = createTestLauncher(permissions, { [AgentHostMcpConnectorsEnabledConfigKey]: true, [AgentHostByokModelsEnabledConfigKey]: true });
-		launcher.resolveByokSessionConfig = async () => { throw new Error('Scoped launch must not register host BYOK credentials'); };
+		const launcher = createTestLauncher(permissions, { [AgentHostMcpConnectorsEnabledConfigKey]: true, [AgentHostByokModelsEnabledConfigKey]: true, [AgentHostSessionSyncEnabledConfigKey]: true });
+		let byokResolutions = 0;
+		launcher.resolveByokSessionConfig = async () => { byokResolutions++; return { providers: [], models: [] }; };
 		const pluginDirectory = URI.joinPath(testWorkingDirectory, 'scoped-plugin');
 		const basePlan = {
 			client, sessionId: 'scoped-session', workingDirectory: testWorkingDirectory, resolvedAgentName: undefined,
@@ -1372,17 +1349,18 @@ suite('CopilotSessionLauncher shared session config', () => {
 			providers: config.providers, models: config.models, managedSettings: config.managedSettings,
 			pluginDirectories: config.pluginDirectories,
 		})), [0, 1].map(() => ({
-			token: 'scoped', discovery: false, skills: true, connectors: false,
-			fileHooks: false,
-			skipCustomInstructions: false, onDemandInstructions: true, hostGit: true, sessionTelemetry: true,
-			coauthor: true, builtinSkills: ['customize-cloud-agent', 'discover-resources'], localAgents: true,
-			environment: { action: 'preserve' },
-			sessionStore: false, oauthStorage: 'in-memory', remoteSession: undefined,
-			tools: new ToolSet().addBuiltIn(scopedCodingTools).addCustom('*').addMcp('*').toArray(),
+			token: 'scoped', discovery: true, skills: true, connectors: true,
+			fileHooks: true,
+			skipCustomInstructions: undefined, onDemandInstructions: undefined, hostGit: undefined, sessionTelemetry: undefined,
+			coauthor: undefined, builtinSkills: undefined, localAgents: undefined,
+			environment: undefined,
+			sessionStore: true, oauthStorage: 'in-memory', remoteSession: 'export',
+			tools: undefined,
 			excludedTools: [...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
 			providers: [], models: [], managedSettings: { permissions },
 			pluginDirectories: [pluginDirectory.fsPath],
 		})));
+		assert.strictEqual(byokResolutions, 2);
 	});
 
 	test('derives explicit MCP registration from client metadata rather than cwd equality', () => {

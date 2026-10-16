@@ -76,11 +76,7 @@ export class AgentHostAuthenticationScope extends Disposable implements IAgentHo
 	getCredential(request: IAgentHostAuthTokenRequest): IAgentHostScopedCredential | undefined {
 		this._checkLive();
 		this._checkAuthorization();
-		const credential = this._getLive(request.resource);
-		if (!credential || (credential.scopes.length > 0 && request.scopes?.some(scope => !credential.scopes.includes(scope)))) {
-			return undefined;
-		}
-		return credential;
+		return this._getLive(request.resource);
 	}
 
 	override dispose(): void {

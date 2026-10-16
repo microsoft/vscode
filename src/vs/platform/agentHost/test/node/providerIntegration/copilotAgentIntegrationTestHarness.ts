@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CopilotClient, type CopilotClientOptions, type CopilotSession } from '@github/copilot-sdk';
+import { CopilotClient, type CopilotClientOptions } from '@github/copilot-sdk';
 import assert from 'assert';
-import { spy, type SinonSpy } from 'sinon';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -35,23 +34,10 @@ import { isCredentialEnvironmentKey, labelTestCredential } from './copilotCreden
 
 class TestEnvironmentService extends AbstractNativeEnvironmentService { }
 
-/** Observes wire calls without replacing the SDK's session creation or options application. */
+/** Tracks disposal without replacing SDK session creation. */
 class ObservedCopilotClient extends CopilotClient {
-	requests: SinonSpy | undefined;
 	stopCount = 0;
 	stopErrorCount = 0;
-
-	get optionsUpdates(): readonly Parameters<CopilotSession['rpc']['options']['update']>[0][] {
-		return this.requests?.getCalls().filter(call => call.args[0] === 'session.options.update').map(call =>
-			call.args[1] as Parameters<CopilotSession['rpc']['options']['update']>[0]) ?? [];
-	}
-
-	override async start(): Promise<void> {
-		await super.start();
-		// The SDK has no public RPC observer; spy on its transport, never its session config.
-		const transport = this as unknown as { connection: { sendRequest(method: string, params: object): Promise<object> } };
-		this.requests = spy(transport.connection, 'sendRequest');
-	}
 
 	override async stop(): Promise<Error[]> {
 		this.stopCount++;

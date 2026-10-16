@@ -5437,7 +5437,7 @@ suite('CopilotAgent', () => {
 				configurationService.updateRootConfig({ [CopilotCliConfigKey.SkillCharBudget]: 40_000 });
 				await agent.chats.sendMessage(chat, 'same sponsor', [directory], undefined, 'second', undefined, context);
 				target.discardActiveTurn();
-				const deferredStops = clients.filter((_client, index) => options[index].mode === 'empty').map(client => client.stopCallCount);
+				const deferredStops = clients.filter((_client, index) => options[index].gitHubToken !== undefined).map(client => client.stopCallCount);
 				token = 'other-sponsor';
 				await assert.rejects(agent.chats.sendMessage(chat, 'wrong sponsor', [directory], undefined, 'wrong', undefined, context), /busy|active|running/i);
 				token = 'sponsor';
@@ -5445,17 +5445,17 @@ suite('CopilotAgent', () => {
 				await agent.chats.sendMessage(chat, 'now idle', [directory], undefined, 'third', undefined, context);
 				assert.deepStrictEqual({
 					deferredStops,
-					stops: clients.filter((_client, index) => options[index].mode === 'empty').map(client => client.stopCallCount),
+					stops: clients.filter((_client, index) => options[index].gitHubToken !== undefined).map(client => client.stopCallCount),
 					kinds: launches.map(launch => launch.kind),
 					oldSends: launches[0].runtime.sendCalls,
-					newBudget: options.filter(options => options.mode === 'empty').at(-1)?.env?.SKILL_CHAR_BUDGET,
+					newBudget: options.filter(options => options.gitHubToken !== undefined).at(-1)?.env?.SKILL_CHAR_BUDGET,
 				}, { deferredStops: [0], stops: [1, 0], kinds: ['create', 'resume'], oldSends: 2, newBudget: '40000' });
 			} finally {
 				await disposeAgent(agent);
 			}
 		});
 
-		test('forced-off sync, connector and index settings do not replace an idle scoped runtime', async () => {
+		test('sync, connector and index settings apply to a scoped runtime at the next idle boundary', async () => {
 			const { agent, clients, options, launches, configurationService } = setup();
 			const session = AgentSession.uri('copilotcli', 'scoped-forced-off-config');
 			const chat = defaultChatUri(session);
@@ -5473,11 +5473,13 @@ suite('CopilotAgent', () => {
 				});
 				await agent.chats.sendMessage(chat, 'same runtime', [directory], undefined, 'second', undefined, context);
 				assert.deepStrictEqual({
-					scopedStarts: options.filter(options => options.mode === 'empty').length,
-					scopedStops: clients.filter((_client, index) => options[index].mode === 'empty').map(client => client.stopCallCount),
+					scopedStarts: options.filter(options => options.gitHubToken !== undefined).length,
+					scopedStops: clients.filter((_client, index) => options[index].gitHubToken !== undefined).map(client => client.stopCallCount),
 					launches: launches.map(launch => launch.kind),
-					sends: launches[0].runtime.sendCalls,
-				}, { scopedStarts: 1, scopedStops: [0], launches: ['create'], sends: 2 });
+					remote: options.at(-1)?.enableRemoteSessions,
+					sessionStore: launches.at(-1)?.config.enableSessionStore,
+					connectors: launches.at(-1)?.config.featureFlags?.CONNECTORS,
+				}, { scopedStarts: 2, scopedStops: [1, 0], launches: ['create', 'resume'], remote: true, sessionStore: true, connectors: true });
 			} finally {
 				await disposeAgent(agent);
 			}
@@ -5576,7 +5578,7 @@ suite('CopilotAgent', () => {
 					}, {
 						deletionModes: ['empty'],
 						storage: { token: undefined, loggedInUser: false, remote: false },
-						deleted: [sdkId], stops: cold ? [1] : [1, 1],
+						deleted: [sdkId], stops: [1],
 						sameHome: !cold, backing: undefined,
 					});
 				} finally {
@@ -5668,19 +5670,19 @@ suite('CopilotAgent', () => {
 					configurationService.updateRootConfig({ [setting]: setting === CopilotCliConfigKey.SkillCharBudget ? 40_000 : ['new.example'] });
 					await agent.chats.sendMessage(chat, 'first', [directory], undefined, 'first', undefined, context);
 					await agent.chats.sendMessage(chat, 'busy', [directory], undefined, 'busy', undefined, context);
-					const beforeIdle = clients.filter((_client, index) => options[index].mode === 'empty').map(client => client.stopCallCount);
+					const beforeIdle = clients.filter((_client, index) => options[index].gitHubToken !== undefined).map(client => client.stopCallCount);
 					chatEntriesBySdkId(agent).get(launches[0].sessionId)!.chatSession.discardActiveTurn();
 					await agent.chats.prepareTurn!(chat, 'second', [directory], context);
 					await agent.chats.sendMessage(chat, 'second', [directory], undefined, 'second', undefined, context);
-					const scopedOptions = options.filter(options => options.mode === 'empty');
+					const scopedOptions = options.filter(options => options.gitHubToken !== undefined);
 					assert.deepStrictEqual({
 						beforeIdle,
 						modes: scopedOptions.map(options => options.mode),
-						stops: clients.filter((_client, index) => options[index].mode === 'empty').map(client => client.stopCallCount),
+						stops: clients.filter((_client, index) => options[index].gitHubToken !== undefined).map(client => client.stopCallCount),
 						launches: launches.map(launch => ({ kind: launch.kind, id: launch.sessionId, token: launch.config.gitHubToken })),
 						environment: scopedOptions[1].env?.[setting === CopilotCliConfigKey.SkillCharBudget ? 'SKILL_CHAR_BUDGET' : 'NO_PROXY'],
 					}, {
-						beforeIdle: [0], modes: ['empty', 'empty'], stops: [1, 0],
+						beforeIdle: [0], modes: [undefined, undefined], stops: [1, 0],
 						launches: [{ kind: 'create', id: launches[0].sessionId, token: 'sponsor' }, { kind: 'resume', id: launches[0].sessionId, token: 'sponsor' }],
 						environment: setting === CopilotCliConfigKey.SkillCharBudget ? '40000' : 'new.example',
 					});
@@ -5713,7 +5715,7 @@ suite('CopilotAgent', () => {
 				});
 				await provisionSession(agent, { session, credentials, model: { id: 'gpt-4o' }, workingDirectories: [directory] });
 				await agent.chats.prepareTurn!(chat, 'turn', [directory], { ...exactChatContext(session, chat, session), credentials });
-				const scopedOptions = options.find(options => options.mode === 'empty')!;
+				const scopedOptions = options.find(options => options.gitHubToken !== undefined)!;
 				assert.deepStrictEqual({
 					proxy: watermark._appliedProxy, noProxy: watermark._appliedNoProxy, kerberos: watermark._appliedProxyKerberosSpn,
 					scopedProxy: scopedOptions.env?.HTTPS_PROXY, scopedNoProxy: scopedOptions.env?.NO_PROXY,
@@ -5800,7 +5802,7 @@ suite('CopilotAgent', () => {
 			const fresh = { getCredential: () => ({ resource: 'https://api.github.com', token: 'fresh', expiresAt: undefined, revision: 1 }) };
 			try {
 				await restored.agent.materializeChat(chat, { ...exactChatContext(session, chat, session), credentials: missing }, reserved.providerData);
-				const beforeHistory = restored.options.filter(options => options.mode === 'empty' && options.gitHubToken !== undefined).length;
+				const beforeHistory = restored.options.filter(options => options.gitHubToken !== undefined).length;
 				const context = { ...exactChatContext(session, chat, session), credentials: fresh };
 				const turns = await restored.agent.chats.getMessages(chat, context);
 				await restored.agent.chats.sendMessage(chat, 'Continue', [directory], undefined, 'fresh-turn', undefined, context);
@@ -5860,7 +5862,7 @@ suite('CopilotAgent', () => {
 					kinds: launches.map(launch => launch.kind),
 					sameIdentity: launches.every(launch => launch.sessionId === first.sessionId) && chatBackings(agent).get(chat.toString())?.sdkSessionId === first.sessionId,
 					resumedStaticToken: launches[2].config.gitHubToken,
-					scopedOptions: options.filter(option => option.mode === 'empty').map(option => ({ token: option.gitHubToken, useLoggedInUser: option.useLoggedInUser, remote: option.enableRemoteSessions })),
+					scopedOptions: options.filter(option => option.gitHubToken !== undefined).map(option => ({ token: option.gitHubToken, useLoggedInUser: option.useLoggedInUser, remote: option.enableRemoteSessions })),
 					stoppedOldScopedRuntime: clients[1].stopCallCount,
 				}, {
 					afterReservation: 1, afterGlobalAuth: { live: true, scopedStops: 0, updates: [] },
@@ -5903,7 +5905,7 @@ suite('CopilotAgent', () => {
 					preservesSdkStorage: options[1].baseDirectory === options[2].baseDirectory && options[1].baseDirectory === getCopilotHomePath(URI.file('/mock-home').fsPath, process.env),
 				}, {
 					localIdPreserved: true, tokens: [undefined, 'sponsor', 'peer'],
-					modes: ['copilot-cli', 'empty', 'empty'], adoptedSends: 0, preservesSdkStorage: true,
+					modes: ['copilot-cli', 'copilot-cli', 'copilot-cli'], adoptedSends: 0, preservesSdkStorage: true,
 				});
 			} finally {
 				await disposeAgent(agent);
@@ -5935,11 +5937,12 @@ suite('CopilotAgent', () => {
 				assert.deepStrictEqual({
 					modes: options.map(option => option.mode),
 					token: options[0].gitHubToken,
-					ambientKeys: Object.keys(options[0].env ?? {}).filter(key => /TOKEN|API_KEY|ACCESS_KEY/.test(key)),
+					ambientKeys: Object.keys(options[0].env ?? {}).filter(key => /TOKEN|API_KEY|ACCESS_KEY/.test(key) && key !== 'GITHUB_COPILOT_GITHUB_TOKEN'),
+					shellToken: options[0].env?.GITHUB_COPILOT_GITHUB_TOKEN,
 					host: options[0].env?.COPILOT_GH_HOST,
 					stops: clients.map(client => client.stopCallCount),
 					live: hasLiveChat(agent, chat),
-				}, { modes: ['empty'], token: 'scoped', ambientKeys: [], host: 'github.com', stops: [1], live: false });
+				}, { modes: [undefined], token: 'scoped', shellToken: 'scoped', ambientKeys: [], host: 'github.com', stops: [1], live: false });
 			} finally {
 				await disposeAgent(agent);
 			}
@@ -5970,7 +5973,7 @@ suite('CopilotAgent', () => {
 					integration: env?.GITHUB_COPILOT_INTEGRATION_ID,
 					host: env?.COPILOT_GH_HOST,
 				}, {
-					mode: 'empty', runAsNode: '1', mcpApps: 'true', budget: '30000', advisor: 'true',
+					mode: undefined, runAsNode: '1', mcpApps: 'true', budget: '30000', advisor: 'true',
 					kerberosSpn: 'HTTP/proxy.example', integration: COPILOT_INTEGRATION_ID, host: 'github.com',
 				});
 			} finally {
@@ -10869,7 +10872,7 @@ suite('CopilotAgent', () => {
 			]);
 		});
 
-		test('scoped startup removes complete ambient Git configuration groups and preserves legacy groups', async () => {
+		test('client-owned and legacy startup preserve normal Git configuration groups', async () => {
 			const fake = { GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'http.extraheader', GIT_CONFIG_VALUE_0: 'X-Fake-Auth: fake-header' };
 			const original = new Map(Object.keys(fake).map(key => [key, process.env[key]]));
 			Object.assign(process.env, fake);
@@ -10884,7 +10887,7 @@ suite('CopilotAgent', () => {
 						const name = Object.keys(env).find(candidate => process.platform === 'win32' ? candidate.toUpperCase() === key : candidate === key);
 						return [key, name === undefined ? undefined : env[name]];
 					}));
-				}), [fake, { GIT_CONFIG_COUNT: undefined, GIT_CONFIG_KEY_0: undefined, GIT_CONFIG_VALUE_0: undefined }]);
+				}), [fake, fake]);
 			} finally {
 				await disposeAgent(agent);
 				for (const [key, value] of original) {

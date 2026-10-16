@@ -3319,7 +3319,7 @@ suite('ProtocolServerHandler', () => {
 			}, {
 				distinctSources: true,
 				principals: [{ apiOrigin: resource, userId: '123' }, { apiOrigin: resource, userId: '123' }],
-				broad: 'broad-token', narrow: 'narrow-token', narrowRepository: undefined, desktop: 'desktop-token',
+				broad: 'broad-token', narrow: 'narrow-token', narrowRepository: 'narrow-token', desktop: 'desktop-token',
 				providerTokens: ['desktop-token', 'desktop-token'],
 				handledTokens: ['desktop-token', 'desktop-token'],
 				changedTokens: ['desktop-token'],

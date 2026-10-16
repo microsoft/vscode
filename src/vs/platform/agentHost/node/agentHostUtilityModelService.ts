@@ -125,15 +125,6 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 	}
 
 	private _resolveRoute(context: IAgentHostUtilityModelContext): UtilityModelRoute {
-		let source: IAgentHostCredentialSource | undefined;
-		try {
-			source = context.credentialSource ?? this._authenticationService.getSessionCredentialSource(context.chat ?? context.session);
-		} catch (error) {
-			this._throwUnavailableAuthentication(error);
-		}
-		if (source) {
-			return this._resolveCopilotRoute({ ...context, credentialSource: source });
-		}
 		return this._byokUtilityModelsSupported
 			? this._resolveByokRoute(context) ?? this._resolveCopilotRoute(context)
 			: this._resolveCopilotRoute(context);

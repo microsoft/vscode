@@ -58,7 +58,5 @@ export function normalizeTestSystemPrompt(prompt: string, workspace: string, hom
 	return prompt
 		.replace(/\r\n/g, '\n')
 		.replace(/[a-f\d]{8}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{12}/gi, '<id>')
-		.replace(/<(?:sql|session_store_sql)>[\s\S]*?<\/(?:sql|session_store_sql)>/g, '')
-		.replace(/<available_skills>[\s\S]*?<\/available_skills>/g, '<available_skills>REVIEWED_PROFILE_SKILLS</available_skills>')
 		.replace(/\n{2,}/g, '\n').trim();
 }

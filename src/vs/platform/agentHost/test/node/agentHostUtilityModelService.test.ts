@@ -166,7 +166,7 @@ suite('AgentHostUtilityModelService', () => {
 			});
 			assert.deepStrictEqual({ result, requests }, {
 				result: { result: available ? 'copilot text' : 'unavailable: copilotSignInRequired', copilotCalls: available ? ['session-token'] : [], byokRequests: [] },
-				requests: [{ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, scopes: GITHUB_COPILOT_PROTECTED_RESOURCE.scopes_supported, session: SESSION }],
+				requests: [{ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, session: SESSION }],
 			});
 		});
 	}
@@ -181,7 +181,7 @@ suite('AgentHostUtilityModelService', () => {
 	});
 
 	for (const available of [true, false]) {
-		test(`scoped utility work never borrows a renderer BYOK override (${available})`, async () => {
+		test(`scoped utility work respects a renderer BYOK override (${available})`, async () => {
 			assert.deepStrictEqual(await run({
 				utilitySmallModel: 'ollama/llama3',
 				credentialSource: {
@@ -190,15 +190,15 @@ suite('AgentHostUtilityModelService', () => {
 						: undefined,
 				},
 			}), {
-				result: available ? 'copilot text' : 'unavailable: copilotSignInRequired',
-				copilotCalls: available ? ['scoped'] : [],
-				byokRequests: [],
+				result: 'byok text',
+				copilotCalls: [],
+				byokRequests: ['ollama|llama3'],
 			});
 		});
 	}
 
 	for (const unavailable of ['restored', 'disconnected'] as const) {
-		test(`maps a ${unavailable} sponsor to Copilot sign-in required without using BYOK or legacy credentials`, async () => {
+		test(`a ${unavailable} GitHub sponsor does not disable an explicitly configured BYOK utility model`, async () => {
 			const authentication = disposables.add(new AgentHostAuthenticationService(new NullLogService()));
 			const principal = { apiOrigin: 'https://api.github.com', userId: '101' };
 			const resource = GITHUB_COPILOT_PROTECTED_RESOURCE;
@@ -215,7 +215,7 @@ suite('AgentHostUtilityModelService', () => {
 				scope.dispose();
 			}
 			assert.deepStrictEqual(await run({ authenticationService: authentication, mainModel: 'azure/work/gpt-5', utilitySmallModel: 'ollama/llama3' }), {
-				result: 'unavailable: copilotSignInRequired', copilotCalls: [], byokRequests: [],
+				result: 'byok text', copilotCalls: [], byokRequests: ['ollama|llama3'],
 			});
 		});
 	}

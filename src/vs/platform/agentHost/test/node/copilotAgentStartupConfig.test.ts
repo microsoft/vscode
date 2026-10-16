@@ -28,15 +28,4 @@ suite('CopilotAgentStartupConfig', () => {
 		});
 	});
 
-	test('scoped comparison ignores only forced-off startup capabilities', () => {
-		const config = (sync: boolean, connectors: boolean, index: boolean, localModel: boolean, budget = 15_000) =>
-			new CopilotAgentStartupConfig(sync, true, false, false, false, false, false, false, budget, 'info', undefined, undefined, true, true, connectors, {}, index, false, localModel);
-		const baseline = config(false, false, false, false);
-		assert.deepStrictEqual([
-			config(true, true, true, true),
-			config(false, false, false, false, 30_000),
-		].map(candidate => ({ legacy: candidate.equals(baseline), scoped: candidate.equalsForScopedRuntime(baseline) })), [
-			{ legacy: false, scoped: true }, { legacy: false, scoped: false },
-		]);
-	});
 });

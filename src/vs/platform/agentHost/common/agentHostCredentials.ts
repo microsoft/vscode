@@ -76,7 +76,7 @@ export function isAuthRequiredError(error: unknown): error is ProtocolError {
 export function captureCredentialSource(source: IAgentHostCredentialSource, resources: readonly ProtectedResourceMetadata[]): IAgentHostCredentialSource {
 	const captured = new Map<string, IAgentHostScopedCredential>();
 	for (const resource of resources) {
-		const credential = source.getCredential({ resource: resource.resource, scopes: resource.scopes_supported });
+		const credential = source.getCredential({ resource: resource.resource });
 		if (credential) {
 			captured.set(resource.resource, credential);
 		} else if (resource.required !== false) {
@@ -87,8 +87,7 @@ export function captureCredentialSource(source: IAgentHostCredentialSource, reso
 		principal: source.principal,
 		getCredential: request => {
 			const credential = captured.get(request.resource);
-			if (!credential || !isScopedCredentialUsable(credential)
-				|| (credential.scopes?.length && request.scopes?.some(scope => !credential.scopes?.includes(scope)))) {
+			if (!credential || !isScopedCredentialUsable(credential)) {
 				return undefined;
 			}
 			return credential;

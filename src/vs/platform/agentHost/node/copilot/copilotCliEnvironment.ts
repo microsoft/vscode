@@ -22,7 +22,7 @@ export function createCopilotCliEnvironment(environment: NodeJS.ProcessEnv = pro
 	for (const [key, value] of Object.entries(environment)) {
 		const normalizedKey = isWindows ? key.toUpperCase() : key;
 		if (!normalizedOmittedKeys.has(isWindows ? key.toLowerCase() : key) && !STRIPPED_ENV_KEYS.has(normalizedKey)
-			&& (!omitAmbientAuthentication || !/(?:TOKEN|_KEY|SECRET|PASSWORD)|^(?:COPILOT_|GITHUB_|GH_|ANTHROPIC_|OPENAI_|AZURE_OPENAI_|VSCODE_AGENT_HOST_CAPI_)/i.test(key))) {
+			&& (!omitAmbientAuthentication || /^GIT_CONFIG_/i.test(key) || !/(?:TOKEN|_KEY|SECRET|PASSWORD)|^(?:COPILOT_|GITHUB_|GH_|ANTHROPIC_|OPENAI_|AZURE_OPENAI_|VSCODE_AGENT_HOST_CAPI_)/i.test(key))) {
 			env[key] = value;
 		}
 	}

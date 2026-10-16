@@ -27,14 +27,14 @@ suite('Copilot credential test capture', () => {
 		assert.strictEqual(JSON.stringify(captured).includes(unexpected), false);
 	});
 
-	test('normalizes reviewed SQL sections without leaving platform-dependent blank lines', () => {
+	test('normalizes platform line endings without changing tool instructions', () => {
 		const home = 'C:\\test-home';
-		const scoped = '<ask_user>Ask</ask_user>\n<rg>Search</rg>\n<environment_context>C:\\test-home\\A</environment_context>';
+		const scoped = '<ask_user>Ask</ask_user>\n<sql>Database access</sql>\n<session_store_sql>History access</session_store_sql>\n<rg>Search</rg>\n<environment_context>C:\\test-home\\A</environment_context>';
 		const legacy = '<ask_user>Ask</ask_user>\n<sql>Database access</sql>\n<session_store_sql>History access</session_store_sql>\n<rg>Search</rg>\n<environment_context>C:\\test-home\\L</environment_context>';
 		assert.deepStrictEqual(['\n', '\r\n'].flatMap(eol => [
 			normalizeTestSystemPrompt(scoped.replaceAll('\n', eol), `${home}\\A`, home),
 			normalizeTestSystemPrompt(legacy.replaceAll('\n', eol), `${home}\\L`, home),
-		]), Array(4).fill('<ask_user>Ask</ask_user>\n<rg>Search</rg>\n<environment_context><workspace></environment_context>'));
+		]), Array(4).fill('<ask_user>Ask</ask_user>\n<sql>Database access</sql>\n<session_store_sql>History access</session_store_sql>\n<rg>Search</rg>\n<environment_context><workspace></environment_context>'));
 	});
 
 	test('preserves unreviewed prompt differences', () => {

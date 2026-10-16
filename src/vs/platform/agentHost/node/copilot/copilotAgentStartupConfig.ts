@@ -35,11 +35,6 @@ export class CopilotAgentStartupConfig {
 		return this.changedKeysFrom(other).length === 0;
 	}
 
-	equalsForScopedRuntime(other: CopilotAgentStartupConfig): boolean {
-		return this.changedKeysFrom(other).every(key =>
-			key === 'sessionSync' || key === 'copilotConnectors' || key === 'localIndexEnabled' || key === 'localModel');
-	}
-
 	proxyTargetChangedFrom(other: CopilotAgentStartupConfig): boolean {
 		return this.enterpriseHost !== other.enterpriseHost || this.systemProxy !== other.systemProxy;
 	}

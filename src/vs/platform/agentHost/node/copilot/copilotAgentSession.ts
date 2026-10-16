@@ -5660,9 +5660,6 @@ export class CopilotAgentSession extends Disposable {
 	 * other's registrations.
 	 */
 	syncByokModels(): Promise<void> {
-		if (this.usesScopedGitHubCredentials) {
-			return Promise.resolve();
-		}
 		return this._byokSync.queue(async () => {
 			const wrapper = this._wrapper;
 			if (this._store.isDisposed || !wrapper) {
@@ -5682,9 +5679,6 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	async setModel(model: string, reasoningEffort?: SessionConfig['reasoningEffort'], contextTier?: SessionConfig['contextTier'], autoTier?: AutoModeTier | null): Promise<void> {
-		if (this.usesScopedGitHubCredentials && model.includes('/')) {
-			throw new Error('Scoped Copilot sessions cannot use host BYOK providers');
-		}
 		// The runtime rejects a BYOK model that is not registered on the session.
 		try {
 			await this.syncByokModels();
@@ -7408,9 +7402,6 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private async _resolveRepoInfoTelemetryContext(githubToken: string | undefined): Promise<{ readonly context: IAgentHostRestrictedTelemetryContext; readonly baseBranch: string | undefined } | undefined> {
-		if (this.usesScopedGitHubCredentials) {
-			return undefined;
-		}
 		if (this._configurationService.getRootValue(platformRootSchema, AgentHostDisableRepoInfoTelemetryConfigKey) === true) {
 			return undefined;
 		}

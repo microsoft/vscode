@@ -335,7 +335,8 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 				throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'Local credential origin does not match the isolated session owner');
 			}
 			const request = { resource: resource.resource, scopes: resource.scopes_supported };
-			const stored = this._getAuthToken(request, false);
+			const stored = this._getAuthToken(request, false)
+				?? [...this._tokens.values()].find(candidate => candidate.resource === resource.resource && !isExpired(candidate.expiresAt));
 			if (!stored) {
 				if (resource.required !== false) {
 					throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Local session continuation requires authentication', { resources: [resource] });
@@ -343,7 +344,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 				continue;
 			}
 			const validated = await resolveMissionControlIdentity(this._fetch, principal.apiOrigin, stored.token);
-			if (validated.owner !== principal.userId || this._getAuthToken(request, false) !== stored) {
+			if (validated.owner !== principal.userId || this._tokens.get(this._key(stored.resource, stored.scopes)) !== stored) {
 				throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Local session credential changed or does not match its owner');
 			}
 			const expiresAt = stored.expiresAt === undefined ? validated.expiresAt
@@ -359,7 +360,8 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 			principal,
 			getCredential: request => {
 				const credential = captured.get(request.resource);
-				if (!credential || !isScopedCredentialUsable(credential) || this._getAuthToken(request, false)?.token !== credential.token) {
+				if (!credential || !isScopedCredentialUsable(credential)
+					|| this._tokens.get(this._key(credential.resource, credential.scopes ?? []))?.token !== credential.token) {
 					return undefined;
 				}
 				return credential;

@@ -1430,7 +1430,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const preparedForTurn = turnId !== undefined && context.target && this._preparedTurnLaunches.get(context.target) === turnId;
 		const startup = scoped?.client && this._scopedClientStartup.get(scoped.client);
 		const busy = context.target?.hasActiveTurn || context.target?.hasActiveSubagents;
-		const staleStartup = !preparedForTurn && !busy && startup && (!startup.config.equalsForScopedRuntime(this._readClientStartupConfig()) || !equals(startup.proxy, this._readCopilotProxyState()));
+		const staleStartup = !preparedForTurn && !busy && startup && (!startup.config.equals(this._readClientStartupConfig()) || !equals(startup.proxy, this._readCopilotProxyState()));
 		const replaceClient = scoped && (!scoped.credentials.isCurrentCredential(credential) || staleStartup);
 		if (context.target && (!context.target.usesScopedGitHubCredentials || !scoped?.credentials.isCurrentCredential(credential) || staleStartup)) {
 			if (busy) {
@@ -3611,7 +3611,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 			// The request handler can only be set when the client starts (the runtime
 			// rejects a provider change once a session exists).
-			const localModelRequestHandler = scoped ? undefined : this._applyLocalModelSelection(startupConfig)?.requestHandler;
+			const localModelRequestHandler = scoped?.kind === 'storage' ? undefined : this._applyLocalModelSelection(startupConfig)?.requestHandler;
 			setLocalModelRequestHandlerEnvironment(env, !!localModelRequestHandler);
 
 			// Add VS Code's built-in ripgrep to PATH so the CLI subprocess can find it.
@@ -3638,14 +3638,20 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const copilotSdkLogLevelAtStartup = this._resolveCopilotSdkLogLevel(startupConfig.copilotSdkLogLevel);
 			const gitHubToken = scoped ? scoped.kind === 'credential' ? scoped.credential.token : undefined
 				: startupConfig.enterpriseHost ? this._githubCredentials.token : undefined;
+			if (scoped?.kind === 'credential') {
+				env['GITHUB_COPILOT_GITHUB_TOKEN'] = scoped.credential.token;
+				if (startupConfig.enterpriseHost) {
+					env['GH_ENTERPRISE_TOKEN'] = scoped.credential.token;
+				}
+			}
 
 			const clientOptions: CopilotClientOptions = {
 				useLoggedInUser: false,
 				gitHubToken,
 				...(scoped ? {
-					mode: 'empty' as const,
 					baseDirectory: env['COPILOT_HOME'],
 				} : {}),
+				...(scoped?.kind === 'storage' ? { mode: 'empty' as const } : {}),
 				connection: RuntimeConnection.forStdio({ path: runtimePath }),
 				env,
 				clientInfo: {
@@ -3655,7 +3661,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				telemetry,
 				installationConfirmationHandler: this._customizationInstallations.confirmationHandler,
 				logLevel: copilotSdkLogLevelAtStartup,
-				enableRemoteSessions: !scoped && startupConfig.sessionSync,
+				enableRemoteSessions: scoped?.kind !== 'storage' && startupConfig.sessionSync,
 				...(extensionBootstrapPath && extensionSdkPath ? {
 					extensionLaunchProvider: {
 						resolve: request => this._resolveExtensionLaunch(request.modulePath, request.source, extensionBootstrapPath),
@@ -3678,7 +3684,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				return this._stopClientAfterStartupTermination(client, new CancellationError());
 			}
 			const currentConfig = this._readClientStartupConfig();
-			if (!(scoped ? currentConfig.equalsForScopedRuntime(startupConfig) : currentConfig.equals(startupConfig)) || scoped && !equals(appliedProxy, this._readCopilotProxyState())) {
+			if (!currentConfig.equals(startupConfig) || scoped && !equals(appliedProxy, this._readCopilotProxyState())) {
 				return this._stopClientAfterStartupTermination(client, new CopilotClientStartupConfigChangedError());
 			}
 			this._logService.info('[Copilot] CopilotClient started successfully');
@@ -7489,7 +7495,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const omittedKeys = [
 			...(proxy ? COPILOT_PROXY_ENV_KEYS : []),
 			...(noProxy ? COPILOT_NO_PROXY_ENV_KEYS : []),
-			...(omitAmbientAuthentication ? Object.keys(process.env).filter(key => /^GIT_CONFIG_/i.test(key)) : []),
 		];
 		const env = createCopilotCliEnvironment(
 			process.env,
@@ -7830,7 +7835,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		try {
 			await session.initializeSession();
 			await beforeRegistration?.();
-			if (!session.usesScopedGitHubCredentials && session.hasPendingConnectorRefresh) {
+			if (session.hasPendingConnectorRefresh) {
 				await session.refreshConnectors();
 			}
 			await session.revalidateTelemetryBeforeRegistration?.();

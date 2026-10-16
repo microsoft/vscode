@@ -44,6 +44,7 @@ interface ModelTraffic {
 	readonly instructions: boolean;
 	readonly environment: boolean;
 	readonly ancestorInstructions: boolean;
+	readonly workspaceSkill: boolean;
 	readonly normalizedPrompt: string;
 }
 
@@ -154,6 +155,7 @@ suite('Copilot Agent credential sponsorship', function () {
 					instructions: context.includes('SYNTHETIC_REPOSITORY_INSTRUCTION'),
 					environment: context.includes(workspace) || context.includes(workspace.replaceAll('\\', '/')),
 					ancestorInstructions: context.includes('VS Code Copilot Instructions'),
+					workspaceSkill: context.includes('sponsorship-workspace-skill'),
 					normalizedPrompt,
 				});
 				const operations = [
@@ -164,9 +166,9 @@ suite('Copilot Agent credential sponsorship', function () {
 					{
 						name: isWindows ? 'powershell' : 'bash', arguments: {
 							command: isWindows
-								? ['Write-Output SHELL_EXECUTION_PROOF', ...Object.entries(credentialEnvironmentSentinels).map(([key, value]) =>
+								? ['Write-Output SHELL_EXECUTION_PROOF', `if ($env:GITHUB_TOKEN -eq '${probe === 'A' ? 'scope-a' : probe === 'B' ? 'scope-b' : 'legacy-l'}') { Write-Output SHELL_CREDENTIAL_PROOF }`, ...Object.entries(credentialEnvironmentSentinels).map(([key, value]) =>
 									`if ($env:${key} -eq '${value}') { Write-Output 'ENV_FAKE_${key}=present' } else { Write-Output 'ENV_FAKE_${key}=absent' }`)].join('; ')
-								: ['printf "SHELL_EXECUTION_PROOF\\n"', ...Object.entries(credentialEnvironmentSentinels).map(([key, value]) =>
+								: ['printf "SHELL_EXECUTION_PROOF\\n"', `if [ "\${GITHUB_TOKEN-}" = '${probe === 'A' ? 'scope-a' : probe === 'B' ? 'scope-b' : 'legacy-l'}' ]; then printf 'SHELL_CREDENTIAL_PROOF\\n'; fi`, ...Object.entries(credentialEnvironmentSentinels).map(([key, value]) =>
 									`if [ "\${${key}-}" = '${value}' ]; then printf 'ENV_FAKE_${key}=present\\n'; else printf 'ENV_FAKE_${key}=absent\\n'; fi`)].join('; '),
 							description: 'Audit synthetic credential sentinels without printing environment values',
 						}
@@ -223,9 +225,6 @@ suite('Copilot Agent credential sponsorship', function () {
 		try {
 			try {
 				await agent?.shutdown();
-				for (const { client } of agent?.clients ?? []) {
-					client.requests?.restore();
-				}
 			} finally {
 				store?.dispose();
 				server?.closeAllConnections();
@@ -252,7 +251,7 @@ suite('Copilot Agent credential sponsorship', function () {
 
 	async function createScope(token: string): Promise<AgentHostAuthenticationScope> {
 		const scope = store.add(new AgentHostAuthenticationScope(async params => params, () => { }, { apiOrigin: resource, userId: '1' }));
-		await scope.authenticate({ resource, token, expiresIn: 7200 }, [resource]);
+		await scope.authenticate({ resource, token, scopes: ['contents:read'], expiresIn: 7200 }, [resource]);
 		return scope;
 	}
 
@@ -274,6 +273,9 @@ suite('Copilot Agent credential sponsorship', function () {
 		execFileSync('git', ['config', 'maintenance.auto', 'false'], { cwd: workspace });
 		await writeFile(join(workspace, 'probe.txt'), 'before\n');
 		await writeFile(join(workspace, 'AGENTS.md'), 'SYNTHETIC_REPOSITORY_INSTRUCTION');
+		const skill = join(workspace, '.github', 'skills', 'sponsorship-workspace-skill');
+		await mkdir(skill, { recursive: true });
+		await writeFile(join(skill, 'SKILL.md'), '---\nname: sponsorship-workspace-skill\ndescription: Synthetic workspace discovery proof\n---\nSynthetic skill for credential parity tests.\n');
 		const chatContext = context(name, scope);
 		await agent.chats.createChat(URI.parse(buildDefaultChatUri(chatContext.resource)), chatContext, {
 			deferBacking: true, model: { id: 'gpt-4o' }, workingDirectories: [URI.file(workspace)],
@@ -348,7 +350,7 @@ suite('Copilot Agent credential sponsorship', function () {
 			prompt: createHash('sha256').update(aRequest.normalizedPrompt).digest('hex'),
 		}, {
 			onlyScopedTools: [],
-			onlyLegacyTools: ['session_store_sql', 'sql'],
+			onlyLegacyTools: [],
 			prompt: createHash('sha256').update(legacyRequest.normalizedPrompt).digest('hex'),
 		}, JSON.stringify(promptDiagnostics));
 		const completions = signals.filter(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete);
@@ -362,6 +364,7 @@ suite('Copilot Agent credential sponsorship', function () {
 				glob: text(3).includes('probe.txt') && text(3).includes('created.txt'),
 				rg: text(4).includes('probe.txt'),
 				shell: text(5).includes('SHELL_EXECUTION_PROOF'),
+				shellCredential: probe === 'L' ? undefined : text(5).includes('SHELL_CREDENTIAL_PROOF'),
 				scopedSentinelsAbsent: probe === 'L' ? undefined : Object.keys(credentialEnvironmentSentinels).every(key => text(5).includes(`ENV_FAKE_${key}=absent`)),
 			};
 		});
@@ -370,48 +373,35 @@ suite('Copilot Agent credential sponsorship', function () {
 			created: await readFile(join(directory, name, 'created.txt'), 'utf8'),
 			shellExecuted: modelTraffic.filter(traffic => traffic.probe === name).some(traffic => traffic.results.some(result => result.includes('SHELL_EXECUTION_PROOF'))),
 		})));
-		const scopedOptionsUpdates = agent.clients.filter(entry => entry.options.mode === 'empty' && entry.options.gitHubToken !== undefined)
-			.flatMap(entry => entry.client.optionsUpdates)
-			.filter(update => update.skipCustomInstructions !== undefined)
-			.map(update => ({
-				skipCustomInstructions: update.skipCustomInstructions, localAgents: update.customAgentsLocalOnly,
-				coauthor: update.coauthorEnabled, schedule: update.manageScheduleEnabled,
-				plugins: update.installedPlugins, skills: update.includedBuiltinSkills,
-			}));
 		const storageClients = agent.clients.filter(entry => entry.options.mode === 'empty' && entry.options.gitHubToken === undefined);
 		const promptContexts = ['A', 'B', 'L'].map(probe => {
 			const request = modelTraffic.find(traffic => traffic.probe === probe)!;
-			return { instructions: request.instructions, environment: request.environment, ancestorInstructions: request.ancestorInstructions };
+			return { instructions: request.instructions, environment: request.environment, ancestorInstructions: request.ancestorInstructions, workspaceSkill: request.workspaceSkill };
 		});
 		assert.deepStrictEqual({
 			tokensByProbe, toolsByProbe, files, toolCompletions: completions.length, toolOutcomes, promptContexts,
-			scopedOptionsUpdates,
 			storage: storageClients.map(entry => ({ token: entry.options.gitHubToken, mode: entry.options.mode, stops: entry.client.stopCount, errors: entry.client.stopErrorCount })),
-			stoppedScoped: agent.clients.filter(entry => entry.options.mode === 'empty' && entry.options.gitHubToken !== undefined).map(entry => entry.client.stopCount),
-			scopedProductEnvironment: agent.clients.filter(entry => entry.options.mode === 'empty').map(entry =>
+			stoppedScoped: agent.clients.filter(entry => entry.options.gitHubToken !== undefined).map(entry => entry.client.stopCount),
+			scopedProductEnvironment: agent.clients.filter(entry => entry.options.gitHubToken !== undefined || entry.options.mode === 'empty').map(entry =>
 				Object.fromEntries(Object.keys(credentialEnvironmentSentinels).map(key => [key, entry.options.env?.[key] === undefined]))),
-			legacyStartupTokenKinds: [...new Set(agent.clients.filter(entry => entry.options.mode !== 'empty').map(entry => entry.options.gitHubToken))],
-			legacyAmbientTokenKinds: [...new Set(agent.clients.filter(entry => entry.options.mode !== 'empty').map(entry => entry.options.env?.COPILOT_SDK_AUTH_TOKEN))],
-			connectorTokenKinds: [...new Set(connectorTokens)],
+			legacyStartupTokenKinds: [...new Set(agent.clients.filter(entry => entry.options.mode !== 'empty' && entry.options.gitHubToken === undefined).map(entry => entry.options.gitHubToken))],
+			legacyAmbientTokenKinds: [...new Set(agent.clients.filter(entry => entry.options.mode !== 'empty' && entry.options.gitHubToken === undefined).map(entry => entry.options.env?.COPILOT_SDK_AUTH_TOKEN))],
+			connectorTokenKinds: [...new Set(connectorTokens)].sort(),
 			unexpectedRequests,
 			githubTokenKinds: [...new Set(githubTokens)].sort(),
-			scopedRuntimeTokens: agent.clients.filter(entry => entry.options.mode === 'empty' && entry.options.gitHubToken !== undefined).map(entry => entry.options.gitHubToken).sort(),
+			scopedRuntimeTokens: agent.clients.filter(entry => entry.options.gitHubToken !== undefined).map(entry => entry.options.gitHubToken).sort(),
 		}, {
 			tokensByProbe: { A: ['A'], B: ['B'], L: ['L'], 'A-ROTATED': ['AR'], 'B-UNCHANGED': ['B'], 'L-UNCHANGED': ['L'], 'A-CONFIG': ['AR'], 'B-CONFIG': ['B'], 'L-CONFIG': ['L'], 'L-AFTER-DISPOSAL': ['L'] },
 			toolsByProbe: { A: [...codingTools], B: [...codingTools], L: [...codingTools] },
 			files: [0, 1, 2].map(() => ({ edited: 'after\n', created: `created-proof${isWindows ? '\r\n' : '\n'}`, shellExecuted: true })),
-			toolOutcomes: ['A', 'B', 'L'].map(probe => ({ view: true, glob: true, rg: true, shell: true, scopedSentinelsAbsent: probe === 'L' ? undefined : true })),
-			promptContexts: [0, 1, 2].map(() => ({ instructions: true, environment: true, ancestorInstructions: false })),
-			scopedOptionsUpdates: [0, 1, 2, 3, 4].map(() => ({
-				skipCustomInstructions: false, localAgents: true, coauthor: true, schedule: false,
-				plugins: [], skills: ['customize-cloud-agent', 'discover-resources'],
-			})),
+			toolOutcomes: ['A', 'B', 'L'].map(probe => ({ view: true, glob: true, rg: true, shell: true, shellCredential: probe === 'L' ? undefined : true, scopedSentinelsAbsent: probe === 'L' ? undefined : true })),
+			promptContexts: [0, 1, 2].map(() => ({ instructions: true, environment: true, ancestorInstructions: false, workspaceSkill: true })),
 			storage: [0, 1].map(() => ({ token: undefined, mode: 'empty', stops: 1, errors: 0 })),
 			stoppedScoped: [1, 1, 1, 1, 1],
 			scopedProductEnvironment: [0, 1, 2, 3, 4, 5, 6].map(() => Object.fromEntries(Object.keys(credentialEnvironmentSentinels).map(key => [key, true]))),
 			legacyStartupTokenKinds: [undefined],
 			legacyAmbientTokenKinds: ['ENV_COPILOT_SDK_AUTH_TOKEN'],
-			connectorTokenKinds: ['L'],
+			connectorTokenKinds: ['A', 'AR', 'B', 'L'],
 			toolCompletions: 15, unexpectedRequests: [],
 			githubTokenKinds: ['A', 'AR', 'B', 'ENV_COPILOT_SDK_AUTH_TOKEN', 'L'],
 			scopedRuntimeTokens: ['A', 'AR', 'AR', 'B', 'B'],

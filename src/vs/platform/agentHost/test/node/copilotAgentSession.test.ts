@@ -2488,20 +2488,22 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
-	test('scoped credentials reject global token replacement and host BYOK registration', async () => {
+	test('client-owned GitHub credentials reject global token replacement while allowing BYOK', async () => {
+		const provider = { name: 'private-provider', type: 'openai' as const, wireApi: 'responses' as const, baseUrl: 'http://127.0.0.1:1/v/private-provider', bearerToken: 'nonce.test-session-1' };
+		const model = { id: 'model', provider: provider.name };
 		const { session, mockSession } = await createAgentSession(disposables, {
 			githubCredentials: CopilotGitHubSessionCredentials.fromCredential({
 				resource: 'https://api.github.com', token: 'scoped', expiresAt: undefined, revision: 1,
 			}),
-			resolveByokSessionConfig: () => { throw new Error('Scoped session must not discover host BYOK credentials'); },
+			resolveByokSessionConfig: () => ({ providers: [provider], models: [model] }),
 		});
 		await assert.rejects(session.updateGitHubCredentials('github.com', 'desktop'), /isolated/);
-		await assert.rejects(session.setModel('private-provider/model'), /BYOK/);
+		await session.setModel('private-provider/model');
 		await session.syncByokModels();
 		assert.deepStrictEqual({
 			scoped: session.usesScopedGitHubCredentials, staticToken: session.usesStaticGitHubToken,
-			updates: mockSession.gitHubCredentialUpdates, byok: mockSession.providerSyncCalls, models: mockSession.setModelCalls,
-		}, { scoped: true, staticToken: false, updates: [], byok: [], models: [] });
+			updates: mockSession.gitHubCredentialUpdates, byok: mockSession.providerSyncCalls, models: mockSession.setModelCalls.map(([model]) => model),
+		}, { scoped: true, staticToken: false, updates: [], byok: [{ providers: [provider], models: [model] }], models: ['private-provider/model'] });
 	});
 
 	test('scoped credentials expire before direct send and resume execute', () => runWithFakedTimers({}, async () => {

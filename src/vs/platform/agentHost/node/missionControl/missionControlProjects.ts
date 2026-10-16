@@ -163,7 +163,7 @@ export class MissionControlProjects extends Disposable {
 
 	handleRequest(method: string, params: unknown, checkAuthorization?: () => void, source?: IAgentHostCredentialSource): Promise<unknown> | undefined {
 		if (method === 'extensions/cloneProject' && source) {
-			source = captureCredentialSource(source, [this._endpoints.getRepoResource()]);
+			source = captureCredentialSource(source, [{ ...this._endpoints.getCopilotResource(), required: false }]);
 		}
 		switch (method) {
 			case 'extensions/listProjects':
@@ -352,7 +352,6 @@ export class MissionControlProjects extends Disposable {
 	}
 
 	private async _driveClone(project: IMissionControlProject, url: URL, params: Record<string, unknown>, controller: AbortController, source?: IAgentHostCredentialSource): Promise<void> {
-		let scopedHome: string | undefined;
 		try {
 			const args = ['clone', '--progress'];
 			if (typeof params.branch === 'string') {
@@ -363,28 +362,28 @@ export class MissionControlProjects extends Disposable {
 			}
 			args.push('--', url.toString(), project.path);
 			const inheritedEnvironment = this._options.processEnvironment ?? process.env;
-			let env: NodeJS.ProcessEnv;
+			const env: NodeJS.ProcessEnv = { ...inheritedEnvironment, GIT_TERMINAL_PROMPT: '0' };
 			if (source) {
-				await mkdir(this._environment.userDataPath, { recursive: true });
-				const home = join(this._environment.userDataPath, `mission-control-clone-${generateUuid()}`);
-				await mkdir(home, { mode: 0o700 });
-				scopedHome = home;
-				env = this._scopedCloneEnvironment(inheritedEnvironment, home);
-				args.unshift('-C', home, '-c', 'http.authMethod=basic', '-c', 'http.emptyAuth=false');
-			} else {
-				env = { ...inheritedEnvironment, GIT_TERMINAL_PROMPT: '0' };
+				delete env.VSCODE_MC_GIT_TOKEN;
 			}
 			const githubOrigin = new URL(this._endpoints.getEnterpriseUri() ?? 'https://github.com').origin;
 			if (url.origin === githubOrigin) {
-				const resource = this._endpoints.getRepoResource();
-				const token = this._authentication.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported }, source);
+				const token = source
+					? this._authentication.getAuthToken({ resource: this._endpoints.getCopilotResource().resource }, source)
+					: this._authentication.getAuthToken({ resource: this._endpoints.getRepoResource().resource })
+					?? this._authentication.getAuthToken({ resource: this._endpoints.getCopilotResource().resource });
 				if (token) {
 					env.VSCODE_MC_GIT_TOKEN = token;
-					env.GIT_CONFIG_COUNT = '2';
-					env.GIT_CONFIG_KEY_0 = source ? 'credential.helper' : `credential.${githubOrigin}.helper`;
-					env.GIT_CONFIG_VALUE_0 = '';
-					env.GIT_CONFIG_KEY_1 = `credential.${githubOrigin}.helper`;
-					env.GIT_CONFIG_VALUE_1 = '!f() { test "$1" = get && printf "username=x-access-token\\npassword=%s\\n" "$VSCODE_MC_GIT_TOKEN"; }; f';
+					const helper = '!f() { test "$1" = get && printf "username=x-access-token\\npassword=%s\\n" "$VSCODE_MC_GIT_TOKEN"; }; f';
+					if (source) {
+						args.unshift('-c', 'credential.helper=', '-c', `credential.${githubOrigin}.helper=${helper}`);
+					} else {
+						env.GIT_CONFIG_COUNT = '2';
+						env.GIT_CONFIG_KEY_0 = `credential.${githubOrigin}.helper`;
+						env.GIT_CONFIG_VALUE_0 = '';
+						env.GIT_CONFIG_KEY_1 = `credential.${githubOrigin}.helper`;
+						env.GIT_CONFIG_VALUE_1 = helper;
+					}
 				}
 			}
 			await this._runGit(args, env, controller.signal, progress => {
@@ -404,7 +403,7 @@ export class MissionControlProjects extends Disposable {
 				return;
 			}
 			if (!params.branch && params.depth) {
-				await this._runGit(['-C', project.path, 'config', 'remote.origin.fetch', '+refs/heads/*:refs/remotes/origin/*'], source ? env : { ...inheritedEnvironment }, controller.signal, () => { });
+				await this._runGit(['-C', project.path, 'config', 'remote.origin.fetch', '+refs/heads/*:refs/remotes/origin/*'], { ...inheritedEnvironment }, controller.signal, () => { });
 			}
 			await this._mutations.queue(async () => {
 				if (controller.signal.aborted || !this._projects.has(project.id)) {
@@ -436,42 +435,7 @@ export class MissionControlProjects extends Disposable {
 			if (this._clones.get(project.id) === controller) {
 				this._clones.delete(project.id);
 			}
-			if (scopedHome) {
-				try {
-					await rmdir(scopedHome);
-				} catch (error) {
-					this._log.warn('[MissionControl] Isolated clone profile cleanup failed', error);
-				}
-			}
 		}
-	}
-
-	private _scopedCloneEnvironment(inherited: NodeJS.ProcessEnv, home: string): NodeJS.ProcessEnv {
-		const env: NodeJS.ProcessEnv = {};
-		for (const [key, value] of Object.entries(inherited)) {
-			if (/^(?:path|systemroot|windir|comspec|pathext|lang|lc_all|lc_ctype|tz)$/i.test(key)) {
-				env[key] = value;
-			}
-		}
-		return {
-			...env,
-			HOME: home,
-			USERPROFILE: home,
-			XDG_CONFIG_HOME: home,
-			GIT_CONFIG_NOSYSTEM: '1',
-			// Git treats /dev/null as an empty config on every supported platform.
-			GIT_CONFIG_SYSTEM: '/dev/null',
-			GIT_CONFIG_GLOBAL: '/dev/null',
-			GIT_CONFIG_COUNT: '1',
-			GIT_CONFIG_KEY_0: 'credential.helper',
-			GIT_CONFIG_VALUE_0: '',
-			GIT_ALLOW_PROTOCOL: 'https:file',
-			GIT_CEILING_DIRECTORIES: home,
-			GIT_DISCOVERY_ACROSS_FILESYSTEM: '0',
-			GIT_TERMINAL_PROMPT: '0',
-			GIT_ASKPASS: '',
-			SSH_ASKPASS: '',
-		};
 	}
 
 	private async _removeEmptyCloneDirectory(path: string): Promise<void> {

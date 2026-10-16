@@ -216,8 +216,8 @@ suite('AgentHostCommitOperationHandler', () => {
 			}
 			assert.deepStrictEqual({ requests, tokens: api.calls.map(call => call.token) }, {
 				requests: [
-					{ resource: GITHUB_REPO_PROTECTED_RESOURCE.resource, scopes: GITHUB_REPO_PROTECTED_RESOURCE.scopes_supported, session: session.toString() },
-					{ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, scopes: GITHUB_COPILOT_PROTECTED_RESOURCE.scopes_supported, session: session.toString() },
+					{ resource: GITHUB_REPO_PROTECTED_RESOURCE.resource, session: session.toString() },
+					{ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, session: session.toString() },
 				],
 				tokens: available ? ['requester-token'] : [],
 			});

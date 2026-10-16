@@ -274,31 +274,55 @@ suite('Mission Control projects', () => {
 		});
 	});
 
-	for (const repositoryCredential of [false, true]) {
-		test(`clone uses only the requester repository credential (${repositoryCredential ? 'authenticated' : 'public'})`, async () => {
-			const calls: { token: string | undefined; helperCount: string | undefined; clearedHelper: string | undefined }[] = [];
+	for (const authenticated of [false, true]) {
+		test(`clone uses the requester GitHub API credential (${authenticated ? 'authenticated' : 'public'})`, async () => {
+			const calls: { token: string | undefined; helper: boolean; secretInArgs: boolean }[] = [];
 			const requests: IAgentHostAuthTokenRequest[] = [];
-			const { projects } = await fixture(async (_args, env) => {
-				calls.push({ token: env.VSCODE_MC_GIT_TOKEN, helperCount: env.GIT_CONFIG_COUNT, clearedHelper: env.GIT_CONFIG_VALUE_0 });
+			const { projects } = await fixture(async (args, env) => {
+				calls.push({ token: env.VSCODE_MC_GIT_TOKEN, helper: args.includes('credential.helper='), secretInArgs: args.some(arg => arg.includes('requester-token')) });
 				throw new Error('Clone completed for test');
 			});
 			const finished = Event.toPromise(Event.filter(projects.onDidChange, () => catalogue(projects).some(project => project.status === 'failed')));
 			await projects.handleRequest('extensions/cloneProject', { url: 'https://github.com/owner/repo' }, undefined, {
 				getCredential: request => {
 					requests.push(request);
-					const available = repositoryCredential || request.resource === GITHUB_COPILOT_PROTECTED_RESOURCE.resource;
-					return available ? { resource: request.resource, token: 'requester-token', revision: 1, expiresAt: undefined } : undefined;
+					return authenticated && request.resource === GITHUB_COPILOT_PROTECTED_RESOURCE.resource
+						? { resource: request.resource, token: 'requester-token', revision: 1, expiresAt: undefined } : undefined;
 				},
 			});
 			await finished;
 			assert.deepStrictEqual({ requests, calls }, {
-				requests: [{ resource: GITHUB_REPO_PROTECTED_RESOURCE.resource, scopes: GITHUB_REPO_PROTECTED_RESOURCE.scopes_supported }],
-				calls: [{ token: repositoryCredential ? 'requester-token' : undefined, helperCount: repositoryCredential ? '2' : '1', clearedHelper: '' }],
+				requests: [{ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource }],
+				calls: [{ token: authenticated ? 'requester-token' : undefined, helper: authenticated, secretInArgs: false }],
 			});
 		});
 	}
 
-	test('an anonymous scoped private clone disables ambient credentials and reports failure without host fallback', async () => {
+	test('the real Git helper returns the requester API token without persisting it', async () => {
+		let helperMatched = false;
+		const { projects } = await fixture(async (args, env) => {
+			const result = await new Promise<string>((resolve, reject) => {
+				const child = execFile('git', [...args.slice(0, args.indexOf('clone')), 'credential', 'fill'], { env }, (error, stdout) => {
+					if (error) {
+						reject(error);
+					} else {
+						resolve(stdout);
+					}
+				});
+				child.stdin?.end('protocol=https\nhost=github.com\n\n');
+			});
+			helperMatched = result.includes('password=requester-api-token');
+			throw new Error('Credential helper check completed');
+		});
+		const finished = Event.toPromise(Event.filter(projects.onDidChange, () => catalogue(projects).some(project => project.status === 'failed')));
+		await projects.handleRequest('extensions/cloneProject', { url: 'https://github.com/owner/repo' }, undefined, {
+			getCredential: request => ({ resource: request.resource, token: 'requester-api-token', revision: 1, expiresAt: undefined }),
+		});
+		await finished;
+		assert.strictEqual(helperMatched, true);
+	});
+
+	test('requester clones retain proxy, certificate and Git settings without selecting host credentials', async () => {
 		const ambient: NodeJS.ProcessEnv = {
 			PATH: process.env.PATH,
 			HOME: 'ambient-home',
@@ -325,11 +349,10 @@ suite('Mission Control projects', () => {
 			GIT_PROXY_COMMAND: 'ambient-proxy',
 			HTTPS_PROXY: 'https://ambient-proxy',
 		};
-		const removed = ['GITHUB_TOKEN', 'GH_TOKEN', 'VSCODE_MC_GIT_TOKEN', 'GIT_CONFIG', 'GIT_CONFIG_PARAMETERS', 'GIT_CONFIG_KEY_15', 'GIT_CONFIG_VALUE_15', 'SSH_AUTH_SOCK', 'GIT_SSH_COMMAND', 'GIT_SSH', 'GIT_EXEC_PATH', 'GIT_PROXY_COMMAND', 'HTTPS_PROXY'];
+		ambient.GIT_SSL_CAINFO = '/enterprise/ca.pem';
 		const calls: { args: readonly string[]; env: NodeJS.ProcessEnv }[] = [];
 		const { projects } = await fixture(async (args, env) => {
 			calls.push({ args, env });
-			await lstat(env.HOME!);
 			throw new Error('repository not found');
 		}, false, ambient);
 		const finished = Event.toPromise(Event.filter(projects.onDidChange, () => catalogue(projects).some(project => project.status === 'failed')));
@@ -343,27 +366,19 @@ suite('Mission Control projects', () => {
 		assert.deepStrictEqual({
 			calls: calls.length,
 			args,
-			isolatedHome: env.HOME !== ambient.HOME && env.HOME === env.USERPROFILE && env.HOME === env.XDG_CONFIG_HOME,
-			configuration: [env.GIT_CONFIG_NOSYSTEM, env.GIT_CONFIG_SYSTEM, env.GIT_CONFIG_GLOBAL, env.GIT_CONFIG_COUNT, env.GIT_CONFIG_KEY_0, env.GIT_CONFIG_VALUE_0],
-			transport: [env.GIT_ALLOW_PROTOCOL, env.GIT_CEILING_DIRECTORIES, env.GIT_DISCOVERY_ACROSS_FILESYSTEM],
-			prompts: [env.GIT_TERMINAL_PROMPT, env.GIT_ASKPASS, env.SSH_ASKPASS],
-			removed: removed.map(key => env[key]),
+			environment: env,
 			failed: catalogue(projects).find(project => project.id === initial.id)?.error,
 			granted: projects.roots.includes(initial.path),
 		}, {
 			calls: 1,
-			args: ['-C', env.HOME!, '-c', 'http.authMethod=basic', '-c', 'http.emptyAuth=false', 'clone', '--progress', '--', 'https://github.com/owner/private', initial.path],
-			isolatedHome: true,
-			configuration: ['1', '/dev/null', '/dev/null', '1', 'credential.helper', ''],
-			transport: ['https:file', env.HOME, '0'],
-			prompts: ['0', '', ''],
-			removed: removed.map(() => undefined),
+			args: ['-c', 'credential.helper=', '-c', 'credential.https://github.com.helper=!f() { test "$1" = get && printf "username=x-access-token\\npassword=%s\\n" "$VSCODE_MC_GIT_TOKEN"; }; f', 'clone', '--progress', '--', 'https://github.com/owner/private', initial.path],
+			environment: { ...ambient, VSCODE_MC_GIT_TOKEN: 'copilot-only-token', GIT_TERMINAL_PROMPT: '0' },
 			failed: 'repository not found',
 			granted: false,
 		});
 	});
 
-	test('anonymous scoped public clones remain available and shallow configuration stays isolated', async () => {
+	test('anonymous requester clones never substitute the host token and preserve shallow configuration', async () => {
 		const calls: { clone: boolean; token: string | undefined; global: string | undefined; home: string | undefined }[] = [];
 		const { projects } = await fixture(async (args, env) => {
 			const clone = args.includes('clone');
@@ -378,17 +393,17 @@ suite('Mission Control projects', () => {
 		await finished;
 		assert.deepStrictEqual({
 			calls: calls.map(call => ({ clone: call.clone, token: call.token, global: call.global })),
-			sameIsolatedHome: calls[0].home === calls[1].home,
+			sameHome: calls[0].home === calls[1].home,
 		}, {
-			calls: [{ clone: true, token: undefined, global: '/dev/null' }, { clone: false, token: undefined, global: '/dev/null' }],
-			sameIsolatedHome: true,
+			calls: [{ clone: true, token: undefined, global: undefined }, { clone: false, token: 'ambient-token', global: undefined }],
+			sameHome: true,
 		});
 	});
 
 	test('a scoped repository helper is only installed for the exact configured GitHub origin', async () => {
 		const calls: { origin: string; helper: string | undefined; token: string | undefined }[] = [];
 		const { projects } = await fixture(async (args, env) => {
-			calls.push({ origin: new URL(args.at(-2)!).origin, helper: env.GIT_CONFIG_KEY_1, token: env.VSCODE_MC_GIT_TOKEN });
+			calls.push({ origin: new URL(args.at(-2)!).origin, helper: args.find(arg => arg.startsWith('credential.https:'))?.split('=')[0], token: env.VSCODE_MC_GIT_TOKEN });
 			throw new Error('clone test finished');
 		});
 		for (const [index, origin] of ['https://github.com', 'https://other.example'].entries()) {
@@ -404,7 +419,7 @@ suite('Mission Control projects', () => {
 		]);
 	});
 
-	test('a real anonymous scoped local clone succeeds with isolated Git configuration', async () => {
+	test('a real anonymous requester local clone succeeds with normal Git configuration', async () => {
 		const { projects, workspace } = await fixture();
 		const source = join(workspace, 'owner', 'public');
 		await mkdir(source, { recursive: true });
@@ -419,19 +434,6 @@ suite('Mission Control projects', () => {
 			granted: projects.roots.includes(initial.path),
 			gitDirectory: project.status === 'ready' && (await lstat(join(initial.path, '.git'))).isDirectory(),
 		}, { ready: 'ready', error: undefined, granted: true, gitDirectory: true });
-	});
-
-	test('a real scoped clone cannot use an ambient SSH transport', async () => {
-		const { projects } = await fixture();
-		const finished = Event.toPromise(Event.filter(projects.onDidChange, () => catalogue(projects).some(project => project.status === 'failed')));
-		const initial = readCloudSandboxCloneResult(await projects.handleRequest('extensions/cloneProject', { url: 'ssh://git@other.invalid/owner/private' }, undefined, { getCredential: () => undefined }))!;
-		await finished;
-		const project = catalogue(projects).find(project => project.id === initial.id)!;
-		assert.deepStrictEqual({
-			failed: project.status,
-			sshDenied: project.error?.includes('transport \'ssh\' not allowed'),
-			granted: projects.roots.includes(initial.path),
-		}, { failed: 'failed', sshDenied: true, granted: false }, project.error);
 	});
 
 	test('GitHub SSH and scp URLs clone over HTTPS with the authenticated bearer', async () => {
