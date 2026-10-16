@@ -18,11 +18,13 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
 import { IThreadsService } from '../../../services/threads/browser/threadsService.js';
+import { prepareThreadDelegationRequest } from '../../../services/threads/browser/threadDelegation.js';
 import { NewChatInputWidget } from './newChatInput.js';
 import { isExperimentalSessionComposerLayoutEnabled } from './newChatWidget.js';
 import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
@@ -64,6 +66,7 @@ export class NewChatInSessionWidget extends Disposable {
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@ISessionsListModelService private readonly sessionsListModelService: ISessionsListModelService,
 		@IThreadsService private readonly threadsService: IThreadsService,
+		@IDialogService private readonly dialogService: IDialogService,
 		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
@@ -222,8 +225,13 @@ export class NewChatInSessionWidget extends Disposable {
 		if (!activeSession) {
 			return false;
 		}
-		const inboxViewEnabled = this.sessionsListModelService.inboxViewEnabled.get() && !this.threadsService.isThread(activeSession);
-		const startInBackground = background === true || inboxViewEnabled;
+		const isThread = this.threadsService.isThread(activeSession);
+		const inboxViewEnabled = this.sessionsListModelService.inboxViewEnabled.get() && !isThread;
+		const startInBackground = !isThread && (background === true || inboxViewEnabled);
+		const delegation = await prepareThreadDelegationRequest(this.threadsService, this.dialogService, activeSession, query);
+		if (!delegation.allowed) {
+			return false;
+		}
 		const activeChat = activeSession.activeChat.get();
 		try {
 			// Reset the composer before dispatching the send: both touch shared
@@ -236,6 +244,7 @@ export class NewChatInSessionWidget extends Disposable {
 			userInteraction?.handoff(activeSession, activeChat);
 			await this.sessionsManagementService.sendRequest(activeSession, activeChat, {
 				query, attachedContext, background: startInBackground || undefined,
+				...(delegation.metadata ? { metadata: delegation.metadata } : {}),
 				...(userInteraction ? { onDidCreateResponse: userInteraction.onDidCreateResponse } : {}),
 			});
 			if (inboxViewEnabled) {

@@ -4401,6 +4401,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		}));
 
+		this._register(this.threadsService.onDidChange(() => {
+			if (this.visible) {
+				this.refresh();
+			}
+		}));
+
 		this._register(this._sessionGroupsService.onDidChange(e => {
 			if (this.visible) {
 				this.update();
@@ -4524,7 +4530,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// Keep the active user-facing session visible even when another filter excludes it.
 		for (const revealedSession of [activeSession, onboardingSession]) {
 			if (revealedSession && !filtered.some(s => s.sessionId === revealedSession.sessionId)) {
-				const match = this.sessions.find(s => s.sessionId === revealedSession.sessionId && !isAutomationSession(s));
+				const match = this.sessions.find(s =>
+					s.sessionId === revealedSession.sessionId
+					&& !isAutomationSession(s)
+					&& !this.threadsService.isThread(s)
+				);
 				if (match) {
 					filtered = [...filtered, match];
 				}
@@ -7041,6 +7051,7 @@ export class SessionsFlatList extends Disposable {
 
 		const disposables = new DisposableStore();
 		const contextKeyService = this.contextKeyService.createOverlay([
+			[IsSessionPinnedContext.key, this._sessionsListModelService.isSessionPinned(session)],
 			[SessionIsArchivedContext.key, session.isArchived.get()],
 			[SessionIsReadContext.key, session.mainChat.get().isRead.get()],
 			[SessionTypeContext.key, session.sessionType],
@@ -7050,6 +7061,8 @@ export class SessionsFlatList extends Disposable {
 			[SessionSupportsDeleteContext.key, session.capabilities.get().supportsDelete ?? false],
 			[IsQuickChatSessionContext.key, session.isQuickChat?.get() ?? false],
 			[SessionItemStatusContext.key, session.status.get()],
+			[SessionHasPullRequestContext.key, (getSessionOwnedPullRequests(session, undefined)?.length ?? 0) > 0],
+			[SessionInboxDispositionContext.key, this._sessionsListModelService.getSessionInboxDisposition(session) ?? ''],
 			...(this.options.getAdditionalContextKeys?.(session, undefined) ?? []),
 		]);
 		const menu = disposables.add(this.menuService.createMenu(this.options.contextMenuId, contextKeyService));

@@ -74,7 +74,7 @@ suite('Sessions - SessionsViewPane', () => {
 			notEmpty: getSessionsInboxEmptyLabel(SessionsInboxEmptyState.NotEmpty),
 		}, {
 			standardTitle: 'Sessions',
-			inboxTitle: 'Ready for you',
+			inboxTitle: 'Inbox',
 			empty: 'Inbox empty',
 			emptyAfterPinned: 'Inbox empty',
 			running: 'Waiting for agents to respond',

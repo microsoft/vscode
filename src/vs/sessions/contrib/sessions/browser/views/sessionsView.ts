@@ -34,7 +34,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { localize } from '../../../../../nls.js';
-import { type ISessionsFlatListOptions, SessionsFlatList, SessionsInboxEmptyState, SessionsList, SessionsGrouping, SessionsSorting } from './sessionsList.js';
+import { type ISessionsFlatListOptions, SessionItemContextMenuId, SessionsFlatList, SessionsInboxEmptyState, SessionsList, SessionsGrouping, SessionsSorting } from './sessionsList.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionComparisonService } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -85,7 +85,7 @@ const SESSIONS_HEADER_ELLIPSIS_MIN_WIDTH = 8;
 export type CustomizationsPresentation = 'hidden' | 'control' | 'treatment';
 
 export function getSessionsViewTitle(inbox: boolean): string {
-	return inbox ? localize('inboxHeader', "Ready for you") : localize('sessionsHeader', "Sessions");
+	return inbox ? localize('inboxHeader', "Inbox") : localize('sessionsHeader', "Sessions");
 }
 
 export function getSessionsInboxEmptyLabel(state: SessionsInboxEmptyState): string | undefined {
@@ -235,6 +235,7 @@ class SessionsBottomSection extends DisposableStore {
 			suppressInProgressStatusIcon: presentation.suppressInProgressStatusIcon,
 			alwaysConsumeMouseWheel: false,
 			useCompactQuickChatRows: false,
+			contextMenuId: SessionItemContextMenuId,
 			onSessionOpen,
 		}));
 
@@ -738,9 +739,11 @@ export class SessionsView extends ViewPane {
 		this._register(this.themeService.onDidColorThemeChange(updateSplitViewStyles));
 
 		const sessionsChanged = observableSignalFromEvent(this, this.sessionsManagementService.onDidChangeSessions);
+		const threadsChanged = observableSignalFromEvent(this, this.threadsService.onDidChange);
 		const listModelChanged = observableSignalFromEvent(this, this.sessionsListModelService.onDidChange);
 		const runningSessions = derivedOpts({ owner: this }, reader => {
 			sessionsChanged.read(reader);
+			threadsChanged.read(reader);
 			listModelChanged.read(reader);
 			if (!this.sessionsListModelService.inboxViewEnabled.read(reader)) {
 				return [];
@@ -754,6 +757,7 @@ export class SessionsView extends ViewPane {
 		});
 		const deferredSessions = (disposition: SessionInboxDisposition) => derivedOpts({ owner: this }, reader => {
 			sessionsChanged.read(reader);
+			threadsChanged.read(reader);
 			listModelChanged.read(reader);
 			if (!this.sessionsListModelService.inboxViewEnabled.read(reader)) {
 				return [];

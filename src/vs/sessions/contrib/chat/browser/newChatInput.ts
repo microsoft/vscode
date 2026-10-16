@@ -81,6 +81,7 @@ import { SlashCommandHandler } from './slashCommands.js';
 import { VariableCompletionHandler } from './variableCompletions.js';
 import { SessionReferenceCompletionHandler } from './sessionReferenceCompletions.js';
 import { AgentHostInputCompletionHandler } from './agentHostInputCompletions.js';
+import { ThreadMentionCompletionHandler } from './threadMentionCompletions.js';
 import { IChatModelInputState } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -1278,6 +1279,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._agentHostInputCompletionHandler = this._register(this._scopedInstantiationService.createInstance(
 			AgentHostInputCompletionHandler, this._editor, this._contextAttachments, () => this.submit(),
 		));
+		this._register(this._scopedInstantiationService.createInstance(ThreadMentionCompletionHandler, this._editor));
 
 		this._register(this.chatPasteTargetService.registerTarget(textModel.uri, new NewChatInputPasteTarget(
 			this._editor,

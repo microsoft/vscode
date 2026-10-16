@@ -44,6 +44,7 @@ import { SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../../browser/sessi
 import { SessionView } from '../../../../browser/parts/sessionView.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
+import { SessionInboxDisposition } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { type IOpenNewSessionOptions, type IOpenNewSessionResult, type IOpenSessionOptions, type IOpenSessionsOptions, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ICreateNewSessionOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -53,7 +54,7 @@ import { Action } from '../../../../../base/common/actions.js';
 import { NewSessionActionViewItem, type NewSessionButtonStyle, SessionConversationActionsContribution, SessionListActionsExperimentContribution } from '../../browser/sessionsActions.js';
 import '../../../chat/browser/chat.contribution.js';
 import { NEW_SESSION_ACTION_ID, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
-import { ArchiveChatAction, ArchiveSessionAction } from '../../browser/views/sessionsViewActions.js';
+import { ArchiveChatAction, ArchiveSessionAction, MARK_SESSION_READY_TO_MERGE_COMMAND_ID, MOVE_SESSION_ON_HOLD_COMMAND_ID, MOVE_SESSION_TO_INBOX_COMMAND_ID } from '../../browser/views/sessionsViewActions.js';
 import { createTestSession, TestCommandService } from './sessionsListTestUtils.js';
 import { INewSessionComposerService, NewSessionComposerService } from '../../../chat/browser/newSessionComposerService.js';
 import { ISessionSection, NEW_SESSION_FOR_WORKSPACE_ACTION_ID } from '../../browser/views/sessionsList.js';
@@ -115,6 +116,30 @@ suite('Sessions - Actions', () => {
 				order: 0,
 				when: 'sessionSupportsMultipleChats && !isQuickChatSession && !sessionIsArchived && !sessionItem.inExternalSection',
 			},
+		});
+
+		test('keeps Inbox disposition actions in the context menu but not the row toolbar', () => {
+			const toolbarSubmenu = MenuRegistry.getMenuItems(Menus.SessionItemToolbar)
+				.filter(isISubmenuItem)
+				.find(item => item.submenu === Menus.SessionInboxDisposition);
+			const contextActions = MenuRegistry.getMenuItems(Menus.SessionItemContextMenu)
+				.filter(isIMenuItem)
+				.map(item => ({ id: item.command.id, when: item.when?.serialize() }));
+			const contextActionIds = contextActions.map(item => item.id);
+			const when = (id: string) => contextActions.find(item => item.id === id)?.when ?? '';
+
+			assert.deepStrictEqual({
+				toolbarSubmenu: toolbarSubmenu?.title,
+				contextActions: [MOVE_SESSION_ON_HOLD_COMMAND_ID, MARK_SESSION_READY_TO_MERGE_COMMAND_ID, MOVE_SESSION_TO_INBOX_COMMAND_ID]
+					.filter(id => contextActionIds.includes(id)),
+				readyCanMoveOnHold: when(MOVE_SESSION_ON_HOLD_COMMAND_ID).includes(SessionInboxDisposition.ReadyToMerge),
+				onHoldCanMoveReady: when(MARK_SESSION_READY_TO_MERGE_COMMAND_ID).includes(SessionInboxDisposition.OnHold),
+			}, {
+				toolbarSubmenu: undefined,
+				contextActions: [MOVE_SESSION_ON_HOLD_COMMAND_ID, MARK_SESSION_READY_TO_MERGE_COMMAND_ID, MOVE_SESSION_TO_INBOX_COMMAND_ID],
+				readyCanMoveOnHold: true,
+				onHoldCanMoveReady: true,
+			});
 		});
 	});
 

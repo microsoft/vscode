@@ -27,6 +27,7 @@ import { MockContextKeyService } from '../../../../../platform/keybinding/test/c
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { getCompactCodicon } from '../../../../../workbench/contrib/chat/browser/chatIcons.js';
 import { IChatRequestTranscriptContextVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
@@ -1811,6 +1812,7 @@ suite('Sessions - Chat View', () => {
 			sessionsService,
 			new class extends mock<ISessionsListModelService>() { }(),
 			new class extends mock<IThreadsService>() { }(),
+			new class extends mock<IDialogService>() { }(),
 			new class extends mock<IStorageService>() { }(),
 		));
 

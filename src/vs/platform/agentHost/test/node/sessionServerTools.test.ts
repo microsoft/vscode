@@ -144,6 +144,7 @@ suite('SessionServerTools', () => {
 				worktree: { type: 'boolean', description: 'Set true when the work needs an isolated Git worktree for the workspace, or false to work in the folder directly. A worktree is not needed for read-only work. When omitted, the current session\'s isolation is used; an independent session in another project uses a worktree. Only valid when `workspace` is also set.' },
 				title: { type: 'string', maxLength: 200, description: 'Short title for the new chat or independent session.' },
 				model: { type: 'string', description: 'Optional model ID or display name. Defaults to the current chat\'s model. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.' },
+				agent: { type: 'string', description: 'Optional exact custom-agent URI for the delegated work. Use only a URI supplied by the current Thread context; omit for the provider default agent.' },
 			},
 			required: ['prompt', 'title'],
 		});
@@ -1209,12 +1210,13 @@ suite('SessionServerTools', () => {
 		});
 		const group = createSessionServerToolGroup(accessor);
 
-		const text = await group.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.CreateSession, { relationship: 'independent', workspace: workspace.toString(), prompt: 'do it', title: 'New Task', model: 'gpt-4o' });
+		const text = await group.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.CreateSession, { relationship: 'independent', workspace: workspace.toString(), prompt: 'do it', title: 'New Task', model: 'gpt-4o', agent: 'file:///agents/reviewer.agent.md' });
 
 		assert.deepStrictEqual(createConfigSnapshot(created), {
 			workingDirectories: [workspace.toString()],
 			provider: 'copilot',
 			model: { id: 'gpt-4o' },
+			agent: { uri: 'file:///agents/reviewer.agent.md' },
 			createdBySession: {
 				session: 'copilot:/caller',
 				chat: buildDefaultChatUri('copilot:/caller'),
@@ -1832,7 +1834,7 @@ suite('SessionServerTools', () => {
 	test('create_session with currentSession adds a peer chat to the invoking session', async () => {
 		const store = new DisposableStore();
 		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
-		let createdChat: { session: URI; chat: URI; options?: { title?: string; model?: ModelSelection } } | undefined;
+		let createdChat: { session: URI; chat: URI; options?: Parameters<ISessionServerToolAccessor['createChat']>[2] } | undefined;
 		let renamedChat: { session: URI; chat: URI; title: string } | undefined;
 		let createdSession = false;
 		let prompted: { session: URI; chat: URI; prompt: string; delegation: Parameters<ISessionServerToolAccessor['startPrompt']>[3] } | undefined;
@@ -1851,6 +1853,7 @@ suite('SessionServerTools', () => {
 			prompt: 'do it',
 			title: 'Task A',
 			model: 'gpt-4o',
+			agent: 'file:///agents/reviewer.agent.md',
 		});
 
 		assert.deepStrictEqual({
@@ -1858,6 +1861,7 @@ suite('SessionServerTools', () => {
 			createdSessionUri: createdChat?.session.toString(),
 			createdChatTitle: createdChat?.options?.title,
 			createdChatModel: createdChat?.options?.model?.id,
+			createdChatAgent: createdChat?.options?.agent?.uri,
 			persistedChat: renamedChat && { session: renamedChat.session.toString(), chat: renamedChat.chat.toString(), title: renamedChat.title },
 			promptedChat: prompted?.chat.toString(),
 			promptedPrompt: prompted?.prompt,
@@ -1870,6 +1874,7 @@ suite('SessionServerTools', () => {
 			createdSessionUri: 'copilot:/s1',
 			createdChatTitle: 'Task A',
 			createdChatModel: 'gpt-4o',
+			createdChatAgent: 'file:///agents/reviewer.agent.md',
 			persistedChat: { session: 'copilot:/s1', chat: createdChat?.chat.toString(), title: 'Task A' },
 			promptedChat: createdChat?.chat.toString(),
 			promptedPrompt: 'do it',
@@ -2547,11 +2552,36 @@ suite('SessionServerTools', () => {
 		// Refuses messaging the exact current chat channel (self-loop guard).
 		await assert.rejects(() => applySendMessageTool(accessor, { session: 'copilot:/s1', message: 'loop' }, currentChannel), /current chat/);
 		// Unknown session and missing session/message are rejected.
-		await assert.rejects(() => applySendMessageTool(accessor, { session: 'copilot:/nope', message: 'x' }, currentChannel), /known session/);
+		await assert.rejects(() => applySendMessageTool(accessor, { session: 'copilot:/nope', message: 'x' }, currentChannel), /accessible inventory/);
 		assert.throws(() => getSendMessageArgs({ message: 'x' }, [], recordedDefaultChat), /session/);
 		assert.throws(() => getSendMessageArgs({ session: 'copilot:/s2' }, [], recordedDefaultChat), /message/);
 		assert.throws(() => getSendMessageArgs({ operation: 'send', session: 'copilot:/s2', message: 'x', delivery: 'later' }, [sessionMeta('s2', SessionStatus.Idle, workspace)], recordedDefaultChat), /delivery/);
 		assert.throws(() => getSendMessageArgs({ operation: 'replace', session: 'copilot:/s2', message: 'x', messageId: 'm1' }, [sessionMeta('s2', SessionStatus.Idle, workspace)], recordedDefaultChat), /expectedRevision/);
+	});
+
+	test('send_message distinguishes a wrong URI scheme from an inaccessible inventory', () => {
+		const nativeResource = URI.parse('ahp-session:/40da8bd4-7fa9-44bd-aac9-0b19336e6d2e');
+		const known: IAgentSessionMetadata = {
+			...sessionMeta('40da8bd4-7fa9-44bd-aac9-0b19336e6d2e', SessionStatus.Idle, workspace),
+			session: nativeResource,
+			chats: [{ chat: nativeResource, kind: 'default' }],
+		};
+		const message = (session: string) => {
+			try {
+				getSendMessageArgs({ session, message: 'x' }, [known], recordedDefaultChat);
+				return undefined;
+			} catch (error) {
+				return (error as Error).message;
+			}
+		};
+
+		assert.deepStrictEqual({
+			wrongScheme: message('remote-tunnel__devbox-copilotcli:/40da8bd4-7fa9-44bd-aac9-0b19336e6d2e'),
+			outsideInventory: message('ahp-session:/other'),
+		}, {
+			wrongScheme: 'Invalid send_message input: session "remote-tunnel__devbox-copilotcli:/40da8bd4-7fa9-44bd-aac9-0b19336e6d2e" uses a different URI scheme than the accessible session "ahp-session:/40da8bd4-7fa9-44bd-aac9-0b19336e6d2e". Use the exact session URI or openLink returned by list_sessions.',
+			outsideInventory: 'Invalid send_message input: session "ahp-session:/other" is not in this Agent Host\'s accessible inventory. It may belong to another Agent Host or window, or it may be unavailable. Use list_sessions and pass an exact session URI or openLink from that inventory.',
+		});
 	});
 
 	test('send_message queues agent-originated messages in FIFO order while the target chat is busy', async () => {

@@ -6,6 +6,7 @@
 import './media/chatWidget.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { Action, toAction } from '../../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -25,6 +26,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -37,6 +39,8 @@ import { IActiveSession, ICreateNewSessionOptions, ISessionsManagementService, W
 import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../services/sessions/common/session.js';
 import { IOpenNewSessionResult, ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { IThreadsService } from '../../../services/threads/browser/threadsService.js';
+import { prepareThreadDelegationRequest } from '../../../services/threads/browser/threadDelegation.js';
 import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
 import { isAllowSignedOutWhenUsableEnabled, shouldShowGitHubWorkspaceGroupSignIn } from '../../../browser/sessionsAuthGate.js';
 import { AGENTIC_SIGN_IN_COMMAND_ID, FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID } from '../../../common/sessionCommands.js';
@@ -187,6 +191,7 @@ export class NewChatWidget extends Disposable {
 	private readonly _githubProfileName = observableValue<string | undefined>(this, undefined);
 	private _githubProfileAccountKey: string | undefined;
 	private _welcomePhraseAnnounced = false;
+	private _threadWelcomeActive = false;
 
 	private static _takeNextWelcomePhraseIndex(storageService: IStorageService): number {
 		const index = storageService.getNumber(WELCOME_PHRASE_INDEX_STORAGE_KEY, StorageScope.PROFILE, 0);
@@ -228,6 +233,8 @@ export class NewChatWidget extends Disposable {
 		@ICommandService private readonly commandService: ICommandService,
 		@ISessionComparisonService private readonly sessionComparisonService: ISessionComparisonService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@IThreadsService private readonly threadsService: IThreadsService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
@@ -672,6 +679,43 @@ export class NewChatWidget extends Disposable {
 				contextKeyService: this.contextKeyService,
 			});
 		}));
+		const threadPromptOptions = dom.append(chatWidgetContent, dom.$('.thread-welcome-prompt-options'));
+		threadPromptOptions.role = 'group';
+		threadPromptOptions.ariaLabel = localize('threadWelcome.prompts.ariaLabel', "Thread focus suggestions");
+		const threadPrompts = [
+			{
+				label: localize('threadWelcome.prompt.githubIssues.label', "Monitor GitHub Issues"),
+				prompt: localize('threadWelcome.prompt.githubIssues.prompt', "Monitor and triage my GitHub issues. Surface new work, blockers, and items that need my attention."),
+				icon: Codicon.issues,
+			},
+			{
+				label: localize('threadWelcome.prompt.mergeWork.label', "Land Completed Work"),
+				prompt: localize('threadWelcome.prompt.mergeWork.prompt', "Help me land completed work. Monitor pull requests, address feedback and failing checks, and keep me informed about blockers."),
+				icon: Codicon.gitMerge,
+			},
+			{
+				label: localize('threadWelcome.prompt.trends.label', "Track Trends"),
+				prompt: localize('threadWelcome.prompt.trends.prompt', "Research and monitor relevant industry, product, and competitor trends. Summarize meaningful changes and recommended follow-up."),
+				icon: Codicon.graph,
+			},
+			{
+				label: localize('threadWelcome.prompt.dailyWork.label', "Coordinate Daily Work"),
+				prompt: localize('threadWelcome.prompt.dailyWork.prompt', "Help coordinate my day across my calendar, email, messages, and active projects. Surface priorities, conflicts, and follow-up work."),
+				icon: Codicon.calendar,
+			},
+		];
+		for (const prompt of threadPrompts) {
+			const button = this._register(new Button(threadPromptOptions, {
+				...defaultButtonStyles,
+				secondary: true,
+				ariaLabel: localize('threadWelcome.prompt.ariaLabel', "Prefill: {0}", prompt.label),
+			}));
+			button.label = prompt.label;
+			const icon = renderIcon(prompt.icon);
+			icon.ariaHidden = 'true';
+			button.element.prepend(icon);
+			this._register(button.onDidClick(() => this._newChatInput.prefillInput(prompt.prompt)));
+		}
 
 		const configuredWelcomeNameChanged = observableSignalFromEvent(
 			this,
@@ -691,14 +735,31 @@ export class NewChatWidget extends Disposable {
 			configuredWelcomeMessagesChanged.read(reader);
 			const profileName = this._githubProfileName.read(reader);
 			const inputVisible = this.options.inputVisible?.read(reader) ?? true;
-			const phrases = getNewSessionWelcomePhrases(
-				this.configurationService.getValue<INewSessionWelcomeMessagesConfiguration | undefined>(NEW_SESSION_WELCOME_MESSAGES_SETTING),
-				this._getWelcomeName(profileName),
-			);
+			const session = this._session.read(reader);
+			this.threadsService.threads.read(reader);
+			const isThread = (!!session && this.threadsService.isThread(session))
+				|| this.threadsService.activeDraftThread.read(reader) !== undefined;
+			chatWidgetContainer.classList.toggle('thread-welcome', isThread);
+			if (isThread !== this._threadWelcomeActive) {
+				this._threadWelcomeActive = isThread;
+				if (isThread) {
+					this._newChatInput.clearPromptOptions();
+				}
+			}
+			const welcomeName = this._getWelcomeName(profileName);
+			const phrases = isThread
+				? [welcomeName
+					? localize('threadWelcome.named', "Hey {0}, what should my focus be?", welcomeName)
+					: localize('threadWelcome', "What should my focus be?")]
+				: getNewSessionWelcomePhrases(
+					this.configurationService.getValue<INewSessionWelcomeMessagesConfiguration | undefined>(NEW_SESSION_WELCOME_MESSAGES_SETTING),
+					welcomeName,
+				);
+			threadPromptOptions.classList.toggle('visible', isThread);
 			const phrase = this._updateWelcomeMessage(
 				welcomeMessage,
 				welcomeMessageTitle,
-				this._showWelcomePhrases.read(reader),
+				isThread || this._showWelcomePhrases.read(reader),
 				phrases,
 				this._welcomePhraseIndex,
 			);
@@ -804,6 +865,7 @@ export class NewChatWidget extends Disposable {
 				// Tips also stay away until the user has actually started a couple of
 				// sessions, so a first-run composer is not busy.
 				isEligible: () => !chatWidgetContent.classList.contains('no-agent-host')
+					&& !chatWidgetContainer.classList.contains('thread-welcome')
 					&& this._hasEnoughSessionsForFirstRunNotices()
 					&& this.contextKeyService.getContextKeyValue<number>(ChatContextKeys.foregroundSessionCount.key) === 0,
 				focusInput: () => this.focusInput(),
@@ -1753,8 +1815,14 @@ export class NewChatWidget extends Disposable {
 			this._workspacePicker.showPicker();
 			return false;
 		}
-		const inboxViewEnabled = this.sessionsListModelService.inboxViewEnabled.get();
-		const startInBackground = background === true || inboxViewEnabled;
+		const delegation = await prepareThreadDelegationRequest(this.threadsService, this.dialogService, session, query);
+		if (!delegation.allowed) {
+			return false;
+		}
+		const thread = this.threadsService.getThreadForSession(session) ?? this.threadsService.activeDraftThread.get();
+		const isThread = thread !== undefined;
+		const inboxViewEnabled = this.sessionsListModelService.inboxViewEnabled.get() && !isThread;
+		const startInBackground = !isThread && (background === true || inboxViewEnabled);
 		const feedbackItems = [...this._feedbackItems.get()];
 		const workspaceRoots = this._getWorkspaceRoots(session);
 		const request = buildNewSessionPrompt(query, feedbackItems, workspaceRoots);
@@ -1781,6 +1849,8 @@ export class NewChatWidget extends Disposable {
 			query: request,
 			attachedContext: requestContext.size > 0 ? [...requestContext.values()] : undefined,
 			background: startInBackground || undefined,
+			...(thread ? { title: thread.name } : {}),
+			...(delegation.metadata ? { metadata: delegation.metadata } : {}),
 			...(userInteraction ? { onDidCreateResponse: userInteraction.onDidCreateResponse } : {}),
 		};
 		const clearFeedback = () => {

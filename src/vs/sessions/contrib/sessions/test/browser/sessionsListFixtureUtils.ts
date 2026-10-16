@@ -63,7 +63,7 @@ import { IAgentHostFilterService } from '../../../../services/agentHostFilter/co
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { ISessionGroupsService, SessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsListModelService, SessionInboxDisposition, SessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
-import { IThreadsService, ThreadAvatarId, ThreadsService } from '../../../../services/threads/browser/threadsService.js';
+import { IThreadsService, LOCAL_THREAD_HOST_ID, ThreadAvatarId, ThreadsService } from '../../../../services/threads/browser/threadsService.js';
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -101,7 +101,6 @@ export interface ISessionsListFixtureSession extends ITestSessionSpec {
 	readonly thread?: {
 		readonly name: string;
 		readonly avatar: ThreadAvatarId;
-		readonly archived?: boolean;
 		readonly automationCount?: number;
 	};
 	/** Removed from the primary Inbox into an anchored deferred-work section. */
@@ -602,6 +601,8 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 				override async createThread() { return undefined; }
 				override async createAutomation() { }
 				override async changeAvatar() { }
+				override async changeParticipants() { }
+				override async openThread() { }
 			}());
 			reg.define(ISessionGroupsService, SessionGroupsService);
 			reg.define(ISessionSectionOrderService, SessionSectionOrderService);
@@ -894,7 +895,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 			}
 		}
 	}
-	const visibleThreadCount = state.sessions.filter(session => session.thread && !session.thread.archived).length;
+	const visibleThreadCount = state.sessions.filter(session => session.thread).length;
 	if (visibleThreadCount > 0) {
 		await waitForFixtureCondition(() => {
 			const canvases = [...container.getElementsByClassName('thread-avatar')].filter((element): element is HTMLCanvasElement => element instanceof HTMLCanvasElement);
@@ -926,16 +927,15 @@ function seedListState(instantiationService: TestInstantiationService, state: IS
 				session,
 				sessionTypeId: session.sessionType,
 				scope: session.workspace.get()?.folders[0]?.root
-					? { kind: 'workspace', folderUri: session.workspace.get()!.folders[0].root }
-					: { kind: 'global' },
+					? { kind: 'workspace', hostId: LOCAL_THREAD_HOST_ID, folderUri: session.workspace.get()!.folders[0].root }
+					: { kind: 'global', hostId: LOCAL_THREAD_HOST_ID },
+				participants: [{ id: 'default', name: 'Default Agent' }],
+				primaryParticipantId: 'default',
 				avatar: spec.thread.avatar,
 				connectorIds: [],
 			});
 			for (let index = 0; index < (spec.thread.automationCount ?? 0); index++) {
 				threadsService.addAutomation(thread.id, `${thread.id}-automation-${index}`);
-			}
-			if (spec.thread.archived) {
-				threadsService.setArchived(thread.id, true);
 			}
 		}
 	}

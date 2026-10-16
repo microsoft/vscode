@@ -286,6 +286,8 @@ export interface ISessionsService {
 	 *   and shows it as the active session, returning it as `result.session`.
 	 */
 	openNewSession(options?: IOpenNewSessionOptions, token?: CancellationToken): Promise<IOpenNewSessionResult>;
+	/** Activate a provider draft that was configured before it became visible. */
+	openNewSessionDraft(session: ISession): void;
 
 	/**
 	 * Open a new **quick chat**: create a concrete workspace-less draft session
@@ -1474,6 +1476,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	openNewSession(options?: IOpenNewSessionOptions, token: CancellationToken = CancellationToken.None): Promise<IOpenNewSessionResult> {
+		this.threadsService.setActiveDraftThread(undefined);
 		return this._openNewSession(options, token, 'explicit');
 	}
 
@@ -1596,7 +1599,16 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._activate(session, undefined, intent);
 	}
 
+	openNewSessionDraft(session: ISession): void {
+		this._cancelRestore();
+		this._beginNavigation('explicit');
+		this._startOpenSession();
+		this._activateOrInsert(session, false, 'explicit');
+		this._navigation.recordOpened({ kind: 'newSession' });
+	}
+
 	openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation = false): IActiveSession | undefined {
+		this.threadsService.setActiveDraftThread(undefined);
 		return this._openQuickChat(options, preserveNavigation ? 'automatic' : 'explicit');
 	}
 

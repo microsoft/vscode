@@ -61,7 +61,7 @@ Sessions management marks Automation configuration drafts with `isAutomationDraf
 
 `IAutomationDescriptor` contains immutable identity, editable name and prompt, schedule, execution target, optional session template, enabled state, and host-projected runtime timestamps.
 
-Threads may associate Automation IDs for presentation without taking ownership of the definitions. Because the Automation authority creates one run session per invocation, a Thread-associated definition uses its run to send the scheduled prompt to the persistent Thread through the standard session-messaging tool. The Automation remains authoritative for schedule and run history; the Thread remains authoritative for the visible conversation.
+Threads may associate Automation IDs for presentation without taking ownership of the definitions. Because the Automation authority creates one run session per invocation, a Thread-associated definition uses its run to send the scheduled prompt to the persistent Thread through the standard session-messaging tool. The generated prompt addresses the destination with the exact host-native AHP session resource, not the frontend Sessions URI used by the originating window. This keeps a remote-host Automation and Thread routable within the same host inventory across window restarts and reconnects. The Automation remains authoritative for schedule and run history; the Thread remains authoritative for the visible conversation.
 
 An `AutomationTarget` separates concrete provider identity (`providerId`) from its agent (`sessionTypeId`). Workspace targets also carry the workspace URI and isolation choice. Session type or display name alone cannot determine ownership. Creation requires an explicit, available Automation-capable provider.
 
