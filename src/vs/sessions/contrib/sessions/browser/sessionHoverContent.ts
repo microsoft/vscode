@@ -54,6 +54,20 @@ function getSessionHoverChanges(session: ISession): ISessionSummaryHoverLocation
 }
 
 /**
+ * The main chat's counts in a multi-folder session's hover: its Branch Changes when the caller already observes them
+ * (the row of the open chat shows them), else its catalog counts like any other chat.
+ */
+function getMainChatHoverChanges(mainChat: IChat, branchChangesObserved: boolean): ISessionSummaryHoverLocation['changes'] {
+	if (branchChangesObserved) {
+		const branchChanges = readChatChangesStats(mainChat, undefined, BRANCH_CHANGES_CHANGESET_ID);
+		if (branchChanges !== undefined) {
+			return withLineChanges(branchChanges);
+		}
+	}
+	return getChatHoverChanges(mainChat, BRANCH_CHANGES_CHANGESET_ID);
+}
+
+/**
  * The Agents window's adapter onto the shared session hover: reads a live
  * {@link ISession} into the provider-neutral data the widget renders.
  *
@@ -70,6 +84,7 @@ export function getSessionSummaryHoverData(
 	preferencesService: IPreferencesService,
 	createdBy?: ISessionSummaryHoverData['createdBy'],
 	includeUpdatedAt = false,
+	mainChatBranchChangesObserved = false,
 ): ISessionSummaryHoverData {
 	const sessionWorkspace = session.workspace.get();
 	const isMultiFolder = (sessionWorkspace?.folders.length ?? 0) > 1;
@@ -83,7 +98,7 @@ export function getSessionSummaryHoverData(
 		location: getLocation(
 			isMultiFolder ? mainWorkspace : sessionWorkspace,
 			session.worktreePending?.get() ?? false,
-			() => mainChat ? getChatHoverChanges(mainChat, BRANCH_CHANGES_CHANGESET_ID) : getSessionHoverChanges(session),
+			() => mainChat ? getMainChatHoverChanges(mainChat, mainChatBranchChangesObserved) : getSessionHoverChanges(session),
 			labelService,
 		),
 		pullRequests: toHoverPullRequests(topPullRequestRefs.values(), openerService),

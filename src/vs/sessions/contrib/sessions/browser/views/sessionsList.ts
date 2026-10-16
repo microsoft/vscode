@@ -270,9 +270,15 @@ function hasArchivedListContent(session: ISession): boolean {
 	return session.isArchived.get() || getSessionListChats(session, undefined, true).some(chat => chat.isArchived.get());
 }
 
-function getSessionListChatDiffStats(session: ISession, chat: IChat, activeSession: IObservable<IActiveSession | undefined> | undefined, reader: IReader): { files: number; insertions: number; deletions: number } | undefined {
+/** Whether the chat is the open chat of the active session. */
+function isOpenChat(session: ISession, chat: IChat, activeSession: IObservable<IActiveSession | undefined> | undefined, reader: IReader | undefined): boolean {
 	const active = activeSession?.read(reader);
-	if (active?.sessionId === session.sessionId && isEqual(active.activeChat.read(reader).resource, chat.resource)) {
+	return active?.sessionId === session.sessionId && isEqual(active.activeChat.read(reader).resource, chat.resource);
+}
+
+/** The open chat's live Branch Changes, else the session aggregate. Keep in sync with the session hover's main chat counts. */
+function getSessionListChatDiffStats(session: ISession, chat: IChat, activeSession: IObservable<IActiveSession | undefined> | undefined, reader: IReader): { files: number; insertions: number; deletions: number } | undefined {
+	if (isOpenChat(session, chat, activeSession, reader)) {
 		const chatStats = readChatChangesStats(chat, reader, BRANCH_CHANGES_CHANGESET_ID);
 		if (chatStats !== undefined) {
 			return chatStats.insertions > 0 || chatStats.deletions > 0 ? chatStats : undefined;
@@ -1520,12 +1526,17 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 		if (this.options.showHover) {
 			// Rich hover on the row: the same widget session pills use in chat output.
-			template.elementDisposables.add(this.hoverService.setupDelayedHover(template.container, () =>
-				withSessionsListHoverPresentation(createSessionSummaryHover(
+			template.elementDisposables.add(this.hoverService.setupDelayedHover(template.container, () => {
+				// The row of a multi-folder session observes its open main chat's Branch Changes, so the hover can read them without loading anything.
+				const mainChatBranchChangesObserved = !!this.options.deriveStatusFromMainChat
+					&& (element.workspace.get()?.folders.length ?? 0) > 1
+					&& isOpenChat(element, element.mainChat.get(), this.options.activeSession, undefined);
+				return withSessionsListHoverPresentation(createSessionSummaryHover(
 					element,
-					getSessionSummaryHoverData(element, this.sessionsProvidersService, this.openerService, this.labelService, this.preferencesService, getCreatorHoverData(element, this.sessionsManagementService, this.agentHostConnectionsService, this.openerService), this.options.compact()),
+					getSessionSummaryHoverData(element, this.sessionsProvidersService, this.openerService, this.labelService, this.preferencesService, getCreatorHoverData(element, this.sessionsManagementService, this.agentHostConnectionsService, this.openerService), this.options.compact(), mainChatBranchChangesObserved),
 					this.preferencesService,
-				)), { groupId: 'sessions-list' }));
+				));
+			}, { groupId: 'sessions-list' }));
 		}
 
 		// Pending voice response indicator: a response arrived while this session
