@@ -13,7 +13,8 @@ import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../../comm
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentHostWorktreeCoOwnership, IWorktreeMoveInput, planWorktreeMove, presentedWorktreeFolders } from '../../node/agentHostWorktreeCoOwnership.js';
 import { parseSessionWorktreeFolders, sessionWorktreeFolderRepositoryRoot, withSessionWorktreeFolders } from '../../node/shared/sessionWorktreeFolders.js';
-import { NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
+import { IReadWorktreeForRemovalOptions, IRecordedWorktree, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
+import { ADDITIONAL_WORKTREES_METADATA_KEY } from '../../node/shared/sessionAdditionalWorktrees.js';
 
 const source = 'copilotcli:/source';
 const chat = 'ahp-chat://moved';
@@ -82,6 +83,32 @@ suite('AgentHostWorktreeCoOwnership', () => {
 			ownAloneNoCopy: { transfers: [], coOwned: [`${own.workingDirectory}:agents/own`], withhold: [false, false], handOver: false, presented: [own.workingDirectory] },
 			sessionMoveNoCopy: { transfers: [], coOwned: [`${primary.worktreePath}:agents/source`, `${own.workingDirectory}:agents/own`, `${sessionLevel.workingDirectory}:agents/lib`], withhold: [false, false], handOver: false, presented: [primary.worktreePath] },
 		});
+	});
+
+	test('a session\'s worktrees include those this process created but whose metadata isn\'t persisted (yet), so a move records them (L2, Block 5)', async () => {
+		const store = new class extends mock<IAgentHostSessionStateStore>() {
+			override async readWithoutImport(_session: URI, keys: readonly string[]): Promise<ReadonlyMap<string, string>> {
+				return new Map(keys.includes(ADDITIONAL_WORKTREES_METADATA_KEY) ? [[ADDITIONAL_WORKTREES_METADATA_KEY, JSON.stringify([{ handle: own.handle, workingDirectory: own.workingDirectory, repositoryRoot: own.repositoryRoot, chat }])]] : []);
+			}
+		}();
+		const isolation = new class extends NullAgentHostWorktreeIsolation {
+			override async readSessionWorktreeForRemoval(_session: URI, options?: IReadWorktreeForRemovalOptions): Promise<IRecordedWorktree | undefined> {
+				return options?.includeUnpersisted ? { worktree: URI.parse(primary.worktreePath), repositoryRoot: URI.parse(primary.repositoryRoot), branchName: primary.branch } : undefined;
+			}
+			override async readDetachedWorktreeForRemoval(_handle: string, options?: IReadWorktreeForRemovalOptions): Promise<IRecordedWorktree | undefined> {
+				return options?.includeUnpersisted ? { worktree: URI.parse(own.workingDirectory), repositoryRoot: URI.parse(own.repositoryRoot), branchName: own.branch } : undefined;
+			}
+		}();
+		const database = new AgentHostDatabase(':memory:');
+		try {
+			const records = await new AgentHostWorktreeCoOwnership(database, store, isolation, new NullLogService()).readSessionWorktrees(URI.parse(source));
+			assert.deepStrictEqual({ primary: records.primary, additional: records.additional }, {
+				primary,
+				additional: [{ handle: own.handle, workingDirectory: own.workingDirectory, repositoryRoot: own.repositoryRoot, chat, branch: own.branch }],
+			});
+		} finally {
+			await database.close();
+		}
 	});
 
 	test('a transferred record names its new owner only once the target lists it, and the source drops it only after (1.142 ordering)', async () => {

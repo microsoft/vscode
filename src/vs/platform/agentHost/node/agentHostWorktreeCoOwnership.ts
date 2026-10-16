@@ -205,12 +205,15 @@ export class AgentHostWorktreeCoOwnership {
 		private readonly _logService: ILogService,
 	) { }
 
-	/** The worktrees `session` records or shares, read without Git or importing it. */
+	/**
+	 * The worktrees `session` records or shares, read without Git or importing it. Includes a worktree this process
+	 * created whose metadata isn't persisted (yet), so a move shares or transfers it like a recorded one.
+	 */
 	async readSessionWorktrees(session: URI): Promise<ISessionWorktreeRecords> {
-		const primary = await this._worktree.readSessionWorktreeForRemoval(session);
+		const primary = await this._worktree.readSessionWorktreeForRemoval(session, { includeUnpersisted: true });
 		const additional: ISessionAdditionalWorktreeRecord[] = [];
 		for (const worktree of await readSessionAdditionalWorktrees(this._sessionStateStore, session)) {
-			const record = await this._worktree.readDetachedWorktreeForRemoval(worktree.handle);
+			const record = await this._worktree.readDetachedWorktreeForRemoval(worktree.handle, { includeUnpersisted: true });
 			additional.push({ ...worktree, branch: record?.branchName ?? '' });
 		}
 		return {
