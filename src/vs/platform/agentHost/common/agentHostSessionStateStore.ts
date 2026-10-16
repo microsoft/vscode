@@ -96,6 +96,18 @@ export interface ISessionStateChatMoveFolders {
 	readonly remaining: readonly (readonly string[])[];
 }
 
+/** A worktree folder the moved chats keep working in, shared since the move (Block 5), as its original owner records it (URI strings). */
+export interface ISessionStateSharedWorktree {
+	readonly worktreePath: string;
+	readonly repositoryRoot: string;
+	readonly branch: string;
+}
+
+/** A session sharing a worktree folder since a chat moved (Block 5). */
+export interface ISessionStateWorktreeCoOwner extends ISessionStateSharedWorktree {
+	readonly session: URI;
+}
+
 /** A chat (with its private descendants) moving to another session, as the session state store commits it. */
 export interface ISessionStateChatMove {
 	readonly source: URI;
@@ -107,6 +119,10 @@ export interface ISessionStateChatMove {
 	readonly expectedSourceCatalogRevision: number;
 	readonly expectedTargetCatalogRevision: number;
 	readonly folders: ISessionStateChatMoveFolders;
+	/** Worktrees that become shared: the source and the target co-own each. A session that ends by the move gives its shares to the target. */
+	readonly coOwnedWorktrees: readonly ISessionStateSharedWorktree[];
+	/** Session-level values the move changes in each session, in its transaction (`null` deletes): a transferred worktree's record. */
+	readonly values: { readonly source: Readonly<Record<string, string | null>>; readonly target: Readonly<Record<string, string | null>> };
 }
 
 export type SessionStateChatMoveResult =
@@ -127,6 +143,10 @@ export interface ISessionStateChatPromotion {
 	readonly values: Readonly<Record<string, string>>;
 	/** The source's folders, the promoted chat's (the new session's) and those of the chats staying in the source. */
 	readonly folders: Omit<ISessionStateChatMoveFolders, 'target'>;
+	/** Worktrees that become shared: the source and the new session co-own each. */
+	readonly coOwnedWorktrees: readonly ISessionStateSharedWorktree[];
+	/** Session-level values the promotion changes in the source, in its transaction (`null` deletes): a transferred worktree's record. */
+	readonly sourceValues: Readonly<Record<string, string | null>>;
 }
 
 export type SessionStateChatPromotionResult =
@@ -413,6 +433,16 @@ export interface IAgentHostSessionStateStore {
 	 * state of {@link chatMoveFolderTransfers}) in one agent-host.db transaction, and refreshes both loaded states.
 	 * Writes nothing to either session's old-format mirrors: older builds see the move through the catalog.
 	 */
+	/**
+	 * The sessions sharing a worktree folder since a chat moved (Block 5), each with the branch and repository the
+	 * folder can be recreated from. Read only where the folder is missing (resume repair), never on a hot path.
+	 */
+	readWorktreeCoOwners(worktreePath: string): Promise<readonly ISessionStateWorktreeCoOwner[]>;
+	/**
+	 * The live sessions whose central `agentHost.additionalWorktrees` lists the detached worktree `handle`; for the
+	 * startup repair of a handle transfer a crash interrupted.
+	 */
+	findAdditionalWorktreeOwners(handle: string): Promise<readonly URI[]>;
 	moveChat(move: ISessionStateChatMove): Promise<SessionStateChatMoveResult>;
 
 	/**

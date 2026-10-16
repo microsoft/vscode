@@ -14,7 +14,7 @@ import { ChatOriginKind } from '../common/state/protocol/state.js';
 import { ILogService } from '../../log/common/log.js';
 import { DETACHED_WORKTREE_OWNER_SCHEME } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
-import { baseBranchFolderKey, chatMoveFolderTransfers, IAgentHostSessionStateStore, type ISessionStateChange, ISessionStateChatMove, ISessionStateChatPromotion, SessionStateChatMoveResult, SessionStateChatPromotionResult, ISessionStateChatEntry, ISessionStateKnownCatalog, ISessionStateExclusive, ISessionStateFolderEntry, ISessionStateFolderPatch, ISessionStateLegacyMetadata, ISessionStateMetadataReader, ISessionStateMetadataReference, ISessionStatePatch, ISessionStateSnapshot, readSessionBaseBranch, SessionStateDeletedError, SessionStateFolderKind, SessionStateNotASessionError, SessionStateMirrorFlush, sessionStatePatch, SessionStateValuesPrefetch, ISessionStateValuesPrefetchEntry } from '../common/agentHostSessionStateStore.js';
+import { baseBranchFolderKey, chatMoveFolderTransfers, IAgentHostSessionStateStore, type ISessionStateChange, ISessionStateChatMove, ISessionStateChatPromotion, type ISessionStateWorktreeCoOwner, SessionStateChatMoveResult, SessionStateChatPromotionResult, ISessionStateChatEntry, ISessionStateKnownCatalog, ISessionStateExclusive, ISessionStateFolderEntry, ISessionStateFolderPatch, ISessionStateLegacyMetadata, ISessionStateMetadataReader, ISessionStateMetadataReference, ISessionStatePatch, ISessionStateSnapshot, readSessionBaseBranch, SessionStateDeletedError, SessionStateFolderKind, SessionStateNotASessionError, SessionStateMirrorFlush, sessionStatePatch, SessionStateValuesPrefetch, ISessionStateValuesPrefetchEntry } from '../common/agentHostSessionStateStore.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { AgentHostChatRowStore } from './agentHostChatRowStore.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
@@ -593,6 +593,14 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		});
 	}
 
+	async readWorktreeCoOwners(worktreePath: string): Promise<readonly ISessionStateWorktreeCoOwner[]> {
+		return (await this._database.readWorktreeCoOwners(worktreePath)).map(row => ({ worktreePath: row.worktreePath, repositoryRoot: row.repositoryRoot, branch: row.branch, session: URI.parse(row.session) }));
+	}
+
+	async findAdditionalWorktreeOwners(handle: string): Promise<readonly URI[]> {
+		return (await this._database.findAdditionalWorktreeOwners(handle)).map(session => URI.parse(session));
+	}
+
 	moveChat(move: ISessionStateChatMove): Promise<SessionStateChatMoveResult> {
 		return this._moveChat(move, false);
 	}
@@ -636,7 +644,9 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 					expectedTargetRevision: target.model.revision,
 					chats: [{ chat, workingDirectories: move.folders.chat }],
 					folders: transfers,
+					values: move.values,
 				},
+				coOwnedWorktrees: move.coOwnedWorktrees,
 			});
 			if (result.status !== 'applied') {
 				return { status: result.status };
@@ -704,9 +714,11 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 					importedAt: Date.now(),
 					legacyMirrorBase: serializeBase(new Map()),
 					values: promotion.values,
+					sourceValues: promotion.sourceValues,
 					chats: [{ chat, workingDirectories: promotion.folders.chat }],
 					folders: transfers,
 				},
+				coOwnedWorktrees: promotion.coOwnedWorktrees,
 			});
 			if (result.status !== 'applied') {
 				return { status: result.status };

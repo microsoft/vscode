@@ -1578,6 +1578,7 @@ suite('AgentHostSessionStateStore', () => {
 				source: a.session, target: b.session, chat: URI.parse(a.chat('mover')), after: URI.parse(b.chat('default')),
 				expectedSourceCatalogRevision: await revisionOf(a.session), expectedTargetCatalogRevision: await revisionOf(b.session),
 				folders: { source: [app, lib], target: [app, lib], chat: [lib], chatHadOwnFolders: true, remaining: [[app, lib], [app, lib]] },
+				coOwnedWorktrees: [], values: { source: {}, target: {} },
 			});
 			const snapshotA = await store.load(a.session);
 			const snapshotB = await store.load(b.session);
@@ -1621,6 +1622,7 @@ suite('AgentHostSessionStateStore', () => {
 				expectedSourceCatalogRevision: await revisionOf(a.session),
 				values: { 'agentHost.sessionWorkingDirectories': JSON.stringify([lib]) },
 				folders: { source: [app, lib], chat: [lib], chatHadOwnFolders: true, remaining: [[app, lib]] },
+				coOwnedWorktrees: [], sourceValues: {},
 			});
 			const snapshotN = await store.load(n);
 			await store.write(n, sessionStatePatch({ values: { 'agentHost.sessionWorkingDirectories': JSON.stringify([lib, app]) } }), SessionStateMirrorFlush.Immediate);
@@ -1658,6 +1660,7 @@ suite('AgentHostSessionStateStore', () => {
 				source: a.session, target: b.session, chat: URI.parse(a.chat('mover')), after: undefined,
 				expectedSourceCatalogRevision: await revisionOf(a.session), expectedTargetCatalogRevision: await revisionOf(b.session),
 				folders: { source: [app], target: [app], chat: [app], chatHadOwnFolders: false, remaining: [[app]] },
+				coOwnedWorktrees: [], values: { source: {}, target: {} },
 			});
 			const mover = URI.parse(a.chat('mover'));
 			const draftIn = async (resource: string) => {
@@ -1695,6 +1698,7 @@ suite('AgentHostSessionStateStore', () => {
 				source: a.session, target: b.session, chat: URI.parse(a.chat('mover')), after: undefined,
 				expectedSourceCatalogRevision: await revisionOf(a.session), expectedTargetCatalogRevision: await revisionOf(b.session),
 				folders: { source: [app], target: [app], chat: [app], chatHadOwnFolders: false, remaining: [[app]] },
+				coOwnedWorktrees: [], values: { source: {}, target: {} },
 			});
 			const mover = URI.parse(a.chat('mover'));
 			// Each access first finds the chat moved, then looks up its owner: the chat is deleted in between.
@@ -1722,6 +1726,7 @@ suite('AgentHostSessionStateStore', () => {
 				source: a.session, target: b.session, chat: URI.parse(a.chat('mover')), after: undefined,
 				expectedSourceCatalogRevision: (await revisionOf(a.session)) + 1, expectedTargetCatalogRevision: await revisionOf(b.session),
 				folders: { source: [app], target: [app], chat: [app], chatHadOwnFolders: false, remaining: [[app]] },
+				coOwnedWorktrees: [], values: { source: {}, target: {} },
 			});
 			assert.deepStrictEqual({ result, a: [...(await store.load(a.session)).chats.keys()], b: [...(await store.load(b.session)).chats.keys()] },
 				{ result: { status: 'conflict' }, a: [...before.a.chats.keys()], b: [...before.b.chats.keys()] });
@@ -1747,6 +1752,7 @@ suite('AgentHostSessionStateStore', () => {
 				source: a.session, target: b.session, chat: URI.parse(a.chat('mover')), after: undefined,
 				expectedSourceCatalogRevision: await revisionOf(a.session), expectedTargetCatalogRevision: await revisionOf(b.session),
 				folders: { source: [app], target: [app], chat: [app], chatHadOwnFolders: false, remaining: [[app]] },
+				coOwnedWorktrees: [], values: { source: {}, target: {} },
 			});
 			failReads = false;
 
@@ -1765,8 +1771,8 @@ suite('AgentHostSessionStateStore', () => {
 			const folders = { source: [app], target: [app], chat: [app], chatHadOwnFolders: false, remaining: [[app]] };
 
 			const results = await Promise.all([
-				store.moveChat({ source: a.session, target: b.session, chat: URI.parse(a.chat('mover')), after: undefined, expectedSourceCatalogRevision: revisions.a, expectedTargetCatalogRevision: revisions.b, folders }),
-				store.moveChat({ source: b.session, target: a.session, chat: URI.parse(b.chat('mover')), after: undefined, expectedSourceCatalogRevision: revisions.b, expectedTargetCatalogRevision: revisions.a, folders }),
+				store.moveChat({ source: a.session, target: b.session, chat: URI.parse(a.chat('mover')), after: undefined, expectedSourceCatalogRevision: revisions.a, expectedTargetCatalogRevision: revisions.b, folders, coOwnedWorktrees: [], values: { source: {}, target: {} } }),
+				store.moveChat({ source: b.session, target: a.session, chat: URI.parse(b.chat('mover')), after: undefined, expectedSourceCatalogRevision: revisions.b, expectedTargetCatalogRevision: revisions.a, folders, coOwnedWorktrees: [], values: { source: {}, target: {} } }),
 			]);
 
 			// The second move saw revisions the first one changed, so it changes nothing.
@@ -1789,6 +1795,7 @@ suite('AgentHostSessionStateStore', () => {
 				source: a.session, target: b.session, chat: URI.parse(a.chat('mover')), after: undefined,
 				expectedSourceCatalogRevision: await revisionOf(a.session), expectedTargetCatalogRevision: await revisionOf(b.session),
 				folders: { source: [app], target: [app], chat: [app], chatHadOwnFolders: false, remaining: [[app]] },
+				coOwnedWorktrees: [], values: { source: {}, target: {} },
 			});
 			const databases = [...sessionData.resources];
 			const all = async (resource: string) => {

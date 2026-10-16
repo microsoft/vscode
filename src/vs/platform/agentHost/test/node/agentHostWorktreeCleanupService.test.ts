@@ -4,7 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import type { Database } from '@vscode/sqlite3';
+import { promises as fs } from 'fs';
+import { tmpdir } from 'os';
 import { DeferredPromise, SequencerByKey, timeout } from '../../../../base/common/async.js';
+import { join } from '../../../../base/common/path.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -66,6 +71,9 @@ class RecordingWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 	}
 	override async recreateDetachedWorktreeOnUnarchive(handle: string): Promise<void> {
 		this.calls.push(`recreate:${handle}`);
+	}
+	override async recreateSharedWorktree(worktree: IRecordedWorktree): Promise<void> {
+		this.calls.push(`recreateShared:${worktree.worktree.toString()}:${worktree.branchName}`);
 	}
 	override async deleteDetachedWorktreeRecord(handle: string): Promise<void> {
 		this.calls.push(`deleteRecord:${handle}`);
@@ -406,6 +414,121 @@ suite('AgentHostWorktreeCleanupService', () => {
 			whileInUse: ['reconcileUnclaimed'],
 			calls: ['reconcileUnclaimed', `remove:${sessionId}:commit:agents/archived`],
 			pending: [],
+		});
+	});
+	function sql(database: AgentHostDatabase, statement: string, parameters: readonly unknown[] = []): Promise<Record<string, unknown>[]> {
+		return (database as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase().then(raw => new Promise((resolve, reject) => raw.all(statement, parameters, (error: Error | null, rows: Record<string, unknown>[]) => error ? reject(error) : resolve(rows))));
+	}
+
+	/** What a committed move records (Block 5): the session shares the worktree. */
+	function share(database: AgentHostDatabase, session: URI, worktree: IRecordedWorktree): Promise<unknown> {
+		return sql(database, 'INSERT INTO worktree_co_owners (worktree_path, session_uri, repository_root, branch) VALUES (?, ?, ?, ?)', [worktree.worktree.toString(), session.toString(), worktree.repositoryRoot.toString(), worktree.branchName]);
+	}
+
+	async function archive(database: AgentHostDatabase, session: URI): Promise<void> {
+		const state = await database.readSessionState(session.toString());
+		assert.ok(state);
+		await database.writeSessionState(session.toString(), state.header.revision, { values: { [AH_META_IS_ARCHIVED_DB_KEY]: 'true' }, folders: [], chats: [], markPayloadDirty: false });
+	}
+
+	suite('shared worktrees (Block 5)', () => {
+		const shared = recorded('archived');
+		const sharedKey = shared.worktree.toString();
+
+		test('a shared worktree is kept while a live co-owner works in it, also only through a chat it archived, also after a restart, and removed once every co-owner is archived', async () => {
+			const path = join(tmpdir(), `agent-host-shared-worktree-${generateUuid()}.db`);
+			try {
+				let database = disposables.add(new AgentHostDatabase(path));
+				let worktree = new RecordingWorktreeIsolation();
+				let cleanup = disposables.add(new AgentHostWorktreeCleanupService(undefined, database, worktree, new NullLogService()));
+				// SESSION records the worktree; OTHER_SESSION's moved chat works in it, archived on its own.
+				await useWorktree(database, SESSION, shared, true);
+				await useWorktree(database, OTHER_SESSION, recorded('unrelated'));
+				await sql(database, `INSERT INTO chats_v2 (chat_uri, owner_session_uri, working_directories, metadata, metadata_hash, archived) VALUES ('ahp-chat://moved', ?, ?, '{}', 'hash', 1)`, [OTHER_SESSION.toString(), JSON.stringify([sharedKey])]);
+				await share(database, SESSION, shared);
+				await share(database, OTHER_SESSION, shared);
+
+				await cleanup.requestSessionWorktreeRemoval(SESSION, 'commit');
+				await cleanup.runPass();
+				const kept = { calls: [...worktree.calls], pending: await pending(database) };
+				cleanup.dispose();
+				await database.close();
+				database = disposables.add(new AgentHostDatabase(path));
+				worktree = new RecordingWorktreeIsolation();
+				cleanup = disposables.add(new AgentHostWorktreeCleanupService(undefined, database, worktree, new NullLogService()));
+				await cleanup.runPass();
+				const keptAfterRestart = { calls: [...worktree.calls], pending: await pending(database) };
+				await archive(database, OTHER_SESSION);
+				await cleanup.requestSessionWorktreeRemoval(OTHER_SESSION, 'commit');
+				await cleanup.runPass();
+
+				assert.deepStrictEqual({ kept, keptAfterRestart, calls: worktree.calls, pending: await pending(database) }, {
+					kept: { calls: [], pending: ['session:commit:0', 'coOwned:commit:0'] },
+					keptAfterRestart: { calls: [], pending: ['session:commit:0', 'coOwned:commit:0'] },
+					// Each co-owner's removal runs; the folder is gone after the first, so the others only prune it.
+					calls: [`remove:${sessionId}:commit:agents/archived`, `remove:${sharedKey}:commit:agents/archived`, `remove:${sharedKey}:commit:agents/archived`],
+					pending: [],
+				});
+				cleanup.dispose();
+				await database.close();
+			} finally {
+				await fs.rm(path, { force: true });
+			}
+		});
+
+		test('deleting a session whose worktree was ever shared commits it rather than force-removing it, when requested and when the removal runs', async () => {
+			const { database, worktree, cleanup } = create();
+			await share(database, SESSION, shared);
+			await share(database, OTHER_SESSION, shared);
+			const requested = (await cleanup.prepareSessionDeletion(SESSION, [], 'delete')).map(request => `${request.kind}:${request.mode}`);
+			// A deletion recorded before its folder was shared: only the marker row of a co-owner since deleted is left.
+			const earlier = AgentSession.uri('copilotcli', 'earlier');
+			const earlierWorktree = recorded('earlier');
+			await database.upsertPendingWorktreeRemoval({ kind: 'session', owner: earlier.toString(), ownerSession: earlier.toString(), worktreePath: earlierWorktree.worktree.toString(), repositoryRoot: earlierWorktree.repositoryRoot.toString(), branch: earlierWorktree.branchName, mode: 'delete', ownerDeleted: true, requestedAt: 1 });
+			await share(database, AgentSession.uri('copilotcli', 'gone'), earlierWorktree);
+			await cleanup.runPass();
+
+			assert.deepStrictEqual({ requested, calls: worktree.calls }, {
+				requested: ['session:commit', 'coOwned:commit'],
+				calls: [`remove:${AgentSession.id(earlier)}:commit:agents/earlier`],
+			});
+		});
+
+		test('a co-owner\'s removal removes the worktree once its original owner was deleted by an older build', async () => {
+			const { database, worktree, cleanup } = create();
+			await useWorktree(database, SESSION, shared);
+			await useWorktree(database, OTHER_SESSION, shared);
+			await share(database, SESSION, shared);
+			await share(database, OTHER_SESSION, shared);
+			// 1.142 deletes SESSION: tombstone and registry rows, recording no removal; the garbage sweep drops its state.
+			await sql(database, `INSERT INTO metadata (key, value) VALUES ('sessionTombstone:' || ?, 'true')`, [SESSION.toString()]);
+			await sql(database, 'DELETE FROM sessions_v2 WHERE session_uri = ?', [SESSION.toString()]);
+			await database.deleteSessionStateGarbage(SESSION.toString());
+			await archive(database, OTHER_SESSION);
+			await cleanup.requestSessionWorktreeRemoval(OTHER_SESSION, 'commit');
+			await cleanup.runPass();
+
+			assert.deepStrictEqual({ calls: worktree.calls, pending: await pending(database), coOwners: (await database.readWorktreeCoOwners(sharedKey)).map(row => row.session) }, {
+				calls: [`remove:${sharedKey}:commit:agents/archived`],
+				pending: [],
+				// Its co-owner's row stays while it is archived: unarchiving it recreates the folder from it.
+				coOwners: [OTHER_SESSION.toString()],
+			});
+		});
+
+		test('unarchiving a co-owner drops its removal and recreates the shared folder from the branch it recorded', async () => {
+			const { database, worktree, cleanup } = create();
+			await useWorktree(database, OTHER_SESSION, shared, true);
+			await share(database, OTHER_SESSION, shared);
+			await cleanup.requestSessionWorktreeRemoval(OTHER_SESSION, 'commit');
+			const recordedRemovals = await pending(database);
+			await cleanup.restoreSessionWorktree(OTHER_SESSION);
+
+			assert.deepStrictEqual({ recordedRemovals, calls: worktree.calls, pending: await pending(database) }, {
+				recordedRemovals: ['coOwned:commit:0'],
+				calls: [`recreate:${AgentSession.id(OTHER_SESSION)}`, `recreateShared:${sharedKey}:agents/archived`],
+				pending: [],
+			});
 		});
 	});
 });

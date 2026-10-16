@@ -6560,6 +6560,8 @@ export class AgentService extends Disposable implements IAgentService {
 						expectedSourceCatalogRevision: catalogs.get(sourceKey) ?? 0,
 						expectedTargetCatalogRevision: catalogs.get(targetKey) ?? 0,
 						folders,
+						coOwnedWorktrees: [],
+						values: { source: {}, target: {} },
 					};
 					return sessionMove ? this._sessionStateStore.moveSession(move) : this._sessionStateStore.moveChat(move);
 				};
@@ -6857,6 +6859,8 @@ export class AgentService extends Disposable implements IAgentService {
 							.filter(candidate => !moved.includes(candidate.resource) && candidate.origin?.kind !== ChatOriginKind.Tool)
 							.map(candidate => candidate.workingDirectories ?? sourceFolders),
 					},
+					coOwnedWorktrees: [],
+					sourceValues: {},
 				});
 				let result = await commit();
 				if (result.status === 'olderBuildEdits') {

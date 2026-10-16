@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs/promises';
-import { RunOnceScheduler, SequencerByKey } from '../../../../base/common/async.js';
+import { DeferredPromise, RunOnceScheduler, SequencerByKey } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlContent.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { basename } from '../../../../base/common/path.js';
 import { getComparisonKey, isEqual } from '../../../../base/common/resources.js';
@@ -85,6 +85,20 @@ export interface IAgentHostWorktreeIsolation extends IAgentHostWorktreePendingSt
 	prepareSessionDeletion(sessionUri: URI, sessionId: string): Promise<ISessionWorktree | undefined>;
 	/** Retains the previous checkout under session ownership without using it as the current workspace. */
 	retainSessionWorktree(sessionUri: URI, sessionId: string): Promise<void>;
+	/**
+	 * Prepares handing a session's worktree to the session it moves under (Block 5): records it as a detached
+	 * worktree still owned by `sessionUri`, for the move to list under the target in its transaction. The record's
+	 * lock is held until the returned lease is disposed, so reconciliation never takes it for an interrupted transfer
+	 * before the move commits. It is not claimed until {@link completeWorktreeHandOver}; a refused move deletes it
+	 * ({@link deleteDetachedWorktreeRecord}) before disposing the lease. `undefined` when the session records no worktree.
+	 */
+	prepareWorktreeHandOver(sessionUri: URI, sessionId: string): Promise<IWorktreeHandOver | undefined>;
+	/** Completes a committed hand-over: the target owns the handle's record, and the ended session's worktree cache is dropped. */
+	completeWorktreeHandOver(sessionId: string, handle: string, owner: URI): Promise<void>;
+	/** Records `owner` as the owner of a detached worktree, claimed, after a committed transfer listed it under `owner`. */
+	setDetachedWorktreeOwner(handle: string, owner: URI): Promise<void>;
+	/** Recreates a missing shared worktree folder from the branch its co-owners recorded, under the folder's lock. */
+	recreateSharedWorktree(worktree: IRecordedWorktree): Promise<void>;
 	/** Whether automatic deletion keeps the session worktree's work: its folder is gone or its branch is synced. */
 	canAutomaticallyDeleteArchivedSession(sessionUri: URI): Promise<boolean>;
 	isWorktreeCleanupNeeded(sessionUri: URI): Promise<boolean>;
@@ -192,6 +206,13 @@ const WORKTREE_PROGRESS_DEBOUNCE_MS = 40;
 export interface ISessionWorktree {
 	readonly repositoryRoot: URI;
 	readonly worktree: URI;
+}
+
+/** A session's worktree prepared to be handed to the session it moves under; disposing releases its record's lock. */
+export interface IWorktreeHandOver extends IDisposable {
+	readonly handle: string;
+	readonly workingDirectory: string;
+	readonly repositoryRoot: string;
 }
 
 /**
@@ -877,6 +898,19 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			}
 			return true;
 		}
+		// A transfer to another session (a moved chat's own worktree, or a session that moved under another one) commits
+		// centrally before the record names its new owner: the session whose central list names the handle owns it.
+		const listedBy = (await this._sessionStateStore.findAdditionalWorktreeOwners(handle)).filter(session => session.toString() !== owner);
+		if (listedBy.length > 0) {
+			const ref = this._sessionDataService.openDatabase(record);
+			try {
+				await ref.object.setMetadataValues({ [DETACHED_WORKTREE_OWNER]: listedBy[0].toString(), [DETACHED_WORKTREE_CLAIMED]: 'true', [DETACHED_WORKTREE_LAST_SEEN_AT]: String(Date.now()) });
+			} finally {
+				ref.dispose();
+			}
+			this._logService.info(`[${this._logLabel}:${handle}] Re-owned detached worktree to ${listedBy[0].toString()}, which lists it`);
+			return true;
+		}
 		const transferred = await this._readDetachedWorktreeMetadata(record);
 		// Read current ownership before re-listing so a concurrent retry cannot hide both sides of the atomic transfer.
 		const original = await this._readWorktreeMetadata(ownerUri);
@@ -1328,6 +1362,19 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		}
 
 		let recreateFailureReason: string | undefined;
+		if (!meta) {
+			// A folder shared since a chat moved is recorded by its original owner: its co-owners recorded its branch (Block 5).
+			const shared = (await this._sessionStateStore.readWorktreeCoOwners(workingDirectory.toString()))[0];
+			if (shared) {
+				const worktree = { worktree: workingDirectory, repositoryRoot: URI.parse(shared.repositoryRoot), branchName: shared.branch };
+				const recreated = await this._sequencer.queue(workingDirectory.toString(), async () => await fileExists(workingDirectory.fsPath) ? { ok: true as const } : this._recreateSharedWorktree(worktree));
+				if (recreated.ok) {
+					this._logService.info(`[${this._logLabel}:${sessionId}] Recreated missing shared worktree '${workingDirectory.fsPath}' on resume`);
+					return workingDirectory;
+				}
+				recreateFailureReason = recreated.reason;
+			}
+		}
 		if (meta?.worktreePath && meta.repositoryRoot) {
 			const recreated = await this._recreateWorktree(sessionId, {
 				branchName: meta.branchName,
@@ -1406,25 +1453,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 				const handle = existing?.handle ?? generateUuid();
 				await this._sequencer.queue(handle, async () => {
 					if (!existing) {
-						const record = detachedWorktreeRecordUri(handle);
-						const ref = this._sessionDataService.openDatabase(record);
-						try {
-							await ref.object.setMetadataValues({
-								[DETACHED_WORKTREE_OWNER]: sessionUri.toString(),
-								[DETACHED_WORKTREE_CREATED_AT]: String(Date.now()),
-								[DETACHED_WORKTREE_CLAIMED]: 'false',
-								[WORKTREE_META_BRANCH]: metadata.branchName,
-								[WORKTREE_META_PATH]: worktreePath.toString(),
-								[WORKTREE_META_REPOSITORY_ROOT]: repositoryRoot.toString(),
-								...(baseBranch ? { [META_DIFF_BASE_BRANCH]: baseBranch } : {}),
-								...(metadata.symlinkPatterns && metadata.symlinkSourceRoot ? {
-									[WORKTREE_META_SYMLINK_PATTERNS]: JSON.stringify(metadata.symlinkPatterns),
-									[WORKTREE_META_SYMLINK_SOURCE_ROOT]: metadata.symlinkSourceRoot.toString(),
-								} : {}),
-							});
-						} finally {
-							ref.dispose();
-						}
+						await this._writeDetachedRecord(handle, sessionUri, { ...metadata, worktreePath, repositoryRoot }, baseBranch);
 						values[ADDITIONAL_WORKTREES_METADATA_KEY] = JSON.stringify([...worktrees, {
 							handle, workingDirectory: worktreePath.toString(), repositoryRoot: repositoryRoot.toString(),
 						}]);
@@ -1446,6 +1475,102 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			this._worktreeDeletionRetries.delete(sessionId);
 			this.clearPending(sessionId);
 		});
+	}
+
+	async prepareWorktreeHandOver(sessionUri: URI, sessionId: string): Promise<IWorktreeHandOver | undefined> {
+		return this._sequencer.queue(sessionId, async () => {
+			const metadata = await this._readWorktreeMetadata(sessionUri);
+			const worktreePath = metadata?.worktreePath;
+			const repositoryRoot = metadata?.repositoryRoot;
+			if (!metadata || !worktreePath || !repositoryRoot) {
+				return undefined;
+			}
+			const handle = generateUuid();
+			const baseBranch = await this._sessionStateStore.readBaseBranchWithoutImport(sessionUri, undefined);
+			const written = new DeferredPromise<void>();
+			const lease = new DeferredPromise<void>();
+			// Owned by the source until the move commits: an interrupted hand-over is discarded by reconciliation.
+			void this._sequencer.queue(handle, async () => {
+				try {
+					await this._writeDetachedRecord(handle, sessionUri, { ...metadata, worktreePath, repositoryRoot }, baseBranch);
+					written.complete();
+				} catch (error) {
+					written.error(error);
+					return;
+				}
+				await lease.p;
+			});
+			await written.p;
+			return { handle, workingDirectory: worktreePath.toString(), repositoryRoot: repositoryRoot.toString(), dispose: () => lease.complete() };
+		});
+	}
+
+	async completeWorktreeHandOver(sessionId: string, handle: string, owner: URI): Promise<void> {
+		await this.setDetachedWorktreeOwner(handle, owner);
+		await this._sequencer.queue(sessionId, async () => {
+			this._materializedWorktrees.delete(sessionId);
+			this.takePendingAnnouncement(sessionId);
+			this._creationErrors.delete(sessionId);
+			this._worktreeDeletionRetries.delete(sessionId);
+			this.clearPending(sessionId);
+		});
+	}
+
+	async setDetachedWorktreeOwner(handle: string, owner: URI): Promise<void> {
+		await this._sequencer.queue(handle, async () => {
+			const ref = await this._sessionDataService.tryOpenDatabase(detachedWorktreeRecordUri(handle));
+			if (!ref) {
+				throw new Error(`Unknown detached worktree handle: ${handle}`);
+			}
+			try {
+				await ref.object.setMetadataValues({
+					[DETACHED_WORKTREE_OWNER]: owner.toString(),
+					[DETACHED_WORKTREE_CLAIMED]: 'true',
+					[DETACHED_WORKTREE_LAST_SEEN_AT]: String(Date.now()),
+				});
+			} finally {
+				ref.dispose();
+			}
+		});
+	}
+
+	async recreateSharedWorktree(worktree: IRecordedWorktree): Promise<void> {
+		await this._sequencer.queue(worktree.worktree.toString(), async () => {
+			if (await fileExists(worktree.worktree.fsPath)) {
+				return;
+			}
+			await this._recreateSharedWorktree(worktree);
+		});
+	}
+
+	/** Recreates a shared worktree folder; the caller holds its lock. Not cached as any session's worktree. */
+	private async _recreateSharedWorktree(worktree: IRecordedWorktree): Promise<{ readonly ok: true } | { readonly ok: false; readonly reason: string }> {
+		const key = worktree.worktree.toString();
+		const result = await this._recreateWorktree(key, { branchName: worktree.branchName, worktreePath: worktree.worktree, repositoryRoot: worktree.repositoryRoot });
+		this._materializedWorktrees.delete(key);
+		return result;
+	}
+
+	/** Writes a detached worktree record for a session's worktree, owned by `owner` and not claimed yet. The caller holds the handle's lock. */
+	private async _writeDetachedRecord(handle: string, owner: URI, metadata: IWorktreeMetadata & { readonly worktreePath: URI; readonly repositoryRoot: URI }, baseBranch: string | undefined): Promise<void> {
+		const ref = this._sessionDataService.openDatabase(detachedWorktreeRecordUri(handle));
+		try {
+			await ref.object.setMetadataValues({
+				[DETACHED_WORKTREE_OWNER]: owner.toString(),
+				[DETACHED_WORKTREE_CREATED_AT]: String(Date.now()),
+				[DETACHED_WORKTREE_CLAIMED]: 'false',
+				[WORKTREE_META_BRANCH]: metadata.branchName,
+				[WORKTREE_META_PATH]: metadata.worktreePath.toString(),
+				[WORKTREE_META_REPOSITORY_ROOT]: metadata.repositoryRoot.toString(),
+				...(baseBranch ? { [META_DIFF_BASE_BRANCH]: baseBranch } : {}),
+				...(metadata.symlinkPatterns && metadata.symlinkSourceRoot ? {
+					[WORKTREE_META_SYMLINK_PATTERNS]: JSON.stringify(metadata.symlinkPatterns),
+					[WORKTREE_META_SYMLINK_SOURCE_ROOT]: metadata.symlinkSourceRoot.toString(),
+				} : {}),
+			});
+		} finally {
+			ref.dispose();
+		}
 	}
 
 	/** Resolves the worktree to remove before the session database is deleted. */
@@ -2021,6 +2146,10 @@ export class NullAgentHostWorktreeIsolation implements IAgentHostWorktreeIsolati
 	async readDetachedWorktreeForRemoval(_handle: string, _options?: IReadWorktreeForRemovalOptions): Promise<IRecordedWorktree | undefined> { return undefined; }
 	async removeRecordedWorktree(_key: string, _worktree: IRecordedWorktree, _mode: WorktreeRemovalMode, _canRemove?: () => Promise<boolean>): Promise<WorktreeRemovalOutcome> { return 'removed'; }
 	async readWorktreeMetadata(_sessionUri: URI): Promise<IWorktreeMetadata | undefined> { return undefined; }
+	async prepareWorktreeHandOver(_sessionUri: URI, _sessionId: string): Promise<IWorktreeHandOver | undefined> { return undefined; }
+	async completeWorktreeHandOver(_sessionId: string, _handle: string, _owner: URI): Promise<void> { }
+	async setDetachedWorktreeOwner(_handle: string, _owner: URI): Promise<void> { }
+	async recreateSharedWorktree(_worktree: IRecordedWorktree): Promise<void> { }
 	async adoptExistingWorktreeMetadata(_sessionUri: URI, _workingDirectory: URI): Promise<boolean> { return false; }
 	async recordAdoptedWorktreeMetadata(_sessionUri: URI, _metadata: { readonly branchName: string; readonly baseBranch: string | undefined; readonly worktreePath: URI; readonly repositoryRoot: URI }): Promise<void> { }
 	async resolveExternalWorktreeProject(_workingDirectory: URI): Promise<IResolvedExternalWorktreeProject | undefined> { return undefined; }
