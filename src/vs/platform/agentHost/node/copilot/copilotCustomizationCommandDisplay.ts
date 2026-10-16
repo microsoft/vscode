@@ -224,7 +224,8 @@ async function invokeCopilotPluginMarketplaceCommand(input: string, plugins: ICo
 			if (!result.plugins.length) {
 				return pluginResult(localize('copilotPlugin.marketplaceEmpty', "Marketplace {0} contains no plugins.", rest), false);
 			}
-			const lines = [`# ${localize('copilotPlugin.marketplacePlugins', "Plugins in {0}", rest)}`, ''];
+			const heading = localize('copilotPlugin.marketplacePlugins', "Plugins in {0}", rest);
+			const lines = [`# ${escapeCustomizationMarkdownText(heading)}`, ''];
 			for (const plugin of result.plugins) {
 				const description = plugin.description ? ` — ${escapeCustomizationMarkdownText(plugin.description)}` : '';
 				lines.push(`- ${appendEscapedMarkdownInlineCode(plugin.name)}${description}`);

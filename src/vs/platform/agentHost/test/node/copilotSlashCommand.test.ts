@@ -620,7 +620,7 @@ suite('Copilot slash command handlers', () => {
 			assert.deepStrictEqual({
 				add: await invokeCopilotPluginCommand('marketplace add anthropics/skills', plugins),
 				list: await invokeCopilotPluginCommand('marketplace list', plugins),
-				browse: await invokeCopilotPluginCommand('marketplace browse anthropic-agent-skills', plugins),
+				browse: await invokeCopilotPluginCommand('marketplace browse [anthropic](command:unsafe)', plugins),
 				update: await invokeCopilotPluginCommand('marketplace update anthropic-agent-skills', plugins),
 				remove: await invokeCopilotPluginCommand('marketplace remove anthropic-agent-skills --force', plugins),
 				calls,
@@ -641,7 +641,7 @@ suite('Copilot slash command handlers', () => {
 				},
 				browse: {
 					kind: 'text',
-					text: '# Plugins in anthropic-agent-skills\n\n- `document-skills` — Document \\[tools\\]\\(command:unsafe\\)',
+					text: '# Plugins in \\[anthropic\\]\\(command:unsafe\\)\n\n- `document-skills` — Document \\[tools\\]\\(command:unsafe\\)',
 					markdown: true,
 				},
 				update: { kind: 'text', text: 'Updated plugin marketplaces.\nUpdated anthropic-agent-skills.' },
@@ -649,7 +649,7 @@ suite('Copilot slash command handlers', () => {
 				calls: [
 					'marketplace.add:anthropics/skills',
 					'marketplace.list',
-					'marketplace.browse:anthropic-agent-skills',
+					'marketplace.browse:[anthropic](command:unsafe)',
 					'marketplace.refresh:anthropic-agent-skills',
 					'marketplace.remove:anthropic-agent-skills:true',
 					'reload',
