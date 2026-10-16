@@ -172,6 +172,7 @@ import { parseCodexModelSelection, toCodexModelSelectionId, toCodexModelProvider
 export { parseCodexModelSelection, toCodexModelSelectionId } from '../../common/codexModelSelection.js';
 import { reportCodexProviderSwitch } from './codexProviderSwitchTelemetry.js';
 import { formatGuardianDenialNotification, formatGuardianReviewStatusNotification, summarizeGuardianReviewAction, toGuardianAssessmentEventJson } from './codexGuardianReview.js';
+import { CodexThreadCreationSequencer } from './codexThreadCreationSequencer.js';
 import { CODEX_COMPACT_SLASH_COMMAND } from '../codexCompactCommand.js';
 
 const CLIENT_INFO = {
@@ -1153,6 +1154,8 @@ export class CodexAgent extends Disposable implements IAgent {
 	private readonly _sessionIdByChatUri = new Map<string, string>();
 	/** Inverse map: codex threadId → caller-facing sessionId, for routing codex notifications back to sessions. */
 	private readonly _sessionIdByThreadId = new Map<string, string>();
+	/** Thread creations of chats sharing a workspace root never overlap: Codex's Linux sandbox can't set up concurrently there. */
+	private readonly _threadCreations = new CodexThreadCreationSequencer(process.platform);
 	/** Managed directories retained by non-destructively released sessions. */
 	private readonly _releasedManagedWorkingDirectories = new Map<string, URI>();
 	/**
@@ -5095,17 +5098,19 @@ export class CodexAgent extends Disposable implements IAgent {
 			const resolvedModel = parseCodexModelSelection(model);
 			const sessionHookTrust = await this._buildSessionHookTrustState(conn.client, workingDirectory.fsPath);
 			this._applySessionHookTrustState(threadConfig, sessionHookTrust, workingDirectory.fsPath);
-			this._assertCurrentConnection(conn);
-			const startResult = await conn.client.request<'thread/start', { thread: { id: string } }>('thread/start', {
-				cwd: workingDirectory.fsPath,
-				...(runtimeWorkspaceRoots ? { runtimeWorkspaceRoots } : {}),
-				model: resolvedModel.modelId,
-				modelProvider: resolvedModel.modelProvider,
-				approvalPolicy,
-				permissions,
-				approvalsReviewer,
-				config: threadConfig,
-				dynamicTools,
+			const startResult = await this._threadCreations.run([workingDirectory.fsPath, ...(runtimeWorkspaceRoots ?? [])], () => {
+				this._assertCurrentConnection(conn);
+				return conn.client.request<'thread/start', { thread: { id: string } }>('thread/start', {
+					cwd: workingDirectory.fsPath,
+					...(runtimeWorkspaceRoots ? { runtimeWorkspaceRoots } : {}),
+					model: resolvedModel.modelId,
+					modelProvider: resolvedModel.modelProvider,
+					approvalPolicy,
+					permissions,
+					approvalsReviewer,
+					config: threadConfig,
+					dynamicTools,
+				});
 			});
 			const threadId = startResult.thread.id;
 			const startedOnCurrentConnection = this._isCurrentConnection(conn);
@@ -5485,21 +5490,25 @@ export class CodexAgent extends Disposable implements IAgent {
 				'features.image_generation': this._imageGenerationEnabledForModelProvider(resolvedModel?.modelProvider ?? sourceRead.thread.modelProvider),
 			};
 			this._applySessionHookTrustState(forkConfig, await this._buildSessionHookTrustState(forkConnection.client, forkCwd), forkCwd);
-			this._assertCurrentConnection(forkConnection);
-			forkResult = await forkConnection.client.request<'thread/fork', ThreadForkResponse>('thread/fork', {
-				threadId: sourceThreadId,
-				...(lastTurnId !== undefined ? { lastTurnId } : {}),
-				...(forkManagedWorkingDirectory ? {
-					cwd: forkManagedWorkingDirectory.fsPath,
-				} : runtimeWorkspaceRoots?.length ? {
-					cwd: runtimeWorkspaceRoots[0],
-					runtimeWorkspaceRoots,
-				} : {}),
-				...(resolvedModel ? { model: resolvedModel.modelId, modelProvider: resolvedModel.modelProvider } : {}),
-				config: forkConfig,
-				approvalPolicy,
-				permissions,
-				approvalsReviewer,
+			const connection = forkConnection;
+			// Without a cwd of its own, the fork runs in its source thread's.
+			forkResult = await this._threadCreations.run([forkCwd ?? sourceRead.thread.cwd, ...(runtimeWorkspaceRoots ?? [])], () => {
+				this._assertCurrentConnection(connection);
+				return connection.client.request<'thread/fork', ThreadForkResponse>('thread/fork', {
+					threadId: sourceThreadId,
+					...(lastTurnId !== undefined ? { lastTurnId } : {}),
+					...(forkManagedWorkingDirectory ? {
+						cwd: forkManagedWorkingDirectory.fsPath,
+					} : runtimeWorkspaceRoots?.length ? {
+						cwd: runtimeWorkspaceRoots[0],
+						runtimeWorkspaceRoots,
+					} : {}),
+					...(resolvedModel ? { model: resolvedModel.modelId, modelProvider: resolvedModel.modelProvider } : {}),
+					config: forkConfig,
+					approvalPolicy,
+					permissions,
+					approvalsReviewer,
+				});
 			});
 		} catch (err) {
 			if (forkManagedWorkingDirectory) {
@@ -5726,20 +5735,23 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (session.disposed || !session.chatChannel) {
 			return;
 		}
-		this._assertCurrentConnection(conn);
-		const startResult = await conn.client.request<'thread/start', ThreadStartResponse>('thread/start', {
-			cwd: session.workingDirectory.fsPath,
-			...(runtimeWorkspaceRoots?.length ? { runtimeWorkspaceRoots } : {}),
-			...(selectedCapabilityRoots.length ? { selectedCapabilityRoots } : {}),
-			model: resolvedModel.modelId,
-			modelProvider: resolvedModel.modelProvider,
-			approvalPolicy,
-			permissions: customizationLaunch.skillPermissionProfile ?? permissions,
-			approvalsReviewer,
-			config: threadConfig,
-			developerInstructions: customizationLaunch.developerInstructions,
-			dynamicTools: this._buildDynamicTools(session),
-		}, this._traceContext(session));
+		const cwd = session.workingDirectory.fsPath;
+		const startResult = await this._threadCreations.run([cwd, ...(runtimeWorkspaceRoots ?? [])], () => {
+			this._assertCurrentConnection(conn);
+			return conn.client.request<'thread/start', ThreadStartResponse>('thread/start', {
+				cwd,
+				...(runtimeWorkspaceRoots?.length ? { runtimeWorkspaceRoots } : {}),
+				...(selectedCapabilityRoots.length ? { selectedCapabilityRoots } : {}),
+				model: resolvedModel.modelId,
+				modelProvider: resolvedModel.modelProvider,
+				approvalPolicy,
+				permissions: customizationLaunch.skillPermissionProfile ?? permissions,
+				approvalsReviewer,
+				config: threadConfig,
+				developerInstructions: customizationLaunch.developerInstructions,
+				dynamicTools: this._buildDynamicTools(session),
+			}, this._traceContext(session));
+		});
 		const threadId = startResult.thread.id;
 		const startedOnCurrentConnection = this._isCurrentConnection(conn);
 		if (multiRootActive && !session.workingDirectories && startResult.runtimeWorkspaceRoots?.length) {
@@ -6994,29 +7006,32 @@ export class CodexAgent extends Disposable implements IAgent {
 					if (!this._isCurrentSessionHookTrustState(sessionHookTrust, session.workingDirectory?.fsPath)) {
 						sessionHookTrust = await this._buildSessionHookTrustState(conn.client, session.workingDirectory?.fsPath);
 					}
-					if (session.disposed) {
-						throw new CancellationError();
-					}
-					this._assertCurrentConnection(conn);
 					const resumeConfig = { ...baseResumeConfig };
 					this._applySessionHookTrustState(resumeConfig, sessionHookTrust, session.workingDirectory?.fsPath);
-					return conn.client.request<'thread/resume', ThreadResumeResponse>(
-						'thread/resume',
-						{
-							...buildCodexResumeParams(
-								resolvedModel,
-								threadId,
-								mcpServers,
-								runtimeWorkspaceRoots,
-								{ ...resumeConfig, ...this._portableHistoryConfig(session.hasNativeHistory) },
-								customizationLaunch.developerInstructions,
-								this._imageGenerationEnabledForModelProvider(resolvedModel.modelProvider),
-								{ approvalPolicy, approvalsReviewer: resolvedPermissions.approvalsReviewer, permissions },
-							),
-							cwd: session.workingDirectory?.fsPath,
-						},
-						this._traceContext(session),
-					);
+					const cwd = session.workingDirectory?.fsPath;
+					return this._threadCreations.run([cwd, ...(runtimeWorkspaceRoots ?? [])], () => {
+						if (session.disposed) {
+							throw new CancellationError();
+						}
+						this._assertCurrentConnection(conn);
+						return conn.client.request<'thread/resume', ThreadResumeResponse>(
+							'thread/resume',
+							{
+								...buildCodexResumeParams(
+									resolvedModel,
+									threadId,
+									mcpServers,
+									runtimeWorkspaceRoots,
+									{ ...resumeConfig, ...this._portableHistoryConfig(session.hasNativeHistory) },
+									customizationLaunch.developerInstructions,
+									this._imageGenerationEnabledForModelProvider(resolvedModel.modelProvider),
+									{ approvalPolicy, approvalsReviewer: resolvedPermissions.approvalsReviewer, permissions },
+								),
+								cwd,
+							},
+							this._traceContext(session),
+						);
+					});
 				};
 				if (session.disposed) {
 					throw new CancellationError();

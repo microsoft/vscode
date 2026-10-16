@@ -1795,6 +1795,73 @@ suite('CodexAgent prewarm eviction', () => {
 		peer.exit();
 	});
 
+	test('a prewarmed thread starts through the thread-creation sequencer, keyed by its workspace roots', async () => {
+		const agent = await createAgent(disposables);
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		const runs = spy(agent['_threadCreations'], 'run');
+		const folder = URI.file('/repo/folder');
+		const { session } = await createSession(agent, { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
+		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+
+		const start = await readNextRequest(peer.outbound);
+		peer.push({ id: start.id, result: { thread: { id: 'prewarm-thread' } } });
+		await entry.materializePromise;
+
+		// The request ran as the sequenced task: its result is what the sequencer returned.
+		assert.deepStrictEqual({
+			method: start.method,
+			roots: runs.args.map(([roots]) => roots),
+			threads: (await Promise.all(runs.returnValues) as { readonly thread: { readonly id: string } }[]).map(result => result.thread.id),
+		}, { method: 'thread/start', roots: [[folder.fsPath, folder.fsPath]], threads: ['prewarm-thread'] });
+		peer.exit();
+	});
+
+	test('a cold thread resumes through the thread-creation sequencer, keyed by its workspace roots', async () => {
+		const database = new TestSessionDatabase();
+		const repo = URI.file('/repo');
+		await database.setMetadata('codex.threadId', 'restored-thread');
+		await database.setMetadata('codex.cwd', repo.toString());
+		const agent = await createAgent(disposables, { database });
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		const runs = spy(agent['_threadCreations'], 'run');
+		const parent = AgentSession.uri('codex', 'parent');
+		const chat = chatOf(parent, 'restored');
+		await agent.materializeChat(chat, parent, JSON.stringify({ sessionId: 'restored' }));
+
+		const sending = agent.chats.sendMessage(chat, 'follow up', undefined, undefined, 'turn-1');
+		const read = await readNextRequest(peer.outbound);
+		peer.push({ id: read.id, result: { thread: { id: 'restored-thread', modelProvider: 'vscode-proxy' } } });
+		const unsubscribe = await readNextRequest(peer.outbound);
+		peer.push({ id: unsubscribe.id, result: {} });
+		const resume = await readNextRequest(peer.outbound);
+		peer.push({ id: resume.id, result: { thread: { id: 'restored-thread', turns: [] }, runtimeWorkspaceRoots: [] } });
+		const inventory = await readNextRequest(peer.outbound);
+		peer.push({ id: inventory.id, result: { data: [], nextCursor: null } });
+		const turn = await readNextRequest(peer.outbound);
+		peer.push({ id: turn.id, result: {} });
+		await sending;
+
+		assert.deepStrictEqual({
+			method: resume.method,
+			roots: runs.args.map(([roots]) => roots),
+			threads: (await Promise.all(runs.returnValues) as { readonly thread: { readonly id: string } }[]).map(result => result.thread.id),
+		}, { method: 'thread/resume', roots: [[repo.fsPath, repo.fsPath]], threads: ['restored-thread'] });
+		peer.exit();
+	});
+
 	test('cold resume carries workspace and client MCP and consumes an in-flight MCP invalidation before sending', async () => {
 		const database = new TestSessionDatabase();
 		const repo = URI.file('/repo');
