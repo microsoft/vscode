@@ -41,6 +41,7 @@ interface IExplorerMoveBatch {
 	readonly refreshes: Map<ExplorerItem, boolean>;
 	readonly sourceParents: Set<ExplorerItem>;
 	readonly targetParents: Set<ExplorerItem>;
+	readonly movedItems: Set<ExplorerItem>;
 }
 
 export class ExplorerService implements IExplorerService {
@@ -60,6 +61,7 @@ export class ExplorerService implements IExplorerService {
 	private fileChangeEvents: FileChangesEvent[] = [];
 	private revealExcludeMatcher: ResourceGlobMatcher;
 	private readonly moveBatches = new Map<number, IExplorerMoveBatch>();
+	private readonly pendingMoveSourceBatches = new Set<IExplorerMoveBatch>();
 
 	constructor(
 		@IFileService private fileService: IFileService,
@@ -88,11 +90,13 @@ export class ExplorerService implements IExplorerService {
 						targets.set(source, target);
 					}
 				}
-				this.moveBatches.set(e.correlationId, { targets, operations: [], refreshes: new Map(), sourceParents: new Set(), targetParents: new Set() });
+				const batch: IExplorerMoveBatch = { targets, operations: [], refreshes: new Map(), sourceParents: new Set(), targetParents: new Set(), movedItems: new Set() };
+				this.moveBatches.set(e.correlationId, batch);
+				this.pendingMoveSourceBatches.add(batch);
 			}
 		}));
 		this.disposables.add(Event.any(workingCopyFileService.onDidRunWorkingCopyFileOperation, workingCopyFileService.onDidFailWorkingCopyFileOperation)(e => {
-			e.waitUntil(this.finishMoveBatch(e.correlationId));
+			this.finishMoveBatch(e.correlationId).catch(onUnexpectedError);
 		}));
 		this.disposables.add(this.fileService.onDidRunOperation(e => {
 			const batches: IExplorerMoveBatch[] = [];
@@ -429,23 +433,51 @@ export class ExplorerService implements IExplorerService {
 		try {
 			// File service events are synchronous, but their model/view handlers can still be running.
 			await Promises.settled(batch.operations);
-			const refresh = async ([item, recursive]: [ExplorerItem, boolean]) => {
-				if (!this.disposables.isDisposed) {
-					await this.view?.refresh(recursive, item);
-				}
-			};
-			const refreshes = Array.from(batch.refreshes);
 			// Reconcile every source before destinations, including parents that serve both roles.
-			const sources = Promises.settled(refreshes.filter(([item]) => batch.sourceParents.has(item) || !batch.targetParents.has(item)).map(refresh));
-			const refreshTargets = () => Promises.settled(refreshes.filter(([item]) => batch.targetParents.has(item)).map(refresh));
+			const sources = this.refreshMoveSources(batch).finally(() => this.pendingMoveSourceBatches.delete(batch));
+			const refreshTargets = async () => {
+				await Promises.settled(Array.from(batch.refreshes).filter(([item]) => batch.targetParents.has(item)).map(([item, recursive]) => this.refreshMoveParent(item, recursive)));
+			};
 			await Promises.settled([sources, sources.then(refreshTargets, refreshTargets)]);
 		} finally {
-			batch.targets.clear();
-			batch.operations.length = 0;
-			batch.refreshes.clear();
-			batch.sourceParents.clear();
-			batch.targetParents.clear();
+			this.pendingMoveSourceBatches.delete(batch);
+			this.clearMoveBatch(batch);
 		}
+	}
+
+	private async refreshMoveParent(item: ExplorerItem, recursive: boolean): Promise<void> {
+		if (!this.disposables.isDisposed) {
+			await this.view?.refresh(recursive, item);
+		}
+	}
+
+	private async refreshMoveSources(batch: IExplorerMoveBatch): Promise<void> {
+		const sources = Array.from(batch.refreshes).filter(([item]) => batch.sourceParents.has(item) || !batch.targetParents.has(item));
+		for (const [item] of sources) {
+			batch.sourceParents.delete(item);
+			if (!batch.targetParents.has(item)) {
+				batch.refreshes.delete(item);
+			}
+		}
+		await Promises.settled(sources.map(([item, recursive]) => this.refreshMoveParent(item, recursive)));
+	}
+
+	private refreshInterleavedMoveSources(items: readonly ExplorerItem[], batches: readonly IExplorerMoveBatch[]): Promise<void> | undefined {
+		const affected = Array.from(this.pendingMoveSourceBatches).filter(batch => !batches.includes(batch) && Array.from(batch.movedItems).some(moved => items.some(item => isEqualOrAncestorItem(item, moved))));
+		if (!affected.length) {
+			return undefined;
+		}
+		// A moved item may now be owned by another parent. Remove its stale source rows before that parent is refreshed.
+		return Promises.settled(affected.map(batch => this.refreshMoveSources(batch))).then(() => undefined, onUnexpectedError);
+	}
+
+	private clearMoveBatch(batch: IExplorerMoveBatch): void {
+		batch.targets.clear();
+		batch.operations.length = 0;
+		batch.refreshes.clear();
+		batch.sourceParents.clear();
+		batch.targetParents.clear();
+		batch.movedItems.clear();
 	}
 
 	private async refreshMove(recursive: boolean, item: ExplorerItem | undefined, batches: readonly IExplorerMoveBatch[], role?: 'source' | 'target'): Promise<void> {
@@ -510,14 +542,23 @@ export class ExplorerService implements IExplorerService {
 			const newParentResource = dirname(newElement.resource);
 			const modelElements = this.model.findAll(oldResource);
 			const sameParentMove = modelElements.every(e => !e.nestedParent) && this.uriIdentityService.extUri.isEqual(oldParentResource, newParentResource);
+			const interleavedSources = this.refreshInterleavedMoveSources(modelElements, batches);
+			const trackMovedItems = () => {
+				for (const batch of batches) {
+					for (const modelElement of modelElements) {
+						batch.movedItems.add(modelElement);
+					}
+				}
+			};
 
 			// Handle Rename
 			if (sameParentMove) {
-				await Promise.all(modelElements.map(async modelElement => {
-					// Rename File (Model)
-					modelElement.rename(newElement);
-					await this.refreshMove(shouldDeepRefresh, modelElement.parent, batches);
-				}));
+				modelElements.forEach(modelElement => modelElement.rename(newElement));
+				trackMovedItems();
+				if (interleavedSources) {
+					await interleavedSources;
+				}
+				await Promise.all(modelElements.map(modelElement => this.refreshMove(shouldDeepRefresh, modelElement.parent, batches)));
 			}
 
 			// Handle Move
@@ -525,16 +566,25 @@ export class ExplorerService implements IExplorerService {
 				const newParents = this.model.findAll(newParentResource);
 				if (newParents.length && modelElements.length) {
 					// Move in Model
-					await Promise.all(modelElements.map(async (modelElement, index) => {
+					const moves = modelElements.map((modelElement, index) => {
 						const oldParent = modelElement.parent;
 						const oldNestedParent = modelElement.nestedParent;
 						modelElement.move(newParents[index]);
+						return { oldParent, oldNestedParent, newParent: newParents[index] };
+					});
+					trackMovedItems();
+					if (interleavedSources) {
+						await interleavedSources;
+					}
+					await Promise.all(moves.map(async ({ oldParent, oldNestedParent, newParent }) => {
 						if (oldNestedParent) {
 							await this.refreshMove(false, oldNestedParent, batches, 'source');
 						}
 						await this.refreshMove(false, oldParent, batches, 'source');
-						await this.refreshMove(shouldDeepRefresh, newParents[index], batches, 'target');
+						await this.refreshMove(shouldDeepRefresh, newParent, batches, 'target');
 					}));
+				} else if (interleavedSources) {
+					await interleavedSources;
 				}
 			}
 		}
@@ -625,15 +675,21 @@ export class ExplorerService implements IExplorerService {
 	dispose(): void {
 		this.disposables.dispose();
 		for (const batch of this.moveBatches.values()) {
-			batch.targets.clear();
-			batch.operations.length = 0;
-			batch.refreshes.clear();
-			batch.sourceParents.clear();
-			batch.targetParents.clear();
+			this.clearMoveBatch(batch);
 		}
 		this.moveBatches.clear();
+		this.pendingMoveSourceBatches.clear();
 		this.view = undefined;
 	}
+}
+
+function isEqualOrAncestorItem(item: ExplorerItem, candidate: ExplorerItem): boolean {
+	for (let current: ExplorerItem | undefined = candidate; current; current = current.parent) {
+		if (current === item) {
+			return true;
+		}
+	}
+	return false;
 }
 
 function doesFileEventAffect(item: ExplorerItem, view: IExplorerView, events: FileChangesEvent[], types: FileChangeType[]): boolean {

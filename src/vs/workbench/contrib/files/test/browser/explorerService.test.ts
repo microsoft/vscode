@@ -8,6 +8,7 @@ import { append, $ } from '../../../../../base/browser/dom.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, IWaitUntilData } from '../../../../../base/common/event.js';
+import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { dirname, extUriIgnorePathCase, joinPath } from '../../../../../base/common/resources.js';
@@ -93,6 +94,7 @@ suite('Files - ExplorerService', () => {
 		let target: ExplorerItem;
 		let refreshes: { name: string | undefined; recursive: boolean }[];
 		let refresh: (() => Promise<void>) | undefined;
+		let viewWork: Promise<void>[];
 		let correlationId: number;
 		let instantiation: ReturnType<typeof workbenchInstantiationService>;
 
@@ -122,9 +124,79 @@ suite('Files - ExplorerService', () => {
 			await Promise.all(promises);
 		}
 
+		function trackViewWork(work: Promise<void>): Promise<void> {
+			viewWork.push(work);
+			return work;
+		}
+
+		async function settleViewWork(): Promise<void> {
+			let count: number;
+			do {
+				count = viewWork.length;
+				await Promise.allSettled(viewWork);
+				await timeout(0);
+			} while (count !== viewWork.length);
+		}
+
+		async function finish(emitter: Emitter<WorkingCopyFileEvent>, event: IWaitUntilData<WorkingCopyFileEvent>): Promise<void> {
+			await fire(emitter, event);
+			await settleViewWork();
+		}
+
+		async function createTree(): Promise<WorkbenchCompressibleAsyncDataTree<ExplorerItem, ExplorerItem, FuzzyScore>> {
+			const container = append(document.body, $('.explorer-move-test'));
+			store.add(toDisposable(() => container.remove()));
+			const tree = store.add(instantiation.createInstance(WorkbenchCompressibleAsyncDataTree<ExplorerItem, ExplorerItem, FuzzyScore>,
+				'ExplorerMoveTest', container,
+				{ getHeight: () => 20, getTemplateId: () => 'test' },
+				{ isIncompressible: () => true },
+				[{
+					templateId: 'test',
+					renderTemplate: container => container,
+					renderElement: (node, _index, container) => { container.textContent = node.element.name; },
+					renderCompressedElements: (node, _index, container) => { container.textContent = node.element.elements.map(item => item.name).join('/'); },
+					disposeTemplate: () => { },
+				}],
+				{
+					hasChildren: item => item.isDirectory,
+					getChildren: item => [...item.children.values()],
+				},
+				{
+					compressionEnabled: false,
+					collapseByDefault: () => false,
+					identityProvider: { getId: item => item.resource.toString() },
+					accessibilityProvider: { getAriaLabel: item => item.name, getWidgetAriaLabel: () => 'Explorer' },
+				}));
+			tree.layout(500, 400);
+			await tree.setInput(service.roots[0]);
+			service.registerView(new class extends mock<IExplorerView>() {
+				override refresh(recursive: boolean, item?: ExplorerItem): Promise<void> {
+					return trackViewWork((async () => {
+						if (!item || tree.hasNode(item)) {
+							await tree.updateChildren(item ?? service.roots[0], recursive);
+						}
+					})());
+				}
+			});
+			return tree;
+		}
+
+		function reachableItems(tree: WorkbenchCompressibleAsyncDataTree<ExplorerItem, ExplorerItem, FuzzyScore>, items: readonly ExplorerItem[]): { found: boolean; selected: boolean; focused: boolean }[] {
+			return items.map(item => {
+				const found = tree.hasNode(item);
+				if (found) {
+					tree.reveal(item);
+					tree.setSelection([item]);
+					tree.setFocus([item]);
+				}
+				return { found, selected: tree.getSelection()[0] === item, focused: tree.getFocus()[0] === item };
+			});
+		}
+
 		setup(() => {
 			refreshes = [];
 			refresh = undefined;
+			viewWork = [];
 			correlationId = 0;
 			fileService = store.add(new TestFileService());
 			configuration = new TestConfigurationService({ explorer: { autoReveal: false, fileNesting: { enabled: false } } });
@@ -143,9 +215,11 @@ suite('Files - ExplorerService', () => {
 			instantiation.stub(IUriIdentityService, { extUri: extUriIgnorePathCase });
 			service = store.add(instantiation.createInstance(ExplorerService));
 			service.registerView(new class extends mock<IExplorerView>() {
-				override async refresh(recursive: boolean, item?: ExplorerItem): Promise<void> {
+				override refresh(recursive: boolean, item?: ExplorerItem): Promise<void> {
 					refreshes.push({ name: item?.name, recursive });
-					await refresh?.();
+					return trackViewWork((async () => {
+						await refresh?.();
+					})());
 				}
 				override hasPhantomElements(): boolean { return false; }
 				override isItemVisible(): boolean { return true; }
@@ -164,7 +238,7 @@ suite('Files - ExplorerService', () => {
 				fileService.fireAfterOperation(event);
 			}
 			const during = { source: source.children.size, target: target.children.size, refreshes: [...refreshes] };
-			await fire(didRun, operation);
+			await finish(didRun, operation);
 
 			assert.deepStrictEqual({ during, refreshes }, {
 				during: { source: 0, target: 32, refreshes: [] },
@@ -186,38 +260,7 @@ suite('Files - ExplorerService', () => {
 						moveEvent(first, topology === 'shared target' ? target : other),
 						moveEvent(second, topology === 'exchange' ? source : target)
 					];
-					const container = append(document.body, $('.explorer-move-test'));
-					store.add(toDisposable(() => container.remove()));
-					const tree = store.add(instantiation.createInstance(WorkbenchCompressibleAsyncDataTree<ExplorerItem, ExplorerItem, FuzzyScore>,
-						'ExplorerMoveTest', container,
-						{ getHeight: () => 20, getTemplateId: () => 'test' },
-						{ isIncompressible: () => true },
-						[{
-							templateId: 'test',
-							renderTemplate: container => container,
-							renderElement: (node, _index, container) => { container.textContent = node.element.name; },
-							renderCompressedElements: (node, _index, container) => { container.textContent = node.element.elements.map(item => item.name).join('/'); },
-							disposeTemplate: () => { },
-						}],
-						{
-							hasChildren: item => item.isDirectory,
-							getChildren: item => [...item.children.values()],
-						},
-						{
-							compressionEnabled: false,
-							collapseByDefault: () => false,
-							identityProvider: { getId: item => item.resource.toString() },
-							accessibilityProvider: { getAriaLabel: item => item.name, getWidgetAriaLabel: () => 'Explorer' },
-						}));
-					tree.layout(500, 400);
-					await tree.setInput(service.roots[0]);
-					service.registerView(new class extends mock<IExplorerView>() {
-						override async refresh(recursive: boolean, item?: ExplorerItem): Promise<void> {
-							if (!item || tree.hasNode(item)) {
-								await tree.updateChildren(item ?? service.roots[0], recursive);
-							}
-						}
-					});
+					const tree = await createTree();
 
 					const operation = batch(events);
 					await fire(willRun, operation);
@@ -225,23 +268,72 @@ suite('Files - ExplorerService', () => {
 						fileService.fireAfterOperation(event);
 						await timeout(0);
 					}
-					await fire(didRun, operation);
+					await finish(didRun, operation);
 
-					const actual = moved.map(item => {
-						const found = tree.hasNode(item);
-						if (found) {
-							tree.reveal(item);
-							tree.setSelection([item]);
-							tree.setFocus([item]);
-						}
-						return { found, selected: tree.getSelection()[0] === item, focused: tree.getFocus()[0] === item };
-					});
-					assert.deepStrictEqual(actual, moved.map(() => ({ found: true, selected: true, focused: true })));
+					assert.deepStrictEqual(reachableItems(tree, moved), moved.map(() => ({ found: true, selected: true, focused: true })));
 				});
 			}
 		}
 
-		test('joins asynchronous operation continuations and the final refresh', async () => {
+		for (const interleaved of ['moved item', 'target ancestor', 'later batch']) {
+			test(`keeps moved items reachable when another move touches them during a batch (${interleaved})`, async () => {
+				const other = add(service.roots[0], 'other', true);
+				for (const parent of [source, other, target]) {
+					add(parent, 'keep.txt');
+				}
+				const first = add(source, 'first');
+				const second = add(source, 'second');
+				const events = [moveEvent(first), moveEvent(second)];
+				const tree = await createTree();
+				const operation = batch(events);
+				await fire(willRun, operation);
+				fileService.fireAfterOperation(events[0]);
+				await timeout(0);
+
+				if (interleaved === 'target ancestor') {
+					fileService.fireAfterOperation(events[1]);
+					await timeout(0);
+					fileService.fireAfterOperation(moveEvent(target, other));
+				} else {
+					const event = moveEvent(first, other);
+					const later = interleaved === 'later batch' ? batch([event]) : undefined;
+					if (later) {
+						await fire(willRun, later);
+					}
+					fileService.fireAfterOperation(event);
+					if (later) {
+						await finish(didRun, later);
+					}
+					await timeout(0);
+					fileService.fireAfterOperation(events[1]);
+				}
+				await finish(didRun, operation);
+
+				assert.deepStrictEqual(reachableItems(tree, [first, second]), [first, second].map(() => ({ found: true, selected: true, focused: true })));
+			});
+		}
+
+		test('does not flush a move batch for unrelated interleaved moves', async () => {
+			const other = add(service.roots[0], 'other', true);
+			const events = [moveEvent(add(source, 'a')), moveEvent(add(source, 'b'))];
+			const operation = batch(events);
+			await fire(willRun, operation);
+			fileService.fireAfterOperation(events[0]);
+			fileService.fireAfterOperation(moveEvent(add(other, 'unrelated')));
+			const immediate = [...refreshes];
+			fileService.fireAfterOperation(events[1]);
+			await finish(didRun, operation);
+
+			assert.deepStrictEqual({ immediate, refreshes }, {
+				immediate: [{ name: 'other', recursive: false }],
+				refreshes: [
+					{ name: 'other', recursive: false }, { name: 'target', recursive: false },
+					{ name: 'source', recursive: false }, { name: 'target', recursive: false },
+				],
+			});
+		});
+
+		test('does not delay file operation completion while Explorer refreshes moved parents', async () => {
 			const nestedParent = add(source, 'nest.ts');
 			const child = add(source, 'child.ts');
 			child.nestedParent = nestedParent;
@@ -254,13 +346,13 @@ suite('Files - ExplorerService', () => {
 			let finished = false;
 			const completion = fire(didRun, operation).then(() => finished = true);
 			await timeout(0);
-			const beforeRender = finished;
+			const beforeRender = { finished, refreshes: [...refreshes] };
 			await rendered.complete();
 			await completion;
+			await settleViewWork();
 
-			assert.deepStrictEqual({ beforeRender, finished, refreshes }, {
-				beforeRender: false,
-				finished: true,
+			assert.deepStrictEqual({ beforeRender, refreshes }, {
+				beforeRender: { finished: true, refreshes: [{ name: 'nest.ts', recursive: false }, { name: 'source', recursive: false }] },
 				refreshes: [{ name: 'nest.ts', recursive: false }, { name: 'source', recursive: false }, { name: 'target', recursive: false }],
 			});
 		});
@@ -276,9 +368,9 @@ suite('Files - ExplorerService', () => {
 				first.forEach(event => fileService.fireAfterOperation(event));
 				second.forEach(event => fileService.fireAfterOperation(event));
 				const order = finishNestedFirst ? [1, 0] : [0, 1];
-				await fire(didRun, operations[order[0]]);
+				await finish(didRun, operations[order[0]]);
 				const intermediate = [...refreshes];
-				await fire(didRun, operations[order[1]]);
+				await finish(didRun, operations[order[1]]);
 
 				assert.deepStrictEqual({ intermediate, refreshes, counts: [source.children.size, target.children.size, third.children.size] }, {
 					intermediate: [{ name: 'source', recursive: false }, { name: finishNestedFirst ? 'third' : 'target', recursive: false }],
@@ -293,10 +385,10 @@ suite('Files - ExplorerService', () => {
 			const operation = batch(events);
 			await fire(willRun, operation);
 			fileService.fireAfterOperation(events[0]);
-			await fire(didFail, operation);
+			await finish(didFail, operation);
 			const afterFailure = [...refreshes];
 			fileService.fireAfterOperation(events[1]);
-			await timeout(0);
+			await settleViewWork();
 
 			assert.deepStrictEqual({ afterFailure, refreshes, names: [...target.children.keys()].sort() }, {
 				afterFailure: [{ name: 'source', recursive: false }, { name: 'target', recursive: false }],
@@ -314,8 +406,7 @@ suite('Files - ExplorerService', () => {
 			await fire(willRun, single);
 			fileService.fireAfterOperation(events[0]);
 			const immediate = [...refreshes];
-			await fire(didRun, single);
-			await timeout(0);
+			await finish(didRun, single);
 
 			assert.deepStrictEqual({ immediate, refreshes }, {
 				immediate: [{ name: 'source', recursive: false }],
@@ -324,7 +415,7 @@ suite('Files - ExplorerService', () => {
 		});
 
 		for (const failure of [false, true]) {
-			test(`finishes Explorer updates before a bulk edit ${failure ? 'rejects a partial failure' : 'stops on cancellation'}`, async () => {
+			test(`updates Explorer after a bulk edit ${failure ? 'rejects a partial failure' : 'stops on cancellation'}`, async () => {
 				const tokenSource = store.add(new CancellationTokenSource());
 				const error = new Error('move failed');
 				const events = [moveEvent(add(source, 'a')), moveEvent(add(source, 'b'))];
@@ -355,6 +446,7 @@ suite('Files - ExplorerService', () => {
 				} else {
 					await bulk.apply();
 				}
+				await settleViewWork();
 
 				assert.deepStrictEqual({ source: [...source.children.keys()], target: [...target.children.keys()], refreshes }, {
 					source: failure ? ['b'] : [],
@@ -375,7 +467,7 @@ suite('Files - ExplorerService', () => {
 			});
 			events.forEach(event => fileService.fireAfterOperation(event));
 			const during = [...refreshes];
-			await fire(didRun, operation);
+			await finish(didRun, operation);
 
 			assert.deepStrictEqual({ during, refreshes }, {
 				during: [],
@@ -390,9 +482,9 @@ suite('Files - ExplorerService', () => {
 			await fire(willRun, first);
 			await fire(willRun, second);
 			events.forEach(event => fileService.fireAfterOperation(event));
-			await fire(didRun, second);
+			await finish(didRun, second);
 			const firstCompletion = [...refreshes];
-			await fire(didFail, first);
+			await finish(didFail, first);
 
 			assert.deepStrictEqual({ firstCompletion, refreshes }, {
 				firstCompletion: [{ name: 'source', recursive: false }, { name: 'target', recursive: false }],
@@ -412,7 +504,7 @@ suite('Files - ExplorerService', () => {
 			const operation = batch(events);
 			await fire(willRun, operation);
 			events.forEach(event => fileService.fireAfterOperation(event));
-			await fire(didRun, operation);
+			await finish(didRun, operation);
 
 			assert.deepStrictEqual({
 				counts: [source.children.size, target.children.size, duplicateSource.children.size, duplicateTarget.children.size],
@@ -434,7 +526,7 @@ suite('Files - ExplorerService', () => {
 			const operation = batch(events);
 			await fire(willRun, operation);
 			events.forEach(event => fileService.fireAfterOperation(event));
-			await fire(didRun, operation);
+			await finish(didRun, operation);
 
 			assert.deepStrictEqual({
 				source: [...source.children.keys()],
@@ -475,16 +567,24 @@ suite('Files - ExplorerService', () => {
 			await fire(willRun, operation);
 			events.forEach(event => fileService.fireAfterOperation(event));
 			const error = new Error('refresh failed');
-			refresh = async () => { throw error; };
-			await assert.rejects(fire(didRun, operation), candidate => candidate === error);
+			const errors: unknown[] = [];
+			const originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
+			setUnexpectedErrorHandler(candidate => errors.push(candidate));
+			try {
+				refresh = async () => { throw error; };
+				await finish(didRun, operation);
+			} finally {
+				setUnexpectedErrorHandler(originalErrorHandler);
+			}
 			refresh = undefined;
 			const afterFailure = [...refreshes];
 			fileService.fireAfterOperation(moveEvent(add(source, 'late')));
-			await timeout(0);
+			await settleViewWork();
 
-			assert.deepStrictEqual({ afterFailure, refreshes }, {
+			assert.deepStrictEqual({ afterFailure, refreshes, errors }, {
 				afterFailure: [{ name: 'source', recursive: false }, { name: 'target', recursive: false }],
 				refreshes: [false, false].flatMap(() => [{ name: 'source', recursive: false }, { name: 'target', recursive: false }]),
+				errors: [error],
 			});
 		});
 
@@ -496,10 +596,9 @@ suite('Files - ExplorerService', () => {
 			await fire(willRun, operation);
 			events.forEach(event => fileService.fireAfterOperation(event));
 			service.dispose();
-			await fire(didRun, operation);
-			await timeout(0);
+			await finish(didRun, operation);
 			fileService.fireAfterOperation(moveEvent(add(source, 'late')));
-			await timeout(0);
+			await settleViewWork();
 
 			assert.deepStrictEqual(refreshes, []);
 		});
@@ -510,7 +609,7 @@ suite('Files - ExplorerService', () => {
 			await fire(willRun, operation);
 			events.forEach(event => fileService.fireAfterOperation(event));
 			refresh = async () => service.dispose();
-			await fire(didRun, operation);
+			await finish(didRun, operation);
 
 			assert.deepStrictEqual(refreshes, [{ name: 'source', recursive: false }]);
 		});
