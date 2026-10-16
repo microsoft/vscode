@@ -16,12 +16,19 @@ import { EditorOption } from '../../../../editor/common/config/editorOptions.js'
 import { InlineCompletionsProvider } from '../../../../editor/common/languages.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
 import { InlineCompletionsController } from '../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
-import { hideInlineCompletionId, inlineSuggestCommitId } from '../../../../editor/contrib/inlineCompletions/browser/controller/commandIds.js';
+import { hideInlineCompletionId } from '../../../../editor/contrib/inlineCompletions/browser/controller/commandIds.js';
 import { InlineCompletionContextKeys } from '../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionContextKeys.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { ContextKeyExpr, IContextKey, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { localize2 } from '../../../../nls.js';
+import { IChatWidget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { IChatExecuteActionContext } from '../../../../workbench/contrib/chat/browser/actions/chatExecuteActions.js';
+import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { Context as SuggestContext } from '../../../../editor/contrib/suggest/browser/suggest.js';
 import { IWorkbenchAssignmentService } from '../../../../workbench/services/assignment/common/assignmentService.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ChatWidget } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
@@ -33,21 +40,45 @@ import { cleanNextUserMessageSuggestion, createNextUserMessageContext, createNex
 const MODEL_TIMEOUT_MS = 5000;
 const FOLLOWUP_SETTLE_MS = 400;
 const TREATMENT_NAME = 'chat.nextUserMessageSuggestion';
-const NextUserMessageSuggestionVisible = new RawContextKey<boolean>('sessionsNextUserMessageSuggestionVisible', false);
+const NextUserMessageSuggestionAvailable = new RawContextKey<boolean>('sessionsNextUserMessageSuggestionAvailable', false);
+const controllers = new WeakMap<IChatWidget, NextUserMessageSuggestionController>();
 
 export const ACCEPT_NEXT_USER_MESSAGE_SUGGESTION_COMMAND_ID = 'workbench.action.sessions.acceptNextUserMessageSuggestion';
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: ACCEPT_NEXT_USER_MESSAGE_SUGGESTION_COMMAND_ID,
-	weight: KeybindingWeight.SessionsContrib,
-	primary: KeyCode.RightArrow,
-	when: ContextKeyExpr.and(
-		NextUserMessageSuggestionVisible,
-		EditorContextKeys.textInputFocus,
-		InlineCompletionContextKeys.inlineSuggestionVisible,
-		InlineCompletionContextKeys.cursorBeforeGhostText,
-	),
-	handler: accessor => accessor.get(ICommandService).executeCommand(inlineSuggestCommitId),
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: ACCEPT_NEXT_USER_MESSAGE_SUGGESTION_COMMAND_ID,
+			title: localize2('acceptNextUserMessageSuggestion', "Insert Suggestion"),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, NextUserMessageSuggestionAvailable),
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.SessionsContrib,
+				primary: KeyCode.RightArrow,
+				when: ContextKeyExpr.and(
+					EditorContextKeys.textInputFocus,
+					EditorContextKeys.isComposing.negate(),
+					SuggestContext.Visible.negate(),
+					EditorContextKeys.hoverFocused.negate(),
+					InlineCompletionContextKeys.inlineSuggestionVisible,
+					InlineCompletionContextKeys.cursorBeforeGhostText,
+				),
+			},
+			menu: {
+				id: MenuId.ChatExecute,
+				group: 'navigation',
+				order: 0,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, NextUserMessageSuggestionAvailable),
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, context?: IChatExecuteActionContext): Promise<void> {
+		const widget = context?.widget ?? accessor.get(IChatWidgetService).lastFocusedWidget;
+		if (widget) {
+			await controllers.get(widget)?.accept();
+		}
+	}
 });
 
 KeybindingsRegistry.registerKeybindingRule({
@@ -55,7 +86,7 @@ KeybindingsRegistry.registerKeybindingRule({
 	weight: KeybindingWeight.SessionsContrib,
 	primary: KeyCode.Tab,
 	when: ContextKeyExpr.and(
-		NextUserMessageSuggestionVisible,
+		NextUserMessageSuggestionAvailable,
 		EditorContextKeys.textInputFocus,
 		EditorContextKeys.tabDoesNotMoveFocus,
 	),
@@ -71,7 +102,7 @@ export class NextUserMessageSuggestionController extends Disposable {
 	private readonly _generation = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly _pendingEditorPlaceholderRestore = this._register(new MutableDisposable());
 	private readonly _onDidChangeInlineCompletions = this._register(new Emitter<void>());
-	private readonly _suggestionVisibleContext: IContextKey<boolean>;
+	private readonly _suggestionAvailableContext: IContextKey<boolean>;
 
 	private _treatmentEnabled = false;
 	private _treatmentGeneration = 0;
@@ -96,6 +127,7 @@ export class NextUserMessageSuggestionController extends Disposable {
 		private readonly _widget: ChatWidget,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 		@ICommandService commandService: ICommandService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IWorkbenchAssignmentService private readonly _assignmentService: IWorkbenchAssignmentService,
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
@@ -105,8 +137,12 @@ export class NextUserMessageSuggestionController extends Disposable {
 
 		const inputUri = this._widget.inputPart.inputUri;
 		const inputEditor = this._widget.inputPart.inputEditor;
-		this._suggestionVisibleContext = NextUserMessageSuggestionVisible.bindTo(inputEditor.contextKeyService);
-		this._register(toDisposable(() => this._suggestionVisibleContext.reset()));
+		this._suggestionAvailableContext = NextUserMessageSuggestionAvailable.bindTo(contextKeyService);
+		controllers.set(this._widget, this);
+		this._register(toDisposable(() => {
+			this._suggestionAvailableContext.reset();
+			controllers.delete(this._widget);
+		}));
 		const provider: InlineCompletionsProvider = {
 			onDidChangeInlineCompletions: this._onDidChangeInlineCompletions.event,
 			provideInlineCompletions: (model, position) => {
@@ -127,10 +163,8 @@ export class NextUserMessageSuggestionController extends Disposable {
 		this._register(this._widget.onDidAcceptInput(() => this._clearSuggestion()));
 		this._register(inputEditor.onDidChangeModelContent(() => this._clearSuggestion()));
 		this._register(inputEditor.onDidFocusEditorText(() => this._updatePresentation()));
-		this._register(inputEditor.onDidBlurEditorText(() => {
-			this._suggestionVisibleContext.reset();
-			this._updatePresentation();
-		}));
+		this._register(inputEditor.onDidBlurEditorText(() => this._updatePresentation()));
+		this._register(inputEditor.onDidCompositionStart(() => this._clearSuggestion()));
 		this._register(inputEditor.onDidChangeConfiguration(event => {
 			if (event.hasChanged(EditorOption.readOnly)) {
 				this._resumeEligibleSuggestion();
@@ -157,6 +191,20 @@ export class NextUserMessageSuggestionController extends Disposable {
 
 		this._bindModel();
 		this._updateTreatment();
+	}
+
+	async accept(): Promise<void> {
+		const suggestion = this._suggestion;
+		const editor = this._widget.inputPart.inputEditor;
+		if (!suggestion || editor.inComposition || !this._canPresent(suggestion.model, suggestion.responseId)) {
+			return;
+		}
+		editor.focus();
+		const model = InlineCompletionsController.get(editor)?.model.get();
+		await model?.triggerExplicitly();
+		if (this._suggestion === suggestion && this._canPresent(suggestion.model, suggestion.responseId)) {
+			await model?.accept(editor);
+		}
 	}
 
 	setViewState(active: boolean, visible: boolean): void {
@@ -318,8 +366,7 @@ export class NextUserMessageSuggestionController extends Disposable {
 		return !!request
 			&& !!response
 			&& response.id === responseId
-			&& this._isEligibleResponse(model, request, response)
-			&& this._widget.inputPart.inputEditor.hasTextFocus();
+			&& this._isEligibleResponse(model, request, response);
 	}
 
 	private _isChatEnabled(): boolean {
@@ -329,12 +376,11 @@ export class NextUserMessageSuggestionController extends Disposable {
 
 	private _updatePresentation(): void {
 		const suggestion = this._suggestion;
-		if (!suggestion || !this._canPresentWithoutFocus(suggestion.model, suggestion.responseId)) {
-			if (!this._restorePlaceholder()) {
-				this._clearSuggestion();
-				return;
-			}
-			this._onDidChangeInlineCompletions.fire();
+		if (!suggestion) {
+			return;
+		}
+		if (!this._canPresent(suggestion.model, suggestion.responseId)) {
+			this._clearSuggestion();
 			return;
 		}
 
@@ -344,12 +390,10 @@ export class NextUserMessageSuggestionController extends Disposable {
 			this._clearSuggestion();
 			return;
 		}
+		this._suggestionAvailableContext.set(true);
 		if (hasTextFocus) {
-			this._suggestionVisibleContext.set(true);
 			this._onDidChangeInlineCompletions.fire();
 			void InlineCompletionsController.get(this._widget.inputPart.inputEditor)?.model.get()?.triggerExplicitly();
-		} else {
-			this._suggestionVisibleContext.reset();
 		}
 	}
 
@@ -381,21 +425,15 @@ export class NextUserMessageSuggestionController extends Disposable {
 		return true;
 	}
 
-	private _canPresentWithoutFocus(model: IChatModel, responseId: string): boolean {
-		const request = model.lastRequestObs.get();
-		const response = request?.response;
-		return !!request && !!response && response.id === responseId && this._isEligibleResponse(model, request, response);
-	}
-
-	private _restorePlaceholder(): boolean {
+	private _restorePlaceholder(): void {
 		const owned = this._ownedPlaceholder;
 		this._ownedPlaceholder = undefined;
 		if (!owned) {
-			return true;
+			return;
 		}
 		const inputEditor = this._widget.inputPart.inputEditor;
 		if (owned.model.inputPlaceholder !== owned.value) {
-			return false;
+			return;
 		}
 		const editorPlaceholder = inputEditor.getOption(EditorOption.placeholder);
 		if (owned.previous === undefined) {
@@ -412,14 +450,13 @@ export class NextUserMessageSuggestionController extends Disposable {
 				}
 			});
 		}
-		return true;
 	}
 
 	private _clearSuggestion(): void {
 		this._generation.value?.cancel();
 		this._generation.clear();
 		this._suggestion = undefined;
-		this._suggestionVisibleContext.reset();
+		this._suggestionAvailableContext.reset();
 		this._restorePlaceholder();
 		this._placeholderBaseline = undefined;
 		this._restoreInlineSuggestToolbar();
