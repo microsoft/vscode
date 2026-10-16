@@ -592,6 +592,14 @@ export const activate: ActivationFunction<void> = (ctx) => {
 						disposables.set(outputInfo.id, disposable);
 					}
 					break;
+				case 'text/latex': {
+					if (!ctx.workspace.isTrusted) {
+						return;
+					}
+					disposables.get(outputInfo.id)?.dispose();
+					await renderHTML(outputInfo, element, signal!, htmlHooks);
+					break;
+				}
 				case 'text/plain':
 					{
 						disposables.get(outputInfo.id)?.dispose();
