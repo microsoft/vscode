@@ -15,7 +15,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { autorun, constObservable, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -69,7 +69,10 @@ import '../../../../../workbench/browser/media/style.css';
 import '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/media/chatAgentMergeContent.css';
 import '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/media/chatRequestOrigin.css';
 import { AbstractChatView, ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
+import { SessionView } from '../../../../browser/parts/sessionView.js';
 import { ChatViewSessionToolbar } from '../../../../browser/parts/sessionToolbar.js';
+import { IChatViewFactory } from '../../../../services/chatView/browser/chatViewFactory.js';
+import { createSessionViewTestServices, createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
 import '../../../../browser/parts/media/chatCompositeBar.css';
 import '../../../../browser/parts/media/chatGroupsView.css';
 import '../../../../browser/parts/media/sessionView.css';
@@ -1322,6 +1325,37 @@ suite('Sessions - Chat View', () => {
 		assert.deepStrictEqual(bindings, [emptiedDraft]);
 	});
 
+	for (const clearDraft of [false, true]) {
+		test(`preserves ${clearDraft ? 'a cleared' : 'an edited'} composer through repeated provider replacement and retry`, async () => {
+			const resource = URI.parse('remote-agent:/session');
+			const outgoing = createChatModel(resource);
+			outgoing.inputModel.setState(createInputState('old bound draft'));
+			const incoming = createChatModel(resource);
+			incoming.inputModel.setState(createInputState('old persisted draft'));
+			const { view, bindings, setInputState, fail, complete, loadFailure, focus } = createChatLoadView(resource);
+
+			view._loadChat(resource, undefined, { inputModelToPreserve: outgoing.inputModel });
+			const latestDraft: IChatModelInputState = clearDraft
+				? { ...createInputState(''), attachments: [], selections: [] }
+				: { ...createInputState('edited while the provider was loading'), attachments: [{ kind: 'file', id: 'new', name: 'new.ts', value: URI.file('/workspace/new.ts') }] };
+			const intendedModel = { modelId: 'remote-agent:model-b', reason: ModelSelectionReason.UserSelection, configuration: { reasoningEffort: 'high' } };
+			outgoing.inputModel.setIntendedModel(intendedModel);
+			setInputState(latestDraft);
+			view._retryUnresolvedChatLoad([resource.scheme]);
+			await fail(1, new Error('Replacement provider unavailable'));
+			const retry = loadFailure.get()?.status.action;
+			assert.ok(retry);
+			const retrying = retry.run();
+			await complete(2, incoming);
+			await retrying;
+			await complete(0, createChatModel(resource));
+
+			assert.deepStrictEqual({ bindings, intendedModel: incoming.inputModel.intendedModel, focus }, {
+				bindings: [latestDraft], intendedModel, focus: { active: true, restores: 1 },
+			});
+		});
+	}
+
 	test('preserves the composer draft without restoring stale permissions over the new model', async () => {
 		const resource = URI.parse('remote-agent:/session');
 		const outgoing = createChatModel(resource);
@@ -1391,6 +1425,7 @@ suite('Sessions - Chat View', () => {
 		const modelRef = disposables.add(new MutableDisposable<IChatModelReference>());
 		const loadCts = disposables.add(new MutableDisposable<CancellationTokenSource>());
 		const loadFailure = observableValue<{ resource: URI; status: IChatSessionHistoryStatus } | undefined>('loadFailure', undefined);
+		const loading = observableValue('loading', false);
 		const view: {
 			setChat(chat: IChat, historyKey?: string, session?: ISession, onInput?: () => void): void;
 			_retryUnresolvedChatLoad(addedSessionTypes: readonly string[]): void;
@@ -1426,6 +1461,7 @@ suite('Sessions - Chat View', () => {
 					return request.p;
 				},
 			},
+			sessionOpenTelemetryService: { modelBound: () => { }, modelUnbound: () => { }, modelBindFailed: () => { } },
 			logService: new NullLogService(),
 			chatOpenDiagnosticsService: disposables.add(new ChatOpenDiagnosticsService(new class extends NullLogService {
 				override info(message: string): void {
@@ -1436,7 +1472,7 @@ suite('Sessions - Chat View', () => {
 				get: (resource: URI) => viewStates.get(resource.toString()),
 				set: (resource: URI, state: { scroll: number }) => viewStates.set(resource.toString(), state),
 			},
-			_setLoading: () => { },
+			_setLoading: (value: boolean) => loading.set(value, undefined),
 			_updateWidgetLockState: () => { },
 			_layoutChatWidget: () => { },
 			showProgressWhile: (promise: Promise<void>) => completions.push(promise),
@@ -1486,7 +1522,7 @@ suite('Sessions - Chat View', () => {
 			await requests[index].error(error);
 			await completions[index];
 		};
-		return { view, createChat, complete, fail, compose, snapshot, historyKeys, disposedReferences, boundModels, openOutcomes, widgetVisibility, requests, completions, loadCts, loadFailure, setInput: (input: string) => { widgetState.input = input; } };
+		return { view, createChat, complete, fail, compose, snapshot, historyKeys, disposedReferences, boundModels, openOutcomes, widgetVisibility, requests, completions, loadCts, loadFailure, loading, setInput: (input: string) => { widgetState.input = input; } };
 	}
 
 	/** Uses real content resolution and shared model loads, with only model materialization replaced. */
@@ -1533,6 +1569,45 @@ suite('Sessions - Chat View', () => {
 			assert.deepStrictEqual({ requests: requests.length, bound: boundModels.at(-1), sameFailure: loadFailure.get() === failure }, {
 				requests: 1, bound: undefined, sameFailure: true,
 			});
+		});
+
+		test('keeps a failed history load latched through the mounted group autorun', async () => {
+			const { view, fail, requests, loadFailure, loading } = createSwitchingView();
+			const { instantiationService } = createSessionViewTestServices(disposables);
+			const leaf = disposables.add(new class extends AbstractChatView {
+				readonly kind = 'chat';
+				override readonly isLoadingTranscript = loading;
+				override readonly isInputBlocked = observableValue(this, false);
+				override readonly historyStatus = derived(reader => loadFailure.read(reader)?.status);
+				override setChat(chat: IChat, historyKey?: string, session?: ISession, onInput?: () => void): void { view.setChat(chat, historyKey, session, onInput); }
+				protected override doLayout(): void { }
+				override toJSON(): object { return {}; }
+				override focus(): void { }
+			}());
+			sinon.stub(instantiationService.get(IChatViewFactory), 'createChatView').returns(leaf);
+			const mounted = disposables.add(instantiationService.createInstance(SessionView));
+			mounted.openSession(createTestActiveSession('failed'), {});
+			await fail(0, new Error('Provider unavailable'));
+			leaf.isInputBlocked.set(true, undefined);
+			leaf.isInputBlocked.set(false, undefined);
+
+			assert.deepStrictEqual({ requests: requests.length, loading: loading.get(), failure: loadFailure.get()?.status.message }, {
+				requests: 1, loading: false, failure: 'Couldn\'t load this conversation.',
+			});
+		});
+
+		test('preserves text typed before a failed load is retried', async () => {
+			const { view, createChat, fail, complete, loadFailure, setInput, snapshot } = createSwitchingView();
+			view.setChat(createChat(resourceA));
+			setInput('draft typed before the failure');
+			await fail(0, new Error('Provider unavailable'));
+			const retry = loadFailure.get()?.status.action;
+			assert.ok(retry);
+			const retrying = retry.run();
+			await complete(1, resourceA);
+			await retrying;
+
+			assert.strictEqual(snapshot().input, 'draft typed before the failure');
 		});
 
 		test('binds the selected chat after shared-load provider replacement without another open', async () => {

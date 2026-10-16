@@ -438,6 +438,64 @@ suite('SessionsManagementService', () => {
 			});
 		});
 
+		test('explicitly reopening a retained inactive session reaches only its mounted group', async () => {
+			const [first, second] = ['first', 'second'].map(created);
+			const { view, part, chatViews } = harness([first, second]);
+			await view.openSessionsInGrid([first, second]);
+			view.setActive(view.visibleSessions.get().find(session => session?.sessionId === second.sessionId));
+			const retained = part.getSessionView(first.sessionId);
+			const reopened: { selected: string | undefined; requested: string }[] = [];
+			for (const leaf of chatViews) {
+				Object.assign(leaf, {
+					reopenChat: async (resource: URI) => {
+						reopened.push({ selected: leaf.chat?.resource.toString(), requested: resource.toString() });
+					},
+				});
+			}
+
+			await view.openSession(first.resource);
+
+			assert.deepStrictEqual({ sameView: part.getSessionView(first.sessionId) === retained, reopened }, {
+				sameView: true, reopened: [{ selected: first.mainChat.get().resource.toString(), requested: first.mainChat.get().resource.toString() }],
+			});
+		});
+
+		test('explicitly reopening a pinned side chat reaches only its mounted group', async () => {
+			const main = { ...stubChat, resource: URI.parse('test:///session/main'), status: constObservable(SessionStatus.Completed) };
+			const side = { ...stubChat, resource: URI.parse('test:///session/side'), status: constObservable(SessionStatus.Completed), origin: { kind: ChatOriginKind.SideChat, parentChat: main.resource } };
+			const session = stubSession({
+				sessionId: 'session', providerId: 'test', status: constObservable(SessionStatus.Completed),
+				mainChat: constObservable(main), chats: constObservable([main, side]), capabilities: constObservable({ supportsMultipleChats: true }),
+			});
+			const { view, part, chatViews } = harness([session]);
+			await view.openChat(session, side.resource);
+			const mounted = part.getSessionView(session.sessionId);
+			assert.ok(mounted);
+			mounted.toggleActiveChatPin();
+			await view.openChat(session, main.resource);
+			const pinned = chatViews.find(leaf => leaf.chat?.resource.toString() === side.resource.toString());
+			assert.ok(pinned);
+			const reopened: { selected: string | undefined; requested: string }[] = [];
+			for (const leaf of chatViews) {
+				Object.assign(leaf, {
+					reopenChat: async (resource: URI) => {
+						reopened.push({ selected: leaf.chat?.resource.toString(), requested: resource.toString() });
+					},
+				});
+			}
+
+			await view.openChat(session, side.resource);
+			await view.openChat(session, side.resource);
+
+			assert.deepStrictEqual({ disposed: pinned.disposed, groups: mounted.shownChatCount.get(), reopened }, {
+				disposed: false, groups: 2,
+				reopened: [
+					{ selected: side.resource.toString(), requested: side.resource.toString() },
+					{ selected: side.resource.toString(), requested: side.resource.toString() },
+				],
+			});
+		});
+
 		test('balanced subset changes preserve caller order and retained widgets', async () => {
 			const [a, b, c] = ['a', 'b', 'c'].map(created);
 			const { view, part, chatViews } = harness([a, b, c]);

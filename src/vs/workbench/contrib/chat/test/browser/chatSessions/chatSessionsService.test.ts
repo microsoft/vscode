@@ -971,6 +971,51 @@ suite('ChatSessionsService - session resolution', () => {
 		});
 	});
 
+	test('disposes content resolved just before provider replacement without publishing its options', async () => {
+		const type = 'resolved-before-replacement';
+		const resource = URI.from({ scheme: type, path: '/saved' });
+		const started = new DeferredPromise<void>();
+		const content = new DeferredPromise<IChatSession>();
+		const publishedOptions: ReadonlyChatSessionOptionsMap[] = [];
+		const calls: string[] = [];
+		let retiredContentDisposed = 0;
+		store.add(service.onDidChangeSessionOptions(event => publishedOptions.push(event.updates)));
+		const registration = store.add(service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: () => {
+				calls.push('retired');
+				started.complete();
+				return content.p;
+			},
+		}));
+		const replacementSession: IChatSession = {
+			sessionResource: resource, history: [], options: new Map([['model', 'replacement-model']]),
+			onWillDispose: Event.None, dispose: () => { },
+		};
+		const pending = service.getOrCreateChatSession(resource, CancellationToken.None);
+		await started.p;
+		// Retire after the content promise resolves but before its awaiting continuation runs.
+		const replaced = content.p.then(() => {
+			registration.dispose();
+			store.add(service.registerChatSessionContentProvider(type, {
+				provideChatSessionContent: async () => {
+					calls.push('replacement');
+					return replacementSession;
+				},
+			}));
+		});
+		await content.complete({
+			sessionResource: resource, history: [], options: new Map([['model', 'retired-model']]),
+			onWillDispose: Event.None, dispose: () => { retiredContentDisposed++; },
+		});
+		await replaced;
+		const session = await pending;
+		const cached = await service.getOrCreateChatSession(resource, CancellationToken.None);
+
+		assert.deepStrictEqual({ calls, retiredContentDisposed, publishedOptions, receivedReplacement: session === replacementSession, cachedReplacement: cached === replacementSession }, {
+			calls: ['retired', 'replacement'], retiredContentDisposed: 1, publishedOptions: [replacementSession.options], receivedReplacement: true, cachedReplacement: true,
+		});
+	});
+
 	for (const terminalAction of ['session deletion', 'all callers cancelling'] as const) {
 		test(`${terminalAction} during provider replacement terminates the shared resolution`, async () => {
 			const type = 'terminated-replacement';
