@@ -206,6 +206,24 @@
 	line-height: var(--vscode-spacing-size120);
 }
 
+.interactive-session .interactive-response.chat-persistent-progress .chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget {
+	.chat-subagent-pill-active-tool {
+		width: calc(100% - var(--chat-persistent-rail-left));
+		margin-left: var(--chat-persistent-rail-left);
+	}
+
+	.chat-subagent-pill-active-tool-connector {
+		box-sizing: border-box;
+		flex-basis: var(--chat-persistent-hook-width);
+		margin-right: var(--vscode-spacing-size40);
+		border-bottom-left-radius: var(--vscode-cornerRadius-medium);
+	}
+
+	.chat-subagent-pill-active-tool-icon {
+		margin-right: calc(var(--vscode-spacing-size240) - var(--chat-persistent-icon-left) - var(--vscode-codiconFontSize-compact));
+	}
+}
+
 @supports ((background-clip: text) or (-webkit-background-clip: text)) {
 	.monaco-enable-motion .chat-subagent-pill-active-tool-label.chat-subagent-tool-fade-out,
 	.monaco-enable-motion .chat-subagent-pill-active-tool-label.chat-subagent-tool-fade-in {
