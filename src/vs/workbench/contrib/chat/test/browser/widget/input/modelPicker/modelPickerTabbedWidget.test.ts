@@ -1355,6 +1355,26 @@ suite('TabbedModelPicker', () => {
 		}, { tiers: ['Balance', 'High', 'Max'], selected: [], tier: 'max', ariaLabel: 'Max' });
 	});
 
+	test('native Fusion keeps a selected standalone HydraFusion visible with Balance routing disabled', async () => {
+		const base = createFusionModel(false);
+		const fusion = { ...base, metadata: { ...base.metadata, autoModelFusion: { balanceUsesHydraFusion: false, nativeAutoTiers: true } } };
+		const hydra = createHydraFusionModel();
+		const max = createHydraFusionMaxModel();
+		const result = createPicker({ models: [fusion, hydra, max, ...models], selectedModelId: hydra.identifier });
+		const initial = selectedModels(result.popup);
+		openDetails(result.popup, 'HydraFusion');
+		const options = Array.from(result.popup.querySelectorAll('[role="radiogroup"][aria-label="HydraFusion tier"] [role="radio"]'), option => option.textContent);
+		chooseOption(result.popup, 'Max');
+		await timeout(0);
+		const maxSelected = result.popup.querySelector('.tabbed-action-list-details [role="radio"][aria-checked="true"]')?.textContent;
+		chooseOption(result.popup, 'Default');
+		await timeout(0);
+		assert.deepStrictEqual({
+			initial, options, maxSelected, selections: result.selections,
+			defaultSelected: result.popup.querySelector('.tabbed-action-list-details [role="radio"][aria-checked="true"]')?.textContent,
+		}, { initial: ['HydraFusion'], options: ['Default', 'Max'], maxSelected: 'Max', selections: [max.identifier, hydra.identifier], defaultSelected: 'Default' });
+	});
+
 	test('rapid tier edits save in order and report the actual previous values', async () => {
 		const auto = createAutoModel();
 		const pending = new DeferredPromise<void>();
