@@ -397,6 +397,34 @@ suite('Session state compatibility fixtures', () => {
 			});
 		}
 
+		test('1.141 rename imported, then the host stops before publishing: a later user rename is not mistaken for an older build\'s edit', async () => {
+			const { fixture, sessionData, today, createStore, session } = await publishedNormalizedSession();
+			const [, sameFolder] = fixture.chats;
+			await editChatStateAsOldBuild(sessionData.createService(), fixture, sameFolder.uri, { title: 'Renamed by 1.141' });
+			await remirrorChatListAsOldBuildAtQuit(sessionData.createService(), today.raw, fixture);
+
+			const record = today.recordOlderBuildChatState.bind(today);
+			today.recordOlderBuildChatState = async () => { throw new Error('host stopped'); };
+			const interrupted = createStore();
+			try {
+				await assert.rejects(() => interrupted.reconcileLegacy(session), /host stopped/);
+			} finally {
+				today.recordOlderBuildChatState = record;
+				interrupted.dispose();
+			}
+
+			const restarted = createStore();
+			await restarted.reconcileLegacy(session);
+			await restarted.flushCompatibilityPublishes(session, undefined);
+			await restarted.persistMetadata(session, URI.parse(sameFolder.runtimeUri), { [SESSION_CUSTOM_TITLE_KEY]: 'User rename', [SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user' });
+			await restarted.flushCompatibilityPublishes(session, undefined);
+			await createStore().reconcileLegacy(session);
+
+			const [snapshot] = await today.readCatalogSnapshot([fixture.runtimeSession]);
+			const metadata = snapshot.chats.find(chat => chat.chat === sameFolder.runtimeUri)?.metadata;
+			assert.deepStrictEqual({ title: metadata?.summary, titleSource: metadata?.titleSource }, { title: 'User rename', titleSource: 'user' });
+		});
+
 		test('a normalized catalog no other build touched imports without opening the session database', async () => {
 			const { fixture, sessionData, today, session } = await publishedNormalizedSession();
 			const opened: string[] = [];

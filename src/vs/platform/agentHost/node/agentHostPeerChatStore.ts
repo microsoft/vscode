@@ -844,20 +844,32 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				continue;
 			}
 			this._olderBuildEditsImported.add(sessionKey);
-			if (source.projectionBehind && !source.hasOlderBuildEdits) {
-				// What else that build changed is imported: the unchanged list is this build's projection again.
-				await this._database.recordOlderBuildChatListProjected(sessionKey);
-			}
+			const recordProjected = async () => {
+				if (source.projectionBehind && !source.hasOlderBuildEdits) {
+					// What else that build changed is imported: the unchanged list is this build's projection again.
+					await this._database.recordOlderBuildChatListProjected(sessionKey);
+				}
+			};
 			if (imported === 'imported') {
+				// Recorded only once published: an interruption before it leaves the session copy to be read and published again.
 				await this._publishNormalizedCompatibilityState(session, database);
+				await recordProjected();
 				const current = await this._database.readOlderBuildCopySource(sessionKey);
 				return current ? this._normalizedEntriesFromSource(current) : undefined;
 			}
-			if (!this._needsNoOlderBuildCopy(source) && source.legacyMirroredPayload !== JSON.stringify(this._olderBuildCopyEntries(source.peers))) {
+			await recordProjected();
+			if (!this._needsNoOlderBuildCopy(source) && (source.legacyMirroredPayload !== JSON.stringify(this._olderBuildCopyEntries(source.peers)) || this._hasUnpublishedTitles(session, source))) {
 				this._scheduleCompatibilityPublish(session);
 			}
 			return this._normalizedEntriesFromSource(source);
 		}
+	}
+
+	/** Whether the titles older builds read are not what this build last published, e.g. an import was interrupted before publishing. */
+	private _hasUnpublishedTitles(session: URI, source: IAgentHostDatabaseOlderBuildCopySource): boolean {
+		const entries = this._olderBuildCopyEntries(source.peers);
+		const { left } = this._leftChats(session, source, this._parsePublishedChatTitles(session, source.publishedChatState), new Set(entries.map(entry => entry.uri)));
+		return source.publishedChatState !== encodeOlderBuildChatTitleRecord(this._olderBuildChatTitles(source), undefined, left);
 	}
 
 	/** Imports an older build's `session_chats` rows (see {@link _importOlderBuildEdits}). */
