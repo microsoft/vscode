@@ -47,6 +47,7 @@ import { applyLegacyAutomationSessionConfig } from '../../../../../platform/agen
 import { migrateLegacyAutopilotConfig } from '../../../../../platform/agentHost/common/agentHostSchema.js';
 import { readAgentDevContainerWorktreeMetadata, withAgentDevContainerWorktreeMetadata, type IAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
 import { readAgentMessageDelegationMeta } from '../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
+import { readAgentHeadBranchPullRequest, toAgentHeadBranchPullRequestMeta } from '../../../../../platform/agentHost/common/meta/agentSessionGitHubReferences.js';
 import { readRemoteSessionOrigin, withRemoteSessionOrigin, type IRemoteSessionOrigin } from '../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { getLegacySessionInitiator, readSessionInitiator, withSessionInitiator, SESSION_INITIATOR_METADATA_KEY } from '../../../../../platform/agentHost/common/meta/agentSessionInitiatorMeta.js';
 import type { Implementation } from '../../../../../platform/agentHost/common/state/protocol/common/commands.js';
@@ -275,6 +276,7 @@ interface ISerializedSessionMetadata {
 	readonly github?: ISessionGitHubState;
 	/** GitHub state of each session folder, keyed by working-directory key. */
 	readonly githubData?: Record<string, ISessionGitHubState>;
+	readonly headBranchPullRequestMeta?: Record<string, unknown>;
 	readonly workingDirectoryKeys?: Record<string, string>;
 	readonly workingDirectoryScopeIds?: Record<string, string>;
 	/**
@@ -335,6 +337,7 @@ function serializeMetadata(meta: IAgentSessionMetadata, discovery?: IAgentHostSe
 			...(chat.workingDirectories !== undefined ? { workingDirectories: chat.workingDirectories } : {}),
 		})),
 		githubData: gitHubData.size > 0 ? Object.fromEntries(gitHubData) : undefined,
+		headBranchPullRequestMeta: toAgentHeadBranchPullRequestMeta(meta),
 		workingDirectoryKeys: workingDirectoryKeys.size > 0 ? Object.fromEntries(workingDirectoryKeys) : undefined,
 		workingDirectoryScopeIds: workingDirectoryScopeIds.size > 0 ? Object.fromEntries(workingDirectoryScopeIds) : undefined,
 		workspaceless: readSessionWorkspaceless(meta._meta) || undefined,
@@ -385,6 +388,10 @@ function deserializeMetadata(raw: ISerializedSessionMetadata): IAgentSessionMeta
 		_meta = withSessionExternal(_meta, raw.external === true);
 		_meta = withSessionMultiRootMetadata(_meta, readSessionMultiRootMetadata({ [SESSION_META_MULTI_ROOT_KEY]: raw.multiRoot }));
 		_meta = withSessionGitHubData(_meta, parseSessionGitHubData(raw.githubData));
+		const headBranchPullRequestMeta = toAgentHeadBranchPullRequestMeta({ _meta: raw.headBranchPullRequestMeta });
+		if (headBranchPullRequestMeta) {
+			_meta = { ..._meta, ...headBranchPullRequestMeta };
+		}
 		for (const [workingDirectory, folderKey] of Object.entries(raw.workingDirectoryKeys ?? {})) {
 			_meta = withWorkingDirectoryKey(_meta, workingDirectory, folderKey);
 		}
@@ -533,6 +540,7 @@ function isGitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | undefine
 			x.createdByThisSession === y.createdByThisSession &&
 			x.recordedReferenceId === y.recordedReferenceId) &&
 		a.pullRequest?.number === b.pullRequest?.number &&
+		isEqual(a.pullRequest?.uri, b.pullRequest?.uri) &&
 		a.pullRequest?.icon?.id === b.pullRequest?.icon?.id &&
 		a.pullRequest?.state === b.pullRequest?.state &&
 		a.pullRequest?.liveState === b.pullRequest?.liveState &&
@@ -668,6 +676,14 @@ function getFolderPullRequestLinks(meta: SessionMeta | undefined): ReadonlySet<s
  * folder of the session discovered for itself.
  */
 function toGitHubInfo(meta: SessionMeta | undefined, workingDirectory: URI | undefined, folderKey: string | undefined, isSessionFolder: boolean): IGitHubInfo | undefined {
+	const headBranchPullRequest = isSessionFolder ? readAgentHeadBranchPullRequest({ _meta: meta }) : undefined;
+	if (headBranchPullRequest) {
+		const { owner, repo, number, title, url } = headBranchPullRequest;
+		const state = headBranchPullRequest.state === 'draft' ? 'open' : headBranchPullRequest.state;
+		const icon = headBranchPullRequest.state ? computePullRequestIcon(headBranchPullRequest.state) : undefined;
+		const pullRequest = { owner, repo, number, title, uri: URI.parse(url), state, icon };
+		return { owner, repo, pullRequest };
+	}
 	const state = workingDirectory && folderKey ? readCompatibleFolderGitHubState(meta, workingDirectory, folderKey) : readFolderGitHubState(meta, folderKey);
 	// The session's Git state describes the session folder.
 	const gitState = isSessionFolder ? readSessionGitState(meta) : undefined;
@@ -2747,13 +2763,13 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			const primaryIndex = Math.max(0, baseRefs.findIndex(isPrimaryPullRequest));
 			const pullRequests = baseRefs.map((pullRequest, index) => ({
 				...pullRequest,
-				...computePullRequestRefPresentation(
+				...(pullRequest.uri.authority.toLowerCase() === 'github.com' ? computePullRequestRefPresentation(
 					reader,
 					this._gitHubService,
 					this._pullRequestIconCache,
 					pullRequest,
 					index === primaryIndex ? computePullRequestIcon(GitHubPullRequestState.Open) : undefined,
-				)
+				) : {})
 			}));
 			const primaryPullRequest = pullRequests[primaryIndex];
 			return {

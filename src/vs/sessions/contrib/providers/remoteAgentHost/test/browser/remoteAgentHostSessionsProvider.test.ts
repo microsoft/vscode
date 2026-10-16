@@ -60,6 +60,7 @@ import { ProviderAutomationService } from '../../../../automations/browser/provi
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IGitHubService } from '../../../../github/browser/githubService.js';
+import { GitHubPullRequestModel } from '../../../../github/browser/models/githubPullRequestModel.js';
 import { IPullRequestIconCache, PullRequestIconCache } from '../../../../github/browser/pullRequestIconCache.js';
 import { IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
@@ -353,6 +354,9 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	instantiationService.stub(ILogService, overrides?.logService ?? new NullLogService());
 	instantiationService.stub(IGitHubService, new class extends mock<IGitHubService>() {
 		override findPullRequestNumberByHeadBranch = async () => undefined;
+		override createPullRequestModelReference = () => new ImmortalReference(new class extends mock<GitHubPullRequestModel>() {
+			override readonly pullRequest = constObservable(undefined);
+		}());
 	}());
 	instantiationService.stub(IPullRequestIconCache, instantiationService.createInstance(PullRequestIconCache));
 	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
@@ -473,6 +477,95 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('Copilot head-branch PR metadata', () => {
+		const backend = URI.parse('ahp-session://tenant/opaque-session');
+		const chat = URI.parse('conversation://tenant/root');
+		const reference = { referenceType: 'pr', repository: 'owner/repo', number: 42, title: 'Host PR', state: 'draft', url: 'https://github.com/owner/repo/pull/42', relations: ['headBranch'] };
+		const meta = (entry = reference) => JSON.parse(JSON.stringify({ 'copilot.githubReferences': [entry] }));
+
+		function addSession(): void {
+			connection.handshakeState.set({ ...connection.handshakeState.get(), _meta: undefined }, undefined);
+			connection.addSession({
+				...createSession('opaque-session', { session: backend, summary: 'Host session', workingDirectory: URI.file('/repo'), _meta: meta() }),
+				chats: [{ chat, kind: 'default' }],
+			});
+		}
+
+		function snapshot(session: ISession): object | undefined {
+			const info = (session as AgentHostSessionAdapter).gitHubInfo.get();
+			return info && {
+				owner: info.owner, repo: info.repo, number: info.pullRequest?.number,
+				title: info.pullRequest?.title, state: info.pullRequest?.state,
+				icon: info.pullRequest?.icon?.id, url: info.pullRequest?.uri.toString(),
+				artifacts: session.artifacts?.get(),
+			};
+		}
+
+		test('shows an opaque host session PR from discovery and follows summary updates', async () => {
+			addSession();
+			const provider = createProvider(disposables, connection);
+			await timeout(0);
+			const session = provider.getSessions()[0];
+			const initial = snapshot(session);
+			connection.fireNotification({
+				type: NotificationType.SessionSummaryChanged, channel: 'ahp-root://', session: backend.toString(),
+				changes: { _meta: meta({ ...reference, state: 'merged', title: 'Merged PR' }) },
+			});
+			assert.deepStrictEqual([initial, snapshot(session)], [{
+				owner: 'owner', repo: 'repo', number: 42, title: 'Host PR', state: 'open',
+				icon: 'git-pull-request-draft', url: reference.url, artifacts: [],
+			}, {
+				owner: 'owner', repo: 'repo', number: 42, title: 'Merged PR', state: 'merged',
+				icon: 'git-pull-request-done', url: reference.url, artifacts: [],
+			}]);
+		});
+
+		test('reads live session metadata and clears a removed head-branch reference', async () => {
+			addSession();
+			const provider = createProvider(disposables, connection);
+			await timeout(0);
+			const session = provider.getSessions()[0];
+			provider.getSessionConfig(session.sessionId, session.mainChat.get().resource);
+			const state = upcastPartial<SessionState>({
+				provider: 'copilotcli', title: 'Host session', status: ProtocolSessionStatus.Idle,
+				lifecycle: SessionLifecycle.Ready, activeClients: [], workingDirectories: ['file:///repo'],
+				defaultChat: chat.toString(),
+				chats: [{ resource: chat.toString(), title: '', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString() }],
+				_meta: meta({ ...reference, number: 43, url: 'https://github.com/owner/repo/pull/43', state: 'closed' }),
+			});
+			connection.setChannelState(backend, state);
+			const updated = snapshot(session);
+			connection.setChannelState(backend, { ...state, _meta: {} });
+			assert.deepStrictEqual([updated, snapshot(session)], [{
+				owner: 'owner', repo: 'repo', number: 43, title: 'Host PR', state: 'closed',
+				icon: 'git-pull-request-closed', url: 'https://github.com/owner/repo/pull/43', artifacts: [],
+			}, undefined]);
+		});
+
+		test('restores the host PR from cache with a fresh offline provider', async () => {
+			addSession();
+			const storageService = disposables.add(new InMemoryStorageService());
+			const provider = createProvider(disposables, connection, { storageService });
+			await timeout(0);
+			const initial = snapshot(provider.getSessions()[0]);
+			await storageService.flush();
+			provider.dispose();
+			const restored = createProvider(disposables, connection, { storageService, noConnection: true });
+			assert.deepStrictEqual(snapshot(restored.getSessions()[0]), initial);
+		});
+
+		test('does not treat an attached PR as the head-branch PR', async () => {
+			addSession();
+			const provider = createProvider(disposables, connection);
+			await timeout(0);
+			connection.fireNotification({
+				type: NotificationType.SessionSummaryChanged, channel: 'ahp-root://', session: backend.toString(),
+				changes: { _meta: meta({ ...reference, relations: ['attached'] }) },
+			});
+			assert.strictEqual(snapshot(provider.getSessions()[0]), undefined);
+		});
+	});
 
 	for (const protocolVersion of ['0.8.0', '0.9.0', '0.10.0', '1.0.0']) {
 		test(`marks the default chat read with protocol ${protocolVersion}`, async () => {
