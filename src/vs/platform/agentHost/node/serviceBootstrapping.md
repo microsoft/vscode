@@ -98,6 +98,8 @@ A descriptor that is never resolved is never constructed and therefore never dis
 
 ## Test overrides
 
+Copilot runtime startup, session storage, plan permissions, MCP definition locations, and local-model storage share `ICopilotHomeService`. Production resolves the home URI and its diagnostic source once from `COPILOT_HOME` or the native user home. Consumers compose URIs and convert to filesystem paths only at native filesystem or SDK boundaries. Unit fixtures register `TestCopilotHomeService` with their fake home instead of changing the process environment; resolver tests cover environment-variable precedence.
+
 `createTestAgentService` builds the shared foundation and core graph with typed overrides applied explicitly after the core defaults. Its returned `AgentService` disposes the whole test graph.
 
 The test graph does not force construction of unused descriptors. Whole-graph dependency completeness and cycle freedom are checked statically in `agentHostServices.test.ts`.

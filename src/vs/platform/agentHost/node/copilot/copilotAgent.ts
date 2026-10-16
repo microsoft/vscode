@@ -64,7 +64,7 @@ import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ICopilotConfigSlashCommandState } from '../../common/copilotConfigSlashCommands.js';
-import { getCopilotHomePath } from '../../../environment/common/copilotHome.js';
+import { ICopilotHomeService } from '../../../environment/common/copilotHome.js';
 import { CopilotCustomizationInstallations } from './customizations/copilotCustomizationInstallations.js';
 import { ISessionDataService, SESSION_DB_FILENAME, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { IAgentHostProxyResolver } from '../agentHostProxyResolver.js';
@@ -1137,6 +1137,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@IByokLmProxyService byokLmProxyService: IByokLmProxyService,
 		@ILocalModelSetupService private readonly _localModelSetupService: ILocalModelSetupService,
 		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
+		@ICopilotHomeService private readonly _copilotHomeService: ICopilotHomeService,
 	) {
 		super();
 		this._register(new CopilotBuiltinAgentsStore(this._fileService));
@@ -1165,7 +1166,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				const createSession = () => this._sessionLauncher.createCustomizationPolicySession(
 					copilotClient,
 					sessionId,
-					getCopilotHomePath(this._environmentService.userHome.fsPath, process.env),
+					this._copilotHomeService.home.fsPath,
 					this._getGitHubSessionCredentials(),
 					this._getGitHubHostUri(),
 				);
@@ -1197,7 +1198,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				};
 			},
 		));
-		const discoveryRoot = URI.file(join(getCopilotHomePath(this._environmentService.userHome.fsPath, process.env), 'session-state'));
+		const discoveryRoot = resourceJoinPath(this._copilotHomeService.home, 'session-state');
 		this._copilotChatDiscovery = this._register(this._instantiationService.createInstance(CopilotChatDiscovery,
 			discoveryRoot, scan => this._emitCopilotChats(scan)));
 		this._gitHubTelemetryForwarder = this._instantiationService.createInstance(CopilotGitHubTelemetryForwarder, () => this._restrictedTelemetryEnabled);
@@ -3466,7 +3467,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// Build a clean env for the CLI subprocess, stripping Electron/VS Code vars
 			// that can interfere with the Node.js process the SDK spawns.
 			const env = this._createCopilotCliEnvironment(startupConfig.skillCharBudget);
-			env['COPILOT_HOME'] = getCopilotHomePath(this._environmentService.userHome.fsPath, env);
+			env['COPILOT_HOME'] = this._copilotHomeService.home.fsPath;
 			// Family aliases are host-side (prompt and tool-profile routing) and
 			// deliberately never reach the runtime; an ambient value here would
 			// re-introduce a process-wide alias for every session behind its back.
@@ -3863,7 +3864,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!sdkConversationId) {
 			return undefined;
 		}
-		const resource = URI.file(join(getCopilotHomePath(this._environmentService.userHome.fsPath, process.env), 'session-state', sdkConversationId, 'events.jsonl'));
+		const resource = resourceJoinPath(this._copilotHomeService.home, 'session-state', sdkConversationId, 'events.jsonl');
 		return await this._fileService.exists(resource) ? resource : undefined;
 	}
 
@@ -3874,7 +3875,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!sdkConversationId || sdkConversationId === '.' || sdkConversationId === '..' || /[/\\:]/.test(sdkConversationId)) {
 			return undefined;
 		}
-		return URI.file(join(getCopilotHomePath(this._environmentService.userHome.fsPath, process.env), 'session-state', sdkConversationId, 'plan.md'));
+		return resourceJoinPath(this._copilotHomeService.home, 'session-state', sdkConversationId, 'plan.md');
 	}
 
 	async *readChatSessionEvents(chat: URI, context: IAgentChatContext, token: CancellationToken, afterEventId?: string, onDidReadEventId?: (id: string) => void): AsyncIterable<IAgentChatSessionEvent> {
@@ -5004,7 +5005,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// Detect the project concurrently with the (independent) event-log write
 			// so the git probe and file I/O overlap on the session-creation path.
 			const projectPromise = projectFromCopilotContext({ cwd: workingDirectory.fsPath }, this._gitService);
-			const eventsPath = join(getCopilotHomePath(this._environmentService.userHome.fsPath, process.env), 'session-state', sessionId, 'events.jsonl');
+			const eventsPath = resourceJoinPath(this._copilotHomeService.home, 'session-state', sessionId, 'events.jsonl').fsPath;
 			const jsonl = buildSessionEventLogFromTurns(importConfig.turns, {
 				sessionId,
 				workingDirectory: workingDirectory.fsPath,
@@ -5036,7 +5037,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/** Absolute path of an extension-host Copilot CLI sidecar file for `sessionId`. */
 	private _extensionHostCliSidecarPath(sessionId: string, fileName: string): string {
-		return join(getCopilotHomePath(this._environmentService.userHome.fsPath, process.env), 'session-state', sessionId, fileName);
+		return resourceJoinPath(this._copilotHomeService.home, 'session-state', sessionId, fileName).fsPath;
 	}
 
 	/** Memoizes the (stable) marker read so repeated `listSessions` calls don't re-read the disk. */
@@ -5098,7 +5099,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				: origin === 'vscode' || origin === 'other' ? origin
 					: typeof origin === 'string' ? 'unrecognized' : 'invalidType',
 			sessionIdStatus,
-			copilotHomeSource: process.env.COPILOT_HOME ? 'environment' : 'userHome',
+			copilotHomeSource: this._copilotHomeService.source,
 			sessionStateRootStatus: 'notChecked',
 			sessionDirectoryStatus: 'notChecked',
 			eventsFileStatus: 'notChecked',
@@ -5110,7 +5111,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if ((read.diagnostics.markerStatus !== 'missing' && read.diagnostics.errorCode !== 'ENOTDIR') || sessionIdStatus !== 'opaque') {
 			return diagnostics;
 		}
-		const root = join(getCopilotHomePath(this._environmentService.userHome.fsPath, process.env), 'session-state');
+		const root = resourceJoinPath(this._copilotHomeService.home, 'session-state').fsPath;
 		const sessionStateRootStatus = await this._getLegacyStoragePathStatus(root);
 		const sessionDirectoryStatus = sessionStateRootStatus === 'directory' ? await this._getLegacyStoragePathStatus(join(root, sessionId)) : 'notChecked';
 		const eventsFileStatus = sessionDirectoryStatus === 'directory' ? await this._getLegacyStoragePathStatus(join(root, sessionId, 'events.jsonl')) : 'notChecked';

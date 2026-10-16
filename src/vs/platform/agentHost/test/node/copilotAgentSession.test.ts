@@ -25,7 +25,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
-import { getCopilotMcpConfigurationPath } from '../../../environment/common/copilotHome.js';
+import { getCopilotMcpConfigurationPath, ICopilotHomeService } from '../../../environment/common/copilotHome.js';
+import { TestCopilotHomeService } from '../../../environment/test/common/testCopilotHomeService.js';
 import { FileSystemProviderCapabilities, IFileService, type IWriteFileOptions } from '../../../files/common/files.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
@@ -1190,6 +1191,7 @@ type TestCopilotSessionRuntime = Omit<ICopilotSessionRuntime, 'handlePermissionR
 };
 
 async function createAgentSession(disposables: DisposableStore, options?: {
+	copilotHome?: string;
 	clientSnapshot?: IActiveClientSnapshot;
 	activeClientToolSet?: ActiveClientToolSet;
 	environmentServiceRegistration?: 'native' | 'none';
@@ -1591,6 +1593,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	} as INativeEnvironmentService;
 	if (options?.environmentServiceRegistration !== 'none') {
 		services.set(INativeEnvironmentService, environmentService);
+		services.set(ICopilotHomeService, new TestCopilotHomeService(URI.file('/mock-home'), options?.copilotHome ? URI.file(options.copilotHome) : undefined));
 	}
 	const terminalManager = disposables.add(new TestAgentHostTerminalManager());
 	services.set(IAgentHostTerminalManager, terminalManager);
@@ -10204,78 +10207,46 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('auto-approves read permission for session-state plan files', async () => {
-			const previousCopilotHome = process.env['COPILOT_HOME'];
-			process.env['COPILOT_HOME'] = '/mock-state-home/.copilot';
-			try {
-				const { runtime, signals } = await createAgentSession(disposables);
-				const result = await runtime.handlePermissionRequest({
-					kind: 'read',
-					path: join('/mock-state-home', '.copilot', 'session-state', 'test-session-1', 'plan.md'),
-					toolCallId: 'tc-read-plan',
-				});
+			const { runtime, signals } = await createAgentSession(disposables, { copilotHome: '/mock-state-home/.copilot' });
+			const result = await runtime.handlePermissionRequest({
+				kind: 'read',
+				path: join('/mock-state-home', '.copilot', 'session-state', 'test-session-1', 'plan.md'),
+				toolCallId: 'tc-read-plan',
+			});
 
-				assert.strictEqual(result.kind, 'approve-once');
-				assert.strictEqual(signals.length, 0);
-			} finally {
-				if (previousCopilotHome === undefined) {
-					delete process.env['COPILOT_HOME'];
-				} else {
-					process.env['COPILOT_HOME'] = previousCopilotHome;
-				}
-			}
+			assert.deepStrictEqual({ kind: result.kind, signals }, { kind: 'approve-once', signals: [] });
 		});
 
-		test('resolves native environment through INativeEnvironmentService registration', async () => {
-			const previousCopilotHome = process.env['COPILOT_HOME'];
-			delete process.env['COPILOT_HOME'];
-			try {
-				const { runtime, signals } = await createAgentSession(disposables, { environmentServiceRegistration: 'native' });
-				const result = await runtime.handlePermissionRequest({
-					kind: 'read',
-					path: join('/mock-home', '.copilot', 'session-state', 'test-session-1', 'plan.md'),
-					toolCallId: 'tc-read-plan-native-env',
-				});
+		test('resolves session-state paths through the injected Copilot home', async () => {
+			const { runtime, signals } = await createAgentSession(disposables);
+			const result = await runtime.handlePermissionRequest({
+				kind: 'read',
+				path: join('/mock-home', '.copilot', 'session-state', 'test-session-1', 'plan.md'),
+				toolCallId: 'tc-read-plan-native-env',
+			});
 
-				assert.strictEqual(result.kind, 'approve-once');
-				assert.strictEqual(signals.length, 0);
-			} finally {
-				if (previousCopilotHome === undefined) {
-					delete process.env['COPILOT_HOME'];
-				} else {
-					process.env['COPILOT_HOME'] = previousCopilotHome;
-				}
-			}
+			assert.deepStrictEqual({ kind: result.kind, signals }, { kind: 'approve-once', signals: [] });
 		});
 
 		test('logs and rethrows permission failures', async () => {
-			const previousCopilotHome = process.env['COPILOT_HOME'];
-			delete process.env['COPILOT_HOME'];
 			const logService = new CapturingLogService();
-			try {
-				const { runtime } = await createAgentSession(disposables, {
-					environmentServiceRegistration: 'none',
-					logService,
-				});
+			const { runtime } = await createAgentSession(disposables, {
+				environmentServiceRegistration: 'none',
+				logService,
+			});
 
-				await assert.rejects(
-					runtime.handlePermissionRequest({
-						kind: 'read',
-						path: join('/mock-home', '.copilot', 'session-state', 'test-session-1', 'plan.md'),
-						toolCallId: 'tc-read-plan-missing-env',
-					}),
-				);
+			await assert.rejects(
+				runtime.handlePermissionRequest({
+					kind: 'read',
+					path: join('/mock-home', '.copilot', 'session-state', 'test-session-1', 'plan.md'),
+					toolCallId: 'tc-read-plan-missing-env',
+				}),
+			);
 
-				assert.strictEqual(logService.errors.length, 1);
-				const [entry] = logService.errors;
-				assert.ok(entry.first instanceof TypeError);
-				assert.strictEqual(entry.args[0], '[Copilot:test-session-1] Failed to handle permission request: kind=read, toolCallId=tc-read-plan-missing-env');
-			} finally {
-				if (previousCopilotHome === undefined) {
-					delete process.env['COPILOT_HOME'];
-				} else {
-					process.env['COPILOT_HOME'] = previousCopilotHome;
-				}
-			}
+			assert.strictEqual(logService.errors.length, 1);
+			const [entry] = logService.errors;
+			assert.ok(entry.first instanceof TypeError);
+			assert.strictEqual(entry.args[0], '[Copilot:test-session-1] Failed to handle permission request: kind=read, toolCallId=tc-read-plan-missing-env');
 		});
 
 		test('write permission fires tool_ready (deferred to side effects)', async () => {
@@ -10348,78 +10319,47 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('auto-approves write permission for session-state plan files', async () => {
-			const previousCopilotHome = process.env['COPILOT_HOME'];
-			process.env['COPILOT_HOME'] = '/mock-state-home/.copilot';
-			try {
-				const { runtime, signals } = await createAgentSession(disposables);
-				const result = await runtime.handlePermissionRequest({
-					kind: 'write',
-					fileName: join('/mock-state-home', '.copilot', 'session-state', 'test-session-1', 'plan.md'),
-					toolCallId: 'tc-write-plan',
-				});
+			const { runtime, signals } = await createAgentSession(disposables, { copilotHome: '/mock-state-home/.copilot' });
+			const result = await runtime.handlePermissionRequest({
+				kind: 'write',
+				fileName: join('/mock-state-home', '.copilot', 'session-state', 'test-session-1', 'plan.md'),
+				toolCallId: 'tc-write-plan',
+			});
 
-				assert.strictEqual(result.kind, 'approve-once');
-				assert.strictEqual(signals.length, 0);
-			} finally {
-				if (previousCopilotHome === undefined) {
-					delete process.env['COPILOT_HOME'];
-				} else {
-					process.env['COPILOT_HOME'] = previousCopilotHome;
-				}
-			}
+			assert.deepStrictEqual({ kind: result.kind, signals }, { kind: 'approve-once', signals: [] });
 		});
 
 		test('does not auto-approve session-state files from another session', async () => {
-			const previousCopilotHome = process.env['COPILOT_HOME'];
-			process.env['COPILOT_HOME'] = '/mock-state-home/.copilot';
-			try {
-				const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables);
-				const resultPromise = runtime.handlePermissionRequest({
-					kind: 'write',
-					fileName: join('/mock-state-home', '.copilot', 'session-state', 'different-session', 'plan.md'),
-					toolCallId: 'tc-write-other-plan',
-				});
+			const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables, { copilotHome: '/mock-state-home/.copilot' });
+			const resultPromise = runtime.handlePermissionRequest({
+				kind: 'write',
+				fileName: join('/mock-state-home', '.copilot', 'session-state', 'different-session', 'plan.md'),
+				toolCallId: 'tc-write-other-plan',
+			});
 
-				await waitForSignal(s => s.kind === 'pending_confirmation');
-				assert.strictEqual(signals.length, 1);
+			await waitForSignal(s => s.kind === 'pending_confirmation');
+			assert.strictEqual(signals.length, 1);
 
-				assert.ok(session.respondToPermissionRequest('tc-write-other-plan', true));
-				const result = await resultPromise;
-				assert.strictEqual(result.kind, 'approve-once');
-			} finally {
-				if (previousCopilotHome === undefined) {
-					delete process.env['COPILOT_HOME'];
-				} else {
-					process.env['COPILOT_HOME'] = previousCopilotHome;
-				}
-			}
+			assert.ok(session.respondToPermissionRequest('tc-write-other-plan', true));
+			const result = await resultPromise;
+			assert.strictEqual(result.kind, 'approve-once');
 		});
 
 		test('does not auto-approve traversal paths that escape the session-state directory', async () => {
-			const previousCopilotHome = process.env['COPILOT_HOME'];
-			process.env['COPILOT_HOME'] = '/mock-state-home/.copilot';
-			try {
-				const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables);
-				const sessionDir = join('/mock-state-home', '.copilot', 'session-state', 'test-session-1');
-				const resultPromise = runtime.handlePermissionRequest({
-					kind: 'write',
-					fileName: `${sessionDir}${sep}..${sep}outside.md`,
-					toolCallId: 'tc-write-traversal',
-				});
+			const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables, { copilotHome: '/mock-state-home/.copilot' });
+			const sessionDir = join('/mock-state-home', '.copilot', 'session-state', 'test-session-1');
+			const resultPromise = runtime.handlePermissionRequest({
+				kind: 'write',
+				fileName: `${sessionDir}${sep}..${sep}outside.md`,
+				toolCallId: 'tc-write-traversal',
+			});
 
-				await waitForSignal(s => s.kind === 'pending_confirmation');
-				assert.strictEqual(signals.length, 1);
+			await waitForSignal(s => s.kind === 'pending_confirmation');
+			assert.strictEqual(signals.length, 1);
 
-				assert.ok(session.respondToPermissionRequest('tc-write-traversal', true));
-				const result = await resultPromise;
-				assert.strictEqual(result.kind, 'approve-once');
-			} finally {
-				if (previousCopilotHome === undefined) {
-					delete process.env['COPILOT_HOME'];
-				} else {
-					process.env['COPILOT_HOME'] = previousCopilotHome;
-				}
-			}
+			assert.ok(session.respondToPermissionRequest('tc-write-traversal', true));
+			const result = await resultPromise;
+			assert.strictEqual(result.kind, 'approve-once');
 		});
 
 		test('auto-approves read of Copilot SDK large-tool-output temp files', async () => {
@@ -27505,7 +27445,7 @@ Use the attached image as context.
 				for (const name of ['slack-gh', 'same-name', 'plugin-server', 'unknown']) {
 					mockSession.fire('session.mcp_server_status_changed', { serverName: name, status: 'stopped' });
 				}
-				const userUri = URI.file(getCopilotMcpConfigurationPath('/mock-home', process.env)).toString();
+				const userUri = URI.file(getCopilotMcpConfigurationPath('/mock-home', {})).toString();
 				const expected = [
 					{ name: 'slack-gh', uri: userUri, source: 'user', plugin: undefined },
 					{ name: 'same-name', uri: 'mcp-top-level:copilotcli:test-session-1:same-name', source: 'builtin', plugin: undefined },
@@ -27558,7 +27498,7 @@ Use the attached image as context.
 				withoutConfig: [undefined],
 				readded: [{
 					name: 'slack-gh',
-					uri: URI.file(getCopilotMcpConfigurationPath('/mock-home', process.env)).toString(),
+					uri: URI.file(getCopilotMcpConfigurationPath('/mock-home', {})).toString(),
 					source: 'user',
 					state: McpServerStatus.Starting,
 				}],
@@ -27586,7 +27526,7 @@ Use the attached image as context.
 			inventoryGate.complete();
 			assert.deepStrictEqual({ snapshot, result: await auth }, {
 				snapshot: [{
-					name: 'slack-gh', uri: URI.file(getCopilotMcpConfigurationPath('/mock-home', process.env)).toString(),
+					name: 'slack-gh', uri: URI.file(getCopilotMcpConfigurationPath('/mock-home', {})).toString(),
 					source: 'user', state: McpServerStatus.AuthRequired,
 				}],
 				result: { kind: 'token', accessToken: 'test-token' },
@@ -27644,56 +27584,43 @@ Use the attached image as context.
 			assert.deepStrictEqual(session.topLevelMcpCustomizations().map(server => ({
 				name: server.name, uri: server.uri, source: readMcpServerSource(server),
 			})), [
-				{ name: 'slack-gh', uri: URI.file(getCopilotMcpConfigurationPath('/mock-home', process.env)).toString(), source: 'user' },
+				{ name: 'slack-gh', uri: URI.file(getCopilotMcpConfigurationPath('/mock-home', {})).toString(), source: 'user' },
 				{ name: 'unknown', uri: 'mcp-top-level:copilotcli:test-session-1:unknown', source: undefined },
 			]);
 		});
 
 		for (const copilotHome of [undefined, '/custom/copilot']) {
 			test(`publishes user MCP definition locations with ${copilotHome ? 'custom' : 'default'} Copilot home`, async () => {
-				const previousCopilotHome = process.env['COPILOT_HOME'];
-				if (copilotHome === undefined) {
-					delete process.env['COPILOT_HOME'];
-				} else {
-					process.env['COPILOT_HOME'] = copilotHome;
-				}
-				try {
-					const { session, mockSession, waitForSignal } = await createAgentSession(disposables, {
-						getUserMcpServerNames: async () => new Set(['explicit-user', 'inferred-user', 'workspace-server', 'plugin-server', 'builtin-server']),
-						configureMockSession: m => {
-							m.mcpListResult = {
-								servers: [
-									{ name: 'explicit-user', status: 'connected', source: 'user' },
-									{ name: 'inferred-user', status: 'connected' },
-									{ name: 'workspace-server', status: 'connected', source: 'workspace' },
-									{ name: 'plugin-server', status: 'connected', source: 'plugin' },
-									{ name: 'builtin-server', status: 'connected', source: 'builtin' },
-									{ name: 'unknown-server', status: 'connected' },
-								],
-							};
-						},
-					});
-					await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated));
-					const snapshot = () => session.topLevelMcpCustomizations().map(server => ({
-						id: server.id, uri: server.uri,
-					}));
-					const initial = snapshot();
-					mockSession.fire('session.mcp_server_status_changed', { serverName: 'explicit-user', status: 'stopped' });
-					mockSession.fire('session.mcp_server_status_changed', { serverName: 'inferred-user', status: 'failed', error: 'Connection failed' });
+				const { session, mockSession, waitForSignal } = await createAgentSession(disposables, {
+					copilotHome,
+					getUserMcpServerNames: async () => new Set(['explicit-user', 'inferred-user', 'workspace-server', 'plugin-server', 'builtin-server']),
+					configureMockSession: m => {
+						m.mcpListResult = {
+							servers: [
+								{ name: 'explicit-user', status: 'connected', source: 'user' },
+								{ name: 'inferred-user', status: 'connected' },
+								{ name: 'workspace-server', status: 'connected', source: 'workspace' },
+								{ name: 'plugin-server', status: 'connected', source: 'plugin' },
+								{ name: 'builtin-server', status: 'connected', source: 'builtin' },
+								{ name: 'unknown-server', status: 'connected' },
+							],
+						};
+					},
+				});
+				await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated));
+				const snapshot = () => session.topLevelMcpCustomizations().map(server => ({
+					id: server.id, uri: server.uri,
+				}));
+				const initial = snapshot();
+				mockSession.fire('session.mcp_server_status_changed', { serverName: 'explicit-user', status: 'stopped' });
+				mockSession.fire('session.mcp_server_status_changed', { serverName: 'inferred-user', status: 'failed', error: 'Connection failed' });
 
-					const userUri = URI.file(join(copilotHome ?? join('/mock-home', '.copilot'), 'mcp-config.json')).toString();
-					const expected = ['explicit-user', 'inferred-user', 'workspace-server', 'plugin-server', 'builtin-server', 'unknown-server'].map(name => {
-						const id = `mcp-top-level:copilotcli:test-session-1:${name}`;
-						return { id, uri: name.endsWith('-user') ? userUri : id };
-					});
-					assert.deepStrictEqual({ initial, afterLifecycle: snapshot() }, { initial: expected, afterLifecycle: expected });
-				} finally {
-					if (previousCopilotHome === undefined) {
-						delete process.env['COPILOT_HOME'];
-					} else {
-						process.env['COPILOT_HOME'] = previousCopilotHome;
-					}
-				}
+				const userUri = URI.file(join(copilotHome ?? join('/mock-home', '.copilot'), 'mcp-config.json')).toString();
+				const expected = ['explicit-user', 'inferred-user', 'workspace-server', 'plugin-server', 'builtin-server', 'unknown-server'].map(name => {
+					const id = `mcp-top-level:copilotcli:test-session-1:${name}`;
+					return { id, uri: name.endsWith('-user') ? userUri : id };
+				});
+				assert.deepStrictEqual({ initial, afterLifecycle: snapshot() }, { initial: expected, afterLifecycle: expected });
 			});
 		}
 

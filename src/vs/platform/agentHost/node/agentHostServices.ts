@@ -5,6 +5,8 @@
 
 import { SyncDescriptor } from '../../instantiation/common/descriptors.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
+import { ICopilotHomeService } from '../../environment/common/copilotHome.js';
+import { CopilotHomeService } from '../../environment/node/copilotHomeService.js';
 import { AgentHostGitHubService, IAgentHostGitHubService } from './agentHostGitHubService.js';
 import type { GitHubServiceOptions } from '../../github/common/githubTypes.js';
 import { ISandboxHelperService } from '../../sandbox/common/sandboxHelperService.js';
@@ -149,6 +151,7 @@ export interface IAgentHostHostServiceInputs {
 }
 
 export function registerAgentHostHostServices(services: ServiceCollection, inputs: IAgentHostHostServiceInputs): void {
+	services.set(ICopilotHomeService, new SyncDescriptor(CopilotHomeService));
 	services.set(IDevContainerAgentHostMainService, new SyncDescriptor(RemoteDevContainerAgentHostService));
 	services.set(ISandboxHelperService, new SyncDescriptor(SandboxHelperService));
 	services.set(IAgentHostGitService, new SyncDescriptor(AgentHostGitService));
