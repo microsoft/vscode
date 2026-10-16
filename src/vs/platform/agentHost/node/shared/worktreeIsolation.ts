@@ -135,7 +135,7 @@ export interface IAgentHostWorktreeIsolation extends IAgentHostWorktreePendingSt
  * is already scoped by session, so there is no cross-agent collision.
  */
 const WORKTREE_META_BRANCH = 'copilot.worktree.branchName';
-const WORKTREE_META_PATH = 'copilot.worktree.path';
+export const WORKTREE_META_PATH = 'copilot.worktree.path';
 export const WORKTREE_META_REPOSITORY_ROOT = 'copilot.worktree.repositoryRoot';
 const WORKTREE_META_SYMLINK_PATTERNS = 'copilot.worktree.symlinkPatterns';
 const WORKTREE_META_SYMLINK_SOURCE_ROOT = 'copilot.worktree.symlinkSourceRoot';

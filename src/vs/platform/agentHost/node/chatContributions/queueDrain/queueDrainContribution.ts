@@ -43,6 +43,12 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
+		// A moved chat's queued turn starts once the move is done, in the chat's new session.
+		this._register(this._stateManager.onDidReleaseChatAdmission(chats => {
+			for (const chat of chats) {
+				this._tryConsumeNextQueuedMessage(chat);
+			}
+		}));
 	}
 
 	onTurnEnd(turn: ITurnEnd): void {
@@ -152,7 +158,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 	}
 
 	private _tryConsumeNextQueuedMessage(channel: ProtocolURI): void {
-		if (this._conversionService.isPending(channel)) {
+		if (this._conversionService.isPending(channel) || this._stateManager.isChatAdmissionHeld(channel)) {
 			return;
 		}
 		if (this._stateManager.getActiveTurnId(channel)) {
