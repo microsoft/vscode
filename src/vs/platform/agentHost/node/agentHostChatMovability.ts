@@ -112,7 +112,7 @@ export class AgentHostChatMovability extends Disposable {
 	) {
 		super();
 		this._register(_stateManager.onDidRegisterChat(({ chat, session }) => {
-			// A chat its session already lists (registered again, e.g. while it is resolved) is published at once.
+			// A chat its session already lists when it registers (a restored chat) is published at once.
 			if (_stateManager.getSessionState(session)?.chats.some(candidate => candidate.resource === chat)) {
 				this.update(chat);
 			}

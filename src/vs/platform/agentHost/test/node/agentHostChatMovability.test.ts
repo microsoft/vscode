@@ -247,6 +247,28 @@ suite('AgentHostChatMovability', () => {
 		assert.deepStrictEqual(await flip(() => agentMerge(true), () => agentMerge(false)), flipped);
 	});
 
+	test('a restored chat, which registers once its session lists it, is published at once and follows its session\'s inputs', async () => {
+		const { stateManager, sources } = await setupStrict();
+		const defaultChat = buildDefaultChatUri(session);
+		const restored = buildChatUri(session, 'restored');
+		const movable = () => stateManager.getSessionState(session)?.chats.find(chat => chat.resource === restored)?.movable ?? false;
+		const quarantine = (quarantined: boolean) => {
+			if (quarantined) {
+				sources.quarantined.add(session);
+			} else {
+				sources.quarantined.delete(session);
+			}
+			sources.onDidChangePendingEmitter.fire(defaultChat);
+		};
+		// Read without waiting, as a client of the session would right after each change.
+		stateManager.registerRestoredChatSummary(session, restored, { storageResource: creationTimeChatStorageResource(session, restored, defaultChat) });
+		const registered = movable();
+		quarantine(true);
+		const refused = movable();
+		quarantine(false);
+		assert.deepStrictEqual({ registered, refused, allowed: movable() }, { registered: true, refused: false, allowed: true });
+	});
+
 	test('a chat of a session whose legacy catalog is parked is not movable until it is released or normalized', async () => {
 		const released = await setupStrict();
 		const normalized = await setupStrict();
