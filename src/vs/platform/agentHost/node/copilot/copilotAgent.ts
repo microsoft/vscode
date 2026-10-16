@@ -3147,10 +3147,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _publishModels(): void {
 		const fusion = this._isFusionEnabled();
 		const hydraFusionModels: IAgentModelInfo[] = [];
+		// HydraFusion runs on Copilot, so it can't be offered without a GitHub account.
+		const signedIn = !!this._githubCredentials.token;
 		for (const [id, name] of COPILOT_HYDRA_FUSION_MODEL_NAMES) {
 			// The runtime only offers Max with HydraFusion v2.
 			const enabled = id === COPILOT_HYDRA_FUSION_MAX_MODEL_ID ? this._isHydraFusionV2Enabled() : this._isHydraFusionEnabled();
-			if (enabled && !this._capiModels.some(model => model.id === id)) {
+			if (signedIn && enabled && !this._capiModels.some(model => model.id === id)) {
 				hydraFusionModels.push({
 					provider: this.id,
 					id,
