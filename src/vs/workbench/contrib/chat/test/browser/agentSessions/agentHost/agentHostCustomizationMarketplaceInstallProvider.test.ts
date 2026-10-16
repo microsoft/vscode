@@ -11,7 +11,7 @@ import { observableValue } from '../../../../../../../base/common/observable.js'
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { IAgentCustomizationInstallation } from '../../../../../../../platform/agentHost/common/agent.js';
+import { IAgentCustomizationInstallation, IAgentCustomizationMarketplaceSearchRequest } from '../../../../../../../platform/agentHost/common/agent.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentHostService } from '../../../../../../../platform/agentHost/common/agentService.js';
 import { CustomizationMarketplaceRecoveryGroup } from '../../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
@@ -25,6 +25,63 @@ import { IAgentPlugin, IAgentPluginService } from '../../../../common/plugins/ag
 
 suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('routes saved feeds through the owning session and preserves SDK identities and authentication recovery', async () => {
+		const requests: { session: string; request: IAgentCustomizationMarketplaceSearchRequest }[] = [];
+		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+			'copilotcli',
+			async () => true,
+			new class extends mock<IAgentHostService>() {
+				override readonly onAgentHostStart = Event.None;
+				override readonly onAgentHostExit = Event.None;
+				override async searchCustomizationMarketplace(_provider: string, session: URI, request: IAgentCustomizationMarketplaceSearchRequest) {
+					requests.push({ session: session.toString(), request });
+					if (request.feedId === 'feed_auth') {
+						return { kind: 'unavailable' as const, reason: 'authentication' as const };
+					}
+					return {
+						kind: 'page' as const,
+						items: [{
+							selectionId: 'selection', identifier: 'feed-resource', kind: 'mcp' as const, displayName: 'Figma',
+							installable: true, iconUrl: 'https://raw.githubusercontent.com/example/icons/main/figma.png', categories: ['build'],
+						}],
+					};
+				}
+			}(),
+			new class extends mock<IAgentHostConnectionsService>() {
+				override resolveSessionResourceIdentity() {
+					return { connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY, backendSession: URI.parse('vendor-session://host/opaque-session') };
+				}
+			}(),
+			new class extends mock<IAgentHostCustomizationService>() {
+				override readonly onDidChangeCustomizations = Event.None;
+			}(),
+			new class extends mock<IAgentPluginService>() {
+				override readonly plugins = observableValue<readonly IAgentPlugin[]>('plugins', []);
+			}(),
+			new class extends mock<IDialogService>() { }(),
+			new NullLogService(),
+		));
+		const session = URI.parse('agent-host-copilotcli:/frontend');
+		await assert.rejects(provider.getFeed(session, 'feed_auth', CancellationToken.None), /Sign in to Copilot/);
+		const page = await provider.getFeed(session, 'feed_editorial', CancellationToken.None);
+		const item = page.items[0];
+		assert.deepStrictEqual({
+			requests,
+			item: { identifier: item.identifier, tags: item.tags, icon: URI.isUri(item.icon) ? item.icon.toString() : undefined, installation: item.installation },
+			recovery: provider.getRecoveryAction()?.kind,
+		}, {
+			requests: ['feed_auth', 'feed_editorial'].map(feedId => ({
+				session: 'vendor-session://host/opaque-session',
+				request: { query: '', mediaType: undefined, limit: 30, cursor: undefined, feedId },
+			})),
+			item: {
+				identifier: 'feed-resource', tags: ['build'], icon: 'https://raw.githubusercontent.com/example/icons/main/figma.png',
+				installation: { kind: 'providerCatalog', resourceKind: 'mcp', selectionId: 'selection', itemUrl: undefined },
+			},
+			recovery: 'signIn',
+		});
+	});
 
 	test('routes marketplace management through the Agent Host provider', async () => {
 		const calls: { readonly operation: string; readonly args: readonly unknown[] }[] = [];

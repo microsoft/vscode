@@ -7,7 +7,6 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { localize } from '../../../../../nls.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { AccessibleViewRegistry, IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
-import { AgentFinderRequestService, IAgentFinderRequestService } from '../../../../../platform/customizationMarketplace/common/agentFinderRequestService.js';
 import { ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
@@ -22,7 +21,6 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR, CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_SECTION } from './aiCustomizationManagement.js';
 import { AICustomizationManagementEditor } from './aiCustomizationManagementEditor.js';
-import { AgentFinderSavedResourceFeedService, IAgentFinderSavedResourceFeedService } from './agentFinderSavedResourceFeedService.js';
 import { CopilotConnectorsService, ICopilotConnectorsService } from './copilotConnectorsService.js';
 import { CustomizationMarketplaceInstallService } from './customizationMarketplaceInstallService.js';
 import { removeLegacyCustomizationMarketplaceInstallationRecords } from './customizationMarketplaceInstallationAssociation.js';
@@ -32,8 +30,6 @@ if (isWeb) {
 	registerSingleton(IPlatformCustomizationMarketplaceService, PlatformCustomizationMarketplaceWorkbenchService, InstantiationType.Delayed);
 }
 registerSingleton(ICustomizationMarketplaceService, CustomizationMarketplaceWorkbenchService, InstantiationType.Delayed);
-registerSingleton(IAgentFinderSavedResourceFeedService, AgentFinderSavedResourceFeedService, InstantiationType.Delayed);
-registerSingleton(IAgentFinderRequestService, AgentFinderRequestService, InstantiationType.Delayed);
 registerSingleton(ICopilotConnectorsService, CopilotConnectorsService, InstantiationType.Delayed);
 registerSingleton(ICustomizationMarketplaceInstallService, CustomizationMarketplaceInstallService, InstantiationType.Delayed);
 

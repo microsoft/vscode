@@ -363,6 +363,8 @@ export interface IAgentCustomizationInstallationRequest {
 
 export interface IAgentCustomizationMarketplaceSearchRequest {
 	readonly query: string;
+	/** Retrieves an ordered saved feed instead of searching. */
+	readonly feedId?: string;
 	readonly mediaType?: string;
 	readonly limit: number;
 	readonly cursor?: string;
@@ -370,6 +372,9 @@ export interface IAgentCustomizationMarketplaceSearchRequest {
 
 export interface IAgentCustomizationMarketplaceSearchItem {
 	readonly selectionId: string;
+	readonly identifier?: string;
+	readonly iconUrl?: string;
+	readonly categories?: readonly string[];
 	readonly kind: 'skill' | 'mcp' | 'plugin';
 	readonly displayName: string;
 	readonly description?: string;
