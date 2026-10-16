@@ -23,6 +23,7 @@ import { AgentHostChatUrisCapabilityMetaKey, AgentHostNativeImplementationMetaKe
 import { AgentHostDebugLogsCancellationCapabilityMetaKey } from './meta/agentHostDebugLogsMeta.js';
 import { AgentHostWorktreeDiskUsageCapabilityMetaKey } from './meta/agentHostWorktreeDiskUsageMeta.js';
 import { InstallSandboxCertificateExtensionMethod, RemoveSandboxCertificateExtensionMethod, RotateSandboxCertificateExtensionMethod, sandboxCertificateParamsValidator } from './sandboxCertificateProtocol.js';
+import { AgentHostSerializedTerminalCreationCapabilityMetaKey } from './meta/agentHostTerminalMeta.js';
 
 export { supportsAgentHostArtifactRemoval } from './meta/agentHostArtifactRemovalMeta.js';
 export { supportsAgentHostDevContainers } from './meta/agentHostDevContainersMeta.js';
@@ -87,6 +88,7 @@ const AgentHostDetachedWorktreeCapabilityMetaKey = 'vscode.detachedWorktrees';
 /** Namespaced VS Code implementation capabilities carried alongside standardized AHP initialize capabilities. */
 export interface IAgentHostExtensionInitializeResultMeta extends Record<string, unknown> {
 	readonly [AgentHostWorktreeDiskUsageCapabilityMetaKey]?: true;
+	readonly [AgentHostSerializedTerminalCreationCapabilityMetaKey]?: true;
 	readonly [AgentHostDebugLogsCancellationCapabilityMetaKey]?: true;
 	readonly [AgentHostSessionUrisCapabilityMetaKey]?: true;
 	readonly [AgentHostChatUrisCapabilityMetaKey]?: true;
@@ -112,6 +114,7 @@ export interface IAgentHostExtensionInitializeResult extends InitializeResult {
 
 export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true, devContainers = false, timing = false, sessionImport = false, savedChat = false, savedChatContinuation = false, sessionMove = false): IAgentHostExtensionInitializeResultMeta {
 	return {
+		[AgentHostSerializedTerminalCreationCapabilityMetaKey]: true,
 		[AgentHostDebugLogsCancellationCapabilityMetaKey]: true,
 		[AgentHostSessionUrisCapabilityMetaKey]: true,
 		[AgentHostChatUrisCapabilityMetaKey]: true,
