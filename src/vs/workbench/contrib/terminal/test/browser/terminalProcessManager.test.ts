@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepStrictEqual, strictEqual } from 'assert';
+import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { getCaseInsensitive } from '../../../../../base/common/objects.js';
 import { OperatingSystem, type IProcessEnvironment } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -163,8 +164,10 @@ suite('Workbench - TerminalProcessManager', () => {
 		await manager.createProcess({}, 80, 24, false);
 
 		const request = terminalInstanceService.createProcessRequests.at(-1)!;
-		strictEqual(request.env.PATH?.includes('/foreign/bin'), false);
-		strictEqual(request.env.PATH?.includes('/local/bin'), true);
+		const path = request.env.PATH ?? getCaseInsensitive(request.env, 'PATH');
+		ok(typeof path === 'string');
+		strictEqual(path.includes('/foreign/bin'), false);
+		strictEqual(path.includes('/local/bin'), true);
 		strictEqual(request.env.SHARED_VALUE, 'available');
 		deepStrictEqual(serializedVariables(request.options), ['SHARED_VALUE', 'PATH']);
 	});
