@@ -42,6 +42,12 @@ export interface ITrackedTurnDatabase extends IDisposable {
 	readonly db: ISessionDatabase;
 	/** Folders the turn's changeset is limited to, or `undefined` when it isn't limited. */
 	readonly folderScope: readonly URI[] | undefined;
+	/**
+	 * Databases of the session's other chats, whose edits its Session Changes
+	 * combine with {@link db}'s. They aren't ordered by time across databases,
+	 * so a discard can't be reconciled with another chat's edits to the file.
+	 */
+	readonly otherChatDatabases: readonly ISessionDatabase[];
 }
 
 export const IAgentHostChangesetService = createDecorator<IAgentHostChangesetService>('agentHostChangesetService');

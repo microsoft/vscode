@@ -12,19 +12,19 @@ import { FileSystemProviderCapabilities, IFileService } from '../../files/common
 import { findDeepestContainingWorkingDirectory } from '../common/agentHostWorkingDirectories.js';
 import { EMPTY_TREE_OBJECT, IAgentHostGitService } from '../common/agentHostGitService.js';
 import { ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
-import { type IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
+import { AGENT_HOST_DISCARD_CHANGES_OPERATION_ID, type IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
-import type { IFileEditRecord } from '../common/sessionDataService.js';
+import type { IFileEditRecord, ISessionDatabase } from '../common/sessionDataService.js';
 import { ChangesetOperationTargetKind, type InvokeChangesetOperationParams, type InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { FileEditKind, isHostNoticeTurn, lastAttributableTurnId, type ChangesetFile, type SessionState, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { resolveChangesetOwnerScope } from './agentHostBranchChangesetScope.js';
-import { AgentHostFileEditRevert, FileEditRevertConflictError, FileEditRevertConflictReason, type IFileEditRevertResult } from './agentHostFileEditRevert.js';
+import { AgentHostFileEditRevert, FileEditRevertConflictError, FileEditRevertConflictReason, type IFileEditRevert } from './agentHostFileEditRevert.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { ILogService } from '../../log/common/log.js';
 import { resolveSessionRepositories } from './agentHostSessionRepositories.js';
 import { parseGitBlobUri } from './gitDiffContent.js';
-import { createFileEditDiscardRecord, readFileEditRevertStep } from './fileEditDiscard.js';
+import { createFileEditDiscardRecord, readFileEditRevertSteps, spanFileEditRevertSteps } from './fileEditDiscard.js';
 import { isPathWithinFolderScope } from './sessionDiffAggregator.js';
 
 /**
@@ -43,9 +43,13 @@ export function getLastTurn(stateManager: AgentHostStateManager, owner: Protocol
 	return id === undefined ? undefined : { id, inProgress: false };
 }
 
+function isFilePath(path: string | undefined, resource: URI): boolean {
+	return path !== undefined && extUriBiasedIgnorePathCase.isEqual(URI.file(path), resource);
+}
+
 export class AgentHostDiscardChangesOperationHandler implements IChangesetOperationHandler {
 
-	public static readonly OPERATION_DISCARD_CHANGES = 'discard-changes';
+	public static readonly OPERATION_DISCARD_CHANGES = AGENT_HOST_DISCARD_CHANGES_OPERATION_ID;
 
 	constructor(
 		private readonly _getSessionState: (sessionKey: string) => SessionState | undefined,
@@ -239,22 +243,31 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 			if (records.length === 0) {
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.discardTurnChanges.notInTurn', "'{0}' has no changes in the last turn.", basename(resource)));
 			}
+			await this._throwIfEditedByOtherChats(source.otherChatDatabases, resource);
 
-			const step = await readFileEditRevertStep(source.db, records);
+			// One step per recorded edit, so changes made between the turn's own
+			// edits, such as the user's between two tool calls, are kept.
+			const steps = await readFileEditRevertSteps(source.db, records);
 			this._throwIfCancelled(token);
 			this._logService.info(`[AgentHostDiscardChangesOperationHandler] Discarding last turn changes to '${resource.fsPath}' for ${owner} (turn ${turnId})`);
-			const revert = await this._fileEditRevert.revert(resource, [step], token);
+			const revert = await this._fileEditRevert.prepare(resource, steps, token);
 			try {
 				// Record the discard in the database turn id, which can differ from
-				// the changeset's turn id after a restore. The turn is checked again
-				// inside the write: a turn that started while the file was reverted
-				// would record its edits before the row.
+				// the changeset's turn id after a restore. The file only changes
+				// inside the recording's transaction, after checking the turn again:
+				// a turn that started meanwhile would record its edits before the
+				// row, and a recreated file couldn't be deleted again.
 				await source.db.storeFileEdits(
-					[createFileEditDiscardRecord(records[0].turnId, records[records.length - 1].filePath, step)],
-					() => this._throwIfNotCompletedLastTurn(owner, turnId),
+					[createFileEditDiscardRecord(records[0].turnId, records[records.length - 1].filePath, spanFileEditRevertSteps(steps))],
+					async () => {
+						this._throwIfNotCompletedLastTurn(owner, turnId);
+						await revert.apply();
+					},
 				);
 			} catch (err) {
 				await this._undoRevert(revert, resource);
+				// A changeset computed while the row was recorded may include it.
+				this._changesets.onFileEditsDiscarded(owner, [turnId]);
 				throw err;
 			}
 		} catch (err) {
@@ -284,11 +297,23 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 	 * so a rename that touches `resource` is rejected.
 	 */
 	private _getFileEditRecords(records: readonly IFileEditRecord[], resource: URI, folderScope: readonly URI[] | undefined): IFileEditRecord[] {
-		const isResource = (path: string | undefined) => path !== undefined && extUriBiasedIgnorePathCase.isEqual(URI.file(path), resource);
-		if (records.some(record => record.kind === FileEditKind.Rename && (isResource(record.filePath) || isResource(record.originalPath)))) {
+		if (records.some(record => record.kind === FileEditKind.Rename && (isFilePath(record.filePath, resource) || isFilePath(record.originalPath, resource)))) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.discardTurnChanges.renamed', "Changes to a renamed file can't be discarded."));
 		}
-		return records.filter(record => isResource(record.filePath) && (!folderScope || isPathWithinFolderScope(record.filePath, folderScope)));
+		return records.filter(record => isFilePath(record.filePath, resource) && (!folderScope || isPathWithinFolderScope(record.filePath, folderScope)));
+	}
+
+	/**
+	 * Session Changes combine every chat's edits without ordering them by time,
+	 * so a discard can't be reconciled with another chat's edits to the file.
+	 */
+	private async _throwIfEditedByOtherChats(otherChatDatabases: readonly ISessionDatabase[], resource: URI): Promise<void> {
+		for (const db of otherChatDatabases) {
+			const records = await db.getAllFileEdits();
+			if (records.some(record => isFilePath(record.filePath, resource) || isFilePath(record.originalPath, resource))) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.discardTurnChanges.otherChat', "Changes to '{0}' can't be discarded because another chat in this session also changed it.", basename(resource)));
+			}
+		}
 	}
 
 	private _throwIfOutsideWorkingDirectories(resource: URI, workingDirectories: readonly ProtocolURI[] | undefined, owner: ProtocolURI): void {
@@ -330,11 +355,15 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 		});
 	}
 
-	/** Puts the file back when the discard can't be recorded, so the file and its changesets agree. */
-	private async _undoRevert(revert: IFileEditRevertResult, resource: URI): Promise<void> {
+	/**
+	 * Puts the file back when the discard couldn't be committed after the file
+	 * was changed, so the file and its changesets agree. A recreated file can't
+	 * be deleted again, so it stays.
+	 */
+	private async _undoRevert(revert: IFileEditRevert, resource: URI): Promise<void> {
 		try {
 			if (!await revert.undo()) {
-				this._logService.warn(`[AgentHostDiscardChangesOperationHandler] Could not restore '${resource.fsPath}' after failing to record the discard because it changed in the meantime`);
+				this._logService.warn(`[AgentHostDiscardChangesOperationHandler] Could not restore '${resource.fsPath}' after failing to record the discard because it changed in the meantime or was recreated`);
 			}
 		} catch (err) {
 			this._logService.warn(`[AgentHostDiscardChangesOperationHandler] Could not restore '${resource.fsPath}' after failing to record the discard: ${err instanceof Error ? err.message : String(err)}`);

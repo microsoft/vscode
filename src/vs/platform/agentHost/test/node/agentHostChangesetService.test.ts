@@ -21,7 +21,7 @@ import { toAgentWorkspaceContinuationMessageMeta } from '../../common/meta/agent
 import { ActionEnvelope, ActionType } from '../../common/state/sessionActions.js';
 import { ChangesetStatus, FileEditKind, MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, withMessageRequestHiddenFromTranscript, withSessionGitState, type ISessionFileDiff, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
-import { createFileEditDiscardRecord, readFileEditRevertStep } from '../../node/fileEditDiscard.js';
+import { createFileEditDiscardRecord, readFileEditRevertSteps, spanFileEditRevertSteps } from '../../node/fileEditDiscard.js';
 import { NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { CHANGES_SUMMARY_METADATA_KEYS, getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY } from '../../common/agentHostChangesetService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -2055,9 +2055,11 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 
 		const tracked = svc.openTrackedTurnDatabase(sessionStr, 'turn-1')!;
 		const folderScope = tracked.folderScope?.map(folder => folder.toString());
+		const otherChatDatabases = tracked.otherChatDatabases.length;
 		try {
 			const records = (await tracked.db.getFileEditsByTurn('turn-1')).filter(record => record.filePath === '/repo/discarded.txt');
-			await tracked.db.storeFileEdits([createFileEditDiscardRecord('turn-1', '/repo/discarded.txt', await readFileEditRevertStep(tracked.db, records))]);
+			const steps = await readFileEditRevertSteps(tracked.db, records);
+			await tracked.db.storeFileEdits([createFileEditDiscardRecord('turn-1', '/repo/discarded.txt', spanFileEditRevertSteps(steps))]);
 		} finally {
 			tracked.dispose();
 		}
@@ -2067,14 +2069,43 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 
 		assert.deepStrictEqual({
 			folderScope,
+			otherChatDatabases,
 			turnFilesBefore,
 			turnFiles: stateManager.getChangesetState(turnUri)?.files.map(file => file.id),
 			sessionFiles: stateManager.getChangesetState(sessionChangeset)?.files.map(file => file.id),
 		}, {
 			folderScope: [URI.file('/repo').toString()],
+			otherChatDatabases: 0,
 			turnFilesBefore: [URI.file('/repo/discarded.txt').toString(), URI.file('/repo/kept.txt').toString()],
 			turnFiles: [URI.file('/repo/kept.txt').toString()],
 			sessionFiles: [URI.file('/repo/kept.txt').toString()],
+		});
+	});
+
+	test('opens the other chats\' databases whose edits Session Changes combine with a turn\'s', () => {
+		const peer = buildChatUri(sessionStr, 'peer');
+		const db = new TestSessionDatabase();
+		const peerDb = new TestSessionDatabase();
+		let peerDisposals = 0;
+		const { svc } = build({
+			workingDirectories: ['file:///repoA'],
+			git: createNoopGitService(),
+			checkpoint: NULL_CHECKPOINT_SERVICE,
+			db,
+			// Stored somewhere else than its URI, as a moved chat is.
+			peer: { resource: peer, db: peerDb, turnId: 'peer-turn', workingDirectories: ['file:///repoB'], storage: 'copilot:/moved-in-storage', onDispose: () => { peerDisposals++; } },
+		});
+		const open = (owner: string, turnId: string) => {
+			const tracked = svc.openTrackedTurnDatabase(owner, turnId)!;
+			const describe = (candidate: unknown) => candidate === db ? 'session' : candidate === peerDb ? 'peer' : 'other';
+			const result = { db: describe(tracked.db), otherChatDatabases: tracked.otherChatDatabases.map(describe) };
+			tracked.dispose();
+			return { ...result, peerDisposals };
+		};
+
+		assert.deepStrictEqual({ defaultChatTurn: open(sessionStr, 'turn-1'), peerTurn: open(peer, 'peer-turn') }, {
+			defaultChatTurn: { db: 'session', otherChatDatabases: ['peer'], peerDisposals: 1 },
+			peerTurn: { db: 'peer', otherChatDatabases: ['session'], peerDisposals: 3 },
 		});
 	});
 

@@ -15,37 +15,40 @@ import type { IFileEditRevertStep } from './agentHostFileEditRevert.js';
 export const FILE_EDIT_DISCARD_TOOL_CALL_ID_PREFIX = 'vscode-discard-';
 
 /**
- * Reads a file's content before and after a run of its edit records, matching
- * the snapshots the diff aggregators compare. The records must not include
- * renames.
+ * Reads the content before and after each of a file's edit records, matching
+ * the snapshots the diff aggregators compare. Reverting the records one at a
+ * time keeps changes made between them, such as an edit the user made
+ * between two tool calls. The records must not include renames.
  */
-export async function readFileEditRevertStep(db: ISessionDatabase, records: readonly IFileEditRecord[]): Promise<IFileEditRevertStep> {
-	const first = records[0];
-	const last = records[records.length - 1];
-	const [firstContent, lastContent] = await Promise.all([
-		first.kind === FileEditKind.Create ? undefined : db.readFileEditContent(first.toolCallId, first.filePath),
-		last.kind === FileEditKind.Delete ? undefined : db.readFileEditContent(last.toolCallId, last.filePath),
-	]);
-	if ((first.kind !== FileEditKind.Create && !firstContent) || (last.kind !== FileEditKind.Delete && !lastContent)) {
-		throw new Error(`Recorded content is missing for '${last.filePath}'`);
-	}
-	return {
-		start: first.kind === FileEditKind.Create ? undefined : firstContent?.beforeContent ?? new Uint8Array(),
-		end: last.kind === FileEditKind.Delete ? undefined : lastContent?.afterContent ?? new Uint8Array(),
-	};
+export async function readFileEditRevertSteps(db: ISessionDatabase, records: readonly IFileEditRecord[]): Promise<IFileEditRevertStep[]> {
+	return Promise.all(records.map(async record => {
+		const content = await db.readFileEditContent(record.toolCallId, record.filePath);
+		if (!content) {
+			throw new Error(`Recorded content is missing for '${record.filePath}'`);
+		}
+		return {
+			start: record.kind === FileEditKind.Create ? undefined : content.beforeContent ?? new Uint8Array(),
+			end: record.kind === FileEditKind.Delete ? undefined : content.afterContent ?? new Uint8Array(),
+		};
+	}));
+}
+
+/** The change that a run of consecutive steps makes, from the first one's start to the last one's end. */
+export function spanFileEditRevertSteps(steps: readonly IFileEditRevertStep[]): IFileEditRevertStep {
+	return { start: steps[0].start, end: steps[steps.length - 1].end };
 }
 
 /**
- * Builds the edit row that records a discard: an edit from the step's end
- * content back to its start content. Appended after the turn's own rows, it
- * makes the turn's net change to the file empty, so the diff aggregators drop
- * the file without any change to how they compute diffs.
+ * Builds the edit row that records a discard: an edit from the turn's end
+ * content back to its start content, given by `span`. Appended after the
+ * turn's own rows, it makes the turn's net change to the file empty, so the
+ * diff aggregators drop the file without any change to how they compute diffs.
  */
-export function createFileEditDiscardRecord(turnId: string, filePath: string, step: IFileEditRevertStep): IFileEditRecord & IFileEditContent {
+export function createFileEditDiscardRecord(turnId: string, filePath: string, span: IFileEditRevertStep): IFileEditRecord & IFileEditContent {
 	let kind: FileEditKind;
-	if (step.start === undefined) {
+	if (span.start === undefined) {
 		kind = FileEditKind.Delete;
-	} else if (step.end === undefined) {
+	} else if (span.end === undefined) {
 		kind = FileEditKind.Create;
 	} else {
 		kind = FileEditKind.Edit;
@@ -55,8 +58,8 @@ export function createFileEditDiscardRecord(turnId: string, filePath: string, st
 		toolCallId: `${FILE_EDIT_DISCARD_TOOL_CALL_ID_PREFIX}${generateUuid()}`,
 		filePath,
 		kind,
-		beforeContent: step.end,
-		afterContent: step.start,
+		beforeContent: span.end,
+		afterContent: span.start,
 		addedLines: undefined,
 		removedLines: undefined,
 	};

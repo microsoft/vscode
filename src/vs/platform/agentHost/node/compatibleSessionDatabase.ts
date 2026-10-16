@@ -186,8 +186,8 @@ export class CompatibleSessionDatabase implements ISessionDatabase {
 		return result;
 	}
 
-	async storeFileEdits(...[edits, validate]: Parameters<ISessionDatabase['storeFileEdits']>): ReturnType<ISessionDatabase['storeFileEdits']> {
-		const result = await this.raw.storeFileEdits(edits, validate);
+	async storeFileEdits(...[edits, beforeCommit]: Parameters<ISessionDatabase['storeFileEdits']>): ReturnType<ISessionDatabase['storeFileEdits']> {
+		const result = await this.raw.storeFileEdits(edits, beforeCommit);
 		return result;
 	}
 

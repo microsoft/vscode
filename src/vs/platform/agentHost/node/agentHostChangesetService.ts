@@ -1408,7 +1408,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		// Resolves the database and folder scope exactly as the `fileEditTracker`
 		// per-turn computation does, so callers see the same file identities.
 		const ref = this._sessionDataService.openDatabase(URI.parse(this._getTrackedDatabaseUri(owner)));
-		let source: { readonly owner: ProtocolURI | undefined; readonly db: ISessionDatabase; dispose(): void };
+		let source: { readonly owner: ProtocolURI | undefined; readonly storage: ProtocolURI; readonly db: ISessionDatabase; dispose(): void };
 		try {
 			source = this._openTrackedTurnSource(owner, ref.object, turnId);
 		} catch (err) {
@@ -1421,14 +1421,51 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			ref.dispose();
 			return undefined;
 		}
+		let others: ReturnType<ISessionDataService['openDatabase']>[];
+		try {
+			others = this._openOtherSessionChangesSources(turnOwner, source.storage);
+		} catch (err) {
+			source.dispose();
+			ref.dispose();
+			throw err;
+		}
 		return {
 			db: source.db,
 			folderScope: this._getTrackedEditFolderScope(turnOwner, this._configurationService.getEffectiveWorkingDirectories(turnOwner)),
+			otherChatDatabases: others.map(other => other.object),
 			dispose: () => {
+				for (const other of others) {
+					other.dispose();
+				}
 				source.dispose();
 				ref.dispose();
 			},
 		};
+	}
+
+	/**
+	 * Opens the databases whose edits the containing session's Session Changes
+	 * combine with those in `storage`: the session's own and each peer chat's.
+	 */
+	private _openOtherSessionChangesSources(owner: ProtocolURI, storage: ProtocolURI): ReturnType<ISessionDataService['openDatabase']>[] {
+		const session = this._containingSessionUri(owner);
+		const sessionStorage = this._getTrackedDatabaseUri(session);
+		const others = sessionStorage === storage ? [] : [this._sessionDataService.openDatabase(URI.parse(sessionStorage))];
+		try {
+			for (const peer of this._openPeerChatSources(session, true)) {
+				if (peer.sessionUri === storage) {
+					peer.ref.dispose();
+				} else {
+					others.push(peer.ref);
+				}
+			}
+		} catch (err) {
+			for (const other of others) {
+				other.dispose();
+			}
+			throw err;
+		}
+		return others;
 	}
 
 	onFileEditsDiscarded(owner: ProtocolURI, turnIds: readonly string[]): void {

@@ -8,10 +8,12 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import type { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileService } from '../../../files/common/fileService.js';
+import type { IFileWriteOptions, IStat } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostFileEditRevert, applyTextReplacements, FileEditRevertConflictError, FileEditRevertConflictReason, FileEditRevertOutcome, rebaseLineReplacements, type IFileEditRevertStep } from '../../node/agentHostFileEditRevert.js';
@@ -27,9 +29,25 @@ function step(start: string | undefined, end: string | undefined): IFileEditReve
 	return { start: start === undefined ? undefined : bytes(start), end: end === undefined ? undefined : bytes(end) };
 }
 
+/** Gives every write a later modification time, even within the same millisecond. */
+class SequencedInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
+	private _clock = 0;
+	private readonly _mtimes = new ResourceMap<number>();
+
+	override async writeFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
+		await super.writeFile(resource, content, opts);
+		this._mtimes.set(resource, ++this._clock);
+	}
+
+	override async stat(resource: URI): Promise<IStat> {
+		const stat = await super.stat(resource);
+		return { ...stat, mtime: this._mtimes.get(resource) ?? stat.mtime };
+	}
+}
+
 function setup(disposables: Pick<DisposableStore, 'add'>) {
 	const fileService = disposables.add(new FileService(new NullLogService()));
-	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new SequencedInMemoryFileSystemProvider())));
 	const diffService = new InProcessDiffComputeService();
 	const revert = new AgentHostFileEditRevert(fileService, diffService);
 
@@ -43,7 +61,9 @@ function setup(disposables: Pick<DisposableStore, 'add'>) {
 	};
 	const run = async (steps: readonly IFileEditRevertStep[]): Promise<FileEditRevertOutcome | FileEditRevertConflictReason> => {
 		try {
-			return (await revert.revert(resource, steps, CancellationToken.None)).outcome;
+			const prepared = await revert.prepare(resource, steps, CancellationToken.None);
+			await prepared.apply();
+			return prepared.outcome;
 		} catch (error) {
 			if (error instanceof FileEditRevertConflictError) {
 				return error.reason;
@@ -124,18 +144,68 @@ suite('AgentHostFileEditRevert', () => {
 		assert.deepStrictEqual({ outcome, content: Array.from((await fileService.readFile(resource)).value.buffer) }, { outcome: FileEditRevertOutcome.Reverted, content: Array.from(bytes('a\nb\nc\n')) });
 	});
 
-	test('undo puts back the earlier content unless the file changed since', async () => {
+	test('writes nothing until applied, and undo puts back the earlier content unless the file changed since', async () => {
 		const { revert, write, read } = setup(disposables);
 
 		await write('a\nB\n');
-		const undone = await (await revert.revert(resource, [step('a\nb\n', 'a\nB\n')], CancellationToken.None)).undo();
+		const prepared = await revert.prepare(resource, [step('a\nb\n', 'a\nB\n')], CancellationToken.None);
+		const beforeApply = await read();
+		await prepared.apply();
+		const afterApply = await read();
+		const undone = await prepared.undo();
 		const afterUndo = await read();
 
-		const result = await revert.revert(resource, [step('a\nb\n', 'a\nB\n')], CancellationToken.None);
+		const reapplied = await revert.prepare(resource, [step('a\nb\n', 'a\nB\n')], CancellationToken.None);
+		await reapplied.apply();
 		await write('changed\n');
-		const notUndone = await result.undo();
+		const notUndone = await reapplied.undo();
 
-		assert.deepStrictEqual({ undone, afterUndo, notUndone, afterRefusedUndo: await read() }, { undone: true, afterUndo: 'a\nB\n', notUndone: false, afterRefusedUndo: 'changed\n' });
+		assert.deepStrictEqual({ beforeApply, afterApply, undone, afterUndo, notUndone, afterRefusedUndo: await read() }, {
+			beforeApply: 'a\nB\n',
+			afterApply: 'a\nb\n',
+			undone: true,
+			afterUndo: 'a\nB\n',
+			notUndone: false,
+			afterRefusedUndo: 'changed\n',
+		});
+	});
+
+	test('can not undo recreating a file because deletion can not be conditional', async () => {
+		const { revert, read } = setup(disposables);
+
+		const prepared = await revert.prepare(resource, [step('old\n', '')], CancellationToken.None);
+		await prepared.apply();
+		const afterApply = await read();
+
+		assert.deepStrictEqual({ afterApply, undone: await prepared.undo(), afterUndo: await read() }, { afterApply: 'old\n', undone: false, afterUndo: 'old\n' });
+	});
+
+	test('undo only puts back content that apply may have written', async () => {
+		const { fileService, revert, write, read } = setup(disposables);
+		const results: Record<string, unknown> = {};
+
+		await write('a\nB\n');
+		const conflicting = await revert.prepare(resource, [step('a\nb\n', 'a\nB\n')], CancellationToken.None);
+		await write('changed\n');
+		const reason = await conflicting.apply().then(() => undefined, (error: FileEditRevertConflictError) => error.reason);
+		results.conflict = { reason, undone: await conflicting.undo(), content: await read() };
+
+		await write('a\nB\n');
+		const failing = await revert.prepare(resource, [step('a\nb\n', 'a\nB\n')], CancellationToken.None);
+		const writeFile = fileService.writeFile.bind(fileService);
+		fileService.writeFile = async (target, content, options) => {
+			fileService.writeFile = writeFile;
+			// The content is written, but resolving the file afterwards fails.
+			await writeFile(target, content, options);
+			throw new Error('stat failed');
+		};
+		const error = await failing.apply().then(() => undefined, (error: Error) => error.message);
+		results.failedAfterWriting = { error, written: await read(), undone: await failing.undo(), content: await read() };
+
+		assert.deepStrictEqual(results, {
+			conflict: { reason: FileEditRevertConflictReason.ChangedDuringRevert, undone: true, content: 'changed\n' },
+			failedAfterWriting: { error: 'stat failed', written: 'a\nb\n', undone: true, content: 'a\nB\n' },
+		});
 	});
 
 	test('does nothing when the file already has its start content', async () => {
@@ -218,6 +288,22 @@ suite('AgentHostFileEditRevert', () => {
 		assert.deepStrictEqual({ outcome, content: await read() }, { outcome: FileEditRevertConflictReason.ChangedDuringRevert, content: 'concurrent\n' });
 	});
 
+	test('does not overwrite a same-length change made right before the write', async () => {
+		const { fileService, write, read, run } = setup(disposables);
+		await write('a\nB\n');
+		const writeFile = fileService.writeFile.bind(fileService);
+		fileService.writeFile = async (target, content, options) => {
+			fileService.writeFile = writeFile;
+			// A save of the same length lands between the revert's final read and its write.
+			await write('x\nY\n');
+			return writeFile(target, content, options);
+		};
+
+		const outcome = await run([step('a\nb\n', 'a\nB\n')]);
+
+		assert.deepStrictEqual({ outcome, content: await read() }, { outcome: FileEditRevertConflictReason.ChangedDuringRevert, content: 'x\nY\n' });
+	});
+
 	test('stops a multi-step merge when it is cancelled', async () => {
 		const { diffService, revert, write, read } = setup(disposables);
 		const cts = disposables.add(new CancellationTokenSource());
@@ -230,34 +316,39 @@ suite('AgentHostFileEditRevert', () => {
 		};
 
 		await assert.rejects(
-			revert.revert(resource, [step('a\nb\nc\nd\n', 'A\nb\nc\nd\n'), step('A\nb\nC\nd\n', 'A\nb\nC\nD\n')], cts.token),
+			revert.prepare(resource, [step('a\nb\nc\nd\n', 'A\nb\nc\nd\n'), step('A\nb\nC\nd\n', 'A\nb\nC\nD\n')], cts.token),
 			error => error instanceof CancellationError,
 		);
 
 		assert.deepStrictEqual({ diffCalls, content: await read() }, { diffCalls: 2, content: 'A\nb\nC\nD\n' });
 	});
 
-	test('reverts several turns newest first, keeps edits made between them, and skips turns that changed nothing', async () => {
+	test('reverts several edits newest first, keeps changes made between them, and skips edits that changed nothing', async () => {
 		const { write, read, run } = setup(disposables);
 		const results: Record<string, unknown> = {};
 
 		await write('s2');
 		results.contiguous = { outcome: await run([step('s0', 's1'), step('s1', 's2')]), content: await read() };
 
-		// The user changed `c` to `C` between the two turns.
+		// The user changed `c` to `C` between the two edits.
 		await write('A\nb\nC\nD\n');
 		results.withGap = { outcome: await run([step('a\nb\nc\nd\n', 'A\nb\nc\nd\n'), step('A\nb\nC\nd\n', 'A\nb\nC\nD\n')]), content: await read() };
 
-		// A turn in between created the file and deleted it again, which can't be merged.
+		// An edit in between created the file and deleted it again, which can't be merged.
 		await write('A\nb\nC\nD\n');
-		results.withNoOpTurn = { outcome: await run([step('a\nb\nc\nd\n', 'A\nb\nc\nd\n'), step(undefined, undefined), step('A\nb\nC\nd\n', 'A\nb\nC\nD\n')]), content: await read() };
-		results.onlyNoOpTurns = { outcome: await run([step('x', 'x')]), content: await read() };
+		results.withNoOpEdit = { outcome: await run([step('a\nb\nc\nd\n', 'A\nb\nc\nd\n'), step(undefined, undefined), step('A\nb\nC\nd\n', 'A\nb\nC\nD\n')]), content: await read() };
+		results.onlyNoOpEdits = { outcome: await run([step('x', 'x')]), content: await read() };
+
+		// The second edit undid the first, so the file already has its start content.
+		await write('s0');
+		results.cancelledOut = { outcome: await run([step('s0', 's1'), step('s1', 's0')]), content: await read() };
 
 		assert.deepStrictEqual(results, {
 			contiguous: { outcome: FileEditRevertOutcome.Reverted, content: 's0' },
 			withGap: { outcome: FileEditRevertOutcome.Reverted, content: 'a\nb\nC\nd\n' },
-			withNoOpTurn: { outcome: FileEditRevertOutcome.Reverted, content: 'a\nb\nC\nd\n' },
-			onlyNoOpTurns: { outcome: FileEditRevertOutcome.AlreadyReverted, content: 'a\nb\nC\nd\n' },
+			withNoOpEdit: { outcome: FileEditRevertOutcome.Reverted, content: 'a\nb\nC\nd\n' },
+			onlyNoOpEdits: { outcome: FileEditRevertOutcome.AlreadyReverted, content: 'a\nb\nC\nd\n' },
+			cancelledOut: { outcome: FileEditRevertOutcome.AlreadyReverted, content: 's0' },
 		});
 	});
 

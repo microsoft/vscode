@@ -12,20 +12,20 @@ import { FileOperationResult, IFileService, toFileOperationResult } from '../../
 import { IDiffComputeService } from '../common/diffComputeService.js';
 
 /**
- * One turn's net change to a file, as reverted by {@link AgentHostFileEditRevert}.
+ * One recorded edit's change to a file, as reverted by {@link AgentHostFileEditRevert}.
  * `undefined` content means the file did not exist.
  */
 export interface IFileEditRevertStep {
-	/** Content before the turn's first edit to the file. */
+	/** Content before the edit. */
 	readonly start: Uint8Array | undefined;
-	/** Content after the turn's last edit to the file. */
+	/** Content after the edit. */
 	readonly end: Uint8Array | undefined;
 }
 
 export const enum FileEditRevertOutcome {
-	/** The file was rewritten, recreated, or deleted. */
+	/** The file is rewritten or recreated. */
 	Reverted = 'reverted',
-	/** The file already had the content it had before the reverted edits, so nothing was written. */
+	/** The file already has the content it had before the reverted edits, so nothing is written. */
 	AlreadyReverted = 'alreadyReverted',
 }
 
@@ -38,7 +38,7 @@ export const enum FileEditRevertConflictReason {
 	ConditionalDeleteUnavailable = 'conditionalDeleteUnavailable',
 }
 
-/** Thrown by {@link AgentHostFileEditRevert.revert} when it leaves the file untouched because of a conflict. */
+/** Thrown when a revert leaves the file untouched because of a conflict. */
 export class FileEditRevertConflictError extends Error {
 	constructor(readonly reason: FileEditRevertConflictReason) {
 		super(`File edit revert conflict: ${reason}`);
@@ -48,28 +48,51 @@ export class FileEditRevertConflictError extends Error {
 interface IFileSnapshot {
 	readonly bytes: Uint8Array | undefined;
 	readonly mtime?: number;
-	readonly etag?: string;
 }
 
-/** The result of {@link AgentHostFileEditRevert.revert}. */
-export interface IFileEditRevertResult {
+/**
+ * A revert computed by {@link AgentHostFileEditRevert.prepare}. Nothing is
+ * written until {@link apply}, so callers can first make sure the revert can
+ * be recorded: a recreated file can't be deleted again safely.
+ */
+export interface IFileEditRevert {
 	readonly outcome: FileEditRevertOutcome;
 	/**
-	 * Puts back the content the file had before the revert, unless something
-	 * changed the file since. Returns whether the file has its earlier content.
+	 * Writes the reverted content, provided the file still has the content it
+	 * had when the revert was computed. Otherwise throws a conflict and leaves
+	 * the file untouched. Does nothing when the file is already reverted.
+	 */
+	apply(): Promise<void>;
+	/**
+	 * Puts back the content the file had before {@link apply}, unless something
+	 * changed the file since. Does nothing unless {@link apply} may have changed
+	 * the file, including when it failed after writing. Returns false when the
+	 * file couldn't be put back. A file that {@link apply} recreated can't be
+	 * deleted again.
 	 */
 	undo(): Promise<boolean>;
 }
 
+const ALREADY_REVERTED: IFileEditRevert = { outcome: FileEditRevertOutcome.AlreadyReverted, apply: async () => { }, undo: async () => true };
+
+/**
+ * An etag that matches no file. `IFileService` lets a write through once the
+ * file's modification time advanced as long as its size matches the etag, so
+ * a same-length change would be overwritten. With this etag, any newer
+ * modification fails the write unless the file already has the new content.
+ */
+const UNMATCHED_ETAG = 'agent-host-file-edit-revert';
+
 /**
  * Reverts recorded edits to a single file while keeping every other change
- * to it, such as edits the user made afterwards.
+ * to it, such as edits the user made between or after them.
  *
  * Steps are ordered from oldest to newest and reverted newest first. Steps
  * that change nothing are skipped. When the file still has the newest step's
- * end content, it is restored byte for byte to the oldest step's start
- * content. Otherwise each step is undone with a line-based three-way merge,
- * and the file is left untouched on any overlap.
+ * end content and each step starts where the previous one ended, it is
+ * restored byte for byte to the oldest step's start content. Otherwise each
+ * step is undone with a line-based three-way merge, and the file is left
+ * untouched on any overlap.
  */
 export class AgentHostFileEditRevert {
 
@@ -78,33 +101,48 @@ export class AgentHostFileEditRevert {
 		@IDiffComputeService private readonly _diffComputeService: IDiffComputeService,
 	) { }
 
-	async revert(resource: URI, recordedSteps: readonly IFileEditRevertStep[], token: CancellationToken): Promise<IFileEditRevertResult> {
-		const alreadyReverted: IFileEditRevertResult = { outcome: FileEditRevertOutcome.AlreadyReverted, undo: async () => true };
+	async prepare(resource: URI, recordedSteps: readonly IFileEditRevertStep[], token: CancellationToken): Promise<IFileEditRevert> {
 		// A step that changes nothing, such as a turn whose changes were already
 		// discarded, can't be merged when it created and deleted the file.
 		const steps = recordedSteps.filter(step => !bytesEqual(step.start, step.end));
 		if (steps.length === 0) {
-			return alreadyReverted;
+			return ALREADY_REVERTED;
 		}
 
 		const current = await this._read(resource);
 		throwIfCancelled(token);
 
 		const oldestStart = steps[0].start;
-		let target: Uint8Array | undefined;
-		if (areStepsContiguous(steps) && matchesRecorded(current.bytes, steps[steps.length - 1].end)) {
-			target = oldestStart;
-		} else if (matchesRecorded(current.bytes, oldestStart)) {
-			return alreadyReverted;
-		} else {
-			target = await this._mergeRevert(current.bytes, steps, token);
+		if (matchesRecorded(current.bytes, oldestStart)) {
+			return ALREADY_REVERTED;
 		}
+		const target = areStepsContiguous(steps) && matchesRecorded(current.bytes, steps[steps.length - 1].end)
+			? oldestStart
+			: await this._mergeRevert(current.bytes, steps, token);
 		throwIfCancelled(token);
+		if (target === undefined) {
+			throw new FileEditRevertConflictError(FileEditRevertConflictReason.ConditionalDeleteUnavailable);
+		}
 
-		await this._replace(resource, current.bytes, target);
+		let mayHaveChanged = false;
 		return {
 			outcome: FileEditRevertOutcome.Reverted,
+			apply: async () => {
+				mayHaveChanged = true;
+				try {
+					await this._replace(resource, current.bytes, target);
+				} catch (error) {
+					// Conflicts are detected before anything is written.
+					if (error instanceof FileEditRevertConflictError) {
+						mayHaveChanged = false;
+					}
+					throw error;
+				}
+			},
 			undo: async () => {
+				if (!mayHaveChanged) {
+					return true;
+				}
 				try {
 					await this._replace(resource, target, current.bytes);
 					return true;
@@ -158,7 +196,7 @@ export class AgentHostFileEditRevert {
 	private async _read(resource: URI): Promise<IFileSnapshot> {
 		try {
 			const content = await this._fileService.readFile(resource);
-			return { bytes: content.value.buffer, mtime: content.mtime, etag: content.etag };
+			return { bytes: content.value.buffer, mtime: content.mtime };
 		} catch (error) {
 			if (toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND) {
 				return { bytes: undefined };
@@ -169,28 +207,29 @@ export class AgentHostFileEditRevert {
 
 	/**
 	 * Replaces the file's content, `undefined` meaning no file, provided it
-	 * still has `expected`. Otherwise throws a conflict and leaves it untouched.
+	 * still has `expected`. Does nothing when it already has `target`, such as
+	 * after a write that failed once the content was written. Otherwise throws
+	 * a conflict and leaves it untouched.
 	 */
 	private async _replace(resource: URI, expected: Uint8Array | undefined, target: Uint8Array | undefined): Promise<void> {
 		// Re-read just before writing so a change made while the merge was
 		// computed is reported instead of overwritten.
 		const latest = await this._read(resource);
+		if (bytesEqual(latest.bytes, target)) {
+			return;
+		}
 		if (!bytesEqual(latest.bytes, expected)) {
 			throw new FileEditRevertConflictError(FileEditRevertConflictReason.ChangedDuringRevert);
 		}
-
 		if (target === undefined) {
-			if (latest.bytes !== undefined) {
-				throw new FileEditRevertConflictError(FileEditRevertConflictReason.ConditionalDeleteUnavailable);
-			}
-			return;
+			throw new FileEditRevertConflictError(FileEditRevertConflictReason.ConditionalDeleteUnavailable);
 		}
 
 		try {
 			if (latest.bytes === undefined) {
 				await this._fileService.createFile(resource, VSBuffer.wrap(target), { overwrite: false });
 			} else {
-				await this._fileService.writeFile(resource, VSBuffer.wrap(target), { mtime: latest.mtime, etag: latest.etag });
+				await this._fileService.writeFile(resource, VSBuffer.wrap(target), { mtime: latest.mtime, etag: UNMATCHED_ETAG });
 			}
 		} catch (error) {
 			if (toFileOperationResult(error) === FileOperationResult.FILE_MODIFIED_SINCE) {

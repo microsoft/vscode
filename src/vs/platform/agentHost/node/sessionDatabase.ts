@@ -1007,7 +1007,7 @@ export class SessionDatabase implements ISessionDatabase {
 		return this._track(() => this._fileEditSequencer.queue(edit.filePath, () => this._queueMutation(db => insertFileEdit(db, edit))));
 	}
 
-	storeFileEdits(edits: readonly (IFileEditRecord & IFileEditContent)[], validate?: () => void): Promise<void> {
+	storeFileEdits(edits: readonly (IFileEditRecord & IFileEditContent)[], beforeCommit?: () => Promise<void> | void): Promise<void> {
 		if (edits.length === 0) {
 			return Promise.resolve();
 		}
@@ -1019,7 +1019,7 @@ export class SessionDatabase implements ISessionDatabase {
 			for (const edit of edits) {
 				await insertFileEdit(db, edit);
 			}
-			validate?.();
+			await beforeCommit?.();
 		})));
 	}
 

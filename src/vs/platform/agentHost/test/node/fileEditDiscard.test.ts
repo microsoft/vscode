@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import type { ISessionDatabase } from '../../common/sessionDataService.js';
 import { parseSessionDbUri } from '../../common/sessionDbUri.js';
 import { FileEditKind, type ISessionFileDiff } from '../../common/state/sessionState.js';
-import { createFileEditDiscardRecord, FILE_EDIT_DISCARD_TOOL_CALL_ID_PREFIX, readFileEditRevertStep } from '../../node/fileEditDiscard.js';
+import { createFileEditDiscardRecord, FILE_EDIT_DISCARD_TOOL_CALL_ID_PREFIX, readFileEditRevertSteps, spanFileEditRevertSteps } from '../../node/fileEditDiscard.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { computeSessionDiffs, computeTurnDiffs, computeUnionedDiffs } from '../../node/sessionDiffAggregator.js';
 import { TestDiffComputeService } from '../common/sessionTestHelpers.js';
@@ -36,8 +36,8 @@ async function storeEdit(db: ISessionDatabase, turnId: string, toolCallId: strin
 /** Discards the turn's changes to {@link FILE} the way the discard handler records them. */
 async function discardTurn(db: ISessionDatabase, turnId: string): Promise<void> {
 	const records = (await db.getFileEditsByTurn(turnId)).filter(record => record.filePath === FILE);
-	const step = await readFileEditRevertStep(db, records);
-	await db.storeFileEdits([createFileEditDiscardRecord(records[0].turnId, FILE, step)]);
+	const steps = await readFileEditRevertSteps(db, records);
+	await db.storeFileEdits([createFileEditDiscardRecord(records[0].turnId, FILE, spanFileEditRevertSteps(steps))]);
 }
 
 /** Reduces diffs to the text of their before and after snapshots. */
@@ -142,22 +142,26 @@ suite('fileEditDiscard', () => {
 		});
 	});
 
-	test('reads the content before and after a run of records, treating missing content as empty', async () => {
+	test('reads the content before and after each record, treating missing content as empty', async () => {
 		const db = disposables.add(await SessionDatabase.open(':memory:'));
 		await storeEdit(db, 't1', 'tc1', FileEditKind.Edit, 'a', 'b');
-		await storeEdit(db, 't1', 'tc2', FileEditKind.Edit, 'b', undefined);
+		// The user changed `b` to `B` between the two tool calls.
+		await storeEdit(db, 't1', 'tc2', FileEditKind.Edit, 'B', undefined);
 		await storeEdit(db, 't2', 'tc3', FileEditKind.Create, undefined, 'c');
 		const decode = (bytes: Uint8Array | undefined) => bytes && new TextDecoder().decode(bytes);
+		const describe = (steps: readonly { start: Uint8Array | undefined; end: Uint8Array | undefined }[]) => steps.map(step => ({ start: decode(step.start), end: decode(step.end) }));
 
-		const edited = await readFileEditRevertStep(db, await db.getFileEditsByTurn('t1'));
-		const created = await readFileEditRevertStep(db, await db.getFileEditsByTurn('t2'));
+		const edited = await readFileEditRevertSteps(db, await db.getFileEditsByTurn('t1'));
+		const created = await readFileEditRevertSteps(db, await db.getFileEditsByTurn('t2'));
 
 		assert.deepStrictEqual({
-			edited: { start: decode(edited.start), end: decode(edited.end) },
-			created: { start: decode(created.start), end: decode(created.end) },
+			edited: describe(edited),
+			editedSpan: describe([spanFileEditRevertSteps(edited)]),
+			created: describe(created),
 		}, {
-			edited: { start: 'a', end: '' },
-			created: { start: undefined, end: 'c' },
+			edited: [{ start: 'a', end: 'b' }, { start: 'B', end: '' }],
+			editedSpan: [{ start: 'a', end: '' }],
+			created: [{ start: undefined, end: 'c' }],
 		});
 	});
 
@@ -167,16 +171,21 @@ suite('fileEditDiscard', () => {
 
 		await db.storeFileEdits([row('t2', FILE), row('t1', FILE)]);
 		const rejected = await db.storeFileEdits([row('t1', FILE), row('t1', '/repo/other.ts')]).then(() => false, () => true);
-		const guardedRow = row('t3', FILE);
-		const guardRejected = await db.storeFileEdits([guardedRow], () => { throw new Error('state changed'); }).then(() => false, () => true);
+		let insertedBeforeCommit = 0;
+		const guardRejected = await db.storeFileEdits([row('t3', FILE)], async () => {
+			insertedBeforeCommit = (await db.getAllFileEdits()).length;
+			throw new Error('state changed');
+		}).then(() => false, () => true);
 
 		assert.deepStrictEqual({
 			turnIds: (await db.getAllFileEdits()).map(edit => edit.turnId),
 			rejected,
+			insertedBeforeCommit,
 			guardRejected,
 		}, {
 			turnIds: ['t2', 't1'],
 			rejected: true,
+			insertedBeforeCommit: 3,
 			guardRejected: true,
 		});
 	});
