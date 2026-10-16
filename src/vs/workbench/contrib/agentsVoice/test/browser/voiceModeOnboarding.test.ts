@@ -9,6 +9,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { constObservable } from '../../../../../base/common/observable.js';
+import { Context } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -17,7 +18,7 @@ import { IAccessibilityService } from '../../../../../platform/accessibility/com
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { AgentsVoiceStorageKeys, getAgentsVoicePolicyValue } from '../../common/agentsVoice.js';
+import { AGENTS_VOICE_ENABLED, AgentsVoiceStorageKeys, getAgentsVoicePolicyValue } from '../../common/agentsVoice.js';
 import { IVoiceSessionController, VoiceState } from '../../../chat/browser/voiceClient/voiceSessionController.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { VoiceModeOnboardingBanner, VoiceModeOnboardingService } from '../../browser/voiceModeOnboarding.js';
@@ -102,6 +103,29 @@ suite('Voice Mode onboarding', () => {
 			undefined,
 			undefined,
 		]);
+	});
+
+	test('exposes BYOK voice controls without paid entitlement while preserving AI and voice gates', () => {
+		const cases = [
+			{ ai: true, voice: true, entitled: false, model: 'gpt-live-1' },
+			{ ai: true, voice: true, entitled: false, model: '  ' },
+			{ ai: true, voice: true, entitled: true, model: '' },
+			{ ai: false, voice: true, entitled: false, model: 'gpt-live-1' },
+			{ ai: true, voice: false, entitled: false, model: 'gpt-live-1' },
+		];
+		assert.deepStrictEqual(cases.map(({ ai, voice, entitled, model }) => {
+			const values: Record<string, string | boolean> = {
+				'chatIsEnabled': ai,
+				'config.agents.voice.enabled': voice,
+				'agentsVoiceEntitled': entitled,
+				'config.agents.voice.useBYOKVoiceModel': model,
+			};
+			const context = new Context(0, null);
+			for (const [key, value] of Object.entries(values)) {
+				context.setValue(key, value);
+			}
+			return AGENTS_VOICE_ENABLED.evaluate(context);
+		}), [true, false, true, false, false]);
 	});
 
 	test('auditions a voice, dismisses, and never returns', () => {

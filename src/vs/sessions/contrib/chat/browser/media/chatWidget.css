@@ -116,21 +116,42 @@
 	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0;
 }
 
-/* Getting-started tip demoted below the input in the experimental composer, matching
-	the placement of the new-session migration notice. Hidden by the presenter until a
-	tip is showing, so it reserves no space otherwise. */
+.new-session-below-input-surfaces {
+	position: absolute;
+	top: 100%;
+	left: 0;
+	right: 0;
+	width: 100%;
+	margin-top: var(--vscode-spacing-size200);
+	overflow-y: auto;
+}
+
+/* Getting-started tip demoted below the input in the experimental composer. */
 .experimental-new-session-composer .new-session-getting-started-tip-below {
 	width: 100%;
-	max-width: 800px;
 	/* Extra top gap so the tip's hover actions, which float above its top edge, clear the input. */
-	margin: var(--vscode-spacing-size280) auto 0;
+	margin-top: var(--vscode-spacing-size160);
 }
 
 /* As a standalone card (not attached above the input) the tip takes a full border and
 	rounds every corner, unlike the input-attached notice that squares its joined bottom. */
 .new-session-getting-started-tip-below .chat-input-notice {
-	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-widget-border, transparent));
-	border-radius: var(--vscode-cornerRadius-large);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, color-mix(in srgb, var(--vscode-foreground) 10%, transparent));
+	border-radius: var(--vscode-cornerRadius-medium);
+	background-color: color-mix(in srgb, var(--vscode-foreground) 3%, var(--session-view-background, var(--vscode-editor-background)));
+}
+
+:is(.hc-black, .hc-light) .new-session-getting-started-tip-below .chat-input-notice {
+	border-color: var(--vscode-contrastBorder);
+	background-color: var(--vscode-editor-background);
+}
+
+.agent-sessions-workbench.phone-layout .new-session-below-input-surfaces {
+	position: static;
+	order: 1;
+	flex: 0 1 auto;
+	min-height: 0;
+	margin: 0 0 var(--vscode-spacing-size200);
 }
 
 .new-chat-session-options .new-chat-session-options-details {

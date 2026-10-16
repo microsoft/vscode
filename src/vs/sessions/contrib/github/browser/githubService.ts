@@ -26,6 +26,7 @@ import { structuralEquals } from '../../../../base/common/equals.js';
 import { decodeBase64 } from '../../../../base/common/buffer.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { GitHubCommit } from '../../../../platform/github/common/githubQueryService.js';
+import { URI } from '../../../../base/common/uri.js';
 
 /**
  * Shared trace prefix for the pull-request polling/fetching pipeline that feeds
@@ -33,6 +34,11 @@ import { GitHubCommit } from '../../../../platform/github/common/githubQueryServ
  * whole flow end-to-end (lookup -> fetch -> poll -> icon).
  */
 const TRACE_PREFIX = '[PR-ICON-TRACE]';
+
+/** Whether a reference can be resolved by the currently configured GitHub service. */
+export function isGitHubReferenceSupported(uri: URI, enterpriseHost: string | undefined): boolean {
+	return uri.scheme === 'https' && uri.authority.toLowerCase() === (enterpriseHost ?? 'github.com').toLowerCase();
+}
 
 export interface IGitHubService {
 	readonly _serviceBrand: undefined;
@@ -167,7 +173,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 			reader => {
 				const gitHubInfo = sessionsService.activeSession.read(reader)?.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 
-				if (!gitHubInfo?.pullRequest) {
+				if (!gitHubInfo?.pullRequest || !isGitHubReferenceSupported(gitHubInfo.pullRequest.uri, this.enterpriseHost)) {
 					return undefined;
 				}
 

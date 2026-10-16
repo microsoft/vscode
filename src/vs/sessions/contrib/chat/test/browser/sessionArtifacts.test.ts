@@ -5,17 +5,21 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, observableValue, type IReader } from '../../../../../base/common/observable.js';
+import { isWeb } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -23,6 +27,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { GitHubCommit } from '../../../../../platform/github/common/githubQueryService.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { NullSharedWebContentExtractorService } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import type { IChatPillEntry } from '../../../../../workbench/browser/chatPills.js';
 import { ChatPillHoverCache } from '../../../../../workbench/browser/chatPillHover.js';
 import { IChatImageCarouselOptions, IChatImageCarouselService } from '../../../../../workbench/contrib/chat/browser/chatImageCarouselService.js';
@@ -47,6 +52,7 @@ suite('Session Artifacts', () => {
 		openExternal() { },
 		openResource() { },
 		openImages() { },
+		async downloadImage() { },
 		copy() { },
 	};
 
@@ -68,6 +74,10 @@ suite('Session Artifacts', () => {
 		const chatModels = observableValue<Iterable<IChatModel>>('chatModels', []);
 		const openedImages: { resource: URI; options: IChatImageCarouselOptions | undefined }[] = [];
 		const openedResources: URI[] = [];
+		const downloadedResources: URI[] = [];
+		const savedImages: { resource: URI; data: string }[] = [];
+		let cancelDownload = false;
+		let downloadError: Error | undefined;
 		const telemetryEvents: { readonly name: string | undefined; readonly data: unknown }[] = [];
 		let removalError: Error | undefined;
 		const gitHubInfo = observableValue<IGitHubInfo | undefined>('gitHubInfo', info);
@@ -137,8 +147,32 @@ suite('Session Artifacts', () => {
 			upcastPartial<IChatImageCarouselService>({
 				openCarouselAtResource: async (resource, _data, options) => { openedImages.push({ resource, options }); },
 			}),
+			upcastPartial<IFileService>({
+				readFile: async resource => {
+					downloadedResources.push(resource);
+					if (downloadError) {
+						throw downloadError;
+					}
+					return upcastPartial<IFileContent>({ value: VSBuffer.fromString('original image bytes') });
+				},
+				writeFile: async (resource, content) => {
+					assert.ok(content instanceof VSBuffer);
+					savedImages.push({ resource, data: content.toString() });
+					return upcastPartial<IFileStatWithMetadata>({ resource });
+				},
+			}),
+			upcastPartial<IFileDialogService>({
+				defaultFilePath: async () => URI.file('/downloads'),
+				showSaveDialog: async options => cancelDownload ? undefined : options.defaultUri,
+			}),
+			new NullSharedWebContentExtractorService(),
 		));
-		return { presentation, session, chat, chatModels, openedImages, openedResources, configurationService, artifacts, loading, workspace, gitHubInfo, removed, errors, telemetryEvents, setRemovalError: (error: Error | undefined) => { removalError = error; } };
+		return {
+			presentation, session, chat, chatModels, openedImages, openedResources, configurationService, artifacts, loading, workspace, gitHubInfo, removed, errors, telemetryEvents, downloadedResources, savedImages,
+			setRemovalError: (error: Error | undefined) => { removalError = error; },
+			setCancelDownload: () => { cancelDownload = true; },
+			setDownloadError: (error: Error) => { downloadError = error; },
+		};
 	}
 
 	function createImageModel(resource: URI, toolCallId = 'image-call') {
@@ -407,6 +441,66 @@ suite('Session Artifacts', () => {
 			],
 		});
 	});
+
+	test('offers image downloads for artifacts and references even with the carousel disabled', async () => {
+		const downloaded: { uri: URI; name: string }[] = [];
+		const artifacts: ISessionArtifact[] = [
+			{ id: 'image', kind: SessionArtifactKind.File, label: 'Image', uri: URI.file('/image.png'), isArtifact: true },
+			{ id: 'reference', kind: SessionArtifactKind.File, label: 'Reference', uri: URI.file('/reference.jpg'), isArtifact: false },
+			{ id: 'file', kind: SessionArtifactKind.File, label: 'File', uri: URI.file('/readme.md'), isArtifact: true },
+		];
+		const entries = buildSessionArtifactSections(artifacts, {
+			...actions,
+			downloadImage: async (uri, name) => { downloaded.push({ uri, name }); },
+		}, labelService, false, new Set()).flatMap(section => section.entries);
+		for (const entry of entries) {
+			await entry.toolbarActions?.find(action => action.label === 'Download Image')?.run();
+		}
+
+		assert.deepStrictEqual({
+			actions: entries.map(entry => [entry.id, entry.toolbarActions?.map(action => action.label)]),
+			downloaded,
+		}, {
+			actions: [['image', ['Download Image', 'Copy Path']], ['reference', ['Download Image', 'Copy Path']], ['file', ['Copy Path']]],
+			downloaded: [{ uri: artifacts[0].uri, name: 'image.png' }, { uri: artifacts[1].uri, name: 'reference.jpg' }],
+		});
+	});
+
+	for (const outcome of ['saved', 'cancelled', 'failed'] as const) {
+		(isWeb ? test.skip : test)(`downloads a generated image without opening or removing it (${outcome})`, async () => {
+			const harness = createPresentation([]);
+			const imageModel = createImageModel(harness.chat.get()!.resource);
+			const imageUri = URI.parse('vscode-agent-host://remote/generated.png');
+			await imageModel.invocation.didExecuteTool({
+				content: [],
+				toolSpecificData: { kind: 'generatedImage' },
+				toolResultDetails: { input: '', output: [{ type: 'ref', uri: imageUri, mimeType: 'image/png' }] },
+			});
+			harness.chatModels.set([imageModel.model], undefined);
+			if (outcome === 'cancelled') {
+				harness.setCancelDownload();
+			} else if (outcome === 'failed') {
+				harness.setDownloadError(new Error('Image unavailable'));
+			}
+			const entry = harness.presentation.sections.get()[0].entries[0];
+
+			await entry.toolbarActions!.find(action => action.label === 'Download Image')!.run();
+
+			assert.deepStrictEqual({
+				reads: harness.downloadedResources,
+				saved: harness.savedImages,
+				opened: harness.openedImages,
+				removed: harness.removed,
+				errors: harness.errors,
+			}, {
+				reads: outcome === 'cancelled' ? [] : [imageUri],
+				saved: outcome === 'saved' ? [{ resource: URI.file(`/downloads/${entry.label}`), data: 'original image bytes' }] : [],
+				opened: [],
+				removed: [],
+				errors: outcome === 'failed' ? [`Failed to download ${entry.label}: Image unavailable`] : [],
+			});
+		});
+	}
 
 	test('reads files as paths and leaves every other location whole', () => {
 		const locations = [

@@ -65,6 +65,7 @@ import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type AuthenticateParams, type IAgentChatAdoptionResult, type IAgentChatSessionSettings, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentSpawnChatEvent, fixedChatOwnerRef, type IAgentChatOwnerRef } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
+import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, buildSubagentSessionUri, CustomizationLoadStatus, MessageKind, readSessionEhcliAdoptable, readSessionWorkspaceless, ResponsePartKind, ROOT_STATE_URI, ToolResultContentType, TurnState, customizationId, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, type ClientPluginCustomization, type Customization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
@@ -211,7 +212,7 @@ function hostSessionSettings(session: URI): IAgentChatSessionSettings | undefine
 }
 
 function exactChatContext(session: URI, chat: URI, resource: URI = chat): IAgentChatContext {
-	return { sessionSettings: hostSessionSettings(session), launchWorkingDirectories: undefined, resource, owner: fixedChatOwnerRef(session), subagentChatUriFormat: 'shaped' as const };
+	return { sessionSettings: hostSessionSettings(session), launchWorkingDirectories: undefined, resource, owner: fixedChatOwnerRef(session) };
 }
 
 /** Like {@link exactChatContext}, with the host's launch directory for a peer that records none of its own. */
@@ -279,8 +280,10 @@ function chatScopes(agent: CopilotAgent) {
 }
 
 function setLiveChatStub(agent: CopilotAgent, sdkSessionId: string, stub: unknown, chatUri?: URI): void {
+	const chatSession = stub as CopilotAgentSession;
+	chatSession.refreshModelConfiguration ??= () => { };
 	chatEntriesBySdkId(agent).set(sdkSessionId, {
-		chatSession: stub as CopilotAgentSession,
+		chatSession,
 		dispose: () => (stub as { dispose?: () => void }).dispose?.(),
 	});
 	if (chatUri) {
@@ -2090,7 +2093,7 @@ suite('CopilotAgent', () => {
 			const session = AgentSession.uri('copilotcli', 'restored-session');
 			// A recreated session records its default chat with a generation query; restore materializes it under its session.
 			const defaultChat = URI.parse(buildDefaultChatUri(session)).with({ query: 'generation=1' });
-			await agent.materializeChat(defaultChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session, subagentChatUriFormat: 'shaped' as const }, JSON.stringify({ sdkSessionId: 'restored-sdk-conversation' }));
+			await agent.materializeChat(defaultChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session }, JSON.stringify({ sdkSessionId: 'restored-sdk-conversation' }));
 			const provider = disposables.add(new InMemoryFileSystemProvider());
 			disposables.add(fileService.registerProvider(Schemas.file, provider));
 			await fileService.createFile(URI.file('/home/test/.copilot/session-state/restored-sdk-conversation/events.jsonl'));
@@ -2116,9 +2119,9 @@ suite('CopilotAgent', () => {
 		try {
 			const session = AgentSession.uri('copilotcli', 'agent-host-session-id');
 			// The host stores the default chat under its session and a peer under itself.
-			await agent.materializeChat(URI.parse(buildDefaultChatUri(session)), { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session, subagentChatUriFormat: 'shaped' as const }, JSON.stringify({ sdkSessionId: 'sdk-conversation-id' }));
+			await agent.materializeChat(URI.parse(buildDefaultChatUri(session)), { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session }, JSON.stringify({ sdkSessionId: 'sdk-conversation-id' }));
 			const peerChat = URI.parse(buildChatUri(session, 'peer-1'));
-			await agent.materializeChat(peerChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: peerChat, subagentChatUriFormat: 'shaped' as const }, JSON.stringify({ sdkSessionId: 'peer-sdk-conversation-id' }));
+			await agent.materializeChat(peerChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: peerChat }, JSON.stringify({ sdkSessionId: 'peer-sdk-conversation-id' }));
 			const defaultStateFile = URI.file('/home/test/.copilot/session-state/sdk-conversation-id/events.jsonl');
 			const peerStateFile = URI.file('/home/test/.copilot/session-state/peer-sdk-conversation-id/events.jsonl');
 			const provider = disposables.add(new InMemoryFileSystemProvider());
@@ -4298,17 +4301,17 @@ suite('CopilotAgent', () => {
 				const first = AgentSession.uri('copilotcli', 'spawn-first');
 				const second = AgentSession.uri('copilotcli', 'spawn-second');
 				const parentChat = URI.parse(buildDefaultChatUri(first.toString()));
-				const owner = disposables.add(new TestChatOwnerRef(first));
-				agent['_rememberChatScope'](parentChat, owner, first, 'shaped');
+				const owner = disposables.add(new TestChatOwnerRef(first, 'shaped'));
+				agent['_rememberChatScope'](parentChat, owner, first);
 				const start = (toolCallId: string) => fireSignal(agent, { kind: 'subagent_started', chat: parentChat, toolCallId, agentName: 'researcher', agentDisplayName: 'Researcher', agentDescription: 'Looks things up' });
 
 				start('before-change');
-				owner.set(second);
+				owner.set(second, 'opaque');
 				start('after-change');
 
 				assert.deepStrictEqual(spawned.map(e => ({ session: e.session.toString(), chat: e.chat.toString() })), [
 					{ session: first.toString(), chat: buildSubagentChatUri(first, 'before-change') },
-					{ session: second.toString(), chat: buildSubagentChatUri(second, 'after-change') },
+					{ session: second.toString(), chat: subagentChatUri('opaque', second.toString(), parentChat.toString(), 'after-change') },
 				]);
 			} finally {
 				await disposeAgent(agent);
@@ -4325,7 +4328,7 @@ suite('CopilotAgent', () => {
 				const toolCallId = 'tool-42';
 				const expectedChat = buildSubagentChatUri(sessionUri, toolCallId);
 				// The host records each chat's owning scope when it creates or materializes it.
-				agent['_rememberChatScope'](URI.parse(parentChat), fixedChatOwnerRef(sessionUri), sessionUri, 'shaped');
+				agent['_rememberChatScope'](URI.parse(parentChat), fixedChatOwnerRef(sessionUri), sessionUri);
 
 				fireSignal(agent, {
 					kind: 'subagent_started',
@@ -4383,7 +4386,6 @@ suite('CopilotAgent', () => {
 					sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session),
 					resource: childChat,
 					origin: { kind: ChatOriginKind.Tool, chat: parentChat.toString(), toolCallId: 'tool-1' },
-					subagentChatUriFormat: 'shaped' as const,
 				});
 				assert.deepStrictEqual(turns, [turn]);
 			} finally {
@@ -4416,13 +4418,12 @@ suite('CopilotAgent', () => {
 
 			try {
 				assert.deepStrictEqual({
-					withoutOrigin: await agent.chats.getMessages(childChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: childChat, subagentChatUriFormat: 'shaped' as const }),
+					withoutOrigin: await agent.chats.getMessages(childChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: childChat }),
 					subagentCalls,
 					withOrigin: await agent.chats.getMessages(childChat, {
 						sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session),
 						resource: childChat,
 						origin: { kind: ChatOriginKind.Tool, chat: parentChat.toString(), toolCallId: 'tool-1' },
-						subagentChatUriFormat: 'shaped' as const,
 					}),
 				}, {
 					withoutOrigin: [],
@@ -4597,7 +4598,6 @@ suite('CopilotAgent', () => {
 					sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session),
 					resource: legacyChild,
 					origin: { kind: ChatOriginKind.Tool, chat: parentChat.toString(), toolCallId: 'tool-7' },
-					subagentChatUriFormat: 'shaped' as const,
 				});
 				assert.deepStrictEqual(turns, [turn]);
 			} finally {
@@ -8383,7 +8383,12 @@ suite('CopilotAgent', () => {
 						const context = exactChatContext(session, chats[0], resources[0]);
 						await agent.chats.getMessages(chats[0], context);
 						const mainMark = fixture.discoveryMark();
+						const customizationsPublished = Event.toPromise(Event.filter(agent.onDidChatProgress, signal =>
+							signal.kind === 'action' && isEqual(signal.resource, session) && signal.action.type === ActionType.SessionCustomizationsChanged
+						), disposables.add(new DisposableStore()));
 						await agent.setChatWorkingDirectory(chats[0], context, next);
+						// Wait for automatic publication before a restart can cancel the move's discovery.
+						await customizationsPublished;
 						const resumeStart = fixture.resumed.length;
 						if (resume === 'cold restart' || resume === 'peer-first cold restart') {
 							agent = await fixture.restore();
@@ -11121,7 +11126,7 @@ suite('CopilotAgent', () => {
 
 		for (const quality of ['stable', 'insider', undefined] as const) {
 			for (const inherited of [undefined, 'false', 'true']) {
-				test(`sets the image generation rollout on startup and restart (${quality ?? 'development'}, inherited=${inherited ?? 'unset'})`, async () => {
+				test(`does not implicitly enable image generation rollout on startup or restart (${quality ?? 'development'}, inherited=${inherited ?? 'unset'})`, async () => {
 					const { agent, configurationService } = createTestAgentContext(disposables, {
 						copilotClient: new TestCopilotClient([]),
 						productService: { ...TEST_PRODUCT_SERVICE, quality },
@@ -11138,12 +11143,11 @@ suite('CopilotAgent', () => {
 						configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
 						await agent.listChatsToMigrate();
 
-						const expected = quality === 'stable' ? inherited : 'true';
 						assert.deepStrictEqual({
 							runtimeFlags: getCreatedClientOptions(agent).map(options => options.env?.['IMAGE_GENERATION_TOOL']),
 							parentFlag: process.env['IMAGE_GENERATION_TOOL'],
 						}, {
-							runtimeFlags: [expected, expected],
+							runtimeFlags: [inherited, inherited],
 							parentFlag: inherited,
 						});
 					} finally {
@@ -11287,6 +11291,43 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('keeps the last-known catalog across a startup-config restart instead of publishing HydraFusion alone', async () => {
+			const client = new StopCountingClient([], [{ id: 'gpt-6.1-sol', name: 'GPT-6.1 Sol' }]);
+			const { agent, configurationService } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				rootConfig: { [CopilotCliConfigKey.HydraFusion]: true },
+			});
+			const published: string[][] = [];
+			disposables.add(autorun(reader => {
+				published.push(agent.models.read(reader).map(model => model.id));
+			}));
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.listChatsToMigrate();
+				await waitForState(agent.models, models => models.some(model => model.id === 'gpt-6.1-sol'));
+				const requestsBefore = client.modelListRequests.length;
+				published.length = 0;
+
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
+				for (let i = 0; i < 500 && client.modelListRequests.length <= requestsBefore; i++) {
+					await timeout(1);
+				}
+				await agent.refreshModels();
+
+				assert.deepStrictEqual({
+					stopCount: client.stopCount,
+					publishedDuringRestart: published.filter(models => !models.includes('gpt-6.1-sol')),
+					current: agent.models.get().map(model => model.id),
+				}, {
+					stopCount: 1,
+					publishedDuringRestart: [],
+					current: ['gpt-6.1-sol', 'hydrafusion'],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('coalesces concurrent token and startup-config refresh triggers', async () => {
 			const client = new StopCountingClient([], [{ id: 'gpt-4o', name: 'GPT-4o' }]);
 			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
@@ -11399,7 +11440,8 @@ suite('CopilotAgent', () => {
 				for (let i = 0; i < 500 && client.modelListRequests.length < requestsBefore + 2; i++) {
 					await timeout(1);
 				}
-				assert.deepStrictEqual(agent.models.get(), []);
+				// The last-known catalog stays published until the new client generation lists its models.
+				assert.deepStrictEqual(agent.models.get().map(model => model.id), ['initial']);
 
 				replacementGate.complete();
 				await waitForState(agent.models, models => models.some(model => model.id === 'replacement'));
@@ -11471,63 +11513,72 @@ suite('CopilotAgent', () => {
 			return session;
 		}
 
-		test('refreshes disconnected approval reports after restarting the runtime without resuming chats', async () => {
-			const client = new StopCountingClient([]);
-			const { agent, configurationService, stateManager } = createTestAgentContext(disposables, {
-				copilotClient: client,
-				rootConfig: { [AgentHostAutoApprovePolicyRestrictedConfigKey]: true },
-			});
-			let sessionStarts = 0;
-			client.createSession = client.resumeSession = async () => {
-				sessionStarts++;
-				throw new Error('Unexpected session start');
-			};
-			try {
-				await agent.authenticate('https://api.github.com', 'token');
-				await agent.listChatsToMigrate();
-				const session = seedDisconnectedApprovalReport(agent, stateManager);
-				let disconnected = false;
-				setLiveChatStub(agent, 'old-sdk-backing', {
-					resourceUri: session,
-					dispose: () => { disconnected = true; },
+		for (const delayCatalog of [false, true]) {
+			test(`refreshes disconnected approval reports after restarting the runtime without resuming chats (delayCatalog=${delayCatalog})`, async () => {
+				const client = new StopCountingClient([]);
+				const reportDisposables = disposables.add(new DisposableStore());
+				const catalogGate = new DeferredPromise<void>();
+				if (delayCatalog) {
+					client.modelListGate = catalogGate.p;
+				}
+				const { agent, configurationService, stateManager } = createTestAgentContext(disposables, {
+					copilotClient: client,
+					rootConfig: { [AgentHostAutoApprovePolicyRestrictedConfigKey]: true },
 				});
-				const unrestricted = client.managedSettingsResolution;
-				client.managedSettingsResolution = {
-					...unrestricted,
-					resolved: {
-						...unrestricted.resolved,
-						settings: { permissions: { disableAssistedPermissionsMode: true } },
-					},
+				let sessionStarts = 0;
+				client.createSession = client.resumeSession = async () => {
+					sessionStarts++;
+					throw new Error('Unexpected session start');
 				};
-				configurationService.updateRootConfig({ [AgentHostAutoApprovePolicyRestrictedConfigKey]: false });
-				await timeout(0);
-				await agent.refreshModels();
-				await timeout(0);
+				try {
+					await agent.authenticate('https://api.github.com', 'token');
+					await agent.listChatsToMigrate();
+					const session = seedDisconnectedApprovalReport(agent, stateManager);
+					const approvalReportChanged = Event.filter(configurationService.onDidSessionConfigChange,
+						event => event.session === session.toString() && Object.hasOwn(event.config, 'availableApprovalModes'));
+					let disconnected = false;
+					setLiveChatStub(agent, 'old-sdk-backing', {
+						resourceUri: session,
+						dispose: () => { disconnected = true; },
+					});
+					const unrestricted = client.managedSettingsResolution;
+					client.managedSettingsResolution = {
+						...unrestricted,
+						resolved: {
+							...unrestricted.resolved,
+							settings: { permissions: { disableAssistedPermissionsMode: true } },
+						},
+					};
+					const restrictedPublished = Event.toPromise(approvalReportChanged, reportDisposables);
+					configurationService.updateRootConfig({ [AgentHostAutoApprovePolicyRestrictedConfigKey]: false });
+					await restrictedPublished;
 
-				const restricted = configurationService.getSessionConfigValues(session.toString());
-				client.managedSettingsResolution = unrestricted;
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
-				await timeout(0);
-				await agent.refreshModels();
-				await timeout(0);
+					const restricted = configurationService.getSessionConfigValues(session.toString());
+					client.managedSettingsResolution = unrestricted;
+					const revokedPublished = Event.toPromise(approvalReportChanged, reportDisposables);
+					configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
+					await revokedPublished;
 
-				assert.deepStrictEqual({
-					restricted,
-					revoked: configurationService.getSessionConfigValues(session.toString()),
-					workingDirectories: client.managedSettingsRequests.map(request => request.workingDirectory),
-					disconnected,
-					sessionStarts,
-				}, {
-					restricted: { autoApprove: 'assisted', effectiveApprovalMode: 'assisted', availableApprovalModes: ['default', 'autoApprove'] },
-					revoked: { autoApprove: 'assisted', effectiveApprovalMode: 'assisted', availableApprovalModes: ['default', 'assisted', 'autoApprove'] },
-					workingDirectories: [URI.file('/workspace').fsPath, URI.file('/workspace').fsPath],
-					disconnected: true,
-					sessionStarts: 0,
-				});
-			} finally {
-				await disposeAgent(agent);
-			}
-		});
+					assert.deepStrictEqual({
+						restricted,
+						revoked: configurationService.getSessionConfigValues(session.toString()),
+						// Root catalog queries can coalesce independently of these session-scoped queries.
+						workingDirectories: client.managedSettingsRequests.map(request => request.workingDirectory).filter(directory => directory !== undefined),
+						disconnected,
+						sessionStarts,
+					}, {
+						restricted: { autoApprove: 'assisted', effectiveApprovalMode: 'assisted', availableApprovalModes: ['default', 'autoApprove'], 'vscode.modelConfiguration': null },
+						revoked: { autoApprove: 'assisted', effectiveApprovalMode: 'assisted', availableApprovalModes: ['default', 'assisted', 'autoApprove'], 'vscode.modelConfiguration': null },
+						workingDirectories: [URI.file('/workspace').fsPath, URI.file('/workspace').fsPath],
+						disconnected: true,
+						sessionStarts: 0,
+					});
+				} finally {
+					catalogGate.complete();
+					await disposeAgent(agent);
+				}
+			});
+		}
 
 		for (const invalidation of ['new client', 'resumed chat', 'removed session'] as const) {
 			test(`discards a disconnected approval report superseded by a ${invalidation}`, async () => {
@@ -12455,6 +12506,7 @@ suite('CopilotAgent', () => {
 					model_relocated: 'Claude Sonnet now serves from a new region.',
 				},
 				rowWarning: 'Claude Sonnet is currently degraded.',
+				'vscode.modelConfiguration.defaults': ['contextSize'],
 				promo: {
 					id: 'summer-sale',
 					discountPercent: 25,
@@ -12504,6 +12556,7 @@ suite('CopilotAgent', () => {
 			assert.deepStrictEqual(schema?.properties.thinkingLevel?.enum, ['low', 'medium', 'high']);
 			assert.strictEqual(schema?.properties.thinkingLevel?.default, 'medium');
 			assert.strictEqual(schema?.properties.contextSize, undefined);
+			assert.deepStrictEqual(schema?.properties.reasoningEffort, { ...schema?.properties.thinkingLevel, default: undefined });
 		} finally {
 			await disposeAgent(agent);
 		}
@@ -12584,6 +12637,10 @@ suite('CopilotAgent', () => {
 			]);
 			const models = await waitForState(agent.models, models => models.length === 3);
 
+			assert.deepStrictEqual(models.map(model => model.configSchema?.properties.reasoningEffort), models.map(model => ({
+				...model.configSchema?.properties.thinkingLevel,
+				default: undefined,
+			})));
 			assert.deepStrictEqual(models.map(model => ({
 				id: model.id,
 				thinkingLevel: model.configSchema?.properties.thinkingLevel && {
@@ -12913,6 +12970,10 @@ suite('CopilotAgent', () => {
 			await agent.authenticate('https://api.github.com', 'token');
 			const published = await waitForState(agent.models, published => published.length === models.length);
 			const [auto, concrete] = published.map(model => model.configSchema?.properties.tier);
+			assert.deepStrictEqual(published.map(model => model.configSchema?.properties.autoTier), [
+				{ ...auto, default: undefined },
+				undefined,
+			]);
 
 			assert.deepStrictEqual({
 				auto: { enum: auto?.enum, default: auto?.default, enumLabels: auto?.enumLabels, enumDescriptions: auto?.enumDescriptions },
@@ -13069,6 +13130,11 @@ suite('CopilotAgent', () => {
 			});
 		});
 
+		test('passes Copilot-host reasoningEffort to SDK session creation', async () => {
+			const config = await captureSessionConfig({ id: 'claude-sonnet', config: { reasoningEffort: 'low' } }, [longContextModel]);
+			assert.strictEqual(config?.reasoningEffort, 'low');
+		});
+
 		test('maps the default numeric context size to default', async () => {
 			const config = await captureSessionConfig({ id: 'claude-sonnet', config: { contextSize: '200000' } }, [longContextModel]);
 			assert.ok(config);
@@ -13136,6 +13202,53 @@ suite('CopilotAgent', () => {
 			}
 		});
 	});
+
+	test('the Sunburst setting never exposes image models in the chat model catalog', async () => {
+		const client = new TestCopilotClient([], [{ id: 'chat-model', name: 'Chat Model' }]);
+		const listModels = client.rpc.models.list;
+		const modelsList = stub(client.rpc.models, 'list').callsFake(async params => ({
+			...await listModels(params),
+			imageModels: [{
+				id: 'gpt-image-2.5-sunburst', name: 'GPT Image 2.5 Sunburst', supportedOperations: ['generate', 'edit'],
+				isDefault: true, availability: 'available',
+			}],
+		}));
+		const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
+		const observations = [];
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			for (const enabled of [false, true, false]) {
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.ImageGeneration]: enabled });
+				await agent.refreshModels();
+				observations.push(agent.models.get().map(model => ({ id: model.id, images: model._meta?.['vscode.imageModels'] })));
+			}
+			assert.deepStrictEqual(observations, Array.from({ length: 3 }, () => [{ id: 'chat-model', images: undefined }]));
+		} finally {
+			modelsList.restore();
+			await disposeAgent(agent);
+		}
+	});
+
+	for (const quality of ['stable', 'insider', undefined] as const) {
+		for (const enabled of [undefined, false, true]) {
+			test(`agent-created Sunburst generation is opt-in (${quality ?? 'development'}, setting=${enabled ?? 'unset'})`, async () => {
+				const { agent, instantiationService } = createTestAgentContext(disposables, {
+					environmentServiceRegistration: 'native',
+					sessionDataService: disposables.add(new TestSessionDataService()),
+					productService: { ...TEST_PRODUCT_SERVICE, quality },
+					rootConfig: enabled === undefined ? {} : { [CopilotCliConfigKey.ImageGeneration]: enabled },
+				});
+				try {
+					const created = createAgentSessionThroughAgent(agent, instantiationService);
+					const session = disposables.add(created.session);
+					await session.initializeSession();
+					assert.deepStrictEqual(created.createOptions()?.imageGeneration, { enabled: enabled === true });
+				} finally {
+					await disposeAgent(agent);
+				}
+			});
+		}
+	}
 
 	for (const enabled of [false, true]) {
 		test(`agent-created sessions set experimental mode for HydraFusion=${enabled}`, async () => {
@@ -16752,6 +16865,246 @@ suite('CopilotAgent', () => {
 		});
 	});
 
+	suite('pre-warmed sessions', () => {
+		const workingDirectory = URI.file('/workspace');
+		const tool = (name: string) => ({ name, description: name, inputSchema: { type: 'object' as const } });
+
+		/** Creates an agent whose SDK sessions are recorded and which fails if anything resumes an unclaimed warm session. */
+		async function createWarmableAgent(name: string, createGate?: Promise<void>, options?: { readonly workspacelessHome?: URI; readonly model?: ModelSelection; readonly rootConfig?: Record<string, unknown> }) {
+			const client = new TestCopilotClient([], [{ id: 'claude-sonnet', name: 'Claude Sonnet' }]);
+			const sdkSessions: MockCopilotSession[] = [];
+			const launchConfigs: Parameters<ITestCopilotClient['createSession']>[0][] = [];
+			let mcpLists = 0;
+			client.createSession = async config => {
+				launchConfigs.push(config);
+				await createGate;
+				const sdkSession = new MockCopilotSession(config.sessionId);
+				sdkSession.rpc.mcp.list = async () => {
+					mcpLists++;
+					return { servers: [] };
+				};
+				sdkSessions.push(sdkSession);
+				return sdkSession as unknown as CopilotSession;
+			};
+			client.resumeSession = async () => { throw new Error('An unclaimed warm session must never be resumed'); };
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const { agent } = createTestAgentContext(disposables, { copilotClient: client, sessionDataService, userHome: options?.workspacelessHome, rootConfig: options?.rootConfig });
+			await agent.authenticate('https://api.github.com', 'token');
+			const session = AgentSession.uri('copilotcli', name);
+			const chat = defaultChatUri(session);
+			const result = await provisionSession(agent, { session, model: options?.model, workingDirectories: options?.workspacelessHome ? undefined : [workingDirectory], activeClient: { clientId: 'client-1', tools: [tool('t1')] } });
+			const context = exactChatContext(result.session, chat, result.session);
+			const materialized: IAgentMaterializeChatEvent[] = [];
+			disposables.add(agent.onDidMaterializeChat(e => materialized.push(e)));
+			// What each send reported: 'used', or the reason it discarded the early launch.
+			const prewarm: string[] = [];
+			const sendContext: IAgentChatContext = { ...context, reportPrewarmedSession: discardReason => prewarm.push(discardReason ?? 'used') };
+			return {
+				agent, client, chat, context, sendContext, sdkSessions, launchConfigs, materialized, resolvedWorkingDirectory: result.resolvedWorkingDirectory,
+				sdkSessionId: () => chatBackings(agent).get(chat.toString())?.sdkSessionId,
+				state: () => ({ creates: sdkSessions.length, mcpLists, materialized: materialized.length, prewarm: [...prewarm], deleted: client.deletedSessionIds.length, live: hasLiveChat(agent, chat) }),
+			};
+		}
+
+		test('warming launches and starts MCP without announcing the chat, and the first send claims it', async () => {
+			const h = await createWarmableAgent('warm-claim');
+			try {
+				const warmed = await h.agent.chats.warmChat!(h.chat, h.context);
+				await timeout(0);
+				const afterWarm = { warmed, ...h.state() };
+				await h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, h.sendContext);
+
+				assert.deepStrictEqual({ afterWarm, afterSend: h.state(), sends: h.sdkSessions[0].sendCalls }, {
+					afterWarm: { warmed: true, creates: 1, mcpLists: 1, materialized: 0, prewarm: [], deleted: 0, live: true },
+					afterSend: { creates: 1, mcpLists: 1, materialized: 1, prewarm: ['used'], deleted: 0, live: true },
+					sends: 1,
+				});
+			} finally {
+				await disposeAgent(h.agent);
+			}
+		});
+
+		test('a send that arrives during the warm launch waits for it and claims it', async () => {
+			const gate = new DeferredPromise<void>();
+			const h = await createWarmableAgent('warm-send-immediately', gate.p);
+			try {
+				const warm = h.agent.chats.warmChat!(h.chat, h.context);
+				const send = h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, h.sendContext);
+				gate.complete();
+				await Promise.all([warm, send]);
+
+				assert.deepStrictEqual(h.state(), { creates: 1, mcpLists: 1, materialized: 1, prewarm: ['used'], deleted: 0, live: true });
+			} finally {
+				await disposeAgent(h.agent);
+			}
+		});
+
+		test('disposing an unsent warm draft discards its SDK session without announcing it', async () => {
+			const h = await createWarmableAgent('warm-discard');
+			try {
+				await h.agent.chats.warmChat!(h.chat, h.context);
+				const sdkSessionId = h.sdkSessionId();
+				await h.agent.chats.disposeChat(h.chat, h.context);
+
+				assert.deepStrictEqual({ ...h.state(), disconnects: h.sdkSessions[0].disconnectCalls, deleted: h.client.deletedSessionIds }, {
+					creates: 1, mcpLists: 1, materialized: 0, prewarm: [], deleted: [sdkSessionId], live: false, disconnects: 1,
+				});
+			} finally {
+				await disposeAgent(h.agent);
+			}
+		});
+
+		test('a client tool change between warming and send replaces the warm session instead of resuming it', async () => {
+			const h = await createWarmableAgent('warm-tools-changed');
+			try {
+				await h.agent.chats.warmChat!(h.chat, h.context);
+				const sdkSessionId = h.sdkSessionId();
+				h.agent.getOrCreateActiveClient(h.chat, h.context, { clientId: 'client-1' }).tools = [tool('t1'), tool('t2')];
+				await h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, h.sendContext);
+
+				assert.deepStrictEqual({ ...h.state(), deleted: h.client.deletedSessionIds, sends: h.sdkSessions.map(s => s.sendCalls) }, {
+					creates: 2, mcpLists: 1, materialized: 1, prewarm: ['clientToolsChanged'], deleted: [sdkSessionId], live: true, sends: [0, 1],
+				});
+			} finally {
+				await disposeAgent(h.agent);
+			}
+		});
+
+		test('a model option change before the first send starts it cold instead of applying it live', async () => {
+			const h = await createWarmableAgent('warm-model-config-change', undefined, { model: { id: 'claude-sonnet' } });
+			try {
+				await h.agent.chats.warmChat!(h.chat, h.context);
+				const sdkSessionId = h.sdkSessionId();
+				await h.agent.chats.changeModel(h.chat, { id: 'claude-sonnet', config: { thinkingLevel: 'high' } }, h.context);
+				const afterModelChange = h.state();
+				await h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, h.sendContext);
+
+				assert.deepStrictEqual({ afterModelChange, afterSend: { ...h.state(), deleted: h.client.deletedSessionIds, setModel: h.sdkSessions.map(s => s.setModelCalls.length) } }, {
+					afterModelChange: { creates: 1, mcpLists: 1, materialized: 0, prewarm: [], deleted: 0, live: true },
+					afterSend: { creates: 2, mcpLists: 1, materialized: 1, prewarm: ['modelChanged'], deleted: [sdkSessionId], live: true, setModel: [0, 0] },
+				});
+			} finally {
+				await disposeAgent(h.agent);
+			}
+		});
+
+		test('selecting a different model starts the first send cold, with that model\'s launch overrides', async () => {
+			const h = await createWarmableAgent('warm-model-change', undefined, {
+				rootConfig: { [CopilotCliConfigKey.ModelCapabilityOverrides]: { 'claude-sonnet': { modelCapabilities: { supports: { vision: false } } } } },
+			});
+			try {
+				await h.agent.chats.warmChat!(h.chat, h.context);
+				await h.agent.chats.changeModel(h.chat, { id: 'claude-sonnet' }, h.context);
+				await h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, h.sendContext);
+
+				assert.deepStrictEqual({
+					prewarm: h.state().prewarm,
+					launches: h.launchConfigs.map(config => ({ model: config.model, modelCapabilities: config.modelCapabilities })),
+					sends: h.sdkSessions.map(s => s.sendCalls),
+				}, {
+					prewarm: ['modelChanged'],
+					launches: [{ model: undefined, modelCapabilities: undefined }, { model: 'claude-sonnet', modelCapabilities: { supports: { vision: false } } }],
+					sends: [0, 1],
+				});
+			} finally {
+				await disposeAgent(h.agent);
+			}
+		});
+
+		test('starting an MCP server on a warm draft reaches its early launch and keeps the draft unsent', async () => {
+			const h = await createWarmableAgent('warm-start-mcp');
+			try {
+				await h.agent.chats.warmChat!(h.chat, h.context);
+				const started: string[] = [];
+				chatEntriesBySdkId(h.agent).get(h.sdkSessionId()!)!.chatSession.startMcpServer = async (id: string) => { started.push(id); };
+				await h.agent.startMcpServer(AgentSession.uri('copilotcli', 'warm-start-mcp'), 'server-id');
+
+				assert.deepStrictEqual({ started, ...h.state() }, { started: ['server-id'], creates: 1, mcpLists: 1, materialized: 0, prewarm: [], deleted: 0, live: true });
+			} finally {
+				await disposeAgent(h.agent);
+			}
+		});
+
+		test('a create retry for a warm draft keeps it provisional and the send still claims it', async () => {
+			const h = await createWarmableAgent('warm-create-retry');
+			try {
+				await h.agent.chats.warmChat!(h.chat, h.context);
+				const retry = await h.agent.chats.createChat(h.chat, h.context, { workingDirectories: [workingDirectory], activeClient: { clientId: 'client-1', tools: [tool('t1')] }, deferBacking: true });
+				const afterRetry = { provisional: retry ? retry.provisional : undefined, ...h.state() };
+				await h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, h.sendContext);
+
+				assert.deepStrictEqual({ afterRetry, afterSend: h.state() }, {
+					afterRetry: { provisional: true, creates: 1, mcpLists: 1, materialized: 0, prewarm: [], deleted: 0, live: true },
+					afterSend: { creates: 1, mcpLists: 1, materialized: 1, prewarm: ['used'], deleted: 0, live: true },
+				});
+			} finally {
+				await disposeAgent(h.agent);
+			}
+		});
+
+		for (const teardown of ['clientRestart', 'connectionClosed', 'release'] as const) {
+			test(`a warm runtime torn down by ${teardown} is invalidated, and the send launches a fresh one`, async () => {
+				const h = await createWarmableAgent(`warm-teardown-${teardown}`);
+				try {
+					await h.agent.chats.warmChat!(h.chat, h.context);
+					const sdkSessionId = h.sdkSessionId();
+					const internals = h.agent as unknown as {
+						_requestClientRestart(reason: string): Promise<boolean>;
+						_handleClientOperationFailure(error: unknown, operation: string): Promise<unknown>;
+					};
+					switch (teardown) {
+						case 'clientRestart': await internals._requestClientRestart('test'); break;
+						case 'connectionClosed': await internals._handleClientOperationFailure(new Error('Connection is closed.'), 'modelRefresh'); break;
+						case 'release': await h.agent.chats.releaseChat(h.chat, h.context); break;
+					}
+					const afterTeardown = { live: hasLiveChat(h.agent, h.chat) };
+					await h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, h.sendContext);
+
+					assert.deepStrictEqual({ afterTeardown, afterSend: { ...h.state(), deleted: h.client.deletedSessionIds, sdkSessionIds: h.sdkSessions.map(s => s.sessionId), sends: h.sdkSessions.map(s => s.sendCalls) } }, {
+						afterTeardown: { live: false },
+						afterSend: { creates: 2, mcpLists: 1, materialized: 1, prewarm: [], live: true, deleted: [sdkSessionId], sdkSessionIds: [sdkSessionId, sdkSessionId], sends: [0, 1] },
+					});
+				} finally {
+					await disposeAgent(h.agent);
+				}
+			});
+		}
+
+		test('a workspace-less draft warms in its scratch folder and the first send claims it', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/warm-qc-home-`));
+			const h = await createWarmableAgent('warm-workspaceless', undefined, { workspacelessHome: userHome });
+			try {
+				await h.agent.chats.warmChat!(h.chat, h.context);
+				const afterWarm = h.state();
+				await h.agent.chats.sendMessage(h.chat, 'hello', undefined, undefined, 'turn-1', undefined, h.sendContext);
+
+				assert.deepStrictEqual({ afterWarm, afterSend: h.state(), materializedIn: h.materialized[0]?.workingDirectories?.map(d => d.toString()) }, {
+					afterWarm: { creates: 1, mcpLists: 1, materialized: 0, prewarm: [], deleted: 0, live: true },
+					afterSend: { creates: 1, mcpLists: 1, materialized: 1, prewarm: ['used'], deleted: 0, live: true },
+					materializedIn: [h.resolvedWorkingDirectory?.toString()],
+				});
+			} finally {
+				await disposeAgent(h.agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+			}
+		}).timeout(30_000);
+
+		test('a worktree send discards the folder warm session and materializes in the worktree', async () => {
+			const h = await createWarmableAgent('warm-worktree');
+			try {
+				await h.agent.chats.warmChat!(h.chat, h.context);
+				const worktree = URI.file('/worktrees/agents-test');
+				await h.agent.chats.sendMessage(h.chat, 'hello', [worktree], undefined, 'turn-1', undefined, h.sendContext);
+
+				assert.deepStrictEqual({ ...h.state(), materializedIn: h.materialized[0]?.workingDirectories?.map(d => d.toString()) }, {
+					creates: 2, mcpLists: 1, materialized: 1, prewarm: ['workingDirectoryChanged'], deleted: 1, live: true, materializedIn: [worktree.toString()],
+				});
+			} finally {
+				await disposeAgent(h.agent);
+			}
+		});
+	});
+
 	suite('createChat failure rollback', () => {
 		/** Structural view of the agent's private per-scope maps under test. */
 		function activeClients(agent: CopilotAgent): { get(session: URI): { dispose(): void } | undefined } {
@@ -16915,7 +17268,7 @@ suite('CopilotAgent', () => {
 				// `_queueSession`) before `initializeSession` fails. The context also
 				// carries a host customization snapshot, so the failure must clear
 				// the retained snapshot along with everything else.
-				await assert.rejects(() => agent.chats.createChat(chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session, customizations: [plugin], subagentChatUriFormat: 'shaped' as const }, {
+				await assert.rejects(() => agent.chats.createChat(chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session, customizations: [plugin] }, {
 					workingDirectories: [workingDirectory],
 					deferBacking: false,
 				}), /createSession failed/);
@@ -16956,7 +17309,7 @@ suite('CopilotAgent', () => {
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
 
-				await agent.chats.createChat(defaultChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session, customizations: [plugin], subagentChatUriFormat: 'shaped' as const }, {
+				await agent.chats.createChat(defaultChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session, customizations: [plugin] }, {
 					workingDirectories: [workingDirectory],
 					deferBacking: false,
 				});
@@ -19065,7 +19418,7 @@ suite('CopilotAgent', () => {
 				// default-chat backing. The session has not been resumed into a live
 				// entry yet, so a rename in this window must still correlate on the
 				// SDK id, recovered from the backing rather than a live session.
-				await agent.materializeChat(defaultChatUri(session), { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session, subagentChatUriFormat: 'shaped' as const }, JSON.stringify({ sdkSessionId: 'sdk-conversation-id' }));
+				await agent.materializeChat(defaultChatUri(session), { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session }, JSON.stringify({ sdkSessionId: 'sdk-conversation-id' }));
 				const now = new Date().toISOString();
 				stateManager.createSession({ resource: session.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle, createdAt: now, modifiedAt: now, defaultChat: buildDefaultChatUri(session.toString()) });
 				stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionTitleChanged, title: 'Renamed' });
@@ -19103,7 +19456,7 @@ suite('CopilotAgent', () => {
 				agent.getOrCreateActiveClient(chat, session, { clientId: 'client-1' }, undefined);
 				const afterUndefined = internals._retainedHostCustomizations(session).map(c => c.id);
 				// An addressed chat operation's context refreshes it.
-				await agent.chats.getMessages(chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session, customizations: [{ ...plugin, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }] }], subagentChatUriFormat: 'shaped' as const });
+				await agent.chats.getMessages(chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session, customizations: [{ ...plugin, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }] }] });
 				const afterChatContext = internals._retainedHostCustomizations(session).map(c =>
 					c.type === CustomizationType.Plugin || c.type === CustomizationType.McpServer ? isCustomizationEnabled(c) : c.enabled
 				);
@@ -19269,7 +19622,6 @@ suite('CopilotAgent', () => {
 					sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri),
 					resource: subagentChat,
 					origin: { kind: ChatOriginKind.Tool, chat: spawningChat.toString(), toolCallId: 'tool-1' },
-					subagentChatUriFormat: 'shaped' as const,
 				});
 
 				assert.deepStrictEqual(calls, [{ toolCallId: 'tc-subagent', result }]);
@@ -19293,7 +19645,6 @@ suite('CopilotAgent', () => {
 					sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri),
 					resource: subagentChat,
 					origin: { kind: ChatOriginKind.Tool, chat: buildChatUri(sessionUri, 'gone'), toolCallId: 'tool-9' },
-					subagentChatUriFormat: 'shaped' as const,
 				});
 
 				assert.deepStrictEqual(calls, [{ toolCallId: 'tc-fallback', result }]);
@@ -19604,7 +19955,7 @@ suite('CopilotAgent', () => {
 				const provider = disposables.add(new InMemoryFileSystemProvider());
 				disposables.add(fileService.registerProvider(Schemas.file, provider));
 				const session = AgentSession.uri('copilotcli', 'closed-session');
-				await agent.materializeChat(URI.parse(buildDefaultChatUri(session)), { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session, subagentChatUriFormat: 'shaped' as const }, JSON.stringify({ sdkSessionId: 'closed-sdk-session' }));
+				await agent.materializeChat(URI.parse(buildDefaultChatUri(session)), { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session }, JSON.stringify({ sdkSessionId: 'closed-sdk-session' }));
 				const stateFile = URI.file('/home/test/.copilot/session-state/closed-sdk-session/events.jsonl');
 				await fileService.writeFile(stateFile, VSBuffer.fromString('persisted event'));
 				const outputDirectory = URI.file('/debug-output');
@@ -20682,8 +21033,15 @@ suite('CopilotAgent', () => {
 					id: model.id,
 					config: { thinkingLevel: 'high', contextSize: 1_000_000 },
 				}, exactChatContext(session, chat));
+				await agent.chats.changeModel(chat, {
+					id: model.id,
+					config: { reasoningEffort: 'low', contextSize: 272_000 },
+				}, exactChatContext(session, chat));
 
-				assert.deepStrictEqual(sdk.rec.modelCalls, [{ id: model.id, effort: 'high', tier: 'long_context' }]);
+				assert.deepStrictEqual(sdk.rec.modelCalls, [
+					{ id: model.id, effort: 'high', tier: 'long_context' },
+					{ id: model.id, effort: 'low', tier: 'default' },
+				]);
 			} finally {
 				await disposeAgent(agent);
 			}
@@ -20975,7 +21333,7 @@ suite('CopilotAgent', () => {
 		});
 
 		test('changeModel applies Auto preferences, overrides, and resets only to the targeted chat', async () => {
-			const { agent, configurationService } = createTestAgentContext(disposables);
+			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]) });
 			try {
 				const session = AgentSession.uri('copilotcli', 'auto-tier-peer');
 				const chatA = URI.parse(buildChatUri(session, 'peer-a'));
@@ -20987,7 +21345,7 @@ suite('CopilotAgent', () => {
 				const changes: string[] = [];
 				disposables.add(agent.onDidChangeChatData(e => changes.push(e.providerData)));
 				const selections: ModelSelection[] = [
-					{ id: 'auto', config: { tier: 'intelligence' } },
+					{ id: 'auto', config: { autoTier: 'intelligence' } },
 					{ id: 'auto', config: { tier: 'efficiency' } },
 					{ id: 'auto' },
 					{ id: 'gpt-5', config: { tier: 'balance' } },

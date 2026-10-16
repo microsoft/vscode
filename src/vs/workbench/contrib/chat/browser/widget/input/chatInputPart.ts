@@ -1521,10 +1521,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this.renderAttachedContext();
 			},
 			setModelProgrammatically: (model: ILanguageModelChatMetadataAndIdentifier) => {
-				this._applyProgrammaticLanguageModel(model);
-				if (!this.options.suppressModelPersistence) {
-					storeSelectedModel(this.storageService, this.location, this.getSelectedModelTarget(), model.identifier);
-				}
+				// Not stored: the pick it stands in for is, and is presented the same way when restored.
+				this._modelSelectionController.applyEquivalentSelection(model);
 				this.renderAttachedContext();
 			},
 			getModels: () => this.getModels(),
@@ -2006,12 +2004,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (this.cachedWidth) {
 				this.layout(this.cachedWidth);
 			}
-			if (persistSelection && this._currentLanguageModel.get()?.identifier === model.identifier) {
-				storeSelectedModel(this.storageService, this.location, this.getSelectedModelTarget(), model.identifier);
-			}
 			this._syncInputStateToModel();
 		};
 		this._modelSelectionController.applySelection(model, apply, isUserAction);
+		// Not in `apply`, which is skipped when the picker shows an equivalent in place of this model.
+		if (persistSelection) {
+			storeSelectedModel(this.storageService, this.location, this.getSelectedModelTarget(), model.identifier);
+		}
 	}
 
 	private _applyProgrammaticLanguageModel(model: ILanguageModelChatMetadataAndIdentifier): void {
@@ -3193,7 +3192,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const previousResponseListeners = store.add(new DisposableMap<string>());
 		const observePreviousResponse = (request: IChatRequestModel | undefined) => {
 			if (request?.response) {
-				previousResponseListeners.set(request.id, request.response.onDidChange(() => this.contextUsageWidget?.updateSessionCost(model.sessionCost)));
+				previousResponseListeners.set(request.id, request.response.onDidChange(() => this.contextUsageWidget?.updateSessionCost(model.sessionCost, model.sessionCostStatus)));
 			}
 		};
 		for (const request of model.getRequests().slice(0, -1)) {
@@ -3222,7 +3221,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					}
 					this.contextUsageWidget?.update(lastRequest);
 				}
-				this.contextUsageWidget?.updateSessionCost(model.sessionCost);
+				this.contextUsageWidget?.updateSessionCost(model.sessionCost, model.sessionCostStatus);
+			} else if (e.kind === 'setSessionCost') {
+				this.contextUsageWidget?.updateSessionCost(model.sessionCost, model.sessionCostStatus);
 			} else if (e.kind === 'completedRequest') {
 				this.contextUsageWidget?.update(model.lastRequest);
 			}
@@ -3239,6 +3240,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		// Initial update
 		this.contextUsageWidget.update(model.lastRequest);
+		this.contextUsageWidget.updateSessionCost(model.sessionCost, model.sessionCostStatus);
 	}
 
 	private handleViewModelChange(e: IChatWidgetViewModelChangeEvent): void {
@@ -3384,6 +3386,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		this._register(widget.onDidChangeViewModel(e => this.handleViewModelChange(e)));
+		this._register(autorun(reader => {
+			const report = this._currentSessionModelObservable.read(reader)?.modelConfigurationState?.read(reader);
+			this._modelConfigStore.setSessionModelConfiguration(report);
+		}));
 
 		let elements;
 		if (this.options.renderStyle === 'compact') {

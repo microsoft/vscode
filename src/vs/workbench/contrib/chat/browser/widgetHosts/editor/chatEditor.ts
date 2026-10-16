@@ -33,6 +33,7 @@ import { EditorInput } from '../../../../../common/editor/editorInput.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../../common/theme.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IChatModel, IChatModelInputState, IExportableChatData, ISerializableChatData } from '../../../common/model/chatModel.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
@@ -43,7 +44,8 @@ import { AgentHostSessionInputPills } from '../../agentSessions/agentHost/agentH
 import { ChatEditorInput } from './chatEditorInput.js';
 import { ChatWidget } from '../../widget/chatWidget.js';
 import { IChatWidgetViewState, setModelPreservingInputTypedWhileLoading } from '../../chat.js';
-import { getChatSessionType } from '../../../common/model/chatUri.js';
+import { getChatSessionType, isUntitledChatSession } from '../../../common/model/chatUri.js';
+import { IChatOpen, IChatOpenDiagnosticsService } from '../../../common/chatOpenDiagnosticsService.js';
 
 export interface IChatEditorOptions extends IEditorOptions {
 	/**
@@ -84,6 +86,7 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 
 	private _chatWithUnregisteredProvider: URI | undefined;
 	private readonly _providerReload = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _openDiagnostics = this._register(new MutableDisposable<IChatOpen>());
 	private _providerReloadState: {
 		readonly input: ChatEditorInput;
 		readonly viewState: IChatWidgetViewState;
@@ -105,6 +108,8 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatService private readonly chatService: IChatService,
+		@IChatOpenDiagnosticsService private readonly chatOpenDiagnosticsService: IChatOpenDiagnosticsService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IEditorService editorService: IEditorService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
@@ -327,24 +332,31 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 		// during loading is preserved when the model binds. See #325323.
 		const inputBeforeLoad = this.widget?.getInput() ?? '';
 
-		// Show loading indicator early for non-local sessions to prevent layout shifts
-		const chatSessionType = input.getSessionType();
-		if (chatSessionType !== localChatSessionType) {
-			const loadingMessage = nls.localize('chatEditor.loadingSession', "Loading...");
-			this.showLoadingInChatWidget(loadingMessage);
-		}
-
-		await super.setInput(input, options, context, token);
-		if (token.isCancellationRequested) {
-			this.hideLoadingInChatWidget();
-			return;
-		}
-
-		if (!this.widget) {
-			throw new Error('ChatEditor lifecycle issue: no editor widget');
-		}
+		// Editors restored with the workbench, and new and imported chats, are not opened by the user.
+		const sessionResource = input.sessionResource;
+		const alreadyShown = input.hasResolvedModel;
+		const open = this._openDiagnostics.value = sessionResource && !isUntitledChatSession(sessionResource) && !options?.target && this.layoutService.isRestored()
+			? this.chatOpenDiagnosticsService.startOpen('editor', sessionResource, token, alreadyShown)
+			: undefined;
 
 		try {
+			// Show loading indicator early for non-local sessions to prevent layout shifts
+			const chatSessionType = input.getSessionType();
+			if (chatSessionType !== localChatSessionType) {
+				const loadingMessage = nls.localize('chatEditor.loadingSession', "Loading...");
+				this.showLoadingInChatWidget(loadingMessage);
+			}
+
+			await super.setInput(input, options, context, token);
+			if (token.isCancellationRequested) {
+				this.hideLoadingInChatWidget();
+				return;
+			}
+			open?.mark('selectionHandled');
+			if (!this.widget) {
+				throw new Error('ChatEditor lifecycle issue: no editor widget');
+			}
+
 			const editorModel = await raceCancellationError(input.resolve(token), token);
 
 			if (!editorModel) {
@@ -385,9 +397,15 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 			if (isContributedChatSession && options?.title?.preferred && input.sessionResource) {
 				this.chatService.setChatSessionTitle(input.sessionResource, options.title.preferred);
 			}
+
+			// The loading indicator is hidden and the input usable; the editor's own progress ends with this call.
+			open?.complete(this.widget.visible && !this._editorContainer?.ownerDocument.hidden);
 		} catch (error) {
 			this.hideLoadingInChatWidget();
+			open?.fail(error);
 			throw error;
+		} finally {
+			open?.end();
 		}
 	}
 

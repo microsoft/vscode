@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/agentHostChatIdentity.js';
+import { agentModelConfigurationReportKey } from '../../../../../../platform/agentHost/common/agentModelConfiguration.js';
 import { resolveSignedOutWindowGate, SignedOutWindowGate } from '../../../../../browser/sessionsAuthGate.js';
 import { withSessionSandboxPolicy } from '../../../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
 import { withChatSandboxState, withSessionSandboxState } from '../../../../../../platform/agentHost/common/meta/agentSandboxStateMeta.js';
@@ -14212,6 +14213,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 	test('replaceSessionConfig only replaces sessionMutable, non-readOnly values and preserves everything else', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		agentHost.addSession(createSession('rep-1', { summary: 'Replace Session' }));
 		const agentMergeFolders = { 'file:///repo': { enabled: true } };
+		const modelConfiguration = { 'custom-chat:/one': { models: {} } };
 		const provider = createProvider(disposables, agentHost);
 		provider.getSessions();
 		await timeout(0);
@@ -14225,9 +14227,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 					autoApprove: { type: 'string', title: 'Auto Approve', enum: ['default', 'autoApprove'], sessionMutable: true },
 					isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'] }, // non-mutable
 					branch: { type: 'string', title: 'Branch', enum: ['main'], sessionMutable: true, readOnly: true }, // readOnly
+					[agentModelConfigurationReportKey]: { type: 'object', title: 'Runtime model configuration', readOnly: true },
 				},
 			},
-			values: { autoApprove: 'default', isolation: 'worktree', branch: 'main', [SessionConfigKey.AgentMergeFolders]: agentMergeFolders },
+			values: { autoApprove: 'default', isolation: 'worktree', branch: 'main', [SessionConfigKey.AgentMergeFolders]: agentMergeFolders, [agentModelConfigurationReportKey]: modelConfiguration },
 		};
 		const fakeState: SessionState = {
 			provider: 'copilotcli', title: 'Replace Session', status: ProtocolSessionStatus.Idle,
@@ -14261,7 +14264,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 
 		const latest = provider.getSessionConfig(session!.sessionId, session!.mainChat.get().resource);
-		assert.deepStrictEqual(latest?.values, { autoApprove: 'autoApprove', isolation: 'worktree', branch: 'main', [SessionConfigKey.AgentMergeFolders]: agentMergeFolders });
+		assert.deepStrictEqual(latest?.values, { autoApprove: 'autoApprove', isolation: 'worktree', branch: 'main', [SessionConfigKey.AgentMergeFolders]: agentMergeFolders, [agentModelConfigurationReportKey]: modelConfiguration });
 	}));
 
 	test('running session config writes clamp autoApprove to default when policy disables global auto-approve', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
