@@ -295,7 +295,8 @@ suite('GitHubService', () => {
 					return Response.json({
 						data: {
 							pullRequest: { fields: [] },
-							repository: { fields: [], pullRequests: { nodes: [], pageInfo: { endCursor: null, hasNextPage: false } } },
+							repository: { fields: [] },
+							r0: null,
 						}
 					});
 				},
@@ -313,17 +314,16 @@ suite('GitHubService', () => {
 					changes.fire({ providerId: 'github', sessionIds: ['session'] });
 				}
 				const replacement = disposables.add(service.acquireClient(clientOptions())).object;
-				const page = await replacement.query.listPullRequests({ ...credential.account, owner: 'owner', repo: 'repo' }, undefined, signal());
+				await replacement.query.hydrateResources([{ kind: 'repository', ref: { ...credential.account, owner: 'owner', repo: 'repo' } }], signal());
 				const renewed = await replacement.credentials.getCredential(signal());
 				await assert.rejects(replacement.transport.rest(renewed.account, renewed.token, {
 					method: 'GET', url: 'https://api.github.com/repos/owner/repo', deadline: Date.now() + 100,
 				}, signal()), { kind: 'timeout' });
-				assert.deepStrictEqual({ requests, page }, {
+				assert.deepStrictEqual({ requests }, {
 					requests: [
 						{ path: '/user', at: 0 }, { path: '/repos/owner/repo', at: 0 },
 						{ path: '/user', at: 0 }, { path: '/graphql', at: 0 }, { path: '/graphql', at: 0 },
 					],
-					page: { pullRequests: [], cursor: undefined, hasNextPage: false },
 				});
 			} finally {
 				service.dispose();
@@ -371,7 +371,8 @@ suite('GitHubService', () => {
 					return Response.json({
 						data: {
 							pullRequest: { fields: [] },
-							repository: { fields: [], pullRequests: { nodes: [], pageInfo: { endCursor: null, hasNextPage: false } } },
+							repository: { fields: [] },
+							r0: null,
 						}
 					});
 				}
@@ -387,7 +388,7 @@ suite('GitHubService', () => {
 				core: client.transport.rateLimits.getDelay(credential.account, 'core'),
 				graphql: client.transport.rateLimits.getRequestDelay(credential.account, 'graphql'),
 			};
-			const page = await client.query.listPullRequests({ ...credential.account, owner: 'owner', repo: 'repo' }, undefined, signal());
+			await client.query.hydrateResources([{ kind: 'repository', ref: { ...credential.account, owner: 'owner', repo: 'repo' } }], signal());
 			const request = { method: 'GET' as const, url: 'https://api.github.com/repos/owner/repo' };
 			await assert.rejects(client.transport.rest(credential.account, credential.token, {
 				...request, deadline: Date.now() + 100,
@@ -395,13 +396,12 @@ suite('GitHubService', () => {
 			token = 'replacement-token';
 			const renewed = await client.credentials.getCredential(signal());
 			await client.transport.rest(renewed.account, renewed.token, request, signal());
-			assert.deepStrictEqual({ requests, delays, page }, {
+			assert.deepStrictEqual({ requests, delays }, {
 				requests: [
 					{ path: '/user', at: 0 }, { path: '/graphql', at: 0 }, { path: '/graphql', at: 0 },
 					{ path: '/user', at: 5_000 }, { path: '/repos/owner/repo', at: 5_000 },
 				],
 				delays: { rest: 5_000, core: 0, graphql: 0 },
-				page: { pullRequests: [], cursor: undefined, hasNextPage: false },
 			});
 		} finally {
 			service.dispose();

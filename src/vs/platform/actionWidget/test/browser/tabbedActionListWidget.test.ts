@@ -30,6 +30,7 @@ import { TestAccessibilityService } from '../../../accessibility/test/common/tes
 import { Codicon } from '../../../../base/common/codicons.js';
 import { AnchorPosition } from '../../../../base/common/layout.js';
 import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
+import { URI } from '../../../../base/common/uri.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 
 interface ITestItem {
@@ -419,6 +420,70 @@ suite('TabbedActionListWidget', () => {
 			tabsBeforeShortcut: [],
 			nextTab: true,
 			tabChanges: ['Remote'],
+		});
+		widget.hide();
+	});
+
+	test('Left collapses and Right expands a collapsible section like a tree', () => {
+		const { widget, contextView } = createWidget(disposables);
+		const toggles: boolean[] = [];
+		const requested: string[] = [];
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor: document.body,
+			tabs: [{ id: 'Models' }],
+			initialTab: 'Models',
+			createActionList: () => ({
+				items: [
+					action('promoted'),
+					{ ...action('other-models'), section: 'other', isSectionToggle: true },
+					...['a', 'b'].map(id => ({ ...action(id), section: 'other' })),
+				],
+				listOptions: { collapsedByDefault: new Set(['other']), onDidToggleSection: (_, collapsed) => toggles.push(collapsed) },
+			}),
+			openItemDetails: item => {
+				requested.push(item.item!.id);
+				return false;
+			},
+			delegate: { onSelect: () => assert.fail('Arrows must not select'), onHide: () => { } },
+		});
+		const popup = contextView.getContextViewElement();
+		const list = popup.querySelector<HTMLElement>('.monaco-list')!;
+		const press = (key: 'ArrowLeft' | 'ArrowRight' | 'ArrowDown') => {
+			const event = new KeyboardEvent('keydown', { key, keyCode: key === 'ArrowLeft' ? 37 : key === 'ArrowRight' ? 39 : 40, bubbles: true, cancelable: true });
+			list.dispatchEvent(event);
+			return event.defaultPrevented;
+		};
+		// Count rows through aria-setsize: the list is virtualized, so a small viewport renders only some of them.
+		const state = () => {
+			const focusedRow = popup.querySelector('.monaco-list-row.focused');
+			return {
+				visibleRows: focusedRow?.getAttribute('aria-setsize'),
+				focused: focusedRow?.querySelector('.title')?.textContent,
+				expanded: popup.querySelector('.monaco-list-row[aria-expanded]')?.getAttribute('aria-expanded'),
+			};
+		};
+		const leftOnUnsectioned = press('ArrowLeft');
+		press('ArrowDown');
+		const leftOnCollapsed = press('ArrowLeft');
+		const expand = press('ArrowRight');
+		const afterExpand = state();
+		const rightOnExpanded = press('ArrowRight');
+		press('ArrowDown');
+		const rightOnChild = press('ArrowRight');
+		const collapseFromChild = press('ArrowLeft');
+		const afterCollapse = state();
+		assert.deepStrictEqual({ leftOnUnsectioned, leftOnCollapsed, expand, afterExpand, rightOnExpanded, rightOnChild, collapseFromChild, afterCollapse, toggles, requested }, {
+			leftOnUnsectioned: false,
+			leftOnCollapsed: false,
+			expand: true,
+			afterExpand: { visibleRows: '4', focused: 'other-models', expanded: 'true' },
+			rightOnExpanded: false,
+			rightOnChild: false,
+			collapseFromChild: true,
+			afterCollapse: { visibleRows: '2', focused: 'other-models', expanded: 'false' },
+			toggles: [false, true],
+			requested: ['a'],
 		});
 		widget.hide();
 	});
@@ -1436,6 +1501,57 @@ suite('TabbedActionListWidget', () => {
 				afterShrinking: { keepsLabel: false, marked: false },
 			},
 		);
+		widget.hide();
+	});
+
+	test('an image tab icon is drawn by the tab, with or without its label', () => {
+		const { widget, contextView } = createWidget(disposables);
+		const anchor = document.createElement('div');
+		document.body.appendChild(anchor);
+		disposables.add({ dispose: () => anchor.remove() });
+
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor,
+			tabs: [
+				{ id: 'Local', label: 'Local models', icon: Codicon.deviceDesktop },
+				{ id: 'Provider', label: 'Provider models', icon: { light: URI.file('/provider-light.svg'), dark: URI.file('/provider-dark.svg') } },
+			],
+			initialTab: 'Local',
+			tabLabels: 'active',
+			createActionList: () => ({ items: [action('a')] }),
+			delegate: { onSelect: () => { }, onHide: () => { } },
+		});
+
+		const tabs = () => {
+			const popups = [...document.querySelectorAll<HTMLElement>('.action-widget')]
+				.filter(popup => popup.querySelector('.tabbed-action-list-tabstrip'));
+			return [...popups[popups.length - 1].querySelectorAll<HTMLElement>('.tabbed-action-list-tabstrip .monaco-button')];
+		};
+		// The popup's container stands in for the workbench, which carries the theme class.
+		const imageIn = (tab: HTMLElement, theme: 'light' | 'dark') => {
+			contextView.getContextViewElement().classList.toggle('vs-dark', theme === 'dark');
+			const backgroundImage = mainWindow.getComputedStyle(tab, '::before').backgroundImage;
+			return backgroundImage.includes('provider-light.svg') ? 'light' : backgroundImage.includes('provider-dark.svg') ? 'dark' : undefined;
+		};
+		const describe = () => tabs().map(tab => ({
+			text: tab.textContent,
+			codicon: !!tab.querySelector('.codicon'),
+			images: [imageIn(tab, 'light'), imageIn(tab, 'dark')],
+			opacity: mainWindow.getComputedStyle(tab, '::before').opacity,
+			// An image-only tab has no text, but must still look and act like the other tabs.
+			textButton: tab.classList.contains('monaco-text-button'),
+		}));
+		const before = describe();
+		tabs()[1].click();
+
+		// Inactive tabs mute their codicons through color, which an image can only follow by fading.
+		const codiconTab = { codicon: true, images: [undefined, undefined], opacity: '1', textButton: true };
+		const imageTab = { codicon: false, images: ['light', 'dark'], textButton: true };
+		assert.deepStrictEqual({ before, after: describe() }, {
+			before: [{ text: 'Local models', ...codiconTab }, { text: '', ...imageTab, opacity: '0.7' }],
+			after: [{ text: '', ...codiconTab }, { text: 'Provider models', ...imageTab, opacity: '1' }],
+		});
 		widget.hide();
 	});
 

@@ -23,17 +23,29 @@ import { AgentHostSandboxConfigKey, AgentHostSandboxKey, sandboxConfigSchema } f
 import type { ISandboxPathGrant } from '../../common/sandboxPathGrant.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { getVSCodeSandboxReadRoots } from '../../common/vscodeSandboxPaths.js';
-import { IAgentConfigurationService, IAgentSessionConfigurationChangeEvent } from '../agentConfigurationService.js';
+import { IAgentConfigurationService, type IAgentChatConfigurationTarget } from '../agentConfigurationService.js';
 import { getSessionSandboxConfig } from '../sessionSandbox.js';
+import type { ActionOrigin } from '../../common/state/sessionActions.js';
 import { attributePermissionResult } from './copilotPermissionAttribution.js';
 import { CopilotSandboxDiagnostics } from './copilotSandboxDiagnostics.js';
 import { applySandboxConfig } from './copilotSessionLauncher.js';
 import type { ShellManager } from './copilotShellTools.js';
 import { buildSandboxConfigForSdk, type SandboxConfig } from './sandboxConfigForSdk.js';
 
+/** A config change of the chat this SDK session runs. */
+interface ISandboxConfigChange {
+	readonly config: Record<string, unknown>;
+	readonly origin: ActionOrigin | undefined;
+}
+
 interface ICopilotSessionSandboxOptions {
 	readonly sessionId: string;
+	/** The owner the SDK session was launched for; it configures the running process until the relaunch. */
 	readonly ownerSession: URI;
+	/** The chat this SDK session runs; the sandbox selection and applied state are the chat's. */
+	readonly chat: URI;
+	/** Where a rejected selection is written back: the chat under its current owner, where the change came from. */
+	readonly getConfigWriteTarget: () => IAgentChatConfigurationTarget;
 	readonly platform: NodeJS.Platform;
 	readonly getSession: () => CopilotSession;
 	readonly getHostSupport: () => ReturnType<CopilotClient['rpc']['sandbox']['getHostSupport']>;
@@ -140,8 +152,8 @@ export class CopilotSessionSandbox extends Disposable {
 				? localize('copilot.permission.grant.savedButFailed', "The path was saved to your sandbox settings, but this request could not be retried. {0}", getErrorMessage(error))
 				: getErrorMessage(error);
 			if (context.origin) {
-				const owner = this._options.ownerSession.toString();
-				this._configurationService.setSessionSandboxEnabled(owner, this._configurationService.getSessionSandboxEnabled(owner) ?? true, { ...context.origin, message });
+				const target = this._target();
+				this._configurationService.setChatSandboxEnabled(target, this._configurationService.getChatSandboxEnabled(target) ?? true, { ...context.origin, message });
 			}
 			return attributePermissionResult({ kind: 'reject' }, 'unattended_fallback');
 		}
@@ -160,12 +172,18 @@ export class CopilotSessionSandbox extends Disposable {
 		return this._computeConfig() !== undefined;
 	}
 
+	private _target(): IAgentChatConfigurationTarget {
+		return { session: this._options.ownerSession.toString(), chat: this._options.chat.toString() };
+	}
+
 	private _computeConfig(): SandboxConfig | undefined {
-		const owner = this._options.ownerSession.toString();
-		const sandbox = getSessionSandboxConfig(this._configurationService, owner, this._options.platform);
-		const policy = this._configurationService.getSessionSandboxPolicy(owner);
+		const target = this._target();
+		const sandbox = getSessionSandboxConfig(this._configurationService, target, this._options.platform);
+		const policy = this._configurationService.getSessionSandboxPolicy(target.session);
 		const readonlyPaths = getVSCodeSandboxReadRoots({
-			sessionDataDirectory: this._sessionDataService.getSessionDataDir(this._options.ownerSession),
+			sessionDataDirectories: [this._options.ownerSession.toString(), ...this._configurationService.getChatAttachmentScopes(target)]
+				.filter((scope, index, scopes) => scopes.indexOf(scope) === index)
+				.map(scope => this._sessionDataService.getSessionDataDir(URI.parse(scope))),
 			shellInitDirectory: this._options.getShellInitDirectory(),
 		}).map(root => root.fsPath);
 		return buildSandboxConfigForSdk(this._options.platform, sandbox, readonlyPaths, policy);
@@ -181,8 +199,8 @@ export class CopilotSessionSandbox extends Disposable {
 	}
 
 	/** Captures request attribution before permission synchronization can yield. */
-	prepareConfigChange(event?: IAgentSessionConfigurationChangeEvent) {
-		const values = this._configurationService.getSessionConfigValues(this._options.ownerSession.toString());
+	prepareConfigChange(event?: ISandboxConfigChange) {
+		const values = this._configurationService.getChatConfigValues(this._options.getConfigWriteTarget());
 		const selection = event?.origin ? event.config[SessionConfigKey.SandboxEnabled] : undefined;
 		const requestedSelection = selection === 'on' || selection === 'off' || selection === 'default' ? selection : undefined;
 		const sessionCommand = requestedSelection !== undefined && this._requiresSessionCommand();
@@ -205,10 +223,10 @@ export class CopilotSessionSandbox extends Disposable {
 		};
 	}
 
-	private _rejectConfigChange(event: IAgentSessionConfigurationChangeEvent | undefined, values: Record<string, unknown> | undefined, error: unknown): void {
+	private _rejectConfigChange(event: ISandboxConfigChange | undefined, values: Record<string, unknown> | undefined, error: unknown): void {
 		if (event?.origin && Object.hasOwn(event.config, SessionConfigKey.SandboxEnabled)) {
 			const message = getErrorMessage(error);
-			this._configurationService.rejectSessionSandboxChange(this._options.ownerSession.toString(), values, event.origin,
+			this._configurationService.rejectChatSandboxChange(this._options.getConfigWriteTarget(), values, event.origin,
 				message.includes('Command /sandbox cannot run while the agent is active.')
 					? localize('copilot.sandbox.agentActive', "Wait for the agent to finish executing, then try again.")
 					: message);
@@ -227,8 +245,8 @@ export class CopilotSessionSandbox extends Disposable {
 			return;
 		}
 		const base = this._computeConfig();
-		const owner = this._options.ownerSession.toString();
-		const policy = this._configurationService.getSessionSandboxPolicy(owner);
+		const target = this._target();
+		const policy = this._configurationService.getSessionSandboxPolicy(target.session);
 		if (requestedSelection !== undefined && this._requiresSessionCommand()) {
 			const enabled = requestedSelection === 'on' || (requestedSelection === 'default' && base?.enabled === true);
 			const result = await measureAgentProviderOperation(recorder, 'sandboxRpc', () => this._options.getSession().rpc.commands.invoke({ name: 'sandbox', input: `${enabled ? 'enable' : 'disable'} session` }));
@@ -236,7 +254,7 @@ export class CopilotSessionSandbox extends Disposable {
 				throw new Error(result.kind === 'text' && result.text.trim() ? result.text : localize('copilot.sandbox.changeRejected', "Copilot SDK did not confirm the sandbox change for this session."));
 			}
 			this._disabledForSession = !enabled;
-			this._configurationService.setSessionSandboxEnabled(owner, enabled);
+			this._configurationService.setChatSandboxEnabled(target, enabled);
 			await measureAgentProviderOperation(recorder, 'sandboxDiagnostics', () => this.updateDiagnostics(enabled ? base : { enabled: false }));
 			return;
 		}
@@ -250,7 +268,7 @@ export class CopilotSessionSandbox extends Disposable {
 		try {
 			if (await measureAgentProviderOperation(recorder, 'sandboxRpc', () => applySandboxConfig(this._options.getSession(), sandboxConfig, this._options.sessionId, this._logService, requestedSelection !== undefined))) {
 				this._disabledForSession = false;
-				this._configurationService.setSessionSandboxEnabled(owner, sandboxConfig.enabled);
+				this._configurationService.setChatSandboxEnabled(target, sandboxConfig.enabled);
 				await measureAgentProviderOperation(recorder, 'sandboxDiagnostics', () => this.updateDiagnostics(sandboxConfig));
 			}
 		} catch (err) {

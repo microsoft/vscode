@@ -7,9 +7,9 @@ import { URI } from '../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
-import { ChatProgressAnimation, ChatProgressVerbosity } from '../../../../contrib/chat/common/constants.js';
+import { ChatModeKind, ChatPermissionLevel, ChatProgressAnimation, ChatProgressVerbosity } from '../../../../contrib/chat/common/constants.js';
 import { ChatToolInvocation } from '../../../../contrib/chat/common/model/chatProgressTypes/chatToolInvocation.js';
-import { ToolConfirmKind } from '../../../../contrib/chat/common/chatService/chatService.js';
+import { IChatQuestionCarousel, ToolConfirmKind } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { ILanguageModelToolsService, ToolDataSource } from '../../../../contrib/chat/common/tools/languageModelToolsService.js';
 import { getToolInvocationSummaryFromInput } from '../../../../contrib/chat/common/tools/toolInvocationSummary.js';
 import { ILanguageModelToolsConfirmationService } from '../../../../contrib/chat/common/tools/languageModelToolsConfirmationService.js';
@@ -95,6 +95,60 @@ function renderTranscript(context: ComponentFixtureContext, width: number, progr
 		persistentProgress: progress,
 		persistentProgressVerbosity: ChatProgressVerbosity.Verbose,
 		collapseCompletedResponses: false,
+	});
+}
+
+function renderAutopilotCompletion(context: ComponentFixtureContext, width: number, permissionLevel = ChatPermissionLevel.Autopilot, progress = ChatProgressAnimation.Draw): Promise<void> {
+	return renderChatWidget(context, {
+		width, height: 620, listHeight: 620, inputVisible: false,
+		persistentProgress: progress,
+		collapseCompletedResponses: true,
+		messages: [{
+			user: 'Compare the title generation changes',
+			modeInfo: {
+				kind: ChatModeKind.Agent, isBuiltin: true, modeInstructions: undefined,
+				telemetryModeId: 'agent', applyCodeBlockSuggestionId: undefined, permissionLevel,
+			},
+			assistant: [
+				{ kind: 'thinking', text: '**Comparing the implementations**\nReviewing the changes and their regression coverage.' },
+				{ kind: 'tool', toolId: 'read_file', displayName: 'Read file', invocationMessage: 'Read the title generation implementations', complete: true },
+				{
+					kind: 'markdown',
+					text: '## Comparison\n\nThe new implementation preserves the existing title until a replacement is ready.\n\n- **Streaming:** partial results no longer overwrite a useful title.\n- **Restored sessions:** the saved title remains visible while the session loads.\n- **Validation:** the focused title-generation tests pass.\n\nKeep the new implementation and its regression coverage.',
+				},
+				{ kind: 'tool', toolId: 'bash', displayName: 'Shell', invocationMessage: 'Recorded the comparison results', complete: true },
+				{ kind: 'markdown', text: '**Task completed:** Compared the title generation changes.' },
+			],
+		}],
+	});
+}
+
+function renderQuestionSummaries(context: ComponentFixtureContext, width: number): Promise<void> {
+	const carousel = {
+		kind: 'questionCarousel',
+		allowSkip: true,
+		questions: [{
+			id: 'answer', type: 'singleSelect', title: 'What is 12 x 8?',
+			options: [
+				{ id: '96', label: '96', value: '96' },
+				{ id: '108', label: '108', value: '108' },
+			],
+		}],
+		isUsed: true,
+		answerPresentation: 'conversation',
+	} satisfies IChatQuestionCarousel;
+	return renderChatWidget(context, {
+		width, height: 400, listHeight: 400, inputVisible: false,
+		persistentProgress: ChatProgressAnimation.Draw,
+		collapseCompletedResponses: false,
+		messages: [{
+			user: 'Ask me a question',
+			assistant: [
+				{ ...carousel, data: { answer: { selectedValue: '96' } } },
+				carousel,
+				{ ...carousel, autoReply: true, data: { answer: 'The user is not available to answer your question. Choose the recommended option.' } },
+			],
+		}],
 	});
 }
 
@@ -359,6 +413,19 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	CompletedSummaryWithEdits: defineComponentFixture({
 		render: context => renderCompletedSummary(context, 320, true),
 	}),
+	AutopilotCompletion: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderAutopilotCompletion(context, 620),
+	}),
+	AutopilotCompletionNarrow: defineComponentFixture({
+		render: context => renderAutopilotCompletion(context, 320),
+	}),
+	AutopilotCompletionLegacy: defineComponentFixture({
+		render: context => renderAutopilotCompletion(context, 620, ChatPermissionLevel.Autopilot, ChatProgressAnimation.Off),
+	}),
+	InteractiveCompletion: defineComponentFixture({
+		render: context => renderAutopilotCompletion(context, 620, ChatPermissionLevel.Default),
+	}),
 	Narrow: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: context => renderTranscript(context, 280, ChatProgressAnimation.Draw),
@@ -434,6 +501,13 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	}),
 	Wide: defineComponentFixture({
 		render: context => renderTranscript(context, 720, ChatProgressAnimation.Draw),
+	}),
+	QuestionSummaries: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderQuestionSummaries(context, 620),
+	}),
+	QuestionSummariesNarrow: defineComponentFixture({
+		render: context => renderQuestionSummaries(context, 280),
 	}),
 	LegacyNarrow: defineComponentFixture({
 		render: context => renderTranscript(context, 280, ChatProgressAnimation.Off),

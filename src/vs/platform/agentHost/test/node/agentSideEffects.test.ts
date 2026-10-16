@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { readChatUsage } from '../../common/meta/agentUsageMeta.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { DeferredPromise, SequencerByKey, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -69,6 +70,7 @@ import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentSessionRegistry, IAgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from '../../node/chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
 import { ISessionWorkspaceConversionService } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
+import { IAgentHostArchivedChatWorkspaceService } from '../../node/chatContributions/chatArchive/archivedChatWorkspaceService.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter, type IAgentHostAskQuestionsToolInvokedEvent, type IAgentHostTurnCompletedEvent } from '../../node/agentHostTelemetryReporter.js';
 import { IAgentHostSessionPromptService } from '../../node/agentHostSessionPromptService.js';
 import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/agentHostToolCallTracker.js';
@@ -86,7 +88,8 @@ import { applyMcpServerEnablement } from '../../node/shared/mcpCustomizationCont
 import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
-import { createLegacyChatMetadataPersistence, createTestSessionStateStore, createTestChatRows } from './chatMetadataTestHelpers.js';
+import { createLegacyChatMetadataPersistence, createTestSessionStateStore, createTestChatRows, createTestWorktreeCleanupService } from './chatMetadataTestHelpers.js';
+import { IAgentHostWorktreeCleanupService } from '../../node/agentHostWorktreeCleanupService.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
 import { createTestAgentService, getTestAgentStateManager, getTestSessionStateStore, registerTestAgentProvider } from './agentServiceTestUtils.js';
@@ -228,6 +231,7 @@ function createTestSideEffects(
 	const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
 	const worktreeIsolation = options.worktreeIsolation ?? new NoopWorktreeIsolation();
 	const sessionStateStore = createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), options.sessionDataService);
+	const worktreeCleanup = createTestWorktreeCleanupService(disposables, worktreeIsolation);
 	const services = new ServiceCollection(
 		[ILogService, logService],
 		[IAgentConfigurationService, configService],
@@ -242,7 +246,8 @@ function createTestSideEffects(
 		[IAgentHostTerminalManager, terminalManager],
 		[ISessionDataService, options.sessionDataService],
 		[IAgentHostWorktreeIsolation, worktreeIsolation],
-		[IAdditionalWorktreeLifecycleService, new AdditionalWorktreeLifecycleService(sessionStateStore, worktreeIsolation)],
+		[IAgentHostWorktreeCleanupService, worktreeCleanup],
+		[IAdditionalWorktreeLifecycleService, new AdditionalWorktreeLifecycleService(sessionStateStore, worktreeCleanup)],
 		[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
 		[IAgentHostPeerChatPersistenceService, {
 			...createLegacyChatMetadataPersistence(options.sessionDataService),
@@ -251,6 +256,7 @@ function createTestSideEffects(
 			setArchived: async () => { },
 		}],
 	);
+	services.set(IAgentHostArchivedChatWorkspaceService, { _serviceBrand: undefined, setChatWorkspaceAttached: async () => { } } satisfies IAgentHostArchivedChatWorkspaceService);
 	services.set(ISessionWorkspaceConversionService, {
 		_serviceBrand: undefined,
 		supportsChatIsolation: () => false,
@@ -810,6 +816,39 @@ suite('AgentSideEffects', () => {
 				error: stateManager.getChatState(defaultChatUri)?.turns.at(-1)?.state === TurnState.Error,
 			}, { sends: 1, error: false });
 		});
+
+		for (const [outcome, expectedUsed, expectedDiscardReason] of [
+			['used', true, undefined],
+			['discarded', undefined, 'modelChanged'],
+			['none', undefined, undefined],
+		] as const) {
+			test(`reports on turn telemetry whether the send used or discarded a pre-warmed session: ${outcome}`, async () => {
+				const recording = new TestTelemetryService();
+				const localSideEffects = createOverlapSideEffects(NULL_CHECKPOINT_SERVICE, disposables.add(new AgentHostTelemetryService(recording)));
+				const sendMessage = agent.chats.sendMessage;
+				agent.chats.sendMessage = async (chat, prompt, workingDirectories, attachments, turnId, senderClientId, clientType, context) => {
+					if (outcome !== 'none' && context && !URI.isUri(context)) {
+						context.reportPrewarmedSession?.(outcome === 'discarded' ? 'modelChanged' : undefined);
+					}
+					return sendMessage(chat, prompt, workingDirectories, attachments, turnId, senderClientId, clientType, context);
+				};
+				try {
+					stateManager.dispatchServerAction(defaultChatUri, turnStarted);
+					localSideEffects.handleAction(defaultChatUri, turnStarted);
+					await waitForSendMessageCalls(1);
+					agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action: { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 50 } });
+				} finally {
+					agent.chats.sendMessage = sendMessage;
+				}
+				const data = recording.events.find(event => event.eventName === 'agentHost.turnCompleted')?.data as Record<string, unknown> | undefined;
+
+				assert.deepStrictEqual({ completed: !!data, used: data?.usedPrewarmedSession, discardReason: data?.prewarmedSessionDiscardReason }, {
+					completed: true,
+					used: expectedUsed,
+					discardReason: expectedDiscardReason,
+				});
+			});
+		}
 
 		test('holds the overlap experiment trigger until the assignment context arrives', async () => {
 			const telemetry = new TestExperimentTriggerTelemetryService();
@@ -1678,14 +1717,12 @@ suite('AgentSideEffects', () => {
 				const context = entry.context as IAgentChatContext;
 				return {
 					chat: entry.chat.toString(),
-					configurationResource: context.configurationResource.toString(),
 					resource: context.resource.toString(),
 					origin: context.origin,
 					customizations: context.customizations?.map(c => c.id),
 				};
 			}), [{
 				chat: peerChatUri,
-				configurationResource: sessionUri.toString(),
 				resource: peerChatUri,
 				origin: { kind: ChatOriginKind.Fork, chat: defaultChatUri, turnId: 'turn-0' },
 				customizations: [hostCustomization.id],
@@ -4160,6 +4197,83 @@ suite('AgentSideEffects', () => {
 
 	suite('registerProgressListener', () => {
 
+		test('rehydrates an aggregate reported before the resumed chat catalog exists', () => {
+			const sequences: number[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => sequences.push(envelope.serverSeq)));
+			disposables.add(sideEffects.registerProgressListener(agent));
+			agent.fireProgress({
+				kind: 'chat_usage', chat: URI.parse(defaultChatUri),
+				usage: { totalNanoAiu: 600_000_000, aiCreditsStatus: 'complete' },
+			});
+			setupSession();
+			assert.deepStrictEqual(readChatUsage(stateManager.getSessionState(sessionUri.toString()), defaultChatUri), { totalNanoAiu: 600_000_000, aiCreditsStatus: 'complete' });
+			assert.deepStrictEqual(sequences, [...sequences].sort((a, b) => a - b));
+		});
+
+		test('publishes late billing on the exact chat without changing canceled turns or peer metadata', () => {
+			setupSession(undefined, { unrelatedSession: 'preserved' });
+			const peer = buildChatUri(sessionUri, 'independent-peer');
+			stateManager.addChat(sessionUri.toString(), peer, peer, { title: 'Peer' });
+			startTurn('cancelled-image');
+			stateManager.dispatchServerAction(defaultChatUri, { type: ActionType.ChatTurnCancelled, turnId: 'cancelled-image', duration: 100 });
+			const canceled = stateManager.getChatState(defaultChatUri)?.turns;
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => envelopes.push(envelope)));
+			disposables.add(sideEffects.registerProgressListener(agent));
+			const usage = { totalNanoAiu: 600_000_000, aiCreditsStatus: 'complete' as const };
+			agent.fireProgress({ kind: 'chat_usage', chat: URI.parse(defaultChatUri), usage });
+			agent.fireProgress({ kind: 'chat_usage', chat: URI.parse(defaultChatUri), usage });
+			agent.fireProgress({ kind: 'chat_usage', chat: URI.parse(peer), usage: { totalNanoAiu: 250_000_000, aiCreditsStatus: 'partial' } });
+
+			assert.deepStrictEqual({
+				canceled: stateManager.getChatState(defaultChatUri)?.turns,
+				active: stateManager.getChatState(defaultChatUri)?.activeTurn,
+				billing: readChatUsage(stateManager.getSessionState(sessionUri.toString()), defaultChatUri),
+				peerBilling: readChatUsage(stateManager.getSessionState(sessionUri.toString()), peer),
+				sessionMeta: stateManager.getSessionState(sessionUri.toString())?._meta,
+				actions: envelopes.map(envelope => envelope.action.type),
+			}, {
+				canceled, active: undefined, billing: usage,
+				peerBilling: { totalNanoAiu: 250_000_000, aiCreditsStatus: 'partial' },
+				sessionMeta: {
+					unrelatedSession: 'preserved',
+					'vscode.chatUsage': {
+						[defaultChatUri]: usage,
+						[peer]: { totalNanoAiu: 250_000_000, aiCreditsStatus: 'partial' },
+					},
+				},
+				actions: [ActionType.SessionMetaChanged, ActionType.SessionMetaChanged],
+			});
+		});
+
+		test('publishes a resumed peer aggregate only after that exact chat enters the catalog', () => {
+			setupSession(undefined, { unrelatedSession: 'preserved' });
+			disposables.add(sideEffects.registerProgressListener(agent));
+			const peer = buildChatUri(sessionUri, 'resumed-peer');
+			const usage = { totalNanoAiu: 600_000_000, aiCreditsStatus: 'complete' as const };
+			agent.fireProgress({ kind: 'chat_usage', chat: URI.parse(peer), usage });
+			assert.strictEqual(readChatUsage(stateManager.getSessionState(sessionUri.toString()), peer), undefined);
+			stateManager.addChat(sessionUri.toString(), peer, peer, { title: 'Resumed peer' });
+			assert.deepStrictEqual(stateManager.getSessionState(sessionUri.toString())?._meta, {
+				unrelatedSession: 'preserved',
+				'vscode.chatUsage': { [peer]: usage },
+			});
+		});
+
+		test('removing a chat removes only its aggregate billing metadata', () => {
+			const peer = buildChatUri(sessionUri, 'removed-peer');
+			setupSession(undefined, {
+				unrelatedSession: 'preserved',
+				'vscode.chatUsage': { [defaultChatUri]: { totalNanoAiu: 600_000_000 }, [peer]: { totalNanoAiu: 250_000_000 } },
+			});
+			stateManager.addChat(sessionUri.toString(), peer, peer, { title: 'Peer' });
+			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionChatRemoved, chat: peer });
+			assert.deepStrictEqual(stateManager.getSessionState(sessionUri.toString())?._meta, {
+				unrelatedSession: 'preserved',
+				'vscode.chatUsage': { [defaultChatUri]: { totalNanoAiu: 600_000_000 } },
+			});
+		});
+
 		test('emits auth-required notifications when observable state becomes required', () => {
 			const notifications: INotification[] = [];
 			disposables.add(stateManager.onDidEmitNotification(notification => notifications.push(notification)));
@@ -4883,6 +4997,35 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(state?.queuedMessages, undefined);
 		});
 
+		test('a queued message of a chat being moved waits for the move to end', async () => {
+			setupSession();
+			disposables.add(sideEffects.registerProgressListener(agent));
+			startTurn('turn-1');
+			const setAction = {
+				type: ActionType.ChatPendingMessageSet as const,
+				kind: PendingMessageKind.Queued,
+				id: 'q-held',
+				message: { text: 'after the move', origin: { kind: MessageKind.User } },
+			};
+			stateManager.dispatchClientAction(defaultChatUri, setAction, { clientId: 'test', clientSeq: 1 });
+			sideEffects.handleAction(defaultChatUri, setAction);
+			const admission = stateManager.holdChatAdmission([defaultChatUri]);
+
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri),
+				action: { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 },
+			});
+			const heldQueue = stateManager.getChatState(defaultChatUri)?.queuedMessages?.map(message => message.id);
+			admission.dispose();
+			await waitForSendMessageCalls(1);
+
+			assert.deepStrictEqual({ heldQueue, sent: agent.sendMessageCalls.map(call => call.prompt), queueAfter: stateManager.getChatState(defaultChatUri)?.queuedMessages }, {
+				heldQueue: ['q-held'],
+				sent: ['after the move'],
+				queueAfter: undefined,
+			});
+		});
+
 		test('waits for pending steering before consuming a queued message', async () => {
 			setupSession();
 			disposables.add(sideEffects.registerProgressListener(agent));
@@ -5410,19 +5553,16 @@ suite('AgentSideEffects', () => {
 
 			assert.deepStrictEqual(agent.activeClientCalls.map(call => ({
 				chat: call.chat.toString(),
-				configurationResource: URI.isUri(call.context) ? call.context.toString() : call.context.configurationResource.toString(),
 				clientId: call.clientId,
 				hostCustomizations: call.hostCustomizations?.map(c => c.id),
 			})), [
 				{
 					chat: defaultChatUri,
-					configurationResource: sessionUri.toString(),
 					clientId: 'test-client',
 					hostCustomizations: [hostCustomization.id],
 				},
 				{
 					chat: peerChatUri.toString(),
-					configurationResource: sessionUri.toString(),
 					clientId: 'test-client',
 					hostCustomizations: [hostCustomization.id],
 				},
@@ -7351,6 +7491,50 @@ suite('AgentSideEffects', () => {
 			}]);
 		});
 
+		test('ChatConfigChanged emits agentHost.executionModeChanged when the chat\'s effective mode changes', () => {
+			setupSession();
+			stateManager.setSessionConfig(sessionUri.toString(), {
+				schema: platformSessionSchema.toProtocol(),
+				values: { mode: 'interactive' },
+			});
+			startTurn('turn-1');
+			stateManager.dispatchServerAction(defaultChatUri, { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
+
+			stateManager.dispatchClientAction(defaultChatUri, { type: ActionType.ChatConfigChanged, config: { mode: 'plan' } }, { clientId: 'test-client', clientSeq: 1 }, {
+				clientType: AgentHostClientType.EditorWindow,
+				connectionKind: AgentHostClientConnectionKind.RemoteExtensionHost,
+				transportKind: AgentHostTransportKind.MessagePort,
+				hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+				machineId: 'client-machine-id',
+				devDeviceId: 'client-dev-device-id',
+			});
+			// Another key, or the session's mode under the chat's own, does not change the chat's mode.
+			stateManager.dispatchServerAction(defaultChatUri, { type: ActionType.ChatConfigChanged, config: { autoApprove: 'autoApprove' } });
+			stateManager.dispatchServerAction(defaultChatUri, { type: ActionType.ChatConfigChanged, config: {}, replace: true });
+
+			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.executionModeChanged').map(event => event.data), [{
+				provider: 'mock',
+				initiatorClientType: 'editor_window',
+				initiatorConnectionKind: 'remote_extension_host',
+				initiatorTransportKind: 'message_port',
+				hostLaunchKind: 'vscode_main_process',
+				initiatorMachineId: 'client-machine-id',
+				initiatorDevDeviceId: 'client-dev-device-id',
+				agentSessionId: 'session-1',
+				isSubagentSession: false,
+				previousMode: 'interactive',
+				newMode: 'plan',
+				turnCount: 1,
+			}, {
+				provider: 'mock',
+				agentSessionId: 'session-1',
+				isSubagentSession: false,
+				previousMode: 'plan',
+				newMode: 'interactive',
+				turnCount: 1,
+			}]);
+		});
+
 	});
 
 	// ---- Subagent sessions ----------------------------------------------
@@ -7464,7 +7648,10 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(subagentSummary?.title, 'Code Reviewer');
 			assert.deepStrictEqual(subagentSummary?.origin, { kind: 'tool', chat: defaultChatUri, toolCallId: 'tc-1' });
 			assert.ok(subState!.activeTurn, 'subagent chat should have an active turn');
-			assert.strictEqual(subState!.activeTurn!.message.text, 'Review the auth module for security issues', 'subagent turn should render the spawning tool call prompt as its request');
+			assert.deepStrictEqual(subState!.activeTurn!.message, {
+				text: 'Review the auth module for security issues',
+				origin: { kind: MessageKind.Tool },
+			});
 
 			// Verify content was dispatched on the parent tool call
 			const parentState = stateManager.getSessionState(sessionUri.toString());
@@ -7778,10 +7965,12 @@ suite('AgentSideEffects', () => {
 			subState = stateManager.getSessionState(subagentUri);
 			assert.deepStrictEqual({
 				message: subState?.activeTurn?.message.text,
+				origin: subState?.activeTurn?.message.origin,
 				response: subState?.activeTurn?.responseParts[0],
 				completedTurns: subState?.turns.length,
 			}, {
 				message: 'Follow up',
+				origin: { kind: MessageKind.User },
 				response: { kind: ResponsePartKind.Markdown, id: 'follow-up-part', content: 'Follow-up response' },
 				completedTurns: 1,
 			});
@@ -8183,6 +8372,22 @@ suite('AgentSideEffects', () => {
 				assert.deepStrictEqual(agent.respondToPermissionCalls, [{ requestId: 'command', approved: false }]);
 			});
 		}
+
+		test('owners recorded for teardown follow a chat to its new owner', () => {
+			setupSession();
+			const otherSession = 'copilot:/other-owner';
+			stateManager.createSession({ resource: otherSession, provider: 'mock', title: 'Other', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(), defaultChat: buildDefaultChatUri(otherSession) });
+			const peerChat = buildChatUri(sessionUri.toString(), 'peer');
+			stateManager.addChat(sessionUri.toString(), peerChat, creationTimeChatStorageResource(sessionUri.toString(), peerChat, buildDefaultChatUri(sessionUri.toString())));
+			const recorded = sideEffects['_recordedChatOwners'];
+			const cancelled = sideEffects['_cancelledTurnOwners'];
+			recorded.set(peerChat, sessionUri.toString());
+			cancelled.set(peerChat, sessionUri.toString());
+
+			stateManager.reassignChatOwner(peerChat, otherSession);
+
+			assert.deepStrictEqual({ recorded: recorded.get(peerChat), cancelled: cancelled.get(peerChat) }, { recorded: otherSession, cancelled: otherSession });
+		});
 
 		test('removeSubagentSessions removes all subagent chats from state', () => {
 			setupSession();

@@ -298,6 +298,7 @@ const permissionsProperty = schemaProperty<IPermissionsValue>({
 	},
 	default: { allow: [], deny: [] },
 	sessionMutable: true,
+	chatMutable: true,
 });
 
 /**
@@ -373,6 +374,7 @@ export const platformSessionSchema = createSchema({
 		description: localize('agentHost.sessionConfig.sandboxEnabledDescription', "Sandbox behavior for this session. Default follows the global setting."),
 		enum: ['default', 'on', 'off'],
 		sessionMutable: true,
+		chatMutable: true,
 	}),
 	[SessionConfigKey.AutoApprove]: schemaProperty<AutoApproveLevel>({
 		type: 'string',
@@ -391,6 +393,7 @@ export const platformSessionSchema = createSchema({
 		],
 		default: 'default',
 		sessionMutable: true,
+		chatMutable: true,
 	}),
 	[SessionConfigKey.Permissions]: permissionsProperty,
 	[SessionConfigKey.Mode]: schemaProperty<SessionMode>({
@@ -410,6 +413,7 @@ export const platformSessionSchema = createSchema({
 		],
 		default: 'interactive',
 		sessionMutable: true,
+		chatMutable: true,
 	}),
 	[SessionConfigKey.ShellInitScripts]: shellInitScriptsProperty,
 	[SessionConfigKey.SensitiveEditLocations]: sensitiveEditLocationsProperty,
@@ -636,6 +640,8 @@ export const AgentHostArtifactToolsConfigKey = 'artifactTools';
 /** Root config key controlling Canvas extensions in Copilot sessions. */
 export const AgentHostCanvasesEnabledConfigKey = 'canvasesEnabled';
 
+export const AgentHostAhpJsonlLoggingEnabledConfigKey = 'ahpJsonlLoggingEnabled';
+
 /** Root config key controlling automatic pull request association for the checked-out branch. */
 export const AgentHostAutoAttachPullRequestsConfigKey = 'autoAttachPullRequests';
 
@@ -646,6 +652,13 @@ export const AgentHostAutoAttachPullRequestsConfigKey = 'autoAttachPullRequests'
  * session while the turn-start checkpoint is captured, instead of after it.
  */
 export const AgentHostOverlapProviderPreparationConfigKey = 'overlapProviderPreparation';
+
+/**
+ * Root config key forwarded from the renderer's
+ * `chat.agentHost.experimental.prewarmSessions` setting. When `true`, a new
+ * Copilot draft starts its SDK session and MCP servers before the first send.
+ */
+export const AgentHostPrewarmSessionsConfigKey = 'prewarmSessions';
 
 // Root config key forwarded from the renderer when the `chat.agentSessions.migrateLegacyCopilotCli`
 // setting changes. When `true`, `listSessions` surfaces un-adopted extension-host Copilot CLI
@@ -866,6 +879,12 @@ const mcpServersValueProperties: Record<string, SessionConfigPropertySchema> = {
 
 export const platformRootSchema = createSchema({
 	...agentHostProxyConfigDefinition,
+	[AgentHostAhpJsonlLoggingEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.ahpJsonlLogging.title', "AHP Transport Logging"),
+		description: localize('agentHost.config.ahpJsonlLogging.description', "Capture Mission Control AHP transport messages on the host."),
+		readOnly: true,
+	}),
 	[SessionConfigKey.Permissions]: permissionsProperty,
 	[AgentHostDisableRepoInfoTelemetryConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
@@ -1060,6 +1079,12 @@ export const platformRootSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.overlapProviderPreparation.title', "Overlap Provider Preparation"),
 		description: localize('agentHost.config.overlapProviderPreparation.description', "Whether agents prepare their session for a turn while the turn-start checkpoint is captured, instead of after it."),
+		default: false,
+	}),
+	[AgentHostPrewarmSessionsConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.prewarmSessions.title', "Prewarm Sessions"),
+		description: localize('agentHost.config.prewarmSessions.description', "Whether new Copilot chats start their runtime and MCP servers before the first message."),
 		default: false,
 	}),
 	[AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: schemaProperty<boolean>({

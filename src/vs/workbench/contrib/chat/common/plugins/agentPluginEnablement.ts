@@ -41,6 +41,10 @@ export class AgentPluginEnablementService extends EnablementModel implements IAg
 		super.setEnabled(this._getIdentity(key), state, tx);
 	}
 
+	override setDefaultEnabled(key: string, enabled: boolean, tx?: ITransaction): void {
+		super.setDefaultEnabled(this._getIdentity(key), enabled, tx);
+	}
+
 	override remove(key: string): void {
 		super.remove(this._getIdentity(key));
 	}
@@ -112,6 +116,10 @@ class AgentPluginPolicyEnablementModel implements IEnablementModel {
 			return;
 		}
 		this.base.setEnabled(key, state, tx);
+	}
+
+	setDefaultEnabled(key: string, enabled: boolean, tx?: ITransaction): void {
+		this.base.setDefaultEnabled?.(key, enabled, tx);
 	}
 
 	remove(key: string): void {

@@ -22,7 +22,7 @@ import { ChangesetOperationScope, ChangesetOperationStatus, ISessionGitHubState,
 import { AgentHostChangesetOperationService } from '../../node/agentHostChangesetOperationService.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
-import type { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import type { IAgentChatConfigurationTarget, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostChangesetSubscriptionService } from '../../node/agentHostChangesetSubscriptionService.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
@@ -128,10 +128,13 @@ class TestConfigurationService implements IAgentConfigurationService {
 
 	readonly onDidRootConfigChange = Event.None;
 	readonly onDidSessionConfigChange = Event.None;
+	readonly onDidChatConfigChange = Event.None;
 	readonly onDidChangeWorkingDirectoryPending = Event.None;
-	setSessionSandboxEnabled(): void { }
 	getSessionSandboxEnabled(): undefined { return undefined; }
-	rejectSessionSandboxChange(): void { }
+	getChatSandboxEnabled(): undefined { return undefined; }
+	getChatAttachmentScopes(target: IAgentChatConfigurationTarget): readonly string[] { return [target.session]; }
+	setChatSandboxEnabled(): void { }
+	rejectChatSandboxChange(): void { }
 
 	constructor(private _workingDirectories: string[] | undefined) { }
 
@@ -149,6 +152,28 @@ class TestConfigurationService implements IAgentConfigurationService {
 
 	getEffectiveValue(): undefined {
 		return undefined;
+	}
+
+	getChatEffectiveValue(): undefined {
+		return undefined;
+	}
+
+	getChatConfigValues(): undefined {
+		return undefined;
+	}
+
+	getChatConfigState(): undefined {
+		return undefined;
+	}
+
+	getChatOwnConfigValues(): Record<string, unknown> {
+		return {};
+	}
+
+	updateChatConfig(): void { }
+
+	seedChatConfig(): { readonly values: Record<string, unknown>; dispose(): void } {
+		return { values: {}, dispose: () => { } };
 	}
 
 	isWorkingDirectoryPending(): boolean {
