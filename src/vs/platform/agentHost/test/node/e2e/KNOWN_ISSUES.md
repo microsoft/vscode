@@ -473,6 +473,23 @@ Users can save independent Mode and Approvals choices on an Automation and expec
     --grep "truncating a materialized chat"
   ```
 
+### A session moved under another can't continue its chat with Copilot
+
+In the Agents window, a user can drag a session that has a single chat onto another session (`vscode/moveSession`). The session ends and its chat continues as a chat of the other session. With Copilot, the first message the user then sends in that chat fails with an error, so the conversation cannot continue after the move. Claude and Codex continue the conversation.
+
+- Test: `a session moved under another keeps its chat's provider conversation, as a movable peer` in `suites/chatMoveSuite.ts`.
+- Scope: the Copilot parity variant, all platforms. The Claude and Codex variants run.
+- Expected: after the move, a turn in the moved chat completes and recalls the code word from its turn before the move.
+- Observed: the turn fails with `chat/error` `sendFailed`: `Session state of <moved session> is being deleted`, logged by `[Copilot] Failed to resume chat backing <chat>`. The move itself succeeds and the destination lists the chat as movable.
+- Gate: the Copilot variant is skipped unless known issues are recorded on purpose. It asserts the desired behavior. Record its fixture and remove the gate once the turn succeeds.
+- Reproduce (records against CAPI; needs `gh auth token`):
+
+  ```bash
+  AGENT_HOST_REPLAY_RECORD=1 AGENT_HOST_RUN_KNOWN_ISSUES=1 ./scripts/test-integration.sh \
+    --run src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "a session moved under another keeps its chat's provider conversation"
+  ```
+
 ## Structural coverage gaps
 
 Distinct from individually disabled tests: whole areas where a platform or contract has no E2E coverage at all. These do not show up as skipped tests, so they are easy to miss.
