@@ -45,6 +45,10 @@ class MockChannel implements IChannel {
 		return this.getEmitter(event).event as Event<T>;
 	}
 
+	hasListeners(event: string): boolean {
+		return this._listeners.get(event)?.hasListeners() ?? false;
+	}
+
 	dispose(): void {
 		for (const emitter of this._listeners.values()) {
 			emitter.dispose();
@@ -483,10 +487,12 @@ suite('ServerAgentHostManager', () => {
 
 		await Promise.resolve();
 		assert.strictEqual(started, false);
+		assert.strictEqual(starter.agentHostChannel.hasListeners('onDidAction'), false);
 
 		await ready.complete();
 		await start;
 		assert.strictEqual(started, true);
+		assert.strictEqual(starter.agentHostChannel.hasListeners('onDidAction'), true);
 	});
 
 	test('disposes the agent host connection when the manager shuts down during startup', async () => {
