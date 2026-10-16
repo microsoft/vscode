@@ -58,7 +58,6 @@ import { isReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { agentModelConfigurationMetaKey, IAgentRuntimeModelConfiguration, readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
 import { agentModelConfigurationReportKey, type IAgentModelConfigurationReport } from '../../common/agentModelConfiguration.js';
 import { createCopilotModelConfigurationReport } from './copilotManagedModelConfiguration.js';
-import { resolveCopilotManagedSettings } from './copilotManagedSettings.js';
 import { ObservedTokenUsage } from './observedTokenUsage.js';
 import { META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
@@ -85,7 +84,7 @@ import { CopilotSessionWrapper, type ICopilotByokSessionConfig, type ICopilotMod
 import { allowCopilotSdkExecution, restoreDeferredCopilotSdkExecution } from './copilotSessionExecutionMarker.js';
 import { getCopilotSdkToolResourceUri } from './copilotSdkMeta.js';
 import { isAutoModel } from './modelIdentifiers.js';
-import { clientToolNamesFromSnapshot, composeByokSessionConfig, findLocalModelDirectFamily, isMcpServerExplicitlyProjected, toSessionConfigMcpServers, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
+import { clientToolNamesFromSnapshot, composeByokSessionConfig, findLocalModelDirectFamily, isMcpServerExplicitlyProjected, resolveCopilotSessionManagedSettings, toSessionConfigMcpServers, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, NON_DEFERRED_CLIENT_TOOL_NAMES, RUNTIME_TOOL_SEARCH_TOOL_NAME, searchToolsWithoutClient } from './toolSearchDeferral.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { AgentHostTelemetryReporter, toInitiatorTelemetry, type IAgentHostEventClassification, type IAgentHostEventTelemetry, type ICanvasExtensionsReadyEvent } from '../agentHostTelemetryReporter.js';
@@ -1187,6 +1186,7 @@ export class CopilotAgentSession extends Disposable {
 	}>();
 	/** Cancels callbacks that began before or during an SDK abort. */
 	private readonly _abortCts = this._register(new MutableDisposable<CancellationTokenSource>());
+	private readonly _lifetimeCts = this._register(new CancellationTokenSource());
 	/** Delays cancelled callbacks until the SDK abort settles or the session is disposed. */
 	private _abortBarrier: DeferredPromise<void> | undefined;
 	/**
@@ -3719,7 +3719,7 @@ export class CopilotAgentSession extends Disposable {
 	 * wires up all event listeners. Must be called exactly once after
 	 * construction before using the session.
 	 */
-	async initializeSession(): Promise<void> {
+	async initializeSession(token = CancellationToken.None): Promise<void> {
 		await this._customizationEnablementService.initializeSession(this.launchOwner.toString());
 		await this._refreshUserMcpServerNames();
 		if (this._store.isDisposed) {
@@ -3733,7 +3733,7 @@ export class CopilotAgentSession extends Disposable {
 			this._reconcileMcpServerEnablement().catch(error => this._logService.error(error, `[Copilot:${this.sessionId}] Failed to reconcile MCP enablement after customizations changed`));
 		}));
 		this._subscribeToPermissionConfigChanges();
-		await this._initializeSdkWrapper();
+		await this._initializeSdkWrapper(token);
 
 		// Advertise the agent host's server tools for this session so clients
 		// see them as server-provided. Execution happens in-process via the SDK
@@ -3752,10 +3752,21 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	private async _initializeSdkWrapper(): Promise<void> {
+	private async _initializeSdkWrapper(token = CancellationToken.None): Promise<void> {
 		while (true) {
 			this._requiresRestartAfterTelemetryRevocation = false;
-			const wrapper = await this._sessionLauncher.launch(this._launchPlan, this._createRuntimeAdapter());
+			const launchCancellation = new CancellationTokenSource(this._lifetimeCts.token);
+			const cancellation = token.onCancellationRequested(() => launchCancellation.cancel());
+			let wrapper: CopilotSessionWrapper;
+			try {
+				if (token.isCancellationRequested) {
+					throw new CancellationError();
+				}
+				wrapper = await this._sessionLauncher.launch(this._launchPlan, this._createRuntimeAdapter(launchCancellation.token));
+			} finally {
+				cancellation.dispose();
+				launchCancellation.dispose();
+			}
 			if (this._store.isDisposed) {
 				wrapper.dispose();
 				throw new CancellationError();
@@ -4237,8 +4248,9 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	private _createRuntimeAdapter(): ICopilotSessionRuntime {
+	private _createRuntimeAdapter(cancellationToken: CancellationToken): ICopilotSessionRuntime {
 		return {
+			cancellationToken,
 			setApprovalPolicy: (resolved, bridged) => {
 				this._approvalPolicy.setLaunchPolicy(resolved, bridged);
 			},
@@ -5730,6 +5742,7 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	override dispose(): void {
 		this._clearCanvasProjection();
+		this._lifetimeCts.cancel();
 		this._invalidateMappedEvents();
 		this._settleIdleWaiters(false);
 		void this._editTracker.flushAttribution().catch(error => {
@@ -5844,7 +5857,10 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		try {
-			const policy = await resolveCopilotManagedSettings(this._launchPlan.client.rpc.managedSettings, this._launchPlan.githubCredentials.token, 30_000, this.workingDirectory?.fsPath);
+			const policy = await resolveCopilotSessionManagedSettings(this._launchPlan, this._lifetimeCts.token);
+			if (this._store.isDisposed) {
+				return;
+			}
 			await this._awaitControlPlaneRpc('session.model.list', this._wrapper.session.rpc.model.list());
 			const current = await this._awaitControlPlaneRpc('session.model.getCurrent', this._wrapper.session.rpc.model.getCurrent());
 			if (generation !== this._modelConfigurationGeneration || this._store.isDisposed) {

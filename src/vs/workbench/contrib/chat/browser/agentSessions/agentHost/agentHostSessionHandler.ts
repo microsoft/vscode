@@ -2273,6 +2273,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (!error) {
 			return undefined;
 		}
+		if (error.errorType === 'policyResolutionFailed') {
+			return {
+				message: error.message,
+				isExpectedError: true,
+				...(allowResume ? {
+					confirmationButtons: [{ label: localize('agentHost.retryPolicyResolution', "Retry"), data: undefined, resend: true }],
+				} : {}),
+			};
+		}
 		if (error.errorType === 'CodexThreadInUse') {
 			return {
 				message: localize('agentHost.codexThreadInUse', "{0} Then send your message again in VS Code. Your message has not been sent.", codexWriterLockMessage()),

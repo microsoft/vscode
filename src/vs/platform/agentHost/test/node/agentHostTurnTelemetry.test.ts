@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../base/common/observable.js';
@@ -21,7 +22,7 @@ import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../tele
 import { TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
-import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, IAgent, type AgentModelCallFinishedOutcome, type IAgentTurnTokenUsage } from '../../common/agent.js';
+import { AgentPolicyError, AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, IAgent, type AgentModelCallFinishedOutcome, type IAgentTurnTokenUsage } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID } from '../../common/copilotCliConfig.js';
@@ -2414,6 +2415,42 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			hasStack: true,
 		}]);
 		assert.deepStrictEqual(sentEvents().map(event => event.data?.turnId), ['turn-1']);
+	});
+
+	test('reports policy resolution errors separately and retains the unsent prompt for retry', async () => {
+		setupSession(false);
+		agent.changeModel = async () => { throw new AgentPolicyError('Policy unavailable. Try again.'); };
+		startTurn('turn-1', 'keep this prompt', 'model-a');
+		await timeout(10);
+
+		const failure = failedEvents()[0].data as Record<string, unknown>;
+		assert.deepStrictEqual({
+			errorType: failure.errorType,
+			prompt: stateManager.getSessionState(defaultChatUri)?.turns[0]?.message.text,
+			sendCount: agent.sendMessageCalls.length,
+		}, { errorType: 'policyResolutionFailed', prompt: 'keep this prompt', sendCount: 0 });
+		agent.changeModel = async () => { };
+		startTurn('turn-2', 'keep this prompt', 'model-a');
+		await timeout(10);
+		assert.deepStrictEqual(agent.sendMessageCalls.map(call => call.prompt), ['keep this prompt']);
+	});
+
+	test('cancelling pending model selection does not report a policy or creation failure', async () => {
+		setupSession(false);
+		const started = new DeferredPromise<void>();
+		const selection = new DeferredPromise<void>();
+		agent.changeModel = () => { started.complete(); return selection.p; };
+		startTurn('turn-1', 'cancel this prompt', 'model-a');
+		await started.p;
+		applyClientAction({ type: ActionType.ChatTurnCancelled, turnId: 'turn-1', duration: 1 });
+		selection.error(new CancellationError());
+		await timeout(10);
+		assert.deepStrictEqual({
+			failures: failedEvents().length,
+			creationError: stateManager.getSessionState(sessionKey)?.creationError,
+			sends: agent.sendMessageCalls.length,
+			outcomes: completedEvents().map(event => (event.data as Record<string, unknown>).result),
+		}, { failures: 0, creationError: undefined, sends: 0, outcomes: ['cancelled'] });
 	});
 
 	test('fails the turn when model selection rejects instead of sending with a stale model', async () => {

@@ -700,6 +700,9 @@ export class AgentSideEffects extends Disposable {
 		disposables.add(agent.onDidChatProgress(signal => {
 			this._handleAgentSignal(agent, signal);
 		}));
+		if (agent.onDidReportProgress) {
+			disposables.add(agent.onDidReportProgress(progress => this._stateManager.emitProgress(progress)));
+		}
 		if (agent.onDidCustomizationsChange) {
 			disposables.add(agent.onDidCustomizationsChange(() => {
 				this._publishAgentInfos(this._options.agents.get());
@@ -2228,6 +2231,9 @@ export class AgentSideEffects extends Disposable {
 			if (!dispatchedToProvider) {
 				await this._discardPendingTurnStartCheckpoint(checkpointCapture, sessionChannel, chatUri, turnId);
 			}
+			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {
+				return;
+			}
 			const failure = buildTurnFailure(failureStage, err);
 			const error = failure.error;
 			this._logService.error(`[AgentSideEffects] ${failureStage} failed for session=${turnChannel}: code=${failure.errorCode}, message=${error.message}, type=${failure.errorName}`, err);
@@ -2467,8 +2473,9 @@ function buildTurnFailure(stage: AgentHostTurnFailureStage, err: unknown): IAgen
 function buildTurnFailureError(stage: AgentHostTurnFailureStage, err: unknown): ErrorInfo {
 	const message = getErrorMessage(err);
 	const forwarded = tryParseForwardedChatError(err instanceof Error ? err.message : message);
-	const errorType = stage === 'modelSelection' ? 'modelSelectionFailed'
-		: stage === 'workingDirectory' ? 'workingDirectoryFailed' : 'sendFailed';
+	const errorType = getErrorCode(err) === 'policyResolutionFailed' ? 'policyResolutionFailed'
+		: stage === 'modelSelection' ? 'modelSelectionFailed'
+			: stage === 'workingDirectory' ? 'workingDirectoryFailed' : 'sendFailed';
 	if (forwarded) {
 		return { errorType, message: stripProxyErrorMarker(message), _meta: toChatErrorMeta(forwarded) };
 	}

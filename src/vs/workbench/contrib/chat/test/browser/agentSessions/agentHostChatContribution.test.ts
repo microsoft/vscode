@@ -9270,6 +9270,47 @@ suite('AgentHostChatContribution', () => {
 			});
 		}));
 
+		test('policy resolution failure offers Retry as a fresh send, not a runtime resume', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			agentHostService.setRootState({
+				agents: [{ provider: 'copilot', displayName: 'Copilot', description: 'test', models: [] }],
+				activeSessions: 1,
+			});
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/policy-retry' });
+			const { turnPromise, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
+			fire({
+				type: ActionType.ChatError, turnId, duration: 100,
+				part: { kind: ResponsePartKind.Error, error: { errorType: 'policyResolutionFailed', message: 'Unable to load settings. Please try again.' } },
+			});
+			const result = await turnPromise;
+			assert.deepStrictEqual(result.errorDetails, {
+				message: 'Unable to load settings. Please try again.',
+				isExpectedError: true,
+				confirmationButtons: [{ label: 'Retry', data: undefined, resend: true }],
+			});
+			agentHostService.dispatchedActions.length = 0;
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot');
+			assert.ok(registered);
+			const retry = registered.impl.invoke(
+				makeRequest({ sessionResource, requestId: 'policy-retry-new', message: 'original request', acceptedConfirmationData: [undefined] }),
+				() => { }, [], CancellationToken.None,
+			);
+			await timeout(10);
+			const started = agentHostService.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatTurnStarted);
+			assert.deepStrictEqual(started.map(entry => entry.action.type === ActionType.ChatTurnStarted ? entry.action.message.text : undefined), ['original request']);
+			assert.ok(!agentHostService.dispatchedActions.some(entry => entry.action.type === ActionType.ChatTurnResume));
+			agentHostService.fireAction({
+				channel: started[0].channel.toString(), action: started[0].action, serverSeq: 100,
+				origin: { clientId: agentHostService.clientId, clientSeq: started[0].clientSeq },
+			});
+			agentHostService.fireAction({
+				channel: started[0].channel.toString(),
+				action: { type: ActionType.ChatTurnComplete, turnId: 'policy-retry-new', duration: 1 },
+				serverSeq: 101, origin: undefined,
+			});
+			await retry;
+		}));
+
 		test('resumable error offers Try Again and resumes the same turn', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const languageModels = new Map<string, ILanguageModelChatMetadata>([
 				['agent-host-copilot:opus-4.7', upcastPartial<ILanguageModelChatMetadata>({ name: 'Opus 4.7', pricing: '15x' })],
