@@ -427,6 +427,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 						commit: String(commit),
 						quality: String(quality),
 						applicationName: product.applicationName,
+						dataFolderName: product.dataFolderName,
 						serverDataFolderName: product.serverDataFolderName || '.vscode-remote',
 					}));
 					this.emit('data', file);

@@ -409,7 +409,7 @@ suite('copilot shim launcher', () => {
 		const launcherDir = path.join(root, folder, 'bin', 'copilot-shim');
 		fs.mkdirSync(launcherDir, { recursive: true });
 		const launcher = path.join(launcherDir, 'copilot');
-		fs.writeFileSync(launcher, renderCopilotShimLauncher(template, { commit, quality: 'insider', applicationName: 'code-insiders', serverDataFolderName: '.vscode-server-insiders' }), { mode: 0o755 });
+		fs.writeFileSync(launcher, renderCopilotShimLauncher(template, { commit, quality: 'insider', applicationName: 'code-insiders', dataFolderName: '.vscode-insiders', serverDataFolderName: '.vscode-server-insiders' }), { mode: 0o755 });
 		fs.writeFileSync(path.join(launcherDir, 'copilot.exe'), '#!/bin/sh\nprintf "%s\\n" "shim=copilot.exe" "args=$*"\n', { mode: 0o755 });
 		return { root, home: path.join(root, 'home'), launcher, launcherDir };
 	}
@@ -440,11 +440,11 @@ suite('copilot shim launcher', () => {
 		}
 	}
 
-	test('renders every product placeholder', () => {
-		const rendered = renderCopilotShimLauncher(template, { commit, quality: 'stable', applicationName: 'code', serverDataFolderName: '.vscode-server' });
+	test('renders every product placeholder, with the marker where PATH filtering reads it', () => {
+		const rendered = renderCopilotShimLauncher(template, { commit, quality: 'stable', applicationName: 'code', dataFolderName: '.vscode', serverDataFolderName: '.vscode-server' });
 		assert.deepStrictEqual(
-			[/@@\w+@@/.test(rendered), rendered.includes(`COMMIT="${commit}"`), rendered.includes('SERVERDATAFOLDER=".vscode-server"'), rendered.includes('vscode-copilot-launcher')],
-			[false, true, true, true]
+			[/@@\w+@@/.test(rendered), rendered.includes(`COMMIT="${commit}"`), rendered.includes('DATAFOLDER=".vscode"'), rendered.includes('SERVERDATAFOLDER=".vscode-server"'), Buffer.from(rendered).subarray(0, 512).includes('vscode-copilot-launcher')],
+			[false, true, true, true, true]
 		);
 	});
 
@@ -463,14 +463,20 @@ suite('copilot shim launcher', () => {
 
 				assert.deepStrictEqual({
 					remoteWslLayout: select([[`.vscode-server-insiders/bin/${commit}`, 1], ['.vscode-server-insiders/bin/newer', 9]]),
-					codeCliLayout: select([[`.vscode-server-insiders/cli/servers/Insiders-${commit}/server`, 1], ['.vscode-server-insiders/bin/newer', 9]]),
+					remoteSshLayout: select([[`.vscode-server-insiders/cli/servers/Insiders-${commit}/server`, 1], ['.vscode-server-insiders/bin/newer', 9]]),
+					codeCliLayout: select([[`.vscode-insiders/cli/servers/Insiders-${commit}/server`, 1], ['.vscode-server-insiders/bin/newer', 9]]),
+					codeCliDataDir: select([[`cli-data/servers/Insiders-${commit}/server`, 1], ['.vscode-server-insiders/bin/newer', 9]], { VSCODE_CLI_DATA_DIR: path.join(fixture.home, 'cli-data') }),
 					newestOfAnyQuality: select([['.vscode-server-insiders/bin/older', 1], ['.vscode-server/cli/servers/Stable-other/server', 5], ['.vscode-server/bin/newest', 9]]),
+					newestIncludesCodeCli: select([['.vscode-server-insiders/bin/older', 1], ['.vscode/cli/servers/Stable-other/server', 9]]),
 					skipsNonExecutable: select([[`.vscode-server-insiders/bin/${commit}`, 9, 0o644], ['.vscode-server/bin/other', 1]]),
 					agentFolder: select([[`custom/bin/${commit}`, 1], ['.vscode-server-insiders/bin/newer', 9]], { VSCODE_AGENT_FOLDER: path.join(fixture.home, 'custom') }),
 				}, {
 					remoteWslLayout: `.vscode-server-insiders/bin/${commit}`,
-					codeCliLayout: `.vscode-server-insiders/cli/servers/Insiders-${commit}/server`,
+					remoteSshLayout: `.vscode-server-insiders/cli/servers/Insiders-${commit}/server`,
+					codeCliLayout: `.vscode-insiders/cli/servers/Insiders-${commit}/server`,
+					codeCliDataDir: `cli-data/servers/Insiders-${commit}/server`,
 					newestOfAnyQuality: '.vscode-server/bin/newest',
+					newestIncludesCodeCli: '.vscode/cli/servers/Stable-other/server',
 					skipsNonExecutable: '.vscode-server/bin/other',
 					agentFolder: `custom/bin/${commit}`,
 				});
@@ -484,12 +490,16 @@ suite('copilot shim launcher', () => {
 				const unrelated = path.join(root, 'unrelated');
 				fs.mkdirSync(unrelated);
 				fs.writeFileSync(path.join(unrelated, 'copilot'), '#!/bin/sh\n', { mode: 0o755 });
+				// Like a Copilot CLI executable that happens to contain the marker text far from its start.
+				const large = path.join(root, 'large');
+				fs.mkdirSync(large);
+				fs.writeFileSync(path.join(large, 'copilot'), Buffer.concat([Buffer.alloc(4096, 0x7f), Buffer.from('vscode-copilot-launcher')]), { mode: 0o755 });
 				addShim(fixture, `.vscode-server-insiders/bin/${commit}`, 1);
 
-				const result = runLauncher(shell, fixture, ['--resume', 'a b'], { WSL_DISTRO_NAME: 'Test', PATH: `${fixture.launcherDir}::/usr/bin:${other.launcherDir}:${unrelated}:/bin` });
+				const result = runLauncher(shell, fixture, ['--resume', 'a b'], { WSL_DISTRO_NAME: 'Test', PATH: `${fixture.launcherDir}::/usr/bin:${other.launcherDir}:${unrelated}:${large}:/bin` });
 				assert.deepStrictEqual(result, {
 					status: 0,
-					stdout: { shim: `.vscode-server-insiders/bin/${commit}`, args: '--resume a b', path: `:/usr/bin:${unrelated}:/bin` },
+					stdout: { shim: `.vscode-server-insiders/bin/${commit}`, args: '--resume a b', path: `:/usr/bin:${unrelated}:${large}:/bin` },
 					stderr: '',
 				});
 			});

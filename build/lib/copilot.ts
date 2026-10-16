@@ -35,6 +35,7 @@ export interface CopilotShimLauncherOptions {
 	readonly commit: string;
 	readonly quality: string;
 	readonly applicationName: string;
+	readonly dataFolderName: string;
 	readonly serverDataFolderName: string;
 }
 
@@ -47,6 +48,7 @@ export function renderCopilotShimLauncher(template: string, options: CopilotShim
 		.replace(/@@COMMIT@@/g, () => options.commit)
 		.replace(/@@QUALITY@@/g, () => options.quality)
 		.replace(/@@APPNAME@@/g, () => options.applicationName)
+		.replace(/@@DATAFOLDER@@/g, () => options.dataFolderName)
 		.replace(/@@SERVERDATAFOLDER@@/g, () => options.serverDataFolderName);
 }
 

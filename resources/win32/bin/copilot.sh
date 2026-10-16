@@ -13,6 +13,7 @@ fi
 COMMIT="@@COMMIT@@"
 QUALITY="@@QUALITY@@"
 APP_NAME="@@APPNAME@@"
+DATAFOLDER="@@DATAFOLDER@@"
 SERVERDATAFOLDER="@@SERVERDATAFOLDER@@"
 LAUNCHER_DIR="$(dirname "$(realpath "$0")")"
 
@@ -39,26 +40,29 @@ is_shim() {
 	[ -f "$1" ] && [ -x "$1" ]
 }
 
-# Prints the copilot shim of the VS Code Server for this commit, in the layout of Remote - WSL or of the code CLI, or
-# else the most recently built one of any installed server, because any version of the shim works the same way.
+# Prints the copilot shim of the VS Code Server for this commit, in the layout of Remote - WSL, of Remote - SSH, or of
+# the standalone code CLI (code tunnel), or else the most recently built one of any installed server, because any
+# version of the shim works the same way.
 find_shim() {
-	for server_data in "$VSCODE_AGENT_FOLDER" "${HOME:+$HOME/$SERVERDATAFOLDER}"; do
-		if [ -z "$server_data" ]; then
-			continue
+	cli_data="${VSCODE_CLI_DATA_DIR:-${HOME:+$HOME/$DATAFOLDER/cli}}"
+	for candidate in \
+		"${VSCODE_AGENT_FOLDER:+$VSCODE_AGENT_FOLDER/bin/$COMMIT/bin/copilot-shim/copilot}" \
+		"${VSCODE_AGENT_FOLDER:+$VSCODE_AGENT_FOLDER/cli/servers/$SERVER_QUALITY-$COMMIT/server/bin/copilot-shim/copilot}" \
+		"${HOME:+$HOME/$SERVERDATAFOLDER/bin/$COMMIT/bin/copilot-shim/copilot}" \
+		"${HOME:+$HOME/$SERVERDATAFOLDER/cli/servers/$SERVER_QUALITY-$COMMIT/server/bin/copilot-shim/copilot}" \
+		"${cli_data:+$cli_data/servers/$SERVER_QUALITY-$COMMIT/server/bin/copilot-shim/copilot}"; do
+		if [ -n "$candidate" ] && is_shim "$candidate"; then
+			printf '%s\n' "$candidate"
+			return
 		fi
-		for candidate in "$server_data/bin/$COMMIT/bin/copilot-shim/copilot" "$server_data/cli/servers/$SERVER_QUALITY-$COMMIT/server/bin/copilot-shim/copilot"; do
-			if is_shim "$candidate"; then
-				printf '%s\n' "$candidate"
-				return
-			fi
-		done
 	done
 
 	ls -1t -- \
 		"${VSCODE_AGENT_FOLDER:-/nonexistent}"/bin/*/bin/copilot-shim/copilot \
 		"${VSCODE_AGENT_FOLDER:-/nonexistent}"/cli/servers/*/server/bin/copilot-shim/copilot \
+		"${VSCODE_CLI_DATA_DIR:-/nonexistent}"/servers/*/server/bin/copilot-shim/copilot \
 		"${HOME:-/nonexistent}"/.vscode-server*/bin/*/bin/copilot-shim/copilot \
-		"${HOME:-/nonexistent}"/.vscode-server*/cli/servers/*/server/bin/copilot-shim/copilot \
+		"${HOME:-/nonexistent}"/.vscode*/cli/servers/*/server/bin/copilot-shim/copilot \
 		2>/dev/null | while IFS= read -r candidate; do
 		if is_shim "$candidate"; then
 			printf '%s\n' "$candidate"
@@ -68,7 +72,8 @@ find_shim() {
 }
 
 # Prints PATH without the folders of VS Code copilot launchers, so that the shim's search for GitHub Copilot CLI finds
-# neither this script nor the launcher of another VS Code quality.
+# neither this script nor the launcher of another VS Code quality. Only the start of each copilot is read, where the
+# launcher's marker is, so a GitHub Copilot CLI executable on PATH isn't read in full on every run.
 path_without_launchers() {
 	remaining="$PATH:"
 	result=
@@ -76,7 +81,7 @@ path_without_launchers() {
 	while [ -n "$remaining" ]; do
 		entry="${remaining%%:*}"
 		remaining="${remaining#*:}"
-		if [ -f "${entry:-.}/copilot" ] && grep -q 'vscode-copilot-launcher' "${entry:-.}/copilot" 2>/dev/null; then
+		if [ -f "${entry:-.}/copilot" ] && head -c 512 "${entry:-.}/copilot" 2>/dev/null | grep -q 'vscode-copilot-launcher'; then
 			continue
 		fi
 		result="$result$separator$entry"
