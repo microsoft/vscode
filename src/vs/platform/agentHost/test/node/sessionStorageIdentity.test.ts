@@ -346,7 +346,7 @@ suite('Session storage identity compatibility', () => {
 			});
 		});
 
-		test('refuses a legacy or missing catalog whatever the address', async () => {
+		test('refuses a legacy or missing catalog whatever the address; registering one is no longer gated (Block 4a)', async () => {
 			const normalized = 'copilotcli:/normalized';
 			const historicalLegacy = 'copilotcli:/historical-legacy';
 			const bare = 'copilotcli:/bare';
@@ -358,7 +358,7 @@ suite('Session storage identity compatibility', () => {
 			assert.strictEqual((await raw.replaceSessionChatCatalog(historicalLegacy, [{ chat: buildChatUri(historicalLegacy, 'peer'), order: 0 }], undefined)).status, 'applied');
 			await raw.close();
 			const db = await database();
-			// A new session with a compatibility identity keeps legacy chat authority during the window.
+			// A legacy catalog, as a session with a compatibility identity had before Block 4a converts it.
 			const compatBacked = 'ahp-session:/compat-backed';
 			await db.prepareSessionStorage(compatBacked, 'copilotcli');
 			await db.registerRuntimeSession(compatBacked, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
@@ -376,7 +376,7 @@ suite('Session storage identity compatibility', () => {
 					state: { expectedSourceRevision: 1, importVersion: 1, importedAt: 2, legacyMirrorBase: '{"v":2,"entries":{}}', values: {}, chats: [], folders: [] },
 				})).status,
 				reorderLegacy: (await db.reorderChatV2(compatBacked, buildChatUri(compatBacked, 'peer'), undefined, 1)).status,
-				// Registering a catalog for a session that has none still follows the compatibility window.
+				// Block 4a converts every session: a session that has no catalog registers a normalized one, whatever its address.
 				registerForBare: (await db.registerChatCatalogV2(bare, { defaultChat: { chat: buildDefaultChatUri(bare), order: 0 }, peers: [], privateDescendants: [] })).status,
 				peerStays: (await db.readCatalogSnapshot([normalized]))[0].chats.map(chat => chat.chat).includes(peer),
 			}, {
@@ -385,7 +385,7 @@ suite('Session storage identity compatibility', () => {
 				catalogLessTarget: 'notReady',
 				promoteFromLegacy: 'notReady',
 				reorderLegacy: 'notReady',
-				registerForBare: 'notReady',
+				registerForBare: 'applied',
 				peerStays: true,
 			});
 		});

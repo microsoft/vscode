@@ -354,7 +354,8 @@ export type AgentHostDatabaseChatV2PromotionResult =
 		/** Every moved chat in placement order: the promoted chat, its visible descendants in catalog order, then the private ones. */
 		readonly moved: readonly string[];
 	}
-	| { readonly status: 'conflict' | 'notReady' | 'notImported' | 'missingSession' | 'tombstoned' };
+	/** `olderBuildEdits`: an older build edited the source's chat list since this build projected it ({@link guardOlderBuildEdits}). */
+	| { readonly status: 'conflict' | 'notReady' | 'notImported' | 'missingSession' | 'tombstoned' | 'olderBuildEdits' };
 
 export type AgentHostDatabaseChatV2MoveResult =
 	| {
@@ -370,7 +371,8 @@ export type AgentHostDatabaseChatV2MoveResult =
 		/** The target's visible chats in catalog order after the move. */
 		readonly targetOrder: readonly string[];
 	}
-	| { readonly status: 'conflict' | 'notReady' | 'notImported' | 'missingSession' | 'tombstoned' };
+	/** `olderBuildEdits`: an older build edited either session's chat list since this build projected it ({@link guardOlderBuildEdits}). */
+	| { readonly status: 'conflict' | 'notReady' | 'notImported' | 'missingSession' | 'tombstoned' | 'olderBuildEdits' };
 
 /**
  * A moved chat's copy of the attachment snapshots its messages took in the session it was created in (Block 4b): the
@@ -2984,6 +2986,13 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					await exec(database, 'COMMIT');
 					return { status: 'conflict' };
 				}
+				// Both chat lists are re-projected (the source's ends with it): never over an older build's edit of either.
+				for (const header of [sourceHeader, targetHeader]) {
+					if (await this._hasOlderBuildEdits(database, header)) {
+						await exec(database, 'COMMIT');
+						return { status: 'olderBuildEdits' };
+					}
+				}
 				const sourceRows = await all(database, 'SELECT * FROM chats_v2 WHERE owner_session_uri = ? AND tombstoned = 0', [move.source]);
 				const targetRows = await all(database, 'SELECT * FROM chats_v2 WHERE owner_session_uri = ? AND tombstoned = 0', [move.target]);
 				const requested = sourceRows.find(row => row.chat_uri === move.chat);
@@ -3039,8 +3048,8 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				await this._placeVisibleChatsV2(database, move.target, targetOrder);
 				const sourceRevision = this._nextRevision(move.expectedSourceRevision);
 				const targetRevision = this._nextRevision(move.expectedTargetRevision);
-				await run(database, 'UPDATE session_chat_catalogs SET revision = ? WHERE session_uri = ?', [sourceRevision, move.source]);
-				await run(database, 'UPDATE session_chat_catalogs SET revision = ? WHERE session_uri = ?', [targetRevision, move.target]);
+				await run(database, 'UPDATE session_chat_catalogs SET revision = ?, projected_revision = ? WHERE session_uri = ?', [sourceRevision, sourceRevision, move.source]);
+				await run(database, 'UPDATE session_chat_catalogs SET revision = ?, projected_revision = ? WHERE session_uri = ?', [targetRevision, targetRevision, move.target]);
 				for (const session of endSource ? [move.target] : [move.source, move.target]) {
 					await this._projectNormalizedPeersToLegacy(database, session);
 					await this._markSessionV2PayloadDirty(database, session);
@@ -3087,6 +3096,10 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					await exec(database, 'COMMIT');
 					return { status: 'conflict' };
 				}
+				if (await this._hasOlderBuildEdits(database, sourceHeader)) {
+					await exec(database, 'COMMIT');
+					return { status: 'olderBuildEdits' };
+				}
 				const sourceRows = await all(database, 'SELECT * FROM chats_v2 WHERE owner_session_uri = ? AND tombstoned = 0', [promotion.source]);
 				const requested = sourceRows.find(row => row.chat_uri === promotion.chat);
 				if (!requested || requested.chat_order === null || promotion.chat === sourceHeader.default_chat_uri) {
@@ -3114,7 +3127,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				await this._registerSessionV2(database, promotion.target, promotion.provider, promotion.startTime, promotion.startTime, 'explicit', { checkTombstone: true });
 				await run(database, `INSERT INTO sessions (session_uri, provider, start_time, modified_time, external, registration_source)
 					SELECT session_uri, provider, start_time, modified_time, external, registration_source FROM sessions_v2 WHERE session_uri = ?`, [promotion.target]);
-				await run(database, `INSERT INTO session_chat_catalogs (session_uri, revision, authority_version, default_chat_uri) VALUES (?, 1, 2, ?)`, [promotion.target, promotion.chat]);
+				await run(database, `INSERT INTO session_chat_catalogs (session_uri, revision, projected_revision, authority_version, default_chat_uri) VALUES (?, 1, 1, 2, ?)`, [promotion.target, promotion.chat]);
 				for (const chat of moved) {
 					const row = sourceRows.find(candidate => candidate.chat_uri === chat)!;
 					await run(database, `UPDATE chats_v2 SET origin_session_uri = COALESCE(origin_session_uri, owner_session_uri), owner_session_uri = ?, chat_order = NULL, ownership_revision = ?
@@ -3126,7 +3139,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				await this._placeVisibleChatsV2(database, promotion.source, sourceOrder);
 				await this._placeVisibleChatsV2(database, promotion.target, placed);
 				const sourceRevision = this._nextRevision(promotion.expectedSourceRevision);
-				await run(database, 'UPDATE session_chat_catalogs SET revision = ? WHERE session_uri = ?', [sourceRevision, promotion.source]);
+				await run(database, 'UPDATE session_chat_catalogs SET revision = ?, projected_revision = ? WHERE session_uri = ?', [sourceRevision, sourceRevision, promotion.source]);
 				for (const session of [promotion.source, promotion.target]) {
 					await this._projectNormalizedPeersToLegacy(database, session);
 					await this._markSessionV2PayloadDirty(database, session);
@@ -3211,7 +3224,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				const header = await get(database, 'SELECT * FROM session_chat_catalogs WHERE session_uri = ?', [session]);
 				if (header?.authority_version !== 2) {
 					await exec(database, 'COMMIT');
-					return { status: 'notReady' };
+					return { status: 'notReady', reason: 'the chat catalog is not normalized', awaitsReprojection: false };
 				}
 				if (header.revision !== expectedCatalogRevision || chat === after) {
 					await exec(database, 'COMMIT');
@@ -3229,9 +3242,13 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					await exec(database, 'COMMIT');
 					return { status: 'replayed', catalogRevision: expectedCatalogRevision };
 				}
+				if (await this._hasOlderBuildEdits(database, header)) {
+					await exec(database, 'COMMIT');
+					return { status: 'olderBuildEdits' };
+				}
 				await this._placeVisibleChatsV2(database, session, reordered);
 				const revision = this._nextRevision(expectedCatalogRevision);
-				await run(database, 'UPDATE session_chat_catalogs SET revision = ? WHERE session_uri = ?', [revision, session]);
+				await run(database, 'UPDATE session_chat_catalogs SET revision = ?, projected_revision = ? WHERE session_uri = ?', [revision, revision, session]);
 				await this._projectNormalizedPeersToLegacy(database, session);
 				await this._markSessionV2PayloadDirty(database, session);
 				await exec(database, 'COMMIT');

@@ -460,7 +460,7 @@ class TransientRegistryWriteDatabase extends SessionStateUnsupportedDatabase imp
 	async listAttachmentOriginsV2(): ReturnType<IAgentHostDatabase['listAttachmentOriginsV2']> { return new Set(); }
 	async readChatAttachmentCopies(): ReturnType<IAgentHostDatabase['readChatAttachmentCopies']> { return new Map(); }
 	async writeChatAttachmentCopy(): ReturnType<IAgentHostDatabase['writeChatAttachmentCopy']> { }
-	async reorderChatV2(..._args: Parameters<IAgentHostDatabase['reorderChatV2']>): ReturnType<IAgentHostDatabase['reorderChatV2']> { return { status: 'notReady' }; }
+	async reorderChatV2(..._args: Parameters<IAgentHostDatabase['reorderChatV2']>): ReturnType<IAgentHostDatabase['reorderChatV2']> { return { status: 'notReady', reason: 'test', awaitsReprojection: false }; }
 	upsertSessionV2FromChatCatalog(...[envelope, expectedSessionGeneration]: Parameters<IAgentHostDatabase['upsertSessionV2FromChatCatalog']>): ReturnType<IAgentHostDatabase['upsertSessionV2FromChatCatalog']> {
 		return this.upsertSessionV2(envelope, expectedSessionGeneration);
 	}
@@ -1028,7 +1028,7 @@ class TestAgentHostOrchestratorDatabase extends SessionStateUnsupportedDatabase 
 	async listAttachmentOriginsV2(): ReturnType<IAgentHostDatabase['listAttachmentOriginsV2']> { return new Set(); }
 	async readChatAttachmentCopies(): ReturnType<IAgentHostDatabase['readChatAttachmentCopies']> { return new Map(); }
 	async writeChatAttachmentCopy(): ReturnType<IAgentHostDatabase['writeChatAttachmentCopy']> { }
-	async reorderChatV2(..._args: Parameters<IAgentHostDatabase['reorderChatV2']>): ReturnType<IAgentHostDatabase['reorderChatV2']> { return { status: 'notReady' }; }
+	async reorderChatV2(..._args: Parameters<IAgentHostDatabase['reorderChatV2']>): ReturnType<IAgentHostDatabase['reorderChatV2']> { return { status: 'notReady', reason: 'test', awaitsReprojection: false }; }
 	upsertSessionV2FromChatCatalog(...[envelope, expectedSessionGeneration]: Parameters<IAgentHostDatabase['upsertSessionV2FromChatCatalog']>): ReturnType<IAgentHostDatabase['upsertSessionV2FromChatCatalog']> {
 		return this.upsertSessionV2(envelope, expectedSessionGeneration);
 	}
@@ -31580,6 +31580,7 @@ suite('AgentService (node dispatcher)', () => {
 				_migrateChatCatalog(session: URI, token: CancellationToken): Promise<void>;
 				_sessionStateStore: { moveChat(move: unknown): Promise<unknown> };
 				_attachmentMigration: { schedule(chats: Iterable<string>): void; resume(chats: Iterable<string>): Promise<void>; whenIdle(): Promise<void> };
+				_peerChatStore: { reconcileOlderBuildCopy(session: URI): Promise<void>; flushCompatibilityPublishes(session: URI | undefined, database: undefined): Promise<void> };
 				prepareChatWorkingDirectory(session: URI, directory: URI, options: unknown): Promise<unknown>;
 			}
 
@@ -32169,6 +32170,95 @@ suite('AgentService (node dispatcher)', () => {
 				};
 				return { createService, contentsOf, seed, orchestratorDatabase, agent, dataDir: (session: URI) => base.getSessionDataDir(session) };
 			}
+
+			suite('older-build edits and moves (Block 4a)', () => {
+				/** A source with a peer, and a target. */
+				async function setupEdited() {
+					const services = createDeletingServices();
+					const service = services.createService();
+					const source = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+					const target = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+					const peer = URI.parse(buildChatUri(source, 'peer'));
+					await service.createChat(source, peer);
+					await timeout(0);
+					await service.whenCatalogReconciliationIdle();
+					// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Write the stored rows, as an older build does.
+					const raw = await services.orchestratorDatabase['_ensureDatabase']();
+					const isRead = async () => (await services.orchestratorDatabase.readCatalogSnapshot([source.toString()]))[0].chats.find(chat => chat.chat === peer.toString())?.isRead;
+					// An older build (1.140, 1.141) marks the peer read or unread in session_chats and advances only the revision.
+					const olderBuildEdit = async () => {
+						const value = await isRead() ? 0 : 1;
+						await new Promise<void>((resolve, reject) => raw.exec(`UPDATE session_chats SET is_read = ${value} WHERE session_uri = '${source.toString()}' AND chat_uri = '${peer.toString()}';
+							UPDATE session_chat_catalogs SET revision = revision + 1 WHERE session_uri = '${source.toString()}';`, error => error ? reject(error) : resolve()));
+						return value === 1;
+					};
+					return { ...services, service, source, target, peer, isRead, olderBuildEdit };
+				}
+
+				test('an older build\'s edit is imported before a move, a promotion or a reorder validates, which then applies at once', async () => {
+					const moved = await setupEdited();
+					const edited = await moved.olderBuildEdit();
+					const moves = spy(moved.orchestratorDatabase, 'moveChatV2');
+					await moved.service.moveChat(moved.source, moved.peer, { kind: 'session', session: moved.target, after: undefined });
+
+					const promoted = await setupEdited();
+					completeTurn(promoted.service, promoted.peer);
+					const promotedEdit = await promoted.olderBuildEdit();
+					const promotions = spy(promoted.orchestratorDatabase, 'promoteChatV2');
+					await promoted.service.moveChat(promoted.source, promoted.peer, { kind: 'newSession' });
+
+					const reordered = await setupEdited();
+					const reorderedEdit = await reordered.olderBuildEdit();
+					const reorders = spy(reordered.orchestratorDatabase, 'reorderChatV2');
+					await reordered.service.moveChat(reordered.source, reordered.peer, { kind: 'session', session: reordered.source, after: undefined });
+
+					assert.deepStrictEqual({
+						move: { calls: moves.callCount, owner: getStateManager(moved.service).getChatOwner(moved.peer.toString()), kept: (await moved.orchestratorDatabase.readCatalogSnapshot([moved.target.toString()]))[0].chats.find(chat => chat.chat === moved.peer.toString())?.isRead === edited },
+						promotion: { calls: promotions.callCount, kept: (await promoted.orchestratorDatabase.readCatalogSnapshot([getStateManager(promoted.service).getChatOwner(promoted.peer.toString())!]))[0].chats[0].isRead === promotedEdit },
+						reorder: { calls: reorders.callCount, first: getStateManager(reordered.service).getSessionState(reordered.source.toString())?.chats[0].resource, kept: await reordered.isRead() === reorderedEdit },
+					}, {
+						move: { calls: 1, owner: moved.target.toString(), kept: true },
+						promotion: { calls: 1, kept: true },
+						reorder: { calls: 1, first: reordered.peer.toString(), kept: true },
+					});
+				});
+
+				test('a move publishes the older-build copy of both its sessions, so older builds see the chat where it is now', async () => {
+					const { service, orchestratorDatabase, source, target, peer } = await setupEdited();
+
+					await service.moveChat(source, peer, { kind: 'session', session: target, after: undefined });
+					// Published at the end of the coalescing window, or at shutdown.
+					await (service as unknown as IMoveInternals)._peerChatStore.flushCompatibilityPublishes(undefined, undefined);
+					const acknowledged = async (session: URI) => {
+						const state = await orchestratorDatabase.readOlderBuildCopyState(session.toString());
+						return state?.legacyMirroredRevision === state?.revision;
+					};
+
+					assert.deepStrictEqual({ source: await acknowledged(source), target: await acknowledged(target) }, { source: true, target: true });
+				});
+
+				test('an older build\'s edit made after the import and before the move read its revisions is refused, imported, and the move tried once more', async () => {
+					const { service, orchestratorDatabase, source, target, peer, olderBuildEdit } = await setupEdited();
+					const peerChatStore = (service as unknown as IMoveInternals)._peerChatStore;
+					const reconcile = peerChatStore.reconcileOlderBuildCopy.bind(peerChatStore);
+					let edited: boolean | undefined;
+					stub(peerChatStore, 'reconcileOlderBuildCopy').callsFake(async session => {
+						await reconcile(session);
+						if (edited === undefined && session.toString() === source.toString()) {
+							edited = await olderBuildEdit();
+						}
+					});
+					const moves = spy(orchestratorDatabase, 'moveChatV2');
+
+					await service.moveChat(source, peer, { kind: 'session', session: target, after: undefined });
+
+					assert.deepStrictEqual({
+						results: await Promise.all(moves.returnValues.map(async result => (await result).status)),
+						owner: getStateManager(service).getChatOwner(peer.toString()),
+						kept: (await orchestratorDatabase.readCatalogSnapshot([target.toString()]))[0].chats.find(chat => chat.chat === peer.toString())?.isRead === edited,
+					}, { results: ['olderBuildEdits', 'applied'], owner: target.toString(), kept: true });
+				});
+			});
 
 			suite('copying moved chats\' attachments (Block 4b)', () => {
 				const migrationOf = (service: AgentService) => (service as unknown as IMoveInternals)._attachmentMigration;

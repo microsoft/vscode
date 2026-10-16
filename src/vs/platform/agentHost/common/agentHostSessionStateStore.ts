@@ -110,7 +110,7 @@ export interface ISessionStateChatMove {
 
 export type SessionStateChatMoveResult =
 	| { readonly status: 'applied'; readonly moved: readonly string[]; readonly targetOrder: readonly string[] }
-	| { readonly status: 'conflict' | 'notReady' | 'notImported' | 'missingSession' | 'tombstoned' };
+	| { readonly status: 'conflict' | 'notReady' | 'notImported' | 'missingSession' | 'tombstoned' | 'olderBuildEdits' };
 
 /** Promotes a chat and its descendants into a new session (Block 4). */
 export interface ISessionStateChatPromotion {
@@ -130,7 +130,7 @@ export interface ISessionStateChatPromotion {
 
 export type SessionStateChatPromotionResult =
 	| { readonly status: 'applied'; readonly moved: readonly string[] }
-	| { readonly status: 'conflict' | 'notReady' | 'notImported' | 'missingSession' | 'tombstoned' };
+	| { readonly status: 'conflict' | 'notReady' | 'notImported' | 'missingSession' | 'tombstoned' | 'olderBuildEdits' };
 
 /** One per-folder state row a chat move carries: re-keyed, or copied when the source keeps using the folder. */
 export interface ISessionStateChatMoveFolder {

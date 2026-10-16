@@ -372,7 +372,7 @@ class TestAgentHostDatabase extends SessionStateUnsupportedDatabase implements I
 	async listAttachmentOriginsV2(): ReturnType<IAgentHostDatabase['listAttachmentOriginsV2']> { return new Set(); }
 	async readChatAttachmentCopies(): ReturnType<IAgentHostDatabase['readChatAttachmentCopies']> { return new Map(); }
 	async writeChatAttachmentCopy(): ReturnType<IAgentHostDatabase['writeChatAttachmentCopy']> { }
-	async reorderChatV2(..._args: Parameters<IAgentHostDatabase['reorderChatV2']>): ReturnType<IAgentHostDatabase['reorderChatV2']> { return { status: 'notReady' }; }
+	async reorderChatV2(..._args: Parameters<IAgentHostDatabase['reorderChatV2']>): ReturnType<IAgentHostDatabase['reorderChatV2']> { return { status: 'notReady', reason: 'test', awaitsReprojection: false }; }
 	async getSessionChatCatalog(_session: string): Promise<IAgentHostDatabaseSessionChatCatalog | undefined> { return undefined; }
 	async replaceSessionChatCatalog(_session: string, _chats: readonly IAgentHostDatabaseSessionChat[], _expectedRevision: number | undefined): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> { return { status: 'applied', revision: 1 }; }
 	async markSessionChatCatalogLegacyMirrored(_session: string, _expectedRevision: number): Promise<boolean> { return false; }

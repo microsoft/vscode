@@ -3688,6 +3688,68 @@ suite('AgentHostDatabase sessions_v2', () => {
 			};
 		}
 
+		test('a move, a session move, a promotion and a reorder refuse an older build\'s edit of any chat list they re-project, and record the projection they write (Block 4a)', async () => {
+			const { instance, raw } = await seedAll();
+			// An older build (1.140, 1.141) rewrites session_chats and advances only the revision.
+			const olderBuildEdit = (session: string) => exec(raw, `UPDATE session_chats SET is_read = 1 WHERE session_uri = '${session}';
+				UPDATE session_chat_catalogs SET revision = revision + 1 WHERE session_uri = '${session}';`);
+			// What importing the edit leaves behind: the projection current again.
+			const imported = (session: string) => exec(raw, `UPDATE session_chat_catalogs SET projected_revision = revision WHERE session_uri = '${session}'`);
+			const move = async (source: string, target: string, chat = `${source}#peer`) => instance.moveChatV2({
+				chat, source, target, after: undefined,
+				expectedSourceRevision: await revision(instance, source), expectedTargetRevision: await revision(instance, target),
+				workingDirectories: undefined, state: { ...noState([chat]), expectedSourceRevision: (await instance.readSessionState(source))!.header.revision, expectedTargetRevision: (await instance.readSessionState(target))!.header.revision },
+			});
+			const before = await rows(raw, sessionA, sessionB, sessionC);
+			await olderBuildEdit(sessionA);
+			const sourceEdited = (await move(sessionA, sessionB)).status;
+			const promotionEdited = (await instance.promoteChatV2(promotion('session://n', { expectedSourceRevision: await revision(instance, sessionA) }))).status;
+			const reorderEdited = (await instance.reorderChatV2(sessionA, `${sessionA}#peer`, undefined, await revision(instance, sessionA))).status;
+			await imported(sessionA);
+			await olderBuildEdit(sessionB);
+			const targetEdited = (await move(sessionA, sessionB)).status;
+			const unchanged = await rows(raw, sessionA, sessionB, sessionC);
+			await imported(sessionB);
+			const applied = (await move(sessionA, sessionB)).status;
+			const projected = await all(raw, 'SELECT session_uri, revision = projected_revision AS current FROM session_chat_catalogs ORDER BY session_uri');
+
+			assert.deepStrictEqual({ sourceEdited, promotionEdited, reorderEdited, targetEdited, unchanged: unchanged.length === before.length && unchanged.every((row, index) => row.chat_uri === before[index].chat_uri && row.owner_session_uri === before[index].owner_session_uri), applied, projected: projected.map(row => [row.session_uri, row.current]) }, {
+				sourceEdited: 'olderBuildEdits', promotionEdited: 'olderBuildEdits', reorderEdited: 'olderBuildEdits', targetEdited: 'olderBuildEdits',
+				unchanged: true,
+				applied: 'applied',
+				projected: [[sessionA, 1], [sessionB, 1], [sessionC, 1]],
+			});
+		});
+
+		test('a session move refuses an older build\'s edit of either chat list (Block 4a)', async () => {
+			const { instance, raw } = await seedAll();
+			await instance.moveChatV2({
+				chat: `${sessionA}#peer`, source: sessionA, target: sessionC, after: undefined,
+				expectedSourceRevision: await revision(instance, sessionA), expectedTargetRevision: await revision(instance, sessionC),
+				workingDirectories: undefined, state: noState([`${sessionA}#peer`]),
+			});
+			const sessionMove = async () => instance.moveSessionV2({
+				chat: `${sessionA}#default`, source: sessionA, target: sessionB, after: undefined,
+				expectedSourceRevision: await revision(instance, sessionA), expectedTargetRevision: await revision(instance, sessionB),
+				workingDirectories: undefined,
+				// A refused write changes no central state: A's is at 2 after the first move, B's at 1.
+				state: { expectedSourceRevision: 2, expectedTargetRevision: 1, chats: [], folders: [] },
+			});
+			const results: string[] = [];
+			// An older build lists a chat of its own in A (which lists no peers any more), and drops B's peer.
+			const edits = new Map([
+				[sessionA, `INSERT INTO session_chats (session_uri, chat_uri, chat_order, provider_data) VALUES ('${sessionA}', 'chat://old-only', 0, 'old-write')`],
+				[sessionB, `DELETE FROM session_chats WHERE session_uri = '${sessionB}'`],
+			]);
+			for (const session of [sessionA, sessionB]) {
+				await exec(raw, `${edits.get(session)}; UPDATE session_chat_catalogs SET revision = revision + 1 WHERE session_uri = '${session}';`);
+				results.push((await sessionMove()).status);
+				await exec(raw, `UPDATE session_chat_catalogs SET projected_revision = revision WHERE session_uri = '${session}'`);
+			}
+
+			assert.deepStrictEqual({ results, tombstoned: await instance.isSessionTombstoned(sessionA) }, { results: ['olderBuildEdits', 'olderBuildEdits'], tombstoned: false });
+		});
+
 		test('moves a single-chat session under another session: its default chat becomes a peer keeping its database, and the session ends', async () => {
 			const { instance, raw } = await seedAll();
 			// A keeps only its default chat.

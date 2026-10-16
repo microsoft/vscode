@@ -6398,9 +6398,7 @@ export class AgentService extends Disposable implements IAgentService {
 				refuse(AgentChatMoveRefusal.DestinationNotFound, `Session ${targetKey} can't be opened: ${toErrorMessage(error)}`);
 			}
 		}
-		for (const key of [sourceKey, targetKey]) {
-			await this._normalizeCatalogForMove(key);
-		}
+		await this._prepareCatalogsForMove([sourceKey, targetKey]);
 		// Read before validating: the database refuses the move if either catalog changes after this point.
 		const catalogs = new Map((await this._orchestratorDatabase.readCatalogSnapshot([sourceKey, targetKey])).map(entry => [entry.session, entry.header?.revision ?? 0]));
 		if (!this._stateManager.getSessionState(sourceKey) || !this._stateManager.getSessionState(targetKey)) {
@@ -6455,7 +6453,7 @@ export class AgentService extends Disposable implements IAgentService {
 				const remaining = (this._stateManager.getSessionState(sourceKey)?.chats ?? [])
 					.filter(candidate => !moved.includes(candidate.resource) && candidate.origin?.kind !== ChatOriginKind.Tool)
 					.map(candidate => candidate.workingDirectories ?? sourceFolders);
-				const result = await (sessionMove ? this._sessionStateStore.moveSession({
+				const commit = () => (sessionMove ? this._sessionStateStore.moveSession({
 					source: session,
 					target,
 					chat,
@@ -6484,9 +6482,22 @@ export class AgentService extends Disposable implements IAgentService {
 						remaining,
 					},
 				}));
+				let result = await commit();
+				if (result.status === 'olderBuildEdits') {
+					// An older build edited either chat list since the move read it: import its edits, then try once more.
+					await this._prepareCatalogsForMove([sourceKey, targetKey]);
+					for (const entry of await this._orchestratorDatabase.readCatalogSnapshot([sourceKey, targetKey])) {
+						catalogs.set(entry.session, entry.header?.revision ?? 0);
+					}
+					const imported = this._chatSubtree(sourceKey, chatKey);
+					if (imported.length !== moved.length || imported.some(candidate => !moved.includes(candidate))) {
+						refuse(AgentChatMoveRefusal.Conflict, `Chat ${chatKey} changed while it was being moved; try again.`);
+					}
+					validate();
+					result = await commit();
+				}
 				if (result.status !== 'applied') {
-					return refuse(result.status === 'notReady' ? AgentChatMoveRefusal.LegacyCatalog : result.status === 'tombstoned' ? AgentChatMoveRefusal.SessionNotReady : AgentChatMoveRefusal.Conflict,
-						`Chat ${chatKey} couldn't be moved (${result.status}); try again.`);
+					return refuse(this._moveRefusalOf(result.status), `Chat ${chatKey} couldn't be moved (${result.status}); try again.`);
 				}
 				committed = { ...result, config };
 			} catch (error) {
@@ -6510,6 +6521,10 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			// Its pre-move attachments are copied into its own storage in the background (Block 4b).
 			this._attachmentMigration.schedule(committed.moved);
+			// Older builds see the chats where they are now (Block 4a); a session that ended has no copy to publish.
+			for (const key of sessionMove ? [targetKey] : [sourceKey, targetKey]) {
+				this._peerChatStore.scheduleOlderBuildCopyPublish(URI.parse(key));
+			}
 			// MCP entries a moved runtime published under its source, and the chat's folder customizations, follow it (C6).
 			this._sideEffects.republishSessionCustomizations(sourceKey);
 			this._sideEffects.republishSessionCustomizations(targetKey);
@@ -6572,6 +6587,40 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/** Normalizes a legacy catalog before a chat moves into or out of it (Q8b); older builds keep working from its projection. */
+	/**
+	 * Prepares the sessions a move, promotion or reorder re-projects, as 4a's contract for two-session writes asks
+	 * (agentHostChatCatalogV2.md): waits for their in-flight peer-store writes, converts a legacy chat catalog to
+	 * normalized authority, and brings each older-build copy in sync (imports what older builds changed, publishes the
+	 * pending copy). Runs before the write reads the revisions it validates against.
+	 */
+	private async _prepareCatalogsForMove(sessions: readonly string[]): Promise<void> {
+		await this._peerChatStore.whenSessionsIdle(sessions.map(session => URI.parse(session)));
+		for (const session of sessions) {
+			await this._normalizeCatalogForMove(session);
+			try {
+				await this._peerChatStore.reconcileOlderBuildCopy(URI.parse(session));
+			} catch (error) {
+				this._logService.warn(`[AgentService] Failed to import older-build chat edits of ${session} before moving chats`, error);
+				throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.Conflict, `The chat list of ${session} kept changing; try again.`);
+			}
+		}
+	}
+
+	/** The refusal a move, promotion or reorder the database didn't apply reports. */
+	private _moveRefusalOf(status: 'conflict' | 'notReady' | 'notImported' | 'missingSession' | 'tombstoned' | 'olderBuildEdits' | 'alreadyNormalized' | 'cancelled'): AgentChatMoveRefusal {
+		switch (status) {
+			// A catalog 4a can't convert yet (its provider can't vouch for it, or its conversion is parked).
+			case 'notReady': return AgentChatMoveRefusal.LegacyCatalog;
+			case 'tombstoned': return AgentChatMoveRefusal.SessionNotReady;
+			// Older-build edits refused twice, or any other concurrent change: the move can be retried.
+			default: return AgentChatMoveRefusal.Conflict;
+		}
+	}
+
+	/**
+	 * Converts a legacy (authority-1) chat catalog to normalized authority (Block 4a), so its chats can move. A session
+	 * 4a can't convert yet (its provider can't vouch for its chats, or its conversion is parked) is refused.
+	 */
 	private async _normalizeCatalogForMove(session: string): Promise<void> {
 		const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([session]);
 		if (snapshot?.authorityVersion !== 2) {
@@ -6600,7 +6649,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!provider) {
 			return refuse(AgentChatMoveRefusal.SessionNotReady, `Session ${sourceKey} has no agent.`);
 		}
-		await this._normalizeCatalogForMove(sourceKey);
+		await this._prepareCatalogsForMove([sourceKey]);
 		if ((await this._orchestratorDatabase.getChatV2ProviderDetail(chatKey))?.providerData === undefined) {
 			// Without its own backing, a session's default chat names the session's conversation, which the new session has none of.
 			refuse(AgentChatMoveRefusal.Unsupported, `Chat ${chatKey} has no recorded conversation of its own to take into a new session.`);
@@ -6618,7 +6667,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		// Read before validating: the database refuses the promotion if the catalog changes after this point.
 		const [catalog] = await this._orchestratorDatabase.readCatalogSnapshot([sourceKey]);
-		const expectedSourceCatalogRevision = catalog?.header?.revision ?? 0;
+		let expectedSourceCatalogRevision = catalog?.header?.revision ?? 0;
 		const moved = this._chatSubtree(sourceKey, chatKey);
 		const sourceSummary = this._stateManager.getSessionState(sourceKey)?.chats.find(candidate => candidate.resource === chatKey);
 		const chatFolders = await this._movedChatFolders(session, chatKey);
@@ -6653,7 +6702,7 @@ export class AgentService extends Disposable implements IAgentService {
 				if (config) {
 					values.configValues = JSON.stringify(getPersistedSessionConfigValues(config.values, this._configurationService.getSessionSandboxEnabled(sourceKey), undefined));
 				}
-				const result = await this._sessionStateStore.promoteChat({
+				const commit = () => this._sessionStateStore.promoteChat({
 					source: session,
 					target,
 					chat,
@@ -6670,9 +6719,21 @@ export class AgentService extends Disposable implements IAgentService {
 							.map(candidate => candidate.workingDirectories ?? sourceFolders),
 					},
 				});
+				let result = await commit();
+				if (result.status === 'olderBuildEdits') {
+					// An older build edited the source's chat list since the promotion read it: import its edits, then try once more.
+					await this._prepareCatalogsForMove([sourceKey]);
+					const [refreshed] = await this._orchestratorDatabase.readCatalogSnapshot([sourceKey]);
+					expectedSourceCatalogRevision = refreshed?.header?.revision ?? 0;
+					const imported = this._chatSubtree(sourceKey, chatKey);
+					if (imported.length !== moved.length || imported.some(candidate => !moved.includes(candidate))) {
+						refuse(AgentChatMoveRefusal.Conflict, `Chat ${chatKey} changed while it was being promoted; try again.`);
+					}
+					this._validateChatMove(sourceKey, undefined, chatKey, moved, undefined, chatFolders, recordedWorktrees);
+					result = await commit();
+				}
 				if (result.status !== 'applied') {
-					return refuse(result.status === 'notReady' ? AgentChatMoveRefusal.LegacyCatalog : result.status === 'tombstoned' ? AgentChatMoveRefusal.SessionNotReady : AgentChatMoveRefusal.Conflict,
-						`Chat ${chatKey} couldn't be promoted (${result.status}); try again.`);
+					return refuse(this._moveRefusalOf(result.status), `Chat ${chatKey} couldn't be promoted (${result.status}); try again.`);
 				}
 				committed = result.moved;
 			} catch (error) {
@@ -6690,6 +6751,9 @@ export class AgentService extends Disposable implements IAgentService {
 				await this._reloadAfterFailedMove([sourceKey, targetKey]);
 			}
 			this._attachmentMigration.schedule(committed);
+			for (const key of [sourceKey, targetKey]) {
+				this._peerChatStore.scheduleOlderBuildCopyPublish(URI.parse(key));
+			}
 			// MCP entries a moved runtime published under its source, and the chat's folder customizations, follow it (C6).
 			this._sideEffects.republishSessionCustomizations(sourceKey);
 			this._sideEffects.republishSessionCustomizations(targetKey);
@@ -6934,13 +6998,24 @@ export class AgentService extends Disposable implements IAgentService {
 		if (after !== undefined && !state?.chats.some(candidate => candidate.resource === after && candidate.origin?.kind !== ChatOriginKind.Tool && candidate.interactivity !== ChatInteractivity.Hidden)) {
 			throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.InvalidAnchor, `Chat ${after} is not a visible chat of ${sessionKey}.`);
 		}
-		const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([sessionKey]);
-		if (snapshot?.authorityVersion !== 2 || !snapshot.header) {
-			throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.LegacyCatalog, `Session ${sessionKey} can't reorder its chats yet.`);
+		const reorder = async () => {
+			await this._prepareCatalogsForMove([sessionKey]);
+			const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([sessionKey]);
+			if (snapshot?.authorityVersion !== 2 || !snapshot.header) {
+				throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.LegacyCatalog, `Session ${sessionKey} can't reorder its chats yet.`);
+			}
+			return this._orchestratorDatabase.reorderChatV2(sessionKey, chat, after, snapshot.header.revision);
+		};
+		let result = await reorder();
+		if (result.status === 'olderBuildEdits') {
+			// An older build edited the chat list since it was read: preparing again imports its edits; then once more.
+			result = await reorder();
 		}
-		const result = await this._orchestratorDatabase.reorderChatV2(sessionKey, chat, after, snapshot.header.revision);
 		if (result.status !== 'applied' && result.status !== 'replayed') {
-			throw new AgentChatMoveRefusedError(result.status === 'notReady' ? AgentChatMoveRefusal.LegacyCatalog : AgentChatMoveRefusal.Conflict, `Chat ${chat} couldn't be reordered (${result.status}); try again.`);
+			throw new AgentChatMoveRefusedError(this._moveRefusalOf(result.status), `Chat ${chat} couldn't be reordered (${result.status}); try again.`);
+		}
+		if (result.status === 'applied') {
+			this._peerChatStore.scheduleOlderBuildCopyPublish(session);
 		}
 		const order = (this._stateManager.getSessionState(sessionKey)?.chats ?? []).map(candidate => candidate.resource).filter(candidate => candidate !== chat);
 		order.splice(after === undefined ? 0 : order.indexOf(after) + 1, 0, chat);
