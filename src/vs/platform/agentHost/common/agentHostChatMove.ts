@@ -47,7 +47,7 @@ export interface IChatMoveEligibility extends IChatMoveStructuralEligibility {
 	readonly workspaceless: boolean;
 	/** Its session is quarantined, or it or a descendant is changing its workspace ({@link AgentChatMoveRefusal.SessionQuarantined}, {@link AgentChatMoveRefusal.ConversionInProgress}). */
 	readonly converting: boolean;
-	/** It works in a worktree of its session ({@link AgentChatMoveRefusal.WorktreeFolder}). */
+	/** It works in an additional worktree recorded for it that a chat staying in its session also uses ({@link AgentChatMoveRefusal.WorktreeFolder}). */
 	readonly worktreeFolder: boolean;
 	/** It or a descendant runs Agent Merge for a folder of its session ({@link AgentChatMoveRefusal.AgentMergeOwner}). */
 	readonly agentMergeOwner: boolean;

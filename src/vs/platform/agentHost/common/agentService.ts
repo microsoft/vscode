@@ -175,36 +175,6 @@ export const AgentHostOverlapProviderPreparationSettingId = 'chat.agentHost.expe
 export const AgentHostPrewarmSessionsSettingId = 'chat.agentHost.experimental.prewarmSessions';
 
 /**
- * Configuration key gating multiple-working-directory support for the Copilot
- * agent-host provider. When `true`, the Copilot provider advertises the
- * `multipleWorkingDirectories` capability, so a session created in a multi-root
- * workspace can span every workspace folder. Hidden from the Settings UI and
- * off by default while the feature is dogfooded; the agent host re-advertises
- * on change, so newly created sessions pick it up without a restart.
- */
-export const AgentHostCopilotMultiRootEnabledSettingId = 'chat.agentHost.copilotAgent.multiRootEnabled';
-
-/**
- * Configuration key gating multiple-working-directory support for the Claude
- * agent-host provider. When `true`, the Claude provider advertises the
- * `multipleWorkingDirectories` capability, so a session created in a multi-root
- * workspace can span every workspace folder. Independent of
- * {@link AgentHostCopilotMultiRootEnabledSettingId} because the Claude Agent SDK
- * already supports additional directories while the Copilot SDK does not. Hidden
- * from the Settings UI and off by default while the feature is dogfooded; the
- * agent host re-advertises on change, so newly created sessions pick it up
- * without a restart.
- */
-export const AgentHostClaudeMultiRootEnabledSettingId = 'chat.agentHost.claudeAgent.multiRootEnabled';
-
-/**
- * Configuration key gating multiple-working-directory support for the Codex
- * agent-host provider. Hidden from the Settings UI and off by default while the
- * feature is dogfooded.
- */
-export const AgentHostCodexMultiRootEnabledSettingId = 'chat.agentHost.codexAgent.multiRootEnabled';
-
-/**
  * Experimentation setting id gating the conditional agent-window auth feature.
  * When `true`, the agent window opens for a signed-out user instead of forcing
  * GitHub sign-in; each session type then gates on its own GitHub requirement, so
