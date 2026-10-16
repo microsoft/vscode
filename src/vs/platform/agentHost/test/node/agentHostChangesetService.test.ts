@@ -21,6 +21,7 @@ import { toAgentWorkspaceContinuationMessageMeta } from '../../common/meta/agent
 import { ActionEnvelope, ActionType } from '../../common/state/sessionActions.js';
 import { ChangesetStatus, FileEditKind, MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, withMessageRequestHiddenFromTranscript, withSessionGitState, type ISessionFileDiff, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
+import { createFileEditDiscardRecord, readFileEditRevertStep } from '../../node/fileEditDiscard.js';
 import { NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { CHANGES_SUMMARY_METADATA_KEYS, getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY } from '../../common/agentHostChangesetService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -2039,6 +2040,41 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		}, {
 			hasSessionState: true,
 			peerState: undefined,
+		});
+	});
+
+	test('discarded turn edits drop the file from the turn and Session Changes', async () => {
+		const db = new TestSessionDatabase();
+		db.addEdit({ turnId: 'turn-1', toolCallId: 'tc1', filePath: '/repo/kept.txt', kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString('a'), afterContent: encodeString('a\nb') });
+		db.addEdit({ turnId: 'turn-1', toolCallId: 'tc2', filePath: '/repo/discarded.txt', kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString('c'), afterContent: encodeString('c\nd') });
+		const turnUri = buildTurnChangesetUri(sessionStr, 'turn-1');
+		const sessionChangeset = buildSessionChangesetUri(sessionStr);
+		const { svc, stateManager } = build({ workingDirectories: ['file:///repo'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE, db, subscriptions: [turnUri] });
+		await svc.computeTurnChangeset(sessionStr, 'turn-1', 'fileEditTracker');
+		const turnFilesBefore = stateManager.getChangesetState(turnUri)?.files.map(file => file.id).sort();
+
+		const tracked = svc.openTrackedTurnDatabase(sessionStr, 'turn-1')!;
+		const folderScope = tracked.folderScope?.map(folder => folder.toString());
+		try {
+			const records = (await tracked.db.getFileEditsByTurn('turn-1')).filter(record => record.filePath === '/repo/discarded.txt');
+			await tracked.db.storeFileEdits([createFileEditDiscardRecord('turn-1', '/repo/discarded.txt', await readFileEditRevertStep(tracked.db, records))]);
+		} finally {
+			tracked.dispose();
+		}
+		svc.onFileEditsDiscarded(sessionStr, ['turn-1']);
+		await waitForChangesetReady(stateManager, turnUri);
+		await waitForChangesetReady(stateManager, sessionChangeset);
+
+		assert.deepStrictEqual({
+			folderScope,
+			turnFilesBefore,
+			turnFiles: stateManager.getChangesetState(turnUri)?.files.map(file => file.id),
+			sessionFiles: stateManager.getChangesetState(sessionChangeset)?.files.map(file => file.id),
+		}, {
+			folderScope: [URI.file('/repo').toString()],
+			turnFilesBefore: [URI.file('/repo/discarded.txt').toString(), URI.file('/repo/kept.txt').toString()],
+			turnFiles: [URI.file('/repo/kept.txt').toString()],
+			sessionFiles: [URI.file('/repo/kept.txt').toString()],
 		});
 	});
 

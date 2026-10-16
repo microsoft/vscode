@@ -51,7 +51,7 @@ import { IAgentHostGitService, resolveDiffBaseBranchName } from '../common/agent
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
 import { computeSessionDiffs, computeTurnDiffs, computeUnionedDiffs, type IIncrementalDiffOptions, type ISessionDiffSource } from './sessionDiffAggregator.js';
-import { IAgentHostChangesetService, CHANGES_SUMMARY_METADATA_KEYS, getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY, StaticChangesetKind, ChangesetDiffStrategy } from '../common/agentHostChangesetService.js';
+import { IAgentHostChangesetService, CHANGES_SUMMARY_METADATA_KEYS, getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY, StaticChangesetKind, ChangesetDiffStrategy, type ITrackedTurnDatabase } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
@@ -1402,6 +1402,55 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			this._refreshChatSessionChangeset(chat.resource);
 			this._scheduleChatChangesSummary(chat.resource, false);
 		}
+	}
+
+	openTrackedTurnDatabase(owner: ProtocolURI, turnId: string): ITrackedTurnDatabase | undefined {
+		// Resolves the database and folder scope exactly as the `fileEditTracker`
+		// per-turn computation does, so callers see the same file identities.
+		const ref = this._sessionDataService.openDatabase(URI.parse(this._getTrackedDatabaseUri(owner)));
+		let source: { readonly owner: ProtocolURI | undefined; readonly db: ISessionDatabase; dispose(): void };
+		try {
+			source = this._openTrackedTurnSource(owner, ref.object, turnId);
+		} catch (err) {
+			ref.dispose();
+			throw err;
+		}
+		const turnOwner = source.owner;
+		if (!turnOwner) {
+			source.dispose();
+			ref.dispose();
+			return undefined;
+		}
+		return {
+			db: source.db,
+			folderScope: this._getTrackedEditFolderScope(turnOwner, this._configurationService.getEffectiveWorkingDirectories(turnOwner)),
+			dispose: () => {
+				source.dispose();
+				ref.dispose();
+			},
+		};
+	}
+
+	onFileEditsDiscarded(owner: ProtocolURI, turnIds: readonly string[]): void {
+		// The discarded edits change past results, so recompute from scratch
+		// (no changedTurnId) rather than incrementally.
+		for (const turnId of turnIds) {
+			this._cancelDebouncedTurnDiffComputation(owner, turnId);
+			if (this._hasSubscription(owner, buildTurnChangesetUri(owner, turnId))) {
+				this._scheduleTurnRecompute(owner, turnId);
+			}
+		}
+		if (this._hasSubscription(owner, buildUncommittedChangesetUri(owner))) {
+			this._scheduleUncommittedRecompute(owner, undefined);
+		}
+		if (isAhpChatChannel(owner)) {
+			this._refreshChatSessionChangeset(owner);
+		}
+		if (this._shouldScheduleBranchRecompute(owner)) {
+			this._scheduleBranchRecompute(owner, undefined, false);
+		}
+		this._scheduleStaticRecompute(this._containingSessionUri(owner), 'session', undefined, false, undefined, 'fileEditTracker');
+		this._scheduleChatChangesSummary(owner, false);
 	}
 
 	onChangesetOwnerRemoved(owner: ProtocolURI): void {

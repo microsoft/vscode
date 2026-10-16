@@ -5,30 +5,41 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import type { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { constObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { FileService } from '../../../files/common/fileService.js';
 import { FileSystemProviderCapabilities, IFileService } from '../../../files/common/files.js';
+import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { NullLogService } from '../../../log/common/log.js';
+import type { ITrackedTurnDatabase } from '../../common/agentHostChangesetService.js';
 import { EMPTY_TREE_OBJECT, type IAgentHostGitService, type IBranch, type IDefaultBranch } from '../../common/agentHostGitService.js';
-import { buildBranchChangesetUri, buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
+import { buildBranchChangesetUri, buildCompareTurnsChangesetUri, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, ChangesetKind } from '../../common/changesetUri.js';
 import { ChangesetOperationTargetKind, type InvokeChangesetOperationParams } from '../../common/state/protocol/channels-changeset/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { buildChatUri, buildDefaultChatUri, SessionStatus, type ISessionFileDiff } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, FileEditKind, MessageKind, SessionStatus, type ISessionFileDiff } from '../../common/state/sessionState.js';
 import { AgentHostDiscardChangesOperationHandler } from '../../node/agentHostDiscardChangesOperationHandler.js';
+import { AgentHostDiscardChangesOperationContribution } from '../../node/agentHostDiscardChangesOperationProvider.js';
+import { AgentHostFileEditRevert } from '../../node/agentHostFileEditRevert.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
+import { computeTurnDiffs } from '../../node/sessionDiffAggregator.js';
+import { createNoopChangesetService, encodeString, TestDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { InProcessDiffComputeService } from './inProcessDiffComputeService.js';
 
 class TestGitService implements IAgentHostGitService {
 	declare readonly _serviceBrand: undefined;
 
 	readonly restoreCalls: { workingDirectory: string; paths: readonly string[]; options?: { readonly staged?: boolean; readonly ref?: string } }[] = [];
 	restoreError: Error | undefined;
-	repositoryRoot = URI.file('/repo');
+	repositoryRoot: URI | undefined = URI.file('/repo');
 	readonly repositoryRoots = new Map<string, URI | undefined>();
 	untrackedPaths: readonly string[] = [];
 
@@ -96,13 +107,23 @@ class TestFileService extends mock<IFileService>() {
 	}
 }
 
-function setup(disposables: Pick<DisposableStore, 'add'>, opts?: { readonly withWorkingDirectory?: boolean; readonly workingDirectory?: URI; readonly workingDirectories?: readonly URI[]; readonly registerSession?: boolean; readonly onDiscarded?: (sessionKey: string) => Promise<void> }): { handler: AgentHostDiscardChangesOperationHandler; gitService: TestGitService; fileService: TestFileService; stateManager: AgentHostStateManager; refreshes: string[]; session: URI } {
+function setup(disposables: Pick<DisposableStore, 'add'>, opts?: { readonly withWorkingDirectory?: boolean; readonly workingDirectory?: URI; readonly workingDirectories?: readonly URI[]; readonly registerSession?: boolean; readonly onDiscarded?: (sessionKey: string) => Promise<void> }) {
 	const gitService = new TestGitService();
 	const fileService = new TestFileService();
+	const diskFileService = disposables.add(new FileService(new NullLogService()));
+	disposables.add(diskFileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
 	const refreshes: string[] = [];
 	const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 	const session = URI.parse('agent:/session');
 	const workingDirectories = opts?.workingDirectories ?? [opts?.workingDirectory ?? URI.file('/repo')];
+	const trackedDb = new TestSessionDatabase();
+	const tracked: { database: ITrackedTurnDatabase | undefined } = {
+		database: { db: trackedDb, folderScope: workingDirectories, dispose: () => { } },
+	};
+	const discardedTurns: { owner: string; turnIds: readonly string[] }[] = [];
+	const changesets = createNoopChangesetService();
+	changesets.openTrackedTurnDatabase = () => tracked.database;
+	changesets.onFileEditsDiscarded = (owner, turnIds) => { discardedTurns.push({ owner, turnIds }); };
 	if (opts?.registerSession !== false) {
 		stateManager.createSession({
 			resource: session.toString(),
@@ -121,12 +142,14 @@ function setup(disposables: Pick<DisposableStore, 'add'>, opts?: { readonly with
 			refreshes.push(sessionKey);
 			await opts?.onDiscarded?.(sessionKey);
 		},
+		new AgentHostFileEditRevert(diskFileService, new InProcessDiffComputeService()),
 		gitService,
 		fileService,
 		new NullLogService(),
 		stateManager,
+		changesets,
 	);
-	return { handler, gitService, fileService, stateManager, refreshes, session };
+	return { handler, gitService, fileService, diskFileService, trackedDb, tracked, discardedTurns, stateManager, refreshes, session };
 }
 
 function addChangesetFile(stateManager: AgentHostStateManager, channel: string, edit: ISessionFileDiff): void {
@@ -152,6 +175,20 @@ function makeResourceTarget(resource: URI): InvokeChangesetOperationParams['targ
 	// `ChangesetOperationTarget.resource` is typed as the protocol `URI` (a
 	// branded string), not the workbench `URI` class.
 	return { kind: ChangesetOperationTargetKind.Resource, resource: resource.toString() as unknown as InvokeChangesetOperationParams['channel'] };
+}
+
+function startTurn(stateManager: AgentHostStateManager, chat: string, turnId: string): void {
+	stateManager.dispatchServerAction(chat, {
+		type: ActionType.ChatTurnStarted,
+		turnId,
+		startedAt: new Date(1).toISOString(),
+		message: { text: 'Edit files', origin: { kind: MessageKind.User } },
+	});
+}
+
+function addTurn(stateManager: AgentHostStateManager, chat: string, turnId: string): void {
+	startTurn(stateManager, chat, turnId);
+	stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId, duration: 1 });
 }
 
 suite('AgentHostDiscardChangesOperationHandler', () => {
@@ -541,14 +578,14 @@ suite('AgentHostDiscardChangesOperationHandler', () => {
 		});
 	});
 
-	test('rejects channels that are not branch or uncommitted changeset URIs', async () => {
+	test('rejects changesets that do not support discarding', async () => {
 		const { handler, gitService, session } = setup(disposables);
 		const target = URI.file('/repo/src/file.ts');
 
 		let err: ProtocolError | undefined;
 		try {
 			await handler.invoke({
-				channel: buildSessionChangesetUri(session.toString()),
+				channel: buildCompareTurnsChangesetUri(buildDefaultChatUri(session.toString()), 'turn-1', 'turn-2'),
 				operationId: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES,
 				target: makeResourceTarget(target),
 			}, CancellationToken.None);
@@ -680,5 +717,235 @@ suite('AgentHostDiscardChangesOperationHandler', () => {
 		);
 
 		assert.deepStrictEqual({ restoreCalls: gitService.restoreCalls.length }, { restoreCalls: 0 });
+	});
+});
+
+suite('AgentHostDiscardChangesOperationHandler - last turn', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const target = URI.file('/repo/src/file.ts');
+
+	async function setupLastTurn(resource = target, workingDirectories?: readonly URI[]) {
+		const harness = setup(disposables, { workingDirectories });
+		const chat = buildDefaultChatUri(harness.session.toString());
+		addTurn(harness.stateManager, chat, 'turn-1');
+		harness.trackedDb.addEdit({
+			turnId: 'turn-1', toolCallId: 'tc1', filePath: resource.fsPath, kind: FileEditKind.Edit,
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString('a\nb\n'), afterContent: encodeString('a\nB\n'),
+		});
+		await harness.diskFileService.writeFile(resource, VSBuffer.fromString('a\nB\n'));
+		return { ...harness, chat, channel: buildTurnChangesetUri(chat, 'turn-1') };
+	}
+
+	test('reverts the turn\'s edits to the file and records the discard', async () => {
+		const { handler, diskFileService, trackedDb, discardedTurns, refreshes, chat, channel } = await setupLastTurn();
+
+		const result = await handler.invoke({
+			channel,
+			operationId: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES,
+			target: makeResourceTarget(target),
+		}, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			content: (await diskFileService.readFile(target)).value.toString(),
+			turnDiffs: await computeTurnDiffs('agent:/session', trackedDb, new TestDiffComputeService(), 'turn-1'),
+			discardedTurns,
+			refreshes,
+			message: result.message,
+		}, {
+			content: 'a\nb\n',
+			turnDiffs: [],
+			discardedTurns: [{ owner: chat, turnIds: ['turn-1'] }],
+			refreshes: [chat],
+			message: { markdown: 'Discarded the last turn\'s changes to `file.ts`.' },
+		});
+	});
+
+	test('leaves a turn-created file untouched when it can not be deleted conditionally', async () => {
+		const harness = setup(disposables);
+		const chat = buildDefaultChatUri(harness.session.toString());
+		addTurn(harness.stateManager, chat, 'turn-1');
+		harness.trackedDb.addEdit({
+			turnId: 'turn-1', toolCallId: 'tc1', filePath: target.fsPath, kind: FileEditKind.Create,
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: undefined, afterContent: encodeString('new\n'),
+		});
+		await harness.diskFileService.writeFile(target, VSBuffer.fromString('new\n'));
+
+		let error: ProtocolError | undefined;
+		try {
+			await harness.handler.invoke({
+				channel: buildTurnChangesetUri(chat, 'turn-1'),
+				operationId: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES,
+				target: makeResourceTarget(target),
+			}, CancellationToken.None);
+		} catch (e) {
+			error = e as ProtocolError;
+		}
+
+		assert.deepStrictEqual({
+			content: (await harness.diskFileService.readFile(target)).value.toString(),
+			code: error?.code,
+			message: error?.message,
+			recordedEdits: (await harness.trackedDb.getAllFileEdits()).length,
+			discardedTurns: harness.discardedTurns,
+		}, {
+			content: 'new\n',
+			code: JsonRpcErrorCodes.InternalError,
+			message: 'The last turn created \'file.ts\', which can\'t be discarded safely. Delete the file manually if it is no longer needed.',
+			recordedEdits: 1,
+			discardedTurns: [],
+		});
+	});
+
+	test('rejects requests it can not apply without changing the file', async () => {
+		const cases: Record<string, (harness: Awaited<ReturnType<typeof setupLastTurn>>) => Promise<{ channel?: string; target?: URI | null }>> = {
+			missingTarget: async () => ({ target: null }),
+			olderTurn: async ({ stateManager, chat }) => { addTurn(stateManager, chat, 'turn-2'); return {}; },
+			turnInProgress: async ({ stateManager, chat }) => { startTurn(stateManager, chat, 'turn-2'); return {}; },
+			runningTurnTargeted: async ({ stateManager, chat }) => { startTurn(stateManager, chat, 'turn-2'); return { channel: buildTurnChangesetUri(chat, 'turn-2') }; },
+			fileNotInTurn: async () => ({ target: URI.file('/repo/src/other.ts') }),
+			turnInSeveralChats: async ({ tracked }) => { tracked.database = undefined; return {}; },
+			editedSameLinesAfterTurn: async ({ diskFileService }) => { await diskFileService.writeFile(target, VSBuffer.fromString('a\nBB\n')); return {}; },
+			// The file is put back when the discard can't be recorded.
+			recordingFails: async ({ trackedDb }) => {
+				trackedDb.storeFileEdits = async () => { throw new Error('database closed'); };
+				return {};
+			},
+			turnStartedWhileRecording: async ({ trackedDb, stateManager, chat }) => {
+				const storeFileEdits = trackedDb.storeFileEdits.bind(trackedDb);
+				trackedDb.storeFileEdits = (edits, validate) => storeFileEdits(edits, () => {
+					startTurn(stateManager, chat, 'turn-2');
+					validate?.();
+				});
+				return {};
+			},
+			turnStartedDuringDiscard: async ({ diskFileService, stateManager, chat }) => {
+				const listener = disposables.add(diskFileService.onDidRunOperation(() => {
+					listener.dispose();
+					startTurn(stateManager, chat, 'turn-2');
+				}));
+				return {};
+			},
+		};
+
+		const results: Record<string, unknown> = {};
+		for (const [name, arrange] of Object.entries(cases)) {
+			const harness = await setupLastTurn();
+			const overrides = await arrange(harness);
+			const contentBefore = (await harness.diskFileService.readFile(target)).value.toString();
+			let error: ProtocolError | undefined;
+			try {
+				await harness.handler.invoke({
+					channel: overrides.channel ?? harness.channel,
+					operationId: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES,
+					target: overrides.target === null ? undefined : makeResourceTarget(overrides.target ?? target),
+				}, CancellationToken.None);
+			} catch (e) {
+				error = e as ProtocolError;
+			}
+			results[name] = {
+				code: error?.code,
+				unchanged: (await harness.diskFileService.readFile(target)).value.toString() === contentBefore,
+				recordedEdits: (await harness.trackedDb.getAllFileEdits()).length,
+				discardedTurns: harness.discardedTurns.length,
+			};
+		}
+
+		const rejected = (code: number) => ({ code, unchanged: true, recordedEdits: 1, discardedTurns: 0 });
+		assert.deepStrictEqual(results, {
+			missingTarget: rejected(JsonRpcErrorCodes.InvalidParams),
+			olderTurn: rejected(JsonRpcErrorCodes.InvalidParams),
+			turnInProgress: rejected(JsonRpcErrorCodes.InvalidParams),
+			runningTurnTargeted: rejected(JsonRpcErrorCodes.InvalidParams),
+			fileNotInTurn: rejected(JsonRpcErrorCodes.InvalidParams),
+			turnInSeveralChats: rejected(JsonRpcErrorCodes.InvalidParams),
+			editedSameLinesAfterTurn: rejected(JsonRpcErrorCodes.InternalError),
+			recordingFails: rejected(JsonRpcErrorCodes.InternalError),
+			turnStartedWhileRecording: rejected(JsonRpcErrorCodes.InvalidParams),
+			turnStartedDuringDiscard: rejected(JsonRpcErrorCodes.InvalidParams),
+		});
+	});
+
+	test('allows non-Git files in the workspace and rejects files outside it', async () => {
+		const workspaceRoot = URI.file('/workspace');
+		const nonGitTarget = URI.joinPath(workspaceRoot, 'plain/file.ts');
+		const outsideTarget = URI.file('/outside/file.ts');
+
+		const allowed = await setupLastTurn(nonGitTarget, [workspaceRoot]);
+		allowed.gitService.repositoryRoot = undefined;
+		await allowed.handler.invoke({
+			channel: allowed.channel,
+			operationId: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES,
+			target: makeResourceTarget(nonGitTarget),
+		}, CancellationToken.None);
+
+		const rejected = await setupLastTurn(outsideTarget, [workspaceRoot]);
+		rejected.gitService.repositoryRoot = undefined;
+		let error: ProtocolError | undefined;
+		try {
+			await rejected.handler.invoke({
+				channel: rejected.channel,
+				operationId: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES,
+				target: makeResourceTarget(outsideTarget),
+			}, CancellationToken.None);
+		} catch (e) {
+			error = e as ProtocolError;
+		}
+
+		assert.deepStrictEqual({
+			nonGitContent: (await allowed.diskFileService.readFile(nonGitTarget)).value.toString(),
+			outsideContent: (await rejected.diskFileService.readFile(outsideTarget)).value.toString(),
+			rejectedCode: error?.code,
+		}, {
+			nonGitContent: 'a\nb\n',
+			outsideContent: 'a\nB\n',
+			rejectedCode: JsonRpcErrorCodes.InvalidParams,
+		});
+	});
+});
+
+suite('AgentHostDiscardChangesOperationContribution', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('offers discard on branch and uncommitted changes, and on the last turn only, including while it runs', () => {
+		const { stateManager, session } = setup(disposables);
+		const chat = buildDefaultChatUri(session.toString());
+		addTurn(stateManager, chat, 'turn-1');
+		addTurn(stateManager, chat, 'turn-2');
+		const contribution = disposables.add(new AgentHostDiscardChangesOperationContribution(stateManager, new (mock<IInstantiationService>())()));
+		const confirmations = (changesetUri: string, changesetKind: ChangesetKind, uncommittedChanges = 1) => contribution
+			.getOperations({ sessionKey: session.toString(), changesetUri, changesetKind, gitState: { uncommittedChanges } })
+			.map(operation => `${operation.id}: ${operation.confirmation}`);
+		const lastTurnConfirmation = 'discard-changes: Are you sure you want to discard the last turn\'s changes to \'{0}\'? Changes made outside of the last turn will be kept. This action cannot be undone.';
+
+		const completed = {
+			branch: confirmations(buildBranchChangesetUri(chat), ChangesetKind.Branch, 0),
+			uncommitted: confirmations(buildUncommittedChangesetUri(chat), ChangesetKind.Uncommitted),
+			cleanUncommitted: confirmations(buildUncommittedChangesetUri(chat), ChangesetKind.Uncommitted, 0),
+			lastTurn: confirmations(buildTurnChangesetUri(chat, 'turn-2'), ChangesetKind.Turn),
+			olderTurn: confirmations(buildTurnChangesetUri(chat, 'turn-1'), ChangesetKind.Turn),
+			session: confirmations(buildSessionChangesetUri(session.toString()), ChangesetKind.Session),
+		};
+		startTurn(stateManager, chat, 'turn-3');
+		const running = {
+			runningTurn: confirmations(buildTurnChangesetUri(chat, 'turn-3'), ChangesetKind.Turn),
+			previousTurn: confirmations(buildTurnChangesetUri(chat, 'turn-2'), ChangesetKind.Turn),
+		};
+
+		assert.deepStrictEqual({ completed, running }, {
+			completed: {
+				branch: ['discard-changes: Are you sure you want to discard the changes in \'{0}\'? This action cannot be undone.'],
+				uncommitted: ['discard-changes: Are you sure you want to discard the changes in \'{0}\'? This action cannot be undone.'],
+				cleanUncommitted: [],
+				lastTurn: [lastTurnConfirmation],
+				olderTurn: [],
+				session: [],
+			},
+			running: {
+				runningTurn: [lastTurnConfirmation],
+				previousTurn: [],
+			},
+		});
 	});
 });
