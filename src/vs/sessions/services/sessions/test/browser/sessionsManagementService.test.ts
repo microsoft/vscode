@@ -3456,6 +3456,40 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	for (const sideChat of [false, true]) {
+		test(`explicitly reopening the active ${sideChat ? 'side chat' : 'session'} reaches its mounted chat view`, async () => {
+			const main = { ...stubChat, resource: URI.parse('test:///session/main'), status: constObservable(SessionStatus.Completed) };
+			const side = { ...stubChat, resource: URI.parse('test:///session/side'), status: constObservable(SessionStatus.Completed), origin: { kind: ChatOriginKind.SideChat, parentChat: main.resource } };
+			const session = stubSession({
+				sessionId: 'session', providerId: 'test', status: constObservable(SessionStatus.Completed),
+				mainChat: constObservable(main), chats: constObservable([main, side]),
+			});
+			const { view, sessionsPartService } = createSessionsManagementService(session, disposables);
+			await view.openSession(session.resource);
+			if (sideChat) {
+				await view.openChat(session, side.resource);
+			}
+			const activeSession = view.activeSession.get();
+			const reopened: { resource: string; selected: string | undefined }[] = [];
+			sessionsPartService.sessionViews.set(session.sessionId, upcastPartial<SessionView & { reopenChat(resource: URI): Promise<void> }>({
+				reopenChat: async resource => {
+					reopened.push({ resource: resource.toString(), selected: view.activeSession.get()?.activeChat.get().resource.toString() });
+				},
+			}));
+
+			if (sideChat) {
+				await view.openChat(session, side.resource);
+			} else {
+				await view.openSession(session.resource);
+			}
+
+			const resource = (sideChat ? side : main).resource.toString();
+			assert.deepStrictEqual({ sameActiveSession: view.activeSession.get() === activeSession, reopened }, {
+				sameActiveSession: true, reopened: [{ resource, selected: resource }],
+			});
+		});
+	}
+
 	test('openSession activates before awaiting provider preparation', async () => {
 		const active = stubSession({ sessionId: 'active', providerId: 'test' });
 		const target = stubSession({ sessionId: 'target', providerId: 'test' });
