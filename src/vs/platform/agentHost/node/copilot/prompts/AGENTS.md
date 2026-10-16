@@ -9,6 +9,7 @@ This directory customizes the system prompt for Copilot CLI **agent host** (ahp+
 - `toolInstructions.ts` — the model-agnostic `tool_instructions` layer: gated or unconditional nudges (`TOOL_INSTRUCTION_LINES`) composed into the SDK's `tool_instructions` section, including the default-model guidance for subagents.
 - `anthropicPrompt.ts` — example per-model contributor (Claude Opus 4.8).
 - `openaiPrompt.ts` — OpenAI targeted post-edit inspection guidance, appended to `code_change_rules` without replacing the SDK foundation prompt.
+- `geminiPrompt.ts` — branch-local Gemini token-efficiency experiment: replaces the view, grep, and task guidance with the supplied evaluation wording and adds post-edit and no-repeat guidance. All five changes use `tool_instructions`: Gemini's SDK prompt omits `tool_efficiency`, so overrides to that section do not render.
 - `allPrompts.ts` — side-effect import hub; importing it registers every contributor into the shared `agentHostPromptRegistry`.
 
 ## How the system message is built
@@ -44,6 +45,7 @@ const TOOL_INSTRUCTION_LINES: readonly ToolInstructionLine[] = [largeOutputToolI
 **Caveat — `hasTool` sees CLIENT tools only.** It is `context.hasClientTool`, which knows only the forwarded workbench tools, addressed by their **camelCase `toolReferenceName`** (e.g. `openBrowserPage`, `runTask`, `getTaskOutput`) — NOT the extension's snake_case ids, and NOT shell / server-SDK / MCP tools (MCP is discovered dynamically and isn't in the launch snapshot). A line gated on a name that is never a client tool silently never renders. The default client-tool allowlist is `chat.agentHost.clientTools` (see `chat.shared.contribution.ts`). Broadening this context is a known follow-up.
 
 These lines compose with a per-model `tool_instructions` override (see `composeToolInstructions`), so Lever 1 and Lever 2 stack.
+For transform callbacks, universal lines are appended after the transformed SDK section; asynchronous callbacks and their errors are preserved.
 
 ## Tool search (deferred tool loading)
 
@@ -83,6 +85,8 @@ Matching: a contributor matches a model by `static matchesModel(model)` (takes p
 This branch's OpenAI contributor is unconditional for GPT families, legacy `o1`/`o3`/`o4` families, and the `openai` family alias; it has no setting. GPT and `openai` matching follows Copilot Chat's `isOpenAIModel` family conventions, case-insensitively. Agent Host has a model ID rather than endpoint-provider metadata; a custom model ID can use the existing `family` override to route through a known OpenAI family. The experiment is isolated to the branch and tracked in [microsoft/vscode-internalbacklog#9579](https://github.com/microsoft/vscode-internalbacklog/issues/9579). It discourages automatic post-edit rereads and full-diff reviews, but preserves targeted reads for failed checks, ambiguous tool output, or correctness uncertainty, required validation, and explicitly requested broader reviews. It does not change delegation or non-OpenAI models. Guidance is resolved on session create/resume; existing in-flight sessions keep their launch-time prompt.
 
 ## Related — per-model experimentation knobs (`copilotCliConfig.ts`)
+
+The branch-local Gemini token-efficiency experiment matches `gemini-` IDs case-insensitively. It adapts the supplied diff to the current SDK's rewritten tool sections, using the supplied new wording rather than appending competing guidance. Missing or duplicate target sections and a changed edit introduction raise an error, so SDK drift cannot silently produce a partial treatment. Use fresh, fixed-model sessions for evaluation: ordinary mid-session model changes do not rebuild the launch-time prompt. Compare baseline and treatment with the same SDK, model, tools, settings, and benchmark cases.
 
 `chat.agentHost.copilot.modelCapabilityOverrides` entries (keyed by model id; `'*'` matches every model, a specific entry wins field-by-field) carry the experimentation knobs the launcher applies: `family` (prompt and tool-profile alias, so a preview model resolves through another family's contributor), `reasoningEffort` (wins over the model picker's thinking level; set it on the `'*'` entry to pin every model, re-applied on session resume and mid-session model change), `availableTools`/`excludedTools` (SDK tool filters; applied on launch and resume, but not on a mid-session model change — and enforced against every SDK-registered tool, including the host's shell and server tools, not just the forwarded client tools), `modelCapabilities` (per-property overrides passed through to the SDK's `modelCapabilities` field — e.g. vision support, token limits — applied on every launch and resume), and `promptOverrideString`/`promptOverrideFile` (YAML system-prompt and tool-description overrides, applied on launch and resume).
 

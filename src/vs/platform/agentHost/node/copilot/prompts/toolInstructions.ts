@@ -124,10 +124,12 @@ function composeToolInstructions(existing: SectionOverride | undefined, content:
 	if (!existing) {
 		return { action: 'append', content: `\n${content}` };
 	}
-	// A `remove` or transform-function override is a deliberate, non-composable
-	// choice by the contributor; preserve it untouched rather than fight it.
-	if (existing.action === 'remove' || typeof existing.action === 'function') {
+	if (existing.action === 'remove') {
 		return existing;
+	}
+	if (typeof existing.action === 'function') {
+		const transform = existing.action;
+		return { action: async original => `${await transform(original)}\n${content}` };
 	}
 	// Fold our lines into the contributor's content (preserve it, don't clobber),
 	// then pad relative to the foundation by where this action places the content:

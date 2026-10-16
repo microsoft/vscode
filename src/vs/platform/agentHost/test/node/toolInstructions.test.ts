@@ -101,10 +101,25 @@ suite('toolInstructions', () => {
 			]);
 		});
 
-		test('preserves a remove or transform-function override untouched', () => {
-			const transform = (s: string) => s;
+		test('preserves a remove override untouched', () => {
 			assert.deepStrictEqual(resolveToolInstructionsOverride(hasTools('a'), { action: 'remove' }, [lineFor('a')]), { action: 'remove' });
-			assert.deepStrictEqual(resolveToolInstructionsOverride(hasTools('a'), { action: transform }, [lineFor('a')]), { action: transform });
+		});
+
+		test('appends universal guidance after synchronous and asynchronous transforms', async () => {
+			const results: string[] = [];
+			for (const action of [(s: string) => `TRANSFORMED ${s}`, async (s: string) => `TRANSFORMED ${s}`]) {
+				const resolved = resolveToolInstructionsOverride(hasTools('a'), { action }, [lineFor('a')]);
+				assert.ok(typeof resolved?.action === 'function');
+				results.push(await resolved.action('original'));
+			}
+			assert.deepStrictEqual(results, ['TRANSFORMED original\nuse a', 'TRANSFORMED original\nuse a']);
+		});
+
+		test('propagates transform failures rather than silently dropping the experiment', async () => {
+			const resolved = resolveToolInstructionsOverride(hasTools('a'), { action: () => { throw new Error('SDK prompt changed'); } }, [lineFor('a')]);
+			const transform = resolved?.action;
+			assert.ok(typeof transform === 'function');
+			await assert.rejects(async () => transform('original'), /SDK prompt changed/);
 		});
 	});
 

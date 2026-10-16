@@ -229,7 +229,7 @@ suite('AgentHostPromptRegistry', () => {
 		}
 
 		test('does not affect unrelated models or prefix collisions', () => {
-			for (const id of ['claude-opus-4-8', 'claude-sonnet-5', 'gemini-3-pro', 'grok-code-fast-1', 'gptcustom', 'o1custom', 'o3custom', 'openai-compatible', 'unknown']) {
+			for (const id of ['claude-opus-4-8', 'claude-sonnet-5', 'grok-code-fast-1', 'gptcustom', 'o1custom', 'o3custom', 'openai-compatible', 'unknown']) {
 				assert.deepStrictEqual(
 					agentHostPromptRegistry.resolveSystemMessageConfig({ id }, context()),
 					withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE)
@@ -261,6 +261,123 @@ suite('AgentHostPromptRegistry', () => {
 			const { code_change_rules, ...sections } = enabled.sections ?? {};
 			assert.deepStrictEqual(code_change_rules, { action: 'append', content: guidance });
 			assert.deepStrictEqual({ ...enabled, sections }, baseline);
+		});
+	});
+
+	suite('Gemini contributor (registered via allPrompts)', () => {
+		const editIntroduction = 'You can use the **edit** tool to batch edits to the same file in a single response. The tool will apply edits in sequential order, removing the risk of a reader/writer conflict.';
+		const original = [
+			'<tools>',
+			'<shell>Preserve shell instructions.</shell>',
+			'<view>Old view instructions and micro-slice examples.</view>',
+			'<grep>Old grep instructions.</grep>',
+			`<edit>\n${editIntroduction}\n<example>Preserve edit examples.</example>\n</edit>`,
+			'<task>Old delegation instructions.</task>',
+			'<unrelated>Preserve other tools.</unrelated>',
+			'</tools>',
+		].join('\n');
+		const expected = [
+			'* Never re-read file sections or re-run searches whose results are already in your conversation history.',
+			'<tools>',
+			'<shell>Preserve shell instructions.</shell>',
+			'<view>',
+			'When reading multiple files or multiple sections of same file, call **view** multiple times in the same response — they are processed in parallel.',
+			'Files under 20KB (~400 lines) can be read in full without `view_range`. For larger files, locate target line numbers with `grep` first, then pass a `view_range` window of **200–350 lines** around the match so you capture the complete function or class in a single call instead of scrolling in small increments across multiple turns.',
+			'Do not set `forceReadLargeFiles: true` when `grep` + `view_range` can read the relevant section, and do not re-read line ranges that are already in context.',
+			'<example>',
+			'Make all these calls in the same response. Reads are parallel safe:',
+			'',
+			'// read a small file in full',
+			'path: /repo/src/config.py',
+			'',
+			'// read relevant 250-line window of a large file',
+			'path: /repo/src/main.py',
+			'view_range: [100, 350]',
+			'',
+			'// read another section of main.py in parallel',
+			'path: /repo/src/main.py',
+			'view_range: [500, 750]',
+			'</example>',
+			'</view>',
+			'<grep>',
+			'Built on ripgrep, not standard grep. Key notes:',
+			'* Literal braces need escaping: interface\\{\\} to find interface{}',
+			'* Default behavior matches within single lines only',
+			'* Use multiline: true for cross-line patterns',
+			'* Default `output_mode` is `"files_with_matches"` for efficiency. Keep `"files_with_matches"` when searching across the workspace or broad directories; only use `output_mode: "content"` when `paths` is scoped to specific file(s) or a narrow symbol pattern so you can get exact line numbers for `view_range`.',
+			'</grep>',
+			'<edit>',
+			editIntroduction,
+			'After a successful **edit**, do not call **view** just to re-read the modified lines — verify via targeted tests or `git diff`.',
+			'<example>Preserve edit examples.</example>',
+			'</edit>',
+			'<task>',
+			'* Only delegate to a sub-agent (`explore` or specialist) for large, independent workstreams that require a separate context window. Never delegate work you can do directly in a few `grep`/`glob`/`view` calls.',
+			'* Sub-agents are stateless unless resumed via `write_agent`; provide complete context and do not duplicate their work while they run.',
+			'* When a background agent finishes, retrieve its output once with `read_agent(wait=True)`.',
+			'</task>',
+			'<unrelated>Preserve other tools.</unrelated>',
+			'</tools>',
+			UNCONDITIONAL_TOOL_INSTRUCTIONS,
+		].join('\n');
+
+		for (const id of ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3-pro', 'gemini-2.0-flash', 'Gemini-3.8-flash']) {
+			test(`${id} applies the exact experiment wording and preserves unrelated content`, async () => {
+				const resolved = agentHostPromptRegistry.resolveSystemMessageConfig({ id }, context());
+				assert.ok(resolved.mode === 'customize');
+				const { tool_instructions, ...sections } = resolved.sections ?? {};
+				assert.ok(typeof tool_instructions?.action === 'function');
+				assert.deepStrictEqual({
+					tools: await tool_instructions.action(original),
+					remainder: { ...resolved, sections },
+				}, {
+					tools: expected,
+					remainder: { ...COPILOT_AGENT_HOST_SYSTEM_MESSAGE, content: AGENT_HOST_FILE_LINK_INSTRUCTIONS },
+				});
+			});
+		}
+
+		test('does not match unrelated models, unknown selections, or prefix collisions', () => {
+			for (const id of ['gemini', 'geminicustom', 'custom-gemini-3.8-flash', 'claude-sonnet-5', 'grok-code-fast-1', 'unknown']) {
+				assert.deepStrictEqual(
+					agentHostPromptRegistry.resolveSystemMessageConfig({ id }, context()),
+					withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE)
+				);
+			}
+		});
+
+		test('preserves browser, tool-search, file-link and workspaceless guidance', async () => {
+			const tools = [BrowserChatToolReferenceName.OpenBrowserPage, BrowserChatToolReferenceName.ReadPage, CLIENT_TOOL_SEARCH_REFERENCE_NAME];
+			const ctx = context({}, tools, true, true);
+			const baseline = new AgentHostPromptRegistry().resolveSystemMessageConfig({ id: 'gemini-3.8-flash' }, ctx);
+			const resolved = agentHostPromptRegistry.resolveSystemMessageConfig({ id: 'gemini-3.8-flash' }, ctx);
+			assert.ok(baseline.mode === 'customize' && resolved.mode === 'customize');
+			const transform = resolved.sections?.tool_instructions?.action;
+			assert.ok(typeof transform === 'function');
+			const rendered = await transform(original);
+			assert.deepStrictEqual({
+				content: resolved.content,
+				universal: rendered.slice(rendered.lastIndexOf('</tools>') + '</tools>'.length),
+			}, {
+				content: baseline.content,
+				universal: baseline.sections?.tool_instructions?.content,
+			});
+		});
+
+		test('reports SDK prompt drift instead of running a partial experiment', async () => {
+			const resolved = agentHostPromptRegistry.resolveSystemMessageConfig({ id: 'gemini-3.8-flash' }, context());
+			assert.ok(resolved.mode === 'customize');
+			const transform = resolved.sections?.tool_instructions?.action;
+			assert.ok(typeof transform === 'function');
+			for (const input of [
+				original.replace('<view>', '<missing>'),
+				original.replace('</grep>', '</missing>'),
+				original.replace('<task>', '<missing>'),
+				original.replace(editIntroduction, 'SDK edit instructions changed.'),
+				`${original}\n<view>Another view section.</view>`,
+			]) {
+				await assert.rejects(async () => transform(input), /Gemini token-efficiency experiment.*SDK prompt has changed/);
+			}
 		});
 	});
 
