@@ -55,8 +55,8 @@ import { CodexAgent } from '../../node/codex/codexAgent.js';
 import { CodexProxyService, ICodexProxyService } from '../../node/codex/codexProxyService.js';
 import { RecordingAgentSdkDownloader } from './testAgentSdkDownloader.js';
 import { IAgentHostSessionOpenTelemetry } from '../../node/agentHostSessionOpenTelemetry.js';
-import { AgentHostEnsembleEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, COPILOT_HYDRA_FUSION_MODEL_ID } from '../../common/copilotCliConfig.js';
-import { readAgentModelEnsembleMeta } from '../../common/meta/agentModelMeta.js';
+import { AgentHostFusionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, COPILOT_HYDRA_FUSION_MODEL_ID } from '../../common/copilotCliConfig.js';
+import { readAgentModelFusionMeta } from '../../common/meta/agentModelMeta.js';
 import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostTelemetryLevelConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
@@ -661,6 +661,7 @@ class TestSessionDataService extends Disposable implements ISessionDataService {
 	}
 
 	deleteSessionData(): Promise<void> { return Promise.resolve(); }
+	deleteSessionDataExcept(): Promise<void> { return Promise.resolve(); }
 	readonly onWillDeleteSessionData = Event.None;
 	cleanupOrphanedData(): Promise<void> { return Promise.resolve(); }
 	async whenIdle(): Promise<void> {
@@ -10984,31 +10985,31 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('presents Auto as Ensemble, keeping HydraFusion published and reporting whether Intelligence routes there', async () => {
+		test('presents Auto as Fusion, keeping HydraFusion published and reporting whether Balance routes there', async () => {
 			const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }, { id: 'gpt-5', name: 'GPT-5' }]);
 			const { agent, configurationService } = createTestAgentContext(disposables, {
 				copilotClient: client,
-				rootConfig: { [CopilotCliConfigKey.HydraFusion]: true, [CopilotCliConfigKey.HydraFusionV2]: true, [CopilotCliConfigKey.Ensemble]: true },
+				rootConfig: { [CopilotCliConfigKey.HydraFusion]: true, [CopilotCliConfigKey.HydraFusionV2]: true, [CopilotCliConfigKey.Fusion]: true },
 			});
 			const published = () => agent.models.get().map(model => {
 				const tier = model.configSchema?.properties.tier;
-				const ensemble = readAgentModelEnsembleMeta(model);
-				return `${model.id}:${model.name}${ensemble ? `:ensemble(intelligenceUsesHydraFusion=${ensemble.intelligenceUsesHydraFusion})` : ''}${tier ? `:${tier.enum?.join('/')}=${tier.default}:${tier.enumLabels?.join('/')}:${tier.title}` : ''}`;
+				const fusion = readAgentModelFusionMeta(model);
+				return `${model.id}:${model.name}${fusion ? `:fusion(balanceUsesHydraFusion=${fusion.balanceUsesHydraFusion})` : ''}${tier ? `:${tier.enum?.join('/')}=${tier.default}:${tier.enumLabels?.join('/')}:${tier.title}` : ''}`;
 			});
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
 				await agent.refreshModels();
-				const ensemble = published();
+				const fusion = published();
 
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.EnsembleIntelligenceUsesHydraFusion]: true });
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.FusionBalanceUsesHydraFusion]: true });
 				await agent.refreshModels();
 				const routed = published();
 
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.Ensemble]: false });
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.Fusion]: false });
 				await agent.refreshModels();
-				assert.deepStrictEqual({ ensemble, routed, auto: published() }, {
-					ensemble: ['auto:Ensemble:ensemble(intelligenceUsesHydraFusion=false):balance/intelligence=balance:Balance/High:Effort Level', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
-					routed: ['auto:Ensemble:ensemble(intelligenceUsesHydraFusion=true):balance/intelligence=balance:Balance/High:Effort Level', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
+				assert.deepStrictEqual({ fusion, routed, auto: published() }, {
+					fusion: ['auto:Fusion:fusion(balanceUsesHydraFusion=false):balance/intelligence=balance:Lite/Balance:Effort Level', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
+					routed: ['auto:Fusion:fusion(balanceUsesHydraFusion=true):balance/intelligence=balance:Lite/Balance:Effort Level', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
 					auto: ['auto:Auto:efficiency/balance/intelligence=balance:Efficiency/Balance/Intelligence:Optimize for', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
 				});
 			} finally {
@@ -11016,15 +11017,37 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('reports the Ensemble experiment trigger when Auto is published, in both arms, once the assignment context arrives', async () => {
+		test('reports Fusion tiers, not Auto\'s, in a chat\'s model configuration', async () => {
+			const tiers = async (fusion: boolean) => {
+				const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
+				const { agent, instantiationService } = createTestAgentContext(disposables, { copilotClient: client, rootConfig: { [CopilotCliConfigKey.Fusion]: fusion }, sessionDataService: disposables.add(new TestSessionDataService()) });
+				try {
+					await agent.authenticate('https://api.github.com', 'token');
+					await agent.refreshModels();
+					const { session } = createAgentSessionThroughAgent(agent, instantiationService);
+					disposables.add(session);
+					const launchPlan = (session as unknown as { readonly _launchPlan: CopilotSessionLaunchPlan })._launchPlan;
+					const tier = launchPlan.modelPolicyModels?.().find(model => model.id === 'auto')?.configSchema?.properties.tier;
+					return `${tier?.enum?.join('/')}:${tier?.enumLabels?.join('/')}`;
+				} finally {
+					await disposeAgent(agent);
+				}
+			};
+			assert.deepStrictEqual({ fusion: await tiers(true), auto: await tiers(false) }, {
+				fusion: 'balance/intelligence:Lite/Balance',
+				auto: 'efficiency/balance/intelligence:Efficiency/Balance/Intelligence',
+			});
+		});
+
+		test('reports the Fusion experiment trigger when Auto is published, in both arms, once the assignment context arrives', async () => {
 			const results: Record<string, { beforeContext: readonly string[]; afterContext: readonly string[] }> = {};
-			for (const ensemble of [true, false]) {
+			for (const fusion of [true, false]) {
 				const telemetryService = new TestExperimentTriggerTelemetryService();
 				const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
 				const { agent, configurationService } = createTestAgentContext(disposables, {
 					copilotClient: client,
 					telemetryService,
-					rootConfig: { [CopilotCliConfigKey.Ensemble]: ensemble },
+					rootConfig: { [CopilotCliConfigKey.Fusion]: fusion },
 				});
 				try {
 					await agent.authenticate('https://api.github.com', 'token');
@@ -11032,22 +11055,22 @@ suite('CopilotAgent', () => {
 					const beforeContext = [...telemetryService.triggers];
 					configurationService.updateRootConfig({ [CopilotCliVSCodeAssignmentContextKey]: 'assignment-context' });
 					await timeout(0);
-					results[ensemble ? 'ensemble' : 'auto'] = { beforeContext, afterContext: telemetryService.triggers };
+					results[fusion ? 'fusion' : 'auto'] = { beforeContext, afterContext: telemetryService.triggers };
 				} finally {
 					await disposeAgent(agent);
 				}
 			}
-			const treatment = `config.${AgentHostEnsembleEnabledSettingId}`;
+			const treatment = `config.${AgentHostFusionEnabledSettingId}`;
 			assert.deepStrictEqual(results, {
-				ensemble: { beforeContext: [], afterContext: [treatment] },
+				fusion: { beforeContext: [], afterContext: [treatment] },
 				auto: { beforeContext: [], afterContext: [treatment] },
 			});
 		});
 
-		test('under Ensemble, offers runtime-listed HydraFusion models even when HydraFusion is otherwise disabled', async () => {
+		test('under Fusion, offers runtime-listed HydraFusion models even when HydraFusion is otherwise disabled', async () => {
 			const published = async (rootConfig: Record<string, unknown>) => {
 				const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }, { id: 'hydrafusion', name: 'HydraFusion' }, { id: 'hydrafusion-max', name: 'HydraFusion Max' }]);
-				const { agent } = createTestAgentContext(disposables, { copilotClient: client, rootConfig: { [CopilotCliConfigKey.Ensemble]: true, ...rootConfig } });
+				const { agent } = createTestAgentContext(disposables, { copilotClient: client, rootConfig: { [CopilotCliConfigKey.Fusion]: true, ...rootConfig } });
 				try {
 					await agent.authenticate('https://api.github.com', 'token');
 					await agent.refreshModels();
@@ -19630,14 +19653,14 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('falls back to the owning session-backed chat named by the context, not a subagent URI walk', async () => {
+		test('never completes on another chat of the owner when neither the chat nor its spawning chat has a runtime', async () => {
 			const agent = createTestAgent(disposables);
 			try {
 				const sessionUri = AgentSession.uri('copilotcli', 'session-subagent-fallback');
 				const { calls } = installStubSession(agent, AgentSession.id(sessionUri));
 				// Addressed to a subagent chat whose spawning chat has no live
-				// backing: routing lands on the owning session's session-backed
-				// chat, resolved from `context.owner.get()`.
+				// backing: the owner's session-backed chat did not make the call
+				// (after a move it is another session's), so nothing completes.
 				const subagentChat = URI.parse(buildSubagentChatUri(buildChatUri(sessionUri, 'gone'), 'tool-9'));
 
 				const result: ToolCallResult = { success: true, pastTenseMessage: 'fallback done' };
@@ -19647,7 +19670,7 @@ suite('CopilotAgent', () => {
 					origin: { kind: ChatOriginKind.Tool, chat: buildChatUri(sessionUri, 'gone'), toolCallId: 'tool-9' },
 				});
 
-				assert.deepStrictEqual(calls, [{ toolCallId: 'tc-fallback', result }]);
+				assert.deepStrictEqual(calls, []);
 			} finally {
 				await disposeAgent(agent);
 			}

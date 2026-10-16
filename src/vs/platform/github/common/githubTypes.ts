@@ -63,7 +63,6 @@ export class GitHubRequestRateLimitError extends GitHubRequestError {
 export interface GitHubHostCapabilities {
 	readonly graphql: boolean;
 	readonly mergeQueue: boolean;
-	readonly internalMergeStatus: boolean;
 	readonly reviewThreads: boolean;
 	readonly checkContextRequiredness: boolean;
 }

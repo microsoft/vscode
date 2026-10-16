@@ -4452,6 +4452,38 @@ suite('AgentHostChatContribution', () => {
 			}]);
 		});
 
+		test('a peer chat that leaves one session for another is reported as moved, with its chat session resource in each', async () => {
+			const { listController, agentHostService } = createContribution(disposables);
+			const source = AgentSession.uri('copilot', 'move-source');
+			const target = AgentSession.uri('copilot', 'move-target');
+			const sourceDefault = buildDefaultChatUri(source.toString());
+			const targetDefault = buildDefaultChatUri(target.toString());
+			// The chat keeps its URI wherever it moves.
+			const moved = buildChatUri(source.toString(), 'mover');
+			agentHostService.addSession({
+				session: source, startTime: 1000, modifiedTime: 2000,
+				chats: [{ chat: URI.parse(sourceDefault), summary: 'Main', kind: 'default' }, { chat: URI.parse(moved), summary: 'Mover', kind: 'peer' }],
+			});
+			agentHostService.addSession({
+				session: target, startTime: 1000, modifiedTime: 2000,
+				chats: [{ chat: URI.parse(targetDefault), summary: 'Main', kind: 'default' }],
+			});
+			await listController.refresh(CancellationToken.None);
+			const moves: string[] = [];
+			disposables.add(listController.onDidMoveChat(({ from, to }) => moves.push(`${from.chat.toString()} -> ${to.chat.toString()}`)));
+			const changeChats = (session: URI, defaultChat: string, chats: string[]) => agentHostService.fireNotification({
+				type: 'root/sessionSummaryChanged',
+				channel: ROOT_STATE_URI,
+				session: session.toString(),
+				changes: { chats: chats.map(resource => ({ resource, title: 'Chat' })), defaultChat },
+			});
+
+			changeChats(target, targetDefault, [targetDefault, moved]);
+			changeChats(source, sourceDefault, [sourceDefault]);
+
+			assert.deepStrictEqual(moves, ['agent-host-copilot:/move-source#mover -> agent-host-copilot:/move-target#mover']);
+		});
+
 		test('summary changes update peer children that are no longer in the catalog', async () => {
 			const { listController, agentHostService } = createContribution(disposables);
 			const session = AgentSession.uri('copilot', 'changing-chats');
@@ -11152,18 +11184,18 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
-		test('Fusion response footers name the Ensemble tier they ran as', async () => {
-			const footers = async (intelligenceUsesHydraFusion: boolean) => {
+		test('Fusion response footers name the Fusion tier they ran as', async () => {
+			const footers = async (balanceUsesHydraFusion: boolean) => {
 				const languageModels = new Map<string, ILanguageModelChatMetadata>([
 					['agent-host-copilot:auto', upcastPartial<ILanguageModelChatMetadata>({
-						name: 'Ensemble', autoModelEnsemble: { intelligenceUsesHydraFusion },
-						configurationSchema: { properties: { tier: { type: 'string', enum: ['balance', 'intelligence'], enumItemLabels: ['Balance', 'High'] } } },
+						name: 'Fusion', autoModelFusion: { balanceUsesHydraFusion },
+						configurationSchema: { properties: { tier: { type: 'string', enum: ['balance', 'intelligence'], enumItemLabels: ['Lite', 'Balance'] } } },
 					})],
 				]);
 				const { sessionHandler, agentHostService } = createContribution(disposables, { languageModels, provider: 'copilotcli' });
-				const sessionUri = AgentSession.uri('copilotcli', 'sess-ensemble-footers');
+				const sessionUri = AgentSession.uri('copilotcli', 'sess-fusion-footers');
 				const usage = { model: 'gpt-5.6-sol', inputTokens: 100, outputTokens: 20, _meta: { cost: 15.5 } };
-				const message = (model: string) => ({ text: 'Ensemble request', origin: { kind: MessageKind.User }, model: { id: model } } as const);
+				const message = (model: string) => ({ text: 'Fusion request', origin: { kind: MessageKind.User }, model: { id: model } } as const);
 				agentHostService.sessionStates.set(sessionUri.toString(), {
 					...createSessionState({
 						resource: sessionUri.toString(), provider: 'copilotcli', title: 'Test',
@@ -11172,16 +11204,16 @@ suite('AgentHostChatContribution', () => {
 					lifecycle: SessionLifecycle.Ready,
 					turns: [
 						{ id: 'max', message: message('hydrafusion-max'), responseParts: [], usage, state: TurnState.Complete },
-						{ id: 'intelligence', message: message('hydrafusion'), responseParts: [], usage, state: TurnState.Complete },
+						{ id: 'balance', message: message('hydrafusion'), responseParts: [], usage, state: TurnState.Complete },
 					],
 				});
-				const session = await sessionHandler.provideChatSessionContent(URI.from({ scheme: 'agent-host-copilot', path: '/sess-ensemble-footers' }), CancellationToken.None);
+				const session = await sessionHandler.provideChatSessionContent(URI.from({ scheme: 'agent-host-copilot', path: '/sess-fusion-footers' }), CancellationToken.None);
 				disposables.add(toDisposable(() => session.dispose()));
 				return session.history.filter(item => item.type === 'response').map(item => item.details);
 			};
 			assert.deepStrictEqual({ routed: await footers(true), notRouted: await footers(false) }, {
-				routed: ['Ensemble Max • 15.5 credits', 'Ensemble High • 15.5 credits'],
-				notRouted: ['Ensemble Max • 15.5 credits', 'HydraFusion • 15.5 credits'],
+				routed: ['Fusion Max • 15.5 credits', 'Fusion Balance • 15.5 credits'],
+				notRouted: ['Fusion Max • 15.5 credits', 'HydraFusion • 15.5 credits'],
 			});
 		});
 

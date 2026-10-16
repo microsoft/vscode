@@ -18,7 +18,8 @@ import { GitHubCredentialService, IGitHubCredentials } from './githubCredentialS
 import { BackoffGate } from './backoff.js';
 import { deriveGitHubEndpoints, normalizeReadApiBaseUri, resolveReadApiUrl } from './githubEndpoints.js';
 import { GitHubHostCapabilitiesService, IGitHubCapabilities } from './githubHostCapabilitiesService.js';
-import { GitHubQueryService, IGitHubQuery } from './githubQueryServiceImpl.js';
+import { GitHubQueryApi } from './githubQueryService.js';
+import { GitHubQueryService } from './githubQueryServiceImpl.js';
 import { GitHubRequestMetadata } from './githubRequestMetadata.js';
 import { GitHubRequestTelemetry } from './githubRequestTelemetry.js';
 import { RequestQueue } from './requestQueue.js';
@@ -30,13 +31,7 @@ import { BootstrapAccount } from './types.js';
 import { IPullRequestMutations, PullRequestMutationService } from './pullRequestMutationService.js';
 import { PullRequestQueryService } from './pullRequestQueryService.js';
 import { IPullRequestResources, PullRequestResourceService } from './pullRequestResourceService.js';
-import { IAutomationsClient } from './missionControl/automations.js';
-import { AutomationsClient } from './missionControl/automationsClient.js';
-import { IEnvironmentsClient } from './missionControl/environments.js';
-import { EnvironmentsClient } from './missionControl/environmentsClient.js';
 import { MissionControlClient } from './missionControl/missionControlClient.js';
-import { ITasksClient } from './missionControl/tasks.js';
-import { TasksClient } from './missionControl/tasksClient.js';
 
 export const IGitHubService = createDecorator<IGitHubService>('gitHubService');
 
@@ -86,12 +81,9 @@ export interface IGitHubClient {
 	readonly credentials: IGitHubCredentials;
 	readonly transport: IGitHubTransport;
 	readonly capabilities: IGitHubCapabilities;
-	readonly query: IGitHubQuery;
+	readonly query: GitHubQueryApi;
 	readonly pullRequests: IPullRequestResources;
 	readonly mutations: IPullRequestMutations;
-	readonly automations: IAutomationsClient;
-	readonly tasks: ITasksClient;
-	readonly environments: IEnvironmentsClient;
 }
 
 /** Engine-owned grant entry retaining its leases, client resources and identity backoff. */
@@ -223,6 +215,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 				lease.add(toDisposable(() => leaseController.abort(new CancellationError())));
 				try {
 					const client = lease.add(this._acquireClient(options, credentialProvider, scope)).object;
+					const missionControl = MissionControlClient.normalizeOptions(options.missionControl);
 					const invalidated = lease.add(new Emitter<void>());
 					const credentialsChanged = lease.add(new Emitter<void>());
 					const invalidate = () => {
@@ -231,6 +224,9 @@ export class GitHubService extends Disposable implements IGitHubService {
 					};
 					lease.add(client.onDidInvalidate(invalidate));
 					lease.add(client.credentials.onDidInvalidate(event => {
+						if (event.credential && missionControl) {
+							client.transport.invalidateAccount(missionControlAccount(missionControl.endpoint, event.credential.account), event.credential.signal.reason);
+						}
 						if (event.reason === 'account') {
 							invalidate();
 						} else {
@@ -240,7 +236,6 @@ export class GitHubService extends Disposable implements IGitHubService {
 					const signal = AbortSignal.any([controller.signal, leaseController.signal]);
 					const apiBaseUri = client.endpoint.getApiBaseUri();
 					const defaults = deriveGitHubEndpoints(undefined);
-					const missionControl = MissionControlClient.normalizeOptions(options.missionControl);
 					return {
 						object: {
 							authorization: client.authorization,
@@ -387,12 +382,9 @@ class GitHubClient extends Disposable implements IGitHubClient {
 	readonly endpoint: IGitHubEndpointProvider;
 	readonly credentials: IGitHubCredentials;
 	readonly capabilities: IGitHubCapabilities;
-	readonly query: IGitHubQuery;
+	readonly query: GitHubQueryApi;
 	readonly pullRequests: IPullRequestResources;
 	readonly mutations: IPullRequestMutations;
-	readonly automations: IAutomationsClient;
-	readonly tasks: ITasksClient;
-	readonly environments: IEnvironmentsClient;
 
 	constructor(
 		context: GitHubClientOptions,
@@ -426,18 +418,6 @@ class GitHubClient extends Disposable implements IGitHubClient {
 			accountId: `bootstrap:${JSON.stringify([context.authorization.providerId, context.authorization.sessionId, context.authorization.accountId, context.authorization.authorizationServer, context.apiBaseUri])}`,
 		}, backoff));
 		this.capabilities = this._register(new GitHubHostCapabilitiesService(undefined, undefined, this.transport, this.endpoint, logService));
-		this._register(this.credentials.onDidInvalidate(({ credential }) => {
-			if (credential && context.missionControl) {
-				this.transport.invalidateAccount(missionControlAccount(context.missionControl.endpoint, credential.account), credential.signal.reason);
-			}
-		}));
-		const missionControl = new MissionControlClient(
-			context.missionControl && new LocalMissionControlRequestProvider(context.missionControl.endpoint, this.credentials, this.transport, logService),
-		);
-		this.automations = new AutomationsClient(missionControl);
-		this.tasks = new TasksClient(missionControl);
-		this.environments = new EnvironmentsClient(missionControl);
-
 		const pullRequestQuery = new PullRequestQueryService(this.transport, this.capabilities, this.endpoint, logService);
 		this.pullRequests = this._register(new PullRequestResourceService(
 			undefined,

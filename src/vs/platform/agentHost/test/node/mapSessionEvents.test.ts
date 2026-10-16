@@ -14,7 +14,7 @@ import { AgentSession, subagentChatTitle } from '../../common/agent.js';
 import { getErrorResponsePart, getTurnError, MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildSubagentSessionUri, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart, type ToolResultContent } from '../../common/state/sessionState.js';
 import { appendSdkToolResultContent, getSdkToolResultContent, getSdkToolResultText, mapSessionEvents as mapSessionEventsWithRouting, persistSdkToolResultResources, type IMapSessionEventsOptions } from '../../node/copilot/mapSessionEvents.js';
 import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
-import { fusionTestData as fusion, fusionTestEvent as event } from './copilotFusionTestEvents.js';
+import { fusionMainPassTestData as mainPass, fusionTestData as fusion, fusionTestEvent as event } from './copilotFusionTestEvents.js';
 import { AgentSystemNotificationKind, readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { buildMcpResourceUri, buildToolResultResourceUri, parseMcpResourceUri, parseToolResultResourceUri } from '../../common/mcpResourceUri.js';
@@ -184,6 +184,60 @@ suite('mapSessionEvents — history replay', () => {
 			});
 		});
 	}
+
+	test('restores main pass tools, text, and task_complete summary in the main chat', async () => {
+		const committed = { fusionId: 'fusion-1', phaseId: 'phase-1', syntheticModel: 'hydrafusion', policy: 'max', pattern: 'single', commitId: 'commit-1' };
+		const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, [
+			event('user.message', { content: 'Start the app.' }),
+			event('session.fusion_resolved', { ...fusion.resolved, pattern: 'single' }),
+			event('assistant.fusion_phase_completed', mainPass.phaseCompleted),
+			event('assistant.message', { messageId: 'm1', content: 'Starting the server', toolRequests: [{ toolCallId: 'tc-bash', name: 'bash', arguments: {} }], fusion: committed }),
+			event('tool.execution_start', { toolCallId: 'tc-bash', toolName: 'bash', arguments: { command: 'ls' }, fusion: committed }),
+			event('tool.execution_complete', { toolCallId: 'tc-bash', success: true, result: { content: 'a.ts' }, fusion: committed }),
+			event('assistant.message', { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-complete', name: 'task_complete', arguments: {} }], fusion: committed }),
+			event('tool.execution_start', { toolCallId: 'tc-complete', toolName: 'task_complete', arguments: { summary: 'The app is running' }, fusion: committed }),
+			event('tool.execution_complete', { toolCallId: 'tc-complete', success: true, result: { content: 'Done' }, fusion: committed }),
+			event('session.fusion_completed', fusion.completed),
+		]);
+		assert.deepStrictEqual({
+			root: turns[0].responseParts.map(part => part.kind === ResponsePartKind.ToolCall ? part.toolCall.toolCallId : part.kind === ResponsePartKind.Markdown ? part.content : part.kind),
+			state: turns[0].state,
+			phaseTurns: subagentTurnsByToolCallId.has('fusion:fusion-1:phase-1'),
+		}, {
+			root: [ResponsePartKind.SystemNotification, 'Starting the server', 'tc-bash', '\n\n**Task completed:**\n\nThe app is running'],
+			state: TurnState.Complete,
+			phaseTurns: false,
+		});
+	});
+
+	for (const failed of [false, true]) {
+		test(`restores a fix-up task_complete summary in its phase chat${failed ? ' but not after a root error' : ' and the main chat'}`, async () => {
+			const committed = { fusionId: 'fusion-1', phaseId: 'phase-1', syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade', commitId: 'commit-1' };
+			const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, [
+				event('user.message', { content: 'Fix the parser.' }),
+				event('session.fusion_resolved', fusion.resolved),
+				event('assistant.fusion_phase_completed', fusion.phaseCompleted),
+				event('assistant.message', { messageId: 'm1', content: '', toolRequests: [{ toolCallId: 'tc-complete', name: 'task_complete', arguments: {} }], fusion: committed }),
+				event('tool.execution_start', { toolCallId: 'tc-complete', toolName: 'task_complete', arguments: { summary: 'Fixed the parser' }, fusion: committed }),
+				...(failed ? [event('session.error', { errorType: 'requestFailed', message: 'Failed' })] : []),
+				event('tool.execution_complete', { toolCallId: 'tc-complete', success: true, result: { content: 'Done' }, fusion: committed }),
+			]);
+			const markdown = (parts: readonly ResponsePart[] | undefined) => (parts ?? []).flatMap(part => part.kind === ResponsePartKind.Markdown ? [part.content] : []);
+			const phase = turns[0].responseParts.find((part): part is ToolCallResponsePart => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === 'fusion:fusion-1:phase-1');
+			assert.deepStrictEqual({
+				root: markdown(turns[0].responseParts),
+				phaseChat: markdown(subagentTurnsByToolCallId.get('fusion:fusion-1:phase-1')?.[0]?.responseParts),
+				linked: phase?.toolCall.status === ToolCallStatus.Completed && !!phase.toolCall.content?.some(item => item.type === ToolResultContentType.Subagent),
+				error: !!getErrorResponsePart(turns[0]),
+			}, {
+				root: failed ? [] : ['\n\n**Task completed:**\n\nFixed the parser'],
+				phaseChat: ['\n\n**Task completed:**\n\nFixed the parser'],
+				linked: true,
+				error: failed,
+			});
+		});
+	}
+
 
 	test('restores a review phase critique into its phase chat', async () => {
 		const critic = { ...fusion.phaseCompleted, phaseId: 'critic', phaseKind: 'critic', role: 'critic', conversationScope: 'review' } as const;
