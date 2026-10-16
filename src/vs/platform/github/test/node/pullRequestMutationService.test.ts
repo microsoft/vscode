@@ -107,8 +107,6 @@ class TestResourceService implements IPullRequestResources {
 		this.invalidations.push({ fragments });
 	}
 
-	clear(): void { }
-
 	setSnapshot(snapshot: PullRequestSnapshot): void {
 		this.snapshot.set(snapshot, undefined);
 	}
@@ -151,52 +149,12 @@ suite('PullRequestMutationService', () => {
 		const credentials = disposables.add(new TestCredentialService(account));
 		const transport = disposables.add(new GitHubTransport(nodeFetch, scheduler, true));
 		const query = new PullRequestQueryService(transport, {
-			getCapabilities: async () => ({ graphql: true, reviewThreads: true, mergeQueue: false, internalMergeStatus: false, checkContextRequiredness: false }),
-			clear: () => { },
+			getCapabilities: async () => ({ graphql: true, reviewThreads: true, mergeQueue: false, checkContextRequiredness: false }),
 		}, server.createEndpointService());
 		const resources = disposables.add(new PullRequestResourceService(scheduler, undefined, credentials, query, new NullLogService()));
 		const service = disposables.add(new PullRequestMutationService(scheduler, credentials, transport, resources, server.createEndpointService()));
 		return { ref, service };
 	}
-
-	test('reconciles an ambiguous top-level comment without duplicating it', async () => {
-		await withServers(async server => {
-			server.enqueue(gitHubRestStep({
-				method: 'POST',
-				path: '/repos/octo/repo/issues/7/comments',
-				assert: request => assert.deepStrictEqual(request.bodyJson, { body: `hello\n\n${operationMarker}` }),
-				response: gitHubDisconnectResponse(),
-			}));
-			const { ref, resources, service } = setup(server);
-			resources.refreshHandler = fragment => {
-				assert.strictEqual(fragment, 'topLevelComments');
-				const snapshot = resources.snapshot.get();
-				resources.setSnapshot({
-					...snapshot,
-					topLevelComments: {
-						status: 'ready',
-						complete: true,
-						value: [{ id: '1', body: `hello\n\n${operationMarker}` }],
-					},
-				});
-
-			};
-
-			const result = await service.addComment(ref, { operationId: 'operation-1', body: 'hello' }, signal());
-
-			assert.deepStrictEqual({
-				result,
-				requestCount: server.requests.length,
-			}, {
-				result: {
-					outcome: 'reconciled',
-					value: { id: '1', body: `hello\n\n${operationMarker}` },
-				},
-				requestCount: 1,
-			});
-			server.assertSatisfied();
-		});
-	});
 
 	test('creates pull requests and enables auto-merge through typed operations', async () => {
 		await withServers(async server => {
@@ -331,78 +289,8 @@ suite('PullRequestMutationService', () => {
 		});
 	}
 
-	test('retries only after a complete refresh proves a comment marker absent', async () => {
-		await withServers(async server => {
-			server.enqueue(
-				gitHubRestStep({
-					method: 'POST',
-					path: '/repos/octo/repo/issues/7/comments',
-					response: gitHubDisconnectResponse(),
-				}),
-				gitHubRestStep({
-					method: 'POST',
-					path: '/repos/octo/repo/issues/7/comments',
-					response: gitHubJsonResponse({ id: 2, body: `hello\n\n${operationMarker}` }),
-				}),
-			);
-			const { ref, resources, service } = setup(server);
-			resources.refreshHandler = () => {
-				const snapshot = resources.snapshot.get();
-				resources.setSnapshot({
-					...snapshot,
-					topLevelComments: { status: 'ready', complete: true, value: [] },
-				});
-			};
-
-			const result = await service.addComment(ref, { operationId: 'operation-1', body: 'hello' }, signal());
-
-			assert.deepStrictEqual({ result, requestCount: server.requests.length }, {
-				result: {
-					outcome: 'succeeded',
-					value: {
-						id: '2',
-						nodeId: undefined,
-						body: `hello\n\n${operationMarker}`,
-						url: undefined,
-						createdAt: undefined,
-						updatedAt: undefined,
-						author: undefined,
-					},
-				},
-				requestCount: 2,
-			});
-			server.assertSatisfied();
-		});
-	});
-
-	test('returns indeterminate when comment reconciliation remains incomplete', async () => {
-		await withServers(async server => {
-			server.enqueue(gitHubRestStep({
-				method: 'POST',
-				path: '/repos/octo/repo/issues/7/comments',
-				response: gitHubDisconnectResponse(),
-			}));
-			const { ref, resources, service } = setup(server);
-			resources.refreshHandler = () => {
-				const snapshot = resources.snapshot.get();
-				resources.setSnapshot({
-					...snapshot,
-					topLevelComments: { status: 'ready', complete: false, value: [] },
-				});
-			};
-
-			const result = await service.addComment(ref, { operationId: 'operation-1', body: 'hello' }, signal());
-
-			assert.deepStrictEqual({ result, requestCount: server.requests.length }, {
-				result: { outcome: 'indeterminate' },
-				requestCount: 1,
-			});
-			server.assertSatisfied();
-		});
-	});
-
 	for (const kind of ['timeout', 'responseTooLarge'] as const) {
-		test(`reconciles an ambiguous ${kind} without blindly replaying a comment`, async () => {
+		test(`reconciles an ambiguous ${kind} without blindly replaying a reply`, async () => {
 			await withServers(async server => {
 				let writes = 0;
 				const { ref, resources, service } = setup(server, completeSnapshot(server), undefined, async () => {
@@ -414,17 +302,17 @@ suite('PullRequestMutationService', () => {
 				resources.refreshHandler = () => {
 					resources.setSnapshot({
 						...resources.snapshot.get(),
-						topLevelComments: { status: 'ready', complete: false, value: [] },
+						reviewThreads: { status: 'ready', complete: false, value: [] },
 					});
 				};
-				const result = await service.addComment(ref, { operationId: 'operation-1', body: 'hello' }, signal());
-				assert.deepStrictEqual({ result, writes }, { result: { outcome: 'indeterminate' }, writes: 1 });
+				const result = await service.replyAndResolveThread(ref, { operationId: 'operation-1', body: 'hello', threadId: 'T1', resolve: true }, signal());
+				assert.deepStrictEqual({ result, writes }, { result: { reply: { outcome: 'indeterminate' }, resolved: false }, writes: 1 });
 			});
 		});
 	}
 
-	for (const operation of ['comment', 'reply'] as const) {
-		test(`does not reconcile a ${operation} that times out before dispatch`, async () => {
+	for (const resolve of [false, true]) {
+		test(`does not reconcile a reply that times out before dispatch (resolve=${resolve})`, async () => {
 			await withServers(async server => {
 				const scheduler = disposables.add(new FakeScheduler());
 				const account = { host: new URL(server.apiBaseUrl).host, accountId: '101' };
@@ -449,9 +337,7 @@ suite('PullRequestMutationService', () => {
 					throw new Error('A queued write must not require reconciliation');
 				};
 				const service = disposables.add(new PullRequestMutationService(scheduler, credentials, transport, resources, server.createEndpointService()));
-				const pending = operation === 'comment'
-					? service.addComment(ref, { operationId: 'operation-1', body: 'hello' }, signal())
-					: service.replyToThread(ref, { operationId: 'operation-1', body: 'hello', threadId: 'T1' }, signal());
+				const pending = service.replyAndResolveThread(ref, { operationId: 'operation-1', body: 'hello', threadId: 'T1', resolve }, signal());
 				const rejected = assert.rejects(pending, { kind: 'timeout' });
 				await new Promise(resolve => setTimeout(resolve, 0));
 				scheduler.advanceBy(10);
@@ -673,20 +559,6 @@ suite('PullRequestMutationService', () => {
 		});
 	}
 
-	test('allows intentional standalone resolution without posting or publishing a reply', async () => {
-		await withServers(async server => {
-			server.enqueue(gitHubGraphQLStep({
-				queryIncludes: 'AgentHostResolvePullRequestReviewThread',
-				assert: request => assert.deepStrictEqual(request.graphQl?.variables, { threadId: 'T1' }),
-				response: gitHubGraphQLResponse({ resolveReviewThread: { thread: { id: 'T1', isResolved: true } } }),
-			}));
-			const { ref, service } = setup(server);
-			await service.resolveThread(ref, 'T1', signal());
-			assert.strictEqual(server.requests.length, 1);
-			server.assertSatisfied();
-		});
-	});
-
 	test('resolves only after an ambiguous reply is reconciled as published', async () => {
 		await withServers(async server => {
 			server.enqueue(
@@ -743,7 +615,6 @@ suite('PullRequestMutationService', () => {
 					{ reply: false, resolve: true },
 				],
 				invalidations: [
-					{ fragments: ['inlineComments'] },
 					{ fragments: ['reviewThreads'] },
 				],
 			});
@@ -775,12 +646,12 @@ suite('PullRequestMutationService', () => {
 						},
 					});
 				};
-				const result = await service.replyToThread(ref, { operationId: 'operation-1', threadId: 'T1', body: 'reply' }, signal());
+				const { reply, resolved } = await service.replyAndResolveThread(ref, { operationId: 'operation-1', threadId: 'T1', body: 'reply', resolve: false }, signal());
 				assert.deepStrictEqual({
-					outcome: result.outcome, commentId: result.value?.id, refreshes,
+					outcome: reply.outcome, commentId: reply.value?.id, resolved, refreshes,
 					requests: server.requests.map(request => request.graphQl?.variables),
 				}, {
-					outcome, commentId: outcome === 'indeterminate' ? undefined : '2', refreshes: 1,
+					outcome, commentId: outcome === 'indeterminate' ? undefined : '2', resolved: false, refreshes: 1,
 					requests: [
 						{ threadId: 'T1', body: `reply\n\n${operationMarker}` },
 						{ threadId: 'T1', body: `reply\n\n${operationMarker}` },
@@ -805,12 +676,6 @@ suite('PullRequestMutationService', () => {
 				gitHubGraphQLStep({
 					queryIncludes: 'AgentHostResolvePullRequestReviewThread',
 					response: gitHubGraphQLResponse(undefined, [{ message: 'resolve rejected', type: 'FORBIDDEN' }]),
-				}),
-				gitHubGraphQLStep({
-					queryIncludes: 'AgentHostResolvePullRequestReviewThread',
-					response: gitHubGraphQLResponse({
-						resolveReviewThread: { thread: { id: 'T1', isResolved: true } },
-					}),
 				}),
 			);
 			const snapshot = completeSnapshot(server);
@@ -858,12 +723,10 @@ suite('PullRequestMutationService', () => {
 					},
 				},
 				threadOpen: true,
-				invalidations: [{ fragments: ['reviewThreads', 'inlineComments'] }],
+				invalidations: [{ fragments: ['reviewThreads'] }],
 			});
-			await service.resolveThread(ref, 'T1', signal());
 			assert.deepStrictEqual(server.requests.map(request => request.graphQl?.query?.includes('AgentHostAddPullRequestReviewThreadReply')), [
 				true,
-				false,
 				false,
 			]);
 			server.assertSatisfied();
@@ -883,10 +746,11 @@ suite('PullRequestMutationService', () => {
 			};
 
 			await assert.rejects(
-				() => service.replyToThread(ref, {
+				() => service.replyAndResolveThread(ref, {
 					operationId: 'operation-1',
 					threadId: 'T1',
 					body: 'reply',
+					resolve: true,
 				}, signal()),
 				error => error instanceof Error && error.message.includes('thread missing'),
 			);
@@ -1195,23 +1059,6 @@ suite('PullRequestMutationService', () => {
 		});
 	});
 
-	test('sends the expected head when updating a branch', async () => {
-		await withServers(async server => {
-			server.enqueue(gitHubRestStep({
-				method: 'PUT',
-				path: '/repos/octo/repo/pulls/7/update-branch',
-				assert: request => assert.deepStrictEqual(request.bodyJson, { expected_head_sha: 'head-1' }),
-				response: gitHubJsonResponse({ message: 'Updating pull request branch.' }, { status: 202 }),
-			}));
-			const { ref, resources, service } = setup(server);
-
-			await service.updateBranch(ref, { expectedHeadSha: 'head-1' }, signal());
-
-			assert.deepStrictEqual(resources.invalidations, [{ fragments: ['core', 'checks', 'mergeability'] }]);
-			server.assertSatisfied();
-		});
-	});
-
 	test('prepares and directly merges only with complete generation-anchored state', async () => {
 		await withServers(async server => {
 			server.enqueue(gitHubRestStep({
@@ -1394,7 +1241,6 @@ function completeSnapshot(server: ProgrammableGitHubServer, mergeQueueRequired =
 		},
 		topLevelComments: { status: 'missing', complete: false },
 		submittedReviews: { status: 'ready', complete: true, value: [] },
-		inlineComments: { status: 'missing', complete: false },
 		reviewThreads: { status: 'ready', complete: true, value: [], headSha: 'head-1' },
 		checks: {
 			status: 'ready',
@@ -1426,7 +1272,6 @@ function completeSnapshot(server: ProgrammableGitHubServer, mergeQueueRequired =
 				mergeQueueEntryId,
 			},
 		},
-		participants: { status: 'missing', complete: false },
 	};
 }
 

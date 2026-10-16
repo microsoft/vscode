@@ -340,27 +340,38 @@ suite('Session Artifact Removal', () => {
 			override error(message: string): void { errors.push(message); }
 		}
 		const database = new FailingDatabase();
-		const { service, session, stateManager, meta } = await createFixture(database, new TestLogService());
+		const fixture = await createFixture(database, new TestLogService());
+		const { service, session, stateManager, meta } = fixture;
+		// session.db holds the session state store's mirror of the key, so it is read once the store has written it.
+		const readPersisted = async () => {
+			await getTestSessionStateStore(service).whenIdle(session);
+			return database.getMetadata(SESSION_ARTIFACTS_KEY);
+		};
 		database.failArtifactWrites = true;
 
 		await assert.rejects(service.removeSessionArtifact(session, 'pr'), /artifact write failed/);
 		const afterFailure = {
 			meta: stateManager.getSessionState(session.toString())?._meta,
-			persisted: await database.getMetadata(SESSION_ARTIFACTS_KEY),
+			persisted: await readPersisted(),
 		};
 		database.failArtifactWrites = false;
 		await service.removeSessionArtifact(session, 'pr');
 		await service.removeSessionArtifact(session, 'pr');
 
+		const remaining = withChat(artifacts.slice(1), buildDefaultChatUri(session));
 		assert.deepStrictEqual({
 			errors,
 			afterFailure,
-			persisted: await database.getMetadata(SESSION_ARTIFACTS_KEY),
+			meta: stateManager.getSessionState(session.toString())?._meta,
+			persisted: await readPersisted(),
+			centralArtifacts: await fixture.readCentralArtifacts(),
 		}, {
 			errors: ['[AgentService] Failed to persist session artifacts'],
-			// The owned value is written through the session state store before the catalog sync that failed; the retry converges on it.
-			afterFailure: { meta, persisted: stringifySessionArtifacts(artifacts.slice(1).map(artifact => ({ ...artifact, chat: buildDefaultChatUri(session) }))) },
-			persisted: stringifySessionArtifacts(withChat(artifacts.slice(1), buildDefaultChatUri(session))),
+			// The removal reaches the session state store before the catalog sync fails; the artifact stays visible until the retry.
+			afterFailure: { meta, persisted: stringifySessionArtifacts(remaining) },
+			meta: withSessionArtifacts(meta, remaining),
+			persisted: stringifySessionArtifacts(remaining),
+			centralArtifacts: remaining,
 		});
 	});
 
@@ -431,15 +442,16 @@ suite('Session Artifact Removal', () => {
 		await removal;
 
 		const remaining = withChat(artifacts.slice(1), buildDefaultChatUri(session));
+		// The summary's trailing write replays the removal's catalog sync, which leaves session.db for the store to mirror.
+		await getTestSessionStateStore(service).whenIdle(session);
 		assert.deepStrictEqual({
 			meta: stateManager.getSessionState(session.toString())?._meta,
-			// The mirrored value is rendered from central state, so only its content is compared.
-			persisted: JSON.parse(await database.getMetadata(SESSION_ARTIFACTS_KEY) ?? 'null'),
+			persisted: await database.getMetadata(SESSION_ARTIFACTS_KEY),
 			centralArtifacts: await fixture.readCentralArtifacts(),
 			warnings,
 		}, {
 			meta: withSessionArtifacts(latestMeta, remaining),
-			persisted: remaining,
+			persisted: stringifySessionArtifacts(remaining),
 			centralArtifacts: remaining,
 			warnings: [],
 		});

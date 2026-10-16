@@ -2221,8 +2221,8 @@ interface ISessionSectionTemplate extends ISessionHeaderTemplate {
 export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, ISessionSectionTemplate> {
 	static readonly TEMPLATE_ID = 'session-section';
 
-	private readonly templatesByElement = new WeakMap<ISessionSection, ISessionSectionTemplate>();
-	private readonly templatesById = new Map<string, ISessionSectionTemplate>();
+	/** Keyed by template because sticky scroll renders a second copy of a header while its tree row stays rendered. */
+	private readonly renderedSections = new Map<ISessionSectionTemplate, ISessionSection>();
 	// TODO@BenV: Move automation-specific code into an AutomationSectionRenderer subclass.
 	readonly automationStatus = derived(this, reader => {
 		const runs = this.automationService.runs.read(reader);
@@ -2378,8 +2378,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 
 	private renderSection(element: ISessionSection, collapsible: boolean, collapsed: boolean, template: ISessionSectionTemplate): void {
 		template.elementDisposables.clear();
-		this.templatesByElement.set(element, template);
-		this.templatesById.set(element.id, template);
+		this.renderedSections.set(template, element);
 		template.container.classList.remove(SESSION_HEADER_DROP_TARGET_CLASS);
 		template.container.classList.remove('session-section-shortcut');
 		template.container.classList.remove('session-section-new-session');
@@ -2501,15 +2500,19 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 
 	/** Updates the leading icon and chevron when the tree toggles a section without re-rendering it. */
 	updateCollapseState(element: ISessionSection, collapsed: boolean): void {
-		const template = this.templatesByElement.get(element);
-		if (template) {
-			this.updateChevron(template, true, collapsed);
+		for (const [template, renderedElement] of this.renderedSections) {
+			if (renderedElement === element) {
+				this.updateChevron(template, true, collapsed);
+			}
 		}
 	}
 
 	setDropTarget(sectionId: string, active: boolean): void {
-		const template = this.templatesById.get(sectionId);
-		template?.container.classList.toggle(SESSION_HEADER_DROP_TARGET_CLASS, active);
+		for (const [template, element] of this.renderedSections) {
+			if (element.id === sectionId) {
+				template.container.classList.toggle(SESSION_HEADER_DROP_TARGET_CLASS, active);
+			}
+		}
 	}
 
 	private updateChevron(template: ISessionSectionTemplate, collapsible: boolean, collapsed: boolean): void {
@@ -2522,21 +2525,18 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		}
 	}
 
-	disposeElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionSectionTemplate): void {
+	disposeElement(_node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionSectionTemplate): void {
 		template.elementDisposables.clear();
-		if (isSessionSection(node.element)) {
-			this.templatesByElement.delete(node.element);
-			this.templatesById.delete(node.element.id);
-		}
+		this.renderedSections.delete(template);
 	}
 
-	disposeShortcut(element: ISessionSection, template: ISessionSectionTemplate): void {
+	disposeShortcut(_element: ISessionSection, template: ISessionSectionTemplate): void {
 		template.elementDisposables.clear();
-		this.templatesByElement.delete(element);
-		this.templatesById.delete(element.id);
+		this.renderedSections.delete(template);
 	}
 
 	disposeTemplate(template: ISessionSectionTemplate): void {
+		this.renderedSections.delete(template);
 		template.disposables.dispose();
 	}
 }
@@ -2604,8 +2604,8 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 	readonly templateId = SessionGroupRenderer.TEMPLATE_ID;
 	readonly rowClassName = 'session-list-section-row';
 
-	private readonly templatesByElement = new WeakMap<ISessionGroupItem, ISessionGroupTemplate>();
-	private readonly templatesById = new Map<string, ISessionGroupTemplate>();
+	/** Keyed by template because sticky scroll renders a second copy of a header while its tree row stays rendered. */
+	private readonly renderedGroups = new Map<ISessionGroupTemplate, ISessionGroupItem>();
 
 	constructor(
 		private readonly delegate: ISessionGroupRendererDelegate,
@@ -2646,8 +2646,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		}
 		template.elementDisposables.clear();
 		renderSessionHeaderToolbar(template, element, this.delegate.select);
-		this.templatesByElement.set(element, template);
-		this.templatesById.set(element.group.id, template);
+		this.renderedGroups.set(template, element);
 		template.container.classList.remove(SESSION_HEADER_DROP_TARGET_CLASS);
 
 		const isComparison = element.comparison !== undefined;
@@ -2736,15 +2735,19 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 
 	/** Forwarded from the owning list when the group's collapse state toggles. */
 	updateCollapseState(element: ISessionGroupItem, collapsed: boolean): void {
-		const template = this.templatesByElement.get(element);
-		if (template) {
-			this.updateChevron(template, true, collapsed);
+		for (const [template, renderedElement] of this.renderedGroups) {
+			if (renderedElement === element) {
+				this.updateChevron(template, true, collapsed);
+			}
 		}
 	}
 
 	setDropTarget(groupId: string, active: boolean): void {
-		const template = this.templatesById.get(groupId);
-		template?.container.classList.toggle(SESSION_HEADER_DROP_TARGET_CLASS, active);
+		for (const [template, element] of this.renderedGroups) {
+			if (element.group.id === groupId) {
+				template.container.classList.toggle(SESSION_HEADER_DROP_TARGET_CLASS, active);
+			}
+		}
 	}
 
 	private updateChevron(template: ISessionGroupTemplate, collapsible: boolean, collapsed: boolean): void {
@@ -2757,15 +2760,13 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		}
 	}
 
-	disposeElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionGroupTemplate): void {
-		if (isSessionGroupItem(node.element)) {
-			this.templatesByElement.delete(node.element);
-			this.templatesById.delete(node.element.group.id);
-		}
+	disposeElement(_node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionGroupTemplate): void {
+		this.renderedGroups.delete(template);
 		template.elementDisposables.clear();
 	}
 
 	disposeTemplate(template: ISessionGroupTemplate): void {
+		this.renderedGroups.delete(template);
 		template.disposables.dispose();
 	}
 }
@@ -3615,6 +3616,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private navigationSections: readonly ISessionSection[] = [];
 	private sessions: ISession[] = [];
 	private readonly sessionChatsObserver = this._register(new MutableDisposable());
+	private readonly sessionChatsUpdate = this._register(new MutableDisposable());
 	private readonly activeSessionUpdate = this._register(new MutableDisposable());
 	private readonly nestedSessionOrderUpdate = this._register(new MutableDisposable());
 	private readonly collapsedSessionResources: Set<string>;
@@ -4004,6 +4006,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 			: undefined;
 		if (this.navigationList) {
 			this._register(this.navigationList.onDidOpen(e => this.openNavigationSection(e.element, e.sideBySide)));
+			this._register(this.navigationList.onContextMenu(e => {
+				if (e.element?.id === AUTOMATIONS_SECTION_ID) {
+					this.showAutomationsContextMenu(e.anchor);
+				}
+			}));
 		}
 
 		this.tree = this._register(instantiationService.createInstance(
@@ -4431,6 +4438,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	refresh(): void {
 		this.sessions = this._sessionsManagementService.getSessions();
+		this.sessionChatsUpdate.clear();
 		let initialized = false;
 		this.sessionChatsObserver.value = autorun(reader => {
 			for (const session of this.sessions) {
@@ -4439,7 +4447,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 				session.application.read(reader);
 			}
 			if (initialized && this.visible) {
-				this.update();
+				this.sessionChatsUpdate.value = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.listContainer), () => {
+					if (this.visible) {
+						this.update();
+					}
+				});
 			}
 			initialized = true;
 		});
@@ -5667,6 +5679,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 	}
 
+	private showAutomationsContextMenu(anchor: ITreeContextMenuEvent<SessionListItem>['anchor']): void {
+		this.contextMenuService.showContextMenu({
+			menuId: Menus.AutomationsContext,
+			contextKeyService: this.contextKeyService,
+			getAnchor: () => anchor,
+		});
+	}
+
 	private getMultiSelectedSessions(session: ISession): ISession[] {
 		const selection = this.tree.getSelection().filter((s): s is ISession => !!s && isSessionItem(s));
 		return selection.includes(session) ? [session, ...selection.filter(s => s !== session)] : [session];
@@ -5684,6 +5704,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 
 		if (isSessionSection(element)) {
+			if (element.id === AUTOMATIONS_SECTION_ID) {
+				this.showAutomationsContextMenu(e.anchor);
+				return;
+			}
 			if (isShortcutSection(element.id)) {
 				return;
 			}

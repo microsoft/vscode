@@ -14,13 +14,27 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, isAhpChatChannel, ISessionGitHubState, readFolderGitHubState, readSessionGitHubState, readSessionGitState, type ChangesetOperation, type ErrorInfo, type ISessionGitState } from '../common/state/sessionState.js';
-import { AGENT_HOST_MERGE_CHANGESET_OPERATION_ID, AGENT_HOST_PULL_REQUEST_OPERATION_IDS, type IChangesetOperationContribution, type IAgentHostChangesetOperationService, type IChangesetOperationContext, type IChangesetOperationHandler, type IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
+import { AGENT_HOST_DISCARD_CHANGES_OPERATION_ID, AGENT_HOST_MERGE_CHANGESET_OPERATION_ID, AGENT_HOST_PULL_REQUEST_OPERATION_IDS, type IChangesetOperationContribution, type IAgentHostChangesetOperationService, type IChangesetOperationContext, type IChangesetOperationHandler, type IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { resolveChangesetSubscriptions } from './agentHostChangesetSummary.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
+
+/**
+ * Whether operations on a changeset of `kind` wait for the session's Git
+ * state. A Turn changeset can offer discarding the last turn's changes
+ * without it, because that reverts tracked edits rather than using Git.
+ */
+function requiresGitState(kind: ChangesetKind | undefined): boolean {
+	return kind !== ChangesetKind.Turn;
+}
+
+/** Whether `operation` can be advertised before the Git state is known, or in a folder without Git. */
+function isAvailableWithoutGitState(operation: ChangesetOperation): boolean {
+	return operation.id === AGENT_HOST_DISCARD_CHANGES_OPERATION_ID;
+}
 
 export class AgentHostChangesetOperationService extends Disposable implements IAgentHostChangesetOperationService {
 	declare readonly _serviceBrand: undefined;
@@ -110,7 +124,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		if (!gitState) {
 			gitState = this._gitStateService.getSessionGitState?.(sourceKey)
 				?? (isAhpChatChannel(sourceKey) && !this._chatOwnership.isRegisteredDefaultChat(sourceKey) ? undefined : readSessionGitState(this._stateManager.getSessionState(sessionKey)?._meta));
-			if (!gitState) {
+			if (!gitState && requiresGitState(parsed.kind)) {
 				return [];
 			}
 		}
@@ -132,7 +146,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 			return [];
 		}
 
-		return this._getOperations({
+		const operations = this._getOperations({
 			sessionKey,
 			ownerKey,
 			sourceKey,
@@ -141,6 +155,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 			gitState,
 			gitHubState
 		});
+		return gitState ? operations : operations.filter(isAvailableWithoutGitState);
 	}
 
 	/**
@@ -317,7 +332,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 
 		for (const changeset of unsuppressed) {
 			// Defer initial publication without Git state, but clear previously advertised actions.
-			if (!gitState && !this._stateManager.getChangesetState(changeset)?.operations?.length) {
+			if (!gitState && requiresGitState(parseChangesetUri(changeset)?.kind) && !this._stateManager.getChangesetState(changeset)?.operations?.length) {
 				continue;
 			}
 			const operations = this.getOperations(ownerKey, changeset, gitState, gitHubState);

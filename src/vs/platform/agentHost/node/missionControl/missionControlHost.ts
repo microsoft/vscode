@@ -38,9 +38,11 @@ import { missionControlSessionConfigAdapter } from './missionControlSessionConfi
 import { toMissionControlSessionList } from './missionControlSessionList.js';
 import { isObject } from '../../../../base/common/types.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { AhpJsonlLogger, AhpJsonlLogRetention } from '../../common/ahpJsonlLogger.js';
+import { AgentHostAhpJsonlLoggingEnvVar, AhpJsonlLogger, AhpJsonlLogRetention, isAhpJsonlLoggingEnabled } from '../../common/ahpJsonlLogger.js';
 import { MISSION_CONTROL_AHP_LOG_ID } from '../../common/missionControlEnvironment.js';
 import { IAgentHostChatOwnershipService } from '../agentHostChatOwnershipService.js';
+import { IAgentConfigurationService } from '../agentConfigurationService.js';
+import { AgentHostAhpJsonlLoggingEnabledConfigKey, platformRootSchema } from '../../common/agentHostSchema.js';
 
 interface IMissionControlHostOptions {
 	readonly hostLaunchKind: AgentHostLaunchKind;
@@ -262,6 +264,7 @@ export class MissionControlHost extends Disposable {
 	readonly environment: MissionControlEnvironment;
 	private readonly _projects: MissionControlProjects;
 	private readonly _publishTelemetry: MissionControlPublishTelemetry;
+	private readonly _ahpLogDirectory: URI;
 	private _grantedRoots: () => readonly string[] = () => [];
 	private _projectRoots: () => readonly string[] = () => [];
 
@@ -279,8 +282,15 @@ export class MissionControlHost extends Disposable {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
+		@IAgentConfigurationService configurationService: IAgentConfigurationService,
 	) {
 		super();
+		this._ahpLogDirectory = URI.joinPath(environmentService.logsHome, 'ahp');
+		const bootstrapLoggingEnabled = isAhpJsonlLoggingEnabled(productService.quality, process.env[AgentHostAhpJsonlLoggingEnvVar]);
+		let ahpLoggingEnabled = bootstrapLoggingEnabled;
+		this._register(configurationService.onDidRootConfigChange(() => {
+			ahpLoggingEnabled = configurationService.getRootValue(platformRootSchema, AgentHostAhpJsonlLoggingEnabledConfigKey) ?? bootstrapLoggingEnabled;
+		}));
 		this._publishTelemetry = this._register(this._instantiationService.createInstance(MissionControlPublishTelemetry, this._options.hostLaunchKind, this._options.publishTelemetryClock ?? StopWatch.create()));
 		const retention = this._instantiationService.createInstance(AhpJsonlLogRetention, {
 			logsHome: environmentService.logsHome,
@@ -321,6 +331,7 @@ export class MissionControlHost extends Disposable {
 				connectionId: `${clientId}-${generation}`,
 				transport: 'mission-control',
 				retention,
+				isEnabled: () => ahpLoggingEnabled,
 			}),
 		}));
 	}
@@ -382,6 +393,7 @@ export class MissionControlHost extends Disposable {
 				allowExtensionMethods: false,
 				relayRoots: relay.rootMeta ? undefined : roots,
 				relayRootMeta: relay.rootMeta,
+				ahpLogDirectory: this._ahpLogDirectory,
 				advertisedModelProviders: ['copilotcli'],
 				sessionConfigAdapter: missionControlSessionConfigAdapter,
 				sessionListAdapter: toMissionControlSessionList,
@@ -398,7 +410,13 @@ export class MissionControlHost extends Disposable {
 		const summaries = this._stateManager.getOverlaySessionSummaries();
 		const workspaces = summaries.flatMap(summary => summary.workingDirectories ?? [])
 			.map(directory => URI.parse(directory)).filter(directory => directory.scheme === Schemas.file).map(directory => directory.fsPath);
-		const contentRoots = readOnly ? summaries.map(summary => this._sessionDataService.getSessionDataDir(URI.parse(summary.resource)).fsPath) : [];
+		// Each session's data and, for its loaded chats, every directory their content lives in: a peer stores in its
+		// own, and a moved chat also reads the session it came from (Block 4).
+		const contentScopes = readOnly ? new Set(summaries.flatMap(summary => [
+			summary.resource,
+			...(this._stateManager.getSessionState(summary.resource)?.chats ?? []).flatMap(chat => this._stateManager.getChatAttachmentScopes(chat.resource) ?? []),
+		])) : [];
+		const contentRoots = [...contentScopes].map(scope => this._sessionDataService.getSessionDataDir(URI.parse(scope)).fsPath);
 		return [...grantedRoots, ...this._projects.roots, ...workspaces, ...contentRoots];
 	}
 

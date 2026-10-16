@@ -35,6 +35,7 @@ import { ChatEditingSession } from '../../../chat/browser/chatEditing/chatEditin
 import { ChatSessionsService } from '../../../chat/browser/chatSessions/chatSessions.contribution.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
 import { ChatService } from '../../../chat/common/chatService/chatServiceImpl.js';
+import { ChatOpenDiagnosticsService, IChatOpenDiagnosticsService } from '../../../chat/common/chatOpenDiagnosticsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../chat/common/constants.js';
 import { IChatEditingService } from '../../../chat/common/editing/chatEditingService.js';
 import { ChatModel } from '../../../chat/common/model/chatModel.js';
@@ -174,6 +175,7 @@ suite('InlineChatSessionService', () => {
 		collection.set(IChatEditingService, new SyncDescriptor(ChatEditingService));
 		collection.set(IEditorWorkerService, new SyncDescriptor(TestWorkerService));
 		collection.set(IChatService, new SyncDescriptor(ChatService));
+		collection.set(IChatOpenDiagnosticsService, new SyncDescriptor(ChatOpenDiagnosticsService));
 		collection.set(IMcpService, new TestMcpService());
 		collection.set(ICustomizationMigrationService, new class extends mock<ICustomizationMigrationService>() { });
 		collection.set(ICustomizationMigrationTelemetryService, new class extends mock<ICustomizationMigrationTelemetryService>() { });

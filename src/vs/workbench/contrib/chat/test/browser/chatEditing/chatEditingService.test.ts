@@ -43,6 +43,7 @@ import { ChatEditingSessionState, IChatEditReviewSession, IChatEditingService, I
 import { ChatModel, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { ChatService } from '../../../common/chatService/chatServiceImpl.js';
+import { ChatOpenDiagnosticsService, IChatOpenDiagnosticsService } from '../../../common/chatOpenDiagnosticsService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
 import { ChatTransferService, IChatTransferService } from '../../../common/model/chatTransferService.js';
@@ -95,6 +96,7 @@ suite('ChatEditingService', function () {
 		collection.set(IChatEditingService, new SyncDescriptor(ChatEditingService));
 		collection.set(IEditorWorkerService, new SyncDescriptor(TestWorkerService));
 		collection.set(IChatService, new SyncDescriptor(ChatService));
+		collection.set(IChatOpenDiagnosticsService, new SyncDescriptor(ChatOpenDiagnosticsService));
 		collection.set(IMcpService, new TestMcpService());
 		collection.set(IPromptsService, new MockPromptsService());
 		collection.set(ICustomizationMigrationService, new class extends mock<ICustomizationMigrationService>() { });

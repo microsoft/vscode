@@ -15,9 +15,7 @@ import {
 	PullRequestComment,
 	PullRequestCore,
 	PullRequestFragment,
-	PullRequestInlineComment,
 	PullRequestMergeability,
-	PullRequestParticipants,
 	PullRequestRef,
 	PullRequestRefreshOptions,
 	PullRequestResource,
@@ -38,7 +36,6 @@ import { PullRequestScheduler } from './pullRequestScheduler.js';
 export interface IPullRequestResources {
 	subscribePullRequest(ref: PullRequestRef, options: PullRequestSubscriptionOptions): PullRequestSubscription;
 	invalidatePullRequest(ref: PullRequestRef, fragments: readonly PullRequestFragment[]): void;
-	clear(): void;
 }
 
 function formatPullRequestRef(ref: PullRequestRef): string {
@@ -71,7 +68,6 @@ export interface PullRequestPollingPolicy {
 	readonly checksBackstop: number;
 	readonly mergeabilityVisible: number;
 	readonly mergeabilityBackground: number;
-	readonly participants: number;
 	readonly failureBackoff: BackoffPolicy;
 	readonly jitter: number;
 }
@@ -89,7 +85,6 @@ const defaultPollingPolicy: PullRequestPollingPolicy = {
 	checksBackstop: 300_000,
 	mergeabilityVisible: 30_000,
 	mergeabilityBackground: 120_000,
-	participants: 300_000,
 	failureBackoff: { immediateRetries: 0, base: 30_000, maximum: 300_000, jitter: 5_000 },
 	jitter: 5_000,
 };
@@ -98,22 +93,18 @@ const fragments: readonly PullRequestFragment[] = [
 	'core',
 	'topLevelComments',
 	'submittedReviews',
-	'inlineComments',
 	'reviewThreads',
 	'checks',
 	'mergeability',
-	'participants',
 ];
 
 type AnyFragmentState =
 	| FragmentState<PullRequestCore>
 	| FragmentState<readonly PullRequestComment[]>
 	| FragmentState<readonly PullRequestReview[]>
-	| FragmentState<readonly PullRequestInlineComment[]>
 	| FragmentState<readonly PullRequestReviewThread[]>
 	| FragmentState<PullRequestChecks>
-	| FragmentState<PullRequestMergeability>
-	| FragmentState<PullRequestParticipants>;
+	| FragmentState<PullRequestMergeability>;
 
 interface IFragmentOperation {
 	readonly controller: AbortController;
@@ -330,7 +321,7 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 		this._trimDormantEntries();
 	}
 
-	clear(): void {
+	override dispose(): void {
 		for (const entry of [...this._entries]) {
 			this._disposeEntry(entry);
 		}
@@ -338,10 +329,6 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 		this._entriesByKey.clear();
 		this._entries.clear();
 		this._dormant.clear();
-	}
-
-	override dispose(): void {
-		this.clear();
 		super.dispose();
 	}
 
@@ -554,9 +541,6 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 			case 'submittedReviews':
 				this._setFragmentState(entry, result.fragment, readyState(result.value, result.complete, observedAt));
 				break;
-			case 'inlineComments':
-				this._setFragmentState(entry, result.fragment, readyState(result.value, result.complete, observedAt));
-				break;
 			case 'reviewThreads':
 				this._setFragmentState(entry, result.fragment, readyState(result.value, result.complete, observedAt, result.headSha));
 				break;
@@ -565,9 +549,6 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 				break;
 			case 'mergeability':
 				this._setFragmentState(entry, result.fragment, readyState(result.value, result.complete, observedAt, result.headSha));
-				break;
-			case 'participants':
-				this._setFragmentState(entry, result.fragment, readyState(result.value, result.complete, observedAt));
 				break;
 		}
 		return entry;
@@ -696,7 +677,6 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 				return visible ? this._policy.coreVisible : this._policy.coreBackground;
 			case 'topLevelComments':
 			case 'submittedReviews':
-			case 'inlineComments':
 			case 'reviewThreads':
 				return visible ? this._policy.conversationVisible : this._policy.conversationBackground;
 			case 'checks': {
@@ -708,8 +688,6 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 			}
 			case 'mergeability':
 				return visible ? this._policy.mergeabilityVisible : this._policy.mergeabilityBackground;
-			case 'participants':
-				return this._policy.participants;
 		}
 	}
 
@@ -732,11 +710,6 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 			case 'submittedReviews':
 				if (snapshot.submittedReviews.value) {
 					this._setFragmentState(entry, fragment, { ...snapshot.submittedReviews, value: snapshot.submittedReviews.value.map(({ body, ...review }) => review) });
-				}
-				break;
-			case 'inlineComments':
-				if (snapshot.inlineComments.value) {
-					this._setFragmentState(entry, fragment, { ...snapshot.inlineComments, value: snapshot.inlineComments.value.map(({ body, ...comment }) => comment) });
 				}
 				break;
 			case 'reviewThreads':
@@ -933,11 +906,9 @@ function initialSnapshot(ref: PullRequestRef): PullRequestSnapshot {
 		core: missing,
 		topLevelComments: missing,
 		submittedReviews: missing,
-		inlineComments: missing,
 		reviewThreads: missing,
 		checks: missing,
 		mergeability: missing,
-		participants: missing,
 	};
 }
 
@@ -977,8 +948,8 @@ function sameInterest(left: EffectivePullRequestFragmentInterest, right: Effecti
 		&& (left.includeOptionalChecks === true) === (right.includeOptionalChecks === true);
 }
 
-function isConversationFragment(fragment: PullRequestFragment): fragment is 'topLevelComments' | 'submittedReviews' | 'inlineComments' | 'reviewThreads' {
-	return fragment === 'topLevelComments' || fragment === 'submittedReviews' || fragment === 'inlineComments' || fragment === 'reviewThreads';
+function isConversationFragment(fragment: PullRequestFragment): fragment is 'topLevelComments' | 'submittedReviews' | 'reviewThreads' {
+	return fragment === 'topLevelComments' || fragment === 'submittedReviews' || fragment === 'reviewThreads';
 }
 
 function isHeadFragment(fragment: PullRequestFragment): fragment is 'reviewThreads' | 'checks' | 'mergeability' {
@@ -1002,11 +973,9 @@ function fragmentState(snapshot: PullRequestSnapshot, fragment: PullRequestFragm
 		case 'core': return snapshot.core;
 		case 'topLevelComments': return snapshot.topLevelComments;
 		case 'submittedReviews': return snapshot.submittedReviews;
-		case 'inlineComments': return snapshot.inlineComments;
 		case 'reviewThreads': return snapshot.reviewThreads;
 		case 'checks': return snapshot.checks;
 		case 'mergeability': return snapshot.mergeability;
-		case 'participants': return snapshot.participants;
 	}
 }
 
@@ -1015,11 +984,9 @@ function withFragmentState(snapshot: PullRequestSnapshot, fragment: PullRequestF
 		case 'core': return { ...snapshot, core: state as FragmentState<PullRequestCore> };
 		case 'topLevelComments': return { ...snapshot, topLevelComments: state as FragmentState<readonly PullRequestComment[]> };
 		case 'submittedReviews': return { ...snapshot, submittedReviews: state as FragmentState<readonly PullRequestReview[]> };
-		case 'inlineComments': return { ...snapshot, inlineComments: state as FragmentState<readonly PullRequestInlineComment[]> };
 		case 'reviewThreads': return { ...snapshot, reviewThreads: state as FragmentState<readonly PullRequestReviewThread[]> };
 		case 'checks': return { ...snapshot, checks: state as FragmentState<PullRequestChecks> };
 		case 'mergeability': return { ...snapshot, mergeability: state as FragmentState<PullRequestMergeability> };
-		case 'participants': return { ...snapshot, participants: state as FragmentState<PullRequestParticipants> };
 	}
 }
 
@@ -1050,11 +1017,9 @@ function mergeSnapshotValues(target: PullRequestSnapshot, source: PullRequestSna
 		...target,
 		topLevelComments: retainFragmentValue(target.topLevelComments, source.topLevelComments),
 		submittedReviews: retainFragmentValue(target.submittedReviews, source.submittedReviews),
-		inlineComments: retainFragmentValue(target.inlineComments, source.inlineComments),
 		reviewThreads: retainFragmentValue(target.reviewThreads, source.reviewThreads),
 		checks: retainFragmentValue(target.checks, source.checks),
 		mergeability: retainFragmentValue(target.mergeability, source.mergeability),
-		participants: retainFragmentValue(target.participants, source.participants),
 	};
 }
 

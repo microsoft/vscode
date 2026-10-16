@@ -7,6 +7,7 @@ import { raceTimeout } from '../../../../../base/common/async.js';
 import { createAgentChatContext } from '../../agentChatContext.js';
 import { withMessageRequestHiddenFromTranscript, withMessageSystemInitiatedLabel } from '../../../common/meta/agentMessageMeta.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
+import { Emitter, type Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { equals } from '../../../../../base/common/objects.js';
@@ -24,7 +25,7 @@ import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationWorkspaceKind, serializeAgentWorkspaceTransition, type IAgentSystemNotificationMeta, type IAgentWorkspaceTransitionRecord, toAgentSystemNotificationMeta } from '../../../common/meta/agentSystemNotificationMeta.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChatInteractivity, isAhpChatChannel, ChatOriginKind, isSubagentSession, MessageKind, parseSubagentSessionUri, readSessionExternal, readSessionWorkspaceless, ResponsePartKind, SessionLifecycle, SessionStatus, withSessionHasWorkspaceTransitions, withSessionWorkspaceless, type ISessionWithDefaultChat, type SessionConfigState, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
-import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
+import { AgentHostStateManager, ChatRemovalReason, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { IAgentHostClientConnectionService } from '../../agentHostClientConnectionService.js';
 import { IAgentConfigurationService } from '../../agentConfigurationService.js';
 import { IAgentHostProviderService } from '../../agentHostProviderService.js';
@@ -100,6 +101,11 @@ export interface ISessionWorkspaceConversionService {
 	/** Returns false when the chat already uses the requested folder without needing a workspace change. */
 	requestSessionWorkspaceUpdate(chat: URI, turnId: string, workspaceFolder: URI, isolation: boolean, initiatingClientId?: string): boolean;
 	isPending(chat: ProtocolURI, sessionWide?: boolean): boolean;
+	/**
+	 * Fires the chat a pending or quarantined workspace change was recorded or cleared for: its own, or its session's
+	 * default chat for a session-wide one. {@link isPending} may answer differently for that chat's session after it.
+	 */
+	readonly onDidChangePending: Event<ProtocolURI>;
 	/** Whether the turn is host-owned and needed to finish an in-flight conversion, so a client must not cancel it. */
 	isConversionTurn(chat: ProtocolURI, turnId: string): boolean;
 	cancel(chat: ProtocolURI, turnId: string | undefined): void;
@@ -110,6 +116,9 @@ export interface ISessionWorkspaceConversionService {
 export class SessionWorkspaceConversionService extends Disposable implements ISessionWorkspaceConversionService {
 
 	declare readonly _serviceBrand: undefined;
+
+	private readonly _onDidChangePending = this._register(new Emitter<ProtocolURI>());
+	readonly onDidChangePending: Event<ProtocolURI> = this._onDidChangePending.event;
 
 	private readonly _pending = new Map<string, IPendingSessionWorkspaceConversion>();
 	private readonly _quarantined = new Set<string>();
@@ -138,7 +147,8 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 	) {
 		super();
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
-			if (envelope.action.type === ActionType.SessionChatRemoved) {
+			// A moved chat keeps its isolation state.
+			if (envelope.action.type === ActionType.SessionChatRemoved && this._stateManager.chatRemovalReason(envelope.channel, envelope.action.chat) === ChatRemovalReason.Deleted) {
 				this._clearChatIsolationState(envelope.action.chat);
 			}
 			if (envelope.action.type === ActionType.SessionReady) {
@@ -181,11 +191,12 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 
 	private _clearChatIsolationState(chat: ProtocolURI): void {
 		this._trackedChatOwners.delete(chat);
-		this._pending.delete(chat);
-		this._quarantined.delete(chat);
-		this._quarantinedChats.delete(chat);
+		const changed = [this._pending.delete(chat), this._quarantined.delete(chat), this._quarantinedChats.delete(chat)].some(Boolean);
 		this._restoringChats.delete(chat);
 		this._isolatedChats.delete(chat);
+		if (changed) {
+			this._onDidChangePending.fire(chat);
+		}
 	}
 
 	supportsChatIsolation(session: URI): boolean {
@@ -260,6 +271,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			prompt: this._stateManager.getChatState(chat.toString())?.activeTurn?.message.text,
 			showTransition: true, phase: 'requested',
 		});
+		this._onDidChangePending.fire(chat.toString());
 	}
 
 	/** The host-built context of a chat, with the storage the host recorded for it. */
@@ -274,6 +286,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		this._trackedChatOwners.set(chat, session);
 		this._restoringChats.set(chat, restore);
 		this._quarantinedChats.add(chat);
+		this._onDidChangePending.fire(chat);
 		try {
 			const database = await this._sessionDataService.tryOpenDatabase(storage);
 			try {
@@ -287,6 +300,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 					}
 					if (quarantined !== 'true') {
 						this._quarantinedChats.delete(chat);
+						this._onDidChangePending.fire(chat);
 					}
 				}
 			} finally {
@@ -344,6 +358,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 				previousWorkingDirectories: directories!.map(directory => URI.parse(directory)),
 			} : {}),
 		});
+		this._onDidChangePending.fire(key);
 		return true;
 	}
 
@@ -390,6 +405,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		const pending = this._pending.get(chat);
 		if (pending && pending.turnId === turnId && pending.phase === 'requested') {
 			this._pending.delete(chat);
+			this._onDidChangePending.fire(chat);
 		}
 	}
 
@@ -414,6 +430,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 					: await this._convertChat(pending, continuation)
 				: await this._convert(pending, continuation);
 			this._pending.delete(key);
+			this._onDidChangePending.fire(key);
 			await this._continueConversion(continuation, pending, true);
 		} catch (error) {
 			let conversionError = error;
@@ -429,11 +446,13 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 				if (this._pending.get(key) === pending) {
 					this._pending.delete(key);
 					(pending.chatOnly ? this._quarantinedChats : this._quarantined).add(key);
+					this._onDidChangePending.fire(key);
 				}
 				this._failConversion(continuation, pending, conversionError);
 			} else {
 				if (this._pending.get(key) === pending) {
 					this._pending.delete(key);
+					this._onDidChangePending.fire(key);
 				}
 				await this._continueConversion(continuation, pending, false, conversionError);
 			}

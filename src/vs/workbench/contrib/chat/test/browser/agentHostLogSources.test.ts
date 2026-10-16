@@ -8,13 +8,18 @@ import { timeout } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AhpJsonlLogger } from '../../../../../platform/agentHost/common/ahpJsonlLogger.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
-import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
-import { AgentHostAhpJsonlLoggingSettingId, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { agentHostAuthority, identityAgentHostResourceUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { AgentHostAhpJsonlLoggingSettingId, IAgentConnection, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
+import { getAgentHostAhpLogDirectoryMeta, readAgentHostAhpLogDirectory } from '../../../../../platform/agentHost/common/meta/agentHostDebugLogsMeta.js';
+import { MISSION_CONTROL_AHP_LOG_ID } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { InitializeResult } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
@@ -24,8 +29,9 @@ import { InMemoryFileSystemProvider } from '../../../../../platform/files/common
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
 import { TestPathService } from '../../../../test/browser/workbenchTestServices.js';
-import { AgentHostLogSourceKind, enumerateAgentHostLogSources, findRelevantCopilotLogs, getRemoteConnectionForSession, IAgentHostLogSourceServices, MAX_COPILOT_LOG_SCAN_FILE_SIZE } from '../../browser/chatDebug/agentHostLogSources.js';
+import { AgentHostLogSourceKind, enumerateAgentHostLogSources, findRelevantCopilotLogs, getRemoteConnectionForSession, IAgentHostLogSourceServices, MAX_COPILOT_LOG_SCAN_FILE_SIZE, readAgentHostLogSourceContent } from '../../browser/chatDebug/agentHostLogSources.js';
 import { COPILOT_CLI_LOCAL_AH_SCHEME } from '../../browser/copilotCliEventsUri.js';
+import { isWireLogLoggingEnabled } from '../../browser/chatDebug/chatDebugEnablement.js';
 
 class TestLogFileSystemProvider extends InMemoryFileSystemProvider {
 	readonly oversizedResources = new Set<string>();
@@ -64,6 +70,77 @@ suite('AgentHostLogSources', () => {
 		)?.address), ['host-name', 'host-name', 'host-name']);
 	});
 
+	test('validates optional host log-directory metadata without assuming a filesystem scheme', () => {
+		const resource = URI.parse('host-diagnostics:/opaque/path');
+		assert.deepStrictEqual([
+			readAgentHostAhpLogDirectory(upcastPartial<InitializeResult>({ _meta: getAgentHostAhpLogDirectoryMeta(resource) }))?.toString(),
+			readAgentHostAhpLogDirectory(undefined),
+			readAgentHostAhpLogDirectory(upcastPartial<InitializeResult>({ _meta: {} })),
+			readAgentHostAhpLogDirectory(upcastPartial<InitializeResult>({ _meta: { 'vscode.ahpLogDirectory': 42 } })),
+			readAgentHostAhpLogDirectory(upcastPartial<InitializeResult>({ _meta: { 'vscode.ahpLogDirectory': 'not-a-uri' } })),
+		], [resource.toString(), undefined, undefined, undefined, undefined]);
+	});
+
+	test('does not gate host-owned wire logs on the client window logging setting', () => {
+		const configuration = new TestConfigurationService({ [AgentHostAhpJsonlLoggingSettingId]: false });
+		assert.deepStrictEqual([
+			isWireLogLoggingEnabled(configuration),
+			isWireLogLoggingEnabled(configuration, upcastPartial<IAgentConnection>({ clientConnectionKind: AgentHostClientConnectionKind.MissionControl })),
+		], [false, true]);
+	});
+
+	test('enumerates and reads advertised Mission Control host logs instead of duplicate window logs', async () => {
+		const address = 'cloudsandbox:native-host';
+		const hostLogsHome = URI.from({ scheme: Schemas.inMemory, path: '/arbitrary-host-log-location' });
+		const hostLogger = disposables.add(new AhpJsonlLogger({
+			logsHome: hostLogsHome, logId: MISSION_CONTROL_AHP_LOG_ID, connectionId: 'mobile-client', transport: 'mission-control',
+		}, fileService, new NullLogService()));
+		const windowLogger = disposables.add(new AhpJsonlLogger({
+			logsHome: logsDir, logId: address, connectionId: 'historical-window-client', transport: 'webpubsub',
+		}, fileService, new NullLogService()));
+		for (const logger of [hostLogger, windowLogger]) {
+			logger.log({ jsonrpc: '2.0', method: 'ping' }, 'c2s');
+			await logger.flush();
+		}
+		const connection = upcastPartial<IAgentConnection>({
+			clientConnectionKind: AgentHostClientConnectionKind.MissionControl,
+			resourceUris: identityAgentHostResourceUriMapper,
+			initializeResult: observableValue('initialize', upcastPartial<InitializeResult>({
+				_meta: getAgentHostAhpLogDirectoryMeta(URI.joinPath(hostLogsHome, 'ahp')),
+			})),
+		});
+		const services = new class extends mock<IAgentHostLogSourceServices>() {
+			override readonly pathService = new TestPathService(URI.from({ scheme: Schemas.inMemory, path: '/home' }));
+			override readonly remoteAgentHostService = new class extends mock<IRemoteAgentHostService>() {
+				override readonly connections = [{ address, name: 'Native', status: RemoteAgentHostConnectionStatus.connected }];
+				override getConnection() { return connection; }
+			}();
+			override readonly agentHostConnectionsService = new class extends mock<IAgentHostConnectionsService>() {
+				override resolveSessionResourceIdentity() {
+					return { connectionAddress: address, connectionAuthority: agentHostAuthority(address), backendSession: URI.parse('ahp-session:/session') };
+				}
+			}();
+			override readonly outputService = new class extends mock<IOutputService>() {
+				override getChannelDescriptor() { return undefined; }
+			}();
+			override readonly fileService = fileService;
+			override readonly environmentService = new class extends mock<IEnvironmentService>() {
+				override logsHome = logsDir;
+			}();
+			override readonly logService = new NullLogService();
+		}();
+		const sources = await enumerateAgentHostLogSources(services, URI.from({
+			scheme: remoteAgentHostSessionTypeId(agentHostAuthority(address), 'custom-provider'), path: '/session',
+		}));
+		const wireSources = sources.filter(source => source.kind === AgentHostLogSourceKind.WireLog);
+		const content = await readAgentHostLogSourceContent(wireSources[0], services);
+		assert.deepStrictEqual({
+			resources: wireSources.map(source => source.resource?.toString()),
+			method: JSON.parse(content!.text.trim()).method,
+			remote: wireSources[0].isRemote,
+		}, { resources: [hostLogger.resource.toString()], method: 'ping', remote: true });
+	});
+
 	test('enumerates address-keyed cloud host AHP logs after the connection catalog entry is removed', async () => {
 		const address = 'cloudsandbox:env-1';
 		const logger = disposables.add(new AhpJsonlLogger({ logsHome: logsDir, logId: address, connectionId: 'cloud-client', transport: 'webpubsub' }, fileService, new NullLogService()));
@@ -76,6 +153,7 @@ suite('AgentHostLogSources', () => {
 			override readonly pathService = new TestPathService(URI.from({ scheme: Schemas.inMemory, path: '/home' }));
 			override readonly remoteAgentHostService = new class extends mock<IRemoteAgentHostService>() {
 				override readonly connections = [];
+				override getConnection() { return undefined; }
 			}();
 			override readonly agentHostConnectionsService = new class extends mock<IAgentHostConnectionsService>() {
 				override resolveSessionResourceIdentity() {
@@ -91,6 +169,7 @@ suite('AgentHostLogSources', () => {
 			override readonly environmentService = new class extends mock<IEnvironmentService>() {
 				override logsHome = logsDir;
 			}();
+			override readonly logService = new NullLogService();
 		}();
 		const sources = await enumerateAgentHostLogSources(services, URI.from({
 			scheme: remoteAgentHostSessionTypeId(agentHostAuthority(address), 'copilot'),
@@ -190,6 +269,7 @@ suite('AgentHostLogSources', () => {
 			override readonly environmentService = new class extends mock<IEnvironmentService>() {
 				override logsHome = logsDir;
 			}();
+			override readonly logService = new NullLogService();
 		}();
 
 		const sources = await enumerateAgentHostLogSources(

@@ -37,6 +37,31 @@ const sandbox = z.object({
 	pointerLock: z.optional(z.boolean()),
 	clipboardWrite: z.optional(z.boolean()),
 });
+export const codeBlockEditorPresentation = z.object({
+	resizable: z.optional(z.boolean()),
+	fullWidth: z.optional(z.boolean()),
+	fullView: z.optional(z.boolean()),
+	minHeight: z.optional(z.number().check(z.positive(), z.maximum(10_000))),
+});
+
+export function mergeCodeBlockEditorPresentation(
+	contributed: ResolvedCodeBlockEditor['presentation'],
+	resolved: ResolvedCodeBlockEditor['presentation'],
+): ResolvedCodeBlockEditor['presentation'] {
+	if (!contributed) {
+		return resolved;
+	}
+	if (!resolved) {
+		return contributed;
+	}
+	return {
+		resizable: resolved.resizable ?? contributed.resizable,
+		fullWidth: resolved.fullWidth ?? contributed.fullWidth,
+		fullView: resolved.fullView ?? contributed.fullView,
+		minHeight: resolved.minHeight ?? contributed.minHeight,
+	};
+}
+
 const resolvedCodeBlockEditor = z.object({
 	cacheKey: z.optional(z.string()),
 	html: z.string(),
@@ -45,6 +70,7 @@ const resolvedCodeBlockEditor = z.object({
 	hostTransport: z.optional(z.boolean()),
 	contentType: z.enum(['text', 'json']),
 	initialHeight: z.optional(z.number().check(z.positive())),
+	presentation: z.optional(codeBlockEditorPresentation),
 	sandbox: z.optional(sandbox),
 });
 const codeBlockEditorProvider = z.object({

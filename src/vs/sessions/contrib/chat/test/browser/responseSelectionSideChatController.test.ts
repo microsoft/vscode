@@ -19,7 +19,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { INotificationHandle, INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { IChatWidget } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { IChatWidget, isResponseSelectionSupported } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatResponseViewModel } from '../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, ResponseSelectionSideChatController } from '../../browser/responseSelectionSideChatController.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
@@ -42,6 +42,20 @@ class RecordingNotificationService extends TestNotificationService {
 suite('ResponseSelectionSideChatController', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('supports response-selection widgets except on mobile web', () => {
+		assert.deepStrictEqual({
+			nativeDesktop: isResponseSelectionSupported({ isWeb: false, isMobile: false }),
+			nativeMobile: isResponseSelectionSupported({ isWeb: false, isMobile: true }),
+			desktopWeb: isResponseSelectionSupported({ isWeb: true, isMobile: false }),
+			mobileWeb: isResponseSelectionSupported({ isWeb: true, isMobile: true }),
+		}, {
+			nativeDesktop: true,
+			nativeMobile: true,
+			desktopWeb: true,
+			mobileWeb: false,
+		});
+	});
+
 	function createChat(resource: URI, interactivity = ChatInteractivity.Full): IChat {
 		return upcastPartial<IChat>({
 			resource,
@@ -54,6 +68,7 @@ suite('ResponseSelectionSideChatController', () => {
 		sendRequest?: ISessionsManagementService['sendRequest'];
 		getElementFromNode?: IChatWidget['getElementFromNode'];
 		enhancedSelectionMenu?: boolean;
+		responseSelectionSupported?: boolean;
 		initialInput?: string;
 		chatInteractivity?: ChatInteractivity;
 	}) {
@@ -291,7 +306,7 @@ suite('ResponseSelectionSideChatController', () => {
 			publicLog2: (name, data) => { telemetryEvents.push({ name, data }); },
 		}));
 
-		const controller = store.add(instantiationService.createInstance(ResponseSelectionSideChatController, widget));
+		const controller = store.add(instantiationService.createInstance(ResponseSelectionSideChatController, widget, options?.responseSelectionSupported ?? true));
 		controller.setChat(chat);
 
 		return {
@@ -1260,6 +1275,53 @@ suite('ResponseSelectionSideChatController', () => {
 		setSelection('');
 		assert.strictEqual(autoScrollHolds(), 0, 'clearing the selection releases the transcript');
 	});
+
+	for (const enhancedSelectionMenu of [false, true]) {
+		test(`preserves native selection and auto-scroll protection without mobile-web pop-ups (enhanced menu: ${enhancedSelectionMenu})`, async () => {
+			const { controller, transcriptDomNode, setSelection, beginPointerSelection, finishPointerSelection, autoScrollHolds, highlightedRanges, telemetryEvents, callOrder } = setup({
+				enhancedSelectionMenu,
+				responseSelectionSupported: isResponseSelectionSupported({ isWeb: true, isMobile: true }),
+			});
+			const selectionState = () => ({
+				holds: autoScrollHolds(),
+				text: dom.getWindow(transcriptDomNode).getSelection()?.toString(),
+				inputVisible: inputDomNode(controller).style.display !== 'none',
+				menuVisible: menuDomNode(controller).style.display !== 'none',
+			});
+
+			setSelection('hello world');
+			const selected = selectionState();
+			beginPointerSelection();
+			setSelection('hello');
+			const dragging = selectionState();
+			await finishPointerSelection();
+			const released = selectionState();
+			setSelection('');
+			const clearedHolds = autoScrollHolds();
+			setSelection('hello world');
+			controller.dispose();
+
+			assert.deepStrictEqual({
+				selected,
+				dragging,
+				released,
+				clearedHolds,
+				disposedHolds: autoScrollHolds(),
+				highlights: highlightedRanges(),
+				telemetryEvents,
+				callOrder,
+			}, {
+				selected: { holds: 1, text: 'hello world', inputVisible: false, menuVisible: false },
+				dragging: { holds: 1, text: 'hello', inputVisible: false, menuVisible: false },
+				released: { holds: 1, text: 'hello', inputVisible: false, menuVisible: false },
+				clearedHolds: 0,
+				disposedHolds: 0,
+				highlights: 0,
+				telemetryEvents: [],
+				callOrder: [],
+			});
+		});
+	}
 
 	test('does not hold auto-scroll for a selection outside the transcript', () => {
 		// Text selected in a banner or the input area says nothing about wanting

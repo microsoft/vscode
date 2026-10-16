@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { Event } from '../../../base/common/event.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import { getWorkingDirectoryScopeId } from './agentHostWorkingDirectories.js';
+import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from './agentHostWorkingDirectories.js';
 import type { IPersistedTurnRecord } from './sessionDataService.js';
 import type { Message } from './state/sessionState.js';
+import type { AgentProvider } from './agent.js';
 
 export const IAgentHostSessionStateStore = createDecorator<IAgentHostSessionStateStore>('agentHostSessionStateStore');
 
@@ -80,6 +82,99 @@ export function readSessionBaseBranch(snapshot: ISessionStateSnapshot, chat: str
 
 export type SessionStateChatField = keyof Omit<ISessionStateChatEntry, 'isDefault'>;
 
+/** The folders around a chat move, all as working directory URIs (index 0 = primary). */
+export interface ISessionStateChatMoveFolders {
+	/** The source session's folders. */
+	readonly source: readonly string[];
+	/** The target session's folders, after any folder the move adds to it. */
+	readonly target: readonly string[];
+	/** The folders the moved chat works in. */
+	readonly chat: readonly string[];
+	/** Whether the moved chat had its own folders in the source (else it inherited the source's). */
+	readonly chatHadOwnFolders: boolean;
+	/** The folders each chat that stays in the source works in (its default chat, which always stays for a peer move: the source's folders, unless it has its own). */
+	readonly remaining: readonly (readonly string[])[];
+}
+
+/** A chat (with its private descendants) moving to another session, as the session state store commits it. */
+export interface ISessionStateChatMove {
+	readonly source: URI;
+	readonly target: URI;
+	readonly chat: URI;
+	/** The visible chat of the target to place the moved chat after; `undefined` places it first. */
+	readonly after: URI | undefined;
+	/** The catalog revisions the move was validated against. */
+	readonly expectedSourceCatalogRevision: number;
+	readonly expectedTargetCatalogRevision: number;
+	readonly folders: ISessionStateChatMoveFolders;
+}
+
+export type SessionStateChatMoveResult =
+	| { readonly status: 'applied'; readonly moved: readonly string[]; readonly targetOrder: readonly string[] }
+	| { readonly status: 'conflict' | 'notReady' | 'notImported' | 'missingSession' | 'tombstoned' | 'olderBuildEdits' };
+
+/** Promotes a chat and its descendants into a new session (Block 4). */
+export interface ISessionStateChatPromotion {
+	readonly source: URI;
+	/** The new session; it must not exist yet. */
+	readonly target: URI;
+	readonly chat: URI;
+	readonly provider: AgentProvider;
+	readonly startTime: number;
+	/** The source's catalog revision the promotion was validated against. */
+	readonly expectedSourceCatalogRevision: number;
+	/** The new session's session-level values, keyed like {@link ISessionStateSnapshot.values}. */
+	readonly values: Readonly<Record<string, string>>;
+	/** The source's folders, the promoted chat's (the new session's) and those of the chats staying in the source. */
+	readonly folders: Omit<ISessionStateChatMoveFolders, 'target'>;
+}
+
+export type SessionStateChatPromotionResult =
+	| { readonly status: 'applied'; readonly moved: readonly string[] }
+	| { readonly status: 'conflict' | 'notReady' | 'notImported' | 'missingSession' | 'tombstoned' | 'olderBuildEdits' };
+
+/** One per-folder state row a chat move carries: re-keyed, or copied when the source keeps using the folder. */
+export interface ISessionStateChatMoveFolder {
+	readonly kind: SessionStateFolderKind;
+	readonly sourceKey: string;
+	readonly targetKey: string;
+	readonly keepInSource: boolean;
+}
+
+/**
+ * The per-folder state a moved chat takes along (Block 4): for each of its folders, the git and GitHub rows,
+ * and the base branch of its folder scope. A row is re-keyed when no chat staying in the source uses the folder,
+ * else copied. The moved chat always has its own folders in the target, so its base branch is keyed by their scope.
+ * A row the target already has wins; the store applies that.
+ */
+export function chatMoveFolderTransfers(folders: ISessionStateChatMoveFolders): readonly ISessionStateChatMoveFolder[] {
+	const key = (directory: string) => getWorkingDirectoryKey(directory);
+	const remainingKeys = new Set(folders.remaining.flatMap(directories => directories.map(key)));
+	const sourcePrimary = folders.source[0] === undefined ? undefined : key(folders.source[0]);
+	const targetPrimary = folders.target[0] === undefined ? undefined : key(folders.target[0]);
+	const transfers: ISessionStateChatMoveFolder[] = [];
+	for (const directory of folders.chat) {
+		const folder = key(directory);
+		const keepInSource = remainingKeys.has(folder);
+		const targetGitKey = folder === targetPrimary ? '' : folder;
+		// The source's primary folder keeps its git state under the session folder key ('').
+		transfers.push({ kind: 'git', sourceKey: folder === sourcePrimary ? '' : folder, targetKey: targetGitKey, keepInSource });
+		if (folder === sourcePrimary) {
+			transfers.push({ kind: 'git', sourceKey: folder, targetKey: targetGitKey, keepInSource });
+		}
+		transfers.push({ kind: 'github', sourceKey: folder, targetKey: folder, keepInSource });
+	}
+	if (folders.chat.length > 0) {
+		const sourceScope = folders.chatHadOwnFolders ? getWorkingDirectoryScopeId(folders.chat) : '';
+		// The session folder's base branch ('') is the default chat's: it stays while any chat stays.
+		const sourceKept = sourceScope === ''
+			? folders.remaining.length > 0
+			: folders.remaining.some(directories => directories.length > 0 && getWorkingDirectoryScopeId(directories) === sourceScope);
+		transfers.push({ kind: 'baseBranch', sourceKey: sourceScope, targetKey: getWorkingDirectoryScopeId(folders.chat), keepInSource: sourceKept });
+	}
+	return transfers;
+}
+
 export interface ISessionStateChatPatch {
 	readonly chat: string;
 	readonly isDefault: boolean;
@@ -128,7 +223,7 @@ export interface ISessionStateExclusive {
 	 * Adopts old-format session values the caller is about to write to session.db
 	 * itself (keys the store does not own are ignored). Returns the revision and
 	 * the entries the raw write leaves exactly as the store would render them,
-	 * to pass to {@link noteMirrored} once the write succeeded. Does not mark the
+	 * to pass to {@link noteMirrored} once the write applied them. Does not mark the
 	 * catalog payload dirty: the caller is itself synchronizing the catalog.
 	 */
 	writeLegacyMetadata(values: Readonly<Record<string, string | null>>, flush: SessionStateMirrorFlush): Promise<{ readonly revision: number; readonly entries: readonly string[] }>;
@@ -221,10 +316,21 @@ export interface IAgentHostChatRowStore {
  * old format older builds read in session.db (the mirror) and imports edits
  * those builds make there. Nothing else reads or writes these session.db keys.
  */
+/** A change of a loaded session's state in memory (see {@link IAgentHostSessionStateStore.onDidChangeLoadedState}). */
+export interface ISessionStateChange {
+	readonly session: string;
+	/** The session values (session.db metadata keys) a write changed. */
+	readonly values: readonly string[];
+	/** Whether its chat catalog authority changed (a legacy catalog was normalized). */
+	readonly authority: boolean;
+}
+
 export interface IAgentHostSessionStateStore {
 	readonly _serviceBrand: undefined;
 	/** Per-chat drafts and persisted turns. */
 	readonly chatRows: IAgentHostChatRowStore;
+	/** Fires after a loaded session's state changed in memory, so {@link peek} reads the new state. */
+	readonly onDidChangeLoadedState: Event<ISessionStateChange>;
 	/**
 	 * Loads the session's central state: imports it from session.db once when
 	 * there is none, and on the first load in this process imports older builds'
@@ -301,6 +407,30 @@ export interface IAgentHostSessionStateStore {
 	 * turns). Its own storage is deleted by the caller.
 	 */
 	deleteChat(session: URI, chat: URI): Promise<void>;
+	/**
+	 * Moves a chat and its private descendants to another session (Block 4). Holds both sessions, then commits the
+	 * catalog move and the chats' central state (their chat rows, pinned to the chat's folders, and the per-folder
+	 * state of {@link chatMoveFolderTransfers}) in one agent-host.db transaction, and refreshes both loaded states.
+	 * Writes nothing to either session's old-format mirrors: older builds see the move through the catalog.
+	 */
+	moveChat(move: ISessionStateChatMove): Promise<SessionStateChatMoveResult>;
+
+	/**
+	 * Moves a session whose only visible chat is its default chat under another session (Block 4, VS Code-internal):
+	 * like {@link moveChat} for that chat, which becomes a peer of the target keeping the source's database as its
+	 * storage, and the source session ends in the same transaction (its registration, catalog and central state;
+	 * never its data). The source's loaded state is dropped.
+	 */
+	moveSession(move: ISessionStateChatMove): Promise<SessionStateChatMoveResult>;
+
+	/**
+	 * Promotes a chat and its private descendants into a new session (Block 4). Holds the source and the new
+	 * session, then registers the new session and commits its catalog, its imported central state (the promoted chat
+	 * as its default chat, pinned to its folders, the given session values, and the per-folder state of
+	 * {@link chatMoveFolderTransfers} into the chat's folders) and the source's change in one agent-host.db
+	 * transaction, and refreshes the source's loaded state. The new session loads on first use.
+	 */
+	promoteChat(promotion: ISessionStateChatPromotion): Promise<SessionStateChatPromotionResult>;
 	/**
 	 * Writes pending mirrors of `session`. Without a session, first waits for every operation already queued (so no
 	 * write a caller started is still in flight), then writes every pending mirror: what shutdown waits for.

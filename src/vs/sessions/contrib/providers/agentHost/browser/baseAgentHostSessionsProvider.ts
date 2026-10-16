@@ -22,6 +22,7 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { chatUriFormatOf } from '../../../../../platform/agentHost/common/agentHostChatMinting.js';
 import { newAgentHostChatUri, newAgentHostSessionUri } from '../../../../../platform/agentHost/common/agentHostSessionIdentity.js';
 import { getAgentHostChatId } from '../../../../../platform/agentHost/common/agentHostChatIdentity.js';
+import { agentModelConfigurationReportKey } from '../../../../../platform/agentHost/common/agentModelConfiguration.js';
 import { isNativeAgentHost } from '../../../../../platform/agentHost/common/meta/agentHostSessionUrisMeta.js';
 import { localize } from '../../../../../nls.js';
 import { AgentSession, AuthenticateParams, AuthenticateResult, CODEX_AGENT_PROVIDER_ID, type IAgentSessionChatMetadata, IAgentSessionMetadata, protectedResourcesRequireGitHubCopilotSignIn } from '../../../../../platform/agentHost/common/agent.js';
@@ -33,6 +34,7 @@ import type { RemoteAgentHostConnectionStatus } from '../../../../../platform/ag
 import { AgentHostTransportFailureReason } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { supportsAgentHostArtifactRemoval } from '../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { supportsAgentHostSessionImport } from '../../../../../platform/agentHost/common/meta/agentHostSessionImportMeta.js';
+import { readSessionMovable, supportsAgentHostSessionMove } from '../../../../../platform/agentHost/common/meta/agentHostSessionMoveMeta.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { readCodexAccountInfo } from '../../../../../platform/agentHost/common/codexAccount.js';
 import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/annotationsUri.js';
@@ -47,6 +49,7 @@ import { applyLegacyAutomationSessionConfig } from '../../../../../platform/agen
 import { migrateLegacyAutopilotConfig } from '../../../../../platform/agentHost/common/agentHostSchema.js';
 import { readAgentDevContainerWorktreeMetadata, withAgentDevContainerWorktreeMetadata, type IAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
 import { readAgentMessageDelegationMeta } from '../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
+import { readAgentHeadBranchPullRequest, toAgentHeadBranchPullRequestMeta } from '../../../../../platform/agentHost/common/meta/agentSessionGitHubReferences.js';
 import { readRemoteSessionOrigin, withRemoteSessionOrigin, type IRemoteSessionOrigin } from '../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { getLegacySessionInitiator, readSessionInitiator, withSessionInitiator, SESSION_INITIATOR_METADATA_KEY } from '../../../../../platform/agentHost/common/meta/agentSessionInitiatorMeta.js';
 import type { Implementation } from '../../../../../platform/agentHost/common/state/protocol/common/commands.js';
@@ -94,7 +97,8 @@ import { getWorktreeDiskUsage } from './worktreeDiskUsage.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import type { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
-import { IAutomationSessionConfiguration, IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionPermissionOption, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionPermissionOption, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
+import { AgentHostChatMoveTracker } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostChatMoveTracker.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computePullRequestRefPresentation } from '../../../github/browser/pullRequestIconStatus.js';
 import { IPullRequestIconCache } from '../../../github/browser/pullRequestIconCache.js';
@@ -275,6 +279,7 @@ interface ISerializedSessionMetadata {
 	readonly github?: ISessionGitHubState;
 	/** GitHub state of each session folder, keyed by working-directory key. */
 	readonly githubData?: Record<string, ISessionGitHubState>;
+	readonly headBranchPullRequestMeta?: Record<string, unknown>;
 	readonly workingDirectoryKeys?: Record<string, string>;
 	readonly workingDirectoryScopeIds?: Record<string, string>;
 	/**
@@ -335,6 +340,7 @@ function serializeMetadata(meta: IAgentSessionMetadata, discovery?: IAgentHostSe
 			...(chat.workingDirectories !== undefined ? { workingDirectories: chat.workingDirectories } : {}),
 		})),
 		githubData: gitHubData.size > 0 ? Object.fromEntries(gitHubData) : undefined,
+		headBranchPullRequestMeta: toAgentHeadBranchPullRequestMeta(meta),
 		workingDirectoryKeys: workingDirectoryKeys.size > 0 ? Object.fromEntries(workingDirectoryKeys) : undefined,
 		workingDirectoryScopeIds: workingDirectoryScopeIds.size > 0 ? Object.fromEntries(workingDirectoryScopeIds) : undefined,
 		workspaceless: readSessionWorkspaceless(meta._meta) || undefined,
@@ -385,6 +391,10 @@ function deserializeMetadata(raw: ISerializedSessionMetadata): IAgentSessionMeta
 		_meta = withSessionExternal(_meta, raw.external === true);
 		_meta = withSessionMultiRootMetadata(_meta, readSessionMultiRootMetadata({ [SESSION_META_MULTI_ROOT_KEY]: raw.multiRoot }));
 		_meta = withSessionGitHubData(_meta, parseSessionGitHubData(raw.githubData));
+		const headBranchPullRequestMeta = toAgentHeadBranchPullRequestMeta({ _meta: raw.headBranchPullRequestMeta });
+		if (headBranchPullRequestMeta) {
+			_meta = { ..._meta, ...headBranchPullRequestMeta };
+		}
 		for (const [workingDirectory, folderKey] of Object.entries(raw.workingDirectoryKeys ?? {})) {
 			_meta = withWorkingDirectoryKey(_meta, workingDirectory, folderKey);
 		}
@@ -499,6 +509,7 @@ function isGloballyRememberedSessionConfigKey(property: string): boolean {
 		&& property !== 'effectiveApprovalMode'
 		&& property !== 'availableApprovalModes'
 		&& property !== 'effectiveAutoTier'
+		&& property !== agentModelConfigurationReportKey
 		&& property !== SessionConfigKey.SandboxEnabled
 		&& !UNSAFE_SESSION_CONFIG_KEYS.has(property);
 }
@@ -533,6 +544,7 @@ function isGitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | undefine
 			x.createdByThisSession === y.createdByThisSession &&
 			x.recordedReferenceId === y.recordedReferenceId) &&
 		a.pullRequest?.number === b.pullRequest?.number &&
+		isEqual(a.pullRequest?.uri, b.pullRequest?.uri) &&
 		a.pullRequest?.icon?.id === b.pullRequest?.icon?.id &&
 		a.pullRequest?.state === b.pullRequest?.state &&
 		a.pullRequest?.liveState === b.pullRequest?.liveState &&
@@ -668,6 +680,14 @@ function getFolderPullRequestLinks(meta: SessionMeta | undefined): ReadonlySet<s
  * folder of the session discovered for itself.
  */
 function toGitHubInfo(meta: SessionMeta | undefined, workingDirectory: URI | undefined, folderKey: string | undefined, isSessionFolder: boolean): IGitHubInfo | undefined {
+	const headBranchPullRequest = isSessionFolder ? readAgentHeadBranchPullRequest({ _meta: meta }) : undefined;
+	if (headBranchPullRequest) {
+		const { owner, repo, number, title, url } = headBranchPullRequest;
+		const state = headBranchPullRequest.state === 'draft' ? undefined : headBranchPullRequest.state;
+		const icon = headBranchPullRequest.state ? computePullRequestIcon(headBranchPullRequest.state) : undefined;
+		const pullRequest = { owner, repo, number, title, uri: URI.parse(url), state, icon };
+		return { owner, repo, pullRequest, pullRequests: [{ ...pullRequest, createdByThisSession: false }] };
+	}
 	const state = workingDirectory && folderKey ? readCompatibleFolderGitHubState(meta, workingDirectory, folderKey) : readFolderGitHubState(meta, folderKey);
 	// The session's Git state describes the session folder.
 	const gitState = isSessionFolder ? readSessionGitState(meta) : undefined;
@@ -2186,6 +2206,20 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		}
 		this.isRead.set(isRead, tx);
 		return didChange;
+	}
+
+	/** The backend chats this session lists, each with its chat resource here; tracked by `reader`. */
+	readChatBackends(reader: IReader): ReadonlyMap<string, URI> {
+		const backends = new Map<string, URI>();
+		for (const chat of this._chatsObs.read(reader)) {
+			const backend = chat === this._defaultChat
+				? this._defaultChatBackendUri.read(reader)
+				: (chat.resource.fragment ? this._additionalChats.get(chat.resource.fragment)?.backendUri : undefined);
+			if (backend) {
+				backends.set(backend.toString(), chat.resource);
+			}
+		}
+		return backends;
 	}
 
 	getBackendChatResource(chatResource: URI): URI | undefined {
@@ -3948,6 +3982,38 @@ function sandboxStateEquals(previous: SessionState | undefined, current: Session
 	return structuralEquals(all(previous), all(current));
 }
 
+/** The cached sessions: each is followed for chat moves while it is cached. */
+class ChatMoveTrackingSessionCache extends Map<string, AgentHostSessionAdapter> {
+	constructor(private readonly _tracker: AgentHostChatMoveTracker<AgentHostSessionAdapter>) {
+		super();
+	}
+
+	override set(key: string, session: AgentHostSessionAdapter): this {
+		const previous = this.get(key);
+		if (previous && previous !== session) {
+			this._tracker.untrack(previous);
+		}
+		super.set(key, session);
+		this._tracker.track(session, reader => session.readChatBackends(reader));
+		return this;
+	}
+
+	override delete(key: string): boolean {
+		const previous = this.get(key);
+		if (previous) {
+			this._tracker.untrack(previous);
+		}
+		return super.delete(key);
+	}
+
+	override clear(): void {
+		for (const session of this.values()) {
+			this._tracker.untrack(session);
+		}
+		super.clear();
+	}
+}
+
 /** A chat-state subscription supplying a chat's own config values. */
 interface IChatConfigSubscription extends IDisposable {
 	readonly subscription: IAgentSubscription<ChatState>;
@@ -3979,6 +4045,26 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			.find(option => option.id === permissionId);
 		const mode = config.values[SessionConfigKey.Mode] ?? config.schema.properties[SessionConfigKey.Mode]?.default;
 		return option ? { ...option, comparisonModeId: typeof mode === 'string' ? mode : undefined } : undefined;
+	}
+
+	getComparisonPermissionOptionForSession(sessionId: string, sessionTypeId: string): ISessionPermissionOption | undefined {
+		const sourceSession = this._getNewSession(sessionId);
+		const sourceSessionType = sourceSession?.agentProvider;
+		const sourceOption = this.getPermissionOptionForSession(sessionId);
+		if (!sourceSessionType || !sourceOption) {
+			return undefined;
+		}
+		if (sourceSessionType === sessionTypeId) {
+			return sourceOption;
+		}
+		const options = getAgentHostSessionPermissionOptions(
+			sessionTypeId,
+			isAutoApprovePolicyRestricted(this._baseConfigurationService, sourceSession.getConfig()?.schema),
+			true,
+		);
+		return sourceOption.isAllowAll
+			? options.find(option => option.isAllowAll)
+			: options.find(option => option.isDefault);
 	}
 
 	get order(): number { return 0; }
@@ -4026,7 +4112,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private readonly _backendSessionsChanged = observableSignal(this);
 
 	/** Cache of adapted sessions, keyed by exact backend resource. */
-	protected readonly _sessionCache = new Map<string, AgentHostSessionAdapter>();
+	private readonly _chatMoveTracker = this._register(new AgentHostChatMoveTracker<AgentHostSessionAdapter>());
+	readonly onDidMoveChat: Event<IChatMovedEvent> = this._chatMoveTracker.onDidMoveChat;
+	protected readonly _sessionCache: Map<string, AgentHostSessionAdapter> = new ChatMoveTrackingSessionCache(this._chatMoveTracker);
 	private readonly _sessionKeysByResource = new ResourceMap<string>();
 
 	protected _refreshSessionWorkspaces(): void {
@@ -5967,11 +6055,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (equals(nextValues, runningConfig.values)) {
 			return;
 		}
-		const replacement = filterSessionConfigValues(runningConfig.schema, Object.fromEntries(Object.entries(nextValues).filter(([key]) => !agentMergeKeys.includes(key))));
+		const replacement = filterSessionConfigValues(runningConfig.schema, Object.fromEntries(Object.entries(nextValues).filter(([key]) => !agentMergeKeys.includes(key) && key !== agentModelConfigurationReportKey)));
 		const workspace = getSessionWorkspaceProperties(runningConfig.schema);
 		for (const [key, schema] of Object.entries(runningConfig.schema.properties)) {
 			if (schema.readOnly && Object.hasOwn(runningConfig.values, key)
-				&& !agentMergeKeys.includes(key) && !['effectiveApprovalMode', 'availableApprovalModes', 'effectiveAutoTier'].includes(key)
+				&& !agentMergeKeys.includes(key) && !['effectiveApprovalMode', 'availableApprovalModes', 'effectiveAutoTier', agentModelConfigurationReportKey].includes(key)
 				&& !(key === 'approvalMode' && Object.hasOwn(runningConfig.schema.properties, SessionConfigKey.AutoApprove))
 				&& !(workspace.isolationKey === SessionConfigKey.Isolation && (key === 'target' || key === 'baseBranch'))) {
 				replacement[key] = runningConfig.values[key];
@@ -6717,6 +6805,29 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
+	canMoveSessionUnder(sessionId: string): boolean {
+		const rawId = this._sessionKeyFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		const connection = this.connection;
+		return !!cached && !!connection && supportsAgentHostSessionMove(connection.initializeResult.get()) && readSessionMovable(cached.sessionMeta);
+	}
+
+	async moveSessionUnder(sessionId: string, destinationSessionId: string, after: URI | undefined): Promise<void> {
+		this._assertSessionAvailable(sessionId);
+		const source = this._sessionCache.get(this._sessionKeyFromChatId(sessionId) ?? '');
+		const destination = this._sessionCache.get(this._sessionKeyFromChatId(destinationSessionId) ?? '');
+		const connection = this.connection;
+		if (!source || !destination || !connection || !this.canMoveSessionUnder(sessionId)) {
+			throw new Error(localize('moveSessionUnavailable', "This session can't be moved."));
+		}
+		const backendAfter = after === undefined ? undefined : destination.getBackendChatResource(after);
+		if (after !== undefined && !backendAfter) {
+			throw new Error(localize('moveSessionAnchorNotFound', "The chat to place the session after could not be found."));
+		}
+		// The chat's views follow it to the destination once both catalogs reflect the move (onDidMoveChat).
+		await connection.moveSession(source.backendUri, destination.backendUri, backendAfter);
+	}
+
 	async listCanvases(sessionId: string, chatResource: URI): Promise<readonly ISessionCanvasDefinition[]> {
 		const rawId = this._sessionKeyFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
@@ -6729,21 +6840,36 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	async openCanvas(sessionId: string, chatResource: URI, canvas: ISessionCanvasDefinition, instanceId: string): Promise<void> {
+		const target = this._getCanvasChatTarget(sessionId, chatResource);
+		const connection = this.connection;
+		if (!connection?.openSessionCanvas) {
+			throw new Error(localize('openCanvasUnavailable', "Opening canvases is unavailable for this session."));
+		}
+		await connection.openSessionCanvas(target.session, {
+			canvasId: canvas.canvasId,
+			extensionId: canvas.extensionId,
+			instanceId,
+		}, target.chat);
+	}
+
+	async closeCanvas(sessionId: string, chatResource: URI, canvas: ISessionCanvas): Promise<void> {
+		const target = this._getCanvasChatTarget(sessionId, chatResource);
+		const connection = this.connection;
+		if (!connection?.closeSessionCanvas) {
+			throw new Error(localize('closeCanvasUnavailable', "Closing canvases is unavailable for this session."));
+		}
+		await connection.closeSessionCanvas(target.session, { resource: canvas.resource }, target.chat);
+	}
+
+	/** Resolves the host-supplied backend session and chat that a canvas operation addresses. */
+	private _getCanvasChatTarget(sessionId: string, chatResource: URI): { readonly session: URI; readonly chat: URI } {
 		const rawId = this._sessionKeyFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
-		const connection = this.connection;
 		const backendChat = this.getBackendChatResource(chatResource);
 		if (!cached || !backendChat) {
 			throw new Error(localize('canvasChatNotFound', "The chat could not be found."));
 		}
-		if (!connection?.openSessionCanvas) {
-			throw new Error(localize('openCanvasUnavailable', "Opening canvases is unavailable for this session."));
-		}
-		await connection.openSessionCanvas(cached.backendUri, {
-			canvasId: canvas.canvasId,
-			extensionId: canvas.extensionId,
-			instanceId,
-		}, backendChat);
+		return { session: cached.backendUri, chat: backendChat };
 	}
 
 	private _toSessionCanvasDefinition(canvas: IAgentCanvasInfo): ISessionCanvasDefinition {
@@ -7655,7 +7781,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._runningModelConfigurations.set(committedAdapter.sessionId, new AutomationModelConfiguration(this._languageModelsService, {
 				modelId,
 				modelConfiguration,
-			}));
+			}, true));
 		}
 		committedAdapter.setChatModelId(committedAdapter.resource, modelId, source);
 	}
@@ -8074,7 +8200,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 						this._runningModelConfigurations.set(cached.sessionId, new AutomationModelConfiguration(this._languageModelsService, {
 							modelId,
 							modelConfiguration: model.config,
-						}));
+						}, true));
 					}
 					cached.hydrateSelectedModel(model);
 				}

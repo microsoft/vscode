@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
+import { cancelOnDispose } from '../../../../../base/common/cancellation.js';
+import { structuralEquals } from '../../../../../base/common/equals.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Disposable, IDisposable, ReferenceCollection, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -32,7 +35,7 @@ export class GitHubPullRequestCIModelReferenceCollection extends ReferenceCollec
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
-		this._fetcher = new GitHubPRCIFetcher(apiClient);
+		this._fetcher = new GitHubPRCIFetcher(apiClient, this._logService);
 	}
 
 	protected override createReferencedObject(key: string, owner: string, repo: string, prNumber: number, headSha: string): GitHubPullRequestCIModel {
@@ -46,13 +49,10 @@ export class GitHubPullRequestCIModelReferenceCollection extends ReferenceCollec
 	}
 }
 
-/**
- * Reactive model for CI check status on a pull request head ref.
- * Wraps fetcher data in observables and supports periodic polling.
- */
+/** CI status for a pull request head with coalesced refresh and periodic polling. */
 export class GitHubPullRequestCIModel extends Disposable {
 
-	private _checksEtag: string | undefined = undefined;
+	private readonly _token = cancelOnDispose(this._store);
 	private readonly _checks = observableValue<readonly IGitHubCICheck[]>(this, []);
 	readonly checks: IObservable<readonly IGitHubCICheck[]> = this._checks;
 
@@ -67,7 +67,7 @@ export class GitHubPullRequestCIModel extends Disposable {
 	 */
 	readonly fixRequested: IObservable<boolean> = this._fixRequested;
 
-	private _refreshPromise: Promise<void> | undefined = undefined;
+	private _refreshPromise: Promise<void> | undefined;
 
 	private _pollingClientCount = 0;
 	private readonly _pollScheduler: RunOnceScheduler;
@@ -95,6 +95,15 @@ export class GitHubPullRequestCIModel extends Disposable {
 		}));
 
 		this._pollScheduler = this._register(new RunOnceScheduler(() => this._poll(), DEFAULT_POLL_INTERVAL_MS));
+		this._register(_fetcher.client.onDidChange(() => {
+			const shouldRefresh = this._refreshPromise !== undefined || this._checks.get().length > 0;
+			this._refreshPromise = undefined;
+			this._checks.set([], undefined);
+			this._overallStatus.set(GitHubCIOverallStatus.Neutral, undefined);
+			if (shouldRefresh) {
+				void this.refresh();
+			}
+		}));
 	}
 
 	/**
@@ -128,9 +137,7 @@ export class GitHubPullRequestCIModel extends Disposable {
 		return new Map();
 	}
 
-	/**
-	 * Refresh all CI check data.
-	 */
+	/** Refreshes CI checks. */
 	refresh(force = false): Promise<void> {
 		if (force && this._refreshPromise) {
 			return this._refreshPromise.then(() => this.refresh(true));
@@ -140,28 +147,31 @@ export class GitHubPullRequestCIModel extends Disposable {
 			return this._refresh();
 		}
 
-		if (!this._refreshPromise) {
-			this._refreshPromise = this._refresh()
-				.finally(() => {
-					this._refreshPromise = undefined;
-				});
-		}
-
-		return this._refreshPromise;
+		const pending = this._refreshPromise ??= this._refresh().finally(() => {
+			if (this._refreshPromise === pending) {
+				this._refreshPromise = undefined;
+			}
+		});
+		return pending;
 	}
 
 	private async _refresh(): Promise<void> {
-		this._logService.trace(`${TRACE_PREFIX} [CIModel] Refreshing CI for ${this.owner}/${this.repo}#${this.prNumber}@${this.headSha} (checksEtag ${this._checksEtag ?? 'none'})`);
+		const generation = this._fetcher.client.generation;
+		this._logService.trace(`${TRACE_PREFIX} [CIModel] Refreshing CI for ${this.owner}/${this.repo}#${this.prNumber}@${this.headSha}`);
 		try {
-			const response = await this._fetcher.getCheckRuns(this.owner, this.repo, this.headSha, this._checksEtag);
-			if (response.statusCode === 200 && response.data) {
-				this._checksEtag = response.etag;
-				this._checks.set(response.data, undefined);
-				this._overallStatus.set(computeOverallCIStatus(response.data), undefined);
+			const checks = await this._fetcher.getCheckRuns(this.owner, this.repo, this.headSha, this._token);
+			if (this._store.isDisposed || generation !== this._fetcher.client.generation) {
+				return;
 			}
-			this._logService.trace(`${TRACE_PREFIX} [CIModel] Refreshed CI for ${this.owner}/${this.repo}#${this.prNumber}@${this.headSha}: status ${response.statusCode}, ${this._checks.get().length} check(s), overallStatus ${this._overallStatus.get()}`);
+			if (!structuralEquals(checks, this._checks.get())) {
+				this._checks.set(checks, undefined);
+				this._overallStatus.set(computeOverallCIStatus(checks), undefined);
+			}
+			this._logService.trace(`${TRACE_PREFIX} [CIModel] Refreshed CI for ${this.owner}/${this.repo}#${this.prNumber}@${this.headSha}: ${checks.length} check(s), overallStatus ${this._overallStatus.get()}`);
 		} catch (err) {
-			this._logService.error(`${TRACE_PREFIX} ${LOG_PREFIX} Failed to refresh CI checks for ${this.owner}/${this.repo}#${this.prNumber}@${this.headSha}:`, err);
+			if (!isCancellationError(err)) {
+				this._logService.error(`${TRACE_PREFIX} ${LOG_PREFIX} Failed to refresh CI checks for ${this.owner}/${this.repo}#${this.prNumber}@${this.headSha}:`, err);
+			}
 		}
 	}
 
@@ -169,7 +179,7 @@ export class GitHubPullRequestCIModel extends Disposable {
 	 * Get annotations (structured logs) for a specific check run.
 	 */
 	async getCheckRunAnnotations(checkRunId: number): Promise<string> {
-		return this._fetcher.getCheckRunAnnotations(this.owner, this.repo, checkRunId);
+		return this._fetcher.getCheckRunAnnotations(this.owner, this.repo, checkRunId, this._token);
 	}
 
 	/**
@@ -182,7 +192,7 @@ export class GitHubPullRequestCIModel extends Disposable {
 			this._logService.warn(`${LOG_PREFIX} Cannot rerun check "${check.name}": no workflow run ID found in detailsUrl`);
 			return;
 		}
-		await this._fetcher.rerunFailedJobs(this.owner, this.repo, runId);
+		await this._fetcher.rerunFailedJobs(this.owner, this.repo, runId, this._token);
 		await this.refresh(true);
 	}
 
@@ -215,9 +225,6 @@ export class GitHubPullRequestCIModel extends Disposable {
 		}
 	}
 
-	override dispose(): void {
-		super.dispose();
-	}
 }
 
 /**
