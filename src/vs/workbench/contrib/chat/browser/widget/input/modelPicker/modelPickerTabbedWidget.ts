@@ -594,7 +594,7 @@ export class TabbedModelPicker extends Disposable {
 	/**
 	 * The HydraFusion routing models this build can run, HydraFusion before HydraFusion Max.
 	 * The host only offers HydraFusion Max with HydraFusion v2, and Fusion only offers
-	 * HydraFusion as its Balance.
+	 * HydraFusion as its High.
 	 */
 	private _hydraFusionModels(context: ITabbedModelPickerContext): ILanguageModelChatMetadataAndIdentifier[] {
 		const fusion = this._autoModel(context)?.metadata.autoModelFusion;
@@ -1274,7 +1274,7 @@ export class TabbedModelPicker extends Disposable {
 					replacesTier: tier.replacesTier,
 					description: hydraFusion.metadata.id === COPILOT_HYDRA_FUSION_MAX_MODEL_ID
 						? localize('chat.modelPicker.fusionMaxDescription', "Max uses multiple models on every task for the most thorough results.")
-						: localize('chat.modelPicker.fusionBalanceDescription', "Balance picks a workflow per task, using one or more models."),
+						: localize('chat.modelPicker.fusionHighDescription', "High picks a workflow per task, using one or more models."),
 					learnMoreUrl: HYDRA_FUSION_LEARN_MORE_URL,
 					selected: context.selectedModelId === hydraFusion.identifier,
 				};

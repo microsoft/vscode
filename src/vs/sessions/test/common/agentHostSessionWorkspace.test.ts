@@ -10,7 +10,7 @@ import { URI } from '../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import type { ISessionGitState } from '../../../platform/agentHost/common/state/sessionState.js';
 import { buildAgentHostChatWorkspace, buildAgentHostSessionWorkspace, type IFolderGitHubInfoResolver } from '../../common/agentHostSessionWorkspace.js';
-import { IGitHubInfo, ISessionWorkspace } from '../../services/sessions/common/session.js';
+import { getSessionWorkspaceKind, IGitHubInfo, ISessionWorkspace, SessionWorkspaceKind } from '../../services/sessions/common/session.js';
 
 suite('Agent Host Session Workspace', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -166,5 +166,23 @@ suite('Agent Host Session Workspace', () => {
 				uncommittedChanges: 1,
 			},
 		}]);
+	});
+	test('a session whose project is the repository of its primary worktree folder presents as a worktree session, with the branch and base branch of its git state (a promoted worktree chat, Block 5)', () => {
+		const worktree = URI.file('/repo.worktrees/promoted');
+		const options = { providerLabel: undefined, fallbackIcon: Codicon.folder, requiresWorkspaceTrust: true, description: undefined, branchProtectionPatterns: [], group: undefined };
+		const gitState: ISessionGitState = { branchName: 'agents/promoted', baseBranchName: 'main' };
+		const asWorktree = buildAgentHostSessionWorkspace({ uri: primary, displayName: 'repo' }, [worktree], options, constObservable(undefined), gitState);
+		const asFolder = buildAgentHostSessionWorkspace(undefined, [worktree], options, constObservable(undefined), gitState);
+		const summarize = (workspace: ISessionWorkspace | undefined) => ({
+			kind: getSessionWorkspaceKind(workspace),
+			label: workspace?.label,
+			workTree: workspace?.folders[0].gitRepository?.workTreeUri?.toString(),
+			branch: workspace?.folders[0].gitRepository?.branchName,
+			baseBranch: workspace?.folders[0].gitRepository?.baseBranchName,
+		});
+		assert.deepStrictEqual({ asWorktree: summarize(asWorktree), asFolder: summarize(asFolder) }, {
+			asWorktree: { kind: SessionWorkspaceKind.Worktree, label: 'repo', workTree: worktree.toString(), branch: 'agents/promoted', baseBranch: 'main' },
+			asFolder: { kind: SessionWorkspaceKind.Folder, label: 'promoted', workTree: undefined, branch: 'agents/promoted', baseBranch: 'main' },
+		});
 	});
 });
