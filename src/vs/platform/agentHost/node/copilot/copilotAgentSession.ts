@@ -1058,7 +1058,6 @@ export class CopilotAgentSession extends Disposable {
 	/** @deprecated Compatibility alias for SDK callbacks; this is the exact persistence resource. */
 	get sessionUri(): URI { return this.resourceUri; }
 	private readonly _chatChannelUri: URI;
-	private readonly _subagentChatUriFormat: ChatUriFormat;
 	/** Fixed persistence scope for this chat; never re-derived from the mutable routing channel. Config reads/writes go through {@link _configTarget} instead — peer chats share that scope but have distinct storage. */
 	private readonly _storageUri: URI;
 
@@ -1793,7 +1792,6 @@ export class CopilotAgentSession extends Disposable {
 		this._onConnectorRefreshRetryable = options.onConnectorRefreshRetryable ?? (() => { });
 		this.resourceUri = options.resource ?? this.launchOwner;
 		this._chatChannelUri = options.chatChannelUri;
-		this._subagentChatUriFormat = options.subagentChatUriFormat;
 		this._storageUri = this.resourceUri;
 		const sandboxPolicyDisplay = this._instantiationService.createInstance(CopilotSandboxPolicyDisplay, this.sessionId, this._storageUri);
 		this._slashCommandProvider = new CopilotSlashCommandProvider(
@@ -2684,7 +2682,7 @@ export class CopilotAgentSession extends Disposable {
 
 	/** The id of the subagent chat spawned by `toolCallId` of this chat's conversation. */
 	private _subagentChatUri(toolCallId: string): string {
-		return subagentChatUri(this._subagentChatUriFormat, this._ownerSessionUri.toString(), this._chatChannelUri.toString(), toolCallId);
+		return subagentChatUri(this._owner.getSubagentChatUriFormat(), this._ownerSessionUri.toString(), this._chatChannelUri.toString(), toolCallId);
 	}
 
 	private _directUsageFor(parentToolCallId: string | undefined, create: boolean): DirectUsageAccumulator | undefined {

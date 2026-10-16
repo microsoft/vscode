@@ -65,6 +65,7 @@ import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type AuthenticateParams, type IAgentChatAdoptionResult, type IAgentChatSessionSettings, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentSpawnChatEvent, fixedChatOwnerRef, type IAgentChatOwnerRef } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
+import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, buildSubagentSessionUri, CustomizationLoadStatus, MessageKind, readSessionEhcliAdoptable, readSessionWorkspaceless, ResponsePartKind, ROOT_STATE_URI, ToolResultContentType, TurnState, customizationId, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, type ClientPluginCustomization, type Customization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
@@ -4298,17 +4299,17 @@ suite('CopilotAgent', () => {
 				const first = AgentSession.uri('copilotcli', 'spawn-first');
 				const second = AgentSession.uri('copilotcli', 'spawn-second');
 				const parentChat = URI.parse(buildDefaultChatUri(first.toString()));
-				const owner = disposables.add(new TestChatOwnerRef(first));
+				const owner = disposables.add(new TestChatOwnerRef(first, 'shaped'));
 				agent['_rememberChatScope'](parentChat, owner, first, 'shaped');
 				const start = (toolCallId: string) => fireSignal(agent, { kind: 'subagent_started', chat: parentChat, toolCallId, agentName: 'researcher', agentDisplayName: 'Researcher', agentDescription: 'Looks things up' });
 
 				start('before-change');
-				owner.set(second);
+				owner.set(second, 'opaque');
 				start('after-change');
 
 				assert.deepStrictEqual(spawned.map(e => ({ session: e.session.toString(), chat: e.chat.toString() })), [
 					{ session: first.toString(), chat: buildSubagentChatUri(first, 'before-change') },
-					{ session: second.toString(), chat: buildSubagentChatUri(second, 'after-change') },
+					{ session: second.toString(), chat: subagentChatUri('opaque', second.toString(), parentChat.toString(), 'after-change') },
 				]);
 			} finally {
 				await disposeAgent(agent);
@@ -8383,7 +8384,12 @@ suite('CopilotAgent', () => {
 						const context = exactChatContext(session, chats[0], resources[0]);
 						await agent.chats.getMessages(chats[0], context);
 						const mainMark = fixture.discoveryMark();
+						const customizationsPublished = Event.toPromise(Event.filter(agent.onDidChatProgress, signal =>
+							signal.kind === 'action' && isEqual(signal.resource, session) && signal.action.type === ActionType.SessionCustomizationsChanged
+						), disposables.add(new DisposableStore()));
 						await agent.setChatWorkingDirectory(chats[0], context, next);
+						// Wait for automatic publication before a restart can cancel the move's discovery.
+						await customizationsPublished;
 						const resumeStart = fixture.resumed.length;
 						if (resume === 'cold restart' || resume === 'peer-first cold restart') {
 							agent = await fixture.restore();

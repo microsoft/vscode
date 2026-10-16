@@ -15,7 +15,7 @@ import { buildBranchChangesetUri, buildDefaultChangesetCatalog, buildSessionChan
 import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, ChangesetOperationScope, ChangesetOperationStatus, SessionStatus, withSessionGitState, type ChangesetOperation, type ISessionFileDiff, type ISessionGitHubState, type ISessionGitState } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, ChangesetOperationScope, ChatOriginKind, ChangesetOperationStatus, SessionStatus, withSessionGitState, type ChangesetOperation, type ISessionFileDiff, type ISessionGitHubState, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentConfigurationService, getEffectiveWorkingDirectories, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostChangesetCoordinator } from '../../node/agentHostChangesetCoordinator.js';
 import { resolveChangesetSubscriptions } from '../../node/agentHostChangesetSummary.js';
@@ -550,6 +550,28 @@ suite('ChangesetSessionCoordinator', () => {
 		}, {
 			operationRefreshes: [session, buildDefaultChatUri(session), peer],
 			chatSummaryRefreshes: [buildDefaultChatUri(session), peer],
+		});
+	});
+
+	test('a session working-directory change refreshes Git state of inheriting chats but not of subagents', () => {
+		const session = AgentSession.uri('mock', 'subagent-git').toString();
+		const defaultChat = buildDefaultChatUri(session);
+		const subagent = buildChatUri(session, 'subagent');
+		const environment = createEnvironment();
+		createSession(environment.stateManager, session, 'file:///repoA');
+		environment.stateManager.addChat(session, subagent, defaultChat, { origin: { kind: ChatOriginKind.Tool, chat: defaultChat, toolCallId: 'tool' } });
+		const gitBaseline = environment.gitStateService.refreshed.length;
+		const summaryBaseline = environment.changesets.chatSummaryRefreshes.length;
+
+		environment.stateManager.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectorySet, directory: 'file:///repoB' });
+
+		assert.deepStrictEqual({
+			gitRefreshes: environment.gitStateService.refreshed.slice(gitBaseline).filter(key => key !== session),
+			chatSummaryRefreshes: [...environment.changesets.chatSummaryRefreshes.slice(summaryBaseline)].sort(),
+		}, {
+			gitRefreshes: [defaultChat],
+			// A subagent's changes still follow the folders it works in.
+			chatSummaryRefreshes: [defaultChat, subagent].sort(),
 		});
 	});
 
