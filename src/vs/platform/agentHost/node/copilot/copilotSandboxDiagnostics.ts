@@ -9,7 +9,7 @@ import { raceTimeout } from '../../../../base/common/async.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../log/common/log.js';
-import { agentSandboxDiagnosticsMetaKey, readAgentSandboxDiagnostics } from '../../common/meta/agentSandboxDiagnostics.js';
+import { agentSandboxDiagnosticsMetaKey, agentSandboxLocalNetworkRequiredMetaKey, readAgentSandboxDiagnostics, readAgentSandboxLocalNetworkRequired } from '../../common/meta/agentSandboxDiagnostics.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
 import type { SandboxConfig } from './sandboxConfigForSdk.js';
 
@@ -23,6 +23,7 @@ export class CopilotSandboxDiagnostics extends Disposable {
 	constructor(
 		private readonly _session: string,
 		private readonly _getHostSupport: () => Promise<SandboxHostSupport>,
+		private readonly _platform: NodeJS.Platform,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@ILogService private readonly _logService: ILogService,
 	) {
@@ -32,6 +33,7 @@ export class CopilotSandboxDiagnostics extends Disposable {
 	async update(config: SandboxConfig): Promise<void> {
 		const generation = ++this._generation;
 		let reasons: string[] = [];
+		let localNetworkRequired = false;
 		if (config.enabled) {
 			try {
 				const support = await raceTimeout(this._getHostSupport(), SANDBOX_DIAGNOSTICS_TIMEOUT_MS);
@@ -57,6 +59,9 @@ export class CopilotSandboxDiagnostics extends Disposable {
 					const capability = missingCapabilities[0];
 					if (capability) {
 						reasons = [getMissingCapabilityMessage(capability.name)];
+					}
+					if (support.capabilities.every(capability => capability.supported)) {
+						localNetworkRequired = !this._isLocalNetworkAccessAllowed(config);
 					}
 				}
 
@@ -85,7 +90,7 @@ export class CopilotSandboxDiagnostics extends Disposable {
 			return;
 		}
 		const summary = this._stateManager.getSessionSummary(this._session);
-		if (!summary || equals(readAgentSandboxDiagnostics(summary) ?? [], reasons)) {
+		if (!summary || equals(readAgentSandboxDiagnostics(summary) ?? [], reasons) && readAgentSandboxLocalNetworkRequired(summary) === localNetworkRequired) {
 			return;
 		}
 		const meta = { ...summary._meta };
@@ -94,6 +99,15 @@ export class CopilotSandboxDiagnostics extends Disposable {
 		} else {
 			delete meta[agentSandboxDiagnosticsMetaKey];
 		}
+		if (localNetworkRequired) {
+			meta[agentSandboxLocalNetworkRequiredMetaKey] = true;
+		} else {
+			delete meta[agentSandboxLocalNetworkRequiredMetaKey];
+		}
 		this._stateManager.setSessionMeta(this._session, meta);
+	}
+
+	private _isLocalNetworkAccessAllowed(config: SandboxConfig): boolean {
+		return this._platform !== 'win32' || config.userPolicy?.network?.allowLocalNetwork === true;
 	}
 }
