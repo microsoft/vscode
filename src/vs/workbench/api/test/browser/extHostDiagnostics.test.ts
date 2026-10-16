@@ -385,6 +385,23 @@ suite('ExtHostDiagnostics', () => {
 		await p;
 	});
 
+	test('diagnostic collection ignores invalid uri on delete', function () {
+		let changeCount = 0;
+		let eventCount = 0;
+		const emitter = new Emitter<readonly URI[]>();
+		store.add(emitter.event(() => eventCount += 1));
+		const collection = new DiagnosticCollection('ddd', 'test', 100, 100, versionProvider, extUri, new class extends DiagnosticsShape {
+			override $changeMany(): void {
+				changeCount += 1;
+			}
+		}, emitter);
+		const invalidUri = { scheme: 'file', authority: '', path: '/broken', query: '', fragment: '' } as unknown as vscode.Uri;
+
+		collection.delete(invalidUri);
+
+		assert.deepStrictEqual({ changeCount, eventCount }, { changeCount: 0, eventCount: 0 });
+	});
+
 	test('diagnostics with related information', function (done) {
 
 		const collection = new DiagnosticCollection('ddd', 'test', 100, 100, versionProvider, extUri, new class extends DiagnosticsShape {

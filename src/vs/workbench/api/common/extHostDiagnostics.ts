@@ -172,6 +172,9 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 
 	delete(uri: vscode.Uri): void {
 		this._checkDisposed();
+		if (!URI.isUri(uri)) {
+			return;
+		}
 		this.#onDidChangeDiagnostics.fire([uri]);
 		this.#data.delete(uri);
 		this.#proxy?.$changeMany(this._owner, [[uri, undefined]]);
