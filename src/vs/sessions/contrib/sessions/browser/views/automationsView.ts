@@ -1213,7 +1213,7 @@ class AutomationCardsSection extends Disposable {
 
 	private focusVisibleState(automations: readonly IAutomationDescriptor[], catalogueState: AutomationCatalogueState): void {
 		if (automations.length > 0) {
-			const card = [...this.persistentCards.values()].find(card => card.element.parentElement === this.container);
+			const card = automations.map(automation => this.persistentCards.get(automation.id)).find(card => card?.element.parentElement === this.container);
 			if (card) {
 				this.focusCard(card);
 			} else {

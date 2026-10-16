@@ -843,6 +843,16 @@ suite('AutomationsCardsWidget', () => {
 		});
 	}
 
+	test('removing the disabled group moves focus to the first displayed card', () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const { widget, automationService } = setup('archive', NullHoverService, undefined, storage);
+		storage.store(HIDE_DISABLED_AUTOMATIONS_STORAGE_KEY, true, StorageScope.PROFILE, StorageTarget.MACHINE);
+		automationService.setAutomations([automation({ id: 'a', name: 'A' }), automation({ id: 'b', name: 'B', enabled: false })]);
+		widget.element.querySelector<HTMLElement>('summary')!.focus();
+		automationService.setAutomations([automation({ id: 'b', name: 'B' }), automation({ id: 'a', name: 'A' })]);
+		assert.strictEqual(document.activeElement, widget.element.querySelector('.automations-card-main'));
+	});
+
 	test('editing a card into a collapsed group repairs failed dialog focus restoration', async () => {
 		const storage = disposables.add(new InMemoryStorageService());
 		const { widget, automationService, automationDialogService } = setup('archive', NullHoverService, undefined, storage);
