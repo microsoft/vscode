@@ -1052,6 +1052,7 @@
 		"--chat-chain-rail-top",
 		"--chat-current-response-min-height",
 		"--chat-persistent-hook-width",
+		"--chat-persistent-icon-left",
 		"--chat-persistent-icon-top",
 		"--chat-persistent-item-gap",
 		"--chat-persistent-nested-gap",

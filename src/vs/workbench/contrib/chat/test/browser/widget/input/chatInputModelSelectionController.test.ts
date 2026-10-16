@@ -174,6 +174,32 @@ suite('ChatInputModelSelectionController', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('managed model defaults seed new chats ahead of saved preferences and retain existing available models', () => {
+		const preferred = model('test/preferred');
+		const managed = model('test/managed');
+		managed.metadata = { ...managed.metadata, managedModelDefaults: { model: true, keys: [] } };
+		const state: IRuntimeState = { models: [preferred, managed], sessionType: 'test', configuredModel: preferred.metadata.id };
+		const changes = disposables.add(new Emitter<string>());
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, changes, [])));
+		controller.initialize(preferred.identifier);
+		const initial = controller.currentModel.get()?.identifier;
+		controller.applySelection(preferred, () => { }, true);
+		changes.fire('test');
+		const edited = controller.currentModel.get()?.identifier;
+		state.isEmpty = false;
+		controller.applySelection(managed, () => { }, true);
+		state.conversationKey = 'existing';
+		controller.beginConversationSwitch();
+		controller.syncFromConversationState(preferred, undefined, state.sessionType, 'existing', false, ModelSelectionReason.RestoredChoice);
+		changes.fire('test');
+		const restored = controller.currentModel.get()?.identifier;
+		state.models = [managed];
+		controller.selectDefault();
+		assert.deepStrictEqual({ initial, edited, restored, unavailableFallback: controller.currentModel.get()?.identifier }, {
+			initial: managed.identifier, edited: preferred.identifier, restored: preferred.identifier, unavailableFallback: managed.identifier,
+		});
+	});
+
 	suite('model selection conformance', () => {
 		for (const scenario of modelSelectionConformanceScenarios) {
 			test(scenario.name, () => {

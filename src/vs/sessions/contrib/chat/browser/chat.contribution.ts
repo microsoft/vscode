@@ -463,25 +463,16 @@ class ChangeChatBackgroundLayoutAction extends Action2 {
 registerAction2(ChangeChatBackgroundLayoutAction);
 registerAction2(ToggleChatBackgroundTintAction);
 
-const toggleSessionToolbarCommand = {
-	id: TOGGLE_SESSION_TOOLBAR_COMMAND_ID,
-	title: localize('sessionToolbar', "Session Toolbar"),
-	toggled: ContextKeyExpr.equals(`config.${SESSION_TOOLBAR_SETTING}`, true),
-};
-const toggleSessionToolbarWhen = ContextKeyExpr.and(IsSessionsWindowContext, DesktopLayoutContext, IsPhoneLayoutContext.negate());
-// The transcript's background menu, for chats in a session.
+// The transcript's background menu. The toolbar only shows beside existing chats, so the new-session view's menu does not offer it.
 MenuRegistry.appendMenuItem(MenuId.ChatContext, {
-	command: toggleSessionToolbarCommand,
+	command: {
+		id: TOGGLE_SESSION_TOOLBAR_COMMAND_ID,
+		title: localize('sessionToolbar', "Session Toolbar"),
+		toggled: ContextKeyExpr.equals(`config.${SESSION_TOOLBAR_SETTING}`, true),
+	},
 	group: 'zz_view',
 	order: 1,
-	when: ContextKeyExpr.and(toggleSessionToolbarWhen, ChatContextKeys.contextMenuIsBackground),
-});
-// The new-session view's background menu, which only opens on its background.
-MenuRegistry.appendMenuItem(Menus.SessionChatBackgroundContext, {
-	command: toggleSessionToolbarCommand,
-	group: 'zz_view',
-	order: 1,
-	when: toggleSessionToolbarWhen,
+	when: ContextKeyExpr.and(IsSessionsWindowContext, DesktopLayoutContext, IsPhoneLayoutContext.negate(), ChatContextKeys.contextMenuIsBackground),
 });
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
