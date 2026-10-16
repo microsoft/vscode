@@ -17,7 +17,7 @@ import { ServiceCollection } from '../../../../../../platform/instantiation/comm
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
-import { renderChangesSummaryFileList } from '../chatContentParts/chatChangesSummaryPart.js';
+import { getChatFileChangeLineCounts, renderChangesSummaryFileList } from '../chatContentParts/chatChangesSummaryPart.js';
 
 export class ChatSessionWorkingSet extends Disposable {
 	readonly domNode = dom.$('.chat-editing-session-container.chat-session-working-set');
@@ -67,7 +67,7 @@ export class ChatSessionWorkingSet extends Disposable {
 			const added = changes.reduce((total, diff) => total + diff.added, 0);
 			const removed = changes.reduce((total, diff) => total + diff.removed, 0);
 			button.label = label;
-			button.element.setAttribute('aria-label', localize('chat.sessionWorkingSet.summary', "Session changes, {0}, {1} lines added, {2} lines removed", label, added, removed));
+			button.element.setAttribute('aria-label', localize('chat.sessionWorkingSet.summary', "Session changes, {0}, {1}", label, getChatFileChangeLineCounts(added, removed)));
 			addedLabel.textContent = `+${added}`;
 			removedLabel.textContent = `-${removed}`;
 		}));

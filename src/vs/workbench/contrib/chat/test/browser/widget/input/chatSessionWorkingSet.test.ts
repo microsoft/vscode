@@ -61,11 +61,39 @@ suite('ChatSessionWorkingSet', () => {
 		}, {
 			header: 'Session changes, 2 files changed, 18 lines added, 3 lines removed',
 			expanded: 'true',
-			rows: ['/src/first.ts, 15 lines added, 2 lines removed', '/src/second.ts, 3 lines added, 1 lines removed'],
+			rows: ['/src/first.ts, 15 lines added, 2 lines removed', '/src/second.ts, 3 lines added, 1 line removed'],
 			buttons: 1,
 			toolbars: 0,
 		});
 	});
+
+	for (const [added, removed, lineCounts] of [
+		[0, 0, '0 lines added, 0 lines removed'],
+		[1, 1, '1 line added, 1 line removed'],
+		[1, 2, '1 line added, 2 lines removed'],
+		[2, 1, '2 lines added, 1 line removed'],
+		[2, 3, '2 lines added, 3 lines removed'],
+	] as const) {
+		for (const kind of ['modified', 'created', 'deleted'] as const) {
+			test(`announces ${kind} file counts with correct singular and plural forms (${added}, ${removed})`, () => {
+				const { workingSet } = createWorkingSet([{
+					...emptySessionEntryDiff(URI.file('/before/file.ts'), URI.file('/file.ts')),
+					added,
+					removed,
+					isCreated: kind === 'created',
+					isDeleted: kind === 'deleted',
+				}]);
+				const kindLabel = kind === 'created' ? 'added, ' : kind === 'deleted' ? 'deleted, ' : '';
+				assert.deepStrictEqual({
+					header: workingSet.domNode.querySelector('.monaco-button')?.getAttribute('aria-label'),
+					row: workingSet.domNode.querySelector('.monaco-list-row')?.getAttribute('aria-label'),
+				}, {
+					header: `Session changes, 1 file changed, ${lineCounts}`,
+					row: `/file.ts, ${kindLabel}${lineCounts}`,
+				});
+			});
+		}
+	}
 
 	test('keeps disclosure state while cumulative changes update', () => {
 		const first = { ...emptySessionEntryDiff(URI.file('/before/first.ts'), URI.file('/first.ts')), added: 1 };

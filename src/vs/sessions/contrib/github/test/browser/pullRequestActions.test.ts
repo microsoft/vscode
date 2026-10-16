@@ -10,7 +10,6 @@ import { constObservable, observableValue } from '../../../../../base/common/obs
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { defaultAgentMergeConfiguration } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
@@ -76,7 +75,7 @@ suite('Pull Request Actions', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('shared presentation model applies Agent Merge to live pull request status', () => {
+	test('shared presentation model preserves live pull request status icons', () => {
 		const pullRequest = upcastPartial<IGitHubPullRequest>({
 			number: 1,
 			title: 'Fix pills',
@@ -119,17 +118,7 @@ suite('Pull Request Actions', () => {
 					uri: URI.parse('https://github.com/other/project/pull/2'),
 				},
 			]),
-			constObservable({
-				enabled: true,
-				actions: {
-					...defaultAgentMergeConfiguration,
-					fixCI: true,
-					resolveConflicts: false,
-					addressReviews: false,
-				},
-			}),
 			gitHubService,
-			ref => ref.repo === 'vscode',
 		));
 
 		assert.deepStrictEqual({
@@ -137,7 +126,7 @@ suite('Pull Request Actions', () => {
 			ciStatuses: model.pullRequests.get().map(entry => entry.ciStatus),
 			summaryIcon: model.icon.get().id,
 		}, {
-			entryIcons: [Codicon.gitPullRequest.id, Codicon.gitPullRequestError.id],
+			entryIcons: [Codicon.gitPullRequestError.id, Codicon.gitPullRequestError.id],
 			ciStatuses: [GitHubCIOverallStatus.Failure, GitHubCIOverallStatus.Failure],
 			summaryIcon: Codicon.gitPullRequestError.id,
 		});
@@ -165,7 +154,7 @@ suite('Pull Request Actions', () => {
 			uri: URI.parse('https://github.com/microsoft/vscode/pull/1'),
 			icon: Codicon.gitPullRequest,
 		}]);
-		const model = store.add(new SessionPullRequestPresentationModel(pullRequestRefs, constObservable(undefined), gitHubService));
+		const model = store.add(new SessionPullRequestPresentationModel(pullRequestRefs, gitHubService));
 
 		model.pullRequests.get();
 		pullRequestRefs.set([{

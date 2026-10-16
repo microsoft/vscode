@@ -42,6 +42,16 @@ import { IChatContentPart, IChatContentPartRenderContext } from './chatContentPa
 const CHANGES_SUMMARY_ELEMENT_HEIGHT = 22;
 const CHANGES_SUMMARY_MAX_ITEMS_SHOWN = 6;
 
+export function getChatFileChangeLineCounts(added: number, removed: number): string {
+	const additions = added === 1
+		? localize('chat.fileChanges.oneLineAdded', "1 line added")
+		: localize('chat.fileChanges.linesAdded', "{0} lines added", added);
+	const deletions = removed === 1
+		? localize('chat.fileChanges.oneLineRemoved', "1 line removed")
+		: localize('chat.fileChanges.linesRemoved', "{0} lines removed", removed);
+	return localize('chat.fileChanges.lineCounts', "{0}, {1}", additions, deletions);
+}
+
 /** Options controlling how {@link renderChangesSummaryFileList} renders each row. */
 export interface IChangesSummaryFileListOptions {
 	readonly alwaysOpenInDiffEditor?: boolean;
@@ -336,11 +346,14 @@ class CollapsibleChangesSummaryListPool extends Disposable {
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: diff => diff.modifiedURI.path },
 				accessibilityProvider: {
 					getWidgetAriaLabel: () => this.options?.ariaLabel ?? localize('chat.fileChanges.list', "Changed files"),
-					getAriaLabel: diff => diff.isDeleted
-						? localize('chat.fileChanges.deletedFile', "{0}, deleted, {1} lines added, {2} lines removed", diff.modifiedURI.path, diff.added, diff.removed)
-						: diff.isCreated
-							? localize('chat.fileChanges.createdFile', "{0}, added, {1} lines added, {2} lines removed", diff.modifiedURI.path, diff.added, diff.removed)
-							: localize('chat.fileChanges.modifiedFile', "{0}, {1} lines added, {2} lines removed", diff.modifiedURI.path, diff.added, diff.removed),
+					getAriaLabel: diff => {
+						const lineCounts = getChatFileChangeLineCounts(diff.added, diff.removed);
+						return diff.isDeleted
+							? localize('chat.fileChanges.deletedFile', "{0}, deleted, {1}", diff.modifiedURI.path, lineCounts)
+							: diff.isCreated
+								? localize('chat.fileChanges.createdFile', "{0}, added, {1}", diff.modifiedURI.path, lineCounts)
+								: localize('chat.fileChanges.modifiedFile', "{0}, {1}", diff.modifiedURI.path, lineCounts);
+					},
 				},
 			}
 		));
