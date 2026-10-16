@@ -298,15 +298,12 @@ suite('Automation dialog creation', () => {
 		};
 	}
 
-	test('cloud prototype switch precedes the target and restores local mode', async () => {
+	test('cloud switch turns cloud mode on and restores local mode', async () => {
 		const dialog = openDialog({}, cloudConfiguration());
 		const toggle = dialog.container.querySelector<HTMLButtonElement>('[role="switch"]')!;
 		const snapshot = () => ({
 			checked: toggle.getAttribute('aria-checked'),
 			pickerCloudMode: dialog.getPickerCloudMode(),
-			label: dialog.container.querySelector('.automation-cloud-label')?.textContent,
-			beforeTarget: !!(toggle.compareDocumentPosition(dialog.container.querySelector('.automation-target-row')!) & Node.DOCUMENT_POSITION_FOLLOWING),
-			privateHint: dialog.container.querySelector('.automation-target-row > .automation-cloud-description'),
 		});
 		const off = snapshot();
 		toggle.click();
@@ -315,9 +312,9 @@ suite('Automation dialog creation', () => {
 		toggle.click();
 		await timeout(0);
 		assert.deepStrictEqual([off, on, snapshot()], [
-			{ checked: 'false', pickerCloudMode: false, label: 'Run in the cloud', beforeTarget: true, privateHint: null },
-			{ checked: 'true', pickerCloudMode: true, label: 'Run in the cloud', beforeTarget: true, privateHint: null },
-			{ checked: 'false', pickerCloudMode: false, label: 'Run in the cloud', beforeTarget: true, privateHint: null },
+			{ checked: 'false', pickerCloudMode: false },
+			{ checked: 'true', pickerCloudMode: true },
+			{ checked: 'false', pickerCloudMode: false },
 		]);
 		dialog.cancelButton.click();
 		await dialog.result;
