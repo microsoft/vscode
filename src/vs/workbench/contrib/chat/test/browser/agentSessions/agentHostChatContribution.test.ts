@@ -49,7 +49,7 @@ import { CanvasState } from '../../../../../../platform/agentHost/common/state/p
 import { ICanvas } from '../../../../canvases/common/canvas.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
-import { agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, LOCAL_AGENT_HOST_AUTHORITY, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, LOCAL_AGENT_HOST_AUTHORITY, toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { withChatInputState } from '../../../../../../platform/agentHost/common/meta/agentHostChatInputState.js';
 import { toSlashCommandResourceMeta } from '../../../../../../platform/agentHost/common/meta/agentSlashCommandOutputMeta.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
@@ -92,6 +92,8 @@ import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../.
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
+import { ICopilotHomeService } from '../../../../../../platform/environment/common/copilotHome.js';
+import { TestCopilotHomeService } from '../../../../../../platform/environment/test/common/testCopilotHomeService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
@@ -919,6 +921,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 			return options?.preferLocal ? userHome : Promise.resolve(userHome);
 		}
 	}());
+	instantiationService.stub(ICopilotHomeService, new TestCopilotHomeService(URI.file('/home/test-user')));
 	instantiationService.stub(IRemoteAgentHostService, { connections: [], ...remoteAgentHostServiceOverride });
 	const modelService = new MockModelService(disposables);
 	const workingCopyService = new MockWorkingCopyService();
@@ -14176,6 +14179,63 @@ suite('AgentHostChatContribution', () => {
 	// ---- AgentHostContribution discovery ---------------------------------
 
 	suite('dynamic discovery', () => {
+
+		for (const remoteAuthority of [undefined, 'wsl+Ubuntu']) {
+			test(`registered editor handler routes edit previews and markdown through its ${remoteAuthority ?? 'local'} connection`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
+				instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: false, remoteAuthority });
+				const authority = remoteAuthority ? agentHostAuthority(`vscode-remote://${remoteAuthority}`) : 'local';
+				agentHostService.resourceUris = remoteAuthority ? createAgentHostResourceUriMapper(authority) : identityAgentHostResourceUriMapper;
+				const providers = new Map<string, IChatSessionContentProvider>();
+				instantiationService.stub(IChatSessionsService, 'registerChatSessionContentProvider', (type: string, provider: IChatSessionContentProvider) => {
+					providers.set(type, provider);
+					return toDisposable(() => providers.delete(type));
+				});
+				disposables.add(instantiationService.createInstance(AgentHostContribution));
+				agentHostService.setRootState({
+					agents: [{ provider: 'copilot', displayName: 'Copilot', description: 'test', models: [] }],
+					activeSessions: 0,
+				});
+				const handler = providers.get('agent-host-copilot');
+				assert.ok(handler instanceof AgentHostSessionHandler);
+				const { collected, fire, turnId, turnPromise, chatSession } = await startTurn(handler, agentHostService, chatAgentService, disposables);
+				const file = URI.parse('file:///tmp/foo.txt');
+				const content = URI.parse('agenthost-content:///opaque/proposed');
+				const markdown = `[foo.txt](${file.toString()}) [preview](${content.toString()})`;
+				fire({
+					type: ActionType.ChatResponsePart,
+					turnId,
+					part: { kind: ResponsePartKind.Markdown, id: 'md-file', content: markdown },
+				});
+				fire({ type: ActionType.ChatToolCallStart, turnId, toolCallId: 'edit-file', toolName: 'edit', displayName: 'Edit' });
+				fire({
+					type: ActionType.ChatToolCallReady, turnId, toolCallId: 'edit-file',
+					invocationMessage: { markdown },
+					confirmationTitle: 'Write file?',
+					edits: { items: [{ after: { uri: file.toString(), content: { uri: content.toString() } } }] },
+				});
+				await timeout(10);
+				const invocation = collected.flat().find(part => part.kind === 'toolInvocation');
+				assert.ok(invocation?.kind === 'toolInvocation');
+				const data = invocation.toolSpecificData;
+				assert.ok(data?.kind === 'modifiedFilesConfirmation');
+				const actual = {
+					invocation: textOf(invocation.invocationMessage),
+					file: data.modifiedFiles[0].uri.toString(),
+					content: data.modifiedFiles[0].modifiedContentUri?.toString(),
+					responseLinks: [file, content].map(uri => handler.resolveChatResponseUri(chatSession.sessionResource, uri.toString(), 'link')),
+				};
+				fire({ type: ActionType.ChatTurnComplete, turnId, duration: 0 });
+				await turnPromise;
+
+				assert.deepStrictEqual(actual, {
+					invocation: `[](${toAgentHostUri(file, authority).toString()}) [](${toAgentHostUri(content, authority).toString()})`,
+					file: toAgentHostUri(file, authority).toString(),
+					content: toAgentHostContentUri(content, authority, file).toString(),
+					responseLinks: [file, content].map(uri => toAgentHostUri(uri, authority).toString()),
+				});
+			}));
+		}
 
 		test('setting gate prevents registration', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { instantiationService } = createTestServices(disposables);

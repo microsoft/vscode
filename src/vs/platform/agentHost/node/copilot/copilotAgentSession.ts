@@ -37,7 +37,7 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import product from '../../../product/common/product.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
-import { getCopilotHomePath, getCopilotMcpConfigurationPath } from '../../../environment/common/copilotHome.js';
+import { ICopilotHomeService } from '../../../environment/common/copilotHome.js';
 import { AgentHostHydraFusionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, isCopilotHydraFusionModelId } from '../../common/copilotCliConfig.js';
 import { logSettingExperimentTrigger } from '../../../telemetry/common/experimentTrigger.js';
 import { withCustomizationEnablement } from '../../common/customizationEnablement.js';
@@ -120,6 +120,8 @@ import { IAgentHostPromptCache } from '../agentHostPromptCache.js';
 import { IAgentHostStorageService } from '../agentHostStorageService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type McpAuthRequirement, type McpServerCustomization, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
+import { AhpErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
+import type { IAgentHostScopedCredential } from '../../common/agentHostCredentials.js';
 import type { ErrorInfo, ProtectedResourceMetadata } from '../../common/state/protocol/common/state.js';
 import { CopilotSlashCommandProvider } from './copilotSlashCommandProvider.js';
 import { CopilotMcpToolRoutingCache, getMcpRoutingCacheKey, getMcpRoutingProxyName, type ICopilotMcpRoutingServer, type ICopilotMcpRoutingTool } from './copilotMcpToolRoutingCache.js';
@@ -570,10 +572,6 @@ function askUserAnswerToFieldValue(field: ElicitationSchemaField, answer: ChatIn
 		case ChatInputAnswerValueKind.SelectedMany:
 			return field.type === 'array' ? [...value.value, ...(value.freeformValues ?? [])] : undefined;
 	}
-}
-
-function getCopilotCLISessionStateDir(userHome: string): string {
-	return join(getCopilotHomePath(userHome, process.env), SESSION_STATE_DIRECTORY);
 }
 
 function isCopilotSdkToolOutputTempFile(filePath: string, tmpDir: string): boolean {
@@ -1286,6 +1284,14 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	get hasActiveSubagents(): boolean { return this._subagents.hasActiveAgents; }
 	get usesStaticGitHubToken(): boolean { return this._launchPlan.githubCredentials.usesStaticToken; }
+	get usesScopedGitHubCredentials(): boolean { return this._launchPlan.githubCredentials.usesScopedCredential; }
+
+	assertScopedCredential(credential: IAgentHostScopedCredential): void {
+		if (!this._launchPlan.githubCredentials.isCurrentCredential(credential)) {
+			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'The Copilot runtime does not own the captured turn credential');
+		}
+		this._assertScopedGitHubCredential();
+	}
 	get chatUri(): URI { return this._chatChannelUri; }
 	get currentTurnId(): string | undefined { return this._currentTurn.value?.id; }
 
@@ -1825,6 +1831,7 @@ export class CopilotAgentSession extends Disposable {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
+		@ICopilotHomeService private readonly _copilotHomeService: ICopilotHomeService,
 	) {
 		super();
 		this._register(toDisposable(() => {
@@ -3720,6 +3727,7 @@ export class CopilotAgentSession extends Disposable {
 	 * construction before using the session.
 	 */
 	async initializeSession(): Promise<void> {
+		this._assertScopedGitHubCredential();
 		await this._customizationEnablementService.initializeSession(this.launchOwner.toString());
 		await this._refreshUserMcpServerNames();
 		if (this._store.isDisposed) {
@@ -4187,6 +4195,9 @@ export class CopilotAgentSession extends Disposable {
 
 	/** Updates the GitHub credentials used by this live SDK session. */
 	async updateGitHubCredentials(host: string, token: string): Promise<GitHubCredentialsUpdateResult> {
+		if (!this.usesStaticGitHubToken) {
+			throw new Error('Cannot replace isolated or provider-backed GitHub credentials');
+		}
 		const result = await this._wrapper.session.rpc.gitHubAuth.setCredentials({
 			credentials: { type: 'token', host, token },
 		});
@@ -4460,6 +4471,9 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private async _initialGitHubMcpToken(request: McpAuthRequest): Promise<string | undefined> {
+		if (this.usesScopedGitHubCredentials) {
+			return undefined;
+		}
 		const githubToken = this._currentGitHubToken;
 		const requestUrl = normalizeMcpServerUrl(request.serverUrl);
 		if (!githubToken || requestUrl === undefined) {
@@ -4694,6 +4708,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	async send(prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, mode?: CopilotSdkMode, senderClientId?: string, clientType = AgentHostClientType.Unknown, hostInstructions?: readonly string[], clientContext = createUnknownAgentHostClientTelemetryContext(clientType), agentMergeTurn = false, stageRecorder?: IAgentProviderSendStageRecorder): Promise<void> {
+		this._assertScopedGitHubCredential();
 		if (this._workingDirectoryMutationInProgress) {
 			throw new Error('Cannot start a turn while the working directory is changing');
 		}
@@ -4794,10 +4809,17 @@ export class CopilotAgentSession extends Disposable {
 		return true;
 	}
 
+	private _assertScopedGitHubCredential(): void {
+		if (this.usesScopedGitHubCredentials && !this._launchPlan.githubCredentials.token) {
+			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'The captured Copilot credential has expired');
+		}
+	}
+
 	/** Clears recovery eligibility before execution; preflight alone must leave the backing recoverable. */
 	private async _executeSdkOperation<T>(operation: () => Promise<T>, turn: CopilotTurn | undefined, abortToken: CancellationToken, providerCall?: CopilotTurn): Promise<CopilotSdkExecutionOutcome<T>> {
 		const recorder = turn?.timingRecorder;
 		const execute = async (): Promise<T> => {
+			this._assertScopedGitHubCredential();
 			providerCall?.markProviderCallPending();
 			try {
 				const value = await operation();
@@ -5124,6 +5146,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	async resume(turnId: string, mode?: CopilotSdkMode, senderClientId?: string, clientType = AgentHostClientType.Unknown, clientContext = createUnknownAgentHostClientTelemetryContext(clientType), agentMergeTurn = false, stageRecorder?: IAgentProviderSendStageRecorder): Promise<void> {
+		this._assertScopedGitHubCredential();
 		this._resetAbortToken();
 		const abortToken = this._abortToken;
 		this.resetTurnState(turnId, senderClientId, clientType, clientContext);
@@ -5256,6 +5279,7 @@ export class CopilotAgentSession extends Disposable {
 	 * Permission and sandbox failures prevent the turn from starting.
 	 */
 	private async _prepareSdkTurn(mode: CopilotSdkMode | undefined, recorder?: IAgentProviderSendStageRecorder): Promise<void> {
+		this._assertScopedGitHubCredential();
 		await this._syncImageGeneration();
 		await this.applyMode(mode, recorder);
 		await this.syncPermissionMode('turn-start', recorder);
@@ -6716,7 +6740,7 @@ export class CopilotAgentSession extends Disposable {
 			return undefined;
 		}
 
-		const sessionStateDir = normalizePath(URI.file(getCopilotCLISessionStateDir(this._environmentService.userHome.fsPath)));
+		const sessionStateDir = normalizePath(URI.joinPath(this._copilotHomeService.home, SESSION_STATE_DIRECTORY));
 		const sessionDir = normalizePath(URI.joinPath(sessionStateDir, this.sessionId));
 		if (!extUriBiasedIgnorePathCase.isEqualOrParent(sessionDir, sessionStateDir)) {
 			return undefined;
@@ -9683,7 +9707,7 @@ export class CopilotAgentSession extends Disposable {
 			source,
 			sourcePlugin: reported?.sourcePlugin,
 			sourceUri: source === 'user'
-				? URI.file(getCopilotMcpConfigurationPath(this._environmentService.userHome.fsPath, process.env)).toString()
+				? URI.joinPath(this._copilotHomeService.home, 'mcp-config.json').toString()
 				: undefined,
 		};
 	}

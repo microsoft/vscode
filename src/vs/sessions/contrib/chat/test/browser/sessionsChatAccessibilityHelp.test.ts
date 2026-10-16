@@ -220,11 +220,13 @@ suite('SessionsChatAccessibilityHelp', () => {
 				githubEnvironment: content.includes('GitHub environment'),
 				sharingKeyboard: content.includes('Enter or Space to enable or disable sharing'),
 				fileSystemAccess: content.includes('read and modify files across this machine'),
-				backendSetting: content.includes('chat.agentHost.remoteConnections'),
+				backendPicker: content.includes('Select Remote Connection Method dropdown chooses Dev Tunnels or GitHub Environments'),
+				previewSetting: content.includes('The preview setting chat.agentHost.remoteConnections selects the connection method'),
 			}, {
 				discoveryHelp: enabled, folderBrowsing: enabled, refreshHelp: enabled, hiddenHelp: false,
 				githubEnvironment: !hidden && !aiDisabled, sharingKeyboard: !hidden && !aiDisabled,
-				fileSystemAccess: !hidden && !aiDisabled, backendSetting: !hidden && !aiDisabled,
+				fileSystemAccess: !hidden && !aiDisabled, backendPicker: !hidden && !aiDisabled,
+				previewSetting: !hidden && !aiDisabled,
 			});
 		});
 	}
