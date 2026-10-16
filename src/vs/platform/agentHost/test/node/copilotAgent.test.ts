@@ -7967,8 +7967,8 @@ suite('CopilotAgent', () => {
 			const provisional = (agent as unknown as { _provisionalSessions: Map<string, { workspaceless?: boolean }> })._provisionalSessions.get('temp-fallback');
 			assert.strictEqual(provisional?.workspaceless, true);
 		} finally {
-			await fs.rm(userHome.fsPath, { recursive: true, force: true });
 			await disposeAgent(agent);
+			await fs.rm(userHome.fsPath, { recursive: true, force: true });
 		}
 	}).timeout(30_000);
 
@@ -7994,8 +7994,8 @@ suite('CopilotAgent', () => {
 
 				assert.deepStrictEqual(uris.includes(scratchInstructions.toString()), false);
 			} finally {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				await disposeAgent(agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 			}
 		}).timeout(30_000);
 
@@ -8020,8 +8020,8 @@ suite('CopilotAgent', () => {
 				await internals._resumeSession(sessionId, sessionBackedChat(sessionId)).catch(() => undefined);
 				await fs.access(scratchDir.fsPath);
 			} finally {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				await disposeAgent(agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 			}
 		}).timeout(30_000);
 
@@ -8040,8 +8040,8 @@ suite('CopilotAgent', () => {
 				await disposeProvisionedSession(agent, result.session);
 				await assert.rejects(() => fs.access(scratchDir.fsPath));
 			} finally {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				await disposeAgent(agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 			}
 		}).timeout(30_000);
 
@@ -8066,8 +8066,8 @@ suite('CopilotAgent', () => {
 				await disposeProvisionedSession(agent, session);
 				return { afterPeer, afterDefault: await scratchExists() };
 			} finally {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				await disposeAgent(agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 			}
 		}
 
