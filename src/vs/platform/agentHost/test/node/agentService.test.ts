@@ -32006,9 +32006,10 @@ suite('AgentService (node dispatcher)', () => {
 				override async disposeChat(_session: URI, _chat: URI): Promise<void> { }
 			}
 
-			async function setupMove(enabled = true, targetFolder?: URI, multiRoot = false, logService: ILogService = new NullLogService()) {
+			/** With `perSessionData`, each session has its own database, as in production; otherwise all share `db`. */
+			async function setupMove(enabled = true, targetFolder?: URI, multiRoot = false, logService: ILogService = new NullLogService(), perSessionData = false) {
 				const db = new TestSessionDatabase();
-				const service = disposables.add(createTestAgentService(logService, fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				const service = disposables.add(createTestAgentService(logService, fileService, perSessionData ? createPerSessionDataService().service : createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 				const agent = disposables.add(new MovingAgent('copilot', multiRoot));
 				registerTestAgentProvider(service, agent);
 				if (enabled) {
@@ -32418,6 +32419,138 @@ suite('AgentService (node dispatcher)', () => {
 				assert.deepStrictEqual({ refusals, owners }, {
 					refusals: Object.fromEntries(Object.keys(cases).map(name => [name, name === 'hiddenAnchor' ? AgentChatMoveRefusal.InvalidAnchor : name])),
 					owners: Object.fromEntries(Object.keys(cases).map(name => [name, 'source'])),
+				});
+			});
+
+			suite('a refused move changes nothing', () => {
+				type MoveEnv = Pick<Awaited<ReturnType<typeof setupMove>>, 'service' | 'source' | 'peer'>;
+
+				/** Everything a move would change: both catalogs (revisions and chats), live state, movability, ownership and folders. */
+				async function moveFootprint({ service, source, peer }: MoveEnv, target: URI) {
+					const stateManager = getStateManager(service);
+					// Writes still in flight land first, as a move waits for them too.
+					await (service as unknown as IMoveInternals)._peerChatStore.whenSessionsIdle([source, target]);
+					await service.whenCatalogReconciliationIdle();
+					const catalogs = await getTestAgentHostDatabase(service).readCatalogSnapshot([source.toString(), target.toString()]);
+					const session = (resource: URI) => ({
+						catalog: catalogs.filter(entry => entry.session === resource.toString()).map(entry => ({ authority: entry.authorityVersion, revision: entry.header?.revision, chats: entry.chats.map(chat => chat.chat) })),
+						chats: stateManager.getSessionState(resource.toString())?.chats.map(chat => [chat.resource, chat.movable ?? false, chat.workingDirectories]),
+						folders: stateManager.getSessionSummary(resource.toString())?.workingDirectories,
+					});
+					return {
+						source: session(source),
+						target: session(target),
+						owner: stateManager.getChatOwner(peer.toString()),
+						chatFolders: stateManager.getChatState(peer.toString())?.workingDirectories,
+						origin: stateManager.getMovedChatOrigin(peer.toString()),
+					};
+				}
+
+				/** Moves `env.peer` to `target` after `arrange`, and returns its refusal and whether the move changed anything. */
+				async function refuse(env: MoveEnv, target: URI, arrange?: () => void | Promise<void>) {
+					// Resolved first, as a move resolves it, so the footprint compares like with like.
+					await getStateManager(env.service).resolveChatState(env.peer.toString());
+					await arrange?.();
+					const before = await moveFootprint(env, target);
+					const reason = await refusalOf(env.service.moveChat(env.source, env.peer, { kind: 'session', session: target, after: undefined }));
+					return { actual: { reason, footprint: await moveFootprint(env, target) }, before };
+				}
+
+				/** The outcome of a refusal for `reason` that changed nothing. */
+				function refused(reason: AgentChatMoveRefusal, outcome: Awaited<ReturnType<typeof refuse>>) {
+					return { reason, footprint: outcome.before };
+				}
+
+				test('a different provider', async () => {
+					const env = await setupMove(true, URI.file('/other'), true);
+					registerTestAgentProvider(env.service, disposables.add(new MovingAgent('other')));
+					const target = await env.service.createSession({ legacyChatUris: true, provider: 'other', workingDirectories: [URI.file('/other')] });
+					await timeout(0);
+
+					const outcome = await refuse(env, target);
+					assert.deepStrictEqual(outcome.actual, refused(AgentChatMoveRefusal.DifferentProvider, outcome));
+				});
+
+				test('a session whose workspace is changing (quarantined), on either side', async () => {
+					const outcomes: Record<string, Awaited<ReturnType<typeof refuse>>> = {};
+					for (const side of ['source', 'target'] as const) {
+						const env = await setupMove(true, URI.file('/other'), true);
+						const quarantined = env[side].toString();
+						outcomes[side] = await refuse(env, env.target, () => {
+							(env.service as unknown as IMoveInternals)._workspaceConversionService.isPending = (resource, sessionWide) => sessionWide === true && resource === quarantined;
+						});
+					}
+					assert.deepStrictEqual({ source: outcomes.source.actual, target: outcomes.target.actual }, {
+						source: refused(AgentChatMoveRefusal.SessionQuarantined, outcomes.source),
+						target: refused(AgentChatMoveRefusal.SessionQuarantined, outcomes.target),
+					});
+				});
+
+				test('a chat whose own workspace is changing (conversion in progress)', async () => {
+					const env = await setupMove(true, URI.file('/other'), true);
+
+					const outcome = await refuse(env, env.target, () => {
+						(env.service as unknown as IMoveInternals)._workspaceConversionService.isPending = (resource, sessionWide) => sessionWide !== true && resource === env.peer.toString();
+					});
+					assert.deepStrictEqual(outcome.actual, refused(AgentChatMoveRefusal.ConversionInProgress, outcome));
+				});
+
+				test('a workspace-less session on either side, and a chat without a folder', async () => {
+					const outcomes: Record<string, Awaited<ReturnType<typeof refuse>>> = {};
+					for (const side of ['source', 'target'] as const) {
+						const env = await setupMove(true, URI.file('/other'), true);
+						const stateManager = getStateManager(env.service);
+						const session = env[side].toString();
+						outcomes[side] = await refuse(env, env.target, () => stateManager.setSessionMeta(session, withSessionWorkspaceless(stateManager.getSessionState(session)?._meta, true)));
+					}
+					// A session without folders: the chat inherits none.
+					const db = new TestSessionDatabase();
+					const service = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+					registerTestAgentProvider(service, disposables.add(new MovingAgent('copilot')));
+					getConfigurationService(service).updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
+					const source = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
+					const target = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/other')] });
+					const peer = URI.parse(buildChatUri(source, 'mover'));
+					await service.createChat(source, peer);
+					await timeout(0);
+					outcomes.noFolder = await refuse({ service, source, peer }, target);
+
+					assert.deepStrictEqual({ source: outcomes.source.actual, target: outcomes.target.actual, noFolder: outcomes.noFolder.actual }, {
+						source: refused(AgentChatMoveRefusal.Workspaceless, outcomes.source),
+						target: refused(AgentChatMoveRefusal.Workspaceless, outcomes.target),
+						noFolder: refused(AgentChatMoveRefusal.Workspaceless, outcomes.noFolder),
+					});
+				});
+
+				test('a target whose legacy chat catalog can\'t be converted yet (parked, authority 1)', async () => {
+					// Each session reads its own older-build chat list, so the target's conversion attempt never sees the source's.
+					const env = await setupMove(true, URI.file('/other'), true, undefined, true);
+					const database = getTestAgentHostDatabase(env.service);
+					// An older build's session: its catalog is legacy, and its aggregate awaits a re-projection, so 4a parks its conversion.
+					const target = AgentSession.uri('copilot', 'parked-legacy-target');
+					const folder = URI.file('/other').toString();
+					await database.registerRuntimeSession(target.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+					await database.upsertSessionV2(catalogEnvelope(target, {
+						modifiedTime: 1, summary: 'Older build', isRead: true, isArchived: false, workingDirectories: [folder],
+						chats: [{ uri: buildDefaultChatUri(target), order: 0, kind: 'default', summary: 'Older build', workingDirectories: [folder] }],
+					}), undefined);
+					await database.markSessionV2PayloadDirty(target.toString());
+					// Its provider still has the conversation.
+					const getChatMetadata = env.agent.getChatMetadata.bind(env.agent);
+					env.agent.getChatMetadata = async (chat, context, providerData) => chat.toString() === buildDefaultChatUri(target)
+						? { chat, startTime: 1, modifiedTime: 1, summary: 'Older build', workingDirectories: [URI.file('/other')] }
+						: getChatMetadata(chat, context, providerData);
+					await env.service.restoreSession(target);
+
+					const first = await refuse(env, target);
+					// Refused again, it changes nothing either: an attempt leaves nothing behind for the next one to act on.
+					const again = await refuse(env, target);
+
+					assert.deepStrictEqual({ first: first.actual, again: again.actual, authority: again.actual.footprint.target.catalog[0]?.authority }, {
+						first: refused(AgentChatMoveRefusal.LegacyCatalog, first),
+						again: refused(AgentChatMoveRefusal.LegacyCatalog, again),
+						authority: 1,
+					});
 				});
 			});
 
