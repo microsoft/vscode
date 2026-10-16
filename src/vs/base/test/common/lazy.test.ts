@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+// Temporary publication canary; no behavior change. This branch must never merge.
 import { Lazy } from '../../common/lazy.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
