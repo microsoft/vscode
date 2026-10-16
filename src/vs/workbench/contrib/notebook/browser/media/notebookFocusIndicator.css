@@ -82,8 +82,8 @@
 	height: 100%;
 }
 
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-left,
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.markdown-cell-row .cell-inner-container {
+.monaco-workbench .notebookOverlay:not(.notebook-dnd-disabled) .monaco-list .monaco-list-row .cell-focus-indicator-left,
+.monaco-workbench .notebookOverlay:not(.notebook-dnd-disabled) .monaco-list .monaco-list-row.markdown-cell-row .cell-inner-container {
 	cursor: grab;
 }
 
