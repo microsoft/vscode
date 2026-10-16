@@ -38,6 +38,8 @@ import { CloudAutomationToolCatalog, GitHubCloudAutomationStore, ICloudAutomatio
 export class CloudAutomationStore extends Disposable implements ISessionsProviderAutomations {
 	private readonly store = observableValue<GitHubCloudAutomationStore | undefined>(this, undefined);
 	private readonly refreshError = observableValue<string | undefined>(this, undefined);
+	private readonly accountInitialized = observableValue(this, false);
+	private readonly accountInitialization: Promise<void>;
 	readonly historyState = observableValue<AutomationCatalogueState>(this, 'ready');
 	private readonly pendingRefreshes = observableValue(this, 0);
 	readonly isRefreshing = derived(this, reader =>
@@ -50,8 +52,10 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 	}, 15_000));
 	readonly enabled: IObservable<boolean>;
 	readonly catalogueState = derived<AutomationCatalogueState>(this, reader =>
-		this.refreshError.read(reader) ? 'error' : this.store.read(reader)?.catalogueState.read(reader) ?? 'unavailable');
+		this.refreshError.read(reader) ? 'error' : this.store.read(reader)?.catalogueState.read(reader)
+			?? (this.enabled.read(reader) && !this.accountInitialized.read(reader) ? 'loading' : 'unavailable'));
 	readonly unavailableReason = this.refreshError;
+	readonly unavailableMessage = localize('cloudAutomations.unavailableMessage', "GitHub Cloud automations are unavailable.");
 	readonly canCreateAutomation = derived(this, reader =>
 		this.enabled.read(reader) && this.catalogueState.read(reader) === 'ready' && this.store.read(reader)?.mutationUncertain.read(reader) === false);
 	readonly automations = derived(this, reader => (this.store.read(reader)?.entries.read(reader) ?? []).map(entry => this.toAutomation(entry)));
@@ -71,6 +75,12 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		@IWorkbenchGitHubService workbenchGitHubService: IWorkbenchGitHubService,
 	) {
 		super();
+		this.accountInitialization = (async () => {
+			await defaultAccountService.getDefaultAccount();
+			if (!this._store.isDisposed) {
+				this.accountInitialized.set(true, undefined);
+			}
+		})();
 		this.configuration = {
 			sessionTypes: [sessionTypeId],
 			description: localize('cloudAutomations.description', "Runs even when your computer is off, triggered on a schedule."),
@@ -101,6 +111,9 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 			this.discoveryAttempts = 0;
 			this.historyRefresh = undefined;
 			const account = defaultAccountService.currentDefaultAccount;
+			if (!account) {
+				this.accountInitialized.read(reader);
+			}
 			let store: GitHubCloudAutomationStore | undefined;
 			const enabled = this.enabled.read(reader);
 			this.logService.trace('[CloudAutomations] Store availability', {
@@ -182,6 +195,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 	}
 
 	private async refreshCatalogueAndHistory(options?: IAutomationRefreshOptions): Promise<void> {
+		await this.accountInitialization;
 		const store = this.requireStore();
 		this.logService.trace('[CloudAutomations] Definition refresh started');
 		try {

@@ -256,7 +256,8 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 				}
 			});
 			await prepareCredentials(false);
-			const ahpLoggingEnabled = !!this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
+			const ahpLoggingEnabled = staged.options.environmentKind !== 'user-local'
+				&& !!this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
 			const transportFactory = (): IProtocolTransport => this._instantiationService.createInstance(WebPubSubRelayTransport, {
 				clientConnectionKind: staged.options.environmentKind === 'user-local' ? AgentHostClientConnectionKind.MissionControl : AgentHostClientConnectionKind.WebPubSub,
 				clientId: staged.clientId,

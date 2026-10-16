@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, type IReference } from '../../../base/common/lifecycle.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentSession } from '../common/agentService.js';
-import { ISessionDataService, type ISessionDatabase } from '../common/sessionDataService.js';
+import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../common/agentHostSessionStateStore.js';
 import { DEFAULT_CUSTOMIZATION_ENABLED, isCustomizationEnabled, sortCustomizationEnablement, withCustomizationEnablement } from '../common/customizationEnablement.js';
 import { isAhpChatChannel, readSessionWorkspaceless } from '../common/state/sessionState.js';
 import { CustomizationEnablementKind, CustomizationType, type CustomizationEnablement } from '../common/state/protocol/channels-session/state.js';
@@ -167,11 +167,11 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 
 	constructor(
 		@IAgentHostStorageService private readonly _storageService: IAgentHostStorageService,
-		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@IAgentHostStateManager private readonly _sessionState: AgentHostStateManager,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostWorktreeIsolation worktree: IAgentHostWorktreeIsolation,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
+		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
 	) {
 		super();
 		this._worktree = worktree;
@@ -434,16 +434,13 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 
 	private async _loadSessionEnablement(session: string): Promise<void> {
 		const transitioned = !this._sessionEnablement.has(session);
-		let reference: IReference<ISessionDatabase> | undefined;
 		try {
-			reference = this._sessionDataService.openDatabase(URI.parse(session));
-			const raw = await reference.object.getMetadata(SESSION_METADATA_KEY);
+			// Central session state: the session database only holds its mirror.
+			const raw = (await this._sessionStateStore.readWithoutImport(URI.parse(session), [SESSION_METADATA_KEY])).get(SESSION_METADATA_KEY);
 			this._sessionEnablement.set(session, this._parseSessionEnablement(raw));
 		} catch (err) {
 			this._logService.warn(`[AgentHostCustomizationEnablementService] Failed to read session enablement for ${session}`, err);
 			this._sessionEnablement.set(session, new Map());
-		} finally {
-			reference?.dispose();
 		}
 		if (transitioned) {
 			const affectedSessions = this._applyPendingReplacements(session);
@@ -539,10 +536,10 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 	}
 
 	private _persistSession(session: string, enablement: ReadonlyMap<string, boolean>): void {
-		const reference = this._sessionDataService.openDatabase(URI.parse(session));
-		const write = reference.object.setMetadata(SESSION_METADATA_KEY, JSON.stringify(Object.fromEntries(enablement))).catch(err => {
+		const resource = URI.parse(session);
+		const write = this._sessionStateStore.writeMetadata(resource, resource, { [SESSION_METADATA_KEY]: JSON.stringify(Object.fromEntries(enablement)) }, SessionStateMirrorFlush.Immediate).catch((err: unknown) => {
 			this._logService.error(`[AgentHostCustomizationEnablementService] Failed to write session enablement for ${session}`, err);
-		}).finally(() => reference.dispose());
+		});
 		this._pendingSessionWrites.add(write);
 		const untrack = () => this._pendingSessionWrites.delete(write);
 		write.then(untrack, untrack);

@@ -392,7 +392,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 						}
 					}
 				}
-				return coalesce(tools.filter(tool => tool.id !== RenameToolId && (enabledToolIds.has(tool.id) || tool === semanticSearchTool)).map(tool => {
+				return coalesce(tools.filter(tool => tool.source.type !== 'mcp' && tool.id !== RenameToolId && (enabledToolIds.has(tool.id) || tool === semanticSearchTool)).map(tool => {
 					if (!isCopilotSession) {
 						return toolDataToDefinition(tool);
 					}

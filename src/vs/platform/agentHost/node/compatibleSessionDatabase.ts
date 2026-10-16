@@ -16,8 +16,10 @@ export class CompatibleSessionDatabase implements ISessionDatabase {
 
 	async getMetadataObject<T extends Record<string, unknown>>(obj: T): Promise<{ [K in keyof T]: string | undefined }> {
 		const keys = Object.keys(obj);
-		const values = await Promise.all(keys.map(key => this.getMetadata(key)));
-		return Object.fromEntries(keys.map((key, index) => [key, values[index]])) as { [K in keyof T]: string | undefined };
+		const storageKeys = keys.map(key => this.identity.metadataKey(key, 'storage'));
+		// One read of the underlying database for all keys.
+		const values: Record<string, string | undefined> = await this.raw.getMetadataObject(Object.fromEntries(storageKeys.map(key => [key, true])));
+		return Object.fromEntries(keys.map((key, index) => [key, this.identity.metadata(key, values[storageKeys[index]], 'runtime')])) as { [K in keyof T]: string | undefined };
 	}
 
 	async createTurn(...[turnId]: Parameters<ISessionDatabase['createTurn']>): ReturnType<ISessionDatabase['createTurn']> {
@@ -138,6 +140,40 @@ export class CompatibleSessionDatabase implements ISessionDatabase {
 	async getPersistedTurns(...[]: Parameters<ISessionDatabase['getPersistedTurns']>): ReturnType<ISessionDatabase['getPersistedTurns']> {
 		const result = await this.raw.getPersistedTurns();
 		return result.map(record => ({ ...record, chatUri: this.identity.toRuntime(record.chatUri), payload: this.identity.turnPayload(record.payload, 'runtime') }));
+	}
+
+	async getPersistedTurnsForChat(...[chatUri]: Parameters<ISessionDatabase['getPersistedTurnsForChat']>): ReturnType<ISessionDatabase['getPersistedTurnsForChat']> {
+		const result = await this.raw.getPersistedTurnsForChat(this.identity.toStorage(chatUri));
+		return result.map(record => ({ ...record, chatUri: this.identity.toRuntime(record.chatUri), payload: this.identity.turnPayload(record.payload, 'runtime') }));
+	}
+
+	async getTurnsWithCheckpointRefs(...[]: Parameters<ISessionDatabase['getTurnsWithCheckpointRefs']>): ReturnType<ISessionDatabase['getTurnsWithCheckpointRefs']> {
+		return this.raw.getTurnsWithCheckpointRefs();
+	}
+
+	async getMaxTurnRowid(...[]: Parameters<ISessionDatabase['getMaxTurnRowid']>): ReturnType<ISessionDatabase['getMaxTurnRowid']> {
+		return this.raw.getMaxTurnRowid();
+	}
+
+	async getRowsWatermark(...[]: Parameters<ISessionDatabase['getRowsWatermark']>): ReturnType<ISessionDatabase['getRowsWatermark']> {
+		const result = await this.raw.getRowsWatermark();
+		return { maxTurnRowid: result.maxTurnRowid, drafts: new Map([...result.drafts].map(([chat, draft]) => [this.identity.toRuntime(chat), this.identity.message(draft, 'runtime')!])) };
+	}
+
+	async setForeignRows(...[ownerChat, turnIds]: Parameters<ISessionDatabase['setForeignRows']>): ReturnType<ISessionDatabase['setForeignRows']> {
+		return this.raw.setForeignRows(this.identity.toStorage(ownerChat), turnIds);
+	}
+
+	async getMetadataByPrefix(...[prefix]: Parameters<ISessionDatabase['getMetadataByPrefix']>): ReturnType<ISessionDatabase['getMetadataByPrefix']> {
+		const result = await this.raw.getMetadataByPrefix(this.identity.metadataKey(prefix, 'storage'));
+		return Object.fromEntries(Object.entries(result).map(([key, value]) => {
+			const runtimeKey = this.identity.metadataKey(key, 'runtime');
+			return [runtimeKey, this.identity.metadata(runtimeKey, value, 'runtime')!];
+		}));
+	}
+
+	async applyMetadataChanges(...[set, remove]: Parameters<ISessionDatabase['applyMetadataChanges']>): ReturnType<ISessionDatabase['applyMetadataChanges']> {
+		return this.raw.applyMetadataChanges(this.identity.metadataValues(set, 'storage'), remove.map(key => this.identity.metadataKey(key, 'storage')));
 	}
 
 	async deletePersistedTurns(...[turnIds]: Parameters<ISessionDatabase['deletePersistedTurns']>): ReturnType<ISessionDatabase['deletePersistedTurns']> {

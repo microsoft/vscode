@@ -11,7 +11,6 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -23,11 +22,9 @@ import { IDefaultAccountService } from '../../../../../../platform/defaultAccoun
 import { AutomationDetail, AutomationToolGroup, CreateAutomationRequest, CreateAutomationTaskRequest, CreateAutomationTaskResponse, EditAutomationRequest, IAutomationsClient, ListRepoAutomationsResponse } from '../../../../../../platform/github/common/missionControl/automations.js';
 import { ApiRequestError, MutationUncertainError } from '../../../../../../platform/github/common/missionControl/missionControlClient.js';
 import { ITasksClient, ListTasksResponse, Task } from '../../../../../../platform/github/common/missionControl/tasks.js';
-import { IGitHubCredentials } from '../../../../../../platform/github/common/githubCredentialService.js';
-import { GitHubRepository, GitHubRepositoryRef } from '../../../../../../platform/github/common/githubQueryService.js';
-import { IGitHubQuery } from '../../../../../../platform/github/common/githubQueryServiceImpl.js';
-import { IGitHubClient } from '../../../../../../platform/github/common/githubService.js';
-import { IGitHubEndpointProvider } from '../../../../../../platform/github/common/githubTypes.js';
+import { GitHubRepositoryRef } from '../../../../../../platform/github/common/githubQueryService.js';
+import { IGitHubAccountClient } from '../../../../../../platform/github/common/account/account.js';
+import { IRepositoriesClient, Repository } from '../../../../../../platform/github/common/core/repositories.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -153,7 +150,7 @@ class TestApi extends mock<IAutomationsClient>() {
 
 suite('CloudAutomationStore', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-	function setup(logService: ILogService = new NullLogService(), clientNotificationOrder?: 'before' | 'after', gitHubService: IGitHubService = upcastPartial<IGitHubService>({})) {
+	function setup(logService: ILogService = new NullLogService(), clientNotificationOrder?: 'before' | 'after', gitHubService: IGitHubService = upcastPartial<IGitHubService>({}), initialAccount?: DeferredPromise<IDefaultAccount | null>) {
 		const instantiation = disposables.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService({ chat: { automations: { enabled: true, cloud: { enabled: false } } } });
 		const changed = disposables.add(new Emitter<IDefaultAccount | null>());
@@ -162,8 +159,14 @@ suite('CloudAutomationStore', () => {
 			disposables.add(changed.event(() => clientChanged.fire()));
 		}
 		const accounts = new class extends mock<IDefaultAccountService>() {
-			override currentDefaultAccount: IDefaultAccount | null = account;
+			override currentDefaultAccount: IDefaultAccount | null = initialAccount ? null : account;
 			override onDidChangeDefaultAccount = changed.event;
+			override async getDefaultAccount(): Promise<IDefaultAccount | null> {
+				if (initialAccount) {
+					this.currentDefaultAccount = await initialAccount.p;
+				}
+				return this.currentDefaultAccount;
+			}
 		}();
 		const sentimentChanged = disposables.add(new Emitter<void>());
 		const entitlement = new class extends mock<IChatEntitlementService>() {
@@ -172,35 +175,26 @@ suite('CloudAutomationStore', () => {
 		}();
 		const api = new TestApi();
 		const credentialLifetime = new AbortController();
-		const client = new class extends mock<IGitHubClient>() {
+		const client = new class extends mock<IGitHubAccountClient>() {
 			override readonly onDidInvalidate = Event.None;
+			override readonly onDidChangeCredentials = Event.fromDOMEventEmitter<void>(credentialLifetime.signal, 'abort');
+			override dispose(): void { }
 			override readonly authorization = { providerId: 'github', sessionId: account.sessionId, scopes: ['repo'] };
-			override readonly endpoint = new class extends mock<IGitHubEndpointProvider>() {
-				override getApiBaseUri() { return 'https://api.github.com'; }
-				override getGraphQlUri() { return 'https://api.github.com/graphql'; }
-			}();
 			override readonly automations = api;
-			override readonly query = new class extends mock<IGitHubQuery>() {
-				override async getRepository(ref: GitHubRepositoryRef, signal: AbortSignal): Promise<GitHubRepository> {
-					const isPrivate = await api.isPrivateRepository(ref, signal);
-					return new class extends mock<GitHubRepository>() { override readonly private = isPrivate; }();
+			override readonly repositories = new class extends mock<IRepositoriesClient>() {
+				override async get(ref: RepositoryRef, signal: AbortSignal) {
+					const isPrivate = await api.isPrivateRepository({ host: 'api.github.com', accountId: account.accountName, owner: ref.owner, repo: ref.name }, signal);
+					return new class extends mock<Repository>() { override readonly private = isPrivate; }();
 				}
 			}();
 			override readonly tasks = new class extends mock<ITasksClient>() {
 				override async get() { return api.tasks[0]; }
 				override async abort() { api.calls.push('stop'); }
 			}();
-			override readonly credentials = new class extends mock<IGitHubCredentials>() {
-				override async getCredential() {
-					return { account: { host: 'api.github.com', accountId: account.accountName }, token: 'test-token', generation: 1, signal: credentialLifetime.signal };
-				}
-			}();
 		}();
-		const lease = () => Object.assign(toDisposable(() => { }), { object: client });
 		instantiation.stub(IWorkbenchGitHubService, new class extends mock<IWorkbenchGitHubService>() {
 			override readonly onDidChangeDefaultClient = clientChanged.event;
-			override async acquireDefaultAccountClient() { return lease(); }
-			override acquireClient() { return lease(); }
+			override async acquireDefaultAccountApiClient() { return client; }
 		}());
 		instantiation.stub(IInstantiationService, instantiation);
 		instantiation.stub(IConfigurationService, configuration);
@@ -832,6 +826,63 @@ suite('CloudAutomationStore', () => {
 		await set(ChatAIDisabledSettingId, true);
 		await set(CHAT_AUTOMATIONS_ENABLED_SETTING, true);
 		assert.deepStrictEqual({ enabled: provider.enabled.get(), calls: api.calls }, { enabled: false, calls: [] });
+	});
+
+	test('read refresh waits for a late initial account without a change event', async () => {
+		const initialAccount = new DeferredPromise<IDefaultAccount | null>();
+		const { provider, api, set } = setup(new NullLogService(), undefined, undefined, initialAccount);
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		const refresh = provider.refresh();
+		const initializing = { state: provider.catalogueState.get(), writable: provider.canCreateAutomation.get(), calls: [...api.calls] };
+		await initialAccount.complete(account);
+		await refresh;
+		assert.deepStrictEqual({
+			initializing,
+			state: provider.catalogueState.get(),
+			names: provider.automations.get().map(automation => automation.name),
+		}, { initializing: { state: 'loading', writable: false, calls: [] }, state: 'ready', names: ['Review'] });
+	});
+
+	test('a history-only failure after account initialization leaves the catalogue ready', async () => {
+		const initialAccount = new DeferredPromise<IDefaultAccount | null>();
+		const { provider, api, set } = setup(new NullLogService(), undefined, undefined, initialAccount);
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		api.historyError = new Error('History unavailable');
+		const refresh = provider.refresh();
+		await initialAccount.complete(account);
+		await assert.rejects(refresh, /History unavailable/);
+		assert.deepStrictEqual({
+			catalogue: provider.catalogueState.get(), history: provider.historyState.get(),
+			writable: provider.canCreateAutomation.get(), names: provider.automations.get().map(automation => automation.name),
+		}, { catalogue: 'ready', history: 'error', writable: true, names: ['Review'] });
+	});
+
+	for (const resolvedAccount of [null, { ...account, enterprise: true }]) {
+		test(`read refresh still rejects an initialized ${resolvedAccount ? 'enterprise' : 'signed-out'} account`, async () => {
+			const initialAccount = new DeferredPromise<IDefaultAccount | null>();
+			const { provider, api, set } = setup(new NullLogService(), undefined, undefined, initialAccount);
+			await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+			const refresh = provider.refresh();
+			await initialAccount.complete(resolvedAccount);
+			await assert.rejects(refresh, /Sign in to GitHub.com and enable cloud automations/);
+			assert.deepStrictEqual({ state: provider.catalogueState.get(), calls: api.calls }, { state: 'unavailable', calls: [] });
+		});
+	}
+
+	test('read refresh retries successfully after a catalogue error', async () => {
+		const { provider, api, set } = setup();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		api.listError = new Error('Definitions unavailable');
+		await assert.rejects(provider.refresh(), /Some GitHub repositories could not be refreshed/);
+		const failed = { state: provider.catalogueState.get(), writable: provider.canCreateAutomation.get() };
+		api.listError = undefined;
+		api.definitions = [{ ...definition, name: 'Recovered' }];
+		await provider.refresh();
+		assert.deepStrictEqual({
+			failed, state: provider.catalogueState.get(), writable: provider.canCreateAutomation.get(),
+			names: provider.automations.get().map(automation => automation.name),
+		}, { failed: { state: 'error', writable: false }, state: 'ready', writable: true, names: ['Recovered'] });
 	});
 
 	test('enablement discovers and projects definitions; hiding AI clears catalogue and cancels work', async () => {

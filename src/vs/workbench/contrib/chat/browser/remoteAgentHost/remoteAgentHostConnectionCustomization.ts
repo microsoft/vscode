@@ -50,6 +50,9 @@ export interface IRemoteAgentHostConnectionCustomization {
 
 	/** Vendors whose model identifiers also address this connection's models; forwarded to the session handler's `modelIdentifierAliases`. */
 	readonly modelIdentifierAliases?: readonly string[];
+
+	/** Whether a title the host reports is a stand-in (e.g. the session id) rather than a title to show; forwarded to the session handler's `isSessionTitlePlaceholder`. */
+	readonly isSessionTitlePlaceholder?: (title: string, sessionResource: URI) => boolean;
 }
 
 /** Builds a {@link IRemoteAgentHostConnectionCustomization} for a concrete connection address. */

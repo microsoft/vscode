@@ -6,6 +6,72 @@
 import { IStringDictionary } from '../../../../../../base/common/collections.js';
 import { IJSONSchema } from '../../../../../../base/common/jsonSchema.js';
 import { ILanguageModelConfigurationSchema } from '../../../common/languageModels.js';
+import { modelConfigurationSourceKey, isModelConfigurationDefault } from '../../../../../../platform/agentHost/common/agentModelConfiguration.js';
+import { localize } from '../../../../../../nls.js';
+
+/** Applies host-owned read-only values while retaining the provenance of displayed defaults. */
+export function applyModelConfigurationDefaults(
+	configuration: IStringDictionary<unknown>,
+	preferences: IStringDictionary<unknown> | undefined,
+	schema: ILanguageModelConfigurationSchema | undefined,
+	keys: readonly string[] | undefined,
+	startupDefaults: readonly string[] = [],
+): IStringDictionary<unknown> {
+	const result = { ...configuration };
+	if (!schema) {
+		return result;
+	}
+	const trackedKeys = new Set([
+		...keys ?? [],
+		...startupDefaults,
+		...Object.keys(configuration).filter(key => Object.hasOwn(configuration, modelConfigurationSourceKey(key))),
+		...Object.entries(schema.properties ?? {}).filter(([, property]) => property.readOnly).map(([key]) => key),
+	]);
+	for (const key of trackedKeys) {
+		const property = schema?.properties?.[key];
+		if (!property) {
+			delete result[key];
+			delete result[modelConfigurationSourceKey(key)];
+			continue;
+		}
+		const startupDefault = startupDefaults.includes(key) && property.default !== undefined;
+		const preference = startupDefault ? undefined : preferences?.[key];
+		const supportedPreference = preference !== undefined && satisfiesPropertySchema(preference, property);
+		if (property.readOnly && property.default !== undefined) {
+			result[key] = property.default;
+		} else if (startupDefault) {
+			result[key] = property.default;
+		} else if (configuration[modelConfigurationSourceKey(key)] === 'managed') {
+			result[key] = supportedPreference ? preference : property.default;
+		} else if (result[key] !== undefined && !satisfiesPropertySchema(result[key], property)) {
+			result[key] = property.default;
+		}
+		result[modelConfigurationSourceKey(key)] = property.readOnly ? 'managed'
+			: configuration[modelConfigurationSourceKey(key)] === 'default' || !supportedPreference || isModelConfigurationDefault(preferences, key) ? 'default' : 'explicit';
+	}
+	return result;
+}
+
+export function assertModelConfigurationWritable(values: IStringDictionary<unknown>, schema: ILanguageModelConfigurationSchema | undefined): void {
+	for (const key of Object.keys(values)) {
+		const property = schema?.properties?.[key];
+		if (property?.readOnly) {
+			throw new Error(localize('chat.modelConfiguration.readOnly', "{0} is managed by the agent host and cannot be changed.", property.title ?? key));
+		}
+	}
+}
+
+/** Keeps serialized defaults out of durable preferences, including before a model re-registers. */
+export function modelConfigurationPreferences(values: IStringDictionary<unknown>, preserveDefaults = false): IStringDictionary<unknown> {
+	const result = { ...values };
+	for (const key of Object.keys(values)) {
+		if (!preserveDefaults && isModelConfigurationDefault(values, key)) {
+			delete result[key];
+		}
+		delete result[modelConfigurationSourceKey(key)];
+	}
+	return result;
+}
 
 /**
  * Extracts the schema-default values from a model configuration schema, keyed by

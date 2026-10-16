@@ -10,13 +10,16 @@ import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ROOT_STATE_URI } from '../../../common/state/sessionState.js';
+import { CopilotCliConfigKey } from '../../../common/copilotCliConfig.js';
+import { ActionType } from '../../../common/state/sessionActions.js';
+import { ROOT_STATE_URI, type RootState } from '../../../common/state/sessionState.js';
+import type { SubscribeResult } from '../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import { driveTurnWithModelToCompletion } from '../e2e/harness/agentHostE2ETestHarness.js';
 import { getAncillaryStub } from '../e2e/harness/capiStubs.js';
 import { createTestDirectory } from '../e2e/harness/testDirectories.js';
 import { createProviderSession } from '../providerIntegrationTestHelpers.js';
-import { startRealServer, stopServer, TestProtocolClient, type IServerHandle, defaultChatChannel } from '../serverIntegrationTestHelpers.js';
+import { startRealServer, stopServer, TestProtocolClient, type IServerHandle, defaultChatChannel, isActionNotification, getActionEnvelope } from '../serverIntegrationTestHelpers.js';
 
 interface IChatRequest {
 	readonly model: string;
@@ -136,11 +139,30 @@ suite('Agent Host Provider Integration — Copilot image generation', function (
 		return client;
 	}
 
-	for (const available of [true, false]) {
-		test(`${available ? 'offers the authorized' : 'withholds the unavailable'} image tool on create and cold host resume`, async () => {
+	for (const { available, optIn } of [{ available: true, optIn: true }, { available: false, optIn: true }, { available: true, optIn: false }]) {
+		test(`${!optIn ? 'withholds the default-off' : available ? 'offers the authorized' : 'withholds the unavailable'} image tool on create and cold host resume`, async () => {
 			imageModelAvailable = available;
 			let connection = await startHost();
-			const session = await createProviderSession(connection, config, 'image-tool-client', [], URI.file(join(directory, 'workspace')));
+			const enableImages = async (clientSeq: number) => {
+				if (!optIn) {
+					return;
+				}
+				const result = await connection.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
+				const root = result.snapshot?.state as RootState | undefined;
+				assert.ok(root, 'The host must publish its root configuration');
+				if (root.config?.values[CopilotCliConfigKey.ImageGeneration] === true) {
+					return;
+				}
+				connection.dispatch({
+					channel: ROOT_STATE_URI,
+					clientSeq,
+					action: { type: ActionType.RootConfigChanged, config: { [CopilotCliConfigKey.ImageGeneration]: true } },
+				});
+				await connection.waitForNotification(notification =>
+					isActionNotification(notification, ActionType.RootConfigChanged)
+					&& getActionEnvelope(notification).origin?.clientSeq === clientSeq);
+			};
+			const session = await createProviderSession(connection, config, 'image-tool-client', [], URI.file(join(directory, 'workspace')), () => enableImages(1));
 			const offered: boolean[] = [];
 			const responses: string[] = [];
 			const run = async (turnId: string, sequence: number) => {
@@ -151,18 +173,19 @@ suite('Agent Host Provider Integration — Copilot image generation', function (
 				assert.ok(matching.length > 0, 'The real SDK must send the test turn to the local model');
 				offered.push(matching.every(request => request.tools?.some(tool => (tool.name ?? tool.function?.name) === 'image_generation')));
 			};
-			await run('image-first', 1);
+			await run('image-first', 2);
 			connection.close();
 			await stopServer(host);
 			host = undefined;
 			connection = await startHost();
 			await connection.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'image-tool-client' }, 30_000);
+			await enableImages(99);
 			await connection.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: config.githubToken }, 30_000);
 			await connection.call('subscribe', { channel: session }, 30_000);
 			await connection.call('subscribe', { channel: defaultChatChannel(session) }, 30_000);
 			await run('image-resumed', 100);
 			assert.deepStrictEqual({ offered, responses, unexpectedRequests, imageRequests }, {
-				offered: [available, available], responses: ['IMAGE_TOOL_READY', 'IMAGE_TOOL_READY'],
+				offered: [available && optIn, available && optIn], responses: ['IMAGE_TOOL_READY', 'IMAGE_TOOL_READY'],
 				unexpectedRequests: [], imageRequests: [],
 			});
 		});

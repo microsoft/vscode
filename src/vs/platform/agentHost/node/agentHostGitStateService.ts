@@ -15,9 +15,9 @@ import { CopilotCliVSCodeAssignmentContextKey } from '../common/copilotCliConfig
 import { logSettingExperimentTrigger } from '../../telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { getSessionRelatedPullRequestUrls, isAhpChatChannel, ISessionGitHubState, ISessionWithDefaultChat, readFolderGitHubState, readFolderScopeGitState, readSessionGitData, readSessionGitHubData, readSessionGitState, readSessionSourceControlState, SessionLifecycle, SessionSourceControlOutcome, withInitialSessionPullRequest, withMostRecentRelatedSessionPullRequest, withMostRecentSessionPullRequest, withFolderGitHubState, withFolderScopeGitState, withSessionGitState, withSessionSourceControlState, type ISessionGitState, type ISessionSourceControlState, type SessionSummaryMeta } from '../common/state/sessionState.js';
-import { IAgentHostGitService, META_DIFF_BASE_BRANCH, resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
+import { IAgentHostGitService, resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
-import { ISessionDataService } from '../common/sessionDataService.js';
+import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../common/agentHostSessionStateStore.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { GitHubPullRequestLookup } from '../../github/common/githubQueryService.js';
 import { getPullRequestUrlKey } from '../../github/common/githubUrls.js';
@@ -80,10 +80,10 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		@IAgentHostAuthenticationService private readonly _authenticationService: IAgentHostAuthenticationService,
 		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
 		@ILogService private readonly _logService: ILogService,
-		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
+		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
 	) {
 		super();
 
@@ -703,12 +703,8 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		let promise = this._pendingPullRequests.get(session);
 		if (!promise) {
 			promise = (async () => {
-				const ref = await this._sessionDataService.tryOpenDatabase(URI.parse(session));
-				if (!ref) {
-					return [];
-				}
-				try {
-					const raw = await ref.object.getMetadata(META_PENDING_RECORDED_PULL_REQUESTS);
+				{
+					const raw = (await this._sessionStateStore.readWithoutImport(URI.parse(session), [META_PENDING_RECORDED_PULL_REQUESTS])).get(META_PENDING_RECORDED_PULL_REQUESTS);
 					if (!raw) {
 						return [];
 					}
@@ -725,8 +721,6 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 						return [];
 					}
 					return value as IPendingRecordedPullRequest[];
-				} finally {
-					ref.dispose();
 				}
 			})();
 			this._pendingPullRequests.set(session, promise);
@@ -741,20 +735,8 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			if (objectEquals(previous, next)) {
 				return;
 			}
-			const ref = await this._sessionDataService.tryOpenDatabase(URI.parse(session));
-			if (!ref) {
-				throw new Error(`Cannot persist pending pull request associations for ${session}`);
-			}
-			try {
-				if (next.length) {
-					await ref.object.setMetadata(META_PENDING_RECORDED_PULL_REQUESTS, JSON.stringify(next));
-				} else {
-					await ref.object.deleteMetadata([META_PENDING_RECORDED_PULL_REQUESTS]);
-				}
-				this._pendingPullRequests.set(session, Promise.resolve(next));
-			} finally {
-				ref.dispose();
-			}
+			await this._sessionStateStore.writeMetadata(URI.parse(session), URI.parse(session), { [META_PENDING_RECORDED_PULL_REQUESTS]: next.length ? JSON.stringify(next) : null }, SessionStateMirrorFlush.Immediate);
+			this._pendingPullRequests.set(session, Promise.resolve(next));
 		});
 	}
 
@@ -858,23 +840,18 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		if (!workingDirectory || !project || isEqual(URI.parse(workingDirectory), URI.parse(project))) {
 			return gitStateBaseBranch;
 		}
-		let databaseRef;
-		try {
-			databaseRef = await this._sessionDataService.tryOpenDatabase(URI.parse(sessionKey));
-		} catch (error) {
-			this._logService.warn(`[AgentHostGitStateService] Failed to open session database while resolving the base branch for ${sessionKey}`, error);
-			return gitStateBaseBranch;
-		}
-		if (!databaseRef) {
+		// `sessionKey` may be a chat: its base branch is the one recorded for its folder scope in its session's state.
+		const isChat = isAhpChatChannel(sessionKey);
+		const session = isChat ? this._chatOwnership.getChatOwner(sessionKey) : sessionKey;
+		if (session === undefined) {
 			return gitStateBaseBranch;
 		}
 		try {
-			return resolveDiffBaseBranchName(await databaseRef.object.getMetadata(META_DIFF_BASE_BRANCH), gitStateBaseBranch);
+			const persisted = await this._sessionStateStore.readBaseBranchWithoutImport(URI.parse(session), isChat && !this._chatOwnership.isRegisteredDefaultChat(sessionKey) ? sessionKey : undefined);
+			return resolveDiffBaseBranchName(persisted, gitStateBaseBranch);
 		} catch (error) {
 			this._logService.warn(`[AgentHostGitStateService] Failed to read the persisted base branch for ${sessionKey}`, error);
 			return gitStateBaseBranch;
-		} finally {
-			databaseRef.dispose();
 		}
 	}
 
@@ -935,20 +912,11 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			return;
 		}
 
-		let databaseRef;
 		try {
-			databaseRef = this._sessionDataService.openDatabase(URI.parse(sessionKey));
-		} catch (error) {
-			this._logService.warn(`[AgentHostGitStateService][_saveSessionState] Failed to open session database for ${sessionKey}`, error);
-			return;
-		}
-
-		try {
-			await databaseRef.object.setMetadata(key, value);
+			const resource = URI.parse(sessionKey);
+			await this._sessionStateStore.writeMetadata(resource, resource, { [key]: value }, SessionStateMirrorFlush.Coalesced);
 		} catch (error) {
 			this._logService.warn(`[AgentHostGitStateService][_saveSessionState] Failed to persist ${key}`, error);
-		} finally {
-			databaseRef.dispose();
 		}
 	}
 
@@ -958,20 +926,11 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			return;
 		}
 
-		let databaseRef;
 		try {
-			databaseRef = this._sessionDataService.openDatabase(URI.parse(sessionKey));
-		} catch (error) {
-			this._logService.warn(`[AgentHostGitStateService][_deleteSessionState] Failed to open session database for ${sessionKey}`, error);
-			return;
-		}
-
-		try {
-			await databaseRef.object.deleteMetadata(keys);
+			const resource = URI.parse(sessionKey);
+			await this._sessionStateStore.writeMetadata(resource, resource, Object.fromEntries(keys.map(key => [key, null])), SessionStateMirrorFlush.Immediate);
 		} catch (error) {
 			this._logService.warn(`[AgentHostGitStateService][_deleteSessionState] Failed to delete ${keys.join(', ')}`, error);
-		} finally {
-			databaseRef.dispose();
 		}
 	}
 }

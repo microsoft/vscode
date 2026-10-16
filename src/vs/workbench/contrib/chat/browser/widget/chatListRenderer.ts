@@ -123,7 +123,7 @@ import { ChatTreeContentPart, TreePool } from './chatContentParts/chatTreeConten
 import { ChatWorkspaceEditContentPart } from './chatContentParts/chatWorkspaceEditContentPart.js';
 import { ChatExternalEditContentPart } from './chatContentParts/chatExternalEditContentPart.js';
 import { ChatToolInvocationPart } from './chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
-import { ChatImageGenerationBatchPart, getImageGenerationBatch } from './chatContentParts/chatImageGenerationBatchPart.js';
+import { ChatImageGenerationBatchPart } from './chatContentParts/chatImageGenerationBatchPart.js';
 import { ChatMarkdownDecorationsRenderer } from './chatContentParts/chatMarkdownDecorationsRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatCodeBlockContentProvider, CodeBlockPart } from './chatContentParts/codeBlockPart.js';
@@ -136,7 +136,7 @@ import { ChatPendingDragController } from './chatPendingDragAndDrop.js';
 import { HookType } from '../../common/promptSyntax/hookTypes.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { AccessibilityWorkbenchSettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
-import { isActiveBackgroundTerminalToolInvocation, isAskQuestionsToolInvocation, isCarouselToolConfirmation, isImageGenerationToolInProgress, isImageGenerationToolInvocation, isMcpToolInvocation } from './chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
+import { getImageGenerationBatch, isActiveBackgroundTerminalToolInvocation, isAskQuestionsToolInvocation, isCarouselToolConfirmation, isImageGenerationToolInProgress, isImageGenerationToolInvocation, isMcpToolInvocation } from './chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
 import { isToolResultInputOutputDetails } from '../../common/tools/languageModelToolsService.js';
 import { isAgentHostTarget } from '../agentSessions/agentSessions.js';
 
@@ -270,7 +270,7 @@ export function shouldScheduleInitialHeightChange(normalizedHeight: number, allo
 	return typeof allocatedHeight !== 'number' || normalizedHeight > allocatedHeight;
 }
 
-export function getFinalResponseStartIndex(content: ReadonlyArray<IChatRendererContent>): number | undefined {
+export function getFinalResponseStartIndex(content: ReadonlyArray<IChatRendererContent>, allowSingleToolGap = false): number | undefined {
 	let index = content.length - 1;
 	while (index >= 0) {
 		const part = content[index];
@@ -284,8 +284,18 @@ export function getFinalResponseStartIndex(content: ReadonlyArray<IChatRendererC
 		return undefined;
 	}
 
-	while (index > 0 && content[index - 1].kind === 'markdownContent') {
-		index--;
+	let canCrossTool = allowSingleToolGap;
+	while (index > 0) {
+		const previous = content[index - 1];
+		if (previous.kind === 'markdownContent') {
+			index--;
+		} else if (canCrossTool && (previous.kind === 'toolInvocation' || previous.kind === 'toolInvocationSerialized') && content[index - 2]?.kind === 'markdownContent') {
+			// A final tool can separate a detailed answer from its closing summary.
+			index -= 2;
+			canCrossTool = false;
+		} else {
+			break;
+		}
 	}
 	return index;
 }
@@ -325,8 +335,8 @@ function getFinalResponseLinkTargets(content: ReadonlyArray<IChatRendererContent
 	return targets;
 }
 
-export function getFinalResponseStartIndexAfterMovingResponseOutcomeTools(content: ReadonlyArray<IChatRendererContent>): number | undefined {
-	const finalResponseStartIndex = getFinalResponseStartIndex(content);
+export function getFinalResponseStartIndexAfterMovingResponseOutcomeTools(content: ReadonlyArray<IChatRendererContent>, allowSingleToolGap = false): number | undefined {
+	const finalResponseStartIndex = getFinalResponseStartIndex(content, allowSingleToolGap);
 	if (finalResponseStartIndex === undefined) {
 		return undefined;
 	}
@@ -3688,7 +3698,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		const responseContent = annotateSpecialMarkdownContent(element.response.value);
-		const responseFinalStartIndex = getFinalResponseStartIndexAfterMovingResponseOutcomeTools(responseContent);
+		const responseFinalStartIndex = getFinalResponseStartIndexAfterMovingResponseOutcomeTools(responseContent, true);
 		const finalResponseStartIndex = responseFinalStartIndex === undefined ? undefined : responseFinalStartIndex + 1;
 		if (finalResponseStartIndex === undefined || !isFinalResponseRendered(content, finalResponseStartIndex) || finalResponseStartIndex === 0 || !content.slice(0, finalResponseStartIndex).some(part => part.kind !== 'references' || part.references.length > 0)) {
 			this.removeCompletedResponseDisclosure(templateData);
@@ -4059,7 +4069,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private diff(renderedParts: ReadonlyArray<IChatContentPart>, contentToRender: ReadonlyArray<IChatRendererContent>, element: ChatTreeItem): ReadonlyArray<IChatRendererContent | null> {
 		const diff: (IChatRendererContent | null)[] = [];
-		const imageBatchIds = new Set(getImageGenerationBatch(isResponseVM(element) ? element.response.value : contentToRender).map(tool => tool.toolCallId));
+		const imageContent = isResponseVM(element) ? element.response.value : contentToRender;
 		for (let i = 0; i < contentToRender.length; i++) {
 			const content = contentToRender[i];
 			const renderedPart = renderedParts[i];
@@ -4071,7 +4081,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				&& this.shouldGroupToolInvocation(contentToRender, i, element);
 			const groupsImageTool = renderedPart instanceof ChatToolInvocationPart
 				&& (content.kind === 'toolInvocation' || content.kind === 'toolInvocationSerialized')
-				&& imageBatchIds.has(content.toolCallId);
+				&& isImageGenerationToolInvocation(content)
+				&& getImageGenerationBatch(imageContent, content.toolCallId).length > 1;
 
 			if (promotesStandaloneTool || groupsStandaloneTool || groupsImageTool || !renderedPart || !renderedPart.hasSameContent(content, contentToRender.slice(i + 1), element)) {
 				diff.push(content);
@@ -4844,12 +4855,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		if (isResponseVM(context.element) && isImageGenerationToolInvocation(toolInvocation)) {
 			const response = context.element;
-			const batch = getImageGenerationBatch(response.response.value);
-			if (batch.some(tool => tool.toolCallId === toolInvocation.toolCallId)) {
+			const batch = getImageGenerationBatch(response.response.value, toolInvocation.toolCallId);
+			if (batch.length > 1) {
 				this.finalizeCurrentThinkingPart(context, templateData);
 				if (batch[0].toolCallId !== toolInvocation.toolCallId) {
 					return this.renderNoContent(other => other === toolInvocation
-						&& getImageGenerationBatch(response.response.value).some((tool, index) => index > 0 && tool === other));
+						&& getImageGenerationBatch(response.response.value, toolInvocation.toolCallId).some((tool, index) => index > 0 && tool === other));
 				}
 				const batchPart = this.instantiationService.createInstance(ChatImageGenerationBatchPart, toolInvocation, context, response, (tool, blockIndex) => {
 					const part = this.instantiationService.createInstance(ChatToolInvocationPart, tool, { ...context, inImageGenerationBatch: true }, this.chatContentMarkdownRenderer, this._contentReferencesListPool, this._toolEditorPool, () => this._currentLayoutWidth.get(), this._announcedToolProgressKeys, blockIndex);

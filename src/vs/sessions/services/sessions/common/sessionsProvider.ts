@@ -27,16 +27,35 @@ export interface ISessionChangeEvent {
 	readonly changed: readonly ISession[];
 }
 
+/** One end of a chat move: the session and the chat's resource in it. */
+export interface IChatMoveEnd {
+	readonly session: ISession;
+	readonly chat: URI;
+}
+
+/**
+ * A chat moved from one session to another of the same provider, or became the
+ * main chat of a new session. Its resource changes with its session; its
+ * conversation, including a running turn, does not.
+ */
+export interface IChatMovedEvent {
+	readonly from: IChatMoveEnd;
+	readonly to: IChatMoveEnd;
+}
+
 /** Why a session resource is being resolved, so a provider can pick a latency budget. */
 export type SessionResourceResolveReason = 'open' | 'restore';
 
-/** Schema-backed configuration consumed by mode and approval pickers, including pre-provisioning drafts. */
+/**
+ * Schema-backed configuration consumed by mode and approval pickers, including pre-provisioning drafts.
+ * Reads and writes name the chat they are for: a host may let each chat set some properties for itself.
+ */
 export interface ISessionConfigProvider {
 	readonly onDidChangeSessionConfig: Event<string>;
-	getSessionConfig(sessionId: string): ResolveSessionConfigResult | undefined;
+	getSessionConfig(sessionId: string, chat: URI): ResolveSessionConfigResult | undefined;
 	getCreateSessionConfig(sessionId: string): Record<string, unknown> | undefined;
-	isSessionConfigResolving(sessionId: string): IObservable<boolean>;
-	setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void>;
+	isSessionConfigResolving(sessionId: string, chat: URI): IObservable<boolean>;
+	setSessionConfigValue(sessionId: string, chat: URI, property: string, value: unknown): Promise<void>;
 	trackSessionConfigOperation?(sessionId: string, operation: Promise<void>): void;
 }
 
@@ -170,6 +189,8 @@ export interface ISessionsProviderAutomations extends IAutomationStore {
 	readonly unavailableReason?: IObservable<string | undefined>;
 	/** Optional category for grouped unavailability messages. */
 	readonly unavailableReasonCode?: IObservable<AutomationUnavailableReasonCode | undefined>;
+	/** A complete sentence describing this provider's unavailability, used instead of naming the provider. */
+	readonly unavailableMessage?: string;
 }
 
 /**
@@ -185,11 +206,8 @@ export interface IDeleteChatOptions {
 }
 
 /**
- * A sessions provider encapsulates a compute environment.
- * It owns workspace discovery, session creation, session listing, and picker contributions.
- *
- * One provider can serve multiple session types. Multiple provider instances can
- * serve the same session type (e.g., one per remote agent host).
+ * A logical sessions provider owns creation targets and may use internal, connection-bound backends for existing sessions.
+ * Both implement this contract; only logical providers advertise workspace and session creation choices.
  */
 export interface ISessionsProvider {
 	readonly sessionConfig?: ISessionConfigProvider;
@@ -242,6 +260,12 @@ export interface ISessionsProvider {
 	 * Event that fires when sessions are added, removed, or changed. Consumers should update their session lists and any related UI when this occurs.
 	 */
 	readonly onDidChangeSessions: Event<ISessionChangeEvent>;
+
+	/**
+	 * Fires when a chat moved between this provider's sessions, after both
+	 * sessions reflect it. Providers whose chats never move return `Event.None`.
+	 */
+	readonly onDidMoveChat: Event<IChatMovedEvent>;
 
 	/**
 	 * Optional. Redirects a resource that this provider supersedes to the one it
