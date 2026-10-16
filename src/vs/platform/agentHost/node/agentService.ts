@@ -6501,12 +6501,13 @@ export class AgentService extends Disposable implements IAgentService {
 		const moved = chatSubtree(this._stateManager, sourceKey, chatKey);
 		const sourceSummary = this._stateManager.getSessionState(sourceKey)?.chats.find(candidate => candidate.resource === chatKey);
 		const chatFolders = await this._movedChatFolders(session, chatKey);
+		const subtreeFolders = await this._movedSubtreeFolders(sourceKey, chatKey, moved, chatFolders);
 		const sourceWorktrees = await this._worktreeCoOwnership.readSessionWorktrees(session);
 		const targetPrimaryWorktree = await this._worktreeCoOwnership.readPrimaryWorktree(target);
 		const validate = () => {
 			checkMoved();
 			this._validateChatMove(sourceKey, targetKey, chatKey, moved, after, chatFolders, sessionMove);
-			return this._planMoveWorktrees(sourceKey, chatKey, moved, chatFolders, sourceWorktrees, targetPrimaryWorktree, sessionMove, this._hasOlderBuildSessionCopy(targetKey));
+			return this._planMoveWorktrees(sourceKey, chatKey, moved, subtreeFolders, sourceWorktrees, targetPrimaryWorktree, sessionMove, this._hasOlderBuildSessionCopy(targetKey));
 		};
 		validate();
 		const targetFolders = this._stateManager.getSessionSummary(targetKey)?.workingDirectories ?? [];
@@ -6840,11 +6841,12 @@ export class AgentService extends Disposable implements IAgentService {
 		const moved = chatSubtree(this._stateManager, sourceKey, chatKey);
 		const sourceSummary = this._stateManager.getSessionState(sourceKey)?.chats.find(candidate => candidate.resource === chatKey);
 		const chatFolders = await this._movedChatFolders(session, chatKey);
+		const subtreeFolders = await this._movedSubtreeFolders(sourceKey, chatKey, moved, chatFolders);
 		const sourceWorktrees = await this._worktreeCoOwnership.readSessionWorktrees(session);
 		const validate = () => {
 			this._validateChatMove(sourceKey, undefined, chatKey, moved, undefined, chatFolders);
 			// A promoted chat's session has no older-build copy of its session values: its default chat keeps its own storage.
-			return this._planMoveWorktrees(sourceKey, chatKey, moved, chatFolders, sourceWorktrees, undefined, false, false);
+			return this._planMoveWorktrees(sourceKey, chatKey, moved, subtreeFolders, sourceWorktrees, undefined, false, false);
 		};
 		// The new session is a worktree session when its primary folder is a worktree the promotion shares or transfers (Block 5).
 		const promotedWorktreeFolders = withSessionWorktreeFolders(undefined, presentedWorktreeFolders(validate().presented, undefined));
@@ -7113,17 +7115,38 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
+	 * The folders a moved chat and its moved descendants work in: the chat's, and those a descendant set for itself (one
+	 * without folders of its own follows its session's, the target's once it moves). What a move plans its worktrees by.
+	 */
+	private async _movedSubtreeFolders(sourceKey: string, chat: string, moved: readonly string[], chatFolders: readonly string[]): Promise<readonly string[]> {
+		const folders = [...chatFolders];
+		const summaries = this._stateManager.getSessionState(sourceKey)?.chats ?? [];
+		for (const descendant of moved) {
+			if (descendant === chat) {
+				continue;
+			}
+			const own = (await this._stateManager.resolveChatState(descendant))?.workingDirectories ?? summaries.find(candidate => candidate.resource === descendant)?.workingDirectories ?? [];
+			for (const folder of own) {
+				if (!folders.some(existing => isEqual(URI.parse(existing), URI.parse(folder)))) {
+					folders.push(folder);
+				}
+			}
+		}
+		return folders;
+	}
+
+	/**
 	 * What a move does with the worktrees of its source (Block 5, {@link planWorktreeMove}); refuses a chat's own
 	 * additional worktree that a chat staying in the source also uses (D2). Synchronous, from what was read before
 	 * validating and the source's chats in memory, so a move runs it again right before committing.
 	 */
-	private _planMoveWorktrees(sourceKey: string, chat: string, moved: readonly string[], chatFolders: readonly string[], worktrees: ISessionWorktreeRecords, targetPrimary: string | undefined, sessionMove: boolean, targetHasOlderBuildCopy: boolean): IWorktreeMoveDecisions {
+	private _planMoveWorktrees(sourceKey: string, chat: string, moved: readonly string[], subtreeFolders: readonly string[], worktrees: ISessionWorktreeRecords, targetPrimary: string | undefined, sessionMove: boolean, targetHasOlderBuildCopy: boolean): IWorktreeMoveDecisions {
 		const sourceFolders = this._stateManager.getSessionSummary(sourceKey)?.workingDirectories ?? [];
 		const plan = planWorktreeMove({
 			kind: sessionMove ? 'session' : 'chat',
 			chat,
 			moved,
-			chatFolders,
+			chatFolders: subtreeFolders,
 			remainingFolders: (this._stateManager.getSessionState(sourceKey)?.chats ?? [])
 				.filter(candidate => !moved.includes(candidate.resource) && candidate.origin?.kind !== ChatOriginKind.Tool)
 				.map(candidate => candidate.workingDirectories ?? sourceFolders),

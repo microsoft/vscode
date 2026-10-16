@@ -32410,6 +32410,24 @@ suite('AgentService (node dispatcher)', () => {
 					}, { target: [concurrent.handle, handle].sort(), source: 0 });
 				});
 
+				test('a move shares the worktree a descendant of the moved chat works in, though the chat itself doesn\'t (L6, Block 5)', async () => {
+					const { service, source, target, peer } = await setupFolders();
+					const store = getTestSessionStateStore(service);
+					const lib = await service.addSessionWorkingDirectoryForChat(source, URI.file('/workspace/lib'), { isolation: 'folder' });
+					const handle = generateUuid();
+					setTestAgentHostWorktreeIsolation(service, createTestAgentHostWorktreeIsolation({
+						readDetachedWorktreeForRemoval: async candidate => candidate === handle ? { worktree: lib, repositoryRoot: URI.file('/lib'), branchName: 'agents/lib' } : undefined,
+					}));
+					// The session's own additional worktree, which only the moved chat's subagent works in.
+					await writeSessionAdditionalWorktrees(store, source, [{ handle, workingDirectory: lib.toString(), repositoryRoot: URI.file('/lib').toString() }]);
+					getStateManager(service).addChat(source.toString(), buildChatUri(source, 'subagent'), peer.toString(), { origin: { kind: ChatOriginKind.Tool, chat: peer.toString(), toolCallId: 'spawn' }, workingDirectories: [lib.toString()] });
+					await timeout(0);
+
+					await service.moveChat(source, peer, { kind: 'session', session: target, after: undefined });
+
+					assert.deepStrictEqual((await getTestAgentHostDatabase(service).readWorktreeCoOwners(lib.toString())).map(row => `${row.session === source.toString() ? 'source' : row.session === target.toString() ? 'target' : row.session}:${row.branch}`).sort(), ['source:agents/lib', 'target:agents/lib']);
+				});
+
 				test('the source of a promoted chat lets go of the folders no remaining chat uses', async () => {
 					const { service, source, peer, foldersOf } = await setupFolders();
 					completeTurn(service, peer);

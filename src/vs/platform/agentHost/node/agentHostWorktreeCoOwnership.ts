@@ -35,6 +35,7 @@ export interface IWorktreeMoveInput {
 	readonly chat: string;
 	/** The moved chat and its descendants. */
 	readonly moved: readonly string[];
+	/** The folders the moved chats work in: the chat's, and those its descendants set for themselves. */
 	readonly chatFolders: readonly string[];
 	/** The folders of each chat staying in the source. */
 	readonly remainingFolders: readonly (readonly string[])[];
