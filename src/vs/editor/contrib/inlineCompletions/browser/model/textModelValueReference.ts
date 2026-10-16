@@ -39,8 +39,9 @@ export class TextModelValueReference extends AbstractText {
 
 	private _assertValid(): void {
 		if (this._textModel.getVersionId() !== this._version) {
-			onUnexpectedError(new Error(`TextModel has changed: expected version ${this._version}, got ${this._textModel.getVersionId()}`));
-			// TODO: throw here!
+			const error = new Error(`TextModel has changed: expected version ${this._version}, got ${this._textModel.getVersionId()}`);
+			onUnexpectedError(error);
+			throw error;
 		}
 	}
 
