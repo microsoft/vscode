@@ -2402,4 +2402,45 @@ suite('FindModel', () => {
 		});
 	});
 
+	findTest('ignoreFoldedRegions works correctly', (editor) => {
+		editor.setPosition({ lineNumber: 1, column: 1 });
+		const findState = disposables.add(new FindReplaceState());
+		disposables.add(new FindModelBoundToEditorModel(editor, findState));
+
+		// Find "hello" in:
+		// Line 1: // my cool header
+		// Line 2: #include "cool.h"
+		// Line 3: #include <iostream>
+		// Line 4: 
+		// Line 5: int main() {
+		// Line 6:     cout << "hello world, Hello!" << endl;
+		// Line 7:     cout << "hello world again" << endl;
+		// Line 8:     cout << "Hello world again" << endl;
+		// Line 9:     cout << "helloworld again" << endl;
+		// Line 10: }
+		// Line 11: // blablablaciao
+
+		// There are 3 exact matches for "hello" on lines 6, 7, and 9 (case-sensitive).
+		findState.change({ searchString: 'hello', matchCase: true, ignoreFoldedRegions: false }, true);
+		assert.strictEqual(findState.matchesCount, 3);
+
+		// Now fold line 7
+		editor.setHiddenAreas([new Range(7, 1, 7, 1)]);
+
+		// Since ignoreFoldedRegions is false, matchesCount should still be 3
+		assert.strictEqual(findState.matchesCount, 3);
+
+		// Now turn ignoreFoldedRegions on
+		findState.change({ ignoreFoldedRegions: true }, true);
+
+		// Matches count should reduce to 2 (line 6 and line 9)
+		assert.strictEqual(findState.matchesCount, 2);
+
+		// Now unfold line 7 (clear hidden areas)
+		editor.setHiddenAreas([]);
+
+		// Matches count should go back to 3
+		assert.strictEqual(findState.matchesCount, 3);
+	});
+
 });
