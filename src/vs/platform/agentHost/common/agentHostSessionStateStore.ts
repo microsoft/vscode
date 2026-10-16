@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { Event } from '../../../base/common/event.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from './agentHostWorkingDirectories.js';
@@ -315,10 +316,21 @@ export interface IAgentHostChatRowStore {
  * old format older builds read in session.db (the mirror) and imports edits
  * those builds make there. Nothing else reads or writes these session.db keys.
  */
+/** A change of a loaded session's state in memory (see {@link IAgentHostSessionStateStore.onDidChangeLoadedState}). */
+export interface ISessionStateChange {
+	readonly session: string;
+	/** The session values (session.db metadata keys) a write changed. */
+	readonly values: readonly string[];
+	/** Whether its chat catalog authority changed (a legacy catalog was normalized). */
+	readonly authority: boolean;
+}
+
 export interface IAgentHostSessionStateStore {
 	readonly _serviceBrand: undefined;
 	/** Per-chat drafts and persisted turns. */
 	readonly chatRows: IAgentHostChatRowStore;
+	/** Fires after a loaded session's state changed in memory, so {@link peek} reads the new state. */
+	readonly onDidChangeLoadedState: Event<ISessionStateChange>;
 	/**
 	 * Loads the session's central state: imports it from session.db once when
 	 * there is none, and on the first load in this process imports older builds'

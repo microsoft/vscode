@@ -132,7 +132,7 @@ import { resolveLastNonLocalTurnId } from '../common/agentHostConversationContex
 import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { AgentMergeController, type IAgentMergeControllerOptions } from './agentMergeController.js';
-import { AgentHostChatMovability } from './agentHostChatMovability.js';
+import { AgentHostChatMovability, chatSubtree } from './agentHostChatMovability.js';
 import { AgentMergeConfigKey, agentMergeRootConfigSchema, getNonMergeSessionConfigValues, isAnyAgentMergeEnabled, mergeClientAgentMergeFolders, readAgentMergeChatInjectedConfigurations, readAgentMergeInjectedConfiguration, withoutAgentMergeElevation, readAgentMergeFolderStates } from '../common/agentMerge.js';
 import { readChatSandboxState, withChatSandboxState } from '../common/meta/agentSandboxStateMeta.js';
 import { AgentChatMoveRefusal, AgentChatMoveRefusedError, ChatMoveConfigKey, chatMoveRootConfigSchema, type AgentChatMoveDestination } from '../common/agentHostChatMove.js';
@@ -1168,7 +1168,6 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}));
 		this._register(this._stateManager.onDidEmitNotification(e => this._onDidNotification.fire(e)));
-		this._chatMovability = this._register(new AgentHostChatMovability(this._stateManager, this._configurationService));
 		this._register(this._sessionRegistry.onDidAdoptSession(session => {
 			const key = session.toString();
 			const state = this._stateManager.getSessionState(key);
@@ -1321,6 +1320,13 @@ export class AgentService extends Disposable implements IAgentService {
 		this._runWhenStartupSettled('catalog reconciliation', () => {
 			this._catalogReconciliationService.schedule();
 		});
+		this._chatMovability = this._register(new AgentHostChatMovability(this._stateManager, this._configurationService, {
+			conversions: this._workspaceConversionService,
+			worktrees: this._worktree,
+			sessionState: this._sessionStateStore,
+			catalogs: this._catalogReconciliationService,
+			sessionId: session => AgentSession.id(session),
+		}));
 		this._runWhenStartupSettled('worktree clean-up', () => this._worktreeCleanup.start());
 		this._register(core.disposables);
 	}
@@ -6446,7 +6452,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!this._stateManager.getSessionState(sourceKey) || !this._stateManager.getSessionState(targetKey)) {
 			return refuse(AgentChatMoveRefusal.DestinationNotFound, `Session ${this._stateManager.getSessionState(sourceKey) ? targetKey : sourceKey} is not available.`);
 		}
-		const moved = this._chatSubtree(sourceKey, chatKey);
+		const moved = chatSubtree(this._stateManager, sourceKey, chatKey);
 		const sourceSummary = this._stateManager.getSessionState(sourceKey)?.chats.find(candidate => candidate.resource === chatKey);
 		const chatFolders = await this._movedChatFolders(session, chatKey);
 		const recordedWorktrees = await this._sessionWorktrees(session);
@@ -6481,7 +6487,7 @@ export class AgentService extends Disposable implements IAgentService {
 					catalogs.set(targetKey, targetCatalog?.header?.revision ?? 0);
 				}
 				// Re-validated after the awaits above, right before committing.
-				const current = this._chatSubtree(sourceKey, chatKey);
+				const current = chatSubtree(this._stateManager, sourceKey, chatKey);
 				if (current.length !== moved.length || current.some(candidate => !moved.includes(candidate))) {
 					refuse(AgentChatMoveRefusal.Conflict, `Chat ${chatKey} changed while it was being moved; try again.`);
 				}
@@ -6524,7 +6530,7 @@ export class AgentService extends Disposable implements IAgentService {
 					for (const entry of await this._orchestratorDatabase.readCatalogSnapshot([sourceKey, targetKey])) {
 						catalogs.set(entry.session, entry.header?.revision ?? 0);
 					}
-					const imported = this._chatSubtree(sourceKey, chatKey);
+					const imported = chatSubtree(this._stateManager, sourceKey, chatKey);
 					if (imported.length !== moved.length || imported.some(candidate => !moved.includes(candidate))) {
 						refuse(AgentChatMoveRefusal.Conflict, `Chat ${chatKey} changed while it was being moved; try again.`);
 					}
@@ -6711,7 +6717,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// Read before validating: the database refuses the promotion if the catalog changes after this point.
 		const [catalog] = await this._orchestratorDatabase.readCatalogSnapshot([sourceKey]);
 		let expectedSourceCatalogRevision = catalog?.header?.revision ?? 0;
-		const moved = this._chatSubtree(sourceKey, chatKey);
+		const moved = chatSubtree(this._stateManager, sourceKey, chatKey);
 		const sourceSummary = this._stateManager.getSessionState(sourceKey)?.chats.find(candidate => candidate.resource === chatKey);
 		const chatFolders = await this._movedChatFolders(session, chatKey);
 		const recordedWorktrees = await this._sessionWorktrees(session);
@@ -6729,7 +6735,7 @@ export class AgentService extends Disposable implements IAgentService {
 			const config: SessionConfigState | undefined = sourceConfig && { schema: sourceConfig.schema, values: { ...sourceConfig.values, ...this._movedChatConfig(sourceKey, sourceKey, chatKey) } };
 			try {
 				this._checkMovedChat(sourceKey, chatKey);
-				const current = this._chatSubtree(sourceKey, chatKey);
+				const current = chatSubtree(this._stateManager, sourceKey, chatKey);
 				if (current.length !== moved.length || current.some(candidate => !moved.includes(candidate))) {
 					refuse(AgentChatMoveRefusal.Conflict, `Chat ${chatKey} changed while it was being promoted; try again.`);
 				}
@@ -6768,7 +6774,7 @@ export class AgentService extends Disposable implements IAgentService {
 					await this._prepareCatalogsForMove([sourceKey]);
 					const [refreshed] = await this._orchestratorDatabase.readCatalogSnapshot([sourceKey]);
 					expectedSourceCatalogRevision = refreshed?.header?.revision ?? 0;
-					const imported = this._chatSubtree(sourceKey, chatKey);
+					const imported = chatSubtree(this._stateManager, sourceKey, chatKey);
 					if (imported.length !== moved.length || imported.some(candidate => !moved.includes(candidate))) {
 						refuse(AgentChatMoveRefusal.Conflict, `Chat ${chatKey} changed while it was being promoted; try again.`);
 					}
@@ -6937,7 +6943,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (this._chatOwnership.getChatOwner(chat) !== source || !this._stateManager.isChatRegistered(chat) || !this._stateManager.isDefaultChat(source, chat)) {
 			throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.NotMovable, `Session ${source} can't be moved.`);
 		}
-		const moved = this._chatSubtree(source, chat);
+		const moved = chatSubtree(this._stateManager, source, chat);
 		if (this._stateManager.getSessionState(source)?.chats.some(candidate => !moved.includes(candidate.resource))) {
 			throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.NotSingleChat, `Session ${source} has other chats.`);
 		}
@@ -6948,27 +6954,10 @@ export class AgentService extends Disposable implements IAgentService {
 		if (this._chatOwnership.getChatOwner(chat) !== source || !this._stateManager.isChatRegistered(chat)) {
 			throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.NotMovable, `Chat ${chat} is not a chat of ${source}.`);
 		}
-		if (!this._stateManager.getSessionState(source)?.chats.find(candidate => candidate.resource === chat)?.movable) {
+		// Checked now rather than read from `movable`, which also reflects the chat's state: a move refuses that with its own reason.
+		if (!this._chatMovability.isStructurallyMovable(chat, source)) {
 			throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.NotMovable, `Chat ${chat} can't be moved.`);
 		}
-	}
-
-	/** `chat` and the registered chats whose recorded parent chain reaches it, `chat` first. */
-	private _chatSubtree(session: string, chat: string): string[] {
-		const chats = this._stateManager.getSessionState(session)?.chats.map(candidate => candidate.resource) ?? [];
-		const subtree = [chat];
-		let expanded = true;
-		while (expanded) {
-			expanded = false;
-			for (const candidate of chats) {
-				const parent = this._stateManager.getChatParent(candidate);
-				if (parent !== undefined && subtree.includes(parent) && !subtree.includes(candidate)) {
-					subtree.push(candidate);
-					expanded = true;
-				}
-			}
-		}
-		return subtree;
 	}
 
 	/** The folders a moved chat works in: its own, else its source's. Resolves the chat, so its own config is loaded. */

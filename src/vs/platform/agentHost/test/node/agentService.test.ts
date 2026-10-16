@@ -105,7 +105,7 @@ import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { AGENT_MERGE_CHANGESET_ID, buildBranchChangesetUri, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
-import { getWorktreesRoot, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
+import { getWorktreesRoot, WorktreeIsolation, WORKTREE_META_PATH, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
 import type { IAgentHostPullRequestResolver } from '../../node/shared/pullRequestResolver.js';
 import { readSessionAdditionalWorktrees, writeSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
@@ -32551,6 +32551,56 @@ suite('AgentService (node dispatcher)', () => {
 						again: refused(AgentChatMoveRefusal.LegacyCatalog, again),
 						authority: 1,
 					});
+				});
+			});
+
+			test('a chat\'s movability follows the events of the services that hold its session\'s state, and a refused move keeps its reason', async () => {
+				const { service, source, target, peer, folder } = await setupMove();
+				const stateManager = getStateManager(service);
+				const internals = service as unknown as IMoveInternals & {
+					_workspaceConversionService: { restoreChatIsolation(session: string, chat: string, storage: string): Promise<void> };
+					_catalogReconciliationService: { _park(session: string, observedDirty: number | undefined): Promise<unknown>; wakeParkedSessions(session?: string): void };
+					_sessionStateStore: { peek(session: URI): { readonly authority: 1 | 2 } | undefined };
+					_sessionDataService: ISessionDataService;
+				};
+				const movable = () => stateManager.getSessionState(source.toString())?.chats.find(chat => chat.resource === peer.toString())?.movable ?? false;
+				const settled = async () => {
+					await timeout(0);
+					return movable();
+				};
+				const store = getTestSessionStateStore(service);
+				const outcomes: Record<string, unknown> = {};
+
+				// The session state store reports the worktree the session records.
+				await store.writeMetadata(source, source, { [WORKTREE_META_PATH]: folder.toString() }, SessionStateMirrorFlush.Immediate);
+				const inWorktree = await settled();
+				const worktreeRefusal = await refusalOf(service.moveChat(source, peer, { kind: 'session', session: target, after: undefined }));
+				await store.writeMetadata(source, source, { [WORKTREE_META_PATH]: null }, SessionStateMirrorFlush.Immediate);
+				outcomes.worktree = { inWorktree, worktreeRefusal, released: await settled() };
+
+				// The workspace conversion service reports a chat whose workspace change was quarantined, and its release.
+				const storage = stateManager.getChatStorageResource(peer.toString())!;
+				const restore = async (quarantined: boolean) => {
+					const chatDatabase = internals._sessionDataService.openDatabase(URI.parse(storage));
+					await chatDatabase.object.setMetadata('agentHost.chatIsolationQuarantined', String(quarantined));
+					await internals._workspaceConversionService.restoreChatIsolation(source.toString(), peer.toString(), storage);
+					return settled();
+				};
+				outcomes.conversion = { quarantined: await restore(true), released: await restore(false) };
+
+				// The catalog reconciliation reports a session it parked, and its release; a parked session's legacy catalog can't convert.
+				const peek = internals._sessionStateStore.peek.bind(internals._sessionStateStore);
+				internals._sessionStateStore.peek = resource => resource.toString() === source.toString() ? { ...peek(resource)!, authority: 1 } : peek(resource);
+				await internals._catalogReconciliationService._park(source.toString(), await getTestAgentHostDatabase(service).getSessionV2PayloadDirty(source.toString()));
+				const parked = await settled();
+				internals._catalogReconciliationService.wakeParkedSessions(source.toString());
+				outcomes.parked = { parked, released: await settled() };
+
+				assert.deepStrictEqual(outcomes, {
+					// A refused move still says why, not just that the chat isn't movable.
+					worktree: { inWorktree: false, worktreeRefusal: AgentChatMoveRefusal.WorktreeFolder, released: true },
+					conversion: { quarantined: false, released: true },
+					parked: { parked: false, released: true },
 				});
 			});
 
