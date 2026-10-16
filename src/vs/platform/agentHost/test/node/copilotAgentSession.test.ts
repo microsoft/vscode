@@ -2540,6 +2540,20 @@ suite('CopilotAgentSession', () => {
 		}
 	});
 
+	test('idle abort does not cancel a later managed model configuration refresh', async () => {
+		const { session, mockSession, sessionConfigUpdates, modelConfigurationReported, onDidReportModelConfiguration } = await createAgentSession(disposables, {
+			trackModelConfigurationUpdates: true,
+		});
+		await modelConfigurationReported;
+		await session.abort();
+		mockSession.currentModel = { modelId: 'gpt-5', reasoningEffort: 'high' };
+		const reported = Event.toPromise(onDidReportModelConfiguration);
+		session.refreshModelConfiguration();
+		await reported;
+		const latest = sessionConfigUpdates.filter(update => Object.hasOwn(update.patch, agentModelConfigurationReportKey)).at(-1)!;
+		assert.strictEqual(readAgentModelConfigurationReport(latest.patch, session.chatChannelUri.toString())?.current?.id, 'gpt-5');
+	});
+
 	test('registers BYOK models reported after launch before changing model (#337742)', async () => {
 		const provider = { name: 'customendpoint', type: 'openai' as const, wireApi: 'responses' as const, baseUrl: 'http://127.0.0.1:1/v/customendpoint', bearerToken: 'nonce.test-session-1' };
 		const early = { id: 'Pool/early', provider: 'customendpoint' };

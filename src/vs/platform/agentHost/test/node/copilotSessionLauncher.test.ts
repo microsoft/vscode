@@ -5,6 +5,8 @@
 
 import type { CopilotClient, CopilotSession, PermissionHandler, PermissionRequest, ResumeSessionConfig, SessionConfig, Verbosity } from '@github/copilot-sdk';
 import assert from 'assert';
+import { useFakeTimers } from 'sinon';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -40,6 +42,7 @@ import { ByokLmProxyService, IByokLmProxyService, type IByokLmProxyHandle } from
 import { resolveCopilotMcpServerInfo, type ICopilotPluginInfo } from '../../node/copilot/copilotAgent.js';
 import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
 import { CopilotExtensionsReloadToolName } from '../../node/copilot/copilotExtensionTools.js';
+import { CopilotManagedSettingsResolver } from '../../node/copilot/copilotManagedSettings.js';
 import { buildCopilotBuiltinAgents } from '../../node/copilot/copilotBuiltinAgents.js';
 import type { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import type { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
@@ -472,6 +475,34 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 	}
 
 	for (const kind of ['create', 'resume'] as const) {
+		test(`${kind} waits for slow managed settings before applying policy and starting the SDK session`, async () => {
+			const fixture = setup(kind);
+			const rpc = fixture.plan.client.rpc.managedSettings;
+			const result = await rpc.resolve({ clientName: 'vscode-agent-host' });
+			const gate = new DeferredPromise<typeof result>();
+			const started = new DeferredPromise<void>();
+			rpc.resolve = () => { started.complete(); return gate.p; };
+			const resolver = store.add(new CopilotManagedSettingsResolver(new NullLogService()));
+			const policies: typeof result.resolved[] = [];
+			const clock = useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+			try {
+				const launch = fixture.launcher.launch({ ...fixture.plan, managedSettingsResolver: resolver }, {
+					...testRuntime,
+					setApprovalPolicy: resolved => policies.push(resolved),
+				});
+				await started.p;
+				await clock.tickAsync(4000);
+				assert.deepStrictEqual({ captured: fixture.captured, policies }, { captured: undefined, policies: [] });
+				const restricted = { ...result.resolved, settings: { permissions: { deny: ['Shell'] } } };
+				gate.complete({ ...result, resolved: restricted });
+				store.add(await launch);
+				assert.deepStrictEqual({ created: !!fixture.captured, policies }, { created: true, policies: [restricted] });
+			} finally {
+				gate.complete(result);
+				clock.restore();
+			}
+		});
+
 		test(`${kind} sends sandbox environment credentials to the SDK and clears them on reset`, async () => {
 			const fixture = setup(kind);
 			fixture.configuration.updateSessionConfig(fixture.owner, { sandboxEnabled: 'on' });

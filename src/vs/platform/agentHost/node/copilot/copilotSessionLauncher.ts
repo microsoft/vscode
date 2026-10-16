@@ -5,6 +5,8 @@
 
 import type { AttributedPermissionResult, ContextTier, CopilotClient, CopilotExpAssignmentResponse, CopilotSession, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ManagedSettingsPermissions, ModelCapabilitiesOverride, NamedProviderConfig, PermissionHandler, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionEvent, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
 import { coalesce } from '../../../../base/common/arrays.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { equals as objectsEqual } from '../../../../base/common/objects.js';
 import { isObject, isStringArray } from '../../../../base/common/types.js';
@@ -21,7 +23,7 @@ import { getByokLmSelectionModelId, resolveByokLmEnablement, type IByokLmModelIn
 import { LOCAL_MODEL_SENTINEL_PROVIDER_NAME } from '../../common/localModel.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTelemetryLevelConfigKey, agentHostConfigValueToTelemetryLevel, platformRootSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { getCopilotApprovalPolicy } from './copilotApprovalPolicy.js';
-import { AGENT_HOST_COPILOT_CLIENT_NAME, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
+import { AGENT_HOST_COPILOT_CLIENT_NAME, type CopilotManagedSettingsResolver, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
 import { omitCopilotManagedModelDefaults, type CopilotManagedModelPolicy } from './copilotManagedModelConfiguration.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, normalizeModelFamilyAlias, normalizeToolSearchDeferThreshold, resolveModelCapabilityOverrideField } from '../../common/copilotCliConfig.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
@@ -230,6 +232,7 @@ export function toSdkToolFilterPatterns(patterns: readonly string[] | undefined)
 }
 
 export interface ICopilotSessionRuntime {
+	readonly cancellationToken?: CancellationToken;
 	readonly setApprovalPolicy?: (resolved: Parameters<typeof getCopilotApprovalPolicy>[0], bridged: ManagedSettingsPermissions) => void;
 	readonly onSessionEvent?: (event: SessionEvent) => void;
 	/** Chat channel that owns this session's turns, used to attribute terminal claims. */
@@ -315,6 +318,7 @@ interface ICopilotSessionLaunchBase {
 	/** The on-device model provider installed on {@link client} when the user opted in: replaceable direct-selection rows and turn attribution. */
 	readonly localModelProvider?: ILocalModelProvider;
 	readonly modelPolicyModels?: () => readonly IAgentModelInfo[];
+	readonly managedSettingsResolver?: CopilotManagedSettingsResolver;
 
 	/**
 	 * Whether this is a workspace-less session. Threaded into the
@@ -343,6 +347,12 @@ export interface ICopilotResumeSessionLaunchPlan extends ICopilotSessionLaunchBa
 }
 
 export type CopilotSessionLaunchPlan = ICopilotCreateSessionLaunchPlan | ICopilotResumeSessionLaunchPlan;
+
+export function resolveCopilotSessionManagedSettings(plan: CopilotSessionLaunchPlan, token = CancellationToken.None) {
+	return plan.managedSettingsResolver
+		? plan.managedSettingsResolver.resolve(plan.client.rpc.managedSettings, plan.githubCredentials.token, plan.workingDirectory?.fsPath, token)
+		: resolveCopilotManagedSettings(plan.client.rpc.managedSettings, plan.githubCredentials.token, 30_000, plan.workingDirectory?.fsPath, token);
+}
 
 export function isCopilotReasoningEffort(value: unknown): value is AgentHostReasoningEffort {
 	return ReasoningEfforts.some(reasoningEffort => reasoningEffort === value);
@@ -901,6 +911,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		let managedSettingsResolved = false;
 		plan.stageRecorder?.mark('config');
 		const { config, modelPolicy } = await this._buildSessionConfig(plan, runtime, () => { managedSettingsResolved = true; });
+		if (runtime.cancellationToken?.isCancellationRequested) {
+			throw new CancellationError();
+		}
 		plan.stageRecorder?.mark('create');
 		const sandboxConfig = async (session: CopilotSessionWrapper['session']) => {
 			if (!managedSettingsResolved) {
@@ -1271,7 +1284,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		];
 		const promptOverrides = await applyConfiguredPromptOverrides(promptOverrideString, promptOverrideFile, tools, this._fileService, this._logService);
 		const bridgedPermissions = this._managedSettingsService.permissions;
-		const resolved = await resolveCopilotManagedSettings(plan.client.rpc.managedSettings, plan.githubCredentials.token, 30_000, plan.workingDirectory?.fsPath);
+		const resolved = await resolveCopilotSessionManagedSettings(plan, runtime.cancellationToken);
 		runtime.setApprovalPolicy?.(resolved.resolved, bridgedPermissions);
 		const managedSettingsPermissions = getCopilotApprovalPolicy(resolved.resolved,
 			this._configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true,
