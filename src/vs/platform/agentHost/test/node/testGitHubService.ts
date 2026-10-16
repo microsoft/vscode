@@ -11,10 +11,29 @@ import { GitHubPullRequestLookup, GitHubQueryApi } from '../../../github/common/
 import { IGitHubClient } from '../../../github/common/githubService.js';
 import { IPullRequestMutations } from '../../../github/common/pullRequestMutationService.js';
 import { IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
+import { captureCredentialSource, type IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
+import { GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE } from '../../common/agent.js';
 
-export function createTestGitHubService(client: IGitHubClient = new class extends mock<IGitHubClient>() { }(), onDidChange: Event<void> = Event.None): IAgentHostGitHubService {
+export function createTestGitHubService(client: IGitHubClient = new class extends mock<IGitHubClient>() { }(), onDidChange: Event<void> = Event.None, credentialSource?: IAgentHostCredentialSource): IAgentHostGitHubService {
+	const agentMergeBindings = new Map<string, IAgentHostCredentialSource>();
 	return new class extends mock<IAgentHostGitHubService>() {
 		override readonly onDidChangeRepositoryClient = onDidChange;
+		override getAgentMergeCredentialBinding(chat: string) { return agentMergeBindings.get(chat); }
+		override getAgentMergeCredentialSource(chat: string) { return agentMergeBindings.get(chat) ?? credentialSource; }
+		override bindAgentMergeCredentialSource(_session: string, chat: string, source: IAgentHostCredentialSource | undefined) {
+			if (source) {
+				agentMergeBindings.set(chat, source);
+			} else {
+				agentMergeBindings.delete(chat);
+			}
+		}
+		override captureSessionCredentialSource(session: string, source?: IAgentHostCredentialSource, _owningSession?: string, includeCopilot = false) {
+			const selected = source ?? credentialSource;
+			return selected ? captureCredentialSource({
+				principal: selected.principal,
+				getCredential: request => selected.getCredential({ ...request, session }),
+			}, [GITHUB_REPO_PROTECTED_RESOURCE, ...(includeCopilot ? [{ ...GITHUB_COPILOT_PROTECTED_RESOURCE, required: false }] : [])]) : undefined;
+		}
 		override acquireRepositoryClient() { return new ImmortalReference(client); }
 	}();
 }

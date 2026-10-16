@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals as objectEquals } from '../../../base/common/objects.js';
+import type { IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { GitHubPullRequestLookup } from '../../github/common/githubQueryService.js';
@@ -43,6 +44,8 @@ interface ICurrentRestrictedState {
 /** Live session inputs and callbacks needed to guard an asynchronous reconciliation. */
 export interface IRestrictedPullRequestReconciliationContext {
 	readonly sessionKey: string;
+	readonly credentialSource?: IAgentHostCredentialSource;
+	readonly credentialSession?: string;
 	readonly sessionState: ISessionWithDefaultChat;
 	readonly gitHubState: ISessionGitHubState;
 	readonly gitState: ISessionGitState | undefined;
@@ -117,6 +120,8 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 		allowedPullRequestUrls?: readonly string[],
 		workingDirectory: string | undefined = state.workingDirectories?.[0],
 		requireHeadBranch = false,
+		source?: IAgentHostCredentialSource,
+		session?: string,
 	): Promise<GitHubPullRequestLookup | undefined> {
 		if (allowedPullRequestUrls?.length === 0) {
 			return undefined;
@@ -128,7 +133,7 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 		const signal = this._abortController.signal;
 		const store = new DisposableStore();
 		try {
-			const client = store.add(this._gitHubService.acquireRepositoryClient(signal)).object;
+			const client = store.add(this._gitHubService.acquireRepositoryClient(signal, source, session)).object;
 			const { account } = await client.credentials.getCredential(signal);
 			const ref = { ...account, owner, repo };
 			const options = { allowedPullRequestUrls, priority: 'background' } as const;
@@ -196,7 +201,7 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 		const orderedCandidates = this._orderCandidates(candidates, current, previous);
 		let pullRequest: GitHubPullRequestLookup | undefined;
 		try {
-			pullRequest = await this.resolveForCheckout(sessionState, owner, repo, gitState, branchName, orderedCandidates);
+			pullRequest = await this.resolveForCheckout(sessionState, owner, repo, gitState, branchName, orderedCandidates, undefined, false, context.credentialSource, context.credentialSource ? context.credentialSession ?? sessionKey : undefined);
 		} catch (error) {
 			return {
 				kind: 'failed',

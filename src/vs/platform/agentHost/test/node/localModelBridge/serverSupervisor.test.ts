@@ -504,7 +504,7 @@ suite('localModel server supervisor (§5.8)', () => {
 		});
 	});
 
-	test('load time: a build that doesn\'t know the model\'s architecture fails with runtimeUnsupportedModel at once, without downgrade retries, with directions to get one that can, naming the change MAI\'s architecture needs (maion-coder, ggml-org/llama.cpp#29778)', async () => {
+	test('load time: a build that doesn\'t know the model\'s architecture fails with runtimeUnsupportedModel at once, without downgrade retries, with directions to get one that can, naming the first llama.cpp release that runs MAI\'s architecture (maion-coder, b11658)', async () => {
 		const run = async (architecture: string) => {
 			const { supervisor, spawner, events } = createSupervisor({ server: { loading: true } });
 			spawner.behavior = child => {
@@ -517,13 +517,13 @@ suite('localModel server supervisor (§5.8)', () => {
 			supervisor.dispose();
 			return result;
 		};
-		const expected = (change: string) => {
-			const error = { code: 'runtimeUnsupportedModel', message: `This llama.cpp build (0.6.0-dev (b11459)) can't run MAI Code 1.1 Flash. Install a llama.cpp build that ${change}, then set Chat \u203a Copilot \u203a Local Model: Llama Server Path (chat.copilot.localModel.llamaServerPath) to its llama-server and select Retry.`, actions: ['getLlamaCpp', 'openSettings', 'retry'] };
+		const expected = (directions: string) => {
+			const error = { code: 'runtimeUnsupportedModel', message: `This llama.cpp build (0.6.0-dev (b11459)) can't run MAI Code 1.1 Flash. ${directions}, then set Chat \u203a Copilot \u203a Local Model: Llama Server Path (chat.copilot.localModel.llamaServerPath) to its llama-server and select Retry.`, actions: ['getLlamaCpp', 'openSettings', 'retry'] };
 			return { error, state: error, spawns: 1, events: ['startFailed:runtimeUnsupportedModel'] };
 		};
 		assert.deepStrictEqual({ mai: await run('maion-coder'), other: await run('qwen9') }, {
-			mai: expected('includes ggml-org/llama.cpp#29778'),
-			other: expected('supports it'),
+			mai: expected('Install llama.cpp b11658 or later'),
+			other: expected('Install a llama.cpp build that supports it'),
 		});
 	});
 

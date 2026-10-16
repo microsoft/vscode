@@ -391,6 +391,7 @@ export class MissionControlHost extends Disposable {
 			{
 				hostLaunchKind: this._options.hostLaunchKind,
 				allowExtensionMethods: false,
+				scopedRelayCredentials: true,
 				relayRoots: relay.rootMeta ? undefined : roots,
 				relayRootMeta: relay.rootMeta,
 				ahpLogDirectory: this._ahpLogDirectory,

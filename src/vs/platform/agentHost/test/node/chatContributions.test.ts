@@ -5,6 +5,8 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import type { IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
+import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -56,6 +58,7 @@ import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHos
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
 import { AgentHostChatInputService, IAgentHostChatInputService } from '../../node/agentHostChatInputService.js';
+import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
 import { AgentSessionRegistry, IAgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from '../../node/chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
@@ -980,7 +983,9 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	services.set(IAgentHostProviderService, providerService);
 	const chatOwnership = createTestChatOwnershipService(stateManager);
 	services.set(IAgentHostChatOwnershipService, chatOwnership);
-	services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, disposables.add(new AgentHostSubscriptionService(chatOwnership)), chatOwnership, createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionDataService))));
+	const authenticationService = disposables.add(new AgentHostAuthenticationService(logService));
+	services.set(IAgentHostAuthenticationService, authenticationService);
+	services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, disposables.add(new AgentHostSubscriptionService(chatOwnership)), chatOwnership, authenticationService, sessionStateStore)));
 	const chatRows = sessionStateStore.chatRows;
 	const localTurns = new AgentHostLocalTurns(chatRows, logService);
 	services.set(IAgentHostLocalTurns, localTurns);
@@ -1036,6 +1041,7 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 	});
 	const sessionDataService = createSessionDataService(new TestSessionDatabase());
 	const services = new ServiceCollection(
+		[IAgentHostAuthenticationService, disposables.add(new AgentHostAuthenticationService(logService))],
 		[ILogService, logService],
 		[IAgentHostStateManager, stateManager],
 		[IAgentConfigurationService, disposables.add(new AgentConfigurationService(stateManager, logService))],
@@ -1092,14 +1098,18 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 	const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands));
 	services.set(IAgentHostLocalCommands, localCommands);
 	const admitted: { channel: string; message: Message; clientId: string | undefined; hostLaunchKind: AgentHostLaunchKind }[] = [];
+	const admittedCredentials: (IAgentHostCredentialSource | undefined)[] = [];
 	disposables.add(service.registerHost({
 		hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
-		sendTurnMessage: options => admitted.push({ channel: options.turnChannel, message: options.message, clientId: options.senderClientId, hostLaunchKind: options.clientContext.hostLaunchKind }),
+		sendTurnMessage: options => {
+			admitted.push({ channel: options.turnChannel, message: options.message, clientId: options.senderClientId, hostLaunchKind: options.clientContext.hostLaunchKind });
+			admittedCredentials.push(options.credentials);
+		},
 	}));
 	disposables.add(service.registerContribution(LocalCommandContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
 	disposables.add(service.registerContribution(SessionWorkspaceConversionContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
 	disposables.add(service.registerContribution(QueueDrainContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
-	return { service, stateManager, session, chat, pendingMessages, pendingMessageSenders, admitted, titleController, telemetryService, clearAgent: () => agent = undefined, setConversionPending: (pending: boolean) => conversionPending = pending, setSteeringReady: (ready: boolean) => steeringReady = ready };
+	return { service, stateManager, session, chat, pendingMessages, pendingMessageSenders, admitted, admittedCredentials, titleController, telemetryService, clearAgent: () => agent = undefined, setConversionPending: (pending: boolean) => conversionPending = pending, setSteeringReady: (ready: boolean) => steeringReady = ready };
 }
 
 function appliedClientAction(channel: string, session: string, action: IAppliedClientAction['action'], clientId = 'client'): IAppliedClientAction {
@@ -1674,6 +1684,30 @@ suite('AgentHostChatContributions', () => {
 			pendingMessages: [],
 			admitted: [['second', 'second-client']],
 		});
+	});
+
+	test('queue drain retains the queuing connection source and resolves its latest token only when work is runnable', async () => {
+		const queue = createQueueDrainContributions(disposables);
+		const resource = 'https://api.github.com';
+		const source = disposables.add(new AgentHostAuthenticationScope(async params => params, () => { }));
+		await source.authenticate({ resource, token: 'queued-original' }, [resource]);
+		queue.stateManager.dispatchServerAction(queue.chat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'active-turn',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'running', origin: { kind: MessageKind.User } },
+		});
+		const action = queuedMessage('scoped', 'scoped queued work');
+		queue.stateManager.dispatchServerAction(queue.chat, action);
+		queue.service.didApplyClientAction({ ...appliedClientAction(queue.chat, queue.session, action, 'scoped-client'), credentials: source });
+		await source.authenticate({ resource, token: 'queued-rotated' }, [resource]);
+		queue.stateManager.dispatchServerAction(queue.chat, { type: ActionType.ChatTurnComplete, turnId: 'active-turn', duration: 1 });
+		queue.service.turnEnd({ session: queue.session, channel: queue.chat, turnId: 'active-turn', reason: { kind: 'success' } });
+		assert.deepStrictEqual({
+			sameConnection: queue.admittedCredentials[0] === source,
+			credential: queue.admittedCredentials[0]?.getCredential({ resource })?.token,
+			actor: queue.admitted[0]?.clientId,
+		}, { sameConnection: true, credential: 'queued-rotated', actor: 'scoped-client' });
 	});
 
 	test('queue drain keeps per-message senders across removal and ignores duplicate handoff', () => {
