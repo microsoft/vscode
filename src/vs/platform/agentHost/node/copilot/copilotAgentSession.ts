@@ -8972,6 +8972,12 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 			this._mcpCustomizations.applyOne(server);
+			if (e.data.status === 'connected' && !this._mcpToolsLoaded.has(e.data.serverName)) {
+				// Older runtimes never emit tools-loaded; inventory `toolsLoaded`, or its absence, decides readiness.
+				void this._refreshMcpServersFromRpc().catch(error => {
+					this._logService.warn(`[Copilot:${this.sessionId}] Failed to refresh MCP server inventory after '${e.data.serverName}' connected`, error);
+				});
+			}
 			if (e.data.status === 'disabled' || previousEnabled === false) {
 				void this._refreshObservedMcpServerEnablement(e.data.serverName, previousEnabled).catch(error => {
 					this._logService.warn(`[Copilot:${this.sessionId}] Failed to refresh MCP enablement for '${e.data.serverName}'`, error);

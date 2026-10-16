@@ -26339,6 +26339,61 @@ Use the attached image as context.
 			});
 		}
 
+		test('publishes servers that connect or reconnect on an older runtime ready without tools-loaded events', async () => {
+			const serverName = 'workiq';
+			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, {
+				rootValues: { [AgentHostMcpToolRoutingEnabledConfigKey]: false },
+				configureMockSession: mock => {
+					mock.mcpListResult = { servers: [{ name: serverName, status: 'pending' }] };
+				},
+			});
+			await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated));
+			const setStatus = async (status: 'pending' | 'connected') => {
+				mockSession.mcpListResult = { servers: [{ name: serverName, status }] };
+				mockSession.fire('session.mcp_server_status_changed', { serverName, status });
+				await timeout(0);
+				return session.topLevelMcpCustomizations()[0]?.state;
+			};
+
+			assert.deepStrictEqual({
+				connected: await setStatus('connected'),
+				disconnected: await setStatus('pending'),
+				reconnected: await setStatus('connected'),
+			}, {
+				connected: { kind: McpServerStatus.Ready },
+				disconnected: { kind: McpServerStatus.Starting, blocking: true },
+				reconnected: { kind: McpServerStatus.Ready },
+			});
+		});
+
+		test('keeps a newly connected server starting while inventory reports its tools loading', async () => {
+			const serverName = 'workiq';
+			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, {
+				rootValues: { [AgentHostMcpToolRoutingEnabledConfigKey]: false },
+				configureMockSession: mock => {
+					mock.mcpListResult = { servers: [{ name: serverName, status: 'pending' }] };
+				},
+			});
+			await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated));
+			const listCallsBeforeConnect = mockSession.mcpListCalls;
+			mockSession.mcpListResult = { servers: [{ name: serverName, status: 'connected', toolsLoaded: false }] };
+			mockSession.fire('session.mcp_server_status_changed', { serverName, status: 'connected' });
+			await timeout(0);
+			const afterConnect = session.topLevelMcpCustomizations()[0]?.state;
+
+			fireMcpToolsLoaded(mockSession, serverName);
+
+			assert.deepStrictEqual({
+				inventoryRefreshedOnConnect: mockSession.mcpListCalls > listCallsBeforeConnect,
+				afterConnect,
+				afterToolsLoaded: session.topLevelMcpCustomizations()[0]?.state,
+			}, {
+				inventoryRefreshedOnConnect: true,
+				afterConnect: { kind: McpServerStatus.Starting, blocking: true },
+				afterToolsLoaded: { kind: McpServerStatus.Ready },
+			});
+		});
+
 		test('retries inventory overtaken by tools loaded without reverting ready to starting', async () => {
 			const serverName = 'workiq';
 			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables, {
