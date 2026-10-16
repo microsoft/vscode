@@ -715,6 +715,8 @@ suite('Sessions - Session View', () => {
 		const groupsView = Reflect.get(view, '_groupsView') as { _setGroupCount(count: number): void };
 		groupsView._setGroupCount(2);
 		const singleSideBySide = getState();
+		await setChatTabsMode(SessionsChatTabsMode.Multiple);
+		const multipleSideBySide = getState();
 		groupsView._setGroupCount(1);
 		await setChatTabsMode(SessionsChatTabsMode.Multiple);
 
@@ -722,11 +724,13 @@ suite('Sessions - Session View', () => {
 			multiple,
 			single,
 			singleSideBySide,
+			multipleSideBySide,
 			restoredMultiple: getState(),
 		}, {
 			multiple: { headerDisplay: 'none', tabBarDisplay: '', tabsReplaceHeader: true },
 			single: { headerDisplay: '', tabBarDisplay: 'none', tabsReplaceHeader: false },
 			singleSideBySide: { headerDisplay: 'none', tabBarDisplay: 'none', tabsReplaceHeader: false },
+			multipleSideBySide: { headerDisplay: 'none', tabBarDisplay: '', tabsReplaceHeader: true },
 			restoredMultiple: { headerDisplay: 'none', tabBarDisplay: '', tabsReplaceHeader: true },
 		});
 	});
