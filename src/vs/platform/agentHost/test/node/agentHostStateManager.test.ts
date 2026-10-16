@@ -683,6 +683,25 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(notifications[0].type, NotificationType.SessionRemoved);
 	});
 
+	test('onDidDeleteSession fires for every deleted session, but not for eviction or unpublishing', () => {
+		const provisional = URI.from({ scheme: 'copilot', path: '/provisional-session' }).toString();
+		const evicted = URI.from({ scheme: 'copilot', path: '/evicted-session' }).toString();
+		const unpublished = URI.from({ scheme: 'copilot', path: '/unpublished-session' }).toString();
+		manager.createSession(makeSessionSummary());
+		manager.createSession(makeSessionSummary(provisional), { emitNotification: false });
+		manager.createSession(makeSessionSummary(evicted));
+		manager.createSession(makeSessionSummary(unpublished));
+		const deleted: string[] = [];
+		disposables.add(manager.onDidDeleteSession(session => deleted.push(session)));
+
+		manager.removeSession(evicted);
+		manager.setSessionSummaryPublished(unpublished, false);
+		manager.deleteSession(sessionUri);
+		manager.deleteSession(provisional);
+
+		assert.deepStrictEqual(deleted, [sessionUri, provisional]);
+	});
+
 	for (const cleanup of ['delete', 'retract', 'unpublish', 'restore'] as const) {
 		test(`eviction retains the physical default independently of routing until ${cleanup}`, () => {
 			const physical = buildChatUri(sessionUri, 'advertised-default');

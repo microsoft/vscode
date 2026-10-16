@@ -402,6 +402,12 @@ export class AgentHostStateManager extends Disposable {
 	readonly onDidChangeSessionStatus: Event<{ session: string; status: SessionStatus }> = this._onDidChangeSessionStatus.event;
 	private readonly _onDidRemoveSession = this._register(new Emitter<string>());
 	readonly onDidRemoveSession: Event<string> = this._onDidRemoveSession.event;
+	private readonly _onDidDeleteSession = this._register(new Emitter<string>());
+	/**
+	 * Fires when {@link deleteSession} permanently deletes a session, whether or not clients were ever told about it.
+	 * Unlike {@link onDidRemoveSession}, it does not fire when an idle session is only evicted from memory.
+	 */
+	readonly onDidDeleteSession: Event<string> = this._onDidDeleteSession.event;
 	private readonly _onDidRegisterChat = this._register(new Emitter<IChatRegistration>());
 	/** Fires when a chat enters the registry with its recorded owner and storage. */
 	readonly onDidRegisterChat: Event<IChatRegistration> = this._onDidRegisterChat.event;
@@ -2148,6 +2154,7 @@ export class AgentHostStateManager extends Disposable {
 	 * {@link markSessionPersisted} are removed silently — no client knows
 	 * about them, so a `SessionRemoved` would be noise (or worse, would
 	 * cause clients to drop a session URI they had eagerly subscribed to).
+	 * {@link onDidDeleteSession} fires in both cases.
 	 */
 	deleteSession(session: URI): void {
 		const wasPublished = this._publishedSessionSummaries.has(session.toString());
@@ -2176,6 +2183,7 @@ export class AgentHostStateManager extends Disposable {
 				session,
 			});
 		}
+		this._onDidDeleteSession.fire(session);
 	}
 
 	// ---- Session meta -------------------------------------------------------
