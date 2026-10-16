@@ -584,7 +584,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
-		const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
+		const provider = store.add(new SessionsChatAccessibilityHelp(true).getProvider(instantiationService));
 
 		assert.strictEqual(
 			provider.provideContent().split('\n').find(line => line.startsWith('When you select assistant response text')),
@@ -604,12 +604,32 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
-		const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
+		const provider = store.add(new SessionsChatAccessibilityHelp(true).getProvider(instantiationService));
 
 		assert.strictEqual(
 			provider.provideContent().split('\n').find(line => line.startsWith('When you select assistant response text')),
 			'When you select assistant response text, an action menu appears. Press Tab to focus the menu, use the Up Arrow and Down Arrow keys to move between actions, and press Enter to activate one. Press Escape to dismiss the menu. Ask in a Side Chat opens a question input anchored to the selected text. Quote appends the selection as a blockquote in the chat input when the conversation is interactive. Copy copies the selected text.',
 		);
+	});
+
+	test('omits response-selection help when the widget is unsupported', () => {
+		const selectionHelp = [false, true].map(enhancedSelectionMenu => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const configuration = new TestConfigurationService({
+				[AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING]: enhancedSelectionMenu,
+			});
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiationService.stub(IConfigurationService, configuration);
+			stubContextKeyService(instantiationService, configuration);
+			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			const provider = store.add(new SessionsChatAccessibilityHelp(false).getProvider(instantiationService));
+			return provider.provideContent().split('\n').find(line => line.startsWith('When you select assistant response text'));
+		});
+
+		assert.deepStrictEqual(selectionHelp, [undefined, undefined]);
 	});
 
 	test('describes forking to the side and the keyboard-only alternative', () => {

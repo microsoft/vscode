@@ -9,6 +9,7 @@ import { isWeb } from '../../../../base/common/platform.js';
 import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { getModePickerAccessibilityHelp } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { getBackgroundShellsPillAccessibilityHelp } from '../../../../workbench/contrib/chat/browser/sessionBackgroundShellsControl.js';
+import { isResponseSelectionSupported } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
@@ -48,6 +49,8 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 	// provides its own help, so this window-wide help does not apply in either case.
 	readonly when = ContextKeyExpr.and(IsSessionsWindowContext, CustomViewVisibleContext.negate(), SessionWorktreeCleanupEditorFocusedContext.negate());
 
+	constructor(private readonly _responseSelectionSupported = isResponseSelectionSupported()) { }
+
 	getProvider(accessor: ServicesAccessor) {
 		const restoreFocus = createSessionsChatFocusRestorer(accessor);
 		const configurationService = accessor.get(IConfigurationService);
@@ -80,10 +83,12 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		if (areDevContainerSamplesEnabled(configurationService)) {
 			content.push(localize('sessionsChat.devContainerSamples', "The workspace picker includes Dev Container Sample. Open its submenu and choose a sample with the arrow keys and Enter. Selecting a sample does not start Docker or clone the repository. The sample is prepared in a Docker volume when you send your first prompt."));
 		}
-		if (configurationService.getValue<boolean>(AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING)) {
-			content.push(localize('sessionsChat.responseSelectionMenu', "When you select assistant response text, an action menu appears. Press Tab to focus the menu, use the Up Arrow and Down Arrow keys to move between actions, and press Enter to activate one. Press Escape to dismiss the menu. Ask in a Side Chat opens a question input anchored to the selected text. Quote appends the selection as a blockquote in the chat input when the conversation is interactive. Copy copies the selected text."));
-		} else {
-			content.push(localize('sessionsChat.responseSelectionInput', "When you select assistant response text, an Ask Question input appears. Type a side question and press Enter to send it, press Shift+Enter to insert a new line, or press Escape to dismiss the input."));
+		if (this._responseSelectionSupported) {
+			if (configurationService.getValue<boolean>(AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING)) {
+				content.push(localize('sessionsChat.responseSelectionMenu', "When you select assistant response text, an action menu appears. Press Tab to focus the menu, use the Up Arrow and Down Arrow keys to move between actions, and press Enter to activate one. Press Escape to dismiss the menu. Ask in a Side Chat opens a question input anchored to the selected text. Quote appends the selection as a blockquote in the chat input when the conversation is interactive. Copy copies the selected text."));
+			} else {
+				content.push(localize('sessionsChat.responseSelectionInput', "When you select assistant response text, an Ask Question input appears. Type a side question and press Enter to send it, press Shift+Enter to insert a new line, or press Escape to dismiss the input."));
+			}
 		}
 		content.push(getModePickerAccessibilityHelp());
 		content.push(localize('sessionsChat.closePane', "When multiple session panes are visible, move focus to a pane header and activate Close to remove that pane from the grid. Closing a pane keeps the session and its worktree available in the Sessions list."));
