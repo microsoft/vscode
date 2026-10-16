@@ -1025,7 +1025,8 @@ class AutomationCardsSection extends Disposable {
 				|| unavailableProviders.some((provider, index) => provider.id !== this.partialUnavailableProviders[index].id
 					|| provider.label !== this.partialUnavailableProviders[index].label
 					|| provider.unavailableReasonCode !== this.partialUnavailableProviders[index].unavailableReasonCode
-					|| provider.unavailableReason !== this.partialUnavailableProviders[index].unavailableReason));
+					|| provider.unavailableReason !== this.partialUnavailableProviders[index].unavailableReason
+					|| provider.unavailableMessage !== this.partialUnavailableProviders[index].unavailableMessage));
 		if (this.partialState === catalogueState && !unavailableProvidersChanged) {
 			return;
 		}

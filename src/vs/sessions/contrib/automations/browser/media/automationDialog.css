@@ -4,6 +4,51 @@
  *--------------------------------------------------------------------------------------------*/
 
 /* Dialog */
+.action-widget .inline-description .monaco-list-row.automation-cloud-repository .title {
+	flex: 1;
+}
+
+.action-widget .inline-description .monaco-list-row.automation-cloud-repository .description {
+	flex: 0 0 auto;
+	margin-left: auto;
+}
+
+.action-widget .monaco-list-row.automation-cloud-repository .description p {
+	display: flex;
+	align-items: center;
+	margin: 0;
+}
+
+.automation-cloud-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--vscode-spacing-size160);
+	padding: var(--vscode-spacing-size120) 0;
+}
+
+.automation-cloud-copy {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	gap: var(--vscode-spacing-size40);
+}
+
+.automation-cloud-label {
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.automation-cloud-description {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	line-height: 1.4;
+}
+
+.automation-cloud-row > .monaco-switch {
+	flex-shrink: 0;
+}
+
 .monaco-dialog-box.automation-dialog .dialog-message-container > .dialog-message-detail {
 	display: none;
 }
@@ -747,8 +792,7 @@
 	cursor: default;
 }
 
-.automation-form-hint,
-.automation-target-note {
+.automation-form-hint {
 	font-size: var(--vscode-fontSize-body2, 11px);
 	color: var(--vscode-descriptionForeground);
 	line-height: 1.4;
