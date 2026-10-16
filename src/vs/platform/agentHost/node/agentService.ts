@@ -6229,6 +6229,7 @@ export class AgentService extends Disposable implements IAgentService {
 					peerChatOrigin,
 					createResult?.inheritedTurnId,
 					createOptions?.workingDirectories?.map(directory => directory.toString()),
+					{ recreate: true },
 				);
 				if (peerChatOrigin?.kind !== ChatOriginKind.Tool) {
 					await this._recordLaunchDirectories(session, [{ chat: chat.toString(), isDefault: false }], createOptions?.workingDirectories?.map(directory => directory.toString()) ?? sessionState.workingDirectories ?? []);

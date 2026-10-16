@@ -1409,7 +1409,11 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		});
 	}
 
-	upsert(session: URI, chat: URI, providerData: string | undefined, origin?: ChatOrigin, inheritedTurnId?: string, workingDirectories?: readonly string[]): Promise<void> {
+	/**
+	 * Records a peer's backing. `options.recreate` marks an explicit creation, which may reuse the URI of a peer
+	 * this session removed; it then starts with fresh state.
+	 */
+	upsert(session: URI, chat: URI, providerData: string | undefined, origin?: ChatOrigin, inheritedTurnId?: string, workingDirectories?: readonly string[], options?: { readonly recreate?: boolean }): Promise<void> {
 		const chatUri = chat.toString();
 		const mutate = (entries: IPersistedPeerChat[]) => {
 			const existing = entries.find(entry => entry.uri === chatUri);
@@ -1448,7 +1452,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 						...(workingDirectories !== undefined ? { workingDirectories } : {}),
 					});
 				} else {
-					await this._applyWrite(session, mutate);
+					await this._applyWrite(session, mutate, options?.recreate ? [chatUri] : undefined);
 				}
 			});
 		});
@@ -1660,7 +1664,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		return tracked;
 	}
 
-	private async _applyWrite(session: URI, mutate: (entries: IPersistedPeerChat[]) => IPersistedPeerChat[]): Promise<void> {
+	private async _applyWrite(session: URI, mutate: (entries: IPersistedPeerChat[]) => IPersistedPeerChat[], revive?: readonly string[]): Promise<void> {
 		await this._ensureOlderBuildEditsImported(session);
 		let importedOlderBuildEdits = false;
 		while (true) {
@@ -1670,7 +1674,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 					throw new Error(`Missing normalized catalog header for ${session.toString()}`);
 				}
 				const updated = mutate(await this._normalizedEntries(snapshot));
-				const result = await this._database.replaceSessionChatCatalog(session.toString(), this._catalogRows(updated), snapshot.header.revision);
+				const result = await this._database.replaceSessionChatCatalog(session.toString(), this._catalogRows(updated), snapshot.header.revision, revive);
 				if (result.status === 'olderBuildEdits') {
 					importedOlderBuildEdits = await this._importRefusedOlderBuildEdits(session, importedOlderBuildEdits);
 					continue;

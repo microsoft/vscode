@@ -2588,6 +2588,45 @@ suite('AgentHostDatabase sessions_v2', () => {
 			});
 		});
 
+		test('only an explicit revive recreates a removed peer at its URI, with fresh state, and never another session\'s tombstone', async () => {
+			const instance = new AgentHostDatabase(':memory:');
+			database = instance;
+			await seed();
+			await database.ensureChatCatalogV2(session, expectation(), candidate(), {
+				chat: peer, expected: { ownershipRevision: 0, metadataRevision: 0 }, patch: { providerData: 'old provider' },
+			});
+			const before = (await database.readChatV2(session, peer)).chat!;
+			const removed = await database.replaceSessionChatCatalog(session, [], (await database.getSessionChatCatalog(session))!.revision);
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Plant another session's tombstone, as a deleted session leaves.
+			const raw = await instance['_ensureDatabase']();
+			const foreign = 'session://other#peer';
+			await exec(raw, `INSERT INTO chats_v2 (chat_uri, owner_session_uri, metadata, metadata_hash, tombstoned, ownership_revision)
+				VALUES ('${foreign}', 'session://other', '{}', 'hash', 1, 1)`);
+			const revision = (await database.getSessionChatCatalog(session))!.revision;
+
+			const unrequested = await database.replaceSessionChatCatalog(session, [{ chat: peer, order: 0 }], revision);
+			const foreignResult = await database.replaceSessionChatCatalog(session, [{ chat: foreign, order: 0 }], revision, [foreign]);
+			const recreated = await database.replaceSessionChatCatalog(session, [{ chat: peer, order: 0 }], revision, [peer]);
+			const after = (await database.readChatV2(session, peer)).chat!;
+			const stale = await database.updateChatV2Metadata(peer, { ownershipRevision: before.ownershipRevision, metadataRevision: before.metadataRevision }, { isRead: true });
+
+			assert.deepStrictEqual({
+				removed: removed.status, unrequested, foreignResult, recreated: recreated.status,
+				provider: (await database.getChatV2ProviderDetail(peer))?.providerData,
+				ownershipAdvanced: after.ownershipRevision > before.ownershipRevision,
+				stale,
+				privateChat: (await database.readChatV2(session, privateChat)).chat,
+				peers: (await database.getSessionChatCatalog(session))?.chats.map(chat => chat.chat),
+			}, {
+				removed: 'applied', unrequested: { status: 'conflict' }, foreignResult: { status: 'conflict' }, recreated: 'applied',
+				provider: undefined,
+				ownershipAdvanced: true,
+				stale: { status: 'conflict' },
+				privateChat: undefined,
+				peers: [peer],
+			});
+		});
+
 		test('lossless central peer provider/origin import requires actual verified source equivalence', async () => {
 			database = new AgentHostDatabase(':memory:');
 			await seed();

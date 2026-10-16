@@ -269,6 +269,26 @@ suite('AgentHostPeerChatStore', () => {
 		});
 	});
 
+	test('an explicit recreation reuses a removed normalized peer\'s URI with fresh state', async () => {
+		const defaultChat = buildDefaultChatUri(session);
+		await orchestrator.registerChatCatalogV2(session.toString(), {
+			defaultChat: { chat: defaultChat, order: 0 },
+			peers: [{ chat: first.toString(), order: 1, providerData: 'old-context' }],
+			privateDescendants: [],
+		});
+		const store = createStore(new TestSessionDatabase());
+		await store.remove(session, first);
+		await store.upsert(session, first, 'new-context', undefined, undefined, undefined, { recreate: true });
+		await store.whenIdle();
+		const [snapshot] = await orchestrator.readCatalogSnapshot([session.toString()]);
+		assert.deepStrictEqual({
+			chats: snapshot.chats.map(chat => chat.chat),
+			provider: (await orchestrator.getChatV2ProviderDetail(first.toString()))?.providerData,
+		}, {
+			chats: [defaultChat, first.toString()], provider: 'new-context',
+		});
+	});
+
 	test('normalized flags and private lifecycle preserve public roles and reject tombstoned reuse', async () => {
 		const defaultChat = buildDefaultChatUri(session);
 		await orchestrator.registerChatCatalogV2(session.toString(), {

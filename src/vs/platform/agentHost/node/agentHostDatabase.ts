@@ -651,8 +651,12 @@ export interface IAgentHostDatabase extends IDisposable, IAgentHostSessionStateD
 	 * header revision, without the `olderBuildEdits` refusal. Peers older builds are not shown are kept.
 	 */
 	replaceSessionChatCatalogImportingOlderBuildEdits(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult>;
-	/** Replaces authoritative peer-chat membership when the session exists and its revision still matches. */
-	replaceSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number | undefined): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult>;
+	/**
+	 * Replaces authoritative peer-chat membership when the session exists and its revision still matches.
+	 * A normalized catalog refuses a chat URI that is recorded anywhere, deleted chats included, unless it is in
+	 * `revive`: an explicitly recreated peer clears its own session's tombstone and starts with fresh state.
+	 */
+	replaceSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number | undefined, revive?: readonly string[]): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult>;
 	/** Acknowledges the exact central revision written to the downgrade-compatibility mirror. */
 	markSessionChatCatalogLegacyMirrored(session: string, expectedRevision: number, payload?: string): Promise<boolean>;
 	/** Records the legacy payload used as the next three-way merge base without acknowledging a central revision. */
@@ -2417,15 +2421,15 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		};
 	}
 
-	async replaceSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number | undefined): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> {
-		return this._replaceSessionChatCatalog(session, chats, expectedRevision, 'guarded');
+	async replaceSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number | undefined, revive?: readonly string[]): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> {
+		return this._replaceSessionChatCatalog(session, chats, expectedRevision, 'guarded', revive);
 	}
 
 	async replaceSessionChatCatalogImportingOlderBuildEdits(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> {
 		return this._replaceSessionChatCatalog(session, chats, expectedRevision, 'importingOlderBuildEdits');
 	}
 
-	private async _replaceSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number | undefined, mode: 'guarded' | 'importingOlderBuildEdits'): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> {
+	private async _replaceSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number | undefined, mode: 'guarded' | 'importingOlderBuildEdits', revive: readonly string[] = []): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> {
 		this._validateSessionChats(chats);
 		if (expectedRevision !== undefined && (!Number.isSafeInteger(expectedRevision) || expectedRevision <= 0)) {
 			throw new Error('Expected session chat catalog revision must be a positive safe integer');
@@ -2454,7 +2458,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					return { status: 'conflict' };
 				}
 				if (current?.authority_version === 2) {
-					const result = await this._replaceNormalizedPeers(database, session, chats, current, mode);
+					const result = await this._replaceNormalizedPeers(database, session, chats, current, mode, revive);
 					await exec(database, 'COMMIT');
 					return result;
 				}
@@ -3871,7 +3875,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	 * when an older build edited `session_chats`; `'importingOlderBuildEdits'` writes the list that imports them and
 	 * keeps the visible peers older builds are not shown ({@link OLDER_BUILD_LISTED_PEER_SQL}), which it cannot list.
 	 */
-	private async _replaceNormalizedPeers(database: Database, session: string, requested: readonly IAgentHostDatabaseSessionChat[], header: Record<string, unknown>, mode: 'guarded' | 'importingOlderBuildEdits'): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> {
+	private async _replaceNormalizedPeers(database: Database, session: string, requested: readonly IAgentHostDatabaseSessionChat[], header: Record<string, unknown>, mode: 'guarded' | 'importingOlderBuildEdits', revive: readonly string[] = []): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> {
 		let chats = requested;
 		if (mode === 'guarded') {
 			if (await this._hasOlderBuildEdits(database, header)) {
@@ -3889,6 +3893,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			throw new Error(`Normalized catalog has no visible default chat: ${session}`);
 		}
 		const existing = new Map(rows.filter(row => row.chat_order !== null && row.chat_uri !== defaultChat.chat_uri).map(row => [row.chat_uri as string, row]));
+		const revived = new Map<string, number>();
 		const retained: IAgentHostDatabaseSessionChat[] = [];
 		for (const chat of chats) {
 			if (chat.origin !== undefined) {
@@ -3898,11 +3903,18 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				throw new Error('The default chat cannot also be a peer');
 			}
 			if (!existing.has(chat.chat)) {
-				const registered = await get(database, `SELECT 1 FROM chats_v2 WHERE chat_uri = ?
-					UNION ALL SELECT 1 FROM session_chats c JOIN session_chat_catalogs h ON h.session_uri = c.session_uri
-						WHERE c.chat_uri = ? AND c.session_uri <> ? AND h.authority_version = 1 LIMIT 1`, [chat.chat, chat.chat, session]);
-				if (registered) {
-					return { status: 'conflict' };
+				const tombstone = revive.includes(chat.chat)
+					? await get(database, 'SELECT ownership_revision FROM chats_v2 WHERE chat_uri = ? AND owner_session_uri = ? AND tombstoned = 1', [chat.chat, session])
+					: undefined;
+				if (tombstone) {
+					revived.set(chat.chat, tombstone.ownership_revision as number);
+				} else {
+					const registered = await get(database, `SELECT 1 FROM chats_v2 WHERE chat_uri = ?
+						UNION ALL SELECT 1 FROM session_chats c JOIN session_chat_catalogs h ON h.session_uri = c.session_uri
+							WHERE c.chat_uri = ? AND c.session_uri <> ? AND h.authority_version = 1 LIMIT 1`, [chat.chat, chat.chat, session]);
+					if (registered) {
+						return { status: 'conflict' };
+					}
 				}
 			}
 			retained.push({ ...chat, order: retained.length });
@@ -3944,9 +3956,18 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					validateChatV2WorkingDirectories(chat.workingDirectories);
 				}
 				this._validateChatV2Role(order, chat.metadata);
+				// A revived peer starts fresh: only an ownership revision above its tombstone's carries over, so
+				// writes fenced on the deleted chat keep conflicting.
+				const tombstoneRevision = revived.get(chat.chat);
+				if (tombstoneRevision !== undefined) {
+					await run(database, 'DELETE FROM chats_v2 WHERE chat_uri = ?', [chat.chat]);
+				}
 				// A peer entering through a peer list (one an older build created, or a new peer) is stored at its
 				// own URI, the creation-time rule for a peer. Recorded once here, never derived again.
 				await this._insertChatV2(database, session, { ...chat, order, storageResource: chat.chat, metadata: chat.metadata ?? { interactivity: ChatInteractivity.Full } });
+				if (tombstoneRevision !== undefined) {
+					await run(database, 'UPDATE chats_v2 SET ownership_revision = ? WHERE chat_uri = ?', [this._nextRevision(tombstoneRevision), chat.chat]);
+				}
 			} else {
 				if (chat.inheritedTurnId !== undefined) {
 					validateChatV2String(chat.inheritedTurnId);

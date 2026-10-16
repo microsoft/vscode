@@ -564,8 +564,8 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 		return this.raw.reprojectOlderBuildChatList(this.identity.toStorage(session), expectedRevision);
 	}
 
-	async replaceSessionChatCatalog(...[session, chats, expectedRevision]: Parameters<IAgentHostDatabase['replaceSessionChatCatalog']>): ReturnType<IAgentHostDatabase['replaceSessionChatCatalog']> {
-		const result = await this.raw.replaceSessionChatCatalog(this.identity.toStorage(session), this.identity.record(chats, 'storage'), this.identity.record(expectedRevision, 'storage'));
+	async replaceSessionChatCatalog(...[session, chats, expectedRevision, revive]: Parameters<IAgentHostDatabase['replaceSessionChatCatalog']>): ReturnType<IAgentHostDatabase['replaceSessionChatCatalog']> {
+		const result = await this.raw.replaceSessionChatCatalog(this.identity.toStorage(session), this.identity.record(chats, 'storage'), this.identity.record(expectedRevision, 'storage'), revive?.map(chat => this.identity.toStorage(chat)));
 		return this.identity.record(result, 'runtime');
 	}
 
