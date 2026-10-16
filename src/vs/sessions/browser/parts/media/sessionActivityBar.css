@@ -80,13 +80,14 @@
 	border-radius: var(--vscode-cornerRadius-small);
 }
 
-/* Separates the tab entries from the layout toggles. */
+/* Separates the layout toggles from the tab entries, colored like other toolbar separators. The margin overrides
+ * the Agents window's `!important` toolbar separator margin, which only suits horizontal toolbars. */
 .monaco-workbench .session-activity-bar .monaco-action-bar.vertical .action-label.separator {
 	width: var(--vscode-spacing-size160);
 	height: 0;
-	margin: var(--vscode-spacing-size20) auto;
+	margin: var(--vscode-spacing-size20) auto !important;
 	padding: 0;
-	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-menu-separatorBackground, var(--vscode-editorWidget-border));
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-disabledForeground);
 }
 
 /* The workbench toolbar hover and active styles only target horizontal action bars. */
