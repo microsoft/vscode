@@ -7677,7 +7677,7 @@ suite('ChatListRenderer', () => {
 					assert.deepStrictEqual({ enabled, restoredOff: legacySnapshot() }, {
 						enabled: {
 							markdownWrapper: markdown, label: 'Edited', labelTop: 0, labelLeft: 24, rowHeight: nativeLineHeight + (includeProse ? fontSize * 3 + 32 : 0),
-							iconCentered: true, visibleToolIcons: 1, pillBaselineAligned: true, textGaps: [16, 16], blockGaps: includeProse ? [16, 16] : [], counts: ['+18', '-4'], focusablePill: true, insideDisclosure: completed,
+							iconCentered: true, visibleToolIcons: 1, pillBaselineAligned: true, textGaps: [16, 16], blockGaps: includeProse ? [16, 16] : [], counts: ['+18', '-4'], focusablePill: true, insideDisclosure: completed && !markdown,
 						},
 						restoredOff: before,
 					});
@@ -7903,13 +7903,15 @@ suite('ChatListRenderer', () => {
 			kind: 'markdownContent',
 			content: new MarkdownString('```typescript\n<vscode_codeblock_uri isEdit>file:///workspace/progress.ts</vscode_codeblock_uri>\nexport const enabled = true;\n```'),
 		});
-		const verify = new ChatToolInvocation(
-			{ invocationMessage: 'Verify the change' },
-			{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
-			'verify', undefined, {},
-		);
-		model.acceptResponseProgress(request, verify);
-		await verify.didExecuteTool(undefined);
+		for (const id of ['verify-renderer', 'verify-model']) {
+			const verify = new ChatToolInvocation(
+				{ invocationMessage: 'Verify the change' },
+				{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
+				id, undefined, {},
+			);
+			model.acceptResponseProgress(request, verify);
+			await verify.didExecuteTool(undefined);
+		}
 		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('The edit is ready to review.') });
 		request.response?.complete();
 		renderer.renderElement(node, 0, template);
@@ -12857,7 +12859,7 @@ suite('ChatListRenderer', () => {
 			{ id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal },
 			'launch', undefined, { mode: 'background' },
 		);
-		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Starting a background review.') });
+		model.acceptResponseProgress(request, { kind: 'progressMessage', content: new MarkdownString('Starting a background review.') });
 		model.acceptResponseProgress(request, invocation);
 		await invocation.didExecuteTool({ content: [{ kind: 'text', value: 'Agent started in background.' }] });
 		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Task completed.') });
@@ -13138,7 +13140,7 @@ suite('ChatListRenderer', () => {
 			assert.ok(subagent);
 			assert.strictEqual(IChatToolInvocation.confirmWith(invocation, { type: ToolConfirmKind.UserAction }), true);
 			await invocation.didExecuteTool(undefined);
-			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Parent work finished.') });
+			model.acceptResponseProgress(request, { kind: 'progressMessage', content: new MarkdownString('Parent work finished.') });
 			const ordinary = new ChatToolInvocation(
 				{ invocationMessage: 'Final check', pastTenseMessage: 'Checked work' },
 				{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
@@ -13273,7 +13275,7 @@ suite('ChatListRenderer', () => {
 		const invocation = createSubagentTool('launch', data);
 		model.acceptResponseProgress(request, invocation);
 		await invocation.didExecuteTool(undefined);
-		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Parent work finished.') });
+		model.acceptResponseProgress(request, { kind: 'progressMessage', content: new MarkdownString('Parent work finished.') });
 		const ordinary = new ChatToolInvocation(
 			{ invocationMessage: 'Final check', pastTenseMessage: 'Checked work' },
 			{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
@@ -13362,7 +13364,7 @@ suite('ChatListRenderer', () => {
 			text: 'next',
 			parts: [new ChatRequestTextPart(new OffsetRange(0, 4), new Range(1, 1, 1, 5), 'next')],
 		}, { variables: [] }, 0);
-		model.acceptResponseProgress(replacementRequest, { kind: 'markdownContent', content: new MarkdownString('Replacement work.') });
+		model.acceptResponseProgress(replacementRequest, { kind: 'progressMessage', content: new MarkdownString('Replacement work.') });
 		const ordinary = new ChatToolInvocation(
 			{ invocationMessage: 'Replacement check', pastTenseMessage: 'Checked replacement' },
 			{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
