@@ -1030,8 +1030,15 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 		// Resolve before handing the session to its first turn: runtime assignments
 		// and model availability, not the VS Code default, decide which tool wins.
-		const { tools } = await session.rpc.tools.getBuiltinDescriptors({});
-		if (tools.some(tool => tool.name === 'execution_subagent')) {
+		let hasRuntimeExecutionSubagent: boolean;
+		try {
+			const { tools } = await session.rpc.tools.getBuiltinDescriptors({});
+			hasRuntimeExecutionSubagent = tools.some(tool => tool.name === 'execution_subagent');
+		} catch (err) {
+			this._logService.warn(`[Copilot:${session.sessionId}] Could not resolve runtime tool catalog; keeping extension execution tool`, err);
+			return;
+		}
+		if (hasRuntimeExecutionSubagent) {
 			await session.setTools(config.tools.filter(tool => tool.name !== 'executionSubagent'));
 		}
 	}

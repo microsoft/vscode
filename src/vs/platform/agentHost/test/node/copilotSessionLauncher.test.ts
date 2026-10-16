@@ -2139,8 +2139,9 @@ suite('CopilotSessionLauncher resume fallback', () => {
 suite('CopilotSessionLauncher execution subagent', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(kind: 'create' | 'resume', defaultEnabled: boolean, runtimeAvailable: boolean, hasClientTool = true, setToolsError?: Error) {
+	function setup(kind: 'create' | 'resume', defaultEnabled: boolean, runtimeAvailable: boolean, hasClientTool = true, setToolsError?: Error, catalogError?: Error) {
 		const toolUpdates: string[][] = [];
+		const logService = new CapturingLogService();
 		let descriptorRequests = 0;
 		let disconnects = 0;
 		const session = {
@@ -2158,6 +2159,9 @@ suite('CopilotSessionLauncher execution subagent', () => {
 				tools: {
 					getBuiltinDescriptors: async () => {
 						descriptorRequests++;
+						if (catalogError) {
+							throw catalogError;
+						}
 						return { tools: runtimeAvailable ? [{ name: 'execution_subagent' }] : [] };
 					},
 				},
@@ -2168,7 +2172,7 @@ suite('CopilotSessionLauncher execution subagent', () => {
 			[CopilotCliConfigKey.ModelCapabilityOverrides]: {
 				'*': { availableTools: ['builtin:*', 'custom:*'], excludedTools: ['mcp:*'] },
 			},
-		});
+		}, logService);
 		const base = {
 			client: returningSession(session),
 			extensionSdkPath: '/copilot-sdk',
@@ -2191,7 +2195,7 @@ suite('CopilotSessionLauncher execution subagent', () => {
 				handler: () => 'done',
 			})),
 		};
-		return { launch: () => launcher.launch(plan, runtime), toolUpdates, descriptorRequests: () => descriptorRequests, disconnects: () => disconnects };
+		return { launch: () => launcher.launch(plan, runtime), toolUpdates, logService, descriptorRequests: () => descriptorRequests, disconnects: () => disconnects };
 	}
 
 	for (const kind of ['create', 'resume'] as const) {
@@ -2213,6 +2217,31 @@ suite('CopilotSessionLauncher execution subagent', () => {
 					}
 				});
 			}
+		}
+		for (const message of ['Method not found: tools.getBuiltinDescriptors', 'Runtime tool catalog RPC failed']) {
+			test(`${kind}: keeps the extension execution tool when the runtime catalog fails with ${message}`, async () => {
+				const error = new Error(message);
+				const fixture = setup(kind, false, false, true, undefined, error);
+				const launched = await fixture.launch();
+				try {
+					assert.deepStrictEqual({
+						descriptorRequests: fixture.descriptorRequests(),
+						toolUpdates: fixture.toolUpdates,
+						disconnects: fixture.disconnects(),
+						warnings: fixture.logService.warnings,
+					}, {
+						descriptorRequests: 1,
+						toolUpdates: [],
+						disconnects: 0,
+						warnings: [{
+							message: '[Copilot:execution-session] Could not resolve runtime tool catalog; keeping extension execution tool',
+							args: [error],
+						}],
+					});
+				} finally {
+					launched.dispose();
+				}
+			});
 		}
 	}
 
