@@ -23,7 +23,7 @@ export class ShrinkEmptyLinesController extends Disposable implements IEditorCon
 
 	public static readonly ID = 'editor.contrib.shrinkEmptyLines';
 
-	private _lineHeightMultiplier = 1;
+	private _decorationOptions: ModelDecorationOptions | undefined;
 	private _decorationIds = new Set<string>();
 
 	constructor(private readonly editor: ICodeEditor) {
@@ -33,47 +33,52 @@ export class ShrinkEmptyLinesController extends Disposable implements IEditorCon
 			this._updateAllDecorations();
 		}));
 		this._register(this.editor.onDidChangeConfiguration(event => {
-			if (event.hasChanged(EditorOption.effectiveShrinkEmptyLines)) {
-				this._updateLineHeightMultiplier();
-				this._updateAllDecorations();
-			}
-			if (event.hasChanged(EditorOption.lineHeight)) {
+			if (event.hasChanged(EditorOption.effectiveShrinkEmptyLines)
+				|| event.hasChanged(EditorOption.fontInfo)
+				|| event.hasChanged(EditorOption.lineHeight)) {
+				this._updateDecorationOptions();
 				this._updateAllDecorations();
 			}
 		}));
 		this._register(this.editor.onDidChangeHiddenAreas(() => this._updateAllDecorations()));
 		this._register(this.editor.onDidChangeModelContent(event => this._updateDecorations(event)));
-		this._updateLineHeightMultiplier();
+		this._updateDecorationOptions();
 		this._updateAllDecorations();
 	}
 
-	private _updateLineHeightMultiplier(): void {
-		this._lineHeightMultiplier = this.editor.getOption(EditorOption.effectiveShrinkEmptyLines);
+	private _updateDecorationOptions(): void {
+		const multiplier = this.editor.getOption(EditorOption.effectiveShrinkEmptyLines);
+		if (multiplier === 0 || multiplier === 1) {
+			this._decorationOptions = undefined;
+			return;
+		}
+		const fontSize = `${this.editor.getOption(EditorOption.fontInfo).fontSize * multiplier}px`;
+		this._decorationOptions = ModelDecorationOptions.createDynamic({
+			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+			description: 'shrink-empty-line',
+			lineHeight: multiplier,
+			fontSize
+		});
 	}
 
-	private _isEmptyLine(lineContent: string): boolean {
-		return lineContent.trim().length === 0;
+	private _shouldShrinkLine(lineContent: string): boolean {
+		return !/[\p{L}\p{N}]/u.test(lineContent);
 	}
 
-	private _createDecoration(model: ITextModel, lineNumber: number, lineHeightMultiplier: number): IModelDeltaDecoration {
-		return {
-			range: new Range(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber)),
-			options: ModelDecorationOptions.createDynamic({
-				stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-				description: 'shrink-empty-line',
-				lineHeight: lineHeightMultiplier
-			})
-		};
-	}
-
-	private _getDecorations(model: ITextModel, ranges: readonly LineRange[], lineHeightMultiplier: number): IModelDeltaDecoration[] {
+	private _getDecorations(model: ITextModel, ranges: readonly LineRange[]): IModelDeltaDecoration[] {
 		const decorations: IModelDeltaDecoration[] = [];
+		if (!this._decorationOptions) {
+			return decorations;
+		}
 		const hiddenAreas = this.editor._getViewModel()?.getHiddenAreas() ?? [];
 		for (const range of ranges) {
 			for (let lineNumber = range.startLineNumber; lineNumber <= range.endLineNumber; lineNumber++) {
 				const isHidden = hiddenAreas.some(area => area.startLineNumber <= lineNumber && lineNumber <= area.endLineNumber);
-				if (!isHidden && this._isEmptyLine(model.getLineContent(lineNumber))) {
-					decorations.push(this._createDecoration(model, lineNumber, lineHeightMultiplier));
+				if (!isHidden && this._shouldShrinkLine(model.getLineContent(lineNumber))) {
+					decorations.push({
+						range: new Range(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber)),
+						options: this._decorationOptions,
+					});
 				}
 			}
 		}
@@ -83,8 +88,8 @@ export class ShrinkEmptyLinesController extends Disposable implements IEditorCon
 	private _updateAllDecorations(): void {
 		const model = this.editor.getModel();
 		let decorations: IModelDeltaDecoration[] = [];
-		if (model && this._lineHeightMultiplier > 0 && this._lineHeightMultiplier < 1) {
-			decorations = this._getDecorations(model, [{ startLineNumber: 1, endLineNumber: model.getLineCount() }], this._lineHeightMultiplier);
+		if (model) {
+			decorations = this._getDecorations(model, [{ startLineNumber: 1, endLineNumber: model.getLineCount() }]);
 		}
 		this._replaceDecorations(Array.from(this._decorationIds), decorations);
 	}
@@ -95,7 +100,7 @@ export class ShrinkEmptyLinesController extends Disposable implements IEditorCon
 			return;
 		}
 		const model = this.editor.getModel();
-		if (!model || this._lineHeightMultiplier === 0 || this._lineHeightMultiplier === 1) {
+		if (!model || !this._decorationOptions) {
 			return;
 		}
 		const changedRanges = event.changes.map(change => ({
@@ -111,7 +116,7 @@ export class ShrinkEmptyLinesController extends Disposable implements IEditorCon
 				}
 			}
 		}
-		const newDecorations = this._getDecorations(model, changedRanges, this._lineHeightMultiplier);
+		const newDecorations = this._getDecorations(model, changedRanges);
 		this._replaceDecorations(Array.from(oldDecorations), newDecorations);
 	}
 
