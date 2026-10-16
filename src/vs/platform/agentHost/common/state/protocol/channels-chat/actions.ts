@@ -872,6 +872,29 @@ export interface ChatIsArchivedChangedAction {
 	isArchived: boolean;
 }
 
+// ─── Chat Config Actions ─────────────────────────────────────────────────────
+
+/**
+ * Config values set on a chat changed.
+ *
+ * Merges `config` into the chat's
+ * {@link ChatConfigState | `ChatState.config`} overlay, or replaces the
+ * overlay when `replace` is `true`. Only properties with `chatMutable: true`
+ * in the session's config schema may be set. To reset a property to the
+ * session's value, replace the overlay with one that omits the property.
+ *
+ * @category Chat Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export interface ChatConfigChangedAction {
+	type: ActionType.ChatConfigChanged;
+	/** Config values to set on the chat */
+	config: Record<string, unknown>;
+	/** When `true`, replaces the chat's config values instead of merging */
+	replace?: boolean;
+}
+
 // ─── Session Input Actions ──────────────────────────────────────────────────
 
 /**
@@ -966,6 +989,7 @@ export type ChatAction =
 	| ChatDraftChangedAction
 	| ChatIsReadChangedAction
 	| ChatIsArchivedChangedAction
+	| ChatConfigChangedAction
 	| ChatInputRequestedAction
 	| ChatInputAnswerChangedAction
 	| ChatInputCompletedAction

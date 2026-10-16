@@ -25,7 +25,8 @@ import { IAgentHostCompletions } from './agentHostCompletions.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
 import { ClaudeAgent } from './claude/claudeAgent.js';
 import { ClaudeSdkPackage } from './claude/claudeAgentSdkService.js';
-import { CodexAgent, CodexSdkPackage } from './codex/codexAgent.js';
+import { CodexAgent } from './codex/codexAgent.js';
+import { CodexSdkPackage } from './codex/codexSdk.js';
 import { createCodexProviderConfiguration } from './codex/codexProviderConfiguration.js';
 import { ByokLmBridgeRegistry } from './byokLmBridgeRegistry.js';
 import { IAgentHostProxyResolver } from './agentHostProxyResolver.js';
@@ -130,6 +131,8 @@ async function startAgentHost(): Promise<void> {
 			hostLaunchKind,
 			providerConfigurations: [createCodexProviderConfiguration(environmentService.userHome, process.env[AgentHostCodexAgentCodexHomeEnvVar])],
 			byok: { kind: 'renderer', bridgeRegistry: byokLmBridgeRegistry },
+			// On-device models run only in this local utility-process host, never in agentHostServerMain.
+			localModel: { kind: 'localUtilityProcess' },
 		});
 		disposables.add(runtime);
 		agentService = runtime.agentService;
@@ -314,8 +317,6 @@ async function startAgentHost(): Promise<void> {
 			const localEndpoint = await startLocalAgentHostEndpoint(
 				environmentService.userDataPath,
 				logService,
-				instantiationService,
-				environmentService.logsHome,
 			);
 			if (localEndpoint) {
 				const endpointMetadata = localEndpoint.metadata;
@@ -372,7 +373,6 @@ async function startAgentHost(): Promise<void> {
 			const wsServer = await WebSocketProtocolServer.create(
 				{ socketPath },
 				logService,
-				{ instantiationService, logsHome: environmentService.logsHome },
 			);
 			if (protocolIngressDisposables.isDisposed) {
 				wsServer.dispose();
@@ -487,7 +487,6 @@ async function startAgentHost(): Promise<void> {
 		completionTriggerCharacters,
 		clientFileSystemProvider,
 		instantiationService,
-		environmentService.logsHome,
 		logService,
 		otlpLogEmitter,
 		protocolIngressDisposables,
@@ -522,8 +521,6 @@ interface ILocalAgentHostEndpoint {
 async function startLocalAgentHostEndpoint(
 	userDataPath: string,
 	logService: ILogService,
-	instantiationService: IInstantiationService,
-	logsHome: URI,
 ): Promise<ILocalAgentHostEndpoint | undefined> {
 	let metadata: ILocalAgentHostEndpointMetadata | undefined;
 	let server: WebSocketProtocolServer | undefined;
@@ -540,7 +537,6 @@ async function startLocalAgentHostEndpoint(
 				connectionTokenValidate: token => token === endpointMetadata.connectionToken,
 			},
 			logService,
-			{ instantiationService, logsHome },
 		);
 		await server.whenListening;
 		return { metadata: endpointMetadata, server };
@@ -587,7 +583,6 @@ async function startWebSocketServer(
 	completionTriggerCharacters: readonly string[],
 	clientFileSystemProvider: AgentHostClientFileSystemProvider,
 	instantiationService: IInstantiationService,
-	logsHome: URI,
 	logService: ILogService,
 	otlpLogEmitter: OtlpLogEmitter,
 	disposables: DisposableStore,
@@ -621,7 +616,6 @@ async function startWebSocketServer(
 					: undefined,
 			},
 		logService,
-		{ instantiationService, logsHome },
 	);
 	if (disposables.isDisposed) {
 		wsServer.dispose();

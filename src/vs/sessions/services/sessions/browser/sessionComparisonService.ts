@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -131,6 +132,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		this._addComparison(comparison);
 
 		const attemptPromises = attempts.map(async (participant, index): Promise<ISessionComparisonParticipant> => {
+			await timeout(0);
 			const harness = participant.harness;
 			try {
 				const session = await this.sessionsManagementService.createAndSendNewChatRequest(options.workspace, {

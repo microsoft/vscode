@@ -350,6 +350,29 @@ suite('Agent Host Edit Marker Service', () => {
 		});
 	});
 
+	test('attributes HydraFusion models to reloads and keeps HydraFusion and HydraFusion Max apart', () => {
+		const context = createContext();
+		const correlation = context.service.createCorrelation(context.resource);
+		const source = { modelId: 'gpt-5', conversationId: 'session-1', chatSessionId: 'hashed-chat', requestId: 'turn-1', harness: 'copilotcli' };
+		context.fireMarker(marker(1, 'a', 'ab', { ...source, fusionModel: 'hydrafusion-max' }));
+		const single = correlation.register('a', 'ab');
+		context.fireMarker(marker(2, 'ab', 'abc', { ...source, fusionModel: 'hydrafusion-max' }));
+		context.fireMarker(marker(3, 'abc', 'abcd', { ...source, fusionModel: 'hydrafusion' }));
+		const mixed = correlation.register('ab', 'abcd');
+
+		assert.deepStrictEqual({
+			single: correlation.getResolution?.(single)?.source?.toKey(1),
+			singleFusionModel: correlation.getResolution?.(single)?.source?.props.$fusionModel,
+			mixedSuppressed: correlation.isSuppressed(mixed),
+			mixed: correlation.getResolution?.(mixed)?.source,
+		}, {
+			single: 'source:Chat.applyEdits-$modelId:gpt-5-$fusionModel:hydrafusion-max-$harness:copilotcli-$origin:agentHost',
+			singleFusionModel: 'hydrafusion-max',
+			mixedSuppressed: true,
+			mixed: undefined,
+		});
+	});
+
 	test('preserves legacy representative selection for marker chains without chat metadata', () => {
 		const context = createContext();
 		const correlation = context.service.createCorrelation(context.resource);
@@ -851,6 +874,7 @@ suite('Agent Host Edit Marker Service', () => {
 function marker(sequence: number, before: string, after: string, source?: {
 	readonly modelId?: string;
 	readonly autoTier?: string;
+	readonly fusionModel?: string;
 	readonly conversationId: string;
 	readonly chatSessionId?: string;
 	readonly agentSessionId?: string;

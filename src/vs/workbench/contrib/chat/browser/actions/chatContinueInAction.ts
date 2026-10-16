@@ -264,7 +264,7 @@ export class ContinueChatInCopilotAction extends Action2 {
 			}
 			ensureSourceVisible();
 			if (turns.length) {
-				imports.set(untitledResource, { turns });
+				imports.set(untitledResource, { turns, title: sourceModel.title });
 				try {
 					if (!await provisional.getOrCreate(untitledResource, COPILOT_CLI_AGENT_PROVIDER_ID, folders.resolveNewSessionPrimary(untitledResource))) {
 						throw new Error(continueInCopilotFailedMessage());
@@ -768,7 +768,7 @@ export class CreateRemoteAgentJobAction {
 								prompt: handoffPrompt,
 								attachedContext: continuationContext,
 								initialSessionOptions: initialSessionOptions.size > 0 ? initialSessionOptions : undefined,
-								importConversation: importConversationTurns ? { turns: importConversationTurns, model: importConversationModel } : undefined,
+								importConversation: importConversationTurns ? { turns: importConversationTurns, model: importConversationModel, title: chatModel.title } : undefined,
 							}
 						));
 					}

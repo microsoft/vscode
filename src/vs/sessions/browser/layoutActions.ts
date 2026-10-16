@@ -19,7 +19,9 @@ import { TogglePanelAction } from '../../workbench/browser/parts/panel/panelActi
 import { LayoutDensityMenu } from '../../workbench/browser/actions/layoutDensityActions.js';
 import { IsAuxiliaryWindowContext, IsWindowAlwaysOnTopContext, PanelVisibleContext, SideBarVisibleContext } from '../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../workbench/services/layout/browser/layoutService.js';
-import { SessionsWelcomeVisibleContext, CustomViewVisibleContext, IsPhoneLayoutContext } from '../common/contextkeys.js';
+import { SessionsWelcomeVisibleContext, CustomViewVisibleContext, DesktopLayoutContext, IsPhoneLayoutContext } from '../common/contextkeys.js';
+import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
+import { SESSION_TOOLBAR_SETTING } from '../common/sessionConfig.js';
 
 for (const menu of [Menus.TitleBarContext, MenuId.MenubarViewMenu]) {
 	MenuRegistry.appendMenuItem(menu, {
@@ -30,6 +32,54 @@ for (const menu of [Menus.TitleBarContext, MenuId.MenubarViewMenu]) {
 		when: IsPhoneLayoutContext.negate(),
 	});
 }
+
+export const TOGGLE_SESSION_TOOLBAR_COMMAND_ID = 'workbench.action.agentSessions.toggleSessionToolbar';
+
+MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+	title: localize({ key: 'miAppearance', comment: ['&& denotes a mnemonic'] }, "&&Appearance"),
+	submenu: Menus.ViewAppearance,
+	group: '2_appearance',
+	order: 1,
+	when: DesktopLayoutContext,
+});
+
+registerAction2(class ToggleSessionToolbarAction extends Action2 {
+	constructor() {
+		super({
+			id: TOGGLE_SESSION_TOOLBAR_COMMAND_ID,
+			title: localize2('toggleSessionToolbar', "Toggle Session Toolbar"),
+			category: Categories.View,
+			f1: true,
+			precondition: DesktopLayoutContext,
+		});
+	}
+
+	override run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		return configurationService.updateValue(SESSION_TOOLBAR_SETTING, !configurationService.getValue<boolean>(SESSION_TOOLBAR_SETTING));
+	}
+});
+
+MenuRegistry.appendMenuItem(Menus.ViewAppearance, {
+	command: {
+		id: TOGGLE_SESSION_TOOLBAR_COMMAND_ID,
+		title: localize({ key: 'miSessionToolbar', comment: ['&& denotes a mnemonic'] }, "Session &&Toolbar"),
+		toggled: ContextKeyExpr.equals(`config.${SESSION_TOOLBAR_SETTING}`, true),
+	},
+	group: '1_workbench_layout',
+	order: 1,
+	when: DesktopLayoutContext,
+});
+
+// The toolbar is only shown while enabled, so toggling from its own context menu hides it.
+MenuRegistry.appendMenuItem(Menus.SessionToolbarContext, {
+	command: {
+		id: TOGGLE_SESSION_TOOLBAR_COMMAND_ID,
+		title: localize('hideSessionToolbar', "Hide Session Toolbar"),
+	},
+	group: 'navigation',
+	order: 1,
+});
 
 // Register Icons
 const panelCloseIcon = registerIcon('agent-panel-close', Codicon.close, localize('agentPanelCloseIcon', "Icon to close the panel."));

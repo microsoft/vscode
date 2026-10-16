@@ -28,7 +28,7 @@ import { IAgentHostEnablementService } from '../../../../../../platform/agentHos
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionListDelegate, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestDialogService } from '../../../../../../platform/dialogs/test/common/testDialogService.js';
@@ -66,9 +66,12 @@ function createSubscription<T>(): IAgentSubscription<T> {
 suite('AgentHostGenericConfigChips', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createUntitledChips(generic: boolean) {
+	function createChips(generic: boolean, { sessionResource = URI.parse('agent-host-copilotcli:/untitled-restoration'), configuration = new TestConfigurationService() }: { sessionResource?: URI; configuration?: TestConfigurationService } = {}) {
 		const requests: Parameters<IAgentHostService['resolveSessionConfig']>[0][] = [];
 		const answers: DeferredPromise<ResolveSessionConfigResult>[] = [];
+		const acquired: string[] = [];
+		const released: string[] = [];
+		const provisionalRequests: Parameters<IAgentHostUntitledProvisionalSessionService['getOrCreate']>[] = [];
 		const restarted = disposables.add(new Emitter<void>());
 		const exited = disposables.add(new Emitter<number>());
 		const agentHost = new class extends mock<IAgentHostService>() {
@@ -76,6 +79,10 @@ suite('AgentHostGenericConfigChips', () => {
 			override readonly onAgentHostExit = exited.event;
 			override readonly onDidNotification = Event.None;
 			override readonly resourceUris = identityAgentHostResourceUriMapper;
+			override getSubscription<T extends StateComponents>(_kind: T, resource: URI): IReference<IAgentSubscription<ComponentToState[T]>> {
+				acquired.push(resource.toString());
+				return { object: createSubscription<ComponentToState[T]>(), dispose: () => released.push(resource.toString()) };
+			}
 			override resolveSessionConfig(request: Parameters<IAgentHostService['resolveSessionConfig']>[0]): Promise<ResolveSessionConfigResult> {
 				requests.push(request);
 				const answer = new DeferredPromise<ResolveSessionConfigResult>();
@@ -89,7 +96,6 @@ suite('AgentHostGenericConfigChips', () => {
 		}();
 		const connections = disposables.add(new AgentHostConnectionsService(agentHost, remoteService, new TestPathService(), new NullLogService()));
 		const changed = disposables.add(new Emitter<IChatWidgetViewModelChangeEvent>());
-		const sessionResource = URI.parse('agent-host-copilotcli:/untitled-restoration');
 		const widget = new class extends mock<IChatWidget>() {
 			override readonly onDidChangeViewModel = changed.event;
 			override readonly viewModel = new class extends mock<IChatViewModel>() {
@@ -101,12 +107,12 @@ suite('AgentHostGenericConfigChips', () => {
 		instantiation.set(IAgentHostService, agentHost);
 		instantiation.set(ILogService, new NullLogService());
 		instantiation.stub(IAgentHostUntitledProvisionalSessionService, {
-			onDidChange: Event.None, get: () => undefined, getOrCreate: async () => undefined,
+			onDidChange: Event.None, get: () => undefined,
+			getOrCreate: async (...args) => { provisionalRequests.push(args); return undefined; },
 		});
 		instantiation.stub(IAgentHostSessionWorkingDirectoryResolver, { resolve: () => URI.file('/workspace') });
 		instantiation.stub(IAgentHostNewSessionFolderService, { getFolder: () => undefined });
 		instantiation.stub(IWorkspaceContextService, {});
-		const configuration = new TestConfigurationService();
 		disposables.add(configuration.onDidChangeConfigurationEmitter);
 		instantiation.set(IConfigurationService, configuration);
 		instantiation.stub(IActionWidgetService, { isVisible: false, hide: () => { } });
@@ -125,12 +131,12 @@ suite('AgentHostGenericConfigChips', () => {
 		const chips = disposables.add(generic
 			? instantiation.createInstance(AgentHostGenericConfigChips, widget)
 			: instantiation.createInstance(AgentHostChatInputPicker, widget, 'mode'));
-		return { chips, connections, requests, answers, sessionResource, restarted, exited, changed };
+		return { chips, connections, requests, answers, acquired, released, provisionalRequests, sessionResource, restarted, exited, changed };
 	}
 
 	for (const generic of [false, true]) {
 		test(`${generic ? 'generic' : 'dedicated'} chips preserve a pending cold-start read and refresh a settled value on restart`, async () => {
-			const rig = createUntitledChips(generic);
+			const rig = createChips(generic);
 			await timeout(0);
 			rig.restarted.fire();
 			await timeout(0);
@@ -150,7 +156,7 @@ suite('AgentHostGenericConfigChips', () => {
 		});
 
 		test(`${generic ? 'generic' : 'dedicated'} chips invalidate a pending read when the host exits before restarting`, async () => {
-			const rig = createUntitledChips(generic);
+			const rig = createChips(generic);
 			await timeout(0);
 			rig.exited.fire(0);
 			rig.restarted.fire();
@@ -162,7 +168,7 @@ suite('AgentHostGenericConfigChips', () => {
 		});
 
 		test(`${generic ? 'generic' : 'dedicated'} chips ignore 1780 unrelated restored identities and share pending reads`, async () => {
-			const rig = createUntitledChips(generic);
+			const rig = createChips(generic);
 			await timeout(0);
 			for (let i = 0; i < 1780; i++) {
 				rig.connections.registerSessionResource(URI.parse(`ahp-session:/restored-${i}`), AMBIENT_AGENT_HOST_AUTHORITY, 'copilotcli');
@@ -184,7 +190,7 @@ suite('AgentHostGenericConfigChips', () => {
 		});
 
 		test(`${generic ? 'generic' : 'dedicated'} chips re-resolve identity changes and restart, and stop reading after disposal`, async () => {
-			const rig = createUntitledChips(generic);
+			const rig = createChips(generic);
 			await timeout(0);
 			rig.connections.registerSessionResource(URI.parse('ahp-session:/untitled-restoration'), AMBIENT_AGENT_HOST_AUTHORITY, 'copilotcli');
 			await timeout(0);
@@ -214,11 +220,67 @@ suite('AgentHostGenericConfigChips', () => {
 		});
 	}
 
+	for (const generic of [false, true]) {
+		for (const provider of ['claude', 'codex']) {
+			for (const untitled of [false, true]) {
+				for (const initiallyBlocked of [false, true]) {
+					test(`policy-disabled ${provider} ${generic ? 'generic' : 'dedicated'} config chips suspend provider access (untitled=${untitled}, cold=${initiallyBlocked})`, async () => {
+						const setting = `chat.agentHost.${provider}Agent.enabled`;
+						const configuration = new class extends TestConfigurationService {
+							blocked = initiallyBlocked;
+							override inspect<T>(key: string) {
+								const value = super.inspect<T>(key);
+								return { ...value, policyValue: key === setting && this.blocked ? value.value : undefined };
+							}
+						}({ [setting]: !initiallyBlocked });
+						const sessionResource = URI.parse(`agent-host-${provider}:/${untitled ? 'untitled-' : ''}policy`);
+						const rig = createChips(generic, { sessionResource, configuration });
+						await timeout(0);
+						const snapshot = () => ({ acquired: rig.acquired.length, released: rig.released.length, requests: rig.requests.length, provisionals: rig.provisionalRequests.length });
+						const opened = snapshot();
+						const setPolicy = async (blocked: boolean) => {
+							configuration.blocked = blocked;
+							await configuration.setUserConfiguration(setting, !blocked);
+							configuration.onDidChangeConfigurationEmitter.fire({
+								source: ConfigurationTarget.USER,
+								affectedKeys: new Set([setting]),
+								change: { keys: [setting], overrides: [] },
+								affectsConfiguration: key => key === setting,
+							});
+						};
+						await setPolicy(true);
+						rig.changed.fire({ previousSessionResource: sessionResource, currentSessionResource: sessionResource });
+						rig.restarted.fire();
+						await timeout(0);
+						const blocked = snapshot();
+						for (const answer of rig.answers) {
+							await answer.complete({ schema: { type: 'object', properties: {} }, values: {} });
+						}
+						await setPolicy(false);
+						await timeout(0);
+						assert.deepStrictEqual({ opened, blocked, recovered: snapshot() }, {
+							opened: { acquired: !untitled && !initiallyBlocked ? 1 : 0, released: 0, requests: untitled && !initiallyBlocked ? 1 : 0, provisionals: untitled && !generic && !initiallyBlocked ? 1 : 0 },
+							blocked: { acquired: !untitled && !initiallyBlocked ? 1 : 0, released: !untitled && !initiallyBlocked ? 1 : 0, requests: untitled && !initiallyBlocked ? 1 : 0, provisionals: untitled && !generic && !initiallyBlocked ? 1 : 0 },
+							recovered: { acquired: untitled ? 0 : initiallyBlocked ? 1 : 2, released: !untitled && !initiallyBlocked ? 1 : 0, requests: untitled ? initiallyBlocked ? 1 : 2 : 0, provisionals: untitled && !generic ? initiallyBlocked ? 1 : 2 : 0 },
+						});
+					});
+				}
+			}
+		}
+	}
+
 	for (const provider of ['copilotcli', 'codex', 'claude']) {
 		for (const remote of [false, true]) {
 			test(`peer selection subscribes only to its owning ${provider} session (${remote ? 'remote' : 'local'})`, () => {
 				const acquired: string[] = [];
 				const released: string[] = [];
+				const configuration = new class extends TestConfigurationService {
+					override inspect<T>(key: string) {
+						const value = super.inspect<T>(key);
+						return { ...value, policyValue: remote ? value.value : undefined };
+					}
+				}({ 'chat.agentHost.claudeAgent.enabled': false, 'chat.agentHost.codexAgent.enabled': false });
+				disposables.add(configuration.onDidChangeConfigurationEmitter);
 				const agentHost = new class extends mock<IAgentHostService>() {
 					override readonly onAgentHostStart = Event.None;
 					override readonly onAgentHostExit = Event.None;
@@ -256,6 +318,7 @@ suite('AgentHostGenericConfigChips', () => {
 						new class extends mock<IAgentHostNewSessionFolderService>() { }(),
 						new NullLogService(),
 						agentHost,
+						configuration,
 					));
 					chips.dispose();
 				}
@@ -297,6 +360,8 @@ suite('AgentHostGenericConfigChips', () => {
 			viewModel: { sessionResource },
 			onDidChangeViewModel: Event.None,
 		} as Partial<IChatWidget> as IChatWidget;
+		const configuration = new TestConfigurationService();
+		disposables.add(configuration.onDidChangeConfigurationEmitter);
 		const chips = disposables.add(new AgentHostGenericConfigChips(
 			widget,
 			disposables.add(new TestInstantiationService()),
@@ -315,6 +380,7 @@ suite('AgentHostGenericConfigChips', () => {
 			{} as IAgentHostNewSessionFolderService,
 			new NullLogService(),
 			agentHostService,
+			configuration,
 		));
 
 		currentBackend = secondBackend;
@@ -583,6 +649,26 @@ suite('AgentHostGenericConfigChips - remote sessions', () => {
 			chips: 3,
 			buttons: ['Custom Choice: First Option', 'Toggle: Off'],
 			readOnly: 1,
+		});
+	});
+
+	test('hides the input request timeout picker without changing host configuration', () => {
+		const config = makeConfig();
+		config.schema.properties.inputRequestTimeout = { type: 'string', title: 'Question timeout', enum: ['5m', '4h', 'none'], default: '5m', sessionMutable: true };
+		config.values.inputRequestTimeout = '4h';
+		const originalConfig = structuredClone(config);
+		const { container, host } = setup(config);
+
+		assert.deepStrictEqual({
+			timeout: container.querySelector('.agent-host-chat-input-picker-host-inputRequestTimeout'),
+			buttons: [...container.querySelectorAll('[role="button"]')].map(element => element.getAttribute('aria-label')),
+			config,
+			writes: host.connection.dispatches,
+		}, {
+			timeout: null,
+			buttons: ['Custom Choice: First Option', 'Toggle: Off'],
+			config: originalConfig,
+			writes: [],
 		});
 	});
 

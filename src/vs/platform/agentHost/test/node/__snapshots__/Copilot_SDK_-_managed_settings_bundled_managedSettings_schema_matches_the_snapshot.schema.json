@@ -77,6 +77,22 @@
 					"type": "boolean"
 				}
 			},
+			"vscode": {
+				"description": "VS Code-specific managed preferences. Preserved by the shared runtime for VS Code to consume; the runtime and other clients do not interpret these preferences. Delivered through server-managed or file-based settings, not native MDM.",
+				"type": "object",
+				"additionalProperties": false,
+				"x-mdm-delivery": false,
+				"properties": {
+					"temporaryDefaultToLocalHarness": {
+						"description": "Temporary escape hatch: true defaults new VS Code chats to the Local harness without disabling telemetry or preventing users from choosing the Copilot harness. False or absent restores normal rollout behavior. This preference must not override governance requiring the Copilot harness, including enforced sandboxing and runtime-owned permission policies.",
+						"type": "boolean"
+					}
+				},
+				"x-composition": {
+					"strategy": "highest-layer-wins",
+					"description": "The whole vscode block is selected from the highest-priority channel that supplies it: device, then server, then policy helper. An explicit false or empty block replaces a lower-priority true; this is a preference, not a security floor."
+				}
+			},
 			"model": {
 				"description": "Default model identifier for new conversations, including 'auto' or a concrete model ID. Users may override this startup default. Hosts should match it against the account's available models.",
 				"type": "string",
@@ -255,7 +271,7 @@
 						}
 					},
 					"limitTo": {
-						"description": "Closed-world boundary for the rule families it names. Only Domain(...) rules are supported: any agent network request to a domain outside the boundary is denied without prompting, and user rules, saved approvals, and allow-all modes cannot widen it. It does not restrict shell, read, or write operations by themselves, but detected URLs in shell requests are Domain requests and must satisfy the boundary. An empty list denies every Domain request. An invalid list or any invalid entry is reported as a configuration error and enforced as an empty list, without discarding other valid permission rules; effective settings report the enforced empty list. Deny takes precedence over limitTo, and ask and allow only refine requests inside the boundary. Every managed source that declares a limitTo list must admit the request.",
+						"description": "Closed-world boundary for the rule families it names. Only Domain(...) rules are supported: any agent network request to a domain outside the boundary is denied without prompting, and user rules, saved approvals, and allow-all modes cannot widen it. It does not restrict shell, read, or write operations by themselves, but detected URLs in shell requests are Domain requests and must satisfy the boundary. An empty list denies every Domain request. An invalid list or any invalid entry is reported as a configuration error and enforced as an empty list, without discarding other valid permission rules; effective settings report the enforced empty list. Deny takes precedence over limitTo, and ask and allow only refine requests inside the boundary. Every managed source that declares a limitTo list must admit the request. This permission boundary does not enable the sandbox or modify sandbox.userPolicy.network; sandbox network restrictions must be configured independently.",
 						"type": "array",
 						"items": {
 							"type": "string",
@@ -723,6 +739,11 @@
 						"type": "string",
 						"format": "uri"
 					},
+					"filePath": {
+						"description": "Selects a file destination instead of the collector endpoint and automatically enables OTel unless this managed telemetry block sets enabled to false. Empty or non-string canonical policy values are validation errors. For Copilot runtime and VS Code Agent Host consumers, a relative path is resolved under COPILOT_HOME when that override is nonempty, otherwise under the exporting execution host's default <user-home>/.copilot directory; a COPILOT_HOME override must be absolute. A leading ~/ is expanded using the exporting execution host's home directory. This path-resolution contract does not claim behavior for server-side or other consumers. Parent directories are created as needed. Path-resolution and file I/O failures are logged and skipped without blocking Copilot or falling back to a network destination.",
+						"type": "string",
+						"minLength": 1
+					},
 					"protocol": {
 						"description": "OTLP transport protocol used for all exported telemetry. Equivalent to the OTEL_EXPORTER_OTLP_PROTOCOL environment variable; the managed value takes precedence over any user-provided value. Recognized values are \"http/json\" and \"http/protobuf\" (\"grpc\" is accepted for forward compatibility but is not implemented in this version and falls back to the default protocol).",
 						"type": "string"
@@ -1154,5 +1175,5 @@
 			}
 		}
 	},
-	"runtimeVersion": "1.0.95-0"
+	"runtimeVersion": "1.0.99-1"
 }

@@ -18,7 +18,7 @@ import { registerOpenEditorListeners } from '../../../../platform/editor/browser
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IChatImageCarouselService } from '../../../../workbench/contrib/chat/browser/chatImageCarouselService.js';
-import { coerceImageBuffer } from '../../../../workbench/contrib/chat/common/chatImageExtraction.js';
+import { extractImagesFromChatVariables } from '../../../../workbench/contrib/chat/common/chatImageExtraction.js';
 
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
@@ -155,13 +155,14 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 				this.removeAttachment(entry.id);
 			}));
 
-			const resource = URI.isUri(entry.value) ? entry.value : isLocation(entry.value) ? entry.value.uri : undefined;
+			const image = entry.kind === 'image' ? extractImagesFromChatVariables([entry])[0] : undefined;
+			const resource = URI.isUri(entry.value) ? entry.value : isLocation(entry.value) ? entry.value.uri : image?.uri.scheme !== Schemas.data ? image?.uri : undefined;
 			const githubContextResource = entry.id.startsWith(GITHUB_CONTEXT_ID_PREFIX)
 				? URI.parse(entry.id.slice(GITHUB_CONTEXT_ID_PREFIX.length))
 				: undefined;
 			const openResource = resource ?? githubContextResource;
-			const imageData = entry.kind === 'image' ? coerceImageBuffer(entry.value) : undefined;
-			const canOpen = Boolean(imageData || openResource || isPastedTextArtifact(entry));
+			const imageData = image?.data?.buffer;
+			const canOpen = Boolean(image || openResource || isPastedTextArtifact(entry));
 			let content: HTMLElement;
 			if (canOpen) {
 				const openButton = dom.append(pill, dom.$<HTMLButtonElement>('button.sessions-chat-attachment-open'));
@@ -237,11 +238,13 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 			}
 
 			// Click to open the resource or image
-			if (imageData) {
+			if (image) {
 				this._renderDisposables.add(registerOpenEditorListeners(content, async () => {
 					if (this.configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled)) {
-						const imageResource = resource ?? URI.from({ scheme: 'data', path: entry.name });
-						await this.chatImageCarouselService.openCarouselAtResource(imageResource, imageData);
+						await this.chatImageCarouselService.openCarouselAtResource(image.uri, imageData, {
+							preferCurrentInput: true,
+							currentInput: { text: '', attachments: [...this._attachedContext] },
+						});
 					} else if (resource) {
 						await this.openerService.open(resource, { fromUserGesture: true });
 					}

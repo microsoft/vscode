@@ -95,6 +95,10 @@ Name: "runcode"; Description: "{cm:RunAfter,{#NameShort}}"; GroupDescription: "{
 Name: "{app}"; AfterInstall: DisableAppDirInheritance
 
 [Files]
+#ifdef CopilotShim
+; Listed first so it can be extracted quickly from the solid archive. The Copilot code publishes it to {app}\bin\copilot-shim.
+Source: "bin\copilot-shim\copilot.exe"; Flags: dontcopy noencryption
+#endif
 Source: "*"; Excludes: "\CodeSignSummary*.md,\tools,\tools\*,\policies,\policies\*,\appx,\appx\*,\{#ProductJsonRelativePath},\{#ExeBasename}.exe,\{#ExeBasename}.VisualElementsManifest.xml,\bin,\bin\*"; DestDir: "{code:GetDestDir}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#ExeBasename}.exe"; DestDir: "{code:GetDestDir}"; DestName: "{code:GetExeBasename}"; Flags: ignoreversion
 Source: "{#ExeBasename}.VisualElementsManifest.xml"; DestDir: "{code:GetDestDir}"; DestName: "{code:GetVisualElementsManifest}"; Flags: ignoreversion
@@ -1805,6 +1809,10 @@ begin
 end;
 #endif
 
+#ifdef CopilotShim
+#include AddBackslash(SourcePath) + "copilot.iss"
+#endif
+
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   UpdateResultCode: Integer;
@@ -1880,6 +1888,12 @@ begin
       Log('Starting the tunnel service completed with result code ' + IntToStr(StartServiceResultCode));
       ShouldRestartTunnelService := False
     end;
+
+#ifdef CopilotShim
+    // Background updates publish the shim only after inno_updater has applied the update.
+    if IsNotBackgroundUpdate() or (not SessionEndFileExists() and not CancelFileExists()) then
+      CopilotPostInstall();
+#endif
   end;
 end;
 
@@ -1935,12 +1949,15 @@ var
   NewPath: string;
   i: Integer;
 begin
-  if not CurUninstallStep = usUninstall then begin
+  if CurUninstallStep <> usUninstall then begin
     exit;
   end;
 
 #ifdef AppxPackageName
   RemoveAppxPackage();
+#endif
+#ifdef CopilotShim
+  CopilotUninstall();
 #endif
   if not RegQueryStringValue({#EnvironmentRootKey}, '{#EnvironmentKey}', 'Path', Path)
   then begin

@@ -677,7 +677,11 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 	) {
 		super();
-		this._modelSelection = this._register(this.instantiationService.createInstance(SessionModelSelection, this.options.session, { workflow: this.options.modelPickerWorkflow }));
+		this._modelSelection = this._register(this.instantiationService.createInstance(SessionModelSelection, this.options.session, {
+			workflow: this.options.modelPickerWorkflow,
+			modelConfiguration: true,
+			fallbackModelConfiguration: this.languageModelsService,
+		}));
 		this._canSendRequest = derived(this, reader => {
 			if (this.options.canSubmitWithoutSession?.read(reader)) {
 				return true;
@@ -781,9 +785,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 					state: this._modelSelection.state,
 					openPicker: () => this._newChatModelPickerService.openModelPicker(),
 					selectModel: modelIdentifier => this._newChatModelPickerService.switchToModel(modelIdentifier),
-					// The model picker here has no scoped store and configures models globally,
-					// so a notification writes to the same place its "Thinking" rows do.
-					applyModelConfiguration: (modelIdentifier, values) => this.languageModelsService.setModelConfiguration(modelIdentifier, values),
+					applyModelConfiguration: (modelIdentifier, values) => this._applyModelConfiguration(modelIdentifier, values),
 				},
 				onDidChangeVisibility: (visible, focusTarget) => this.noticeHost.setOccupied(ChatInputNoticeLane.Notification, visible, focusTarget),
 				focusInput: () => this.focus(),
@@ -2173,18 +2175,19 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		}
 	}
 
-	sendQuery(text: string): void {
+	async sendQuery(text: string): Promise<boolean> {
 		// A submit is already in flight (e.g. a rapid second transcript before the
 		// session is created); don't clobber the in-flight text or double-submit.
 		if (this._sending) {
-			return;
+			return false;
 		}
 		const model = this._editor?.getModel();
 		if (model) {
 			const combined = combineVoiceInput(model.getValue(), text);
 			model.setValue(combined);
-			this._send();
+			return this._send();
 		}
+		return false;
 	}
 
 	attach(uris: URI[]): void {
@@ -2228,6 +2231,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 	selectVoiceModel(identifier: string): boolean {
 		return this._modelSelection.selectModel(identifier);
+	}
+
+	private _applyModelConfiguration(modelIdentifier: string, values: Record<string, unknown>): Promise<void> {
+		return (this._modelSelection.modelConfiguration ?? this.languageModelsService).setModelConfiguration(modelIdentifier, values);
 	}
 }
 

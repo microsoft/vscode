@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { $ } from '../../../../../../base/browser/dom.js';
+import { IListEvent } from '../../../../../../base/browser/ui/list/list.js';
 import { DeferredPromise, Delayer, raceCancellationError, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -26,12 +27,12 @@ import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME } from '../../../../../../platform/a
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { AICustomizationManagementEditor, isCurrentPluginContributionNavigation } from '../../../browser/aiCustomization/aiCustomizationManagementEditor.js';
+import { AICustomizationManagementEditor, isCurrentConnectorDetailNavigation, isCurrentPluginContributionNavigation } from '../../../browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { AgentPluginItemKind, IAgentPluginItem } from '../../../browser/agentPluginEditor/agentPluginItems.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
-import { CustomizationMigration, CustomizationMigrationCandidate, CustomizationMigrationType, FileCustomizationMigrationFailureReason, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationExclusion, isMcpServerCustomizationMigrationCandidate, McpServerCustomizationMigrationFailureReason, MigratableConfiguration } from '../../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigration, CustomizationMigrationCandidate, CustomizationMigrationType, FileCustomizationMigrationFailureReason, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationExclusion, IPluginMarketplaceCustomizationMigrationCandidate, isFileCustomizationMigrationCandidate, McpServerCustomizationMigrationFailureReason, MigratableConfiguration } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import type { ICustomizationMigrationTelemetryService } from '../../../common/promptSyntax/service/customizationMigrationTelemetryService.js';
 import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { IHeaderAttribute, PromptFileParser } from '../../../common/promptSyntax/promptFileParser.js';
@@ -89,6 +90,16 @@ suite('aiCustomizationManagementEditor', () => {
 			isCurrentPluginContributionNavigation(1, 2, AICustomizationManagementSection.Skills, AICustomizationManagementSection.Skills, true),
 			isCurrentPluginContributionNavigation(2, 2, AICustomizationManagementSection.Skills, AICustomizationManagementSection.Agents, true),
 			isCurrentPluginContributionNavigation(2, 2, AICustomizationManagementSection.Skills, AICustomizationManagementSection.Skills, false),
+		], [true, false, false, false]);
+	});
+
+	test('rejects superseded connector detail navigation', () => {
+		const requestInput = {};
+		assert.deepStrictEqual([
+			isCurrentConnectorDetailNavigation(2, 2, requestInput, requestInput),
+			isCurrentConnectorDetailNavigation(1, 2, requestInput, requestInput),
+			isCurrentConnectorDetailNavigation(2, 2, requestInput, {}),
+			isCurrentConnectorDetailNavigation(2, 2, undefined, undefined),
 		], [true, false, false, false]);
 	});
 
@@ -154,6 +165,7 @@ suite('aiCustomizationManagementEditor', () => {
 		const editor = createTestEditor();
 		const sourceUri = URI.file('/workspace/.vscode/mcp.json');
 		const states: boolean[] = [];
+		const listCandidates: (readonly IMcpServerCustomizationMigrationCandidate[])[] = [];
 		editor.viewMode = 'mcpDetail';
 		editor.mcpDetailInput = {
 			id: 'server-row',
@@ -164,7 +176,8 @@ suite('aiCustomizationManagementEditor', () => {
 			source: { uri: sourceUri },
 		};
 		editor.embeddedMcpDetail = { setMigratable: migratable => states.push(migratable) };
-		editor.customizationsByMigrationCategory.set(CustomizationMigrationCategoryId.McpServers, [{
+		editor.mcpListWidget = { setMcpServerMigrationCandidates: candidates => listCandidates.push(candidates) };
+		const candidate: IMcpServerCustomizationMigrationCandidate = {
 			type: CustomizationMigrationType.McpServers,
 			storage: PromptsStorage.local,
 			id: 'server-id',
@@ -172,13 +185,16 @@ suite('aiCustomizationManagementEditor', () => {
 			sourceUri,
 			targetUri: URI.file('/workspace/.mcp.json'),
 			projectedConfiguration: { type: McpServerType.LOCAL, command: 'server' },
-		}]);
-		editor.refreshMcpDetailMigrationState();
+		};
+		editor.setCustomizationsToMigrate(new Map([[CustomizationMigrationCategoryId.McpServers, [candidate]]]), new Map());
 		editor.mcpDetailInput = { ...editor.mcpDetailInput, source: { uri: URI.file('/other/.vscode/mcp.json') } };
 		editor.refreshMcpDetailMigrationState();
 		editor.editorPreviewDisposables.dispose();
 
-		assert.deepStrictEqual(states, [true, false]);
+		assert.deepStrictEqual({ states, listCandidates }, {
+			states: [true, false],
+			listCandidates: [[candidate]],
+		});
 	});
 
 	type TestQuickPickItem = {
@@ -197,6 +213,7 @@ suite('aiCustomizationManagementEditor', () => {
 		currentEditingSource: string | undefined;
 		currentEditingReadOnly: boolean;
 		customizationsByMigrationCategory: Map<CustomizationMigrationCategoryId, readonly CustomizationMigrationCandidate[]>;
+		pluginMarketplaceMigrationDiscoveryError: Error | undefined;
 		mcpServerMigrationExclusions: readonly IMcpServerCustomizationMigrationExclusion[];
 		customizationMigrationTargetFoldersByType: Map<PromptsType, readonly ICustomizationSourceFolder[]>;
 		customizationMigrationInProgress: boolean;
@@ -212,6 +229,8 @@ suite('aiCustomizationManagementEditor', () => {
 		selectedCustomizationMigrationItems: ResourceMap<Set<PromptsStorage>>;
 		selectedMcpServerMigrationItems: Set<string>;
 		knownMcpServerMigrationItems: Set<string>;
+		selectedPluginMarketplaceMigrationItems: Set<string>;
+		knownPluginMarketplaceMigrationItems: Set<string>;
 		recentlyMigratedCustomizationItems: Set<string>;
 		migrationShortcutContainer: HTMLElement | undefined;
 		migrationShortcutButton: HTMLButtonElement | undefined;
@@ -256,6 +275,7 @@ suite('aiCustomizationManagementEditor', () => {
 		viewMode: 'list' | 'migration' | 'editor' | 'marketplaceDetail' | 'mcpDetail' | 'connectorDetail' | 'pluginDetail';
 		mcpDetailInput: IMcpServerDetailInput | undefined;
 		embeddedMcpDetail: { setMigratable(migratable: boolean): void } | undefined;
+		mcpListWidget: { setMcpServerMigrationCandidates(candidates: readonly IMcpServerCustomizationMigrationCandidate[]): void } | undefined;
 		refreshMcpDetailMigrationState(): void;
 		dimension: undefined;
 		hoverService: IHoverService;
@@ -269,7 +289,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editorService: Pick<IEditorService, 'openEditor'>;
 		agentPluginService: IAgentPluginService;
 		mcpWorkbenchService: Pick<IMcpWorkbenchService, 'local'>;
-		customizationMigrationService: Pick<ICustomizationMigrationService, 'migrateMcpServers'> & {
+		customizationMigrationService: Pick<ICustomizationMigrationService, 'migrateMcpServers' | 'migratePluginMarketplaces'> & {
 			computeMigration?(session: URI, type: CustomizationMigrationType, token?: CancellationToken): Promise<CustomizationMigration>;
 		};
 		customizationMigrationTelemetryService: ICustomizationMigrationTelemetryService;
@@ -300,6 +320,7 @@ suite('aiCustomizationManagementEditor', () => {
 		openCustomizationItem(item: IAICustomizationListItem): Promise<void>;
 		showEmbeddedPluginDetail(item: IAgentPluginItem): Promise<void>;
 		goBackToList(): void;
+		onDidChangeSidebarSelection(e: IListEvent<{ readonly id: AICustomizationManagementSection }>): void;
 		showWelcomePage(options?: { resetFilters?: boolean }): void;
 		renderPreviewAttribute(attribute: IHeaderAttribute, promptType: PromptsType, target: Target): void;
 		onStructuredPreviewSettingChanged(): void;
@@ -316,7 +337,7 @@ suite('aiCustomizationManagementEditor', () => {
 		clearConfiguredLocationSettings(settingIds: readonly string[]): Promise<void>;
 		migrateSelectedCustomizations(category: ICustomizationMigrationCategory, customizations: readonly CustomizationMigrationCandidate[]): Promise<void>;
 		runCustomizationMigration(customizations: readonly MigratableConfiguration[]): Promise<IMigratedCustomizationsWithFailureReasonsResult>;
-		setCustomizationsToMigrate(candidates: Map<CustomizationMigrationCategoryId, readonly CustomizationMigrationCandidate[]>, targetFoldersByType: Map<PromptsType, readonly ICustomizationSourceFolder[]>, mcpServerMigrationExclusions?: readonly IMcpServerCustomizationMigrationExclusion[]): void;
+		setCustomizationsToMigrate(candidates: Map<CustomizationMigrationCategoryId, readonly CustomizationMigrationCandidate[]>, targetFoldersByType: Map<PromptsType, readonly ICustomizationSourceFolder[]>, mcpServerMigrationExclusions?: readonly IMcpServerCustomizationMigrationExclusion[], pluginMarketplaceMigrationDiscoveryError?: Error): void;
 		isCustomizationSelectedForMigration(customization: CustomizationMigrationCandidate): boolean;
 		setCustomizationSelectedForMigration(customization: CustomizationMigrationCandidate, selected: boolean): void;
 		resolveCustomizationMigrationTargetFolders(
@@ -352,7 +373,7 @@ suite('aiCustomizationManagementEditor', () => {
 	};
 
 	type MutableConfigurationInspection = {
-		-readonly [Key in keyof IConfigurationValue<boolean>]?: IConfigurationValue<boolean>[Key];
+		-readonly [Key in keyof IConfigurationValue<unknown>]?: IConfigurationValue<unknown>[Key];
 	};
 
 	function createConfigurationServiceStub(values: Record<string, unknown> = {}): IConfigurationService & {
@@ -391,6 +412,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.currentEditingSource = undefined;
 		editor.currentEditingReadOnly = false;
 		editor.customizationsByMigrationCategory = new Map();
+		editor.pluginMarketplaceMigrationDiscoveryError = undefined;
 		editor.mcpServerMigrationExclusions = [];
 		editor.customizationMigrationTargetFoldersByType = new Map();
 		editor.customizationMigrationInProgress = false;
@@ -402,6 +424,8 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.selectedCustomizationMigrationItems = new ResourceMap();
 		editor.selectedMcpServerMigrationItems = new Set();
 		editor.knownMcpServerMigrationItems = new Set();
+		editor.selectedPluginMarketplaceMigrationItems = new Set();
+		editor.knownPluginMarketplaceMigrationItems = new Set();
 		editor.recentlyMigratedCustomizationItems = new Set();
 		editor.migrationFlowId = undefined;
 		editor.migrationDashboard = undefined;
@@ -467,6 +491,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.mcpWorkbenchService = { local: [] };
 		editor.customizationMigrationService = {
 			migrateMcpServers: async () => ({ migratedCount: 0, failures: [] }),
+			migratePluginMarketplaces: async () => ({ migratedCount: 0, failures: [] }),
 		};
 		editor.customizationMigrationTelemetryService = {
 			_serviceBrand: undefined,
@@ -1203,6 +1228,30 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.editorPreviewDisposables.dispose();
 	});
 
+	test('re-selecting the active section leaves its detail only for user selections', () => {
+		const editor = createTestEditor();
+		store.add(editor.editorPreviewDisposables);
+		const section = AICustomizationManagementSection.McpServers;
+		Object.assign(editor, {
+			sections: [{ id: section }],
+			sectionContextKey: { set() { } },
+			mcpListWidget: { setVisible() { }, focusSearch() { } },
+		});
+		editor.selectedSection = section;
+		editor.viewMode = 'connectorDetail';
+		const selectInSidebar = (browserEvent?: UIEvent) => editor.onDidChangeSidebarSelection({ elements: [{ id: section }], indexes: [0], browserEvent });
+
+		selectInSidebar();
+		const afterProgrammaticSelection = editor.viewMode;
+		selectInSidebar(new MouseEvent('click'));
+
+		assert.deepStrictEqual({ afterProgrammaticSelection, afterUserSelection: editor.viewMode, selected: editor.selectedSection }, {
+			afterProgrammaticSelection: 'connectorDetail',
+			afterUserSelection: 'list',
+			selected: section,
+		});
+	});
+
 	test('opens plugin-provided skills in the owning plugin detail', async () => {
 		const editor = createTestEditor();
 		const pluginUri = URI.file('/plugins/example');
@@ -1443,6 +1492,40 @@ suite('aiCustomizationManagementEditor', () => {
 			ignored: true,
 			hasIgnoredGroups: true,
 			visibleCategories: [],
+		});
+		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('preserves a plugin marketplace discovery error alongside valid migration categories', () => {
+		const editor = createTestEditor(undefined, createConfigurationServiceStub({
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
+			[ChatConfiguration.PluginMarketplaces]: ['microsoft/vscode-team-kit'],
+		}));
+		const prompt: MigratableConfiguration = {
+			uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
+			storage: PromptsStorage.local,
+			type: PromptsType.prompt,
+			source: PromptFileSource.GitHubWorkspace,
+		};
+		editor.setCustomizationsToMigrate(
+			new Map([[CustomizationMigrationCategoryId.PromptFiles, [prompt]]]),
+			new Map(),
+			[],
+			new Error('Marketplace inventory unavailable'),
+		);
+
+		const overview = editor.getCustomizationMigrationDashboardOverview();
+
+		assert.deepStrictEqual({
+			categories: overview.scopes.flatMap(scope => scope.categories.map(category => category.id)),
+			categoryErrors: overview.categoryErrors,
+		}, {
+			categories: [CustomizationMigrationCategoryId.PromptFiles],
+			categoryErrors: [{
+				id: CustomizationMigrationCategoryId.PluginMarketplaces,
+				label: 'Plugin marketplaces could not be checked',
+				description: 'Check the active agent connection, then try again.',
+			}],
 		});
 		editor.editorPreviewDisposables.dispose();
 	});
@@ -1847,7 +1930,7 @@ suite('aiCustomizationManagementEditor', () => {
 		assert.deepStrictEqual({
 			refreshedSessions,
 			candidatePaths: [...editor.customizationsByMigrationCategory.values()].flat()
-				.filter(candidate => !isMcpServerCustomizationMigrationCandidate(candidate))
+				.filter(isFileCustomizationMigrationCandidate)
 				.map(candidate => candidate.uri.path),
 			destinationPaths: [...editor.customizationMigrationTargetFoldersByType.values()].flat().map(folder => folder.uri.path),
 		}, {
@@ -2097,6 +2180,8 @@ suite('aiCustomizationManagementEditor', () => {
 						discoveryComplete: true,
 						coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
 					};
+				case CustomizationMigrationType.PluginMarketplaces:
+					return { type, candidates: [] };
 				default:
 					return { type, files: [], candidates: [] };
 			}
@@ -2315,6 +2400,7 @@ suite('aiCustomizationManagementEditor', () => {
 				migrated.push([...candidates]);
 				return { migratedCount: candidates.length, failures: [] };
 			},
+			migratePluginMarketplaces: async () => ({ migratedCount: 0, failures: [] }),
 		};
 		editor.notificationService = {
 			error: message => notifications.push(`error:${message}`),
@@ -2343,6 +2429,42 @@ suite('aiCustomizationManagementEditor', () => {
 			writesInProgress: false,
 			remainingCandidates: [],
 		});
+		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('confirms MCP servers without registry updates like servers without removed properties', async () => {
+		const editor = createTestEditor(undefined, createConfigurationServiceStub({
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
+		}));
+		const server: IMcpServerCustomizationMigrationCandidate = {
+			type: CustomizationMigrationType.McpServers,
+			storage: PromptsStorage.local,
+			id: 'mcp.config.ws0.server',
+			name: 'server',
+			sourceUri: URI.file('/workspace/.vscode/mcp.json'),
+			targetUri: URI.file('/workspace/.mcp.json'),
+			projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' },
+		};
+		const confirmations: IConfirmation[] = [];
+		editor.dialogService = {
+			confirm: async confirmation => {
+				confirmations.push(confirmation);
+				return { confirmed: false };
+			},
+		};
+
+		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers);
+		for (const removedProperties of [{ gallery: false }, { version: '1.0.0' }, { gallery: false, version: '1.0.0' }]) {
+			await editor.migrateSelectedCustomizations(category, [{ ...server, removedProperties }]);
+		}
+
+		const confirmation: IConfirmation = {
+			type: 'question',
+			message: 'Migrate 1 MCP server to .mcp.json?',
+			detail: 'Eligible entries are removed from .vscode/mcp.json after they are written and verified in .mcp.json. Entries that cannot be migrated stay in place.',
+			primaryButton: 'Migrate',
+		};
+		assert.deepStrictEqual(confirmations, [confirmation, confirmation, confirmation]);
 		editor.editorPreviewDisposables.dispose();
 	});
 
@@ -2375,6 +2497,7 @@ suite('aiCustomizationManagementEditor', () => {
 					calls.push('migrate');
 					return { migratedCount: 1, failures: [] };
 				},
+				migratePluginMarketplaces: async () => ({ migratedCount: 0, failures: [] }),
 			};
 			editor.notificationService = {
 				error: () => calls.push('error'),
@@ -2404,6 +2527,70 @@ suite('aiCustomizationManagementEditor', () => {
 			editor.editorPreviewDisposables.dispose();
 		});
 	}
+
+	test('copies plugin marketplaces after confirmation and returns to the dashboard', async () => {
+		const configurationService = createConfigurationServiceStub({
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
+			[ChatConfiguration.PluginMarketplaces]: ['microsoft/vscode-team-kit'],
+		});
+		configurationService.inspectValues.applicationValue = ['microsoft/vscode-team-kit'];
+		const editor = createTestEditor(undefined, configurationService);
+		const marketplace: IPluginMarketplaceCustomizationMigrationCandidate = {
+			type: CustomizationMigrationType.PluginMarketplaces,
+			storage: PromptsStorage.user,
+			name: 'microsoft/vscode-team-kit',
+			source: 'microsoft/vscode-team-kit',
+			canonicalId: 'https://github.com/microsoft/vscode-team-kit.git',
+		};
+		editor.setCustomizationsToMigrate(new Map([[CustomizationMigrationCategoryId.PluginMarketplaces, [marketplace]]]), new Map());
+		const confirmations: IConfirmation[] = [];
+		editor.dialogService = {
+			confirm: async confirmation => {
+				confirmations.push(confirmation);
+				return { confirmed: true };
+			},
+		};
+		const migrated: IPluginMarketplaceCustomizationMigrationCandidate[][] = [];
+		editor.customizationMigrationService = {
+			migrateMcpServers: async () => ({ migratedCount: 0, failures: [] }),
+			migratePluginMarketplaces: async (_sessionResource, candidates) => {
+				migrated.push([...candidates]);
+				return { migratedCount: 1, failures: [] };
+			},
+		};
+		editor.refreshCustomizationMigrationInfo = async () => { };
+		let dashboardShown = 0;
+		editor.showCustomizationMigrationDashboard = () => dashboardShown++;
+		const notifications: string[] = [];
+		editor.notificationService.info = message => notifications.push(message);
+		const migrationCompleted: unknown[][] = [];
+		editor.customizationMigrationTelemetryService.migrationCompleted = (...args) => migrationCompleted.push(args);
+		editor.migrationFlowId = 'migration-flow-id';
+
+		await editor.migrateSelectedCustomizations(getCustomizationMigrationCategory(CustomizationMigrationCategoryId.PluginMarketplaces), [marketplace]);
+
+		assert.deepStrictEqual({
+			confirmations,
+			migrated,
+			migrationCompleted,
+			notifications,
+			dashboardShown,
+			remainingCandidates: editor.getMigrationCandidates(getCustomizationMigrationCategory(CustomizationMigrationCategoryId.PluginMarketplaces)),
+		}, {
+			confirmations: [{
+				type: 'question',
+				message: 'Migrate 1 plugin marketplace to Copilot?',
+				detail: 'This adds the marketplace to Copilot. The Local agent will keep using the existing VS Code setting.',
+				primaryButton: 'Migrate',
+			}],
+			migrated: [[marketplace]],
+			migrationCompleted: [[CustomizationMigrationType.PluginMarketplaces, 1, 1, 0, [], 'migration-flow-id']],
+			notifications: ['Migrated 1 plugin marketplace to Copilot.'],
+			dashboardShown: 1,
+			remainingCandidates: [],
+		});
+		editor.editorPreviewDisposables.dispose();
+	});
 
 	test('keeps migration hint attribution within its originating flow', async () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({

@@ -121,7 +121,6 @@ const UPGRADE_KILL_DELAY: Duration = Duration::from_secs(3);
 #[derive(Clone, Debug)]
 pub struct AgentHostConfig {
 	pub server_data_dir: Option<String>,
-	pub user_data_dir: Option<String>,
 	pub github_environment: Option<GithubEnvironmentConfig>,
 	pub telemetry_level: Option<TelemetryLevel>,
 	pub without_connection_token: bool,
@@ -337,10 +336,6 @@ impl AgentHostManager {
 
 		if let Some(a) = &self.config.server_data_dir {
 			cmd.arg("--server-data-dir");
-			cmd.arg(a);
-		}
-		if let Some(a) = &self.config.user_data_dir {
-			cmd.arg("--user-data-dir");
 			cmd.arg(a);
 		}
 		if let Some(level) = self.config.telemetry_level {
@@ -2337,7 +2332,6 @@ mod tests {
 			Arc::new(ReqwestSimpleHttp::new()),
 			AgentHostConfig {
 				server_data_dir: None,
-				user_data_dir: None,
 				github_environment: None,
 				telemetry_level: None,
 				without_connection_token: true,
@@ -2389,6 +2383,30 @@ mod tests {
 
 	#[cfg(unix)]
 	#[tokio::test]
+	async fn standalone_server_forwards_server_data_dir_without_user_data_dir() {
+		let dir = tempfile::tempdir().unwrap();
+		let mut manager = make_test_manager(dir.path());
+		let server_data_dir = dir.path().join("server-data");
+		Arc::get_mut(&mut manager).unwrap().config.server_data_dir =
+			Some(server_data_dir.to_string_lossy().into_owned());
+		let argv = dir.path().join("argv");
+		let server = start_fake_server(
+			&manager,
+			dir.path(),
+			&format!("printf '%s\\n' \"$@\" > '{}'", argv.display()),
+		)
+		.await;
+		server.await.unwrap();
+		let argv = std::fs::read_to_string(argv).unwrap();
+		assert!(argv.contains(&format!(
+			"--server-data-dir\n{}\n",
+			server_data_dir.display()
+		)));
+		assert!(!argv.contains("--user-data-dir\n"));
+	}
+
+	#[cfg(unix)]
+	#[tokio::test]
 	async fn github_environment_waits_for_remote_readiness_and_forwards_bootstrap() {
 		let dir = tempfile::tempdir().unwrap();
 		let mut manager = make_test_manager_with_activity(dir.path(), None);
@@ -2402,7 +2420,6 @@ mod tests {
 		};
 		let config = &mut Arc::get_mut(&mut manager).unwrap().config;
 		config.github_environment = Some(options.clone());
-		config.user_data_dir = Some(dir.path().join("profile").to_string_lossy().into_owned());
 		let gate = dir.path().join("relay-ready");
 		let bootstrap = dir.path().join("bootstrap.json");
 		let argv = dir.path().join("argv");
@@ -2437,7 +2454,7 @@ mod tests {
 			serde_json::to_value(&options).unwrap()
 		);
 		let argv = std::fs::read_to_string(argv).unwrap();
-		assert!(argv.contains("--user-data-dir\n"));
+		assert!(!argv.contains("--user-data-dir\n"));
 		assert!(!argv.contains("--enable-remote-auto-shutdown"));
 		assert!(!argv.contains("test-credential"));
 		assert!(!format!("{options:?}").contains("test-credential"));

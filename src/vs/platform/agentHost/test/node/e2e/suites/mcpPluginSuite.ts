@@ -14,9 +14,9 @@ import { CompletionItemKind, type CompletionsResult, type SubscribeResult } from
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { CustomizationEnablementKind, McpServerStatus } from '../../../../common/state/protocol/state.js';
 import { ActionType, type ChatToolCallCompleteAction } from '../../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, customizationId, CustomizationType, ResponsePartKind, ROOT_STATE_URI, type ChatInputAnswer, type ChatInputRequest, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
+import { ChatInputAnswerState, ChatInputAnswerValueKind, customizationId, CustomizationType, ResponsePartKind, ROOT_STATE_URI, type ChatInputAnswer, type ChatInputRequest, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
 import { assertToolCallCompleteText, createRealSession, driveTurnToCompletion, driveTurnWithAnswersToCompletion, driveTurnWithCancelledInputToCompletion, resolveGitHubToken, textFromContent } from '../harness/agentHostE2ETestHarness.js';
-import { fetchSessionWithChat, getActionEnvelope, isActionNotification, type TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
+import { fetchSessionWithChat, getActionEnvelope, isActionNotification, type TestProtocolClient, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
 import { providerHostOnlyTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
 
@@ -234,13 +234,13 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 	function toolResultTexts(sessionUri: string, turnId: string): readonly string[] {
 		return context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallComplete'))
 			.map(n => ({ envelope: getActionEnvelope(n), action: getActionEnvelope(n).action as ChatToolCallCompleteAction }))
-			.filter(({ envelope, action }) => envelope.channel === buildDefaultChatUri(sessionUri) && action.turnId === turnId)
+			.filter(({ envelope, action }) => envelope.channel === defaultChatChannel(sessionUri) && action.turnId === turnId)
 			.map(({ action }) => textFromContent(action.result.content ?? []));
 	}
 
 	function assertProbeToolSucceeded(sessionUri: string, turnId: string): void {
 		assertToolCallCompleteText(context.client, {
-			channel: buildDefaultChatUri(sessionUri),
+			channel: defaultChatChannel(sessionUri),
 			turnId,
 			toolNames: ['customization_probe_server-customization_probe'],
 			expected: [/MCP_PLUGIN_RESULT/],
@@ -396,7 +396,7 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			await driveTurnToCompletion(context.client, sessionUri, 'turn-skill-completion-leading', 'Reply exactly "ready".', 2);
 
 			const completions = await context.client.call<CompletionsResult>('completions', {
-				channel: buildDefaultChatUri(sessionUri),
+				channel: defaultChatChannel(sessionUri),
 				kind: CompletionItemKind.UserMessage,
 				text: '/E2E',
 				offset: 4,
@@ -412,7 +412,7 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			await driveTurnToCompletion(context.client, sessionUri, 'turn-skill-completion-whitespace', 'Reply exactly "ready".', 2);
 
 			const completions = await context.client.call<CompletionsResult>('completions', {
-				channel: buildDefaultChatUri(sessionUri),
+				channel: defaultChatChannel(sessionUri),
 				kind: CompletionItemKind.UserMessage,
 				text: 'Use /E2E',
 				offset: 8,
