@@ -186,7 +186,8 @@ async function renderToolbar(context: ComponentFixtureContext, options: IFixture
 	}
 	// As in `ChatView`, only the external-session banner precedes the widget in normal flow.
 	const widgetHeight = areaHeight - widgetContainer.offsetTop;
-	const contentWidth = Math.max(0, width - reservedWidth);
+	// As in `ChatView`, content is inset by the reserved width on both sides.
+	const contentWidth = Math.max(0, width - 2 * reservedWidth);
 	// Mirrors `ChatWidget`, which caps its renderer to the centered band outside a multi-group grid.
 	const rendererWidth = options.split ? contentWidth : Math.min(AGENTS_CENTERED_CONTENT_MAX_WIDTH, contentWidth);
 

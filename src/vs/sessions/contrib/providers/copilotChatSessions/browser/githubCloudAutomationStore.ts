@@ -157,23 +157,6 @@ export class GitHubCloudAutomationStore extends Disposable {
 		}
 	}
 
-	/** Remembers an eligible repository for subsequent explicit refreshes; no definitions are fetched. */
-	async registerRepository(workspace: URI): Promise<void> {
-		const account = this.requireAccount();
-		const signal = this.lifetime.signal;
-		const repository = await this.resolveRepository(workspace);
-		signal.throwIfAborted();
-		if (!repository) {
-			throw new Error(localize('cloudAutomations.repositoryRequired', "Select a GitHub.com repository for this cloud automation."));
-		}
-		await this.withClient(signal, async (client, signal) => {
-			if (!(await client.repositories.get(repository, signal)).private) {
-				throw new Error(localize('cloudAutomations.privateRepositoryRequired', "Cloud automations currently require a private GitHub repository."));
-			}
-			this.rememberRepositories(account.accountName, [repository], signal);
-		});
-	}
-
 	async refresh(options?: IAutomationRefreshOptions): Promise<void> {
 		const account = this.requireAccount();
 		if (this.refreshPromise) {
@@ -540,7 +523,6 @@ export class GitHubCloudAutomationStore extends Disposable {
 
 	private rememberRepositories(account: string, repositories: readonly RepositoryRef[], signal: AbortSignal): void {
 		signal.throwIfAborted();
-		// Merge current references so registration during a refresh is not overwritten.
 		const known = this.readRepositories(account);
 		for (const repository of repositories) {
 			known.set(repositoryKey(repository), repository);
