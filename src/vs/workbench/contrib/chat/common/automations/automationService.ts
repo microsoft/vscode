@@ -317,4 +317,6 @@ export interface IAutomationProviderDescriptor {
 	readonly unavailableReasonCode?: AutomationUnavailableReasonCode;
 	/** A provider-specific explanation, absent when none applies. */
 	readonly unavailableReason?: string;
+	/** A complete provider-supplied sentence shown instead of the generic per-provider unavailability message. */
+	readonly unavailableMessage?: string;
 }

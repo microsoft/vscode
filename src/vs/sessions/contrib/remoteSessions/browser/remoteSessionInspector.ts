@@ -37,7 +37,7 @@ export class RemoteSessionInspector {
 			throw new CancellationError();
 		}
 		const { resource, identity } = await resolveRemoteSessionReference(reference, this.connectionsService);
-		const provider = this.providersService.getProviders().filter(isAgentHostProvider).find(provider =>
+		const provider = this.providersService.getProviders({ includeSessionBackends: true }).filter(isAgentHostProvider).find(provider =>
 			provider.remoteAddress !== undefined && agentHostAuthority(provider.remoteAddress) === identity.connectionAuthority);
 		if (!provider) {
 			throw new Error(localize('remoteInspection.unknownHost', "Use a session or chat on a remote agent host registered in this Agents window."));
@@ -69,7 +69,7 @@ export class RemoteSessionInspector {
 					|| current.connectionAuthority !== identity.connectionAuthority
 					|| !isEqual(current.backendSession, identity.backendSession)
 					|| provider.connectionStatus?.get().kind !== 'connected'
-					|| !this.providersService.getProviders().includes(provider)) {
+					|| !this.providersService.getProviders({ includeSessionBackends: true }).includes(provider)) {
 					throw new Error(localize('remoteInspection.connectionChanged', "The remote agent host disconnected or its connection changed during inspection."));
 				}
 			};

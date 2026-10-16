@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from '../../base/browser/dom.js';
+import { $, addDisposableListener, EventHelper, EventType } from '../../base/browser/dom.js';
+import { Gesture, EventType as TouchEventType } from '../../base/browser/touch.js';
 import { IActionViewItemOptions } from '../../base/browser/ui/actionbar/actionViewItems.js';
 import type { IManagedHoverContent, IManagedHoverOptions } from '../../base/browser/ui/hover/hover.js';
+import { getDefaultHoverDelegate } from '../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IAction } from '../../base/common/actions.js';
 import { Codicon } from '../../base/common/codicons.js';
 import { onUnexpectedError } from '../../base/common/errors.js';
@@ -20,7 +22,8 @@ import { getIconClasses } from '../../editor/common/services/getIconClasses.js';
 import { ILanguageService } from '../../editor/common/languages/language.js';
 import { IModelService } from '../../editor/common/services/model.js';
 import { FileKind, IFileService } from '../../platform/files/common/files.js';
-import { ChatPillActionViewItem, createChatPillImagePreview, getChatPillEntries, getChatPillEntryHoverContents, getChatPillEntryHoverOptions, getChatPillEntryToolbarActions, type IChatPill, type IChatPillEntry, type IChatPillSection } from './chatPills.js';
+import { IHoverService } from '../../platform/hover/browser/hover.js';
+import { ChatPillActionViewItem, createChatPillImagePreview, getChatPillEntries, getChatPillEntryHoverContents, getChatPillEntryHoverOptions, getChatPillEntryToolbarActions, type IChatPill, type IChatPillAction, type IChatPillEntry, type IChatPillSection } from './chatPills.js';
 import { ChatResourcePillActionViewItem } from './chatResourcePill.js';
 import type { ResourceLabels } from './labels.js';
 import type { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
@@ -59,6 +62,14 @@ export interface IChatDropdownPillOptions {
 	readonly preferredAnchorPosition?: AnchorPosition;
 	/** Open expandable details on activation instead of running an entry's action. */
 	readonly openHoverOnSelect?: boolean;
+	/**
+	 * Shows a lone inline entry's {@link IChatPillEntry.promotedAction} on the pill
+	 * itself, as a trailing icon button with this glyph and its own tooltip. Like a
+	 * dropdown row's hover, the pill's hover then leaves out the action it shows.
+	 * The button is a pointer shortcut: the pill's context menu keeps offering the
+	 * action to keyboard and screen reader users.
+	 */
+	readonly promotedActionIcon?: ThemeIcon;
 }
 
 /**
@@ -98,6 +109,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IModelService private readonly _modelService: IModelService,
 		@IFileService private readonly _fileService: IFileService,
+		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super(undefined, action, options);
 	}
@@ -110,6 +122,8 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 	private readonly _imageHoverContents = new WeakMap<IChatPillEntry, IManagedHoverContent>();
 	private readonly _dropdownHovers = new WeakMap<IChatPillEntry, IActionListItemHover>();
 	private readonly _resourceDropdownHovers = new Map<string, { readonly entry: IChatPillEntry; readonly hover: IActionListItemHover }>();
+	private _promotedAction: IChatPillAction | undefined;
+	private _promotedActionElement: HTMLElement | undefined;
 
 	protected override renderContent(): void {
 		this._register(autorun(reader => {
@@ -143,6 +157,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 			if (previous.summarized !== current.summarized) {
 				this._updatePopupState();
 			}
+			this._updatePromotedAction();
 			if (this._dropdownVisible) {
 				if (current.summarized) {
 					this._actionWidgetService.updateItems(this._getDropdownItems(), undefined, { preserveHover: true, preserveScrollPosition: true, animateItemMove: true });
@@ -194,6 +209,54 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 		} else {
 			element.removeAttribute('aria-description');
 		}
+	}
+
+	/**
+	 * Mirrors a lone entry's promoted action onto the pill. It is a sibling of the
+	 * pill's button, not a child, so its clicks and taps never reach the button that
+	 * opens the entry.
+	 */
+	private _updatePromotedAction(): void {
+		const icon = this._pillOptions.promotedActionIcon;
+		const action = icon && !this.isSummarized ? this.entries.at(0)?.promotedAction : undefined;
+		this._promotedAction = action;
+		const container = this.element;
+		if (!container) {
+			return;
+		}
+		container.classList.toggle('has-promoted-action', !!action);
+		if (!action || !icon) {
+			this._promotedActionElement?.remove();
+			return;
+		}
+		const element = this._promotedActionElement ??= this._createPromotedActionElement(icon);
+		element.setAttribute('aria-label', action.label);
+		if (element.parentElement !== container) {
+			container.appendChild(element);
+		}
+	}
+
+	private _createPromotedActionElement(icon: ThemeIcon): HTMLElement {
+		// Not a tab stop: the toolbar moves focus between whole pills, so keyboard
+		// users take the action from the pill's context menu instead.
+		const element = $(`span.chat-pill-promoted-action${ThemeIcon.asCSSSelector(icon)}`, { role: 'button', tabindex: '-1' });
+		// Its own hover target, so pointing at it shows the action rather than the pill's hover.
+		this._register(this._hoverService.setupManagedHover(this.options.hoverDelegate ?? getDefaultHoverDelegate('element'), element, () => this._promotedAction?.tooltip || this._promotedAction?.label));
+		// Leave focus where it is, so a click that removes the pill cannot strand it.
+		this._register(addDisposableListener(element, EventType.MOUSE_DOWN, event => event.preventDefault()));
+		// A gesture target of its own, as for a button: an ancestor's gesture handling
+		// suppresses the click a tap would synthesize, and taps reach only targets.
+		this._register(Gesture.addTarget(element));
+		for (const eventType of [EventType.CLICK, TouchEventType.Tap]) {
+			this._register(addDisposableListener(element, eventType, event => {
+				EventHelper.stop(event, true);
+				const action = this._promotedAction;
+				if (action?.enabled) {
+					Promise.resolve(action.run()).catch(onUnexpectedError);
+				}
+			}));
+		}
+		return element;
 	}
 
 	/** Whether the pill stands for its entries rather than showing a single one. */
@@ -254,7 +317,9 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 	}
 
 	protected override getHoverOptions(): IManagedHoverOptions | undefined {
-		return getChatPillEntryHoverOptions(this.isSummarized ? undefined : this.entries.at(0));
+		const entry = this.isSummarized ? undefined : this.entries.at(0);
+		// Like a dropdown row's hover, leave out the action the pill already shows.
+		return getChatPillEntryHoverOptions(entry && this._pillOptions.promotedActionIcon ? { ...entry, promotedAction: undefined } : entry);
 	}
 
 	protected override onDidClickButton(): void {

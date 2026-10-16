@@ -667,6 +667,7 @@ export function createChatState(summary: ChatSummary): ChatState {
 		interactivity: summary.interactivity,
 		workingDirectories: summary.workingDirectories,
 		...(summary.changes !== undefined ? { changes: summary.changes } : {}),
+		...(summary.movable !== undefined ? { movable: summary.movable } : {}),
 		turns: [],
 		activeTurn: undefined,
 	};
@@ -768,6 +769,7 @@ export function chatSummaryFromState(state: ChatState): ChatSummary {
 	if (state.interactivity !== undefined) { summary.interactivity = state.interactivity; }
 	if (state.workingDirectories !== undefined) { summary.workingDirectories = state.workingDirectories; }
 	if (state.changes !== undefined) { summary.changes = state.changes; }
+	if (state.movable !== undefined) { summary.movable = state.movable; }
 	return summary;
 }
 
@@ -1006,7 +1008,7 @@ export interface ISessionWithDefaultChat extends SessionState {
 	activeTurn?: ActiveTurn;
 	/** Steering message pending on this chat. */
 	steeringMessage?: PendingMessage;
-	/** Queued messages pending on this chat. */
+	/** Steering and queued messages pending on this chat. */
 	queuedMessages?: PendingMessage[];
 	/** Draft input of this chat. */
 	draft?: Message;
