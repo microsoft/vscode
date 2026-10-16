@@ -42,6 +42,7 @@ import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from '../..
 import { CopilotExtensionsReloadToolName } from '../../node/copilot/copilotExtensionTools.js';
 import { buildCopilotBuiltinAgents } from '../../node/copilot/copilotBuiltinAgents.js';
 import type { ShellManager } from '../../node/copilot/copilotShellTools.js';
+import type { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
 import type { SandboxConfig, SandboxNetworkPolicy } from '../../node/copilot/sandboxConfigForSdk.js';
 import { composeByokSessionConfig, CopilotSessionLauncher, filterClientToolNames, findLocalModelDirectFamily, getCopilotAutoTier, getCopilotReasoningEffort, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, withLocalModelSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { createUnmanagedCopilotSettings } from './copilotTestEvents.js';
@@ -1318,7 +1319,8 @@ suite('CopilotSessionLauncher shared session config', () => {
 			ask: ['Shell'],
 		};
 		const logService = new CapturingLogService();
-		const launcher = createTestLauncher(managedSettingsPermissions, { [AgentHostCanvasesEnabledConfigKey]: true, memory: true, localMemory: true }, logService);
+		const configValues: Record<string, unknown> = { [AgentHostCanvasesEnabledConfigKey]: true, [CopilotCliConfigKey.ImageGeneration]: true, memory: true, localMemory: true };
+		const launcher = createTestLauncher(managedSettingsPermissions, configValues, logService);
 		const pluginDir = URI.file('/tmp/synced-customizations');
 		const syntheticPluginDir = URI.file('/tmp/vscode-synced-customizations');
 		const skillUri = URI.joinPath(pluginDir, 'skills', 'user-skill', 'SKILL.md');
@@ -1404,6 +1406,20 @@ suite('CopilotSessionLauncher shared session config', () => {
 			sessions.add(await launcher.launch(createPlan, testRuntime));
 			sessions.add(await launcher.launch(resumePlan, testRuntime));
 			sessions.add(await launcher.launch({ ...createPlan, isEphemeral: true }, testRuntime));
+
+			assert.deepStrictEqual({
+				createImage: createConfigs.map(config => {
+					const compatible: typeof config & { imageGeneration?: unknown } = config;
+					return compatible.imageGeneration;
+				}),
+				resumeImage: resumeConfigs.map(config => {
+					const compatible: typeof config & { imageGeneration?: unknown } = config;
+					return compatible.imageGeneration;
+				}),
+			}, {
+				createImage: [{ enabled: true }, { enabled: true }],
+				resumeImage: [{ enabled: true }],
+			});
 
 			assert.deepStrictEqual({
 				createClientName: createConfigs[0].clientName,
@@ -1606,6 +1622,20 @@ suite('CopilotSessionLauncher shared session config', () => {
 					'[Copilot:session-1] SDK resumeSession settled: attemptId=<id>, outcome=success, elapsedMs=<ms>',
 				],
 			});
+			// A setting saved by the retired picker cannot override the application setting.
+			configValues['vscode.imageGenerationEnabled'] = false;
+			for (const enabled of [undefined, false, true]) {
+				configValues[CopilotCliConfigKey.ImageGeneration] = enabled;
+				const createdWithSetting: CopilotSessionWrapper = sessions.add(await launcher.launch(createPlan, testRuntime));
+				const resumedWithSetting: CopilotSessionWrapper = sessions.add(await launcher.launch(resumePlan, testRuntime));
+				assert.deepStrictEqual({
+					launch: [createdWithSetting.launchImageGenerationEnabled, resumedWithSetting.launchImageGenerationEnabled],
+					config: [createConfigs.at(-1)?.imageGeneration, resumeConfigs.at(-1)?.imageGeneration],
+				}, {
+					launch: [enabled === true, enabled === true],
+					config: [{ enabled: enabled === true }, { enabled: enabled === true }],
+				});
+			}
 		} finally {
 			sessions.dispose();
 			await launcher.disposeByokProxyHandle();

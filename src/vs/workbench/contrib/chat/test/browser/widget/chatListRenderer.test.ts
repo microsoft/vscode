@@ -4187,6 +4187,163 @@ suite('ChatListRenderer', () => {
 		});
 	}
 
+	test('later image batches keep their own carousel, status, selection, and transcript position', async () => {
+		const { model, request, renderer, template, node } = createPersistentProgressRenderer();
+		const imageData = dom.$<HTMLCanvasElement>('canvas', { width: 8, height: 8 }).toDataURL('image/png').split(',')[1];
+		const startBatch = (prefix: string, count: number) => Array.from({ length: count }, (_, index) => {
+			const tool = new ChatToolInvocation({
+				invocationMessage: 'Generating image',
+				pastTenseMessage: `Generated ${prefix} image ${index + 1}`,
+			}, {
+				id: 'image_generation', displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal,
+			}, `${prefix}-${index}`, undefined, {}, {}, request.id);
+			model.acceptResponseProgress(request, tool);
+			return tool;
+		});
+		const finish = (tool: ChatToolInvocation) => tool.didExecuteTool({
+			content: [], toolSpecificData: { kind: 'generatedImage' },
+			toolResultDetails: { input: '{}', output: [{ type: 'embed', value: imageData, mimeType: 'image/png' }] },
+		});
+		const batches = () => [...template.value.querySelectorAll<HTMLElement>('.chat-image-generation-batch')];
+		const snapshot = () => batches().map(batch => ({
+			status: batch.querySelector('.chat-image-generation-batch-summary')?.textContent,
+			selected: [...batch.querySelectorAll('.chat-image-generation-batch-thumbnail')].findIndex(button => button.getAttribute('aria-pressed') === 'true'),
+		}));
+		const first = startBatch('first', 5);
+		for (const tool of first) {
+			await finish(tool);
+		}
+		model.acceptResponseProgress(request, { kind: 'thinking', value: '' });
+		const middle = startBatch('middle', 5);
+		for (const [index, tool] of middle.entries()) {
+			if (index === 3) {
+				await tool.didExecuteTool({
+					content: [],
+					toolResultDetails: { input: '{}', output: [{ type: 'embed', value: 'Image generation failed', isText: true }], isError: true },
+				});
+			} else {
+				await finish(tool);
+			}
+		}
+		renderer.renderElement(node, 0, template);
+		const firstBatch = batches()[0];
+		firstBatch.querySelectorAll<HTMLElement>('.chat-image-generation-batch-thumbnail')[4].click();
+		const middleBatch = batches()[1];
+		middleBatch.querySelectorAll<HTMLElement>('.chat-image-generation-batch-thumbnail')[1].click();
+		const firstPreview = firstBatch.querySelector('.chat-generated-image-result img');
+
+		model.acceptResponseProgress(request, { kind: 'thinking', id: 'next-image-batch', value: 'Planning the next batch.' });
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('I will generate six more images.') });
+		const second = startBatch('second', 6);
+		renderer.renderElement(node, 0, template);
+		assert.deepStrictEqual(snapshot(), [
+			{ status: 'Image batch \u00b7 5 of 5 ready', selected: 4 },
+			{ status: 'Image batch \u00b7 4 of 5 ready \u00b7 1 failed', selected: 1 },
+			{ status: 'Image batch \u00b7 0 of 6 ready', selected: 0 },
+		]);
+
+		const secondBatch = batches()[2];
+		secondBatch.querySelectorAll<HTMLElement>('.chat-image-generation-batch-thumbnail')[2].click();
+		await finish(second[0]);
+		await finish(second[2]);
+		renderer.renderElement(node, 0, template);
+		const update = [...template.value.querySelectorAll('.rendered-markdown p')].find(part => part.textContent === 'I will generate six more images.');
+		assert.ok(update);
+		assert.deepStrictEqual({
+			batches: snapshot(),
+			sameFirstBatch: batches()[0] === firstBatch,
+			sameFirstPreview: firstBatch.querySelector('.chat-generated-image-result img') === firstPreview,
+			sameMiddleBatch: batches()[1] === middleBatch,
+			updateAfterMiddle: !!(middleBatch.compareDocumentPosition(update) & Node.DOCUMENT_POSITION_FOLLOWING),
+			secondAfterUpdate: !!(update.compareDocumentPosition(secondBatch) & Node.DOCUMENT_POSITION_FOLLOWING),
+		}, {
+			batches: [
+				{ status: 'Image batch \u00b7 5 of 5 ready', selected: 4 },
+				{ status: 'Image batch \u00b7 4 of 5 ready \u00b7 1 failed', selected: 1 },
+				{ status: 'Image batch \u00b7 2 of 6 ready', selected: 2 },
+			],
+			sameFirstBatch: true, sameFirstPreview: true, sameMiddleBatch: true, updateAfterMiddle: true, secondAfterUpdate: true,
+		});
+		for (const index of [1, 3, 4, 5]) {
+			await finish(second[index]);
+		}
+		request.response!.complete();
+		renderer.disposeElement(node, 0, template);
+		renderer.renderElement(node, 0, template);
+		assert.deepStrictEqual(snapshot(), [
+			{ status: 'Image batch \u00b7 5 of 5 ready', selected: 4 },
+			{ status: 'Image batch \u00b7 4 of 5 ready \u00b7 1 failed', selected: 1 },
+			{ status: 'Image batch \u00b7 6 of 6 ready', selected: 2 },
+		]);
+	});
+
+	for (const { separator, sizes } of [
+		{ separator: 'markdown', sizes: [1, 1] },
+		{ separator: 'thinking', sizes: [1, 2] },
+		{ separator: 'tool', sizes: [2, 1] },
+		{ separator: 'thinking', sizes: [2, 2] },
+		{ separator: 'round', sizes: [5, 5] },
+	]) {
+		test(`image batches separated by ${separator} stay independent live and after reload (${sizes.join(', ')})`, async () => {
+			const live = createPersistentProgressRenderer();
+			const imageData = sizes.map((_, index) => dom.$<HTMLCanvasElement>('canvas', { width: 8 + index, height: 8 }).toDataURL('image/png').split(',')[1]);
+			const tools: ChatToolInvocation[][] = [];
+			for (const [batch, count] of sizes.entries()) {
+				if (batch > 0) {
+					if (separator === 'markdown') {
+						live.model.acceptResponseProgress(live.request, { kind: 'markdownContent', content: new MarkdownString('Another image batch.') });
+					} else if (separator === 'round') {
+						live.model.acceptResponseProgress(live.request, { kind: 'thinking', value: '' });
+					} else if (separator === 'thinking') {
+						live.model.acceptResponseProgress(live.request, { kind: 'thinking', id: 'next-batch', value: 'Planning another image batch.' });
+					} else {
+						const tool = new ChatToolInvocation({ invocationMessage: 'Reading the next prompt' }, {
+							id: 'read_file', displayName: 'Read File', modelDescription: 'Read File', source: ToolDataSource.Internal,
+						}, 'between-images', undefined, {}, {}, live.request.id);
+						live.model.acceptResponseProgress(live.request, tool);
+						await tool.didExecuteTool({ content: [] });
+					}
+				}
+				tools.push(Array.from({ length: count }, (_, index) => {
+					const tool = new ChatToolInvocation({ invocationMessage: 'Generating image', pastTenseMessage: 'Generated image' }, {
+						id: 'image_generation', displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal,
+					}, `batch-${batch}-${index}`, undefined, {}, {}, live.request.id);
+					live.model.acceptResponseProgress(live.request, tool);
+					return tool;
+				}));
+			}
+			live.renderer.renderElement(live.node, 0, live.template);
+			const batchSizes = (element: HTMLElement) => [...element.querySelectorAll('.chat-image-generation-batch')].map(batch => batch.querySelectorAll('.chat-image-generation-batch-thumbnail').length);
+			assert.deepStrictEqual({
+				batches: batchSizes(live.template.value),
+				placeholders: live.template.value.querySelectorAll('.chat-image-generation-placeholder').length,
+			}, { batches: sizes.filter(size => size > 1), placeholders: 2 });
+
+			for (const [batch, invocations] of tools.entries()) {
+				for (const tool of invocations) {
+					await tool.didExecuteTool({
+						content: [], toolSpecificData: { kind: 'generatedImage' },
+						toolResultDetails: { input: '{}', output: [{ type: 'embed', value: imageData[batch], mimeType: 'image/png' }] },
+					});
+				}
+			}
+			live.request.response!.complete();
+			live.renderer.renderElement(live.node, 0, live.template);
+			const snapshot = (element: HTMLElement) => ({
+				batches: batchSizes(element),
+				previews: [...element.querySelectorAll<HTMLImageElement>('.chat-generated-image-result img')].map(image => image.src),
+			});
+			const expected = { batches: sizes.filter(size => size > 1), previews: imageData.map(data => `data:image/png;base64,${data}`) };
+			assert.deepStrictEqual(snapshot(live.template.value), expected);
+			const value: unknown = revive(JSON.parse(JSON.stringify(live.model.toJSON())));
+			assert.ok(isSerializableSessionData(value));
+			live.disposables.dispose();
+			const restored = createPersistentProgressRenderer({ initialData: { value, serializer: new ChatSessionOperationLog() } });
+			restored.renderer.renderElement(restored.node, 0, restored.template);
+			assert.deepStrictEqual(snapshot(restored.template.value), expected);
+		});
+	}
+
 	for (const toolName of ['image_generation', 'image_gen.imagegen']) {
 		test(`selecting pending ${toolName} thumbnails follows their progress and selected tool details`, async () => {
 			const { model, request, container, renderer, template, node } = createPersistentProgressRenderer();
@@ -11398,12 +11555,12 @@ suite('ChatListRenderer', () => {
 			});
 			renderer.renderElement(node, 0, template);
 			await retry(async () => {
-				const images = [...template.value.querySelectorAll<HTMLImageElement>(index === 0 ? '.chat-generated-image-result img' : '.chat-image-generation-batch-thumbnail img')];
+				const images = [...template.value.querySelectorAll<HTMLImageElement>('.chat-generated-image-result img')];
 				assert.ok(images.length === index + 1 && images.every(image => image.complete && image.naturalWidth > 0));
 			}, 20, 50);
 			progressiveGalleries.push({
 				galleries: template.value.querySelectorAll('.chat-generated-image-result').length,
-				images: template.value.querySelectorAll(index === 0 ? '.chat-generated-image-result .chat-attached-context-pill-image' : '.chat-image-generation-batch-thumbnail img').length,
+				images: template.value.querySelectorAll('.chat-generated-image-result .chat-attached-context-pill-image').length,
 				responseComplete: response.isComplete,
 			});
 			if (index === 0) {
@@ -11439,15 +11596,15 @@ suite('ChatListRenderer', () => {
 		}, {
 			progressiveGalleries: [
 				{ galleries: 1, images: 1, responseComplete: false },
-				{ galleries: 1, images: 2, responseComplete: false },
+				{ galleries: 2, images: 2, responseComplete: false },
 			],
-			resourceGroups: 1,
-			largeOutcomes: 1,
-			imageBatches: 1,
-			generatedImageInvocations: 1,
-			inputOutputDisclosures: 1,
+			resourceGroups: 2,
+			largeOutcomes: 2,
+			imageBatches: 0,
+			generatedImageInvocations: 2,
+			inputOutputDisclosures: 2,
 			hiddenGalleryOwners: 0,
-			generatedImageHovers: 1,
+			generatedImageHovers: 2,
 			generatedImageHoverPreviews: 0,
 			imageResourcesRead: [imageUri.toString()],
 			emptyToolPlaceholders: 0,

@@ -11148,7 +11148,7 @@ suite('CopilotAgent', () => {
 
 		for (const quality of ['stable', 'insider', undefined] as const) {
 			for (const inherited of [undefined, 'false', 'true']) {
-				test(`sets the image generation rollout on startup and restart (${quality ?? 'development'}, inherited=${inherited ?? 'unset'})`, async () => {
+				test(`does not implicitly enable image generation rollout on startup or restart (${quality ?? 'development'}, inherited=${inherited ?? 'unset'})`, async () => {
 					const { agent, configurationService } = createTestAgentContext(disposables, {
 						copilotClient: new TestCopilotClient([]),
 						productService: { ...TEST_PRODUCT_SERVICE, quality },
@@ -11165,12 +11165,11 @@ suite('CopilotAgent', () => {
 						configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
 						await agent.listChatsToMigrate();
 
-						const expected = quality === 'stable' ? inherited : 'true';
 						assert.deepStrictEqual({
 							runtimeFlags: getCreatedClientOptions(agent).map(options => options.env?.['IMAGE_GENERATION_TOOL']),
 							parentFlag: process.env['IMAGE_GENERATION_TOOL'],
 						}, {
-							runtimeFlags: [expected, expected],
+							runtimeFlags: [inherited, inherited],
 							parentFlag: inherited,
 						});
 					} finally {
@@ -13225,6 +13224,53 @@ suite('CopilotAgent', () => {
 			}
 		});
 	});
+
+	test('the Sunburst setting never exposes image models in the chat model catalog', async () => {
+		const client = new TestCopilotClient([], [{ id: 'chat-model', name: 'Chat Model' }]);
+		const listModels = client.rpc.models.list;
+		const modelsList = stub(client.rpc.models, 'list').callsFake(async params => ({
+			...await listModels(params),
+			imageModels: [{
+				id: 'gpt-image-2.5-sunburst', name: 'GPT Image 2.5 Sunburst', supportedOperations: ['generate', 'edit'],
+				isDefault: true, availability: 'available',
+			}],
+		}));
+		const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
+		const observations = [];
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			for (const enabled of [false, true, false]) {
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.ImageGeneration]: enabled });
+				await agent.refreshModels();
+				observations.push(agent.models.get().map(model => ({ id: model.id, images: model._meta?.['vscode.imageModels'] })));
+			}
+			assert.deepStrictEqual(observations, Array.from({ length: 3 }, () => [{ id: 'chat-model', images: undefined }]));
+		} finally {
+			modelsList.restore();
+			await disposeAgent(agent);
+		}
+	});
+
+	for (const quality of ['stable', 'insider', undefined] as const) {
+		for (const enabled of [undefined, false, true]) {
+			test(`agent-created Sunburst generation is opt-in (${quality ?? 'development'}, setting=${enabled ?? 'unset'})`, async () => {
+				const { agent, instantiationService } = createTestAgentContext(disposables, {
+					environmentServiceRegistration: 'native',
+					sessionDataService: disposables.add(new TestSessionDataService()),
+					productService: { ...TEST_PRODUCT_SERVICE, quality },
+					rootConfig: enabled === undefined ? {} : { [CopilotCliConfigKey.ImageGeneration]: enabled },
+				});
+				try {
+					const created = createAgentSessionThroughAgent(agent, instantiationService);
+					const session = disposables.add(created.session);
+					await session.initializeSession();
+					assert.deepStrictEqual(created.createOptions()?.imageGeneration, { enabled: enabled === true });
+				} finally {
+					await disposeAgent(agent);
+				}
+			});
+		}
+	}
 
 	for (const enabled of [false, true]) {
 		test(`agent-created sessions set experimental mode for HydraFusion=${enabled}`, async () => {

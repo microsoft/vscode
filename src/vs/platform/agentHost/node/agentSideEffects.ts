@@ -718,6 +718,10 @@ export class AgentSideEffects extends Disposable {
 	 * once the `subagent_started` arrives.
 	 */
 	private _handleAgentSignal(agent: IAgent, signal: AgentSignal): void {
+		if (signal.kind === 'chat_usage') {
+			this._chatContributions.chatUsage(signal);
+			return;
+		}
 		if (signal.kind === 'canvas') {
 			this._stateManager.setCanvasState(signal.chat.toString(), signal.resource.toString(), signal.state);
 			return;
