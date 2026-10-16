@@ -130,7 +130,6 @@ export class InlayHintsController implements IEditorContribution {
 
 	static readonly ID: string = 'editor.contrib.InlayHints';
 
-	private static readonly _MAX_DECORATORS = 1500;
 	private static readonly _whitespaceData = {};
 
 	static get(editor: ICodeEditor): InlayHintsController | undefined {
@@ -574,6 +573,7 @@ export class InlayHintsController implements IEditorContribution {
 
 		//
 		const maxLength = this._editor.getOption(EditorOption.inlayHints).maximumLength;
+		const maxHintsCount = this._editor.getOption(EditorOption.inlayHints).maxHintsCount;
 		const fontFamilyVar = '--code-editorInlayHintsFontFamily';
 		this._editor.getContainerDomNode().style.setProperty(fontFamilyVar, fontFamily);
 
@@ -700,8 +700,7 @@ export class InlayHintsController implements IEditorContribution {
 			if (item.hint.paddingRight) {
 				addInjectedWhitespace(item, true);
 			}
-
-			if (newDecorationsData.length > InlayHintsController._MAX_DECORATORS) {
+			if (maxHintsCount !== 0 && newDecorationsData.length > maxHintsCount) {
 				break;
 			}
 		}
