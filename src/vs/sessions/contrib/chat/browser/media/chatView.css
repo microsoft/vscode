@@ -38,13 +38,15 @@
 	width: calc(100% - 2 * var(--session-toolbar-content-inset, 0px) - 2 * var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240)));
 }
 
-/* The ruler prompt timeline sits beside the Session Toolbar rather than beneath it. The chat view then widens the
- * even inset on both sides to clear the rail too (`ChatViewSessionToolbar.getContentInset`), so the ruler's own
- * right-side reservation is not needed. */
+/* The ruler prompt timeline shares the Session Toolbar's column, so the content keeps the same even inset as without
+ * it; the toolbar sits above the rail where they overlap. The rail is offset so its resting marks (12px bars, 4px
+ * inside the rail's right edge) are centered on the strip, which is centered half the column's width plus its
+ * 12px scrollbar clearance from the edge. */
 .agent-sessions-workbench .part.sessionspart .chat-view-chat.has-session-toolbar .interactive-session.prompt-timeline-host.prompt-timeline-with-rail {
-	--prompt-timeline-scrollbar-gutter: calc(var(--session-toolbar-column-width, 0px) + var(--vscode-spacing-size40));
+	--prompt-timeline-scrollbar-gutter: calc((var(--session-toolbar-column-width, 0px) + var(--vscode-spacing-size120)) / 2 - var(--vscode-spacing-size40) - var(--vscode-spacing-size60));
 }
 
+/* The column already sits beside the content's even inset, so the ruler's own right-side reservation is not needed. */
 .agent-sessions-workbench .part.sessionspart .chat-view-chat.has-session-toolbar .prompt-timeline-host.prompt-timeline-with-rail.interactive-session .interactive-item-container,
 .agent-sessions-workbench .part.sessionspart .chat-view-chat.has-session-toolbar .prompt-timeline-host.prompt-timeline-with-rail.interactive-session > .chat-suggest-next-widget {
 	padding-right: var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240));

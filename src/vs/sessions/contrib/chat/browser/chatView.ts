@@ -54,8 +54,6 @@ import { IChatSessionsService, localChatSessionType } from '../../../../workbenc
 import { IChatSessionHistoryStatus } from '../../../../platform/chat/common/chatSessionHistory.js';
 import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../browser/parts/chatView.js';
-import { ChatViewSessionToolbar } from '../../../browser/parts/sessionToolbar.js';
-import { PROMPT_TIMELINE_DISPLAY_SETTING, PromptTimelineRailStyle } from '../../../../workbench/contrib/chat/common/promptTimeline.js';
 import { IsPhoneLayoutContext, SessionUsesExperimentalComposerLayoutContext } from '../../../common/contextkeys.js';
 import { ChatInteractivity, getSessionStatusMessage, IChat, isActiveSessionStatus, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
@@ -521,9 +519,6 @@ export class ChatView extends AbstractChatView {
 			if (e.affectsConfiguration(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING)
 				|| e.affectsConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING)) {
 				updateExperimentalComposerLayout();
-			}
-			if (e.affectsConfiguration(PROMPT_TIMELINE_DISPLAY_SETTING)) {
-				this.relayout();
 			}
 		}));
 
@@ -1018,12 +1013,6 @@ export class ChatView extends AbstractChatView {
 
 	override toJSON(): object {
 		return { type: ChatView.TYPE };
-	}
-
-	/** The ruler prompt timeline sits between the content and the Session Toolbar, so the content keeps clear of both. */
-	protected override getContentInset(toolbarInset: number): number {
-		const besideRulerTimeline = this.configurationService.getValue<PromptTimelineRailStyle>(PROMPT_TIMELINE_DISPLAY_SETTING) === 'ruler';
-		return ChatViewSessionToolbar.getContentInset(toolbarInset, besideRulerTimeline);
 	}
 
 	protected override doLayout(width: number, height: number, _top: number, _left: number): void {

@@ -172,9 +172,7 @@ async function renderToolbar(context: ComponentFixtureContext, options: IFixture
 	view.element.classList.add('chat-view-chat');
 	chatGroup.appendChild(view.element);
 	const widgetContainer = append(view.element, $('.chat-view-widget'));
-	// As `ChatView` does, the ruler timeline widens the inset kept on each side of the content.
-	const contentInset = ChatViewSessionToolbar.getContentInset(reservedWidth, !!options.rulerTimeline);
-	view.layout(width, areaHeight, HEADER_HEIGHT, 0, contentInset);
+	view.layout(width, areaHeight, HEADER_HEIGHT, 0, reservedWidth);
 
 	if (options.externalBanner) {
 		const banner = disposableStore.add(instantiationService.createInstance(ExternalSessionBanner, view.element, {}));
@@ -188,8 +186,8 @@ async function renderToolbar(context: ComponentFixtureContext, options: IFixture
 	}
 	// As in `ChatView`, only the external-session banner precedes the widget in normal flow.
 	const widgetHeight = areaHeight - widgetContainer.offsetTop;
-	// As in `ChatView`, content is inset on both sides.
-	const contentWidth = Math.max(0, width - 2 * contentInset);
+	// As in `ChatView`, content is inset by the reserved width on both sides.
+	const contentWidth = Math.max(0, width - 2 * reservedWidth);
 	// Mirrors `ChatWidget`, which caps its renderer to the centered band outside a multi-group grid.
 	const rendererWidth = options.split ? contentWidth : Math.min(AGENTS_CENTERED_CONTENT_MAX_WIDTH, contentWidth);
 

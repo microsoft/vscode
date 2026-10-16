@@ -23,7 +23,6 @@ import { Selection } from '../../../../../editor/common/core/selection.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { PROMPT_TIMELINE_DISPLAY_SETTING } from '../../../../../workbench/contrib/chat/common/promptTimeline.js';
 import { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -499,35 +498,13 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
-	test('widens the even content inset to clear the ruler prompt timeline, and applies a changed inset at the last size', () => {
-		const configurationService = new TestConfigurationService({ [PROMPT_TIMELINE_DISPLAY_SETTING]: 'gutter' });
-		const layouts: { width: number; inset: number }[] = [];
-		const view: { getContentInset(toolbarInset: number): number; relayout(): void; layout(width: number, height: number, top: number, left: number, toolbarInset?: number): void } = Object.assign(Object.create(ChatView.prototype), {
-			element: dom.$('.chat-view'),
-			configurationService,
-			doLayout(this: { contentInset: number }, width: number) { layouts.push({ width, inset: this.contentInset }); },
-		});
-		const inset = (toolbarInset: number) => view.getContentInset(toolbarInset);
-
-		const gutter = { withToolbar: inset(ChatViewSessionToolbar.RESERVED_WIDTH), withoutToolbar: inset(0) };
-		view.layout(600, 400, 0, 0, ChatViewSessionToolbar.RESERVED_WIDTH);
-		configurationService.setUserConfiguration(PROMPT_TIMELINE_DISPLAY_SETTING, 'ruler');
-		const ruler = { withToolbar: inset(ChatViewSessionToolbar.RESERVED_WIDTH), withoutToolbar: inset(0) };
-		view.relayout();
-
-		assert.deepStrictEqual({ gutter, ruler, layouts }, {
-			gutter: { withToolbar: ChatViewSessionToolbar.RESERVED_WIDTH, withoutToolbar: 0 },
-			ruler: { withToolbar: ChatViewSessionToolbar.RESERVED_WIDTH_BESIDE_RULER_TIMELINE, withoutToolbar: 0 },
-			layouts: [{ width: 600, inset: 30 }, { width: 600, inset: 82 }],
-		});
-	});
-
 	test('keeps chat content centered with even space on both sides when the toolbar is shown, and retains the outer scrollbar', async () => {
 		const root = dom.append(dom.getActiveDocument().body, dom.$('.monaco-workbench.agent-sessions-workbench'));
 		disposables.add(toDisposable(() => root.remove()));
 		root.style.setProperty('--vscode-spacing-size240', '24px');
 		root.style.setProperty('--vscode-spacing-size120', '12px');
 		root.style.setProperty('--vscode-spacing-size40', '4px');
+		root.style.setProperty('--vscode-spacing-size60', '6px');
 		root.style.setProperty('--session-view-centered-content-max-width', '950px');
 		const part = dom.append(root, dom.$('.part.sessionspart'));
 		const session = dom.append(part, dom.$('.session-view'));
@@ -560,6 +537,8 @@ suite('Sessions - Chat View', () => {
 		const suggestion = dom.append(widget, dom.$('.chat-suggest-next-widget'));
 		const banner = dom.append(view.element, dom.$('.external-session-banner'));
 		const rail = dom.append(widget, dom.$('.prompt-timeline-rail'));
+		// A resting ruler mark: a short bar at the right of the rail's marks lane.
+		const markBar = dom.append(dom.append(dom.append(rail, dom.$('.prompt-timeline-ruler-marks')), dom.$('button.prompt-timeline-ruler-mark')), dom.$('span.prompt-timeline-ruler-bar'));
 		await retry(async () => {
 			const targetWindow = dom.getWindow(root);
 			if (targetWindow.getComputedStyle(header).maxWidth !== '950px'
@@ -594,7 +573,7 @@ suite('Sessions - Chat View', () => {
 				scrollbarRight: Math.round(scrollbar.getBoundingClientRect().right - origin.left),
 			};
 		};
-		// The ruler prompt timeline beside the transcript: where response content and the input sit, and where the rail sits.
+		// The ruler prompt timeline: where response content and the input sit, and the center of a resting mark.
 		const rulerSnapshot = (width: number, inset: number) => {
 			snapshot(width, inset);
 			widget.classList.add('prompt-timeline-host', 'prompt-timeline-with-rail');
@@ -602,11 +581,12 @@ suite('Sessions - Chat View', () => {
 			const response = listContainer.querySelector<HTMLElement>('.interactive-item-container')!;
 			const responseBounds = response.getBoundingClientRect();
 			const responseStyle = dom.getWindow(root).getComputedStyle(response);
-			const railBounds = rail.getBoundingClientRect();
+			const markBounds = markBar.getBoundingClientRect();
+			const inputBounds = input.getBoundingClientRect();
 			return {
 				content: [Math.round(responseBounds.left + Number.parseFloat(responseStyle.paddingLeft) - origin.left), Math.round(responseBounds.right - Number.parseFloat(responseStyle.paddingRight) - origin.left)],
-				input: [Math.round(input.getBoundingClientRect().left - origin.left), Math.round(input.getBoundingClientRect().width)],
-				rail: [Math.round(railBounds.left - origin.left), Math.round(railBounds.right - origin.left)],
+				input: [Math.round(inputBounds.left - origin.left), Math.round(inputBounds.width)],
+				markCenter: Math.round(markBounds.left + markBounds.width / 2 - origin.left),
 			};
 		};
 
@@ -618,8 +598,7 @@ suite('Sessions - Chat View', () => {
 			nearlyWide: snapshot(1000, 30),
 			disabled: snapshot(600, 0),
 			wideDisabled: snapshot(1200, 0),
-			// The chat view widens the inset to clear the ruler too.
-			ruler: rulerSnapshot(600, ChatViewSessionToolbar.getContentInset(ChatViewSessionToolbar.RESERVED_WIDTH, true)),
+			ruler: rulerSnapshot(600, 30),
 			rulerDisabled: rulerSnapshot(600, 0),
 		}, {
 			narrow: { header: [0, 600], response: [30, 540], input: [30, 540], suggestion: [30, 540], banner: [54, 492], scrollbarRight: 600 },
@@ -628,10 +607,11 @@ suite('Sessions - Chat View', () => {
 			nearlyWide: { header: [25, 950], response: [30, 940], input: [30, 940], suggestion: [30, 940], banner: [54, 892], scrollbarRight: 1000 },
 			disabled: { header: [0, 600], response: [0, 600], input: [0, 600], suggestion: [0, 600], banner: [24, 552], scrollbarRight: 600 },
 			wideDisabled: { header: [125, 950], response: [125, 950], input: [125, 950], suggestion: [125, 950], banner: [125, 950], scrollbarRight: 1200 },
-			// Transcript and input share one evenly inset band; the rail sits 24px past the text and 4px before the 42px toolbar column.
-			ruler: { content: [106, 494], input: [82, 436], rail: [518, 554] },
+			// The ruler shares the toolbar's column: content keeps the same even band, and the resting marks are
+			// centered on the 30px strip 12px from the edge (center 27px from the edge).
+			ruler: { content: [54, 546], input: [30, 540], markCenter: 573 },
 			// Without the toolbar, the ruler keeps its own right-side reservation beside the scrollbar.
-			rulerDisabled: { content: [24, 530], input: [0, 600], rail: [554, 590] },
+			rulerDisabled: { content: [24, 530], input: [0, 600], markCenter: 580 },
 		});
 	});
 

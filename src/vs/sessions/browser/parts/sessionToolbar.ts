@@ -116,12 +116,6 @@ const COLUMN_WIDTH = 42;
 /** Minimum space between the chat content and the strip. */
 const CONTENT_GAP = 12;
 
-/**
- * The ruler prompt timeline beside the strip: its 4px offset from the strip (`chatView.css`), its 36px rail, and
- * its 24px gap to the content (`promptTimeline.css`).
- */
-const RULER_TIMELINE_WIDTH = 4 + 36 + 24;
-
 /** Where the strip sits: a distance from the top or bottom of the chat area, whichever it was dragged nearer. */
 interface IToolbarPosition {
 	readonly edge: 'top' | 'bottom';
@@ -146,17 +140,6 @@ export class ChatViewSessionToolbar extends Disposable {
 	 * {@link CONTENT_GAP} clear of the strip and evenly spaced on both sides.
 	 */
 	static readonly RESERVED_WIDTH = COLUMN_WIDTH + CONTENT_GAP - AGENTS_CONTENT_HORIZONTAL_PADDING;
-
-	/** The inset kept on each side of the content when the ruler prompt timeline sits between it and the strip. */
-	static readonly RESERVED_WIDTH_BESIDE_RULER_TIMELINE = COLUMN_WIDTH + RULER_TIMELINE_WIDTH - AGENTS_CONTENT_HORIZONTAL_PADDING;
-
-	/**
-	 * The inset to keep on each side of a chat's content for a host reserving `reservedWidth`. With the ruler prompt
-	 * timeline, which sits between the content and the strip, it grows so the content stays evenly spaced and clear of both.
-	 */
-	static getContentInset(reservedWidth: number, besideRulerTimeline: boolean): number {
-		return reservedWidth > 0 && besideRulerTimeline ? ChatViewSessionToolbar.RESERVED_WIDTH_BESIDE_RULER_TIMELINE : reservedWidth;
-	}
 
 	/**
 	 * The width hosts keep free at the right of the chat for the strip. Reserved in every
