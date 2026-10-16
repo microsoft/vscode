@@ -19,6 +19,7 @@ import { MessageAttachmentKind, type ContentRef, type MessageAttachment } from '
 import { createErrorResponsePart, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type AgentSelection, type ErrorInfo, type Message, type ModelSelection, type ResponsePart, type StringOrMarkdown, type TerminalCommandResult, type ToolCallCompletedState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { CopilotToolName, getInvocationMessage, getPastTenseMessage, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall, type ToolAgentNameResolver } from './copilotToolDisplay.js';
 import { imageGenerationToolMetaKey } from '../../common/meta/agentImageGenerationMeta.js';
+import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { buildSessionDbUri } from '../../common/sessionDbUri.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
 import { buildCopilotSystemNotification, getCopilotSubagentDisplayNames } from './copilotSystemNotification.js';
@@ -333,6 +334,7 @@ interface ITurnBuilder {
 	waitingStartedAt: string | undefined;
 	waitingDuration: number;
 	readonly responseParts: ResponsePart[];
+	imageGenerationSdkTurnId?: string;
 	usage: UsageInfo | undefined;
 	/** Tool starts seen but not yet completed in this turn, keyed by toolCallId. */
 	readonly pendingTools: Map<string, IToolStartInfo>;
@@ -766,6 +768,14 @@ export async function mapSessionEvents(
 				break;
 			case 'assistant.turn_end':
 				if (!e.agentId) {
+					if (parentBuilder?.imageGenerationSdkTurnId !== undefined && parentBuilder.imageGenerationSdkTurnId === e.data.turnId) {
+						parentBuilder.imageGenerationSdkTurnId = undefined;
+						parentBuilder.responseParts.push({
+							kind: ResponsePartKind.SystemNotification,
+							content: '',
+							_meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.ResponseRoundEnded }),
+						});
+					}
 					rootAssistantTurnActive = false;
 					rootRequestActive = parentTurnState !== TurnState.Complete
 						&& parentTurnState !== TurnState.Error
@@ -906,6 +916,9 @@ export async function mapSessionEvents(
 					parentTurnState = hasToolRequests ? TurnState.Cancelled : TurnState.Complete;
 				}
 				if (d.toolRequests?.length) {
+					if (!parentToolCallId && d.turnId && d.toolRequests.some(request => request.name === CopilotToolName.ImageGeneration)) {
+						builder.imageGenerationSdkTurnId = d.turnId;
+					}
 					appendFallbackToolRequests(builder, d.toolRequests, parentToolCallId);
 				}
 				break;
@@ -1263,7 +1276,8 @@ function makeCompletedToolCallPart(
 	binaryAssets: ReadonlyMap<string, BinaryAssetData>,
 	completedAt?: string,
 ): ResponsePart {
-	const imageGeneration = info.toolName === CopilotToolName.ImageGeneration ? getSdkImageGenerationMetadata(d.result) : undefined;
+	const rawCompletion: typeof d & { toolUsage?: unknown } = d;
+	const imageGeneration = info.toolName === CopilotToolName.ImageGeneration ? getSdkImageGenerationMetadata(d.result, rawCompletion.toolUsage) : undefined;
 	const toolOutput = d.error?.message ?? d.result?.content;
 	const displayOutput = d.error?.message ?? getSdkToolResultText(d.result);
 	const mcpServerName = info.mcpServerName ?? readStringProperty(d, 'mcpServerName');

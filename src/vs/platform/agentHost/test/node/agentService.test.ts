@@ -61,6 +61,7 @@ import { getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY } from '../../co
 import { GitRefType, META_DIFF_BASE_BRANCH, type IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { readSessionSandboxPolicy } from '../../common/meta/agentSandboxPolicyMeta.js';
+import { readChatUsage } from '../../common/meta/agentUsageMeta.js';
 import { getSessionSandboxConfig } from '../../node/sessionSandbox.js';
 import { buildSandboxConfigForSdk } from '../../node/copilot/sandboxConfigForSdk.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
@@ -2664,6 +2665,31 @@ suite('AgentService (node dispatcher)', () => {
 				await restarted.restoreSession(session);
 				const state = getStateManager(restarted).getSessionState(session.toString());
 				return ((state?.status ?? 0) & SessionStatus.IsArchived) !== 0;
+			}
+
+			for (const aiCreditsStatus of ['complete', 'partial', 'unavailable'] as const) {
+				test(`aggregate billing reported during cold restore survives final metadata hydration (${aiCreditsStatus})`, async () => {
+					registerTestAgentProvider(service, copilotAgent);
+					const session = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
+					const defaultChat = buildDefaultChatUri(session);
+					const usage = { totalNanoAiu: aiCreditsStatus === 'unavailable' ? 0 : 850_000_000, aiCreditsStatus };
+					const restarted = disposables.add(createTestAgentService(
+						new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()),
+						{ _serviceBrand: undefined } as IProductService, createNoopGitService(),
+					));
+					registerTestAgentProvider(restarted, copilotAgent);
+					copilotAgent.sessionMetadataOverrides = { _meta: { unrelated: 'restored' } };
+					copilotAgent.chats.getMessages = async chat => {
+						assert.strictEqual(getStateManager(restarted).getSessionState(session.toString()), undefined);
+						copilotAgent.fireProgress({ kind: 'chat_usage', chat, usage });
+						return [];
+					};
+					await restarted.restoreSession(session);
+					const state = getStateManager(restarted).getSessionState(session.toString());
+					assert.deepStrictEqual({ usage: readChatUsage(state, defaultChat), unrelated: state?._meta?.unrelated }, {
+						usage, unrelated: 'restored',
+					});
+				});
 			}
 
 			test('restoring an unimported session imports its state and applies it', async () => {

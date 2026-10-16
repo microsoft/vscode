@@ -84,7 +84,7 @@ import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARA
 import { migrateLegacyTerminalToolSpecificData } from '../../../common/chat.js';
 import { ChatErrorLevel, ChatRequestQueueKind, ElicitationState, IChatService, IRemotePendingRequest, IChatMarkdownContent, IChatMcpAuthenticationRequired, IChatProgress, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, IChatUsage, ToolConfirmKind, type IChatResponseErrorDetails } from '../../../common/chatService/chatService.js';
 import { IChatDebugService } from '../../../common/chatDebugService.js';
-import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
+import { IChatEditingService, IChatEditingSession } from '../../../common/editing/chatEditingService.js';
 import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IChatSessionsService, type IChatSession, type IChatSessionHistoryItem, type IChatSessionContentProvider, type IChatSessionItemController, type IChatSessionRequestHistoryItem, type IChatSessionServerRequest, type IChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
@@ -153,7 +153,7 @@ import { ChatQuestionCarouselData } from '../../../common/model/chatProgressType
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
-import { ChatResponseModel, IntendedModelSlot, reviveSerializableInputState, type ChatModel, type ChatRequestModel, type IChatModel, type IChatModelInputState, type IChatPendingRequest, type IChatRequestModel, type IChatResponseModel, type IInputModel } from '../../../common/model/chatModel.js';
+import { ChatModel, ChatResponseModel, IntendedModelSlot, reviveSerializableInputState, type ChatRequestModel, type IChatModel, type IChatModelInputState, type IChatPendingRequest, type IChatRequestModel, type IChatResponseModel, type IInputModel } from '../../../common/model/chatModel.js';
 import { ModelSelectionReason } from '../../../common/modelSelection.js';
 import { convertBufferToScreenshotVariable } from '../../../browser/attachments/chatScreenshotContext.js';
 import { AgentHostCompletionReferenceKind, ChatPasteAttachmentMetadata, createChatReferenceVariableEntry, isChatReferenceVariableEntry, toAgentHostCompletionVariableEntry, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
@@ -1677,7 +1677,7 @@ suite('AgentHostChatContribution', () => {
 
 	suite('metadata wire-to-feature', () => {
 		async function openWireSession(options?: { session?: Partial<SessionState>; chat?: Partial<ChatState>; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata> }) {
-			const { instantiationService, chatAgentService, modelService } = createTestServices(disposables, undefined, undefined, options?.languageModels);
+			const { instantiationService, chatAgentService, modelService, chatService } = createTestServices(disposables, undefined, undefined, options?.languageModels);
 			const quotaUpdates: Parameters<IChatEntitlementService['acceptQuotas']>[0][] = [];
 			instantiationService.get(IChatEntitlementService).acceptQuotas = quotas => { quotaUpdates.push(quotas); };
 			instantiationService.stub(IConfigurationService, new TestConfigurationService());
@@ -1765,8 +1765,83 @@ suite('AgentHostChatContribution', () => {
 					},
 				};
 			};
-			return { startRequest, fire, echo, peer, client, handler, chatSession, sessionResource, backendSession, chatUri, modelService, quotaUpdates };
+			return { startRequest, fire, echo, peer, client, handler, chatSession, sessionResource, backendSession, chatUri, modelService, quotaUpdates, instantiationService, chatService };
 		}
+
+		test('chat billing snapshots and idle updates reach the UI model without mutating canceled history or a peer', async () => {
+			const chatUri = 'ahp-chat:/host-assigned-conversation-73';
+			const peerUri = 'ahp-chat:/host-assigned-independent-peer';
+			const initialMeta = {
+				unrelated: 'preserved',
+				'vscode.chatUsage': {
+					[chatUri]: { totalNanoAiu: 400_000_000, aiCreditsStatus: 'complete' },
+					[peerUri]: { totalNanoAiu: 250_000_000, aiCreditsStatus: 'partial' },
+				},
+			};
+			const summary = {
+				resource: chatUri, title: 'Remote chat', status: SessionStatus.Idle, modifiedAt: '2026-09-30T12:00:00.000Z',
+			};
+			const { handler, fire, peer, instantiationService, chatService, sessionResource, backendSession, chatSession } = await openWireSession({
+				session: { chats: [summary], _meta: initialMeta },
+				chat: {
+					turns: [{
+						id: 'canceled-image', state: TurnState.Cancelled,
+						message: { text: 'Draw an image', origin: { kind: MessageKind.User } },
+						responseParts: [{ kind: ResponsePartKind.Markdown, id: 'before-cancel', content: 'Generating an image' }],
+						usage: undefined,
+					}],
+				},
+			});
+			instantiationService.stub(IChatEditingService, {
+				createEditingSession: () => upcastPartial<IChatEditingSession>({ entries: constObservable([]), requestDisablement: constObservable([]), dispose: () => { } }),
+			});
+			const createModel = (resource: URI) => disposables.add(instantiationService.createInstance(
+				ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: false, resource, disableBackgroundKeepAlive: true },
+			));
+			const model = createModel(sessionResource);
+			const request = model.addRequest({ text: 'Draw an image', parts: [] }, { variables: [] }, 0);
+			model.cancelRequest(request);
+			const canceledResponse = request.response?.toJSON();
+			const canceledHistory = chatSession.history;
+			const initial = Event.toPromise(Event.filter(model.onDidChange, event => event.kind === 'setSessionCost' && model.sessionCost === 0.4));
+			chatService.setSession(sessionResource, model);
+			await initial;
+
+			const peerSummary = {
+				...summary, resource: peerUri, title: 'Peer',
+			};
+			fire({ type: ActionType.SessionChatAdded, summary: peerSummary }, backendSession.toString());
+			const peerResource = sessionResource.with({ fragment: peerUri });
+			const peerModel = createModel(peerResource);
+			chatService.setSession(peerResource, peerModel);
+			const peerSubscribed = peer.nextRequest('subscribe');
+			const openingPeer = handler.provideChatSessionContent(peerResource, CancellationToken.None);
+			peer.deliver({
+				jsonrpc: '2.0', id: (await peerSubscribed).id,
+				result: { snapshot: { resource: peerUri, fromSeq: 1, state: createChatState(peerSummary) } },
+			});
+			disposables.add(await openingPeer);
+			const updated = Event.toPromise(Event.filter(model.onDidChange, event => event.kind === 'setSessionCost' && model.sessionCost === 0.6));
+			fire({
+				type: ActionType.SessionMetaChanged,
+				_meta: {
+					...initialMeta,
+					'vscode.chatUsage': {
+						...initialMeta['vscode.chatUsage'],
+						[chatUri]: { totalNanoAiu: 600_000_000, aiCreditsStatus: 'complete' },
+					},
+				},
+			}, backendSession.toString());
+			await updated;
+			assert.deepStrictEqual({
+				cost: model.sessionCostInfo, peerCost: peerModel.sessionCostInfo,
+				response: request.response?.toJSON(), history: chatSession.history,
+				requestCount: model.getRequests().length,
+			}, {
+				cost: { credits: 0.6, status: 'complete' }, peerCost: { credits: 0.25, status: 'partial' },
+				response: canceledResponse, history: canceledHistory, requestCount: 1,
+			});
+		});
 
 		const copilotMeta = { 'copilot.errorDetail': { errorCode: 'rateLimited', statusCode: 429, url: 'command:unsafe' } };
 		const vscodeMeta = { chatError: { fetchError: { type: 'rateLimited', retryAfter: 60 }, copilotPlan: 'free' } };

@@ -58,6 +58,7 @@ import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSes
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostConnectionsService } from '../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IRemoteAgentHostService, NullRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { RootState } from '../../../../../platform/agentHost/common/state/sessionState.js';
@@ -79,7 +80,7 @@ import { ISharedWebContentExtractorService } from '../../../../../platform/webCo
 import { IUpdateService, StateType } from '../../../../../platform/update/common/update.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 import { InlineChatZoneWidget } from '../../../../contrib/inlineChat/browser/inlineChatZoneWidget.js';
 import { ChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
@@ -321,6 +322,11 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme, focus }
 			reg.defineInstance(IAgentHostCustomizationService, new class extends mock<IAgentHostCustomizationService>() {
 				override readonly onDidChangeCustomizations = Event.None;
 				override getFolderPickerDecision() { return undefined; }
+			}());
+			reg.defineInstance(IAgentHostEnablementService, new class extends mock<IAgentHostEnablementService>() {
+				override readonly enabled = constObservable(false);
+				override readonly managedSandboxEnforced = constObservable(false);
+				override readonly managedSandboxAllowsBypass = constObservable(true);
 			}());
 			reg.defineInstance(IChatContextService, new class extends mock<IChatContextService>() { }());
 			reg.defineInstance(IChatAttachmentWidgetRegistry, new class extends mock<IChatAttachmentWidgetRegistry>() { }());
