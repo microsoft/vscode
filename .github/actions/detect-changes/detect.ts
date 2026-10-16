@@ -55,14 +55,14 @@ const rules: readonly IChangeRule[] = [
 			// cli/build.rs reads the version from package.json and the product configuration from product.json.
 			'package.json',
 			'product.json',
-			'.github/actions/check-rust-crate/',
+			'.github/workflows/pr-linux-cli-test.yml',
 		],
 	},
 	{
 		output: 'copilot-shim',
 		paths: [
 			'copilot_shim/',
-			'.github/actions/check-rust-crate/',
+			'.github/workflows/pr-linux-cli-test.yml',
 		],
 	},
 	{

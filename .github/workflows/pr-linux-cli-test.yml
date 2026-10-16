@@ -1,0 +1,98 @@
+on:
+  workflow_call:
+    inputs:
+      rustup_toolchain:
+        type: string
+        required: true
+      working_directory:
+        type: string
+        required: false
+        default: cli
+      format:
+        type: boolean
+        required: false
+        default: false
+      locked:
+        type: boolean
+        required: false
+        default: false
+      all_targets:
+        type: boolean
+        required: false
+        default: false
+      affected:
+        description: Whether the pull request can affect the crate; the job is skipped when false
+        type: boolean
+        required: false
+        default: true
+
+jobs:
+  linux-cli-test:
+    # GitHub does not evaluate expressions in the name of a skipped job, so this
+    # name must stay fixed for the required "Linux / CLI" check to report.
+    name: CLI
+    # Skip this job rather than the calling job: a skipped job still reports
+    # "<caller> / <job name>", which satisfies required status checks.
+    if: ${{ inputs.affected }}
+    runs-on: ubuntu-24.04
+    env:
+      RUSTUP_TOOLCHAIN: ${{ inputs.rustup_toolchain }}
+    steps:
+      - name: Checkout microsoft/vscode
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Rust
+        run: |
+          set -e
+          curl https://sh.rustup.rs -sSf | sh -s -- -y --profile minimal --default-toolchain $RUSTUP_TOOLCHAIN
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Set Rust version
+        run: |
+          set -e
+          rustup default $RUSTUP_TOOLCHAIN
+          rustup update $RUSTUP_TOOLCHAIN
+          rustup component add clippy
+
+      - name: Install Rust formatting component
+        if: ${{ inputs.format }}
+        run: rustup component add rustfmt
+
+      - name: Check Rust versions
+        run: |
+          set -e
+          rustc --version
+          cargo --version
+
+      - name: Check formatting
+        if: ${{ inputs.format }}
+        run: cargo fmt --check
+        working-directory: ${{ inputs.working_directory }}
+
+      - name: Clippy lint
+        run: |
+          set -e
+          args=()
+          if [[ "$CARGO_ALL_TARGETS" == "true" ]]; then
+            args+=(--all-targets)
+          fi
+          if [[ "$CARGO_LOCKED" == "true" ]]; then
+            args+=(--locked)
+          fi
+          cargo clippy "${args[@]}" -- -D warnings
+        working-directory: ${{ inputs.working_directory }}
+        env:
+          CARGO_ALL_TARGETS: ${{ inputs.all_targets }}
+          CARGO_LOCKED: ${{ inputs.locked }}
+
+      - name: 🧪 Run unit tests
+        run: |
+          set -e
+          args=()
+          if [[ "$CARGO_LOCKED" == "true" ]]; then
+            args+=(--locked)
+          fi
+          cargo test "${args[@]}"
+        working-directory: ${{ inputs.working_directory }}
+        env:
+          CARGO_LOCKED: ${{ inputs.locked }}
