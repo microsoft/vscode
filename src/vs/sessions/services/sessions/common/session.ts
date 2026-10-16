@@ -233,7 +233,7 @@ export interface ISessionWorkspace {
 	/**
 	 * Optional group label for categorizing this workspace in pickers. The
 	 * workspace picker uses this to bucket entries into top-level tabs
-	 * (e.g. `"Local"`, `"Cloud"`, `"Remote"`). Providers contribute the
+	 * (e.g. `"This Computer"`, `"Cloud"`, `"Remote"`). Providers contribute the
 	 * label — the picker just renders whatever values are present.
 	 */
 	readonly group?: string;
@@ -936,6 +936,8 @@ export interface ISessionCapabilities {
 	readonly supportsCanvases?: boolean;
 	/** Whether this session supports multiple chats. */
 	readonly supportsMultipleChats: boolean;
+	/** Whether chats in this session can update their read state independently. */
+	readonly supportsIndependentChatReadState?: boolean;
 	/**
 	 * Whether this session supports forking a chat from a turn into a new peer
 	 * chat. The agents-window fork gesture gates on this flag rather than on the
@@ -984,7 +986,7 @@ export interface ISessionCapabilities {
  * `ISessionWorkspaceBrowseAction`; the picker discovers tabs from the union
  * of contributed values.
  */
-export const SESSION_WORKSPACE_GROUP_LOCAL = localize('sessionWorkspaceGroup.local', "Local");
+export const SESSION_WORKSPACE_GROUP_LOCAL = localize('sessionWorkspaceGroup.local', "This Computer");
 export const SESSION_WORKSPACE_GROUP_GITHUB = localize('sessionWorkspaceGroup.github', "GitHub");
 export const SESSION_WORKSPACE_GROUP_REMOTE = localize('sessionWorkspaceGroup.remote', "Remote");
 
@@ -1006,7 +1008,7 @@ export interface ISessionWorkspaceBrowseAction {
 	readonly description?: string;
 	/**
 	 * Optional group label used by the workspace picker to bucket browse
-	 * actions into top-level tabs (e.g. `"Local"`, `"Cloud"`, `"Remote"`).
+	 * actions into top-level tabs (e.g. `"This Computer"`, `"Cloud"`, `"Remote"`).
 	 * Providers contribute the label — the picker dynamically renders tabs
 	 * for whichever values are present and filters items accordingly.
 	 */

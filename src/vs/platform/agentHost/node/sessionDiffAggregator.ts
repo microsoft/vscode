@@ -31,7 +31,9 @@ function createSessionFileDiff(beforeSessionUri: string, afterSessionUri: string
 				content: { uri: buildSessionDbUri(afterSessionUri, identity.lastToolCallId, identity.lastFilePath, 'after') },
 			},
 		} : {}),
-		diff: { added, removed },
+		// A created file has no lines before and a deleted one none after, as the file-edit tracker and Git count them;
+		// a line diff against empty content would count its single empty line.
+		diff: { added: hasAfter ? added : 0, removed: hasBefore ? removed : 0 },
 	};
 }
 

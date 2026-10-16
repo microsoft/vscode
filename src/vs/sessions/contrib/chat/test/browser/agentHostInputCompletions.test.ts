@@ -22,6 +22,7 @@ import { TestDialogService } from '../../../../../platform/dialogs/test/common/t
 import { IStorageService, InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IChat } from '../../../../services/sessions/common/session.js';
 import { IChatInputCompletionItem, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatRequestVariableEntry, toAgentHostCompletionVariableEntry, AgentHostCompletionReferenceKind } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ISessionContext } from '../../../../services/sessions/browser/sessionContext.js';
@@ -50,7 +51,7 @@ suite('AgentHostInputCompletions', () => {
 				override getSessionConfig() {
 					return { schema: { type: 'object' as const, properties: { approvalMode: { type: 'string' as const, title: 'Approvals', enum: ['manual', 'assisted', 'allow-all'] } } }, values: {} };
 				}
-				override async setSessionConfigValue(session: string, key: string, value: unknown) {
+				override async setSessionConfigValue(session: string, _chat: URI, key: string, value: unknown) {
 					writes.push({ session, key, value });
 					if (fail) {
 						throw new Error('Write rejected');
@@ -59,7 +60,7 @@ suite('AgentHostInputCompletions', () => {
 			}();
 			services.stub(ISessionsProvidersService, {}, 'getProvider', () => provider);
 			const handler: AgentHostInputCompletionHandler = Object.assign(Object.create(AgentHostInputCompletionHandler.prototype), {
-				_sessionContext: { session: constObservable(upcastPartial<IActiveSession>({ sessionId: 'opaque-session', providerId: provider.id })) },
+				_sessionContext: { session: constObservable(upcastPartial<IActiveSession>({ sessionId: 'opaque-session', providerId: provider.id, activeChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/opaque-session') })) })) },
 			});
 			const run = services.invokeFunction(accessor => handler.applyConfigAction(accessor, {
 				handler, action: { applyConfig: { autoApprove: 'default' } }, entry: undefined, referenceText: '', referenceRange: undefined,
@@ -161,6 +162,15 @@ suite('AgentHostInputCompletions', () => {
 			assert.deepStrictEqual(
 				getCommandArgumentHintPlaceholder('/plan ', [entry], references),
 				{ argumentHint: 'task', endOffset: 5 }
+			);
+		});
+
+		test('returns the hint for an accepted skill completion', () => {
+			const entry = toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Skill, '/design-prep', 'file:///skills/design-prep/SKILL.md', { uri: 'file:///skills/design-prep/SKILL.md', argumentHint: '<problem>' });
+			const references = new Map([[entry.id, { text: '/design-prep', range: new OffsetRange(0, 12) }]]);
+			assert.deepStrictEqual(
+				getCommandArgumentHintPlaceholder('/design-prep ', [entry], references),
+				{ argumentHint: '<problem>', endOffset: 12 }
 			);
 		});
 

@@ -22,7 +22,7 @@ suite('mapSessionEventsToHistoryRecords', () => {
 	const session = AgentSession.uri('copilot', 'test-session');
 
 	function mapSessionEvents(session: URI, db: undefined, events: Parameters<typeof mapSessionEventsWithRouting>[2]) {
-		return mapSessionEventsWithRouting(session, db, events, URI.parse(buildChatUri(session, 'default')));
+		return mapSessionEventsWithRouting(session, db, events, URI.parse(buildChatUri(session, 'default')), session);
 	}
 
 	teardown(async () => {

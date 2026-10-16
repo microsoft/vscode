@@ -23,6 +23,7 @@ import { AgentCustomizationItemProvider } from '../../../browser/agentSessions/a
 import { NullAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
+import { ChatMode, CustomChatMode } from '../../../common/chatModes.js';
 import { IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
 
@@ -36,6 +37,37 @@ function makePromptsService(): IPromptsService {
 
 suite('AgentCustomizationItemProvider', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('maps explicit Ask semantics without relying on host names or URI conventions', async () => {
+		const agents: AgentCustomization[] = [
+			{ type: CustomizationType.Agent, id: 'host-ask', uri: 'other-host:/opaque/read-only', name: 'Questions', _meta: { 'vscode.chatMode': 'ask' } },
+			{ type: CustomizationType.Agent, id: 'user-ask', uri: 'other-host:/opaque/user', name: 'Ask' },
+			{ type: CustomizationType.Agent, id: 'invalid-ask', uri: 'other-host:/opaque/invalid', name: 'Ask', _meta: { 'vscode.chatMode': true } },
+		];
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			override getCustomAgents(): readonly AgentCustomization[] {
+				return agents;
+			}
+		}
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			'remote', undefined, undefined, upcastPartial<IFileService>({}),
+			new NullLogService(), new TestCustomizationService(), makePromptsService(),
+		));
+		const modes = (await provider.provideCustomAgents(URI.parse('remote-agent-host-test-copilot:/session'), CancellationToken.None)).map(agent => new CustomChatMode(agent));
+
+		assert.deepStrictEqual(modes.map(mode => ({
+			id: mode.id,
+			kind: mode.kind,
+			label: mode.label.get(),
+			icon: mode.icon.get(),
+			storage: mode.source.storage,
+			isBuiltin: mode.isBuiltin,
+		})), [
+			{ id: agents[0].uri, kind: 'ask', label: 'Ask', icon: ChatMode.Ask.icon.get(), storage: PromptsStorage.builtIn, isBuiltin: false },
+			{ id: agents[1].uri, kind: 'agent', label: 'Ask', icon: undefined, storage: PromptsStorage.local, isBuiltin: false },
+			{ id: agents[2].uri, kind: 'agent', label: 'Ask', icon: undefined, storage: PromptsStorage.local, isBuiltin: false },
+		]);
+	});
 
 	test('surfaces draft bundle agents skills and instructions before session state exists', async () => {
 		const bundleUri = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/bundle' });

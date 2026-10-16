@@ -8,13 +8,14 @@ import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, Disposable } from '../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../base/common/observable.js';
 import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
+import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { COPILOT_CLI_AGENT_PROVIDER_ID, GITHUB_COPILOT_PROTECTED_RESOURCE, type IAgent, type IAgentChats, type IAgentModelInfo } from '../../common/agent.js';
 import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { AgentHostByokModelsEnabledConfigKey, AgentHostByokUtilityModelDefaultConfigKey, AgentHostUtilitySmallModelConfigKey } from '../../common/agentHostSchema.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
-import { MessageKind, SessionStatus, TurnState } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, MessageKind, SessionStatus, TurnState } from '../../common/state/sessionState.js';
 import type { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import type { IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import type { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
@@ -23,6 +24,7 @@ import { AgentHostUtilityModelService, AgentHostUtilityModelUnavailableError } f
 import type { IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import type { ICopilotApiService } from '../../node/shared/copilotApiService.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 const SESSION = 'agent:/session';
 
@@ -116,6 +118,7 @@ suite('AgentHostUtilityModelService', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date(1).toISOString(),
 			modifiedAt: new Date(1).toISOString(),
+			defaultChat: buildDefaultChatUri(SESSION),
 		});
 		if (scenario.lastTurnModel) {
 			stateManager.seedDefaultChatTurns(SESSION, [{
@@ -126,7 +129,7 @@ suite('AgentHostUtilityModelService', () => {
 				state: TurnState.Complete,
 			}]);
 		}
-		const service = new AgentHostUtilityModelService(scenario.byokUtilityModelsSupported ?? true, configurationService, copilotApiService, bridgeRegistry, providerService, stateManager, authenticationService, createTestGitHubEndpointService(), new NullLogService());
+		const service = new AgentHostUtilityModelService(scenario.byokUtilityModelsSupported ?? true, configurationService, copilotApiService, bridgeRegistry, providerService, stateManager, authenticationService, createTestGitHubEndpointService(), new NullLogService(), createTestChatOwnershipService(stateManager), new class extends mock<IAgentHostSessionStateStore>() { override peek() { return undefined; } }());
 
 		let result: string;
 		try {

@@ -27,6 +27,7 @@ import { CustomizationEnablementKind } from '../../../../platform/agentHost/comm
 import type { IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationResult, McpServerCustomizationMigration } from './promptSyntax/service/customizationMigrationService.js';
 import type { ICustomizationMarketplaceInstallProvider } from './customizationMarketplaceInstallService.js';
 import type { ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import type { IMcpServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 
 
 export const ICustomizationHarnessService = createDecorator<ICustomizationHarnessService>('customizationHarnessService');
@@ -108,6 +109,38 @@ export interface ICustomizationMarketplaceSearchProvider {
 	getRecoveryAction?(): ICustomizationMarketplaceSourceRecoveryAction | undefined;
 }
 
+export interface ICustomizationMarketplaceInfo {
+	readonly name: string;
+	readonly source: string;
+	readonly isDefault: boolean;
+	readonly managed: boolean;
+	readonly available: boolean;
+}
+
+export interface ICustomizationMarketplaceRemoveResult {
+	readonly removed: boolean;
+	readonly dependentPlugins?: readonly string[];
+}
+
+export interface ICustomizationMarketplaceRefreshResult {
+	readonly name: string;
+	readonly success: boolean;
+	readonly error?: string;
+}
+
+export interface ICustomizationMarketplaceManagementProvider {
+	readonly onDidChange: Event<void>;
+	list(sessionResource: URI): Promise<readonly ICustomizationMarketplaceInfo[]>;
+	add(sessionResource: URI, source: string): Promise<ICustomizationMarketplaceInfo>;
+	queryMarketplace(sessionResource: URI, marketplace: ICustomizationMarketplaceInfo, options: ICustomizationMarketplaceSourceQuery, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage>;
+	remove(sessionResource: URI, name: string, force?: boolean): Promise<ICustomizationMarketplaceRemoveResult>;
+	refresh(sessionResource: URI, name?: string): Promise<readonly ICustomizationMarketplaceRefreshResult[]>;
+}
+
+export interface ICustomizationMcpConfigurationProvider {
+	addGlobal(name: string, config: IMcpServerConfiguration): Promise<void>;
+}
+
 /**
  * Describes a single harness option for the UI toggle.
  */
@@ -185,10 +218,14 @@ export interface IHarnessDescriptor {
 	 * Supplies harness-specific MCP server migration behavior.
 	 */
 	readonly mcpServerMigrationProvider?: ICustomizationMcpServerMigrationProvider;
+	/** Provisionally routes harness-owned global MCP configuration. */
+	readonly mcpConfigurationProvider?: ICustomizationMcpConfigurationProvider;
 	/** Supplies authoritative installation inventory and mutations for this harness. */
 	readonly marketplaceInstallProvider?: ICustomizationMarketplaceInstallProvider;
 	/** Supplies a harness-native replacement for the public customization catalog. */
 	readonly marketplaceSearchProvider?: ICustomizationMarketplaceSearchProvider;
+	/** Supplies authoritative marketplace inventory and mutations for this harness. */
+	readonly marketplaceManagementProvider?: ICustomizationMarketplaceManagementProvider;
 }
 
 /**
@@ -367,6 +404,11 @@ export interface ICustomizationHarnessService {
 	 * @param sessionType The harness id (sessionType)
 	 */
 	findHarnessById(sessionType: string): IHarnessDescriptor | undefined;
+
+	/**
+	 * Finds the harness descriptor that owns the given session resource.
+	 */
+	getDescriptorForSession(sessionResource: URI): IHarnessDescriptor | undefined;
 
 	/**
 	 * Changes the active session. The new session's type must be present in
@@ -602,13 +644,16 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 		return this._getAllHarnesses().find(h => h.id === id);
 	}
 
+	getDescriptorForSession(sessionResource: URI): IHarnessDescriptor | undefined {
+		return this.findHarnessById(getChatSessionType(sessionResource));
+	}
+
 	setActiveSession(sessionResource: URI): void {
 		this._activeSessionResource.set(sessionResource, undefined);
 	}
 
 	getActiveDescriptor(): IHarnessDescriptor {
-		const activeId = this._activeHarness.get();
-		const descriptor = this.findHarnessById(activeId);
+		const descriptor = this.getDescriptorForSession(this._activeSessionResource.get());
 		return descriptor ?? EMPTY_DESCRIPTOR;
 	}
 

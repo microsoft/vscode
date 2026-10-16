@@ -14,7 +14,26 @@ suite('adaptManagedSettings', () => {
 	test('empty response yields an empty managed settings bag', () => {
 		assert.deepStrictEqual(adaptManagedSettings({}), {
 			managedSettings: {},
+			managedSettingsActive: false,
 		});
+	});
+
+	test('temporary Local permission never implies governance or masks unrepresentable settings', () => {
+		const key = 'vscode.temporaryAllowLocalHarness';
+		const results = [true, false, 'false', null, {}, [], { future: true }, undefined].map(value => {
+			const response = { vscode: { temporaryAllowLocalHarness: value } };
+			return {
+				alone: adaptManagedSettings(response),
+				withOtherSettings: adaptManagedSettings({ ...response, futureControl: {} }),
+			};
+		});
+		assert.deepStrictEqual(results, [true, false, 'false', undefined, undefined, undefined, 'nested', undefined].map(value => {
+			const managedSettings = value === 'nested' ? { [`${key}.future`]: true } : value === undefined ? {} : { [key]: value };
+			return {
+				alone: { managedSettings, managedSettingsActive: false },
+				withOtherSettings: { managedSettings, managedSettingsActive: true },
+			};
+		}));
 	});
 
 	test('preserves an empty telemetry block and explicit identity leaves', () => {

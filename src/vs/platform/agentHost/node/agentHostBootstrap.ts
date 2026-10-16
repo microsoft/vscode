@@ -19,6 +19,7 @@ import { ILoggerService, ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IAgentService } from '../common/agentService.js';
+import { IAgentHostSessionStateStore } from '../common/agentHostSessionStateStore.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import type { IAgent } from '../common/agent.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostDeferredTitleGenerationConfigKey, AgentHostTitleGenerationConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
@@ -34,6 +35,7 @@ import { IAgentSdkDownloader, type IAgentSdkDownloadProgress } from './agentSdkD
 import { IByokLmBridgeRegistry, NullByokLmBridgeRegistry } from './byokLmBridgeRegistry.js';
 import { registerPendingEditContentProvider } from './copilot/pendingEditContentStore.js';
 import { SessionDataService } from './sessionDataService.js';
+import { CompatibleAgentHostDatabase } from './compatibleAgentHostDatabase.js';
 import { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from './agentHostClientConnectionService.js';
@@ -57,6 +59,8 @@ export interface ICreateAgentHostRuntimeOptions {
 	 * unavailable variant but still register the same complete service graph.
 	 */
 	readonly byok: { readonly kind: 'renderer'; readonly bridgeRegistry: IByokLmBridgeRegistry } | { readonly kind: 'unavailable' };
+	/** Only the local utility-process host supports on-device models; omitted means unavailable. */
+	readonly localModel?: { readonly kind: 'localUtilityProcess' } | { readonly kind: 'unavailable' };
 }
 
 export interface IAgentHostRuntime extends IDisposable {
@@ -111,7 +115,11 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 		const fileService = infrastructure.add(new FileService(logService));
 		infrastructure.add(fileService.registerProvider(Schemas.file, infrastructure.add(new DiskFileSystemProvider(logService))));
 		infrastructure.add(registerPendingEditContentProvider(fileService));
-		const sessionDataService = new SessionDataService(URI.file(environmentService.userDataPath), fileService, logService);
+		const orchestratorDatabase = infrastructure.add(new CompatibleAgentHostDatabase(
+			joinPath(environmentService.appSettingsHome, 'globalStorage', 'agent-host.db').fsPath,
+		));
+		await orchestratorDatabase.initialize();
+		const sessionDataService = new SessionDataService(URI.file(environmentService.userDataPath), fileService, logService, undefined, orchestratorDatabase.identity);
 		const services = new StrictServiceCollection(
 			[INativeEnvironmentService, environmentService],
 			[ILogService, logService],
@@ -159,7 +167,7 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 		registerAgentHostCoreServices(services, {
 			storageResource: agentServiceOptions.storageResource,
 			rootConfigResource: agentServiceOptions.rootConfigResource,
-			orchestratorDatabase: agentServiceOptions.orchestratorDatabase,
+			orchestratorDatabase,
 			fetchFn,
 			gitHubServiceOptions: foundation.gitHubServiceOptions,
 			hostLaunchKind: options.hostLaunchKind,
@@ -169,15 +177,18 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 			userDataPath: URI.file(environmentService.userDataPath),
 			fetchFn,
 			byok: options.byok,
+			localModel: options.localModel,
 		});
 		instantiationService = new InstantiationService(services, /*strict*/ true);
 		const gitHubService = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostGitHubService));
 		const utilityModelService = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostUtilityModelService));
+		const sessionStateStore = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostSessionStateStore));
 		services.set(IAgentHostSessionTitleController, infrastructure.add(instantiationService.createInstance(AgentHostSessionTitleController, foundation.stateManager, {
 			sessionDataService,
 			queueCatalogSync: (session, metadataOverrides) => foundation.callbackAdapter.value.queueCatalogSync(session, metadataOverrides),
 			persistMetadata: (resource, values) => foundation.callbackAdapter.value.persistMetadata(resource, values),
 			readNormalizedChat: (session, chat) => foundation.callbackAdapter.value.readNormalizedChat(session, chat),
+			readSessionValues: (session, keys) => sessionStateStore.readWithoutImport(session, keys),
 			persistSurfacedSessionTitle: (session, title) => foundation.callbackAdapter.value.persistSurfacedSessionTitle(session, title),
 			getGitHubToken: () => {
 				const resource = foundation.gitHubEndpointService.getRepoResource();
@@ -195,7 +206,7 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 				);
 			},
 		})));
-		const localTurns = new AgentHostLocalTurns(sessionDataService, logService);
+		const localTurns = new AgentHostLocalTurns(instantiationService.invokeFunction(accessor => accessor.get(IAgentHostSessionStateStore)).chatRows, logService);
 		services.set(IAgentHostLocalTurns, localTurns);
 		const agentServiceComposition = instantiationService.invokeFunction(accessor => createAgentServiceComposition(
 			agentServiceOptions,

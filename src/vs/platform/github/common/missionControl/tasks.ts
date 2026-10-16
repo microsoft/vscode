@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ApiPaginationOptions, ApiRequestOptions } from '../client/request.js';
 import { JsonObject, JsonValue, PageOptions, RepositoryRef } from '../client/types.js';
 import type { EnvironmentKind, PaginatedResponse, User } from './missionControl.js';
 
@@ -45,7 +46,7 @@ export interface TaskCollaborator {
 	readonly agent_type?: string;
 	/** The numeric identifier of the agent integration. */
 	readonly agent_id?: number;
-	/** The agent's internal task identifier. */
+	/** The task identifier assigned by the agent integration. */
 	readonly agent_task_id?: string;
 	/** The machine-readable integration slug. */
 	readonly slug?: string;
@@ -55,7 +56,7 @@ export interface TaskCollaborator {
 export interface TaskCustomAgent {
 	/** The custom agent's filename without its extension. */
 	readonly id?: string;
-	/** The internal custom-agent identifier. */
+	/** The custom-agent identifier. */
 	readonly name?: string;
 	/** Whether an automation rather than a direct user action initiated the task. */
 	readonly is_automation?: boolean;
@@ -77,7 +78,7 @@ export interface Repository {
 export interface RepositoryResource {
 	/** The numeric resource identifier. */
 	readonly id: number;
-	/** The internal resource type, such as pull_request or issue. */
+	/** The resource type, such as pull_request or issue. */
 	readonly type: string;
 	/** The GraphQL global identifier of the resource. */
 	readonly global_id?: string;
@@ -109,7 +110,7 @@ export interface TaskArtifact {
 	readonly data: RepositoryResource | BranchResource | AzureDevOpsResource;
 }
 
-/** Display-only Azure DevOps repository context supplied by an authorized caller. */
+/** Descriptive Azure DevOps repository metadata supplied by an authorized caller. */
 export interface AzureDevOpsRepositoryContext extends AzureDevOpsResource {
 	/** The repository name. */
 	readonly name?: string;
@@ -143,7 +144,7 @@ export interface Task {
 	readonly creator?: User;
 	/** The type of the task creator. */
 	readonly creator_type?: 'user' | 'organization';
-	/** Collaborator references, with numeric IDs retained by the internal legacy representation. */
+	/** Collaborating users, represented by user references or numeric IDs. */
 	readonly user_collaborators?: readonly (User | number)[];
 	/** Agent integrations that have worked on the task. */
 	readonly agent_collaborators?: readonly TaskCollaborator[];
@@ -199,7 +200,7 @@ export interface SessionUsage {
 	readonly type: 'ai_credits' | 'premium_requests';
 	/** Consumed units; AI credits are whole nano units and premium requests may be fractional. */
 	readonly amount: number;
-	/** The deprecated internal alias for amount. */
+	/** Deprecated alias for amount. */
 	readonly credits?: number;
 }
 
@@ -227,7 +228,7 @@ export interface Session {
 	readonly agent_id?: number;
 	/** The machine-readable agent integration slug. */
 	readonly agent_slug?: string;
-	/** The agent's internal task identifier. */
+	/** The task identifier assigned by the agent integration. */
 	readonly agent_task_id?: string;
 	/** The identifier of the task containing the session. */
 	readonly task_id?: string;
@@ -247,7 +248,7 @@ export interface Session {
 	readonly event_url?: string;
 	/** The content of the triggering event. */
 	readonly prompt?: string;
-	/** The internal representation of the triggering event's content. */
+	/** Structured content of the triggering event. */
 	readonly event_content?: string;
 	/** Identifiers used for tracking the triggering event. */
 	readonly event_identifiers?: readonly string[];
@@ -271,7 +272,7 @@ export interface Session {
 	readonly model?: string;
 	/** The reasoning-effort override, empty when no override applies. */
 	readonly reasoning_effort?: string;
-	/** The premium request count retained by the internal API. */
+	/** The number of premium requests consumed by the session. */
 	readonly premium_requests?: number;
 	/** Structured billing usage for the session. */
 	readonly usage?: SessionUsage;
@@ -313,7 +314,7 @@ export interface CreateTaskRequest {
 	readonly repositories?: readonly RepositoryRef[];
 	/** Additional prompting for the agent. */
 	readonly problem_statement?: string;
-	/** The user's written prompt in the internal event representation. */
+	/** Structured prompt content for the triggering event. */
 	readonly event_content?: string;
 	/** The model identifier, subject to the caller's plan and organization policies. */
 	readonly model?: string;
@@ -333,7 +334,7 @@ export interface CreateTaskRequest {
 	readonly head_ref?: string;
 	/** The event type that originated the task. */
 	readonly event_type?: string;
-	/** The originating mobile product, used only for attribution. */
+	/** The originating integration identifier for attribution. */
 	readonly integration_slug?: 'copilot-mobile-ios' | 'copilot-mobile-android';
 	/** The URL of the triggering event. */
 	readonly event_url?: string;
@@ -384,8 +385,8 @@ export type SteerTaskRequest =
 		readonly event_identifiers?: readonly string[];
 	};
 
-/** Task filters shared by the general task list and automation run history. */
-export interface TaskListOptions extends PageOptions {
+/** Filters and ordering options for task collections. */
+interface TaskListQuery extends PageOptions {
 	/** The field to sort by, defaulting to updated_at. */
 	readonly sort?: 'updated_at' | 'created_at';
 	/** The sort direction, defaulting to descending. */
@@ -398,8 +399,11 @@ export interface TaskListOptions extends PageOptions {
 	readonly include_counts?: boolean;
 }
 
+/** Query parameters and request options for task collections. */
+export type TaskListOptions = ApiPaginationOptions<TaskListQuery>;
+
 /** Additional query filters for the authenticated user's task list. */
-export interface ListTasksOptions extends TaskListOptions {
+export type ListTasksOptions = ApiPaginationOptions<TaskListQuery & {
 	/** Include tasks updated at or after this ISO 8601 timestamp. */
 	readonly since?: string;
 	/** Filter by artifact type. */
@@ -426,9 +430,9 @@ export interface ListTasksOptions extends TaskListOptions {
 	readonly task_ids?: string;
 	/** Filter by the numeric repository identifier. */
 	readonly repository_id?: number;
-}
+}>;
 
-/** One page of tasks with optional aggregate counts, also used for automation run history. */
+/** One page of tasks with optional aggregate counts. */
 export interface ListTasksResponse {
 	/** The tasks on this page. */
 	readonly tasks: readonly Task[];
@@ -440,7 +444,7 @@ export interface ListTasksResponse {
 	readonly total_archived_count?: number;
 }
 
-/** The SDK session-event envelope, leaving event-specific data uninterpreted by the REST client. */
+/** An SDK session event with an event-specific payload. */
 export interface TaskEvent {
 	/** The unique event identifier. */
 	readonly id: string;
@@ -450,9 +454,9 @@ export interface TaskEvent {
 	readonly parentId: string | null;
 	/** The session-event discriminator. */
 	readonly type: string;
-	/** Event-specific data interpreted by the consuming SDK or history reader. */
+	/** Payload for the event's type. */
 	readonly data: JsonValue;
-	/** Whether this event is ephemeral and not persisted to disk. */
+	/** Whether the event is transient rather than persistent. */
 	readonly ephemeral?: boolean;
 	/** Whether this is a placeholder for user input not yet confirmed by the agent. */
 	readonly pending?: boolean;
@@ -470,13 +474,13 @@ export interface ListTaskEventsResponse {
 	readonly total: number;
 }
 
-/** An extensible host state action preserved verbatim in the AHP event stream. */
+/** An extensible Agent Host Protocol state action. */
 export interface AhpAction extends JsonObject {
 	/** The action discriminator, such as session/delta. */
 	readonly type: string;
 }
 
-/** An AHP action envelope preserved by Mission Control without interpretation. */
+/** An AHP state action with its target resource and sequencing information. */
 export interface AhpActionEnvelope {
 	/** The resource URI targeted by the action. */
 	readonly channel: string;
@@ -505,11 +509,11 @@ export type AhpPayload =
 		readonly seq: number;
 		/** The total number of segments in the group. */
 		readonly total: number;
-		/** The standard padded base64 segment, never decoded or reassembled by Mission Control. */
+		/** This segment's bytes, encoded as standard padded base64. */
 		readonly bytes: string;
 	};
 
-/** A raw replication frame returned exactly as emitted by the host. */
+/** A host-generated replication frame. */
 export interface AhpEvent {
 	/** The producing environment, omitted when supplied by routing metadata. */
 	readonly environment_id?: string;
@@ -532,7 +536,7 @@ export interface AhpEvent {
 	readonly payload: AhpPayload;
 }
 
-/** The complete raw AHP stream across every session in a task, without pagination or replay. */
+/** The complete AHP event stream across all sessions in a task. */
 export interface TaskAHPEventsResponse {
 	/** Raw frames in emission order per session. */
 	readonly events: readonly AhpEvent[];
@@ -540,38 +544,39 @@ export interface TaskAHPEventsResponse {
 	readonly total: number;
 }
 
-/** Task REST operations supporting sandbox discovery, provisioning, lifecycle changes, and history reads. */
+/** Operations for creating and managing tasks, sending input, and reading task history. */
 export interface ITasksClient {
+
 	/** GET /agents/tasks: list one page of the authenticated user's tasks. */
 	list(signal: AbortSignal, options?: ListTasksOptions): Promise<PaginatedResponse<ListTasksResponse>>;
 
 	/** GET /agents/tasks/{task_id}: read task details and associated sessions. */
-	get(taskId: string, signal: AbortSignal): Promise<GetTaskResponse>;
+	get(taskId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<GetTaskResponse>;
 
 	/** POST /agents/tasks: create a task and optionally bind or provision its environment. */
-	create(request: CreateTaskRequest, signal: AbortSignal): Promise<GetTaskResponse>;
+	create(request: CreateTaskRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<GetTaskResponse>;
 
 	/** PATCH /agents/tasks/{task_id}: update the task name or sharing status without waking compute. */
-	update(taskId: string, request: UpdateTaskRequest, signal: AbortSignal): Promise<GetTaskResponse>;
+	update(taskId: string, request: UpdateTaskRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<GetTaskResponse>;
 
-	/** DELETE /agents/tasks/{task_id}: creator-only soft deletion with asynchronous history cleanup; prefer archive for user actions. */
-	delete(taskId: string, signal: AbortSignal): Promise<void>;
+	/** DELETE /agents/tasks/{task_id}: mark a task for deletion; only its creator may delete it. */
+	delete(taskId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<void>;
 
 	/** POST /agents/tasks/{task_id}/archive: archive a task without waking compute. */
-	archive(taskId: string, signal: AbortSignal): Promise<Task>;
+	archive(taskId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<Task>;
 
 	/** POST /agents/tasks/{task_id}/unarchive: restore an archived task without waking compute. */
-	unarchive(taskId: string, signal: AbortSignal): Promise<Task>;
+	unarchive(taskId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<Task>;
 
 	/** POST /agents/tasks/{task_id}/steer: submit input or a control command, acknowledged with HTTP 202. */
-	steer(taskId: string, request: SteerTaskRequest, signal: AbortSignal): Promise<void>;
+	steer(taskId: string, request: SteerTaskRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<void>;
 
 	/** POST /agents/tasks/{task_id}/steer with type=abort: stop the running session. */
-	abort(taskId: string, signal: AbortSignal): Promise<void>;
+	abort(taskId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<void>;
 
-	/** GET /agents/tasks/{task_id}/events as application/json: read one page without internal retries. */
-	getEvents(taskId: string, signal: AbortSignal, options?: PageOptions): Promise<PaginatedResponse<ListTaskEventsResponse>>;
+	/** GET /agents/tasks/{task_id}/events as application/json: read one page of session events. */
+	getEvents(taskId: string, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<PaginatedResponse<ListTaskEventsResponse>>;
 
-	/** GET /agents/tasks/{task_id}/events as application/vnd.github.ahp+json: read all raw frames without internal retries. */
-	getAhpEvents(taskId: string, signal: AbortSignal): Promise<TaskAHPEventsResponse>;
+	/** GET /agents/tasks/{task_id}/events as application/vnd.github.ahp+json: read the complete AHP event stream. */
+	getAhpEvents(taskId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<TaskAHPEventsResponse>;
 }

@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, ReferenceCollection } from '../../../../../base/common/lifecycle.js';
+import { cancelOnDispose } from '../../../../../base/common/cancellation.js';
+import { structuralEquals } from '../../../../../base/common/equals.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IGitHubRepository } from '../../common/types.js';
@@ -34,17 +37,14 @@ export class GitHubRepositoryModelReferenceCollection extends ReferenceCollectio
 	}
 }
 
-/**
- * Reactive model for a GitHub repository. Wraps fetcher data
- * in observables and supports on-demand refresh.
- */
+/** Repository metadata with coalesced, on-demand refresh. */
 export class GitHubRepositoryModel extends Disposable {
 
-	private _repositoryEtag: string | undefined = undefined;
+	private readonly _token = cancelOnDispose(this._store);
 	private readonly _repository = observableValue<IGitHubRepository | undefined>(this, undefined);
 	readonly repository: IObservable<IGitHubRepository | undefined> = this._repository;
 
-	private _refreshPromise: Promise<void> | undefined = undefined;
+	private _refreshPromise: Promise<void> | undefined;
 
 	constructor(
 		readonly owner: string,
@@ -53,28 +53,36 @@ export class GitHubRepositoryModel extends Disposable {
 		private readonly _logService: ILogService,
 	) {
 		super();
+		this._register(_fetcher.client.onDidChange(() => {
+			const shouldRefresh = this._refreshPromise !== undefined || this._repository.get() !== undefined;
+			this._refreshPromise = undefined;
+			this._repository.set(undefined, undefined);
+			if (shouldRefresh) {
+				void this.refresh();
+			}
+		}));
 	}
 
 	refresh(): Promise<void> {
-		if (!this._refreshPromise) {
-			this._refreshPromise = this._refresh()
-				.finally(() => {
-					this._refreshPromise = undefined;
-				});
-		}
-
-		return this._refreshPromise;
+		const pending = this._refreshPromise ??= this._refresh().finally(() => {
+			if (this._refreshPromise === pending) {
+				this._refreshPromise = undefined;
+			}
+		});
+		return pending;
 	}
 
 	private async _refresh(): Promise<void> {
+		const generation = this._fetcher.client.generation;
 		try {
-			const response = await this._fetcher.getRepository(this.owner, this.repo, this._repositoryEtag);
-			if (response.statusCode === 200 && response.data) {
-				this._repositoryEtag = response.etag;
-				this._repository.set(response.data, undefined);
+			const repository = await this._fetcher.getRepository(this.owner, this.repo, this._token);
+			if (!this._store.isDisposed && generation === this._fetcher.client.generation && !structuralEquals(repository, this._repository.get())) {
+				this._repository.set(repository, undefined);
 			}
 		} catch (err) {
-			this._logService.error(`${LOG_PREFIX} Failed to refresh repository ${this.owner}/${this.repo}:`, err);
+			if (!isCancellationError(err)) {
+				this._logService.error(`${LOG_PREFIX} Failed to refresh repository ${this.owner}/${this.repo}:`, err);
+			}
 		}
 	}
 }

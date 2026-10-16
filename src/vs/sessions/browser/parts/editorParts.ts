@@ -19,8 +19,6 @@ export class EditorParts extends EditorPartsBase {
 		const editorPart = layoutService.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop
 			? this.instantiationService.createInstance(DesktopMainEditorPart, this)
 			: this.instantiationService.createInstance(MainEditorPart, this);
-		this._register(editorPart.enforcePartOptions({ tabActionReserveSpace: false }));
-
 		return editorPart;
 	}
 

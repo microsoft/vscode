@@ -11,7 +11,7 @@ import { Disposable, IDisposable, MutableDisposable } from '../../../base/common
 import { ISessionGridPlacement } from '../../services/sessions/browser/sessionsPartService.js';
 import { isSessionGridLeafData, projectSessionGrid } from '../../services/sessions/browser/sessionGridState.js';
 import { Color } from '../../../base/common/color.js';
-import { getGridEdgeInsets, IGridEdgeInsets, NO_GRID_EDGE_INSETS, updateGridGapSashes } from './gridGap.js';
+import { getGridBottomCornerViews, getGridEdgeInsets, IGridEdgeInsets, NO_GRID_EDGE_INSETS, updateGridGapSashes } from './gridGap.js';
 
 export interface ISessionGridView extends IView {
 	/** Applies the allocated geometry without laying out descendants. */
@@ -447,16 +447,9 @@ export class SessionGridLayout extends Disposable {
 		let bottomLeftId = projectedId;
 		let bottomRightId = projectedId;
 		if (projectedId === undefined && this.grid.value) {
-			const cornerLeaf = (node: GridNode<SessionGridLeaf>, orientation: Orientation, right: boolean): string => {
-				if (!isGridBranchNode(node)) {
-					return node.view.id;
-				}
-				const index = orientation === Orientation.VERTICAL || right ? node.children.length - 1 : 0;
-				return cornerLeaf(node.children[index], orientation === Orientation.HORIZONTAL ? Orientation.VERTICAL : Orientation.HORIZONTAL, right);
-			};
-			const root = this.grid.value.getViews();
-			bottomLeftId = cornerLeaf(root, this.grid.value.orientation, false);
-			bottomRightId = cornerLeaf(root, this.grid.value.orientation, true);
+			const corners = getGridBottomCornerViews(this.grid.value);
+			bottomLeftId = corners.bottomLeft.id;
+			bottomRightId = corners.bottomRight.id;
 		}
 		if (this.grid.value) {
 			this.grid.value.element.style.display = host ? 'none' : '';
