@@ -2115,6 +2115,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				throw error;
 			}
 		},
+		createTcpConnection: async () => {
+			throw new ProtocolError(JsonRpcErrorCodes.MethodNotFound, 'Method not found: createTcpConnection');
+		},
 		disposeChat: async (_client, params) => {
 			const chat = URI.parse(params.channel);
 			const owner = isAhpChatChannel(params.channel) ? await this._resolveChatOwner(params.channel) : undefined;

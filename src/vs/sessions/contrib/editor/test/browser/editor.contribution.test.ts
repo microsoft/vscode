@@ -1213,12 +1213,12 @@ suite('Sessions - Editor Contribution', () => {
 		});
 	});
 
-	test('the session toolbar offers each tab whenever it is available', () => {
+	test('the session activity bar offers each tab whenever it is available', () => {
 		const actions = { changes: new NewChangesTabAction(), files: new NewFileTabAction(), browser: new NewBrowserTabAction(), search: new NewSearchTabAction() };
 		// Search is only offered in the Add Tab dropdown.
 		const evaluate = (action: NewChangesTabAction | NewFileTabAction | NewBrowserTabAction | NewSearchTabAction, values: Record<string, ContextKeyValue>): boolean | undefined => {
 			const menu = action.desc.menu;
-			const item = (Array.isArray(menu) ? menu : [menu]).find(item => item?.id === Menus.SessionToolbar);
+			const item = (Array.isArray(menu) ? menu : [menu]).find(item => item?.id === Menus.SessionActivityBar);
 			return item?.when?.evaluate({ getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined } satisfies IContext);
 		};
 		// The toolbar ignores tab state: tabs are open and the right group is not the active one.
