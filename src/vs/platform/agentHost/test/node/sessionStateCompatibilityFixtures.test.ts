@@ -14,7 +14,7 @@ import { basename, join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
+import { AgentHostDatabase, AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT } from '../../node/agentHostDatabase.js';
 import { SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { AgentHostPeerChatStore, type IPersistedPeerChat } from '../../node/agentHostPeerChatStore.js';
 import { SessionDataService } from '../../node/sessionDataService.js';
@@ -22,7 +22,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { CompatibleAgentHostDatabase } from '../../node/compatibleAgentHostDatabase.js';
 import { migrateChatCatalogV2 } from '../../node/agentHostChatCatalogMigration.js';
 import { createLiveChatOwnership } from './chatOwnershipTestUtils.js';
-import { createLegacySessionFixture, editChatListAsOldBuild, editChatStateAsOldBuild, InMemorySessionDataService, moveChatAsBlock4, LEGACY_BUILDS, legacyPeerMetadata, legacySessionMetadata, normalizeLegacySessionFixture, readOldBuildView, reprojectLegacyFixturePayload, restorePeersAsOldBuild, writeLegacySessionState, type ILegacyChatFixture, type ILegacySessionFixture } from './sessionStateCompatibilityFixtures.js';
+import { createLegacySessionFixture, editChatListAsOldBuild, editChatStateAsOldBuild, InMemorySessionDataService, moveChatAsBlock4, LEGACY_BUILDS, legacyPeerMetadata, legacySessionMetadata, normalizeLegacySessionFixture, readOldBuildView, remirrorChatListAsOldBuildAtQuit, reprojectLegacyFixturePayload, restorePeersAsOldBuild, writeLegacySessionState, type ILegacyChatFixture, type ILegacySessionFixture } from './sessionStateCompatibilityFixtures.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, buildChatUri, buildDefaultChatUri, ChatOriginKind, MessageKind } from '../../common/state/sessionState.js';
 import { ChatInteractivity } from '../../common/state/protocol/state.js';
 
@@ -364,6 +364,53 @@ suite('Session state compatibility fixtures', () => {
 				created: (await peers()).some(peer => peer.chat === today.identity.toRuntime(created)),
 				title: { title: metadata?.summary, titleSource: metadata?.titleSource },
 			}, { created: true, title: { title: 'L3 140 peer A', titleSource: 'user' } });
+		});
+
+		for (const path of ['restore', 'backgroundPass'] as const) {
+			test(`1.141 renaming a peer, then re-mirroring the list unchanged at quit: the rename is imported (${path}), and the list is this build's projection again`, async () => {
+				const { fixture, sessionData, today, createStore, session } = await publishedNormalizedSession();
+				const [, sameFolder] = fixture.chats;
+				// Real data (probe 4a, section 3): 1.141.2 writes its rename to the databases, then re-mirrors session_chats and
+				// peerChats unchanged at quit, advancing the revision with the rows equal to the projection.
+				await editChatStateAsOldBuild(sessionData.createService(), fixture, sameFolder.uri, { title: 'Renamed by 1.141' });
+				await remirrorChatListAsOldBuildAtQuit(sessionData.createService(), today.raw, fixture);
+
+				const candidates = path === 'backgroundPass' ? await today.findOlderBuildChatCatalogEdits(AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT) : undefined;
+				// Both the restore of a normalized session and the background pass import without holding the session database.
+				// Read before any deferred publish, which would only come later (and only if the copy's spelling differs).
+				const importing = createStore();
+				await importing.reconcileLegacy(session);
+
+				const [snapshot] = await today.readCatalogSnapshot([fixture.runtimeSession]);
+				const metadata = snapshot.chats.find(chat => chat.chat === sameFolder.runtimeUri)?.metadata;
+				assert.deepStrictEqual({
+					candidates,
+					title: { title: metadata?.summary, titleSource: metadata?.titleSource },
+					projectionCurrent: (await today.readOlderBuildCopyState(fixture.runtimeSession))?.projectionBehind,
+					nextPass: await today.findOlderBuildChatCatalogEdits(AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT),
+				}, {
+					candidates: path === 'backgroundPass' ? [fixture.runtimeSession] : undefined,
+					title: { title: 'Renamed by 1.141', titleSource: 'user' },
+					projectionCurrent: false,
+					nextPass: [],
+				});
+			});
+		}
+
+		test('a normalized catalog no other build touched imports without opening the session database', async () => {
+			const { fixture, sessionData, today, session } = await publishedNormalizedSession();
+			const opened: string[] = [];
+			const base = sessionData.createService(today.identity);
+			const counting = {
+				...base,
+				openDatabase: (resource: URI) => { opened.push(resource.toString()); return base.openDatabase(resource); },
+				tryOpenDatabase: async (resource: URI) => { opened.push(resource.toString()); return base.tryOpenDatabase(resource); },
+			};
+			const peerStore = store.add(new AgentHostPeerChatStore(today, counting, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(today, counting)));
+
+			await peerStore.reconcileLegacy(session);
+
+			assert.deepStrictEqual({ opened, behind: (await today.readOlderBuildCopyState(fixture.runtimeSession))?.projectionBehind }, { opened: [], behind: false });
 		});
 
 		const cases = [
