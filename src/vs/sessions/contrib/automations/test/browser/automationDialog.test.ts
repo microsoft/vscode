@@ -45,6 +45,7 @@ import { ILayoutService } from '../../../../../platform/layout/browser/layoutSer
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IQuickInputHideEvent, IQuickInputService, IQuickTree, IQuickTreeItem, QuickInputHideReason } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { IDelayedHoverOptions, IHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../platform/workspace/common/workspaceTrust.js';
@@ -116,15 +117,19 @@ suite('Automation dialog creation', () => {
 		const cloudEnabled = observableValue('cloudEnabled', !!cloudConfiguration && cloudEnabledAtOpen);
 		let refresh: () => Promise<void> = async () => { };
 		const hovers: string[] = [];
-		instantiationService.stub(IHoverService, 'showInstantHover', (options: IHoverOptions) => {
-			hovers.push(typeof options.content === 'string' ? options.content : String(options.content));
-			return undefined;
-		});
 		const delayedHovers = new Map<HTMLElement, string>();
-		instantiationService.stub(IHoverService, 'setupDelayedHover', (target: HTMLElement, options: IDelayedHoverOptions | (() => IDelayedHoverOptions)) => {
-			const content = (typeof options === 'function' ? options() : options).content;
-			delayedHovers.set(target, typeof content === 'string' ? content : String(content));
-			return toDisposable(() => delayedHovers.delete(target));
+		// A fresh object keeps these fakes off the shared NullHoverService used by other suites.
+		instantiationService.stub(IHoverService, {
+			...NullHoverService,
+			showInstantHover: (options: IHoverOptions) => {
+				hovers.push(typeof options.content === 'string' ? options.content : String(options.content));
+				return undefined;
+			},
+			setupDelayedHover: (target: HTMLElement, options: IDelayedHoverOptions | (() => IDelayedHoverOptions)) => {
+				const content = (typeof options === 'function' ? options() : options).content;
+				delayedHovers.set(target, typeof content === 'string' ? content : String(content));
+				return toDisposable(() => delayedHovers.delete(target));
+			},
 		});
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
 			automationSession: constObservable(undefined),
