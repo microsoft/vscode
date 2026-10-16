@@ -19,6 +19,11 @@ export const enum SessionStateMirrorFlush {
 	Coalesced = 'coalesced',
 	/** Before the write's exclusive section ends. */
 	Immediate = 'immediate',
+	/**
+	 * Like {@link Immediate}, and the write fails unless older builds' copy of its own changes was written: what an
+	 * older build reads must hold before the caller relies on it. Its central change stays, and the mirror is retried.
+	 */
+	Acknowledged = 'acknowledged',
 }
 
 export type SessionStateTitleSource = 'user' | 'agent' | 'auto';

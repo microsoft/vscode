@@ -257,12 +257,21 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		return this._sequencer.queue(sequencerKey, async () => {
 			const record = await this._loadLocked(session, sequencerKey, () => this._readCatalog(session));
 			let immediate = false;
+			/** Mirror entries of writes that must reach older builds' copy before the section ends. */
+			const acknowledged = new Set<string>();
 			const snapshot = () => this._snapshot(record);
 			const exclusive: ISessionStateExclusive = {
 				get snapshot() { return snapshot(); },
 				write: async (patch, flush) => {
 					const revision = await this._writeCentral(record, patch, true, true);
-					if (flush === SessionStateMirrorFlush.Immediate) {
+					if (flush === SessionStateMirrorFlush.Acknowledged) {
+						for (const entry of patchMirrorEntries(patch)) {
+							if (record.dirty.has(mirrorEntryId(entry))) {
+								acknowledged.add(mirrorEntryId(entry));
+							}
+						}
+					}
+					if (flush !== SessionStateMirrorFlush.Coalesced) {
 						immediate = true;
 					} else if (!record.scheduler.isScheduled()) {
 						record.scheduler.schedule();
@@ -274,7 +283,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 					const { patches } = this._legacyWritePatches(record, URI.parse(record.key), values);
 					const patch = mergePatches(patches);
 					const revision = await this._writeCentral(record, patch, true, false);
-					if (flush === SessionStateMirrorFlush.Immediate) {
+					if (flush !== SessionStateMirrorFlush.Coalesced) {
 						immediate = true;
 					} else if (!record.scheduler.isScheduled()) {
 						record.scheduler.schedule();
@@ -302,6 +311,11 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 				await this._flushLocked(record);
 			} else if (!record.scheduler.isScheduled()) {
 				await this._flushLocked(record);
+			}
+			// A failed mirror write stays dirty, and is retried.
+			const unmirrored = [...acknowledged].filter(id => record.dirty.has(id));
+			if (unmirrored.length > 0) {
+				throw new Error(`Older builds' copy of ${record.key} was not written (${unmirrored.join(', ')})`);
 			}
 			return result;
 		});
@@ -343,7 +357,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			const { patches, unowned, unownedRemovals } = this._legacyWritePatches(record, resource, values);
 			if (patches.length > 0) {
 				await this._writeCentral(record, mergePatches(patches), true, true);
-				if (flush === SessionStateMirrorFlush.Immediate) {
+				if (flush !== SessionStateMirrorFlush.Coalesced) {
 					record.scheduler.cancel();
 					// Old-format readers still depend on the mirror, so an Immediate write reports its failure.
 					failure = await this._flushLocked(record);

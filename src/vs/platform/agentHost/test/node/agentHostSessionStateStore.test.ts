@@ -124,6 +124,46 @@ suite('AgentHostSessionStateStore', () => {
 		});
 	});
 
+	test('withholding and a transfer\'s target publication need older builds\' copy written: a failed mirror write refuses them, keeps the record\'s owner, and is retried (PR review)', async () => {
+		const session = URI.parse('copilotcli:/unmirrored');
+		const target = URI.parse('copilotcli:/unmirrored-target');
+		const worktree = 'file:///repo.worktrees/unmirrored';
+		const branchKey = 'copilot.worktree.branchName';
+		const transfer = { handle: '33333333-3333-4333-8333-333333333333', workingDirectory: 'file:///repo.worktrees/own', repositoryRoot: 'file:///repo' };
+		for (const registered of [session, target]) {
+			await database.registerSessionV2(registered.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		}
+		const sessionStore = createStore();
+		await sessionStore.writeMetadata(session, session, { [WORKTREE_META_PATH]: worktree, [branchKey]: 'agents/unmirrored', [SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify([worktree]) }, SessionStateMirrorFlush.Immediate);
+		// The move's transaction listed the transferred worktree centrally; older builds' copy of the target doesn't yet.
+		await sessionStore.writeMetadata(target, target, { [SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify([transfer.workingDirectory]) }, SessionStateMirrorFlush.Immediate);
+		await sessionStore.update(target, 'agentHost.additionalWorktrees', () => JSON.stringify([transfer]), SessionStateMirrorFlush.Coalesced);
+		const owners: string[] = [];
+		const isolation = new class extends NullAgentHostWorktreeIsolation {
+			override async setDetachedWorktreeOwner(handle: string, owner: URI): Promise<void> {
+				owners.push(`${handle}:${owner.toString()}`);
+			}
+		}();
+		const coOwnership = new AgentHostWorktreeCoOwnership(database, sessionStore, isolation, new NullLogService());
+		const olderBuild = async () => ({ branch: (await sessionDb(session, [branchKey]))[branchKey], targetLists: (await sessionDb(target, ['agentHost.additionalWorktrees']))['agentHost.additionalWorktrees'] !== undefined });
+
+		const failing = sinon.stub(SessionDatabase.prototype, 'applyMetadataChanges').rejects(new Error('disk full'));
+		const whileFailing = {
+			withhold: await coOwnership.withhold(session).then(() => 'withheld', () => 'refused'),
+			transfer: await coOwnership.completeTransfers(session, target, [transfer], undefined, false).then(() => 'transferred', () => 'refused'),
+			olderBuild: await olderBuild(),
+			owners: [...owners],
+		};
+		failing.restore();
+		await sessionStore.whenIdle(undefined);
+
+		assert.deepStrictEqual({ whileFailing, retried: await olderBuild() }, {
+			whileFailing: { withhold: 'refused', transfer: 'refused', olderBuild: { branch: 'agents/unmirrored', targetLists: false }, owners: [] },
+			// The flag stays set centrally, the safe side: its copy follows once writes succeed again, as does the target's list.
+			retried: { branch: undefined, targetLists: true },
+		});
+	});
+
 	test('withholding is never released while a share of the session is in flight: a publish in the window and a concurrent refused move keep it, the committed share keeps it after (H1, Block 5)', async () => {
 		const session = URI.parse('copilotcli:/in-flight');
 		const worktree = 'file:///repo.worktrees/in-flight';

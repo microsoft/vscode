@@ -287,7 +287,8 @@ export class AgentHostWorktreeCoOwnership implements IOlderBuildCopyParticipant 
 			}
 		};
 		try {
-			await this._sessionStateStore.update(session, OLDER_BUILD_WORKTREE_WITHHELD_KEY, () => 'true', SessionStateMirrorFlush.Immediate);
+			// Acknowledged: no move may share the worktree while an older build could still read its branch.
+			await this._sessionStateStore.update(session, OLDER_BUILD_WORKTREE_WITHHELD_KEY, () => 'true', SessionStateMirrorFlush.Acknowledged);
 		} catch (error) {
 			end();
 			throw error;
@@ -312,7 +313,9 @@ export class AgentHostWorktreeCoOwnership implements IOlderBuildCopyParticipant 
 		if (transfers.length === 0 && !handOver) {
 			return;
 		}
-		await this._republishAdditionalWorktrees(target);
+		// The record names the target only once older builds' copy of the target lists it; a failure leaves it naming
+		// the source, which startup reconciliation re-owns in the same order.
+		await this._republishAdditionalWorktrees(target, SessionStateMirrorFlush.Acknowledged);
 		for (const transfer of transfers) {
 			await this._worktree.setDetachedWorktreeOwner(transfer.handle, target);
 		}
@@ -320,13 +323,14 @@ export class AgentHostWorktreeCoOwnership implements IOlderBuildCopyParticipant 
 			await this._worktree.completeWorktreeHandOver(AgentSession.id(source), handOver.handle, target);
 		}
 		if (!sourceEnded) {
-			await this._republishAdditionalWorktrees(source);
+			// Not acknowledged: until its copy drops the handle, the source still lists it, the safe side.
+			await this._republishAdditionalWorktrees(source, SessionStateMirrorFlush.Immediate);
 		}
 	}
 
 	/** Rewrites a session's central additional worktree list unchanged, so its older-build copy follows now. */
-	private async _republishAdditionalWorktrees(session: URI): Promise<void> {
-		await this._sessionStateStore.update(session, ADDITIONAL_WORKTREES_METADATA_KEY, value => value ?? null, SessionStateMirrorFlush.Immediate);
+	private async _republishAdditionalWorktrees(session: URI, flush: SessionStateMirrorFlush): Promise<void> {
+		await this._sessionStateStore.update(session, ADDITIONAL_WORKTREES_METADATA_KEY, value => value ?? null, flush);
 	}
 
 	/** The sessions co-owning any of `worktreePaths`. */

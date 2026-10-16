@@ -115,7 +115,7 @@ suite('AgentHostWorktreeCoOwnership', () => {
 		const events: string[] = [];
 		const store = new class extends mock<IAgentHostSessionStateStore>() {
 			override async update(session: URI, key: string, _updater: (previous: string | undefined) => string | null, flush: SessionStateMirrorFlush): Promise<number> {
-				events.push(`publish:${session.toString()}:${key}:${flush === SessionStateMirrorFlush.Immediate ? 'now' : 'later'}`);
+				events.push(`publish:${session.toString()}:${key}:${flush}`);
 				return 1;
 			}
 		}();
@@ -137,13 +137,13 @@ suite('AgentHostWorktreeCoOwnership', () => {
 
 			assert.deepStrictEqual({ chatMove, sessionMove: events }, {
 				chatMove: [
-					`publish:${target.toString()}:agentHost.additionalWorktrees:now`,
+					`publish:${target.toString()}:agentHost.additionalWorktrees:${SessionStateMirrorFlush.Acknowledged}`,
 					`owner:${own.handle}:${target.toString()}`,
-					`publish:${source}:agentHost.additionalWorktrees:now`,
+					`publish:${source}:agentHost.additionalWorktrees:${SessionStateMirrorFlush.Immediate}`,
 				],
 				// The session that ended has no older-build copy to drop.
 				sessionMove: [
-					`publish:${target.toString()}:agentHost.additionalWorktrees:now`,
+					`publish:${target.toString()}:agentHost.additionalWorktrees:${SessionStateMirrorFlush.Acknowledged}`,
 					`owner:${sessionLevel.handle}:${target.toString()}`,
 					`handOver:${AgentSession.id(URI.parse(source))}:${own.handle}:${target.toString()}`,
 				],
