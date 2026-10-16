@@ -4017,7 +4017,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 	});
 
-	test('materialization preserves the chat modified time until a turn starts', async () => {
+	test('materialization preserves the chat modified time and publishes readiness only once', async () => {
 		class ProvisionalAgent extends MockAgent {
 			private readonly _onDidMaterializeChat = new Emitter<IAgentMaterializeChatEvent>();
 			override readonly onDidMaterializeChat = this._onDidMaterializeChat.event;
@@ -4043,6 +4043,17 @@ suite('AgentService (node dispatcher)', () => {
 		const agent = disposables.add(new ProvisionalAgent('copilot'));
 		registerTestAgentProvider(service, agent);
 		const session = await service.createSession({ legacyChatUris: true, provider: agent.id });
+		const lifecycleEvents: string[] = [];
+		disposables.add(getStateManager(service).onDidEmitNotification(notification => {
+			if (notification.type === NotificationType.SessionAdded) {
+				lifecycleEvents.push(notification.type);
+			}
+		}));
+		disposables.add(getStateManager(service).onDidEmitEnvelope(envelope => {
+			if (envelope.action.type === ActionType.SessionReady) {
+				lifecycleEvents.push(envelope.action.type);
+			}
+		}));
 		const before = getStateManager(service).getSessionSummary(session.toString())?.modifiedAt;
 		assert.ok(before);
 		while (Date.now() <= Date.parse(before)) {
@@ -4050,8 +4061,15 @@ suite('AgentService (node dispatcher)', () => {
 		}
 
 		agent.materialize(session);
+		agent.materialize(session);
 
-		assert.strictEqual(getStateManager(service).getSessionSummary(session.toString())?.modifiedAt, before);
+		assert.deepStrictEqual({
+			modifiedAt: getStateManager(service).getSessionSummary(session.toString())?.modifiedAt,
+			lifecycleEvents,
+		}, {
+			modifiedAt: before,
+			lifecycleEvents: [NotificationType.SessionAdded, ActionType.SessionReady],
+		});
 	});
 
 	test('publishes a materialized worktree with its generated branch', async () => {

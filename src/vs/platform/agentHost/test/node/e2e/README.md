@@ -683,6 +683,10 @@ Follow the pending boundary into its owning service or provider runtime before c
 
 For a catalog drain, correlate `catalogStateWrite` iteration records with `[AgentHostCatalogSync]` records for the same session. Catalog queue records separate `queueWaitMs` from `executionMs`; synchronization stages identify whether local receipt access, central catalog access, or acknowledgement is pending. These timings include nested queues and native I/O, so a slow database stage alone does not prove filesystem or worker-pool contention.
 
+### An unrelated session is announced during a test
+
+Trace the unexpected `root/sessionAdded` resource back to its native provider thread in the host log. Codex preserves native threads after session disposal, so shared-server tests rely on durable backing markers to keep them out of top-level discovery. A pre-turn thread replacement must refresh an already-published materialization receipt with the new backing ID; an unsent draft must remain provisional. Keep the exact session-announcement assertions rather than masking a missing backing receipt with per-test server isolation.
+
 ### Replayed text is doubled (`VALUEVALUE`)
 
 The Responses (`/responses`) regenerator announces each output item before streaming it. If `response.output_item.added` carries the item's final content, a consumer that accumulates that content *and* the following deltas counts the same text twice, so a recorded `SHELL_VALUE_73` replays as `SHELL_VALUE_73SHELL_VALUE_73`.
