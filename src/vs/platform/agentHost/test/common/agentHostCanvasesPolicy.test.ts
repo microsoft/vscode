@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Event } from '../../../../base/common/event.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -92,10 +93,11 @@ suite('AgentHostCanvasesPolicy', () => {
 
 	test('applies policy changes and restores the user preference on policy removal', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const { configurationService, fileService, policyFile } = await createConfiguration(true);
+		const listeners = store.add(new DisposableStore());
 		const states = [readEnablement(configurationService)];
 
 		for (const value of [false, true, false, undefined]) {
-			const changed = Event.toPromise(Event.filter(configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(CanvasesEnabledSettingId)), store);
+			const changed = Event.toPromise(Event.filter(configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(CanvasesEnabledSettingId)), listeners);
 			await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ ChatCanvasesEnabled: value })));
 			await changed;
 			states.push(readEnablement(configurationService));
