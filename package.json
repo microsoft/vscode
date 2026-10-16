@@ -3,7 +3,7 @@
   "version": "1.143.0",
   "distro": "64d8a64ecc28ff71f38285675552ccc30f1a709d",
   "author": {
-    "name": "Microsoft Corporation"
+    "name": "Justin Corporation"
   },
   "license": "MIT",
   "main": "./out/main.js",
