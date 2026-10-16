@@ -13,6 +13,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../base/common/platform.js';
+import { equals } from '../../../../base/common/objects.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -129,6 +130,8 @@ export class AutomationDialogService implements IAutomationDialogService {
 			enabled: initial?.enabled ?? true,
 			timeZone: initial?.schedule.timeZone,
 			timezoneOffset,
+			cloudTrigger: existing?.schedule.interval === 'custom' ? existing.cloudTrigger : undefined,
+			triggerExternalResource: existing?.externalResource,
 		};
 
 		const validation: IValidationState = { nameError: undefined, promptError: undefined, folderError: undefined, sessionTypeError: undefined, branchError: undefined };
@@ -184,8 +187,9 @@ export class AutomationDialogService implements IAutomationDialogService {
 				const patch: IUpdateAutomationOptions = {
 					name: state.name,
 					prompt,
-					...(existing.schedule.timeZone !== 'UTC' || state.interval !== initialSchedule?.interval || state.hour !== initialSchedule?.scheduleHour
-						|| state.minute !== initialSchedule?.scheduleMinute || state.day !== initialSchedule?.scheduleDay ? { schedule } : {}),
+					...(!state.cloudTrigger && (existing.schedule.timeZone !== 'UTC' || state.interval !== initialSchedule?.interval || state.hour !== initialSchedule?.scheduleHour
+						|| state.minute !== initialSchedule?.scheduleMinute || state.day !== initialSchedule?.scheduleDay) ? { schedule } : {}),
+					...(state.cloudTrigger && !state.triggerReadOnly && !equals(state.cloudTrigger, existing.cloudTrigger) ? { cloudTrigger: state.cloudTrigger } : {}),
 					target,
 					...(sessionConfigurationCapture.kind === 'captured' ? {
 						sessionTemplate: sessionTemplate ?? null,
@@ -199,6 +203,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 				name: state.name.trim() ? state.name : deriveAutomationName(prompt),
 				prompt,
 				schedule,
+				...(state.timeZone === 'UTC' && state.cloudTrigger ? { cloudTrigger: state.cloudTrigger } : {}),
 				target,
 				...(sessionTemplate
 					? { sessionTemplate }

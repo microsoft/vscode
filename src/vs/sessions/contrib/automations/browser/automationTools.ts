@@ -850,6 +850,9 @@ The change uses the current tool-approval policy. When approval is required, the
 		}
 
 		const schedule = parseSchedule(input, existing?.schedule, !existing);
+		if (schedule && existing?.cloudTrigger && existing.schedule.interval === 'custom') {
+			throw new AutomationToolInputError('Edit event triggers in the automation dialog or on GitHub. Omit schedule when editing other fields.');
+		}
 		const currentTarget = this.getCurrentSessionTarget(sessionResource);
 		const target = parseTarget(input, existing, currentTarget);
 		const modelId = readOptionalNullableNonEmptyString(input, 'modelId');

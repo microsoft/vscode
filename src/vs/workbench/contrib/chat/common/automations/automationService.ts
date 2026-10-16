@@ -11,7 +11,7 @@ import { localize } from '../../../../../nls.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import type { AutomationTriggerDefinition } from '../../../../../platform/github/common/missionControl/automations.js';
 import { ChatPermissionLevel } from '../constants.js';
-import { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, IAutomationSessionTemplate, AutomationTarget } from './automation.js';
+import { IAutomationCloudTrigger, IAutomationDescriptor, IAutomationRun, IAutomationSchedule, IAutomationSessionTemplate, AutomationTarget } from './automation.js';
 
 export const IAutomationService = createDecorator<IAutomationService>('automationService');
 export const ConfigureAutomationToolReferenceName = 'configureAutomation';
@@ -122,6 +122,7 @@ export interface ICreateAutomationOptions {
 	readonly name: string;
 	readonly prompt: string;
 	readonly schedule: IAutomationSchedule;
+	readonly cloudTrigger?: IAutomationCloudTrigger;
 	readonly target: AutomationTarget;
 	readonly sessionTemplate?: IAutomationSessionTemplate;
 	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
@@ -160,6 +161,7 @@ export interface IUpdateAutomationOptions {
 	readonly name?: string;
 	readonly prompt?: string;
 	readonly schedule?: IAutomationSchedule;
+	readonly cloudTrigger?: IAutomationCloudTrigger;
 	readonly target?: AutomationTarget;
 	readonly sessionTemplate?: IAutomationSessionTemplate | null;
 	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */

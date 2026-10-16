@@ -305,6 +305,76 @@ suite('Automation dialog creation', () => {
 		};
 	}
 
+	const issueCatalog = [
+		{ name: 'issues', title: 'Issue created', description: '', fields: [{ name: 'types', required: true, options: ['opened'] }] },
+		{ name: 'issue_labeled', title: 'Issue labeled', description: '', fields: [{ name: 'types', required: true, options: ['labeled'] }, { name: 'labels', label: 'Labels', required: true }, { name: 'query', label: 'Query', required: false }] },
+	];
+
+	function eventConfiguration(): IAutomationProviderConfiguration {
+		return { ...cloudConfiguration(undefined, constObservable(toolCatalog([]))), triggers: constObservable({ kind: 'ready', definitions: issueCatalog }), loadTriggers: () => { } };
+	}
+
+	function eventAutomation(triggers: NonNullable<IAutomationDescriptor['cloudTrigger']>['triggers']): IAutomationDescriptor {
+		return {
+			id: 'events', name: 'Triage', prompt: 'Triage issues', enabled: true, createdAt: '', updatedAt: '',
+			schedule: { interval: 'custom', timeZone: 'UTC', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'workspace', folderUri: REPOSITORY, providerId: 'cloud', sessionTypeId: 'cloud-agent', isolation: { kind: 'default' } },
+			cloudTrigger: { triggers, requireActorWritePermission: true }, externalResource: URI.parse('https://github.com/owner/private/agents/automations/events'),
+		};
+	}
+
+	test('Issue creation validates required filters and permits zero selected tools', async () => {
+		const initial = eventAutomation({});
+		const dialog = openDialog({ initialValues: { ...initial, schedule: { ...initial.schedule, interval: 'daily' } } }, eventConfiguration());
+		const choose = (label: string, value: string) => {
+			const select = dialog.container.querySelector<HTMLSelectElement>(`select[aria-label="${label}"]`)!;
+			select.selectedIndex = Array.from(select.options).findIndex(option => option.text === value);
+			select.dispatchEvent(new (DOM.getWindow(select).Event)('change', { bubbles: true }));
+		};
+		choose('Trigger', 'Issue');
+		choose('Event', 'Issue labeled');
+		const required = dialog.saveButton.getAttribute('aria-disabled');
+		const input = dialog.container.querySelector<HTMLInputElement>('input[aria-label="Labels"]')!;
+		input.value = ' bug, help wanted, , bug ';
+		input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+		const query = dialog.container.querySelector<HTMLInputElement>('input[aria-label="Query"]')!;
+		query.value = ' is:open label:bug ';
+		query.dispatchEvent(new InputEvent('input', { bubbles: true }));
+		dialog.saveButton.click();
+		const result = await dialog.result;
+		assert.deepStrictEqual({ required, trigger: result?.value.cloudTrigger, tools: result?.value.sessionTemplate?.config?.tools }, {
+			required: 'true', trigger: { triggers: { issue_labeled: { types: ['labeled'], labels: ['bug', 'help wanted'], query: 'is:open label:bug' } }, requireActorWritePermission: false }, tools: [],
+		});
+	});
+
+	for (const unsupported of [false, true]) {
+		test(`unrelated dialog edit omits ${unsupported ? 'unsupported mixed' : 'Issue'} triggers and actor settings`, async () => {
+			const existing = eventAutomation(unsupported ? { issues: { types: ['opened'] }, future: { nested: { keep: true } } } : { issues: { types: ['opened'], write_scope: 'repository', allow_copilot_triggers: true } });
+			const dialog = openDialog({ existing }, eventConfiguration());
+			const readOnlyLink = !!dialog.container.querySelector('a[href="https://github.com/owner/private/agents/automations/events"]');
+			dialog.nameInput.value = 'Renamed';
+			dialog.nameInput.dispatchEvent(new InputEvent('input', { bubbles: true }));
+			dialog.saveButton.click();
+			const result = await dialog.result;
+			assert.deepStrictEqual({ readOnlyLink, name: result?.value.name, trigger: result?.value.cloudTrigger, schedule: result?.value.schedule }, {
+				readOnlyLink: unsupported, name: 'Renamed', trigger: undefined, schedule: undefined,
+			});
+		});
+	}
+
+	test('Issue filter edits preserve opaque settings and saved actor permission', async () => {
+		const existing = eventAutomation({ issue_labeled: { types: ['labeled'], labels: ['bug'], write_scope: 'repository', allow_copilot_triggers: true, future: { keep: [1, false] } } });
+		const dialog = openDialog({ existing }, eventConfiguration());
+		const query = dialog.container.querySelector<HTMLInputElement>('input[aria-label="Query"]')!;
+		query.value = ' is:open ';
+		query.dispatchEvent(new InputEvent('input', { bubbles: true }));
+		dialog.saveButton.click();
+		const result = await dialog.result;
+		assert.deepStrictEqual(result?.value.cloudTrigger, {
+			triggers: { issue_labeled: { ...existing.cloudTrigger!.triggers.issue_labeled, query: 'is:open' } }, requireActorWritePermission: true,
+		});
+	});
+
 	test('cloud switch turns cloud mode on and restores local mode', async () => {
 		const dialog = openDialog({}, cloudConfiguration());
 		const toggle = dialog.container.querySelector<HTMLButtonElement>('[role="switch"]')!;
@@ -2029,6 +2099,7 @@ suite('Automation dialog layout', () => {
 				'automation-form-row',
 				'automation-cloud-row',
 				'automation-session-section',
+				'automation-trigger-editor',
 				'automation-form-row automation-form-schedule-row',
 				'automation-target-error',
 			],

@@ -328,6 +328,23 @@
 	gap: var(--vscode-spacing-size100);
 }
 
+.automation-trigger-editor {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size100);
+}
+
+.automation-trigger-editor .automation-form-input-host {
+	gap: var(--vscode-spacing-size80);
+	flex-wrap: wrap;
+}
+
+.automation-trigger-editor label {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+}
+
 .automation-prompt-section {
 	display: flex;
 	flex-direction: column;

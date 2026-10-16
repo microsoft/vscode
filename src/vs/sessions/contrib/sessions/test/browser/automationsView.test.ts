@@ -4054,6 +4054,18 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
+	test('Issue cards and accessible views describe events rather than custom schedules', () => {
+		const { widget, automationService } = setup();
+		const issue = automation({ schedule: { ...hourly(), interval: 'custom', timeZone: 'UTC' }, cloudTrigger: { triggers: { issue_labeled: { types: ['labeled'], labels: ['bug'] } } } });
+		automationService.setAutomations([issue]);
+		assert.deepStrictEqual({
+			badge: widget.element.querySelector('.automations-card-schedule .automations-card-meta-label')?.textContent,
+			label: widget.element.querySelector('.automations-card')?.getAttribute('aria-label'),
+			content: buildAutomationsAccessibleContent([issue], [], 'ready').includes('Triggers: Issue labeled'),
+			custom: buildAutomationsAccessibleContent([issue], [], 'ready').includes('Custom schedule'),
+		}, { badge: 'Issue labeled', label: 'Daily review — Issue labeled', content: true, custom: false });
+	});
+
 	test('accessible view includes automation and run content', () => {
 		assert.strictEqual(
 			buildAutomationsAccessibleContent([automation()], [run({ status: 'failed', errorMessage: 'boom' })], 'ready').includes('Daily review, Failed'),

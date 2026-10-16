@@ -76,6 +76,7 @@ import { ISessionsManagementService } from '../../../services/sessions/common/se
 import { IAutomationSessionConfiguration } from '../../../services/sessions/common/sessionsProvider.js';
 import { showMobileWorkspacePickerSheet, shouldUseMobileWorkspacePickerSheet } from '../../chat/browser/mobile/mobileWorkspacePickerSheet.js';
 import { AutomationInputCompletions } from './automationInputCompletions.js';
+import { AutomationTriggerEditor, IAutomationTriggerFormState } from './automationTriggerEditor.js';
 import { NewChatModelPickerService, INewChatModelPickerService } from '../../chat/browser/newChatModelPicker.js';
 import { createNewSessionControlToolbar } from '../../chat/browser/newSessionConfigToolbars.js';
 import { ISessionModelSelection, SessionModelSelection } from '../../chat/browser/sessionModelSelection.js';
@@ -223,7 +224,7 @@ export function registerAutomationDialogKeyboardNavigation(
 	};
 }
 
-export interface IFormState {
+export interface IFormState extends IAutomationTriggerFormState {
 	name: string;
 	interval: AutomationInterval;
 	hour: number;
@@ -241,6 +242,7 @@ export interface IFormState {
 	resolvedFolderUri?: URI;
 	targetDisabledReason?: string;
 	targetPending?: { readonly message: string };
+	triggerExternalResource?: URI;
 }
 
 export interface IValidationState {
@@ -1113,6 +1115,7 @@ export function renderForm(
 	DOM.append(cloudRow, cloudSwitch.domNode);
 
 	const sessionSection = DOM.append(formContent, $('.automation-session-section'));
+	const triggerContainer = DOM.append(formContent, $('.automation-trigger-editor'));
 	const scheduleRow = DOM.append(formContent, $('.automation-form-row.automation-form-schedule-row'));
 	const scheduleSelectOptions: ISelectBoxOptions = {
 		useCustomDrawn: !hasNativeContextMenu(configurationService),
@@ -1222,6 +1225,26 @@ export function renderForm(
 		return getProviderConfiguration(cloudProvider.read(reader));
 	});
 	const cloudConfiguration = derived(reader => runInCloud.read(reader) ? availableCloudConfiguration.read(reader) : undefined);
+	const triggerEditor = disposables.add(instantiationService.createInstance(AutomationTriggerEditor,
+		triggerContainer, state, isEdit ? state.cloudTrigger : undefined, state.triggerExternalResource, scheduleSelectOptions, () => {
+			const eventMode = runInCloud.get() && !!state.cloudTrigger;
+			if (eventMode) {
+				state.interval = 'custom';
+			} else if (state.interval === 'custom' && !state.triggerReadOnly) {
+				state.interval = 'daily';
+			}
+			scheduleRow.style.display = eventMode ? 'none' : '';
+			updateIntervalOptions(runInCloud.get());
+			revalidate();
+		}, () => cloudConfiguration.get()?.loadTriggers?.()));
+	disposables.add(autorun(reader => {
+		const configuration = cloudConfiguration.read(reader);
+		const catalog = configuration?.triggers?.read(reader);
+		if (catalog?.kind === 'loading') {
+			configuration?.loadTriggers?.();
+		}
+		triggerEditor.update(catalog, configuration !== undefined && configuration.triggers !== undefined);
+	}));
 	// Shown whenever cloud automations are enabled, decided once so the switch never appears or disappears
 	// while the dialog is open. Turning it on connects to the provider when it cannot create yet.
 	const showCloudSwitch = isEdit ? initialProviderConfiguration !== undefined : cloudProvider.get() !== undefined;
@@ -2353,13 +2376,15 @@ export function updateSaveButtonState(
 	const utcSchedule = state.timeZone === 'UTC' ? automationScheduleToUTC({
 		interval: state.interval, scheduleHour: state.hour, scheduleMinute: state.minute, scheduleDay: state.day,
 	}, state.timezoneOffset) : undefined;
-	validation.scheduleError = !INTERVALS.some(item => item.value === state.interval)
-		? localize('automation.form.scheduleRequired', "Choose a supported schedule.")
-		: utcSchedule && state.interval === 'weekdays'
-			? localize('automation.form.cloudWeekdays', "Weekdays is only available for local automations. Choose a supported schedule for Cloud.")
-			: utcSchedule && (state.interval === 'daily' || state.interval === 'weekly') && utcSchedule.scheduleMinute % 15 !== 0
-				? localize('automation.form.cloudScheduleMinute', "Choose a time that corresponds to minute 00, 15, 30, or 45 in UTC.")
-				: undefined;
+	validation.scheduleError = state.timeZone === 'UTC' && state.cloudTrigger
+		? state.triggerReadOnly ? undefined : state.triggerError
+		: !INTERVALS.some(item => item.value === state.interval)
+			? localize('automation.form.scheduleRequired', "Choose a supported schedule.")
+			: utcSchedule && state.interval === 'weekdays'
+				? localize('automation.form.cloudWeekdays', "Weekdays is only available for local automations. Choose a supported schedule for Cloud.")
+				: utcSchedule && (state.interval === 'daily' || state.interval === 'weekly') && utcSchedule.scheduleMinute % 15 !== 0
+					? localize('automation.form.cloudScheduleMinute', "Choose a time that corresponds to minute 00, 15, 30, or 45 in UTC.")
+					: undefined;
 	const valid = !validation.nameError && !validation.promptError && !validation.folderError && !validation.sessionTypeError && !validation.branchError && !validation.scheduleError;
 	if (saveButton) {
 		saveButton.enabled = valid && !state.targetPending;

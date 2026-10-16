@@ -442,7 +442,7 @@ suite('CloudAutomationStore', () => {
 			assert.deepStrictEqual({
 				result, requests: api.dispatchRequests, readOnly: !!provider.getAutomation(id)?.readOnlyReason,
 				canRun: provider.canRunAutomation(id), canUpdate: provider.canUpdateAutomation(id),
-			}, { result: { kind: 'accepted' }, requests: [{ event: 'manual' }], readOnly: true, canRun: true, canUpdate: false });
+			}, { result: { kind: 'accepted' }, requests: [{ event: 'manual' }], readOnly: false, canRun: true, canUpdate: true });
 		});
 	}
 
@@ -1196,6 +1196,29 @@ suite('CloudAutomationStore', () => {
 			failed, loaded, requests: api.calls.filter(call => call === 'triggers').length,
 			reset: provider.configuration.triggers!.get(),
 		}, { failed: 'error', loaded: { kind: 'ready', definitions: api.triggerDefinitions }, requests: 2, reset: { kind: 'loading' } });
+	});
+
+	test('Issue creation and explicit edits round trip without granting tool permissions', async () => {
+		const { provider, api, set } = setup();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		provider.configuration.loadTriggers!();
+		await timeout(0);
+		const trigger = { triggers: { issues: { types: ['opened'], write_scope: 'repository' as const, allow_copilot_triggers: true, future: { keep: 1 } } }, requireActorWritePermission: true };
+		const created = await provider.createAutomation({
+			name: 'Issue', prompt: 'Triage', schedule: manual, cloudTrigger: trigger, sessionTemplate: { config: { tools: [] } },
+			target: { kind: 'workspace', folderUri: workspace, providerId: 'cloud', sessionTypeId: 'cloud-agent', isolation: { kind: 'default' } },
+		});
+		api.definitions = [{ ...definition, triggers: trigger.triggers, require_actor_write_permission: true }];
+		await provider.refresh();
+		const automation = provider.automations.get()[0];
+		await provider.updateAutomation(automation.id, { cloudTrigger: { ...trigger, requireActorWritePermission: false } });
+		const actorPatch = api.patch;
+		await provider.updateAutomation(automation.id, { name: 'Rename' });
+		assert.deepStrictEqual({
+			created: created.cloudTrigger, tools: api.created?.tools, permissions: Object.hasOwn(api.created!, 'permissions'), toolsets: api.created?.github_mcp_toolsets,
+			actorPatch, rename: api.patch, canRun: provider.canRunAutomation(automation.id),
+		}, { created: trigger, tools: [], permissions: false, toolsets: undefined, actorPatch: { require_actor_write_permission: false }, rename: { name: 'Rename' }, canRun: false });
 	});
 
 	test('unrelated patches omit unsupported triggers and opaque settings', async () => {
