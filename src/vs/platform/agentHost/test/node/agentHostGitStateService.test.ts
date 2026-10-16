@@ -682,11 +682,15 @@ suite('AgentHostGitStateService', () => {
 		});
 		const deferredResult = new DeferredPromise<ISessionGitState | undefined>();
 		h.setGitResultPromise(deferredResult.p);
+		const gitLookupStarted = new DeferredPromise<void>();
+		const getSessionGitState = h.gitService.getSessionGitState;
+		h.gitService.getSessionGitState = (directory, baseBranch) => {
+			gitLookupStarted.complete();
+			return getSessionGitState(directory, baseBranch);
+		};
 
 		const refresh = h.service.refreshSessionGitState(SESSION, repository);
-		while (h.gitCalls.length === 0) {
-			await Promise.resolve();
-		}
+		await gitLookupStarted.p;
 		h.stateManager.dispatchServerAction(SESSION, {
 			type: ActionType.SessionWorkingDirectoryReplaced,
 			directory: repository.toString(),
@@ -1543,6 +1547,37 @@ suite('AgentHostGitStateService', () => {
 		await h.service.refreshSessionGitState(SESSION, undefined);
 
 		assert.deepStrictEqual(h.gitBaseBranches, ['main']);
+	}));
+
+	for (const project of [undefined, WORKING_DIRECTORY]) {
+		test(`folder sessions prefer their persisted base with project ${project ?? 'unset'}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const h = createHarness();
+			seedSession(h.stateManager, {
+				workingDirectory: WORKING_DIRECTORY,
+				project,
+				isolation: 'folder',
+				gitState: { branchName: 'feature', baseBranchName: 'main' },
+			});
+			await h.db.setMetadata(META_DIFF_BASE_BRANCH, 'origin/release');
+			h.setGitResult({ branchName: 'feature', baseBranchName: 'release' });
+
+			await h.service.refreshSessionGitState(SESSION, undefined);
+
+			assert.deepStrictEqual(h.gitBaseBranches, ['release']);
+		}));
+	}
+
+	test('existing folder sessions without a persisted base retain their Git-state fallback', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, isolation: 'folder', gitState: { branchName: 'feature', baseBranchName: 'main' } });
+		h.setGitResult({ branchName: 'feature', baseBranchName: 'main' });
+
+		await h.service.refreshSessionGitState(SESSION, undefined);
+
+		assert.deepStrictEqual({
+			baseBranches: h.gitBaseBranches,
+			persisted: await h.db.getMetadata(META_DIFF_BASE_BRANCH),
+		}, { baseBranches: ['main'], persisted: undefined });
 	}));
 
 	test('uses folder-scoped base branches after moving only the main chat to another workspace', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

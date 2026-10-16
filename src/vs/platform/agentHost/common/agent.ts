@@ -23,7 +23,7 @@ import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from 
 import type { CanvasState } from './state/protocol/channels-canvas/state.js';
 import { subagentChatUri, type ChatUriFormat } from './agentHostChatMinting.js';
 import { ProtectedResourceMetadata, type BackgroundWork, type Changeset, type ChatInteractivity, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
-import type { ActionOrigin, AuthRequiredParams, SessionAction, ChatAction } from './state/sessionActions.js';
+import type { ActionOrigin, AuthRequiredParams, SessionAction, ChatAction, ProgressParams } from './state/sessionActions.js';
 import { AHP_CHAT_SCHEME, ChatInputResponseKind, ChatOriginKind, SessionStatus, type AgentCapabilities, type ClientPluginCustomization, type Customization, type ErrorInfo, type ISessionFolderPickerDecision, type Message, type PendingMessage, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
 
 /** Permission response provenance and its originating client. */
@@ -1174,6 +1174,11 @@ export interface IAgentResolveChatConfigParams {
 	readonly config?: Record<string, unknown>;
 }
 
+/** A policy query failed before the provider could apply a selection or send a prompt. */
+export class AgentPolicyError extends Error {
+	readonly code = 'policyResolutionFailed';
+}
+
 export interface IAgentChatConfigCompletionsParams extends IAgentResolveChatConfigParams {
 	readonly property: string;
 	readonly query?: string;
@@ -1677,6 +1682,9 @@ export interface IAgent {
 
 	/** Streamed progress for an exact chat. */
 	readonly onDidChatProgress: Event<AgentSignal>;
+
+	/** Host-wide progress for provider setup, including work without a chat yet. */
+	readonly onDidReportProgress?: Event<Omit<ProgressParams, 'channel'>>;
 
 	/** Optional admitted native metadata stream for environment-owned session mirroring. */
 	readonly onDidChatSessionEvent?: Event<IAgentChatSessionEvent>;
