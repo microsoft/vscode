@@ -208,7 +208,7 @@ function parseMissionControlExpiration(expiration: string): number {
 	return expiresAt;
 }
 
-async function resolveMissionControlIdentity(fetcher: typeof fetch, apiOrigin: string, credential: string): Promise<{ owner: string; expiresAt?: number }> {
+export async function resolveMissionControlIdentity(fetcher: typeof fetch, apiOrigin: string, credential: string): Promise<{ owner: string; expiresAt?: number }> {
 	if (!/^[\x21-\x7e]+$/.test(credential)) {
 		throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Invalid GitHub credential encoding');
 	}
@@ -265,7 +265,6 @@ export class MissionControlAuthentication extends Disposable {
 		private readonly _fetch: typeof fetch,
 		private readonly _requireBinding: boolean,
 		private readonly _isCurrentIdentityAuthority: () => boolean = () => true,
-		private readonly _getLocalCredential?: () => string | undefined,
 	) { super(); }
 
 	beginHandshake(): void {
@@ -286,6 +285,10 @@ export class MissionControlAuthentication extends Disposable {
 
 	get resource(): string {
 		return this._apiOrigin;
+	}
+
+	get owner(): string {
+		return this._owner;
 	}
 
 	captureAuthorization(): () => void {
@@ -399,25 +402,6 @@ export class MissionControlAuthentication extends Disposable {
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Credential does not belong to the registered owner');
 			}
 		}
-		let localCredential: string | undefined;
-		let localExpiresAt: number | undefined;
-		if (this._getLocalCredential && params.resource === this._apiOrigin) {
-			if (this._closed || generation !== this._generation || !this._isCurrentIdentityAuthority()) {
-				throw new ProtocolError(JsonRpcErrorCodes.InvalidRequest, 'Relay authentication belongs to an expired handshake');
-			}
-			localCredential = this._getLocalCredential();
-			if (!localCredential) {
-				throw new ProtocolError(JsonRpcErrorCodes.InvalidRequest, 'Mission Control local credential is unavailable');
-			}
-			const validated = await resolveMissionControlIdentity(this._fetch, this._apiOrigin, localCredential);
-			localExpiresAt = validated.expiresAt;
-			if (validated.owner !== this._owner) {
-				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Local credential does not belong to the registered owner');
-			}
-			if (localCredential !== this._getLocalCredential()) {
-				throw new ProtocolError(JsonRpcErrorCodes.InvalidRequest, 'Mission Control local credential changed during authentication');
-			}
-		}
 		if (this._closed || generation !== this._generation || !this._isCurrentIdentityAuthority()) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidRequest, 'Relay authentication belongs to an expired handshake');
 		}
@@ -426,7 +410,7 @@ export class MissionControlAuthentication extends Disposable {
 			if (attempt !== this._identityAttempt) {
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidRequest, 'Relay identity authentication was superseded');
 			}
-			if ((expiresAt !== undefined && expiresAt <= Date.now()) || (localExpiresAt !== undefined && localExpiresAt <= Date.now())) {
+			if (expiresAt !== undefined && expiresAt <= Date.now()) {
 				throw new ProtocolError(AhpErrorCodes.AuthRequired, 'GitHub credential has expired');
 			}
 			this._checkExpiration();
@@ -438,12 +422,11 @@ export class MissionControlAuthentication extends Disposable {
 		if (!identity) {
 			return { ...params, token: opened.token };
 		}
-		const deadline = localCredential ? localExpiresAt : expiresAt;
 		const { expiresIn: _expiresIn, ...validatedParams } = params;
 		return {
-			...(localCredential ? { resource: params.resource } : validatedParams),
-			token: localCredential ?? opened.token,
-			...(deadline !== undefined ? { expiresIn: (deadline - Date.now()) / 1000 } : {}),
+			...validatedParams,
+			token: opened.token,
+			...(expiresAt !== undefined ? { expiresIn: (expiresAt - Date.now()) / 1000 } : {}),
 		};
 	}
 }
