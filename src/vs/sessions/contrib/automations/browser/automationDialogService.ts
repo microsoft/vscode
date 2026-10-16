@@ -131,6 +131,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 			timeZone: initial?.schedule.timeZone,
 			timezoneOffset,
 			cloudTrigger: existing?.schedule.interval === 'custom' ? existing.cloudTrigger : undefined,
+			initialActorWritePermission: existing?.cloudTrigger?.requireActorWritePermission,
 			triggerExternalResource: existing?.externalResource,
 		};
 

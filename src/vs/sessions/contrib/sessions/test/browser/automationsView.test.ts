@@ -4066,6 +4066,17 @@ suite('AutomationsCardsWidget', () => {
 		}, { badge: 'Issue labeled', label: 'Daily review — Issue labeled', content: true, custom: false });
 	});
 
+	test('PR cards use Multiple while their accessible summary includes each event', () => {
+		const { widget, automationService } = setup();
+		const pr = automation({ schedule: { ...hourly(), interval: 'custom', timeZone: 'UTC' }, cloudTrigger: { triggers: { pull_request_opened: { types: ['opened'] }, pull_request_comment: { types: ['timeline_comment', 'review_comment'] } } } });
+		automationService.setAutomations([pr]);
+		assert.deepStrictEqual({
+			badge: widget.element.querySelector('.automations-card-schedule .automations-card-meta-label')?.textContent,
+			label: widget.element.querySelector('.automations-card')?.getAttribute('aria-label'),
+			content: buildAutomationsAccessibleContent([pr], [], 'ready').includes('Triggers: Pull request opened, Timeline comment, Review comment'),
+		}, { badge: 'Multiple', label: 'Daily review — Pull request opened, Timeline comment, Review comment', content: true });
+	});
+
 	test('accessible view includes automation and run content', () => {
 		assert.strictEqual(
 			buildAutomationsAccessibleContent([automation()], [run({ status: 'failed', errorMessage: 'boom' })], 'ready').includes('Daily review, Failed'),

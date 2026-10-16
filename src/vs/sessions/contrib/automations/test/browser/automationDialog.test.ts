@@ -210,6 +210,12 @@ suite('Automation dialog creation', () => {
 		const nameInput = container.querySelector<HTMLInputElement>('.automation-form-input-host input')!;
 		return {
 			result, saveButton, cancelButton, nameInput, container, providers, actionWidgetService,
+			openEventPicker: () => {
+				container.querySelector<HTMLElement>('.automation-trigger-editor .monaco-button')!.click();
+				const tree = quickInputService.trees.at(-1);
+				assert.ok(tree?.visible);
+				return tree;
+			},
 			openToolsPicker: () => {
 				const button = container.querySelector<HTMLElement>('.automation-provider-tools .monaco-button');
 				assert.ok(button);
@@ -314,6 +320,60 @@ suite('Automation dialog creation', () => {
 		return { ...cloudConfiguration(undefined, constObservable(toolCatalog([]))), triggers: constObservable({ kind: 'ready', definitions: issueCatalog }), loadTriggers: () => { } };
 	}
 
+	const prCatalog = [
+		{ name: 'pull_request_opened', title: 'Opened', description: '', fields: [{ name: 'types', required: true, options: ['opened'] }, { name: 'paths', label: 'Paths', required: false }] },
+		{ name: 'pull_request_comment', title: 'Comment', description: '', fields: [{ name: 'types', required: true, options: ['timeline_comment', 'review_comment'] }, { name: 'body_substring', label: 'Comment text', required: false }] },
+		{ name: 'pull_request_review_submitted', title: 'Review', description: '', fields: [{ name: 'types', required: true, options: ['submitted'] }, { name: 'states', label: 'Review states', required: true, options: ['approved', 'changes_requested', 'commented'] }] },
+	];
+
+	test('PR multi-event authoring retains one event and serializes comments, reviews and paths', async () => {
+		const initial = eventAutomation({});
+		const configuration = { ...eventConfiguration(), triggers: constObservable({ kind: 'ready' as const, definitions: prCatalog }) };
+		const dialog = openDialog({ initialValues: { ...initial, schedule: { ...initial.schedule, interval: 'daily' } } }, configuration);
+		const family = dialog.container.querySelector<HTMLSelectElement>('select[aria-label="Trigger"]')!;
+		family.selectedIndex = 1;
+		family.dispatchEvent(new (DOM.getWindow(family).Event)('change', { bubbles: true }));
+		const picker = dialog.openEventPicker();
+		picker.toggle('Pull request opened');
+		assert.deepStrictEqual(picker.checkedLeafItems.map(item => item.label), ['Pull request opened']);
+		for (const label of ['Timeline comment', 'Review comment', 'Review submitted']) {
+			picker.toggle(label);
+		}
+		picker.accept();
+		assert.strictEqual(dialog.saveButton.getAttribute('aria-disabled'), 'true');
+		for (const [label, value] of [['Paths', ' src/**, !src/generated/** '], ['Comment text', ' /review ']]) {
+			const input = dialog.container.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)!;
+			input.value = value;
+			input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+		}
+		dialog.container.querySelector<HTMLElement>('[role="checkbox"][aria-label="approved"]')!.click();
+		dialog.saveButton.click();
+		const result = await dialog.result;
+		assert.deepStrictEqual(result?.value.cloudTrigger, {
+			triggers: {
+				pull_request_opened: { types: ['opened'], paths: ['src/**', '!src/generated/**'] },
+				pull_request_comment: { types: ['timeline_comment', 'review_comment'], body_substring: '/review' },
+				pull_request_review_submitted: { types: ['submitted'], states: ['approved'] },
+			}, requireActorWritePermission: false,
+		});
+	});
+
+	test('PR event selection preserves unedited entries and shared comment filters', async () => {
+		const triggers = {
+			pull_request_opened: { types: ['opened'], paths: ['src/**'], opaque: { keep: true } },
+			pull_request_comment: { types: ['review_comment'], body_substring: '/review', write_scope: 'repository' as const, allow_copilot_triggers: true },
+		};
+		const dialog = openDialog({ existing: eventAutomation(triggers) }, { ...eventConfiguration(), triggers: constObservable({ kind: 'ready', definitions: prCatalog }) });
+		const picker = dialog.openEventPicker();
+		picker.toggle('Timeline comment');
+		picker.accept();
+		dialog.saveButton.click();
+		const result = await dialog.result;
+		assert.deepStrictEqual(result?.value.cloudTrigger, {
+			triggers: { ...triggers, pull_request_comment: { ...triggers.pull_request_comment, types: ['timeline_comment', 'review_comment'] } }, requireActorWritePermission: true,
+		});
+	});
+
 	function eventAutomation(triggers: NonNullable<IAutomationDescriptor['cloudTrigger']>['triggers']): IAutomationDescriptor {
 		return {
 			id: 'events', name: 'Triage', prompt: 'Triage issues', enabled: true, createdAt: '', updatedAt: '',
@@ -361,6 +421,19 @@ suite('Automation dialog creation', () => {
 			});
 		});
 	}
+
+	test('switching a saved schedule to Issue keeps its actor permission', async () => {
+		const existing = { ...eventAutomation({}), schedule: { interval: 'manual' as const, timeZone: 'UTC' as const, scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 } };
+		const dialog = openDialog({ existing }, eventConfiguration());
+		const family = dialog.container.querySelector<HTMLSelectElement>('select[aria-label="Trigger"]')!;
+		family.selectedIndex = 1;
+		family.dispatchEvent(new (DOM.getWindow(family).Event)('change', { bubbles: true }));
+		dialog.saveButton.click();
+		const result = await dialog.result;
+		assert.deepStrictEqual({ trigger: result?.value.cloudTrigger, schedule: result?.value.schedule }, {
+			trigger: { triggers: { issues: { types: ['opened'] } }, requireActorWritePermission: true }, schedule: undefined,
+		});
+	});
 
 	test('Issue filter edits preserve opaque settings and saved actor permission', async () => {
 		const existing = eventAutomation({ issue_labeled: { types: ['labeled'], labels: ['bug'], write_scope: 'repository', allow_copilot_triggers: true, future: { keep: [1, false] } } });

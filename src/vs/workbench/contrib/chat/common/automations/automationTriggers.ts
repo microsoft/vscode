@@ -17,8 +17,16 @@ export interface IAutomationTriggerField {
 const scalarFields = new Set(['query', 'body_substring']);
 const arrayFields = new Set(['labels', 'assignees', 'paths', 'states']);
 const preservedFields = new Set(['write_scope', 'allow_copilot_triggers']);
+const fieldLabels: Readonly<Record<string, string>> = {
+	query: localize('automation.trigger.query', "Query"),
+	body_substring: localize('automation.trigger.body', "Comment text"),
+	labels: localize('automation.trigger.labels', "Labels added"),
+	assignees: localize('automation.trigger.assignees', "Assignees"),
+	paths: localize('automation.trigger.paths', "Changed paths"),
+	states: localize('automation.trigger.states', "Review states"),
+};
 
-export type AutomationTriggerFamily = 'issue';
+export type AutomationTriggerFamily = 'issue' | 'pullRequest';
 
 interface IEvent {
 	readonly name: string;
@@ -34,6 +42,23 @@ const events: readonly IEvent[] = [
 	{ name: 'issue_comment', type: 'created', family: 'issue', label: localize('automation.event.issueComment', "Issue comment") },
 	{ name: 'issue_closed', type: 'closed', family: 'issue', label: localize('automation.event.issueClosed', "Issue closed") },
 	{ name: 'issue_reopened', type: 'reopened', family: 'issue', label: localize('automation.event.issueReopened', "Issue reopened") },
+	{ name: 'pull_request_opened', type: 'opened', family: 'pullRequest', label: localize('automation.event.prOpened', "Pull request opened") },
+	{ name: 'pull_request_synchronize', type: 'synchronize', family: 'pullRequest', label: localize('automation.event.prSynchronized', "Pull request synchronized") },
+	{ name: 'pull_request_merged', type: 'merged', family: 'pullRequest', label: localize('automation.event.prMerged', "Pull request merged") },
+	{ name: 'pull_request_assigned', type: 'assigned', family: 'pullRequest', label: localize('automation.event.prAssigned', "Pull request assigned") },
+	{ name: 'pull_request_labeled', type: 'labeled', family: 'pullRequest', label: localize('automation.event.prLabeled', "Pull request labeled") },
+	{ name: 'pull_request_ready_for_review', type: 'ready_for_review', family: 'pullRequest', label: localize('automation.event.prReady', "Pull request ready for review") },
+	{ name: 'pull_request_closed', type: 'closed', family: 'pullRequest', label: localize('automation.event.prClosed', "Pull request closed") },
+	{ name: 'pull_request_reopened', type: 'reopened', family: 'pullRequest', label: localize('automation.event.prReopened', "Pull request reopened") },
+	{ name: 'pull_request_converted_to_draft', type: 'converted_to_draft', family: 'pullRequest', label: localize('automation.event.prDraft', "Pull request converted to draft") },
+	{ name: 'pull_request_merge_conflict', type: 'conflicted', family: 'pullRequest', label: localize('automation.event.prConflict', "Pull request merge conflict") },
+	{ name: 'pull_request_comment', type: 'timeline_comment', family: 'pullRequest', label: localize('automation.event.prTimelineComment', "Timeline comment") },
+	{ name: 'pull_request_comment', type: 'review_comment', family: 'pullRequest', label: localize('automation.event.prReviewComment', "Review comment") },
+	{ name: 'pull_request_review_submitted', type: 'submitted', family: 'pullRequest', label: localize('automation.event.prReviewSubmitted', "Review submitted") },
+	{ name: 'pull_request_review_requested', type: 'requested', family: 'pullRequest', label: localize('automation.event.prReviewRequested', "Review requested") },
+	{ name: 'pull_request_review_dismissed', type: 'dismissed', family: 'pullRequest', label: localize('automation.event.prReviewDismissed', "Review dismissed") },
+	{ name: 'pull_request_review_thread_resolved', type: 'resolved', family: 'pullRequest', label: localize('automation.event.prThreadResolved', "Review thread resolved") },
+	{ name: 'pull_request_review_thread_unresolved', type: 'unresolved', family: 'pullRequest', label: localize('automation.event.prThreadUnresolved', "Review thread unresolved") },
 ];
 
 export interface IAutomationTriggerChoice extends IEvent {
@@ -57,7 +82,22 @@ export function automationTriggerFamily(triggers: Readonly<Record<string, Automa
 	if (!selected.length || selected.some(event => !event) || selected.some(event => event?.family !== selected[0]?.family)) {
 		return undefined;
 	}
-	return selected.length === 1 ? selected[0]?.family : undefined;
+	return selected[0]?.family === 'pullRequest' || selected.length === 1 ? selected[0]?.family : undefined;
+}
+
+/** Keeps existing event entries intact when only the event selection changes. */
+export function selectAutomationTriggerEvents(current: Readonly<Record<string, AutomationTrigger>>, selected: readonly IAutomationTriggerChoice[]): Readonly<Record<string, AutomationTrigger>> {
+	const result: Record<string, AutomationTrigger> = {};
+	for (const choice of selected) {
+		const types = [...(result[choice.name]?.types ?? []), choice.type];
+		result[choice.name] = { ...current[choice.name], types };
+	}
+	for (const [name, trigger] of Object.entries(result)) {
+		if (current[name]?.types?.length === trigger.types?.length && current[name].types?.every(type => trigger.types?.includes(type))) {
+			result[name] = current[name];
+		}
+	}
+	return result;
 }
 
 export function canEditAutomationTriggers(triggers: Readonly<Record<string, AutomationTrigger>>, choices: readonly IAutomationTriggerChoice[]): boolean {
@@ -94,7 +134,7 @@ export function automationTriggerFields(definition: AutomationTriggerDefinition)
 		if (field.type && field.type !== (scalar ? 'string' : 'string_array')) {
 			return undefined;
 		}
-		fields.push({ name, label: field.label ?? definition.field_labels?.[name] ?? name, scalar, required: field.required, options: field.options });
+		fields.push({ name, label: field.label ?? definition.field_labels?.[name] ?? fieldLabels[name], scalar, required: field.required, options: field.options });
 	}
 	return fields;
 }

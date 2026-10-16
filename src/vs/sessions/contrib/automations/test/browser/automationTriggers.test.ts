@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { automationTriggerFields, normalizeAutomationTriggerField, validateAutomationTriggerFields } from '../../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
+import { automationTriggerChoices, automationTriggerFamily, automationTriggerFields, automationTriggerSummary, canEditAutomationTriggers, normalizeAutomationTriggerField, selectAutomationTriggerEvents, validateAutomationTriggerFields } from '../../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
 
 suite('Automation triggers', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -45,8 +45,45 @@ suite('Automation triggers', () => {
 			unknownOption: validateAutomationTriggerFields(fields, { states: ['future'] }),
 			valid: validateAutomationTriggerFields(fields, { states: ['approved'], opaque: true }),
 		}, {
-			unknown: undefined, wrongType: undefined, empty: 'states is required.',
-			unknownOption: 'Choose a supported value for states.', valid: undefined,
+			unknown: undefined, wrongType: undefined, empty: 'Review states is required.',
+			unknownOption: 'Choose a supported value for Review states.', valid: undefined,
+		});
+	});
+
+	test('frozen menu excludes unsupported events, types and fields, including status and legacy PR triggers', () => {
+		const definitions = [
+			{ name: 'pull_request_opened', title: '', description: '', fields: [{ name: 'types', required: true, options: ['opened', 'future'] }] },
+			{ name: 'issue_status_changed', title: '', description: '', fields: [{ name: 'types', required: true, options: ['changed'] }] },
+			{ name: 'pull_request', title: '', description: '', fields: [{ name: 'types', required: true, options: ['opened'] }] },
+			{ name: 'pull_request_review_submitted', title: '', description: '', fields: [{ name: 'types', required: true, options: ['submitted'] }, { name: 'future', required: true }] },
+		];
+		const choices = automationTriggerChoices(definitions);
+		assert.deepStrictEqual({
+			choices: choices.map(choice => [choice.name, choice.type]),
+			legacy: automationTriggerFamily({ pull_request: { types: ['opened'] } }),
+			mixed: automationTriggerFamily({ issues: { types: ['opened'] }, pull_request_opened: { types: ['opened'] } }),
+			empty: automationTriggerFamily({ issues: { types: ['opened'] }, pull_request_opened: { types: [] } }),
+			status: canEditAutomationTriggers({ issue_status_changed: { types: ['changed'] } }, choices),
+		}, { choices: [['pull_request_opened', 'opened']], legacy: undefined, mixed: undefined, empty: undefined, status: false });
+	});
+
+	test('PR comment kinds share an entry and changing events preserves untouched entries and opaque fields', () => {
+		const choices = automationTriggerChoices([
+			{ name: 'pull_request_comment', title: '', description: '', fields: [{ name: 'types', required: true, options: ['timeline_comment', 'review_comment'] }, { name: 'body_substring', required: false }] },
+			{ name: 'pull_request_opened', title: '', description: '', fields: [{ name: 'types', required: true, options: ['opened'] }, { name: 'paths', required: false }] },
+		]);
+		const current = { pull_request_comment: { types: ['review_comment', 'timeline_comment'], body_substring: '/review', write_scope: 'trigger' as const, allow_copilot_triggers: true, opaque: [1, false] } };
+		const selected = selectAutomationTriggerEvents(current, choices);
+		const onlyReview = selectAutomationTriggerEvents(selected, choices.filter(choice => choice.type !== 'timeline_comment'));
+		assert.deepStrictEqual({
+			unchanged: selected.pull_request_comment === current.pull_request_comment,
+			family: automationTriggerFamily(selected),
+			summary: automationTriggerSummary(selected),
+			badge: automationTriggerSummary(selected, true),
+			onlyReview,
+		}, {
+			unchanged: true, family: 'pullRequest', summary: 'Review comment, Timeline comment, Pull request opened', badge: 'Multiple',
+			onlyReview: { pull_request_comment: { ...current.pull_request_comment, types: ['review_comment'] }, pull_request_opened: { types: ['opened'] } },
 		});
 	});
 });

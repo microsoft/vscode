@@ -1221,6 +1221,51 @@ suite('CloudAutomationStore', () => {
 		}, { created: trigger, tools: [], permissions: false, toolsets: undefined, actorPatch: { require_actor_write_permission: false }, rename: { name: 'Rename' }, canRun: false });
 	});
 
+	test('PR filters round trip through create and edit while retaining unedited event entries', async () => {
+		const { provider, api, set } = setup();
+		api.triggerDefinitions = [
+			{ name: 'pull_request_opened', title: 'Opened', description: '', fields: [{ name: 'types', required: true, options: ['opened'] }, { name: 'paths', required: false }] },
+			{ name: 'pull_request_comment', title: 'Comment', description: '', fields: [{ name: 'types', required: true, options: ['timeline_comment', 'review_comment'] }, { name: 'body_substring', required: false }] },
+		];
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		provider.configuration.loadTriggers!();
+		await timeout(0);
+		const triggers = {
+			pull_request_opened: { types: ['opened'], paths: ['src/**', '!generated/**'], opaque: { keep: true } },
+			pull_request_comment: { types: ['timeline_comment', 'review_comment'], body_substring: '/review', write_scope: 'trigger' as const, allow_copilot_triggers: true },
+		};
+		const created = await provider.createAutomation({
+			name: 'Review', prompt: 'Review PR', schedule: manual, cloudTrigger: { triggers },
+			target: { kind: 'workspace', folderUri: workspace, providerId: 'cloud', sessionTypeId: 'cloud-agent', isolation: { kind: 'default' } },
+		});
+		api.definitions = [{ ...definition, ...api.created }];
+		await provider.refresh();
+		const changed = { ...triggers, pull_request_comment: { ...triggers.pull_request_comment, body_substring: '/check' } };
+		const edited = await provider.updateAutomation(created.id, { cloudTrigger: { triggers: changed } });
+		assert.deepStrictEqual({
+			created: created.cloudTrigger, patch: api.patch, edited: edited.cloudTrigger,
+		}, {
+			created: { triggers, requireActorWritePermission: false },
+			patch: { triggers: changed }, edited: { triggers: changed, requireActorWritePermission: false },
+		});
+	});
+
+	test('tools describe event triggers and preserve them on unrelated edits without authoring events', async () => {
+		const { api, set, tools, invoke } = setupTools();
+		api.definitions = [{ ...definition, triggers: { pull_request_comment: { types: ['review_comment'], body_substring: '/review', opaque: true } } }];
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		const [listed] = await invoke(tools.list, {});
+		const automation = listed.automations[0];
+		await invoke(tools.configure, { automationId: automation.id, prompt: 'New prompt' });
+		const patch = api.patch;
+		const rejected = await tools.configure.invoke({ callId: 'call', toolId: 'tool', parameters: { automationId: automation.id, schedule: { interval: 'manual' } }, context: undefined }, async () => 0, { report: () => { } }, CancellationToken.None);
+		assert.deepStrictEqual({ trigger: automation.cloudTrigger, patch, canRun: automation.availableOperations.includes('run'), rejected: rejected.content }, {
+			trigger: { triggers: api.definitions[0].triggers }, patch: { prompt: 'New prompt' }, canRun: false,
+			rejected: [{ kind: 'text', value: 'Edit event triggers in the automation dialog or on GitHub. Omit schedule when editing other fields.' }],
+		});
+	});
+
 	test('unrelated patches omit unsupported triggers and opaque settings', async () => {
 		const { provider, api, set } = setup();
 		const triggers = { issues: { types: ['opened'], write_scope: 'repository' as const, allow_copilot_triggers: true, future: { opaque: [1, false] } }, future_event: { types: ['future'] } };

@@ -2377,7 +2377,7 @@ export function updateSaveButtonState(
 		interval: state.interval, scheduleHour: state.hour, scheduleMinute: state.minute, scheduleDay: state.day,
 	}, state.timezoneOffset) : undefined;
 	validation.scheduleError = state.timeZone === 'UTC' && state.cloudTrigger
-		? state.triggerReadOnly ? undefined : state.triggerError
+		? state.triggerError
 		: !INTERVALS.some(item => item.value === state.interval)
 			? localize('automation.form.scheduleRequired', "Choose a supported schedule.")
 			: utcSchedule && state.interval === 'weekdays'
