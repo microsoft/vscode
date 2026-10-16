@@ -22,6 +22,7 @@ interface IAchievementsEditorFixtureOptions extends IChatPetFixtureOptions {
 	readonly width?: number;
 	readonly height?: number;
 	readonly tab?: ChatPetCustomizationTab;
+	readonly modernUI?: boolean;
 }
 
 function createMockEditorGroup(): IEditorGroup {
@@ -35,6 +36,7 @@ async function renderAchievementsEditor(context: ComponentFixtureContext, option
 	const height = options.height ?? 600;
 	context.container.style.width = `${width}px`;
 	context.container.style.height = `${height}px`;
+	context.container.classList.toggle('modern-ui-tabs', options.modernUI === true);
 	configureChatPetFixtureFileRoot(context.disposableStore);
 
 	const chatPetService = context.disposableStore.add(new FixtureChatPetService(options));
@@ -131,6 +133,28 @@ export default defineThemedFixtureGroup({ path: 'chat/petAchievements/standalone
 			unlockedAchievements: [ChatPetAchievementIds.IntegratedBrowserShared],
 			width: 550,
 			height: 500,
+		}),
+	}),
+	ModernUIAchievements: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast'],
+		render: context => renderAchievementsEditor(context, {
+			enabled: true,
+			modernUI: true,
+			unlockedAchievements: [ChatPetAchievementIds.RequestRevision, ChatPetAchievementIds.FirstChatMessage],
+			unseenAchievements: [ChatPetAchievementIds.FirstChatMessage],
+			selectedAccessory: ChatPetAccessoryIds.TopHatMonocle,
+		}),
+	}),
+	ModernUIColor: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		render: context => renderAchievementsEditor(context, {
+			enabled: true,
+			modernUI: true,
+			tab: 'color',
+			unlockedAchievements: [ChatPetAchievementIds.Blobby],
+			color: '#a277e6',
 		}),
 	}),
 });

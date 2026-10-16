@@ -319,6 +319,9 @@ suite('Chat Pet Achievements Editor', () => {
 
 	test('navigates between Achievements and Color with editor options and accessible tab keys', async () => {
 		const parent = mainWindow.document.createElement('div');
+		parent.classList.add('modern-ui-tabs');
+		parent.style.setProperty('--vscode-modernTab-activeBackground', '#123456');
+		parent.style.setProperty('--vscode-modernTab-activeForeground', '#abcdef');
 		mainWindow.document.body.appendChild(parent);
 		store.add(toDisposable(() => parent.remove()));
 		const storage = store.add(new TestStorageService());
@@ -358,12 +361,16 @@ suite('Chat Pet Achievements Editor', () => {
 			role: page?.getAttribute('role'),
 			label: page?.getAttribute('aria-label'),
 			selectedTabReachable: colorTab.tabIndex,
+			selectedTabBackground: mainWindow.getComputedStyle(colorTab).backgroundColor,
+			selectedTabForeground: mainWindow.getComputedStyle(colorTab).color,
 		}, {
 			pageFocused: true,
 			tabFocused: false,
 			role: 'group',
 			label: 'Customize Blobby',
 			selectedTabReachable: 0,
+			selectedTabBackground: 'rgb(18, 52, 86)',
+			selectedTabForeground: 'rgb(171, 205, 239)',
 		});
 		const initialTab = colorTab.textContent;
 		colorTab.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', keyCode: 37, bubbles: true }));
