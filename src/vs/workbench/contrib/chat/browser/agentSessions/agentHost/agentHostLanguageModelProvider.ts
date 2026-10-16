@@ -148,7 +148,12 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				// nonsense like "Infinity% discount"; the documented range is a whole number in (0, 100].
 				const hasDiscount = typeof discountPercent === 'number' && discountPercent > 0 && discountPercent <= 100;
 				const tierPromotions = fusion ? readAgentModelAutoTierPromotionsMeta(m) : [];
-				const promotionDiscount = AgentHostLanguageModelProvider._wholeModelPromotionDiscount(m, tierPromotions, Date.now());
+				const now = Date.now();
+				const promotionDiscount = AgentHostLanguageModelProvider._wholeModelPromotionDiscount(m, tierPromotions, now);
+				// Ended promotions are dropped and the rest carry their state, so each boundary changes the metadata.
+				const publishedPromotions = tierPromotions
+					.filter(({ endsAt }) => !endsAt || now < Date.parse(endsAt))
+					.map(({ id, message, discountPercent, tierIds, startsAt, endsAt }) => ({ id, message, discountPercent, tierIds, startsAt, endsAt, upcoming: !!startsAt && now < Date.parse(startsAt) }));
 				const { detail, description } = this._routingPresentationFor(m, promotionDiscount ?? (hasDiscount ? discountPercent : undefined));
 				const tooltip = notices?.rowWarning ?? description;
 				const modelGroup = this._modelGroupFor(m);
@@ -175,7 +180,8 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 						...(detail !== undefined && { detail }),
 						...(isAuto && hasDiscount && { autoModelDiscountPercent: discountPercent }),
 						...(fusion && { autoModelFusion: fusion }),
-						...(tierPromotions.length && { autoModelTierPromotions: tierPromotions.map(({ id, message, discountPercent, tierIds, startsAt, endsAt }) => ({ id, message, discountPercent, tierIds, startsAt, endsAt })) }),
+						...(publishedPromotions.length && { autoModelTierPromotions: publishedPromotions }),
+						...(isAuto && readAgentModelAutoTiersMeta(m) && { autoModelProviderTiers: true }),
 						maxInputTokens,
 						maxOutputTokens,
 						maxContextWindowTokens: m.maxContextWindow ?? known?.maxContextWindowTokens,

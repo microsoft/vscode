@@ -1338,6 +1338,7 @@ suite('TabbedModelPicker', () => {
 			...fusion,
 			metadata: {
 				...fusion.metadata,
+				autoModelProviderTiers: true,
 				autoModelTierPromotions: [{ id: 'launch', message: 'Get 30% off Fusion usage.', discountPercent: 30, tierIds: ['balance', 'hydrafusion', 'hydrafusion-max'], startsAt: new Date(Date.now() - day).toISOString() }],
 				configurationSchema: {
 					properties: {
@@ -1361,6 +1362,25 @@ suite('TabbedModelPicker', () => {
 			selections: ['copilot/auto'],
 			tier: 'hydrafusion-max',
 		});
+	});
+
+	test('Fusion does not offer HydraFusion Max beside provider tiers that hide it', () => {
+		const fusion = createFusionModel();
+		const providerFusion: ILanguageModelChatMetadataAndIdentifier = {
+			...fusion,
+			metadata: {
+				...fusion.metadata,
+				autoModelProviderTiers: true,
+				configurationSchema: {
+					properties: {
+						tier: { type: 'string', group: 'navigation', title: 'Effort Level', enum: ['balance', 'hydrafusion'], enumItemLabels: ['Lite', 'Balance'], default: 'balance' },
+					},
+				},
+			},
+		};
+		const result = createPicker({ models: [...models, providerFusion, createHydraFusionModel(), createHydraFusionMaxModel()], selectedModelId: models[0].identifier });
+		openDetails(result.popup, 'Fusion');
+		assert.deepStrictEqual(autoTiers(result.popup), ['Lite', 'Balance']);
 	});
 
 	test('rapid tier edits save in order and report the actual previous values', async () => {

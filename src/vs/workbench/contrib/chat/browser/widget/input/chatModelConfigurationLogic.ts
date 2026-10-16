@@ -116,14 +116,14 @@ export function filterConfigurationToSchema(
 		if (!propSchema) {
 			continue;
 		}
-		if (satisfiesPropertySchema(value, propSchema) && !isDisabledEnumValue(value, propSchema)) {
+		if (satisfiesPropertySchema(value, propSchema)) {
 			result[key] = value;
 		}
 	}
 	return result;
 }
 
-export function isDisabledEnumValue(value: unknown, schema: { enum?: unknown[]; enumItemDisabled?: boolean[] }): boolean {
+export function isDisabledEnumValue(value: unknown, schema: { enum?: unknown[]; enumItemDisabled?: boolean[] } & IJSONSchema): boolean {
 	const index = Array.isArray(schema.enum) ? schema.enum.indexOf(value) : -1;
 	return index >= 0 && schema.enumItemDisabled?.[index] === true;
 }
@@ -136,7 +136,7 @@ function satisfiesPropertySchema(value: unknown, schema: IJSONSchema): boolean {
 	if (schema.const !== undefined && value !== schema.const) {
 		return false;
 	}
-	if (Array.isArray(schema.enum) && !schema.enum.includes(value)) {
+	if (Array.isArray(schema.enum) && (!schema.enum.includes(value) || isDisabledEnumValue(value, schema))) {
 		return false;
 	}
 	if (schema.type !== undefined) {

@@ -536,8 +536,8 @@ export function getCopilotAutoTier(model: ModelSelection | undefined): string | 
 	return isSupportedAutoModeTier(tier) ? tier : undefined;
 }
 
-/** Resolves the shared Auto override, leaving concrete models unchanged. */
-function resolveConfiguredAutoTierOverride(model: ModelSelection | undefined, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string): string | undefined {
+/** Resolves the shared Auto override, leaving concrete models unchanged. `null` applies the override by leaving the tier to the runtime. */
+function resolveConfiguredAutoTierOverride(model: ModelSelection | undefined, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string): string | null | undefined {
 	if (model && !isAutoModel(model.id)) {
 		return undefined;
 	}
@@ -551,7 +551,7 @@ function resolveConfiguredAutoTierOverride(model: ModelSelection | undefined, co
 		return undefined;
 	}
 	logService.info(`[Copilot:${sessionId}] Applying Auto "Optimize for" override '${tier}'`);
-	return toFusionTier(tier, configurationService, logService, sessionId);
+	return toFusionTier(tier, configurationService, logService, sessionId) ?? null;
 }
 
 /** Fusion offers no Efficiency, so it runs as Fusion's default instead, when the provider accepts it. */
@@ -571,7 +571,7 @@ function toFusionTier(tier: string, configurationService: Pick<IAgentConfigurati
 export function resolveCopilotAutoTier(model: ModelSelection | undefined, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string): string | undefined {
 	const override = resolveConfiguredAutoTierOverride(model, configurationService, logService, sessionId);
 	if (override !== undefined) {
-		return override;
+		return override ?? undefined;
 	}
 	const tier = getCopilotAutoTier(model);
 	if (tier === undefined) {
@@ -1340,7 +1340,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			// while a resumed session keeps the effort the runtime journaled unless
 			// an override is configured (encoded like every other path).
 			...(plan.kind === 'resume' ? { reasoningEffort: toRuntimeReasoningEffort(model, resolveConfiguredReasoningEffortOverride(model, this._configurationService, this._logService, plan.sessionId)) } : {}),
-			...(plan.kind === 'resume' ? toSdkCapiSessionOptions(resolveConfiguredAutoTierOverride(model, this._configurationService, this._logService, plan.sessionId)) : {}),
+			...(plan.kind === 'resume' ? toSdkCapiSessionOptions(resolveConfiguredAutoTierOverride(model, this._configurationService, this._logService, plan.sessionId) ?? undefined) : {}),
 			modelCapabilities,
 			enableMcpApps: true,
 			githubMcpToolConfig: { disableFormDeferral: true },

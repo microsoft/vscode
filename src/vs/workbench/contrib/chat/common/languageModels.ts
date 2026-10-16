@@ -256,6 +256,8 @@ export interface IAutoModelTierPromotion {
 	readonly tierIds: readonly string[];
 	readonly startsAt?: string;
 	readonly endsAt?: string;
+	/** Published with the promotion so the metadata changes, and pickers refresh, when it starts. */
+	readonly upcoming?: boolean;
 }
 
 export interface ILanguageModelChatMetadata {
@@ -281,6 +283,8 @@ export interface ILanguageModelChatMetadata {
 	readonly autoModelFusion?: { readonly balanceUsesHydraFusion: boolean };
 	/** Set only on the agent host's Auto model presented as Fusion. */
 	readonly autoModelTierPromotions?: readonly IAutoModelTierPromotion[];
+	/** Auto's tiers come from the provider, which may hide some, including HydraFusion ones. */
+	readonly autoModelProviderTiers?: boolean;
 	readonly multiplierNumeric?: number;
 	readonly isBYOK?: boolean;
 	readonly pricing?: string;

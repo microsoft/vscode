@@ -311,17 +311,19 @@ suite('AgentHostLanguageModelProvider', () => {
 			meta = fusion ? withAgentModelFusionMeta(meta, { balanceUsesHydraFusion: true }) : meta;
 			provider.updateModels([{ ...makeModel('auto', meta), configSchema }]);
 			const { metadata } = (await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None))[0];
-			return { detail: metadata.detail, discount: metadata.autoModelDiscountPercent, promotions: metadata.autoModelTierPromotions?.map(promotion => promotion.id) };
+			return { detail: metadata.detail, discount: metadata.autoModelDiscountPercent, promotions: metadata.autoModelTierPromotions?.map(promotion => `${promotion.id}${promotion.upcoming ? ' (upcoming)' : ''}`) };
 		};
 
 		assert.deepStrictEqual({
 			running: await presented(true, [running]),
 			upcoming: await presented(true, [{ ...running, startsAt: iso(day), endsAt: iso(2 * day) }]),
+			ended: await presented(true, [{ ...running, startsAt: iso(-2 * day), endsAt: iso(-day) }]),
 			oneTier: await presented(true, [{ ...running, tierIds: ['hydrafusion'] }]),
 			notFusion: await presented(false, [running]),
 		}, {
 			running: { detail: '30% discount', discount: 10, promotions: ['launch'] },
-			upcoming: { detail: '10% discount', discount: 10, promotions: ['launch'] },
+			upcoming: { detail: '10% discount', discount: 10, promotions: ['launch (upcoming)'] },
+			ended: { detail: '10% discount', discount: 10, promotions: undefined },
 			oneTier: { detail: '10% discount', discount: 10, promotions: ['launch'] },
 			notFusion: { detail: '10% discount', discount: 10, promotions: undefined },
 		});
