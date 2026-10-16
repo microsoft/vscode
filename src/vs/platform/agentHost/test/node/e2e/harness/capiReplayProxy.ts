@@ -262,6 +262,8 @@ export class CapiReplayProxy {
 	private readonly _replayBuckets = new Map<string, IReplayBucket>();
 	/** Exchanges captured during recording, in arrival order. */
 	private readonly _recorded: IRecordedExchange[] = [];
+	/** Forwarded exchanges whose upstream response has not ended yet; the fixture waits for them. */
+	private readonly _inFlightRecordings = new Set<Promise<void>>();
 	private readonly _observedModelRequestBodies: string[] = [];
 	private readonly _cacheMisses: string[] = [];
 	private readonly _requestMismatches: string[] = [];
@@ -356,6 +358,7 @@ export class CapiReplayProxy {
 			return;
 		}
 
+		await Promise.all(this._inFlightRecordings);
 		// Always write a fixture when recording, even with zero model turns:
 		// tests that only touch stubbed ancillary endpoints (e.g. listModels)
 		// need a committed fixture so replay serves stubs instead of trying to
@@ -676,6 +679,15 @@ export class CapiReplayProxy {
 				headers: forwardHeaders,
 			},
 			upstreamRes => {
+				// A client may disconnect once it has what it needs (Codex stops reading at `response.completed`), before
+				// the upstream response ends and the exchange is recorded: the fixture is written only after it ends.
+				const recorded = new Promise<void>(resolve => {
+					upstreamRes.once('end', resolve);
+					upstreamRes.once('error', () => resolve());
+					upstreamRes.once('close', () => resolve());
+				});
+				this._inFlightRecordings.add(recorded);
+				void recorded.then(() => this._inFlightRecordings.delete(recorded));
 				const respChunks: Buffer[] = [];
 				const status = upstreamRes.statusCode ?? 502;
 				const headers = flattenHeaders(upstreamRes.headers);
