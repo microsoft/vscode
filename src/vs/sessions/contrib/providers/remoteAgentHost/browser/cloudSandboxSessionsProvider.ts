@@ -22,11 +22,8 @@ import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHo
 import { readSessionWorkspaceless } from '../../../../../platform/agentHost/common/state/sessionState.js';
 
 /**
- * Sessions provider for a Copilot cloud sandbox.
- *
- * Adds the handling for sessions this client provisioned but the host has not materialized yet:
- * Mission Control mints the session id and returns it before the sandbox is even awake, so such a
- * session is real, addressable, and unknown to the host all at once.
+ * Internal session backend for one Copilot cloud sandbox, owned by the logical Cloud provider.
+ * Retains environment-scoped routing and provisional sessions without advertising another creation target.
  */
 export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvider {
 	private readonly _configurationUnavailable = derived(this, reader =>

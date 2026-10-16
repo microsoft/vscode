@@ -3,29 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ApiRequestOptions, ApiResponse } from '../client/request.js';
 import { pathSegment, withQuery } from '../client/routing.js';
 import { parse, SchemaError } from '../client/schema.js';
 import { AdvertisedEncryptionKey, ClientTokenResponse, ConnectEnvironmentOptions, Environment, EnvironmentConnectionOptions, EnvironmentConnectResult, IEnvironmentsClient, ListEnvironmentsOptions, WakingResponse } from './environments.js';
-import { ApiResponse, MissionControlClient, parseActivationContext, parseEnvironmentKind } from './missionControlClient.js';
+import { MissionControlClient, parseActivationContext, parseEnvironmentKind } from './missionControlClient.js';
 
 export class EnvironmentsClient implements IEnvironmentsClient {
 	constructor(private readonly _client: MissionControlClient) { }
 
 	list(signal: AbortSignal, options?: ListEnvironmentsOptions): Promise<readonly Environment[]> {
+		const { query, ...requestOptions } = options ?? {};
 		return this._client.request({
 			method: 'GET',
-			path: withQuery('/environments', { ...options }),
-			expectedStatus: [200],
-			sensitive: true,
+			path: withQuery('/environments', { ...query }),
+			expectedStatus: 200,
+			policy: { sensitive: true },
+			options: requestOptions,
 		}, signal, response => parseEnvironmentList(response.data));
 	}
 
-	get(environmentId: string, signal: AbortSignal): Promise<Environment> {
+	get(environmentId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<Environment> {
 		return this._client.request({
 			method: 'GET',
 			path: environmentPath(environmentId),
-			expectedStatus: [200],
-			sensitive: true,
+			expectedStatus: 200,
+			policy: { sensitive: true },
+			options,
 		}, signal, response => {
 			const environment = parseEnvironment(response.data);
 			if (environment.id !== environmentId) {
@@ -36,20 +40,24 @@ export class EnvironmentsClient implements IEnvironmentsClient {
 	}
 
 	connect(environmentId: string, signal: AbortSignal, options?: ConnectEnvironmentOptions): Promise<EnvironmentConnectResult> {
+		const { query, ...requestOptions } = options ?? {};
 		return this._client.request({
 			method: 'GET',
-			path: withQuery(`${environmentPath(environmentId)}/connect`, { ...options }),
+			path: withQuery(`${environmentPath(environmentId)}/connect`, { ...query }),
 			expectedStatus: [200, 202],
-			credential: true,
+			policy: { credential: true },
+			options: requestOptions,
 		}, signal, parseConnection);
 	}
 
 	reconnect(environmentId: string, clientId: string, signal: AbortSignal, options?: EnvironmentConnectionOptions): Promise<EnvironmentConnectResult> {
+		const { query, ...requestOptions } = options ?? {};
 		return this._client.request({
 			method: 'GET',
-			path: withQuery(`${environmentPath(environmentId)}/reconnect`, { ...options, client_id: clientId }),
+			path: withQuery(`${environmentPath(environmentId)}/reconnect`, { ...query, client_id: clientId }),
 			expectedStatus: [200, 202],
-			credential: true,
+			policy: { credential: true },
+			options: requestOptions,
 		}, signal, response => {
 			const result = parseConnection(response);
 			if (result.status === 200 && result.data.client_id !== clientId) {
@@ -119,7 +127,7 @@ const parseEnvironment = parse.object<Environment>({
 const parseEnvironmentList = parse.arrayOf(parseEnvironment);
 
 const parseWakingResponse = parse.object<WakingResponse>({
-	environment_status: parse.oneOf('waking'),
+	environment_status: parse.exact('waking'),
 	activation_context: parseOptionalActivationContext,
 });
 
@@ -148,7 +156,7 @@ function parseConnection(response: ApiResponse): EnvironmentConnectResult {
 		{
 			status: 202,
 			data: parseWakingResponse(response.data),
-			retryAfterSeconds: response.retryAfterSeconds,
+			retryAfterSeconds: response.metadata?.retryAfterSeconds,
 		} :
 		{
 			status: 200,

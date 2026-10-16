@@ -8,7 +8,7 @@ import type { PermissionRequest } from '@github/copilot-sdk';
 import * as marked from '../../../../base/common/marked/marked.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { getEditFilePath, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSandboxPathGrantConfirmation, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolMarkdownContent, getToolSummaryInputContract, isEditTool, isHiddenTool, isMarkdownRenderedTool, synthesizeSkillToolCall } from '../../node/copilot/copilotToolDisplay.js';
+import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSandboxPathGrantConfirmation, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall } from '../../node/copilot/copilotToolDisplay.js';
 
 type CopilotShellPermissionRequest = Extract<PermissionRequest, { kind: 'shell' }>;
 type CopilotCustomToolPermissionRequest = Extract<PermissionRequest, { kind: 'custom-tool' }>;
@@ -162,6 +162,24 @@ suite('copilotToolDisplay — friendly tool names', () => {
 			builtIn: 'Run Shell Command',
 		});
 	});
+
+	test('uses only the runtime-owned image usage, including charged failures without result metadata', () => {
+		const usage = { requestId: 'image-operation', inputTokens: 21, outputTokens: 196, copilotUsage: { totalNanoAiu: 598_500_000 } };
+		const result = {
+			structuredContent: {
+				imageGeneration: { requestedModel: { id: 'image-model', name: 'Image Model' }, usage },
+			},
+		};
+		assert.deepStrictEqual({
+			forged: getSdkImageGenerationMetadata(result),
+			success: getSdkImageGenerationMetadata(result, { ...usage, model: 'image-model' }),
+			failure: getSdkImageGenerationMetadata(undefined, { ...usage, model: 'image-model' }),
+		}, {
+			forged: { requestedModel: { id: 'image-model', name: 'Image Model' } },
+			success: { requestedModel: { id: 'image-model', name: 'Image Model' }, usage },
+			failure: { requestedModel: { id: 'image-model' }, usage },
+		});
+	});
 });
 
 suite('copilotToolDisplay — edit tool classification', () => {
@@ -188,14 +206,16 @@ suite('copilotToolDisplay — markdown-rendered tools', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('task_complete renders as markdown, other tools do not', () => {
-		assert.strictEqual(isMarkdownRenderedTool('task_complete'), true);
-		assert.strictEqual(isMarkdownRenderedTool('bash'), false);
-		assert.strictEqual(isMarkdownRenderedTool('report_intent'), false);
-	});
-
-	test('getToolMarkdownContent returns the task_complete summary when present', () => {
-		assert.strictEqual(getToolMarkdownContent('task_complete', { summary: 'All tests pass.' }), '\n\n**Task completed:**\n\nAll tests pass.');
+	test('identifies task_complete, but not other tools', () => {
+		assert.deepStrictEqual({
+			taskComplete: isTaskCompleteTool('task_complete'),
+			bash: isTaskCompleteTool('bash'),
+			reportIntent: isTaskCompleteTool('report_intent'),
+		}, {
+			taskComplete: true,
+			bash: false,
+			reportIntent: false,
+		});
 	});
 
 	test('getTaskCompleteMarkdown prefers the input summary over truncated tool output', () => {
@@ -230,15 +250,18 @@ suite('copilotToolDisplay — markdown-rendered tools', () => {
 		});
 	}
 
-	test('getToolMarkdownContent returns undefined for empty, missing, or non-string summaries', () => {
-		assert.strictEqual(getToolMarkdownContent('task_complete', { summary: '' }), undefined);
-		assert.strictEqual(getToolMarkdownContent('task_complete', {}), undefined);
-		assert.strictEqual(getToolMarkdownContent('task_complete', undefined), undefined);
-		assert.strictEqual(getToolMarkdownContent('task_complete', { summary: 42 }), undefined);
-	});
-
-	test('getToolMarkdownContent returns undefined for non-markdown tools', () => {
-		assert.strictEqual(getToolMarkdownContent('bash', { summary: 'ignored' }), undefined);
+	test('getTaskCompleteMarkdown returns undefined for empty, missing, or non-string summaries without tool output', () => {
+		assert.deepStrictEqual({
+			empty: getTaskCompleteMarkdown({ summary: '' }, undefined),
+			missing: getTaskCompleteMarkdown({}, undefined),
+			noParameters: getTaskCompleteMarkdown(undefined, undefined),
+			nonString: getTaskCompleteMarkdown({ summary: 42 }, undefined),
+		}, {
+			empty: undefined,
+			missing: undefined,
+			noParameters: undefined,
+			nonString: undefined,
+		});
 	});
 });
 
@@ -1240,14 +1263,6 @@ suite('apply_patch tool display', () => {
 
 	test('failure still routes through the generic failed message', () => {
 		assert.strictEqual(getPastTenseMessage('apply_patch', 'Patch', { input: singleFilePatch }, false), '"Patch" failed');
-	});
-
-	test('getEditFilePath returns the first affected file from a patch body', () => {
-		assert.strictEqual(getEditFilePath({ input: singleFilePatch }), '/repo/src/foo.ts');
-		assert.strictEqual(getEditFilePath({ input: multiFilePatch }), '/repo/src/foo.ts');
-		assert.strictEqual(getEditFilePath({ patch: singleFilePatch }), '/repo/src/foo.ts');
-		assert.strictEqual(getEditFilePath(JSON.stringify({ input: singleFilePatch })), '/repo/src/foo.ts');
-		assert.strictEqual(getEditFilePath({ input: 'not a patch' }), undefined);
 	});
 
 	test('getEditFilePaths returns every affected file from a patch body', () => {

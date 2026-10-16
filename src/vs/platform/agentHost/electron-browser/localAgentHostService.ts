@@ -46,6 +46,7 @@ import {
 	AgentHostRestartIpcChannel,
 	AgentHostWillRestartIpcChannel,
 	AgentSession,
+	type IAgentCanvasCloseRequest,
 	type IAgentCanvasInfo,
 	type IAgentCanvasOpenRequest,
 	IAgentCreateChatRequestOptions,
@@ -502,6 +503,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._requireClient().importSession(session);
 	}
 
+	moveSession(session: URI, destination: URI, after: URI | undefined): Promise<URI> {
+		return this._requireClient().moveSession(session, destination, after);
+	}
+
 	readSavedChat(session: URI, chat?: URI): Promise<IAgentHostSavedChat> {
 		return this._requireClient().readSavedChat(session, chat);
 	}
@@ -540,6 +545,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void> {
 		return this._getManagementService().openSessionCanvas(session, request, chat);
+	}
+
+	closeSessionCanvas(session: URI, request: IAgentCanvasCloseRequest, chat: URI): Promise<void> {
+		return this._getManagementService().closeSessionCanvas(session, request, chat);
 	}
 
 	installPlugin(provider: string, request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void> {

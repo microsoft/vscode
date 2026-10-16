@@ -596,7 +596,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			this._watchProviders(e.added);
 			this._renderConfigPickers();
 		}));
-		this._watchProviders(this._sessionsProvidersService.getProviders());
+		this._watchProviders(this._sessionsProvidersService.getProviders({ includeSessionBackends: true }));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(DevContainerWorktreeEnabledSettingId)) {
 				this._renderConfigPickers();
@@ -1823,7 +1823,7 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 			this._sessionsService.visibleSessions.read(reader);
 			this._refreshRepositoryMenuItems(actionViewItemService);
 		}));
-		this._watchProviders(this._sessionsProvidersService.getProviders(), actionViewItemService);
+		this._watchProviders(this._sessionsProvidersService.getProviders({ includeSessionBackends: true }), actionViewItemService);
 		this._register(this._sessionsProvidersService.onDidChangeProviders(e => {
 			for (const provider of e.removed) {
 				this._providerListeners.deleteAndDispose(provider.id);

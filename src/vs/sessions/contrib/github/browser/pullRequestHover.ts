@@ -31,10 +31,6 @@ export function createPullRequestHover(data: IPullRequestHoverData): IPullReques
 	});
 }
 
-export function createPullRequestHoverElement(data: IPullRequestHoverData): HTMLElement {
-	return createPullRequestHover(data).element;
-}
-
 /** Returns the localized CI summary shown in a pull request reference hover. */
 export function getPullRequestChecksStatusLabel(pullRequest: IGitHubPullRequest, ciStatus: GitHubCIOverallStatus | undefined): string | undefined {
 	return getResourceChecksStatusLabel(toPullRequestHoverModel(pullRequest), toChecksStatus(ciStatus));

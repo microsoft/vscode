@@ -26,24 +26,28 @@ import { ActionWidgetService, IActionWidgetService } from '../../../../../platfo
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { type IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ContextViewService } from '../../../../../platform/contextview/browser/contextViewService.js';
+import { ICustomizationMarketplaceResource } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
-import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 import { isHighContrast } from '../../../../../platform/theme/common/theme.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IRequestService } from '../../../../../platform/request/common/request.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IChatTipService } from '../../../../../workbench/contrib/chat/browser/chatTipService.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
 import { IMicCaptureService } from '../../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IVoiceInputModeService, VoiceInputMode } from '../../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputMode.js';
 import { IAICustomizationWorkspaceService } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
@@ -66,7 +70,7 @@ import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { ISearchService } from '../../../../../workbench/services/search/common/search.js';
 import { FixtureMenuService, registerChatFixtureServices } from '../../../../../workbench/test/browser/componentFixtures/chat/chatFixtureUtils.js';
-import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, waitForFixtureCondition } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { activeSessionViewBackground } from '../../../../common/theme.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
@@ -85,11 +89,12 @@ import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackKind, AgentFeedbackSt
 import { IAquariumService } from '../../../aquarium/browser/aquariumOverlay.js';
 import { computeIssueIcon, computePullRequestIcon, GitHubIssueState, GitHubPullRequestState } from '../../../github/common/types.js';
 import { NewChatView } from '../../browser/chatView.js';
-import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
+import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
 import { INewSessionComposerService, INewSessionPromptOption, NewSessionComposerService, NewSessionPromptOptionsState } from '../../browser/newSessionComposerService.js';
 import { INewChatVoiceTargetService, NewChatVoiceTargetService } from '../../browser/newChatVoice.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
+import { AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY } from '../../../../../platform/chat/common/agentsWindowInvitation.js';
 
 import '../../../../browser/media/style.css';
 import '../../../../browser/parts/media/sessionView.css';
@@ -100,6 +105,58 @@ const DEFAULT_HEIGHT = 560;
 const ATTACHED_FOLDER_URI = URI.file('/Code/docs');
 const ATTACHED_REPOSITORY_URI = URI.parse('https://github.com/microsoft/typescript');
 const ATTACHED_REPOSITORY_ROOT = URI.parse('vscode-vfs://github/microsoft/typescript/HEAD');
+
+function connectorIcon(base64: string): URI {
+	return URI.parse(`data:image/png;base64,${base64}`);
+}
+
+const linearConnectorIcon = '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';
+const notionConnectorIcon = 'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAGA0lEQVR42rVX2WsTXxg9M3emk8k0K0kwbg+CdUVBKT6IqBH0RcFSnxRfalsffRHcELGCIFaILeZFKiJUFMHgPyAWjIgoIhQKARGxpULI0iQzk2SW7/cgM7+0Tbq4HBgG7ty599zvfsv5OCIiLIAz1O7dDI7jwHEceJ6fN25ZVsvxhRCaN7VtGzzPg+M4d/HVgIhQq9XAGENHR4dLhDHW9h+ulQUAQNM0aJoGVVVRKBRQKBRQKpVQKBTw8+dP5HI55PN55PN5zM7OolgsolwuQ1VVSJKEnp4e3L17F2vWrIFpmmCMtTwQZ9s2AYCu67h69SoymQy+f/+OQqEAy7KWPLEsywgGg4hEIgiFQgiFQohGo8jn80in0wgGg3jy5AlOnDjR1hqcYRgkCAKePn2KM2fOAAB6e3sRCAQQDocRjUYRj8cRDocRCATcjbxeL7xer2vqhZiamsLZs2fx6dMnnD9/Hvfu3YOiKDBNE4Ig/D/RMAwiIkomk8QYI1mW6eHDh/S3MDw8TDzP065duyiTyRARkW3b7neXCmMMlmXBMAwMDAzgzZs3SKVS8Pv9yzqdpmmo1WrQdR2qqqJYLGJubg6qqiIej+PAgQOYmJjAoUOHMDQ0hIsXL4LnefA8Pz8KmsmMj4/jy5cv6OnpgW3bKJfLKBaLyOfzqFQqqFQqqFarmJubQ7lcRqPRWDZKDMPAlStXsHPnThw/fvzXdbSa6DjL5OQkJicn2y4oiiJ8Ph/Wr18PRVHg8/ng8/kQCoUQDofh9/vh8/kgyzICgQAePXqE9+/fo1QqLc4DrczL8zwGBwdx8OBBKIoCv9+PQCAARVHg8Xjg8XigKApkWV5Rzsjn88hkMpAkaWkCHMfBtm1wHIfr169j7dq1K0pETiJbCF3XIYoi6vX6ousWllqQ4zhUKhWYpgkigiiKrtPpuo5qtYrNmze783mex+vXr/H27VtYloWZmRlEo1Hcvn3bTdkLwS93Ko7jIAgCGGM4ffo0NmzYgK1bt2Lbtm3Yvn077ty5A57nYVkWiAjpdBrJZBJDQ0P4/Pkz9u3bt2RCWxEBx4MTiQS6urqQy+VQrVZBRLh58yampqYgiiIajQZGR0cxMjICQRDQ39+PkydPwjCM3yfQTKS/vx9Hjx51qxxjDPV6HQMDAyAi13c0TYNpmiiVSm5V/GMCTng6J5dl2S0ymUwGIyMj6OjomFdNHZJLYVUEGGMQRREAcO7cOezevRu2bUMQBFy7dg3ZbBZEtGwR+20CzT6xceNGPHjwwM0XqqpicHCwrbf/NQIOcrkc9u/fj97eXjQaDUiShImJCbx8+RKxWOzfE+B5HkSE+/fvIxQKwTRN8DyPCxcu4OPHj25i+qcEOI7DunXrMDw87Hr79PQ0ksnk6gk4YbQa/WfbNur1Ovr6+pBIJGBZFgRBcFPuqq5AlmW0kYfzwtCBJEmuFYgIqVQKHo/HjRan3q/Akr8mHTt2DIqiuEVouTD8+vUrvn37Btu2YVkWtmzZghs3brh1w0lIKzElmaZJRERjY2MEgERRJADE8zxls1kiImo0GnTp0iWKRCIEgADQjh07aHZ2lmzbJsMwyDRNOnXqFEmSRJs2baJXr16RZVmkaRqZpkm3bt0iAPT8+XMiIjIM45ckY4zBNE309fXh3bt3GBsbA2PMTSrOs2fPHhw+fBixWAxer9dVw81NyIsXL/Djxw/E43FXfMqyDACugJ1nYUcc2rZNpmlSrVajvXv3EgASBIFmZmZ+S4xqmka5XI6mp6cpm83Shw8fKJFIEGOMxsfH51ugucWSJAnPnj1Dd3c3yuUyHj9+jCNHjkBVVVQqFaiqilKphGKxCFVVUa1WUalUUCgUUC6X5+lEXdeh6/qiahgMBhdbwIEj09PptHvXv/swxqizs5NisRh1dXVRd3c3Xb58mer1uivNW7ZmjigdHR1FKpVCo9GA1+uFoihuY+IIUL/fj0gk4grQzs5OVzvKsgxZluHxeCDLcsvK2LY3dPSdE2ZO+P0JnPBsJtKWQKtezlmg+ZeFGXRhZ93qWzP+A41xBscn4a3rAAAAAElFTkSuQmCC';
+const workIqConnectorIcon = 'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAH8klEQVR42uVXa3CcVRl+3vPd9vJlk90k3V7ShqQrqRubFoK1VDAIljIQ5TZbFBAGfoh2YEBxhh/88QcOVkRUEPUHCALaaaHDAB0BHcY4vYRKsAW6DW0oTSihuW2zm+zudznnvP5o6hRMaEH94fjOvHPm++Y753vO896B/3ehT7mHOju/ZRQbHQFkUDsW0X19tygAPKP/NbAik7nESac74gAcANEZddIdHfFsNmcDEJ/kYqf7IXV1dRnAvEhPzxaKRJDKXrRxXaxh2edhGfCn39v95qbvvOwBE9muHPIY9dDTo06HDTodunOrv+tsOfC4hULBuvziuy4o1LZ/36jPrLZjKYiIBThAEI73jr/1/H1vPHtPTyqVCs+86Mawd8sD/qnM8nEAKJvNWXV1vrNz53OUyZyz9M7LH7x19/jYDW95vhlzU1rEXBYxB+QYZNclhRKe9IpDvzu46e6HhvfveqdtzdfYmHT8fH5LOBcImtvJuiN9fS8YABJ3Xf/Y+rNau+6wzNiSjTuehHbn6XhykTBqEjDiDhAxAEdoEbWFnUwh8AtDxYM7f9Z77/WbAZQ6u7tV3wsveLOxYcwCQHR0rI3u2fOi3f3l21bflvv1/cuazvl2worWDk4Mqt7ht0XErScz4sKIRkARC+QYEI5JZBMU+cpM1CTdpdl1Z1z6zZWW7Rx+c+vjI+mOtaI8ckieCgB1dd3o7N691b4599CVF3Te9FiyZn6b55W0gMa0XxavHX0HdiwJM+ZCxCJMERPkmES2ADkmhGMKNhQzKY4saGqtW3nulbVntB06sPmBt5u7bkRxcK/60G1PfsghJ/r7XzTOXn5ZpvUzX/kJ21G3UDkmA5DwISiYsQ8zawgBw4mREYsRmQIwockSgCVAtknkmCL0JqWRcN3GrsvuX3rhlRmv/0UDuZyYEwByWWNkZIQ/d9Y1F9uxhvpJr6QCIcwqGFUwPGaAmU0nLmAIBN7EaFCdGCVLwEokBQwwGQDZ4rhGbVOGZRVZMK9+4VU3XTwyMqKz2dyHWDdPpn90FAKAaUSSTZ4gViAwMywwBDR8IggzQl7pvZ1Th599cmrwLwMAULeyO7Pgwmuvj2eya7SlAQoBU4AscfwPEbBZn1oMwGrEPj5B5EcBwPdLBMDwtaIqM2kwNBghM4MJIahSGnn1ocLA5k1BBeNuY6MEgMPPP7h/4PkHd63Y8NOvz+u64lajdVEMygcMzPgGiA06fnYpQXMx8E/xWFGVAc0MSQwTzCQMIQWPHs1vfrq+ZcVYwqor5qPTPqpVyjZm7WJQwL6Hv7d13uvD62nd2hb91TXaSLnEXhVkASRmzzmzAvAFUAVDA5DMMBgAGFUitutqta2mpvMH91YBaADIA6q5udmsbW3VCSfB2LYdU6/vhbrhUhhfagdF5k55YraXgQbKM45XAVCBpmmtUYWIRowac0JKAeRwckwzM2nfN91YIpZIL4Q7XiZxz28R/vgpgBlwrNMH4AOoMKPMjAozqkQ0JavM0br0mSu/0VEcGqJsV2N0Zr/IdW2IDg0NiY6mC5fX16TTtmFwTV0D1TSmYT/3KtQDLwFRB6c0wZETPgBGZSZrSjBMBgQzm6Yp4u25O+bvfWbP+z0PD7R25moWy4C29DyM+fObWr+w9NLbHdMlpaQmEBEAsXgx1I48UDp8/PBdvXMDMJwEA2AfhAozA5gJQUCBRVA5xhxNts+/+tEnKgf++MOhP2386yGArlt71/kdzeffbZvussnpAtuWLRgMzQzWDBImR3cfBAB2PojxnACsaIoBqGpYnrDABK1BRFCsobSEVCGpalGz6Sw71vTFJ9LdGzfflm5BMtm6XkmNyemCNg1TSCVBJGAIE4YwYBg2GVKPA5BRKzF3LSgsqlJqasom1lI1nbM+MGzTk772VSiC0EcYVDFZKVKxeFSfG3NpQ9v57U11i9urfhle4GnNWkitIJWCVBJhGCqQEIH0gv6Rnh8Fujiceh/BIAb17MVocBBuyypT7tk2GSzqCMPaJV1lGYhS+ZgqV4s0OTVOzYbA7c3tlJvfwpYKdbE6zVJLUkqJUIWQUiKUIUsZaIZhhErSkcK+e7fv3bytpWWV/9pYT3By9PxLOa6MDeqG5ecZ+pVf7ZPxxOEFdYvaWtxkqlEFdEXDAn1n5mxqidag4FfIC0OhdChCGVKoQoQyRBAGWmktSNiiWBl/t394xw9eyT/6hyULl1cGBnZXTuSOUzUkZlN2dY3I9zptrStar1v/i5tXLOm8NuHEI0PHRvW0VyEpJXmBDy/w4AUeKn6Vfd9nhiEmpwve0Hj/71/Z98gjY2PD72abVvv5I71TAOTpNCQAwKWxI6HZtobfKg1NPfvSL3eOTI++nnAXLYg7ySVSSpr2ppUf+vADn70w0KxJaA06Onl4547+p+9++W+PPOW6DaNNTdly/7u7ygBmbVLpVA1pNps1U6mW+Pbt2yIA6u+85udXLV+85paoU7uw4pfhBwFCKTFW+mB4/5FXf7Nlx31bYWFi+dLzPKUK5Xw+Lz+uMaXTnQc6O7sdVZyM7xnYbi9tXnHm1Ws2XO069WeHoeTR0nt///Mbjz3zzuC+A5nMyqC2bJT7PujzZ+zN/7GhBOi0Vq26JOG6bgOANIDWGU27rtuwKrMqAcD6JMMJfbqxrNNIhZ+1y/4hAQBxp1UXrP1BX1/fJx7P6N+cKU+s/JH1f0f+Ab8jv+QQL9KTAAAAAElFTkSuQmCC';
+
+const fixtureConnectors: readonly ICustomizationMarketplaceResource[] = [
+	{
+		sourceId: CustomizationMarketplaceSources.CopilotConnectors.id,
+		identifier: 'linear',
+		displayName: 'Linear',
+		description: 'Plan and track product work.',
+		mediaType: 'application/mcp-server+json',
+		tags: [],
+		capabilities: [],
+		representativeQueries: [],
+		icon: connectorIcon(linearConnectorIcon),
+	},
+	{
+		sourceId: CustomizationMarketplaceSources.CopilotConnectors.id,
+		identifier: 'notion',
+		displayName: 'Notion',
+		description: 'Search team knowledge and documentation.',
+		mediaType: 'application/mcp-server+json',
+		tags: [],
+		capabilities: [],
+		representativeQueries: [],
+		icon: connectorIcon(notionConnectorIcon),
+	},
+	{
+		sourceId: CustomizationMarketplaceSources.CopilotConnectors.id,
+		identifier: 'workiq-mail',
+		displayName: 'Work IQ',
+		description: 'Bring Microsoft 365 work context into chats.',
+		mediaType: 'application/mcp-server+json',
+		tags: [],
+		capabilities: [],
+		representativeQueries: [],
+		icon: connectorIcon(workIqConnectorIcon),
+	},
+];
+
+const fixtureConnectorRecommendations: NonNullable<IProductService['connectorRecommendations']> = Object.fromEntries(
+	fixtureConnectors.map(connector => [connector.identifier, {
+		name: connector.identifier === 'workiq-mail' ? 'WorkIQ' : connector.displayName,
+		description: connector.description,
+		iconUrl: URI.isUri(connector.icon) ? connector.icon.toString(true) : '',
+	}]),
+);
 
 interface INewChatWidgetFixtureOptions {
 	readonly width?: number;
@@ -127,9 +184,15 @@ interface INewChatWidgetFixtureOptions {
 	readonly chatBackground?: 'codicons' | 'loud';
 	readonly migrationCount?: number;
 	readonly experimentalComposerLayout?: boolean;
+	readonly toggleExperimentalComposerLayout?: boolean;
 	readonly unifiedWorkspacePicker?: boolean;
 	readonly collapsedSessionOptionsShowIcons?: boolean;
 	readonly welcomePhrases?: boolean;
+	readonly connectorRecommendations?: boolean;
+	readonly connectorProductIcons?: boolean;
+	readonly dismissedConnectorCount?: number;
+	readonly focusConnectorRecommendations?: boolean;
+	readonly expectBelowInputSurfacesScrollable?: boolean;
 }
 
 class FixturePickerActionViewItem extends BaseActionViewItem implements IChatInputPickerResponsiveState {
@@ -277,9 +340,15 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		chatBackground,
 		migrationCount = 0,
 		experimentalComposerLayout = false,
+		toggleExperimentalComposerLayout = false,
 		unifiedWorkspacePicker = experimentalComposerLayout,
 		collapsedSessionOptionsShowIcons = false,
 		welcomePhrases = false,
+		connectorRecommendations = false,
+		connectorProductIcons = true,
+		dismissedConnectorCount = 0,
+		focusConnectorRecommendations = false,
+		expectBelowInputSurfacesScrollable = false,
 	} = options;
 	const hasChatBackground = chatBackground !== undefined;
 	const feedbackItems: readonly IAgentFeedback[] = Array.from({ length: commentCount }, (_, index) => ({
@@ -310,23 +379,35 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		[UNIFIED_WORKSPACE_PICKER_SETTING]: unifiedWorkspacePicker,
 		[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: experimentalComposerLayout,
 		[COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING]: collapsedSessionOptionsShowIcons,
+		[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: connectorRecommendations,
+		[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: connectorRecommendations,
+		[NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING]: connectorRecommendations,
 		...(chatBackground === 'codicons' ? {
 			[AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING]: AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET,
 			[AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING]: AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET,
 		} : {}),
 	});
 	disposableStore.add(configurationService.onDidChangeConfigurationEmitter);
+	const storageService = disposableStore.add(new InMemoryStorageService());
+	if (showTip) {
+		storageService.store(AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY, 2, StorageScope.APPLICATION, StorageTarget.MACHINE);
+	}
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: context.theme,
 		additionalServices: reg => {
 			registerChatFixtureServices(reg);
 			reg.defineInstance(IConfigurationService, configurationService);
+			reg.defineInstance(IProductService, new class extends mock<IProductService>() {
+				override readonly connectorRecommendations = connectorRecommendations
+					? connectorProductIcons
+						? fixtureConnectorRecommendations
+						: Object.fromEntries(Object.entries(fixtureConnectorRecommendations).map(([id, recommendation]) => [id, { ...recommendation, iconUrl: '' }]))
+					: undefined;
+			}());
+			reg.defineInstance(IStorageService, storageService);
 			reg.defineInstance(IAuthenticationService, new class extends mock<IAuthenticationService>() { }());
 			reg.defineInstance(IRequestService, new class extends mock<IRequestService>() { }());
-			if (migrationCount > 0) {
-				reg.defineInstance(IStorageService, disposableStore.add(new InMemoryStorageService()));
-			}
 			if (withAutoModel || withConfiguredModel) {
 				reg.define(IMenuService, AutoModelFixtureMenuService);
 				reg.defineInstance(ILanguageModelsService, new class extends NullLanguageModelsService {
@@ -518,6 +599,9 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			reg.define(ISessionsChatBackgroundService, SessionsChatBackgroundService);
 		},
 	});
+	if (showTip) {
+		ChatContextKeys.foregroundSessionCount.bindTo(instantiationService.get(IContextKeyService)).set(0);
+	}
 	await instantiationService.get(IConfigurationService).updateValue(COMPARE_AGENTS_ENABLED_SETTING, true);
 
 	container.style.width = `${width}px`;
@@ -629,6 +713,17 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		}
 	}
 	await nextFrame();
+	if (toggleExperimentalComposerLayout) {
+		for (const enabled of [true, false, true]) {
+			await configurationService.setUserConfiguration(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, enabled);
+			configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+				override affectsConfiguration(section: string): boolean {
+					return section === EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING;
+				}
+			}());
+			await nextFrame();
+		}
+	}
 	const promptBox = view.element.querySelector<HTMLElement>('.new-chat-input-container');
 	assert(!!promptBox);
 	const widgetContent = view.element.querySelector<HTMLElement>('.new-chat-widget-content');
@@ -824,8 +919,75 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		notice.style.display = '';
 		assert(before.x === withoutNotice.x && before.y === withoutNotice.y && before.height === withoutNotice.height,
 			'The migration notice must not move or resize the centered input.');
-		assert(notice.getBoundingClientRect().bottom <= container.getBoundingClientRect().bottom,
-			'The migration notice must fit below the input.');
+		if (!expectBelowInputSurfacesScrollable) {
+			assert(notice.getBoundingClientRect().bottom <= container.getBoundingClientRect().bottom,
+				'The migration notice must fit below the input.');
+		}
+	}
+	if (connectorRecommendations) {
+		const recommendations = view.element.querySelector<HTMLElement>('.new-session-connector-recommendations');
+		const cards = recommendations?.querySelectorAll<HTMLElement>('.new-session-connector-recommendation-card');
+		assert(!!recommendations && cards?.length === 3 && targetWindow.getComputedStyle(recommendations).display !== 'none');
+		if (connectorProductIcons) {
+			await waitForFixtureCondition(() => recommendations.querySelectorAll('img').length === 3, 'Connector recommendation icons did not load.');
+			await Promise.all([...recommendations.querySelectorAll<HTMLImageElement>('img')].map(image => image.decode()));
+		} else {
+			assert(recommendations.querySelectorAll('.codicon-ai-customization-mcp-server').length === 3,
+				'Every recommendation without a product image must use the MCP server fallback icon.');
+		}
+		const dismissButtons = [...recommendations.querySelectorAll<HTMLElement>('.new-session-connector-recommendation-dismiss')];
+		for (let index = 0; index < dismissedConnectorCount; index++) {
+			dismissButtons[index]?.click();
+		}
+		assert([...cards].filter(card => !card.hidden).length === 3 - dismissedConnectorCount,
+			'Dismissed connector recommendations must collapse while the remaining cards stay visible.');
+		assert(recommendations.getBoundingClientRect().bottom <= container.getBoundingClientRect().bottom,
+			'Connector recommendations must fit below the input.');
+		const input = view.element.querySelector<HTMLElement>('.new-chat-input-container');
+		const composerGap = phoneLayout
+			? (input?.getBoundingClientRect().top ?? 0) - recommendations.getBoundingClientRect().bottom
+			: recommendations.getBoundingClientRect().top - (input?.getBoundingClientRect().bottom ?? 0);
+		assert(!!input && composerGap >= 20,
+			'Connector recommendations must have at least 20px of breathing room next to the composer.');
+		if (width >= DEFAULT_WIDTH) {
+			assert([...cards].every(card => card.getBoundingClientRect().height <= 80),
+				'Wide connector cards must stay compact at no more than 80px tall.');
+		}
+		if (focusConnectorRecommendations) {
+			context.focus({ focus: () => cards[0].querySelector<HTMLElement>('.new-session-connector-recommendation-card-primary')?.focus() });
+		}
+	}
+	if (showTip) {
+		const tip = view.element.querySelector<HTMLElement>('.chat-tip-widget');
+		assert(!!tip && targetWindow.getComputedStyle(tip).display !== 'none', 'The getting-started tip must be visible.');
+	}
+	if (connectorRecommendations && showTip && migrationCount > 0) {
+		const recommendations = view.element.querySelector<HTMLElement>('.new-session-connector-recommendations');
+		const tip = view.element.querySelector<HTMLElement>('.chat-tip-widget');
+		const migration = view.element.querySelector<HTMLElement>('.new-chat-migration-notice');
+		const belowInputSurfaces = view.element.querySelector<HTMLElement>('.new-session-below-input-surfaces');
+		assert(!!recommendations && !!tip && !!migration
+			&& recommendations.getBoundingClientRect().top < tip.getBoundingClientRect().top
+			&& tip.getBoundingClientRect().top < migration.getBoundingClientRect().top,
+			'Connector cards, the getting-started tip, and migration notice must appear in that order.');
+		if (!phoneLayout) {
+			assert(Math.abs(tip.getBoundingClientRect().height - migration.getBoundingClientRect().height) <= 1,
+				'The getting-started tip and migration notice must have matching heights.');
+		}
+		if (expectBelowInputSurfacesScrollable) {
+			assert(!!belowInputSurfaces
+				&& belowInputSurfaces.scrollHeight > belowInputSurfaces.clientHeight
+				&& belowInputSurfaces.getBoundingClientRect().bottom <= container.getBoundingClientRect().bottom
+				&& promptBox.getBoundingClientRect().bottom <= container.getBoundingClientRect().bottom,
+				'Constrained desktop support surfaces must scroll without clipping the composer.');
+		}
+	}
+	if (phoneLayout) {
+		const input = view.element.querySelector<HTMLElement>('.new-chat-input-container');
+		const containerRect = container.getBoundingClientRect();
+		const inputRect = input?.getBoundingClientRect();
+		assert(!!input && input.checkVisibility() && !!inputRect && inputRect.height > 0 && inputRect.top >= containerRect.top && inputRect.bottom <= containerRect.bottom,
+			'The phone composer must remain visible within the fixture viewport.');
 	}
 	const repositoryConfigContainer = view.element.querySelector<HTMLElement>('.new-chat-repo-config-container');
 	if (withControlPickers) {
@@ -1076,6 +1238,78 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['Over a loud repeating magenta, cyan, yellow, and blue striped background, the new-session composer shows the customization migration notice below the input on an opaque bordered surface. None of the stripes show through the notice.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, migrationCount: 4, chatBackground: 'loud' }),
+	}),
+	ConnectorRecommendationsBefore: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The control state shows the centered new-session composer with no connector recommendation below it.'],
+		render: context => renderNewChatWidget(context, { height: 700, withWorkspace: true, experimentalComposerLayout: true }),
+	}),
+	ConnectorRecommendations: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['Below the centered new-session composer, three equal cards for Linear, Notion, and WorkIQ each show a product image, name, short benefit, and independent dismiss control. No section heading, subtitle, or arrow icon appears.'],
+		render: context => renderNewChatWidget(context, { height: 700, withWorkspace: true, connectorRecommendations: true, experimentalComposerLayout: true }),
+	}),
+	ConnectorRecommendationsNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['In a narrow Agents window, the three connector cards retain readable widths in one horizontally scrollable row instead of compressing their product images and copy.'],
+		render: context => renderNewChatWidget(context, { width: 420, height: 760, withWorkspace: true, connectorRecommendations: true, experimentalComposerLayout: true }),
+	}),
+	ConnectorRecommendationsOneDismissed: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['After dismissing Linear, the Notion and WorkIQ recommendation cards remain and expand evenly across the available row without leaving an empty slot.'],
+		render: context => renderNewChatWidget(context, { height: 700, withWorkspace: true, connectorRecommendations: true, dismissedConnectorCount: 1, experimentalComposerLayout: true }),
+	}),
+	ConnectorRecommendationsTwoDismissed: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['After dismissing Linear and Notion, the WorkIQ recommendation card remains as one full-width card without leaving empty slots.'],
+		render: context => renderNewChatWidget(context, { height: 700, withWorkspace: true, connectorRecommendations: true, dismissedConnectorCount: 2, experimentalComposerLayout: true }),
+	}),
+	ConnectorRecommendationsFallbackIcons: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['When connector catalog images are unavailable, all three recommendation cards use the same standard MCP server fallback icon while retaining their names, benefits, and actions.'],
+		render: context => renderNewChatWidget(context, { height: 700, withWorkspace: true, connectorRecommendations: true, connectorProductIcons: false, experimentalComposerLayout: true }),
+	}),
+	ConnectorRecommendationsBackground: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['Over a loud repeating background, all three connector cards remain legible on opaque neutral card surfaces, and the section heading remains visually subordinate to the composer.'],
+		render: context => renderNewChatWidget(context, { height: 700, withWorkspace: true, connectorRecommendations: true, experimentalComposerLayout: true, chatBackground: 'loud' }),
+	}),
+	ConnectorRecommendationsWithNotices: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The compact three-card connector recommendation section appears first, followed by the getting-started tip and then the migration notice in a consistently spaced stack below the composer.'],
+		render: context => renderNewChatWidget(context, { height: 820, withWorkspace: true, migrationCount: 4, showTip: true, connectorRecommendations: true, experimentalComposerLayout: true }),
+	}),
+	ConnectorRecommendationsShortAfterLayoutToggle: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['After toggling the experimental composer off and on in a short desktop pane, connector cards, the getting-started tip, and migration notice retain their order in a scrollable support region while the composer remains visible.'],
+		render: context => renderNewChatWidget(context, {
+			height: 400,
+			withWorkspace: true,
+			migrationCount: 4,
+			showTip: true,
+			connectorRecommendations: true,
+			unifiedWorkspacePicker: true,
+			toggleExperimentalComposerLayout: true,
+			expectBelowInputSurfacesScrollable: true,
+		}),
+	}),
+	ConnectorRecommendationsFocused: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['Keyboard focus is visible around the first connector card primary action with the standard focus treatment while each card retains a separate reachable dismiss control.'],
+		render: context => renderNewChatWidget(context, { height: 700, withWorkspace: true, connectorRecommendations: true, focusConnectorRecommendations: true, experimentalComposerLayout: true }),
+	}),
+	ConnectorRecommendationsPhone: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['On a phone-sized Agents window, the connector section sits immediately above the bottom-pinned composer and preserves readable cards in a horizontally scrollable row within the viewport.'],
+		render: context => renderNewChatWidget(context, { width: 390, height: 760, withWorkspace: true, withControlPickers: true, connectorRecommendations: true, experimentalComposerLayout: true, phoneLayout: true }),
+	}),
+	ConnectorRecommendationsPhoneWithNotices: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['On a phone-sized Agents window, the connector cards, getting-started tip, and migration notice form a compact stack immediately above the bottom-pinned composer, without covering the workspace controls or overflowing the viewport.'],
+		render: context => renderNewChatWidget(context, { width: 390, height: 760, withWorkspace: true, withControlPickers: true, migrationCount: 4, showTip: true, connectorRecommendations: true, experimentalComposerLayout: true, phoneLayout: true }),
 	}),
 	NewSessionDefault: defineComponentFixture({
 		labels: { kind: 'screenshot' },

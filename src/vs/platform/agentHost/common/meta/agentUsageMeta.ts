@@ -9,7 +9,7 @@ import { hasAgentMetadata } from './metadata.js';
 import { readUsageInfoMeta as readVSCodeUsage, type UsageInfoMeta as VSCodeUsage } from './vscode/agentUsageMeta.js';
 import { readCopilotContextUsage, readCopilotUsageDetail } from './copilotd/copilotdMetadataReader.js';
 
-export { createLocalModelTurnExecutionMeta, readLocalModelTurnExecution } from './vscode/agentUsageMeta.js';
+export { createLocalModelTurnExecutionMeta, isAiCreditsStatus, readChatUsage, readLocalModelTurnExecution, withChatUsage, type AiCreditsStatus, type IAgentChatUsage } from './vscode/agentUsageMeta.js';
 
 export interface IAgentLatestModelCall {
 	readonly cost?: number;

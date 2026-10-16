@@ -41,7 +41,7 @@ export interface IModelPickerDelegate {
 	 */
 	focusInput?(): void;
 	/**
-	 * Persists a model change without treating it as a user selection.
+	 * Shows the selection as an equivalent model without treating it as a user selection.
 	 * Delegates whose {@link setModel} has no user-selection side effects may omit this; {@link setModel} is used instead.
 	 */
 	setModelProgrammatically?(model: ILanguageModelChatMetadataAndIdentifier): void;

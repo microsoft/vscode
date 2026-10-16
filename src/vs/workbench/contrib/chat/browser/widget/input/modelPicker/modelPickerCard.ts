@@ -318,7 +318,7 @@ export class ModelCard extends DisposableStore {
 		}
 		// Without tiers to sit below, Auto's discount follows its description.
 		if (isAuto && !effort && metadata.autoModelDiscountPercent !== undefined) {
-			this._renderDescription(ILanguageModelChatMetadata.getAutoModelDiscountDescription(metadata.autoModelDiscountPercent, undefined, !!metadata.autoModelEnsemble));
+			this._renderDescription(ILanguageModelChatMetadata.getAutoModelDiscountDescription(metadata.autoModelDiscountPercent, undefined, !!metadata.autoModelFusion));
 		}
 
 		if (!isAuto) {
@@ -428,7 +428,7 @@ export class ModelCard extends DisposableStore {
 	private async _resetToDefaults(): Promise<void> {
 		const values = Object.fromEntries([...this._groupControls.keys()].flatMap(group => {
 			const property = this._configProperty(group);
-			return property ? [[property.key, property.schema.default]] : [];
+			return property && !property.schema.readOnly ? [[property.key, property.schema.default]] : [];
 		}));
 		await this._setValues(values);
 	}
@@ -521,9 +521,9 @@ export class ModelCard extends DisposableStore {
 			...alternatives.filter(alternative => !choices.some(choice => replaces(alternative, choice))).map(alternative => ({ alternative })),
 		];
 		const followingAlternatives = entries.length - choices.length;
-		const ensemble = !!this._options.model.metadata.autoModelEnsemble;
-		// Ensemble's tiers describe themselves below the control, so a hover would only repeat it.
-		const tooltip = (description: string | undefined) => isAuto && ensemble && group === MODEL_CONFIG_GROUP_EFFORT ? undefined : description;
+		const fusion = !!this._options.model.metadata.autoModelFusion;
+		// Fusion's tiers describe themselves below the control, so a hover would only repeat it.
+		const tooltip = (description: string | undefined) => isAuto && fusion && group === MODEL_CONFIG_GROUP_EFFORT ? undefined : description;
 		const items = entries.map(({ choice, alternative }, index): IRadioOptionItem => {
 			if (!alternative) {
 				const { label, description, checked, readOnly } = choice!;
@@ -583,7 +583,7 @@ export class ModelCard extends DisposableStore {
 				return;
 			}
 			const store = new DisposableStore();
-			const next = renderModelDescription(ILanguageModelChatMetadata.getAutoModelDiscountDescription(discountPercent, tierLabel, ensemble), this._options.openerService, store).element;
+			const next = renderModelDescription(ILanguageModelChatMetadata.getAutoModelDiscountDescription(discountPercent, tierLabel, fusion), this._options.openerService, store).element;
 			next.classList.add('chat-model-card-description', 'chat-model-card-discount-description');
 			next.hidden = hidden;
 			if (discountDescription) {

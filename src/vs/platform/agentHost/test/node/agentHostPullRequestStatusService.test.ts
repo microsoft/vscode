@@ -61,7 +61,6 @@ function snapshot(ref: PullRequestRef, overrides?: { readonly draft?: boolean; r
 		},
 		topLevelComments: { status: 'missing', complete: false },
 		submittedReviews: { status: 'missing', complete: false },
-		inlineComments: { status: 'missing', complete: false },
 		reviewThreads: { status: 'missing', complete: false },
 		checks: { status: 'missing', complete: false },
 		mergeability: {
@@ -81,7 +80,6 @@ function snapshot(ref: PullRequestRef, overrides?: { readonly draft?: boolean; r
 				queueRequirementKnown: true,
 			},
 		},
-		participants: { status: 'missing', complete: false },
 	} as PullRequestSnapshot;
 }
 

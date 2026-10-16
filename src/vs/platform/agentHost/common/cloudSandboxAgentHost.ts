@@ -12,8 +12,10 @@
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
+import { URI } from '../../../base/common/uri.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { AgentSession } from './agent.js';
 import { RemoteAgentHostsEnabledSettingId } from './remoteAgentHostService.js';
 import { IReplayedTaskHistory } from './taskEventReplay.js';
 import { SessionStatus } from './state/sessionState.js';
@@ -46,6 +48,16 @@ export const CLOUD_SANDBOX_SESSION_SCHEME = 'ahp-session';
 
 /** The agent provider advertised by the Copilot host inside the sandbox. */
 export const CLOUD_SANDBOX_AGENT_PROVIDER = 'copilot';
+
+/**
+ * Whether a title the sandbox host reports is its stand-in for an untitled session. AHP gives
+ * `title` no "untitled" meaning, and this host fills it with the session id until the agent names
+ * the session; the local agent host publishes an empty title instead. Remove once the sandbox host
+ * does the same or the protocol defines the untitled case.
+ */
+export function isCloudSandboxPlaceholderTitle(title: string | undefined, session: URI | string): title is string {
+	return title !== undefined && title === AgentSession.id(session);
+}
 
 /** Prefix of a sealed token envelope (`copilot-sealed.v1.<key_id>.<b64url>`). */
 export const CLOUD_SANDBOX_SEALED_TOKEN_PREFIX = 'copilot-sealed.v1.';
