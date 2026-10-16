@@ -38,6 +38,30 @@ export interface IPricingDisclosure {
 	readonly onDidChange: Event<void>;
 }
 
+/** One choice of a setting on a model's details page. */
+export interface IModelCardChoice {
+	readonly label: string;
+	readonly description?: string;
+	readonly checked: boolean;
+	readonly readOnly?: boolean;
+}
+
+/** A segmented control for one setting on an on-device model's details page; arrow keys move focus without choosing, and descriptions are tooltips and accessible names. */
+export function createModelCardChoiceControl(title: string, choices: readonly IModelCardChoice[]): Radio {
+	return new Radio({
+		ariaLabel: title,
+		className: 'segmented',
+		arrowKeyBehavior: 'focus',
+		items: choices.map(({ label, description, checked, readOnly }) => ({
+			text: label,
+			tooltip: description,
+			ariaLabel: description ? localize('chat.modelPicker.optionDescription', "{0}, {1}", label, description) : label,
+			isActive: checked,
+			disabled: readOnly,
+		})),
+	});
+}
+
 export interface IModelCardOptions {
 	readonly model: ILanguageModelChatMetadataAndIdentifier;
 	readonly configurationAccess: IModelConfigurationAccess;
@@ -68,6 +92,8 @@ export interface IModelCardOptions {
 	readonly onWillSelect?: () => void;
 	/** Selects the model for the latest saved configuration or speed choice. */
 	readonly onSelect?: (model: ILanguageModelChatMetadataAndIdentifier) => void;
+	/** Whether saving configuration selects the configured model. Defaults to true. */
+	readonly selectModelOnConfigurationChange?: boolean;
 	/** Called once the selection settles so the picker can refresh its rows. */
 	readonly onDidAccept?: () => void;
 }
@@ -182,7 +208,9 @@ export class ModelCard extends DisposableStore {
 		try {
 			await setModelConfigValues(options.model, options.configurationAccess, values, options.onDidChangeConfiguration);
 			if (!this.isDisposed && version === this._configurationChangeVersion) {
-				options.onSelect?.(options.model);
+				if (options.selectModelOnConfigurationChange !== false) {
+					options.onSelect?.(options.model);
+				}
 				this._setSelectedRoutingAlternative(undefined);
 			}
 			await Promise.all([...this._groupControls.values()].map(control => control.whenSelectionAnimationSettles()));
@@ -266,7 +294,7 @@ export class ModelCard extends DisposableStore {
 		}
 		// Without tiers to sit below, Auto's discount follows its description.
 		if (isAuto && !effort && metadata.autoModelDiscountPercent !== undefined) {
-			this._renderDescription(ILanguageModelChatMetadata.getAutoModelDiscountDescription(metadata.autoModelDiscountPercent, undefined, !!metadata.autoModelEnsemble));
+			this._renderDescription(ILanguageModelChatMetadata.getAutoModelDiscountDescription(metadata.autoModelDiscountPercent, undefined, !!metadata.autoModelFusion));
 		}
 
 		if (!isAuto) {
@@ -376,7 +404,7 @@ export class ModelCard extends DisposableStore {
 	private async _resetToDefaults(): Promise<void> {
 		const values = Object.fromEntries([...this._groupControls.keys()].flatMap(group => {
 			const property = this._configProperty(group);
-			return property ? [[property.key, property.schema.default]] : [];
+			return property && !property.schema.readOnly ? [[property.key, property.schema.default]] : [];
 		}));
 		await this._setValues(values);
 	}
@@ -410,7 +438,7 @@ export class ModelCard extends DisposableStore {
 	private _renderEffortSection(effort: IModelConfigProperty, isAuto: boolean): void {
 		this._renderChoiceSection(effort, MODEL_CONFIG_GROUP_EFFORT, effort.schema.title ?? (isAuto
 			? localize('models.optimizeFor', "Optimize for")
-			: localize('chat.effort.header', "Thinking Effort")));
+			: localize('chat.effort.header', "Effort Level")));
 	}
 
 	/**
@@ -438,9 +466,9 @@ export class ModelCard extends DisposableStore {
 			...alternatives.filter(alternative => !choices.some(choice => replaces(alternative, choice))).map(alternative => ({ alternative })),
 		];
 		const followingAlternatives = entries.length - choices.length;
-		const ensemble = !!this._options.model.metadata.autoModelEnsemble;
-		// Ensemble's tiers describe themselves below the control, so a hover would only repeat it.
-		const tooltip = (description: string | undefined) => isAuto && ensemble && group === MODEL_CONFIG_GROUP_EFFORT ? undefined : description;
+		const fusion = !!this._options.model.metadata.autoModelFusion;
+		// Fusion's tiers describe themselves below the control, so a hover would only repeat it.
+		const tooltip = (description: string | undefined) => isAuto && fusion && group === MODEL_CONFIG_GROUP_EFFORT ? undefined : description;
 		const items = entries.map(({ choice, alternative }, index): IRadioOptionItem => {
 			if (!alternative) {
 				const { label, description, checked, readOnly } = choice!;
@@ -500,7 +528,7 @@ export class ModelCard extends DisposableStore {
 				return;
 			}
 			const store = new DisposableStore();
-			const next = renderModelDescription(ILanguageModelChatMetadata.getAutoModelDiscountDescription(discountPercent, tierLabel, ensemble), this._options.openerService, store).element;
+			const next = renderModelDescription(ILanguageModelChatMetadata.getAutoModelDiscountDescription(discountPercent, tierLabel, fusion), this._options.openerService, store).element;
 			next.classList.add('chat-model-card-description', 'chat-model-card-discount-description');
 			next.hidden = hidden;
 			if (discountDescription) {

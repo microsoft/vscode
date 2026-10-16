@@ -14,8 +14,8 @@ import type { SubscribeResult } from '../../../../common/state/protocol/commands
 import { CustomizationEnablementKind, McpServerStatus } from '../../../../common/state/protocol/state.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, customizationId, CustomizationType, ROOT_STATE_URI, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
-import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { customizationId, CustomizationType, ROOT_STATE_URI, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
+import { getActionEnvelope, isActionNotification, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
 import { createRealSession, driveTurnToCompletion, initTestGitRepo, resolveGitHubToken, textFromContent } from '../harness/agentHostE2ETestHarness.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
@@ -114,7 +114,7 @@ export function defineCopilotRuntimeMcpTests(context: IAgentHostE2ETestContext):
 			token: context.config.githubToken ?? resolveGitHubToken(),
 		}, 30_000);
 		await context.client.call<SubscribeResult>('subscribe', { channel: session.sessionUri });
-		await context.client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(session.sessionUri) });
+		await context.client.call<SubscribeResult>('subscribe', { channel: defaultChatChannel(session.sessionUri) });
 		context.client.dispatch({
 			channel: session.sessionUri,
 			clientSeq: 1,
@@ -145,7 +145,7 @@ export function defineCopilotRuntimeMcpTests(context: IAgentHostE2ETestContext):
 	function probeResults(sessionUri: string): string[] {
 		return context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallComplete')).flatMap(notification => {
 			const { channel, action } = getActionEnvelope(notification);
-			return channel === buildDefaultChatUri(sessionUri) && action.type === ActionType.ChatToolCallComplete
+			return channel === defaultChatChannel(sessionUri) && action.type === ActionType.ChatToolCallComplete
 				? [textFromContent(action.result.content ?? [])].filter(text => text.startsWith('MCP_PROBE:'))
 				: [];
 		});
@@ -168,7 +168,7 @@ export function defineCopilotRuntimeMcpTests(context: IAgentHostE2ETestContext):
 		const completions = context.client.receivedNotifications(n => isActionNotification(n, ActionType.ChatToolCallComplete))
 			.flatMap(notification => {
 				const { channel, action } = getActionEnvelope(notification);
-				return channel === buildDefaultChatUri(session.sessionUri) && action.type === ActionType.ChatToolCallComplete
+				return channel === defaultChatChannel(session.sessionUri) && action.type === ActionType.ChatToolCallComplete
 					? [action.result.success] : [];
 			});
 		assert.deepStrictEqual({

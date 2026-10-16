@@ -7,6 +7,7 @@ import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { removeAnsiEscapeCodes } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
+import type { IAgentChatOwnerRef } from '../../common/agent.js';
 import { TerminalClaimKind, type TerminalCommandResult, type TerminalSessionClaim } from '../../common/state/protocol/state.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
@@ -204,7 +205,8 @@ export class NonPtyShellTerminalStreams extends Disposable {
 	private _shellTaskReads = 0;
 
 	constructor(
-		private readonly _sessionUri: URI,
+		/** The chat's owner, read when a link or claim is built. */
+		private readonly _owner: IAgentChatOwnerRef,
 		private readonly _storageUri: URI,
 		private readonly _chatUri: URI,
 		@IAgentHostTerminalManager private readonly _terminalManager: IAgentHostTerminalManager,
@@ -230,7 +232,7 @@ export class NonPtyShellTerminalStreams extends Disposable {
 	track(toolCallId: string, title: string): void {
 		if (!this._streams.has(toolCallId)) {
 			this._streams.set(toolCallId, {
-				uri: buildNonPtyShellTerminalUri(this._storageUri, this._sessionUri, this._chatUri, toolCallId),
+				uri: buildNonPtyShellTerminalUri(this._storageUri, this._owner.get(), this._chatUri, toolCallId),
 				title,
 				lastSnapshot: '',
 				sourceTruncated: false,
@@ -507,7 +509,7 @@ export class NonPtyShellTerminalStreams extends Disposable {
 	}
 
 	private _createTerminal(toolCallId: string, stream: INonPtyShellStream): void {
-		const claim = buildNonPtyShellTerminalClaim(this._sessionUri, this._chatUri, toolCallId);
+		const claim = buildNonPtyShellTerminalClaim(this._owner.get(), this._chatUri, toolCallId);
 		this._terminalManager.createOutputTerminal(stream.uri, { title: stream.title, claim });
 		stream.created = true;
 	}

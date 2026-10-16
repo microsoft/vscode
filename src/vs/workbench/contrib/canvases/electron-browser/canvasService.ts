@@ -210,13 +210,16 @@ export class CanvasService extends Disposable implements ICanvasService {
 			? this.contextService.contexts.get().find(context => isCanvasOwner(context.owner, reference))
 			: undefined;
 		const canvas = context?.canvases.get()?.find(canvas => isEqual(canvas.resource, reference.canvas));
-		if (canvas?.source === undefined) {
+		if (!canvas) {
 			return;
 		}
 		const key = getCanvasReferenceKey(reference);
+		this.deleteDismissed(key);
+		if (canvas.source === undefined) {
+			return;
+		}
 		const input = this.getOrCreateInput(reference, canvas);
 		input.setCanvas(canvas);
-		this.deleteDismissed(key);
 		await this.openInput(key, input);
 	}
 

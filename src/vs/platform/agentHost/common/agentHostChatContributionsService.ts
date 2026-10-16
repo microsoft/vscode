@@ -8,10 +8,10 @@ import type { ISettableObservable } from '../../../base/common/observable.js';
 import type { StopWatch } from '../../../base/common/stopwatch.js';
 import type { URI } from '../../../base/common/uri.js';
 import { createDecorator, type BrandedService } from '../../instantiation/common/instantiation.js';
-import type { IAgent } from './agent.js';
+import type { IAgent, IAgentChatUsageSignal } from './agent.js';
 import type { AgentHostLaunchKind, AgentHostTurnFailureStage, IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
 import type { ActionOrigin, StateAction } from './state/sessionActions.js';
-import type { ErrorInfo, Message, Turn, URI as ProtocolURI } from './state/sessionState.js';
+import type { ChatConfigState, ErrorInfo, Message, Turn, URI as ProtocolURI } from './state/sessionState.js';
 
 export const IAgentHostChatContributions = createDecorator<IAgentHostChatContributions>('agentHostChatContributions');
 
@@ -118,6 +118,8 @@ export type IncomingRequestDisposition =
 export interface IHydrationContext {
 	readonly session: ProtocolURI;
 	readonly chat: ProtocolURI;
+	/** Whether the chat is the session's recorded default chat; hydration can run before the chat is registered. */
+	readonly isDefaultChat: boolean;
 	/** Resource the chat's persisted data is keyed by, recorded for the chat being hydrated. */
 	readonly storageResource: ProtocolURI;
 	/** Workspace transitions preloaded from this chat's backing storage, when present. */
@@ -136,6 +138,8 @@ export interface IHydrationContext {
 export interface IRestoredChat {
 	readonly title?: string;
 	readonly draft?: Message;
+	/** The chat's own config values (`ChatState.config`). */
+	readonly config?: ChatConfigState;
 }
 
 /** A client action after it has been reduced into host state. */
@@ -271,6 +275,14 @@ export interface IAgentHostChatContribution extends IDisposable {
 	 */
 	onDidDispatchAction?(dispatched: IDispatchedAction): void;
 	/**
+	 * Observes provider-reported aggregate billing, which can arrive before the
+	 * chat enters the restored catalog and independently of any active turn.
+	 * Must not throw; the dispatcher isolates failures.
+	 */
+	onChatUsage?(signal: IAgentChatUsageSignal): void;
+	/** Runs after a cold-restored session's catalog and metadata are fully populated. */
+	onDidRestoreSession?(session: ProtocolURI): void;
+	/**
 	 * Awaited before the turn is sent. Instructions are concatenated in `order`;
 	 * text replacements are threaded in `order`, so each contribution observes
 	 * the prior contribution's text. Failures are isolated and do not block the send.
@@ -331,6 +343,8 @@ export interface IAgentHostChatContributions extends IDisposable {
 	turnEnd(turn: ITurnEnd): void;
 	didApplyClientAction(action: IAppliedClientAction): void;
 	didDispatchAction(dispatched: IDispatchedAction): void;
+	chatUsage(signal: IAgentChatUsageSignal): void;
+	didRestoreSession(session: ProtocolURI): void;
 	outgoingTurn(turn: IOutgoingTurn): Promise<IOutgoingTurnContributionResult>;
 	incomingRequest(request: IIncomingRequest): IncomingRequestDisposition;
 	hydrateTurns(context: IHydrationContext, turns: readonly Turn[]): Promise<readonly Turn[]>;

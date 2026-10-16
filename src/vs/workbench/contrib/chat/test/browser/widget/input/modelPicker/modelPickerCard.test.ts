@@ -447,7 +447,7 @@ suite('ModelCard', () => {
 			});
 			const menuEdit = () => setModelConfigValues(model, result.configurationAccess, { effort: menuFirst ? 'high' : 'low' },
 				(...change) => result.changes.push(withoutRequestTime(change)));
-			const cardEdit = () => result.card.element.querySelectorAll<HTMLElement>('[aria-label="Thinking Effort"] [role="radio"]')[menuFirst ? 0 : 2].click();
+			const cardEdit = () => result.card.element.querySelectorAll<HTMLElement>('[aria-label="Effort Level"] [role="radio"]')[menuFirst ? 0 : 2].click();
 			let menuSave: Promise<void>;
 			if (menuFirst) {
 				menuSave = menuEdit();
@@ -989,6 +989,23 @@ suite('ModelCard', () => {
 			reset: false,
 			pinned: 'true',
 			focused: true,
+		});
+	});
+
+	test('reset leaves read-only options out of the write while resetting editable options', async () => {
+		const model = createModel({
+			configurationSchema: {
+				properties: {
+					effort: { type: 'string', group: 'navigation', enum: ['low', 'high'], default: 'high', readOnly: true },
+					context: { type: 'number', group: 'tokens', enum: [100, 200], default: 100 },
+				}
+			},
+		});
+		const result = createCard({ effort: 'high', context: 200 }, { model });
+		element(result.card.element, '[aria-label="Reset to Default"]').click();
+		await timeout(0);
+		assert.deepStrictEqual({ writes: result.writes, values: result.values }, {
+			writes: [{ context: 100 }], values: { effort: 'high', context: 100 },
 		});
 	});
 

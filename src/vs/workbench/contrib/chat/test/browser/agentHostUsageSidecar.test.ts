@@ -163,6 +163,44 @@ suite('AgentHostUsageRecorder model-call diagnostics', () => {
 		assert.deepStrictEqual(await records(), ['recorded']);
 	});
 
+	test('a failed session listing is not remembered: a later usage records once the listing works', async () => {
+		let fail = true;
+		const { recorder, fire, records } = setup(new FakeHost(async () => {
+			if (fail) {
+				throw new Error('host unavailable');
+			}
+			return [target];
+		}));
+		fire('while-failing');
+		await recorder.flush();
+		fail = false;
+		fire('after-recovery');
+		await recorder.flush();
+		assert.deepStrictEqual(await records(), ['after-recovery']);
+	});
+
+	test('a usage that arrives before its session is listed is not remembered as a non-default chat', async () => {
+		let listed: IAgentSessionMetadata[] = [];
+		const { recorder, fire, records } = setup(new FakeHost(async () => listed));
+		fire('before-listing');
+		await recorder.flush();
+		listed = [target];
+		fire('after-listing');
+		await recorder.flush();
+		assert.deepStrictEqual(await records(), ['after-listing']);
+	});
+
+	test('a peer chat\'s usage is not recorded and its role is looked up once', async () => {
+		const peerChat = 'ahp-chat://peer/Y29waWxvdGNsaTovZW5jb2RlZA';
+		const local = new FakeHost(async () => [{ ...target, chats: [...target.chats!, { chat: URI.parse(peerChat), kind: 'peer' }] }]);
+		const { recorder, records } = setup(local);
+		local.actions.fire(usage(peerChat, 'peer-1'));
+		await recorder.flush();
+		local.actions.fire(usage(peerChat, 'peer-2'));
+		await recorder.flush();
+		assert.deepStrictEqual({ records: await records(), listings: local.listings }, { records: [], listings: 1 });
+	});
+
 	test('a slow remote host does not block local records', async () => {
 		const stalled = new DeferredPromise<IAgentSessionMetadata[]>();
 		const remote = new FakeHost(() => stalled.p);

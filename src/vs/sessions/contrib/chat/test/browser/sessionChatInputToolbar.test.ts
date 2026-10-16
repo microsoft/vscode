@@ -44,7 +44,7 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { ISessionChangesStatsCache } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, SESSION_CHANGES_CHANGESET_ID, SessionArtifactKind, SessionStatus, type IChat, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionArtifact, type ISessionCanvas, type ISessionChangeset, type ISessionFolder, type ISessionGitRepository, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { REVEAL_SESSION_CANVAS_COMMAND_ID } from '../../../canvases/common/sessionCanvas.js';
+import { REVEAL_CANVAS_COMMAND_ID } from '../../../../../workbench/contrib/canvases/common/canvas.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../changes/common/sessionChangesService.js';
 import { getGitHubHoverDate, getGitHubHoverDescription, getGitHubHoverTitle, getGitHubHoverTitleParts } from '../../../github/browser/githubHover.js';
 import { createIssueHoverElement } from '../../../github/browser/issueHover.js';
@@ -244,6 +244,57 @@ suite('SessionChatInputToolbar', () => {
 		});
 	});
 
+	test('uses Session Changes in cloud sandboxes without changing other worktree sessions', () => {
+		const workspace = constObservable(upcastPartial<ISessionWorkspace>({
+			folders: [upcastPartial<ISessionFolder>({
+				gitRepository: upcastPartial<ISessionGitRepository>({ workTreeUri: URI.file('/worktree') }),
+			})],
+		}));
+		const chat = upcastPartial<IChat>({
+			resource: URI.parse('chat:main'),
+			workspace,
+			changesets: constObservable([
+				upcastPartial<ISessionChangeset>({
+					id: BRANCH_CHANGES_CHANGESET_ID,
+					isDefault: constObservable(false),
+					changes: constObservable([]),
+				}),
+				upcastPartial<ISessionChangeset>({
+					id: SESSION_CHANGES_CHANGESET_ID,
+					isDefault: constObservable(true),
+					changes: constObservable([{
+						modifiedUri: URI.file('/chat-change.ts'),
+						insertions: 3,
+						deletions: 0,
+					}]),
+				}),
+			]),
+			changes: constObservable([]),
+		});
+		const scenarios = [
+			{ environment: 'cloud', providerId: `${REMOTE_AGENT_HOST_PROVIDER_PREFIX}cloudsandbox__environment` },
+			{ environment: 'cloud', providerId: 'copilot-cloud' },
+			{ environment: 'local', providerId: LOCAL_AGENT_HOST_PROVIDER_ID },
+			{ environment: 'remote', providerId: `${REMOTE_AGENT_HOST_PROVIDER_PREFIX}ssh__host` },
+			{ environment: 'remote', providerId: `${REMOTE_AGENT_HOST_PROVIDER_PREFIX}tunnel__host` },
+		];
+		const stats = scenarios.map(identity => {
+			const session = upcastPartial<IActiveSession>({
+				...identity,
+				mainChat: constObservable(chat),
+			});
+			return derived(reader => computeSessionInputPillStats(session, chat, reader)).get();
+		});
+
+		assert.deepStrictEqual(stats, [
+			{ files: 1, insertions: 3, deletions: 0 },
+			{ files: 0, insertions: 0, deletions: 0 },
+			{ files: 0, insertions: 0, deletions: 0 },
+			{ files: 0, insertions: 0, deletions: 0 },
+			{ files: 0, insertions: 0, deletions: 0 },
+		]);
+	});
+
 	test('uses cached session stats while chat changes are unresolved', () => {
 		const chat = upcastPartial<IChat>({
 			workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [] })),
@@ -344,6 +395,99 @@ suite('SessionChatInputToolbar', () => {
 		}
 	}
 
+	for (const activation of ['click', 'Enter', 'Space'] as const) {
+		test(`shows, labels and opens Session Changes in a cloud sandbox worktree with ${activation}`, () => {
+			const { instantiationService } = createServices();
+			const root = URI.parse('https://github.com/owner/repo');
+			const workingDirectory = URI.file('/workspaces/repo');
+			const workspace = constObservable(upcastPartial<ISessionWorkspace>({
+				folders: [{
+					root,
+					name: 'repo',
+					description: undefined,
+					workingDirectory,
+					gitRepository: {
+						uri: root,
+						workTreeUri: workingDirectory,
+						branchName: 'main',
+						baseBranchName: 'main',
+						gitHubInfo: constObservable(undefined),
+					},
+				}],
+			}));
+			const changes = observableValue('sessionChanges', [{
+				modifiedUri: URI.file('/workspaces/repo/changed.ts'),
+				insertions: 3,
+				deletions: 0,
+			}]);
+			const chat = upcastPartial<IChat>({
+				resource: URI.parse('chat:main'),
+				workspace,
+				changesets: constObservable([
+					upcastPartial<ISessionChangeset>({
+						id: BRANCH_CHANGES_CHANGESET_ID,
+						isDefault: constObservable(false),
+						changes: constObservable([]),
+					}),
+					upcastPartial<ISessionChangeset>({
+						id: SESSION_CHANGES_CHANGESET_ID,
+						isDefault: constObservable(true),
+						changes,
+					}),
+				]),
+				changes,
+			});
+			const session = upcastPartial<IActiveSession>({
+				environment: 'cloud',
+				providerId: `${REMOTE_AGENT_HOST_PROVIDER_PREFIX}cloudsandbox__environment`,
+				loading: constObservable(false),
+				sessionId: 'sandbox:session',
+				capabilities: constObservable({ supportsMultipleChats: false }),
+				resource: URI.parse('session:1'),
+				chats: constObservable([chat]),
+				mainChat: constObservable(chat),
+				workspace,
+			});
+			const opened: (string | undefined)[] = [];
+			instantiationService.stub(ISessionsService, 'setActive', () => { });
+			instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({
+				revealEditorPartExplicitly: () => { },
+			}));
+			instantiationService.stub(ISessionChangesService, upcastPartial<ISessionChangesService>({
+				openChangesEditor: async (_resource, options) => {
+					const selection = options?.changesetSelection;
+					opened.push(selection?.kind === 'id' ? selection.id : undefined);
+					return undefined;
+				},
+			}));
+			const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+			toolbar.setSession(session, chat);
+			const pill = toolbar.element.querySelector<HTMLElement>('.chat-changes-pill-button');
+			assert.ok(pill);
+			const label = pill.getAttribute('aria-label');
+			if (activation === 'click') {
+				pill.click();
+			} else {
+				pill.dispatchEvent(new KeyboardEvent('keydown', {
+					key: activation === 'Enter' ? 'Enter' : ' ',
+					keyCode: activation === 'Enter' ? 13 : 32,
+					bubbles: true,
+				}));
+			}
+			changes.set([], undefined);
+
+			assert.deepStrictEqual({
+				label,
+				opened,
+				hasPillAfterClearing: !!toolbar.element.querySelector('.chat-changes-pill-button'),
+			}, {
+				label: 'Session Changes: 1 File, +3, -0',
+				opened: [SESSION_CHANGES_CHANGESET_ID],
+				hasPillAfterClearing: false,
+			});
+		});
+	}
+
 	test('labels and opens Session Changes from a nested chat pill while the main chat keeps Branch Changes', () => {
 		const { instantiationService } = createServices();
 		const root = URI.file('/repo');
@@ -422,7 +566,7 @@ suite('SessionChatInputToolbar', () => {
 		const clipboardService = upcastPartial<IClipboardService>({});
 		const openerService = upcastPartial<IOpenerService>({});
 		const sessionsService = upcastPartial<ISessionsService>({});
-		const actions: ISessionArtifactActions = { recordOpen() { }, openExternal() { }, openResource() { }, openImages() { }, copy() { } };
+		const actions: ISessionArtifactActions = { recordOpen() { }, openExternal() { }, openResource() { }, openImages() { }, async downloadImage() { }, copy() { } };
 		const rowPresentation = (entry: IChatPillEntry) => ({
 			label: entry.label, badge: entry.badge, leading: entry.badgeBeforeLabel,
 			pillLabel: entry.pillLabel, className: entry.className,
@@ -1221,7 +1365,7 @@ suite('SessionChatInputToolbar', () => {
 		const commandCalls: { readonly id: string; readonly reference: unknown }[] = [];
 		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({
 			executeCommand: async (id, reference) => {
-				if (id === REVEAL_SESSION_CANVAS_COMMAND_ID) {
+				if (id === REVEAL_CANVAS_COMMAND_ID) {
 					commandCalls.push({ id, reference });
 				}
 				return undefined;
@@ -1299,7 +1443,7 @@ suite('SessionChatInputToolbar', () => {
 			multiple: { label: '2 Canvases', ariaLabel: 'Show 2 canvases' },
 			commandCalls: [
 				{
-					id: REVEAL_SESSION_CANVAS_COMMAND_ID,
+					id: REVEAL_CANVAS_COMMAND_ID,
 					reference: {
 						providerId: session.providerId,
 						session: session.resource,
@@ -1308,7 +1452,7 @@ suite('SessionChatInputToolbar', () => {
 					},
 				},
 				{
-					id: REVEAL_SESSION_CANVAS_COMMAND_ID,
+					id: REVEAL_CANVAS_COMMAND_ID,
 					reference: {
 						providerId: session.providerId,
 						session: session.resource,

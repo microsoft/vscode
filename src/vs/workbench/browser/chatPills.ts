@@ -140,7 +140,7 @@ export function withChatPillHoverLabel<T extends IAction>(action: T, hoverLabel:
 }
 
 export function getChatPillLocationHover(location: string): IActionListItemHover {
-	const element = createChatPillHoverElement('chat-pill-location-hover', 'compact');
+	const element = createChatPillHoverElement('chat-pill-location-hover', 'compact', 'content');
 	element.textContent = location;
 	return {
 		content: element,

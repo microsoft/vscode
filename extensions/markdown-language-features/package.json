@@ -1982,6 +1982,7 @@
     "update-markdown-editor-package-json": "node ./scripts/updateMarkdownEditorPackageJson.mts --write",
     "check-markdown-editor-package-json": "node ./scripts/updateMarkdownEditorPackageJson.mts --check",
     "test-markdown-editor-package-json": "node --test ./scripts/updateMarkdownEditorPackageJson.test.mts",
+    "test-markdown-editor-clipboard": "node --test ./scripts/clipboardMedia.test.mts ./scripts/markdownEditorMediaTransfer.test.mts",
     "compile-web": "npm-run-all2 -lp bundle-web typecheck-web",
     "bundle-web": "node ./esbuild.browser.mts",
     "typecheck-web": "node ../../node_modules/@typescript/native/lib/tsc.js --project ./tsconfig.browser.json --noEmit",
@@ -1991,7 +1992,7 @@
   },
   "dependencies": {
     "@vscode/extension-telemetry": "^0.9.8",
-    "@vscode/markdown-editor": "0.0.2-121",
+    "@vscode/markdown-editor": "0.0.2-130",
     "@vscode/observables": "^0.1.1-0",
     "@vscode/web-editors": "^0.0.2-41",
     "dompurify": "^3.4.10",

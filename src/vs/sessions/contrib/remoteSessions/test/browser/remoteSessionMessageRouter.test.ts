@@ -124,6 +124,8 @@ class TestConnection extends mock<IAgentHostService>() {
 		};
 	}
 
+	override getSubscriptionUnmanaged<T extends StateComponents>(): IAgentSubscription<ComponentToState[T]> | undefined { return undefined; }
+
 	override getSubscription<T extends StateComponents>(kind: T, resource: URI): IReference<IAgentSubscription<ComponentToState[T]>> {
 		const get = this.subscriptions[kind];
 		assert.ok(get);
@@ -331,7 +333,7 @@ suite('RemoteSessionMessageRouter', () => {
 			first: 0,
 			channel: buildChatUri(backendSession, 'other-chat'),
 			origin: { kind: MessageKind.Agent },
-			delegation: { sourceSession: sessions[1].resource.toString(), sourceChat: buildChatUri(sessions[1].resource, 'original-chat') },
+			delegation: { sourceSession: sessions[1].resource.toString(), sourceChat: buildChatUri(backendSession, 'original-chat') },
 			result: {
 				status: 'sent',
 				session: sessions[2].resource.toString(), chat: target.toString(),
@@ -339,6 +341,18 @@ suite('RemoteSessionMessageRouter', () => {
 				host: { id: 'agenthost-second', label: 'agenthost-second' },
 			},
 			link: URI.parse(buildOpenSessionLinkUri(sessions[1].resource, 'original-chat')).toString(),
+		});
+	});
+
+	test('a default-chat source names its advertised default chat, not the default-shaped chat', async () => {
+		const { router, first, second, sessions } = setup();
+		const recreatedDefault = URI.parse(buildDefaultChatUri(backendSession)).with({ query: 'generation=1' }).toString();
+		const state = first.sessionState.verifiedValue!;
+		first.sessionState.set({ ...state, defaultChat: recreatedDefault, chats: state.chats.map((chat, index) => index === 0 ? { ...chat, resource: recreatedDefault } : chat) });
+		await router.send(sessions[1].resource, { session: sessions[2].chats.get()[2].resource.toString(), message: 'Report' }, 'default-source', CancellationToken.None);
+		assert.deepStrictEqual(readAgentMessageDelegationMeta(second.dispatched[0].action.message), {
+			sourceSession: sessions[1].resource.toString(),
+			sourceChat: recreatedDefault,
 		});
 	});
 
@@ -449,7 +463,7 @@ suite('RemoteSessionMessageRouter', () => {
 		await router.send(source.resource, { session: sessions[1].resource.toString(), message: 'From a subagent' }, 'subagent', CancellationToken.None);
 		const delegation = readAgentMessageDelegationMeta(first.dispatched[0].action.message);
 		assert.ok(delegation && hasKey(delegation, { sourceSession: true }) && delegation.sourceChat);
-		assert.deepStrictEqual({ session: mintedTestChatOwner(delegation.sourceChat), chatId: parseChatUri(delegation.sourceChat)?.chatId }, { session: session.resource.toString(), chatId: 'subagent/call-1' });
+		assert.deepStrictEqual({ session: mintedTestChatOwner(delegation.sourceChat), chatId: parseChatUri(delegation.sourceChat)?.chatId }, { session: backendSession.toString(), chatId: 'subagent/call-1' });
 	});
 
 	test('a saved peer origin that no longer exists never falls back to the main chat', async () => {
