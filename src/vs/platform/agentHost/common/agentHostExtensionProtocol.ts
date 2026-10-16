@@ -66,7 +66,10 @@ export const RequestAgentHostMcpAuthenticationExtensionMethod = 'vscode/requestM
 export const RemoveSessionArtifactExtensionMethod = 'vscode/removeSessionArtifact';
 export const StopBackgroundWorkExtensionMethod = 'vscode/stopBackgroundWork';
 export const ImportSessionExtensionMethod = 'vscode/importSession';
-/** Moves a single-chat session under another session (Block 4); advertised by `vscode.sessionMove`. */
+/**
+ * Moves a single-chat session under another session (Block 4); advertised by `vscode.sessionMove` whether or not moving
+ * chats is enabled, which can change after a client connected. A move while it is off is refused with `disabled`.
+ */
 export const MoveAgentHostSessionExtensionMethod = 'vscode/moveSession';
 export const ReadSavedChatExtensionMethod = 'vscode/readSavedChat';
 export const CompleteSavedChatContinuationExtensionMethod = 'vscode/completeSavedChatContinuation';

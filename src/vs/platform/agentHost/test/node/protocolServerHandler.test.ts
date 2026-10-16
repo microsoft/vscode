@@ -632,6 +632,8 @@ suite('ProtocolServerHandler', () => {
 				'vscode.removeSessionArtifact': true,
 				'vscode.importSession': true,
 				'vscode.devContainers': true,
+				// Offered whether or not moving chats is enabled, so enabling it needs no reconnect.
+				'vscode.sessionMove': true,
 			},
 		});
 	});
@@ -7326,25 +7328,30 @@ suite('ProtocolServerHandler', () => {
 				stateManager.createSession(makeSessionSummary(targetUri));
 			});
 
-			test('is offered and routed only while moving chats is enabled', async () => {
-				const off = connectClient(`client-session-move-${clients++}`);
-				const offResponse = await send(off, { session: sessionUri, destination: targetUri, after: null });
+			test('is offered and routed whether or not moving chats is enabled, so enabling it needs no reconnect', async () => {
+				// Connected while moving chats is off, as a client whose root config mirror arrives after it initialized.
+				const transport = connectClient(`client-session-move-${clients++}`);
+				const offered = supportsAgentHostSessionMove(initialized(transport));
+				agentService.moveChatResult = new AgentChatMoveRefusedError(AgentChatMoveRefusal.Disabled, 'Moving chats is not enabled.');
+				const disabled = await send(transport, { session: sessionUri, destination: targetUri, after: null }) as { error?: { code: number; data?: unknown } };
 				stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { [ChatMoveConfigKey.Enabled]: true } });
-				const on = connectClient(`client-session-move-${clients++}`);
+				agentService.moveChatResult = undefined;
 				const placed = buildDefaultChatUri(targetUri);
 
 				assert.deepStrictEqual({
-					offered: [supportsAgentHostSessionMove(initialized(off)), supportsAgentHostSessionMove(initialized(on))],
-					offResponse,
-					first: await send(on, { session: sessionUri, destination: targetUri, after: null }),
-					anchored: await send(on, { session: sessionUri, destination: targetUri, after: placed }),
+					offered,
+					disabled: { code: disabled.error?.code, data: disabled.error?.data },
+					first: await send(transport, { session: sessionUri, destination: targetUri, after: null }),
+					anchored: await send(transport, { session: sessionUri, destination: targetUri, after: placed }),
 					moved: agentService.movedSessions,
 				}, {
-					offered: [false, true],
-					offResponse: { jsonrpc: '2.0', id: 30, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: vscode/moveSession' } },
+					offered: true,
+					// The host refuses a move while moving chats is off.
+					disabled: { code: JsonRpcErrorCodes.InvalidParams, data: { reason: AgentChatMoveRefusal.Disabled } },
 					first: { jsonrpc: '2.0', id: 30, result: { session: targetUri } },
 					anchored: { jsonrpc: '2.0', id: 30, result: { session: targetUri } },
 					moved: [
+						{ session: sessionUri, destination: targetUri, after: undefined },
 						{ session: sessionUri, destination: targetUri, after: undefined },
 						{ session: sessionUri, destination: targetUri, after: placed },
 					],

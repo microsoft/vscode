@@ -10,9 +10,10 @@ import { timeout } from '../../../../../../base/common/async.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { AgentChatMoveRefusal, ChatMoveConfigKey } from '../../../../common/agentHostChatMove.js';
-import { MoveAgentHostSessionExtensionMethod } from '../../../../common/agentHostExtensionProtocol.js';
+import { MoveAgentHostSessionExtensionMethod, supportsAgentHostSessionMove } from '../../../../common/agentHostExtensionProtocol.js';
 import { ActionType, type StateAction } from '../../../../common/state/sessionActions.js';
-import { ChatMoveDestinationKind, type ListSessionsResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
+import { ChatMoveDestinationKind, type InitializeResult, type ListSessionsResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
+import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { MessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallConfirmationReason, type ChatState, type ChatSummary, type SessionState } from '../../../../common/state/sessionState.js';
 import { ProtocolError } from '../../../../common/state/sessionProtocol.js';
 import { newTestChatUri } from '../../hostDefaultChats.js';
@@ -194,20 +195,38 @@ export function defineChatMoveTests(context: IAgentHostE2ETestContext): void {
 
 	// #region Conformance: refusals decided before a move touches either session
 
-	conformanceTest(context, 'moveChat is refused and vscode/moveSession is not offered while moving chats is disabled', async function () {
+	conformanceTest(context, 'vscode/moveSession is offered while moving chats is disabled, refused for it, and runs once it is enabled without reconnecting', async function () {
+		// Connected while moving chats is off, as a client is when the setting is mirrored after it initialized.
 		const folder = workspace('disabled');
 		const source = await createSession('disabled-source', folder);
 		const target = await createSession('disabled-target', folder);
 		const peer = await createPeer(source);
-
-		assert.deepStrictEqual({
+		const observer = await context.connectClient();
+		let offered: boolean;
+		try {
+			offered = supportsAgentHostSessionMove(await observer.call<InitializeResult>('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: `chat-move-observer-${generateUuid()}` }, 30_000));
+		} finally {
+			observer.close();
+		}
+		const whileDisabled = {
 			moveChat: await refusalOf(moveChat(peer, { kind: ChatMoveDestinationKind.Session, session: target })),
 			moveSession: await refusalOf(moveSession(target, source, null)),
 			source: await catalog(source),
-		}, {
-			moveChat: AgentChatMoveRefusal.Disabled,
-			moveSession: `Method not found: ${MoveAgentHostSessionExtensionMethod}`,
-			source: { defaultChat: defaultChatChannel(source), chats: [[defaultChatChannel(source), false], [peer, false]] },
+		};
+		// Enabled on the same connection: the move gets past the setting to the session's own checks.
+		let onceEnabled: string | undefined;
+		await withChatMoves(async () => {
+			onceEnabled = await refusalOf(moveSession(source, target, null));
+		});
+
+		assert.deepStrictEqual({ offered, whileDisabled, onceEnabled }, {
+			offered: true,
+			whileDisabled: {
+				moveChat: AgentChatMoveRefusal.Disabled,
+				moveSession: AgentChatMoveRefusal.Disabled,
+				source: { defaultChat: defaultChatChannel(source), chats: [[defaultChatChannel(source), false], [peer, false]] },
+			},
+			onceEnabled: AgentChatMoveRefusal.NotSingleChat,
 		});
 	}, config.supportsMultipleChats);
 
@@ -316,6 +335,7 @@ export function defineChatMoveTests(context: IAgentHostE2ETestContext): void {
 		const chat = defaultChatChannel(source);
 		await driveTurn(defaultChatChannel(destination), MATERIALIZE);
 		await driveTurn(chat, REMEMBER);
+		// This connection initialized while moving chats was off: the move runs without reconnecting.
 		await withChatMoves(async () => {
 			context.client.clearReceived();
 			const moved = await firstMove(() => moveSession(source, destination, defaultChatChannel(destination)));
