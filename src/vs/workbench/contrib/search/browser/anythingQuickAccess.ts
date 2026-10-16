@@ -240,7 +240,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		// Update the pick state for this run
 		this.pickState.set(picker, runOptions?.fileSearchDelegate === undefined);
-		this._linkSourceGroup = this._editorGroupsService.activeGroup.id;
+		this._linkSourceGroup = this._supportsLinks(runOptions) ? this._editorGroupsService.activeGroup.id : undefined;
 
 		// Add editor decorations for active editor symbol picks
 		const editorDecorationsDisposable = disposables.add(new MutableDisposable());
@@ -306,9 +306,13 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			);
 		}
 
-		if (!runOptions?.fileSearchDelegate && !runOptions?.handleAccept && !this.pickState.isQuickNavigating) {
+		if (this._supportsLinks(runOptions)) {
 			const linkPick = this._getLinkPick(originalFilter);
 			if (linkPick) {
+				this.pickState.lastOriginalFilter = undefined;
+				this.pickState.lastFilter = undefined;
+				this.pickState.lastRange = undefined;
+				this.pickState.lastGlobalPicks = undefined;
 				return !runOptions?.filter || runOptions.filter(linkPick) ? [linkPick] : [];
 			}
 		}
@@ -375,6 +379,10 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			disposables,
 			token
 		);
+	}
+
+	private _supportsLinks(runOptions?: IAnythingQuickAccessProviderRunOptions): boolean {
+		return !runOptions?.filesOnly && !runOptions?.fileSearchDelegate && !runOptions?.handleAccept && !this.pickState.isQuickNavigating;
 	}
 
 	private _getLinkPick(filter: string): IAnythingQuickPickItem | undefined {

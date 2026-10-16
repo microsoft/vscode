@@ -43,10 +43,17 @@ suite('AnythingQuickAccess - links', () => {
 	let openError: Error | undefined;
 	let sourceGroup: IEditorGroup;
 	let otherGroup: IEditorGroup;
+	let allowActiveGroupAccess: boolean;
 
 	class TestAnythingQuickAccessProvider extends AnythingQuickAccessProvider {
 		getPicks(filter: string, options?: IAnythingQuickAccessProviderRunOptions) {
 			return this._getPicks(filter, store.add(new DisposableStore()), CancellationToken.None, options);
+		}
+	}
+
+	class EmptyAnythingQuickAccessProvider extends AnythingQuickAccessProvider {
+		protected override _getPicks(): IAnythingQuickPickItem[] {
+			return [];
 		}
 	}
 
@@ -56,12 +63,16 @@ suite('AnythingQuickAccess - links', () => {
 		activatedGroups = [];
 		handled = true;
 		openError = undefined;
+		allowActiveGroupAccess = true;
 		sourceGroup = new class extends mock<IEditorGroup>() { override readonly id = 1; };
 		otherGroup = new class extends mock<IEditorGroup>() { override readonly id = 2; };
 		activeGroup = sourceGroup;
 		instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(IEditorGroupsService, {
-			get activeGroup() { return activeGroup; },
+			get activeGroup() {
+				assert.ok(allowActiveGroupAccess, 'This picker must not access the active editor group');
+				return activeGroup;
+			},
 			getGroup: id => id === sourceGroup.id ? sourceGroup : otherGroup,
 			activateGroup: group => {
 				const id = typeof group === 'number' ? group : group.id;
@@ -237,6 +248,50 @@ suite('AnythingQuickAccess - links', () => {
 			filesOnly: [],
 			delegatedIsFileSearch: true
 		});
+	});
+
+	for (const [before, after] of [
+		['readme.md', 'readme.md:12'],
+		['readme.md:12', 'readme.md'],
+		['readme.md', 'readme.md']
+	]) {
+		for (const link of ['https://example.com', 'https://']) {
+			test(`refreshes file picks after ${before} -> ${link} -> ${after}`, () => {
+				provider.getPicks(before);
+				getLinkPick(link);
+				const picks = provider.getPicks(after);
+				assert.notStrictEqual(picks, null);
+				assert.ok(!Array.isArray(picks), 'Returning to a file query must replace the link pick');
+				assert.strictEqual(provider.getPicks('readme.md:13'), null, 'Range-only changes should still preserve file picks');
+			});
+		}
+	}
+
+	test('refreshes file picks after a link was filtered out', () => {
+		provider.getPicks('readme.md');
+		assert.deepStrictEqual(provider.getPicks('https://example.com', { filter: () => false }), []);
+		assert.notStrictEqual(provider.getPicks('readme.md:12'), null);
+	});
+
+	for (const options of [
+		{ filesOnly: true },
+		{ fileSearchDelegate: { search: async () => ({ results: [], messages: [] }) } },
+		{ handleAccept: () => { } }
+	] satisfies IAnythingQuickAccessProviderRunOptions[]) {
+		test(`does not require an active editor group for a specialized picker: ${Object.keys(options)[0]}`, () => {
+			const picker = store.add(instantiationService.get(IQuickInputService).createQuickPick<IAnythingQuickPickItem>({ useSeparators: true }));
+			const provider = store.add(instantiationService.createInstance(EmptyAnythingQuickAccessProvider));
+			allowActiveGroupAccess = false;
+			store.add(provider.provide(picker, CancellationToken.None, options));
+		});
+	}
+
+	test('does not require an active editor group for quick navigation', () => {
+		const picker = store.add(instantiationService.get(IQuickInputService).createQuickPick<IAnythingQuickPickItem>({ useSeparators: true }));
+		const provider = store.add(instantiationService.createInstance(EmptyAnythingQuickAccessProvider));
+		picker.quickNavigate = { keybindings: [] };
+		allowActiveGroupAccess = false;
+		store.add(provider.provide(picker, CancellationToken.None));
 	});
 
 	test('reports unhandled links', async () => {
