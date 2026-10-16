@@ -219,7 +219,14 @@ interface IPassiveChatFlagUpdate {
 	readonly set: boolean;
 }
 
-type PassiveCatalogMetadataUpdate = IPassiveSessionMetadataUpdate | IPassiveChatFlagUpdate;
+/** Detaches an archived chat's folders from the persisted session workspace, after the chat flags of the same batch. */
+interface IPassiveChatFolderDetachUpdate {
+	readonly kind: 'detachFolders';
+	readonly key: string;
+	readonly chat: string;
+}
+
+type PassiveCatalogMetadataUpdate = IPassiveSessionMetadataUpdate | IPassiveChatFlagUpdate | IPassiveChatFolderDetachUpdate;
 
 interface IBackgroundPassiveSessionMetadataWrite {
 	promise: Promise<void>;
@@ -8139,6 +8146,9 @@ export class AgentService extends Disposable implements IAgentService {
 			// A legacy central payload still lists the previous flags; synchronize them before any aggregate update reads them.
 			this._queuePassiveSessionMetadataSynchronization(sessionUri, { kind: 'chat', key: `chatArchived:${chat}`, chat, field: 'archived', set: action.isArchived });
 			this._setSurfacedChatArchived(session, chat, action.isArchived);
+			if (action.isArchived) {
+				this._queuePassiveSessionMetadataSynchronization(sessionUri, { kind: 'detachFolders', key: `chatFolders:${chat}`, chat });
+			}
 		}
 		const isRead = action.type === ActionType.ChatIsReadChanged ? action.isRead : action.isArchived && !chatWasRead ? true : undefined;
 		let aggregateChanged = false;
@@ -8229,6 +8239,36 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
+	/**
+	 * The session workspace of an unloaded session without the folders only the archived
+	 * `chat` and its spawned chats use, as {@link _detachChatWorkingDirectories} computes
+	 * for a loaded one. `undefined` when nothing is detached. Unarchiving needs no
+	 * counterpart: a restore attaches the folders of unarchived chats ({@link withChatWorkingDirectories}).
+	 */
+	private _getPassiveRemainingWorkingDirectories(session: URI, data: AgentHostCatalogData, chat: string): string[] | undefined {
+		if (!this._providerService.getProviderForSession(session)?.getDescriptor().capabilities?.multipleWorkingDirectories) {
+			return undefined;
+		}
+		const chats = data.chats.map((catalogChat): ChatSummary => ({
+			resource: catalogChat.uri,
+			title: catalogChat.summary ?? '',
+			status: withSessionStatusFlag(SessionStatus.Idle, SessionStatus.IsArchived, catalogChat.archived === true),
+			modifiedAt: '',
+			origin: fromCatalogChatOrigin(catalogChat.origin),
+			workingDirectories: catalogChat.workingDirectories?.slice(),
+		}));
+		const chatDirectories = this._getChatFamilyWorkingDirectories(chats, chat, true);
+		const usedScopes = this._getWorkingDirectoriesInUse(chats, chat);
+		if (!data.workingDirectories.length || !chatDirectories.length || usedScopes.some(scope => scope === undefined)) {
+			return undefined;
+		}
+		const remaining = data.workingDirectories.filter((directory, index) => index === 0
+			|| !chatDirectories.some(candidate => isEqual(URI.parse(candidate), URI.parse(directory)))
+			|| usedScopes.some(scope => scope?.some(other => isEqual(URI.parse(other), URI.parse(directory))))
+			|| this._isChatWorkingDirectoryReserved(session, URI.parse(directory)));
+		return remaining.length === data.workingDirectories.length ? undefined : remaining;
+	}
+
 	private async _synchronizePassiveSessionMetadata(session: URI, updates: readonly PassiveCatalogMetadataUpdate[], savedContinuation?: { readonly validate: () => Promise<void>; readonly isCurrent: () => boolean }): Promise<boolean> {
 		let requestUnavailable = false;
 		try {
@@ -8297,7 +8337,16 @@ export class AgentService extends Disposable implements IAgentService {
 					};
 				}
 				for (const update of updates) {
-					if (update.kind === 'chat') {
+					if (update.kind === 'detachFolders') {
+						const remaining = this._getPassiveRemainingWorkingDirectories(session, data, update.chat);
+						if (remaining) {
+							data = { ...data, workingDirectories: remaining };
+							legacyMetadata[SESSION_WORKING_DIRECTORIES_KEY] = JSON.stringify(remaining);
+						}
+					}
+				}
+				for (const update of updates) {
+					if (update.kind !== 'session') {
 						continue;
 					}
 					if (update.flag === SessionStatus.IsRead) {
