@@ -338,7 +338,7 @@ const parseComment = parse.object<ReviewComment>({
 	original_line: parse.optional(parse.nullable(parse.integer)),
 	start_line: parse.optional(parse.nullable(parse.integer)),
 	original_start_line: parse.optional(parse.nullable(parse.integer)),
-	side: parse.optional(parse.oneOf('LEFT', 'RIGHT')),
+	side: parse.optional(parse.nullable(parse.oneOf('LEFT', 'RIGHT'))),
 	start_side: parse.optional(parse.nullable(parse.oneOf('LEFT', 'RIGHT'))),
 	subject_type: parse.optional(parse.oneOf('line', 'file')),
 	html_url: parse.nonEmptyString,

@@ -14152,6 +14152,77 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			});
 
+			test('legacy sessions their provider cannot vouch for are not retried by conversion, which opens no session database for them', async () => {
+				// Production: about 110 older sessions, re-queued about ten times each in six minutes of 30 s passes.
+				class CountingDatabase extends TestAgentHostOrchestratorDatabase {
+					dirtyMarks = 0;
+					override async markSessionV2PayloadDirty(session: string): Promise<number | undefined> {
+						this.dirtyMarks++;
+						return super.markSessionV2PayloadDirty(session);
+					}
+				}
+				class RecordingLog extends NullLogService {
+					migrationOperations = 0;
+					conversionAttempts = 0;
+					override trace(message: string): void {
+						if (message.includes('kind=migration, stage=started')) {
+							this.migrationOperations++;
+						} else if (message.includes('Chat catalog migration of')) {
+							this.conversionAttempts++;
+						}
+					}
+				}
+				const orchestratorDatabase = new CountingDatabase();
+				for (let index = 0; index < 110; index++) {
+					await orchestratorDatabase.registerRuntimeSession(AgentSession.uri('copilot', `older-${index}`).toString(), {
+						provider: 'copilot', startTime: 10, modifiedTime: 10, source: 'explicit',
+					}, { checkTombstone: false });
+				}
+				await orchestratorDatabase.markSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PAYLOAD_VERSION);
+				const sessionDatabase = new TestSessionDatabase();
+				// Older sessions hold conversations, so reconciliation never marks them provisional.
+				await sessionDatabase.createTurn('turn-1');
+				const sessionData = createSessionDataService(sessionDatabase);
+				let databaseOpens = 0;
+				const countingSessionData: ISessionDataService = {
+					...sessionData,
+					openDatabase: session => { databaseOpens++; return sessionData.openDatabase(session); },
+					tryOpenDatabase: session => { databaseOpens++; return sessionData.tryOpenDatabase(session); },
+				};
+				const log = new RecordingLog();
+				const svc = disposables.add(createTestAgentService(
+					log, fileService, countingSessionData, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+					undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, orchestratorDatabase, undefined, undefined,
+					// Passes run only when the test runs them, as user activity runs them every 30 s.
+					{ schedule: () => toDisposable(() => { }) },
+				));
+				await svc.whenCatalogReconciliationIdle();
+				const agent = disposables.add(new DeferredBackingAgent('copilot'));
+				registerTestAgentProvider(svc, agent);
+				await waitForInitialProviderMigration(svc, agent);
+
+				const perPass: { migrationOperations: number; conversionAttempts: number; databaseOpens: number; dirtyMarks: number }[] = [];
+				for (let pass = 0; pass < 12; pass++) {
+					log.migrationOperations = 0;
+					log.conversionAttempts = 0;
+					databaseOpens = 0;
+					orchestratorDatabase.dirtyMarks = 0;
+					await runCatalogReconciliationPass(svc);
+					perPass.push({ migrationOperations: log.migrationOperations, conversionAttempts: log.conversionAttempts, databaseOpens, dirtyMarks: orchestratorDatabase.dirtyMarks });
+				}
+
+				const none = { migrationOperations: 0, conversionAttempts: 0, databaseOpens: 0, dirtyMarks: 0 };
+				assert.deepStrictEqual(perPass, [
+					// The batches reach 50 sessions per pass. Conversion reads central state only: the operations and opens are
+					// re-projections parking each session once, and conversion writes nothing (unfixed: 150 operations, 350
+					// opens and 100 dirty marks every pass, indefinitely).
+					{ migrationOperations: 50, conversionAttempts: 50, databaseOpens: 150, dirtyMarks: 0 },
+					{ migrationOperations: 50, conversionAttempts: 50, databaseOpens: 150, dirtyMarks: 0 },
+					{ migrationOperations: 10, conversionAttempts: 10, databaseOpens: 30, dirtyMarks: 0 },
+					...Array.from({ length: 9 }, () => none),
+				]);
+			});
+
 			test('keeps a provisional session the provider can still describe', async () => {
 				// The marker survived but materialization did happen (a promotion
 				// write that never landed). The provider vouches, so the session

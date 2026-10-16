@@ -73,6 +73,7 @@ suite('GitHub account client', () => {
 		await assert.rejects(client.issues.getClosingPullRequestCounts(repository, [7], signal(), options), dispatched);
 		await assert.rejects(client.tasks.list(signal(), { ...options, query: { page: 2, q: 'work', artifact_state: ['open', 'draft'] } }), dispatched);
 		await assert.rejects(client.environments.reconnect('environment', 'client', signal(), { ...options, query: { session_id: 'session' } }), dispatched);
+		await assert.rejects(client.issues.createLabel(repository, { name: 'label' }, signal(), options), dispatched);
 		const parseVariables = parse.object({ variables: parse.jsonObject });
 		assert.deepStrictEqual(requests.map(request => ({
 			path: request.path,
@@ -90,6 +91,7 @@ suite('GitHub account client', () => {
 			{ path: '/', body: { owner: 'o', name: 'r' }, options },
 			{ path: '/tasks?page=2&q=work&artifact_state=open&artifact_state=draft', body: undefined, options },
 			{ path: '/environments/environment/reconnect?session_id=session&client_id=client', body: undefined, options },
+			{ path: '/repos/o/r/labels', body: { name: 'label' }, options },
 		]);
 	});
 

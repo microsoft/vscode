@@ -225,6 +225,22 @@ suite('GitHub anonymous IPC clients', () => {
 		}
 	});
 
+	test('preserves SHA-256 object IDs through ref resolution and pinned raw-content IPC', async () => {
+		const expectedSha = '0123456789abcdef'.repeat(4);
+		const requests: string[] = [];
+		const { connect } = setup(async input => {
+			requests.push(String(input));
+			return new Response(requests.length === 1 ? expectedSha : 'content');
+		});
+		const client = store.add(await connect().remote.acquireAnonymousClient(signal()));
+		const sha = await client.content.resolveRef('o', 'r', 'main', signal());
+		const content = await client.content.getRawFile('o', 'r', sha, 'file.txt', signal());
+		assert.deepStrictEqual({ sha, content, requests }, {
+			sha: expectedSha, content: 'content',
+			requests: ['https://api.github.com/repos/o/r/commits/main', `https://raw.githubusercontent.com/o/r/${expectedSha}/file.txt`],
+		});
+	});
+
 	test('resolves a commit and downloads exact raw text without API headers or credentials', async () => {
 		const content = '\ufeff {\n "image": "sample" \n} \r\n';
 		const requests: Request[] = [];

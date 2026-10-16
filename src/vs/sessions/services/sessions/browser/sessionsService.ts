@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout, raceTimeout } from '../../../../base/common/async.js';
+import { disposableTimeout, raceCancellation, raceTimeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -1038,6 +1038,13 @@ export class SessionsService extends Disposable implements ISessionsService {
 				}
 				this.sessionOpenTelemetryService.sessionLoaded(telemetryAttempt);
 			}
+			if (chat && intent === 'explicit' && !token.isCancellationRequested) {
+				const reopening = this.sessionsPartService.getSessionView(session.sessionId)?.reopenChat(chat.resource);
+				if (reopening) {
+					// A retained grid view can keep loading after this navigation is superseded.
+					await raceCancellation(reopening, token);
+				}
+			}
 
 			if (chat && chat.status.get() === SessionStatus.Untitled) {
 				this.logService.trace(`[SessionsView] openChat done total=${Date.now() - startTime}ms uri=${chatUri.toString()} path=untitled`);
@@ -1209,7 +1216,14 @@ export class SessionsService extends Disposable implements ISessionsService {
 				if (intent !== 'history') {
 					navigation.complete();
 				}
-				await this.sessionsProvidersService.getProvider(sessionData.providerId)?.prepareSessionForOpen?.(sessionData, 'open');
+				const activeSession = this.activeSession.get();
+				const reopening = intent === 'explicit' && activeSession?.sessionId === sessionData.sessionId && !token.isCancellationRequested
+					? this.sessionsPartService.getSessionView(sessionData.sessionId)?.reopenChat(activeSession.activeChat.get().resource)
+					: undefined;
+				await Promise.all([
+					reopening ? raceCancellation(reopening, token) : undefined,
+					this.sessionsProvidersService.getProvider(sessionData.providerId)?.prepareSessionForOpen?.(sessionData, 'open'),
+				]);
 				if (token.isCancellationRequested) {
 					return;
 				}

@@ -496,6 +496,10 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		return this._currentView.value?.submitInput() ?? Promise.resolve(false);
 	}
 
+	reopenChat(resource: URI): Promise<void> {
+		return this._currentView.value?.reopenChat(resource) ?? Promise.resolve();
+	}
+
 	selectWorkspace(folderUri: URI, options?: ISelectWorkspaceOptions): WorkspaceSelectionResult {
 		return this._currentView.value?.selectWorkspace(folderUri, options) ?? 'notReady';
 	}

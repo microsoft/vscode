@@ -92,7 +92,7 @@ const issueHydrationFields = `
 	url
 	state
 	stateReason
-	author { id login }
+	author { login ... on Node { id } }
 	assignees(first: 100) { nodes { id login } }
 	labels(first: 100) { nodes { name } }
 	createdAt
