@@ -291,7 +291,6 @@ export class MissionControlEnvironment extends Disposable {
 			}
 			if (this._options.credential !== options.credential || this._credentialRejected
 				|| this._options.defaultDirectory !== options.defaultDirectory
-				|| (this._options.useLocalCredentials === true) !== (options.useLocalCredentials === true)
 				|| remoteControlPolicyOverrideChanged) {
 				this._generation++;
 				this._handler.clear();
@@ -696,7 +695,6 @@ export class MissionControlEnvironment extends Disposable {
 			sealing && identityApiBase ? () => new MissionControlAuthentication(
 				sealing, response.user_id, identityApiBase, this._host.fetch, options.requireConnectionBinding === true,
 				() => identityApiBase === this._getIdentityApiBase() && generation === this._generation,
-				options.useLocalCredentials === true ? () => this._options?.credential : undefined,
 			) : undefined,
 			sealing?.rootMeta,
 			this._mirror.value,

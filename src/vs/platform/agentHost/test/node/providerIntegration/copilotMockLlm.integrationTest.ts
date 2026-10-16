@@ -301,7 +301,7 @@ session = await joinSession({
 				openCanvasSucceeded: true,
 				canvas: { instanceId: 'proof-instance', url: 'http://127.0.0.1:43119/proof-instance' },
 				referencesContainOnlyResource: true,
-				extensionEnvironment: { copilotHome: join(suiteHome, '.copilot') },
+				extensionEnvironment: { copilotHome: URI.joinPath(URI.file(suiteHome), '.copilot').fsPath },
 				providerTurn: {
 					message: {
 						text: `[scenario:${CANVAS_EXTENSION_TURN_SCENARIO_ID}] Report that the canvas request completed.`,

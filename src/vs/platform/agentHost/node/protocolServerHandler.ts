@@ -31,6 +31,8 @@ import { AgentHostChatUrisCapabilityMetaKey, AgentHostNativeImplementationMetaKe
 import { withSessionInitiator } from '../common/meta/agentSessionInitiatorMeta.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, readClientConnectionKind, readClientDevDeviceId, readClientMachineId, readClientTelemetryLevel, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, type IAgentCreateChatRequestOptions, type IAgentSessionMetadata, type IMcpNotification } from '../common/agent.js';
+import type { IAgentHostAuthenticationScope, IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
+import { AgentHostAuthenticationScope } from './agentHostAuthenticationScope.js';
 import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
@@ -408,6 +410,7 @@ function projectVSCodeCopilotAutomation(automation: AutomationEntry): Automation
  * Represents a connected protocol client with its subscription state.
  */
 interface IConnectedClient {
+	authenticationScope?: IAgentHostAuthenticationScope;
 	readonly legacySessionUris: boolean;
 	/** A positively identified VS Code client without `vscode.ahpChatUris`: it sees shaped chats only. */
 	readonly legacyChatUris: boolean;
@@ -534,7 +537,7 @@ export interface ISessionConfigAdapter {
 export interface IProtocolServerExtensionRequest {
 	readonly readOnly: boolean;
 	readonly requiresChannel?: boolean;
-	handle(params: unknown, checkAuthorization: () => void): Promise<unknown>;
+	handle(params: unknown, checkAuthorization: () => void, credentials?: IAgentHostCredentialSource): Promise<unknown>;
 }
 
 /** Listener-owned extensions exposed to authenticated relay clients. */
@@ -553,6 +556,7 @@ export interface IProtocolServerExtension {
  * Configuration for protocol-level concerns outside of IAgentService.
  */
 export interface IProtocolServerConfig {
+	readonly scopedRelayCredentials?: boolean;
 	/** Process launcher that owns this agent host. */
 	readonly hostLaunchKind?: AgentHostLaunchKind;
 
@@ -1019,7 +1023,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				completionTriggerCharacters: this._config.completionTriggerCharacters ? [...this._config.completionTriggerCharacters] : undefined,
 				terminalCommandPrefix: this._config.terminalCommandPrefix,
 				telemetry: this._config.otlpLogEmitter ? { logs: OTLP_LOGS_CHANNEL_TEMPLATE } : undefined,
-				automations: this._config.relayRoots ? undefined : this._agentService.automationCapabilities,
+				automations: this._config.relayRoots || this._config.scopedRelayCredentials ? undefined : this._agentService.automationCapabilities,
 			};
 			return {
 				client,
@@ -1132,7 +1136,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Resource not available to this client: ${channel}`);
 		}
 		if (!isAhpAutomationCatalogChannel(channel)) {
-			return this._agentService.subscribe(URI.parse(channel), clientId, () => (isAhpRootChannel(channel) || client.transport.relayAuthentication?.authenticated !== false) && (isActive?.() ?? true));
+			return this._agentService.subscribe(URI.parse(channel), clientId,
+				() => (isAhpRootChannel(channel) || client.transport.relayAuthentication?.authenticated !== false) && (isActive?.() ?? true),
+				this._config.scopedRelayCredentials ? this._getScopedAuthentication(client) : undefined);
 		}
 		if (isActive && !isActive()) {
 			throw new Error(`Subscription cancelled: ${channel}`);
@@ -2024,6 +2030,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					config: this._config.sessionConfigAdapter ? this._config.sessionConfigAdapter.fromClientValues(params.config) : params.config,
 					activeClient: params.activeClient,
 					progressToken: params.progressToken,
+					...(this._config.scopedRelayCredentials ? { credentials: this._getScopedAuthentication(_client) } : {}),
 				});
 			} catch (err) {
 				if (err instanceof ProtocolError) {
@@ -2084,6 +2091,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				URI.parse(params.channel),
 				URI.parse(params.chat),
 				options,
+				this._config.scopedRelayCredentials ? this._getScopedAuthentication(_client) : undefined,
 			);
 			return null;
 		},
@@ -2167,6 +2175,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			return this._agentService.listAutomationTriggerDefinitions(params);
 		},
 		runAutomation: async (_client, params) => {
+			if (this._config.scopedRelayCredentials) {
+				throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'Automations do not support client-owned credentials');
+			}
 			return this._agentService.runAutomation(params);
 		},
 		fetchAutomationRuns: async (_client, params) => {
@@ -2237,6 +2248,19 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			return {};
 		},
 		authenticate: async (_client, params) => {
+			if (this._config.scopedRelayCredentials) {
+				if (_client.transport.relayPassive && params.resource !== _client.transport.relayAuthentication?.resource) {
+					throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'Passive relay clients can only authenticate their identity');
+				}
+				const result = await this._agentService.authenticate(params, this._getScopedAuthentication(_client));
+				const identity = _client.transport.relayAuthentication;
+				if (!result.authenticated && !(identity?.authenticated === true && params.resource === identity.resource)) {
+					throw new ProtocolError(AHP_AUTH_REQUIRED, `Authentication failed for resource: ${params.resource}`);
+				}
+				await this._config.extension?.initialize();
+				this._captureRelayAuthorization(_client)();
+				return {};
+			}
 			const authentication = _client.transport.relayAuthenticate ? await _client.transport.relayAuthenticate(params) : params;
 			const checkAuthorization = this._captureRelayAuthorization(_client);
 			if (_client.disposables.isDisposed) {
@@ -2267,7 +2291,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			return null;
 		},
 		invokeChangesetOperation: async (_client, params) => {
-			return this._agentService.invokeChangesetOperation(params);
+			return this._agentService.invokeChangesetOperation(params, this._config.scopedRelayCredentials ? this._getScopedAuthentication(_client) : undefined);
 		},
 	};
 
@@ -2549,7 +2573,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			this._logService.warn(`[ProtocolServer] rejecting client action: ${rejection}`);
 			this._stateManager.rejectClientAction(params.channel, action, origin, rejection);
 		} else if (isHandledClientAction(action)) {
-			return this._agentService.dispatchAction(params.channel, action, client.clientId, params.clientSeq, client.telemetryContext);
+			return this._agentService.dispatchAction(params.channel, action, client.clientId, params.clientSeq, client.telemetryContext,
+				this._config.scopedRelayCredentials ? this._getScopedAuthentication(client) : undefined);
 		}
 	}
 
@@ -2845,6 +2870,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				this._logRelayAuthorizationFailure(client, error, 'admission');
 				throw error;
 			}
+
 			return () => {
 				try {
 					checkAuthorization();
@@ -2866,6 +2892,27 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		};
 		check('admission');
 		return check;
+	}
+
+	private _getScopedAuthentication(client: IConnectedClient): IAgentHostAuthenticationScope {
+		if (client.authenticationScope) {
+			return client.authenticationScope;
+		}
+		const authentication = client.transport.relayAuthentication;
+		if (!authentication?.owner || !client.transport.relayAuthenticate) {
+			throw new ProtocolError(AHP_AUTH_REQUIRED, 'Client-owned credentials require a validated relay owner');
+		}
+		client.authenticationScope = client.disposables.add(new AgentHostAuthenticationScope(
+			params => {
+				if (!client.transport.relayAuthenticate) {
+					throw new ProtocolError(AHP_AUTH_REQUIRED, 'Relay authentication is unavailable');
+				}
+				return client.transport.relayAuthenticate(params);
+			},
+			() => this._captureRelayAuthorization(client)(),
+			{ apiOrigin: authentication.resource, userId: authentication.owner },
+		));
+		return client.authenticationScope;
 	}
 
 	private _logRelayAuthorizationFailure(client: IConnectedClient, error: unknown, phase: 'admission' | 'recheck'): void {
@@ -3175,7 +3222,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				}
 			}
 			if (request) {
-				return request.handle(params, this._captureRelayRequestAuthorization(client, method, params));
+				return request.handle(params, this._captureRelayRequestAuthorization(client, method, params), this._config.scopedRelayCredentials ? this._getScopedAuthentication(client) : undefined);
 			}
 		}
 		if (method === ReportChatUserInteractionExtensionMethod) {
