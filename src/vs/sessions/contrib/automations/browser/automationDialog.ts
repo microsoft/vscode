@@ -1094,15 +1094,10 @@ export function renderForm(
 	}));
 
 	const cloudRow = DOM.append(formContent, $('.automation-cloud-row'));
-	const cloudCopy = DOM.append(cloudRow, $('.automation-cloud-copy'));
-	const cloudLabel = DOM.append(cloudCopy, $('span.automation-cloud-label', { id: 'automation-cloud-label' }, localize('automation.form.runInCloud', "Run in the cloud")));
-	// Editing locks the run target, so the switch is only described when it can be changed.
-	const cloudDescription = isEdit ? undefined : DOM.append(cloudCopy, $('span.automation-cloud-description', { id: 'automation-cloud-description' }, localize('automation.form.runInCloudDescription', "Run even when your computer is off, triggered by events or on a schedule.")));
+	DOM.append(cloudRow, renderIcon(Codicon.cloud)).setAttribute('aria-hidden', 'true');
+	const cloudLabel = DOM.append(cloudRow, $('span.automation-cloud-label', { id: 'automation-cloud-label' }, localize('automation.form.runInCloud', "Run in the Cloud")));
 	const cloudSwitch = disposables.add(new Switch({ ariaLabel: cloudLabel.textContent! }));
 	cloudSwitch.domNode.setAttribute('aria-labelledby', 'automation-cloud-label');
-	if (cloudDescription) {
-		cloudSwitch.domNode.setAttribute('aria-describedby', cloudDescription.id);
-	}
 	// The dialog cancels key-up events, which suppresses a native button's Space activation.
 	disposables.add(DOM.addDisposableListener(cloudSwitch.domNode, DOM.EventType.KEY_DOWN, e => {
 		if (new StandardKeyboardEvent(e).equals(KeyCode.Space)) {
