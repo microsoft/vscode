@@ -40,6 +40,14 @@
 	opacity: 0.5;
 }
 
+.explorer-folders-view .monaco-list-row:has(.explorer-item-focus-ancestor) {
+	background-color: rgba(128, 128, 128, 0.13);
+}
+
+.explorer-folders-view:focus-within .monaco-list-row:has(.explorer-item-focus-ancestor) {
+	background-color: rgba(0, 120, 212, 0.13);
+}
+
 .explorer-folders-view .explorer-item.explorer-item-edited .label-name {
 	flex: 0; /* do not steal space when label is hidden because we are in edit mode */
 }
