@@ -12,7 +12,7 @@ import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { PieceTreeTextBufferBuilder } from '../../../../common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder.js';
-import { FindModelBoundToEditorModel } from '../../browser/findModel.js';
+import { FindModelBoundToEditorModel, MATCHES_LIMIT } from '../../browser/findModel.js';
 import { FindReplaceState } from '../../browser/findState.js';
 import { withTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 
@@ -2399,6 +2399,28 @@ suite('FindModel', () => {
 			assert.strictEqual(findState.matchesCount, 1001);
 			// With cursor selecting 'hello' at line 900, matchesPosition should be 900
 			assert.strictEqual(findState.matchesPosition, 900);
+		});
+	});
+
+	test('issue #237975: replace all with more than the matches limit does not match across lines', () => {
+		const textArr = [
+			'KEEP/001',
+			'KEEP/001',
+			...Array(MATCHES_LIMIT + 2).fill('REPLACE/ME/23')
+		];
+		withTestCodeEditor(textArr, {}, (_editor) => {
+			const editor = _editor as IActiveCodeEditor;
+
+			const findState = disposables.add(new FindReplaceState());
+			findState.change({ searchString: '^[^/]+?/[^/]+?/(\\d+).*$', replaceString: '$1', isRegex: true }, false);
+			const findModel = disposables.add(new FindModelBoundToEditorModel(editor, findState));
+
+			findModel.replaceAll();
+
+			const lines = editor.getModel().getLinesContent();
+			assert.strictEqual(lines.length, textArr.length);
+			assert.deepStrictEqual(lines.slice(0, 3), ['KEEP/001', 'KEEP/001', '23']);
+			assert.ok(lines.slice(2).every(line => line === '23'));
 		});
 	});
 
