@@ -190,10 +190,14 @@ export const KeyboardVisibleContext = new RawContextKey<boolean>('sessionsKeyboa
 
 /**
  * Whether the desktop layout shows the Session Activity Bar with its layout actions. It then hosts
- * the Toggle Side Panel and Toggle Panel actions in place of the title bar.
+ * the Toggle Side Panel and Toggle Panel actions in place of the title bar. The activity bar is
+ * hidden while the editor is maximized (which hides the Sessions part) and in the phone layout, so
+ * the title bar keeps the toggles then.
  */
 export const SessionActivityBarLayoutActionsContext = ContextKeyExpr.and(
 	DesktopLayoutContext,
+	IsPhoneLayoutContext.negate(),
+	EditorMaximizedContext.negate(),
 	ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_SETTING}`, true),
 	ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`, true),
 )!;

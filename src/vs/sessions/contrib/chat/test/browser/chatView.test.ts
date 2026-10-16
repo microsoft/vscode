@@ -70,6 +70,8 @@ import '../../../../browser/parts/media/chatGroupsView.css';
 import '../../../../browser/parts/media/sessionView.css';
 import '../../../../browser/parts/media/sessionsPart.css';
 import '../../browser/media/externalSessionBanner.css';
+import '../../browser/media/chatWidget.css';
+import '../../browser/media/newChatInSession.css';
 import '../../../../../workbench/contrib/chat/browser/promptTimeline/media/promptTimeline.css';
 
 suite('Sessions - Chat View', () => {
@@ -612,6 +614,41 @@ suite('Sessions - Chat View', () => {
 			ruler: { content: [54, 546], input: [30, 540], markCenter: 573 },
 			// Without the toolbar, the ruler keeps its own right-side reservation beside the scrollbar.
 			rulerDisabled: { content: [24, 530], input: [0, 600], markCenter: 580 },
+		});
+	});
+	test('keeps the new-chat-in-session composer clear of the activity bar', async () => {
+		const root = dom.append(dom.getActiveDocument().body, dom.$('.monaco-workbench.agent-sessions-workbench'));
+		disposables.add(toDisposable(() => root.remove()));
+		root.style.setProperty('--vscode-spacing-size240', '24px');
+		const part = dom.append(root, dom.$('.part.sessionspart'));
+		const view = disposables.add(new class extends AbstractChatView {
+			readonly kind = 'newChatInSession';
+			protected doLayout(): void { }
+			toJSON(): object { return {}; }
+			focus(): void { }
+		}());
+		view.element.classList.add('chat-view-new');
+		part.appendChild(view.element);
+		const content = dom.append(dom.append(view.element, dom.$('.sessions-chat-widget.new-chat-in-session')), dom.$('.new-chat-widget-content'));
+		const inputArea = dom.append(content, dom.$('.new-chat-input-area'));
+		await retry(async () => {
+			if (dom.getWindow(root).getComputedStyle(content).boxSizing !== 'border-box') {
+				throw new Error('New chat styles have not loaded');
+			}
+		}, 10, 100);
+
+		const inputBounds = (width: number, inset: number) => {
+			part.style.width = `${width}px`;
+			view.layout(width, 300, 0, 0, inset);
+			const origin = view.element.getBoundingClientRect();
+			const bounds = inputArea.getBoundingClientRect();
+			return [Math.round(bounds.left - origin.left), Math.round(bounds.right - origin.left)];
+		};
+
+		assert.deepStrictEqual({ activityBar: inputBounds(600, ChatViewSessionActivityBar.RESERVED_WIDTH), disabled: inputBounds(600, 0) }, {
+			// Ends 12px before the activity bar, which starts 42px from the right edge, like the chat transcript.
+			activityBar: [54, 546],
+			disabled: [10, 590],
 		});
 	});
 
