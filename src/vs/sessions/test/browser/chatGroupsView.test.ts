@@ -647,10 +647,10 @@ suite('Sessions - ChatGroupsView', () => {
 		const sessionInactive = toolbars();
 
 		assert.deepStrictEqual({ single, split, previousFocused, sessionInactive }, {
-			single: [{ left: 0, active: true, chatWidth: '1000px', contentInset: '38px', headerWidth: '1000px' }],
-			split: [{ left: 0, active: false, chatWidth: '500px', contentInset: '38px', headerWidth: '500px' }, { left: 500, active: true, chatWidth: '500px', contentInset: '38px', headerWidth: '500px' }],
-			previousFocused: [{ left: 0, active: true, chatWidth: '500px', contentInset: '38px', headerWidth: '500px' }, { left: 500, active: false, chatWidth: '500px', contentInset: '38px', headerWidth: '500px' }],
-			sessionInactive: [{ left: 0, active: false, chatWidth: '500px', contentInset: '38px', headerWidth: '500px' }, { left: 500, active: false, chatWidth: '500px', contentInset: '38px', headerWidth: '500px' }],
+			single: [{ left: 0, active: true, chatWidth: '1000px', contentInset: '30px', headerWidth: '1000px' }],
+			split: [{ left: 0, active: false, chatWidth: '500px', contentInset: '30px', headerWidth: '500px' }, { left: 500, active: true, chatWidth: '500px', contentInset: '30px', headerWidth: '500px' }],
+			previousFocused: [{ left: 0, active: true, chatWidth: '500px', contentInset: '30px', headerWidth: '500px' }, { left: 500, active: false, chatWidth: '500px', contentInset: '30px', headerWidth: '500px' }],
+			sessionInactive: [{ left: 0, active: false, chatWidth: '500px', contentInset: '30px', headerWidth: '500px' }, { left: 500, active: false, chatWidth: '500px', contentInset: '30px', headerWidth: '500px' }],
 		});
 	});
 
@@ -676,7 +676,7 @@ suite('Sessions - ChatGroupsView', () => {
 
 		assert.deepStrictEqual({ newChat, existingChat }, {
 			newChat: { kind: 'newChatInSession', toolbarShown: false, contentInset: '0px' },
-			existingChat: { kind: 'chat', toolbarShown: true, contentInset: '38px' },
+			existingChat: { kind: 'chat', toolbarShown: true, contentInset: '30px' },
 		});
 	});
 

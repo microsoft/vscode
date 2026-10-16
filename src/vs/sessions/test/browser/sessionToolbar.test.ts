@@ -114,7 +114,7 @@ suite('Sessions - Session toolbar', () => {
 			createDocked: () => {
 				const host = append(root, $('.host'));
 				host.style.cssText = 'width: 800px; height: 600px;';
-				for (const [token, value] of [['spacing-size20', '2px'], ['spacing-size40', '4px'], ['spacing-size120', '12px'], ['spacing-size160', '16px'], ['spacing-size280', '28px'], ['strokeThickness', '1px']]) {
+				for (const [token, value] of [['spacing-size20', '2px'], ['spacing-size40', '4px'], ['spacing-size120', '12px'], ['spacing-size240', '24px'], ['strokeThickness', '1px']]) {
 					host.style.setProperty(`--vscode-${token}`, value);
 				}
 				return testStore.add(instantiationService.createInstance(ChatViewSessionToolbar, host));
@@ -231,8 +231,8 @@ suite('Sessions - Session toolbar', () => {
 
 		assert.deepStrictEqual({ inactive, active, dragged, draggedToBottom, areaGrewAtBottom, entryAddedAtBottom, areaTooShort, draggedPastTop, areaGrewNearTop, reset, phoneLayout, deactivated }, {
 			inactive: false,
-			active: { displayed: true, top: '44px', right: '16px' },
-			dragged: { displayed: true, top: '94px', right: '16px' },
+			active: { displayed: true, top: '44px', right: '12px' },
+			dragged: { displayed: true, top: '94px', right: '12px' },
 			draggedToBottom: { top: `${40 + 400 - height - 30}px`, bottomGap: 30 },
 			areaGrewAtBottom: 30,
 			entryAddedAtBottom: 30,
@@ -261,7 +261,7 @@ suite('Sessions - Session toolbar', () => {
 		assert.deepStrictEqual(!!topmost && element.contains(topmost), true);
 	});
 
-	test('uses a slim shell with full-size buttons and a compact gap beside padded chat content', () => {
+	test('uses a slim shell with minimum-size buttons, keeping padded chat content evenly spaced and clear of it', () => {
 		const { createDocked } = createToolbar(store, [changes, browser]);
 		const docked = createDocked();
 		docked.layout(0, 600);
@@ -270,26 +270,31 @@ suite('Sessions - Session toolbar', () => {
 		const host = element.parentElement!;
 		// The chat pads its content with the session view's real content padding, which the reservation builds on.
 		host.classList.add('session-view');
-		host.style.setProperty('--vscode-spacing-size240', '24px');
+		// The chat insets its content by the reserved width on each side, inside its own content padding.
 		const chat = append(host, $('.chat-content'));
-		chat.style.cssText = `box-sizing: border-box; width: calc(100% - ${docked.reservedWidth.get()}px); padding: 0 var(--session-view-content-horizontal-padding);`;
+		chat.style.cssText = `box-sizing: border-box; margin: 0 ${docked.reservedWidth.get()}px; padding: 0 var(--session-view-content-horizontal-padding);`;
 		const content = append(chat, $('div'));
 		const bounds = element.getBoundingClientRect();
 		const button = element.querySelector<HTMLElement>('.action-label')!.getBoundingClientRect();
+		const hostBounds = host.getBoundingClientRect();
+		const contentBounds = content.getBoundingClientRect();
 
 		assert.deepStrictEqual({
 			toolbarWidth: bounds.width,
 			buttonSize: [button.width, button.height],
-			contentGap: bounds.left - content.getBoundingClientRect().right,
-			scrollbarClearance: host.getBoundingClientRect().right - bounds.right,
-			column: host.getBoundingClientRect().right - bounds.left,
+			contentGap: bounds.left - contentBounds.right,
+			scrollbarClearance: hostBounds.right - bounds.right,
+			column: hostBounds.right - bounds.left,
+			// Space between the content and each edge of the chat, the toolbar's side included.
+			sideSpace: [contentBounds.left - hostBounds.left, hostBounds.right - contentBounds.right],
 		}, {
-			toolbarWidth: 34,
-			buttonSize: [28, 28],
+			toolbarWidth: 30,
+			buttonSize: [24, 24],
 			contentGap: 12,
-			scrollbarClearance: 16,
+			scrollbarClearance: 12,
 			// The column the host publishes for surfaces that sit beside the strip.
 			column: Number.parseFloat(host.style.getPropertyValue('--session-toolbar-column-width')),
+			sideSpace: [54, 54],
 		});
 	});
 

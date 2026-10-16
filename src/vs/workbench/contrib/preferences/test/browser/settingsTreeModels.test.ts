@@ -852,6 +852,17 @@ suite('SettingsTree', () => {
 		}
 	});
 
+	test('settingKeyToDisplayFormat - sandbox masked environment variables', () => {
+		assert.deepStrictEqual(
+			['', 'chat.agent.sandbox'].map(group =>
+				settingKeyToDisplayFormat(AgentSandboxSettingId.AgentSandboxMaskedEnvironmentVariables, group)),
+			[
+				{ category: 'Chat › Agent › Sandbox', label: 'Masked environment variables' },
+				{ category: '', label: 'Masked environment variables' },
+			],
+		);
+	});
+
 	test('settingKeyToDisplayFormat - sandbox user-configured paths', () => {
 		assert.deepStrictEqual(
 			['', 'chat.agent.sandbox', 'chat.agent.sandbox.fileSystem'].map(group =>
