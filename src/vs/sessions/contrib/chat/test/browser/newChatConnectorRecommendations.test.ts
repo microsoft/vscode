@@ -180,12 +180,12 @@ suite('NewChatConnectorRecommendations', () => {
 		}
 
 		assert.deepStrictEqual(states, [
-			{ hidden: true, visibleCards: [] },
+			{ hidden: false, visibleCards: ['linear', 'notion', 'workiq-mail'] },
 			{ hidden: false, visibleCards: ['notion'] },
 			{ hidden: false, visibleCards: ['linear', 'notion'] },
-			{ hidden: true, visibleCards: [] },
-			{ hidden: true, visibleCards: [] },
-			{ hidden: true, visibleCards: [] },
+			{ hidden: false, visibleCards: ['linear', 'notion', 'workiq-mail'] },
+			{ hidden: false, visibleCards: ['linear', 'notion', 'workiq-mail'] },
+			{ hidden: false, visibleCards: ['linear', 'notion', 'workiq-mail'] },
 		]);
 	});
 
@@ -231,9 +231,56 @@ suite('NewChatConnectorRecommendations', () => {
 		]);
 	});
 
+	test('keeps static and dynamic dismissals independent', () => {
+		const beforeStaticDismissal = setup(true, true);
+		const beforeCards = [...beforeStaticDismissal.recommendations.element.querySelectorAll<HTMLElement>('.new-session-connector-recommendation-card')];
+		beforeCards[1].querySelector<HTMLElement>('.new-session-connector-recommendation-dismiss')!.click();
+		const staticAfterDismissal = beforeCards.filter(card => !card.hidden).map(card => card.dataset.connectorId);
+		beforeStaticDismissal.setInput('Open notion.so/acme/project.');
+		const dynamicAfterStaticDismissal = beforeCards.filter(card => !card.hidden).map(card => card.dataset.connectorId);
+		beforeCards[1].querySelector<HTMLElement>('.new-session-connector-recommendation-dismiss')!.click();
+		const dynamicAfterDynamicDismissal = {
+			hidden: beforeStaticDismissal.recommendations.element.hidden === true,
+			visibleCards: beforeCards.filter(card => !card.hidden).map(card => card.dataset.connectorId),
+		};
+		beforeStaticDismissal.setInput('');
+		const restoredStatic = beforeCards.filter(card => !card.hidden).map(card => card.dataset.connectorId);
+		beforeStaticDismissal.setInput('Open notion.so/acme/project.');
+		const repeatedDynamic = {
+			hidden: beforeStaticDismissal.recommendations.element.hidden === true,
+			visibleCards: beforeCards.filter(card => !card.hidden).map(card => card.dataset.connectorId),
+		};
+
+		const afterStaticDismissal = setup(true, true);
+		const afterCards = [...afterStaticDismissal.recommendations.element.querySelectorAll<HTMLElement>('.new-session-connector-recommendation-card')];
+		for (const card of afterCards) {
+			card.querySelector<HTMLElement>('.new-session-connector-recommendation-dismiss')!.click();
+		}
+		const allStaticDismissed = afterStaticDismissal.recommendations.element.hidden === true;
+		afterStaticDismissal.setInput('Open notion.so/acme/project.');
+		const dynamicAfterAllStaticDismissed = afterCards.filter(card => !card.hidden).map(card => card.dataset.connectorId);
+
+		assert.deepStrictEqual({
+			staticAfterDismissal,
+			dynamicAfterStaticDismissal,
+			dynamicAfterDynamicDismissal,
+			restoredStatic,
+			repeatedDynamic,
+			allStaticDismissed,
+			dynamicAfterAllStaticDismissed,
+		}, {
+			staticAfterDismissal: ['linear', 'workiq-mail'],
+			dynamicAfterStaticDismissal: ['notion'],
+			dynamicAfterDynamicDismissal: { hidden: true, visibleCards: [] },
+			restoredStatic: ['linear', 'workiq-mail'],
+			repeatedDynamic: { hidden: true, visibleCards: [] },
+			allStaticDismissed: true,
+			dynamicAfterAllStaticDismissed: ['notion'],
+		});
+	});
+
 	test('tracks enablement and dismisses individual cards for the widget lifetime', async () => {
 		const fixture = setup(true, false, true, connectorRecommendations, true);
-		fixture.setInput('Use linear.app, notion.so, and microsoft365.com.');
 		assert.strictEqual(fixture.recommendations.element.hidden, true);
 
 		await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled, true);
