@@ -1681,6 +1681,18 @@ export class AgentHostStateManager extends Disposable {
 	}
 
 	/**
+	 * Replaces the draft a registered chat whose state is not resolved yet
+	 * takes when it is (`undefined` clears it). A resolved chat changes its
+	 * draft through {@link ActionType.ChatDraftChanged} instead.
+	 */
+	setUnresolvedChatDraft(chat: URI, draft: Message | undefined): void {
+		const entry = this._chatEntries.get(chat);
+		if (entry?.valid && !entry.state) {
+			entry.draft = draft;
+		}
+	}
+
+	/**
 	 * Renames a single chat within a session independently of the session
 	 * title. Updates the chat's authoritative {@link ChatState} title (so
 	 * later `chatSummaryFromState` projections stay consistent) and dispatches
