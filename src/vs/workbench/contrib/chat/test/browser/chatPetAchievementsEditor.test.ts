@@ -319,9 +319,11 @@ suite('Chat Pet Achievements Editor', () => {
 
 	test('navigates between Achievements and Color with editor options and accessible tab keys', async () => {
 		const parent = mainWindow.document.createElement('div');
-		parent.classList.add('modern-ui-tabs');
-		parent.style.setProperty('--vscode-modernTab-activeBackground', '#123456');
-		parent.style.setProperty('--vscode-modernTab-activeForeground', '#abcdef');
+		parent.classList.add('modern-ui-tabs', 'modern-ui-connected-editor-tabs');
+		parent.style.setProperty('--vscode-editor-background', '#123456');
+		parent.style.setProperty('--vscode-editorGroupHeader-tabsBorder', '#654321');
+		parent.style.setProperty('--vscode-modernEditorTab-activeForeground', '#abcdef');
+		parent.style.setProperty('--vscode-cornerRadius-small', '4px');
 		mainWindow.document.body.appendChild(parent);
 		store.add(toDisposable(() => parent.remove()));
 		const storage = store.add(new TestStorageService());
@@ -363,6 +365,9 @@ suite('Chat Pet Achievements Editor', () => {
 			selectedTabReachable: colorTab.tabIndex,
 			selectedTabBackground: mainWindow.getComputedStyle(colorTab).backgroundColor,
 			selectedTabForeground: mainWindow.getComputedStyle(colorTab).color,
+			selectedTabBorderTopColor: mainWindow.getComputedStyle(colorTab).borderTopColor,
+			selectedTabBorderBottomColor: mainWindow.getComputedStyle(colorTab).borderBottomColor,
+			selectedTabBorderRadius: mainWindow.getComputedStyle(colorTab).borderTopLeftRadius,
 		}, {
 			pageFocused: true,
 			tabFocused: false,
@@ -371,6 +376,9 @@ suite('Chat Pet Achievements Editor', () => {
 			selectedTabReachable: 0,
 			selectedTabBackground: 'rgb(18, 52, 86)',
 			selectedTabForeground: 'rgb(171, 205, 239)',
+			selectedTabBorderTopColor: 'rgb(101, 67, 33)',
+			selectedTabBorderBottomColor: 'rgba(0, 0, 0, 0)',
+			selectedTabBorderRadius: '4px',
 		});
 		const initialTab = colorTab.textContent;
 		colorTab.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', keyCode: 37, bubbles: true }));

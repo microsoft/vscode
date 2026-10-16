@@ -36,6 +36,7 @@ async function renderAchievementsEditor(context: ComponentFixtureContext, option
 	context.container.style.width = `${width}px`;
 	context.container.style.height = `${height}px`;
 	context.container.classList.toggle('modern-ui-tabs', options.modernUI === true);
+	context.container.classList.toggle('modern-ui-connected-editor-tabs', options.modernUI === true);
 	configureChatPetFixtureFileRoot(context.disposableStore);
 
 	const chatPetService = context.disposableStore.add(new FixtureChatPetService(options));
