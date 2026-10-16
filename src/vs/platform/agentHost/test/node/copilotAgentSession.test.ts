@@ -64,7 +64,7 @@ import { ActionType, isChatAction, type ChatDeltaAction, type ChatErrorAction, t
 import { TestChatOwnerRef } from './agentChatContextTestUtils.js';
 import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, createChatState, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { chatReducer, sessionReducer } from '../../common/state/sessionReducers.js';
-import { BackgroundWorkKind, TerminalClaimKind, type BackgroundWork } from '../../common/state/protocol/state.js';
+import { BackgroundWorkKind, TerminalClaimKind, type BackgroundWork, type ModelSelection } from '../../common/state/protocol/state.js';
 import { canStopBackgroundWork, toStoppableBackgroundWorkMeta } from '../../common/meta/agentHostBackgroundWorkStopMeta.js';
 import { readCopilotShellAttachment, toCopilotBackgroundShellMeta } from '../../common/meta/copilotBackgroundWorkMeta.js';
 import { toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
@@ -197,6 +197,7 @@ class MockCopilotSession {
 	abortGate: Promise<void> | undefined;
 	onAbort: (() => void) | undefined;
 	modelGate: Promise<void> | undefined;
+	modelError: Error | undefined;
 	readonly setModelCalls: Parameters<CopilotSession['setModel']>[] = [];
 	readonly providerSyncCalls: ICopilotByokSessionConfig[] = [];
 	agentSelectGate: Promise<void> | undefined;
@@ -431,6 +432,9 @@ class MockCopilotSession {
 	async setModel(...args: Parameters<CopilotSession['setModel']>) {
 		this.setModelCalls.push(args);
 		await this.modelGate;
+		if (this.modelError) {
+			throw this.modelError;
+		}
 	}
 	async disconnect() {
 		this.disconnectCalls++;
@@ -1251,8 +1255,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	beforeLaunch?: (rootValues: Record<string, unknown>) => void;
 	/** BYOK providers and models the SDK session launches with. */
 	launchByokConfig?: ICopilotByokSessionConfig;
-	/** BYOK providers and models the launcher currently resolves. */
-	resolveByokSessionConfig?: () => ICopilotByokSessionConfig;
+	/** BYOK providers and models the launcher currently resolves for the session's model selection. */
+	resolveByokSessionConfig?: (model: ModelSelection | undefined) => ICopilotByokSessionConfig;
 	/** The on-device model provider installed on the client, if the user opted in. */
 	localModelProvider?: ILocalModelProvider;
 	sandboxPolicy?: ReturnType<IAgentConfigurationService['getSessionSandboxPolicy']>;
@@ -1362,7 +1366,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			}
 			return new CopilotSessionWrapper(mockSession as unknown as CopilotSession, options?.canvasRuntimeEnabled ?? true, options?.launchByokConfig ?? {}, imageGenerationEnabled, logService);
 		},
-		resolveByokSessionConfig: async () => options?.resolveByokSessionConfig?.() ?? {},
+		resolveByokSessionConfig: async (_sessionId, model) => options?.resolveByokSessionConfig?.(model) ?? {},
 	};
 
 	const services = new ServiceCollection();
@@ -2542,6 +2546,133 @@ suite('CopilotAgentSession', () => {
 			providerSyncCalls: [{ providers: [provider], models: [early, late] }],
 			setModelCalls: ['customendpoint/Pool/early', 'customendpoint/Pool/late'],
 		});
+	});
+
+	test('re-registers the selected BYOK model at the context size the session picked', async () => {
+		const provider = { name: 'acme', type: 'openai' as const, wireApi: 'responses' as const, baseUrl: 'http://127.0.0.1:1/v/acme', bearerToken: 'nonce.test-session-1' };
+		const resolved: (ModelSelection | undefined)[] = [];
+		// Stands in for `synthesizeByokSessionConfig`, which sizes the selected model from the selection.
+		const { session, mockSession } = await createAgentSession(disposables, {
+			modelId: 'acme/big',
+			launchByokConfig: { providers: [provider], models: [{ id: 'big', provider: 'acme', maxPromptTokens: 200_000 }] },
+			resolveByokSessionConfig: model => {
+				resolved.push(model);
+				const maxPromptTokens = model?.id === 'acme/big' ? Number(model.config?.contextSize ?? 200_000) : 200_000;
+				return { providers: [provider], models: [{ id: 'big', provider: 'acme', maxPromptTokens }] };
+			},
+		});
+
+		// The launch selection is what a post-launch sync re-resolves against.
+		await session.syncByokModels();
+		await session.setModel('acme/big', undefined, undefined, undefined, { id: 'acme/big', config: { contextSize: 968_000 } });
+		// A later sync without a pending selection re-resolves against the last applied one.
+		await session.syncByokModels();
+		await session.setModel('acme/big', undefined, undefined, undefined, { id: 'acme/big', config: { contextSize: 200_000 } });
+
+		assert.deepStrictEqual({
+			resolved,
+			providerSyncCalls: mockSession.providerSyncCalls.map(call => call.models?.map(m => m.maxPromptTokens)),
+			setModelCalls: mockSession.setModelCalls.map(([model]) => model),
+		}, {
+			resolved: [
+				{ id: 'acme/big' },
+				{ id: 'acme/big', config: { contextSize: 968_000 } },
+				{ id: 'acme/big', config: { contextSize: 968_000 } },
+				{ id: 'acme/big', config: { contextSize: 200_000 } },
+			],
+			providerSyncCalls: [[968_000], [200_000]],
+			setModelCalls: ['acme/big', 'acme/big'],
+		});
+	});
+
+	/**
+	 * A session on `acme/big` at 968K whose launcher sizes the model from the
+	 * selection it is given, for the races between `setModel` and a background
+	 * `syncByokModels` (a bridge or on-device refresh) below.
+	 */
+	async function createSizedByokSession(): Promise<{ session: CopilotAgentSession; mockSession: MockCopilotSession; registeredSizes: () => (number | undefined)[] }> {
+		const provider = { name: 'acme', type: 'openai' as const, wireApi: 'responses' as const, baseUrl: 'http://127.0.0.1:1/v/acme', bearerToken: 'nonce.test-session-1' };
+		const sizeOf = (model: ModelSelection | undefined) => model?.id === 'acme/big' ? Number(model.config?.contextSize ?? 968_000) : 968_000;
+		const { session, mockSession } = await createAgentSession(disposables, {
+			modelId: 'acme/big',
+			launchByokConfig: { providers: [provider], models: [{ id: 'big', provider: 'acme', maxPromptTokens: 968_000 }] },
+			resolveByokSessionConfig: model => ({ providers: [provider], models: [{ id: 'big', provider: 'acme', maxPromptTokens: sizeOf(model) }] }),
+		});
+		return { session, mockSession, registeredSizes: () => mockSession.providerSyncCalls.map(call => call.models?.[0]?.maxPromptTokens) };
+	}
+
+	test('a background BYOK sync during a model change sizes the model from the selection being applied', async () => {
+		const { session, mockSession, registeredSizes } = await createSizedByokSession();
+		const sdkSwitch = new DeferredPromise<void>();
+		mockSession.modelGate = sdkSwitch.p;
+
+		const change = session.setModel('acme/big', undefined, undefined, undefined, { id: 'acme/big', config: { contextSize: 200_000 } });
+		// Wait for the switch to reach the SDK, so the pre-switch registration is done and the SDK call is in flight.
+		while (mockSession.setModelCalls.length === 0) {
+			await timeout(0);
+		}
+		// A bridge refresh now re-syncs. It must not re-register the 968K the switch is replacing.
+		const background = session.syncByokModels();
+		sdkSwitch.complete();
+		await Promise.all([change, background]);
+		// With the switch applied, a further sync sees the same selection and changes nothing.
+		await session.syncByokModels();
+
+		assert.deepStrictEqual(registeredSizes(), [200_000]);
+	});
+
+	test('a background BYOK sync queued before a model change still sizes the model from the new selection', async () => {
+		const { session, mockSession, registeredSizes } = await createSizedByokSession();
+		const sdkSwitch = new DeferredPromise<void>();
+		mockSession.modelGate = sdkSwitch.p;
+
+		// Queued first, so it runs first; the selection is read when it runs, not when it was queued.
+		const background = session.syncByokModels();
+		const change = session.setModel('acme/big', undefined, undefined, undefined, { id: 'acme/big', config: { contextSize: 200_000 } });
+		sdkSwitch.complete();
+		await Promise.all([background, change]);
+
+		assert.deepStrictEqual(registeredSizes(), [200_000]);
+	});
+
+	test('a rejected model change restores the BYOK registration to the previous selection', async () => {
+		const { session, mockSession, registeredSizes } = await createSizedByokSession();
+		mockSession.modelError = new Error('switch rejected');
+
+		await assert.rejects(session.setModel('acme/big', undefined, undefined, undefined, { id: 'acme/big', config: { contextSize: 200_000 } }), /switch rejected/);
+		// The pre-switch registration went out at 200K. The session is still on 968K,
+		// so the registration is put back without anything else calling a sync.
+		await session.syncByokModels();
+
+		// The trailing sync here only waits for the queued restore; it changes nothing itself.
+		assert.deepStrictEqual(registeredSizes(), [200_000, 968_000]);
+	});
+
+	test('a rejected model change superseded by a newer one does not restore over the newer selection', async () => {
+		const { session, mockSession, registeredSizes } = await createSizedByokSession();
+		const firstSwitch = new DeferredPromise<void>();
+		mockSession.modelGate = firstSwitch.p;
+		mockSession.modelError = new Error('switch rejected');
+
+		const first = session.setModel('acme/big', undefined, undefined, undefined, { id: 'acme/big', config: { contextSize: 200_000 } });
+		while (mockSession.setModelCalls.length === 0) {
+			await timeout(0);
+		}
+		// A second change arrives while the first is in flight and takes over the pending selection.
+		mockSession.modelGate = undefined;
+		mockSession.modelError = undefined;
+		const second = session.setModel('acme/big', undefined, undefined, undefined, { id: 'acme/big', config: { contextSize: 500_000 } });
+		while (mockSession.setModelCalls.length < 2) {
+			await timeout(0);
+		}
+		firstSwitch.complete();
+		await assert.rejects(first, /switch rejected/);
+		await second;
+		await session.syncByokModels();
+
+		// 200K from the first pre-switch sync, 500K from the second; the first's rejection
+		// restores nothing because the second owns the selection by then.
+		assert.deepStrictEqual(registeredSizes(), [200_000, 500_000]);
 	});
 
 	test('a failed BYOK registration does not block the model change (#337742)', async () => {
