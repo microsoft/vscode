@@ -313,6 +313,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 				requestSessionWorkspaceUpdate: () => true,
 				isPending: () => false,
 				isConversionTurn: () => false,
+				onDidChangePending: Event.None,
 				cancel: () => { },
 				updateSessionWorkspace: async () => { },
 			} satisfies ISessionWorkspaceConversionService],
