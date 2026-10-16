@@ -1966,6 +1966,16 @@ export class AgentHostStateManager extends Disposable {
 		}
 	}
 
+	/** Whether a live chat that moved out of `session` was created there (Block 4), as recorded. */
+	hasChatsMovedOutOf(session: URI): boolean {
+		for (const origin of this._movedChatOrigins.values()) {
+			if (origin === session) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	/** Forgets where deleted chats came from (Block 4). */
 	forgetMovedChatOrigins(chats: Iterable<URI>): void {
 		for (const chat of chats) {

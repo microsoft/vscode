@@ -517,6 +517,10 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 		return this.raw.writeChatAttachmentCopy(this.identity.toStorage(chat), { ...copy, origin: this.identity.toStorage(copy.origin), storage: this.identity.toStorage(copy.storage) });
 	}
 
+	hasMovedChatsV2(): ReturnType<IAgentHostDatabase['hasMovedChatsV2']> {
+		return this.raw.hasMovedChatsV2();
+	}
+
 	async listMovedChatsV2(): ReturnType<IAgentHostDatabase['listMovedChatsV2']> {
 		const moved = await this.raw.listMovedChatsV2();
 		return new Map([...moved].map(([chat, origin]) => [this.identity.toRuntime(chat), this.identity.toRuntime(origin)]));

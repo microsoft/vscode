@@ -199,6 +199,10 @@ export class AgentHostChatRowStore implements IAgentHostChatRowStore {
 
 	/** Whether `chat`, which `session` does not record, now belongs to another session. */
 	private async _movedFrom(session: URI, chat: URI): Promise<boolean> {
+		if (!await this._database.hasMovedChatsV2()) {
+			// No chat ever moved: none moved out of `session`.
+			return false;
+		}
 		const owner = (await this._database.findCentralChatOwners([chat.toString()])).get(chat.toString())?.ownerSession;
 		return owner !== undefined && owner !== session.toString();
 	}

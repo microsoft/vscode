@@ -7141,6 +7141,11 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private async _isAttachmentOrigin(session: string): Promise<boolean> {
 		try {
+			await this._whenMovedChatOriginsLoaded();
+			if (this._stateManager.movedChatOriginsKnown && !this._stateManager.hasChatsMovedOutOf(session)) {
+				// Every moved chat's origin is known in memory, and none is this session: nothing to read.
+				return false;
+			}
 			return RELEASE_COPIED_ATTACHMENT_ORIGINS
 				// A chat whose attachments copy is complete reads them from its own storage (Block 4b).
 				? (await this._orchestratorDatabase.listAttachmentOriginsV2()).has(session)

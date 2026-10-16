@@ -574,6 +574,11 @@ export interface IAgentHostDatabase extends IDisposable, IAgentHostSessionStateD
 	/** Every live chat a move took out of the session it was created in, mapped to that session (Block 4). */
 	listMovedChatsV2(): Promise<ReadonlyMap<string, string>>;
 	/**
+	 * Whether a chat ever moved out of the session it was created in (Block 4). Without a move there is no moved chat,
+	 * origin or attachment copy to look for. Read once, then known: only this process writes it.
+	 */
+	hasMovedChatsV2(): Promise<boolean>;
+	/**
 	 * The sessions whose attachments a live moved chat may still read there (Block 4): the origins of moved chats whose
 	 * copy of those attachments ({@link writeChatAttachmentCopy}) isn't complete.
 	 */
@@ -1135,6 +1140,8 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 
 	private _databasePromise: Promise<Database> | undefined;
 	private _closed: Promise<void> | true | undefined;
+	/** Whether a chat ever moved ({@link hasMovedChatsV2}); `undefined` until read. */
+	private _chatsMoved: boolean | undefined;
 	private readonly _transactionSequencer = new Sequencer();
 
 	constructor(
@@ -3159,12 +3166,27 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	/** Records that a chat moved out of the session it was created in, in the move's transaction; see {@link listMovedChatsV2}. */
 	private async _recordChatsMoved(database: Database): Promise<void> {
 		await run(database, `INSERT INTO metadata (key, value) VALUES (?, 'true') ON CONFLICT(key) DO NOTHING`, [CHATS_MOVED_METADATA_KEY]);
+		// Set before the commit: if it rolls back, this process only looks for moved chats it won't find.
+		this._chatsMoved = true;
+	}
+
+	/** {@link hasMovedChatsV2} inside the caller's sequenced section: one marker read per process at most. */
+	private async _readChatsMoved(database: Database): Promise<boolean> {
+		this._chatsMoved ??= !!await get(database, 'SELECT 1 AS present FROM metadata WHERE key = ?', [CHATS_MOVED_METADATA_KEY]);
+		return this._chatsMoved;
+	}
+
+	async hasMovedChatsV2(): Promise<boolean> {
+		if (this._chatsMoved !== undefined) {
+			return this._chatsMoved;
+		}
+		return this._transactionSequencer.queue(async () => this._readChatsMoved(await this._ensureDatabase()));
 	}
 
 	async listAttachmentOriginsV2(): Promise<ReadonlySet<string>> {
 		return this._transactionSequencer.queue(async () => {
 			const database = await this._ensureDatabase();
-			if (!await get(database, 'SELECT 1 AS present FROM metadata WHERE key = ?', [CHATS_MOVED_METADATA_KEY])) {
+			if (!await this._readChatsMoved(database)) {
 				return new Set();
 			}
 			const rows = await all(database, `SELECT DISTINCT origin_session_uri FROM chats_v2
@@ -3177,6 +3199,10 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	async readChatAttachmentCopies(): Promise<ReadonlyMap<string, IAgentHostChatAttachmentCopy>> {
 		return this._transactionSequencer.queue(async () => {
 			const database = await this._ensureDatabase();
+			// Only a move records copies.
+			if (!await this._readChatsMoved(database)) {
+				return new Map();
+			}
 			const prefix = CHAT_ATTACHMENT_COPY_KEY_PREFIX;
 			// A primary-key range: only the copy records, never a scan of the chats.
 			const range = [prefix, `${prefix.slice(0, -1)}${String.fromCharCode(prefix.charCodeAt(prefix.length - 1) + 1)}`];
@@ -3209,7 +3235,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		return this._transactionSequencer.queue(async () => {
 			const database = await this._ensureDatabase();
 			// Only moves record an origin other than the owner: without one, there is nothing to scan the chats for.
-			if (!await get(database, 'SELECT 1 AS present FROM metadata WHERE key = ?', [CHATS_MOVED_METADATA_KEY])) {
+			if (!await this._readChatsMoved(database)) {
 				return new Map();
 			}
 			const rows = await all(database, `SELECT chat_uri, origin_session_uri FROM chats_v2
@@ -3948,7 +3974,10 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	/** Tombstones a chat, inside the caller's transaction; its attachment copy record (Block 4b) goes with it. */
 	private async _tombstoneChatV2(database: Database, row: Record<string, unknown>): Promise<void> {
 		await run(database, 'UPDATE chats_v2 SET tombstoned = 1, ownership_revision = ? WHERE chat_uri = ?', [this._nextRevision(row.ownership_revision as number), row.chat_uri]);
-		await run(database, 'DELETE FROM metadata WHERE key = ?', [CHAT_ATTACHMENT_COPY_KEY_PREFIX + (row.chat_uri as string)]);
+		// Only a moved chat records a copy.
+		if (await this._readChatsMoved(database)) {
+			await run(database, 'DELETE FROM metadata WHERE key = ?', [CHAT_ATTACHMENT_COPY_KEY_PREFIX + (row.chat_uri as string)]);
+		}
 	}
 
 	private _decodeChatV2Directories(payload: string): readonly string[] {

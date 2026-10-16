@@ -462,6 +462,7 @@ class TransientRegistryWriteDatabase extends SessionStateUnsupportedDatabase imp
 	async listAttachmentOriginsV2(): ReturnType<IAgentHostDatabase['listAttachmentOriginsV2']> { return new Set(); }
 	async readChatAttachmentCopies(): ReturnType<IAgentHostDatabase['readChatAttachmentCopies']> { return new Map(); }
 	async writeChatAttachmentCopy(): ReturnType<IAgentHostDatabase['writeChatAttachmentCopy']> { return true; }
+	async hasMovedChatsV2(): ReturnType<IAgentHostDatabase['hasMovedChatsV2']> { return false; }
 	async reorderChatV2(..._args: Parameters<IAgentHostDatabase['reorderChatV2']>): ReturnType<IAgentHostDatabase['reorderChatV2']> { return { status: 'notReady', reason: 'test', awaitsReprojection: false }; }
 	upsertSessionV2FromChatCatalog(...[envelope, expectedSessionGeneration]: Parameters<IAgentHostDatabase['upsertSessionV2FromChatCatalog']>): ReturnType<IAgentHostDatabase['upsertSessionV2FromChatCatalog']> {
 		return this.upsertSessionV2(envelope, expectedSessionGeneration);
@@ -1030,6 +1031,7 @@ class TestAgentHostOrchestratorDatabase extends SessionStateUnsupportedDatabase 
 	async listAttachmentOriginsV2(): ReturnType<IAgentHostDatabase['listAttachmentOriginsV2']> { return new Set(); }
 	async readChatAttachmentCopies(): ReturnType<IAgentHostDatabase['readChatAttachmentCopies']> { return new Map(); }
 	async writeChatAttachmentCopy(): ReturnType<IAgentHostDatabase['writeChatAttachmentCopy']> { return true; }
+	async hasMovedChatsV2(): ReturnType<IAgentHostDatabase['hasMovedChatsV2']> { return false; }
 	async reorderChatV2(..._args: Parameters<IAgentHostDatabase['reorderChatV2']>): ReturnType<IAgentHostDatabase['reorderChatV2']> { return { status: 'notReady', reason: 'test', awaitsReprojection: false }; }
 	upsertSessionV2FromChatCatalog(...[envelope, expectedSessionGeneration]: Parameters<IAgentHostDatabase['upsertSessionV2FromChatCatalog']>): ReturnType<IAgentHostDatabase['upsertSessionV2FromChatCatalog']> {
 		return this.upsertSessionV2(envelope, expectedSessionGeneration);
@@ -33254,6 +33256,65 @@ suite('AgentService (node dispatcher)', () => {
 				assert.deepStrictEqual({ afterMove, afterReorder }, {
 					afterMove: { live: movedOrder, restored: [movedOrder, movedOrder] },
 					afterReorder: { live: reorderedOrder, restored: [reorderedOrder, reorderedOrder] },
+				});
+			});
+
+			test('deleting a chat that never moved reads no moved-chat state; once chats moved elsewhere, it scans no moved origins (perf)', async () => {
+				const { createService, orchestratorDatabase } = createDeletingServices();
+				const service = createService();
+				const raw = await (orchestratorDatabase as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+				const traced = async (action: () => Promise<unknown>) => {
+					const statements: string[] = [];
+					const done = new DeferredPromise<void>();
+					const onTrace = (sql: string) => sql === 'SELECT 1 AS traced' ? done.complete() : statements.push(sql);
+					raw.on('trace', onTrace);
+					await action();
+					await service.whenCatalogReconciliationIdle();
+					await getTestSessionStateStore(service).whenIdle(undefined);
+					// Trace events arrive later, in order: the sentinel's comes after the action's.
+					await new Promise<void>((resolve, reject) => raw.all('SELECT 1 AS traced', error => error ? reject(error) : resolve()));
+					await done.p;
+					raw.removeListener('trace', onTrace);
+					return statements.filter(sql => /chatsV2Moved|chat_uri IN|origin_session_uri IS NOT NULL|chatAttachmentCopy/.test(sql));
+				};
+				const createPeer = async (name: string) => {
+					const session = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+					const peer = URI.parse(buildChatUri(session, name));
+					await service.createChat(session, peer);
+					await timeout(0);
+					return { session, peer };
+				};
+				const first = await createPeer('unmoved');
+				await service.listSessions();
+				await getStateManager(service).whenMovedChatOriginsSettled();
+				// A refused promotion normalizes the chat's catalog, as most catalogs are, and moves nothing.
+				const refused = await service.moveChat(first.session, first.peer, { kind: 'newSession' }).then(() => undefined, error => (error as AgentChatMoveRefusedError).reason);
+				const normalized = async (session: URI) => (await orchestratorDatabase.readCatalogSnapshot([session.toString()]))[0]?.authorityVersion;
+				const firstNormalized = await normalized(first.session);
+
+				const withoutMoves = await traced(async () => {
+					await service.disposeChat(first.session, first.peer);
+					// A late row write of a chat the session no longer records (as after a delete whose central entry is gone).
+					await getTestSessionStateStore(service).chatRows.setDraft(first.session, first.peer, undefined);
+				});
+				const moving = await createPeer('moving');
+				const unmoved = URI.parse(buildChatUri(moving.session, 'unmoved-too'));
+				await service.createChat(moving.session, unmoved);
+				await timeout(0);
+				const target = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+				await service.moveChat(moving.session, moving.peer, { kind: 'session', session: target, after: undefined });
+				const withMovesElsewhere = await traced(() => service.disposeChat(moving.session, unmoved));
+
+				assert.deepStrictEqual({
+					refused,
+					normalized: [firstNormalized, await normalized(moving.session)],
+					withoutMoves,
+					originScans: withMovesElsewhere.filter(sql => sql.includes('origin_session_uri IS NOT NULL')),
+				}, {
+					refused: AgentChatMoveRefusal.NotStarted,
+					normalized: [2, 2],
+					withoutMoves: [],
+					originScans: [],
 				});
 			});
 

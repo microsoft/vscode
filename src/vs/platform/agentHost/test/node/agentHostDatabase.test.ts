@@ -3642,6 +3642,14 @@ suite('AgentHostDatabase sessions_v2', () => {
 
 		test('a chat\'s attachment copy record goes with the chat, however it is deleted, and a late copy step records nothing (Block 4b)', async () => {
 			const { instance, raw } = await seedAll();
+			// Only a move records copies: one out and back again.
+			for (const [source, target, expected] of [[sessionA, sessionB, 1], [sessionB, sessionA, 2]] as const) {
+				await instance.moveChatV2({
+					chat: `${sessionA}#peer`, source, target, after: undefined,
+					expectedSourceRevision: await revision(instance, source), expectedTargetRevision: await revision(instance, target),
+					workingDirectories: undefined, state: { ...noState([`${sessionA}#peer`]), expectedSourceRevision: expected, expectedTargetRevision: expected },
+				});
+			}
 			const copy = (origin: string) => ({ origin, storage: 'file:///storage', copied: ['shot/screen.png'], complete: false });
 			for (const chat of [`${sessionA}#peer`, `${sessionA}#sub`, `${sessionB}#peer`, `${sessionB}#sub`, `${sessionC}#peer`]) {
 				await instance.writeChatAttachmentCopy(chat, copy(sessionA));
@@ -3663,6 +3671,44 @@ suite('AgentHostDatabase sessions_v2', () => {
 				replaced: 'applied',
 				lateStep: false,
 				records: [`chatAttachmentCopy:${sessionA}#peer`],
+			});
+		});
+
+		test('without a move, reads the moved marker once and no attachment copy records, at startup and when chats are deleted (perf)', async () => {
+			const { instance, raw } = await seedAll();
+			const traced = async (action: () => Promise<unknown>) => {
+				const statements: string[] = [];
+				const done = new DeferredPromise<void>();
+				const onTrace = (sql: string) => sql === 'SELECT 1 AS traced' ? done.complete() : statements.push(sql);
+				raw.on('trace', onTrace);
+				await action();
+				// Trace events arrive later, in order: the sentinel's comes after the action's.
+				await all(raw, 'SELECT 1 AS traced', []);
+				await done.p;
+				raw.removeListener('trace', onTrace);
+				return statements.filter(sql => sql.includes('chatsV2Moved') || sql.includes('chatAttachmentCopy'));
+			};
+			const startup = await traced(async () => {
+				// What a start reads: the moved chats' origins, then the copies of their attachments.
+				await instance.listMovedChatsV2();
+				await instance.readChatAttachmentCopies();
+				await instance.removePrivateChatV2(sessionA, `${sessionA}#sub`, await revision(instance, sessionA));
+				await instance.hasMovedChatsV2();
+			});
+			await instance.moveChatV2({
+				chat: `${sessionB}#peer`, source: sessionB, target: sessionC, after: undefined,
+				expectedSourceRevision: await revision(instance, sessionB), expectedTargetRevision: await revision(instance, sessionC),
+				workingDirectories: undefined, state: noState([`${sessionB}#peer`]),
+			});
+			const afterMove = await traced(async () => ({ moved: await instance.hasMovedChatsV2(), copies: await instance.readChatAttachmentCopies() }));
+
+			assert.deepStrictEqual({ startup, afterMove: afterMove.map(sql => sql.replace(/'chatAttachmentCopy:[^']*'/g, '<prefix>')) }, {
+				startup: [`SELECT 1 AS present FROM metadata WHERE key = 'chatsV2Moved'`],
+				// Known once a move recorded it; the copies are read again.
+				afterMove: [
+					`DELETE FROM metadata WHERE key >= <prefix> AND key < 'chatAttachmentCopy;'\n\t\t\t\tAND NOT EXISTS (SELECT 1 FROM chats_v2 WHERE chat_uri = substr(metadata.key, 20) AND tombstoned = 0)`,
+					`SELECT key, value FROM metadata WHERE key >= <prefix> AND key < 'chatAttachmentCopy;'`,
+				],
 			});
 		});
 
