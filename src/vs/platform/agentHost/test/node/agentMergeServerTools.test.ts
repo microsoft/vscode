@@ -498,8 +498,8 @@ suite('Agent Merge server tools', () => {
 			const missing = { status: 'missing' as const, complete: false };
 			const snapshot: PullRequestSnapshot = {
 				ref, generation: 1, headGeneration: 1,
-				core: missing, topLevelComments: missing, submittedReviews: missing, inlineComments: missing,
-				checks: missing, mergeability: missing, participants: missing,
+				core: missing, topLevelComments: missing, submittedReviews: missing,
+				checks: missing, mergeability: missing,
 				reviewThreads: {
 					status: 'ready', complete: true, headSha: 'head',
 					value: [{ id: 'T1', isResolved: false, comments: [{ id: 'C1', author: { login: 'reviewer', association: 'MEMBER' } }] }],

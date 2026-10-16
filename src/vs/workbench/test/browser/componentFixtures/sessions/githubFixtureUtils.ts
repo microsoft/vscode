@@ -293,11 +293,9 @@ function createPullRequestSnapshot(ref: PullRequestRef): PullRequestSnapshot {
 		core: { status: 'missing', complete: false },
 		topLevelComments: { status: 'missing', complete: false },
 		submittedReviews: { status: 'missing', complete: false },
-		inlineComments: { status: 'missing', complete: false },
 		reviewThreads: { status: 'missing', complete: false },
 		checks: { status: 'missing', complete: false },
 		mergeability: { status: 'missing', complete: false },
-		participants: { status: 'missing', complete: false },
 	};
 }
 
