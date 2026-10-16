@@ -75,6 +75,22 @@ export const selectAllSearchEditorMatchesCommand = (accessor: ServicesAccessor) 
 	}
 };
 
+export const goToResultCommand = (accessor: ServicesAccessor) => {
+	const editorService = accessor.get(IEditorService);
+	const input = editorService.activeEditor;
+	if (input instanceof SearchEditorInput) {
+		(editorService.activeEditorPane as SearchEditor).goToResult();
+	}
+};
+
+export const openResultToSideCommand = (accessor: ServicesAccessor) => {
+	const editorService = accessor.get(IEditorService);
+	const input = editorService.activeEditor;
+	if (input instanceof SearchEditorInput) {
+		(editorService.activeEditorPane as SearchEditor).openResultToSide();
+	}
+};
+
 export async function openSearchEditor(accessor: ServicesAccessor): Promise<void> {
 	const viewsService = accessor.get(IViewsService);
 	const instantiationService = accessor.get(IInstantiationService);
