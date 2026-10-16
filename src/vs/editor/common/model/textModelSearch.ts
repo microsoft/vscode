@@ -302,17 +302,15 @@ export class TextModelSearch {
 	}
 
 	private static _doFindNextMatchMultiline(model: TextModel, searchStart: Position, searcher: Searcher, captureMatches: boolean): FindMatch | null {
-		// Search over the whole document (starting at `searchStart`), so that lookbehind assertions
-		// see all of the text preceding the search start
-		const searchTextStart = new Position(1, 1);
-		const deltaOffset = 0;
+		const searchTextStart = new Position(searchStart.lineNumber, 1);
+		const deltaOffset = model.getOffsetAt(searchTextStart);
 		const lineCount = model.getLineCount();
 		// We always execute multiline search over the lines joined with \n
 		// This makes it that \n will match the EOL for both CRLF and LF models
 		// We compensate for offset errors in `_getMultilineMatchRange`
 		const text = model.getValueInRange(new Range(searchTextStart.lineNumber, searchTextStart.column, lineCount, model.getLineMaxColumn(lineCount)), EndOfLinePreference.LF);
 		const lfCounter = (model.getEOL() === '\r\n' ? new LineFeedCounter(text) : null);
-		searcher.reset(model.getValueLengthInRange(new Range(1, 1, searchStart.lineNumber, searchStart.column), EndOfLinePreference.LF));
+		searcher.reset(searchStart.column - 1);
 		const m = searcher.next(text);
 		if (m) {
 			return createFindMatch(

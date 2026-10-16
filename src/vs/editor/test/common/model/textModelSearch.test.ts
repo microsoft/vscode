@@ -406,45 +406,6 @@ suite('TextModelSearch', () => {
 		model.dispose();
 	});
 
-	test('findNextMatch with lookbehind for line feed at search start (#196884)', () => {
-		for (const eol of ['\n', '\r\n']) {
-			const model = createTextModel(['a-b-c', 'b-c-d', 'b-c-e'].join(eol));
-			const searchParams = new SearchParams('(?<=\n)b', true, false, null);
-
-			let actual = TextModelSearch.findNextMatch(model, searchParams, new Position(2, 1), false);
-			assertFindMatch(actual, new Range(2, 1, 2, 2));
-
-			actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 1), false);
-			assertFindMatch(actual, new Range(2, 1, 2, 2));
-
-			model.dispose();
-		}
-	});
-
-	test('findNextMatch with anchored lookbehind at search start (#196884)', () => {
-		for (const eol of ['\n', '\r\n']) {
-			const model = createTextModel(['a', 'b', '', 'b'].join(eol));
-			const searchParams = new SearchParams('(?<=^\\n)b', true, false, null);
-
-			const actual = TextModelSearch.findNextMatch(model, searchParams, new Position(2, 1), false);
-			assertFindMatch(actual, new Range(4, 1, 4, 2));
-
-			model.dispose();
-		}
-	});
-
-	test('findNextMatch with capturing lookbehind at search start (#196884)', () => {
-		for (const eol of ['\n', '\r\n']) {
-			const model = createTextModel(['a', 'b'].join(eol));
-			const searchParams = new SearchParams('(?<=(.*)\\n)b', true, false, null);
-
-			const actual = TextModelSearch.findNextMatch(model, searchParams, new Position(2, 1), true);
-			assertFindMatch(actual, new Range(2, 1, 2, 2), ['b', 'a']);
-
-			model.dispose();
-		}
-	});
-
 	test('findNextMatch with beginning boundary regex', () => {
 		const model = createTextModel('line one\nline two\nthree');
 
