@@ -8421,7 +8421,7 @@ export class CopilotAgentSession extends Disposable {
 				}
 				if (this._fusionPhases.get(phaseToolCallId)?.presentation === 'inline') {
 					const call = this._provisionalInlineFusionMessageChunks.accept(e, phaseToolCallId);
-					if (call?.hasToolRequests) {
+					if (call?.messages.some(chunk => chunk.data.toolRequests?.some(request => !isTaskCompleteTool(request.name)))) {
 						for (const chunk of call.messages) {
 							this._shownProvisionalFusionMessageIds.add(chunk.data.messageId);
 							renderMessage(chunk, undefined, isLastAssistantMessageChunk(chunk), true);

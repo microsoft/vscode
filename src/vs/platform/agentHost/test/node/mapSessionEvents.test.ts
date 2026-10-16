@@ -210,6 +210,34 @@ suite('mapSessionEvents — history replay', () => {
 		});
 	});
 
+	for (const failed of [false, true]) {
+		test(`restores a fix-up task_complete summary in its phase chat${failed ? ' but not after a root error' : ' and the main chat'}`, async () => {
+			const committed = { fusionId: 'fusion-1', phaseId: 'phase-1', syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade', commitId: 'commit-1' };
+			const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, [
+				event('user.message', { content: 'Fix the parser.' }),
+				event('session.fusion_resolved', fusion.resolved),
+				event('assistant.fusion_phase_completed', fusion.phaseCompleted),
+				event('assistant.message', { messageId: 'm1', content: '', toolRequests: [{ toolCallId: 'tc-complete', name: 'task_complete', arguments: {} }], fusion: committed }),
+				event('tool.execution_start', { toolCallId: 'tc-complete', toolName: 'task_complete', arguments: { summary: 'Fixed the parser' }, fusion: committed }),
+				...(failed ? [event('session.error', { errorType: 'requestFailed', message: 'Failed' })] : []),
+				event('tool.execution_complete', { toolCallId: 'tc-complete', success: true, result: { content: 'Done' }, fusion: committed }),
+			]);
+			const markdown = (parts: readonly ResponsePart[] | undefined) => (parts ?? []).flatMap(part => part.kind === ResponsePartKind.Markdown ? [part.content] : []);
+			const phase = turns[0].responseParts.find((part): part is ToolCallResponsePart => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === 'fusion:fusion-1:phase-1');
+			assert.deepStrictEqual({
+				root: markdown(turns[0].responseParts),
+				phaseChat: markdown(subagentTurnsByToolCallId.get('fusion:fusion-1:phase-1')?.[0]?.responseParts),
+				linked: phase?.toolCall.status === ToolCallStatus.Completed && !!phase.toolCall.content?.some(item => item.type === ToolResultContentType.Subagent),
+				error: !!getErrorResponsePart(turns[0]),
+			}, {
+				root: failed ? [] : ['\n\n**Task completed:**\n\nFixed the parser'],
+				phaseChat: ['\n\n**Task completed:**\n\nFixed the parser'],
+				linked: true,
+				error: failed,
+			});
+		});
+	}
+
 
 	test('restores a review phase critique into its phase chat', async () => {
 		const critic = { ...fusion.phaseCompleted, phaseId: 'critic', phaseKind: 'critic', role: 'critic', conversationScope: 'review' } as const;

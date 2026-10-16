@@ -1003,11 +1003,18 @@ export async function mapSessionEvents(
 					break;
 				}
 				if (isTaskCompleteTool(info.toolName)) {
+					const summary = getTaskCompleteMarkdown(info.parameters, d.error?.message ?? d.result?.content);
+					const phaseBuilder = parentToolCallId !== subagentParentToolCallId ? targetBuilderFor(parentToolCallId) : undefined;
+					if (summary && phaseBuilder) {
+						phaseBuilder.responseParts.push({ kind: ResponsePartKind.Markdown, id: generateUuid(), content: summary });
+					}
+					if (!subagentParentToolCallId && parentTurnTerminated && parentTurnState === TurnState.Error) {
+						continue;
+					}
 					const builder = targetBuilderFor(subagentParentToolCallId);
 					if (!builder) {
 						continue;
 					}
-					const summary = getTaskCompleteMarkdown(info.parameters, d.error?.message ?? d.result?.content);
 					if (summary) {
 						builder.responseParts.push({
 							kind: ResponsePartKind.Markdown,
