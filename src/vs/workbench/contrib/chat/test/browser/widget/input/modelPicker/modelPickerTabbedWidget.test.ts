@@ -1315,17 +1315,17 @@ suite('TabbedModelPicker', () => {
 			goBack(result.popup);
 			return { rows, tiers, discount, description, ariaLabel, readout: readout(), selections: result.selections, tier: result.values.get(fusion.identifier)?.tier };
 		};
-		const fusionBalance = {
+		const fusionHigh = {
 			rows: ['Fusion', '--', 'First', 'Fixed', 'Second'], tiers: ['Standard', 'High', 'Max'], discount: 'Models routed via Fusion High receive a 10% discount.',
 			description: undefined, ariaLabel: 'High', readout: 'High', selections: ['copilot/auto'], tier: 'intelligence',
 		};
 		assert.deepStrictEqual({
-			balance: await choose('High', true),
+			high: await choose('High', true),
 			max: await choose('Max', true),
-			balanceNotRouted: await choose('High', false),
-			balanceWithoutHydraFusion: await choose('High', true, false),
+			highNotRouted: await choose('High', false),
+			highWithoutHydraFusion: await choose('High', true, false),
 		}, {
-			balance: {
+			high: {
 				rows: ['Fusion', '--', 'First', 'Fixed', 'Second'], tiers: ['Standard', 'High', 'Max'], discount: undefined,
 				description: 'High picks a workflow per task, using one or more models. Learn more',
 				ariaLabel: 'High, High picks a workflow per task, using one or more models.',
@@ -1337,8 +1337,8 @@ suite('TabbedModelPicker', () => {
 				ariaLabel: 'Max, Max uses multiple models on every task for the most thorough results.',
 				readout: 'Max', selections: ['copilot/hydrafusion-max'], tier: undefined,
 			},
-			balanceNotRouted: fusionBalance,
-			balanceWithoutHydraFusion: fusionBalance,
+			highNotRouted: fusionHigh,
+			highWithoutHydraFusion: fusionHigh,
 		});
 	});
 

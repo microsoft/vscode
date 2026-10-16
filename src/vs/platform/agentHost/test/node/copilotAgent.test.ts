@@ -11939,7 +11939,7 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('presents Auto as Fusion, keeping HydraFusion published and reporting whether Balance routes there', async () => {
+		test('presents Auto as Fusion, keeping HydraFusion published and reporting whether High routes there', async () => {
 			const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }, { id: 'gpt-5', name: 'GPT-5' }]);
 			const { agent, configurationService } = createTestAgentContext(disposables, {
 				copilotClient: client,
@@ -11955,7 +11955,7 @@ suite('CopilotAgent', () => {
 				await agent.refreshModels();
 				const fusion = published();
 
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.FusionBalanceUsesHydraFusion]: true });
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.FusionHighUsesHydraFusion]: true });
 				await agent.refreshModels();
 				const routed = published();
 
@@ -11988,7 +11988,7 @@ suite('CopilotAgent', () => {
 				}
 			};
 			assert.deepStrictEqual({ fusion: await tiers(true), auto: await tiers(false) }, {
-				fusion: 'balance/intelligence:Lite/Balance',
+				fusion: 'balance/intelligence:Standard/High',
 				auto: 'efficiency/balance/intelligence:Efficiency/Balance/Intelligence',
 			});
 		});
