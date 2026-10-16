@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { OperatingSystem } from '../../../../base/common/platform.js';
-import { AgentSandboxEnabledValue, normalizeSandboxFileSystemPath } from '../../../sandbox/common/settings.js';
+import { AgentSandboxEnabledValue, type IAgentSandboxMaskedCredentials, normalizeSandboxFileSystemPath } from '../../../sandbox/common/settings.js';
 import { AgentHostSandboxKey, type ISandboxConfigValue } from '../../common/sandboxConfigSchema.js';
 import type { ISessionSandboxPolicy } from '../../common/meta/agentSandboxPolicyMeta.js';
 
@@ -32,6 +32,9 @@ export interface SandboxConfig {
 
 	/** Credential injection available while sandboxing is enabled. */
 	auth?: SandboxAuthConfig;
+
+	/** Environment credentials masked by the sandbox and injected at authorized HTTPS hosts. */
+	credentials?: Required<IAgentSandboxMaskedCredentials>;
 
 	/** User-defined filesystem, network, and macOS policies. */
 	userPolicy?: SandboxUserPolicy;
@@ -164,6 +167,7 @@ export function buildSandboxConfigForSdk(
 	const sandboxMcpServers = sandbox?.[AgentHostSandboxKey.SandboxMcpServers];
 	const sandboxLspServers = sandbox?.[AgentHostSandboxKey.SandboxLspServers];
 	const allowDevToolAccess = sandbox?.[AgentHostSandboxKey.AllowDevToolAccess];
+	const maskedCredentials = sandbox?.[AgentHostSandboxKey.MaskedCredentials];
 	const sandboxConfig: SandboxConfig = {
 		enabled: true,
 		addCurrentWorkingDirectory: sandbox?.[AgentHostSandboxKey.AddCurrentWorkingDirectory] ?? true,
@@ -175,6 +179,7 @@ export function buildSandboxConfigForSdk(
 			git: sandbox?.[AgentHostSandboxKey.AuthenticateGit] ?? true,
 			gh: sandbox?.[AgentHostSandboxKey.AuthenticateGh] ?? true,
 		},
+		...(maskedCredentials !== undefined ? { credentials: { envVars: maskedCredentials.envVars ?? {} } } : {}),
 		userPolicy: {
 			...(denied.size || readonly.size || readwrite.size ? {
 				filesystem: {

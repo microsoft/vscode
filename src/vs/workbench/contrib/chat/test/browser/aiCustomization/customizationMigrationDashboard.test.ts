@@ -24,10 +24,17 @@ suite('CustomizationMigrationDashboard', () => {
 	function createDashboard(callbacks: Partial<ICustomizationMigrationDashboardCallbacks> = {}) {
 		const parent = DOM.append(document.body, DOM.$('div'));
 		const telemetryActions: string[] = [];
+		const hoverContents = new Map<HTMLElement, string>();
 		store.add(toDisposable(() => parent.remove()));
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(IHoverService, new class extends mock<IHoverService>() {
-			override setupDelayedHover() { return Disposable.None; }
+			override setupDelayedHover(...args: Parameters<IHoverService['setupDelayedHover']>) {
+				const options = typeof args[1] === 'function' ? args[1]() : args[1];
+				if (typeof options.content === 'string') {
+					hoverContents.set(args[0], options.content);
+				}
+				return Disposable.None;
+			}
 		});
 		const dashboard = store.add(instantiationService.createInstance(CustomizationMigrationDashboard, parent, {
 			actionClicked: (action, categoryId) => telemetryActions.push(categoryId ? `${action}:${categoryId}` : action),
@@ -38,11 +45,12 @@ suite('CustomizationMigrationDashboard', () => {
 			showItemActions: () => { },
 			ignoreCategory: () => { },
 			restoreIgnoredCategories: () => { },
+			retryCategory: () => { },
 			openCustomization: () => { },
 			...callbacks,
 		}));
 		dashboard.layout(1000);
-		return { parent, dashboard, telemetryActions };
+		return { parent, dashboard, hoverContents, telemetryActions };
 	}
 
 	function button(parent: HTMLElement, label: string): HTMLElement {
@@ -55,7 +63,7 @@ suite('CustomizationMigrationDashboard', () => {
 		return {
 			scopes: [
 				{
-					storage: PromptsStorage.user, label: 'Your profile', count: 5, hasConfigurableDestinations: true,
+					storage: PromptsStorage.user, label: 'Your profile', count: 6, hasConfigurableDestinations: true,
 					categories: [
 						{
 							id: CustomizationMigrationCategoryId.UserData, label: 'User Data', description: 'Move personal customizations.', count: 2, selectedCount: 2, countLabel: '1 agent · 1 instruction',
@@ -71,6 +79,14 @@ suite('CustomizationMigrationDashboard', () => {
 							items: [
 								{ id: 'user-prompt-1', label: 'Release', scopeLabel: 'User', sourceLabel: '~/.copilot/prompts/release.prompt.md' },
 								{ id: 'user-prompt-2', label: 'Triage', scopeLabel: 'User', sourceLabel: '~/.copilot/prompts/triage.prompt.md' },
+							],
+						},
+						{
+							id: CustomizationMigrationCategoryId.PluginMarketplaces, label: 'Plugin Marketplaces', description: 'Move marketplaces to Copilot settings.', count: 1, selectedCount: 1, countLabel: '1 marketplace',
+							actionLabel: 'Migrate',
+							destinationLabel: '~/.copilot/settings.json',
+							items: [
+								{ id: 'user-marketplace', label: 'vscode-team-kit', scopeLabel: 'User', sourceLabel: 'Configured in VS Code settings' },
 							],
 						},
 					],
@@ -108,7 +124,7 @@ suite('CustomizationMigrationDashboard', () => {
 
 	test('renders migration groups with destination paths and sends scoped actions', () => {
 		const actions: string[] = [];
-		const { parent, dashboard, telemetryActions } = createDashboard({
+		const { parent, dashboard, hoverContents, telemetryActions } = createDashboard({
 			configureLocations: (id, storage) => actions.push(`destinations:${id}:${storage}`),
 			migrateWithAgent: () => actions.push('agent'),
 			migrateCategory: (id, storage) => actions.push(`migrate:${id}:${storage}`),
@@ -124,13 +140,14 @@ suite('CustomizationMigrationDashboard', () => {
 		dashboard.focus();
 		const initialFocus = document.activeElement?.getAttribute('aria-label');
 		const agentMigrationButton = button(parent, 'Start an agent-guided customization migration');
-		const migrateButton = button(parent, 'Migrate Convert Prompt to Skills (Workspace)');
+		const migrateButton = button(parent, 'Migrate: Convert Prompt to Skills (Workspace)');
 		agentMigrationButton.click();
 		migrateButton.click();
-		button(parent, 'Migrate Convert Prompt to Skills (User)').click();
-		button(parent, 'Migrate MCP Servers (Workspace)').click();
-		button(parent, 'Migrate User Data (User)').click();
-		button(parent, 'Migrate Custom location settings (Workspace)').click();
+		button(parent, 'Migrate: Convert Prompt to Skills (User)').click();
+		button(parent, 'Migrate: MCP Servers (Workspace)').click();
+		button(parent, 'Migrate: Plugin Marketplaces (User)').click();
+		button(parent, 'Migrate: User Data (User)').click();
+		button(parent, 'Migrate: Custom location settings (Workspace)').click();
 		button(parent, 'Change destination for user prompt migrations').click();
 		dashboard.focusDestination(PromptsStorage.user);
 		assert.deepStrictEqual({
@@ -146,16 +163,19 @@ suite('CustomizationMigrationDashboard', () => {
 			agentButtonInTitleRow: agentMigrationButton.parentElement?.classList.contains('migration-page-title-actions'),
 			agentButtonIsSecondary: agentMigrationButton.classList.contains('migration-secondary-button'),
 			migrateButtonIsSecondary: migrateButton.classList.contains('migration-secondary-button'),
+			migrateTooltips: [...parent.querySelectorAll<HTMLElement>('.migration-tree-group-actions .migration-secondary-button')]
+				.filter(element => element.textContent?.startsWith('Migrate'))
+				.map(element => hoverContents.get(element)),
 			initialFocus,
 			focus: document.activeElement?.getAttribute('aria-label'),
 			actions,
 			telemetryActions,
 		}, {
 			title: 'Migrations',
-			groups: ['Convert Prompt to Skills (Workspace)', 'Convert Prompt to Skills (User)', 'MCP Servers (Workspace)', 'User Data (User)', 'Custom location settings (Workspace)'],
-			counts: ['1', '2', '1', '2', '1'],
-			items: ['Build', 'Release', 'Triage', 'Postgres', 'Planner', 'Review', 'Team rules'],
-			sources: ['.github/prompts/build.prompt.md', '~/.copilot/prompts/release.prompt.md', '~/.copilot/prompts/triage.prompt.md', '.vscode/mcp.json', '~/.copilot/agents/planner.agent.md', '~/.copilot/instructions/review.instructions.md', 'team/rules.instructions.md'],
+			groups: ['Convert Prompt to Skills (Workspace)', 'Convert Prompt to Skills (User)', 'MCP Servers (Workspace)', 'Plugin Marketplaces (User)', 'User Data (User)', 'Custom location settings (Workspace)'],
+			counts: ['1', '2', '1', '1', '2', '1'],
+			items: ['Build', 'Release', 'Triage', 'Postgres', 'vscode-team-kit', 'Planner', 'Review', 'Team rules'],
+			sources: ['.github/prompts/build.prompt.md', '~/.copilot/prompts/release.prompt.md', '~/.copilot/prompts/triage.prompt.md', '.vscode/mcp.json', 'Configured in VS Code settings', '~/.copilot/agents/planner.agent.md', '~/.copilot/instructions/review.instructions.md', 'team/rules.instructions.md'],
 			changes: [
 				'The gallery property will be removed.',
 			],
@@ -165,10 +185,18 @@ suite('CustomizationMigrationDashboard', () => {
 			agentButtonInTitleRow: true,
 			agentButtonIsSecondary: true,
 			migrateButtonIsSecondary: true,
-			initialFocus: 'Migrate Convert Prompt to Skills (Workspace)',
+			migrateTooltips: [
+				'Convert prompt files to skills (Workspace)',
+				'Convert prompt files to skills (User)',
+				'Migrate eligible MCP servers (Workspace)',
+				'Migrate plugin marketplaces to Copilot settings (User)',
+				'Migrate user data customizations to the active harness (User)',
+				'Migrate customizations from VS Code-configured locations (Workspace)',
+			],
+			initialFocus: 'Migrate: Convert Prompt to Skills (Workspace)',
 			focus: 'Change destination for user prompt migrations',
-			actions: ['agent', 'migrate:promptFiles:local', 'migrate:promptFiles:user', 'migrate:mcpServers:local', 'migrate:userData:user', 'migrate:configuredLocations:local', 'destinations:promptFiles:user'],
-			telemetryActions: ['agentMigrationClicked', 'migrationCategoryClicked:promptFiles', 'migrationCategoryClicked:promptFiles', 'migrationCategoryClicked:mcpServers', 'migrationCategoryClicked:userData', 'migrationCategoryClicked:configuredLocations', 'destinationsClicked'],
+			actions: ['agent', 'migrate:promptFiles:local', 'migrate:promptFiles:user', 'migrate:mcpServers:local', 'migrate:pluginMarketplaces:user', 'migrate:userData:user', 'migrate:configuredLocations:local', 'destinations:promptFiles:user'],
+			telemetryActions: ['agentMigrationClicked', 'migrationCategoryClicked:promptFiles', 'migrationCategoryClicked:promptFiles', 'migrationCategoryClicked:mcpServers', 'migrationCategoryClicked:pluginMarketplaces', 'migrationCategoryClicked:userData', 'migrationCategoryClicked:configuredLocations', 'destinationsClicked'],
 		});
 	});
 
@@ -183,14 +211,14 @@ suite('CustomizationMigrationDashboard', () => {
 			overviewFocus: document.activeElement?.getAttribute('aria-label'),
 		}, {
 			loadingFocus: 'Migrations',
-			overviewFocus: 'Migrate Convert Prompt to Skills (Workspace)',
+			overviewFocus: 'Migrate: Convert Prompt to Skills (Workspace)',
 		});
 	});
 
 	test('updates group actions from item selection and exposes item, ignore, and restore actions', () => {
 		const actions: string[] = [];
 		const model = overview();
-		const { parent, dashboard } = createDashboard({
+		const { parent, dashboard, hoverContents } = createDashboard({
 			setItemSelected: (item, selected) => actions.push(`selected:${item.id}:${selected}`),
 			showItemActions: item => actions.push(`actions:${item.id}`),
 			ignoreCategory: (id, storage) => actions.push(`ignore:${id}:${storage}`),
@@ -206,10 +234,14 @@ suite('CustomizationMigrationDashboard', () => {
 		button(parent, 'Show and restore ignored migrations').click();
 
 		assert.deepStrictEqual({
-			migrateLabel: button(parent, 'Migrate Convert Prompt to Skills (User)').textContent,
+			migrateLabel: button(parent, 'Migrate 1: Convert Prompt to Skills (User)').textContent,
+			migrateAriaLabel: button(parent, 'Migrate 1: Convert Prompt to Skills (User)').getAttribute('aria-label'),
+			migrateTooltip: hoverContents.get(button(parent, 'Migrate 1: Convert Prompt to Skills (User)')),
 			actions,
 		}, {
 			migrateLabel: 'Migrate 1',
+			migrateAriaLabel: 'Migrate 1: Convert Prompt to Skills (User)',
+			migrateTooltip: 'Convert prompt files to skills (User)',
 			actions: [
 				'selected:user-prompt-1:false',
 				'actions:user-prompt-1',
@@ -329,6 +361,35 @@ suite('CustomizationMigrationDashboard', () => {
 			focus: document.activeElement?.textContent,
 			telemetryActions,
 		}, { retries: 1, busy: 'false', focus: 'Retry', telemetryActions: ['retryClicked'] });
+	});
+
+	test('keeps category discovery errors scoped and retryable alongside valid migrations', () => {
+		const retried: string[] = [];
+		const { parent, dashboard, telemetryActions } = createDashboard({
+			retryCategory: id => retried.push(id),
+		});
+		dashboard.showOverview({
+			...overview(),
+			categoryErrors: [{
+				id: CustomizationMigrationCategoryId.PluginMarketplaces,
+				label: 'Plugin marketplaces could not be checked',
+				description: 'Check the active agent connection, then try again.',
+			}],
+		});
+
+		button(parent, 'Retry loading Plugin marketplaces could not be checked').click();
+
+		assert.deepStrictEqual({
+			error: parent.querySelector('.migration-category-error')?.textContent,
+			hasPromptMigration: parent.textContent?.includes('Convert Prompt to Skills (Workspace)'),
+			retried,
+			telemetryActions,
+		}, {
+			error: 'Plugin marketplaces could not be checkedCheck the active agent connection, then try again.Retry',
+			hasPromptMigration: true,
+			retried: [CustomizationMigrationCategoryId.PluginMarketplaces],
+			telemetryActions: ['retryClicked:pluginMarketplaces'],
+		});
 	});
 
 	test('focuses refresh errors and restores the prior overview target after retry', () => {

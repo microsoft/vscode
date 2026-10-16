@@ -290,8 +290,8 @@ class TrackedDocumentInfo extends Disposable {
 				entry.modifiedCount += range.range.length;
 			}
 		}
-		// Apply the source cap before subdividing by Auto tier so no selected source loses contributions.
-		const sourceGroups = groupByMap(Array.from(telemetryKeys), ([, entry]) => getDetailsGroupingKey(entry.representative, entry.representative.toKey(1, { $autoTier: false })));
+		// Apply the source cap before subdividing by Auto tier and HydraFusion model so no selected source loses contributions.
+		const sourceGroups = groupByMap(Array.from(telemetryKeys), ([, entry]) => getDetailsGroupingKey(entry.representative, entry.representative.toKey(1, { $autoTier: false, $fusionModel: false })));
 		const entries = Array.from(sourceGroups.values(), entries => ({
 			entries,
 			modifiedCount: sumBy(entries, ([, entry]) => entry.modifiedCount),
@@ -307,11 +307,12 @@ class TrackedDocumentInfo extends Disposable {
 			sendEditSourcesDetailsTelemetry(this._telemetryService, {
 				mode,
 				sourceKey: repr.toKey(1),
-				sourceKeyCleaned: repr.toKey(1, { $extensionId: false, $extensionVersion: false, $modelId: false, $autoTier: false }),
+				sourceKeyCleaned: repr.toKey(1, { $extensionId: false, $extensionVersion: false, $modelId: false, $autoTier: false, $fusionModel: false }),
 				extensionId: repr.props.$extensionId,
 				extensionVersion: repr.props.$extensionVersion,
 				modelId: repr.props.$modelId,
 				autoTier: repr.props.$autoTier,
+				fusionModel: repr.props.$fusionModel,
 				trigger,
 				languageId: this._doc.document.languageId.get(),
 				statsUuid: statsUuid,

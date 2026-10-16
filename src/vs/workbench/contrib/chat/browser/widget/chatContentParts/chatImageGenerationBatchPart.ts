@@ -21,7 +21,6 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { getChatImageResourceComparisonKey, getToolResultImageResources } from '../../../common/chatImageExtraction.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
-import { IChatProgressResponseContent } from '../../../common/model/chatModel.js';
 import { IChatRendererContent, IChatResponseViewModel, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { isToolResultInputOutputDetails } from '../../../common/tools/languageModelToolsService.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../../chat.js';
@@ -29,22 +28,12 @@ import { GlyphSurface } from '../../attachments/chatImageGlyphSurface.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatResourceGroupWidget } from './chatResourceGroupWidget.js';
 import { IChatCollapsibleIODataPart } from './chatToolInputOutputContentPart.js';
-import { isImageGenerationToolInvocation, hasToolInvocationError } from './toolInvocationParts/chatToolPartUtilities.js';
+import { getImageGenerationBatch, hasToolInvocationError } from './toolInvocationParts/chatToolPartUtilities.js';
 import './media/chatImageGenerationBatchPart.css';
 import '../../attachments/chatImageReveal.css';
 
 type ImageTool = IChatToolInvocation | IChatToolInvocationSerialized;
 type ImageStatus = 'running' | 'waiting' | 'ready' | 'failed' | 'cancelled';
-
-/** Matches the response-wide gallery scope, leaving subagent and hidden tools with their owners. */
-export function getImageGenerationBatch(content: readonly (IChatRendererContent | IChatProgressResponseContent)[]): ImageTool[] {
-	const tools = content.filter((part): part is ImageTool =>
-		(part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized')
-		&& !part.subAgentInvocationId && !(part.kind === 'toolInvocation' && part.otherClientToolCall)
-		&& !IChatToolInvocation.isStreaming(part)
-		&& !IChatToolInvocation.isEffectivelyHidden(part) && isImageGenerationToolInvocation(part));
-	return tools.length > 1 ? tools : [];
-}
 
 function isWaiting(tool: ImageTool): boolean {
 	const state = tool.kind === 'toolInvocation' ? tool.state.get().type : undefined;
@@ -90,9 +79,9 @@ interface IThumbnail extends IDisposable {
 	previewUnavailable?: boolean;
 }
 
-/** A response-owned preview keeps parallel image generation quiet without delaying ready results. */
+/** A batch-owned preview keeps parallel image generation quiet without delaying ready results. */
 export class ChatImageGenerationBatchPart extends Disposable implements IChatContentPart {
-	private static readonly viewStates = new WeakMap<IChatResponseViewModel, IBatchViewState>();
+	private static readonly viewStates = new WeakMap<IChatResponseViewModel, Map<string, IBatchViewState>>();
 
 	readonly domNode = dom.$('.chat-image-generation-batch');
 	private readonly selectedTool = dom.append(this.domNode, dom.$('.chat-image-generation-batch-tool'));
@@ -129,11 +118,13 @@ export class ChatImageGenerationBatchPart extends Disposable implements IChatCon
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
-		this.viewState = ChatImageGenerationBatchPart.viewStates.get(response) ?? {
+		const viewStates = ChatImageGenerationBatchPart.viewStates.get(response) ?? new Map<string, IBatchViewState>();
+		this.viewState = viewStates.get(owner.toolCallId) ?? {
 			selectedByUser: false,
 			imageDimensions: new ResourceMap<dom.IDimension>(getChatImageResourceComparisonKey),
 		};
-		ChatImageGenerationBatchPart.viewStates.set(response, this.viewState);
+		viewStates.set(owner.toolCallId, this.viewState);
+		ChatImageGenerationBatchPart.viewStates.set(response, viewStates);
 		this.summary.before(this.scrollable.getDomNode());
 		this._register(this.hoverService.setupDelayedHover(this.summary, () => ({ content: this.summary.textContent ?? '' })));
 		this._register(dom.addDisposableListener(this.preview, dom.EventType.DRAG_START, event => event.preventDefault()));
@@ -161,7 +152,7 @@ export class ChatImageGenerationBatchPart extends Disposable implements IChatCon
 		const changed = observableSignalFromEvent(this, response.model.onDidChange);
 		this._register(autorun(reader => {
 			changed.read(reader);
-			this.tools = getImageGenerationBatch(response.response.value);
+			this.tools = getImageGenerationBatch(response.response.value, owner.toolCallId);
 			for (const tool of this.tools) {
 				if (tool.kind === 'toolInvocation') {
 					tool.state.read(reader);
@@ -402,9 +393,10 @@ export class ChatImageGenerationBatchPart extends Disposable implements IChatCon
 	}
 
 	hasSameContent(other: IChatRendererContent, _followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
+		const batch = isResponseVM(element) ? getImageGenerationBatch(element.response.value, this.owner.toolCallId) : [];
 		return (other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized')
-			&& other.toolCallId === this.owner.toolCallId && isResponseVM(element)
-			&& getImageGenerationBatch(element.response.value)[0]?.toolCallId === this.owner.toolCallId;
+			&& other.toolCallId === this.owner.toolCallId && batch.length > 1
+			&& batch[0].toolCallId === this.owner.toolCallId;
 	}
 
 	addDisposable(disposable: IDisposable): void {

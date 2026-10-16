@@ -122,21 +122,21 @@ function resources(isArtifact: boolean): ISessionArtifact[] {
 	];
 }
 
-type Scenario = 'single' | 'collections' | 'copied' | 'mixed' | 'cold' | 'resolved' | 'pullRequests' | 'file' | 'image' | 'website' | 'customizations';
+type Scenario = 'single' | 'collections' | 'copied' | 'mixed' | 'cold' | 'resolved' | 'pullRequests' | 'file' | 'image' | 'website' | 'commitUrl' | 'commitPending' | 'customizations';
 
 async function renderReferences(ctx: ComponentFixtureContext, scenario: Scenario): Promise<void> {
 	const { container } = ctx;
 	const authored = gitHubArtifacts(true);
 	const referenceList = scenario === 'cold' || scenario === 'resolved';
 	const dedicatedCollection = scenario === 'collections' || scenario === 'copied' || scenario === 'pullRequests';
-	const resourcePreview = scenario === 'mixed' || scenario === 'file' || scenario === 'image' || scenario === 'website' || scenario === 'customizations';
+	const resourcePreview = scenario === 'mixed' || scenario === 'file' || scenario === 'image' || scenario === 'website' || scenario === 'commitUrl' || scenario === 'commitPending' || scenario === 'customizations';
 	const entries = scenario === 'customizations' ? [] : scenario === 'single'
 		? [authored[0], authored[2], resources(true)[1]]
 		: referenceList
 			? gitHubArtifacts(false).map(artifact => ({ ...artifact, label: artifact.kind === SessionArtifactKind.PullRequest ? 'Pull Request' : 'Issue' }))
 			: dedicatedCollection
 				? authored
-				: [gitHubArtifacts(false)[0], gitHubArtifacts(false)[2], ...resources(false), ...resources(true).map(item => ({ ...item, id: `artifact-${item.id}`, ...(item.uri ? { uri: item.uri.with({ path: item.uri.path.replace('/repo/', '/repo/output/') }) } : {}) }))];
+				: [gitHubArtifacts(false)[0], gitHubArtifacts(false)[2], ...resources(false).map(item => scenario === 'commitUrl' && item.kind === SessionArtifactKind.Commit ? { ...item, label: 'External commit', link: URI.parse('https://example.com/commit/abc1234') } : item), ...resources(true).map(item => ({ ...item, id: `artifact-${item.id}`, ...(item.uri ? { uri: item.uri.with({ path: item.uri.path.replace('/repo/', '/repo/output/') }) } : {}) }))];
 	const session = createMockSession({
 		artifacts: entries, removableArtifacts: true,
 		customizations: scenario === 'customizations' ? [
@@ -194,10 +194,18 @@ async function renderReferences(ctx: ComponentFixtureContext, scenario: Scenario
 				reg.define(ISessionsService, class extends mock<ISessionsService>() {
 					override setActive(): void { }
 				});
-				reg.defineInstance(IGitHubService, createFixtureGitHubService(
+				const gitHubService = createFixtureGitHubService(
 					pullRequests.map(pullRequest => ({ owner: 'microsoft', repo: 'vscode', pullRequest })),
 					issues.map(issue => ({ owner: 'microsoft', repo: 'vscode', issue })),
-				));
+				);
+				if (scenario === 'commitPending') {
+					const getCommit = gitHubService.getCommit;
+					gitHubService.getCommit = async (...args) => {
+						await pendingRefresh.p;
+						return getCommit(...args);
+					};
+				}
+				reg.defineInstance(IGitHubService, gitHubService);
 				reg.defineInstance(IWorkbenchGitHubService, workbenchGitHub);
 				reg.defineInstance(IFileService, new class extends mock<IFileService>() {
 					override readonly onDidFilesChange = Event.None;
@@ -289,9 +297,13 @@ async function renderReferences(ctx: ComponentFixtureContext, scenario: Scenario
 						? { row: '.monaco-list-row[aria-label^="Open plan.md"]', content: '.chat-pill-location-hover' }
 						: scenario === 'website'
 							? { row: '.monaco-list-row[aria-label^="Open VS Code documentation"]', content: '.chat-pill-location-hover' }
-							: scenario === 'customizations'
-								? { row: '.monaco-list-row[aria-label^="Coding guidelines"]', content: '.chat-pill-location-hover' }
-								: { row: '.monaco-list-row[aria-label^="Open Commit abc1234"]', content: '.sessions-commit-hover' };
+							: scenario === 'commitUrl'
+								? { row: '.monaco-list-row[aria-label^="Open External commit"]', content: '.chat-pill-hover-content.content-sized' }
+								: scenario === 'commitPending'
+									? { row: '.monaco-list-row[aria-label^="Open Reference preview implementation"]', content: '.chat-pill-hover-content:not(.content-sized)' }
+									: scenario === 'customizations'
+										? { row: '.monaco-list-row[aria-label^="Coding guidelines"]', content: '.chat-pill-location-hover' }
+										: { row: '.monaco-list-row[aria-label^="Open Commit abc1234"]', content: '.sessions-commit-hover' };
 			const row = await waitForPreview(container, preview.row);
 			row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
 			row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
@@ -327,7 +339,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	Single: defineComponentFixture({
 		virtualTime: { enabled: false },
 		render: ctx => renderReferences(ctx, 'single'),
-		expectedVisualDescriptions: ['A single authored PR shows a rich hover with metadata, branch links, copy and remove actions. Interactive previews start at rest.'],
+		expectedVisualDescriptions: ['A single authored PR shows a rich hover with metadata, branch links, copy and remove actions at the shared reference-preview width. Interactive previews start at rest.'],
 	}),
 	Collections: defineComponentFixture({
 		virtualTime: { enabled: false },
@@ -362,21 +374,31 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	'File Reference Preview': defineComponentFixture({
 		virtualTime: { enabled: false },
 		render: ctx => renderReferences(ctx, 'file'),
-		expectedVisualDescriptions: ['A file reference shows its relative path in the same padded popup shell used by rich references, with shared row actions and keyboard navigation.'],
+		expectedVisualDescriptions: ['A file reference shows its relative path in a content-sized text hover, with shared row actions and keyboard navigation.'],
 	}),
 	'Image Reference Preview': defineComponentFixture({
 		virtualTime: { enabled: false },
 		render: ctx => renderReferences(ctx, 'image'),
-		expectedVisualDescriptions: ['An image reference shows its decoded local image and path in the shared popup shell. The image body stays narrower while using the same frame and actions.'],
+		expectedVisualDescriptions: ['An image reference shows its decoded local image and path at the shared preview-panel width.'],
 	}),
 	'Website Reference Preview': defineComponentFixture({
 		virtualTime: { enabled: false },
 		render: ctx => renderReferences(ctx, 'website'),
-		expectedVisualDescriptions: ['A website reference shows its URL in the shared popup shell rather than a resource-specific popup container.'],
+		expectedVisualDescriptions: ['A website reference shows its URL in a content-sized text hover.'],
+	}),
+	'External Commit Preview': defineComponentFixture({
+		virtualTime: { enabled: false },
+		render: ctx => renderReferences(ctx, 'commitUrl'),
+		expectedVisualDescriptions: ['A non-GitHub commit reference shows only its URL in a content-sized hover, with copy URL and hash actions fully visible.'],
+	}),
+	'Pending Commit Preview': defineComponentFixture({
+		virtualTime: { enabled: false },
+		render: ctx => renderReferences(ctx, 'commitPending'),
+		expectedVisualDescriptions: ['A GitHub commit reference reserves the shared preview-panel width while metadata is pending, with its URL and copy actions visible.'],
 	}),
 	'Customization Preview': defineComponentFixture({
 		virtualTime: { enabled: false },
 		render: ctx => renderReferences(ctx, 'customizations'),
-		expectedVisualDescriptions: ['A customization displays its relative instruction-file path using the same text popup body as file and URL references.'],
+		expectedVisualDescriptions: ['A customization displays its relative instruction-file path using the same content-sized text hover as file and URL references.'],
 	}),
 });

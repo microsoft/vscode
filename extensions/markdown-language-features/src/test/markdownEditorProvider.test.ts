@@ -314,9 +314,18 @@ suite('Markdown code block editor API versioning', () => {
 			'shared-runtime',
 		)[0]?.runtimeKey, 'shared-runtime');
 	});
+
+	test('reads and validates presentation preferences', () => {
+		const source = { kind: 'exportApi', apiVersion: 2 };
+		const presentation = { resizable: true, fullWidth: false, fullView: true, minHeight: 160 };
+		assert.deepStrictEqual(readCodeBlockEditorProviders(source, undefined, presentation)[0]?.presentation, presentation);
+		for (const invalid of [{ resizable: 'yes' }, { minHeight: 0 }, { minHeight: Infinity }, { minHeight: 10_001 }]) {
+			assert.strictEqual(readCodeBlockEditorProviders(source, undefined, invalid).length, 0);
+		}
+	});
 });
 
-function readCodeBlockEditorProviders(source: unknown, runtimeKey?: string) {
+function readCodeBlockEditorProviders(source: unknown, runtimeKey?: string, presentation?: unknown) {
 	const extension = {
 		id: 'test.markdown-code-block-editor',
 		extensionUri: vscode.Uri.file('/test/markdown-code-block-editor'),
@@ -328,6 +337,7 @@ function readCodeBlockEditorProviders(source: unknown, runtimeKey?: string) {
 					selector: { language: 'test' },
 					source,
 					runtimeKey,
+					presentation,
 				}],
 			},
 		},

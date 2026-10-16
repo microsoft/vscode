@@ -13,6 +13,8 @@ If the `runTests` tool is available, **prefer it** over running shell commands. 
 - Pass test names via the `testNames` parameter to filter which tests run.
 - Set `mode="coverage"` to collect coverage.
 
+The tool runs tests discovered by VS Code's registered test controllers; it does not compile the repository or invoke a shell test command. If discovery is unavailable, pending, or reports no executed tests, treat the request as unvalidated and use the repository's configured test command. Review per-file and test-name diagnostics for partially matched requests instead of repeatedly checking the same paths.
+
 Example (conceptual): run tests in `src/vs/editor/test/common/model.test.ts` with test name filter `"should split lines"`.
 
 ## Fallback: Shell scripts

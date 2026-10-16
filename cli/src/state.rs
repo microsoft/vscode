@@ -140,6 +140,15 @@ impl LauncherPaths {
 			return Self::new(root);
 		}
 
+		if let Ok(portable) = std::env::var("VSCODE_PORTABLE") {
+			if !portable.is_empty() {
+				let mut new_dir = PathBuf::from(portable);
+				new_dir.push(DEFAULT_DATA_PARENT_DIR);
+				new_dir.push("cli");
+				return Self::new_for_path(new_dir);
+			}
+		}
+
 		let home_dir = match dirs::home_dir() {
 			None => return Self::new(root),
 			Some(d) => d,
@@ -162,12 +171,28 @@ impl LauncherPaths {
 	}
 
 	pub fn new(root: Option<String>) -> Result<LauncherPaths, AnyError> {
-		let root = root.unwrap_or_else(|| format!("~/{DEFAULT_DATA_PARENT_DIR}/cli"));
+		if let Some(root) = root {
+			return Self::new_for_root_string(root);
+		}
+
+		if let Ok(portable) = std::env::var("VSCODE_PORTABLE") {
+			if !portable.is_empty() {
+				let mut dir = PathBuf::from(portable);
+				dir.push(DEFAULT_DATA_PARENT_DIR);
+				dir.push("cli");
+				return Self::new_for_path(dir);
+			}
+		}
+
+		Self::new_for_root_string(format!("~/{DEFAULT_DATA_PARENT_DIR}/cli"))
+	}
+
+	fn new_for_root_string(root: String) -> Result<LauncherPaths, AnyError> {
 		let mut replaced = root.to_owned();
 		for token in HOME_DIR_ALTS {
 			if root.contains(token) {
 				if let Some(home) = dirs::home_dir() {
-					replaced = root.replace(token, &home.to_string_lossy())
+					replaced = root.replace(token, &home.to_string_lossy());
 				} else {
 					return Err(AnyError::from(NoHomeForLauncherError()));
 				}
@@ -253,7 +278,14 @@ impl LauncherPaths {
 	/// rather than `self.root` so different `--cli-data-dir` values still
 	/// land on the same log file. Falls back to `self.root` when no home
 	/// directory is available.
-	fn agent_host_root(&self) -> PathBuf {
+	pub fn agent_host_root(&self) -> PathBuf {
+		if let Ok(portable) = std::env::var("VSCODE_PORTABLE") {
+			if !portable.is_empty() {
+				return PathBuf::from(portable)
+					.join(SERVER_DATA_PARENT_DIR)
+					.join("cli");
+			}
+		}
 		match dirs::home_dir() {
 			Some(home) => home.join(SERVER_DATA_PARENT_DIR).join("cli"),
 			None => self.root.clone(),
@@ -263,5 +295,40 @@ impl LauncherPaths {
 	/// Suggested path for web server storage
 	pub fn web_server_storage(&self) -> PathBuf {
 		self.root.join("serve-web")
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn test_launcher_paths_explicit_root() {
+		let temp = tempfile::tempdir().unwrap();
+		let custom_root = temp.path().join("my-custom-cli");
+		let paths = LauncherPaths::new(Some(custom_root.to_string_lossy().to_string())).unwrap();
+		assert_eq!(paths.root(), custom_root.as_path());
+	}
+
+	#[test]
+	fn test_launcher_paths_portable_mode() {
+		let temp = tempfile::tempdir().unwrap();
+		// Test with a path that contains a literal '~' (like Windows 8.3 short paths e.g. PORTAB~1)
+		let portable_dir = temp.path().join("portab~1-data");
+		std::fs::create_dir_all(&portable_dir).unwrap();
+
+		std::env::set_var("VSCODE_PORTABLE", &portable_dir);
+
+		let paths = LauncherPaths::new(None).unwrap();
+		let expected = portable_dir.join(DEFAULT_DATA_PARENT_DIR).join("cli");
+		assert_eq!(paths.root(), expected.as_path());
+
+		let migrated_paths = LauncherPaths::migrate(None).unwrap();
+		assert_eq!(migrated_paths.root(), expected.as_path());
+
+		let expected_agent_host = portable_dir.join(SERVER_DATA_PARENT_DIR).join("cli");
+		assert_eq!(paths.agent_host_root(), expected_agent_host);
+
+		std::env::remove_var("VSCODE_PORTABLE");
 	}
 }

@@ -3,4 +3,4 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export { AgentHostDebugLogsCancellationCapabilityMetaKey, isAgentHostDebugLogsProgress, supportsAgentHostDebugLogsCancellation, withAgentHostDebugLogsProgress } from './vscode/agentHostDebugLogsMeta.js';
+export { AgentHostDebugLogsCancellationCapabilityMetaKey, getAgentHostAhpLogDirectoryMeta, isAgentHostDebugLogsProgress, readAgentHostAhpLogDirectory, supportsAgentHostDebugLogsCancellation, withAgentHostDebugLogsProgress } from './vscode/agentHostDebugLogsMeta.js';

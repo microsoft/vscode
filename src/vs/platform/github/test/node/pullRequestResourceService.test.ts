@@ -32,7 +32,6 @@ const policy: PullRequestPollingPolicy = {
 	checksBackstop: 500,
 	mergeabilityVisible: 20,
 	mergeabilityBackground: 200,
-	participants: 300,
 	failureBackoff: { immediateRetries: 0, base: 5, maximum: 20, jitter: 0 },
 	jitter: 0,
 };
@@ -90,7 +89,6 @@ class TestPullRequestQueryService implements IPullRequestQuery {
 			case 'core': return { fragment, value: core(this.headSha), complete: true };
 			case 'topLevelComments': return { fragment, value: [{ id: 'C1', body: options.conversation?.includeBodies ? 'body' : undefined }], complete: true };
 			case 'submittedReviews': return { fragment, value: [], complete: true };
-			case 'inlineComments': return { fragment, value: [], complete: true };
 			case 'reviewThreads': return { fragment, value: [], complete: true, headSha: this.headSha };
 			case 'checks': return {
 				fragment,
@@ -121,7 +119,6 @@ class TestPullRequestQueryService implements IPullRequestQuery {
 				complete: true,
 				headSha: this.headSha,
 			};
-			case 'participants': return { fragment, value: { participants: [] }, complete: true };
 		}
 	}
 }
@@ -250,7 +247,6 @@ suite('PullRequestResourceService', () => {
 					headSha: undefined,
 				},
 				submittedReviews: { status: 'missing', complete: false },
-				inlineComments: { status: 'missing', complete: false },
 				reviewThreads: { status: 'missing', complete: false },
 				checks: {
 					value: {
@@ -267,7 +263,6 @@ suite('PullRequestResourceService', () => {
 					headSha: 'head-1',
 				},
 				mergeability: { status: 'missing', complete: false },
-				participants: { status: 'missing', complete: false },
 			},
 		});
 

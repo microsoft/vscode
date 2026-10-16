@@ -35,11 +35,13 @@ import { AgentHostChatContributions } from '../../node/agentHostChatContribution
 import { IAgentHostPeerChatPersistenceService } from '../../node/agentHostPeerChatStore.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
 import { AgentHostChatInputService, IAgentHostChatInputService } from '../../node/agentHostChatInputService.js';
+import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentSessionRegistry, IAgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from '../../node/chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
 import { ISessionWorkspaceConversionService } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
+import { IAgentHostArchivedChatWorkspaceService } from '../../node/chatContributions/chatArchive/archivedChatWorkspaceService.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
@@ -59,12 +61,16 @@ import { IAgentHostSessionPromptService } from '../../node/agentHostSessionPromp
 import { getCodexAccountTelemetryContext } from '../../node/codex/codexAccountTelemetry.js';
 import { IAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { createNoopGitService, createNoopGitStateService, createNullSessionDataService } from '../common/sessionTestHelpers.js';
-import { createLegacyChatMetadataPersistence } from './chatMetadataTestHelpers.js';
+import { createLegacyChatMetadataPersistence, createTestSessionStateStore, createTestChatRows, createTestWorktreeCleanupService } from './chatMetadataTestHelpers.js';
+import { IAgentHostWorktreeCleanupService } from '../../node/agentHostWorktreeCleanupService.js';
 import { createNoopWorktreeIsolation } from './worktreeTestHelpers.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
+import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 
 class FakeChangesetService implements IAgentHostChangesetService {
 	declare readonly _serviceBrand: undefined;
@@ -88,6 +94,8 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	onToolCallEditsApplied(): void { }
 	onTurnComplete(): void { }
 	onSessionTruncated(): void { }
+	openTrackedTurnDatabase(): undefined { return undefined; }
+	onFileEditsDiscarded(): void { }
 	ensureChatChangesSummary(): void { }
 	refreshChatChangesSummary(): void { }
 }
@@ -142,6 +150,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
 			...(isEphemeral ? { _meta: withEphemeralSessionMeta(undefined, true) } : {}),
+			defaultChat: buildDefaultChatUri(sessionKey),
 		});
 		stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionReady });
 	}
@@ -227,13 +236,18 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			hasSeenClient: clientId => clientId === 'test',
 			isClientConnected: clientId => clientId === 'test',
 			isLocalClient: () => false,
+			usesLegacyChatUris: () => false,
 			getConnectedClientTransportCounts: () => new Map([['test', 1]]),
 			requestWorkspaceTrust: async () => true,
 			requestMcpAuthentication: async () => false,
 		}));
-		const sharedLocalTurns = new AgentHostLocalTurns(sessionDataService, logService);
+		const sharedLocalTurns = new AgentHostLocalTurns(createTestChatRows(sessionDataService, disposables), logService);
 		const worktreeIsolation = createNoopWorktreeIsolation();
+		const authenticationService = disposables.add(new AgentHostAuthenticationService(logService));
+		const sessionStateStore = createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionDataService);
+		const worktreeCleanup = createTestWorktreeCleanupService(disposables, worktreeIsolation);
 		const services = new ServiceCollection(
+			[IAgentHostAuthenticationService, authenticationService],
 			[IAgentHostLocalTurns, sharedLocalTurns],
 			[ILogService, logService],
 			[IAgentConfigurationService, configService],
@@ -247,8 +261,10 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			[ITelemetryService, telemetryService],
 			[IAgentHostTerminalManager, disposables.add(new TestAgentHostTerminalManager())],
 			[ISessionDataService, sessionDataService],
+			[IAgentHostSessionStateStore, sessionStateStore],
 			[IAgentHostWorktreeIsolation, worktreeIsolation],
-			[IAdditionalWorktreeLifecycleService, new AdditionalWorktreeLifecycleService(sessionDataService, worktreeIsolation)],
+			[IAgentHostWorktreeCleanupService, worktreeCleanup],
+			[IAdditionalWorktreeLifecycleService, new AdditionalWorktreeLifecycleService(sessionStateStore, worktreeCleanup)],
 			[IAgentHostClientConnectionService, clientConnections],
 			[IAgentHostPeerChatPersistenceService, {
 				...createLegacyChatMetadataPersistence(sessionDataService),
@@ -265,9 +281,11 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 				requestSessionWorkspaceUpdate: () => true,
 				isPending: () => false,
 				isConversionTurn: () => false,
+				onDidChangePending: Event.None,
 				cancel: () => { },
 				updateSessionWorkspace: async () => { },
 			} satisfies ISessionWorkspaceConversionService],
+			[IAgentHostArchivedChatWorkspaceService, { _serviceBrand: undefined, setChatWorkspaceAttached: async () => { } } satisfies IAgentHostArchivedChatWorkspaceService],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 		const chatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
@@ -276,11 +294,13 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			_serviceBrand: undefined,
 			startSessionPrompt: async () => URI.parse('agent-host-session://comparison-judge'),
 		});
-		services.set(IAgentHostTurnService, new AgentHostTurnService(stateManager, chatContributions, instantiationService));
-		services.set(IAgentHostSessionTitleController, disposables.add(new AgentHostSessionTitleController(stateManager, { sessionDataService }, logService)));
+		services.set(IAgentHostTurnService, new AgentHostTurnService(stateManager, chatContributions, instantiationService, createTestChatOwnershipService(stateManager)));
+		services.set(IAgentHostSessionTitleController, disposables.add(new AgentHostSessionTitleController(stateManager, { sessionDataService }, logService, createTestChatOwnershipService(stateManager))));
 		const providerService = createTestAgentHostProviderService(() => agent);
 		services.set(IAgentHostProviderService, providerService);
-		services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, new AgentHostSubscriptionService())));
+		const chatOwnership = createTestChatOwnershipService(stateManager);
+		services.set(IAgentHostChatOwnershipService, chatOwnership);
+		services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, disposables.add(new AgentHostSubscriptionService(chatOwnership)), chatOwnership, authenticationService, sessionStateStore)));
 		const telemetryReporter = new AgentHostTelemetryReporter(telemetryService);
 		services.set(IAgentHostTelemetryReporter, telemetryReporter);
 		const turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
@@ -577,7 +597,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 
 		await runWithFakedTimers({}, async () => {
 			for (const item of cases) {
-				tracker.turnStarted(agent, item.session, 'turn', undefined, undefined, 'default', undefined, undefined);
+				tracker.turnStarted(agent, item.session, item.session, 'turn', undefined, undefined, 'default', undefined, undefined);
 				tracker.setCurrentStage(item.session, 'turn', item.stage);
 			}
 			await timeout(TURN_HANG_THRESHOLD_MS);
@@ -609,6 +629,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			hasSeenClient: clientId => clientId === 'connected-client',
 			isClientConnected: clientId => clientId === 'connected-client',
 			isLocalClient: () => false,
+			usesLegacyChatUris: () => false,
 			getConnectedClientTransportCounts: () => new Map([['connected-client', 1]]),
 			requestWorkspaceTrust: async () => true,
 			requestMcpAuthentication: async () => false,
@@ -630,6 +651,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 		await runWithFakedTimers({}, async () => {
 			tracker.turnStarted(
 				diagnosticAgent,
+				session,
 				session,
 				'turn',
 				undefined,
@@ -687,7 +709,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 		const session = AgentSession.uri('copilotcli', 'diagnostic-error').toString();
 
 		await runWithFakedTimers({}, async () => {
-			tracker.turnStarted(diagnosticAgent, session, 'turn', undefined, undefined, 'default', undefined, undefined);
+			tracker.turnStarted(diagnosticAgent, session, session, 'turn', undefined, undefined, 'default', undefined, undefined);
 			tracker.setCurrentStage(session, 'turn', 'provider');
 			await timeout(TURN_HANG_THRESHOLD_MS);
 		});

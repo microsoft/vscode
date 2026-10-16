@@ -55,7 +55,7 @@ export class LocalTerminalBackendContribution implements IWorkbenchContribution 
 	}
 }
 
-class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBackend {
+export class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBackend {
 	readonly remoteAuthority = undefined;
 
 	private readonly _ptys: Map<number, LocalPty> = new Map();
@@ -220,10 +220,10 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		return pty;
 	}
 
-	async attachToProcess(id: number): Promise<ITerminalChildProcess | undefined> {
+	async attachToProcess(id: number, pid?: number): Promise<ITerminalChildProcess | undefined> {
 		await this._connectToDirectProxy();
 		try {
-			await this._proxy.attachToProcess(id);
+			await this._proxy.attachToProcess(id, pid);
 			const pty = new LocalPty(id, true, this._proxy);
 			this._ptys.set(id, pty);
 			return pty;
@@ -233,11 +233,15 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		return undefined;
 	}
 
-	async attachToRevivedProcess(id: number): Promise<ITerminalChildProcess | undefined> {
+	async attachToRevivedProcess(id: number, pid: number): Promise<ITerminalChildProcess | undefined> {
 		await this._connectToDirectProxy();
 		try {
-			const newId = await this._proxy.getRevivedPtyNewId(this._getWorkspaceId(), id) ?? id;
-			return await this.attachToProcess(newId);
+			const newId = await this._proxy.getRevivedPtyNewId(this._getWorkspaceId(), id);
+			if (newId !== undefined) {
+				return await this.attachToProcess(newId);
+			}
+			// The original ID may belong to another window's process after a pty host restart
+			return await this.attachToProcess(id, pid > 0 ? pid : undefined);
 		} catch (e) {
 			this._logService.warn(`Couldn't attach to process ${e.message}`);
 		}

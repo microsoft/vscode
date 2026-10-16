@@ -60,6 +60,7 @@ suite('Terminal chat agent tools configuration', () => {
 			[AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, 30],
 			[AgentSandboxSettingId.AgentSandboxMcpServers, 40],
 			[AgentSandboxSettingId.AgentSandboxLspServers, 50],
+			[AgentSandboxSettingId.AgentSandboxMaskedEnvironmentVariables, 53],
 			[AgentSandboxSettingId.AgentSandboxAuthenticateGit, 51],
 			[AgentSandboxSettingId.AgentSandboxAuthenticateGh, 52],
 			[AgentSandboxSettingId.AgentSandboxAllowDevToolAccess, 60],
@@ -105,6 +106,62 @@ suite('Terminal chat agent tools configuration', () => {
 			policy: undefined,
 			presentation: [undefined, false, undefined],
 		})));
+	});
+
+	test('registers sandbox masked environment variables as a restricted object', () => {
+		const setting = terminalChatAgentToolsConfiguration[AgentSandboxSettingId.AgentSandboxMaskedEnvironmentVariables];
+		assert.deepStrictEqual({
+			id: AgentSandboxSettingId.AgentSandboxMaskedEnvironmentVariables,
+			description: setting.markdownDescription,
+			type: setting.type,
+			default: setting.default,
+			restricted: setting.restricted,
+			additionalProperties: setting.additionalProperties,
+			properties: setting.properties,
+		}, {
+			id: 'chat.agent.sandbox.maskedEnvironmentVariables',
+			description: 'Choose environment variables and the HTTPS hosts allowed to receive their real values.',
+			type: 'object',
+			default: {},
+			restricted: true,
+			additionalProperties: false,
+			properties: {
+				envVars: {
+					type: 'object',
+					description: 'Map environment variable names to the hosts where their values may be injected. Specify environment variable names, not secret values.',
+					additionalProperties: {
+						type: 'object',
+						additionalProperties: false,
+						required: ['injectHosts'],
+						properties: {
+							injectHosts: {
+								type: 'array',
+								items: { type: 'string' },
+								description: 'Hosts where the credential may be injected.',
+							},
+						},
+					},
+				},
+			},
+		});
+	});
+
+	test('preserves credential authentication defaults when configuring nested environment variables', async () => {
+		const logService = new NullLogService();
+		const defaults = await store.add(new DefaultConfiguration(logService)).initialize();
+		const envVars = { MY_API_TOKEN: { injectHosts: ['api.example.com'] } };
+		const parser = new ConfigurationModelParser('sandboxCredentialsSettings', logService);
+		parser.parse(JSON.stringify({ [AgentSandboxSettingId.AgentSandboxMaskedEnvironmentVariables]: { envVars } }));
+		const configured = defaults.merge(parser.configurationModel);
+
+		assert.deepStrictEqual([defaults, configured].map(model => ({
+			authenticategit: model.getValue(AgentSandboxSettingId.AgentSandboxAuthenticateGit),
+			authenticategh: model.getValue(AgentSandboxSettingId.AgentSandboxAuthenticateGh),
+			envVars: model.getValue(`${AgentSandboxSettingId.AgentSandboxMaskedEnvironmentVariables}.envVars`),
+		})), [
+			{ authenticategit: true, authenticategh: true, envVars: undefined },
+			{ authenticategit: true, authenticategh: true, envVars },
+		]);
 	});
 
 	test('registers Copilot user-configured paths and warns about legacy filesystem settings', () => {
