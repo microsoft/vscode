@@ -17,12 +17,36 @@ import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/con
 import { IPreferencesService } from '../../../../workbench/services/preferences/common/preferences.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { BRANCH_CHANGES_CHANGESET_ID, getSessionOwnedGitHubPullRequestRefs, getSessionWorkspaceKind, getUntitledSessionTitle, IChat, ISession, ISessionFolder, ISessionWorkspace, SessionWorkspaceKind } from '../../../services/sessions/common/session.js';
-import { readChatChangesStats, readSessionChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
+import { ISessionChangesStats, readChatChangesStats, readSessionChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
 
 /** Shared session diff counts, omitting entries without line changes. */
 export function getSessionDiffStats(session: ISession, reader?: IReader): { files: number; insertions: number; deletions: number } | undefined {
 	const stats = readSessionChangesStats(session, reader);
 	return stats && (stats.insertions > 0 || stats.deletions > 0) ? stats : undefined;
+}
+
+function withLineChanges(stats: ISessionChangesStats | undefined): ISessionSummaryHoverLocation['changes'] {
+	return stats && (stats.insertions > 0 || stats.deletions > 0) ? stats : undefined;
+}
+
+/**
+ * A chat's counts for the hover. A provider's catalog summary is the only source when it has one,
+ * because reading the chat's changes or changesets can load the chat from its backend.
+ */
+function getChatHoverChanges(chat: IChat, preferredChangesetId?: string): ISessionSummaryHoverLocation['changes'] {
+	if (chat.changesSummary) {
+		const summary = chat.changesSummary.get();
+		return withLineChanges(summary && { files: summary.files, insertions: summary.additions, deletions: summary.deletions });
+	}
+	return withLineChanges(readChatChangesStats(chat, undefined, preferredChangesetId));
+}
+
+/** The session's catalog counts, else its main chat's, read the same way as {@link getChatHoverChanges}. */
+function getSessionHoverChanges(session: ISession): ISessionSummaryHoverLocation['changes'] {
+	const summary = session.changesSummary?.get();
+	return summary
+		? withLineChanges({ files: summary.files, insertions: summary.additions, deletions: summary.deletions })
+		: getChatHoverChanges(session.mainChat.get());
 }
 
 /**
@@ -55,7 +79,7 @@ export function getSessionSummaryHoverData(
 		location: getLocation(
 			isMultiFolder ? mainWorkspace : sessionWorkspace,
 			session.worktreePending?.get() ?? false,
-			() => mainChat ? getChatBranchDiffStats(mainChat) : getSessionDiffStats(session),
+			() => mainChat ? getChatHoverChanges(mainChat, BRANCH_CHANGES_CHANGESET_ID) : getSessionHoverChanges(session),
 			labelService,
 		),
 		pullRequests: toHoverPullRequests(topPullRequestRefs.values(), openerService),
@@ -64,7 +88,7 @@ export function getSessionSummaryHoverData(
 		...(sessionWorkspace && isMultiFolder ? {
 			sessionSummary: {
 				workspaces: getWorkspaceSummaries(sessionWorkspace, session.worktreePending?.get() ?? false, labelService),
-				changes: getSessionDiffStats(session),
+				changes: getSessionHoverChanges(session),
 				// The session-wide union includes the main chat's folders, whose pull requests are listed above.
 				pullRequests: toHoverPullRequests(
 					[...getSessionPullRequestRefs(session, sessionWorkspace)].filter(([uri]) => !topPullRequestRefs.has(uri)).map(([, ref]) => ref),
@@ -94,19 +118,13 @@ export function getChatSummaryHoverData(
 		location: getLocation(
 			chat.workspace.get(),
 			false,
-			() => getChatBranchDiffStats(chat),
+			() => getChatHoverChanges(chat, BRANCH_CHANGES_CHANGESET_ID),
 			labelService,
 		),
 		pullRequests: getPullRequests(chat.workspace.get(), openerService),
 		createdBy,
 		externalSession: getExternalSession(session, preferencesService),
 	};
-}
-
-/** Main-chat branch diff counts, omitting entries without line changes. */
-export function getChatBranchDiffStats(chat: IChat, reader?: IReader): ISessionSummaryHoverLocation['changes'] {
-	const changes = readChatChangesStats(chat, reader, BRANCH_CHANGES_CHANGESET_ID);
-	return changes && (changes.insertions > 0 || changes.deletions > 0) ? changes : undefined;
 }
 
 /** Owns live external status for each display of the hover, including cached reopens. */

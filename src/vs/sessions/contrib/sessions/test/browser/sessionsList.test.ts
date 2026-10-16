@@ -5512,6 +5512,54 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('hover counts come from catalog summaries without reading chat changes or changesets', () => {
+			const main = { root: URI.file('/workspace/main'), workingDirectory: URI.file('/workspace/main'), name: 'main', description: undefined };
+			const peer = { root: URI.file('/workspace/peer'), workingDirectory: URI.file('/workspace/peer'), name: 'peer', description: undefined };
+			// Reading changes or changesets subscribes an agent-host chat on its backend.
+			const reads: string[] = [];
+			const withCatalog = (chat: IChat, name: string, summary: ISessionChangesSummary): IChat => ({
+				...chat,
+				changes: derived(() => { reads.push(`${name}.changes`); return []; }),
+				changesets: derived(() => { reads.push(`${name}.changesets`); return undefined; }),
+				changesSummary: constObservable(summary),
+			});
+			const multiFolder = createMultiFolderSession([main, peer], [[main], [peer]]);
+			const mainChat = withCatalog(multiFolder.chats.get()[0], 'main', { files: 2, additions: 5, deletions: 1 });
+			const peerChat = withCatalog(multiFolder.chats.get()[1], 'peer', { files: 1, additions: 7, deletions: 2 });
+			const session: ISession = {
+				...multiFolder,
+				chats: constObservable([mainChat, peerChat]),
+				mainChat: constObservable(mainChat),
+				changesSummary: constObservable({ files: 4, additions: 20, deletions: 8 }),
+			};
+			const singleFolder: ISession = {
+				...createMultiFolderSession([main], [[main]]),
+				mainChat: constObservable(mainChat),
+				changesSummary: constObservable(undefined),
+			};
+			const services = [
+				upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }),
+				upcastPartial<IOpenerService>({ open: () => Promise.resolve(true) }),
+				upcastPartial<ILabelService>({ getUriLabel: resource => resource.path }),
+				upcastPartial<IPreferencesService>({}),
+			] as const;
+			const sessionData = getSessionSummaryHoverData(session, ...services);
+
+			assert.deepStrictEqual({
+				mainChat: sessionData.location?.changes,
+				session: sessionData.sessionSummary?.changes,
+				peerChat: getChatSummaryHoverData(session, peerChat, ...services).location?.changes,
+				singleFolderWithoutSessionSummary: getSessionSummaryHoverData(singleFolder, ...services).location?.changes,
+				reads,
+			}, {
+				mainChat: { files: 2, insertions: 5, deletions: 1 },
+				session: { files: 4, insertions: 20, deletions: 8 },
+				peerChat: { files: 1, insertions: 7, deletions: 2 },
+				singleFolderWithoutSessionSummary: { files: 2, insertions: 5, deletions: 1 },
+				reads: [],
+			});
+		});
+
 		suite('session hover pull requests', () => {
 
 			function createPullRequestFolder(name: string, pullRequestNumbers: readonly number[]): ISessionFolder {
