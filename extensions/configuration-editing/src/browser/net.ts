@@ -3,4 +3,4 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export const agent = undefined;
+export const proxyFetch: typeof globalThis.fetch = globalThis.fetch.bind(globalThis);
