@@ -245,6 +245,19 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 					break;
 			}
 		}));
+
+		// A chat that moves to another session (Block 4) takes its terminals along: they belong to the chat's runtime,
+		// so their session claims name the new owner, and deleting the previous owner leaves them running.
+		this._register(this._stateManager.onDidChangeChatOwner(({ chat, previous, current }) => {
+			for (const [uri, claim] of [
+				...[...this._terminals.values()].map(terminal => [terminal.uri, terminal.claim] as const),
+				...[...this._outputTerminals].map(([uri, terminal]) => [uri, terminal.claim] as const),
+			]) {
+				if (claim.kind === TerminalClaimKind.Session && claim.chat === chat && claim.session === previous) {
+					this._stateManager.dispatchServerAction(uri, { type: ActionType.TerminalClaimed, claim: { ...claim, session: current } });
+				}
+			}
+		}));
 	}
 
 	/** Get metadata for all active terminals (for root state). */
@@ -606,6 +619,11 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 
 	/** Update a terminal's claim. */
 	private _setClaim(uri: string, claim: TerminalClaim): void {
+		const outputTerminal = this._outputTerminals.get(uri);
+		if (outputTerminal) {
+			outputTerminal.claim = claim;
+			return;
+		}
 		const terminal = this._terminals.get(uri);
 		if (terminal) {
 			terminal.claim = claim;

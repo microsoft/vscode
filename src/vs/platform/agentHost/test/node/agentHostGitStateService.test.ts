@@ -35,6 +35,8 @@ import { AgentHostAuthenticationService, type IAgentHostAuthenticationService } 
 import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
 import { AgentHostGitHubService } from '../../node/agentHostGitHubService.js';
 import { AgentHostDiscardChangesOperationHandler } from '../../node/agentHostDiscardChangesOperationHandler.js';
+import { AgentHostFileEditRevert } from '../../node/agentHostFileEditRevert.js';
+import { InProcessDiffComputeService } from './inProcessDiffComputeService.js';
 import { isAuthRequiredError, type IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 import { GITHUB_REPO_PROTECTED_RESOURCE, type IAgent, type IAgentHostAuthTokenRequest } from '../../common/agent.js';
 import { ChangesetOperationTargetKind } from '../../common/state/protocol/channels-changeset/commands.js';
@@ -45,9 +47,8 @@ import { SessionStateMirrorFlush, sessionStatePatch } from '../../common/agentHo
 import { resolveAgentMergeOwningChat, resolveGitHubStateFolder } from '../../node/agentHostBranchChangesetScope.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { createArtifactServerToolGroup } from '../../node/shared/artifactServerTools.js';
-import { GitHubPullRequestLookup, GitHubPullRequestLookupOptions, GitHubRepositoryRef } from '../../../github/common/githubQueryService.js';
-import { IGitHubQuery } from '../../../github/common/githubQueryServiceImpl.js';
-import { TestSessionDatabase, createNoopGitService, createSessionDataService } from '../common/sessionTestHelpers.js';
+import { GitHubPullRequestLookup, GitHubPullRequestLookupOptions, GitHubQueryApi, GitHubRepositoryRef } from '../../../github/common/githubQueryService.js';
+import { TestSessionDatabase, createNoopChangesetService, createNoopGitService, createSessionDataService } from '../common/sessionTestHelpers.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { createTestGitHubClient, createTestGitHubService, createTestPullRequest } from './testGitHubService.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
@@ -217,7 +218,7 @@ suite('AgentHostGitStateService', () => {
 		]);
 	});
 
-	function createHarness(options?: { query?: IGitHubQuery; authenticationService?: IAgentHostAuthenticationService; realCredentials?: boolean; enterpriseUri?: string; autoAttachPullRequests?: boolean; telemetryService?: ITelemetryService; database?: TestSessionDatabase; chatDatabases?: ReadonlyMap<string, TestSessionDatabase> }) {
+	function createHarness(options?: { query?: GitHubQueryApi; authenticationService?: IAgentHostAuthenticationService; realCredentials?: boolean; enterpriseUri?: string; autoAttachPullRequests?: boolean; telemetryService?: ITelemetryService; database?: TestSessionDatabase; chatDatabases?: ReadonlyMap<string, TestSessionDatabase> }) {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const db = options?.database ?? new TestSessionDatabase();
 		const baseSessionDataService = createSessionDataService(db);
@@ -267,7 +268,7 @@ suite('AgentHostGitStateService', () => {
 		const pullRequestsByBranch = new Map<string, GitHubPullRequestLookup>();
 		const pullRequestsBySha = new Map<string, GitHubPullRequestLookup>();
 		let onPullRequestLookup: ((branch: string) => Promise<void>) | undefined;
-		const query = new class extends mock<IGitHubQuery>() {
+		const query = new class extends mock<GitHubQueryApi>() {
 			override async findPullRequestByHeadBranch(_ref: GitHubRepositoryRef, branch: string, _headOwner: string | undefined, _signal: AbortSignal, options?: GitHubPullRequestLookupOptions) {
 				const allowedPullRequestUrls = options?.allowedPullRequestUrls;
 				pullRequestCalls.push(branch);
@@ -448,17 +449,20 @@ suite('AgentHostGitStateService', () => {
 		});
 		const refreshed = Event.toPromise(Event.filter(h.service.onDidRefreshSessionGitState, key => key === SESSION));
 		const restored: string[] = [];
+		const discardFileService = new class extends mock<IFileService>() { }();
 		const handler = new AgentHostDiscardChangesOperationHandler(
 			key => h.stateManager.getSessionState(key),
 			key => h.service.refreshSessionGitState(key, undefined),
+			new AgentHostFileEditRevert(discardFileService, new InProcessDiffComputeService()),
 			{
 				...h.gitService,
 				getRepositoryRoot: async () => URI.parse(WORKING_DIRECTORY),
 				getUntrackedPaths: async () => [],
 				restore: async (_directory, paths) => { restored.push(...paths); },
 			},
-			new class extends mock<IFileService>() { }(),
+			discardFileService,
 			new NullLogService(), h.stateManager,
+			createNoopChangesetService(),
 		);
 		const result = await handler.invoke({
 			channel,
@@ -1808,7 +1812,7 @@ suite('AgentHostGitStateService', () => {
 	test('preserves pull request attachment when a later refresh replaces its queued refresh', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const calls: { owner: string; repo: string; branch: string; headOwner: string | undefined }[] = [];
-			const query = new class extends mock<IGitHubQuery>() {
+			const query = new class extends mock<GitHubQueryApi>() {
 				override async findPullRequestByHeadBranch({ owner, repo }: GitHubRepositoryRef, branch: string, headOwner: string | undefined) {
 					calls.push({ owner, repo, branch, headOwner });
 					return createTestPullRequest(1);
@@ -2063,7 +2067,7 @@ suite('AgentHostGitStateService', () => {
 			const gitState: ISessionGitState = { branchName: 'feature', baseBranchName: 'main' };
 			const h = createHarness({
 				autoAttachPullRequests: false,
-				query: new class extends mock<IGitHubQuery>() {
+				query: new class extends mock<GitHubQueryApi>() {
 					override async findPullRequestByHeadBranch(): Promise<never> { throw new Error('GitHub unavailable'); }
 				}(),
 			});
@@ -2122,7 +2126,7 @@ suite('AgentHostGitStateService', () => {
 			};
 			const calls: Array<{ branch: string; headOwner: string | undefined }> = [];
 			const h = createHarness({
-				query: new class extends mock<IGitHubQuery>() {
+				query: new class extends mock<GitHubQueryApi>() {
 					override async findPullRequestByHeadBranch(_ref: GitHubRepositoryRef, branch: string, headOwner: string | undefined) {
 						calls.push({ branch, headOwner });
 						return createTestPullRequest(328975);

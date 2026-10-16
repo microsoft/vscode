@@ -1003,6 +1003,7 @@ class RecordingSessionDataService implements ISessionDataService {
 		return this._delegate.tryOpenDatabase(session);
 	}
 	deleteSessionData(session: URI) { return this._delegate.deleteSessionData(session); }
+	deleteSessionDataExcept(session: URI, keep: readonly string[]) { return this._delegate.deleteSessionDataExcept(session, keep); }
 	get onWillDeleteSessionData() { return this._delegate.onWillDeleteSessionData; }
 	cleanupOrphanedData(knownSessionIds: Set<string>) { return this._delegate.cleanupOrphanedData(knownSessionIds); }
 	whenIdle() { return this._delegate.whenIdle(); }
@@ -10937,6 +10938,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			openDatabase: session => ({ object: dbFor(session), dispose: () => { } }),
 			tryOpenDatabase: async session => ({ object: dbFor(session), dispose: () => { } }),
 			deleteSessionData: async () => { },
+			deleteSessionDataExcept: async () => { },
 			onWillDeleteSessionData: Event.None,
 			cleanupOrphanedData: async () => { },
 			whenIdle: async () => { },

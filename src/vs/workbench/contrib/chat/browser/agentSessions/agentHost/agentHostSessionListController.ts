@@ -23,6 +23,7 @@ import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitled
 import { IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 import { AgentHostSessionListStore, type IAgentHostSessionListDelta } from './agentHostSessionListStore.js';
+import { AgentHostChatMoveTracker, IAgentHostChatMove } from './agentHostChatMoveTracker.js';
 
 function mapSessionStatus(status: SessionStatus | undefined): ChatSessionStatus {
 	if (status !== undefined && (status & SessionStatus.InputNeeded) === SessionStatus.InputNeeded) {
@@ -45,6 +46,10 @@ function mapSessionStatus(status: SessionStatus | undefined): ChatSessionStatus 
 export class AgentHostSessionListController extends Disposable implements IChatSessionItemController {
 
 	readonly onDidChangeChatSessionItems: Event<IChatSessionItemsDelta>;
+
+	private readonly _chatMoves = this._register(new AgentHostChatMoveTracker<{ readonly resource: URI }>());
+	/** Fires when a chat of this provider's sessions moved to another of them; resources are chat session resources. */
+	readonly onDidMoveChat: Event<IAgentHostChatMove<{ readonly resource: URI }>> = this._chatMoves.onDidMoveChat;
 
 	constructor(
 		private readonly _sessionType: string,
@@ -73,6 +78,22 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		// chat-session-item delta, dropping events that don't touch us. Both
 		// combinators are bound to `this._store` so disposing the controller
 		// tears down the projection and its subscription to the store event.
+		for (const entry of this._sessionListStore.getSessions(this._provider)) {
+			this._updateChatCatalog(entry.summary);
+		}
+		this._register(this._sessionListStore.onDidChangeSessions(delta => {
+			for (const entry of delta.addedOrUpdated ?? []) {
+				if (entry.provider === this._provider) {
+					this._updateChatCatalog(entry.summary);
+				}
+			}
+			for (const removal of delta.removed ?? []) {
+				if (removal.provider === this._provider) {
+					this._chatMoves.remove({ resource: this._sessionListStore.getSessionResource(removal.session) });
+				}
+			}
+		}));
+
 		this.onDidChangeChatSessionItems = Event.filter(
 			Event.map(this._sessionListStore.onDidChangeSessions, delta => this._projectDelta(delta), this._store),
 			(delta: IChatSessionItemsDelta | undefined): delta is IChatSessionItemsDelta => delta !== undefined,
@@ -338,6 +359,18 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			throw new Error(`Cannot resolve session '${resource.toString()}' on '${this._connectionAuthority}'`);
 		}
 		return identity.backendSession;
+	}
+
+	/** Tells the move tracker which chats the session lists, each with its chat session resource; a summary without a catalog says nothing about it. */
+	private _updateChatCatalog(summary: SessionSummary): void {
+		if (!summary.chats) {
+			return;
+		}
+		const resource = this._sessionListStore.getSessionResource(URI.parse(summary.resource));
+		this._chatMoves.update({ resource }, new Map(summary.chats.map(chat => [
+			chat.resource.toString(),
+			this._isDefaultChat(summary, chat) ? resource : resource.with({ fragment: getAgentHostChatId(chat.resource) }),
+		])));
 	}
 
 	private _isDefaultChat(summary: SessionSummary, chat: SessionChatSummary): boolean {

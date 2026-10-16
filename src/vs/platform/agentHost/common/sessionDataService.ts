@@ -400,6 +400,15 @@ export interface ISessionDatabase extends IDisposable {
 	storeFileEdit(edit: IFileEditRecord & IFileEditContent): Promise<void>;
 
 	/**
+	 * Store several file-edit snapshots of a single file in one transaction,
+	 * in order: either all of them are stored or none is. When provided,
+	 * `beforeCommit` runs after the snapshots are inserted and before the
+	 * transaction commits, which is rolled back if it throws. It can make a
+	 * change that must only happen if the snapshots are stored.
+	 */
+	storeFileEdits(edits: readonly (IFileEditRecord & IFileEditContent)[], beforeCommit?: () => Promise<void> | void): Promise<void>;
+
+	/**
 	 * Retrieve file-edit metadata for the given tool call IDs.
 	 * Content blobs are **not** included — use {@link readFileEditContent}
 	 * to fetch them on demand. Results are returned in insertion order.
@@ -647,6 +656,14 @@ export interface ISessionDataService {
 	 * repositories they need to clean up.
 	 */
 	deleteSessionData(session: URI, workingDirectories?: readonly string[]): Promise<void>;
+
+	/**
+	 * Like {@link deleteSessionData}, but keeps the children of the session's
+	 * data directory named in `keep`: a deleted session keeps the attachments
+	 * that chats moved out of it still read. A later {@link deleteSessionData}
+	 * removes the rest.
+	 */
+	deleteSessionDataExcept(session: URI, keep: readonly string[], workingDirectories?: readonly string[]): Promise<void>;
 
 	/**
 	 * Fires immediately before a session's data directory (and the

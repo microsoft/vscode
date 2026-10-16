@@ -413,7 +413,7 @@ export async function computeUnionedDiffs(
  * honors the platform's path-casing bias (case-insensitive on Windows/macOS,
  * case-sensitive elsewhere) rather than doing a naive string prefix compare.
  */
-function isPathWithinFolderScope(filePath: string, folderRoots: readonly URI[]): boolean {
+export function isPathWithinFolderScope(filePath: string, folderRoots: readonly URI[]): boolean {
 	const fileUri = URI.file(filePath);
 	return folderRoots.some(root => extUriBiasedIgnorePathCase.isEqualOrParent(fileUri, root));
 }

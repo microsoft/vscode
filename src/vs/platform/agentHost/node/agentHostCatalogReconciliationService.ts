@@ -5,6 +5,7 @@
 
 import { disposableTimeout, Limiter } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { Emitter, type Event } from '../../../base/common/event.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
@@ -136,6 +137,9 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 	 * become hidden permanent state.
 	 */
 	private readonly _parkedSessions = new Set<string>();
+	private readonly _onDidChangeParkedSessions = this._register(new Emitter<string | undefined>());
+	/** Fires a session that was parked or released, or `undefined` when every parked session was released. */
+	readonly onDidChangeParkedSessions: Event<string | undefined> = this._onDidChangeParkedSessions.event;
 	/** Sessions whose chat catalog conversion waits for their aggregate re-projection, retried right after it. */
 	private readonly _conversionsAwaitingReprojection = new Set<string>();
 	/** How many such retries each session got in this process, bounded by {@link CONVERSION_REPROJECTION_RETRY_LIMIT}. */
@@ -190,15 +194,23 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 
 	/**
 	 * Records that a session's chat catalog conversion waits for its aggregate re-projection: a pass re-projects it
-	 * soon and converts it right after, instead of at the next conversion batch.
+	 * soon and converts it right after, instead of at the next conversion batch. Until then the conversion batches skip
+	 * it, so a session whose re-projection cannot happen (its provider cannot vouch for it) is not retried at all.
 	 */
 	convertAfterReprojection(session: string): void {
 		// A session that stays not ready (one never dirty, say) falls back to the conversion batches' cadence.
 		if ((this._conversionReprojectionRetries.get(session) ?? 0) >= CONVERSION_REPROJECTION_RETRY_LIMIT) {
 			return;
 		}
+		if (this._conversionsAwaitingReprojection.has(session)) {
+			return;
+		}
 		this._conversionsAwaitingReprojection.add(session);
-		this.schedule();
+		// A running pass converts it right after re-projecting it; one the pass does not re-project waits for the pass
+		// that does, rather than every waiting session owing a follow-up pass.
+		if (!this._running) {
+			this.schedule();
+		}
 	}
 
 	start(): void {
@@ -307,7 +319,7 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 		const { sessions, receiptBySession } = await this._listDirtySessions();
 		if (sessions.length === 0) {
 			this._tryDeleteStorage(this._cursorStorageKey);
-			await this._convertReprojected(sessions, [], token);
+			await this._convertReprojected(receiptBySession, [], token);
 			return { outcomes: [], cursor: undefined };
 		}
 
@@ -317,7 +329,7 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 		if (cursor && !token.isCancellationRequested) {
 			this._trySetStorage(this._cursorStorageKey, cursor);
 		}
-		await this._convertReprojected(sessions, outcomes, token);
+		await this._convertReprojected(receiptBySession, outcomes, token);
 		return { outcomes, cursor };
 	}
 
@@ -337,25 +349,23 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 		if (sessions.length === 0) {
 			this._tryDeleteStorage(this._cursorStorageKey);
 		}
-		await this._convertReprojected(sessions, outcomes, token);
+		await this._convertReprojected(receiptBySession, outcomes, token);
 		return { outcomes, cursor };
 	}
 
 	/**
 	 * Converts the sessions whose conversion waited for their re-projection: those this pass re-projected and those
-	 * no longer dirty. The others wait for a later pass; a conversion that is still not ready records them again.
+	 * whose aggregate is verified and clean. The others (unverified, parked, or still dirty) wait without an attempt,
+	 * which could only end not ready again; a conversion that is still not ready records them again.
 	 */
-	private async _convertReprojected(dirty: readonly IRegisteredSession[], outcomes: readonly AgentHostCatalogReconciliationOutcome[], token: CancellationToken): Promise<void> {
+	private async _convertReprojected(receiptBySession: ReadonlyMap<string, IAgentHostDatabaseSessionV2Receipt>, outcomes: readonly AgentHostCatalogReconciliationOutcome[], token: CancellationToken): Promise<void> {
 		if (!this._migrateChatCatalog || this._conversionsAwaitingReprojection.size === 0 || token.isCancellationRequested) {
 			return;
 		}
-		const stillDirty = new Set(dirty.map(entry => entry.session.toString()));
-		for (const outcome of outcomes) {
-			if (outcome.status === 'succeeded') {
-				stillDirty.delete(outcome.session);
-			}
-		}
-		const ready = [...this._conversionsAwaitingReprojection].filter(session => !stillDirty.has(session));
+		// Skipped: the aggregate was already current, and is now marked clean.
+		const reprojected = new Set(outcomes.filter(outcome => outcome.status === 'succeeded' || outcome.status === 'skipped').map(outcome => outcome.session));
+		// Receipts list verified aggregates only.
+		const ready = [...this._conversionsAwaitingReprojection].filter(session => reprojected.has(session) || receiptBySession.get(session)?.payloadDirty === 0);
 		for (const session of ready) {
 			this._conversionsAwaitingReprojection.delete(session);
 			this._conversionReprojectionRetries.set(session, (this._conversionReprojectionRetries.get(session) ?? 0) + 1);
@@ -387,7 +397,9 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 		if (edited.size) {
 			this._followUpRequested = true;
 		}
-		const migrating = [...selected.filter(entry => legacySessions.has(entry.session.toString())), ...sessions.filter(entry => edited.has(entry.session.toString()) && !legacySessions.has(entry.session.toString()))];
+		// A legacy catalog waiting for its session's re-projection is converted right after it (`_convertReprojected`).
+		const converting = selected.filter(entry => legacySessions.has(entry.session.toString()) && !this._conversionsAwaitingReprojection.has(entry.session.toString()));
+		const migrating = [...converting, ...sessions.filter(entry => edited.has(entry.session.toString()) && !legacySessions.has(entry.session.toString()))];
 		if (token.isCancellationRequested) {
 			return;
 		}
@@ -459,7 +471,10 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 		if (currentDirty !== observedDirty) {
 			return { session, status: 'retry', reason: 'superseded' };
 		}
-		this._parkedSessions.add(session);
+		if (!this._parkedSessions.has(session)) {
+			this._parkedSessions.add(session);
+			this._onDidChangeParkedSessions.fire(session);
+		}
 		return { session, status: 'retry', reason: 'sourceUnresolvable' };
 	}
 
@@ -471,10 +486,20 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 	 */
 	wakeParkedSessions(session?: string): void {
 		if (session === undefined) {
-			this._parkedSessions.clear();
+			if (this._parkedSessions.size > 0) {
+				this._parkedSessions.clear();
+				this._onDidChangeParkedSessions.fire(undefined);
+			}
 			return;
 		}
-		this._parkedSessions.delete(session);
+		if (this._parkedSessions.delete(session)) {
+			this._onDidChangeParkedSessions.fire(session);
+		}
+	}
+
+	/** Whether `session` is parked: its source can't be resolved, so its catalog waits for a wake signal (see {@link wakeParkedSessions}). */
+	isParked(session: string): boolean {
+		return this._parkedSessions.has(session);
 	}
 
 	/**
@@ -497,6 +522,12 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 				return;
 			}
 			if (await this._catalogDatabase.getSessionV2PayloadDirty(sessionKey) !== observedDirty) {
+				return;
+			}
+			// The emptiness was read at the session's own storage, which says nothing when its default chat is stored elsewhere.
+			const [catalog] = await this._catalogDatabase.readCatalogSnapshot([sessionKey]);
+			const defaultChat = catalog?.authorityVersion === 2 ? catalog.chats.find(chat => chat.chat === catalog.header?.defaultChatUri) : undefined;
+			if (defaultChat?.storageResource !== undefined && defaultChat.storageResource !== sessionKey) {
 				return;
 			}
 			await this._catalogDatabase.setSessionProvisional(sessionKey, true);

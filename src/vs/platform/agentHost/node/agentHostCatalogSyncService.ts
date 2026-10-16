@@ -655,6 +655,7 @@ export class AgentHostCatalogSyncService {
 	/**
 	 * Adopts the request's store-owned values into central state, then runs the
 	 * session.db write (mirror and outbox in one transaction) and records what it mirrored.
+	 * A replayed write leaves session.db's values untouched, so its entries stay dirty for the store to mirror.
 	 */
 	private async _writeThroughCentral<T extends string>(exclusive: ISessionStateExclusive | undefined, request: IAgentHostCatalogSyncRequest, writeValidator: (() => boolean) | undefined, write: () => Promise<T>): Promise<T> {
 		if (!exclusive || writeValidator?.() === false) {
@@ -671,7 +672,7 @@ export class AgentHostCatalogSyncService {
 			throw error;
 		}
 		const result = await write();
-		if (result !== 'cancelled' && result !== 'generationMismatch') {
+		if (result === 'applied') {
 			exclusive.noteMirrored(adopted.revision, adopted.entries);
 		}
 		return result;

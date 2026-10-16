@@ -386,10 +386,10 @@ suite('AgentHostSessionInputPills', () => {
 				button.click();
 				return dropdownItems;
 			},
-			menu: () => {
-				const row = persistentContent.querySelector<HTMLElement>('.chat-pills-row-content');
-				assert.ok(row);
-				row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+			menu: (target?: Element | null) => {
+				const element = target ?? persistentContent.querySelector<HTMLElement>('.chat-pills-row-content');
+				assert.ok(element);
+				element.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
 				return menuActions;
 			},
 			showChat: (resource: string) => {
@@ -769,7 +769,7 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	});
 
-	test('shows the chat\'s live canvases and reveals the selected canvas', async () => {
+	test('shows the chat\'s live canvases, reveals the selected canvas, and closes a canvas from its row', async () => {
 		const harness = createActivityPills(upcastPartial<SessionState>({ defaultChat: 'vendor-chat:/main', chats: [] }));
 		const configuration = harness.instantiationService.get(IConfigurationService);
 		assert.ok(configuration instanceof TestConfigurationService);
@@ -784,33 +784,46 @@ suite('AgentHostSessionInputPills', () => {
 		const dashboard = canvas('dashboard', 'Dashboard', 'https://example.test/dashboard');
 		const owner = { providerId: 'local/copilotcli', session: URI.parse('ahp-session:/42'), chat: URI.parse('ahp-session:/42/chats/main') };
 		const canvases = observableValue<readonly ICanvas[] | undefined>('canvases', [preview, pending]);
-		harness.showModel(upcastPartial<IChatModel>({ canvasContext: constObservable<ICanvasContext | undefined>({ owner, canvases }) }));
+		const closed: string[] = [];
+		const closeCanvas = async (closing: ICanvas) => { closed.push(closing.resource.toString()); };
+		harness.showModel(upcastPartial<IChatModel>({ canvasContext: constObservable<ICanvasContext | undefined>({ owner, canvases, closeCanvas }) }));
 		const disabled = harness.labels();
 		await configuration.setUserConfiguration(CanvasesEnabledSettingId, true);
 		configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: key => key === CanvasesEnabledSettingId }));
 		const single = {
 			labels: harness.labels(),
 			ariaLabel: harness.persistentContent.querySelector('.chat-dropdown-pill-button')?.getAttribute('aria-label'),
+			closeLabel: harness.persistentContent.querySelector('.chat-pill-promoted-action')?.getAttribute('aria-label'),
+			closeInContextMenu: harness.menu(harness.persistentContent.querySelector('.chat-dropdown-pill-button')).some(action => action.label === 'Close Canvas Preview'),
 		};
+		harness.persistentContent.querySelector<HTMLElement>('.chat-pill-promoted-action')?.click();
 		const offersToggle = harness.menu().some(action => action.id === 'chatInputPills.toggle.canvases');
 		canvases.set([preview, pending, dashboard], undefined);
+		const summarizedClose = harness.persistentContent.querySelector('.chat-pill-promoted-action');
 		const dropdown = harness.dropdown('2 Canvases');
 		dropdown.find(item => item.label === dashboard.title)?.select();
+		await dropdown.find(item => item.label === dashboard.title)?.toolbarActions[0]?.run();
 		harness.showModel(upcastPartial<IChatModel>({}));
 
 		assert.deepStrictEqual({
 			disabled,
 			single,
 			offersToggle,
+			summarizedClose,
 			dropdown: dropdown.map(item => item.label).filter(Boolean),
+			closeActions: dropdown.flatMap(item => item.toolbarActions.map(action => action.label)),
 			commands: harness.commands,
+			closed,
 			withoutCanvasContext: harness.labels(),
 		}, {
 			disabled: [],
-			single: { labels: ['Preview'], ariaLabel: 'Open canvas Preview' },
+			single: { labels: ['Preview'], ariaLabel: 'Open canvas Preview', closeLabel: 'Close Canvas Preview', closeInContextMenu: true },
 			offersToggle: true,
+			summarizedClose: null,
 			dropdown: ['Canvases', 'Preview', 'Dashboard'],
+			closeActions: ['Close Canvas Preview', 'Close Canvas Dashboard'],
 			commands: [{ id: REVEAL_CANVAS_COMMAND_ID, args: [{ ...owner, canvas: dashboard.resource }] }],
+			closed: [preview.resource.toString(), dashboard.resource.toString()],
 			withoutCanvasContext: [],
 		});
 	});

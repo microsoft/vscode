@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { AgentChatMoveRefusal, AgentChatMoveRefusedError, ChatMoveConfigKey, type AgentChatMoveDestination } from '../../common/agentHostChatMove.js';
+import { ChatMoveDestinationKind } from '../../common/state/protocol/channels-chat/commands.js';
 import assert from 'assert';
 import sinon from 'sinon';
 import { generateKeyPairSync, sign, type JsonWebKey } from 'crypto';
@@ -14,11 +16,12 @@ import { NullAgentHostOTelService } from '../../common/otel/agentHostOTelService
 import { supportsAgentHostTiming } from '../../common/meta/agentHostTimingMeta.js';
 import { supportsAgentHostSessionImport } from '../../common/meta/agentHostSessionImportMeta.js';
 import { readAgentHostAhpLogDirectory } from '../../common/meta/agentHostDebugLogsMeta.js';
+import { supportsAgentHostSessionMove } from '../../common/meta/agentHostSessionMoveMeta.js';
 import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { readSessionInitiator, withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
 import { readCodexSessionModel, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
 import { type IAgentHostFirstResponseDiagnostic } from '../../common/otel/agentHostTiming.js';
-import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { hasKey } from '../../../../base/common/types.js';
@@ -146,9 +149,16 @@ class MockProtocolServer implements IProtocolServer {
 
 class CountingLogService extends NullLogService {
 	errorCount = 0;
+	readonly errors: string[] = [];
+	readonly infos: string[] = [];
 
-	override error(_message: string, ..._args: unknown[]): void {
+	override error(message: string | Error, ..._args: unknown[]): void {
 		this.errorCount++;
+		this.errors.push(String(message));
+	}
+
+	override info(message: string, ..._args: unknown[]): void {
+		this.infos.push(message);
 	}
 }
 
@@ -313,6 +323,23 @@ class MockAgentService implements IAgentService {
 	async disposeChat(session: URI, chat: URI): Promise<void> {
 		this.disposedChats.push({ session: session.toString(), chat: chat.toString() });
 		this._stateManager.removeChat(session.toString(), chat.toString());
+	}
+	readonly movedChats: { session: string; chat: string; destination: AgentChatMoveDestination }[] = [];
+	moveChatResult: URI | Error | undefined;
+	async moveChat(session: URI, chat: URI, destination: AgentChatMoveDestination): Promise<URI> {
+		this.movedChats.push({ session: session.toString(), chat: chat.toString(), destination });
+		if (this.moveChatResult instanceof Error) {
+			throw this.moveChatResult;
+		}
+		return this.moveChatResult ?? session;
+	}
+	readonly movedSessions: { session: string; destination: string; after: string | undefined }[] = [];
+	async moveSession(session: URI, destination: URI, after: URI | undefined): Promise<URI> {
+		this.movedSessions.push({ session: session.toString(), destination: destination.toString(), after: after?.toString() });
+		if (this.moveChatResult instanceof Error) {
+			throw this.moveChatResult;
+		}
+		return destination;
 	}
 	/** Owners of chats that are not registered, as the cold owner lookup would find them. */
 	readonly chatOwners = new Map<string, string>();
@@ -608,7 +635,74 @@ suite('ProtocolServerHandler', () => {
 				'vscode.removeSessionArtifact': true,
 				'vscode.importSession': true,
 				'vscode.devContainers': true,
+				// Offered whether or not moving chats is enabled, so enabling it needs no reconnect.
+				'vscode.sessionMove': true,
 			},
+		});
+	});
+
+	test('mixed pending messages survive snapshots, live actions and reconnect replay', async () => {
+		stateManager.createSession(makeSessionSummary());
+		for (const id of ['a', 'b']) {
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatPendingMessageSet,
+				kind: PendingMessageKind.Steering, id, message: { text: id, origin: { kind: MessageKind.User } },
+			});
+		}
+		const transport = new MockProtocolTransport();
+		server.simulateConnection(transport);
+		const initialized = waitForResponse(transport, 1);
+		transport.simulateMessage(request(1, 'initialize', {
+			protocolVersions: [PROTOCOL_VERSION],
+			clientId: 'steering-client',
+			initialSubscriptions: [defaultChatUri],
+		}));
+		const response = await initialized;
+		assert.ok(hasKey(response, { result: true }));
+		const result = response.result as InitializeResult;
+		const initialState = result.snapshots.find(snapshot => snapshot.resource === defaultChatUri)?.state as ChatState;
+		const cursor = stateManager.serverSeq;
+		stateManager.dispatchServerAction(defaultChatUri, { type: ActionType.ChatPendingMessageRemoved, kind: PendingMessageKind.Steering, id: 'a' });
+		const live = findNotifications(transport.sent, 'action')
+			.map(notification => notification.params as ActionEnvelope)
+			.filter(envelope => envelope.action.type === ActionType.ChatPendingMessageRemoved);
+		transport.simulateClose();
+
+		const reconnected = new MockProtocolTransport();
+		server.simulateConnection(reconnected);
+		const replayed = waitForResponse(reconnected, 2);
+		reconnected.simulateMessage(request(2, 'reconnect', {
+			clientId: 'steering-client', lastSeenServerSeq: cursor, subscriptions: [defaultChatUri],
+		}));
+		const replayResponse = await replayed;
+		assert.ok(hasKey(replayResponse, { result: true }));
+		const replay = replayResponse.result as ReconnectResult;
+		assert.ok(replay.type === 'replay');
+		reconnected.simulateClose();
+
+		const snapshotTransport = new MockProtocolTransport();
+		server.simulateConnection(snapshotTransport);
+		const snapshotted = waitForResponse(snapshotTransport, 3);
+		snapshotTransport.simulateMessage(request(3, 'reconnect', {
+			clientId: 'steering-client', lastSeenServerSeq: -1, subscriptions: [defaultChatUri],
+		}));
+		const snapshotResponse = await snapshotted;
+		assert.ok(hasKey(snapshotResponse, { result: true }));
+		const snapshotResult = snapshotResponse.result as ReconnectResult;
+		assert.ok(snapshotResult.type === 'snapshot');
+		const restored = snapshotResult.snapshots.find(snapshot => snapshot.resource === defaultChatUri)?.state as ChatState;
+		assert.deepStrictEqual({
+			initial: initialState.queuedMessages?.map(message => message.id),
+			live: live.map(envelope => envelope.action.type),
+			replay: replay.actions.map(envelope => envelope.action.type),
+			restored: restored.queuedMessages?.map(message => message.id),
+			authoritative: stateManager.getChatState(defaultChatUri)?.queuedMessages?.map(message => message.id),
+		}, {
+			initial: ['a', 'b'],
+			live: [ActionType.ChatPendingMessageRemoved],
+			replay: [ActionType.ChatPendingMessageRemoved],
+			restored: ['b'],
+			authoritative: ['b'],
 		});
 	});
 
@@ -1335,6 +1429,22 @@ suite('ProtocolServerHandler', () => {
 		}, {
 			response: { jsonrpc: '2.0', id: 11, result: null },
 			shutdownCalls: 1,
+		});
+	});
+
+	test('TCP connections remain unadvertised and unsupported after protocol sync', async () => {
+		const transport = connectClient('client-tcp');
+		const initialize = findResponse(transport.sent, 1);
+		assert.ok(initialize && hasKey(initialize, { result: true }));
+		const result = initialize.result as InitializeResult;
+		const response = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'createTcpConnection', { channel: 'ahp-tcp:/test', host: 'localhost', port: 8080 }));
+		assert.deepStrictEqual({
+			capability: result.tcpConnections,
+			response: await response,
+		}, {
+			capability: undefined,
+			response: { jsonrpc: '2.0', id: 2, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: createTcpConnection' } },
 		});
 	});
 
@@ -4161,11 +4271,12 @@ suite('ProtocolServerHandler', () => {
 					restored: snapshotConfigs(restored),
 					authoritative: snapshotConfigs(stateManager.getSnapshot(chat)),
 				}, {
-					initial: Array.from({ length: 6 }, () => expected),
+					// Snapshots include both mixed-queue entries and the legacy steering mirror.
+					initial: Array.from({ length: 7 }, () => expected),
 					live: Array.from({ length: 5 }, () => expected),
 					replayed: Array.from({ length: 5 }, () => expected),
-					restored: Array.from({ length: 6 }, () => expected),
-					authoritative: Array.from({ length: 6 }, () => selection.config),
+					restored: Array.from({ length: 7 }, () => expected),
+					authoritative: Array.from({ length: 7 }, () => selection.config),
 				});
 			});
 		}
@@ -5375,6 +5486,39 @@ suite('ProtocolServerHandler', () => {
 		}
 	});
 
+	test('relay content of a chat stored in another session\'s database follows the chat\'s current owner (Block 4)', async () => {
+		const target = URI.from({ scheme: 'copilot', path: '/move-target' }).toString();
+		stateManager.createSession(makeSessionSummary(target));
+		// A chat recorded as storing in a session that ended (a moved single-chat session's default chat).
+		const endedStorage = 'copilot:/ended-session';
+		const moved = buildChatUri(target, 'moved');
+		stateManager.addChat(target, moved, endedStorage);
+		const relay = disposables.add(new MockProtocolServer());
+		const scopedHandler = disposables.add(new ProtocolServerHandler(
+			agentService, stateManager, relay,
+			{ allowExtensionMethods: false, relayResourceRoots: () => [] },
+			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
+		));
+		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'storage-lane', false));
+		transport.relayAuthenticated = true;
+		relay.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', { clientId: 'storage-lane', protocolVersions: [PROTOCOL_VERSION] }));
+		agentService.resourceRead = async uri => ({ data: uri.toString(), encoding: ContentEncoding.Utf8 });
+		const cases = [
+			{ id: 2, uri: buildSessionDbUri(endedStorage, 'tool-call', '/file', 'before') },
+			{ id: 3, uri: buildSessionDbUri('copilot:/never-recorded', 'tool-call', '/file', 'before') },
+		];
+		for (const item of cases) {
+			transport.simulateMessage(request(item.id, 'resourceRead', { uri: item.uri }));
+		}
+		await scopedHandler.whenIdle();
+		assert.deepStrictEqual(cases.map(item => {
+			const response = findResponse(transport.sent, item.id);
+			return !!response && hasKey(response, { result: true });
+		}), [true, false]);
+	});
+
 	test('MC filesystem grants cover workspace reads and writes without exposing private host files', async () => {
 		const path = await mkdtemp(join(process.cwd(), '.build', 'mission-control-resource-grants-'));
 		try {
@@ -6519,6 +6663,130 @@ suite('ProtocolServerHandler', () => {
 		}
 	});
 
+	test('clients without chat URI support see a chat only in the session it was created in (Block 4)', async () => {
+		const a = 'ahp-session:/move-a';
+		const b = 'ahp-session:/move-b';
+		const promoted = 'ahp-session:/promoted';
+		for (const resource of [a, b]) {
+			stateManager.restoreSession(makeSessionSummary(resource), [], creationTimeChatStorageResource);
+			agentService.listedSessions.push({ session: URI.parse(resource), provider: 'copilot', startTime: 1000, modifiedTime: 2000 });
+		}
+		const moved = buildChatUri(a, 'moved');
+		const promotedChat = buildChatUri(a, 'promoted');
+		stateManager.addChat(a, moved, moved);
+		stateManager.addChat(a, promotedChat, promotedChat);
+		const sessionsMeta = { [AgentHostSessionUrisCapabilityMetaKey]: true };
+		const clients = [
+			connectClient('legacy', ['ahp-root://', a, b], editorWindowAgentHostClientInfo, sessionsMeta),
+			connectClient('modern', ['ahp-root://', a, b], editorWindowAgentHostClientInfo, { ...sessionsMeta, [AgentHostChatUrisCapabilityMetaKey]: true }),
+		];
+		for (const client of clients) {
+			client.sent.length = 0;
+		}
+
+		stateManager.transferChats(a, b, [moved], undefined);
+		stateManager.promoteChats(a, { ...makeSessionSummary(promoted), defaultChat: promotedChat }, undefined, [promotedChat]);
+		agentService.listedSessions.push({ session: URI.parse(promoted), provider: 'copilot', startTime: 1000, modifiedTime: 2000 });
+
+		const results = [];
+		for (const client of clients) {
+			const actions = client.sent.filter(isJsonRpcNotification).filter(message => message.method === 'action').map(message => {
+				const { channel, action } = message.params as { channel: string; action: { type: string; chat?: string; chats?: string[]; summary?: { resource: string } } };
+				return `${action.type} ${channel} ${action.chat ?? action.summary?.resource ?? action.chats?.join(',')}`;
+			}).filter(entry => entry.startsWith('session/chat'));
+			const added = client.sent.filter(isJsonRpcNotification).filter(message => message.method === 'root/sessionAdded').length;
+			const listing = waitForResponse(client, 2);
+			client.simulateMessage(request(2, 'listSessions', { channel: 'ahp-root://' }));
+			const listed = await listing;
+			assert.ok(isJsonRpcResponse(listed) && hasKey(listed, { result: true }));
+			results.push({ actions, added, listed: (listed.result as ListSessionsResult).items.map(item => item.resource).sort() });
+		}
+
+		assert.deepStrictEqual(results, [{
+			// The moved chat leaves A for such a client and never appears in B; the promoted session isn't announced.
+			actions: [
+				// The target's default chat keeps its title once it shares the session with another chat.
+				`session/chatUpdated ${b} ${buildDefaultChatUri(b)}`,
+				`session/chatRemoved ${a} ${moved}`,
+				`session/chatsReordered ${b} ${buildDefaultChatUri(b)}`,
+				`session/chatRemoved ${a} ${promotedChat}`,
+			],
+			added: 0,
+			listed: [a, b].sort(),
+		}, {
+			actions: [
+				`session/chatUpdated ${b} ${buildDefaultChatUri(b)}`,
+				`session/chatRemoved ${a} ${moved}`,
+				`session/chatAdded ${b} ${moved}`,
+				`session/chatsReordered ${b} ${moved},${buildDefaultChatUri(b)}`,
+				`session/chatRemoved ${a} ${promotedChat}`,
+			],
+			added: 1,
+			listed: [a, b, promoted].sort(),
+		}]);
+	});
+
+	test('clients without chat URI support see no session while the origins of moved chats are unknown (Block 4)', async () => {
+		const a = 'ahp-session:/unknown-origins';
+		stateManager.restoreSession(makeSessionSummary(a), [], creationTimeChatStorageResource);
+		agentService.listedSessions.push({ session: URI.parse(a), provider: 'copilot', startTime: 1000, modifiedTime: 2000 });
+		const sessionsMeta = { [AgentHostSessionUrisCapabilityMetaKey]: true };
+		const clients = [
+			connectClient('legacy', ['ahp-root://'], editorWindowAgentHostClientInfo, sessionsMeta),
+			connectClient('modern', ['ahp-root://'], editorWindowAgentHostClientInfo, { ...sessionsMeta, [AgentHostChatUrisCapabilityMetaKey]: true }),
+		];
+		let requestId = 1;
+		const list = async () => {
+			const listed: string[][] = [];
+			for (const client of clients) {
+				const id = ++requestId;
+				const listing = waitForResponse(client, id);
+				client.simulateMessage(request(id, 'listSessions', { channel: 'ahp-root://' }));
+				const response = await listing;
+				assert.ok(isJsonRpcResponse(response) && hasKey(response, { result: true }));
+				listed.push((response.result as ListSessionsResult).items.map(item => item.resource));
+			}
+			return listed;
+		};
+
+		stateManager.setMovedChatOriginsKnown(false);
+		const unknown = await list();
+		stateManager.setMovedChatOriginsKnown(true);
+
+		assert.deepStrictEqual({ unknown, known: await list() }, {
+			unknown: [[], [a]],
+			known: [[a], [a]],
+		});
+	});
+
+	test('while the origins of moved chats load, only clients without chat URI support wait for them to list sessions (Block 4)', async () => {
+		const a = 'ahp-session:/loading-origins';
+		stateManager.restoreSession(makeSessionSummary(a), [], creationTimeChatStorageResource);
+		agentService.listedSessions.push({ session: URI.parse(a), provider: 'copilot', startTime: 1000, modifiedTime: 2000 });
+		const sessionsMeta = { [AgentHostSessionUrisCapabilityMetaKey]: true };
+		const legacy = connectClient('legacy', ['ahp-root://'], editorWindowAgentHostClientInfo, sessionsMeta);
+		const modern = connectClient('modern', ['ahp-root://'], editorWindowAgentHostClientInfo, { ...sessionsMeta, [AgentHostChatUrisCapabilityMetaKey]: true });
+		const items = (response: ProtocolMessage) => {
+			assert.ok(isJsonRpcResponse(response) && hasKey(response, { result: true }));
+			return (response.result as ListSessionsResult).items.map(item => item.resource);
+		};
+		stateManager.beginMovedChatOriginsLoad();
+
+		const legacyListing = waitForResponse(legacy, 101);
+		legacy.simulateMessage(request(101, 'listSessions', { channel: 'ahp-root://' }));
+		const modernListing = waitForResponse(modern, 102);
+		modern.simulateMessage(request(102, 'listSessions', { channel: 'ahp-root://' }));
+		const modernItems = items(await modernListing);
+		const legacyAnsweredWhileLoading = await raceTimeout(legacyListing.then(() => true), 50);
+		stateManager.setMovedChatOriginsKnown(true);
+
+		assert.deepStrictEqual({ modernItems, legacyAnsweredWhileLoading, legacyItems: items(await legacyListing) }, {
+			modernItems: [a],
+			legacyAnsweredWhileLoading: undefined,
+			legacyItems: [a],
+		});
+	});
+
 	test('clients without chat URI support do not see opaque defaults or opaque chats', async () => {
 		const opaqueDefaultChat = 'ahp-chat:/11111111-1111-4111-8111-111111111111';
 		const opaquePeer = 'ahp-chat:/22222222-2222-4222-8222-222222222222';
@@ -7345,6 +7613,148 @@ suite('ProtocolServerHandler', () => {
 				result: null,
 				disposed: [{ session: sessionUri, chat: peerChat }],
 				inCatalog: false,
+			});
+		});
+
+		suite('moveSession (VS Code-internal, Block 4)', () => {
+			const targetUri = URI.from({ scheme: 'copilot', path: '/move-target' }).toString();
+			let clients = 0;
+
+			function initialized(transport: MockProtocolTransport): InitializeResult {
+				const response = findResponse(transport.sent, 1);
+				assert.ok(response && hasKey(response, { result: true }));
+				return response.result as InitializeResult;
+			}
+
+			async function send(transport: MockProtocolTransport, params: unknown): Promise<unknown> {
+				const response = waitForResponse(transport, 30);
+				transport.simulateMessage(request(30, 'vscode/moveSession', params));
+				return response;
+			}
+
+			setup(() => {
+				stateManager.createSession(makeSessionSummary());
+				stateManager.createSession(makeSessionSummary(targetUri));
+			});
+
+			test('is offered and routed whether or not moving chats is enabled, so enabling it needs no reconnect', async () => {
+				// Connected while moving chats is off, as a client whose root config mirror arrives after it initialized.
+				const transport = connectClient(`client-session-move-${clients++}`);
+				const offered = supportsAgentHostSessionMove(initialized(transport));
+				agentService.moveChatResult = new AgentChatMoveRefusedError(AgentChatMoveRefusal.Disabled, 'Moving chats is not enabled.');
+				const disabled = await send(transport, { session: sessionUri, destination: targetUri, after: null }) as { error?: { code: number; data?: unknown } };
+				stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { [ChatMoveConfigKey.Enabled]: true } });
+				agentService.moveChatResult = undefined;
+				const placed = buildDefaultChatUri(targetUri);
+
+				assert.deepStrictEqual({
+					offered,
+					disabled: { code: disabled.error?.code, data: disabled.error?.data },
+					first: await send(transport, { session: sessionUri, destination: targetUri, after: null }),
+					anchored: await send(transport, { session: sessionUri, destination: targetUri, after: placed }),
+					moved: agentService.movedSessions,
+				}, {
+					offered: true,
+					// The host refuses a move while moving chats is off.
+					disabled: { code: JsonRpcErrorCodes.InvalidParams, data: { reason: AgentChatMoveRefusal.Disabled } },
+					first: { jsonrpc: '2.0', id: 30, result: { session: targetUri } },
+					anchored: { jsonrpc: '2.0', id: 30, result: { session: targetUri } },
+					moved: [
+						{ session: sessionUri, destination: targetUri, after: undefined },
+						{ session: sessionUri, destination: targetUri, after: undefined },
+						{ session: sessionUri, destination: targetUri, after: placed },
+					],
+				});
+			});
+
+			test('rejects params missing `after` or malformed, and maps a refusal to its reason', async () => {
+				stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { [ChatMoveConfigKey.Enabled]: true } });
+				const transport = connectClient(`client-session-move-${clients++}`);
+				const codes = [];
+				for (const params of [{ session: sessionUri, destination: targetUri }, { session: sessionUri, destination: targetUri, after: 1 }, { session: sessionUri, after: null }]) {
+					const response = await send(transport, params) as { error?: { code: number } };
+					codes.push(response.error?.code);
+				}
+				agentService.moveChatResult = new AgentChatMoveRefusedError(AgentChatMoveRefusal.NotSingleChat, 'Session has other chats.');
+				const errorsBefore = logService.errors.length;
+				const refused = await send(transport, { session: sessionUri, destination: targetUri, after: null }) as { error?: { code: number; data?: unknown } };
+
+				assert.deepStrictEqual({ codes, refused: { code: refused.error?.code, data: refused.error?.data }, moved: agentService.movedSessions.length, refusalLogs: { errors: logService.errors.slice(errorsBefore), infos: logService.infos.filter(message => message.includes('refused')) } }, {
+					codes: [JsonRpcErrorCodes.InvalidParams, JsonRpcErrorCodes.InvalidParams, JsonRpcErrorCodes.InvalidParams],
+					refused: { code: JsonRpcErrorCodes.InvalidParams, data: { reason: AgentChatMoveRefusal.NotSingleChat } },
+					moved: 1,
+					// An expected refusal is not an error.
+					refusalLogs: { errors: [], infos: [`[ProtocolServer] Extension request 'vscode/moveSession' failed: refused (${AgentChatMoveRefusal.NotSingleChat}): Session has other chats.`] },
+				});
+			});
+		});
+
+		suite('moveChat', () => {
+			const targetUri = URI.from({ scheme: 'copilot', path: '/target-session' }).toString();
+			const anchorChat = buildChatUri(targetUri, 'anchor');
+
+			let clients = 0;
+			async function move(params: object): Promise<{ result?: { session: string }; error?: { code: number; message: string; data?: unknown } }> {
+				const transport = connectClient(`client-mv-${clients++}`);
+				transport.sent.length = 0;
+				const responsePromise = waitForResponse(transport, 2);
+				transport.simulateMessage(request(2, 'moveChat', params));
+				return await responsePromise as { result?: { session: string }; error?: { code: number; message: string; data?: unknown } };
+			}
+
+			setup(() => {
+				stateManager.createSession(makeSessionSummary());
+				stateManager.createSession(makeSessionSummary(targetUri));
+				stateManager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat, buildDefaultChatUri(sessionUri)));
+			});
+
+			test('forwards a session destination with its anchor and returns the new owner', async () => {
+				agentService.moveChatResult = URI.parse(targetUri);
+				const resp = await move({ channel: peerChat, destination: { kind: ChatMoveDestinationKind.Session, session: targetUri, after: anchorChat } });
+
+				assert.deepStrictEqual({ result: resp.result, moved: agentService.movedChats }, {
+					result: { session: targetUri },
+					moved: [{ session: sessionUri, chat: peerChat, destination: { kind: 'session', session: URI.parse(targetUri), after: URI.parse(anchorChat) } }],
+				});
+			});
+
+			test('forwards a new-session destination', async () => {
+				const resp = await move({ channel: peerChat, destination: { kind: ChatMoveDestinationKind.NewSession } });
+
+				assert.deepStrictEqual({ result: resp.result, moved: agentService.movedChats }, {
+					result: { session: sessionUri },
+					moved: [{ session: sessionUri, chat: peerChat, destination: { kind: 'newSession' } }],
+				});
+			});
+
+			test('maps a refusal to InvalidParams with its reason and logs it at info, not as an error (B4-4)', async () => {
+				agentService.moveChatResult = new AgentChatMoveRefusedError(AgentChatMoveRefusal.NotMovable, 'The chat cannot be moved');
+				const resp = await move({ channel: peerChat, destination: { kind: ChatMoveDestinationKind.Session, session: targetUri } });
+
+				const refusedLogs = { errors: [...logService.errors], infos: logService.infos.filter(message => message.includes('refused')) };
+				agentService.moveChatResult = new Error('unexpected');
+				await move({ channel: peerChat, destination: { kind: ChatMoveDestinationKind.Session, session: targetUri } });
+
+				assert.deepStrictEqual({ error: resp.error, refusedLogs, unexpected: logService.errors }, {
+					error: { code: JsonRpcErrorCodes.InvalidParams, message: 'The chat cannot be moved', data: { reason: AgentChatMoveRefusal.NotMovable } },
+					// An expected refusal is logged at info without a stack; an unexpected failure stays an error.
+					refusedLogs: { errors: [], infos: [`[ProtocolServer] Request 'moveChat' id=2 failed: refused (${AgentChatMoveRefusal.NotMovable}): The chat cannot be moved`] },
+					unexpected: [`[ProtocolServer] Request 'moveChat' id=2 failed`],
+				});
+			});
+
+			test('rejects malformed destinations and unknown chats without forwarding', async () => {
+				const responses = [
+					await move({ channel: peerChat, destination: { kind: 'elsewhere' } }),
+					await move({ channel: peerChat, destination: { kind: ChatMoveDestinationKind.Session } }),
+					await move({ channel: buildChatUri('copilot:/missing', 'peer-9'), destination: { kind: ChatMoveDestinationKind.NewSession } }),
+					await move({ channel: sessionUri, destination: { kind: ChatMoveDestinationKind.NewSession } }),
+				];
+
+				assert.deepStrictEqual({ codes: responses.map(r => r.error?.code), moved: agentService.movedChats }, {
+					codes: [JsonRpcErrorCodes.InvalidParams, JsonRpcErrorCodes.InvalidParams, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes.InvalidParams],
+					moved: [],
+				});
 			});
 		});
 	});
