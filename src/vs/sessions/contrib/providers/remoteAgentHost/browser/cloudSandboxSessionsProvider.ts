@@ -172,6 +172,13 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		this._taskRenameHandlers.set(AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, rawId).toString(), rename);
 	}
 
+	/** Stop routing task actions without removing a conversation still listed by the live host. */
+	removeTaskOwnership(rawId: string): void {
+		const key = AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, rawId).toString();
+		this._taskRenameHandlers.delete(key);
+		this._taskArchiveHandlers.delete(key);
+	}
+
 	/** Preserve the initial title without letting a transient task metadata failure block the first turn. */
 	setInitialSessionTitle(sessionId: string, title: string): Promise<void> {
 		return this._renameSession(sessionId, title, true);
@@ -330,8 +337,7 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		const key = cached ? this._sessionKeyFromChatId(cached.sessionId) : undefined;
 		const session = key ? this._removeCachedSession(key) : undefined;
 		const taskKey = AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, rawId).toString();
-		this._taskRenameHandlers.delete(taskKey);
-		this._taskArchiveHandlers.delete(taskKey);
+		this.removeTaskOwnership(rawId);
 		this._withheldSessions.delete(taskKey);
 		this._provisionalSessions.delete(taskKey);
 		this._pendingSessionTitles.delete(taskKey);

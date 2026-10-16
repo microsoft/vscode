@@ -214,7 +214,7 @@ class CloudSandboxChatSessionReference extends Disposable implements IChatSessio
 
 interface ISandboxChatEntry extends IDisposable {
 	readonly resource: URI;
-	readonly taskId: string;
+	readonly taskId: string | undefined;
 	readonly store: DisposableStore;
 	readonly token: CancellationToken;
 	readonly historyStore: DisposableStore;
@@ -304,7 +304,7 @@ export class CloudSandboxSessionHandler extends Disposable implements IChatSessi
 				this._updateHistoryStatus(current);
 			}));
 			store.add(this._chatService.onDidSubmitRequest(event => {
-				if (isEqual(event.chatSessionResource, resource)) {
+				if (current.taskId && isEqual(event.chatSessionResource, resource)) {
 					this._apiService.invalidateSessionHistory(current.taskId);
 				}
 			}));
@@ -351,7 +351,7 @@ export class CloudSandboxSessionHandler extends Disposable implements IChatSessi
 			source.dispose();
 			throw new Error('The sandbox content provider returned a different session resource.');
 		}
-		if (live) {
+		if (live && entry.taskId) {
 			const unchanged = entry.hasHistory && !!entry.session && equals(getChatSessionHistoryContent(entry.session.history), getChatSessionHistoryContent(source.history));
 			this._apiService.invalidateSessionHistory(entry.taskId, unchanged);
 		}
@@ -366,7 +366,11 @@ export class CloudSandboxSessionHandler extends Disposable implements IChatSessi
 			});
 			entry.trace.record('promoted', { source: kind, historyItems: source.history.length });
 		} else {
-			const session = entry.store.add(new PromotableCloudSandboxChatSession(source, () => this._apiService.invalidateSessionHistory(entry.taskId), live));
+			const session = entry.store.add(new PromotableCloudSandboxChatSession(source, () => {
+				if (entry.taskId) {
+					this._apiService.invalidateSessionHistory(entry.taskId);
+				}
+			}, live));
 			entry.trace.associate(session);
 			entry.session = session;
 			entry.store.add(Event.once(session.onWillDispose)(() => {

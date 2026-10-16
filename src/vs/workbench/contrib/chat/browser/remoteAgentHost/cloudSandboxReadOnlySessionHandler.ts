@@ -35,12 +35,8 @@ export interface ICloudSandboxReadOnlyConfig {
 	readonly connectionAuthority: string;
 }
 
-export function getCloudSandboxTaskId(config: ICloudSandboxReadOnlyConfig, resource: URI): string {
-	const taskId = config.getTaskId ? config.getTaskId(resource) : config.taskId;
-	if (!taskId) {
-		throw new Error(localize('cloudSandbox.sessionTaskMissing', "Recorded history for this session is unavailable."));
-	}
-	return taskId;
+export function getCloudSandboxTaskId(config: ICloudSandboxReadOnlyConfig, resource: URI): string | undefined {
+	return config.getTaskId ? config.getTaskId(resource) : config.taskId;
 }
 
 /** A resolved chat session backed entirely by read-only history. */
@@ -77,7 +73,11 @@ export class CloudSandboxReadOnlySessionHandler extends Disposable implements IC
 	}
 
 	async provideChatSessionContent(sessionResource: URI, token: CancellationToken, diagnosticId?: string, onCachedSession?: (session: IChatSession) => void, hasHistory = false): Promise<IChatSession> {
-		const replayed = await this._apiService.getSessionHistory(getCloudSandboxTaskId(this._config, sessionResource), token, diagnosticId, onCachedSession && (history => {
+		const taskId = getCloudSandboxTaskId(this._config, sessionResource);
+		if (!taskId) {
+			throw new Error(localize('cloudSandbox.sessionTaskMissing', "Recorded history for this session is unavailable."));
+		}
+		const replayed = await this._apiService.getSessionHistory(taskId, token, diagnosticId, onCachedSession && (history => {
 			const session = this._findSession(sessionResource, history);
 			const chatResource = session && this._getChatResource(sessionResource, session);
 			const chat = chatResource ? session?.chats.get(chatResource) : undefined;

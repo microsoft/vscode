@@ -104,6 +104,11 @@ class StubProvider extends mock<CloudSandboxSessionsProvider>() {
 		this.taskRenameHandlers.set(rawId, rename);
 	}
 
+	override removeTaskOwnership(rawId: string): void {
+		this.taskRenameHandlers.delete(rawId);
+		this.taskArchiveHandlers.delete(rawId);
+	}
+
 	override readonly id: string;
 	private _displayLabel: string;
 	override get label(): string { return this._displayLabel; }
@@ -646,6 +651,20 @@ suite('CloudSandboxAgentHostContribution', () => {
 		});
 	});
 
+	test('opens a live-only session alongside multiple task-owned sessions', async () => {
+		const harness = await createContribution(store, [discoveredSession(), discoveredSession({ sessionId: 'sess-2', taskId: 'task-2' })], { autoConnectOnOpen: false });
+		await harness.activate('env-1');
+		const sessionType = harness.readOnlySessionTypes[0];
+		const liveResource = URI.from({ scheme: sessionType, path: '/live-only' });
+		const live = store.add(new ReadOnlyChatSession(liveResource, [], 'Live conversation', constObservable(false)));
+		store.add(harness.registerLiveProvider('env-1', { provideChatSessionContent: async () => live })!);
+		const opened = store.add(await harness.contentProviders.get(sessionType)!.provideChatSessionContent(liveResource, CancellationToken.None));
+		await waitForState(opened.isReadOnly!, value => !value);
+		assert.deepStrictEqual({ readOnly: opened.isReadOnly?.get(), title: opened.title, historyRequests: harness.historyRequests }, {
+			readOnly: false, title: 'Live conversation', historyRequests: [],
+		});
+	});
+
 	for (const removal of ['delete', 'discovery'] as const) {
 		test(`keeps sibling tasks available after a task is removed by ${removal}`, async () => {
 			const storage = store.add(new InMemoryStorageService());
@@ -673,6 +692,33 @@ suite('CloudSandboxAgentHostContribution', () => {
 			}, {
 				beforeReload: { disposed: false, sessions: ['sess-1'] }, restored: ['sess-1'],
 				deleted: removal === 'delete' ? ['task-2'] : [], archived: [{ taskId: 'task-1', archived: true }],
+			});
+		});
+
+		test(`reconnects through the surviving task after the first task is removed by ${removal}`, async () => {
+			const first = discoveredSession();
+			const second = discoveredSession({ sessionId: 'sess-2', taskId: 'task-2' });
+			const harness = await createContribution(store, [first, second], { autoConnectOnOpen: false });
+			const provider = harness.contribution.stubProviders.get(cloudSandboxAddress('env-1'))!;
+			if (removal === 'delete') {
+				await provider.config.deleteSessionsOnDemand!.deleteSessions([URI.parse('ahp-session:/sess-1')]);
+			} else {
+				harness.discovered = [second];
+				await harness.runDiscovery();
+			}
+			const reconnectSessions: (string | undefined)[] = [];
+			harness.onConnect = async options => {
+				reconnectSessions.push(options.sessionId);
+				throw new Error('Sandbox unavailable');
+			};
+			await assert.rejects(provider.config.connectOnDemand!(), /Sandbox unavailable/);
+			// An explicit reconnect carrying an old URI must also preserve the surviving history route.
+			await assert.rejects(harness.contribution.connect({ environmentId: 'env-1', sessionId: 'sess-1', name: first.name }), /Sandbox unavailable/);
+			const activated = await harness.activate('env-1');
+			const sessionType = harness.readOnlySessionTypes[0];
+			store.add(await harness.contentProviders.get(sessionType)!.provideChatSessionContent(URI.from({ scheme: sessionType, path: '/sess-2' }), CancellationToken.None));
+			assert.deepStrictEqual({ reconnectSessions, activated, history: harness.historyRequests, disposed: provider.disposed }, {
+				reconnectSessions: ['sess-2', 'sess-1'], activated: true, history: ['task-2'], disposed: false,
 			});
 		});
 	}
