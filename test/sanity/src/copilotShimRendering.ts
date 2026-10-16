@@ -37,7 +37,8 @@ export function assertEmbeddedCopilotLinkHelper(script: string, helperSource: st
 	const normalizedScript = normalizeShellSource(script);
 	const normalizedHelper = normalizeShellSource(helperSource);
 	assert.ok(!normalizedScript.includes('@@COPILOT_LINK_HELPER@@'), `${scriptName} retains @@COPILOT_LINK_HELPER@@.`);
-	assert.ok(!normalizedScript.includes('@@'), `${scriptName} contains an unresolved template marker.`);
+	const executableLines = normalizedScript.split('\n').filter(line => !line.trimStart().startsWith('#'));
+	assert.ok(!executableLines.some(line => line.includes('@@')), `${scriptName} contains an unresolved template marker.`);
 	assert.ok(normalizedScript.includes(normalizedHelper), `${scriptName} does not embed the exact Copilot link helper source.`);
 }
 

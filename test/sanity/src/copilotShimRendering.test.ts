@@ -8,13 +8,52 @@ import fs from 'fs';
 import { test } from 'mocha';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { assertCopilotLinkHelperSource } from './copilotShimRendering.js';
+import { assertCopilotLinkHelperSource, assertEmbeddedCopilotLinkHelper } from './copilotShimRendering.js';
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+const helperPath = path.join(repositoryRoot, 'resources/linux/copilot-link.sh');
+const helperSource = fs.readFileSync(helperPath, 'utf8');
 
 test('Copilot link helper has literal targets and no rendering placeholders', () => {
-	const helperPath = path.join(repositoryRoot, 'resources/linux/copilot-link.sh');
-	assertCopilotLinkHelperSource(fs.readFileSync(helperPath, 'utf8'), helperPath);
+	assertCopilotLinkHelperSource(helperSource, helperPath);
+});
+
+test('Embedded Copilot helper permits placeholders in disabled shell comments', () => {
+	const script = `${helperSource}
+#if [ "code-oss" != "code-oss" ]; then
+	# echo "baseurl=@@UPDATEURL@@/api/rpm/@@QUALITY@@/x64/rpm"
+#fi
+vscode_copilot_link install "code-oss" || :
+`;
+	assert.doesNotThrow(() => assertEmbeddedCopilotLinkHelper(script, helperSource, 'OSS RPM'));
+});
+
+test('Embedded Copilot helper rejects placeholders in executable lines', () => {
+	for (const line of [
+		'echo "@@UPDATEURL@@/api/rpm/@@QUALITY@@/x64/rpm"',
+		'printf "%s\\n" "#@@QUALITY@@"',
+		'vscode_copilot_link install "@@NAME@@" || :',
+	]) {
+		assert.throws(
+			() => assertEmbeddedCopilotLinkHelper(`${helperSource}\n${line}`, helperSource, 'RPM'),
+			/contains an unresolved template marker/u,
+		);
+	}
+});
+
+test('Embedded Copilot helper rejects its insertion marker even in comments', () => {
+	assert.throws(
+		() => assertEmbeddedCopilotLinkHelper(`${helperSource}\n# @@COPILOT_LINK_HELPER@@`, helperSource, 'RPM'),
+		/retains @@COPILOT_LINK_HELPER@@/u,
+	);
+});
+
+test('Embedded Copilot helper must remain exact when comments contain placeholders', () => {
+	const alteredHelper = helperSource.replace('/usr/bin/copilot', '/tmp/copilot');
+	assert.throws(
+		() => assertEmbeddedCopilotLinkHelper(`${alteredHelper}\n# @@QUALITY@@`, helperSource, 'RPM'),
+		/does not embed the exact Copilot link helper source/u,
+	);
 });
 
 test('Copilot link templates use callback rendering and preserve RPM percent escaping', () => {

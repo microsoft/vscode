@@ -455,7 +455,11 @@ export class CopilotShimPackageHarness {
 			return;
 		}
 
-		const result = this.run(fixture.payload.launcherPath, ['--version']);
+		const result = this.run(fixture.payload.launcherPath, [
+			'--user-data-dir', path.join(this.requireScenario().root, 'user-data'),
+			'--no-sandbox',
+			'--version',
+		]);
 		this.assertCommandSucceeded(result, `${fixture.id} complete-package launcher`);
 	}
 
