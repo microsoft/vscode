@@ -39,7 +39,7 @@ export class MissionControlSharingService extends Disposable implements IMission
 	private _configured = false;
 	private _generation = 0;
 	private _accountId: string | undefined;
-	private _defaultAccount: IDefaultAccount | undefined;
+	private _defaultAccount: IDefaultAccount | null | undefined;
 	private _accountSessionIds = new Set<string>();
 	private _projectFolders: readonly URI[] | undefined;
 	protected get isWindowsPlatform(): boolean { return isWindows; }
@@ -94,10 +94,16 @@ export class MissionControlSharingService extends Disposable implements IMission
 			this._update.schedule();
 		}));
 		this._register(this._defaultAccountService.onDidChangeDefaultAccount(account => {
-			if (this._enabled && this._defaultAccount
-				&& (account?.authenticationProvider.id !== this._defaultAccount.authenticationProvider.id
-					|| account?.accountName !== this._defaultAccount.accountName)) {
+			if (!this._enabled || this._defaultAccount === undefined) {
+				return;
+			}
+			if (account?.authenticationProvider.id !== this._defaultAccount?.authenticationProvider.id
+				|| account?.accountName !== this._defaultAccount?.accountName) {
 				void this.setEnabled(false).catch(error => this._reportWithdrawalError(error));
+			} else if (account?.sessionId !== this._defaultAccount?.sessionId) {
+				this._defaultAccount = account;
+				this._generation++;
+				this._update.schedule();
 			}
 		}));
 		this._register(this._authentication.onDidChangeSessions(e => {
@@ -227,7 +233,7 @@ export class MissionControlSharingService extends Disposable implements IMission
 			if (generation !== this._generation || this._store.isDisposed) {
 				return;
 			}
-			this._defaultAccount = defaultAccount ?? undefined;
+			this._defaultAccount = defaultAccount;
 			let account: AuthenticationSessionAccount | undefined;
 			if (defaultAccount) {
 				if (defaultAccount.authenticationProvider.id !== providerId) {

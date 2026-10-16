@@ -687,6 +687,26 @@ suite('Mission Control sharing service', () => {
 		assert.deepStrictEqual({ state: sharing.state.get(), calls }, { state: 'disabled', calls: [] });
 	}));
 
+	test('requires fresh consent when selecting Copilot after sharing with a fallback account', () => runWithFakedTimers({}, async () => {
+		let sessions = [session];
+		const { sharing, calls, storage, changeDefaultAccount } = fixture({ getSessions: async () => sessions });
+		await sharing.setEnabled(true);
+		sessions = [otherSession];
+		changeDefaultAccount({ ...copilotAccount, accountName: otherSession.account.label, sessionId: otherSession.id });
+		sharing.setProjectFolders([workspaceRoot]);
+		await timeout(0);
+		const restored = fixture({ storage });
+		await timeout(0);
+		assert.deepStrictEqual({ state: sharing.state.get(), calls, restoredCalls: restored.calls }, {
+			state: 'disabled',
+			calls: [
+				{ options: expectedOptions, withdrawingAccountId: undefined },
+				{ options: undefined, withdrawingAccountId: session.account.id },
+			],
+			restoredCalls: [],
+		});
+	}));
+
 	test('restoring sharing does not prompt for missing scopes or use another account', () => runWithFakedTimers({}, async () => {
 		const first = fixture();
 		await first.sharing.setEnabled(true);
@@ -711,7 +731,36 @@ suite('Mission Control sharing service', () => {
 		changeDefaultAccount({ ...copilotAccount, sessionId: session.id });
 		await timeout(0);
 		assert.deepStrictEqual({ state: sharing.state.get(), calls }, {
-			state: 'enabled', calls: [{ options: expectedOptions, withdrawingAccountId: undefined }],
+			state: 'enabled', calls: [
+				{ options: expectedOptions, withdrawingAccountId: undefined },
+				{ options: expectedOptions, withdrawingAccountId: undefined },
+			],
+		});
+	}));
+
+	test('recovers sharing after atomic session replacement and delayed Copilot reconciliation', () => runWithFakedTimers({}, async () => {
+		let sessions = [copilotSession, session];
+		const { sharing, calls, sessionsChanged, changeDefaultAccount } = fixture({
+			defaultAccount: copilotAccount,
+			getSessions: async (_providerId, scopes) => scopes ? sessions.filter(candidate => candidate.scopes.length === session.scopes.length) : sessions,
+		});
+		await sharing.setEnabled(true);
+		const replacement = { ...session, id: 'replacement-session', accessToken: 'replacement-token' };
+		sessions = [replacement];
+		sessionsChanged.fire({
+			providerId: 'github', label: 'GitHub',
+			event: { removed: [copilotSession, session], added: [replacement], changed: undefined },
+		});
+		await timeout(100);
+		changeDefaultAccount({ ...copilotAccount, sessionId: replacement.id });
+		await timeout(0);
+		assert.deepStrictEqual({ state: sharing.state.get(), calls }, {
+			state: 'enabled',
+			calls: [
+				{ options: expectedOptions, withdrawingAccountId: undefined },
+				{ options: undefined, withdrawingAccountId: session.account.id },
+				{ options: { ...expectedOptions, credential: replacement.accessToken }, withdrawingAccountId: undefined },
+			],
 		});
 	}));
 });
