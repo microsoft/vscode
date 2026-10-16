@@ -170,26 +170,34 @@ suite('Agent Host provider seams', () => {
 		test('follows the chat registry: the issuing session before registration, the recorded owner, reassignments, and the last owner after removal', () => {
 			const other = AgentSession.uri('copilot', 'seam-other');
 			manager.createSession(summary());
-			manager.createSession({ ...summary(), resource: other.toString(), defaultChat: buildDefaultChatUri(other.toString()) });
+			manager.createSession({ ...summary(), resource: other.toString(), defaultChat: 'ahp-chat:/seam-other-default' });
 			const context = createAgentChatContext(manager, session, peerChat, creationTimeChatStorageResource(sessionKey, peerChat.toString(), buildDefaultChatUri(sessionKey)), undefined);
 			const changes: string[] = [];
 			disposables.add(context.owner.onDidChange(change => changes.push(`${change.previous.toString()} -> ${change.current.toString()}`)));
 
 			const beforeRegistration = context.owner.get().toString();
+			const beforeRegistrationFormat = context.owner.getSubagentChatUriFormat();
 			manager.addChat(sessionKey, peerChat.toString(), creationTimeChatStorageResource(sessionKey, peerChat.toString(), buildDefaultChatUri(sessionKey)));
 			const registered = context.owner.get().toString();
+			const registeredFormat = context.owner.getSubagentChatUriFormat();
 			manager.reassignChatOwner(peerChat.toString(), other.toString());
 			const reassigned = context.owner.get().toString();
+			const reassignedFormat = context.owner.getSubagentChatUriFormat();
 			manager.reassignChatOwner(peerChat.toString(), other.toString());
 			// Reassignment changes only the registry, so the chat is still listed by its original session.
 			manager.removeChat(sessionKey, peerChat.toString());
 			const afterRemoval = context.owner.get().toString();
+			const afterRemovalFormat = context.owner.getSubagentChatUriFormat();
 
-			assert.deepStrictEqual({ beforeRegistration, registered, reassigned, afterRemoval, changes }, {
+			assert.deepStrictEqual({ beforeRegistration, beforeRegistrationFormat, registered, registeredFormat, reassigned, reassignedFormat, afterRemoval, afterRemovalFormat, changes }, {
 				beforeRegistration: sessionKey,
+				beforeRegistrationFormat: 'shaped',
 				registered: sessionKey,
+				registeredFormat: 'shaped',
 				reassigned: other.toString(),
+				reassignedFormat: 'opaque',
 				afterRemoval: other.toString(),
+				afterRemovalFormat: 'opaque',
 				changes: [`${sessionKey} -> ${other.toString()}`],
 			});
 		});

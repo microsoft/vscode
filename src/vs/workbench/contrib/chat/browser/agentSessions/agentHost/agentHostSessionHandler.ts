@@ -4764,9 +4764,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (!canOwnSubagentChat(toolCall)) {
 			return;
 		}
-		// A background task can return before its child starts, so discovery must also follow the chat catalog.
-		const childChat = subagentContext.chats.read(reader).find(chat => chat.parentChat === opts.chatURI && chat.toolCallId === toolCallId);
-
 		const observation = subagentContext.observations.get(toolCallId);
 		const isObserved = !!observation;
 		const currentData = invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData : undefined;
@@ -4775,8 +4772,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (!protocolData) {
 			return;
 		}
+		// Host-advertised resources are authoritative when duplicate catalog edges exist.
+		const advertisedChatResource = readToolCallMeta(toolCall).subagentChatUri;
+		const childChats = subagentContext.chats.read(reader).filter(chat => chat.parentChat === opts.chatURI && chat.toolCallId === toolCallId);
+		const childChat = advertisedChatResource === undefined
+			? childChats[0]
+			: childChats.find(chat => chat.resource === advertisedChatResource);
 		// Only positively identified older hosts get a derived URI; any other host stamps the resource or lists the chat in the catalog.
-		const chatResource = childChat?.resource ?? protocolData.chatResource ?? currentData?.chatResource;
+		const chatResource = advertisedChatResource ?? childChat?.resource ?? protocolData.chatResource ?? currentData?.chatResource;
 		const childChatUri = chatResource ?? this._getOlderHostSubagentChatUri(opts.backendSession.toString(), toolCallId);
 		// A settled child that registers after restore is deferred like one registered at restore, but must stay openable.
 		const isSettledDeferred = !observation && !!opts.subagentSnapshot?.waitForActivity && !!childChat && isSettledSubagentChat(childChat.status);

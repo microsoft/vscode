@@ -64,7 +64,7 @@ import { toRemoteSessionMessageMetadata } from '../../../../../../platform/agent
 import { ActionType, AuthRequiredReason, isSessionAction, isChatAction, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, AHP_NOT_FOUND, ProtocolError, type DispatchActionParams, type IStateSnapshot, type JsonRpcRequest, type ProtocolMessage } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { BackgroundWorkKind, ChatInteractivity, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type AgentCustomization, type ClientPluginCustomization, type ProtectedResourceMetadata, type SessionActiveClient, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, createErrorResponsePart, buildChatUri, buildDefaultChatUri, parseChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, withMessageRequestHiddenFromTranscript, withSessionMultiRootMetadata, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type MessageAttachment, type MessageChatAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, createErrorResponsePart, buildChatUri, buildDefaultChatUri, parseChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, buildSubagentSessionUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, withMessageRequestHiddenFromTranscript, withSessionMultiRootMetadata, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type MessageAttachment, type MessageChatAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult, type InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { sessionReducer, chatReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -11683,7 +11683,11 @@ suite('AgentHostChatContribution', () => {
 							confirmed: ToolCallConfirmationReason.NotNeeded,
 							success: false,
 							error: { message: 'Subagent failed after producing a child chat' },
-							content: [],
+							content: [{
+								type: ToolResultContentType.Subagent,
+								resource: buildSubagentSessionUri(sessionUri.toString(), 'tc-subagent'),
+								title: 'Review agentHost changes',
+							}],
 						},
 					}],
 					usage: undefined,
@@ -19200,6 +19204,82 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 
 			assert.deepStrictEqual(result, { resource: childChatUri, children: ['correct-child-tool'] });
+		}));
+
+		test('prefers the protocol child when duplicate catalog entries share a spawn edge', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			const parentSession = mintedTestChatOwner(session);
+			assert.ok(parentSession);
+			const toolCallId = 'duplicate-task';
+			const staleChatUri = buildSubagentChatUri(parentSession, toolCallId);
+			const canonicalChatUri = 'ahp-chat:/canonical-child';
+			const staleSummary: SessionSummary = {
+				resource: staleChatUri,
+				provider: 'copilot',
+				title: 'Stale child',
+				status: SessionStatus.Idle | SessionStatus.IsRead,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			};
+			agentHostService.sessionStates.set(staleChatUri, {
+				...createSessionState(staleSummary),
+				lifecycle: SessionLifecycle.Ready,
+			});
+			agentHostService.sessionStates.set(canonicalChatUri, makeChildState(canonicalChatUri, 'canonical-child-tool'));
+
+			fire({
+				type: 'chat/toolCallStart', session, turnId, toolCallId, toolName: 'task', displayName: 'Task',
+				_meta: { toolKind: 'subagent', subagentChatUri: canonicalChatUri },
+			} as ChatAction);
+			fire({
+				type: 'chat/toolCallReady', session, turnId, toolCallId,
+				invocationMessage: 'Reviewing', confirmed: ToolCallConfirmationReason.NotNeeded,
+			} as ChatAction);
+			await timeout(0);
+
+			for (const [serverSeq, resource] of [staleChatUri, canonicalChatUri].entries()) {
+				agentHostService.fireAction({
+					channel: parentSession,
+					action: {
+						type: ActionType.SessionChatAdded,
+						summary: {
+							resource,
+							title: 'Reviewer',
+							status: SessionStatus.Idle | SessionStatus.IsRead,
+							modifiedAt: new Date().toISOString(),
+							origin: { kind: ChatOriginKind.Tool, chat: session, toolCallId },
+						},
+					},
+					serverSeq: 100 + serverSeq,
+					origin: undefined,
+				});
+			}
+			fire({
+				type: 'chat/toolCallContentChanged', session, turnId, toolCallId,
+				content: [{ type: ToolResultContentType.Subagent, resource: canonicalChatUri, title: 'Reviewer' }],
+			} as ChatAction);
+			await timeout(50);
+
+			const tools = collected.flat().filter((part): part is IChatToolInvocation => part.kind === 'toolInvocation');
+			const parent = tools.find(part => part.toolCallId === toolCallId);
+			assert.ok(parent?.toolSpecificData?.kind === 'subagent');
+			const result = {
+				resource: parent.toolSpecificData.chatResource,
+				subscriptions: {
+					stale: agentHostService.hasLiveSubscription(staleChatUri),
+					canonical: agentHostService.hasLiveSubscription(canonicalChatUri),
+				},
+				children: tools.filter(part => part.subAgentInvocationId === toolCallId).map(part => part.toolCallId),
+			};
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.deepStrictEqual(result, {
+				resource: canonicalChatUri,
+				subscriptions: { stale: false, canonical: true },
+				children: ['canonical-child-tool'],
+			});
 		}));
 
 		test('switches subagent observation from a provisional URI to the discovered chat', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
