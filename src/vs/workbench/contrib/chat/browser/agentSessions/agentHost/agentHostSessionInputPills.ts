@@ -19,6 +19,7 @@ import { isDefined } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { isCopilotAgentHostProvider } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { ChangesetKind, resolveChangesetUriTemplate, resolveChatChangesetCatalogue, selectDefaultChangeset, type DefaultChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { ISessionArtifact, isGitHubArtifactLink, readSessionArtifactsNewestFirst, SessionArtifactType } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
@@ -534,7 +535,7 @@ export class AgentHostSessionInputPills extends Disposable {
 		const gitHubCommitResolver = this._register(instantiationService.createInstance(GitHubCommitResolver));
 
 		const sessionResource = observableFromEvent(this, this._widget.onDidChangeViewModel, () => this._widget.viewModel?.sessionResource);
-		const workingSetEnabled = observableConfigValue(ChatConfiguration.EditorWorkingSetEnabled, false, this._configurationService);
+		const workingSetConfigured = observableConfigValue(ChatConfiguration.EditorWorkingSetEnabled, false, this._configurationService);
 		const transcriptArtifacts = this._register(instantiationService.createInstance(ChatArtifactPillSource, sessionResource));
 		const sessionResolutionChanged = observableSignalFromEvent(this, connectionsService.onDidChangeSessionResolution);
 		const provisionalSessionChanged = observableSignalFromEvent(this, provisionalSessions.onDidChange);
@@ -581,6 +582,9 @@ export class AgentHostSessionInputPills extends Disposable {
 			return !!resource && (isSubagentChatUri(resource) || sessionState.read(reader)?.chats.some(chat =>
 				isEqual(URI.parse(chat.resource), resource) && chat.origin?.kind === ChatOriginKind.Tool));
 		});
+		const workingSetEnabled = derived(this, reader => workingSetConfigured.read(reader)
+			&& isCopilotAgentHostProvider(sessionState.read(reader)?.provider)
+			&& !subagentChat.read(reader));
 		const changesetTarget = derivedOpts({ owner: this, equalsFn: changesetTargetEquals }, reader => {
 			const currentResolution = resolution.read(reader);
 			const chat = chatResource.read(reader);
@@ -637,10 +641,10 @@ export class AgentHostSessionInputPills extends Disposable {
 				.filter(isDefined);
 		});
 		const workingSetChanges = derived(this, reader => {
-			if (!resolution.read(reader)) {
+			if (!workingSetEnabled.read(reader)) {
 				return undefined;
 			}
-			return subagentChat.read(reader) ? [] : changes.read(reader);
+			return changes.read(reader);
 		});
 		this._register(autorun(reader => {
 			if (workingSetEnabled.read(reader)) {

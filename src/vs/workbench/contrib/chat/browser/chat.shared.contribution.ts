@@ -608,7 +608,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.EditorWorkingSetEnabled]: {
 			type: 'boolean',
-			description: nls.localize('chat.editor.workingSet.enabled', "Show session changes as a working set above the chat input instead of the Changes pill in the editor window. Select a file to open its diff."),
+			description: nls.localize('chat.editor.workingSet.enabled', "Show Copilot Agent Host session changes as a working set above the chat input instead of the Changes pill in the editor window. Select a file to open its diff. Local and other chat harnesses are unaffected."),
 			default: false,
 			tags: ['experimental'],
 			agentsWindow: { default: false, readOnly: true },

@@ -61,6 +61,8 @@ import { chatPersistentContentVisibleClass, ChatWidget } from '../../../browser/
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { ChatViewModel } from '../../../common/model/chatViewModel.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
+import { SessionType } from '../../../common/chatSessionsService.js';
+import { getChatSessionType, LocalChatSessionUri } from '../../../common/model/chatUri.js';
 
 class StaticAgentConnection extends mock<IAgentConnection>() {
 	override resourceUris = identityAgentHostResourceUriMapper;
@@ -299,7 +301,7 @@ suite('AgentHostSessionInputPills', () => {
 		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
 		instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({
 			onDidChangeSessionResolution: Event.None,
-			resolveSessionResource: () => transcript?.local ? undefined : ({ connection, connectionAuthority, backendSession: URI.parse('vendor:/sessions/42'), defaultChangesetKind }),
+			resolveSessionResource: resource => transcript?.local || getChatSessionType(resource) === SessionType.Local ? undefined : ({ connection, connectionAuthority, backendSession: URI.parse('vendor:/sessions/42'), defaultChangesetKind }),
 		}));
 		instantiationService.stub(IBrowserViewWorkbenchService, upcastPartial<IBrowserViewWorkbenchService>({
 			onDidChangeBrowserViews: Event.None,
@@ -366,6 +368,13 @@ suite('AgentHostSessionInputPills', () => {
 			instantiationService, connection, sessionResource, persistentContent, visibility, commands, pills, openedImages,
 			workingSetChanges: () => workingSetChanges,
 			workingSetRegistrations: () => workingSetRegistrations,
+			setWorkingSetEnabled: async (enabled: boolean) => {
+				const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+				await configurationService.setUserConfiguration(ChatConfiguration.EditorWorkingSetEnabled, enabled);
+				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+					affectsConfiguration: key => key === ChatConfiguration.EditorWorkingSetEnabled,
+				}));
+			},
 			labels: () => [...persistentContent.querySelectorAll('.chat-pill-label')].map(label => label.textContent),
 			dropdownItems: () => dropdownItems,
 			dropdown: (label: string) => {
@@ -1742,6 +1751,7 @@ suite('AgentHostSessionInputPills', () => {
 	test('replaces the Changes pill with live session changes and restores it when disabled', async () => {
 		const sessionChangesUri = 'vendor-diff:/opaque/session-changes';
 		const harness = createActivityPills(upcastPartial<SessionState>({
+			provider: 'copilotcli',
 			defaultChat: 'vendor-chat:/opaque/main',
 			chats: [],
 			changesets: [{ label: 'Session Changes', uriTemplate: sessionChangesUri, changeKind: ChangesetKind.Session }],
@@ -1806,6 +1816,88 @@ suite('AgentHostSessionInputPills', () => {
 			usesAdvertisedSessionChanges: true,
 			workingSetRegistrations: 2,
 		});
+	});
+
+	for (const provider of ['copilot', 'copilotcli', 'claude', 'codex', 'other', undefined]) {
+		for (const connectionAuthority of ['local', 'remote-test']) {
+			test(`only replaces the Changes pill for Copilot (${provider}, ${connectionAuthority})`, async () => {
+				const branchChanges = 'vendor-diff:/branch';
+				const sessionChanges = 'vendor-diff:/session';
+				const harness = createActivityPills(upcastPartial<SessionState>({
+					provider,
+					defaultChat: 'vendor-chat:/main',
+					chats: [],
+					changesets: [{ label: 'Session Changes', uriTemplate: sessionChanges, changeKind: ChangesetKind.Session }],
+				}), upcastPartial<ChatState>({
+					changesets: [{ label: 'Branch Changes', uriTemplate: branchChanges, changeKind: ChangesetKind.Branch }],
+					turns: [],
+				}), undefined, connectionAuthority, undefined, undefined, ChangesetKind.Branch);
+				harness.connection.setState(StateComponents.Changeset, upcastPartial<ChangesetState>({
+					status: ChangesetStatus.Ready,
+					files: [{
+						id: 'file',
+						edit: {
+							before: { uri: 'file:///repo/file.ts', content: { uri: 'snapshot:/before/file.ts' } },
+							after: { uri: 'file:///repo/file.ts', content: { uri: 'snapshot:/after/file.ts' } },
+							diff: { added: 2, removed: 1 },
+						},
+					}],
+				}));
+				await harness.setWorkingSetEnabled(true);
+				const copilot = provider === 'copilot' || provider === 'copilotcli';
+				assert.deepStrictEqual({
+					pill: !!harness.persistentContent.querySelector('.chat-changes-pill-button'),
+					workingSet: harness.workingSetChanges()?.length,
+					registrations: harness.workingSetRegistrations(),
+					changeset: harness.connection.requested.filter(request => request.kind === StateComponents.Changeset).at(-1)?.resource.toString(),
+				}, {
+					pill: !copilot,
+					workingSet: copilot ? 1 : undefined,
+					registrations: copilot ? 1 : 0,
+					changeset: copilot ? sessionChanges : branchChanges,
+				});
+			});
+		}
+	}
+
+	test('updates eligibility when provider metadata arrives and when switching to Local', async () => {
+		const session = upcastPartial<SessionState>({
+			defaultChat: 'vendor-chat:/main',
+			chats: [],
+			changesets: [{ label: 'Session Changes', uriTemplate: 'vendor-diff:/session', changeKind: ChangesetKind.Session }],
+		});
+		const harness = createActivityPills(session, upcastPartial<ChatState>({ changesets: [], turns: [] }));
+		harness.connection.setState(StateComponents.Changeset, upcastPartial<ChangesetState>({
+			status: ChangesetStatus.Ready,
+			files: [{
+				id: 'file',
+				edit: {
+					after: { uri: 'file:///repo/file.ts', content: { uri: 'snapshot:/file.ts' } },
+					diff: { added: 1, removed: 0 },
+				},
+			}],
+		}));
+		await harness.setWorkingSetEnabled(true);
+		const readState = () => ({
+			pill: !!harness.persistentContent.querySelector('.chat-changes-pill-button'),
+			workingSet: harness.workingSetChanges()?.length,
+		});
+		const states = [readState()];
+		harness.connection.setState(StateComponents.Session, { ...session, provider: 'copilot' });
+		states.push(readState());
+		harness.showSession(LocalChatSessionUri.forSession('local'));
+		states.push(readState());
+		harness.showSession(harness.sessionResource);
+		states.push(readState());
+		harness.connection.setState(StateComponents.Session, { ...session, provider: 'claude' });
+		states.push(readState());
+		assert.deepStrictEqual(states, [
+			{ pill: true, workingSet: undefined },
+			{ pill: false, workingSet: 1 },
+			{ pill: false, workingSet: undefined },
+			{ pill: false, workingSet: 1 },
+			{ pill: true, workingSet: undefined },
+		]);
 	});
 
 	test('includes browsers owned by direct tool-origin child chats', () => {

@@ -5,7 +5,8 @@
 
 import assert from 'assert';
 import * as dom from '../../../../../../../base/browser/dom.js';
-import { Emitter } from '../../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../../base/common/event.js';
+import { Lazy } from '../../../../../../../base/common/lazy.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
@@ -13,29 +14,38 @@ import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IUntypedEditorInput, isResourceDiffEditorInput } from '../../../../../../common/editor.js';
+import { IMenuService, MenuId } from '../../../../../../../platform/actions/common/actions.js';
+import { MenuService } from '../../../../../../../platform/actions/common/menuService.js';
+import { ContextKeyService } from '../../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
+import { ITextDiffEditorPane, IUntypedEditorInput, isResourceDiffEditorInput, isResourceEditorInput } from '../../../../../../common/editor.js';
 import { EditorInput } from '../../../../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { ChatInputPart } from '../../../../browser/widget/input/chatInputPart.js';
+import { CollapsibleListPool } from '../../../../browser/widget/chatContentParts/chatReferencesContentPart.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
-import { IChatSessionFileChange2 } from '../../../../common/chatSessionsService.js';
-import { emptySessionEntryDiff, IChatEditingSession, IEditSessionEntryDiff, IModifiedFileEntry, ModifiedFileEntryState } from '../../../../common/editing/chatEditingService.js';
+import { IChatSessionFileChange2, SessionType } from '../../../../common/chatSessionsService.js';
+import { emptySessionEntryDiff, hasUndecidedChatEditingResourceContextKey, IChatEditingSession, IEditSessionEntryDiff, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../../../common/editing/chatEditingService.js';
 import { LocalChatSessionUri } from '../../../../common/model/chatUri.js';
 
 suite('ChatInputPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createWorkingSetInput(isSessionsWindow = false, sessionResource = LocalChatSessionUri.forSession('test')) {
+	function createWorkingSetInput(isSessionsWindow = false, sessionResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session' })) {
 		const configurationService = new TestConfigurationService();
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(IConfigurationService, configurationService);
+		const contextKeyService = store.add(instantiationService.createInstance(ContextKeyService));
+		instantiationService.stub(IContextKeyService, contextKeyService);
+		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+		hasUndecidedChatEditingResourceContextKey.bindTo(contextKeyService).set(true);
 		const opened: (EditorInput | IUntypedEditorInput)[] = [];
 		instantiationService.stub(IEditorService, {
 			openEditor: async (input: EditorInput | IUntypedEditorInput) => {
 				opened.push(input);
-				return undefined;
+				return upcastPartial<ITextDiffEditorPane>({});
 			},
 		});
 		const container = dom.$('.chat-editing-session');
@@ -47,9 +57,12 @@ suite('ChatInputPart', () => {
 		const legacyCollapsed = observableValue('legacyCollapsed', true);
 		let inputFocusCalls = 0;
 		const inputPart = Object.assign(Object.create(ChatInputPart.prototype), {
-			options: { renderWorkingSet: true, isSessionsWindow },
+			options: { renderWorkingSet: true, isSessionsWindow, menus: { telemetrySource: 'test' } },
 			configurationService,
 			instantiationService,
+			contextKeyService,
+			editorService: instantiationService.get(IEditorService),
+			inputUri: URI.parse('vscode-chat-input:/test'),
 			chatEditingSessionWidgetContainer: container,
 			_widget: { viewModel: { get sessionResource() { return model.sessionResource; }, model } },
 			_sessionFileChanges: observableValue<IObservable<readonly IEditSessionEntryDiff[] | undefined> | undefined>('providerChanges', undefined),
@@ -57,12 +70,16 @@ suite('ChatInputPart', () => {
 			_sessionWorkingSetDiffs: observableValue<readonly IEditSessionEntryDiff[]>('sessionDiffs', []),
 			_workingSetCollapsed: legacyCollapsed,
 			_sessionWorkingSetCollapsed: observableValue('sessionCollapsed', false),
+			_workingSetLinesAddedSpan: new Lazy(() => dom.$('.working-set-lines-added')),
+			_workingSetLinesRemovedSpan: new Lazy(() => dom.$('.working-set-lines-removed')),
+			_chatEditsListPool: store.add(instantiationService.createInstance(CollapsibleListPool, Event.None, MenuId.ChatEditingWidgetModifiedFilesToolbar, undefined)),
 			_chatEditsActionsDisposables: store.add(new DisposableStore()),
 			_chatEditsDisposables: store.add(new DisposableStore()),
 			_renderingChatEdits: store.add(new MutableDisposable()),
 			_onDidFocus: store.add(new Emitter<void>()),
 			agentSessionsService: { model: { onDidChangeSessions: sessionsChanged.event }, getSession: () => ({ changes: sessionChanges }) },
 			focus: () => { inputFocusCalls++; },
+			hasFocus: () => false,
 		}) as ChatInputPart;
 		return {
 			inputPart,
@@ -79,6 +96,7 @@ suite('ChatInputPart', () => {
 			async setEnabled(enabled: boolean) {
 				await configurationService.setUserConfiguration(ChatConfiguration.EditorWorkingSetEnabled, enabled);
 				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+					affectedKeys: new Set([ChatConfiguration.EditorWorkingSetEnabled]),
 					affectsConfiguration: key => key === ChatConfiguration.EditorWorkingSetEnabled,
 				}));
 			},
@@ -119,31 +137,57 @@ suite('ChatInputPart', () => {
 		assert.deepStrictEqual(states, [false, true, false]);
 	});
 
-	test('uses cumulative local diffs rather than only unresolved editing entries', async () => {
-		const { inputPart, container, sessionResource, setEnabled } = createWorkingSetInput();
-		const entry = new class extends mock<IModifiedFileEntry>() {
+	test('leaves Local controls, pending files, and live-editor opening unchanged when enabled', async () => {
+		const { inputPart, container, sessionResource, opened, setEnabled } = createWorkingSetInput(false, LocalChatSessionUri.forSession('local'));
+		const resource = URI.file('/repo/pending.ts');
+		const revealed: boolean[] = [];
+		const pending = new class extends mock<IModifiedFileEntry>() {
+			override readonly modifiedURI = resource;
+			override readonly originalURI = URI.parse('snapshot:/before/pending.ts');
+			override readonly state = constObservable(ModifiedFileEntryState.Modified);
+			override getEditorIntegration() {
+				return upcastPartial<IModifiedFileEntryEditorIntegration>({ reveal: first => { revealed.push(first); } });
+			}
+		}();
+		const accepted = new class extends mock<IModifiedFileEntry>() {
 			override readonly state = constObservable(ModifiedFileEntryState.Accepted);
 		}();
 		const editingSession = new class extends mock<IChatEditingSession>() {
 			override readonly chatSessionResource = sessionResource;
-			override readonly entries = constObservable([entry]);
-			override getDiffsForFilesInSession() {
-				return constObservable([
-					emptySessionEntryDiff(URI.file('/before/earlier.ts'), URI.file('/earlier.ts')),
-					emptySessionEntryDiff(URI.file('/before/latest.ts'), URI.file('/latest.ts')),
-				]);
+			override readonly entries = constObservable([pending, accepted]);
+			override getEntry() { return pending; }
+			override getDiffsForFilesInSession(): IObservable<readonly IEditSessionEntryDiff[]> {
+				throw new Error('Local must not request cumulative diffs for the new working set');
 			}
 		}();
-		await setEnabled(true);
 		inputPart.renderChatEditingSessionState(editingSession);
-		assert.deepStrictEqual({
-			visible: container.style.display !== 'none',
+		inputPart.setWorkingSetCollapsed(false);
+		const list = container.querySelector<HTMLElement>('.monaco-list');
+		const readState = () => ({
+			newWorkingSet: inputPart.hasSessionWorkingSet,
 			files: [...container.querySelectorAll('.monaco-list-row')].map(row => row.getAttribute('aria-label')),
-			actions: container.querySelectorAll('.monaco-action-bar').length,
+			keep: container.querySelector('.chat-editing-session-actions')?.textContent?.includes('Keep'),
+			undo: container.querySelector('.chat-editing-session-actions')?.textContent?.includes('Undo'),
+		});
+		const states = [readState()];
+		await setEnabled(true);
+		states.push(readState());
+		container.querySelector('.monaco-list-row')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+		await Promise.resolve();
+		await setEnabled(false);
+		states.push(readState());
+		assert.deepStrictEqual({
+			states,
+			sameList: list === container.querySelector('.monaco-list'),
+			filesOpened: opened.map(input => isResourceEditorInput(input) ? input.resource.toString() : undefined),
+			diffsOpened: opened.filter(isResourceDiffEditorInput).length,
+			revealed,
 		}, {
-			visible: true,
-			files: ['/earlier.ts, 0 lines added, 0 lines removed', '/latest.ts, 0 lines added, 0 lines removed'],
-			actions: 0,
+			states: Array.from({ length: 3 }, () => ({ newWorkingSet: false, files: ['pending.ts'], keep: true, undo: true })),
+			sameList: true,
+			filesOpened: [resource.toString()],
+			diffsOpened: 0,
+			revealed: [true],
 		});
 	});
 
@@ -155,7 +199,7 @@ suite('ChatInputPart', () => {
 		assert.deepStrictEqual({ visible: container.style.display !== 'none', workingSet: !!container.querySelector('.chat-session-working-set') }, { visible: false, workingSet: false });
 	});
 
-	test('uses late-arriving external session changes even when an empty editing session exists', async () => {
+	test('leaves metadata-backed providers on their existing working-set presentation', async () => {
 		const { inputPart, container, sessionResource, setEnabled, setSessionChanges } = createWorkingSetInput(false, URI.parse('copilot-cloud-agent:/session'));
 		const editingSession = new class extends mock<IChatEditingSession>() {
 			override readonly chatSessionResource = sessionResource;
@@ -174,10 +218,11 @@ suite('ChatInputPart', () => {
 		}]);
 		const files = [...container.querySelectorAll('.monaco-list-row')].map(row => row.getAttribute('aria-label'));
 		setSessionChanges([]);
-		assert.deepStrictEqual({ initiallyVisible, files, visibleAfterRemoval: container.style.display !== 'none' }, {
+		assert.deepStrictEqual({ initiallyVisible, files, visibleAfterRemoval: container.style.display !== 'none', newWorkingSet: inputPart.hasSessionWorkingSet }, {
 			initiallyVisible: false,
-			files: ['/repo/cloud.ts, 5 lines added, 2 lines removed'],
+			files: ['cloud.ts'],
 			visibleAfterRemoval: false,
+			newWorkingSet: false,
 		});
 	});
 
@@ -200,6 +245,7 @@ suite('ChatInputPart', () => {
 			override readonly entries = constObservable([]);
 			override getDiffsForFilesInSession() { return diffs; }
 		}();
+		store.add(harness.inputPart.registerSessionFileChanges(diffs));
 		harness.model.editingSession = editingSession;
 		await harness.setEnabled(true);
 		harness.inputPart.renderChatEditingSessionState(editingSession);
@@ -216,7 +262,7 @@ suite('ChatInputPart', () => {
 		}, { sameList: true, focused: true, inputFocusCalls: 0, rows: 2 });
 	});
 
-	test('does not infer file creation from missing original metadata', async () => {
+	test('preserves regular-editor opening for other providers without original metadata', async () => {
 		const { inputPart, container, opened, setEnabled, setSessionChanges } = createWorkingSetInput(false, URI.parse('copilot-cloud-agent:/session'));
 		setSessionChanges([{
 			uri: URI.file('/repo/existing.ts'),
@@ -230,14 +276,27 @@ suite('ChatInputPart', () => {
 		row.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
 		assert.deepStrictEqual({
 			label: row.getAttribute('aria-label'),
-			editors: opened.map(input => isResourceDiffEditorInput(input) ? {
-				original: input.original.resource?.toString(),
-				modified: input.modified.resource?.toString(),
-			} : undefined),
+			editors: opened.map(input => isResourceEditorInput(input) ? input.resource.toString() : undefined),
+			newWorkingSet: inputPart.hasSessionWorkingSet,
 		}, {
-			label: '/repo/existing.ts, 5 lines added, 2 lines removed',
-			editors: [{ original: 'file:///repo/existing.ts', modified: 'snapshot:/after/existing.ts' }],
+			label: 'existing.ts',
+			editors: ['snapshot:/after/existing.ts'],
+			newWorkingSet: false,
 		});
+	});
+
+	test('leaves the new presentation when the registered source becomes ineligible', async () => {
+		const { inputPart, container, setEnabled } = createWorkingSetInput();
+		const changes = observableValue<readonly IEditSessionEntryDiff[] | undefined>('changes', [
+			emptySessionEntryDiff(URI.file('/before.ts'), URI.file('/after.ts')),
+		]);
+		store.add(inputPart.registerSessionFileChanges(changes));
+		await setEnabled(true);
+		inputPart.renderChatEditingSessionState(null);
+		const states = [inputPart.hasSessionWorkingSet];
+		changes.set(undefined, undefined);
+		states.push(inputPart.hasSessionWorkingSet);
+		assert.deepStrictEqual({ states, rows: container.querySelectorAll('.monaco-list-row').length }, { states: [true, false], rows: 0 });
 	});
 
 	for (const isSessionsWindow of [false, true]) {

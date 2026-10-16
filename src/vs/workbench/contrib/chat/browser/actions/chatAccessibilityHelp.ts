@@ -297,7 +297,7 @@ export function getChatAccessibilityHelpProvider(accessor: ServicesAccessor, edi
 	const workingSetFocus = isHTMLElement(focusedElement) && focusedElement.closest('.chat-session-working-set') ? focusedElement : undefined;
 	inputEditor.getSupportedActions();
 	const isInlineChat = isIChatResourceViewContext(widget.viewContext) && widget.viewContext.isInlineChat;
-	const helpText = getAccessibilityHelpText(type, keybindingService, widget.supportsFileReferences, environmentService.isSessionsWindow, isStickyPromptHeaderShown(widget, configurationService), !widget.rendersInputOnTop && !isInlineChat, widget.inputPart.hasSessionArchiveNudge, getChatSessionArchiveActionWording(configurationService), accessor.get(ICodexContinuationService).isVisible.get(), configurationService.getValue<boolean>(ChatConfiguration.EditorWorkingSetEnabled));
+	const helpText = getAccessibilityHelpText(type, keybindingService, widget.supportsFileReferences, environmentService.isSessionsWindow, isStickyPromptHeaderShown(widget, configurationService), !widget.rendersInputOnTop && !isInlineChat, widget.inputPart.hasSessionArchiveNudge, getChatSessionArchiveActionWording(configurationService), accessor.get(ICodexContinuationService).isVisible.get(), widget.inputPart.hasSessionWorkingSet);
 	return new AccessibleContentProvider(
 		type === 'panelChat' ? AccessibleViewProviderId.PanelChat : type === 'inlineChat' ? AccessibleViewProviderId.InlineChat : type === 'agentView' ? AccessibleViewProviderId.AgentChat : AccessibleViewProviderId.QuickChat,
 		{ type: AccessibleViewType.Help },

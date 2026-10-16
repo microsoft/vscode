@@ -362,6 +362,9 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 	await new Promise(r => setTimeout(r, 50));
 
 	if (editingSession) {
+		if (fixtureOptions.sessionWorkingSet) {
+			disposableStore.add(inputPart.registerSessionFileChanges(editingSession.getDiffsForFilesInSession()));
+		}
 		inputPart.renderChatEditingSessionState(editingSession);
 		await new Promise(r => setTimeout(r, 50));
 		inputPart.layout(width);

@@ -102,7 +102,7 @@ import { getAgentHostProviderForTelemetry, IChatSessionProviderOptionGroup, ICha
 import { getStoredSelectedModel, storeSelectedModel } from '../../../common/chatSelectedModel.js';
 import { CHAT_ATTACH_CONTEXT_ACTION_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../common/constants.js';
 import { isAutoApprovePolicyRestricted, isAutoApproveValuePolicyRestricted } from '../../../common/agentHostConfigPolicy.js';
-import { emptySessionEntryDiff, IChatEditingSession, IEditSessionEntryDiff, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
+import { IChatEditingSession, IEditSessionEntryDiff, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isAutoLanguageModel } from '../../../common/languageModels.js';
 import { ChatInputModelSelectionController, IChatInputModelSelectionRuntime } from './chatInputModelSelectionController.js';
 import { ChatSessionWorkingSet } from './chatSessionWorkingSet.js';
@@ -4896,6 +4896,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		});
 	}
 
+	get hasSessionWorkingSet(): boolean {
+		return !!this._sessionWorkingSetView.value;
+	}
+
 	renderChatEditingSessionState(chatEditingSession: IChatEditingSession | null) {
 		if (!this._sessionWorkingSetView.value) {
 			this.setChatEditingSessionVisible(Boolean(chatEditingSession));
@@ -4968,15 +4972,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			() => {
 				const sessionResource = this._widget?.viewModel?.model?.sessionResource;
 				if (!sessionResource) {
-					return undefined;
+					return Iterable.empty();
 				}
 				const model = this.agentSessionsService.getSession(sessionResource);
-				return model?.changes instanceof Array ? model.changes : undefined;
+				return model?.changes instanceof Array ? model.changes : Iterable.empty();
 			},
 		);
 
 		const sessionFiles = derived(reader =>
-			(sessionFileChanges.read(reader) ?? []).map((entry): IChatCollapsibleListItem => ({
+			sessionFileChanges.read(reader).map((entry): IChatCollapsibleListItem => ({
 				reference: isIChatSessionFileChange2(entry)
 					? entry.modifiedUri ?? entry.uri
 					: entry.modifiedUri,
@@ -4995,30 +4999,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			editSessionEntries.read(reader).length > 0 || sessionFiles.read(reader).length > 0);
 
 		const showSessionWorkingSet = observableConfigValue(ChatConfiguration.EditorWorkingSetEnabled, false, this.configurationService);
-		const sessionDiffs = derived<readonly IEditSessionEntryDiff[]>(reader => {
-			const fromProvider = this._sessionFileChanges.read(reader)?.read(reader);
-			if (fromProvider !== undefined) {
-				return fromProvider;
-			}
-			const fromSession = sessionFileChanges.read(reader);
-			const editingSession = chatEditingSession ?? this._widget?.viewModel?.model.editingSession;
-			if (editingSession && (getChatSessionType(editingSession.chatSessionResource) === localChatSessionType || fromSession === undefined)) {
-				return editingSession.getDiffsForFilesInSession().read(reader);
-			}
-			return [...(fromSession ?? [])].map(entry => {
-				const resource = isIChatSessionFileChange2(entry) ? entry.uri : entry.modifiedUri;
-				return {
-					...emptySessionEntryDiff(entry.originalUri ?? resource, resource),
-					modifiedSnapshotURI: entry.modifiedUri,
-					added: entry.insertions,
-					removed: entry.deletions,
-					isDeleted: !entry.modifiedUri,
-				};
-			});
-		});
+		const sessionDiffs = derived(reader => this._sessionFileChanges.read(reader)?.read(reader));
+		const canRenderSessionWorkingSet = derived(reader => this.options.renderWorkingSet
+			&& !this.options.isSessionsWindow
+			&& showSessionWorkingSet.read(reader)
+			&& sessionDiffs.read(reader) !== undefined);
 
 		this._renderingChatEdits.value = autorun(reader => {
-			if (this.options.renderWorkingSet && !this.options.isSessionsWindow && showSessionWorkingSet.read(reader)) {
+			if (canRenderSessionWorkingSet.read(reader)) {
 				if (!this._sessionWorkingSetView.value) {
 					this._chatEditsActionsDisposables.clear();
 					this._chatEditsDisposables.clear();
@@ -5039,7 +5027,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					}));
 				}
 				reader.store.add(autorun(r => {
-					const diffs = sessionDiffs.read(r);
+					const diffs = sessionDiffs.read(r) ?? [];
 					this._sessionWorkingSetDiffs.set(diffs, undefined);
 					const visible = diffs.length > 0;
 					if (!visible && dom.isAncestorOfActiveElement(this.chatEditingSessionWidgetContainer)) {
