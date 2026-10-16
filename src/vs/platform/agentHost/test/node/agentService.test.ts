@@ -32604,6 +32604,32 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			});
 
+			test('a move converts a new session though a write of the session dirties its aggregate right after it was staged', async () => {
+				const { env, target } = await setupLegacyTarget();
+				const database = (env.service as unknown as { _orchestratorDatabase: { markSessionV2PayloadClean(session: string, revision: number): Promise<boolean>; markSessionV2PayloadDirty(session: string): Promise<number | undefined> } })._orchestratorDatabase;
+				// As the session's own activity does after a turn (its read state, changes summary, ...), outside the conversion's queue.
+				const markClean = database.markSessionV2PayloadClean.bind(database);
+				let concurrentWrites = 0;
+				database.markSessionV2PayloadClean = async (session, revision) => {
+					const cleaned = await markClean(session, revision);
+					if (cleaned && session === target.toString() && concurrentWrites++ === 0) {
+						await database.markSessionV2PayloadDirty(session);
+					}
+					return cleaned;
+				};
+
+				const result = await env.service.moveChat(env.source, env.peer, { kind: 'session', session: target, after: undefined });
+				const [after] = await getTestAgentHostDatabase(env.service).readCatalogSnapshot([target.toString()]);
+
+				assert.deepStrictEqual({ result: result.toString(), authority: after?.authorityVersion, owner: getStateManager(env.service).getChatOwner(env.peer.toString()), concurrentWrites }, {
+					result: target.toString(),
+					authority: 2,
+					owner: target.toString(),
+					// Staged once, dirtied, staged again and converted.
+					concurrentWrites: 2,
+				});
+			});
+
 			test('a move converts a session that is legacy only because its re-projection is pending, at once, and moves', async () => {
 				const { env, target } = await setupLegacyTarget();
 				const stateManager = getStateManager(env.service);

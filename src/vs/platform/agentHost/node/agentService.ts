@@ -180,6 +180,8 @@ interface IPeerChatDeletionStorage {
 	readonly movedFrom: readonly string[];
 }
 
+/** How often a move stages and converts a new session's chat catalog while concurrent writes dirty it (see `_normalizeCatalogForMove`). */
+const CHAT_MOVE_CONVERSION_ATTEMPTS = 3;
 /** Deferrals in a row, waiting for a session's re-projection, after which a chat catalog conversion is reported at warn. */
 const CATALOG_MIGRATION_REPROJECTION_WARN_ATTEMPTS = 5;
 const RECENT_LOCAL_SESSION_UPDATES_STORAGE_KEY = 'recentLocalSessionUpdates';
@@ -6673,6 +6675,11 @@ export class AgentService extends Disposable implements IAgentService {
 	 * aggregate is staged from its live state, which is authoritative while it is loaded, and then converted. A session
 	 * whose reconciliation is parked (its provider can't vouch for it) is refused as `legacyCatalog`; one that still
 	 * can't be converted is refused as not ready. A normalized catalog costs one snapshot read.
+	 *
+	 * The session's own activity writes its state concurrently: after a turn, its read state, changes summary or source
+	 * control state. Such a write marks its aggregate dirty without the catalog-sync queue the conversion holds, so it can
+	 * land between staging the aggregate and converting it, which 4a then refuses as awaiting a re-projection. Staged
+	 * again from live state, which includes that write, the conversion is tried {@link CHAT_MOVE_CONVERSION_ATTEMPTS} times.
 	 */
 	private async _normalizeCatalogForMove(session: string): Promise<void> {
 		const isNormalized = async () => (await this._orchestratorDatabase.readCatalogSnapshot([session]))[0]?.authorityVersion === 2;
@@ -6683,14 +6690,24 @@ export class AgentService extends Disposable implements IAgentService {
 			throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.LegacyCatalog, `Session ${session} can't be prepared for moving chats: its chats can't be verified.`);
 		}
 		const resource = URI.parse(session);
-		let result = await this._migrateChatCatalog(resource, CancellationToken.None);
-		if (!await isNormalized() && this._stateManager.getSessionState(session)) {
-			// Read before the conversion holds the session's peer store exclusively.
-			const persisted = await this._peerChatStore.tryRead(resource);
-			result = await this._migrateChatCatalog(resource, CancellationToken.None, undefined, async () => this._liveCatalogOverride(session, persisted));
+		const result = await this._migrateChatCatalog(resource, CancellationToken.None);
+		let why = result?.status === 'notReady' ? `${result.status}: ${result.reason}` : result?.status ?? 'not attempted';
+		for (let attempt = 0; attempt < CHAT_MOVE_CONVERSION_ATTEMPTS && !await isNormalized() && this._stateManager.getSessionState(session) && !this._catalogReconciliationService.isParked(session); attempt++) {
+			try {
+				// Read before the conversion holds the session's peer store exclusively.
+				const persisted = await this._peerChatStore.tryRead(resource);
+				const staged = await this._migrateChatCatalog(resource, CancellationToken.None, undefined, async () => this._liveCatalogOverride(session, persisted));
+				why = staged?.status === 'notReady' ? `${staged.status}: ${staged.reason}` : staged?.status ?? 'not attempted';
+				// Only a concurrent write is worth staging again; any other reason stays until the session itself changes.
+				if (staged?.status === 'notReady' && !staged.awaitsReprojection) {
+					break;
+				}
+			} catch (error) {
+				// Staging is superseded when a concurrent write marks the aggregate dirty while it is staged.
+				why = toErrorMessage(error);
+			}
 		}
 		if (!await isNormalized()) {
-			const why = result?.status === 'notReady' ? `${result.status}: ${result.reason}` : result?.status ?? 'not attempted';
 			throw this._catalogReconciliationService.isParked(session)
 				? new AgentChatMoveRefusedError(AgentChatMoveRefusal.LegacyCatalog, `Session ${session} can't be prepared for moving chats: its chats can't be verified.`)
 				: new AgentChatMoveRefusedError(AgentChatMoveRefusal.SessionNotReady, `Session ${session} can't be prepared for moving chats yet (${why}); try again.`);
