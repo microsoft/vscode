@@ -113,9 +113,10 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			this._register(this.customizationMarketplaceService.onDidChangeSources(() => this.updateEnablement()));
 		}
 		this._register(autorun(reader => {
-			this.harnessService.activeHarness.read(reader);
-			this.harnessService.activeSessionResource.read(reader);
-			this.bindInstallProvider();
+			this.harnessService.availableHarnesses.read(reader);
+			const sessionResource = this.harnessService.activeSessionResource.read(reader);
+			const descriptor = this.harnessService.getDescriptorForSession(sessionResource);
+			this.bindInstallProvider(sessionResource, descriptor?.marketplaceInstallProvider);
 		}));
 		this.updateEnablement();
 	}
@@ -140,21 +141,21 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		);
 	}
 
-	private bindInstallProvider(): void {
+	private bindInstallProvider(session: URI, provider: ICustomizationMarketplaceInstallProvider | undefined): void {
 		this.providerRequest.clear();
+		const providerChanged = this.providerBinding?.provider !== provider || !isEqual(this.providerBinding?.session, session);
 		const hadInstallations = this.providerInstallations.length > 0;
 		this.providerInstallations = [];
-		if (hadInstallations) {
+		if (hadInstallations || providerChanged) {
 			this.emitChange();
 		}
-		const provider = this.harnessService.getActiveDescriptor().marketplaceInstallProvider;
 		if (!provider) {
 			this.providerBinding = undefined;
 			return;
 		}
 		const binding: IInstallProviderBinding = {
 			provider,
-			session: this.harnessService.activeSessionResource.get(),
+			session,
 			refreshVersion: 0,
 		};
 		this.providerBinding = binding;
@@ -245,12 +246,17 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 				&& installedSource.ref === resourceSource.ref
 				&& versionsCompatible;
 		}
+		if (!installedSource && resourceSource?.kind === 'mcpGallery' && installed.mediaType === CustomizationMarketplaceMediaType.McpServer) {
+			return installed.identifier === resourceSource.name;
+		}
 		return false;
 	}
 
 	private getGitHubMcpRegistryIdentity(resource: ICustomizationMarketplaceResource): string | undefined {
 		const installation = resource.installation;
-		const itemUrl = installation?.kind === 'providerCatalog' ? installation.itemUrl : undefined;
+		const itemUrl = installation?.kind === 'providerCatalog'
+			? installation.itemUrl
+			: installation?.kind === 'mcpGallery' ? installation.cardUrl : undefined;
 		return getGitHubMcpRegistryResourceIdentity(resource.identifier)?.toLowerCase()
 			?? getGitHubMcpRegistryIdentity(itemUrl ?? resource.externalUrl ?? resource.url?.toString(true) ?? resource.identifier)?.toLowerCase();
 	}
@@ -698,6 +704,9 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			if (!this.isMcpGallerySourceCurrent(source)) {
 				return { kind: 'unavailable', message: localize('customizationMarketplace.mcpGalleryChanged', "The MCP registry changed after '{0}' was discovered. Refresh Browse and try again.", source.name) };
 			}
+			if (providerBinding) {
+				return { kind: 'available' };
+			}
 			const installed = this.getInstalledGalleryMcpServer(source);
 			if (installed) {
 				const target = { kind: 'mcp' as const, id: installed.id };
@@ -735,7 +744,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		const binding = this.providerBinding;
 		const provider = binding?.provider;
 		const kind = resource.installation?.kind;
-		return binding && provider && (kind === 'skill' || kind === 'mcp' || kind === 'plugin' || kind === 'configuredPlugin' || kind === 'providerPlugin'
+		return binding && provider && (kind === 'skill' || kind === 'mcp' || kind === 'mcpGallery' || kind === 'plugin' || kind === 'configuredPlugin' || kind === 'providerPlugin'
 			|| kind === 'providerCatalog'
 			|| this.providerInstallations.some(installation => this.matchesProviderInstallation(installation.resource, resource)))
 			? binding
@@ -743,7 +752,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 	}
 
 	private isProviderManagedInstallation(installation: CustomizationMarketplaceInstallation): boolean {
-		return !!this.providerBinding && (installation.kind === 'skill' || installation.kind === 'mcp' || installation.kind === 'plugin' || installation.kind === 'configuredPlugin' || installation.kind === 'providerPlugin' || installation.kind === 'providerCatalog');
+		return !!this.providerBinding && (installation.kind === 'skill' || installation.kind === 'mcp' || installation.kind === 'mcpGallery' || installation.kind === 'plugin' || installation.kind === 'configuredPlugin' || installation.kind === 'providerPlugin' || installation.kind === 'providerCatalog');
 	}
 
 	private associateInstalledResource(resource: ICustomizationMarketplaceResource, target: Extract<CustomizationMarketplaceInstallationRecordTarget, { readonly kind: 'plugin' | 'mcp' }>): void {
@@ -796,17 +805,22 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		const providerBinding = this.getInstallProviderBinding(resource);
 		const operationDisposables = new DisposableStore();
 		const token = cancelOnDispose(operationDisposables);
-		const requiresMarketplaceTrust = resource.installation?.kind === 'configuredPlugin' || resource.installation?.kind === 'providerPlugin';
+		const requiresMarketplaceTrust = resource.installation?.kind === 'configuredPlugin'
+			|| resource.installation?.kind === 'providerPlugin' && resource.installation.providerManaged !== true;
 		operationDisposables.add(this.lifetimeToken.onCancellationRequested(() => operationDisposables.dispose()));
 		if (requiresMarketplaceTrust) {
 			operationDisposables.add(this.pluginMarketplaceService.onDidChangeMarketplaces(() => operationDisposables.dispose()));
 		}
+		if (this.customizationMarketplaceService.onDidChangeSources) {
+			operationDisposables.add(this.customizationMarketplaceService.onDidChangeSources(() => {
+				if (!this.isSourceEnabled(resource.sourceId)) {
+					operationDisposables.dispose();
+				}
+			}));
+		}
 		operationDisposables.add(this.configurationService.onDidChangeConfiguration(event => {
 			if (
 				!this.isSourceEnabled(resource.sourceId) ||
-				(requiresMarketplaceTrust && (
-					event.affectsConfiguration(ChatConfiguration.StrictMarketplaces)
-				)) ||
 				(resource.installation?.kind === 'mcpGallery' && resource.installation.registry === 'custom' &&
 					event.affectsConfiguration(mcpGalleryServiceUrlConfig))
 			) {
@@ -818,7 +832,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			getCustomizationMarketplaceInstallTelemetryContext('marketplace', resource.installation),
 			async () => {
 				if (providerBinding) {
-					if (resource.installation?.kind === 'configuredPlugin' || resource.installation?.kind === 'providerPlugin') {
+					if (requiresMarketplaceTrust) {
 						const marketplaceReference = resource.installation.kind === 'configuredPlugin'
 							? (await this.resolveConfiguredPlugin(resource, token)).marketplaceReference
 							: this.resolveProviderPluginMarketplaceReference(resource);

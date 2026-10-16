@@ -10,7 +10,7 @@ import type { IChatPillSection } from '../../../../workbench/browser/chatPills.j
 import { CanvasesPillControl } from '../../../../workbench/contrib/canvases/browser/canvasesPillControl.js';
 import type { ICanvasContext } from '../../../../workbench/contrib/canvases/common/canvas.js';
 import { IChat } from '../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
 /** Supplies the canvases pill of the active chat in the Agents window chat input. */
 export class SessionCanvasesControl extends Disposable {
@@ -22,6 +22,7 @@ export class SessionCanvasesControl extends Disposable {
 		chat: IObservable<IChat | undefined>,
 		enabled: IObservable<boolean>,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
 
@@ -34,6 +35,7 @@ export class SessionCanvasesControl extends Disposable {
 			return {
 				owner: { providerId: currentSession.providerId, session: currentSession.resource, chat: currentChat.resource },
 				canvases: currentChat.canvases,
+				closeCanvas: canvas => sessionsManagementService.closeCanvas(currentSession, currentChat, canvas),
 			};
 		});
 		this.sections = this._register(instantiationService.createInstance(CanvasesPillControl, context)).sections;

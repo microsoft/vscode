@@ -14,6 +14,7 @@ import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { ISecretStorageService } from '../../../../../../platform/secrets/common/secrets.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
@@ -47,9 +48,10 @@ export class AgentHostMcpServerMigrationProvider extends Disposable implements I
 		@IMcpService private readonly mcpService: IMcpService,
 		@IMcpCopilotGlobalConfigurationService private readonly copilotGlobalConfigurationService: IMcpCopilotGlobalConfigurationService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@ISecretStorageService secretStorageService: ISecretStorageService,
 	) {
 		super();
-		this.mcpServerMigration = new McpServerCustomizationMigrator(fileService, logService, configurationResolverService);
+		this.mcpServerMigration = new McpServerCustomizationMigrator(fileService, logService, configurationResolverService, configurationService, secretStorageService);
 		this._register(autorun(reader => {
 			const sessionResource = this.customizationHarnessService.activeSessionResource.read(reader);
 			this.updateActiveContext(sessionResource);
@@ -158,7 +160,10 @@ export class AgentHostMcpServerMigrationProvider extends Disposable implements I
 			const failures: IMcpServerCustomizationMigrationFailure[] = [];
 			for (const requested of requestedCandidates) {
 				const current = currentCandidates.get(getMcpServerCustomizationMigrationCandidateKey(requested));
-				if (!current || !equals(current.projectedConfiguration, requested.projectedConfiguration)
+				if (current && !equals(current.settingVariables, requested.settingVariables)) {
+					// A setting the server reads changed since the plan, so the confirmed values are no longer current.
+					failures.push(this.createFailure(requested, McpServerCustomizationMigrationFailureReason.SourceChanged));
+				} else if (!current || !equals(current.projectedConfiguration, requested.projectedConfiguration)
 					|| !equals(current.migratedConfiguration, requested.migratedConfiguration)
 					|| !equals(current.removedProperties, requested.removedProperties)
 					|| !equals(current.environmentVariables, requested.environmentVariables)) {
@@ -254,7 +259,7 @@ export class AgentHostMcpServerMigrationProvider extends Disposable implements I
 		}
 		switch (reason) {
 			case McpServerCustomizationMigrationFailureReason.EnvironmentVariableInName:
-				return [localize('mcpMigrationServerEnvironmentVariableInName', "Variables ('${env:...}' or '${input:...}') in environment variable or header names are not supported in the destination MCP configuration. Use a fixed name to migrate this server.")];
+				return [localize('mcpMigrationServerEnvironmentVariableInName', "Variables ('${env:...}', '${input:...}' or '${config:...}') in environment variable or header names are not supported in the destination MCP configuration. Use a fixed name to migrate this server.")];
 			case McpServerCustomizationMigrationFailureReason.InvalidEnvironmentVariableName:
 				return [localize('mcpMigrationServerInvalidEnvironmentVariableName', "The destination MCP configuration only supports environment variable names made of letters, digits and underscores that do not start with a digit. Rename the variable to migrate this server.")];
 			case McpServerCustomizationMigrationFailureReason.EnvironmentVariableValueTooLong:
@@ -266,9 +271,13 @@ export class AgentHostMcpServerMigrationProvider extends Disposable implements I
 			case McpServerCustomizationMigrationFailureReason.InvalidInputName:
 				return [localize('mcpMigrationServerInvalidInputName', "Inputs are migrated to environment variables named after their IDs, and an input of this server has an empty ID. Give the input an ID to migrate this server.")];
 			case McpServerCustomizationMigrationFailureReason.VariableNameCollision:
-				return [localize('mcpMigrationServerVariableNameCollision', "Inputs are migrated to environment variables named after their IDs, and an input of this server would use the same environment variable as a different input or environment variable reference ('${env:...}') in the same file, or as an entry of its 'env'. Rename the input to migrate this server.")];
+				return [localize('mcpMigrationServerVariableNameCollision', "Inputs and settings are migrated to environment variables named after their IDs or keys, and an input or setting of this server would use the same environment variable as a different input, setting or environment variable reference ('${env:...}') in the same file, or as an entry of its 'env'. Rename the input or use a different setting to migrate this server.")];
 			case McpServerCustomizationMigrationFailureReason.UnsupportedVariable:
 				return [localize('mcpMigrationServerUnsupportedVariable', "This server uses a variable that cannot be migrated, such as a command variable, or a workspace variable in a user configuration. Replace it with a fixed value or an environment variable ('${env:...}') to migrate this server.")];
+			case McpServerCustomizationMigrationFailureReason.EnterpriseManagedOAuth:
+				return [localize('mcpMigrationServerEnterpriseManagedOAuth', "This server uses enterprise-managed sign-in, which relies on a VS Code setting that Copilot does not have.")];
+			case McpServerCustomizationMigrationFailureReason.OAuthClientSecret:
+				return [localize('mcpMigrationServerOAuthClientSecret', "This server's OAuth client uses a client secret stored in VS Code, which Copilot cannot use.")];
 			case McpServerCustomizationMigrationFailureReason.UnsupportedInputDefault:
 				return [localize('mcpMigrationServerUnsupportedInputDefault', "The default value of an input contains a variable or cannot be represented in the destination MCP configuration, or the default of a pick input is not one of its options. Change the default value to migrate this server.")];
 		}
@@ -378,13 +387,17 @@ export class AgentHostMcpServerMigrationProvider extends Disposable implements I
 	}
 
 	private noLongerEligible(candidate: IMcpServerCustomizationMigrationCandidate): IMcpServerCustomizationMigrationFailure {
+		return this.createFailure(candidate, McpServerCustomizationMigrationFailureReason.NoLongerEligible);
+	}
+
+	private createFailure(candidate: IMcpServerCustomizationMigrationCandidate, reason: McpServerCustomizationMigrationFailureReason): IMcpServerCustomizationMigrationFailure {
 		return {
 			storage: candidate.storage,
 			id: candidate.id,
 			name: candidate.name,
 			sourceUri: candidate.sourceUri,
 			targetUri: candidate.targetUri,
-			reason: McpServerCustomizationMigrationFailureReason.NoLongerEligible,
+			reason,
 		};
 	}
 

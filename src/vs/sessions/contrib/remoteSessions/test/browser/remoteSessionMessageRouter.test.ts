@@ -19,6 +19,7 @@ import { AgentHostConnectionsService } from '../../../../../platform/agentHost/b
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentConnection, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { getPendingSteeringMessages } from '../../../../../platform/agentHost/common/agentSessionMessage.js';
 import { readAgentMessageDelegationMeta } from '../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
 import { withRemoteSessionOrigin } from '../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
@@ -124,6 +125,8 @@ class TestConnection extends mock<IAgentHostService>() {
 		};
 	}
 
+	override getSubscriptionUnmanaged<T extends StateComponents>(): IAgentSubscription<ComponentToState[T]> | undefined { return undefined; }
+
 	override getSubscription<T extends StateComponents>(kind: T, resource: URI): IReference<IAgentSubscription<ComponentToState[T]>> {
 		const get = this.subscriptions[kind];
 		assert.ok(get);
@@ -165,7 +168,7 @@ class TestConnection extends mock<IAgentHostService>() {
 		const subscription = this.chatStates.get(channel)!;
 		const state = subscription.verifiedValue!;
 		const next = state.queuedMessages?.[0];
-		if (!next || state.activeTurn || state.steeringMessage) {
+		if (!next || state.activeTurn || getPendingSteeringMessages(state).length > 0) {
 			return;
 		}
 		const action = {
@@ -331,7 +334,7 @@ suite('RemoteSessionMessageRouter', () => {
 			first: 0,
 			channel: buildChatUri(backendSession, 'other-chat'),
 			origin: { kind: MessageKind.Agent },
-			delegation: { sourceSession: sessions[1].resource.toString(), sourceChat: buildChatUri(sessions[1].resource, 'original-chat') },
+			delegation: { sourceSession: sessions[1].resource.toString(), sourceChat: buildChatUri(backendSession, 'original-chat') },
 			result: {
 				status: 'sent',
 				session: sessions[2].resource.toString(), chat: target.toString(),
@@ -461,7 +464,7 @@ suite('RemoteSessionMessageRouter', () => {
 		await router.send(source.resource, { session: sessions[1].resource.toString(), message: 'From a subagent' }, 'subagent', CancellationToken.None);
 		const delegation = readAgentMessageDelegationMeta(first.dispatched[0].action.message);
 		assert.ok(delegation && hasKey(delegation, { sourceSession: true }) && delegation.sourceChat);
-		assert.deepStrictEqual({ session: mintedTestChatOwner(delegation.sourceChat), chatId: parseChatUri(delegation.sourceChat)?.chatId }, { session: session.resource.toString(), chatId: 'subagent/call-1' });
+		assert.deepStrictEqual({ session: mintedTestChatOwner(delegation.sourceChat), chatId: parseChatUri(delegation.sourceChat)?.chatId }, { session: backendSession.toString(), chatId: 'subagent/call-1' });
 	});
 
 	test('a saved peer origin that no longer exists never falls back to the main chat', async () => {
@@ -557,7 +560,7 @@ suite('RemoteSessionMessageRouter', () => {
 		}));
 		const result = await router.send(sessions[0].resource, { session: sessions[1].resource.toString(), message: 'Later' }, 'steering', CancellationToken.None);
 		assert.deepStrictEqual({ status: result.status, started: first.started, queued: state.verifiedValue!.queuedMessages?.map(pending => pending.message.text) }, {
-			status: 'queued', started: [], queued: ['Later'],
+			status: 'queued', started: [], queued: ['Steer', 'Later'],
 		});
 	});
 

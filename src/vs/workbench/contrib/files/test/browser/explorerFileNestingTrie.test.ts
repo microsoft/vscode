@@ -443,6 +443,25 @@ suite('StarTrie', () => {
 		});
 	});
 
+	test('multiple child patterns matching the parent itself', () => {
+		const t = new ExplorerFileNestingTrie([
+			['*', ['${basename}.*', '${basename}*.${extname}']],
+		]);
+
+		const nesting1 = t.nest([
+			'Button.tsx',
+			'Button.test.tsx',
+			'Button.module.css',
+			'ButtonGroup.tsx',
+			'other.ts',
+		], 'mydir');
+
+		assertMapEquals(nesting1, {
+			'Button.tsx': ['Button.test.tsx', 'Button.module.css', 'ButtonGroup.tsx'],
+			'other.ts': [],
+		});
+	});
+
 	test('dirname matching', () => {
 		const t = new ExplorerFileNestingTrie([
 			['index.ts', ['${dirname}.ts']],

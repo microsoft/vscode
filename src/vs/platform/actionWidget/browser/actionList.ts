@@ -346,9 +346,9 @@ function renderAdditionalBadges(
 	container.style.display = badges?.length ? '' : 'none';
 }
 
-/** Whether the row exposes a submenu or keyboard-accessible hover panel. */
+/** Whether the row exposes a submenu or keyboard-accessible hover panel; a submenu is always advertised, since ArrowRight opens it. */
 function hasExpandablePanel<T>(item: IActionListItem<T>): boolean {
-	return (!!item.submenuActions?.length && !item.hover?.content) || !!item.hover?.expandable;
+	return !!item.submenuActions?.length || !!item.hover?.expandable;
 }
 
 function hasSubmenuIndicator<T>(item: IActionListItem<T>): boolean {
@@ -1735,10 +1735,12 @@ export class ActionListWidget<T> extends Disposable {
 		} else if (this._hasLaidOut) {
 			// Restore focus to the previously focused item
 			if (focusedItem || focusItemId) {
-				restoreItemFocus();
+				const restored = restoreItemFocus();
 				if (listHasFocus) {
-					// The focused row or its toolbar may have been removed by the update.
-					this._focusCheckedOrFirst();
+					if (!restored) {
+						// The focused row or its toolbar may have been removed by the update.
+						this._focusCheckedOrFirst();
+					}
 					this._list.domFocus();
 				}
 			}
@@ -1909,7 +1911,10 @@ export class ActionListWidget<T> extends Disposable {
 		this._suppressHover ||= preservePanel || (!this._currentSubmenuElement && !this._options?.persistentHover);
 		try {
 			// Restoring focus after a passive refresh must not open an unrequested hover.
-			this._applyFilter(false, false, preservePanel ? focusItemId ?? expandedItemId : undefined);
+			// An explicitly requested focusItemId (e.g. refocusing a row a caller just
+			// toggled) is honored unconditionally; only the fallback to the previously
+			// expanded hover/submenu's item is gated on actually preserving that panel.
+			this._applyFilter(false, false, focusItemId ?? (preservePanel ? expandedItemId : undefined));
 		} finally {
 			this._suppressHover = suppressHover;
 		}
@@ -2377,18 +2382,24 @@ export class ActionListWidget<T> extends Disposable {
 		return true;
 	}
 
-	collapseFocusedSection() {
+	/** Collapses the section containing the focused row, returning whether it was expanded. */
+	collapseFocusedSection(): boolean {
 		const section = this._getFocusedSection();
 		if (section && !this._collapsedSections.has(section)) {
 			this._toggleSection(section);
+			return true;
 		}
+		return false;
 	}
 
-	expandFocusedSection() {
+	/** Expands the section containing the focused row, returning whether it was collapsed. */
+	expandFocusedSection(): boolean {
 		const section = this._getFocusedSection();
 		if (section && this._collapsedSections.has(section)) {
 			this._toggleSection(section);
+			return true;
 		}
+		return false;
 	}
 
 	toggleFocusedSection(): boolean {
@@ -2404,16 +2415,10 @@ export class ActionListWidget<T> extends Disposable {
 		return false;
 	}
 
+	/** The focused row's section, if that section has a toggle that can expand it again. */
 	private _getFocusedSection(): string | undefined {
-		const focused = this._list.getFocus();
-		if (focused.length === 0) {
-			return undefined;
-		}
-		const element = this._list.element(focused[0]);
-		if (element.isSectionToggle && element.section) {
-			return element.section;
-		}
-		return element.section;
+		const section = this.getFocusedElement()?.section;
+		return section && this._allMenuItems.some(item => item.section === section && item.isSectionToggle) ? section : undefined;
 	}
 
 	acceptSelected(preview?: boolean) {
@@ -3513,12 +3518,12 @@ export class ActionList<T> extends Disposable {
 		this._widget.focusNext();
 	}
 
-	collapseFocusedSection(): void {
-		this._widget.collapseFocusedSection();
+	collapseFocusedSection(): boolean {
+		return this._widget.collapseFocusedSection();
 	}
 
-	expandFocusedSection(): void {
-		this._widget.expandFocusedSection();
+	expandFocusedSection(): boolean {
+		return this._widget.expandFocusedSection();
 	}
 
 	toggleFocusedSection(): boolean {

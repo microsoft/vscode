@@ -343,7 +343,6 @@ function createGitHubService(
 		}),
 		topLevelComments: missing,
 		submittedReviews: missing,
-		inlineComments: missing,
 		reviewThreads: missing,
 		checks: ready({
 			headSha: 'head',
@@ -364,7 +363,6 @@ function createGitHubService(
 			expectedSuitesComplete: true,
 		}),
 		mergeability: missing,
-		participants: missing,
 	};
 
 	const client = new class extends mock<IGitHubClient>() {

@@ -36,9 +36,9 @@ import { turnsToHistory } from '../../../browser/agentSessions/agentHost/stateTo
 const resource = URI.parse('remote-agent-host-test-copilot:/session');
 const peerChat = 'custom-chat:/opaque-peer';
 
-function recordedHistory(mainTitle = '', peerTitle = ''): IReplayedTaskHistory {
+function recordedHistory(mainTitle = '', peerTitle = '', sessionTitle = 'Recorded title'): IReplayedTaskHistory {
 	const summary = {
-		resource: 'ahp-session:/session', provider: 'copilot', title: 'Recorded title',
+		resource: 'ahp-session:/session', provider: 'copilot', title: sessionTitle,
 		status: SessionStatus.Idle, createdAt: '2026-01-01T00:00:00.000Z', modifiedAt: '2026-01-01T00:00:00.000Z',
 	};
 	const state = createSessionState(summary);
@@ -209,6 +209,13 @@ suite('CloudSandboxSessionHandler', () => {
 		});
 	});
 
+	test('a recorded session titled after its id has no title until the agent names it', async () => {
+		const titles: string[] = [];
+		const handler = createHandler(async () => recordedHistory('', '', 'session'), undefined, undefined, undefined, undefined, undefined, (_resource, title) => titles.push(title));
+		const session = await handler.provideChatSessionContent(resource, CancellationToken.None);
+		assert.deepStrictEqual({ title: session.title, titles }, { title: undefined, titles: [] });
+	});
+
 	test('invalidates local submissions only for the matching open conversation and releases the listener on close', async () => {
 		const submitted = store.add(new Emitter<IChatRequestSubmittedEvent>());
 		let invalidations = 0;
@@ -298,8 +305,8 @@ suite('CloudSandboxSessionHandler', () => {
 		}, notifications);
 		const session = await handler.provideChatSessionContent(resource, CancellationToken.None);
 		const status = await waitForState(session.historyStatus!, status => status?.kind === 'history');
-		const afterFailure = { items: session.history.length, readOnly: session.isReadOnly?.get(), status: status?.message, action: status?.action.label };
-		await status!.action.run();
+		const afterFailure = { items: session.history.length, readOnly: session.isReadOnly?.get(), status: status?.message, action: status?.action!.label };
+		await status!.action!.run();
 		assert.deepStrictEqual({
 			afterFailure, attempts, prompts, status: session.historyStatus?.get(),
 			same: await sharesContent(handler, session),
@@ -351,9 +358,9 @@ suite('CloudSandboxSessionHandler', () => {
 		handler.setLiveProvider({ provideChatSessionContent: async () => { liveReads++; throw new Error('Snapshot unavailable'); } });
 		const failure = await waitForState(session.historyStatus!, value => value?.kind === 'history');
 		const originalHistory = session.history;
-		const refresh = failure!.action.run();
-		await failure!.action.run();
-		const whileRefreshing = { reads, liveReads, retained: session.history === originalHistory, label: session.historyStatus?.get()?.action.label };
+		const refresh = failure!.action!.run();
+		await failure!.action!.run();
+		const whileRefreshing = { reads, liveReads, retained: session.history === originalHistory, label: session.historyStatus?.get()?.action!.label };
 		await fresh.complete(recordedHistory());
 		await refresh;
 		assert.deepStrictEqual({
@@ -375,7 +382,7 @@ suite('CloudSandboxSessionHandler', () => {
 		await timeout(0);
 		const connecting = session.historyStatus?.get();
 		connection.set(RemoteAgentHostConnectionStatus.disconnected, undefined);
-		assert.deepStrictEqual({ connecting, failed: session.historyStatus?.get()?.action.label }, { connecting: undefined, failed: 'Refresh' });
+		assert.deepStrictEqual({ connecting, failed: session.historyStatus?.get()?.action!.label }, { connecting: undefined, failed: 'Refresh' });
 	});
 
 	test('bounds waiting for live content and discards an ignored-cancellation late snapshot', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -395,7 +402,7 @@ suite('CloudSandboxSessionHandler', () => {
 		await pending.complete(late);
 		await timeout(0);
 		assert.deepStrictEqual({
-			beforeDeadline, afterDeadline: session.historyStatus?.get()?.action.label,
+			beforeDeadline, afterDeadline: session.historyStatus?.get()?.action!.label,
 			disposed: late.disposed, retained: session.history === originalHistory,
 		}, { beforeDeadline: undefined, afterDeadline: 'Refresh', disposed: true, retained: true });
 	}));
@@ -413,7 +420,7 @@ suite('CloudSandboxSessionHandler', () => {
 		await timeout(29_999);
 		const beforeDeadline = session.historyStatus?.get();
 		await timeout(1);
-		assert.deepStrictEqual({ waking, beforeDeadline, afterDeadline: session.historyStatus?.get()?.action.label }, {
+		assert.deepStrictEqual({ waking, beforeDeadline, afterDeadline: session.historyStatus?.get()?.action!.label }, {
 			waking: undefined, beforeDeadline: undefined, afterDeadline: 'Refresh',
 		});
 	}));
@@ -491,7 +498,7 @@ suite('CloudSandboxSessionHandler', () => {
 			const status = await waitForState(session.historyStatus!, value => value?.kind === 'history');
 			assert.deepStrictEqual({
 				prompts: session.history.filter(item => item.type === 'request').map(item => item.prompt),
-				action: status?.action.label,
+				action: status?.action!.label,
 			}, { prompts: ['custom-chat:/opaque-main'], action: 'Refresh' });
 		});
 	}
@@ -528,7 +535,7 @@ suite('CloudSandboxSessionHandler', () => {
 			await timeout(0);
 			assert.deepStrictEqual({
 				prompts: second.history.filter(item => item.type === 'request').map(item => item.prompt),
-				action: second.historyStatus?.get()?.action.label,
+				action: second.historyStatus?.get()?.action!.label,
 			}, { prompts: [requestedChat], action: 'Refresh' });
 			second.dispose();
 			const reopened = await handler.provideChatSessionContent(requested, CancellationToken.None);
@@ -570,7 +577,7 @@ suite('CloudSandboxSessionHandler', () => {
 		});
 		const session = await handler.provideChatSessionContent(resource, CancellationToken.None);
 		const status = await waitForState(session.historyStatus!, value => value?.kind === 'history');
-		await status!.action.run();
+		await status!.action!.run();
 		assert.deepStrictEqual({ delays: requests.map(time => time - requests[0]), status: session.historyStatus?.get() }, {
 			delays: [0, 2000], status: undefined,
 		});
@@ -878,7 +885,7 @@ suite('CloudSandboxSessionHandler', () => {
 		});
 		const status = await waitForState(session.historyStatus!, status => status?.kind === 'live');
 		const afterFailure = { retained: session.history === initialHistory, readOnly: session.isReadOnly?.get(), kind: status?.kind };
-		await status!.action.run();
+		await status!.action!.run();
 		assert.deepStrictEqual({
 			afterFailure, attempts, prompts, readOnly: session.isReadOnly?.get(),
 			same: await sharesContent(handler, session),

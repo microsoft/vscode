@@ -8,7 +8,7 @@ import { IStringDictionary } from '../../../../base/common/collections.js';
 import { IPolicyData } from '../../../../base/common/defaultAccount.js';
 import { ManagedSettingsData } from '../../../../base/common/policy.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { collectManagedSettingsDefinitions, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_MODEL_KEY, COPILOT_OTEL_CAPTURE_IDENTITY_KEY, COPILOT_PERMISSION_RULES_KEYS, COPILOT_SANDBOX_ALLOWED_HOSTS_KEY, COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_AUTH_GH_KEY, COPILOT_SANDBOX_AUTH_GIT_KEY, COPILOT_SANDBOX_DENIED_PATHS_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_SANDBOX_LSP_SERVERS_KEY, COPILOT_SANDBOX_MCP_SERVERS_KEY, COPILOT_SANDBOX_READONLY_PATHS_KEY, COPILOT_SANDBOX_READWRITE_PATHS_KEY, COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, MANAGED_SETTINGS_CONTROL_DEFINITIONS, hasManagedPermissions, hasManagedSettingsDefinitions, IManagedSettingsService, NullManagedSettingsService, managedModelValue, managedSettingsDisabledValue, managedSettingValue, normalizeManagedSettings, projectManagedSettings, pickManagedSettings, requiresCopilotAgentHost, resolveForceRemoteSettingsRefresh } from '../../common/copilotManagedSettings.js';
+import { collectManagedSettingsDefinitions, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_MODEL_KEY, COPILOT_OTEL_CAPTURE_IDENTITY_KEY, COPILOT_PERMISSION_RULES_KEYS, COPILOT_SANDBOX_ALLOWED_HOSTS_KEY, COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_AUTH_GH_KEY, COPILOT_SANDBOX_AUTH_GIT_KEY, COPILOT_SANDBOX_DENIED_PATHS_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_SANDBOX_LSP_SERVERS_KEY, COPILOT_SANDBOX_MCP_SERVERS_KEY, COPILOT_SANDBOX_READONLY_PATHS_KEY, COPILOT_SANDBOX_READWRITE_PATHS_KEY, COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY, COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, MANAGED_SETTINGS_CONTROL_DEFINITIONS, hasManagedPermissions, hasManagedSettingsDefinitions, IManagedSettingsService, NullManagedSettingsService, managedModelValue, managedSettingsDisabledValue, managedSettingValue, normalizeManagedSettings, projectManagedSettings, pickManagedSettings, requiresCopilotAgentHost, resolveForceRemoteSettingsRefresh } from '../../common/copilotManagedSettings.js';
 import { PolicyDefinition } from '../../common/policy.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 
@@ -72,11 +72,13 @@ suite('Copilot managed settings projection', () => {
 			{ [COPILOT_SANDBOX_ENABLED_KEY]: true, [COPILOT_SANDBOX_ALLOW_BYPASS_KEY]: true },
 			{ [COPILOT_SANDBOX_ENABLED_KEY]: false, 'permissions.ask': '["Shell"]' },
 			{ [COPILOT_SANDBOX_ENABLED_KEY]: false, 'permissions.ask': '[]' },
+			{ [COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY]: true, [COPILOT_SANDBOX_ENABLED_KEY]: true },
+			{ [COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY]: true, 'permissions.allow': '[]' },
 		];
 		assert.deepStrictEqual(values.map(bag => requiresCopilotAgentHost(new class extends NullManagedSettingsService {
 			override getManagedSettingValue(key: string) { return bag[key]; }
 			override getManagedSettings() { return bag; }
-		}(), configurationService)), [false, true, false, false, true, true, true]);
+		}(), configurationService)), [false, true, false, false, true, true, true, true, true]);
 	});
 
 	test('only a managed true Local escape hatch overrides required sandbox and permission routing', () => {
@@ -104,6 +106,42 @@ suite('Copilot managed settings projection', () => {
 			{ projected: { [key]: true }, required: false },
 			{ projected: {}, required: true },
 		]);
+	});
+
+	test('only boolean false prohibits Local without permission or sandbox requirements', () => {
+		const configuration = new TestConfigurationService();
+		disposables.add(configuration.onDidChangeConfigurationEmitter);
+		const key = COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY;
+		const results = [undefined, false, true, 'false', 0, null].map(value => {
+			const bag = normalizeManagedSettings({ vscode: { temporaryAllowLocalHarness: value } });
+			return {
+				projected: projectManagedSettings(bag, MANAGED_SETTINGS_CONTROL_DEFINITIONS),
+				required: requiresCopilotAgentHost(new class extends NullManagedSettingsService {
+					override getManagedSettingValue(key: string) { return bag[key]; }
+					override getManagedSettings() { return bag; }
+				}(), configuration),
+			};
+		});
+		assert.deepStrictEqual({ results, watched: MANAGED_SETTINGS_CONTROL_DEFINITIONS[key] }, {
+			results: [
+				{ projected: {}, required: false },
+				{ projected: { [key]: false }, required: true },
+				{ projected: { [key]: true }, required: false },
+				{ projected: {}, required: false },
+				{ projected: {}, required: false },
+				{ projected: {}, required: false },
+			],
+			watched: { type: 'boolean' },
+		});
+	});
+
+	test('temporary Local permission uses native MDM over server over file precedence', () => {
+		const key = COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY;
+		assert.deepStrictEqual([
+			pickManagedSettings({ [key]: false }, { [key]: true }, { [key]: true }).values,
+			pickManagedSettings({}, { [key]: false }, { [key]: true }).values,
+			pickManagedSettings({}, {}, { [key]: true }).values,
+		], [{ [key]: false }, { [key]: false }, { [key]: true }]);
 	});
 
 	const definitions: IStringDictionary<PolicyDefinition> = {

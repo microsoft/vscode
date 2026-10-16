@@ -12,8 +12,10 @@
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
+import { URI } from '../../../base/common/uri.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { AgentSession } from './agent.js';
 import { RemoteAgentHostsEnabledSettingId } from './remoteAgentHostService.js';
 import { IReplayedTaskHistory } from './taskEventReplay.js';
 import { SessionStatus } from './state/sessionState.js';
@@ -47,6 +49,16 @@ export const CLOUD_SANDBOX_SESSION_SCHEME = 'ahp-session';
 /** The agent provider advertised by the Copilot host inside the sandbox. */
 export const CLOUD_SANDBOX_AGENT_PROVIDER = 'copilot';
 
+/**
+ * Whether a title the sandbox host reports is its stand-in for an untitled session. AHP gives
+ * `title` no "untitled" meaning, and this host fills it with the session id until the agent names
+ * the session; the local agent host publishes an empty title instead. Remove once the sandbox host
+ * does the same or the protocol defines the untitled case.
+ */
+export function isCloudSandboxPlaceholderTitle(title: string | undefined, session: URI | string): title is string {
+	return title !== undefined && title === AgentSession.id(session);
+}
+
 /** Prefix of a sealed token envelope (`copilot-sealed.v1.<key_id>.<b64url>`). */
 export const CLOUD_SANDBOX_SEALED_TOKEN_PREFIX = 'copilot-sealed.v1.';
 
@@ -62,17 +74,8 @@ export function cloudSandboxEnvironmentId(address: string): string | undefined {
 }
 
 /**
- * The Copilot cloud agent slug whose tasks run inside a Mission Control sandbox.
- *
- * Sandbox tasks carry this slug today, which is why {@link CloudSandboxEnabledSettingId} exists and
- * defaults to off: the Copilot extension's cloud provider lists tasks by an allowlist of cloud
- * slugs (`copilot-developer`, `copilot-swe-agent`) that excludes this one, so the two providers do
- * not overlap. Sandbox tasks are expected to move under one of those slugs eventually, at which
- * point both providers would list the same task and the sessions list would show it twice — the
- * setting keeps that from reaching everyone before the overlap is resolved.
- *
- * That migration also breaks discovery, which requires this slug *and* the `sandboxes` compute
- * provider to recognize a task. Both must be resolved before the setting is enabled by default.
+ * Historical sandbox agent slug, retained for discovery diagnostics rather than filtering.
+ * Keep sandbox discovery opt-in until overlap with the Copilot extension's cloud provider is resolved.
  */
 export const CLOUD_SANDBOX_AGENT_SLUG = 'copilot-developer-cli';
 

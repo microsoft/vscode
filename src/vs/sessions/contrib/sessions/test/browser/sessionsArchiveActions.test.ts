@@ -77,7 +77,6 @@ suite('Sessions - Bulk archive undo', () => {
 				}
 				archived.push(session.sessionId);
 				sessions.find(entry => entry.session === session)!.isArchived.set(true, undefined);
-				sessionsChanged.fire({ added: [], removed: [], changed: [session] });
 				sessionArchived.fire(session);
 			}
 			override async unarchiveSession(session: ISession) {
@@ -203,17 +202,19 @@ suite('Sessions - Bulk archive undo', () => {
 		assert.deepStrictEqual(test.groupsService.getGroups(), [manualGroup]);
 	});
 
-	test('marking only visible comparison participants done keeps the group', async () => {
+	test('marking a comparison done includes participants outside the visible group rows', async () => {
 		const test = setup(ChatSessionArchiveActionWording.MarkAsDone, true);
 		await test.run('group', [test.sessions[0].session]);
 		assert.deepStrictEqual({
 			groups: test.groupsService.getGroups(),
 			membership: test.membership(),
 			archived: test.archived,
+			comparisonArchived: test.comparisonService.getComparison('comparison')?.archivedAt !== undefined,
 		}, {
-			groups: [test.group],
-			membership: [['second', test.group.id]],
-			archived: ['first'],
+			groups: [],
+			membership: [],
+			archived: ['first', 'second'],
+			comparisonArchived: true,
 		});
 	});
 

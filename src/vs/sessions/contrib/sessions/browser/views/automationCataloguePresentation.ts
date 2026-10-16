@@ -11,11 +11,18 @@ export function getUnavailableAutomationsReasons(unavailableProviders: readonly 
 	const reasons: string[] = [];
 	const groups = groupByMap(
 		[...unavailableProviders],
-		provider => provider.unavailableReasonCode !== undefined
-			? `code:${provider.unavailableReasonCode}`
-			: provider.unavailableReason !== undefined ? `text:${provider.unavailableReason}` : 'none',
+		provider => provider.unavailableMessage !== undefined
+			? `message:${provider.unavailableMessage}`
+			: provider.unavailableReasonCode !== undefined
+				? `code:${provider.unavailableReasonCode}`
+				: provider.unavailableReason !== undefined ? `text:${provider.unavailableReason}` : 'none',
 	);
 	for (const providers of groups.values()) {
+		const message = providers[0].unavailableMessage;
+		if (message !== undefined) {
+			reasons.push(message);
+			continue;
+		}
 		const labels = providers.map(provider => provider.label).join(', ');
 		switch (providers[0].unavailableReasonCode) {
 			case 'disconnected':
