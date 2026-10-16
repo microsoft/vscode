@@ -10621,6 +10621,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (restoredCustomizations && restoredCustomizations.length > 0) {
 			this._stateManager.setSessionCustomizations(sessionStr, restoredCustomizations);
 		}
+		this._chatContributions.didRestoreSession(sessionStr);
 
 		this._logService.info(`[AgentService] Restored session ${sessionStr} with ${turns.length} turns`);
 

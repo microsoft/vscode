@@ -280,6 +280,8 @@ export interface IAgentHostChatContribution extends IDisposable {
 	 * Must not throw; the dispatcher isolates failures.
 	 */
 	onChatUsage?(signal: IAgentChatUsageSignal): void;
+	/** Runs after a cold-restored session's catalog and metadata are fully populated. */
+	onDidRestoreSession?(session: ProtocolURI): void;
 	/**
 	 * Awaited before the turn is sent. Instructions are concatenated in `order`;
 	 * text replacements are threaded in `order`, so each contribution observes
@@ -342,6 +344,7 @@ export interface IAgentHostChatContributions extends IDisposable {
 	didApplyClientAction(action: IAppliedClientAction): void;
 	didDispatchAction(dispatched: IDispatchedAction): void;
 	chatUsage(signal: IAgentChatUsageSignal): void;
+	didRestoreSession(session: ProtocolURI): void;
 	outgoingTurn(turn: IOutgoingTurn): Promise<IOutgoingTurnContributionResult>;
 	incomingRequest(request: IIncomingRequest): IncomingRequestDisposition;
 	hydrateTurns(context: IHydrationContext, turns: readonly Turn[]): Promise<readonly Turn[]>;

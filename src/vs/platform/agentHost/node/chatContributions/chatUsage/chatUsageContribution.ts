@@ -41,15 +41,23 @@ export class ChatUsageContribution extends Disposable implements IAgentHostChatC
 		this._publishChatUsage(chat);
 	}
 
+	onDidRestoreSession(session: ProtocolURI): void {
+		this._publishSessionUsage(session);
+	}
+
+	private _publishSessionUsage(session: ProtocolURI): void {
+		for (const chat of this._stateManager.getSessionState(session)?.chats ?? []) {
+			this._publishChatUsage(chat.resource);
+		}
+	}
+
 	onDidDispatchAction(dispatched: IDispatchedAction): void {
 		if (dispatched.rejectionReason !== undefined) {
 			return;
 		}
 		const { action, session } = dispatched;
 		if (action.type === ActionType.SessionReady || action.type === ActionType.SessionChatAdded) {
-			for (const chat of this._stateManager.getSessionState(session)?.chats ?? []) {
-				this._publishChatUsage(chat.resource);
-			}
+			this._publishSessionUsage(session);
 		} else if (action.type === ActionType.SessionChatRemoved) {
 			this._pendingUsage.delete(action.chat);
 			const state = this._stateManager.getSessionState(session);

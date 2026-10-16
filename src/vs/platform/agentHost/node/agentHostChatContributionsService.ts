@@ -194,6 +194,16 @@ export class AgentHostChatContributions extends Disposable implements IAgentHost
 		}
 	}
 
+	didRestoreSession(session: ProtocolURI): void {
+		for (const registration of this._getOrderedContributions()) {
+			try {
+				registration.contribution.onDidRestoreSession?.(session);
+			} catch (err) {
+				this._logContributionFailure(registration, err);
+			}
+		}
+	}
+
 	async outgoingTurn(turn: IOutgoingTurn): Promise<IOutgoingTurnContributionResult> {
 		this._recordChatOwner(turn.chat, turn.session);
 		const instructions: string[] = [];

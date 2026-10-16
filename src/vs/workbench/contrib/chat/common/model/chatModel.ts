@@ -2759,6 +2759,10 @@ class InputModel implements IInputModel {
 	}
 }
 
+function creditsExceed(actual: number, reported: number): boolean {
+	return actual - reported > 2 * Number.EPSILON * Math.max(Math.abs(actual), Math.abs(reported));
+}
+
 export class ChatModel extends Disposable implements IChatModel {
 	static getDefaultTitle(requests: (ISerializableChatRequestData | IChatRequestModel)[]): string {
 		const firstRequestMessage = requests.at(0)?.message ?? '';
@@ -2955,7 +2959,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		const previous = this.sessionCostInfo;
 		const status = cost.status === 'complete' || cost.status === 'partial' || cost.status === 'unavailable' ? cost.status : undefined;
 		const credits = Math.max(cost.credits, this._sessionCostInfo?.credits ?? 0);
-		this._sessionCostInfo = { credits, status: status === 'complete' && cost.credits < credits ? 'partial' : status };
+		this._sessionCostInfo = { credits, status: status === 'complete' && creditsExceed(credits, cost.credits) ? 'partial' : status };
 		this._sessionCostResponseStatus = this._lastReportedSessionUsage()?.sessionCopilotCreditsStatus;
 		if (previous?.credits !== this.sessionCost || previous?.status !== this.sessionCostStatus) {
 			this._onDidChange.fire({ kind: 'setSessionCost' });
@@ -2970,11 +2974,16 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	get sessionCost(): number {
 		let summedCredits = 0;
+		let roundingCorrection = 0;
 		let reportedSessionCredits = 0;
 		for (const request of this._requests) {
 			const usage = request.response?.usage;
 			if (typeof usage?.copilotCredits === 'number') {
-				summedCredits += usage.copilotCredits;
+				// Compensated summation prevents accumulated roundoff from implying missing billing.
+				const adjusted = usage.copilotCredits - roundingCorrection;
+				const next = summedCredits + adjusted;
+				roundingCorrection = (next - summedCredits) - adjusted;
+				summedCredits = next;
 			}
 			if (typeof usage?.sessionCopilotCredits === 'number') {
 				reportedSessionCredits = Math.max(reportedSessionCredits, usage.sessionCopilotCredits);
@@ -3004,7 +3013,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		const cost = this.sessionCost;
 		if (!aggregate) {
 			const status = usage?.sessionCopilotCreditsStatus;
-			if (status === 'unavailable' && cost > 0 || status === 'complete' && (usage?.sessionCopilotCredits ?? -1) < cost) {
+			if (status === 'unavailable' && cost > 0 || status === 'complete' && creditsExceed(cost, usage?.sessionCopilotCredits ?? -1)) {
 				return 'partial';
 			}
 			return status;
@@ -3014,12 +3023,12 @@ export class ChatModel extends Disposable implements IChatModel {
 			if (usage?.sessionCopilotCreditsStatus === 'partial' || usage?.sessionCopilotCreditsStatus === 'unavailable') {
 				return cost > 0 ? 'partial' : usage.sessionCopilotCreditsStatus;
 			}
-			if (usage?.sessionCopilotCreditsStatus === 'complete' && (usage.sessionCopilotCredits ?? -1) >= cost) {
+			if (usage?.sessionCopilotCreditsStatus === 'complete' && !creditsExceed(cost, usage.sessionCopilotCredits ?? -1)) {
 				return 'complete';
 			}
 		}
-		if (cost > aggregate.credits) {
-			if ((usage?.sessionCopilotCredits ?? -1) >= cost) {
+		if (creditsExceed(cost, aggregate.credits)) {
+			if (!creditsExceed(cost, usage?.sessionCopilotCredits ?? -1)) {
 				return usage?.sessionCopilotCreditsStatus;
 			}
 			return aggregate.status !== undefined || usage?.sessionCopilotCreditsStatus !== undefined ? 'partial' : undefined;

@@ -600,6 +600,62 @@ suite('ChatModel', () => {
 		assert.deepStrictEqual(model.sessionCostInfo, { credits: 0.85, status: 'complete' });
 	});
 
+	for (const source of ['response', 'aggregate', 'both'] as const) {
+		test(`billing roundoff does not make complete ${source} totals partial`, () => {
+			const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			let totalNanoAiu = 0;
+			for (const nanoAiu of [100_000_000, 200_000_000]) {
+				totalNanoAiu += nanoAiu;
+				const request = model.addRequest({ text: 'image', parts: [] }, { variables: [] }, 0);
+				model.acceptResponseProgress(request, {
+					kind: 'usage', promptTokens: 1, completionTokens: 1, copilotCredits: nanoAiu / 1_000_000_000,
+					...(source !== 'aggregate' ? { sessionCopilotCredits: totalNanoAiu / 1_000_000_000, sessionCopilotCreditsStatus: 'complete' as const } : {}),
+				});
+			}
+			if (source !== 'response') {
+				model.setSessionCost({ credits: 0.3, status: 'complete' });
+			}
+			const exported = model.toJSON();
+			const restored = testDisposables.add(instantiationService.createInstance(
+				ChatModel, { value: JSON.parse(JSON.stringify(exported)) as ISerializableChatData3, serializer: undefined! },
+				{ initialLocation: ChatAgentLocation.Chat, canUseTools: true },
+			));
+			const statuses = [model.sessionCostStatus, restored.sessionCostStatus];
+			restored.setSessionCost({ credits: 0.3, status: 'complete' });
+			statuses.push(restored.sessionCostStatus);
+			assert.deepStrictEqual(statuses, ['complete', 'complete', 'complete']);
+		});
+	}
+
+	test('one nano-AIU of real unreported billing still makes a total partial', () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		for (const nanoAiu of [100_000_000, 200_000_001]) {
+			const request = model.addRequest({ text: 'image', parts: [] }, { variables: [] }, 0);
+			model.acceptResponseProgress(request, { kind: 'usage', promptTokens: 1, completionTokens: 1, copilotCredits: nanoAiu / 1_000_000_000 });
+		}
+		model.setSessionCost({ credits: 0.3, status: 'complete' });
+		const before = model.sessionCostStatus;
+		model.setSessionCost({ credits: 300_000_001 / 1_000_000_000, status: 'complete' });
+		assert.deepStrictEqual([before, model.sessionCostStatus], ['partial', 'complete']);
+	});
+
+	test('billing precision preserves fractional nano-AIU and long fractional sums', () => {
+		const observations = [];
+		for (const charges of [[0.25, 0.5], Array.from({ length: 100 }, () => 70_000_000)]) {
+			const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			for (const nanoAiu of charges) {
+				const request = model.addRequest({ text: 'image', parts: [] }, { variables: [] }, 0);
+				model.acceptResponseProgress(request, { kind: 'usage', promptTokens: 1, completionTokens: 1, copilotCredits: nanoAiu / 1_000_000_000 });
+			}
+			model.setSessionCost({ credits: charges.reduce((total, charge) => total + charge, 0) / 1_000_000_000, status: 'complete' });
+			observations.push({ quarterNanoAiu: Math.round(model.sessionCost * 4_000_000_000), status: model.sessionCostStatus });
+		}
+		assert.deepStrictEqual(observations, [
+			{ quarterNanoAiu: 3, status: 'complete' },
+			{ quarterNanoAiu: 28_000_000_000, status: 'complete' },
+		]);
+	});
+
 	test('aggregate-only billing preserves its maximum across stale snapshots and serialization', () => {
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
 		model.setSessionCost({ credits: 1, status: 'complete' });
