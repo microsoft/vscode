@@ -152,16 +152,19 @@ suite('Markdown editor RPC', () => {
 		assert.deepStrictEqual(rendererInbox.messages, [], 'even failed notifications have no response');
 	});
 
-	test('updates highlight configuration without reloading or acknowledging the renderer', async () => {
-		const seen: boolean[] = [];
+	test('updates editor configuration without reloading or acknowledging the renderer', async () => {
+		const seen: { highlightActiveBlock: boolean; insertActionsEnabled: boolean }[] = [];
 		const { host, rendererInbox, hostInbox, errors } = pair({}, {
-			configurationChanged: ({ highlightActiveBlock }) => { seen.push(highlightActiveBlock); },
+			configurationChanged: configuration => { seen.push(configuration); },
 		});
 		const renderer = host.get(markdownEditorRenderer);
-		renderer.configurationChanged({ highlightActiveBlock: false });
-		renderer.configurationChanged({ highlightActiveBlock: true });
+		renderer.configurationChanged({ highlightActiveBlock: false, insertActionsEnabled: true });
+		renderer.configurationChanged({ highlightActiveBlock: true, insertActionsEnabled: false });
 		await host.channel.sendNotification('markdown.editor.renderer::configurationChanged', { highlightActiveBlock: 'false' });
-		assert.deepStrictEqual(seen, [false, true]);
+		assert.deepStrictEqual(seen, [
+			{ highlightActiveBlock: false, insertActionsEnabled: true },
+			{ highlightActiveBlock: true, insertActionsEnabled: false },
+		]);
 		assert.strictEqual(rendererInbox.messages.length, 3);
 		assert.deepStrictEqual(hostInbox.messages, []);
 		assert.deepStrictEqual(errors, []);
