@@ -47,7 +47,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../../services
 import { REVEAL_CANVAS_COMMAND_ID } from '../../../../../workbench/contrib/canvases/common/canvas.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../changes/common/sessionChangesService.js';
 import { getGitHubHoverDate, getGitHubHoverDescription, getGitHubHoverTitle, getGitHubHoverTitleParts } from '../../../github/browser/githubHover.js';
-import { createIssueHoverElement } from '../../../github/browser/issueHover.js';
+import { createIssueHover } from '../../../github/browser/issueHover.js';
 import { GitHubCIOverallStatus, GitHubIssueState, GitHubIssueStateReason, GitHubPullRequestState, type IGitHubIssue, type IGitHubPullRequest } from '../../../github/common/types.js';
 import type { IResolvedSessionPullRequest } from '../../../github/browser/pullRequestIconStatus.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -1172,7 +1172,7 @@ suite('SessionChatInputToolbar', () => {
 
 	test('reveals a bounded title when keyboard focus reaches its reference link', () => {
 		const title = `${'Long issue title '.repeat(8)}ending`;
-		const hover = createIssueHoverElement({
+		const hover = createIssueHover({
 			owner: 'microsoft',
 			repo: 'vscode',
 			number: 42,
@@ -1190,7 +1190,7 @@ suite('SessionChatInputToolbar', () => {
 				closedAt: undefined,
 			},
 			density: 'compact',
-		});
+		}).element;
 		const titleContent = hover.querySelector('.sessions-issue-hover-title-content');
 		const reference = hover.querySelector<HTMLAnchorElement>('.sessions-issue-hover-reference');
 		const bounded = titleContent?.textContent;

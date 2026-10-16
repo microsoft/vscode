@@ -1033,7 +1033,7 @@ export class ChatView extends AbstractChatView {
 		if (isHTMLElement(progressContainer)) {
 			progressContainer.style.top = `${widgetTop}px`;
 		}
-		const contentWidth = Math.max(0, width - this.contentRightInset);
+		const contentWidth = Math.max(0, width - 2 * this.contentInset);
 		this._comparisonResult.layout(contentWidth);
 		size(this._widgetContainer, width, widgetHeight);
 		// Widget layout sizes embedded editors; its DOM viewport stays full-width for the scrollbar.
