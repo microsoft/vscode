@@ -1843,6 +1843,30 @@ suite('stateToProgressAdapter', () => {
 	});
 
 	suite('image generation', () => {
+		for (const success of [false, true]) {
+			test(`preserves authoritative image usage through live and restored tool state (${success})`, () => {
+				const backendSession = URI.parse('another-host:/opaque-image-session');
+				const imageGeneration = {
+					requestedModel: { id: 'provider/image:model' },
+					usage: { requestId: 'metered-operation', inputTokens: 21, outputTokens: 196, copilotUsage: { totalNanoAiu: 598_500_000 } },
+				};
+				const running = createToolCallState({ toolName: 'remote_create_image' });
+				const completed = createCompletedToolCall({
+					...running, status: ToolCallStatus.Completed, success,
+					content: success ? [{ type: ToolResultContentType.EmbeddedResource, contentType: 'image/png', data: 'AQID' }] : [],
+					...(success ? {} : { error: { message: 'Image decoding failed.' } }),
+					_meta: { 'vscode.imageGeneration': imageGeneration },
+				});
+				const live = rawToolCallStateToInvocation(running, undefined, backendSession, 'another-host');
+				rawFinalizeToolInvocation(live, completed, backendSession, 'another-host');
+				const restored = completedToolCallToSerialized(completed, undefined, backendSession, 'another-host');
+				assert.deepStrictEqual([live, restored].map(part => {
+					const data = part.toolSpecificData;
+					return data?.kind === 'generatedImage' || data?.kind === 'input' ? data.imageGeneration : undefined;
+				}), [imageGeneration, imageGeneration]);
+			});
+		}
+
 		test('preserves metadata-only image failure details and classification in live and restored state', () => {
 			const backendSession = URI.parse('other-host:/opaque-image-session');
 			const imageGeneration = { requestedModel: { id: 'remote/image-model', name: 'Remote Image' } };

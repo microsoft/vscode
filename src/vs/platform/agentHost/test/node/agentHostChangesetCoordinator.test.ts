@@ -1351,6 +1351,24 @@ suite('ChangesetSessionCoordinator', () => {
 		});
 	});
 
+	test('moving a chat to another session keeps its own changesets', async () => {
+		const session = AgentSession.uri('mock', 'move-source').toString();
+		const target = AgentSession.uri('mock', 'move-target').toString();
+		const peer = buildChatUri(session, 'peer');
+		const root = URI.file('/projects/shared');
+		const environment = createEnvironment(undefined, createRoutingGitService(new Map([[root.toString(), root]])));
+		createSession(environment.stateManager, session, root.toString());
+		createSession(environment.stateManager, target, root.toString());
+		environment.stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer, buildDefaultChatUri(session)), { workingDirectories: [root.toString()] });
+		environment.coordinator.onFirstSubscriber(URI.parse(session));
+		await tick();
+
+		environment.stateManager.transferChats(session, target, [peer], undefined);
+		await tick();
+
+		assert.deepStrictEqual({ removedOwners: environment.changesets.removedOwners, disposals: environment.monitor.disposals }, { removedOwners: [], disposals: [] });
+	});
+
 	test('detaches a repository root watcher when a session stops resolving to it', async () => {
 		const session = AgentSession.uri('mock', 'session-1').toString();
 		const rootA = URI.file('/projects/repoA');

@@ -68,6 +68,7 @@ export class CopilotSessionWrapper extends Disposable {
 		readonly canvasRuntimeEnabled: boolean,
 		/** BYOK providers and models the SDK session was launched with. */
 		readonly launchByokConfig: ICopilotByokSessionConfig,
+		readonly launchImageGenerationEnabled: boolean,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();

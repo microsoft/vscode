@@ -720,6 +720,15 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 	}
 
 	/**
+	 * A write outside this store changed `session`'s normalized chat list (Block 4's moves, promotions and reorders):
+	 * publishes its older-build copy at the end of the coalescing window, as for a change made here, so older builds
+	 * see the chats where they are now and the chats that left it are recorded as left.
+	 */
+	scheduleOlderBuildCopyPublish(session: URI): void {
+		this._scheduleCompatibilityPublish(session);
+	}
+
+	/**
 	 * Brings a normalized catalog's older-build copy in sync before a move or promotion validates, so it never works
 	 * from a stale list: imports what older builds changed, then publishes the pending copy. Block 4 calls this.
 	 */
@@ -773,12 +782,15 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 	 * this build keeps `projected_revision` equal to `revision` through every write of its own (in the same
 	 * transaction). Only when they differ are the rows compared with the projection of the untouched `chats_v2`
 	 * rows, the merge base; a difference then is an older build's committed write. No difference means the other
-	 * writer kept the projection (1.142 writes it itself), and the projection is simply this build's again. A
+	 * writer kept the list: 1.142 writes it itself, and 1.141 re-mirrors it unchanged at quit with its renames only
+	 * in the session database. The session database's copy is read then too, and the list is recorded as this
+	 * build's projection again after it. A
 	 * projection whose definition changed is never mistaken for an edit: the marker stays current, and the next
 	 * write re-projects it. Rows naming chats `chats_v2` records but the projection does not list (private,
 	 * deleted, the default, moved elsewhere) are never imported: older builds never saw them.
 	 *
-	 * `peerChats` (read only when `readSessionCopy`, where the session database is held anyway; the publisher
+	 * `peerChats` (read when `readSessionCopy`, where the session database is held anyway, or when another writer
+	 * advanced the revision; never for a catalog nothing else touched. The publisher
 	 * checks it before overwriting it): a list other than the acknowledged one that is not this build's current
 	 * projection was written by another build and is merged against the acknowledged payload. When it is this
 	 * build's current projection, this build wrote it and stopped before acknowledging: it is just acknowledged.
@@ -827,7 +839,9 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 					}
 					continue;
 				}
-			} else if (readSessionCopy && (source.legacyMirroredPayload !== undefined || source.publishedChatState !== undefined)) {
+			} else if ((readSessionCopy || source.projectionBehind) && (source.legacyMirroredPayload !== undefined || source.publishedChatState !== undefined)) {
+				// Also when another build advanced the revision with the rows unchanged: 1.141 re-mirrors the list at quit,
+				// and its renames are only in the session database. A catalog nothing touched opens no session database.
 				imported = await this._importSessionCopyEdits(session, source, await this._readSessionCopy(session, database, source));
 			}
 			if (imported === 'conflict') {
@@ -839,16 +853,32 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				continue;
 			}
 			this._olderBuildEditsImported.add(sessionKey);
+			const recordProjected = async () => {
+				if (source.projectionBehind && !source.hasOlderBuildEdits) {
+					// What else that build changed is imported: the unchanged list is this build's projection again.
+					await this._database.recordOlderBuildChatListProjected(sessionKey);
+				}
+			};
 			if (imported === 'imported') {
+				// Recorded only once published: an interruption before it leaves the session copy to be read and published again.
 				await this._publishNormalizedCompatibilityState(session, database);
+				await recordProjected();
 				const current = await this._database.readOlderBuildCopySource(sessionKey);
 				return current ? this._normalizedEntriesFromSource(current) : undefined;
 			}
-			if (!this._needsNoOlderBuildCopy(source) && source.legacyMirroredPayload !== JSON.stringify(this._olderBuildCopyEntries(source.peers))) {
+			await recordProjected();
+			if (!this._needsNoOlderBuildCopy(source) && (source.legacyMirroredPayload !== JSON.stringify(this._olderBuildCopyEntries(source.peers)) || this._hasUnpublishedTitles(session, source))) {
 				this._scheduleCompatibilityPublish(session);
 			}
 			return this._normalizedEntriesFromSource(source);
 		}
+	}
+
+	/** Whether the titles older builds read are not what this build last published, e.g. an import was interrupted before publishing. */
+	private _hasUnpublishedTitles(session: URI, source: IAgentHostDatabaseOlderBuildCopySource): boolean {
+		const entries = this._olderBuildCopyEntries(source.peers);
+		const { left } = this._leftChats(session, source, this._parsePublishedChatTitles(session, source.publishedChatState), new Set(entries.map(entry => entry.uri)));
+		return source.publishedChatState !== encodeOlderBuildChatTitleRecord(this._olderBuildChatTitles(source), undefined, left);
 	}
 
 	/** Imports an older build's `session_chats` rows (see {@link _importOlderBuildEdits}). */

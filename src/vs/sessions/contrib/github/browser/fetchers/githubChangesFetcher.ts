@@ -6,42 +6,20 @@
 import { GitHubApiClient } from '../githubApiClient.js';
 import { IGitHubChangedFile } from '../../common/types.js';
 
-interface IGitHubCompareResponse {
-	readonly files: readonly {
-		readonly filename: string;
-		readonly previous_filename?: string;
-		readonly status: IGitHubChangedFile['status'];
-		readonly additions: number;
-		readonly deletions: number;
-		readonly patch?: string;
-	}[];
-}
-
-/**
- * Stateless fetcher for GitHub repository compare data.
- */
 export class GitHubChangesFetcher {
+	constructor(private readonly _client: GitHubApiClient) { }
 
-	constructor(
-		private readonly _apiClient: GitHubApiClient,
-	) { }
-
-	async getChangedFiles(owner: string, repo: string, base: string, head: string): Promise<readonly IGitHubChangedFile[]> {
-		const response = await this._apiClient.request<IGitHubCompareResponse>(
-			'GET',
-			`/repos/${e(owner)}/${e(repo)}/compare/${e(base)}...${e(head)}`,
-			'githubApi.getChangedFiles'
-		);
-
-		return response.data?.files.map(file => ({
-			filename: file.filename,
-			previous_filename: file.previous_filename,
-			status: file.status,
-			additions: file.additions,
-			deletions: file.deletions,
-			patch: file.patch,
-		})) ?? [];
+	getChangedFiles(owner: string, repo: string, base: string, head: string): Promise<readonly IGitHubChangedFile[]> {
+		return this._client.withClient(async (client, signal) => {
+			const comparison = await client.repositories.compare({ owner, name: repo }, base, head, signal);
+			return comparison.files?.map(file => ({
+				filename: file.filename,
+				previous_filename: file.previous_filename,
+				status: file.status,
+				additions: file.additions,
+				deletions: file.deletions,
+				patch: file.patch,
+			})) ?? [];
+		});
 	}
 }
-
-const e = encodeURIComponent;

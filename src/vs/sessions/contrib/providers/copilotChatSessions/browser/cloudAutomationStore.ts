@@ -55,6 +55,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		this.refreshError.read(reader) ? 'error' : this.store.read(reader)?.catalogueState.read(reader)
 			?? (this.enabled.read(reader) && !this.accountInitialized.read(reader) ? 'loading' : 'unavailable'));
 	readonly unavailableReason = this.refreshError;
+	readonly unavailableMessage = localize('cloudAutomations.unavailableMessage', "GitHub Cloud automations are unavailable.");
 	readonly canCreateAutomation = derived(this, reader =>
 		this.enabled.read(reader) && this.catalogueState.read(reader) === 'ready' && this.store.read(reader)?.mutationUncertain.read(reader) === false);
 	readonly automations = derived(this, reader => (this.store.read(reader)?.entries.read(reader) ?? []).map(entry => this.toAutomation(entry)));
