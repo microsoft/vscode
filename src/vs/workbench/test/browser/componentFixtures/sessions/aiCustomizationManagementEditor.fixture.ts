@@ -2016,7 +2016,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			: 0;
 	if (expectedCopilotRows > 0) {
 		await waitForFixtureCondition(
-			() => ctx.container.querySelectorAll('.copilot-customizations-widget .plugin-home-row').length === expectedCopilotRows,
+			() => ctx.container.querySelector('.copilot-customizations-widget .copilot-customization-tree-item') !== null,
 			'Copilot customization rows did not finish rendering.',
 		);
 	}
@@ -3211,6 +3211,17 @@ const fixtureCopilotExtensionInventory: IAgentExtensionInventory = {
 		},
 	],
 };
+const fixtureScrollableCopilotExtensionInventory: IAgentExtensionInventory = {
+	mode: 'load_and_augment',
+	extensions: Array.from({ length: 18 }, (_, index) => ({
+		id: index % 3 === 0 ? `plugin:fixture-${index}` : `user:fixture-${index}`,
+		name: `Fixture Extension ${index + 1}`,
+		resource: URI.file(`/home/dev/.copilot/extensions/fixture-${index}/extension.mjs`),
+		source: index % 3 === 0 ? 'plugin' as const : 'user' as const,
+		...(index % 3 === 0 ? { pluginName: `Fixture Plugin ${Math.floor(index / 3) + 1}` } : {}),
+		enabled: index % 4 !== 0,
+	})),
+};
 const fixtureCopilotCanvases: readonly ICanvasDefinition[] = [
 	{
 		canvasId: 'diagram',
@@ -3314,7 +3325,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	ExtensionsTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Extensions shows host-scoped user and plugin extension inventory with enabled state, source ownership, and enablement actions.'],
+		expectedVisualDescriptions: ['Extensions uses the shared customization tree design with User and Plugins groups, standard switches for enabled state, and Refresh in the title row rather than beside search.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			selectedSection: AICustomizationManagementSection.Extensions,
@@ -3322,9 +3333,20 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
+	ExtensionsTabScrollable: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['A long Extensions inventory scrolls inside the shared tree with theme-respecting scrollbar colors in both dark and light themes.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			selectedSection: AICustomizationManagementSection.Extensions,
+			copilotExtensionInventory: fixtureScrollableCopilotExtensionInventory,
+			height: 420,
+		}),
+	}),
+
 	CanvasesTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Canvases shows definitions from chats visible in this window, including directly openable project and plugin canvases plus a session canvas that requires input.'],
+		expectedVisualDescriptions: ['Canvases uses the shared customization tree design, grouped by extension source, with Refresh in the title row and provider management as a row action.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			selectedSection: AICustomizationManagementSection.Canvases,
