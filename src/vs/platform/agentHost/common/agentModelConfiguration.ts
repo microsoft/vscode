@@ -167,6 +167,7 @@ export function createContextSizeConfigSchemaPropertyFromLimits(defaultMax: numb
  */
 export function createByokContextSizeConfigSchemaProperty(options: IByokLmContextSizeOptions | undefined): ConfigPropertySchema | undefined {
 	const values = normalizeByokContextSizes(options);
+	// Same threshold as `resolveByokContextSize`: a picker and an applied size go together.
 	if (!options || values.length < 2) {
 		return undefined;
 	}
@@ -187,12 +188,14 @@ export function createByokContextSizeConfigSchemaProperty(options: IByokLmContex
 /**
  * Resolves the prompt-token budget a session runs a BYOK model against:
  * `selected` when the model still offers it, else the provider's default, else
- * the largest size offered. `undefined` when the model offers no choice, so a
- * stale selection never reaches the runtime as an arbitrary number.
+ * the largest size offered. `undefined` when the model offers fewer than two
+ * sizes — no choice means no picker, and a budget the user cannot see or change
+ * must not be applied — so a stale selection never reaches the runtime as an
+ * arbitrary number either.
  */
 export function resolveByokContextSize(options: IByokLmContextSizeOptions | undefined, selected: number | undefined): number | undefined {
 	const values = normalizeByokContextSizes(options);
-	if (!options || values.length === 0) {
+	if (!options || values.length < 2) {
 		return undefined;
 	}
 	if (selected !== undefined && values.includes(selected)) {

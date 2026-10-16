@@ -7605,13 +7605,22 @@ export class CopilotAgentSession extends Disposable {
 				}));
 				this._requestedModel = selection;
 				this._appliedModelSelection = this._requestedModel;
+			} catch (err) {
+				// The pre-switch sync already registered the model at the rejected
+				// selection's size. The previous selection stands again, so put the
+				// registration back to match it. Best-effort and not awaited: the
+				// caller gets the runtime's rejection, not a sync failure.
+				if (this._pendingModel === selection) {
+					this._pendingModel = undefined;
+					void this.syncByokModels().catch(syncErr =>
+						this._logService.warn(`[Copilot:${this.sessionId}] Failed to restore BYOK registration after a rejected model change`, syncErr));
+				}
+				throw err;
 			} finally {
 				this.refreshModelConfiguration();
 			}
 		} finally {
 			// A later `setModel` may have superseded this one; leave its selection pending.
-			// After a rejected switch the previous selection stands again, and the next
-			// sync re-registers the model at that size.
 			if (this._pendingModel === selection) {
 				this._pendingModel = undefined;
 			}
