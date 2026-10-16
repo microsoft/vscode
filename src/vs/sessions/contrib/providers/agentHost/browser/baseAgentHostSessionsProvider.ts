@@ -4852,10 +4852,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 		const activeClient = scope.activeClient(connection.clientId).get();
 		const channel = cached.backendUri.toString();
-		const subscriptionState = connection.getSubscriptionUnmanaged(StateComponents.Session, cached.backendUri)?.value;
-		const existing = subscriptionState && !(subscriptionState instanceof Error)
-			? subscriptionState.activeClients.find(client => client.clientId === activeClient.clientId)
-			: undefined;
+		const subscriptionState = connection.getSubscriptionUnmanaged(StateComponents.Session, cached.backendUri)?.verifiedValue;
+		const existing = subscriptionState?.activeClients.find(client => client.clientId === activeClient.clientId);
 		if (equals(existing, activeClient)) {
 			this._lastPublishedActiveClients.delete(channel);
 			return;
@@ -8850,7 +8848,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			// the echo carries the value it already set.
 			if (e.rejectionReason) {
 				if (e.action.type === ActionType.SessionActiveClientSet && e.action.activeClient.clientId === connection.clientId) {
-					this._lastPublishedActiveClients.delete(e.channel);
+					const lastPublished = this._lastPublishedActiveClients.get(e.channel);
+					if (lastPublished?.connection === connection && equals(lastPublished.activeClient, e.action.activeClient)) {
+						this._lastPublishedActiveClients.delete(e.channel);
+					}
 				}
 				return;
 			}

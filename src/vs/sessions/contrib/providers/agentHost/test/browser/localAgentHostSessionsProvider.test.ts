@@ -402,6 +402,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	private readonly _sessionStateEmitters = new Map<string, Emitter<SubscriptionState>>();
 	private readonly _sessionStateErrorEmitters = new Map<string, Emitter<Error>>();
 	private readonly _sessionStateValues = new Map<string, SubscriptionState | Error>();
+	private readonly _optimisticSessionStateValues = new Map<string, SubscriptionState>();
 	public sessionSubscribeCounts = new Map<string, number>();
 	public sessionUnsubscribeCounts = new Map<string, number>();
 
@@ -422,7 +423,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		}
 		const self = this;
 		return {
-			get value() { return self._sessionStateValues.get(key) as ComponentToState[T] | Error | undefined; },
+			get value() { return (self._optimisticSessionStateValues.get(key) ?? self._sessionStateValues.get(key)) as ComponentToState[T] | Error | undefined; },
 			get verifiedValue() {
 				const value = self._sessionStateValues.get(key);
 				return value instanceof Error ? undefined : value as ComponentToState[T] | undefined;
@@ -452,7 +453,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		}
 		const self = this;
 		const sub: IAgentSubscription<T> = {
-			get value() { return self._sessionStateValues.get(key) as T | Error | undefined; },
+			get value() { return (self._optimisticSessionStateValues.get(key) ?? self._sessionStateValues.get(key)) as T | Error | undefined; },
 			get verifiedValue() {
 				const value = self._sessionStateValues.get(key);
 				return value instanceof Error ? undefined : value as T | undefined;
@@ -485,13 +486,27 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		const resource = AgentSession.uri(provider, rawId);
 		const key = resource.toString();
 		const advertised = this._advertisedSessionState(resource, state);
+		this._optimisticSessionStateValues.delete(key);
 		this._sessionStateValues.set(key, advertised);
 		this._sessionStateEmitters.get(key)?.fire(advertised);
+	}
+
+	setOptimisticSessionState(rawId: string, provider: string, state: SessionState | undefined): void {
+		const resource = AgentSession.uri(provider, rawId);
+		const key = resource.toString();
+		if (state) {
+			const advertised = this._advertisedSessionState(resource, state);
+			this._optimisticSessionStateValues.set(key, advertised);
+			this._sessionStateEmitters.get(key)?.fire(advertised);
+		} else {
+			this._optimisticSessionStateValues.delete(key);
+		}
 	}
 
 	setSessionStateResource(resource: URI, state: SessionState): void {
 		const key = resource.toString();
 		const advertised = this._advertisedSessionState(resource, state);
+		this._optimisticSessionStateValues.delete(key);
 		this._sessionStateValues.set(key, advertised);
 		this._sessionStateEmitters.get(key)?.fire(advertised);
 	}
@@ -8926,6 +8941,52 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}]);
 	});
 
+	test('does not treat optimistic active client state as host confirmation', async () => {
+		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		const visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', []);
+		const activeClient = {
+			tools: [],
+			customizations: [],
+		} satisfies Omit<SessionActiveClient, 'clientId'>;
+		const publishedActiveClient = { clientId: agentHost.clientId, ...activeClient };
+		const state = (activeClients: SessionActiveClient[]): SessionState => ({
+			provider: 'copilotcli',
+			title: 'Optimistic active client',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients,
+			chats: [],
+		});
+		agentHost.addSession(createSession('active-client-optimistic'));
+		agentHost.setSessionState('active-client-optimistic', 'copilotcli', state([]));
+		const provider = createProvider(disposables, agentHost, undefined, { activeSession, visibleSessions, activeClient });
+		provider.getSessions();
+		await timeout(0);
+		agentHost.dispatchedActions.length = 0;
+		const resource = URI.from({ scheme: 'agent-host-copilotcli', path: '/active-client-optimistic' });
+		const selectedSession = {
+			providerId: provider.id,
+			sessionId: `${provider.id}:${resource.toString()}`,
+			resource,
+		} as IActiveSession;
+		visibleSessions.set([selectedSession], undefined);
+		activeSession.set(selectedSession, undefined);
+		await timeout(0);
+
+		agentHost.setOptimisticSessionState('active-client-optimistic', 'copilotcli', state([publishedActiveClient]));
+		activeSession.set(undefined, undefined);
+		await timeout(0);
+		activeSession.set(selectedSession, undefined);
+		await timeout(0);
+		agentHost.setOptimisticSessionState('active-client-optimistic', 'copilotcli', undefined);
+		activeSession.set(undefined, undefined);
+		await timeout(0);
+		activeSession.set(selectedSession, undefined);
+		await timeout(0);
+
+		assert.strictEqual(agentHost.dispatchedActions.filter(dispatch => dispatch.action.type === ActionType.SessionActiveClientSet).length, 1);
+	});
+
 	test('republishes the active client after the host removes it', async () => {
 		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
 		const visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', []);
@@ -9033,6 +9094,70 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await timeout(0);
 
 		assert.strictEqual(agentHost.dispatchedActions.filter(dispatch => dispatch.action.type === ActionType.SessionActiveClientSet).length, 2);
+	});
+
+	test('does not let an older rejection invalidate a newer active client publication', async () => {
+		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		const firstActiveClient: SessionActiveClient = {
+			clientId: agentHost.clientId,
+			displayName: 'First',
+			tools: [],
+			customizations: [],
+		};
+		const secondActiveClient: SessionActiveClient = {
+			...firstActiveClient,
+			displayName: 'Second',
+		};
+		const activeClient = observableValue<SessionActiveClient>('activeClient', firstActiveClient);
+		const scope: IAgentCustomizationScope = {
+			customizations: constObservable([]),
+			customAgents: constObservable([]),
+			tools: constObservable([]),
+			isResolved: constObservable(true),
+			whenResolved: async () => { },
+			getSyncedUri: () => undefined,
+			activeClient: () => activeClient,
+			dispose: () => { },
+		};
+		agentHost.addSession(createSession('active-client-stale-rejection'));
+		const provider = createProvider(disposables, agentHost, undefined, {
+			activeSession,
+			activeClientScope: () => scope,
+		});
+		provider.getSessions();
+		await timeout(0);
+		agentHost.dispatchedActions.length = 0;
+		const resource = URI.from({ scheme: 'agent-host-copilotcli', path: '/active-client-stale-rejection' });
+		const selectedSession = {
+			providerId: provider.id,
+			sessionId: `${provider.id}:${resource.toString()}`,
+			resource,
+		} as IActiveSession;
+		activeSession.set(selectedSession, undefined);
+		await timeout(0);
+		activeSession.set(undefined, undefined);
+		await timeout(0);
+		activeClient.set(secondActiveClient, undefined);
+		activeSession.set(selectedSession, undefined);
+		await timeout(0);
+
+		agentHost.fireAction({
+			channel: AgentSession.uri('copilotcli', 'active-client-stale-rejection').toString(),
+			action: {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: firstActiveClient,
+			},
+			serverSeq: 1,
+			origin: { clientId: agentHost.clientId, clientSeq: 0 },
+			rejectionReason: 'Older publication rejected',
+		});
+		activeSession.set(undefined, undefined);
+		await timeout(0);
+		activeSession.set(selectedSession, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(agentHost.dispatchedActions
+			.flatMap(dispatch => dispatch.action.type === ActionType.SessionActiveClientSet ? [dispatch.action.activeClient.displayName] : []), ['First', 'Second']);
 	});
 
 	test('quick chat excludes its host scratch directory from the active client customization scope', async () => {
