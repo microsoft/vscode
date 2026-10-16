@@ -259,14 +259,14 @@ async function detectManifestPluginFormat(pluginUri: URI, fileService: IFileServ
 	if (await pathExists(joinPath(pluginUri, '.plugin', 'plugin.json'), fileService)) {
 		return OPEN_PLUGIN_FORMAT;
 	}
+	if (await pathExists(joinPath(pluginUri, '.claude-plugin', 'plugin.json'), fileService)) {
+		return CLAUDE_FORMAT;
+	}
 	if (await pathExists(joinPath(pluginUri, 'plugin.json'), fileService)) {
 		return COPILOT_FORMAT;
 	}
 	if (await pathExists(joinPath(pluginUri, '.github', 'plugin', 'plugin.json'), fileService)) {
 		return GITHUB_COPILOT_FORMAT;
-	}
-	if (await pathExists(joinPath(pluginUri, '.claude-plugin', 'plugin.json'), fileService)) {
-		return CLAUDE_FORMAT;
 	}
 	return undefined;
 }
@@ -277,7 +277,7 @@ export async function hasPluginManifest(pluginUri: URI, fileService: IFileServic
 
 export async function detectPluginFormat(pluginUri: URI, fileService: IFileService): Promise<IPluginFormatConfig> {
 	const manifestFormat = await detectManifestPluginFormat(pluginUri, fileService);
-	if (manifestFormat) {
+	if (manifestFormat && manifestFormat.format !== PluginFormat.Copilot) {
 		return manifestFormat;
 	}
 	const isInClaudeDirectory = pluginUri.path.split('/').includes('.claude');
@@ -285,7 +285,7 @@ export async function detectPluginFormat(pluginUri: URI, fileService: IFileServi
 		return CLAUDE_FORMAT;
 	}
 
-	return COPILOT_FORMAT;
+	return manifestFormat ?? COPILOT_FORMAT;
 }
 
 export async function readPluginManifest(pluginUri: URI, format: IPluginFormatConfig, fileService: IFileService): Promise<Record<string, unknown> | undefined> {
