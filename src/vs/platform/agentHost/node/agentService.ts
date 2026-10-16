@@ -47,7 +47,7 @@ import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomati
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, type CreateResourceWatchParams, type CreateResourceWatchResult, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, PendingMessageKind, TerminalClaimKind, TerminalLifecycleStatus, type Annotation, type AnnotationEntry, type AnnotationOrigin, type AnnotationsState, type ChatOrigin, type ChatState, type Customization, type Message, type MessageAttachment, type MessageResourceAttachment, type TerminalState, type TextRange, type ToolResultTerminalContent } from '../common/state/protocol/state.js';
-import type { ChatConfigChangedAction, ChatPendingMessageSetAction, ChatTurnStartedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
+import type { ChatConfigChangedAction, ChatIsArchivedChangedAction, ChatIsReadChangedAction, ChatPendingMessageSetAction, ChatTurnStartedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
 import { isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, readSessionCreationReference, readSessionComparisonMetadata, readSessionSpawnDepth, withSessionSpawnDepth, withSessionCreationReference, parseSessionCreationReference, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, TurnState, AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, getErrorResponsePart, getSessionChatResource, isAhpChatChannel, isChatInSessionReadAggregate, isChatReadOnly, isSessionChatArchived, isSessionStatusArchived, isSessionStatusRead, isSubagentSession, needsSessionGitStateRefresh, parseResourceWatchChannelUri, parseSessionGitData, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withSessionExternal, withSessionGitData, withSessionGitHubState, withSessionGitState, withSessionHasWorkspaceTransitions, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionEhcliAdopted, withSessionEhcliLastMigratedTurn, AH_META_EHCLI_LAST_TURN_DB_KEY, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, getAllSessionRelatedPullRequestUrls, readSessionEhcliAdoptable, readSessionGitHubData, parseSessionGitHubData, parseSessionGitHubState, readSessionGitHubStateInput, withMigratedSessionGitHubState, withReplacedFolderGitHubState, withMostRecentRelatedSessionPullRequest, SESSION_META_GITHUB_DATA_KEY, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ISessionGitHubState, type ISessionSourceControlState, type ChatSummary, type ISessionWithDefaultChat, type SessionConfigState, type SessionSummary, type SessionSummaryMeta, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../common/meta/agentSnapshotAttachmentMeta.js';
@@ -219,15 +219,23 @@ interface IPassiveSessionMetadataUpdate {
 	readonly requestedSet: boolean;
 }
 
-/** A chat's read state, applied to the catalog before any session read aggregate in the same batch. */
-interface IPassiveChatReadUpdate {
-	readonly kind: 'chatRead';
+/** A chat's read or archived state, applied to the catalog before any session read aggregate in the same batch. */
+interface IPassiveChatFlagUpdate {
+	readonly kind: 'chat';
 	readonly key: string;
 	readonly chat: string;
-	readonly isRead: boolean;
+	readonly field: 'isRead' | 'archived';
+	readonly set: boolean;
 }
 
-type PassiveCatalogMetadataUpdate = IPassiveSessionMetadataUpdate | IPassiveChatReadUpdate;
+/** Detaches an archived chat's folders from the persisted session workspace, after the chat flags of the same batch. */
+interface IPassiveChatFolderDetachUpdate {
+	readonly kind: 'detachFolders';
+	readonly key: string;
+	readonly chat: string;
+}
+
+type PassiveCatalogMetadataUpdate = IPassiveSessionMetadataUpdate | IPassiveChatFlagUpdate | IPassiveChatFolderDetachUpdate;
 
 interface IBackgroundPassiveSessionMetadataWrite {
 	promise: Promise<void>;
@@ -235,6 +243,8 @@ interface IBackgroundPassiveSessionMetadataWrite {
 }
 
 const PASSIVE_METADATA_SHUTDOWN_REPLAY_TIMEOUT_MS = 250;
+
+const UNMANAGEABLE_CHAT_ARCHIVE_REJECTION = 'Only a known independently manageable non-default chat can be archived.';
 
 interface ISessionListComputation {
 	epoch: number;
@@ -1876,7 +1886,7 @@ export class AgentService extends Disposable implements IAgentService {
 				const status = chats?.find(chat => chat.resource === target.chat.toString())?.status;
 				this._stateManager.dispatchServerAction(key, { type: ActionType.SessionChatUpdated, chat: target.chat.toString(), changes: { status } });
 			} else if (summary) {
-				this._stateManager.setSurfacedSessionStatusAndChats(key, summary.status, chats);
+				this._setSurfacedChatArchived(key, target.chat.toString(), true);
 			}
 			await this._markCatalogPayloadDirty(key);
 			this._catalogReconciliationService.schedule();
@@ -8171,50 +8181,68 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
-	 * Applies a chat read toggle to a chat of a session that is not currently
-	 * materialized: persists the chat's read state, publishes it on the
+	 * Applies a chat read or archive toggle to a chat of a session that is not
+	 * currently materialized: persists the chat's flag, publishes it on the
 	 * surfaced summary and synchronizes the session read aggregate, without
 	 * restoring the session. A restore costs as much as loading the whole
 	 * session, and every later action from the same client queues behind it.
+	 * Archiving an unread chat also marks it read, as for a loaded chat.
 	 *
 	 * Returns `'restore'`, leaving the caller to restore, when its surfaced
-	 * summary does not list the chat, and `'deleting'`, writing nothing, when
-	 * the session is being deleted. Callers must run it through
-	 * {@link _queuePassiveMetadataUpdate} and resolve `session` from the chat's
-	 * recorded owner.
+	 * summary does not list the chat; `'deleting'`, writing nothing, when the
+	 * session is being deleted; and `'unmanageable'`, writing nothing, for an
+	 * archive toggle on a default, tool or side chat. Callers must run it
+	 * through {@link _queuePassiveMetadataUpdate} and resolve `session` from
+	 * the chat's recorded owner.
 	 */
-	private async _applyPassiveChatRead(session: string, chat: string, isRead: boolean): Promise<'applied' | 'restore' | 'deleting'> {
+	private async _applyPassiveChatFlags(session: string, chat: string, action: ChatIsReadChangedAction | ChatIsArchivedChangedAction): Promise<'applied' | 'restore' | 'deleting' | 'unmanageable'> {
 		const summary = this._stateManager.getSurfacedSessionSummary(session);
 		const target = summary?.chats?.find(candidate => candidate.resource === chat);
 		if (!summary || !target || readSessionEhcliAdoptable(summary._meta)) {
 			return 'restore';
+		}
+		if (action.type === ActionType.ChatIsArchivedChanged
+			&& (this._chatOwnership.isDefaultChat(session, chat) || target.origin?.kind === ChatOriginKind.Tool || target.origin?.kind === ChatOriginKind.SideChat)) {
+			return 'unmanageable';
 		}
 		const sessionUri = URI.parse(session);
 		// Writing would recreate the data a deletion is removing.
 		if (this._catalogSyncService.isSessionDeletionFenced(sessionUri) || this._sessionResidency.isBeingDisposed(session)) {
 			return 'deleting';
 		}
+		const chatUri = URI.parse(chat);
 		const chatWasRead = isSessionStatusRead(target.status ?? summary.status);
-		await this._peerChatStore.setRead(sessionUri, URI.parse(chat), isRead);
-		// A legacy central payload still lists the previous read state; synchronize it before any aggregate update reads it.
-		this._queuePassiveSessionMetadataSynchronization(sessionUri, { kind: 'chatRead', key: `chatRead:${chat}`, chat, isRead });
+		if (action.type === ActionType.ChatIsArchivedChanged) {
+			await this._peerChatStore.setArchived(sessionUri, chatUri, action.isArchived);
+			// A legacy central payload still lists the previous flags; synchronize them before any aggregate update reads them.
+			this._queuePassiveSessionMetadataSynchronization(sessionUri, { kind: 'chat', key: `chatArchived:${chat}`, chat, field: 'archived', set: action.isArchived });
+			this._setSurfacedChatArchived(session, chat, action.isArchived);
+			if (action.isArchived) {
+				this._queuePassiveSessionMetadataSynchronization(sessionUri, { kind: 'detachFolders', key: `chatFolders:${chat}`, chat });
+			}
+		}
+		const isRead = action.type === ActionType.ChatIsReadChanged ? action.isRead : action.isArchived && !chatWasRead ? true : undefined;
 		let aggregateChanged = false;
-		const current = this._stateManager.getSurfacedSessionSummary(session);
-		if (current?.chats) {
-			const chats = current.chats.map(candidate => candidate.resource === chat
-				? { ...candidate, status: withSessionStatusFlag(candidate.status ?? current.status, SessionStatus.IsRead, isRead) }
-				: candidate);
-			this._stateManager.setSurfacedSessionStatusAndChats(session, current.status, chats);
-			if (isChatInSessionReadAggregate(target.resource, target.origin, target.interactivity)) {
-				const sessionIsRead = isSessionStatusRead(current.status);
-				const lastUnreadChatRead = isRead && !chatWasRead && !sessionIsRead && chats
-					.filter(candidate => isChatInSessionReadAggregate(candidate.resource, candidate.origin, candidate.interactivity))
-					.every(candidate => isSessionStatusRead(candidate.status ?? current.status));
-				if (lastUnreadChatRead || (!isRead && sessionIsRead)) {
-					aggregateChanged = true;
-					const applied = await this._applyPassiveSessionMetadata(session, { type: ActionType.SessionIsReadChanged, isRead });
-					if (applied) {
-						this._stateManager.dispatchServerAction(session, applied);
+		if (isRead !== undefined) {
+			await this._peerChatStore.setRead(sessionUri, chatUri, isRead);
+			this._queuePassiveSessionMetadataSynchronization(sessionUri, { kind: 'chat', key: `chatRead:${chat}`, chat, field: 'isRead', set: isRead });
+			const current = this._stateManager.getSurfacedSessionSummary(session);
+			if (current?.chats) {
+				const chats = current.chats.map(candidate => candidate.resource === chat
+					? { ...candidate, status: withSessionStatusFlag(candidate.status ?? current.status, SessionStatus.IsRead, isRead) }
+					: candidate);
+				this._stateManager.setSurfacedSessionStatusAndChats(session, current.status, chats);
+				if (isChatInSessionReadAggregate(target.resource, target.origin, target.interactivity)) {
+					const sessionIsRead = isSessionStatusRead(current.status);
+					const lastUnreadChatRead = isRead && !chatWasRead && !sessionIsRead && chats
+						.filter(candidate => isChatInSessionReadAggregate(candidate.resource, candidate.origin, candidate.interactivity))
+						.every(candidate => isSessionStatusRead(candidate.status ?? current.status));
+					if (lastUnreadChatRead || (!isRead && sessionIsRead)) {
+						aggregateChanged = true;
+						const applied = await this._applyPassiveSessionMetadata(session, { type: ActionType.SessionIsReadChanged, isRead });
+						if (applied) {
+							this._stateManager.dispatchServerAction(session, applied);
+						}
 					}
 				}
 			}
@@ -8225,6 +8253,22 @@ export class AgentService extends Disposable implements IAgentService {
 			await this._markCatalogPayloadDirty(session);
 		}
 		return 'applied';
+	}
+
+	/** Publishes a chat's archived flag on an unloaded session's surfaced summary, including the AHP 0.9 `archived` field. */
+	private _setSurfacedChatArchived(session: string, chat: string, archived: boolean): void {
+		const current = this._stateManager.getSurfacedSessionSummary(session);
+		if (!current?.chats) {
+			return;
+		}
+		this._stateManager.setSurfacedSessionStatusAndChats(session, current.status, current.chats.map(candidate => {
+			if (candidate.resource !== chat) {
+				return candidate;
+			}
+			const { archived: _archived, ...rest } = candidate as typeof candidate & { readonly archived?: boolean };
+			const status = withSessionStatusFlag(candidate.status ?? current.status, SessionStatus.IsArchived, archived);
+			return archived ? { ...rest, status, archived: true } : { ...rest, status };
+		}));
 	}
 
 	private _queuePassiveSessionMetadataSynchronization(session: URI, update: PassiveCatalogMetadataUpdate): void {
@@ -8264,6 +8308,36 @@ export class AgentService extends Disposable implements IAgentService {
 				this._backgroundPassiveSessionMetadataWrites.delete(sessionKey);
 			}
 		}
+	}
+
+	/**
+	 * The session workspace of an unloaded session without the folders only the archived
+	 * `chat` and its spawned chats use, as {@link _detachChatWorkingDirectories} computes
+	 * for a loaded one. `undefined` when nothing is detached. Unarchiving needs no
+	 * counterpart: a restore attaches the folders of unarchived chats ({@link withChatWorkingDirectories}).
+	 */
+	private _getPassiveRemainingWorkingDirectories(session: URI, data: AgentHostCatalogData, chat: string): string[] | undefined {
+		if (!this._providerService.getProviderForSession(session)?.getDescriptor().capabilities?.multipleWorkingDirectories) {
+			return undefined;
+		}
+		const chats = data.chats.map((catalogChat): ChatSummary => ({
+			resource: catalogChat.uri,
+			title: catalogChat.summary ?? '',
+			status: withSessionStatusFlag(SessionStatus.Idle, SessionStatus.IsArchived, catalogChat.archived === true),
+			modifiedAt: '',
+			origin: fromCatalogChatOrigin(catalogChat.origin),
+			workingDirectories: catalogChat.workingDirectories?.slice(),
+		}));
+		const chatDirectories = this._getChatFamilyWorkingDirectories(chats, chat, true);
+		const usedScopes = this._getWorkingDirectoriesInUse(chats, chat);
+		if (!data.workingDirectories.length || !chatDirectories.length || usedScopes.some(scope => scope === undefined)) {
+			return undefined;
+		}
+		const remaining = data.workingDirectories.filter((directory, index) => index === 0
+			|| !chatDirectories.some(candidate => isEqual(URI.parse(candidate), URI.parse(directory)))
+			|| usedScopes.some(scope => scope?.some(other => isEqual(URI.parse(other), URI.parse(directory))))
+			|| this._isChatWorkingDirectoryReserved(session, URI.parse(directory)));
+		return remaining.length === data.workingDirectories.length ? undefined : remaining;
 	}
 
 	private async _synchronizePassiveSessionMetadata(session: URI, updates: readonly PassiveCatalogMetadataUpdate[], savedContinuation?: { readonly validate: () => Promise<void>; readonly isCurrent: () => boolean }): Promise<boolean> {
@@ -8318,12 +8392,33 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 				const legacyMetadata = { ...request.legacyMetadata };
 				for (const update of updates) {
-					if (update.kind === 'chatRead') {
-						data = { ...data, chats: data.chats.map(chat => chat.uri === update.chat ? { ...chat, isRead: update.isRead } : chat) };
+					if (update.kind !== 'chat') {
+						continue;
+					}
+					data = {
+						...data, chats: data.chats.map(chat => {
+							if (chat.uri !== update.chat) {
+								return chat;
+							}
+							if (update.field === 'isRead') {
+								return { ...chat, isRead: update.set };
+							}
+							const { archived: _archived, ...rest } = chat;
+							return update.set ? { ...rest, archived: true } : rest;
+						}),
+					};
+				}
+				for (const update of updates) {
+					if (update.kind === 'detachFolders') {
+						const remaining = this._getPassiveRemainingWorkingDirectories(session, data, update.chat);
+						if (remaining) {
+							data = { ...data, workingDirectories: remaining };
+							legacyMetadata[SESSION_WORKING_DIRECTORIES_KEY] = JSON.stringify(remaining);
+						}
 					}
 				}
 				for (const update of updates) {
-					if (update.kind === 'chatRead') {
+					if (update.kind !== 'session') {
 						continue;
 					}
 					if (update.flag === SessionStatus.IsRead) {
@@ -8523,10 +8618,14 @@ export class AgentService extends Disposable implements IAgentService {
 						}
 					}
 				}
-			} else if (action.type === ActionType.ChatIsReadChanged && chatChannel !== undefined && !subagent && requiresSessionRestore) {
-				const outcome = await this._queuePassiveMetadataUpdate(sessionChannel, () => this._applyPassiveChatRead(sessionChannel, chatChannel, action.isRead));
-				if (outcome === 'deleting') {
-					this._stateManager.rejectClientAction(channel, action, { clientId, clientSeq }, 'Cannot change the read state of a chat while its session is being deleted.');
+			} else if ((action.type === ActionType.ChatIsReadChanged || action.type === ActionType.ChatIsArchivedChanged) && chatChannel !== undefined && !subagent && requiresSessionRestore) {
+				const outcome = await this._queuePassiveMetadataUpdate(sessionChannel, () => this._applyPassiveChatFlags(sessionChannel, chatChannel, action));
+				if (outcome === 'deleting' || outcome === 'unmanageable') {
+					this._stateManager.rejectClientAction(channel, action, { clientId, clientSeq }, outcome === 'unmanageable'
+						? UNMANAGEABLE_CHAT_ARCHIVE_REJECTION
+						: action.type === ActionType.ChatIsReadChanged
+							? 'Cannot change the read state of a chat while its session is being deleted.'
+							: 'Cannot change the archived state of a chat while its session is being deleted.');
 					return;
 				}
 				if (outcome === 'restore') {
@@ -9394,13 +9493,15 @@ export class AgentService extends Disposable implements IAgentService {
 		if (action.type !== ActionType.ChatIsArchivedChanged && action.type !== ActionType.ChatIsReadChanged) {
 			return false;
 		}
-		const chatState = this._stateManager.getChatState(channel);
+		const owner = this._chatOwnership.getChatOwner(channel);
+		// The origin is recorded on the chat summary, so a chat whose history is not materialized is checked too.
+		const chatOrigin = this._stateManager.getChatOrigin(channel);
 		if (action.type === ActionType.ChatIsArchivedChanged
-			&& (!chatState || this._chatOwnership.isDefaultChat(this._chatOwnership.requireChatOwner(channel), channel) || chatState.origin?.kind === ChatOriginKind.Tool || chatState.origin?.kind === ChatOriginKind.SideChat)) {
-			this._stateManager.rejectClientAction(channel, action, origin, 'Only a known independently manageable non-default chat can be archived.');
+			&& (owner === undefined || this._chatOwnership.isDefaultChat(owner, channel) || chatOrigin?.kind === ChatOriginKind.Tool || chatOrigin?.kind === ChatOriginKind.SideChat)) {
+			this._stateManager.rejectClientAction(channel, action, origin, UNMANAGEABLE_CHAT_ARCHIVE_REJECTION);
 			return true;
 		}
-		if (action.type === ActionType.ChatIsReadChanged && this._chatOwnership.getChatOwner(channel) === undefined) {
+		if (action.type === ActionType.ChatIsReadChanged && owner === undefined) {
 			this._stateManager.rejectClientAction(channel, action, origin, 'Only a known chat can change its read state.');
 			return true;
 		}
@@ -9409,7 +9510,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/** Whether a chat action reduces into a registered chat's summary, so its history need not be resolved first. */
 	private _appliesWithoutChatState(chat: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): boolean {
-		return action.type === ActionType.ChatIsReadChanged && this._chatOwnership.getChatOwner(chat) !== undefined;
+		return (action.type === ActionType.ChatIsReadChanged || action.type === ActionType.ChatIsArchivedChanged) && this._chatOwnership.getChatOwner(chat) !== undefined;
 	}
 
 	private _dispatchActionNow(channel: string, sessionChannel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientContext: IAgentHostClientTelemetryContext): void {
@@ -9419,6 +9520,10 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		if (action.type === ActionType.SessionIsArchivedChanged && !action.isArchived && this._sessionResidency.isBeingDisposed(sessionChannel)) {
 			this._stateManager.rejectClientAction(channel, action, origin, 'Cannot unarchive a session while it is being deleted.');
+			return;
+		}
+		if (action.type === ActionType.ChatIsArchivedChanged && !action.isArchived && this._sessionResidency.isBeingDisposed(sessionChannel)) {
+			this._stateManager.rejectClientAction(channel, action, origin, 'Cannot unarchive a chat while its session is being deleted.');
 			return;
 		}
 		const conversionRejection = this._getWorkspaceConversionRejection(channel, action);
