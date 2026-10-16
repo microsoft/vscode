@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient, CopilotSession, ResumeSessionConfig, SessionConfig, Verbosity } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotSession, PermissionHandler, PermissionRequest, ResumeSessionConfig, SessionConfig, Verbosity } from '@github/copilot-sdk';
 import assert from 'assert';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -1421,9 +1421,17 @@ suite('CopilotSessionLauncher shared session config', () => {
 		]);
 	});
 
-	test('passes Agent Host defaults, managed permissions, and exit-plan handler to create and resume', async () => {
+	test('passes Agent Host defaults, managed permissions, and permission callback context to create and resume', async () => {
 		const createConfigs: Parameters<CopilotClient['createSession']>[0][] = [];
 		const resumeConfigs: Parameters<CopilotClient['resumeSession']>[1][] = [];
+		const permissionCalls: Parameters<ICopilotSessionRuntime['handlePermissionRequest']>[] = [];
+		const runtime: ICopilotSessionRuntime = {
+			...testRuntime,
+			handlePermissionRequest: async (request, invocation) => {
+				permissionCalls.push([request, invocation]);
+				return { kind: 'approve-once' };
+			},
+		};
 		const session = {
 			sessionId: 'session-1',
 			on: () => () => { },
@@ -1532,9 +1540,20 @@ suite('CopilotSessionLauncher shared session config', () => {
 
 		const sessions = new DisposableStore();
 		try {
-			sessions.add(await launcher.launch(createPlan, testRuntime));
-			sessions.add(await launcher.launch(resumePlan, testRuntime));
-			sessions.add(await launcher.launch({ ...createPlan, isEphemeral: true }, testRuntime));
+			sessions.add(await launcher.launch(createPlan, runtime));
+			sessions.add(await launcher.launch(resumePlan, runtime));
+			sessions.add(await launcher.launch({ ...createPlan, isEphemeral: true }, runtime));
+
+			const request: PermissionRequest = { kind: 'read', path: '/workspace/file.ts', intention: 'Read a file', managedApprovalRequired: true };
+			const invocation: Parameters<PermissionHandler>[1] = {
+				sessionId: session.sessionId,
+				promptRequest: { ...request, managedApprovalRequired: false, assistedApproval: { recommendation: 'approve', reason: 'Explicit user request' } },
+			};
+			for (const config of [createConfigs[0], resumeConfigs[0], createConfigs[1]]) {
+				assert.ok(config?.onPermissionRequest);
+				await config.onPermissionRequest(request, invocation);
+			}
+			assert.deepStrictEqual(permissionCalls, [[request, invocation], [request, invocation], [request, invocation]]);
 
 			assert.deepStrictEqual({
 				createImage: createConfigs.map(config => {
