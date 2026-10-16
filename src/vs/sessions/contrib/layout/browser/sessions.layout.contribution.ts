@@ -68,7 +68,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		},
 		[SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING]: {
 			type: 'boolean',
-			default: product.quality !== 'stable',
+			default: false,
 			markdownDescription: localize('sessions.sessionActivityBar.showLayoutActions', "Controls whether the Session Activity Bar shows the Toggle Side Panel and Toggle Panel actions in place of their title bar buttons. Only applies when {0} is enabled.", '`#sessions.showSessionActivityBar#`'),
 		},
 	},
