@@ -902,11 +902,8 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			return gitStateBaseBranch;
 		}
 
-		// The configured `Branch` is the worktree's start point, not necessarily its
-		// base, so worktrees always use the base recorded in `META_DIFF_BASE_BRANCH`.
 		const workingDirectory = state?.workingDirectories?.[0];
-		const project = state?.project?.uri;
-		if (!workingDirectory || !project || isEqual(URI.parse(workingDirectory), URI.parse(project))) {
+		if (!workingDirectory) {
 			return gitStateBaseBranch;
 		}
 		// `sessionKey` may be a chat: its base branch is the one recorded for its folder scope in its session's state.

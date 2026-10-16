@@ -61,7 +61,7 @@ import { CompletionItemKind } from '../../common/state/protocol/channels-session
 import { ISessionCatalogSyncPendingSnapshot, ISessionCatalogSyncSnapshot, ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME, SessionCatalogSyncWriteResult, SessionCatalogSyncWriteValidator } from '../../common/sessionDataService.js';
 import { IAgentHostGitStateService, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
 import { getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY } from '../../common/agentHostChangesetService.js';
-import { GitRefType, META_DIFF_BASE_BRANCH, type IAgentHostGitService } from '../../common/agentHostGitService.js';
+import { GitRefType, META_DIFF_BASE_BRANCH, type Branch, type IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { readSessionSandboxPolicy } from '../../common/meta/agentSandboxPolicyMeta.js';
 import { readChatUsage } from '../../common/meta/agentUsageMeta.js';
@@ -8507,6 +8507,195 @@ suite('AgentService (node dispatcher)', () => {
 	});
 
 	suite('createSession', () => {
+		for (const { name, defaultBranch, repository, expected } of [
+			{ name: 'default branch upstream', defaultBranch: { kind: GitRefType.Head, name: 'main', ref: 'refs/heads/main', upstream: { name: 'origin/main', ref: 'refs/remotes/origin/main', remote: 'origin' } }, repository: true, expected: 'origin/main' },
+			{ name: 'remote default branch', defaultBranch: { kind: GitRefType.RemoteHead, name: 'upstream/main', ref: 'refs/remotes/upstream/main', remote: 'upstream' }, repository: true, expected: 'upstream/main' },
+			{ name: 'local default branch', defaultBranch: { kind: GitRefType.Head, name: 'main', ref: 'refs/heads/main' }, repository: true, expected: 'main' },
+			{ name: 'selected branch fallback', defaultBranch: undefined, repository: true, expected: 'feature' },
+			{ name: 'non-Git folder', defaultBranch: undefined, repository: false, expected: undefined },
+		] satisfies { name: string; defaultBranch: Branch | undefined; repository: boolean; expected: string | undefined }[]) {
+			for (const provisional of [false, true]) {
+				test(`records the ${name} diff base on folder session send, not draft creation (provisional: ${provisional})`, async () => {
+					const db = new TestSessionDatabase();
+					const directory = URI.file('/workspace/repo');
+					const git = createNoopGitService();
+					git.getRepositoryRoot = async () => repository ? directory : undefined;
+					git.getDefaultBranch2 = async () => defaultBranch;
+					git.getCurrentBranch = async () => 'feature';
+					const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, git));
+					const agent = disposables.add(new MockAgent('copilot'));
+					const createChat = agent.chats.createChat;
+					agent.chats.createChat = async (chat, context, options) => ({
+						...await expectCreatedChat(createChat(chat, context, options)),
+						provisional,
+					});
+					registerTestAgentProvider(svc, agent);
+					const store = getTestSessionStateStore(svc);
+					const session = await svc.createSession({
+						legacyChatUris: true,
+						provider: agent.id,
+						workingDirectories: [directory],
+						config: { [SessionConfigKey.Isolation]: 'folder', [SessionConfigKey.Branch]: 'feature' },
+					});
+					await store.whenIdle(undefined);
+					const atDraftCreation = {
+						central: store.peek(session)?.folders.get('')?.baseBranch,
+						mirrored: await db.getMetadata(META_DIFF_BASE_BRANCH),
+					};
+					const basesAtProviderSend: (string | undefined)[] = [];
+					const sendMessage = agent.chats.sendMessage;
+					agent.chats.sendMessage = async (...args) => {
+						basesAtProviderSend.push(await store.readBaseBranchWithoutImport(session, undefined));
+						return sendMessage(...args);
+					};
+					const chat = buildDefaultChatUri(session);
+					svc.dispatchAction(chat, {
+						type: ActionType.ChatTurnStarted,
+						turnId: 'turn-1',
+						startedAt: new Date().toISOString(),
+						message: { text: 'send this message', origin: { kind: MessageKind.User } },
+					}, 'client', 1);
+					await waitForCondition(() => agent.sendMessageCalls.length === 1, 'the first message should reach the provider');
+					agent.fireProgress({ kind: 'action', resource: URI.parse(chat), action: { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1 } });
+					git.getDefaultBranch2 = async () => ({ kind: GitRefType.RemoteHead, name: 'origin/different', ref: 'refs/remotes/origin/different', remote: 'origin' });
+					svc.dispatchAction(chat, {
+						type: ActionType.ChatTurnStarted,
+						turnId: 'turn-2',
+						startedAt: new Date().toISOString(),
+						message: { text: 'send another message', origin: { kind: MessageKind.User } },
+					}, 'client', 2);
+					await waitForCondition(() => agent.sendMessageCalls.length === 2, 'the second message should reach the provider');
+					await store.whenIdle(undefined);
+
+					assert.deepStrictEqual({
+						atDraftCreation,
+						central: store.peek(session)?.folders.get('')?.baseBranch,
+						mirrored: await db.getMetadata(META_DIFF_BASE_BRANCH),
+						basesAtProviderSend,
+					}, {
+						atDraftCreation: { central: undefined, mirrored: undefined },
+						central: expected,
+						mirrored: expected,
+						basesAtProviderSend: [expected, expected],
+					});
+				});
+			}
+		}
+
+		test('folder send uses the folder and branch selected after draft creation', async () => {
+			const db = new TestSessionDatabase();
+			const original = URI.file('/workspace/original');
+			const selected = URI.file('/workspace/selected');
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async directory => directory;
+			git.getCurrentBranch = async () => 'draft-branch';
+			const defaultBranchDirectories: string[] = [];
+			git.getDefaultBranch2 = async directory => {
+				defaultBranchDirectories.push(directory.toString());
+				return undefined;
+			};
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, git));
+			const agent = disposables.add(new MockAgent('copilot'));
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({
+				legacyChatUris: true,
+				provider: agent.id,
+				workingDirectories: [original],
+				config: { [SessionConfigKey.Isolation]: 'folder', [SessionConfigKey.Branch]: 'draft-branch' },
+			});
+			const chat = buildDefaultChatUri(session);
+			const state = getStateManager(svc);
+			const config = state.getSessionState(session.toString())!.config!;
+			state.setSessionConfig(session.toString(), {
+				...config,
+				values: { ...config.values, [SessionConfigKey.Branch]: 'selected-at-send' },
+			});
+			state.dispatchServerAction(session.toString(), { type: ActionType.SessionWorkingDirectoryReplaced, directory: original.toString(), replacement: selected.toString() });
+			state.dispatchServerAction(chat, { type: ActionType.ChatWorkingDirectorySet, directory: selected.toString() });
+			svc.dispatchAction(chat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: new Date().toISOString(),
+				message: { text: 'use the final selection', origin: { kind: MessageKind.User } },
+			}, 'client', 1);
+			await waitForCondition(() => agent.sendMessageCalls.length === 1, 'the message should reach the provider');
+
+			assert.deepStrictEqual({
+				defaultBranchDirectories,
+				baseBranch: await getTestSessionStateStore(svc).readBaseBranchWithoutImport(session, undefined),
+			}, {
+				defaultBranchDirectories: [selected.toString()],
+				baseBranch: 'selected-at-send',
+			});
+		});
+
+		test('folder send resolves the default branch at send time rather than draft time', async () => {
+			const db = new TestSessionDatabase();
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async directory => directory;
+			let defaultBranch = 'main';
+			git.getDefaultBranch2 = async () => ({ kind: GitRefType.RemoteHead, name: `origin/${defaultBranch}`, ref: `refs/remotes/origin/${defaultBranch}`, remote: 'origin' });
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, git));
+			const agent = disposables.add(new MockAgent('copilot'));
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({
+				legacyChatUris: true,
+				provider: agent.id,
+				workingDirectories: [URI.file('/workspace/repo')],
+				config: { [SessionConfigKey.Isolation]: 'folder' },
+			});
+			defaultBranch = 'release';
+			svc.dispatchAction(buildDefaultChatUri(session), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: new Date().toISOString(),
+				message: { text: 'start now', origin: { kind: MessageKind.User } },
+			}, 'client', 1);
+			await waitForCondition(() => agent.sendMessageCalls.length === 1, 'the message should reach the provider');
+
+			assert.strictEqual(await getTestSessionStateStore(svc).readBaseBranchWithoutImport(session, undefined), 'origin/release');
+		});
+
+		test('folder peer sends preserve the base pinned by another chat in the same folder', async () => {
+			const db = new TestSessionDatabase();
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async directory => directory;
+			let defaultLookups = 0;
+			git.getDefaultBranch2 = async () => {
+				defaultLookups++;
+				return { kind: GitRefType.RemoteHead, name: 'origin/new-base', ref: 'refs/remotes/origin/new-base', remote: 'origin' };
+			};
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, git));
+			const agent = disposables.add(new class extends MockAgent {
+				override async createChat(): Promise<IAgentCreateChatResult> {
+					return { providerData: 'peer' };
+				}
+			}('copilot'));
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({
+				legacyChatUris: true,
+				provider: agent.id,
+				workingDirectories: [URI.file('/workspace/repo')],
+				config: { [SessionConfigKey.Isolation]: 'folder' },
+			});
+			const store = getTestSessionStateStore(svc);
+			await store.writeMetadata(session, session, { [META_DIFF_BASE_BRANCH]: 'origin/pinned-base' }, SessionStateMirrorFlush.Immediate);
+			const peer = URI.parse(buildChatUri(session, 'peer'));
+			await svc.createChat(session, peer, { title: 'Peer' });
+			svc.dispatchAction(peer.toString(), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: new Date().toISOString(),
+				message: { text: 'continue in the shared folder', origin: { kind: MessageKind.User } },
+			}, 'client', 1);
+			await waitForCondition(() => agent.sendMessageCalls.length === 1, 'the peer message should reach the provider');
+
+			assert.deepStrictEqual({
+				base: await store.readBaseBranchWithoutImport(session, undefined),
+				defaultLookups,
+			}, { base: 'origin/pinned-base', defaultLookups: 0 });
+		});
+
 		test('non-native providers retain allocation without native storage probes', async () => {
 			const fileServiceWithoutProviders = disposables.add(new FileService(new NullLogService()));
 			const svc = disposables.add(createTestAgentService(
