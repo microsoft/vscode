@@ -15,10 +15,13 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType } from '../../../../../platform/files/common/files.js';
+import { FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType } from '../../../../../platform/files/common/files.js';
 import { IGitHubAccountClient } from '../../../../../platform/github/common/account/account.js';
+import { LocalApiRequestProvider } from '../../../../../platform/github/common/client/localApiRequestProvider.js';
 import { SchemaError } from '../../../../../platform/github/common/client/schema.js';
 import { GitBlob, GitTree, IContentClient } from '../../../../../platform/github/common/content/content.js';
+import { ContentClient } from '../../../../../platform/github/common/content/contentClient.js';
+import { GitHubTransport } from '../../../../../platform/github/common/githubTransport.js';
 import { GitHubRequestError } from '../../../../../platform/github/common/githubTypes.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
@@ -48,7 +51,7 @@ const blob: GitBlob = {
 suite('GitHubFileSystemProvider', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup() {
+	function setup(contentClient?: IContentClient) {
 		const instantiation = store.add(new TestInstantiationService());
 		const changed = store.add(new Emitter<IDefaultAccount | null>());
 		const invalidated = store.add(new Emitter<void>());
@@ -89,7 +92,7 @@ suite('GitHubFileSystemProvider', () => {
 				return upcastPartial<IGitHubAccountClient>({
 					authorization: { providerId: selected.authenticationProvider.id, sessionId: selected.sessionId, scopes: ['repo'] },
 					onDidInvalidate: invalidated.event,
-					content: new class extends mock<IContentClient>() {
+					content: contentClient ?? new class extends mock<IContentClient>() {
 						override async getTree(...args: Parameters<IContentClient['getTree']>): Promise<GitTree> {
 							const result = state.tree;
 							treeCalls.push(args);
@@ -191,6 +194,66 @@ suite('GitHubFileSystemProvider', () => {
 		state.blob = { ...blob, size: 0, content: '' };
 		assert.deepStrictEqual({ contents: [...contents], empty: [...await provider.readFile(resource)] }, { contents: [...bytes], empty: [] });
 	});
+
+	for (const { name, size, reportedSize, outcome } of [
+		{ name: 'accepts exactly 10 MiB', size: 10 * 1024 * 1024, reportedSize: 10 * 1024 * 1024, outcome: 'success' },
+		{ name: 'rejects an advertised 10 MiB plus one byte before downloading', size: 10 * 1024 * 1024 + 1, reportedSize: 10 * 1024 * 1024 + 1, outcome: 'preflight' },
+		{ name: 'rejects an advertised 13 MiB before downloading', size: 13 * 1024 * 1024, reportedSize: 13 * 1024 * 1024, outcome: 'preflight' },
+		{ name: 'rejects decoded bytes above 10 MiB despite underreported metadata', size: 10 * 1024 * 1024 + 1, reportedSize: 1, outcome: 'decoded' },
+		{ name: 'retains the 16 MiB transport cap when tree size is unknown', size: 13 * 1024 * 1024, reportedSize: undefined, outcome: 'transport' },
+	] as const) {
+		test(`bounded blob reads: ${name}`, async () => {
+			const requests: string[] = [];
+			let cancelled = false;
+			let responseBytes = 0;
+			const transport = store.add(new GitHubTransport(async input => {
+				const path = new URL(String(input)).pathname;
+				requests.push(path);
+				if (path === '/repos/owner/repo/git/trees/HEAD') {
+					return Response.json({ ...tree, tree: [{ ...tree.tree[0], size: reportedSize }] });
+				}
+				assert.strictEqual(path, '/repos/owner/repo/git/blobs/readme');
+				const content = encodeBase64(VSBuffer.wrap(new Uint8Array(size).fill(0xa5))).replace(/.{60}/g, '$&\n');
+				const body = VSBuffer.fromString(JSON.stringify({ ...blob, size: reportedSize ?? 0, content })).buffer;
+				responseBytes = body.byteLength;
+				let offset = 0;
+				return new Response(new ReadableStream<Uint8Array>({
+					pull(controller) {
+						if (offset === body.byteLength) {
+							controller.close();
+						} else {
+							const end = Math.min(offset + 64 * 1024, body.byteLength);
+							controller.enqueue(body.subarray(offset, end));
+							offset = end;
+						}
+					},
+					cancel: () => { cancelled = true; },
+				}), { headers: { 'content-type': 'application/json' } });
+			}));
+			const client = new ContentClient(new LocalApiRequestProvider('https://api.github.com', transport));
+			const { provider } = setup(client);
+			const resource = root.with({ path: root.path + '/README.md' });
+			const stat = await provider.stat(resource);
+			if (outcome === 'success') {
+				const bytes = await provider.readFile(resource);
+				assert.deepStrictEqual({ length: bytes.byteLength, intact: bytes.every(byte => byte === 0xa5) }, { length: size, intact: true });
+			} else {
+				await assert.rejects(provider.readFile(resource), error =>
+					error instanceof FileSystemProviderError
+					&& error.code === FileSystemProviderErrorCode.FileTooLarge
+					&& error.message.includes('Clone the repository')
+					&& (outcome === 'transport' || error.message.includes('10 MiB')));
+			}
+			assert.deepStrictEqual({
+				size: stat.size, requests, cancelled, exceedsTransportBudget: responseBytes > 16 * 1024 * 1024,
+			}, {
+				size: reportedSize ?? 0,
+				requests: ['/repos/owner/repo/git/trees/HEAD', ...(outcome === 'preflight' ? [] : ['/repos/owner/repo/git/blobs/readme'])],
+				cancelled: outcome === 'transport',
+				exceedsTransportBudget: outcome === 'transport',
+			});
+		});
+	}
 
 	test('missing files, directory reads, and case mismatches do not request blobs', async () => {
 		const { provider, blobCalls } = setup();

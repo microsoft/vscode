@@ -9,7 +9,7 @@ import { Event } from '../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { createFileSystemProviderError, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileChange, IFileDeleteOptions, IFileOverwriteOptions, IFileSystemProviderWithFileReadWriteCapability, IFileWriteOptions, IStat } from '../../../../platform/files/common/files.js';
+import { ByteSize, createFileSystemProviderError, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileChange, IFileDeleteOptions, IFileOverwriteOptions, IFileSystemProviderWithFileReadWriteCapability, IFileWriteOptions, IStat } from '../../../../platform/files/common/files.js';
 import { GitTree, IContentClient } from '../../../../platform/github/common/content/content.js';
 import { GitHubRequestError } from '../../../../platform/github/common/githubTypes.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -61,6 +61,8 @@ export class GitHubFileSystemProvider extends Disposable implements IFileSystemP
 	/** Negative cache TTL - 1 minute */
 	private static readonly NOT_FOUND_CACHE_TTL_MS = 60 * 1000;
 
+	private static readonly MAX_FILE_SIZE_BYTES = 10 * ByteSize.MB;
+
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
@@ -107,9 +109,13 @@ export class GitHubFileSystemProvider extends Disposable implements IFileSystemP
 				throw error;
 			}
 			this.logService.warn('[SessionRepoFS] GitHub filesystem read failed', error);
-			const code = error instanceof GitHubRequestError && error.kind === 'notFound'
+			const kind = error instanceof GitHubRequestError ? error.kind : undefined;
+			if (kind === 'responseTooLarge') {
+				throw createFileSystemProviderError(localize('githubFileSystem.responseTooLarge', "The GitHub response exceeds the download limit. Clone the repository to open larger files locally."), FileSystemProviderErrorCode.FileTooLarge);
+			}
+			const code = kind === 'notFound'
 				? FileSystemProviderErrorCode.FileNotFound
-				: error instanceof GitHubRequestError && (error.kind === 'authentication' || error.kind === 'authorization')
+				: kind === 'authentication' || kind === 'authorization'
 					? FileSystemProviderErrorCode.NoPermissions
 					: FileSystemProviderErrorCode.Unavailable;
 			throw createFileSystemProviderError(getErrorMessage(error), code);
@@ -245,9 +251,18 @@ export class GitHubFileSystemProvider extends Disposable implements IFileSystemP
 				throw createFileSystemProviderError('File not found', FileSystemProviderErrorCode.FileNotFound);
 			}
 
+			this.checkFileSize(entry.size);
 			const data = await client.getBlob(owner, repo, entry.sha, signal, { caller: 'githubFileSystemProvider.readFile' });
-			return decodeBase64(data.content.replace(/\s/g, '')).buffer;
+			const bytes = decodeBase64(data.content.replace(/\s/g, '')).buffer;
+			this.checkFileSize(bytes.byteLength);
+			return bytes;
 		});
+	}
+
+	private checkFileSize(size: number): void {
+		if (size > GitHubFileSystemProvider.MAX_FILE_SIZE_BYTES) {
+			throw createFileSystemProviderError(localize('githubFileSystem.fileTooLarge', "This file exceeds the {0} MiB limit for GitHub repository files. Clone the repository to open it locally.", GitHubFileSystemProvider.MAX_FILE_SIZE_BYTES / ByteSize.MB), FileSystemProviderErrorCode.FileTooLarge);
+		}
 	}
 
 	// --- Readonly stubs
