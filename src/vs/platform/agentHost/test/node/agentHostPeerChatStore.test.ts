@@ -1131,9 +1131,22 @@ suite('AgentHostPeerChatStore', () => {
 		let statements = 0;
 		// Trigger bodies are traced as `-- TRIGGER` lines; they are not statements of their own, nor is the drain below.
 		const drainSql = 'SELECT 1 AS drain';
-		sqlite.on('trace', (sql: string) => statements += sql.startsWith('-- TRIGGER') || sql === drainSql ? 0 : 1);
-		// Traces of finished statements arrive before this one completes.
-		const drain = () => new Promise<void>((resolve, reject) => sqlite.get(drainSql, error => error ? reject(error) : resolve()));
+		let traceDrained: DeferredPromise<void>;
+		sqlite.on('trace', (sql: string) => {
+			if (sql === drainSql) {
+				traceDrained.complete();
+			} else if (!sql.startsWith('-- TRIGGER')) {
+				statements++;
+			}
+		});
+		const drain = async () => {
+			// Trace delivery and SQL completion use separate asynchronous callbacks.
+			traceDrained = new DeferredPromise<void>();
+			await Promise.all([
+				traceDrained.p,
+				new Promise<void>((resolve, reject) => sqlite.get(drainSql, error => error ? reject(error) : resolve())),
+			]);
+		};
 		const chats = Array.from({ length: 10 }, (_, index) => URI.parse(buildChatUri(session, `burst-${index}`)));
 		const publish = async (burst: () => Promise<void>) => {
 			await burst();

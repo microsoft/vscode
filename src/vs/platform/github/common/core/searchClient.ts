@@ -75,6 +75,7 @@ const parseRepositorySearch = parse.object<SearchPage<RepositorySearchItem>>({
 	incomplete_results: parse.boolean,
 	items: parse.arrayOf(parse.object<RepositorySearchItem>({
 		...repositoryIdentitySchema,
+		owner: parse.nullable(parseAccount),
 		default_branch: parse.string,
 		language: parse.nullable(parse.string),
 		stargazers_count: parse.nonNegativeInteger,

@@ -83,6 +83,10 @@
 	height: 100%;
 }
 
+.session-header-bar[draggable="true"] {
+	cursor: grab;
+}
+
 /* Status icon column — sits beside the main column, centered on the title line.
 	The compound selector (with .session-header-bar) raises specificity above the
 	base `.codicon { display: inline-block }` rule so the flex centering wins. */
@@ -289,7 +293,7 @@
 	display: flex;
 	align-items: center;
 	position: relative;
-	cursor: pointer;
+	cursor: grab;
 	color: var(--chat-tab-inactive-foreground);
 	user-select: none;
 	flex-shrink: 0;
@@ -312,10 +316,20 @@
 }
 
 .session-chat-tabs-bar .chat-composite-bar-tab-label {
+	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	min-width: 0;
+}
+
+.session-chat-tabs-bar .chat-composite-bar-tabs > .chat-composite-bar-tab.has-description {
+	max-width: min(360px, 70cqi);
+}
+
+.session-header-bar .chat-composite-bar-session-title.has-description .label-description::before,
+.session-chat-tabs-bar .chat-composite-bar-tab.has-description .label-description::before {
+	content: '\00b7';
+	margin-inline-end: 0.5em;
 }
 
 .chat-composite-bar-tab-lock,

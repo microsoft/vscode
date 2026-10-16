@@ -189,10 +189,9 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 			const session = this._sessionObs.read(reader);
 			const groupCount = this._groupsView.groupCount.read(reader);
 			const showChatAsSessionView = this._groupsView.showChatAsSessionView.read(reader);
-			const tabsReplaceHeader = groupCount === 1
-				&& (session?.isCreated.read(reader) ?? false)
+			const tabsReplaceHeader = (session?.isCreated.read(reader) ?? false)
 				&& !showChatAsSessionView
-				&& (session?.shouldShowChatTabs.read(reader) ?? false);
+				&& (groupCount > 1 || (session?.shouldShowChatTabs.read(reader) ?? false));
 			this._header.setVisible(!tabsReplaceHeader && !(showChatAsSessionView && groupCount > 1));
 			this._groupsView.setSingleGroupTabsReplaceHeader(tabsReplaceHeader);
 			this.element.classList.toggle('tabs-replace-header', tabsReplaceHeader);
@@ -397,6 +396,10 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 
 	getActiveChat(): IChat | undefined {
 		return this._groupsView.getActiveChat();
+	}
+
+	reopenChat(resource: URI): Promise<void> {
+		return this._visibleStandaloneView?.reopenChat(resource) ?? this._groupsView.reopenChat(resource);
 	}
 
 	toggleActiveChatPin(): void {

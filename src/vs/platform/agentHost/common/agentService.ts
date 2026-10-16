@@ -903,6 +903,11 @@ export interface IAgentHostManagementService {
 	applyCustomizationInstallation(provider: AgentProvider, operationId: string): Promise<void>;
 	recoverCustomizationInstallations(provider: AgentProvider, session: URI): Promise<readonly IAgentCustomizationInstallation[]>;
 	addMcpServerConfiguration(provider: AgentProvider, name: string, config: IMcpServerConfiguration): Promise<void>;
+	/**
+	 * Local-only bridge for the owning client process to report whether the
+	 * machine is fully awake, rather than asleep or in a background maintenance wake.
+	 */
+	setSystemFullyAwake(fullyAwake: boolean): Promise<void>;
 	shutdown(): Promise<void>;
 	getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo>;
 	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]>;

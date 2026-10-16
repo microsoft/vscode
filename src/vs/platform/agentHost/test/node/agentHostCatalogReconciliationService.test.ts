@@ -399,8 +399,73 @@ suite('AgentHostCatalogReconciliationService', () => {
 			await service.runPass();
 			perPass.push(attempts);
 		}
-		// One conversion batch attempt per pass, plus a prompt retry while the budget lasts.
-		assert.deepStrictEqual(perPass, [2, 2, 2, 2, 2, 1, 1]);
+		// The first batch attempt and its prompt retry; then one prompt retry per pass while the budget lasts (the batch
+		// skips a session that waits for its re-projection), then one conversion batch attempt per pass.
+		assert.deepStrictEqual(perPass, [2, 1, 1, 1, 1, 1, 1]);
+	});
+
+	test('sessions whose re-projection cannot happen are not retried by conversion, and convert once they can', async () => {
+		// Twelve 30 s passes (six minutes) over legacy sessions whose provider cannot vouch for them: the shape that
+		// re-queued about 110 sessions ten times each in production.
+		const names = Array.from({ length: 12 }, (_, index) => `old-${String(index).padStart(2, '0')}`);
+		const harness = await createHarness(names);
+		const scheduler = new TestScheduler();
+		let resolvable = false;
+		let attempts = 0;
+		const converted = new Set<string>();
+		const service: AgentHostCatalogReconciliationService = harness.createService(async session => resolvable
+			? { status: 'available', request: { data: catalogData(session.session.path), legacyMetadata: {} } }
+			: { status: 'sourceUnresolvable' }, {
+			batchSize: 4,
+			schedule: scheduler.schedule,
+			// As the agent service's conversion: not ready, from central state alone, until the aggregate is verified and clean.
+			migrateChatCatalog: async session => {
+				attempts++;
+				const source = await harness.central.getSessionV2(session.toString());
+				if (!source?.verified || source.payloadDirty !== 0) {
+					service.convertAfterReprojection(session.toString());
+				} else {
+					converted.add(session.toString());
+				}
+			},
+		});
+		service.schedule();
+		scheduler.run(1000);
+		await service.whenIdle();
+		const perPass: { attempts: number; databaseOpens: number }[] = [];
+		for (let pass = 0; pass < 12; pass++) {
+			attempts = 0;
+			const opens = harness.getDatabaseOpenAttempts();
+			await service.runPass();
+			perPass.push({ attempts, databaseOpens: harness.getDatabaseOpenAttempts() - opens });
+		}
+		const followUps = scheduler.allDelays.filter(delay => delay === 30 * 1000).length;
+		// Writes to a waiting session (its metadata, say) owe no pass either: only its re-projection releases it.
+		const backgroundPasses = scheduler.allDelays.filter(delay => delay === 1000).length;
+		for (const name of names) {
+			service.convertAfterReprojection(`agenthost:${name}`);
+		}
+		const passesOwedByWrites = scheduler.allDelays.filter(delay => delay === 1000).length - backgroundPasses;
+
+		// The provider can vouch for them again (it registered, say): every session converts right after its re-projection.
+		resolvable = true;
+		service.wakeParkedSessions();
+		for (let pass = 0; pass < 3; pass++) {
+			await service.runPass();
+		}
+
+		assert.deepStrictEqual({ perPass, followUps, passesOwedByWrites, converted: [...converted].sort() }, {
+			// The batch reaches four sessions per pass, each attempted once without a session database, and the
+			// re-projections that park them are the only opens. Nothing is retried after.
+			perPass: [
+				{ attempts: 4, databaseOpens: 4 },
+				{ attempts: 4, databaseOpens: 4 },
+				...Array.from({ length: 10 }, () => ({ attempts: 0, databaseOpens: 0 })),
+			],
+			followUps: 0,
+			passesOwedByWrites: 0,
+			converted: names.map(name => `agenthost:${name}`),
+		});
 	});
 
 	test('older-build imports run one batch per pass, the rest carried to the next passes', async () => {

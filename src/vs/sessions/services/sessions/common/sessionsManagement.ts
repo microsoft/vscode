@@ -189,6 +189,9 @@ export interface IChatDeletedEvent {
  * An active session extends {@link ISession} with the currently focused chat.
  */
 export interface IActiveSession extends ISession {
+	/** A standalone chat pane; identity and provider ownership remain with the session. */
+	readonly scopedChatResource?: URI;
+
 	/** The currently active chat within this session. */
 	readonly activeChat: IObservable<IChat>;
 
