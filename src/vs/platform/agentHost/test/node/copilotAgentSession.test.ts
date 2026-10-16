@@ -2491,17 +2491,44 @@ suite('CopilotAgentSession', () => {
 		assert.deepStrictEqual(registeredSizes(), [200_000]);
 	});
 
-	test('a rejected model change leaves the previous selection in force for BYOK sizing', async () => {
+	test('a rejected model change restores the BYOK registration to the previous selection', async () => {
 		const { session, mockSession, registeredSizes } = await createSizedByokSession();
 		mockSession.modelError = new Error('switch rejected');
 
 		await assert.rejects(session.setModel('acme/big', undefined, undefined, undefined, { id: 'acme/big', config: { contextSize: 200_000 } }), /switch rejected/);
-		// The pre-switch registration went out at 200K; with the switch rejected the
-		// session is still on 968K, and the next sync puts the registration back.
-		mockSession.modelError = undefined;
+		// The pre-switch registration went out at 200K. The session is still on 968K,
+		// so the registration is put back without anything else calling a sync.
 		await session.syncByokModels();
 
+		// The trailing sync here only waits for the queued restore; it changes nothing itself.
 		assert.deepStrictEqual(registeredSizes(), [200_000, 968_000]);
+	});
+
+	test('a rejected model change superseded by a newer one does not restore over the newer selection', async () => {
+		const { session, mockSession, registeredSizes } = await createSizedByokSession();
+		const firstSwitch = new DeferredPromise<void>();
+		mockSession.modelGate = firstSwitch.p;
+		mockSession.modelError = new Error('switch rejected');
+
+		const first = session.setModel('acme/big', undefined, undefined, undefined, { id: 'acme/big', config: { contextSize: 200_000 } });
+		while (mockSession.setModelCalls.length === 0) {
+			await timeout(0);
+		}
+		// A second change arrives while the first is in flight and takes over the pending selection.
+		mockSession.modelGate = undefined;
+		mockSession.modelError = undefined;
+		const second = session.setModel('acme/big', undefined, undefined, undefined, { id: 'acme/big', config: { contextSize: 500_000 } });
+		while (mockSession.setModelCalls.length < 2) {
+			await timeout(0);
+		}
+		firstSwitch.complete();
+		await assert.rejects(first, /switch rejected/);
+		await second;
+		await session.syncByokModels();
+
+		// 200K from the first pre-switch sync, 500K from the second; the first's rejection
+		// restores nothing because the second owns the selection by then.
+		assert.deepStrictEqual(registeredSizes(), [200_000, 500_000]);
 	});
 
 	test('a failed BYOK registration does not block the model change (#337742)', async () => {

@@ -24,7 +24,11 @@ suite('BYOK context size configuration', () => {
 			resolveByokContextSize({ values: [NaN, -5, 0, Infinity] }, undefined),
 			resolveByokContextSize({ values: [] }, 200_000),
 			resolveByokContextSize(undefined, 200_000),
-		], [968_000, 200_000, 200_000, 968_000, 968_000, undefined, undefined, undefined]);
+			// One size (or one distinct size) is no choice: no picker is offered, so no
+			// budget is applied either, even when it is selected or the default.
+			resolveByokContextSize({ values: [200_000], default: 200_000 }, 200_000),
+			resolveByokContextSize({ values: [200_000, 200_000] }, undefined),
+		], [968_000, 200_000, 200_000, 968_000, 968_000, undefined, undefined, undefined, undefined, undefined]);
 	});
 
 	test('synthesizes the picker from the provider display text, filling only what is missing', () => {
