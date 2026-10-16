@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { stub } from 'sinon';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IChannelClient, IChannelServer, IServerChannel } from '../../../../base/parts/ipc/common/ipc.js';
+import { IChannel, IChannelClient, IChannelServer, IServerChannel, ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
@@ -123,6 +124,33 @@ suite('LocalAgentHostServiceClient events', () => {
 		const beforeStart = service.clientConnectionKind;
 		service.startAgentHost();
 		assert.deepStrictEqual([beforeStart, service.clientConnectionKind], [AgentHostClientConnectionKind.Local, AgentHostClientConnectionKind.Local]);
+	});
+
+	test('installs, rotates and removes sandbox certificates through Management rather than the disabled AHP extension route', async () => {
+		const { service } = createService();
+		const channels: string[] = [];
+		const calls: [string, string, string][] = [];
+		const channel = ProxyChannel.fromService({
+			installSandboxCertificate: async (chat: URI, scopeId: string) => { calls.push(['install', chat.toString(), scopeId]); },
+			rotateSandboxCertificate: async (chat: URI, scopeId: string) => { calls.push(['rotate', chat.toString(), scopeId]); },
+			removeSandboxCertificate: async (chat: URI, scopeId: string) => { calls.push(['remove', chat.toString(), scopeId]); },
+		}, disposables.add(new DisposableStore()));
+		const client: IChannelClient = {
+			getChannel: <T extends IChannel>(name: string): T => {
+				channels.push(name);
+				const ipcChannel: IChannel = { call: (command, args) => channel.call(undefined, command, args), listen: () => Event.None };
+				return ipcChannel as T;
+			},
+		};
+		const managementClient = stub(LocalAgentHostManagementConnection.prototype, 'client').resolves(client);
+		disposables.add({ dispose: () => managementClient.restore() });
+		await service.installSandboxCertificate(URI.parse('conversation://host/chat'), 'runtime');
+		await service.rotateSandboxCertificate(URI.parse('conversation://host/chat'), 'runtime');
+		await service.removeSandboxCertificate(URI.parse('conversation://host/chat'), 'runtime');
+		assert.deepStrictEqual({ supported: [service.sandboxCertificateInstallationSupported.get(), service.sandboxCertificateRotationSupported.get(), service.sandboxCertificateRemovalSupported.get()], channels, calls }, {
+			supported: [true, true, true], channels: ['agentHostManagement', 'agentHostManagement', 'agentHostManagement'],
+			calls: [['install', 'conversation://host/chat', 'runtime'], ['rotate', 'conversation://host/chat', 'runtime'], ['remove', 'conversation://host/chat', 'runtime']],
+		});
 	});
 
 	test('forwards readiness changes and keeps another window refresh from restarting the shared host', async () => {

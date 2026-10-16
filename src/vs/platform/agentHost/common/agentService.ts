@@ -874,6 +874,10 @@ export interface IAgentHostManagementService {
 	 * `createChat` (`title` and `model`).
 	 */
 	createChatWithExtensions(session: URI, chat: URI, options: IAgentCreateChatRequestOptions): Promise<void>;
+	/** Installs the chat's sandbox CA through trusted local management IPC after user consent. */
+	installSandboxCertificate(chat: URI, scopeId: string): Promise<void>;
+	rotateSandboxCertificate(chat: URI, scopeId: string): Promise<void>;
+	removeSandboxCertificate(chat: URI, scopeId: string): Promise<void>;
 	createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }>;
 	setDetachedWorktreeArchived(handle: string, archived: boolean): Promise<void>;
 	claimDetachedWorktree(handle: string): Promise<void>;
@@ -960,6 +964,9 @@ export interface IAgentService {
 	removeSessionArtifact?(session: URI, artifactId: string): Promise<void>;
 	/** Stops a chat's background work entry. Resolves false when it had already finished or is not tracked. */
 	stopBackgroundWork?(chat: URI, id: string): Promise<boolean>;
+	installSandboxCertificate?(chat: URI, scopeId: string): Promise<void>;
+	rotateSandboxCertificate?(chat: URI, scopeId: string): Promise<void>;
+	removeSandboxCertificate?(chat: URI, scopeId: string): Promise<void>;
 	createDetachedWorktree?(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }>;
 	claimDetachedWorktree?(handle: string): Promise<void>;
 	setDetachedWorktreeArchived?(handle: string, archived: boolean): Promise<void>;
@@ -1314,6 +1321,16 @@ export interface IAgentConnection {
 	removeSessionArtifact?(session: URI, artifactId: string): Promise<void>;
 	/** Only for background work whose `_meta` the host marked stoppable. Resolves false when it had already finished. */
 	stopBackgroundWork?(chat: URI, id: string): Promise<boolean>;
+	/** Whether this connection can install through trusted local management or an advertised remote capability. */
+	readonly sandboxCertificateInstallationSupported?: IObservable<boolean>;
+	/** Requires installation support on this connection and explicit user consent. */
+	installSandboxCertificate?(chat: URI, scopeId: string): Promise<void>;
+	readonly sandboxCertificateRotationSupported?: IObservable<boolean>;
+	/** Replaces the stored CA and establishes OS trust, after explicit user consent. */
+	rotateSandboxCertificate?(chat: URI, scopeId: string): Promise<void>;
+	readonly sandboxCertificateRemovalSupported?: IObservable<boolean>;
+	/** Removes OS trust only, after explicit user consent. */
+	removeSandboxCertificate?(chat: URI, scopeId: string): Promise<void>;
 	/** Refresh a held subscription through the standard subscribe request, preserving pending actions. */
 	refreshSubscription?(resource: URI): Promise<void>;
 	createDetachedWorktree?(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }>;

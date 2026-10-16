@@ -1440,6 +1440,24 @@ suite('AgentService (node dispatcher)', () => {
 		assert.strictEqual(stateManager.getDefaultChat(legacy.toString()), buildDefaultChatUri(legacy.toString()));
 	});
 
+	for (const operation of ['installSandboxCertificate', 'rotateSandboxCertificate', 'removeSandboxCertificate'] as const) {
+		test(`sandbox certificate ${operation} uses the registered chat owner without restoring a session`, async () => {
+			const provider: IAgent = copilotAgent;
+			const calls: [string, string][] = [];
+			registerTestAgentProvider(service, provider);
+			const session = await service.createSession({ legacyChatUris: false, provider: provider.id });
+			const chat = getStateManager(service).getDefaultChat(session.toString());
+			assert.ok(chat);
+			service.restoreSession = async () => { assert.fail('Certificate installation must not restore a session'); };
+			await assert.rejects(service[operation](URI.parse(chat), 'runtime'), /unavailable/);
+			provider[operation] = async (chat, scopeId) => { calls.push([chat.toString(), scopeId]); };
+			await assert.rejects(service[operation](URI.parse('conversation://missing/chat'), 'runtime'), /unavailable/);
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
+			await managementService[operation](URI.parse(chat), 'runtime');
+			assert.deepStrictEqual(calls, [[chat, 'runtime']]);
+		});
+	}
+
 	test('canvas subscriptions only read live state and never restore a provider', async () => {
 		registerTestAgentProvider(service, copilotAgent);
 		const session = await service.createSession({ legacyChatUris: true, provider: 'copilot' });

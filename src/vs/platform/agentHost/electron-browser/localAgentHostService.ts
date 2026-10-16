@@ -498,6 +498,22 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._requireClient().stopBackgroundWork(chat, id);
 	}
 
+	readonly sandboxCertificateInstallationSupported = constObservable(true);
+	readonly sandboxCertificateRotationSupported = constObservable(true);
+	readonly sandboxCertificateRemovalSupported = constObservable(true);
+
+	installSandboxCertificate(chat: URI, scopeId: string): Promise<void> {
+		return this._getManagementService().installSandboxCertificate(chat, scopeId);
+	}
+
+	rotateSandboxCertificate(chat: URI, scopeId: string): Promise<void> {
+		return this._getManagementService().rotateSandboxCertificate(chat, scopeId);
+	}
+
+	removeSandboxCertificate(chat: URI, scopeId: string): Promise<void> {
+		return this._getManagementService().removeSandboxCertificate(chat, scopeId);
+	}
+
 	importSession(session: URI): Promise<void> {
 		return this._requireClient().importSession(session);
 	}
