@@ -13,6 +13,9 @@ import { AgentHostConfigurationSyncTarget, formatAgentHostConfigurationSyncValue
 import { LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
 import { AgentHostByokModelsEnabledConfigKey, AgentHostByokModelsEnabledDefault } from '../../common/agentHostSchema.js';
 import { artifactToolsConfigurationProperties } from '../../common/artifactToolsConfiguration.js';
+import { AgentHostFusionEnabledSettingId, CopilotCliConfigKey } from '../../common/copilotCliConfig.js';
+import { fusionConfigurationProperties } from '../../common/fusionConfiguration.js';
+import { IPolicyData } from '../../../../base/common/defaultAccount.js';
 
 const ALL_HOSTS_SETTING = 'test.agentHostSync.allHosts';
 const LOCAL_SETTING = 'test.agentHostSync.local';
@@ -45,6 +48,7 @@ suite('AgentHostConfigurationSync', () => {
 		type: 'object' as const,
 		properties: {
 			...artifactToolsConfigurationProperties,
+			...fusionConfigurationProperties,
 			[ALL_HOSTS_SETTING]: {
 				type: 'boolean' as const,
 				default: true,
@@ -275,6 +279,46 @@ suite('AgentHostConfigurationSync', () => {
 			local: syncedProxySettingIds.map(settingId => [settingId, settingId]),
 			remoteExtensionHost: syncedProxySettingIds.map(settingId => [settingId, settingId]),
 			remote: [],
+		});
+	});
+
+	test('mirrors Fusion to every Agent Host, including tunnels, as its policy-resolved value', () => {
+		const fusionValue = (layers: IConfigurationValue<unknown>, target: AgentHostConfigurationSyncTarget) => {
+			const patch = resolveAgentHostConfigurationSyncPatch(createConfigurationService({ [AgentHostFusionEnabledSettingId]: { defaultValue: false, ...layers } }), target);
+			// Hosts built before the Ensemble to Fusion rename read the legacy key, which must stay in step.
+			assert.strictEqual(patch.ensemble, patch[CopilotCliConfigKey.Fusion]);
+			return patch[CopilotCliConfigKey.Fusion];
+		};
+		const acrossTargets = (layers: IConfigurationValue<unknown>) => [
+			AgentHostConfigurationSyncTarget.Local,
+			AgentHostConfigurationSyncTarget.RemoteExtensionHost,
+			AgentHostConfigurationSyncTarget.Remote,
+		].map(target => fusionValue(layers, target));
+
+		assert.deepStrictEqual({
+			off: acrossTargets({}),
+			userEnabled: acrossTargets({ userValue: true }),
+			experimentEnabled: acrossTargets({ defaultValue: true }),
+			previewFeaturesDisabled: acrossTargets({ userValue: true, policyValue: false }),
+		}, {
+			off: [false, false, false],
+			userEnabled: [true, true, true],
+			experimentEnabled: [true, true, true],
+			previewFeaturesDisabled: [false, false, false],
+		});
+	});
+
+	test('locks Fusion off only when the account disables preview features', () => {
+		const policyValue = (policyData: Partial<IPolicyData>) => fusionConfigurationProperties[AgentHostFusionEnabledSettingId].policy.value(policyData as IPolicyData);
+
+		assert.deepStrictEqual({
+			previewFeaturesDisabled: policyValue({ chat_preview_features_enabled: false }),
+			previewFeaturesEnabled: policyValue({ chat_preview_features_enabled: true }),
+			previewFeaturesUnknown: policyValue({}),
+		}, {
+			previewFeaturesDisabled: false,
+			previewFeaturesEnabled: undefined,
+			previewFeaturesUnknown: undefined,
 		});
 	});
 

@@ -126,6 +126,8 @@ export const agentHostPolicySupport: Readonly<Record<string, IAgentHostPolicySup
 	ChatTemporaryDefaultToLocalHarness: { status: 'enforced' },
 	// Mirrored into the root config of every host.
 	CopilotSessionSync: { status: 'enforced' },
+	// Mirrored into the root config of every host, so the policy-locked value reaches remote and tunnel hosts.
+	CopilotFusion: { status: 'enforced' },
 
 	// #endregion
 

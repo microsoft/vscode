@@ -506,6 +506,24 @@
             }
         },
         {
+            "key": "chat.copilot.ensemble.enabled",
+            "name": "CopilotFusion",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.143",
+            "localization": {
+                "description": {
+                    "key": "chat.copilot.ensemble.enabled.policy",
+                    "value": "Controls whether Copilot Agent Host sessions present Auto as Fusion, which routes requests through HydraFusion."
+                }
+            },
+            "type": "boolean",
+            "default": false,
+            "included": true,
+            "agentHost": {
+                "status": "enforced"
+            }
+        },
+        {
             "key": "chat.copilotCliCommand.enabled",
             "name": "CopilotCliCommand",
             "category": "InteractiveSession",
