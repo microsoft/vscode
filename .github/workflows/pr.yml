@@ -166,12 +166,23 @@ jobs:
       smoke_shard_index: ${{ matrix.shard }}
       smoke_shard_total: ${{ strategy.job-total }}
 
-  linux-browser-tests:
-    name: Linux
+  linux-browser-test-parts:
+    name: Linux (${{ matrix.part }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - part: unit
+            unit: true
+          - part: integration & smoke
+            unit: false
     uses: ./.github/workflows/pr-linux-test.yml
     with:
       job_name: Browser
       browser_tests: true
+      unit_tests: ${{ matrix.unit }}
+      integration_tests: ${{ !matrix.unit }}
+      smoke_tests: ${{ !matrix.unit }}
 
   linux-remote-tests:
     name: Linux
@@ -213,12 +224,23 @@ jobs:
       smoke_shard_index: ${{ matrix.shard }}
       smoke_shard_total: ${{ strategy.job-total }}
 
-  macos-browser-tests:
-    name: macOS
+  macos-browser-test-parts:
+    name: macOS (${{ matrix.part }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - part: unit
+            unit: true
+          - part: integration & smoke
+            unit: false
     uses: ./.github/workflows/pr-darwin-test.yml
     with:
       job_name: Browser
       browser_tests: true
+      unit_tests: ${{ matrix.unit }}
+      integration_tests: ${{ !matrix.unit }}
+      smoke_tests: ${{ !matrix.unit }}
 
   macos-remote-tests:
     name: macOS
@@ -260,12 +282,23 @@ jobs:
       smoke_shard_index: ${{ matrix.shard }}
       smoke_shard_total: ${{ strategy.job-total }}
 
-  windows-browser-tests:
-    name: Windows
+  windows-browser-test-parts:
+    name: Windows (${{ matrix.part }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - part: unit
+            unit: true
+          - part: integration & smoke
+            unit: false
     uses: ./.github/workflows/pr-win32-test.yml
     with:
       job_name: Browser
       browser_tests: true
+      unit_tests: ${{ matrix.unit }}
+      integration_tests: ${{ !matrix.unit }}
+      smoke_tests: ${{ !matrix.unit }}
 
   windows-remote-tests:
     name: Windows
@@ -294,6 +327,27 @@ jobs:
     steps:
       - name: Check shard result (${{ needs[matrix.shards].result }})
         run: exit ${{ needs[matrix.shards].result == 'success' && '0' || '1' }}
+
+  # Reports the required "<OS> / Browser" checks from the browser test parts.
+  # Uses always() because a skipped job counts as passing for required checks.
+  browser-checks:
+    name: ${{ matrix.check }}
+    needs: [linux-browser-test-parts, macos-browser-test-parts, windows-browser-test-parts]
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - check: Linux / Browser
+            parts: linux-browser-test-parts
+          - check: macOS / Browser
+            parts: macos-browser-test-parts
+          - check: Windows / Browser
+            parts: windows-browser-test-parts
+    steps:
+      - name: Check parts result (${{ needs[matrix.parts].result }})
+        run: exit ${{ needs[matrix.parts].result == 'success' && '0' || '1' }}
 
   copilot-check-test-cache:
     name: Copilot - Check Test Cache
