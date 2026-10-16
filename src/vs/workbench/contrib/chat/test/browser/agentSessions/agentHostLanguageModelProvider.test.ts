@@ -10,7 +10,7 @@ import { Emitter } from '../../../../../../base/common/event.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { PolicyState, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { withAgentModelAutoTiersMeta, withAgentModelFusionMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
+import { withAgentModelAutoTierPromotionsMeta, withAgentModelAutoTiersMeta, withAgentModelFusionMeta, type IAgentModelAutoTierPromotion } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { createLocalModelRowMeta } from '../../../../../../platform/agentHost/common/meta/localModelStatus.js';
 import { withAgentManagedModelDefaults, withAgentModelConfigurationDefaults } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
 import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
@@ -290,6 +290,38 @@ suite('AgentHostLanguageModelProvider', () => {
 			},
 			plain: { enum: ['balance', 'hydrafusion'], labels: ['Balance', 'High'], descriptions: ['', 'Fusion'], disabled: undefined, default: 'balance' },
 			notAuto: { enum: ['balance', 'hydrafusion'], labels: ['Balance', 'High'], descriptions: ['', 'Fusion'], disabled: undefined, default: 'balance' },
+		});
+	});
+
+	test('passes the service\'s tier promotions to Fusion, whose detail shows a running promotion that covers all its tiers', async () => {
+		const day = 24 * 60 * 60 * 1000;
+		const iso = (offset: number) => new Date(Date.now() + offset).toISOString();
+		const configSchema: SessionModelInfo['configSchema'] = {
+			type: 'object',
+			properties: { tier: { type: 'string', title: 'Effort Level', enum: ['balance', 'hydrafusion'], default: 'balance' } },
+		};
+		const running = { id: 'launch', message: 'Get 30% off', discountPercent: 30, tierIds: ['balance', 'hydrafusion', 'hydrafusion-max'], startsAt: iso(-day), endsAt: iso(day), showBanner: true };
+		const presented = async (fusion: boolean, promotions: IAgentModelAutoTierPromotion[]) => {
+			const provider = createProvider();
+			let meta = withAgentModelAutoTierPromotionsMeta({ discountPercent: 10 }, promotions);
+			meta = fusion ? withAgentModelFusionMeta(meta, { balanceUsesHydraFusion: true }) : meta;
+			provider.updateModels([{ ...makeModel('auto', meta), configSchema }]);
+			const { metadata } = (await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None))[0];
+			return { detail: metadata.detail, discount: metadata.autoModelDiscountPercent, promotions: metadata.autoModelTierPromotions?.map(promotion => promotion.id) };
+		};
+
+		assert.deepStrictEqual({
+			running: await presented(true, [running]),
+			upcoming: await presented(true, [{ ...running, startsAt: iso(day), endsAt: iso(2 * day) }]),
+			oneTier: await presented(true, [{ ...running, tierIds: ['hydrafusion'] }]),
+			notFusion: await presented(false, [running]),
+		}, {
+			running: { detail: '30% discount', discount: 10, promotions: ['launch'] },
+			// Not yet running, so Fusion keeps its own discount while the picker announces it.
+			upcoming: { detail: '10% discount', discount: 10, promotions: ['launch'] },
+			// Only the tier it covers describes it.
+			oneTier: { detail: '10% discount', discount: 10, promotions: ['launch'] },
+			notFusion: { detail: '10% discount', discount: 10, promotions: undefined },
 		});
 	});
 

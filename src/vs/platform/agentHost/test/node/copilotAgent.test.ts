@@ -56,7 +56,7 @@ import { CodexProxyService, ICodexProxyService } from '../../node/codex/codexPro
 import { RecordingAgentSdkDownloader } from './testAgentSdkDownloader.js';
 import { IAgentHostSessionOpenTelemetry } from '../../node/agentHostSessionOpenTelemetry.js';
 import { AgentHostFusionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, COPILOT_HYDRA_FUSION_MODEL_ID } from '../../common/copilotCliConfig.js';
-import { readAgentModelAutoTiersMeta, readAgentModelFusionMeta } from '../../common/meta/agentModelMeta.js';
+import { readAgentModelAutoTierPromotionsMeta, readAgentModelAutoTiersMeta, readAgentModelFusionMeta } from '../../common/meta/agentModelMeta.js';
 import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostTelemetryLevelConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
@@ -847,7 +847,7 @@ class TestCopilotClient implements ITestCopilotClient {
 				if (error) {
 					throw error;
 				}
-				return { models: models.map(toSdkModelInfo), ...(auto ? { auto } : {}) };
+				return { models: models.map(toSdkModelInfo), ...(auto ? { auto } : {}), ...this.modelListExtraFields };
 			}
 		},
 		plugins: {
@@ -909,6 +909,8 @@ class TestCopilotClient implements ITestCopilotClient {
 	/** Per-request gates and results, captured when each request starts. */
 	readonly modelListGates: Promise<void>[] = [];
 	readonly modelListResponses: ITestCopilotModelInfo[][] = [];
+	/** Response fields the SDK does not type yet, such as `/meta` `service_messages`. */
+	modelListExtraFields: Record<string, unknown> = {};
 	/** Per-request `auto` metadata, captured when each request starts; `null` sends none. */
 	readonly modelListAutoResponses: (NonNullable<Awaited<ReturnType<CopilotModelsList>>['auto']> | null)[] = [];
 	readonly getSessionMetadataCalls: string[] = [];
@@ -13167,6 +13169,65 @@ suite('CopilotAgent', () => {
 					],
 				},
 				acceptsMax: undefined,
+			});
+		} finally {
+			await disposeAgent(agent);
+			setAdvertisedAutoModeTiers(undefined);
+		}
+	});
+
+	test('presents the provider\'s tiers as Fusion\'s Lite, Balance, and Max, carrying the service\'s promotions for them', async () => {
+		const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
+		client.autoTierMetadata = {
+			defaultTier: 'balance',
+			tiers: [
+				{ id: 'balance', displayName: 'Balance', description: '', type: 'auto', status: { enabled: true } },
+				{ id: 'hydrafusion', displayName: 'High', description: '', type: 'fusion', status: { enabled: true } },
+				{ id: 'hydrafusion-max', displayName: 'Max', description: '', type: 'fusion', status: { enabled: false, message: 'Not eligible' } },
+			],
+		};
+		// The `/meta` example in github/copilot-api#39882, as the wire sends it, plus entries to ignore.
+		client.modelListExtraFields = {
+			service_messages: [
+				{
+					id: 'ensemble-launch-2026', kind: 'promotion',
+					applies_to: [{ type: 'auto_tier', id: 'balance' }, { type: 'auto_tier', id: 'hydrafusion' }, { type: 'auto_tier', id: 'hydrafusion-max' }, { type: 'model', id: 'gpt-5' }],
+					message: 'Get 30% off Ensemble usage for 30 days starting October 28, 2026.',
+					discount_percent: 30, starts_at: '2026-10-28T00:00:00Z', ends_at: '2026-11-27T00:00:00Z', show_banner: true,
+				},
+				{ id: 'outage', kind: 'degradation', applies_to: [{ type: 'auto_tier', id: 'balance' }], message: 'Slow' },
+				{ id: 'no-tiers', kind: 'promotion', applies_to: [{ type: 'model', id: 'gpt-5' }], message: 'Model sale', discount_percent: 5 },
+				{ id: 'bad-date', kind: 'promotion', applies_to: [{ type: 'auto_tier', id: 'balance' }], message: 'Sale', discount_percent: 5, ends_at: 'soon' },
+			],
+		};
+		const { agent } = createTestAgentContext(disposables, {
+			copilotClient: client,
+			rootConfig: { [CopilotCliConfigKey.Fusion]: true, [CopilotCliConfigKey.HydraFusion]: true, [CopilotCliConfigKey.HydraFusionV2]: true },
+		});
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			const published = await waitForState(agent.models, published => published.some(model => model.id === 'auto'));
+			const fusion = published.find(model => model.id === 'auto')!;
+			const tier = fusion.configSchema?.properties.tier;
+
+			assert.deepStrictEqual({
+				name: fusion.name,
+				tier: { enum: tier?.enum, labels: tier?.enumLabels },
+				autoTiers: readAgentModelAutoTiersMeta(fusion)?.tiers.map(({ label, enabled }) => ({ label, enabled })),
+				promotions: readAgentModelAutoTierPromotionsMeta(fusion),
+			}, {
+				name: 'Fusion',
+				tier: { enum: ['balance', 'hydrafusion'], labels: ['Lite', 'Balance'] },
+				autoTiers: [{ label: 'Lite', enabled: true }, { label: 'Balance', enabled: true }, { label: 'Max', enabled: false }],
+				promotions: [{
+					id: 'ensemble-launch-2026',
+					message: 'Get 30% off Ensemble usage for 30 days starting October 28, 2026.',
+					discountPercent: 30,
+					tierIds: ['balance', 'hydrafusion', 'hydrafusion-max'],
+					startsAt: '2026-10-28T00:00:00Z',
+					endsAt: '2026-11-27T00:00:00Z',
+					showBanner: true,
+				}],
 			});
 		} finally {
 			await disposeAgent(agent);

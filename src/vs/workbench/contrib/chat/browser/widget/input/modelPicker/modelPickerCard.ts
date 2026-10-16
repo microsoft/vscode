@@ -305,6 +305,9 @@ export class ModelCard extends DisposableStore {
 				this.element.appendChild(createMessageBanner(message, 'chat-model-hover-info-text', Codicon.info, this._contentDisposables, openerService));
 			}
 		}
+		if (isAuto && effort) {
+			this._renderAutoTierPromotions(effort);
+		}
 		const promo = !isAuto && ILanguageModelChatMetadata.hasPromoDiscount(metadata) ? metadata.promo : undefined;
 		if (promo) {
 			const endsAtLabel = ILanguageModelChatMetadata.getPromoEndsAtLabel(promo.endsAt);
@@ -514,17 +517,26 @@ export class ModelCard extends DisposableStore {
 			items,
 		}));
 		const alternativeDescriptions = new Map<IModelCardRoutingAlternative, HTMLElement>();
-		const discountPercent = isAuto && group === MODEL_CONFIG_GROUP_EFFORT ? this._options.model.metadata.autoModelDiscountPercent : undefined;
+		// A service promotion on a tier replaces Auto's own discount on it while it runs.
+		const discountFor = (choice: typeof choices[number] | undefined) => isAuto && group === MODEL_CONFIG_GROUP_EFFORT
+			? ILanguageModelChatMetadata.getAutoTierDiscountPercent(this._options.model.metadata, choice?.value)
+			: undefined;
 		let discountDescription: HTMLElement | undefined;
 		let discountTierLabel: string | undefined;
+		let discountTierPercent: number | undefined;
 		const discountStore = this._contentDisposables.add(new MutableDisposable<DisposableStore>());
 		// Names the tier shown as selected, which a click changes before its value saves.
 		// A failed save re-renders the card, which puts back the saved tier.
-		const renderDiscountDescription = (tierLabel: string | undefined, hidden: boolean) => {
+		const renderDiscountDescription = (choice: typeof choices[number] | undefined, hidden: boolean) => {
+			const discountPercent = discountFor(choice);
+			const tierLabel = choice?.label;
 			if (discountPercent === undefined) {
+				if (discountDescription) {
+					discountDescription.hidden = true;
+				}
 				return;
 			}
-			if (discountDescription && tierLabel === discountTierLabel) {
+			if (discountDescription && tierLabel === discountTierLabel && discountPercent === discountTierPercent) {
 				discountDescription.hidden = hidden;
 				return;
 			}
@@ -539,6 +551,7 @@ export class ModelCard extends DisposableStore {
 			}
 			discountDescription = next;
 			discountTierLabel = tierLabel;
+			discountTierPercent = discountPercent;
 			discountStore.value = store;
 		};
 		const onDidChoose = isAuto ? control.onDidActivate : control.onDidSelect;
@@ -553,14 +566,14 @@ export class ModelCard extends DisposableStore {
 				element.hidden = candidate !== alternative;
 			}
 			if (choice && !alternative) {
-				renderDiscountDescription(choice.label, false);
+				renderDiscountDescription(choice, false);
 			} else if (discountDescription) {
 				discountDescription.hidden = true;
 			}
 		}));
 		this._groupControls.set(group, control);
 		section.appendChild(control.domNode);
-		renderDiscountDescription(choices.find(choice => choice.checked)?.label, !!selectedAlternative);
+		renderDiscountDescription(choices.find(choice => choice.checked), !!selectedAlternative);
 		for (const alternative of alternatives) {
 			const element = renderModelDescription(alternative.description, this._options.openerService, this._contentDisposables, alternative.learnMoreUrl).element;
 			element.classList.add('chat-model-card-description', 'chat-model-card-alternative-description');
@@ -626,6 +639,31 @@ export class ModelCard extends DisposableStore {
 		if (alternatives?.some(alternative => alternative.selected !== (alternative.model === model))) {
 			this._options = { ...this._options, routingAlternatives: alternatives.map(alternative => ({ ...alternative, selected: alternative.model === model })) };
 			this._updateRoutingBadge();
+		}
+	}
+
+	/**
+	 * The service's promotions for any of Auto's selectable tiers, in the service's words: running
+	 * ones first, then upcoming ones with their start date. Ended ones are not shown.
+	 */
+	private _renderAutoTierPromotions(effort: IModelConfigProperty): void {
+		const metadata = this._options.model.metadata;
+		const now = Date.now();
+		const shown = new Set<string>();
+		const promotions = getModelConfigChoices(effort)
+			.filter(choice => !choice.unavailable)
+			.flatMap(choice => {
+				const promotion = ILanguageModelChatMetadata.getAutoTierPromotion(metadata, choice.value, now);
+				return promotion && !shown.has(promotion.id) && shown.add(promotion.id) ? [promotion] : [];
+			})
+			.sort((a, b) => Number(ILanguageModelChatMetadata.isAutoTierPromotionUpcoming(a, now)) - Number(ILanguageModelChatMetadata.isAutoTierPromotionUpcoming(b, now)));
+		for (const promotion of promotions) {
+			const when = ILanguageModelChatMetadata.isAutoTierPromotionUpcoming(promotion, now)
+				? ILanguageModelChatMetadata.getPromoStartsAtLabel(promotion.startsAt)
+				: ILanguageModelChatMetadata.getPromoEndsAtLabel(promotion.endsAt);
+			const banner = createMessageBanner(when ? `${promotion.message} ${when}` : promotion.message, 'chat-model-hover-promo-text', Codicon.info, this._contentDisposables, this._options.openerService);
+			banner.classList.add('chat-model-card-tier-promotion');
+			this.element.appendChild(banner);
 		}
 	}
 

@@ -188,6 +188,72 @@ suite('ModelCard', () => {
 		});
 	}
 
+	suite('Fusion tier promotions', () => {
+		const day = 24 * 60 * 60 * 1000;
+		function createFusionModel(promotions: ILanguageModelChatMetadata['autoModelTierPromotions'], disabled?: boolean[]): ILanguageModelChatMetadataAndIdentifier {
+			return {
+				...createModel({
+					id: 'auto',
+					name: 'Fusion',
+					detail: '10% discount',
+					autoModelDiscountPercent: 10,
+					autoModelFusion: { balanceUsesHydraFusion: true },
+					autoModelTierPromotions: promotions,
+					tooltip: ILanguageModelChatMetadata.getAutoModelDescription(true),
+					configurationSchema: {
+						properties: {
+							tier: {
+								type: 'string', title: 'Effort Level', group: 'navigation',
+								enum: ['balance', 'hydrafusion', 'hydrafusion-max'],
+								enumItemLabels: ['Lite', 'Balance', 'Max'],
+								...(disabled && { enumItemDisabled: disabled }),
+								default: 'balance',
+							},
+						},
+					},
+				}),
+				identifier: 'copilot/auto',
+			};
+		}
+		const iso = (offset: number) => new Date(Date.now() + offset).toISOString();
+		const promotion = (startsAt: string | undefined, endsAt: string | undefined, tierIds = ['balance', 'hydrafusion', 'hydrafusion-max']) => ({
+			id: 'ensemble-launch-2026', message: 'Get 30% off Fusion usage.', discountPercent: 30, tierIds,
+			...(startsAt && { startsAt }), ...(endsAt && { endsAt }),
+		});
+		const read = (card: ModelCard) => ({
+			discount: card.element.querySelector<HTMLElement>('.chat-model-card-discount-description:not([hidden])')?.textContent,
+			promotions: Array.from(card.element.querySelectorAll('.chat-model-card-tier-promotion'), banner => banner.textContent?.replace(/\. Ends .*|\. Starts .*/, '.')),
+		});
+
+		test('a running promotion replaces Fusion\'s discount on the tiers it covers, and shows its message', () => {
+			const { card } = createCard({ tier: 'hydrafusion' }, { model: createFusionModel([promotion(iso(-day), iso(day), ['hydrafusion'])]) });
+			const covered = read(card);
+			card.element.querySelectorAll<HTMLElement>('[role="radio"]')[0].click();
+			assert.deepStrictEqual({ covered, uncovered: read(card) }, {
+				covered: { discount: 'Models routed via Fusion Balance receive a 30% discount.', promotions: ['Get 30% off Fusion usage.'] },
+				uncovered: { discount: 'Models routed via Fusion Lite receive a 10% discount.', promotions: ['Get 30% off Fusion usage.'] },
+			});
+		});
+
+		test('an upcoming promotion is announced with its start date without changing the discount, and an ended one is hidden', () => {
+			const upcoming = createCard({ tier: 'balance' }, { model: createFusionModel([promotion(iso(day), iso(2 * day))]) }).card;
+			const startsAt = new Date(Date.now() + day).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+			const ended = createCard({ tier: 'balance' }, { model: createFusionModel([promotion(iso(-2 * day), iso(-day))]) }).card;
+			assert.deepStrictEqual({
+				upcoming: { ...read(upcoming), text: upcoming.element.querySelector('.chat-model-card-tier-promotion')?.textContent },
+				ended: read(ended),
+			}, {
+				upcoming: { discount: 'Models routed via Fusion Lite receive a 10% discount.', promotions: ['Get 30% off Fusion usage.'], text: `Get 30% off Fusion usage. Starts ${startsAt}.` },
+				ended: { discount: 'Models routed via Fusion Lite receive a 10% discount.', promotions: [] },
+			});
+		});
+
+		test('a promotion only for a tier the account cannot select is not shown', () => {
+			const { card } = createCard({ tier: 'balance' }, { model: createFusionModel([promotion(iso(-day), iso(day), ['hydrafusion-max'])], [false, false, true]) });
+			assert.deepStrictEqual(read(card), { discount: 'Models routed via Fusion Lite receive a 10% discount.', promotions: [] });
+		});
+	});
+
 	test('Auto without tiers explains its discount below its description', () => {
 		const auto = createAutoModel();
 		const { card } = createCard({}, { model: { ...auto, metadata: { ...auto.metadata, configurationSchema: undefined } } });

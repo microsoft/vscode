@@ -123,11 +123,17 @@ export function getAutoModeTierLabel(tier: string): string {
 	}
 }
 
-/** Localized picker label for a routing profile when Auto is presented as Fusion, which names the runtime's balance tier Lite and its intelligence tier Balance. */
+/**
+ * Localized picker label for a routing profile when Auto is presented as Fusion, which names the
+ * runtime's balance tier Lite and its intelligence tier Balance. With the provider's tiers, Fusion's
+ * Balance and Max are the HydraFusion tiers.
+ */
 export function getFusionAutoModeTierLabel(tier: string): string {
 	switch (tier) {
 		case 'balance': return localize('autoModeTier.fusionLite', "Lite");
-		case 'intelligence': return localize('autoModeTier.fusionBalance', "Balance");
+		case 'intelligence':
+		case 'hydrafusion': return localize('autoModeTier.fusionBalance', "Balance");
+		case 'hydrafusion-max': return localize('autoModeTier.fusionMax', "Max");
 		default: return getAutoModeTierLabel(tier);
 	}
 }

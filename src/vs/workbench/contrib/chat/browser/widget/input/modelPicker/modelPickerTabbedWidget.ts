@@ -1139,7 +1139,11 @@ export class TabbedModelPicker extends Disposable {
 	private _getModelCard(model: ILanguageModelChatMetadataAndIdentifier, context: ITabbedModelPickerContext): ModelCard {
 		let selectionVersion = this._selectionVersion;
 		const routingModel = isAutoModel(model) || isHydraFusionModel(model);
-		const hydraFusionModels = isAutoModel(model) && this._hostsHydraFusion(context) ? this._hydraFusionModels(context) : [];
+		// With the provider's tiers, Fusion already offers HydraFusion as a tier, so it is not offered again beside them.
+		const autoTierValues = isAutoModel(model) ? getModelConfigProperty(model, context.configurationAccess, MODEL_CONFIG_GROUP_EFFORT)?.schema.enum ?? [] : [];
+		const hydraFusionModels = isAutoModel(model) && this._hostsHydraFusion(context)
+			? this._hydraFusionModels(context).filter(hydraFusion => !autoTierValues.includes(hydraFusion.metadata.id))
+			: [];
 		const hydraFusionTiers = this._hydraFusionTiers(context);
 		const ownTiers = hydraFusionTiers.includes(model) ? hydraFusionTiers : [];
 		const cardOptions: IModelCardOptions = {

@@ -6,7 +6,8 @@
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../base/common/event.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { disposableTimeout } from '../../../../../../base/common/async.js';
 import { localize } from '../../../../../../nls.js';
 import { readAgentModelNoticesMeta } from '../../../../../../platform/agentHost/common/agentModelNotices.js';
 import { isCopilotHydraFusionModelId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
@@ -14,7 +15,7 @@ import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../../../platform/agentH
 import { LOCAL_MODEL_SENTINEL_PROVIDER_NAME } from '../../../../../../platform/agentHost/common/localModel.js';
 import { readLocalModelRowMeta } from '../../../../../../platform/agentHost/common/meta/localModelStatus.js';
 import { ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { readAgentModelAutoTiersMeta, readAgentModelFusionMeta, readAgentModelPricingMeta, type IAgentModelAutoTiersMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
+import { readAgentModelAutoTierPromotionsMeta, readAgentModelAutoTiersMeta, readAgentModelFusionMeta, readAgentModelPricingMeta, type IAgentModelAutoTierPromotion, type IAgentModelAutoTiersMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { readAgentManagedModelDefaults, readAgentModelConfigurationDefaults } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { readAgentModelGroupId, readAgentModelSourceId } from '../../../../../../platform/agentHost/common/agentModelSource.js';
@@ -59,6 +60,7 @@ export type IAgentHostModelCatalogue = Pick<ILanguageModelsService, 'getLanguage
 export class AgentHostLanguageModelProvider extends Disposable implements ILanguageModelChatProvider {
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
+	private readonly _promotionChange = this._register(new MutableDisposable());
 
 	private _models: readonly SessionModelInfo[] = [];
 	private _additionalModels: readonly SessionModelInfo[] = [];
@@ -92,6 +94,39 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	updateModels(models: readonly SessionModelInfo[]): void {
 		this._models = models;
 		this._onDidChange.fire();
+		this._schedulePromotionChange();
+	}
+
+	/** Re-publishes when a tier promotion starts or ends, since both change what the picker shows. */
+	private _schedulePromotionChange(): void {
+		const now = Date.now();
+		const next = Math.min(...this._models
+			.filter(model => model.id === AUTO_RAW_MODEL_ID)
+			.flatMap(model => readAgentModelAutoTierPromotionsMeta(model))
+			.flatMap(promotion => [promotion.startsAt, promotion.endsAt])
+			.map(date => date ? Date.parse(date) : NaN)
+			.filter(time => time > now));
+		this._promotionChange.value = Number.isFinite(next)
+			// Timers cannot wait longer than about 24.8 days, so a far boundary is approached in steps.
+			? disposableTimeout(() => { this._onDidChange.fire(); this._schedulePromotionChange(); }, Math.min(next - now, AgentHostLanguageModelProvider._maxPromotionWaitMs))
+			: undefined;
+	}
+
+	private static readonly _maxPromotionWaitMs = 24 * 60 * 60 * 1000;
+
+	/**
+	 * A running promotion's discount when it covers every tier Auto offers, so it is the model's
+	 * discount wherever a tier is not named. Otherwise each tier describes its own in the picker.
+	 */
+	private static _wholeModelPromotionDiscount(model: SessionModelInfo, promotions: readonly IAgentModelAutoTierPromotion[], now: number): number | undefined {
+		const tiers = (model.configSchema?.properties.tier?.enum ?? []).filter((tier): tier is string => typeof tier === 'string');
+		if (!tiers.length) {
+			return undefined;
+		}
+		const discounts = promotions
+			.filter(promotion => promotion.discountPercent > 0 && tiers.every(tier => promotion.tierIds.includes(tier)) && ILanguageModelChatMetadata.isAutoTierPromotionActive(promotion, now))
+			.map(promotion => promotion.discountPercent);
+		return discounts.length ? Math.max(...discounts) : undefined;
 	}
 
 	/** Adds service-discovered models without overriding metadata or policy published by the host. */
@@ -116,7 +151,10 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				// Guard against a non-finite or out-of-range value from the open `_meta` bag so we never render
 				// nonsense like "Infinity% discount"; the documented range is a whole number in (0, 100].
 				const hasDiscount = typeof discountPercent === 'number' && discountPercent > 0 && discountPercent <= 100;
-				const { detail, description } = this._routingPresentationFor(m, hasDiscount ? discountPercent : undefined);
+				// The service's tier promotions are part of how Fusion presents its discount.
+				const tierPromotions = fusion ? readAgentModelAutoTierPromotionsMeta(m) : [];
+				const promotionDiscount = AgentHostLanguageModelProvider._wholeModelPromotionDiscount(m, tierPromotions, Date.now());
+				const { detail, description } = this._routingPresentationFor(m, promotionDiscount ?? (hasDiscount ? discountPercent : undefined));
 				const tooltip = notices?.rowWarning ?? description;
 				const modelGroup = this._modelGroupFor(m);
 				const byokModelIdentifier = readAgentModelByokIdentifier(m);
@@ -142,6 +180,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 						...(detail !== undefined && { detail }),
 						...(isAuto && hasDiscount && { autoModelDiscountPercent: discountPercent }),
 						...(fusion && { autoModelFusion: fusion }),
+						...(tierPromotions.length && { autoModelTierPromotions: tierPromotions.map(({ id, message, discountPercent, tierIds, startsAt, endsAt }) => ({ id, message, discountPercent, tierIds, startsAt, endsAt })) }),
 						maxInputTokens,
 						maxOutputTokens,
 						maxContextWindowTokens: m.maxContextWindow ?? known?.maxContextWindowTokens,

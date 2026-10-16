@@ -56,3 +56,98 @@ export function readAgentModelAutoTiersMeta(model: IAgentModelInfo | SessionMode
 	}
 	return { tiers: result };
 }
+
+const VSCODE_AUTO_TIER_PROMOTIONS_META_KEY = 'vscode.chat.autoTierPromotions';
+
+/**
+ * A promotion the Copilot service attaches to Auto tiers (a `/meta` `service_messages[]` entry of
+ * kind `promotion`), scoped to the caller. See github/copilot-api#39882.
+ */
+export interface IAgentModelAutoTierPromotion {
+	readonly id: string;
+	readonly message: string;
+	/** Whole-number percentage (0-100); `0` is a message-only promotion. */
+	readonly discountPercent: number;
+	/** The Auto tier IDs the promotion applies to. */
+	readonly tierIds: readonly string[];
+	/** ISO 8601 start; before it the promotion is upcoming. Absent means already started. */
+	readonly startsAt?: string;
+	/** ISO 8601 end; after it the promotion is hidden. Absent means open-ended. */
+	readonly endsAt?: string;
+	readonly showBanner?: boolean;
+}
+
+/**
+ * Reads the promotions for Auto tiers from a `/meta` `service_messages` list, in either the wire's
+ * snake_case or an SDK's camelCase. Unknown kinds and target types, and malformed entries, are
+ * ignored, as the service requires.
+ */
+export function parseAutoTierPromotions(serviceMessages: unknown): IAgentModelAutoTierPromotion[] {
+	if (!Array.isArray(serviceMessages)) {
+		return [];
+	}
+	const promotions: IAgentModelAutoTierPromotion[] = [];
+	for (const raw of serviceMessages) {
+		if (!isObject(raw)) {
+			continue;
+		}
+		const entry = raw as Record<string, unknown>;
+		if (entry.kind !== 'promotion') {
+			continue;
+		}
+		const appliesTo = entry.appliesTo ?? entry.applies_to;
+		const tierIds = Array.isArray(appliesTo)
+			? appliesTo.flatMap(target => isObject(target) && (target as Record<string, unknown>).type === 'auto_tier' && typeof (target as Record<string, unknown>).id === 'string' && (target as Record<string, unknown>).id ? [(target as Record<string, unknown>).id as string] : [])
+			: [];
+		const promotion = toPromotion({
+			id: entry.id,
+			message: entry.message,
+			discountPercent: entry.discountPercent ?? entry.discount_percent,
+			tierIds: [...new Set(tierIds)],
+			// The wire may send `null` for an absent date or flag.
+			startsAt: entry.startsAt ?? entry.starts_at ?? undefined,
+			endsAt: entry.endsAt ?? entry.ends_at ?? undefined,
+			showBanner: entry.showBanner ?? entry.show_banner ?? undefined,
+		});
+		if (promotion) {
+			promotions.push(promotion);
+		}
+	}
+	return promotions;
+}
+
+export function withAgentModelAutoTierPromotionsMeta(meta: Record<string, unknown> | undefined, promotions: readonly IAgentModelAutoTierPromotion[]): Record<string, unknown> | undefined {
+	return promotions.length ? { ...meta, [VSCODE_AUTO_TIER_PROMOTIONS_META_KEY]: promotions.map(promotion => ({ ...promotion, tierIds: [...promotion.tierIds] })) } : meta;
+}
+
+export function readAgentModelAutoTierPromotionsMeta(model: IAgentModelInfo | SessionModelInfo): IAgentModelAutoTierPromotion[] {
+	const value = model._meta?.[VSCODE_AUTO_TIER_PROMOTIONS_META_KEY];
+	if (!Array.isArray(value)) {
+		return [];
+	}
+	return value.flatMap(entry => {
+		const promotion = isObject(entry) ? toPromotion(entry as Record<string, unknown>) : undefined;
+		return promotion ? [promotion] : [];
+	});
+}
+
+function toPromotion(entry: Record<string, unknown>): IAgentModelAutoTierPromotion | undefined {
+	const { id, message, discountPercent, tierIds, startsAt, endsAt, showBanner } = entry;
+	if (typeof id !== 'string' || !id || typeof message !== 'string' || !message
+		|| typeof discountPercent !== 'number' || !Number.isFinite(discountPercent) || discountPercent < 0 || discountPercent > 100
+		|| !Array.isArray(tierIds) || !tierIds.length || !tierIds.every(tier => typeof tier === 'string' && tier)
+		|| !isOptionalDate(startsAt) || !isOptionalDate(endsAt)
+		|| (showBanner !== undefined && typeof showBanner !== 'boolean')) {
+		return undefined;
+	}
+	return {
+		id, message, discountPercent, tierIds: tierIds as string[],
+		...(typeof startsAt === 'string' ? { startsAt } : {}),
+		...(typeof endsAt === 'string' ? { endsAt } : {}),
+		...(typeof showBanner === 'boolean' ? { showBanner } : {}),
+	};
+}
+
+function isOptionalDate(value: unknown): boolean {
+	return value === undefined || (typeof value === 'string' && !isNaN(new Date(value).getTime()));
+}
