@@ -63,7 +63,7 @@ export class InstallShellScriptWithCopilotAction extends Action2 {
 		];
 		const pick = await quickInputService.pick(picks, {
 			placeHolder: localize('installCopilotPrompt', "Would you also like to install GitHub Copilot CLI?"),
-			activeItem: picks[1]
+			activeItem: picks[0]
 		});
 
 		if (!pick) {

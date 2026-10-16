@@ -119,7 +119,7 @@ uninstalling VS Code never removes it or its data (`~/.copilot`).
 
 ### macOS Shell Command installation
 
-On macOS, the Shell Command action in the Command Palette offers a localized Yes/No choice to also install GitHub Copilot CLI, with No initially active:
+On macOS, the Shell Command action in the Command Palette offers a localized Yes/No choice to also install GitHub Copilot CLI, with Yes initially active:
 
 - **Yes** starts the packaged shim's [interactive install-only mode](#install) in a visible local transient terminal, then continues the existing code-command installation without waiting for that terminal. Each Yes starts an independent terminal.
 - **No** keeps the existing code-command flow.

@@ -147,14 +147,14 @@ suite('TerminalInstallActions', () => {
 		};
 	}
 
-	test('uses a typed Yes/No pick with No initially active', async () => {
+	test('uses a typed Yes/No pick with Yes initially active', async () => {
 		const services = createServices({ label: 'No', installCopilot: false });
 		await services.instantiationService.invokeFunction(accessor => new InstallShellScriptWithCopilotAction().run(accessor));
 
 		strictEqual(services.recordedPicks.length, 1);
 		const [pick] = services.recordedPicks;
 		deepStrictEqual(pick.items, ['Yes', 'No']);
-		strictEqual(pick.activeItem, 'No');
+		strictEqual(pick.activeItem, 'Yes');
 		strictEqual(services.terminalCreateCount, 0);
 		strictEqual(services.nativeInstallCount, 1);
 	});
@@ -205,7 +205,7 @@ suite('TerminalInstallActions', () => {
 		deepStrictEqual(services.terminalConfigs, [{
 			config: {
 				name: 'Install GitHub Copilot CLI',
-				executable: '/Applications/Code Insiders.app/Contents/Resources/app/bin/copilot-shim/copilot',
+				executable: URI.file('/Applications/Code Insiders.app/Contents/Resources/app/bin/copilot-shim/copilot').fsPath,
 				args: ['--vscode-shim', 'install', '--interactive'],
 				useShellEnvironment: true,
 				isFeatureTerminal: true,
@@ -260,7 +260,7 @@ suite('TerminalInstallActions', () => {
 		deepStrictEqual(services.terminalConfigs, [{
 			config: {
 				name: 'Install GitHub Copilot CLI',
-				executable: '/Applications/Code Insiders\' Test.app/Contents/Resources/app/bin/copilot-shim/copilot',
+				executable: URI.file('/Applications/Code Insiders\' Test.app/Contents/Resources/app/bin/copilot-shim/copilot').fsPath,
 				args: ['--vscode-shim', 'install', '--interactive'],
 				useShellEnvironment: true,
 				isFeatureTerminal: true,
