@@ -5,6 +5,7 @@
 
 import './agentSessions/agentHost/codexContinuation.contribution.js';
 import './agentSessions/agentHost/localModel.contribution.js';
+import { getDefaultModelPolicyDescription } from '../common/modelSelection.js';
 import { CODEX_CONTINUATION_DEFAULT_THRESHOLD } from '../../../services/agentHost/browser/codexContinuation.js';
 import { CODEX_CONTINUATION_SETTING, CODEX_CONTINUATION_THRESHOLD_SETTING } from '../../../services/agentHost/browser/codexContinuationService.js';
 import { Event } from '../../../../base/common/event.js';
@@ -773,7 +774,8 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.DefaultModel]: {
 			type: 'string',
 			default: '',
-			markdownDescription: nls.localize('chat.defaultModel.description', "The default model for new chat conversations. Use \"auto\" to let Copilot pick a model, a model family name (such as \"opus\" or \"gemini\") to use the latest available model in that family, or a full model id. You can still switch the model within a conversation; each new conversation starts at this model."),
+			markdownDescription: nls.localize('chat.defaultModel.description', "The default model for new chat conversations. Use \"auto\" to let Copilot pick a model, a model family name (such as \"opus\" or \"gemini\") to use the latest available model in that family, or a full model id. An organization-managed default takes precedence over your saved preference. You can still switch the model within a conversation; each new conversation starts at the effective default."),
+			policyValueDescription: getDefaultModelPolicyDescription,
 			experiment: {
 				mode: 'auto'
 			},

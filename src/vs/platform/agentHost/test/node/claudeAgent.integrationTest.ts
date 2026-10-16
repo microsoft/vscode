@@ -37,6 +37,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 import type { GetSessionMessagesOptions, Options, PermissionResult, Query, SDKControlInterruptResponse, SDKMessage, SDKResultSuccess, SDKSessionInfo, SDKSystemMessage, SDKUserMessage, SessionMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
+import { mock } from '../../../../base/test/common/mock.js';
 import type * as http from 'http';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
@@ -129,12 +130,15 @@ function claudeFileEnvServices(disposables: Pick<DisposableStore, 'add'>): [type
 }
 
 function createTestAuthenticationService(): IAgentHostAuthenticationService {
-	return {
-		_serviceBrand: undefined,
-		onDidChangeAuthToken: Event.None,
-		getAuthAccount: () => undefined,
-		getAuthToken: request => request.resource === GITHUB_COPILOT_PROTECTED_RESOURCE.resource ? 'gh-int-test-token' : undefined,
-	};
+	return new class extends mock<IAgentHostAuthenticationService>() {
+		override readonly onDidChangeAuthToken = Event.None;
+		override getAuthAccount() { return undefined; }
+		override getSessionCredentialSource() { return undefined; }
+		override getSessionCredentialPrincipal() { return undefined; }
+		override getAuthToken(request: Parameters<IAgentHostAuthenticationService['getAuthToken']>[0]) {
+			return request.resource === GITHUB_COPILOT_PROTECTED_RESOURCE.resource ? 'gh-int-test-token' : undefined;
+		}
+	}();
 }
 
 const ANTHROPIC_MODEL: CCAModel = {
