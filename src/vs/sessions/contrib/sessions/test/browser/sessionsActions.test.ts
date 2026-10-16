@@ -336,19 +336,31 @@ suite('Sessions - Actions', () => {
 			...unsupported,
 			chats: constObservable([unsupported.mainChat.get(), unsupportedUnread]),
 		}];
-		const markedRead: string[] = [];
+		const markedRead: { session: string; chats: string[] }[] = [];
+		const pendingRead = new DeferredPromise<void>();
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
-			override async markChatRead(_session: ISession, chat: IChat): Promise<void> {
-				markedRead.push(chat.resource.toString());
+			override markChatsRead(session: ISession, chats: readonly IChat[]): Promise<void> {
+				markedRead.push({
+					session: session.sessionId,
+					chats: chats.map(chat => chat.resource.toString()),
+				});
+				return pendingRead.p;
 			}
 		});
 
-		await CommandsRegistry.getCommand('sessionsViewPane.markAllNestedRead')?.handler(instantiationService, sessions);
+		const result = CommandsRegistry.getCommand('sessionsViewPane.markAllNestedRead')?.handler(instantiationService, sessions);
 
-		assert.deepStrictEqual(markedRead, [
-			firstUnread.resource.toString(),
-			secondUnread.resource.toString(),
-		]);
+		assert.deepStrictEqual({
+			markedRead,
+			result,
+		}, {
+			markedRead: [
+				{ session: first.sessionId, chats: [firstUnread.resource.toString()] },
+				{ session: second.sessionId, chats: [secondUnread.resource.toString()] },
+			],
+			result: undefined,
+		});
+		pendingRead.complete();
 	});
 
 	test('the main session context menu opens its main chat to the side', async () => {
@@ -1359,7 +1371,7 @@ suite('Sessions - Actions', () => {
 		});
 	}
 
-	test('New Session prefills a supplied prompt through the new session view', async () => {
+	test('New Session prefills a supplied prompt and only inherits available quick-chat targets', async () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(INewSessionComposerService, disposables.add(new NewSessionComposerService()));
 		const { session } = createTestSession('prompted');
@@ -1369,6 +1381,7 @@ suite('Sessions - Actions', () => {
 		const quickChatRequests: { options: ICreateNewSessionOptions | undefined; preserveNavigation: boolean | undefined }[] = [];
 		let openNewSessionCalls = 0;
 		let accessorValid = true;
+		let targetAvailable = true;
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly activeSession = currentSession;
 			override openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean): IActiveSession {
@@ -1382,7 +1395,9 @@ suite('Sessions - Actions', () => {
 				return { session: quickChat, trustDeclined: false };
 			}
 		});
-		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() { });
+		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override isQuickChatTargetAvailable(): boolean { return targetAvailable; }
+		});
 		const queries: string[] = [];
 		const viewSessionIds: (string | undefined)[] = [];
 		instantiationService.stub(ISessionsPartService, upcastPartial<ISessionsPartService>({
@@ -1404,13 +1419,21 @@ suite('Sessions - Actions', () => {
 				return instantiationService.get(id);
 			},
 		};
-		await command.handler(invocationAccessor, { prompt: 'Review this change', prefillPrompt: true, noWorkspace: true });
+		for (const available of [true, false]) {
+			targetAvailable = available;
+			accessorValid = true;
+			currentSession.set(activeSession, undefined);
+			await command.handler(invocationAccessor, { prompt: 'Review this change', prefillPrompt: true, noWorkspace: true });
+		}
 
 		assert.deepStrictEqual({ quickChatRequests, openNewSessionCalls, viewSessionIds, queries }, {
-			quickChatRequests: [{ options: { providerId: activeSession.providerId, sessionTypeId: activeSession.sessionType }, preserveNavigation: true }],
+			quickChatRequests: [
+				{ options: { providerId: activeSession.providerId, sessionTypeId: activeSession.sessionType }, preserveNavigation: true },
+				{ options: undefined, preserveNavigation: true },
+			],
 			openNewSessionCalls: 0,
-			viewSessionIds: [quickChat.sessionId],
-			queries: ['Review this change'],
+			viewSessionIds: [quickChat.sessionId, quickChat.sessionId],
+			queries: ['Review this change', 'Review this change'],
 		});
 	});
 

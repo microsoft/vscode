@@ -8,6 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import type { IConfigurationService, IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { resolveManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
 import { AgentNetworkDomainSettingId } from '../../../networkFilter/common/settings.js';
+import { NullLogService } from '../../../log/common/log.js';
 import { ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID } from '../../common/agentHostSchema.js';
 
 function createConfigurationService(values: Record<string, IConfigurationValue<unknown>>): IConfigurationService {
@@ -19,6 +20,48 @@ function createConfigurationService(values: Record<string, IConfigurationValue<u
 suite('AgentHostManagedSettings', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('ignores invalid allow-list entries individually, preserves valid siblings and reports each omission', () => {
+		const cases = [
+			{ allowed: ['github.com', 'github.com/myorg'], boundary: ['Domain(github.com)'], warnings: 1 },
+			{ allowed: ['github.com', 'localhost:*', '*github.com'], boundary: ['Domain(github.com)'], warnings: 2 },
+			{ allowed: ['github.com/myorg', 'localhost:*'], boundary: [], warnings: 2 },
+			{ allowed: ['*', 'localhost:*'], boundary: ['Domain'], warnings: 1 },
+		];
+		const actual = cases.map(({ allowed }) => {
+			let warnings = 0;
+			const logService = new class extends NullLogService {
+				override warn(): void { warnings++; }
+			}();
+			const permissions = resolveManagedSettingsPermissions(createConfigurationService({
+				[AgentNetworkDomainSettingId.NetworkFilter]: { policyValue: true },
+				[AgentNetworkDomainSettingId.AllowedNetworkDomains]: { policyValue: allowed },
+			}), logService);
+			return { permissions, warnings };
+		});
+		assert.deepStrictEqual(actual, cases.map(({ boundary, warnings }) => ({
+			permissions: { limitTo: boundary }, warnings,
+		})));
+	});
+
+	test('bridges only enterprise-owned nonempty network boundaries, not preferences or dormant lists', () => {
+		const results = [
+			{ enabled: true, source: 'policyValue', allowed: ['api.example.com', '*.example.org'] },
+			{ enabled: true, source: 'userValue', allowed: ['api.example.com'] },
+			{ enabled: false, source: 'policyValue', allowed: ['api.example.com'] },
+			{ enabled: true, source: 'policyValue', allowed: [] },
+		].map(({ enabled, source, allowed }) => resolveManagedSettingsPermissions(createConfigurationService({
+			[AgentNetworkDomainSettingId.NetworkFilter]: { policyValue: enabled },
+			[AgentNetworkDomainSettingId.AllowedNetworkDomains]: { defaultValue: [], [source]: allowed },
+			[AgentNetworkDomainSettingId.DeniedNetworkDomains]: { defaultValue: [], policyValue: ['blocked.example'] },
+		})));
+		assert.deepStrictEqual(results, [
+			{ deny: ['Domain(blocked.example)'], limitTo: ['Domain(*.example.org)', 'Domain(api.example.com)'] },
+			{ deny: ['Domain(blocked.example)'] },
+			{},
+			{ deny: ['Domain(blocked.example)'] },
+		]);
+	});
 
 	test('leaves global approval policy to host mode resolution while retaining terminal restrictions', () => {
 		const configurationService = createConfigurationService({
@@ -206,6 +249,7 @@ suite('AgentHostManagedSettings', () => {
 
 		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {
 			deny: ['Domain(evil.com)', 'Domain(*.tracker.example)'],
+			limitTo: ['Domain(github.com)'],
 		});
 	});
 

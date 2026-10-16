@@ -35,7 +35,8 @@ export class AgentHostDiscardChangesOperationContribution extends Disposable imp
 	}
 
 	getOperations({ changesetKind, gitState }: IChangesetOperationContext): ChangesetOperation[] {
-		if (changesetKind !== ChangesetKind.Uncommitted || (gitState?.uncommittedChanges ?? 0) <= 0) {
+		if (changesetKind !== ChangesetKind.Branch
+			&& (changesetKind !== ChangesetKind.Uncommitted || (gitState?.uncommittedChanges ?? 0) <= 0)) {
 			return [];
 		}
 

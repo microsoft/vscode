@@ -19,6 +19,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { CustomizationType, type SkillCustomization } from '../../common/state/sessionState.js';
+import { readSkillArgumentHint } from '../../common/meta/skillCustomizationMeta.js';
 import { SessionCustomizationDiscovery } from '../../node/copilot/sessionCustomizationDiscovery.js';
 
 type AgentsDiscoverRequest = Parameters<CopilotClient['rpc']['agents']['discover']>[0];
@@ -451,6 +452,49 @@ suite('SessionCustomizationDiscovery', () => {
 			disableModelInvocation: undefined,
 			disableUserInvocation: undefined,
 		}]);
+	});
+
+	test('discover publishes skill argument hints from the SDK or the skill frontmatter', async () => {
+		await seed('/workspace/.github/skills/sdk/SKILL.md', '---\nname: sdk\nargument-hint: from file\n---\nskill body');
+		await seed('/workspace/.github/skills/file/SKILL.md', '---\nname: file\nargument-hint: "<problem> [offline]"\n---\nskill body');
+		await seed('/workspace/.github/skills/none/SKILL.md', '---\nname: none\n---\nskill body');
+
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
+		const client = {
+			rpc: {
+				agents: {
+					getDiscoveryPaths: async () => ({ paths: [] }),
+					discover: async () => ({ agents: [] }),
+				},
+				instructions: {
+					getDiscoveryPaths: async () => ({ paths: [] }),
+					discover: async () => ({ sources: [] }),
+				},
+				skills: {
+					getDiscoveryPaths: async () => ({ paths: [{ path: '/workspace/.github/skills' }] }),
+					discover: async () => ({
+						skills: [
+							{ name: 'sdk', description: '', path: '/workspace/.github/skills/sdk/SKILL.md', enabled: true, userInvocable: true, argumentHint: 'from sdk' },
+							{ name: 'file', description: '', path: '/workspace/.github/skills/file/SKILL.md', enabled: true, userInvocable: true },
+							{ name: 'none', description: '', path: '/workspace/.github/skills/none/SKILL.md', enabled: true, userInvocable: true },
+						],
+					}),
+				},
+			},
+		} as unknown as CopilotClient;
+
+		const customizations = await discovery.discover(client, CancellationToken.None);
+		const hints = customizations
+			.flatMap(customization => customization.children ?? [])
+			.filter((child): child is SkillCustomization => child.type === CustomizationType.Skill)
+			.map(skill => ({ name: skill.name, argumentHint: readSkillArgumentHint(skill) }))
+			.sort((a, b) => a.name.localeCompare(b.name));
+
+		assert.deepStrictEqual(hints, [
+			{ name: 'file', argumentHint: '<problem> [offline]' },
+			{ name: 'none', argumentHint: undefined },
+			{ name: 'sdk', argumentHint: 'from sdk' },
+		]);
 	});
 
 	test('discover groups case-variant instructions and nested skills under their roots', async () => {

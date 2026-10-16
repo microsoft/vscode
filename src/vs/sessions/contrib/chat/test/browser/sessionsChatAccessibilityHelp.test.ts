@@ -28,10 +28,11 @@ import { ISessionsPartService } from '../../../../services/sessions/browser/sess
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
-import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
+import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
 import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from '../../browser/responseSelectionSideChatController.js';
 import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../browser/sessionArchiveNudge.js';
 import { SessionComparisonAccessibleView, SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessibilityHelp.js';
+import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
 import { RemoteSessionToolsEnabledSettingId } from '../../../remoteSessions/common/remoteSessions.js';
@@ -56,6 +57,28 @@ suite('SessionsChatAccessibilityHelp', () => {
 			forward: content.includes('Go forward through visited sessions and views<keybinding:sessions.goForward>'),
 			singletonViews: content.includes('moves its single history entry to the most recent position'),
 		}, { back: true, forward: true, singletonViews: true });
+	});
+
+	test('documents connector recommendations when the marketplace is available', () => {
+		const enabled = [false, true].map(value => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const configuration = new TestConfigurationService({
+				[NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING]: value,
+				[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: value,
+				[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: value,
+			});
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiationService.stub(IConfigurationService, configuration);
+			stubContextKeyService(instantiationService, configuration);
+			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			return store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent()
+				.includes('three connector cards offer Linear, Notion, and WorkIQ');
+		});
+
+		assert.deepStrictEqual(enabled, [false, true]);
 	});
 
 	test('documents repo-less Cloud chats in the harness picker', () => {
@@ -96,7 +119,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		}, { backgroundWake: true, optOut: true, feedbackOnInput: true, readyBeforeInput: true, neverSends: true, silentRefresh: true, refreshAction: true });
 	});
 
-	test('documents layout density only on desktop', () => {
+	test('documents layout density and the empty editor Add Tab list only on desktop', () => {
 		const densityHelp = [false, true].map(phone => {
 			const instantiationService = store.add(new TestInstantiationService());
 			const configuration = new TestConfigurationService();
@@ -110,10 +133,17 @@ suite('SessionsChatAccessibilityHelp', () => {
 			mainContainer.classList.toggle('phone-layout', phone);
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer });
 			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
-			return content.includes('Choose Default or Compact from View > Layout Density');
+			return {
+				density: content.includes('Choose Default or Compact from View > Layout Density'),
+				addTabList: content.includes('When the side panel\'s editor has no open tabs, it shows Add Tab at the top and lists the Add Tab actions'),
+				addTabSubmenu: content.includes('press Enter, Space, or the Right arrow key to open the submenu, the Up and Down arrow keys to choose an item, and the Left arrow key or Escape to return to the list'),
+			};
 		});
 
-		assert.deepStrictEqual(densityHelp, [true, false]);
+		assert.deepStrictEqual(densityHelp, [
+			{ density: true, addTabList: true, addTabSubmenu: true },
+			{ density: false, addTabList: false, addTabSubmenu: false },
+		]);
 	});
 
 	for (const { name, hostsEnabled, toolsEnabled, aiDisabled, enabled } of [
@@ -183,10 +213,12 @@ suite('SessionsChatAccessibilityHelp', () => {
 				hiddenHelp: content.includes('Hide in This Profile') || content.includes('Restore Host'),
 				githubEnvironment: content.includes('GitHub environment'),
 				sharingKeyboard: content.includes('Enter or Space to enable or disable sharing'),
+				fileSystemAccess: content.includes('read and modify files across this machine'),
 				backendSetting: content.includes('chat.agentHost.remoteConnections'),
 			}, {
 				discoveryHelp: enabled, folderBrowsing: enabled, refreshHelp: enabled, hiddenHelp: false,
-				githubEnvironment: !hidden && !aiDisabled, sharingKeyboard: !hidden && !aiDisabled, backendSetting: !hidden && !aiDisabled,
+				githubEnvironment: !hidden && !aiDisabled, sharingKeyboard: !hidden && !aiDisabled,
+				fileSystemAccess: !hidden && !aiDisabled, backendSetting: !hidden && !aiDisabled,
 			});
 		});
 	}
@@ -500,7 +532,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		assert.deepStrictEqual({
 			recordedArtifactsAndReferences: content.includes('Recorded artifacts and references'),
 			generatedImages: content.includes('Generated images from this chat automatically appear in the Generated Images section of the Artifacts pill'),
-			imageBatch: content.includes('Multiple image-generation calls in a response share one batch preview'),
+			imageBatch: content.includes('Each consecutive batch of image-generation calls has its own preview in conversation order'),
 			batchKeyboard: content.includes('Left or Right Arrow, Home, or End to select another image or its progress'),
 			selectedImageBorder: content.includes('The selected thumbnail has a highlighted border'),
 			imageConfirmationFirst: content.includes('start only when the tool executes, after any required confirmation'),
@@ -509,6 +541,9 @@ suite('SessionsChatAccessibilityHelp', () => {
 			noEmptyImagePreview: content.includes('cancelled or failed images show their status in the tool dropdown without an empty preview'),
 			countsBelowThumbnails: content.includes('The Image batch status below the thumbnails shows how many images are ready out of the total'),
 			imageNavigation: content.includes('use the Left and Right Arrow keys to browse generated images and user attachments'),
+			carouselDownload: content.includes('Images Preview offers Download for the selected image'),
+			artifactDownload: content.includes('Image rows in Artifacts and References offer Download Image'),
+			draftImages: content.includes('includes all images attached to that draft'),
 			transcriptImages: content.includes('Images shown from the transcript do not offer Remove from Session unless they were also recorded as artifacts'),
 			singleItemActions: content.includes('pill hover actions or context menu'),
 			copyActions: content.includes('its context menu offers the item\'s copy actions'),
@@ -527,6 +562,9 @@ suite('SessionsChatAccessibilityHelp', () => {
 			noEmptyImagePreview: true,
 			countsBelowThumbnails: true,
 			imageNavigation: true,
+			carouselDownload: true,
+			artifactDownload: true,
+			draftImages: true,
 			transcriptImages: true,
 			singleItemActions: true,
 			copyActions: true,

@@ -218,6 +218,10 @@ class MockSessionsProvidersService extends Disposable {
 		return toDisposable(() => this.setProviders(this._providers.filter(p => p !== provider)));
 	}
 
+	registerSessionBackend(): IDisposable {
+		throw new Error('Unexpected internal session backend');
+	}
+
 	getProviders(): ISessionsProvider[] {
 		return this._providers;
 	}

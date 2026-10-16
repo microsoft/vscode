@@ -356,6 +356,81 @@ suite('Copilot slash command handlers', () => {
 			});
 		});
 
+		test('qualifies runtime list entries using the installed plugin inventory', async () => {
+			const handler = getCopilotCustomizationCommandHandler(command, undefined, async () => [
+				{ name: 'azure', marketplace: 'awesome-copilot', enabled: false },
+			]);
+			const output = await handler?.getOutput?.('list', {
+				kind: 'text',
+				text: [
+					'Installed Plugins:',
+					'',
+					'  • azure v1.2.94',
+				].join('\n'),
+			});
+
+			assert.deepStrictEqual(output, {
+				kind: 'text',
+				text: [
+					'# Installed plugins',
+					'',
+					'- `azure@awesome-copilot` — v1.2.94 (disabled)',
+				].join('\n'),
+				markdown: true,
+			});
+		});
+
+		test('adds disabled plugins omitted from the runtime list', async () => {
+			const handler = getCopilotCustomizationCommandHandler(command, undefined, async () => [
+				{ name: 'azure', marketplace: 'awesome-copilot', version: '1.2.94', enabled: false },
+				{ name: 'VS Code Synced Data', marketplace: '', enabled: true },
+			]);
+			const output = await handler?.getOutput?.('list', {
+				kind: 'text',
+				text: [
+					'Installed Plugins:',
+					'',
+					'  • VS Code Synced Data',
+				].join('\n'),
+			});
+
+			assert.deepStrictEqual(output, {
+				kind: 'text',
+				text: [
+					'# Installed plugins',
+					'',
+					'- `azure@awesome-copilot` — v1.2.94 (disabled)',
+				].join('\n'),
+				markdown: true,
+			});
+		});
+
+		test('keeps disabled plugins with the same name from other marketplaces', async () => {
+			const handler = getCopilotCustomizationCommandHandler(command, undefined, async () => [
+				{ name: 'azure', marketplace: 'marketplace-one', enabled: true },
+				{ name: 'azure', marketplace: 'marketplace-two', version: '2.0.0', enabled: false },
+			]);
+			const output = await handler?.getOutput?.('list', {
+				kind: 'text',
+				text: [
+					'Installed Plugins:',
+					'',
+					'  • azure@marketplace-one v1.0.0',
+				].join('\n'),
+			});
+
+			assert.deepStrictEqual(output, {
+				kind: 'text',
+				text: [
+					'# Installed plugins',
+					'',
+					'- `azure@marketplace-one` — v1.0.0',
+					'- `azure@marketplace-two` — v2.0.0 (disabled)',
+				].join('\n'),
+				markdown: true,
+			});
+		});
+
 		test('defers to the runtime for unsupported and changed responses', async () => {
 			const handler = getCopilotCustomizationCommandHandler(command);
 			assert.deepStrictEqual([
@@ -497,9 +572,59 @@ suite('Copilot slash command handlers', () => {
 				calls: [
 					'install:document-skills@anthropic', 'reload',
 					'update:document-skills@anthropic', 'reload',
-					'list', 'disable:document-skills@anthropic', 'reload',
+					'list', 'disable:document-skills', 'reload',
 					'uninstall:document-skills@anthropic', 'reload',
 				],
+			});
+		});
+
+		test('disables built-in plugins but rejects direct-source plugins', async () => {
+			const calls: string[] = [];
+			const plugins: ICopilotPluginCommandApi = {
+				...pluginApi(calls),
+				list: async () => ({
+					plugins: [
+						{ name: 'builtin-plugin', marketplace: '', enabled: true, source: 'builtin' },
+						{ name: 'direct-plugin', marketplace: '', enabled: true, directSourceId: 'direct-plugin-source' },
+					],
+				}),
+			};
+
+			assert.deepStrictEqual({
+				builtin: await invokeCopilotPluginCommand('disable builtin-plugin', plugins),
+				direct: await invokeCopilotPluginCommand('disable direct-plugin', plugins),
+				calls,
+			}, {
+				builtin: {
+					kind: 'text',
+					text: 'Disabled plugin builtin-plugin.',
+					runtimeSettingsChanged: true,
+				},
+				direct: {
+					kind: 'text',
+					text: 'Plugin direct-plugin is installed directly and cannot be enabled or disabled. Uninstall it instead.',
+				},
+				calls: ['disable:builtin-plugin', 'reload'],
+			});
+		});
+
+		test('enables a globally installed plugin missing from the session inventory', async () => {
+			const calls: string[] = [];
+			const plugins: ICopilotPluginCommandApi = {
+				...pluginApi(calls),
+				list: async () => ({ plugins: [] }),
+			};
+
+			assert.deepStrictEqual({
+				result: await invokeCopilotPluginCommand('enable azure', plugins),
+				calls,
+			}, {
+				result: {
+					kind: 'text',
+					text: 'Enabled plugin azure.',
+					runtimeSettingsChanged: true,
+				},
+				calls: ['enable:azure', 'reload'],
 			});
 		});
 

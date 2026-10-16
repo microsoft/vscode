@@ -14,6 +14,7 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import { buildDefaultChatUri, MessageKind, SessionStatus, TurnState } from '../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostTurnService } from '../../node/agentHostTurnService.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 suite('AgentHostTurnService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -27,7 +28,7 @@ suite('AgentHostTurnService', () => {
 			}
 		}();
 		const instantiationService = new class extends mock<IInstantiationService>() { }();
-		const service = new AgentHostTurnService(stateManager, contributions, instantiationService);
+		const service = new AgentHostTurnService(stateManager, contributions, instantiationService, createTestChatOwnershipService(stateManager));
 		const session = URI.parse('copilot:/deferred-turn');
 		const chat = URI.parse(buildDefaultChatUri(session));
 		stateManager.createSession({
@@ -37,6 +38,7 @@ suite('AgentHostTurnService', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
+			defaultChat: buildDefaultChatUri(session.toString()),
 		});
 		return { service, stateManager, session, chat, turnEnds };
 	}

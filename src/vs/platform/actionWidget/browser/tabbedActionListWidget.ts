@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../base/browser/dom.js';
+import { asCSSUrl } from '../../../base/browser/cssValue.js';
 import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
 import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { Button } from '../../../base/browser/ui/button/button.js';
+import { getDefaultHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IListAccessibilityProvider } from '../../../base/browser/ui/list/listWidget.js';
 import { Radio } from '../../../base/browser/ui/radio/radio.js';
 import { DomScrollableElement } from '../../../base/browser/ui/scrollbar/scrollableElement.js';
@@ -20,9 +22,11 @@ import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposab
 import { isMacintosh, isWindows, OS } from '../../../base/common/platform.js';
 import { ScrollbarVisibility } from '../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
+import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { IAccessibilityService } from '../../accessibility/common/accessibility.js';
 import { IContextViewService } from '../../contextview/browser/contextView.js';
+import { IHoverService } from '../../hover/browser/hover.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../keybinding/common/keybinding.js';
 import { defaultButtonStyles } from '../../theme/browser/defaultStyles.js';
@@ -96,8 +100,11 @@ export interface ITabDescriptor {
 	readonly label?: string;
 	/** Hover tooltip. Defaults to {@link label} ?? {@link id}. */
 	readonly tooltip?: string;
-	/** Optional leading icon rendered before the label. */
-	readonly icon?: ThemeIcon;
+	/**
+	 * Optional leading icon rendered before the label: a theme icon, or images for
+	 * light and dark themes, e.g. one an extension contributed.
+	 */
+	readonly icon?: ThemeIcon | { readonly light: URI; readonly dark: URI };
 }
 
 /**
@@ -111,6 +118,8 @@ export interface ITabBarAction {
 	readonly tooltip: string;
 	/** When true, the button is pushed to the far end of the tab bar. */
 	readonly alignEnd?: boolean;
+	/** When true, use the workbench hover instead of the button's native title. */
+	readonly useManagedHover?: boolean;
 	/** When true, the button renders in its pressed state. */
 	readonly checked?: boolean;
 	run(): void;
@@ -240,6 +249,7 @@ export class TabbedActionListWidget extends Disposable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super();
 	}
@@ -342,9 +352,10 @@ export class TabbedActionListWidget extends Disposable {
 				// while it shrinks.
 				const tabTexts = new Map(options.tabs.map(tab => {
 					const label = tab.label ?? tab.id;
-					const iconPrefix = tab.icon ? `$(${tab.icon.id})` : '';
+					// An image icon is drawn by the tab itself rather than through its text.
+					const iconPrefix = tab.icon && ThemeIcon.isThemeIcon(tab.icon) ? `$(${tab.icon.id})` : '';
 					const labelMode = options.tabLabels ?? 'always';
-					const showsLabel = !iconPrefix || labelMode === 'always' || (labelMode === 'active' && tab.id === activeTab);
+					const showsLabel = !tab.icon || labelMode === 'always' || (labelMode === 'active' && tab.id === activeTab);
 					return [tab.id, showsLabel ? (iconPrefix ? `${iconPrefix} ${label}` : label) : iconPrefix] as const;
 				}));
 
@@ -355,6 +366,16 @@ export class TabbedActionListWidget extends Disposable {
 					}),
 				}));
 				tabStrip.appendChild(radio.domNode);
+				options.tabs.forEach((tab, index) => {
+					const element = radio.optionElements[index];
+					if (element && tab.icon && !ThemeIcon.isThemeIcon(tab.icon)) {
+						// A button only styles itself as a text button once it has text, which a tab
+						// showing just its image never gets, so it would lose the other tabs' styling.
+						element.classList.add('monaco-text-button', 'tabbed-action-list-tab-image-icon');
+						element.style.setProperty('--tabbed-action-list-tab-icon-light', asCSSUrl(tab.icon.light));
+						element.style.setProperty('--tabbed-action-list-tab-icon-dark', asCSSUrl(tab.icon.dark));
+					}
+				});
 				renderDisposables.add(radio.onDidSelect(index => {
 					const next = options.tabs[index];
 					if (next) {
@@ -368,8 +389,12 @@ export class TabbedActionListWidget extends Disposable {
 					button.classList.toggle('align-end', !!tabAction.alignEnd);
 					button.classList.toggle('checked', !!tabAction.checked);
 					button.dataset.id = tabAction.id;
-					button.title = tabAction.tooltip;
 					button.ariaLabel = tabAction.tooltip;
+					if (tabAction.useManagedHover) {
+						renderDisposables.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('element'), button, tabAction.tooltip));
+					} else {
+						button.title = tabAction.tooltip;
+					}
 					// Only an action with a real on/off state announces as a toggle. A
 					// momentary one would otherwise read as a toggle that is switched off.
 					if (tabAction.checked !== undefined) {
@@ -732,9 +757,10 @@ export class TabbedActionListWidget extends Disposable {
 					const onFooter = !!target?.closest('.tabbed-action-list-footer');
 					const onEditable = !!target?.closest('input, textarea, [contenteditable="true"]');
 					// The empty body and the hover panel carry controls of their own, e.g. a
-					// sign-in button or the detail card's pin. Keys pressed there belong to
-					// those controls rather than to the list sitting behind them.
-					const onOwnControls = !!target?.closest('.tabbed-action-list-empty, .action-list-submenu-panel, .tabbed-action-list-details, .action-list-item-toolbar');
+					// sign-in button or the detail card's pin, and so do rows with a toolbar or
+					// switch. Keys pressed there belong to those controls rather than to the list
+					// sitting behind them.
+					const onOwnControls = !!target?.closest('.tabbed-action-list-empty, .action-list-submenu-panel, .tabbed-action-list-details, .action-list-item-toolbar, .action-list-item-inline-toggle');
 					const listNavigation = !onTabBar && !onFooter && !onOwnControls;
 
 					if (e.keyCode === KeyCode.Escape) {
@@ -779,14 +805,24 @@ export class TabbedActionListWidget extends Disposable {
 						return;
 					}
 					// Left and Right move between tabs only on the tab bar. In the list they
-					// belong to the rows, where Right opens the focused item's details.
+					// belong to the rows: like a tree, Left collapses the focused row's section
+					// and Right expands it from its toggle, while Right on any other row opens
+					// that item's details.
 					if (onTabBar) {
 						dom.EventHelper.stop(e, true);
 						switchTab(e.keyCode === KeyCode.RightArrow ? 1 : -1);
 						return;
 					}
-					const focused = e.keyCode === KeyCode.RightArrow && target && list.domNode.contains(target) ? list.getFocusedElement() : undefined;
-					if (focused && options.openItemDetails?.(focused)) {
+					const focused = target && list.domNode.contains(target) ? list.getFocusedElement() : undefined;
+					if (!focused) {
+						return;
+					}
+					const handled = e.keyCode === KeyCode.LeftArrow
+						? list.collapseFocusedSection()
+						: focused.isSectionToggle
+							? list.expandFocusedSection()
+							: !!options.openItemDetails?.(focused);
+					if (handled) {
 						dom.EventHelper.stop(e, true);
 					}
 				}));

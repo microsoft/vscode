@@ -60,6 +60,11 @@
  * capped to the centered-content width (set as a CSS variable in `SessionView`) to align with the header/content band rather than
  * starting in the empty side gutters. */
 .monaco-workbench .part.sessionspart .chat-view {
+	--session-toolbar-reserved-width: 0px;
+	/* How much of the Session Toolbar's reserved width content centered on the full chat width gives up:
+	 * none while the centered band already clears the strip, up to all of it as the chat narrows. The
+	 * percentage resolves against each consumer, all of which span the chat's full width. */
+	--session-toolbar-content-inset: max(0px, min(var(--session-toolbar-reserved-width), calc(var(--session-view-centered-content-max-width, 950px) + 2 * var(--session-toolbar-reserved-width) - 100%)));
 	position: relative;
 }
 
@@ -67,7 +72,7 @@
 	position: absolute;
 	top: 0;
 	left: 0;
-	right: 0;
+	right: var(--session-toolbar-content-inset, 0px);
 	margin: 0 auto;
 	max-width: var(--session-view-centered-content-max-width);
 	z-index: 10;

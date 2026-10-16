@@ -17,6 +17,14 @@ import { IMarketplacePlugin } from './pluginMarketplaceService.js';
 
 export const IAgentPluginService = createDecorator<IAgentPluginService>('agentPluginService');
 
+export const IAgentPluginEnablementService = createDecorator<IAgentPluginEnablementService>('agentPluginEnablementService');
+
+export interface IAgentPluginEnablementService extends IEnablementModel {
+	readonly _serviceBrand: undefined;
+	/** Keeps a stable enablement identity across install locations, including other workspaces. */
+	copyEnablement(source: URI, target: URI): void;
+}
+
 export interface IAgentPluginHook {
 	readonly type: HookType;
 	readonly hooks: readonly IParsedHookCommand[];

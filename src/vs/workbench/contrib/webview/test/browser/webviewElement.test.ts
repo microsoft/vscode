@@ -14,6 +14,8 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
 import { Event, setGlobalLeakWarningThreshold } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { newWriteableStream, WriteableStream } from '../../../../../base/common/stream.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -29,17 +31,22 @@ import { InMemoryFileSystemProvider } from '../../../../../platform/files/common
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { IRemoteAuthorityResolverService } from '../../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { ITunnelService } from '../../../../../platform/tunnel/common/tunnel.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
+import { IRemoteAgentConnection, IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
+import { TestFileService } from '../../../../test/common/workbenchTestServices.js';
 import { WebviewThemeDataProvider } from '../../browser/themeing.js';
 import { WebviewElement } from '../../browser/webviewElement.js';
 import { ToWebviewMessage } from '../../browser/webviewMessages.js';
+import { asWebviewUri, webviewRootResourceAuthority } from '../../common/webview.js';
 
 suite('WebviewElement', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	type WebviewMessage = { [K in keyof ToWebviewMessage]: { channel: K; args: ToWebviewMessage[K] } }[keyof ToWebviewMessage];
 
 	teardown(() => sinon.restore());
 
@@ -67,6 +74,10 @@ suite('WebviewElement', () => {
 		instantiationService.stub(IWorkbenchEnvironmentService, {});
 		instantiationService.stub(ILogService, store.add(new NullLogService()));
 		instantiationService.stub(IRemoteAuthorityResolverService, {});
+		instantiationService.stub(IRemoteAgentService, {
+			getConnection: () => null,
+			getEnvironment: async () => null,
+		});
 		instantiationService.stub(ITunnelService, {});
 		instantiationService.stub(IAccessibilityService, {
 			onDidChangeReducedMotion: Event.None,
@@ -264,6 +275,91 @@ suite('WebviewElement', () => {
 		});
 	}
 
+	suite('remote resource loading', () => {
+		async function loadRemoteResource(connectionAuthority: string | null, os: OperatingSystem | null, root: URI, resource: URI) {
+			const { webview, instantiationService, port } = await createWebview();
+			const remoteAgentService = instantiationService.get(IRemoteAgentService);
+			sinon.stub(remoteAgentService, 'getConnection').returns(connectionAuthority === null ? null : upcastPartial<IRemoteAgentConnection>({ remoteAuthority: connectionAuthority }));
+			const getEnvironment = sinon.stub(remoteAgentService, 'getEnvironment').resolves(os === null ? null : upcastPartial<IRemoteAgentEnvironment>({ os }));
+			const fileService = store.add(new TestFileService());
+			instantiationService.stub(IFileService, fileService);
+			instantiationService.stub(IUriIdentityService, store.add(new UriIdentityService(fileService)));
+			const readFileStream = sinon.spy(fileService, 'readFileStream');
+			webview.contentOptions = { localResourceRoots: [root] };
+
+			const response = new DeferredPromise<ToWebviewMessage['did-load-resource']>();
+			store.add(addDisposableListener(port, 'message', (event: MessageEvent<WebviewMessage>) => {
+				if (event.data.channel === 'did-load-resource') {
+					response.complete(event.data.args);
+				}
+			}));
+			const url = new URL(asWebviewUri(resource).toString());
+			port.postMessage({
+				channel: 'load-resource',
+				data: {
+					id: 1,
+					scheme: resource.scheme,
+					authority: url.hostname.slice(resource.scheme.length + 1, -(webviewRootResourceAuthority.length + 1)),
+					path: url.pathname,
+					query: url.search.slice(1),
+				},
+			});
+			const result = await response.p;
+			if ((result.status === 200 || result.status === 206) && result.stream) {
+				await new Response(result.stream).text();
+			}
+			return {
+				status: result.status,
+				environmentRequests: getEnvironment.callCount,
+				readResources: readFileStream.getCalls().map(call => call.args[0].toString()),
+			};
+		}
+
+		for (const { authority, os } of [
+			{ authority: 'wsl+Ubuntu', os: OperatingSystem.Linux },
+			{ authority: 'wsl+Ubuntu-24.04', os: OperatingSystem.Linux },
+			{ authority: 'wsl+Ubuntu-26.04', os: OperatingSystem.Linux },
+			{ authority: 'wsl+FedoraLinux-44', os: OperatingSystem.Linux },
+			{ authority: 'wsl+ubuntu', os: OperatingSystem.Linux },
+			{ authority: 'ssh-remote+WindowsHost', os: OperatingSystem.Windows },
+			{ authority: 'ssh-remote+MacHost', os: OperatingSystem.Macintosh },
+		]) {
+			test(`loads resources from ${authority} after the browser normalizes the hostname`, async () => {
+				const root = URI.from({ scheme: Schemas.vscodeRemote, authority, path: os === OperatingSystem.Windows ? '/c:/Project' : '/home/user/Project' });
+				const resource = URI.joinPath(root, 'media', 'Index.js');
+
+				assert.deepStrictEqual(await loadRemoteResource(authority, os, root, resource), {
+					status: 200,
+					environmentRequests: 1,
+					readResources: [URI.from({
+						scheme: Schemas.vscodeRemote,
+						authority: authority.toLowerCase(),
+						path: '/vscode-resource',
+						query: JSON.stringify({ requestResourcePath: resource.path }),
+					}).toString()],
+				});
+			});
+		}
+
+		const root = URI.from({ scheme: Schemas.vscodeRemote, authority: 'wsl+ubuntu', path: '/home/user/Project' });
+		const resource = URI.joinPath(root, 'media', 'Index.js');
+		for (const testCase of [
+			{ name: 'a different connection authority', authority: 'wsl+debian', os: OperatingSystem.Linux, root, resource, environmentRequests: 0 },
+			{ name: 'no remote connection', authority: null, os: OperatingSystem.Linux, root, resource, environmentRequests: 0 },
+			{ name: 'an unknown remote OS', authority: root.authority, os: null, root, resource, environmentRequests: 1 },
+			{ name: 'a different root authority', authority: root.authority, os: OperatingSystem.Linux, root: root.with({ authority: 'wsl+debian' }), resource, environmentRequests: 1 },
+			{ name: 'a path outside the allowed root', authority: root.authority, os: OperatingSystem.Linux, root, resource: resource.with({ path: '/home/user/Other/Index.js' }), environmentRequests: 1 },
+		]) {
+			test(`denies resources with ${testCase.name}`, async () => {
+				assert.deepStrictEqual(await loadRemoteResource(testCase.authority, testCase.os, testCase.root, testCase.resource), {
+					status: 401,
+					environmentRequests: testCase.environmentRequests,
+					readResources: [],
+				});
+			});
+		}
+	});
+
 	async function createResourceWebview(platform = 'electron') {
 		const { webview, instantiationService, port } = await createWebview(undefined, platform);
 		const reads: { stream: WriteableStream<Uint8Array>; token: CancellationToken }[] = [];
@@ -289,7 +385,6 @@ suite('WebviewElement', () => {
 
 		const pending = new Map<number, DeferredPromise<ToWebviewMessage['did-load-resource']>>();
 		const bodies = new Map<number, { chunks: VSBuffer[]; result: DeferredPromise<string> }>();
-		type WebviewMessage = { [K in keyof ToWebviewMessage]: { channel: K; args: ToWebviewMessage[K] } }[keyof ToWebviewMessage];
 		store.add(addDisposableListener(port, 'message', (event: MessageEvent<WebviewMessage>) => {
 			const message = event.data;
 			switch (message.channel) {

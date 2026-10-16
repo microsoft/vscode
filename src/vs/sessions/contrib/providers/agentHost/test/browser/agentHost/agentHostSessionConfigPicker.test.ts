@@ -174,7 +174,7 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 	getSessionConfig(): ResolveSessionConfigResult | undefined { return this.config; }
 	getCreateSessionConfig(): Record<string, unknown> | undefined { return this.isNew ? {} : undefined; }
 	isSessionConfigResolving() { return this.resolving; }
-	async setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void> {
+	async setSessionConfigValue(sessionId: string, _chat: URI, property: string, value: unknown): Promise<void> {
 		this.setSessionConfigValueCalls++;
 		this.setSessionConfigValueArguments.push({ sessionId, property, value });
 		this._onSetSessionConfigValue?.(value);
@@ -372,6 +372,7 @@ function setupServices(
 	}();
 	const changesetsObs = observableValue<readonly ISessionChangeset[] | undefined>('changesets', [uncommittedChangeset]);
 	const activeChat = new class extends mock<IChat>() {
+		override readonly resource = SESSION_RESOURCE;
 		override readonly workspace = workspace;
 		override readonly changesets = changesetsObs;
 	}();
@@ -463,6 +464,34 @@ suite('Agent Host Session Config Picker', () => {
 		const { container } = renderPicker(store, services);
 		assert.deepStrictEqual(Array.from(container.querySelectorAll<HTMLElement>('[data-session-config-property]')).map(element => element.dataset.sessionConfigProperty), ['autoApprove']);
 	});
+
+	for (const isNew of [true, false]) {
+		test(`hides the input request timeout picker without changing ${isNew ? 'draft' : 'running'} session configuration`, () => {
+			const services = setupServices(store);
+			services.provider.isNew = isNew;
+			services.provider.config = {
+				schema: {
+					type: 'object', properties: {
+						inputRequestTimeout: { type: 'string', title: 'Question timeout', enum: ['5m', '4h', 'none'], default: '5m', sessionMutable: true },
+						customChoice: { type: 'string', title: 'Custom choice', enum: ['first', 'second'], sessionMutable: true },
+					}
+				},
+				values: { inputRequestTimeout: '4h', customChoice: 'first' },
+			};
+			const originalConfig = structuredClone(services.provider.config);
+			const { container } = renderPicker(store, services);
+
+			assert.deepStrictEqual({
+				properties: Array.from(container.querySelectorAll<HTMLElement>('[data-session-config-property]')).map(element => element.dataset.sessionConfigProperty),
+				config: services.provider.config,
+				writes: services.provider.setSessionConfigValueArguments,
+			}, {
+				properties: ['customChoice'],
+				config: originalConfig,
+				writes: [],
+			});
+		});
+	}
 
 	test('isolation dropdown preserves worktree and branch configuration values', async () => {
 		const services = setupServices(store);

@@ -54,9 +54,11 @@ export class SessionsCopilotConfigSlashSubmitHandlerContribution extends Disposa
 		if (!provider || !isAgentHostProvider(provider)) {
 			return false;
 		}
+		// The submitting chat's settings change, not its session's other chats'.
+		const chat = request.sessionResource;
 		await applyAgentHostCompletionAction({ applyConfig: configAction.applyConfig }, this._dialogService, this._storageService, async config => {
-			await Promise.all(Object.entries(config).map(([key, value]) => provider.setSessionConfigValue(sessionId, key, value)));
-		}, provider.getSessionConfig(sessionId));
+			await Promise.all(Object.entries(config).map(([key, value]) => provider.setSessionConfigValue(sessionId, chat, key, value)));
+		}, provider.getSessionConfig(sessionId, chat));
 		return !configAction.strippedPrompt;
 	}
 }
