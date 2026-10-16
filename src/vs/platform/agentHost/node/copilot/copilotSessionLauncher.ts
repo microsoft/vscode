@@ -77,6 +77,7 @@ export const AutoTierConfigKey = 'tier';
 
 const catalogInstallationFeatureFlags = {
 	CATALOG_SEARCH: true,
+	AGENT_FINDER_PLUGIN_INSTALL: true,
 	AGENT_FINDER_SKILL_INSTALL: true,
 } as const;
 

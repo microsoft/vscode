@@ -630,6 +630,67 @@ suite('CustomizationMarketplaceInstallService', () => {
 		});
 	});
 
+	test('matches an installed direct plugin to its catalog source after restart', async () => {
+		const pluginUri = URI.file('/plugins/azure-devops');
+		const candidate = resource({
+			sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id,
+			identifier: 'azure-devops-copilot-plugin',
+			displayName: 'Azure DevOps Copilot Plugin',
+			mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+			version: '0.1.56',
+			repository: URI.parse('https://github.com/microsoft/azure-devops-copilot-plugin'),
+			installation: {
+				kind: 'providerCatalog',
+				resourceKind: 'plugin',
+				selectionId: 'azure-devops',
+				repository: 'microsoft/azure-devops-copilot-plugin',
+			},
+		});
+		const installedResource = resource({
+			sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id,
+			identifier: 'direct-source-id',
+			displayName: 'Azure DevOps Copilot Plugin',
+			mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+			version: '0.1.56',
+			repository: URI.parse('https://github.com/microsoft/azure-devops-copilot-plugin'),
+			installation: {
+				kind: 'plugin',
+				repository: 'microsoft/azure-devops-copilot-plugin',
+				ref: '8f30ba3210758239be19e2143943e0830f07601a',
+				path: '',
+			},
+		});
+		const uninstalls: IRecordedCustomizationMarketplaceResource[] = [];
+		const provider = new class implements ICustomizationMarketplaceInstallProvider {
+			readonly onDidChange = Event.None;
+			getInstallations(): Promise<readonly IRecordedCustomizationMarketplaceResource[]> {
+				return Promise.resolve([{
+					installationId: 'plugin:direct:direct-source-id',
+					resource: installedResource,
+					state: { kind: 'installed', target: { kind: 'plugin', uri: pluginUri, name: 'azure-devops-copilot-plugin' } },
+				}]);
+			}
+			install(): Promise<void> { throw new Error('Unexpected install'); }
+			repair(): Promise<void> { throw new Error('Unexpected repair'); }
+			async uninstall(_session: URI, installation: IRecordedCustomizationMarketplaceResource): Promise<void> { uninstalls.push(installation); }
+		}();
+		const fixture = await createFixture({ enabled: true, installProvider: provider });
+		await timeout(0);
+
+		const state = fixture.service.getInstallState(candidate);
+		await fixture.service.uninstall(candidate);
+
+		assert.deepStrictEqual({
+			state: state.kind === 'installed'
+				? { kind: state.kind, target: { ...state.target, uri: state.target.kind === 'plugin' ? state.target.uri?.toString() : undefined } }
+				: state,
+			uninstalls: uninstalls.map(installation => installation.installationId),
+		}, {
+			state: { kind: 'installed', target: { kind: 'plugin', uri: pluginUri.toString(), name: 'azure-devops-copilot-plugin' } },
+			uninstalls: ['plugin:direct:direct-source-id'],
+		});
+	});
+
 	test('joins a Registry receipt URN to its exact catalog card URL', async () => {
 		const itemUrl = 'https://api.mcp.github.com/oss/v0.1/servers/com.figma.mcp%2Fmcp/versions/latest';
 		const candidate = resource({
