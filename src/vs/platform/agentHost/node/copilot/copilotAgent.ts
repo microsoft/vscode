@@ -108,7 +108,7 @@ import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConver
 import { CopilotGitHubTelemetryForwarder, type ICopilotModelCallCorrelationTelemetry } from './copilotGitHubTelemetryForwarder.js';
 import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
 import { CopilotSecondaryAssignmentContext } from './copilotSecondaryAssignmentContext.js';
-import { CopilotSessionLauncher, AutoTierConfigKey, ContextSizeConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, getLocalModelSelectionId, isCopilotReasoningEffort, isCopilotSessionTelemetryEnabled, resolveCopilotAutoTier, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
+import { CopilotSessionLauncher, AutoTierConfigKey, ContextSizeConfigKey, CopilotAutoTierConfigKey, CopilotReasoningEffortConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, getLocalModelSelectionId, isCopilotReasoningEffort, isCopilotSessionTelemetryEnabled, resolveCopilotAutoTier, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
 import { createLocalModelRowMeta } from '../../common/meta/localModelStatus.js';
 import { errorCodeForLog } from '../../common/logRedaction.js';
 import { withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
@@ -3331,10 +3331,25 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (this._capiModels.some(model => isAutoModel(model.id))) {
 			this._reportEnsembleExperimentTrigger();
 		}
-		this._models.set([...capiModels, ...hydraFusionModels, ...this._byokModels, ...this._getLocalModelRows()], undefined);
+		this._models.set([...capiModels, ...hydraFusionModels, ...this._byokModels, ...this._getLocalModelRows()].map(model => this._withModelConfigAliases(model)), undefined);
 		for (const entry of this._chatEntriesBySdkId.values()) {
 			entry.chatSession.refreshModelConfiguration();
 		}
+	}
+
+	private _withModelConfigAliases(model: IAgentModelInfo): IAgentModelInfo {
+		if (!model.configSchema) {
+			return model;
+		}
+		const properties = { ...model.configSchema.properties };
+		for (const [legacyKey, aliasKey] of [[ThinkingLevelConfigKey, CopilotReasoningEffortConfigKey], [AutoTierConfigKey, CopilotAutoTierConfigKey]]) {
+			const property = properties[legacyKey];
+			if (property) {
+				// Only the legacy key supplies defaults, so they cannot shadow an explicit legacy selection.
+				properties[aliasKey] = { ...property, default: undefined };
+			}
+		}
+		return { ...model, configSchema: { ...model.configSchema, properties } };
 	}
 
 	/**

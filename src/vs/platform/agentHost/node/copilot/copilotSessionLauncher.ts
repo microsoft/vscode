@@ -58,6 +58,8 @@ import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, agentHostModelSupportsToolSearch } f
 import { createCopilotExtensionTools } from './copilotExtensionTools.js';
 
 export const ThinkingLevelConfigKey = 'thinkingLevel';
+export const CopilotReasoningEffortConfigKey = 'reasoningEffort';
+export const CopilotAutoTierConfigKey = 'autoTier';
 export { ContextSizeConfigKey };
 /**
  * @deprecated Legacy config key that stored the resolved tier string (`'default'` / `'long_context'`)
@@ -412,7 +414,7 @@ export function getCopilotReasoningEffort(model: ModelSelection | undefined, eff
 	if (isCopilotReasoningEffort(effortOverride)) {
 		return toSdkReasoningEffort(effortOverride);
 	}
-	const thinkingLevel = model?.config?.[ThinkingLevelConfigKey];
+	const thinkingLevel = model?.config?.[ThinkingLevelConfigKey] ?? model?.config?.[CopilotReasoningEffortConfigKey];
 	return isCopilotReasoningEffort(thinkingLevel) ? toSdkReasoningEffort(thinkingLevel) : undefined;
 }
 
@@ -530,7 +532,7 @@ export function getCopilotAutoTier(model: ModelSelection | undefined): AutoModeT
 	if (!isAutoModel(model?.id)) {
 		return undefined;
 	}
-	const tier = normalizeAutoModeTier(model?.config?.[AutoTierConfigKey]);
+	const tier = normalizeAutoModeTier(model?.config?.[AutoTierConfigKey] ?? model?.config?.[CopilotAutoTierConfigKey]);
 	return isAutoModeTier(tier) ? tier : undefined;
 }
 

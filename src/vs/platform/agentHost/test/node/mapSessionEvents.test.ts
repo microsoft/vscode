@@ -2178,10 +2178,32 @@ suite('mapSessionEvents — subagent routing', () => {
 		const subagentTurns = subagentTurnsByToolCallId.get('tc-task');
 		assert.ok(subagentTurns, 'Expected subagent turns for tc-task');
 		assert.strictEqual(subagentTurns!.length, 1);
-		assert.strictEqual(subagentTurns![0].message.text, 'Inspect the implementation.');
+		assert.deepStrictEqual(subagentTurns![0].message, {
+			text: 'Inspect the implementation.',
+			origin: { kind: MessageKind.Tool },
+		});
 		assert.deepStrictEqual(partKinds(subagentTurns![0].responseParts), [
 			{ kind: ResponsePartKind.ToolCall },
 			{ kind: ResponsePartKind.Markdown, content: 'Subagent is done.' },
+		]);
+	});
+
+	test('preserves user origin for explicit follow-ups after the worker seed turn', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', data: { interactionId: 'm1', content: 'Delegate a task' } },
+			{ type: 'assistant.message', data: { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'task', name: 'task' }] } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'task', toolName: 'task', arguments: { prompt: 'Seed prompt' } } },
+			{ type: 'subagent.started', agentId: 'worker', data: { toolCallId: 'task', agentName: 'explore', agentDisplayName: 'Explore' } },
+			{ type: 'user.message', agentId: 'worker', data: { interactionId: 'seed', content: 'Seed prompt' } },
+			{ type: 'assistant.message', agentId: 'worker', data: { messageId: 'first', content: 'Initial answer' } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'task', success: true } },
+			{ type: 'user.message', agentId: 'worker', data: { interactionId: 'follow-up', content: 'Explicit follow-up' } },
+			{ type: 'assistant.message', agentId: 'worker', data: { messageId: 'second', content: 'Follow-up answer' } },
+		];
+		const { subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+		assert.deepStrictEqual(subagentTurnsByToolCallId.get('task')?.map(turn => turn.message), [
+			{ text: 'Seed prompt', origin: { kind: MessageKind.Tool } },
+			{ text: 'Explicit follow-up', origin: { kind: MessageKind.User } },
 		]);
 	});
 
