@@ -160,6 +160,9 @@ export const AgentHostAutoAttachPullRequestsSettingId = 'chat.agentHost.experime
 /** Configuration key controlling whether providers prepare a turn alongside the turn-start checkpoint. */
 export const AgentHostOverlapProviderPreparationSettingId = 'chat.agentHost.experimental.overlapProviderPreparation';
 
+/** Configuration key controlling whether new Copilot drafts start their runtime and MCP servers before the first message. */
+export const AgentHostPrewarmSessionsSettingId = 'chat.agentHost.experimental.prewarmSessions';
+
 /**
  * Configuration key gating multiple-working-directory support for the Copilot
  * agent-host provider. When `true`, the Copilot provider advertises the

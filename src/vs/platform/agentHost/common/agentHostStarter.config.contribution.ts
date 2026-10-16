@@ -28,6 +28,7 @@ import {
 	AgentHostCopilotMultiRootEnabledSettingId,
 	AgentHostMarkdownPlanRichLinksEnabledSettingId,
 	AgentHostOverlapProviderPreparationSettingId,
+	AgentHostPrewarmSessionsSettingId,
 	AgentHostOTelCaptureContentSettingId,
 	AgentHostOTelCaptureIdentitySettingId,
 	AgentHostOTelDbSpanExporterEnabledSettingId,
@@ -56,6 +57,7 @@ import {
 	AgentHostMcpToolRoutingEnabledConfigKey,
 	AgentHostMarkdownPlanRichLinksEnabledConfigKey,
 	AgentHostOverlapProviderPreparationConfigKey,
+	AgentHostPrewarmSessionsConfigKey,
 	AgentHostSystemProxyEnabledConfigKey,
 	AgentHostWorkspaceSnapshotEnabledConfigKey,
 } from './agentHostSchema.js';
@@ -249,6 +251,15 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostOverlapProviderPreparationConfigKey },
+		},
+		[AgentHostPrewarmSessionsSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.experimental.prewarmSessions', "When enabled, new Agent Host Copilot chats start their runtime and MCP servers before the first message is sent, so connectors are ready sooner. Changes apply to new chats."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'advanced'],
+			experiment: { mode: 'auto' },
+			agentHost: { key: AgentHostPrewarmSessionsConfigKey },
 		},
 		[AgentHostWorkspaceSnapshotEnabledSettingId]: {
 			type: 'boolean',
