@@ -10,20 +10,26 @@ import { ICompressibleTreeRenderer } from '../../../../base/browser/ui/tree/obje
 import { ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
 import { commonPrefixLength } from '../../../../base/common/arrays.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { basename, dirname } from '../../../../base/common/resources.js';
 import { IResourceNode, ResourceTree } from '../../../../base/common/resourceTree.js';
 import { URI } from '../../../../base/common/uri.js';
 import { MultiDiffEditorWidget } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
 import { DocumentDiffItemViewModel } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
 import { localize } from '../../../../nls.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { FileKind } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { WorkbenchCompressibleObjectTree } from '../../../../platform/list/browser/listService.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from '../../../browser/labels.js';
+import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
+import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 import { createFileIconThemableTreeContainerScope } from '../../files/browser/views/explorerView.js';
 import { MultiDiffEditorFileListFocusedContext, MultiDiffEditorFileListViewMode } from '../common/multiDiffEditor.js';
 
@@ -107,11 +113,25 @@ function getFileListElements(items: readonly DocumentDiffItemViewModel[], viewMo
 
 	const rootUri = uris[0].with({ path: rootPath, query: '', fragment: '' });
 	const resourceTree = new ResourceTree<DocumentDiffItemViewModel, null>(null, rootUri);
-	items.forEach((item, index) => resourceTree.add(rootUri.with({ path: uris[index].path }), item));
+	// A node holds one element, but several items can share a path: a deleted file `config` and an
+	// added `config/settings.json`, or two diffs of the same file. Keep all items of each node.
+	const filesByNode = new Map<FolderNode, DocumentDiffItemViewModel[]>();
+	items.forEach((item, index) => {
+		const uri = rootUri.with({ path: uris[index].path });
+		resourceTree.add(uri, item);
+		const node = resourceTree.getNode(uri)!;
+		const files = filesByNode.get(node);
+		if (files) {
+			files.push(item);
+		} else {
+			filesByNode.set(node, [item]);
+		}
+	});
 
-	const toElements = (folder: FolderNode): ICompressedTreeElement<FileListElement>[] => [...folder.children].map(child => child.element
-		? { element: child.element, incompressible: true }
-		: { element: child, children: toElements(child) });
+	const toElements = (folder: FolderNode): ICompressedTreeElement<FileListElement>[] => [...folder.children].flatMap(child => {
+		const files: ICompressedTreeElement<FileListElement>[] = (filesByNode.get(child) ?? []).map(item => ({ element: item, incompressible: true }));
+		return child.childrenCount > 0 ? [...files, { element: child, children: toElements(child) }] : files;
+	});
 	return toElements(resourceTree.root);
 }
 
@@ -127,12 +147,29 @@ export class MultiDiffEditorFileList extends Disposable {
 		container: HTMLElement,
 		private readonly _multiDiffEditorWidget: MultiDiffEditorWidget,
 		viewMode: IObservable<MultiDiffEditorFileListViewMode>,
+		@IAccessibilityService accessibilityService: IAccessibilityService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IKeybindingService keybindingService: IKeybindingService,
 		@ILabelService labelService: ILabelService,
 		@IThemeService themeService: IThemeService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
+
+		const helpHintEnabled = observableConfigValue<boolean>(AccessibilityVerbositySettingId.MultiDiffEditorFileList, true, configurationService);
+		const screenReaderOptimized = observableFromEvent(this, accessibilityService.onDidChangeScreenReaderOptimized, () => accessibilityService.isScreenReaderOptimized());
+		const helpKeybinding = observableFromEvent(this, keybindingService.onDidUpdateKeybindings, () => keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getAriaLabel());
+		const widgetAriaLabel = derived(this, reader => {
+			const label = localize('multiDiffEditorFileList', "Changed Files");
+			if (!helpHintEnabled.read(reader) || !screenReaderOptimized.read(reader)) {
+				return label;
+			}
+			const keybinding = helpKeybinding.read(reader);
+			return keybinding
+				? localize('multiDiffEditorFileList.accessibilityHelp', "{0}, use {1} for accessibility help", label, keybinding)
+				: localize('multiDiffEditorFileList.accessibilityHelpNoKb', "{0}, run the Open Accessibility Help command for more information", label);
+		});
 
 		this._register(createFileIconThemableTreeContainerScope(container, themeService));
 		const labels = this._register(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
@@ -152,7 +189,7 @@ export class MultiDiffEditorFileList extends Disposable {
 					getCompressedNodeKeyboardNavigationLabel: elements => elements.map(element => isFolder(element) ? element.name : basename(getItemUri(element))).join('/'),
 				},
 				accessibilityProvider: {
-					getWidgetAriaLabel: () => localize('multiDiffEditorFileList', "Changed Files"),
+					getWidgetAriaLabel: () => widgetAriaLabel,
 					getAriaLabel: element => {
 						if (isFolder(element)) {
 							return element.relativePath.substring(1);

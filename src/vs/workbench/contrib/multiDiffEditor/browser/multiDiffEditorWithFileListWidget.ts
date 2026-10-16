@@ -75,9 +75,11 @@ export class MultiDiffEditorWithFileListWidget extends Disposable {
 			proportionalLayout: false,
 		}));
 
+		const isFileListVisible = this.isFileListVisible;
 		this._splitView.addView({
 			element: diffEditorContainer,
-			minimumSize: MultiDiffEditorWithFileListWidget.MIN_DIFF_EDITOR_WIDTH,
+			// Only reserve room for the diffs while they share the width, so they fit narrow editor groups otherwise.
+			get minimumSize() { return isFileListVisible.get() ? MultiDiffEditorWithFileListWidget.MIN_DIFF_EDITOR_WIDTH : 0; },
 			maximumSize: Number.POSITIVE_INFINITY,
 			priority: LayoutPriority.High,
 			onDidChange: Event.None,
@@ -133,11 +135,12 @@ export class MultiDiffEditorWithFileListWidget extends Disposable {
 				this._fileList.value = this._instantiationService.createInstance(MultiDiffEditorFileList, this._fileListContainer, this.multiDiffEditorWidget, fileListViewMode);
 			}
 			const visible = enabled && hasRoom;
+			// Update before the split view relayouts, which reads it for the diffs' minimum width.
+			this.isFileListVisible.set(visible, undefined);
 			if (this._splitView.isViewVisible(this._fileListIndex) !== visible) {
 				this._splitView.setViewVisible(this._fileListIndex, visible);
 				this._restorePreferredFileListWidth();
 			}
-			this.isFileListVisible.set(visible, undefined);
 		}));
 	}
 

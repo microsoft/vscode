@@ -5,9 +5,12 @@
 
 import assert from 'assert';
 import { Dimension } from '../../../../../base/browser/dom.js';
-import { ValueWithChangeEvent } from '../../../../../base/common/event.js';
+import { Emitter, ValueWithChangeEvent } from '../../../../../base/common/event.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { KeyCodeChord, ResolvedKeybinding } from '../../../../../base/common/keybindings.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue, waitForState } from '../../../../../base/common/observable.js';
+import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -18,9 +21,14 @@ import { IWorkbenchUIElementFactory } from '../../../../../editor/browser/widget
 import { InMemoryTextModelService } from '../../../../../editor/common/services/inMemoryTextModelService.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { TestDiffProviderFactoryService } from '../../../../../editor/test/browser/diff/testDiffProviderFactoryService.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { USLayoutResolvedKeybinding } from '../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
 import { IEditorProgressService } from '../../../../../platform/progress/common/progress.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -29,6 +37,8 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import { testWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
 import { TestEditorGroupView, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { AccessibilityCommandId } from '../../../accessibility/common/accessibilityCommands.js';
 import { MultiDiffEditor } from '../../browser/multiDiffEditor.js';
 import { MultiDiffEditorWithFileListWidget } from '../../browser/multiDiffEditorWithFileListWidget.js';
 import { MultiDiffEditorFileListAvailableContext, MultiDiffEditorFileListPosition, MultiDiffEditorFileListViewMode, MultiDiffEditorFileListVisibleContext, multiDiffEditorExperimentalFileListSetting } from '../../common/multiDiffEditor.js';
@@ -152,6 +162,50 @@ suite('MultiDiffEditorWithFileListWidget', () => {
 		}
 	});
 
+	test('tells screen reader users how to open the accessibility help, unless the hint is turned off', async () => {
+		const configurationService = new TestConfigurationService({ [AccessibilityVerbositySettingId.MultiDiffEditorFileList]: true });
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configurationService);
+		let screenReaderOptimized = false;
+		const onDidChangeScreenReaderOptimized = disposables.add(new Emitter<void>());
+		instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+			override onDidChangeScreenReaderOptimized = onDidChangeScreenReaderOptimized.event;
+			override isScreenReaderOptimized(): boolean { return screenReaderOptimized; }
+		}());
+		let helpKeybinding: ResolvedKeybinding | undefined = undefined;
+		const onDidUpdateKeybindings = disposables.add(new Emitter<void>());
+		instantiationService.stub(IKeybindingService, new class extends MockKeybindingService {
+			override get onDidUpdateKeybindings() { return onDidUpdateKeybindings.event; }
+			override lookupKeybinding(commandId: string): ResolvedKeybinding | undefined {
+				return commandId === AccessibilityCommandId.OpenAccessibilityHelp ? helpKeybinding : undefined;
+			}
+		}());
+		const { container } = createComposite(constObservable(true));
+		const label = () => container.querySelector('.monaco-list')?.getAttribute('aria-label');
+
+		const withoutScreenReader = label();
+		screenReaderOptimized = true;
+		onDidChangeScreenReaderOptimized.fire();
+		const withoutKeybinding = label();
+		helpKeybinding = new USLayoutResolvedKeybinding([new KeyCodeChord(false, false, true, false, KeyCode.F1)], OperatingSystem.Windows);
+		onDidUpdateKeybindings.fire();
+		const withKeybinding = label();
+		await configurationService.setUserConfiguration(AccessibilityVerbositySettingId.MultiDiffEditorFileList, false);
+		configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(configuration: string): boolean {
+				return configuration === AccessibilityVerbositySettingId.MultiDiffEditorFileList;
+			}
+		}());
+		const hintTurnedOff = label();
+
+		assert.deepStrictEqual({ withoutScreenReader, withoutKeybinding, withKeybinding, hintTurnedOff }, {
+			withoutScreenReader: 'Changed Files',
+			withoutKeybinding: 'Changed Files, run the Open Accessibility Help command for more information',
+			withKeybinding: 'Changed Files, use Alt+F1 for accessibility help',
+			hintTurnedOff: 'Changed Files',
+		});
+	});
+
 	test('groups the files into compressed folders in tree mode and switches back to the flat list', async () => {
 		const viewMode = observableValue<MultiDiffEditorFileListViewMode>('viewMode', 'tree');
 		const { container, composite } = createComposite(constObservable(true), viewMode);
@@ -223,6 +277,41 @@ suite('MultiDiffEditorWithFileListWidget', () => {
 		}
 	});
 
+	test('shows a file and a folder that share a path in tree mode, and selects files in both', async () => {
+		const { container, composite } = createComposite(constObservable(true), constObservable('tree'));
+		const widget = composite.multiDiffEditorWidget;
+		composite.layout(new Dimension(1000, 300));
+		const settingsUri = URI.file('/repo/config/settings.json');
+		const documentItems = [
+			createBinaryItem(URI.file('/repo/config'), undefined),
+			createBinaryItem(undefined, settingsUri),
+		];
+		const viewModel = disposables.add(widget.createViewModel({ documents: ValueWithChangeEvent.const(documentItems) }));
+		await waitForState(viewModel.items, items => items.length === documentItems.length);
+		widget.setViewModel(viewModel, { preserveFocus: true });
+		await waitForState(viewModel.isLoading, isLoading => !isLoading);
+
+		const rows = () => [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
+			.sort((a, b) => Number(a.dataset.index) - Number(b.dataset.index))
+			.map(row => {
+				const status = row.querySelector('.multi-diff-file-list-item-status')?.textContent;
+				return `${row.classList.contains('selected') ? '>' : ' '}${row.querySelector('.monaco-icon-name-container')?.textContent}${status ? ` ${status}` : ''}`;
+			});
+
+		try {
+			const initial = rows();
+			widget.reveal({ original: undefined, modified: settingsUri }, { highlight: false });
+			const afterReveal = rows();
+
+			assert.deepStrictEqual({ initial, afterReveal }, {
+				initial: ['>config D', ' config', ' settings.json A'],
+				afterReveal: [' config D', ' config', '>settings.json A'],
+			});
+		} finally {
+			widget.setViewModel(undefined);
+		}
+	});
+
 	test('shows the list only when enabled and wide enough, using the stored width', () => {
 		const storageService = instantiationService.get(IStorageService);
 		const state = ({ container, composite }: ReturnType<typeof createComposite>) => ({
@@ -259,6 +348,34 @@ suite('MultiDiffEditorWithFileListWidget', () => {
 			narrow: { fileListVisible: false, diffWidth: 500, hasList: true },
 			wideAgain: { fileListVisible: true, diffWidth: 700, hasList: true },
 			afterDisable: { fileListVisible: false, diffWidth: 1000, hasList: false },
+		});
+	});
+
+	test('fits the diffs into editor groups narrower than their minimum width while the list is hidden', () => {
+		const enabled = observableValue('fileListVisible', false);
+		const { composite } = createComposite(enabled);
+		const state = () => ({
+			fileListVisible: composite.isFileListVisible.get(),
+			diffWidth: composite.multiDiffEditorWidget.getLayoutDebugState().get().scrollDimensions.width,
+		});
+
+		composite.layout(new Dimension(300, 100));
+		const disabled = state();
+		enabled.set(true, undefined);
+		const enabledButNarrow = state();
+		composite.layout(new Dimension(1000, 100));
+		const wide = state();
+		composite.layout(new Dimension(300, 100));
+		const narrowAgain = state();
+		composite.layout(new Dimension(600, 100));
+		const squeezed = state();
+
+		assert.deepStrictEqual({ disabled, enabledButNarrow, wide, narrowAgain, squeezed }, {
+			disabled: { fileListVisible: false, diffWidth: 300 },
+			enabledButNarrow: { fileListVisible: false, diffWidth: 300 },
+			wide: { fileListVisible: true, diffWidth: 740 },
+			narrowAgain: { fileListVisible: false, diffWidth: 300 },
+			squeezed: { fileListVisible: true, diffWidth: 400 },
 		});
 	});
 
