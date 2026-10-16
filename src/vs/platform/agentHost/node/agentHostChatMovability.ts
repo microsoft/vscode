@@ -243,6 +243,7 @@ export class AgentHostChatMovability extends Disposable {
 			workspaceless: context.workspaceless || folders.length === 0,
 			converting: context.quarantined || [...subtree].some(candidate => this._sources.conversions.isPending(candidate)),
 			// Worktrees are shared by moves (Block 5): only a chat's own one that a staying chat also uses keeps it (D2).
+			// Asked for another owner, this checks that owner's list, so it may miss D2; `planWorktreeMove` refuses it.
 			worktreeFolder: sharedOwnAdditionalWorktreeOf(this._worktreeUsers(context, currentContext), subtree, folders) !== undefined,
 			agentMergeOwner: [...subtree].some(candidate => context.agentMergeChats.has(candidate)),
 			legacyCatalog: context.legacyCatalog,
