@@ -599,6 +599,13 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('chat.editing.openChangedFileInDiffEditor', "Controls whether selecting a file in the changed files list of a chat response opens it in a diff editor showing the changes made by chat, or in a regular editor. Holding `kbstyle(Alt)` while selecting the file opens it with the opposite behavior."),
 			default: true,
 		},
+		[ChatConfiguration.EditorWorkingSetEnabled]: {
+			type: 'boolean',
+			description: nls.localize('chat.editor.workingSet.enabled', "Show Copilot Agent Host session changes as a working set above the chat input instead of the Changes pill in the editor window. Select a file to open its diff. Hosts without a session changeset keep the Changes pill. Local and other chat harnesses are unaffected."),
+			default: false,
+			tags: ['experimental'],
+			agentsWindow: { default: false, readOnly: true },
+		},
 		'chat.tips.enabled': {
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION,
