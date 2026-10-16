@@ -644,6 +644,33 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		default: true,
 		restricted: true,
 	},
+	[AgentSandboxSettingId.AgentSandboxMaskedEnvironmentVariables]: {
+		order: 53,
+		keywords: ['Sandbox', 'sandboxing'],
+		markdownDescription: localize('agentSandbox.maskedEnvironmentVariables', "Choose environment variables and the HTTPS hosts allowed to receive their real values."),
+		type: 'object',
+		default: {},
+		restricted: true,
+		additionalProperties: false,
+		properties: {
+			envVars: {
+				type: 'object',
+				description: localize('agentSandbox.maskedEnvironmentVariables.envVars', "Map environment variable names to the hosts where their values may be injected. Specify environment variable names, not secret values."),
+				additionalProperties: {
+					type: 'object',
+					additionalProperties: false,
+					required: ['injectHosts'],
+					properties: {
+						injectHosts: {
+							type: 'array',
+							items: { type: 'string' },
+							description: localize('agentSandbox.maskedEnvironmentVariables.envVars.injectHosts', "Hosts where the credential may be injected."),
+						},
+					},
+				},
+			},
+		},
+	},
 	[AgentSandboxSettingId.AgentSandboxAuthenticateGit]: {
 		managedSettingsPresentation: read => SandboxSettingsResolutionHelper.resolveAllowAccess(undefined, read(COPILOT_SANDBOX_AUTH_GIT_KEY) !== false),
 		order: 51,

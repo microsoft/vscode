@@ -9,10 +9,10 @@ parameters:
     type: boolean
   - name: iterations
     type: object
-  # Windows integration iterations take ~20 minutes each, so running all of them
-  # sequentially in one job exceeds its 300 minute timeout. They are split across
+  # Windows unit and integration iterations are too slow to run all of them
+  # sequentially in one job within its timeout. Each test type is split across
   # parallel jobs by odd and even iteration number instead.
-  - name: integrationShards
+  - name: iterationShards
     type: object
     default: [odd, even]
 
@@ -67,44 +67,53 @@ jobs:
           displayName: Archive packaged server for reuse by test jobs
 
   - ${{ if eq(parameters.VSCODE_TEST_UNIT, true) }}:
-    - template: ../common/product-smoke-flaky-test.yml@self
-      parameters:
-        jobName: WindowsSmokeFlakyUnit
-        buildJobName: WindowsSmokeFlakyBuild
-        displayName: Windows Unit Tests
-        platform: windows
-        arch: x64
-        testName: unit
-        artifactPrefix: smoke-flaky-windows-x64
-        artifacts:
-          - name: repo
-            displayName: Download built workspace
-        extractArtifactSteps:
-          - powershell: |
-              $ErrorActionPreference = "Stop"
-              New-Item -ItemType Directory -Force -Path $(Build.SourcesDirectory) | Out-Null
-              # Can't source exec.ps1 yet: it lives inside repo.zip, extracted below.
-              7z.exe x $(Pipeline.Workspace)\smoke-flaky-windows-x64-repo\repo.zip -o"$(Build.SourcesDirectory)" -y
-              if ($LASTEXITCODE -ne 0) { throw "7z extract of repo.zip failed with exit code $LASTEXITCODE" }
-            displayName: Extract built workspace
-        testSteps:
-          - ${{ each i in parameters.iterations }}:
-            - powershell: .\scripts\test.bat --build --tfs "Unit Tests"
-              env:
-                VSCODE_SKIP_PRELAUNCH: '1'
-              displayName: "🧪 Unit test iteration ${{ i }}/${{ length(parameters.iterations) }} (Electron)"
-              continueOnError: true
-              timeoutInMinutes: 15
-          - ${{ each i in parameters.iterations }}:
+    - ${{ each shard in parameters.iterationShards }}:
+      - template: ../common/product-smoke-flaky-test.yml@self
+        parameters:
+          jobName: WindowsSmokeFlakyUnit_${{ shard }}
+          buildJobName: WindowsSmokeFlakyBuild
+          displayName: Windows Unit Tests (${{ shard }} iterations)
+          platform: windows
+          arch: x64
+          testName: unit-${{ shard }}
+          # Fits 10 Electron and 10 node.js iterations at their 15 minute step
+          # timeout, plus job setup.
+          timeoutInMinutes: 330
+          artifactPrefix: smoke-flaky-windows-x64
+          artifacts:
+            - name: repo
+              displayName: Download built workspace
+          extractArtifactSteps:
             - powershell: |
-                New-Item -ItemType Directory -Force -Path .build\crashes | Out-Null
-                npm run test-node -- --build
-              displayName: "🧪 Unit test iteration ${{ i }}/${{ length(parameters.iterations) }} (node.js)"
-              continueOnError: true
-              timeoutInMinutes: 15
+                $ErrorActionPreference = "Stop"
+                New-Item -ItemType Directory -Force -Path $(Build.SourcesDirectory) | Out-Null
+                # Can't source exec.ps1 yet: it lives inside repo.zip, extracted below.
+                7z.exe x $(Pipeline.Workspace)\smoke-flaky-windows-x64-repo\repo.zip -o"$(Build.SourcesDirectory)" -y
+                if ($LASTEXITCODE -ne 0) { throw "7z extract of repo.zip failed with exit code $LASTEXITCODE" }
+              displayName: Extract built workspace
+          testSteps:
+            # Template expressions have no arithmetic, so an iteration's parity is
+            # read from its last digit. The odd shard keeps odd iterations and the
+            # even shard keeps the rest.
+            - ${{ each i in parameters.iterations }}:
+              - ${{ if xor(eq(shard, 'even'), or(endsWith(format('{0}', i), '1'), endsWith(format('{0}', i), '3'), endsWith(format('{0}', i), '5'), endsWith(format('{0}', i), '7'), endsWith(format('{0}', i), '9'))) }}:
+                - powershell: .\scripts\test.bat --build --tfs "Unit Tests"
+                  env:
+                    VSCODE_SKIP_PRELAUNCH: '1'
+                  displayName: "🧪 Unit test iteration ${{ i }}/${{ length(parameters.iterations) }} (Electron)"
+                  continueOnError: true
+                  timeoutInMinutes: 15
+            - ${{ each i in parameters.iterations }}:
+              - ${{ if xor(eq(shard, 'even'), or(endsWith(format('{0}', i), '1'), endsWith(format('{0}', i), '3'), endsWith(format('{0}', i), '5'), endsWith(format('{0}', i), '7'), endsWith(format('{0}', i), '9'))) }}:
+                - powershell: |
+                    New-Item -ItemType Directory -Force -Path .build\crashes | Out-Null
+                    npm run test-node -- --build
+                  displayName: "🧪 Unit test iteration ${{ i }}/${{ length(parameters.iterations) }} (node.js)"
+                  continueOnError: true
+                  timeoutInMinutes: 15
 
   - ${{ if eq(parameters.VSCODE_TEST_INTEGRATION, true) }}:
-    - ${{ each shard in parameters.integrationShards }}:
+    - ${{ each shard in parameters.iterationShards }}:
       - template: ../common/product-smoke-flaky-test.yml@self
         parameters:
           jobName: WindowsSmokeFlakyIntegration_${{ shard }}

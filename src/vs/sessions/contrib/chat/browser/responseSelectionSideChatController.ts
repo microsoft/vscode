@@ -120,6 +120,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 
 	constructor(
 		private readonly _widget: IChatWidget,
+		private readonly _responseSelectionSupported: boolean,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@ISessionsPartService private readonly _sessionsPartService: ISessionsPartService,
@@ -281,6 +282,9 @@ export class ResponseSelectionSideChatController extends Disposable {
 		// Reflect the new selection state first: every branch below (including
 		// the early returns) needs the hold to match what is currently selected.
 		this._updateAutoScrollHold();
+		if (!this._responseSelectionSupported) {
+			return;
+		}
 		// The browser can collapse the document selection when focus moves into
 		// the affordance. Keep the captured range until focus genuinely leaves.
 		if (this._hasAffordanceFocus()) {

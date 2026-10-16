@@ -10,6 +10,7 @@ import { MockKeybindingService } from '../../../../../../platform/keybinding/tes
 import { getTabbedActionListKeybindingLabels } from '../../../../../../platform/actionWidget/browser/tabbedActionListWidget.js';
 import { getAccessibilityHelpText } from '../../../browser/actions/chatAccessibilityHelp.js';
 import { AGENT_SESSION_RENAME_ACTION_ID } from '../../../browser/agentSessions/agentSessions.js';
+import { isResponseSelectionSupported } from '../../../browser/chat.js';
 
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -491,8 +492,22 @@ suite('Chat Accessibility Help', () => {
 			sessionsWindow: getAccessibilityHelpText('agentView', keybindingService, true, true).includes('Ask Question'),
 			regularWindow: getAccessibilityHelpText('agentView', keybindingService, true, false).includes('Ask Question'),
 		}, {
-			sessionsWindow: true,
+			sessionsWindow: isResponseSelectionSupported(),
 			regularWindow: false,
+		});
+	});
+
+	test('omits mobile-web selection pop-up help without hiding other sessions help', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true, true, false, true, false, ChatSessionArchiveActionWording.Archive, false, false, isResponseSelectionSupported({ isWeb: true, isMobile: true }));
+
+		assert.deepStrictEqual({
+			selectionPopUp: help.includes('Ask Question'),
+			requestOrigin: help.includes('Some requests include a source chat button'),
+			sessionResults: help.includes('Completed create-session, create-chat, and send-message operations'),
+		}, {
+			selectionPopUp: false,
+			requestOrigin: true,
+			sessionResults: true,
 		});
 	});
 

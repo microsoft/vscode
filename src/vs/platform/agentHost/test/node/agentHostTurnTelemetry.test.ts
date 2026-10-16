@@ -99,6 +99,8 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	onToolCallEditsApplied(): void { }
 	onTurnComplete(): void { }
 	onSessionTruncated(): void { }
+	openTrackedTurnDatabase(): undefined { return undefined; }
+	onFileEditsDiscarded(): void { }
 	ensureChatChangesSummary(): void { }
 	refreshChatChangesSummary(): void { }
 }
@@ -313,6 +315,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 				requestSessionWorkspaceUpdate: () => true,
 				isPending: () => false,
 				isConversionTurn: () => false,
+				onDidChangePending: Event.None,
 				cancel: () => { },
 				updateSessionWorkspace: async () => { },
 			} satisfies ISessionWorkspaceConversionService],
@@ -929,19 +932,21 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 
 		let previousTurnId = 'turn-original';
 		for (const turnId of ['turn-steering-1', 'turn-steering-2']) {
+			const id = `queued-${turnId}`;
+			const message: Message = { text: 'edit the file', origin: { kind: MessageKind.User } };
 			applyClientAction({
 				type: ActionType.ChatPendingMessageSet,
 				kind: PendingMessageKind.Steering,
-				id: `queued-${turnId}`,
-				message: { text: 'edit the file', origin: { kind: MessageKind.User } },
+				id,
+				message,
 			});
 			fire({ type: ActionType.ChatTurnComplete, turnId: previousTurnId, duration: 1000 });
 			fire({
 				type: ActionType.ChatTurnStarted,
 				turnId,
 				startedAt: new Date().toISOString(),
-				message: { text: 'edit the file', origin: { kind: MessageKind.User } },
-				queuedMessageId: `queued-${turnId}`,
+				message,
+				queuedMessageId: id,
 			});
 			fireModelCallFinished(turnId, `call-${turnId}`, 250, 'success', true);
 			previousTurnId = turnId;

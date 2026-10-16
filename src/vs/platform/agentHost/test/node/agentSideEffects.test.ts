@@ -135,6 +135,8 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	onSessionTruncated(session: string): void {
 		this.truncates.push(session);
 	}
+	openTrackedTurnDatabase(): undefined { return undefined; }
+	onFileEditsDiscarded(): void { }
 	ensureChatChangesSummary(): void { }
 	refreshChatChangesSummary(): void { }
 }
@@ -266,6 +268,7 @@ function createTestSideEffects(
 		requestSessionWorkspaceUpdate: () => true,
 		isPending: () => false,
 		isConversionTurn: () => false,
+		onDidChangePending: Event.None,
 		cancel: () => { },
 		updateSessionWorkspace: async () => { },
 	});
@@ -4739,6 +4742,7 @@ suite('AgentSideEffects', () => {
 
 		test('syncs steering message to agent on ChatPendingMessageSet', () => {
 			setupSession();
+			startTurn('active');
 
 			const action = {
 				type: ActionType.ChatPendingMessageSet as const,
@@ -4758,7 +4762,7 @@ suite('AgentSideEffects', () => {
 				senderClientType: agent.setPendingMessagesCalls[0].steeringSender?.clientContext.clientType,
 			}, {
 				chat: defaultChatUri,
-				steeringMessage: { id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } },
+				steeringMessage: { id: 'steer-1', kind: PendingMessageKind.Steering, message: { text: 'focus on tests', origin: { kind: MessageKind.User } } },
 				queuedMessages: [],
 				senderClientId: 'client-editor',
 				senderClientType: AgentHostClientType.EditorWindow,
@@ -4767,6 +4771,7 @@ suite('AgentSideEffects', () => {
 
 		test('syncs server-dispatched steering message to agent', () => {
 			setupSession();
+			startTurn('active');
 
 			stateManager.dispatchServerAction(defaultChatUri, {
 				type: ActionType.ChatPendingMessageSet,
@@ -4782,7 +4787,7 @@ suite('AgentSideEffects', () => {
 				steeringSender: call.steeringSender,
 			})), [{
 				chat: defaultChatUri,
-				steeringMessage: { id: 'server-steer', message: { text: 'focus on tests', origin: { kind: MessageKind.Agent } } },
+				steeringMessage: { id: 'server-steer', kind: PendingMessageKind.Steering, message: { text: 'focus on tests', origin: { kind: MessageKind.Agent } } },
 				queuedMessages: [],
 				steeringSender: undefined,
 			}]);
@@ -4792,6 +4797,7 @@ suite('AgentSideEffects', () => {
 			setupSession();
 			const peerChatUri = URI.parse(buildChatUri(sessionUri.toString(), 'peer-steer'));
 			stateManager.addChat(sessionUri.toString(), peerChatUri.toString(), creationTimeChatStorageResource(sessionUri.toString(), peerChatUri.toString(), buildDefaultChatUri(sessionUri.toString())));
+			startTurn('active-peer', peerChatUri.toString());
 
 			const action = {
 				type: ActionType.ChatPendingMessageSet as const,
@@ -4825,9 +4831,7 @@ suite('AgentSideEffects', () => {
 			sideEffects.handleAction(defaultChatUri, action, 'client-editor', AgentHostClientType.EditorWindow);
 
 			// Queued messages are not forwarded to the agent; the server controls consumption
-			assert.strictEqual(agent.setPendingMessagesCalls.length, 1);
-			assert.strictEqual(agent.setPendingMessagesCalls[0].steeringMessage, undefined);
-			assert.deepStrictEqual(agent.setPendingMessagesCalls[0].queuedMessages, []);
+			assert.deepStrictEqual(agent.setPendingMessagesCalls, []);
 
 			// Session was idle, so the queued message is consumed immediately
 			await waitForSendMessageCalls(1);
@@ -4898,7 +4902,7 @@ suite('AgentSideEffects', () => {
 			}]);
 		});
 
-		test('syncs on ChatPendingMessageRemoved', () => {
+		test('does not forward queued-message removal to the provider', () => {
 			setupSession();
 
 			// Add a queued message
@@ -4922,11 +4926,10 @@ suite('AgentSideEffects', () => {
 			stateManager.dispatchClientAction(defaultChatUri, removeAction, { clientId: 'test', clientSeq: 2 });
 			sideEffects.handleAction(defaultChatUri, removeAction);
 
-			assert.strictEqual(agent.setPendingMessagesCalls.length, 1);
-			assert.deepStrictEqual(agent.setPendingMessagesCalls[0].queuedMessages, []);
+			assert.deepStrictEqual(agent.setPendingMessagesCalls, []);
 		});
 
-		test('syncs on ChatQueuedMessagesReordered', () => {
+		test('does not forward queue reordering to the provider', () => {
 			setupSession();
 
 			// Add two queued messages
@@ -4945,8 +4948,7 @@ suite('AgentSideEffects', () => {
 			stateManager.dispatchClientAction(defaultChatUri, reorderAction, { clientId: 'test', clientSeq: 3 });
 			sideEffects.handleAction(defaultChatUri, reorderAction);
 
-			assert.strictEqual(agent.setPendingMessagesCalls.length, 1);
-			assert.deepStrictEqual(agent.setPendingMessagesCalls[0].queuedMessages, []);
+			assert.deepStrictEqual(agent.setPendingMessagesCalls, []);
 		});
 	});
 
@@ -5285,6 +5287,28 @@ suite('AgentSideEffects', () => {
 			const state = stateManager.getSessionState(sessionUri.toString());
 			assert.strictEqual(state?.queuedMessages?.length, 1);
 			assert.strictEqual(state?.queuedMessages?.[0].id, 'q-wait');
+		});
+
+		test('steering_consumed removes only the matching independent steering message', () => {
+			setupSession();
+			disposables.add(sideEffects.registerProgressListener(agent));
+			const removals: string[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+				if (envelope.action.type === ActionType.ChatPendingMessageRemoved && envelope.action.kind === PendingMessageKind.Steering) {
+					removals.push(envelope.action.id);
+				}
+			}));
+			for (const id of ['a', 'b']) {
+				stateManager.dispatchServerAction(defaultChatUri, {
+					type: ActionType.ChatPendingMessageSet,
+					kind: PendingMessageKind.Steering, id, message: { text: id, origin: { kind: MessageKind.User } },
+				});
+			}
+			agent.fireProgress({ kind: 'steering_consumed', chat: URI.parse(defaultChatUri), id: 'a' });
+			assert.deepStrictEqual({
+				removals,
+				pending: stateManager.getChatState(defaultChatUri)?.queuedMessages?.map(message => message.id),
+			}, { removals: ['a'], pending: ['b'] });
 		});
 
 		test('dispatches ChatPendingMessageRemoved for steering messages on steering_consumed', () => {

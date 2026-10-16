@@ -310,6 +310,12 @@ export interface IAgentCanvasOpenRequest {
 	readonly instanceId: string;
 }
 
+/** Closes one canvas that a live provider chat presents, notifying its canvas provider. */
+export interface IAgentCanvasCloseRequest {
+	/** The canvas channel the chat advertised. It identifies one canvas lifetime: reopening a canvas advertises a new channel. */
+	readonly resource: URI;
+}
+
 export interface IAgentCustomizationInstallationCatalogue {
 	readonly resourceId?: string;
 	readonly itemUrl?: string;
@@ -1610,6 +1616,9 @@ export interface IAgent {
 	/** Open or focus one canvas instance in an initialized provider chat. */
 	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest, chat: URI, context: AgentChatOperationContext): Promise<void>;
 
+	/** Close one canvas that a live provider chat presents, notifying its canvas provider. Never resumes a cold chat. */
+	closeSessionCanvas?(session: URI, request: IAgentCanvasCloseRequest, chat: URI, context: AgentChatOperationContext): Promise<void>;
+
 	/** Install a plugin through the provider that owns its installation state. */
 	installPlugin?(request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void>;
 
@@ -1687,8 +1696,11 @@ export interface IAgent {
 	/** Re-attach an exact chat from opaque provider data without inferring its role. */
 	materializeChat(chat: URI, context: URI | IAgentChatContext, providerData: string | undefined): Promise<IAgentCreateChatResult | void>;
 
-	/** Optional steering hook for providers that can accept messages during an active turn. */
-	setPendingMessages?(chat: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[], steeringSender?: IAgentPendingMessageSender): void;
+	/** Optional steering hook. Return false to defer handoff until the provider's turn is ready. */
+	setPendingMessages?(chat: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[], steeringSender?: IAgentPendingMessageSender): boolean | void;
+
+	/** Hands off one independent submission without replacing the legacy slot; false defers until ready. */
+	sendSteeringMessage?(chat: URI, message: PendingMessage, sender?: IAgentPendingMessageSender): boolean | void;
 
 	/** Optional history mutation for providers with a native truncation operation. */
 	truncateChat?(chat: URI, turnId: string | undefined, context?: URI | IAgentChatContext): Promise<void>;

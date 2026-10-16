@@ -152,6 +152,54 @@ fn diagnostics_require_the_verbose_modifier() {
 	);
 }
 
+#[cfg(target_os = "macos")]
+#[test]
+fn macos_install_only_finds_an_existing_cli_without_launching_it() {
+	use std::os::unix::fs::PermissionsExt;
+
+	let directory = tempfile::tempdir().expect("create fake PATH");
+	let home = directory.path().join("home");
+	let prefix = directory.path().join("prefix");
+	let cli = directory.path().join("copilot");
+	let launched = directory.path().join("launched");
+	fs::create_dir(&home).expect("create fake HOME");
+	fs::create_dir(&prefix).expect("create fake PREFIX");
+	fs::write(
+		&cli,
+		b"#!/bin/sh\n: > \"$COPILOT_SHIM_TEST_LAUNCHED\"\nexit 99\n",
+	)
+	.expect("write sentinel CLI");
+	let mut permissions = fs::metadata(&cli)
+		.expect("read sentinel metadata")
+		.permissions();
+	permissions.set_mode(0o755);
+	fs::set_permissions(&cli, permissions).expect("make sentinel executable");
+
+	let output = Command::new(env!("CARGO_BIN_EXE_copilot"))
+		.args(["--vscode-shim", "install", "--interactive"])
+		.env("PATH", directory.path())
+		.env("HOME", &home)
+		.env("PREFIX", &prefix)
+		.env("COPILOT_SHIM_TEST_LAUNCHED", &launched)
+		.output()
+		.expect("run install-only shim");
+
+	assert_eq!(
+		(
+			output.status.code(),
+			launched.exists(),
+			String::from_utf8(output.stdout).expect("UTF-8 stdout"),
+			String::from_utf8(output.stderr).expect("UTF-8 stderr"),
+		),
+		(
+			Some(0),
+			false,
+			String::new(),
+			format!("GitHub Copilot CLI is available at {}.\n", cli.display()),
+		)
+	);
+}
+
 #[cfg(unix)]
 #[test]
 fn unix_black_box_preserves_launch_contract() {

@@ -345,7 +345,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			if (!this._isCurrentRefresh(version)) {
 				return existing.plugin;
 			}
-			if (!watchPluginContents || existing.format.format !== format.format) {
+			if (!watchPluginContents || existing.format.format !== format.format || existing.format.manifestPath !== format.manifestPath) {
 				existing.store.dispose();
 				this._pluginEntries.delete(key);
 			} else {
@@ -456,7 +456,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 					return;
 				}
 				const latestFormat = await detectPluginFormat(uri, this._fileService);
-				if (latestFormat.format !== format.format) {
+				if (latestFormat.format !== format.format || latestFormat.manifestPath !== format.manifestPath) {
 					await this._refreshPlugins();
 					return;
 				}

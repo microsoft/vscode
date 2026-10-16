@@ -42,6 +42,7 @@ export function setModelConfigValues(
 	configurationAccess: IModelConfigurationAccess,
 	values: IStringDictionary<unknown>,
 	onDidChange?: ModelConfigChangeListener,
+	useModelConfigurationSchema = false,
 ): Promise<void> {
 	const requestedAt = Date.now();
 	let edits = configurationEdits.get(configurationAccess);
@@ -50,7 +51,7 @@ export function setModelConfigValues(
 	}
 	return edits.queue(model.identifier, async () => {
 		const changes = [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT].flatMap(group => {
-			const property = getModelConfigProperty(model, configurationAccess, group);
+			const property = getModelConfigProperty(model, configurationAccess, group, useModelConfigurationSchema);
 			return property && Object.hasOwn(values, property.key) && property.value !== values[property.key]
 				? [{ group, key: property.key, fromValue: property.value, toValue: values[property.key] }]
 				: [];
@@ -95,8 +96,11 @@ export function getModelConfigProperty(
 	model: ILanguageModelChatMetadataAndIdentifier | undefined,
 	configurationAccess: ModelConfigurationReader,
 	group: string,
+	useModelConfigurationSchema = false,
 ): IModelConfigProperty | undefined {
-	const properties = model && (configurationAccess.getModelConfigurationSchema?.(model.identifier) ?? model.metadata.configurationSchema)?.properties;
+	const properties = model && (useModelConfigurationSchema
+		? model.metadata.configurationSchema
+		: configurationAccess.getModelConfigurationSchema?.(model.identifier) ?? model.metadata.configurationSchema)?.properties;
 	if (!properties) {
 		return undefined;
 	}
@@ -146,8 +150,9 @@ export function isExtendedContext(property: IModelConfigProperty): boolean {
 export function getModelConfigSummary(
 	model: ILanguageModelChatMetadataAndIdentifier | undefined,
 	configurationAccess: ModelConfigurationReader,
+	useModelConfigurationSchema = false,
 ): string | undefined {
-	const parts = getModelConfigDisplayValues(model, configurationAccess).map(value => value.label);
+	const parts = getModelConfigDisplayValues(model, configurationAccess, useModelConfigurationSchema).map(value => value.label);
 	return parts.length ? parts.join(' \u00b7 ') : undefined;
 }
 
@@ -155,15 +160,20 @@ export function getModelConfigSummary(
 export function getModelConfigDescription(
 	model: ILanguageModelChatMetadataAndIdentifier | undefined,
 	configurationAccess: ModelConfigurationReader,
+	useModelConfigurationSchema = false,
 ): string | undefined {
-	const parts = getModelConfigDisplayValues(model, configurationAccess).map(value => value.description);
+	const parts = getModelConfigDisplayValues(model, configurationAccess, useModelConfigurationSchema).map(value => value.description);
 	return parts.length ? parts.join(', ') : undefined;
 }
 
-export function getModelConfigDisplayValues(model: ILanguageModelChatMetadataAndIdentifier | undefined, configurationAccess: ModelConfigurationReader): { group: string; label: string; description: string }[] {
+export function getModelConfigDisplayValues(
+	model: ILanguageModelChatMetadataAndIdentifier | undefined,
+	configurationAccess: ModelConfigurationReader,
+	useModelConfigurationSchema = false,
+): { group: string; label: string; description: string }[] {
 	const values: { group: string; label: string; description: string }[] = [];
 	for (const group of [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT]) {
-		const property = getModelConfigProperty(model, configurationAccess, group);
+		const property = getModelConfigProperty(model, configurationAccess, group, useModelConfigurationSchema);
 		if (property?.value !== undefined && property.schema.enum?.includes(property.value)) {
 			const label = getModelConfigValueLabel(property.schema, property.value);
 			const title = property.schema.title ?? (group === MODEL_CONFIG_GROUP_EFFORT
@@ -189,10 +199,11 @@ export function getModelConfigDisplayValues(model: ILanguageModelChatMetadataAnd
 export function getChangedModelConfigProperties(
 	model: ILanguageModelChatMetadataAndIdentifier | undefined,
 	configurationAccess: IModelConfigurationAccess,
+	useModelConfigurationSchema = false,
 ): IModelConfigProperty[] {
 	const properties: IModelConfigProperty[] = [];
 	for (const group of [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT]) {
-		const property = getModelConfigProperty(model, configurationAccess, group);
+		const property = getModelConfigProperty(model, configurationAccess, group, useModelConfigurationSchema);
 		if (!property || property.schema.readOnly || property.value === undefined || property.value === property.schema.default) {
 			continue;
 		}

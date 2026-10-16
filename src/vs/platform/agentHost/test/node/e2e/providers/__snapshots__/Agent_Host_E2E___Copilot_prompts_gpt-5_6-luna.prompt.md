@@ -199,6 +199,29 @@
       "type": "function"
     },
     {
+      "name": "semantic_code_search",
+      "description": "Search one GitHub repository's indexed default branch with a natural-language query, including known identifiers. Requires `repo` (owner/name). Excludes workspace changes and GitHub Enterprise Server.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Natural-language query."
+          },
+          "repo": {
+            "type": "string",
+            "description": "GitHub repository in owner/name form."
+          }
+        },
+        "required": [
+          "query",
+          "repo"
+        ]
+      },
+      "strict": false,
+      "type": "function"
+    },
+    {
       "name": "skill",
       "description": "Load a skill into the main conversation\n\n<skills_instructions>\nBefore acting on a task, check current or previously listed <available_skills>. If a skill matches, invoking it is mandatory and must be your first action, before any response; never merely announce it.\n\nCall this tool with only the skill name (for example `skill: \"pdf\"` or `skill: \"xlsx\"`). Use only listed skills unless the user explicitly requests an unlisted skill by name, in which case invoke it. Do not reinvoke a running skill or use this tool for built-in CLI commands such as /help or /clear.\n</skills_instructions>",
       "parameters": {

@@ -73,6 +73,8 @@ export const MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID = 'sessions.moveChatToPrevio
 
 export const MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID = 'sessions.moveChatToNextGroup';
 
+export const DETACH_CHAT_COMMAND_ID = 'sessions.detachChat';
+
 /** Opens or focuses a regular editor window. Registered in `vscodeActions.ts`. */
 export const OPEN_VSCODE_WINDOW_COMMAND_ID = 'agents.openVSCodeWindow';
 
