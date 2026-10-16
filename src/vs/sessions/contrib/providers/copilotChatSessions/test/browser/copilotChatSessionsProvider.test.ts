@@ -41,6 +41,7 @@ import { IChatAgentData } from '../../../../../../workbench/contrib/chat/common/
 import { IAutomationSessionConfiguration, ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionChangesSummary, ISessionCreationReference, ISessionFileChange, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SessionArtifactKind, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { CloudSandboxEnabledSettingId, CloudSandboxRequestError, type ICloudSandboxCreateSessionRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { CloudSandboxAgentHostContribution, type ICloudSandboxProvisionedSession } from '../../../remoteAgentHost/browser/cloudSandboxAgentHostContribution.js';
 import { CLOUD_SANDBOX_CREATION_PROVIDER_ID, COPILOT_PROVIDER_ID } from '../../common/copilotChatSessions.js';
@@ -65,9 +66,8 @@ import { GitHubPullRequestModel } from '../../../../github/browser/models/github
 import { IPullRequestIconCache } from '../../../../github/browser/pullRequestIconCache.js';
 import { computePullRequestIcon, GitHubPullRequestState, IGitHubPullRequest, IGitHubRepository } from '../../../../github/common/types.js';
 import { CloudSandboxModels } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxModels.js';
-import { createCloudSandboxSessionConfig } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxSessionConfig.js';
+import { createCloudSandboxSessionConfig, resolveCloudSandboxSessionConfig } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxSessionConfig.js';
 import { AutomationModelConfiguration } from '../../../../automations/browser/automationModelConfiguration.js';
-import { validateSessionConfigWrite } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IChatEntitlementService } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IWorkbenchGitHubService } from '../../../../../../workbench/services/github/common/githubService.js';
@@ -2940,12 +2940,12 @@ suite('CopilotChatSessionsProvider', () => {
 					onDidChangeModels: modelsChanged.event,
 					onDidChangeSessionConfig: Event.None,
 					getSessionConfig: () => config,
-					resolveInitialSessionConfig: async (_sessionId, values) => {
-						for (const [key, value] of Object.entries(values)) {
-							validateSessionConfigWrite(config.schema, config.values, key, value, true);
-						}
-						configurations.push(values);
-						return values;
+					resolveInitialSessionConfig: async (_sessionId, values, token) => {
+						const resolved = await resolveCloudSandboxSessionConfig(upcastPartial<IAgentConnection>({
+							resolveSessionConfig: async params => ({ schema: config.schema, values: { ...config.values, ...params.config } }),
+						}), values, token);
+						configurations.push(resolved);
+						return resolved;
 					},
 					getAutomationModelConfiguration: () => upcastPartial<AutomationModelConfiguration>({
 						setModelConfiguration: async (_id, values) => { modelConfigurations.push(values); },
@@ -3491,6 +3491,34 @@ suite('CopilotChatSessionsProvider', () => {
 					modelConfigurations: [{ reasoningEffort: 'high' }],
 				});
 			});
+
+			for (const hasDraftConfig of [false, true]) {
+				test(`passes native image-generation opt-in to the first turn (draft config present: ${hasDraftConfig})`, async () => {
+					let sessionConfig: Record<string, unknown> | undefined;
+					const provisioned = provisionedSession(async (_sessionId, _resource, options) => {
+						sessionConfig = options.sessionConfig;
+						return provisioned.session;
+					});
+					const hostConfig = provisioned.provider.getSessionConfig(provisioned.session.sessionId, provisioned.session.mainChat.get().resource)!;
+					hostConfig.schema.properties.imageGeneration = { type: 'boolean', title: 'Image Generation', default: false, sessionMutable: false };
+					hostConfig.values.imageGeneration = false;
+					const { provider } = createSandboxProvider({ providerMode: 'sandbox', provision: async () => provisioned });
+					const draft = hasDraftConfig
+						? provider.createNewSession(repoWorkspace, CopilotSandboxSessionType.id)
+						: provider.createQuickChat(CopilotSandboxSessionType.id);
+					if (!hasDraftConfig) {
+						provider.getCreateSessionConfig = () => undefined;
+					}
+
+					await provider.sendRequest(draft.sessionId, draft.resource, { query: 'Generate an image' });
+
+					const expected = { ...(hasDraftConfig ? { mode: 'interactive', approvalMode: 'assisted' } : {}), imageGeneration: true };
+					assert.deepStrictEqual({ sessionConfig, configurations: provisioned.configurations }, {
+						sessionConfig: expected,
+						configurations: [expected],
+					});
+				});
+			}
 
 			test('does not send when the host rejects the requested configuration', async () => {
 				let sent = false;

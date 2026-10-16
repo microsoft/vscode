@@ -720,7 +720,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		this._records.set(key, record);
 		this._createdDefaultChats.delete(key);
 		try {
-			await this.chatRows.moveRows(session, this._snapshot(record), readCatalogRow, state.rowsMoved, state.header.rowsRevision, state.header.rowsMirroredRevision, mirrorEdited);
+			await this.chatRows.moveRows(session, this._snapshot(record), readCatalogRow, state.rowsMoved, state.header.rowsRevision, state.header.rowsMirroredRevision, mirrorEdited, state.draftMirrorBases);
 		} catch (error) {
 			this._logService.warn(`[AgentHostSessionStateStore] Failed to move the chat rows of ${key}`, error);
 		}

@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import { Sequencer, SequencerByKey } from '../../../base/common/async.js';
 import type { Database, RunResult } from '@vscode/sqlite3';
-import { MAX_TERMINAL_OUTPUT_BYTES, MAX_TOOL_RESULT_RESOURCE_BYTES, type IFileEditContent, type IFileEditRecord, type IPersistedTurnRecord, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type IToolResultResource, type SessionCatalogSyncTransitionResult, type SessionCatalogSyncWriteResult, type SessionCatalogSyncWriteValidator, SESSION_FOREIGN_TURN_IDS_METADATA_KEY, SESSION_ROW_OWNER_CHAT_METADATA_KEY, type ITurnCheckpointRecord } from '../common/sessionDataService.js';
+import { MAX_TERMINAL_OUTPUT_BYTES, MAX_TOOL_RESULT_RESOURCE_BYTES, type IFileEditContent, type IFileEditRecord, type IPersistedTurnRecord, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type ISessionRowsWatermark, type IToolResultResource, type SessionCatalogSyncTransitionResult, type SessionCatalogSyncWriteResult, type SessionCatalogSyncWriteValidator, SESSION_FOREIGN_TURN_IDS_METADATA_KEY, SESSION_ROW_OWNER_CHAT_METADATA_KEY, type ITurnCheckpointRecord } from '../common/sessionDataService.js';
 import { dirname } from '../../../base/common/path.js';
 import { URI } from '../../../base/common/uri.js';
 import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, type Message } from '../common/state/sessionState.js';
@@ -859,6 +859,24 @@ export class SessionDatabase implements ISessionDatabase {
 		const db = await this._ensureDb();
 		const row = await dbGet(db, 'SELECT COALESCE(MAX(rowid), 0) AS max_rowid FROM turns', []);
 		return row?.max_rowid as number;
+	}
+
+	async getRowsWatermark(): Promise<ISessionRowsWatermark> {
+		const db = await this._ensureDb();
+		// One statement: a single row without a draft when there are none.
+		const rows = await dbAll(db, `SELECT (SELECT COALESCE(MAX(rowid), 0) FROM turns) AS max_rowid, d.chat_uri, d.draft
+			FROM (SELECT 1) LEFT JOIN chat_drafts d ON 1 = 1`, []);
+		const drafts = new Map<string, Message>();
+		for (const row of rows) {
+			if (typeof row.chat_uri === 'string' && typeof row.draft === 'string') {
+				try {
+					drafts.set(row.chat_uri, JSON.parse(row.draft) as Message);
+				} catch {
+					// A malformed draft reads as none, as getChatDraft reads it.
+				}
+			}
+		}
+		return { maxTurnRowid: rows[0].max_rowid as number, drafts };
 	}
 
 	setForeignRows(ownerChat: string, turnIds: readonly string[]): Promise<void> {
