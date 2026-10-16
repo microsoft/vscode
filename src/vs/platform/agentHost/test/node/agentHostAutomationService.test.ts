@@ -22,7 +22,7 @@ import { AgentSession, type IAgent, type IAgentModelInfo } from '../../common/ag
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
-import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY } from '../../common/automationConfig.js';
+import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY } from '../../common/automationConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { AutomationMisfirePolicy, AutomationOperation, AutomationTriggerKind, type AutomationDefinition } from '../../common/state/protocol/channels-automation/state.js';
@@ -1185,12 +1185,8 @@ suite('AgentHostAutomationService', () => {
 	}
 
 	for (const { scheme, outcome } of ['copilotcli', 'ahp-session'].flatMap(scheme =>
-		(['success', 'error', 'cancelled', 'timeout'] as const).map(outcome => ({ scheme, outcome })))) {
+		(['success', 'error', 'cancelled'] as const).map(outcome => ({ scheme, outcome })))) {
 		test(`records ${scheme} linked-session ${outcome} after session removal without error content`, () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1), maxTaskCount: 100 }, async () => {
-			stateManager.dispatchServerAction(ROOT_STATE_URI, {
-				type: ActionType.RootConfigChanged,
-				config: { [AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY]: 1 },
-			});
 			const session = AgentSession.uri(scheme, `${outcome}-session`);
 			const started = new DeferredPromise<void>();
 			const service = createService({
@@ -1242,7 +1238,7 @@ suite('AgentHostAutomationService', () => {
 				agentSessionId: `${outcome}-session`,
 				sessionCreated: true,
 				outcome,
-				durationMs: outcome === 'timeout' ? 60_000 : 0,
+				durationMs: 0,
 			}]);
 		}));
 	}
@@ -1387,59 +1383,119 @@ suite('AgentHostAutomationService', () => {
 		});
 	});
 
-	test('host timeout terminates a hung run so later occurrences cannot overlap', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 100 }, async () => {
-		stateManager.dispatchServerAction(ROOT_STATE_URI, {
-			type: ActionType.RootConfigChanged,
-			config: { [AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY]: 1 },
-		});
-		const session = URI.parse('mock:/hung-session');
-		const started = new DeferredPromise<void>();
-
+	test('scheduled occurrences start independently while an earlier run is still active', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1), maxTaskCount: 100 }, async () => {
+		const started = [new DeferredPromise<void>(), new DeferredPromise<void>()];
+		let createCalls = 0;
+		let startCalls = 0;
+		let cancelCalls = 0;
 		const service = createService({
 			createSession: async () => {
+				const session = URI.parse(`mock:/hourly-${++createCalls}`);
 				stateManager.createSession({
-					resource: session.toString(),
-					provider: 'mock',
-					title: '',
-					status: SessionStatus.Idle,
-					createdAt: new Date().toISOString(),
-					modifiedAt: new Date().toISOString(),
+					resource: session.toString(), provider: 'mock', title: '', status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
 					defaultChat: buildDefaultChatUri(session.toString()),
 				});
 				return session;
 			},
-			startSession: async () => {
-				await started.complete();
+			startSession: async (session, message) => {
+				// The turn never finishes, like a turn suspended while the machine sleeps.
+				stateManager.dispatchServerAction(buildDefaultChatUri(session), {
+					type: ActionType.ChatTurnStarted, turnId: 'hung-turn', startedAt: new Date().toISOString(), message,
+				});
+				await started[startCalls++].complete();
 			},
-			cancelSession: async () => false,
+			cancelSession: async () => {
+				cancelCalls++;
+				return false;
+			},
 		});
-		await enableAndCreate(service);
-		const failed = Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope, envelope =>
-			envelope.action.type === ActionType.AutomationRunLifecycleChanged
-			&& envelope.action.lifecycle.status === AutomationRunStatus.Failed
-		));
-
-		const result = await service.runAutomation({
+		await service.handleCreate({
+			...createAction(),
+			definition: {
+				...definition(),
+				triggers: [{ id: 'hourly', kind: AutomationTriggerKind.Schedule, schedule: { expression: '0 * * * *', timeZone: 'UTC' } }],
+			},
+		});
+		await started[0].p;
+		await started[1].p;
+		const manualRun = await service.runAutomation({
 			channel: 'ahp-automations://',
 			automation: 'ahp-automation:/review-changes',
-			requestId: 'hung-request',
+			requestId: 'while-overlapping',
 		});
-		await started.p;
-		await failed;
 
-		const run = stateManager.getAutomationRunState(result.resource);
 		assert.deepStrictEqual({
-			status: run?.lifecycle.status,
-			error: run?.lifecycle.status === AutomationRunStatus.Failed ? run.lifecycle.error.message : undefined,
-			removeAvailable: stateManager.getAutomationCatalogState()?.entries[0].operations.includes(AutomationOperation.Remove),
-			outcomes: telemetry.events.filter(event => event.name === 'automation.runCompleted').map(event => event.data.outcome),
+			runs: stateManager.getAutomationCatalogState()?.entries[0].runs.map(run => ({
+				status: run.lifecycle.status,
+				scheduledFor: run.origin.kind === AutomationRunOriginKind.Trigger ? run.origin.scheduledFor : undefined,
+				primarySession: run.primarySession,
+			})),
+			manualRunReusesNewest: manualRun.resource === stateManager.getAutomationCatalogState()?.entries[0].runs[0].resource,
+			cancelCalls,
+			completedRuns: telemetry.events.filter(event => event.name === 'automation.runCompleted').length,
 		}, {
-			status: AutomationRunStatus.Failed,
-			error: 'Automation run timed out.',
-			removeAvailable: true,
-			outcomes: ['timeout'],
+			runs: [
+				{ status: AutomationRunStatus.Running, scheduledFor: '2026-01-01T02:00:00.000Z', primarySession: 'mock:/hourly-2' },
+				{ status: AutomationRunStatus.Running, scheduledFor: '2026-01-01T01:00:00.000Z', primarySession: 'mock:/hourly-1' },
+			],
+			manualRunReusesNewest: true,
+			cancelCalls: 0,
+			completedRuns: 0,
 		});
 	}));
+
+	for (const emitNotification of [true, false]) {
+		// A provisional session is never announced to clients, so deleting it emits no `SessionRemoved`.
+		test(`deleting the ${emitNotification ? 'published' : 'provisional'} session of an active run cancels the run`, async () => {
+			const session = URI.parse('mock:/deleted-session');
+			const started = new DeferredPromise<void>();
+			let cancelCalls = 0;
+			const service = createService({
+				createSession: async () => {
+					stateManager.createSession({
+						resource: session.toString(), provider: 'mock', title: '', status: SessionStatus.Idle,
+						createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+						defaultChat: buildDefaultChatUri(session.toString()),
+					}, { emitNotification });
+					return session;
+				},
+				startSession: async (createdSession, message) => {
+					stateManager.dispatchServerAction(buildDefaultChatUri(createdSession), {
+						type: ActionType.ChatTurnStarted, turnId: 'deleted-turn', startedAt: new Date().toISOString(), message,
+					});
+					await started.complete();
+				},
+				cancelSession: async () => {
+					cancelCalls++;
+					return false;
+				},
+			});
+			await enableAndCreate(service);
+			const run = await service.runAutomation({
+				channel: 'ahp-automations://',
+				automation: 'ahp-automation:/review-changes',
+				requestId: 'deleted-session',
+			});
+			await started.p;
+			const completed = terminalRun(run.resource);
+
+			stateManager.deleteSession(session.toString());
+			await completed;
+
+			assert.deepStrictEqual({
+				status: stateManager.getAutomationRunState(run.resource)?.lifecycle.status,
+				removeAvailable: stateManager.getAutomationCatalogState()?.entries[0].operations.includes(AutomationOperation.Remove),
+				outcomes: telemetry.events.filter(event => event.name === 'automation.runCompleted').map(event => event.data.outcome),
+				cancelCalls,
+			}, {
+				status: AutomationRunStatus.Cancelled,
+				removeAvailable: true,
+				outcomes: ['cancelled'],
+				cancelCalls: 0,
+			});
+		});
+	}
 
 	test('cancellation wins a session-creation race without sending the prompt', async () => {
 		const session = URI.parse('mock:/cancelled-session');
