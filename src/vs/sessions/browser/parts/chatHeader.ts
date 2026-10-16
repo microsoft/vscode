@@ -42,6 +42,7 @@ export class ChatHeader extends Disposable {
 			session: context.session,
 			chat: context.chat,
 			actionsTargetChat: true,
+			showParentContext: true,
 			activateChatGroup: context.activate,
 		} : undefined);
 	}

@@ -210,7 +210,8 @@ export class SessionGridLayout extends Disposable {
 			const retainedIds = new Set(retainedOrder);
 			const previousOrder = this.entryOrder.filter(id => retainedIds.has(id));
 			const retainedOrderChanged = retainedOrder.some((id, index) => id !== previousOrder[index]);
-			const reorder = orderChanged && !placementChanged && (retainedOrderChanged || entries.every(entry => !entry.placement));
+			const reorder = orderChanged && !placementChanged && (retainedOrderChanged
+				|| entries.some(entry => !this.leaves.has(entry.id)) && entries.every(entry => !entry.placement));
 			const structureChanged = orderChanged || placementChanged;
 			this.entryOrder = entries.map(entry => entry.id);
 			if (structureChanged || (this.active !== active && this.maximized !== active)) {

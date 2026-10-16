@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Direction } from '../../../../../base/browser/ui/grid/grid.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -42,6 +43,7 @@ import { IWorkbenchAssignmentService } from '../../../../../workbench/services/a
 import { Menus } from '../../../../browser/menus.js';
 import { SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../../browser/sessionConversationGroups.js';
 import { SessionView } from '../../../../browser/parts/sessionView.js';
+import { createSessionsPartTestHarness, createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { type IOpenNewSessionOptions, type IOpenNewSessionResult, type IOpenSessionOptions, type IOpenSessionsOptions, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -788,6 +790,43 @@ suite('Sessions - Actions', () => {
 		});
 	});
 
+	test('positional focus commands follow visual pane order and work with only a standalone child', async () => {
+		const { part, container } = createSessionsPartTestHarness(disposables);
+		const parent = createTestActiveSession('parent', true, { chatCount: 2 });
+		const chat = parent.chats.get()[1];
+		const child: IActiveSession = {
+			...parent, scopedChatResource: chat.resource, activeChat: constObservable(chat), visibleChatTabs: constObservable([chat]),
+		};
+		const other = createTestActiveSession('other');
+		part.layout(1202, 802, 0, 0);
+		part.updateVisibleSessions([parent, other, child], parent, [
+			{ id: 'parent' }, { id: 'other' }, { id: 'child', placement: { reference: 'other', direction: Direction.Left } },
+		]);
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const selected: (string | undefined)[] = [];
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override setActive(session: IActiveSession | undefined): void {
+				selected.push(session?.scopedChatResource ? 'child' : session?.sessionId);
+			}
+		});
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
+			override getSessionAtPosition(index: number) { return part.getSessionAtPosition(index); }
+			override focusSession(session: IActiveSession | undefined): void { part.focusSession(session?.sessionId, session?.scopedChatResource); }
+		});
+		for (const position of [2, 9, 8]) {
+			await CommandsRegistry.getCommand(`sessions.focusSessionInGrid${position}`)!.handler(instantiationService);
+		}
+		part.updateVisibleSessions([child], child, [{ id: 'child' }]);
+		for (const position of [1, 9]) {
+			await CommandsRegistry.getCommand(`sessions.focusSessionInGrid${position}`)!.handler(instantiationService);
+		}
+		assert.deepStrictEqual({
+			selected,
+			panes: container.querySelectorAll('.session-view').length,
+			focused: part.getFocusedSessionView()?.getSession()?.scopedChatResource?.toString(),
+		}, { selected: ['child', 'other', 'child', 'child'], panes: 1, focused: chat.resource.toString() });
+	});
+
 	test('routes generic directional navigation commands only while the session grid is focused', async () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const configurationService = new TestConfigurationService();
@@ -1237,8 +1276,9 @@ suite('Sessions - Actions', () => {
 			sticky: constObservable(false),
 		});
 
+		const panes = observableValue<readonly IActiveSession[]>('panes', [activeSession]);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly visibleSessions = constObservable([activeSession]);
+			override readonly visibleSessionPanes = panes;
 		});
 
 		disposables.add(instantiationService.createInstance(SessionConversationActionsContribution));
@@ -1258,6 +1298,13 @@ suite('Sessions - Actions', () => {
 				.filter(item => contextKeyService.contextMatchesRules(item.when))
 				.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value);
 		};
+		const standalone = { ...activeSession, scopedChatResource: peerChat.resource, activeChat: constObservable(peerChat) };
+		panes.set([activeSession, standalone], undefined);
+		const sharedOwnerEntries = MenuRegistry.getMenuItems(Menus.SessionConversations).filter(isIMenuItem)
+			.filter(item => item.command.id.startsWith(`sessions.openChat.${session.sessionId}.`)).length;
+		panes.set([standalone], undefined);
+		const hiddenParentEntries = MenuRegistry.getMenuItems(Menus.SessionConversations).filter(isIMenuItem)
+			.filter(item => item.command.id.startsWith(`sessions.openChat.${session.sessionId}.`)).length;
 
 		assert.deepStrictEqual({
 			registered: registered.map(item => ({
@@ -1266,6 +1313,8 @@ suite('Sessions - Actions', () => {
 			})),
 			forMain: visibleTitles(mainChat),
 			forPeer: visibleTitles(peerChat),
+			sharedOwnerEntries,
+			hiddenParentEntries,
 		}, {
 			registered: [
 				{ title: 'Main side chat', group: SESSION_CONVERSATION_SIDE_CHATS_GROUP },
@@ -1273,6 +1322,8 @@ suite('Sessions - Actions', () => {
 			],
 			forMain: ['Main side chat'],
 			forPeer: ['Peer side chat'],
+			sharedOwnerEntries: 2,
+			hiddenParentEntries: 2,
 		});
 	});
 

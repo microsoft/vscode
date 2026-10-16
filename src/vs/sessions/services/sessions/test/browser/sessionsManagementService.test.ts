@@ -18,7 +18,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -28,6 +28,7 @@ import { INotificationService, NotificationMessage } from '../../../../../platfo
 import { IProgress, IProgressService, IProgressStep } from '../../../../../platform/progress/common/progress.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ChatViewPaneTarget, IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
@@ -59,8 +60,11 @@ import { COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME } from '../../../../
 import type { SessionView } from '../../../../browser/parts/sessionView.js';
 import { Direction } from '../../../../../base/browser/ui/grid/grid.js';
 import { SessionsPart } from '../../../../browser/parts/sessionsPart.js';
+import { SessionGridLayout } from '../../../../browser/parts/sessionGridLayout.js';
 import { createSessionsPartTestHarness } from '../../../../test/browser/sessionViewTestUtils.js';
 import { getChatLayoutOwnerAfterReplacement } from '../../../../common/chatLayout.js';
+import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
+import { DraggedSessionIdentifier, fillSessionChatDragData, getSessionChatDragData, SessionsDataTransfers } from '../../../../browser/dnd.js';
 
 const stubChat = {
 	resource: URI.parse('test:///chat'),
@@ -298,6 +302,7 @@ class TestSessionsPartService extends mock<ISessionsPartService>() {
 	override readonly onDidToggleMaximizeSession = Event.None;
 	override get onDidInteractWithGrid() { return this.part?.onDidInteractWithGrid ?? Event.None; }
 	override getGridLayout() { return this.part?.getGridLayout(); }
+	override getSessionAtPosition(index: number) { return this.part?.getSessionAtPosition(index); }
 	override getSessionPlacement(id: string) { return this.part?.getSessionPlacement(id); }
 	override getNeighborSession(id: string | undefined, direction: Direction) { return this.part?.getNeighborSession(id, direction); }
 	override resizeSession(id: string | undefined, direction: Direction, amount: number): void { this.part?.resizeSession(id, direction, amount); }
@@ -381,6 +386,7 @@ suite('SessionsManagementService', () => {
 			} : undefined;
 			const services = createSessionsManagementService(sessions[0], disposables, provider, trustManagement, trustRequest, undefined, partService, options.storage);
 			ui.instantiationService.stub(ISessionsService, services.view);
+			ui.instantiationService.stub(ISessionsManagementService, services.service);
 			ui.part.layout(1202, 802, 0, 0);
 			return { ...ui, ...services, sessionsChanged };
 		}
@@ -416,6 +422,513 @@ suite('SessionsManagementService', () => {
 				owners: ['a', 'b'], panes: 3, owner: 'a', chat: child.resource.toString(),
 				parent: a.mainChat.get().resource.toString(), shown: 3,
 			});
+		});
+
+		for (const sourceIsParent of [false, true]) {
+			test(`main-chat placement targets the standalone child pane, not its owner (same owner: ${sourceIsParent})`, async () => {
+				const a = created('a');
+				const b = created('b');
+				const child: IChat = { ...a.mainChat.get(), resource: URI.parse('test:///a/child'), title: constObservable('Child') };
+				const parent = { ...a, chats: constObservable([a.mainChat.get(), child]) };
+				const { view, part } = harness([parent, b]);
+				await view.openSessionsInGrid([parent, b]);
+				const visibility = Reflect.get(view, '_visibility') as VisibleSessions;
+				await view.moveChatToGrid(parent.sessionId, child.resource, visibility.getGridSlots()[1].id, 'down');
+				const childSlot = visibility.getRenderedGridSlots().find(slot => visibility.getGridSession(slot.id)?.scopedChatResource?.toString() === child.resource.toString())!;
+				const source = sourceIsParent ? parent : b;
+				const sourceSlot = visibility.getGridSlots()[visibility.getSlot(source.sessionId)!.index];
+				await view.moveChatToGrid(source.sessionId, source.mainChat.get().resource, childSlot.id, 'right');
+				const grid = Reflect.get(part, '_gridWidget') as SessionGridLayout;
+				assert.deepStrictEqual({
+					leftNeighbor: grid.neighbor(sourceSlot.id, Direction.Left),
+					mainChat: view.activeSession.get()?.activeChat.get().resource.toString(),
+					activeOwner: view.activeSession.get()?.sessionId,
+					sourcePaneRetained: visibility.getGridSlots()[visibility.getSlot(source.sessionId)!.index].id,
+					detachedChild: visibility.getGridSession(childSlot.id)?.scopedChatResource?.toString(),
+					panes: grid.order.length,
+				}, {
+					leftNeighbor: childSlot.id,
+					mainChat: source.mainChat.get().resource.toString(),
+					activeOwner: source.sessionId,
+					sourcePaneRetained: sourceSlot.id,
+					detachedChild: child.resource.toString(),
+					panes: 3,
+				});
+			});
+		}
+
+		for (const sourceIsParent of [false, true]) {
+			test(`keyboard movement targets the neighboring standalone child pane (same owner: ${sourceIsParent})`, async () => {
+				const a = created('a');
+				const b = created('b');
+				const child: IChat = { ...a.mainChat.get(), resource: URI.parse('test:///a/child'), title: constObservable('Child') };
+				const parent = { ...a, chats: constObservable([a.mainChat.get(), child]) };
+				const { view, part } = harness([parent, b]);
+				await view.openSessionsInGrid([parent, b]);
+				const visibility = Reflect.get(view, '_visibility') as VisibleSessions;
+				await view.moveChatToGrid(parent.sessionId, child.resource, visibility.getGridSlots()[1].id, 'down');
+				const childSlot = visibility.getRenderedGridSlots().find(slot => visibility.getGridSession(slot.id)?.scopedChatResource)!;
+				const source = sourceIsParent ? parent : b;
+				view.toggleSessionStickiness(source);
+				await view.moveChatToGrid(source.sessionId, source.mainChat.get().resource, childSlot.id, 'right');
+				const sourceSlot = visibility.getGridSlots()[visibility.getSlot(source.sessionId)!.index];
+				const grid = Reflect.get(part, '_gridWidget') as SessionGridLayout;
+				assert.strictEqual(grid.neighbor(sourceSlot.id, Direction.Left), childSlot.id);
+				view.moveSessionInDirection(view.activeSession.get(), Direction.Left);
+				assert.deepStrictEqual({
+					rightNeighbor: grid.neighbor(sourceSlot.id, Direction.Right),
+					activeSession: view.activeSession.get()?.sessionId,
+					activeChat: view.activeSession.get()?.activeChat.get().resource.toString(),
+					pinned: view.activeSession.get()?.sticky.get(),
+					child: visibility.getGridSession(childSlot.id)?.scopedChatResource?.toString(),
+					panes: grid.order.length,
+				}, {
+					rightNeighbor: childSlot.id,
+					activeSession: source.sessionId,
+					activeChat: source.mainChat.get().resource.toString(),
+					pinned: true,
+					child: child.resource.toString(),
+					panes: 3,
+				});
+			});
+		}
+
+		test('multiple-mode split session panes retain session controls when the shared header is hidden', async () => {
+			const a = created('a');
+			const child: IChat = { ...a.mainChat.get(), resource: URI.parse('test:///a/child') };
+			const parent = { ...a, chats: constObservable([a.mainChat.get(), child]) };
+			const { view, part } = harness([parent]);
+			await view.openSession(parent.resource);
+			await view.openChatToSide(parent, child.resource);
+			const pane = part.getSessionView(parent.sessionId)!;
+			const sharedHeader = pane.element.querySelector<HTMLElement>('.session-view-centered-content > .session-header-bar')!;
+			assert.deepStrictEqual({
+				sharedHeaderHidden: sharedHeader.style.display,
+				tabToolbars: [...pane.element.querySelectorAll('.session-chat-tabs-actions')].map(toolbar => toolbar.classList.contains('hidden')),
+			}, { sharedHeaderHidden: 'none', tabToolbars: [false, false] });
+		});
+
+		test('keyboard movement can move the empty composer past a standalone child pane', async () => {
+			const a = created('a');
+			const b = created('b');
+			const child: IChat = { ...a.mainChat.get(), resource: URI.parse('test:///a/child') };
+			const parent = { ...a, chats: constObservable([a.mainChat.get(), child]) };
+			const { view, part } = harness([parent, b]);
+			await view.openSessionsInGrid([parent, b]);
+			const visibility = Reflect.get(view, '_visibility') as VisibleSessions;
+			await view.moveChatToGrid(parent.sessionId, child.resource, visibility.getGridSlots()[1].id, 'down');
+			const childSlot = visibility.getRenderedGridSlots().find(slot => visibility.getGridSession(slot.id)?.scopedChatResource)!;
+			visibility.insertAtGridSlot(undefined, childSlot.id, 'right', true);
+			const composerSlot = visibility.getGridSlots()[visibility.getSlot(undefined)!.index];
+			const grid = Reflect.get(part, '_gridWidget') as SessionGridLayout;
+			assert.strictEqual(grid.neighbor(composerSlot.id, Direction.Left), childSlot.id);
+			view.moveSessionInDirection(undefined, Direction.Left);
+			assert.deepStrictEqual({ neighbor: grid.neighbor(composerSlot.id, Direction.Right), active: view.activeSession.get(), panes: grid.order.length }, {
+				neighbor: childSlot.id, active: undefined, panes: 4,
+			});
+		});
+
+		test('closing a standalone child cancels a restore waiting for another session', async () => {
+			const a = created('a');
+			const b = created('b');
+			const child: IChat = { ...a.mainChat.get(), resource: URI.parse('test:///a/child'), title: constObservable('Child') };
+			const parent = { ...a, chats: constObservable([a.mainChat.get(), child]) };
+			const storage = disposables.add(new InMemoryStorageService());
+			const first = harness([parent, b], { storage });
+			await first.view.openSessionsInGrid([parent, b]);
+			const firstVisibility = Reflect.get(first.view, '_visibility') as VisibleSessions;
+			await first.view.moveChatToGrid(parent.sessionId, child.resource, firstVisibility.getGridSlots()[1].id, 'down');
+			await storage.flush();
+			first.view.dispose();
+
+			const sessions: ISession[] = [parent];
+			const second = harness(sessions, { storage });
+			const restoring = second.view.restoreVisibleSessions();
+			await waitForState(second.view.activeSession, session => session?.scopedChatResource?.toString() === child.resource.toString());
+			await timeout(0);
+			const childPane = second.view.activeSession.get()!;
+			const beforeClose = second.container.querySelectorAll('.session-view').length;
+			second.view.closeSession(childPane);
+			const afterClose = second.container.querySelectorAll('.session-view').length;
+			sessions.push(b);
+			second.sessionsChanged.fire({ added: [b], removed: [], changed: [] });
+			await restoring;
+			const visibility = Reflect.get(second.view, '_visibility') as VisibleSessions;
+			assert.deepStrictEqual({
+				beforeClose, afterClose,
+				afterLateSession: second.container.querySelectorAll('.session-view').length,
+				visible: second.view.visibleSessions.get().map(session => session?.sessionId),
+				detached: visibility.gridSessions.get().some(session => !!session?.scopedChatResource),
+			}, { beforeClose: 2, afterClose: 1, afterLateSession: 1, visible: [parent.sessionId], detached: false });
+		});
+
+		test('a whole-session drag can place its main pane beside its own standalone child', async () => {
+			const a = created('a');
+			const b = created('b');
+			const child: IChat = { ...a.mainChat.get(), resource: URI.parse('test:///a/child') };
+			const parent = { ...a, chats: constObservable([a.mainChat.get(), child]) };
+			const { view, part } = harness([parent, b]);
+			await view.openSessionsInGrid([parent, b]);
+			const visibility = Reflect.get(view, '_visibility') as VisibleSessions;
+			await view.moveChatToGrid(parent.sessionId, child.resource, visibility.getGridSlots()[1].id, 'down');
+			const childSlot = visibility.getRenderedGridSlots().find(slot => visibility.getGridSession(slot.id)?.scopedChatResource)!;
+			const childPane = part.getFocusedSessionView()!.element;
+			const transfer = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>();
+			disposables.add(toDisposable(() => transfer.clearData(DraggedSessionIdentifier.prototype)));
+			transfer.setData([new DraggedSessionIdentifier(parent.sessionId, parent.resource)], DraggedSessionIdentifier.prototype);
+			const dataTransfer = new DataTransfer();
+			dataTransfer.setData(SessionsDataTransfers.SESSION, JSON.stringify({ sessionId: parent.sessionId, resource: parent.resource.toString() }));
+			const bounds = childPane.getBoundingClientRect();
+			const clientX = bounds.right - 10;
+			const clientY = bounds.top + bounds.height / 2;
+			childPane.dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer, clientX, clientY }));
+			const overlay = childPane.querySelector<HTMLElement>('#monaco-workbench-session-drop-overlay');
+			assert.ok(overlay);
+			overlay.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer, clientX, clientY }));
+			await timeout(0);
+			const mainSlot = visibility.getGridSlots()[visibility.getSlot(parent.sessionId)!.index];
+			const grid = Reflect.get(part, '_gridWidget') as SessionGridLayout;
+			assert.deepStrictEqual({
+				target: grid.neighbor(mainSlot.id, Direction.Left),
+				child: visibility.getGridSession(childSlot.id)?.scopedChatResource?.toString(),
+				panes: grid.order.length,
+			}, { target: childSlot.id, child: child.resource.toString(), panes: 3 });
+		});
+
+		for (const mode of [SessionsChatTabsMode.Single, SessionsChatTabsMode.Multiple]) {
+			for (const alreadyVisible of [false, true]) {
+				test(`parent-row drops select the main chat rather than the last active child (${mode}, visible: ${alreadyVisible})`, async () => {
+					const a = created('a');
+					const b = created('b');
+					const selectedChild: IChat = {
+						...a.mainChat.get(), resource: URI.parse('test:///a/selected-child'), title: constObservable('Selected child'),
+						origin: { kind: ChatOriginKind.SideChat, parentChat: a.mainChat.get().resource },
+					};
+					const detachedChild: IChat = {
+						...selectedChild, resource: URI.parse('test:///a/detached-child'), title: constObservable('Detached child'),
+					};
+					const parent = { ...a, chats: constObservable([a.mainChat.get(), selectedChild, detachedChild]) };
+					const { view, part, container, configurationService } = harness([parent, b]);
+					await configurationService.setUserConfiguration(SESSIONS_CHAT_TABS_SETTING, mode);
+					configurationService.onDidChangeConfigurationEmitter.fire({
+						source: ConfigurationTarget.USER,
+						affectedKeys: new Set([SESSIONS_CHAT_TABS_SETTING]),
+						change: { keys: [SESSIONS_CHAT_TABS_SETTING], overrides: [] },
+						affectsConfiguration: key => key === SESSIONS_CHAT_TABS_SETTING,
+					});
+					await view.openSessionsInGrid([parent, b]);
+					const visibility = Reflect.get(view, '_visibility') as VisibleSessions;
+					if (alreadyVisible) {
+						await view.moveChatToGrid(parent.sessionId, detachedChild.resource, visibility.getGridSlots()[1].id, 'down');
+					}
+					const standalone = visibility.gridSessions.get().find(session => session?.scopedChatResource);
+					await view.openChat(parent, selectedChild.resource);
+					assert.strictEqual(view.activeSession.get()?.activeChat.get().resource.toString(), selectedChild.resource.toString());
+					if (!alreadyVisible) {
+						view.closeSession(parent);
+					}
+					const target = part.getSessionView(b.sessionId)!.element;
+					const transfer = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>();
+					disposables.add(toDisposable(() => transfer.clearData(DraggedSessionIdentifier.prototype)));
+					transfer.setData([new DraggedSessionIdentifier(parent.sessionId, parent.resource)], DraggedSessionIdentifier.prototype);
+					const dataTransfer = new DataTransfer();
+					dataTransfer.setData(SessionsDataTransfers.SESSION, JSON.stringify({ sessionId: parent.sessionId, resource: parent.resource.toString() }));
+					const bounds = target.getBoundingClientRect();
+					const clientX = bounds.left + bounds.width / 2;
+					const clientY = bounds.bottom - 10;
+					target.dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer, clientX, clientY }));
+					const overlay = target.querySelector<HTMLElement>('#monaco-workbench-session-drop-overlay');
+					assert.ok(overlay);
+					overlay.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer, clientX, clientY }));
+					await timeout(0);
+					assert.deepStrictEqual({
+						activeOwner: view.activeSession.get()?.sessionId,
+						activeChat: view.activeSession.get()?.activeChat.get().resource.toString(),
+						paneChat: part.getFocusedSessionView()?.getActiveChat()?.resource.toString(),
+						standaloneRetained: visibility.gridSessions.get().find(session => session?.scopedChatResource) === standalone,
+						panes: container.querySelectorAll('.session-view').length,
+					}, {
+						activeOwner: parent.sessionId,
+						activeChat: parent.mainChat.get().resource.toString(),
+						paneChat: parent.mainChat.get().resource.toString(),
+						standaloneRetained: true,
+						panes: alreadyVisible ? 3 : 2,
+					});
+				});
+			}
+		}
+
+		for (const mode of [SessionsChatTabsMode.Single, SessionsChatTabsMode.Multiple]) {
+			test(`closing a parent preserves its child pane and sidebar drags work while the parent is hidden (${mode})`, async () => {
+				const a = created('a');
+				const b = created('b');
+				const children = ['first', 'second'].map(name => ({
+					...a.mainChat.get(), resource: URI.parse(`test:///a/${name}`), title: constObservable(name),
+					origin: { kind: ChatOriginKind.SideChat, parentChat: a.mainChat.get().resource },
+				}));
+				const parent = { ...a, chats: constObservable([a.mainChat.get(), ...children]) };
+				const { view, part, container, chatViews, configurationService } = harness([parent, b]);
+				await configurationService.setUserConfiguration(SESSIONS_CHAT_TABS_SETTING, mode);
+				configurationService.onDidChangeConfigurationEmitter.fire({
+					source: ConfigurationTarget.USER,
+					affectedKeys: new Set([SESSIONS_CHAT_TABS_SETTING]),
+					change: { keys: [SESSIONS_CHAT_TABS_SETTING], overrides: [] },
+					affectsConfiguration: key => key === SESSIONS_CHAT_TABS_SETTING,
+				});
+				await view.openSessionsInGrid([parent, b]);
+				const visibility = Reflect.get(view, '_visibility') as VisibleSessions;
+				const dropChild = async (chat: IChat) => {
+					const target = part.getSessionView(b.sessionId)!.element;
+					const dataTransfer = new DataTransfer();
+					fillSessionChatDragData(new DragEvent('dragstart', { dataTransfer }), parent.sessionId, chat.resource);
+					const bounds = target.getBoundingClientRect();
+					const clientX = bounds.right - 10;
+					const clientY = bounds.top + bounds.height / 2;
+					target.dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer, clientX, clientY }));
+					const overlay = target.querySelector<HTMLElement>('#monaco-workbench-session-drop-overlay');
+					assert.ok(overlay, 'sidebar child drags must have an outer grid drop target');
+					overlay.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer, clientX, clientY }));
+					await timeout(0);
+				};
+				await dropChild(children[0]);
+				const pane = part.getFocusedSessionView();
+				const chatView = chatViews.find(chat => chat.chat?.resource.toString() === children[0].resource.toString())!;
+				chatView.input.value = 'keep my draft';
+				view.closeSession(parent);
+				await view.openChat(parent, children[0].resource);
+				const afterParentClose = {
+					roots: view.visibleSessions.get().map(session => session?.sessionId),
+					retained: part.getFocusedSessionView() === pane,
+					disposed: chatView.disposed,
+					input: chatView.input.value,
+					panes: container.querySelectorAll('.session-view').length,
+				};
+				view.closeSession(view.activeSession.get()!);
+				await dropChild(children[0]);
+				await dropChild(children[1]);
+				const withoutParent = {
+					roots: view.visibleSessions.get().map(session => session?.sessionId),
+					children: visibility.gridSessions.get().filter(session => session?.scopedChatResource).map(session => session?.scopedChatResource?.toString()),
+					panes: container.querySelectorAll('.session-view').length,
+				};
+				const childSlot = visibility.getRenderedGridSlots().find(slot => visibility.getGridSession(slot.id)?.scopedChatResource)!;
+				await view.openSessionsAt([parent], parent.sessionId, 'down', { referenceSlotId: childSlot.id, forceMainChat: true });
+				assert.deepStrictEqual({
+					afterParentClose,
+					withoutParent,
+					reopenedParent: part.getFocusedSessionView()?.getActiveChat()?.resource.toString(),
+					parentTabs: view.activeSession.get()?.visibleChatTabs.get().map(chat => chat.resource.toString()),
+					panes: container.querySelectorAll('.session-view').length,
+				}, {
+					afterParentClose: { roots: ['b'], retained: true, disposed: false, input: 'keep my draft', panes: 2 },
+					withoutParent: { roots: ['b'], children: children.map(chat => chat.resource.toString()), panes: 3 },
+					reopenedParent: parent.mainChat.get().resource.toString(),
+					parentTabs: [parent.mainChat.get().resource.toString()],
+					panes: 4,
+				});
+			});
+		}
+
+		test('a child-only layout restores without reopening the parent, and Close All closes its panes', async () => {
+			const a = created('a');
+			const children = ['first', 'second'].map(name => ({ ...a.mainChat.get(), resource: URI.parse(`test:///a/${name}`) }));
+			const parent = { ...a, chats: constObservable([a.mainChat.get(), ...children]) };
+			const storage = disposables.add(new InMemoryStorageService());
+			const first = harness([parent], { storage });
+			await first.view.openSession(parent.resource);
+			const visibility = Reflect.get(first.view, '_visibility') as VisibleSessions;
+			for (const child of children) {
+				await first.view.moveChatToGrid(parent.sessionId, child.resource, visibility.getGridSlots()[0].id, 'right');
+			}
+			first.view.closeSession(parent);
+			const geometry = first.part.getGridLayout();
+			await storage.flush();
+			first.view.dispose();
+			const restored = harness([parent], { storage });
+			await restored.view.restoreVisibleSessions();
+			const before = {
+				roots: restored.view.visibleSessions.get().map(session => session?.sessionId),
+				panes: restored.container.querySelectorAll('.session-view').length,
+				geometry: restored.part.getGridLayout(),
+				active: restored.view.activeSession.get()?.scopedChatResource?.toString(),
+			};
+			restored.view.closeAllSessions();
+			assert.deepStrictEqual({ before, active: restored.view.activeSession.get(), shown: restored.part.shownChatCount.get() }, {
+				before: { roots: [], panes: 2, geometry, active: children[1].resource.toString() },
+				active: undefined, shown: 1,
+			});
+		});
+
+		test('reload selects a surviving child when the previously active child was deleted', async () => {
+			const a = created('a');
+			const children = ['surviving', 'deleted'].map(name => ({ ...a.mainChat.get(), resource: URI.parse(`test:///a/${name}`) }));
+			const chats = observableValue<readonly IChat[]>('chats', [a.mainChat.get(), ...children]);
+			const parent = { ...a, chats };
+			const storage = disposables.add(new InMemoryStorageService());
+			const first = harness([parent], { storage });
+			await first.view.openSession(parent.resource);
+			const visibility = Reflect.get(first.view, '_visibility') as VisibleSessions;
+			for (const child of children) {
+				await first.view.moveChatToGrid(parent.sessionId, child.resource, visibility.getGridSlots()[0].id, 'right');
+			}
+			first.view.closeSession(parent);
+			await storage.flush();
+			first.view.dispose();
+			first.part.dispose();
+			chats.set([a.mainChat.get(), children[0]], undefined);
+			const restored = harness([parent], { storage });
+			await restored.view.restoreVisibleSessions();
+			assert.deepStrictEqual({
+				roots: restored.view.visibleSessions.get().length,
+				panes: restored.view.visibleSessionPanes.get().map(session => session?.scopedChatResource?.toString()),
+				active: restored.view.activeSession.get()?.scopedChatResource?.toString(),
+				focused: restored.part.getFocusedSessionView()?.getActiveChat()?.resource.toString(),
+			}, { roots: 0, panes: [children[0].resource.toString()], active: children[0].resource.toString(), focused: children[0].resource.toString() });
+		});
+
+		for (const parentVisible of [false, true]) {
+			test(`sidebar directional placement targets the active child rather than its owner (parent visible: ${parentVisible})`, async () => {
+				const a = created('a');
+				const b = created('b');
+				const child: IChat = { ...a.mainChat.get(), resource: URI.parse('test:///a/child') };
+				const parent = { ...a, chats: constObservable([a.mainChat.get(), child]) };
+				const { view, part, container } = harness([parent, b]);
+				await view.openSessionsInGrid([parent]);
+				const visibility = Reflect.get(view, '_visibility') as VisibleSessions;
+				await view.moveChatToGrid(parent.sessionId, child.resource, visibility.getGridSlots()[0].id, 'right');
+				const pane = part.getFocusedSessionView();
+				if (!parentVisible) {
+					view.closeSession(parent);
+				}
+				const childSlot = visibility.getRenderedGridSlots().find(slot => visibility.getGridSession(slot.id)?.scopedChatResource)!.id;
+				await view.openSessionsAt([b], view.activeSession.get()?.sessionId, 'down', { source: 'sessionsList', activate: 'last' });
+				const grid = Reflect.get(part, '_gridWidget') as SessionGridLayout;
+				const targetSlot = visibility.getGridSlots()[visibility.getSlot(b.sessionId)!.index].id;
+				assert.deepStrictEqual({
+					above: grid.neighbor(targetSlot, Direction.Up),
+					active: view.activeSession.get()?.sessionId,
+					panes: container.querySelectorAll('.session-view').length,
+					childRetained: pane?.element.isConnected,
+				}, { above: childSlot, active: b.sessionId, panes: parentVisible ? 3 : 2, childRetained: true });
+			});
+		}
+
+		test('New Session to the Side opens beside a child whose parent pane is closed', async () => {
+			const a = created('a');
+			const child: IChat = { ...a.mainChat.get(), resource: URI.parse('test:///a/child') };
+			const parent = { ...a, chats: constObservable([a.mainChat.get(), child]) };
+			const { view, part, container } = harness([parent]);
+			await view.openSession(parent.resource);
+			const visibility = Reflect.get(view, '_visibility') as VisibleSessions;
+			await view.moveChatToGrid(parent.sessionId, child.resource, visibility.getGridSlots()[0].id, 'down');
+			view.closeSession(parent);
+			const pane = part.getFocusedSessionView();
+			const childSlot = visibility.getRenderedGridSlots()[0].id;
+			await view.openNewSession({ toSide: true });
+			const grid = Reflect.get(part, '_gridWidget') as SessionGridLayout;
+			const composer = visibility.getGridSlots()[0].id;
+			assert.deepStrictEqual({
+				panes: container.querySelectorAll('.session-view').length,
+				active: view.activeSession.get(),
+				retained: visibility.getGridSession(childSlot)?.scopedChatResource?.toString(),
+				connected: pane?.element.isConnected,
+				leftNeighbor: grid.neighbor(composer, Direction.Left),
+			}, { panes: 2, active: undefined, retained: child.resource.toString(), connected: true, leftNeighbor: childSlot });
+		});
+
+		for (const operation of ['remove', 'collapse'] as const) {
+			test(`${operation} handles owners that have only standalone child panes without reopening their parents`, async () => {
+				const sessions = ['a', 'b'].map(id => {
+					const session = created(id);
+					const child: IChat = { ...session.mainChat.get(), resource: URI.parse(`test:///${id}/child`) };
+					return { ...session, chats: constObservable([session.mainChat.get(), child]) };
+				});
+				const [a, b] = sessions;
+				const { view, part, container, sessionsChanged } = harness(sessions);
+				await view.openSessionsInGrid(sessions);
+				const visibility = Reflect.get(view, '_visibility') as VisibleSessions;
+				for (const session of sessions) {
+					await view.moveChatToGrid(session.sessionId, session.chats.get()[1].resource, visibility.getGridSlots()[0].id, 'down');
+				}
+				view.closeSession(a);
+				view.closeSession(b);
+				const survivingPane = part.getFocusedSessionView();
+				const survivingSession = view.activeSession.get()!;
+				if (operation === 'remove') {
+					await view.openChat(a, a.chats.get()[1].resource);
+					sessions.splice(0, 1);
+					sessionsChanged.fire({ added: [], removed: [a], changed: [] });
+					await timeout(0);
+				} else {
+					view.collapseToSession(survivingSession);
+				}
+				assert.deepStrictEqual({
+					roots: view.visibleSessions.get().length,
+					panes: container.querySelectorAll('.session-view').length,
+					active: view.activeSession.get()?.scopedChatResource?.toString(),
+					retained: part.getFocusedSessionView() === survivingPane,
+				}, { roots: 0, panes: 1, active: b.chats.get()[1].resource.toString(), retained: true });
+			});
+		}
+
+		test('a hidden-parent child drag cannot resurrect a session removed during provider preparation', async () => {
+			const a = created('a');
+			const b = created('b');
+			const child: IChat = { ...a.mainChat.get(), resource: URI.parse('test:///a/child') };
+			const parent = { ...a, chats: constObservable([a.mainChat.get(), child]) };
+			const sessions = [parent, b];
+			const started = new DeferredPromise<void>();
+			const finish = new DeferredPromise<void>();
+			const { view, container, sessionsChanged } = harness(sessions, {
+				prepare: async session => {
+					if (session === parent) {
+						started.complete();
+						await finish.p;
+					}
+				},
+			});
+			await view.openSession(b.resource);
+			const visibility = Reflect.get(view, '_visibility') as VisibleSessions;
+			const opening = view.moveChatToGrid(parent.sessionId, child.resource, visibility.getGridSlots()[0].id, 'right');
+			await started.p;
+			sessions.splice(0, 1);
+			sessionsChanged.fire({ added: [], removed: [parent], changed: [] });
+			finish.complete();
+			await opening;
+			assert.deepStrictEqual({
+				active: view.activeSession.get()?.sessionId,
+				panes: container.querySelectorAll('.session-view').length,
+				children: visibility.gridSessions.get().filter(session => session?.scopedChatResource).length,
+			}, { active: b.sessionId, panes: 1, children: 0 });
+		});
+
+		test('a hidden-parent child drag is cancelled if its destination closes during provider preparation', async () => {
+			const a = created('a');
+			const b = created('b');
+			const child: IChat = { ...a.mainChat.get(), resource: URI.parse('test:///a/child') };
+			const parent = { ...a, chats: constObservable([a.mainChat.get(), child]) };
+			const started = new DeferredPromise<void>();
+			const finish = new DeferredPromise<void>();
+			const { view, container } = harness([parent, b], {
+				prepare: async session => {
+					if (session === parent) {
+						started.complete();
+						await finish.p;
+					}
+				},
+			});
+			await view.openSession(b.resource);
+			const visibility = Reflect.get(view, '_visibility') as VisibleSessions;
+			const opening = view.moveChatToGrid(parent.sessionId, child.resource, visibility.getGridSlots()[0].id, 'right');
+			await started.p;
+			view.closeSession(b);
+			finish.complete();
+			await opening;
+			assert.deepStrictEqual({
+				active: view.activeSession.get(),
+				panes: container.querySelectorAll('.session-view').length,
+				children: visibility.gridSessions.get().filter(session => session?.scopedChatResource).length,
+			}, { active: undefined, panes: 1, children: 0 });
 		});
 
 		test('independent chat panes survive reload, route navigation, and close without closing their parent', async () => {
@@ -480,6 +993,108 @@ suite('SessionsManagementService', () => {
 				parent: child.origin?.parentChat?.toString(),
 			}, { panes: 2, activeScope: undefined, owner: parent.sessionId, parent: a.mainChat.get().resource.toString() });
 		});
+
+		test('single mode blocks standalone chat reattachment while multiple mode still accepts it', async () => {
+			const a = created('a');
+			const b = created('b');
+			const child: IChat = { ...a.mainChat.get(), resource: URI.parse('test:///a/child'), title: constObservable('Child') };
+			const parent = { ...a, chats: constObservable([a.mainChat.get(), child]) };
+			const { view, part, container, configurationService } = harness([parent, b]);
+			await view.openSessionsInGrid([parent, b]);
+			await view.moveChatToGrid(parent.sessionId, child.resource, (Reflect.get(view, '_visibility') as VisibleSessions).getGridSlots()[1].id, 'down');
+			const setMode = async (mode: SessionsChatTabsMode) => {
+				await configurationService.setUserConfiguration(SESSIONS_CHAT_TABS_SETTING, mode);
+				configurationService.onDidChangeConfigurationEmitter.fire({
+					source: ConfigurationTarget.USER,
+					affectedKeys: new Set([SESSIONS_CHAT_TABS_SETTING]),
+					change: { keys: [SESSIONS_CHAT_TABS_SETTING], overrides: [] },
+					affectsConfiguration: key => key === SESSIONS_CHAT_TABS_SETTING,
+				});
+			};
+			await setMode(SessionsChatTabsMode.Single);
+			const detached = part.getFocusedSessionView()!;
+			const header = detached.element.querySelector<HTMLElement>('.session-header-bar')!;
+			const headerDrag = new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: new DataTransfer() });
+			header.dispatchEvent(headerDrag);
+			const parentView = container.querySelectorAll<HTMLElement>('.session-view')[0];
+			const parentGroup = parentView.querySelector<HTMLElement>('.chat-group-view')!;
+			parentGroup.dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer: headerDrag.dataTransfer }));
+			const single = {
+				hasOverlay: !!parentView.querySelector('#monaco-workbench-chat-group-drop-overlay'),
+				panes: container.querySelectorAll('.session-view').length,
+				detached: view.activeSession.get()?.scopedChatResource?.toString(),
+				payload: getSessionChatDragData(headerDrag),
+				marked: headerDrag.dataTransfer!.types.includes(SessionsDataTransfers.DETACHED_CHAT),
+			};
+			header.dispatchEvent(new DragEvent('dragend', { bubbles: true }));
+			await setMode(SessionsChatTabsMode.Multiple);
+			const tab = detached.element.querySelector<HTMLElement>('.chat-composite-bar-tab')!;
+			const tabDrag = new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: new DataTransfer() });
+			tab.dispatchEvent(tabDrag);
+			const tabMarked = tabDrag.dataTransfer!.types.includes(SessionsDataTransfers.DETACHED_CHAT);
+			const area = parentView.querySelector<HTMLElement>('.session-chat-tabs-bar')!;
+			const bounds = area.getBoundingClientRect();
+			const clientX = bounds.left + bounds.width / 2;
+			const clientY = bounds.top + bounds.height / 2;
+			area.dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer: tabDrag.dataTransfer, clientX, clientY }));
+			const overlay = parentView.querySelector<HTMLElement>('#monaco-workbench-chat-group-drop-overlay');
+			assert.ok(overlay);
+			overlay.dispatchEvent(new DragEvent('dragover', { bubbles: true, dataTransfer: tabDrag.dataTransfer, clientX, clientY }));
+			overlay.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: tabDrag.dataTransfer, clientX, clientY }));
+			await timeout(0);
+			assert.deepStrictEqual({
+				single, tabMarked,
+				multiple: { panes: container.querySelectorAll('.session-view').length, detached: view.activeSession.get()?.scopedChatResource },
+			}, {
+				single: {
+					hasOverlay: false, panes: 3, detached: child.resource.toString(),
+					payload: { sessionId: parent.sessionId, resource: child.resource.toString(), isDetached: true }, marked: true,
+				},
+				tabMarked: true,
+				multiple: { panes: 2, detached: undefined },
+			});
+		});
+
+		for (const position of ['left', 'middle', 'right'] as const) {
+			test(`dropping a standalone child onto the ${position} of its parent's tab area reattaches it without splitting`, async () => {
+				const a = created('a');
+				const b = created('b');
+				const child: IChat = { ...a.mainChat.get(), resource: URI.parse('test:///a/child'), title: constObservable('Child'), origin: { kind: ChatOriginKind.SideChat, parentChat: a.mainChat.get().resource } };
+				const parent = { ...a, chats: constObservable([a.mainChat.get(), child]) };
+				const { view, part, container } = harness([parent, b]);
+				await view.openSessionsInGrid([parent, b]);
+				await view.moveChatToGrid(parent.sessionId, child.resource, (Reflect.get(view, '_visibility') as VisibleSessions).getGridSlots()[1].id, 'down');
+				const parentView = container.querySelectorAll<HTMLElement>('.session-view')[0];
+				const tabArea = parentView.querySelector<HTMLElement>('.session-chat-tabs-bar')!;
+				const bounds = tabArea.getBoundingClientRect();
+				assert.ok(bounds.width > 0 && bounds.height > 0, 'the parent tab strip stays visible while its child is detached');
+				const clientX = position === 'left' ? bounds.left + 4 : position === 'right' ? bounds.right - 4 : bounds.left + bounds.width / 2;
+				const clientY = bounds.top + bounds.height / 2;
+				const childTab = part.getFocusedSessionView()!.element.querySelector<HTMLElement>('.chat-composite-bar-tab')!;
+				const dataTransfer = new DataTransfer();
+				childTab.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer }));
+				tabArea.dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer, clientX, clientY }));
+				const overlay = parentView.querySelector<HTMLElement>('#monaco-workbench-chat-group-drop-overlay');
+				assert.ok(overlay);
+				const indicator = overlay.querySelector<HTMLElement>('.chat-group-drop-overlay-indicator')!;
+				overlay.dispatchEvent(new DragEvent('dragover', { bubbles: true, dataTransfer, clientX, clientY }));
+				const preview = { width: indicator.style.width, height: indicator.style.height };
+				overlay.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer, clientX, clientY }));
+				await timeout(0);
+				assert.deepStrictEqual({
+					preview,
+					panes: container.querySelectorAll('.session-view').length,
+					parentGroups: parentView.querySelectorAll('.chat-group-view').length,
+					tabs: [...parentView.querySelectorAll('.chat-composite-bar-tab')].map(tab => tab.getAttribute('data-chat-resource')),
+					active: parentView.querySelector('.chat-composite-bar-tab.active')?.getAttribute('data-chat-resource'),
+					standalone: view.activeSession.get()?.scopedChatResource,
+				}, {
+					preview: { width: '100%', height: '100%' }, panes: 2, parentGroups: 1,
+					tabs: [a.mainChat.get().resource.toString(), child.resource.toString()],
+					active: child.resource.toString(), standalone: undefined,
+				});
+			});
+		}
 
 		test('restores a standalone chat after its provider finishes loading the chat catalog', async () => {
 			const a = created('a');

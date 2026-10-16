@@ -269,30 +269,29 @@ suite('Sessions - Headers', () => {
 		assert.deepStrictEqual([toolbarDrag.defaultPrevented, editingDrag.defaultPrevented], [true, true]);
 	});
 
-	test('the gripper reveals on header intent without changing the title position', () => {
+	test('headers use a drag cursor without a drag-handle icon', () => {
 		const { header } = createHarness(disposables);
 		const container = header.element.parentElement!;
 		mainWindow.document.body.appendChild(container);
 		try {
-			const gripper = header.element.querySelector<HTMLElement>('.session-header-drag-handle')!;
 			const title = header.element.querySelector<HTMLElement>('.chat-composite-bar-session-title-text')!;
-			const before = { opacity: mainWindow.getComputedStyle(gripper).opacity, left: title.getBoundingClientRect().left };
+			const before = title.getBoundingClientRect().left;
 			header.element.classList.add('hovered');
 			assert.deepStrictEqual({
-				before,
-				after: { opacity: mainWindow.getComputedStyle(gripper).opacity, left: title.getBoundingClientRect().left },
-				decorative: gripper.getAttribute('aria-hidden'),
+				hasDragHandle: header.element.querySelector('.session-header-drag-handle') !== null,
+				cursor: mainWindow.getComputedStyle(header.element).cursor,
+				titleMoved: title.getBoundingClientRect().left !== before,
 			}, {
-				before: { opacity: '0', left: before.left },
-				after: { opacity: '1', left: before.left },
-				decorative: 'true',
+				hasDragHandle: false,
+				cursor: 'grab',
+				titleMoved: false,
 			});
 		} finally {
 			container.remove();
 		}
 	});
 
-	test('breadcrumbs follow chat ancestry and parent renames and clear for the main chat', () => {
+	test('standalone header descriptions follow ancestry and parent renames and clear for the main chat', () => {
 		const { header, session, activeChat, mainChat, secondChat } = createHarness(disposables);
 		const nestedChat: IChat = {
 			...secondChat,
@@ -301,9 +300,11 @@ suite('Sessions - Headers', () => {
 			origin: { kind: ChatOriginKind.SideChat, parentChat: secondChat.resource },
 		};
 		session.chats.set([mainChat, secondChat, nestedChat], undefined);
+		header.setSession({ ...session, scopedChatResource: nestedChat.resource });
 		const describe = () => ({
-			parents: [...header.element.querySelectorAll('.session-header-breadcrumb')].map(el => el.textContent),
-			hidden: header.element.querySelector<HTMLElement>('.session-header-breadcrumbs')!.hidden,
+			title: header.element.querySelector('.label-name')?.textContent,
+			description: header.element.querySelector('.label-description')?.textContent ?? '',
+			hasSeparator: header.element.querySelector('.chat-composite-bar-session-title')?.classList.contains('has-description'),
 			label: header.element.getAttribute('aria-label'),
 		});
 		activeChat.set(nestedChat, undefined);
@@ -313,13 +314,13 @@ suite('Sessions - Headers', () => {
 		const renamed = describe();
 		activeChat.set(mainChat, undefined);
 		assert.deepStrictEqual({ nested, renamed, main: describe() }, {
-			nested: { parents: ['My Session', 'Second Chat'], hidden: false, label: 'Chat: My Session / Second Chat / Nested Chat' },
-			renamed: { parents: ['Renamed Session', 'Renamed Parent'], hidden: false, label: 'Chat: Renamed Session / Renamed Parent / Nested Chat' },
-			main: { parents: [], hidden: true, label: 'Chat: Main Chat' },
+			nested: { title: 'Nested Chat', description: 'My Session / Second Chat', hasSeparator: true, label: 'Chat: My Session / Second Chat / Nested Chat' },
+			renamed: { title: 'Nested Chat', description: 'Renamed Session / Renamed Parent', hasSeparator: true, label: 'Chat: Renamed Session / Renamed Parent / Nested Chat' },
+			main: { title: 'Main Chat', description: '', hasSeparator: false, label: 'Chat: Main Chat' },
 		});
 	});
 
-	test('breadcrumbs tolerate missing and cyclic ancestors and clear with the header context', () => {
+	test('ancestry tolerates missing and cyclic parents and clears with the header context', () => {
 		const { header, session, activeChat, mainChat, secondChat } = createHarness(disposables);
 		const child: IChat = { ...secondChat, origin: { kind: ChatOriginKind.SideChat, parentChat: secondChat.resource } };
 		activeChat.set(child, undefined);
@@ -331,7 +332,7 @@ suite('Sessions - Headers', () => {
 		header.setSession(undefined);
 		assert.deepStrictEqual({
 			cyclic, missing,
-			cleared: header.element.querySelector<HTMLElement>('.session-header-breadcrumbs')!.hidden,
+			cleared: header.element.querySelector('.label-name')?.textContent === '',
 			label: header.element.getAttribute('aria-label'),
 		}, {
 			cyclic: 'Chat: My Session / Second Chat',
@@ -340,6 +341,33 @@ suite('Sessions - Headers', () => {
 			label: null,
 		});
 	});
+
+	for (const standalone of [false, true]) {
+		test(`headers use the same title, dot and parent-description pattern as tabs (standalone: ${standalone})`, () => {
+			const { header, session, activeChat, secondChat, store } = createHarness(disposables, { supportsMultipleChats: true, supportsRename: true });
+			activeChat.set(secondChat, undefined);
+			header.setSession(standalone ? { ...session, scopedChatResource: secondChat.resource } : session);
+			const container = header.element.parentElement!;
+			mainWindow.document.body.appendChild(container);
+			store.add(toDisposable(() => container.remove()));
+			const title = header.element.querySelector('.chat-composite-bar-session-title')!;
+			const description = title.querySelector('.label-description');
+			const before = {
+				name: title.querySelector('.label-name')?.textContent,
+				parent: description?.textContent ?? '',
+				dot: description ? mainWindow.getComputedStyle(description, '::before').content : 'none',
+				hasBreadcrumbs: header.element.querySelector('.session-header-breadcrumbs') !== null,
+			};
+			header.startTitleEditing();
+			assert.deepStrictEqual({
+				before,
+				renameValue: header.element.querySelector<HTMLInputElement>('.chat-composite-bar-session-title-input')?.value,
+			}, {
+				before: { name: 'Second Chat', parent: standalone ? 'My Session' : '', dot: standalone ? '"\u00b7"' : 'none', hasBreadcrumbs: false },
+				renameValue: 'Second Chat',
+			});
+		});
+	}
 
 	test('activates its chat group before a header action can run', () => {
 		const { store, instantiationService, session, activeChat } = createHarness(disposables);
@@ -472,7 +500,7 @@ suite('Sessions - Headers', () => {
 			activate: () => { },
 		});
 
-		assert.strictEqual(header.element.querySelector<HTMLElement>('.chat-composite-bar-session-title-text')?.textContent, 'New Session');
+		assert.strictEqual(header.element.querySelector<HTMLElement>('.chat-composite-bar-session-title-text .label-name')?.textContent, 'New Session');
 	});
 
 	test('renders the overflow action before the small close control', () => {

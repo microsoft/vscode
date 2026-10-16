@@ -60,6 +60,7 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 	}
 
 	getGridLayout() { return this._mainPart.getGridLayout(); }
+	getSessionAtPosition(index: number) { return this._mainPart.getSessionAtPosition(index); }
 	getNeighborSession(sessionId: string | undefined, direction: Direction) { return this._mainPart.getNeighborSession(sessionId, direction); }
 	getSessionPlacement(sessionId: string) { return this._mainPart.getSessionPlacement(sessionId); }
 	resizeSession(sessionId: string | undefined, direction: Direction, amount: number): void { this._mainPart.resizeSession(sessionId, direction, amount); }

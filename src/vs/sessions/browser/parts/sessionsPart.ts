@@ -320,6 +320,12 @@ export class SessionsPart extends Part {
 
 	getGridLayout(): ISerializedGrid | undefined { return this._gridWidget?.serialize(); }
 
+	getSessionAtPosition(index: number): IActiveSession | null | undefined {
+		const id = this._gridWidget?.order.at(index);
+		const slot = this._slots.find(slot => slot.id === id);
+		return slot ? slot.session ?? null : undefined;
+	}
+
 	getNeighborSession(sessionId: string | undefined, direction: Direction): IActiveSession | null | undefined {
 		const slot = this._findSessionSlot(sessionId);
 		const neighbor = slot && this._gridWidget?.neighbor(slot.id, direction);

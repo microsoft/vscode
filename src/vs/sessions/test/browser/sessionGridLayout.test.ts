@@ -499,6 +499,29 @@ suite('Sessions - Grid Layout', () => {
 		});
 	});
 
+	test('closing a restored parent preserves the topology of retained panes despite binding order', () => {
+		const { grid, a, b } = harness();
+		const child = { id: 'child', view: new View(), placement: { reference: b.id, direction: Direction.Left } };
+		grid.reconcile([a, b, child], child.id);
+		grid.resize(child.id, 300, 600);
+		const saved = grid.serialize()!;
+		const restored = harness();
+		const restoredChild = { id: child.id, view: new View() };
+		restored.grid.reconcile([restored.a, restored.b, restoredChild], child.id);
+		restored.grid.restore(saved);
+		restoredChild.view.element.value = 'retained draft';
+		restoredChild.view.element.focus();
+		grid.reconcile([b, child], child.id);
+		restored.grid.reconcile([restored.b, restoredChild], child.id);
+		assert.deepStrictEqual({
+			geometry: restored.grid.serialize(),
+			sizes: sizes(restored.grid),
+			connected: restoredChild.view.element.isConnected,
+			focused: document.activeElement === restoredChild.view.element,
+			input: restoredChild.view.element.value,
+		}, { geometry: grid.serialize(), sizes: sizes(grid), connected: true, focused: true, input: 'retained draft' });
+	});
+
 	test('reordering and balanced arrangement never steal external focus', () => {
 		const { grid, a, b, c } = harness();
 		const outside = document.createElement('input');
@@ -679,6 +702,38 @@ suite('Sessions - Grid Layout', () => {
 		assert.deepStrictEqual({ maximized: grid.maximized, visible: [a, b].map(entry => entry.view.visible), sizes: sizes(grid) }, {
 			maximized: undefined, visible: [true, true],
 			sizes: [{ id: 'a', width: 400, height: 600 }, { id: 'b', width: 800, height: 600 }],
+		});
+	});
+
+	test('a partial restore does not leave a singleton branch that prevents closing its child', () => {
+		const { grid, a, b, c } = harness();
+		grid.reconcile([a, b, c], c.id);
+		const partial = projectSessionGrid(grid.serialize()!, id => id === b.id ? undefined : id)!;
+		grid.reconcile([a, c], c.id);
+		grid.restore(partial);
+		const restored = sizes(grid);
+		grid.reconcile([a], a.id);
+		assert.deepStrictEqual({ restored, closed: sizes(grid) }, {
+			restored: [{ id: a.id, width: 400, height: 600 }, { id: c.id, width: 800, height: 600 }],
+			closed: [{ id: a.id, width: 1200, height: 600 }],
+		});
+	});
+
+	test('pruning a singleton branch preserves the orientation and proportions of its nested split', () => {
+		const { grid, a, b, c } = harness();
+		const d = { id: 'd', view: new View(), placement: { reference: c.id, direction: Direction.Right } };
+		grid.reconcile([a, b, c, d], c.id);
+		const original = grid.serialize()!;
+		const originalJson = JSON.stringify(original);
+		const partial = projectSessionGrid(original, id => id === b.id ? undefined : id)!;
+		grid.reconcile([a, c, d], c.id);
+		grid.restore(partial);
+		const restored = sizes(grid);
+		grid.reconcile([a, c], c.id);
+		assert.deepStrictEqual({ restored, removed: sizes(grid), originalUnchanged: JSON.stringify(original) === originalJson }, {
+			restored: [{ id: a.id, width: 400, height: 600 }, { id: c.id, width: 400, height: 600 }, { id: d.id, width: 400, height: 600 }],
+			removed: [{ id: a.id, width: 400, height: 600 }, { id: c.id, width: 800, height: 600 }],
+			originalUnchanged: true,
 		});
 	});
 

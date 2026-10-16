@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { autorun, constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Direction } from '../../../../../base/browser/ui/grid/grid.js';
@@ -165,6 +165,129 @@ suite('VisibleSessions', () => {
 			owner: model.activeSession.get()?.sessionId,
 			scope: model.activeSession.get()?.scopedChatResource?.toString(),
 		}, { ids: ['parent-pane', 'child-pane'], activeChat: child.resource.toString(), owner: session.sessionId, scope: child.resource.toString() });
+	});
+
+	for (const composerActive of [false, true]) {
+		test(`restoring a deleted active child selects a survivor without overriding the composer (composer active: ${composerActive})`, () => {
+			const model = createModel();
+			const child: IChat = { ...stubChat, resource: URI.parse('test:///surviving-child') };
+			const session = { ...stubSession('parent'), chats: constObservable([stubChat, child]) };
+			const slots = [
+				{ session, sticky: false, gridId: 'deleted-pane', chatResource: URI.parse('test:///deleted-child') },
+				{ session, sticky: false, gridId: 'surviving-pane', chatResource: child.resource },
+			];
+			model.restoreGrid(composerActive ? [...slots, { session: undefined, sticky: false, gridId: 'composer' }] : slots, composerActive ? 2 : 0);
+			assert.deepStrictEqual({
+				panes: model.gridSessions.get().map(session => session?.scopedChatResource?.toString()),
+				active: model.activeSession.get()?.activeChat.get().resource.toString(),
+			}, {
+				panes: composerActive ? [undefined, child.resource.toString()] : [child.resource.toString()],
+				active: composerActive ? undefined : child.resource.toString(),
+			});
+		});
+	}
+
+	for (const childActive of [false, true]) {
+		test(`closing only the parent pane retains and activates its standalone child (child active: ${childActive})`, () => {
+			const model = createModel();
+			const child: IChat = { ...stubChat, resource: URI.parse('test:///child') };
+			const session = { ...stubSession('parent'), chats: constObservable([stubChat, child]) };
+			model.setActive(session);
+			model.moveChatToGrid(session, child, model.getGridSlots()[0].id, Direction.Right);
+			const pane = model.activeSession.get()!;
+			const childSlot = model.getRenderedGridSlots()[1];
+			if (!childActive) {
+				model.setActive(session);
+			}
+			model.removeMany([session.sessionId], true);
+			assert.deepStrictEqual({
+				roots: model.visibleSessions.get(),
+				panes: model.gridSessions.get().map(session => session?.scopedChatResource?.toString()),
+				slots: model.getRenderedGridSlots(),
+				activeRetained: model.activeSession.get() === pane,
+			}, { roots: [], panes: [child.resource.toString()], slots: [childSlot], activeRetained: true });
+		});
+	}
+
+	test('a child can open alone and its parent can later be inserted beside that exact child slot', () => {
+		const model = createModel();
+		const child: IChat = { ...stubChat, resource: URI.parse('test:///child') };
+		const parent = { ...stubSession('parent'), chats: constObservable([stubChat, child]) };
+		const other = stubSession('other');
+		model.setActive(other);
+		model.moveChatToGrid(parent, child, model.getGridSlots()[0].id, Direction.Right);
+		const standalone = model.activeSession.get()!;
+		const childSlot = model.getRenderedGridSlots()[1];
+		const alone = { roots: model.visibleSessions.get().map(session => session?.sessionId), pane: standalone.scopedChatResource?.toString() };
+		model.insertAtGridSlot(parent, childSlot.id, 'left', true);
+		const parentSlot = model.getGridSlots()[model.getSlot(parent.sessionId)!.index];
+		assert.deepStrictEqual({
+			alone,
+			roots: model.visibleSessions.get().map(session => session?.sessionId),
+			placement: parentSlot.placement,
+			parentTabs: model.activeSession.get()?.visibleChatTabs.get().map(chat => chat.resource.toString()),
+			childRetained: model.getChatPane(parent.sessionId, child.resource) === standalone,
+		}, {
+			alone: { roots: ['other'], pane: child.resource.toString() },
+			roots: ['other', 'parent'],
+			placement: { reference: childSlot.id, direction: Direction.Left },
+			parentTabs: [stubChat.resource.toString()],
+			childRetained: true,
+		});
+	});
+
+	test('closing the last child without a parent pane falls back to another root or the empty composer', () => {
+		const model = createModel();
+		const child: IChat = { ...stubChat, resource: URI.parse('test:///child') };
+		const parent = { ...stubSession('parent'), chats: constObservable([stubChat, child]) };
+		const other = stubSession('other');
+		model.setActive(other);
+		model.moveChatToGrid(parent, child, model.getGridSlots()[0].id, Direction.Right);
+		model.attachChat(parent, child.resource);
+		const withOther = model.activeSession.get()?.sessionId;
+		model.moveChatToGrid(parent, child, model.getGridSlots()[0].id, Direction.Right);
+		model.removeMany([other.sessionId], true);
+		model.attachChat(parent, child.resource);
+		assert.deepStrictEqual({
+			withOther,
+			panes: model.gridSessions.get(),
+			active: model.activeSession.get(),
+			slots: model.getRenderedGridSlots().length,
+		}, { withOther: other.sessionId, panes: [], active: undefined, slots: 1 });
+	});
+
+	test('hidden-owner replacement rebinds its child panes without opening the main pane', () => {
+		const model = createModel();
+		const child: IChat = { ...stubChat, resource: URI.parse('test:///child') };
+		const parent = { ...stubSession('parent'), chats: constObservable([stubChat, child]) };
+		model.restoreGrid([{ session: parent, sticky: false, gridId: 'child-pane', chatResource: child.resource }], 0);
+		const replacement = { ...parent, title: constObservable('Updated Parent') };
+		model.updateSession(parent, replacement);
+		const rebound = { title: model.activeSession.get()?.title.get(), roots: model.visibleSessions.get().length, slot: model.getRenderedGridSlots()[0].id };
+		model.removeMany([replacement.sessionId]);
+		assert.deepStrictEqual({ rebound, afterProviderRemoval: model.gridSessions.get() }, {
+			rebound: { title: 'Updated Parent', roots: 0, slot: 'child-pane' },
+			afterProviderRemoval: [],
+		});
+	});
+
+	test('restored standalone bindings publish once in the caller transaction without transient placement hints', () => {
+		const model = createModel();
+		const child: IChat = { ...stubChat, resource: URI.parse('test:///child') };
+		const session = { ...stubSession('parent'), chats: constObservable([stubChat, child]) };
+		const updates: (string | undefined)[][] = [];
+		disposables.add(autorun(reader => updates.push(model.gridSessions.read(reader).map(session => session?.scopedChatResource?.toString() ?? session?.sessionId))));
+		transaction(tx => {
+			model.restoreGrid([
+				{ session, sticky: false, gridId: 'parent-pane' },
+				{ session, sticky: false, gridId: 'child-pane', chatResource: child.resource },
+			], 1, tx);
+			assert.deepStrictEqual(updates, [[undefined]]);
+		});
+		assert.deepStrictEqual({ updates, slots: model.getRenderedGridSlots() }, {
+			updates: [[undefined], ['parent', child.resource.toString()]],
+			slots: [{ id: 'parent-pane' }, { id: 'child-pane' }],
+		});
 	});
 
 	test('rebinds standalone panes when their owning session is replaced and removes deleted chats', () => {

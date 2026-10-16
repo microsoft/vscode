@@ -909,7 +909,7 @@ suite('Sessions - ChatGroupsView', () => {
 
 		const readGroups = () => Array.from(view.element.querySelectorAll<HTMLElement>('.chat-group-view')).map(group => ({
 			headerDisplay: group.querySelector<HTMLElement>('.session-header-bar')?.style.display,
-			headerTitle: group.querySelector<HTMLElement>('.chat-composite-bar-session-title-text')?.textContent,
+			headerTitle: group.querySelector<HTMLElement>('.chat-composite-bar-session-title-text .label-name')?.textContent,
 			tabBarDisplay: group.querySelector<HTMLElement>('.session-chat-tabs-bar')?.style.display,
 		}));
 		await configurationService.setUserConfiguration(SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode.Single);
@@ -1201,6 +1201,46 @@ suite('Sessions - ChatGroupsView', () => {
 			}, {
 				groupCount: 1,
 				groups: [main.resource.toString()],
+			});
+		});
+	}
+
+	for (const mode of [SessionsChatTabsMode.Single, SessionsChatTabsMode.Multiple]) {
+		test(`split child panes show parent context and only multiple mode can merge them (${mode})`, async () => {
+			const { configurationService, view } = createHarness(disposables);
+			const main = createChat('main');
+			const child = createChat('child', SessionStatus.Completed, main.resource, ChatOriginKind.SideChat);
+			const session = new TestActiveSession([main, child]);
+			view.setSession(session, options);
+			await configurationService.setUserConfiguration(SESSIONS_CHAT_TABS_SETTING, mode);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				source: ConfigurationTarget.USER,
+				affectedKeys: new Set([SESSIONS_CHAT_TABS_SETTING]),
+				change: { keys: [SESSIONS_CHAT_TABS_SETTING], overrides: [] },
+				affectsConfiguration: key => key === SESSIONS_CHAT_TABS_SETTING,
+			});
+			await view.openChatInNewGroup(child.resource, main.resource);
+			const childGroup = view['_groups'].find(group => group.activeResourceId.get() === child.resource.toString())!;
+			const childLabel = mode === SessionsChatTabsMode.Single
+				? childGroup.view.element.querySelector<HTMLElement>('.session-header-bar .chat-composite-bar-session-title')!
+				: childGroup.view.element.querySelector<HTMLElement>('.chat-composite-bar-tab')!;
+			const split = {
+				title: childLabel.querySelector('.label-name')?.textContent,
+				parent: childLabel.querySelector('.label-description')?.textContent,
+				hasDot: childLabel.classList.contains('has-description'),
+			};
+			const parentGroup = view['_groups'].find(group => group.activeResourceId.get() === main.resource.toString())!;
+			await view['_onChatDrop'](parentGroup.id, 'center', { sessionId: session.sessionId, resource: child.resource.toString() });
+			assert.deepStrictEqual({
+				split,
+				groupsAfterMerge: view.groupCount.get(),
+				sharedTabDescriptions: [...view.element.querySelectorAll('.chat-composite-bar-tab')].map(tab => tab.querySelector('.label-description')?.textContent ?? ''),
+				sharedTabHasDot: !!view.element.querySelector('.chat-composite-bar-tab.has-description'),
+			}, {
+				split: { title: 'child', parent: 'main', hasDot: true },
+				groupsAfterMerge: mode === SessionsChatTabsMode.Single ? 2 : 1,
+				sharedTabDescriptions: mode === SessionsChatTabsMode.Single ? ['', 'main'] : ['', ''],
+				sharedTabHasDot: mode === SessionsChatTabsMode.Single,
 			});
 		});
 	}
@@ -2073,7 +2113,7 @@ suite('Sessions - ChatGroupsView', () => {
 		});
 	});
 
-	test('shows session actions in a single tab row and hides them for split groups', () => {
+	test('keeps session actions available in every tab row replacing the shared header', () => {
 		const { instantiationService, view } = createHarness(disposables);
 		const main = createChat('main');
 		const secondary = createChat('secondary');
@@ -2103,10 +2143,31 @@ suite('Sessions - ChatGroupsView', () => {
 			singleGroupHidden: false,
 			singleGroupHeaderShowsChat: false,
 			singleGroupToolbarShowsSession: true,
-			splitGroupsHidden: [true, true],
+			splitGroupsHidden: [false, false],
 			splitGroupHeaderShowsChat: [false, false],
-			splitGroupToolbarShowsSession: [false, false],
+			splitGroupToolbarShowsSession: [true, true],
 		});
+	});
+
+	test('a child sharing its parent tab strip stays title-only when another child has a split pane', async () => {
+		const { view } = createHarness(disposables);
+		const main = createChat('main');
+		const sharedChild = createChat('shared-child', SessionStatus.Completed, main.resource, ChatOriginKind.SideChat);
+		const splitChild = createChat('split-child', SessionStatus.Completed, main.resource, ChatOriginKind.SideChat);
+		const session = new TestActiveSession([main, sharedChild, splitChild]);
+		view.setSession(session, options);
+		await view.openChatInNewGroup(splitChild.resource, main.resource);
+		const descriptions = view['_groups'].map(group => [...group.view.element.querySelectorAll('.chat-composite-bar-tab')].map(tab => ({
+			title: tab.querySelector('.label-name')?.textContent,
+			parent: tab.querySelector('.label-description')?.textContent ?? '',
+			dot: tab.classList.contains('has-description'),
+		})));
+		assert.deepStrictEqual(descriptions, [[
+			{ title: 'main', parent: '', dot: false },
+			{ title: 'shared-child', parent: '', dot: false },
+		], [
+			{ title: 'split-child', parent: 'main', dot: true },
+		]]);
 	});
 
 	test('hides session actions when tabs do not replace the header', () => {

@@ -611,7 +611,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/grid/' }, {
 	}),
 	MultipleChats: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The Agents workbench shows two standalone session panels and a wide split-chat area, with sidebars and panels hidden and no enclosing group frame. Grid layout and Regression tests each own a complete rounded frame, separated by the same floating-panel gap and centered three-dot gripper used between sessions. Each chat has its own tab strip, conversation, and input, without a separate shared header above the tabs. The parent name appears as secondary context at the right of the child chat tab row.'],
+		expectedVisualDescriptions: ['The Agents workbench shows two standalone session panels and a wide split-chat area, with sidebars and panels hidden and no enclosing group frame. Grid layout and Regression tests each own a complete rounded frame, separated by the same floating-panel gap and centered three-dot gripper used between sessions. Each chat has its own tab strip, conversation, and input, without a separate shared header above the tabs. The child in its own split pane shows its title followed by a dot and muted parent description.'],
 		render: context => renderSessionsGrid(context, { multipleChats: 'sideBySide' }),
 	}),
 	MacWindowCorners: defineComponentFixture({
@@ -628,7 +628,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/grid/' }, {
 	}),
 	RelatedChatTabHover: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The child chat tab row reveals a gripper beside its title on hover. The parent session name is quiet secondary text at the right of that same row, with no breadcrumb or extra header above the chat tabs.'],
+		expectedVisualDescriptions: ['The child chat tab row has no drag-handle icon on hover. Because the child occupies a separate split pane, its tab shows the child title followed by a dot and muted parent description. There is no parent label on the right of the row or extra header above the chat tabs.'],
 		render: async context => {
 			await renderSessionsGrid(context, { multipleChats: 'sideBySide', relatedChats: true });
 			const rows = context.container.querySelectorAll<HTMLElement>('.session-chat-tabs-bar .chat-composite-bar-tabs-row');

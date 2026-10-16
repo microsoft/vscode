@@ -208,7 +208,10 @@ export class ChatGroupsView extends Themable {
 		const isMainChatDrag = (event: DragEvent) => event.dataTransfer?.types.includes(SessionsDataTransfers.SESSION) === true
 			&& sessionTransfer.getData(DraggedSessionIdentifier.prototype)?.some(dragged => dragged.sessionId === session.sessionId) === true;
 		const dropDelegate: IChatGroupDropTargetDelegate = {
-			isChatDrag: event => !session.scopedChatResource && (isSessionChatDrag(event, session.sessionId) || isMainChatDrag(event)),
+			canMerge: () => !this.showChatAsSessionView.get(),
+			isChatDrag: event => !session.scopedChatResource
+				&& !(this.showChatAsSessionView.get() && event.dataTransfer?.types.includes(SessionsDataTransfers.DETACHED_CHAT))
+				&& (isSessionChatDrag(event, session.sessionId) || isMainChatDrag(event)),
 			getChatDragData: event => getSessionChatDragData(event) ?? (isMainChatDrag(event)
 				? { sessionId: session.sessionId, resource: session.mainChat.get().resource.toString() }
 				: undefined),
@@ -347,7 +350,7 @@ export class ChatGroupsView extends Themable {
 			}
 			return session.shouldShowChatTabs.read(reader);
 		});
-		const showSessionActions = derived(reader => this._singleGroupTabsReplaceHeader.read(reader) && this._groupCount.read(reader) === 1 && tabsVisible.read(reader));
+		const showSessionActions = derived(reader => this._singleGroupTabsReplaceHeader.read(reader) && tabsVisible.read(reader));
 		const activeChatIsPinned = derived(reader => pinnedResourceId.read(reader) === activeResourceId.read(reader));
 
 		const entry: IGroupEntry = { id, view, resourceIds, activeResourceId, pinnedResourceId, chats, tabsVisible };
@@ -366,6 +369,7 @@ export class ChatGroupsView extends Themable {
 			chatHeaderVisible: this._showGroupChatHeaders,
 			activeChatIsPinned,
 			showSessionActions,
+			showParentContext: this._groupCount.map(count => count > 1),
 			activate: () => this._setActiveGroup(entry),
 			openChat: resource => this._openChat(entry, resource),
 			onTabDragStart: () => { },
@@ -560,10 +564,10 @@ export class ChatGroupsView extends Themable {
 		}
 	}
 
-	private _findTargetGroup(child: HTMLElement): { readonly id: number; readonly element: HTMLElement } | undefined {
+	private _findTargetGroup(child: HTMLElement): { readonly id: number; readonly element: HTMLElement; readonly tabsElement: HTMLElement } | undefined {
 		for (const group of this._groups) {
 			if (group.view.element.contains(child)) {
-				return { id: group.id, element: group.view.element };
+				return { id: group.id, element: group.view.element, tabsElement: group.view.tabsElement };
 			}
 		}
 		return undefined;
@@ -576,6 +580,9 @@ export class ChatGroupsView extends Themable {
 
 		if (data.sessionId !== this._session.sessionId) {
 			return; // not a chat from this session
+		}
+		if (this.showChatAsSessionView.get() && (data.isDetached || zone === 'center')) {
+			return;
 		}
 
 		const id = data.resource;

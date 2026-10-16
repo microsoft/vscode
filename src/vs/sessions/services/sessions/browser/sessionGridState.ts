@@ -105,7 +105,26 @@ export function projectSessionGrid(grid: ISerializedGrid, map: (id: string) => s
 			leaves.set(id, leaf);
 			return leaf;
 		}
-		const data = node.data.map(project).filter(node => node !== undefined);
+		const data = node.data.flatMap(child => {
+			const projected = project(child);
+			if (!projected) {
+				return [];
+			}
+			if (projected.type !== 'branch' || projected.data.length !== 1) {
+				return [projected];
+			}
+			const only = projected.data[0];
+			if (only.type === 'leaf') {
+				only.size = projected.size;
+				return [only];
+			}
+			// Removing two branch levels preserves the parent's split orientation.
+			const totalSize = only.data.reduce((total, child) => total + child.size, 0);
+			for (const child of only.data) {
+				child.size = totalSize > 0 ? child.size * projected.size / totalSize : projected.size / only.data.length;
+			}
+			return only.data;
+		});
 		const branch = { ...node, data };
 		delete branch.visible;
 		return data.length ? branch : undefined;

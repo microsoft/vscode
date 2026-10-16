@@ -7,9 +7,8 @@ import './media/chatCompositeBar.css';
 import { IAction } from '../../../base/common/actions.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { $, append, addDisposableGenericMouseDownListener, addDisposableListener, addStandardDisposableListener, DisposableResizeObserver, EventType, getWindow, isMouseEvent } from '../../../base/browser/dom.js';
-import { renderIcon } from '../../../base/browser/ui/iconLabel/iconLabels.js';
-import { Codicon } from '../../../base/common/codicons.js';
+import { $, addDisposableGenericMouseDownListener, addDisposableListener, addStandardDisposableListener, DisposableResizeObserver, EventType, getWindow, isMouseEvent } from '../../../base/browser/dom.js';
+import { IconLabel } from '../../../base/browser/ui/iconLabel/iconLabel.js';
 import { isEqual } from '../../../base/common/resources.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { IKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
@@ -34,15 +33,34 @@ import { IConfigurationService } from '../../../platform/configuration/common/co
 import { createSessionActionViewItemProvider } from '../sessionActionViewItem.js';
 import { CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
-import { registerIcon } from '../../../platform/theme/common/iconRegistry.js';
 
-export const sessionDragHandleIcon = registerIcon('sessions-drag-handle', Codicon.gripper, localize('sessionDragHandleIcon', "Icon for dragging a session or chat."));
-const sessionBreadcrumbSeparatorIcon = registerIcon('sessions-breadcrumb-separator', Codicon.chevronRightCompact, localize('sessionBreadcrumbSeparatorIcon', "Separator between parent and child chats."));
+export function getSessionChatAncestors(session: IActiveSession, chat: IChat | undefined, reader: IReader): readonly string[] {
+	const ancestors: string[] = [];
+	const mainChat = session.mainChat.read(reader);
+	const fallback = getUntitledSessionTitle(session.isQuickChat?.read(reader) ?? false);
+	if (chat && !isEqual(chat.resource, mainChat.resource)) {
+		const chats = session.chats.read(reader);
+		const visited = new Set([chat.resource.toString()]);
+		let parentResource = chat.origin?.parentChat;
+		while (parentResource && !isEqual(parentResource, mainChat.resource) && !visited.has(parentResource.toString())) {
+			visited.add(parentResource.toString());
+			const parent = chats.find(candidate => isEqual(candidate.resource, parentResource));
+			if (!parent) {
+				break;
+			}
+			ancestors.unshift(parent.title.read(reader) || fallback);
+			parentResource = parent.origin?.parentChat;
+		}
+		ancestors.unshift(session.title.read(reader) || fallback);
+	}
+	return ancestors;
+}
 
 export interface ISessionHeaderBarContext {
 	readonly session: IActiveSession;
 	readonly chat: IObservable<IChat | undefined>;
 	readonly actionsTargetChat?: boolean;
+	readonly showParentContext?: boolean;
 	readonly activateChatGroup?: () => void;
 }
 
@@ -61,7 +79,7 @@ export class SessionHeaderBar extends Disposable {
 	private readonly _iconEl: HTMLElement;
 	private readonly _titleEl: HTMLElement;
 	private readonly _titleTextEl: HTMLElement;
-	private readonly _breadcrumbsEl: HTMLElement;
+	private readonly _titleLabel: IconLabel;
 	private _titlePath = '';
 	private readonly _toolbar: MenuWorkbenchToolBar;
 	private readonly _titleActionsEl: HTMLElement;
@@ -72,6 +90,7 @@ export class SessionHeaderBar extends Disposable {
 	private _session: IActiveSession | undefined;
 	private _activeChatObservable: IObservable<IChat | undefined> | undefined;
 	private _actionsTargetChat = false;
+	private _showParentContext = false;
 	private _activateChatGroup: (() => void) | undefined;
 	private _activeChat: IChat | undefined;
 	private readonly _menuActionArgs: unknown[] = [];
@@ -128,13 +147,6 @@ export class SessionHeaderBar extends Disposable {
 		const header = $('.chat-composite-bar-header');
 		this._container.appendChild(header);
 
-		const gripper = append(header, $('.session-header-drag-handle', { 'aria-hidden': 'true' }, renderIcon(sessionDragHandleIcon)));
-		this._register(hoverService.setupDelayedHover(gripper, () => ({
-			content: this._actionsTargetChat
-				? localize('dragChat', "Drag to move this chat")
-				: localize('dragSession', "Drag to move this session"),
-		})));
-
 		this._iconEl = $('.chat-composite-bar-session-icon');
 		header.appendChild(this._iconEl);
 		this._statusIcon = this._register(instantiationService.createInstance(SessionStatusIcon, this._iconEl));
@@ -145,17 +157,12 @@ export class SessionHeaderBar extends Disposable {
 		const titleRow = $('.chat-composite-bar-title-row');
 		main.appendChild(titleRow);
 
-		this._breadcrumbsEl = append(titleRow, $('.session-header-breadcrumbs', { 'aria-hidden': 'true' }));
-		this._breadcrumbsEl.hidden = true;
-		this._register(hoverService.setupDelayedHover(this._breadcrumbsEl, () => ({ content: this._titlePath })));
-
 		this._titleEl = $('.chat-composite-bar-session-title');
 		titleRow.appendChild(this._titleEl);
 
-		// Wrap the title text in a span so we can swap it for an input when
-		// the user clicks to rename without rebuilding the title slot itself.
 		this._titleTextEl = $('span.chat-composite-bar-session-title-text');
 		this._titleEl.appendChild(this._titleTextEl);
+		this._titleLabel = this._register(new IconLabel(this._titleTextEl));
 		this._register(hoverService.setupDelayedHover(this._titleEl, () => ({ content: this._titlePath })));
 
 		// Click the title to start an inline rename. Click is preferred over
@@ -260,7 +267,7 @@ export class SessionHeaderBar extends Disposable {
 					e.preventDefault();
 					return;
 				}
-				fillSessionChatDragData(e, session.sessionId, chat.resource);
+				fillSessionChatDragData(e, session.sessionId, chat.resource, !!session.scopedChatResource);
 			} else {
 				this._sessionTransfer.setData(
 					[new DraggedSessionIdentifier(session.sessionId, session.resource)],
@@ -285,10 +292,12 @@ export class SessionHeaderBar extends Disposable {
 		const session = context?.session;
 		const activeChat = context?.chat;
 		const actionsTargetChat = context?.actionsTargetChat ?? false;
+		const showParentContext = context?.showParentContext ?? false;
 		const activateChatGroup = context?.activateChatGroup;
 		if (this._session === session
 			&& this._activeChatObservable === activeChat
 			&& this._actionsTargetChat === actionsTargetChat
+			&& this._showParentContext === showParentContext
 			&& this._activateChatGroup === activateChatGroup) {
 			return;
 		}
@@ -297,6 +306,7 @@ export class SessionHeaderBar extends Disposable {
 		this._session = session;
 		this._activeChatObservable = activeChat;
 		this._actionsTargetChat = actionsTargetChat;
+		this._showParentContext = showParentContext;
 		this._activateChatGroup = activateChatGroup;
 		this._activeChat = undefined;
 		this._menuActionArgs.splice(0, this._menuActionArgs.length, ...(session ? [session] : []));
@@ -307,9 +317,8 @@ export class SessionHeaderBar extends Disposable {
 		this._sessionDisposables.value = store;
 
 		if (!session || !activeChat) {
-			this._breadcrumbsEl.replaceChildren();
-			this._breadcrumbsEl.hidden = true;
-			this._titleTextEl.textContent = '';
+			this._titleLabel.setLabel('', '');
+			this._titleEl.classList.remove('has-description');
 			this._titlePath = '';
 			this._container.removeAttribute('aria-label');
 			this._sessionIsCreated = false;
@@ -358,8 +367,7 @@ export class SessionHeaderBar extends Disposable {
 
 		if (!activeChat) {
 			this._activeChat = undefined;
-			this._titleTextEl.textContent = this._getUntitledTitle(reader);
-			this._updateBreadcrumbs(session, undefined, reader);
+			this._updateTitle(session, undefined, this._getUntitledTitle(reader), reader);
 			this._titleEl.classList.remove('editable');
 			return;
 		}
@@ -368,38 +376,19 @@ export class SessionHeaderBar extends Disposable {
 			this._cancelTitleEditing();
 			this._activeChat = activeChat;
 		}
-		this._titleTextEl.textContent = activeChat.status.read(reader) === SessionStatus.Untitled
+		const title = activeChat.status.read(reader) === SessionStatus.Untitled
 			? this._getUntitledTitle(reader)
 			: activeChat.title.read(reader) || this._getUntitledTitle(reader);
 		this._titleEl.classList.toggle('editable', this._isTitleEditable(reader));
-		this._updateBreadcrumbs(session, activeChat, reader);
+		this._updateTitle(session, activeChat, title, reader);
 	}
 
-	private _updateBreadcrumbs(session: IActiveSession, chat: IChat | undefined, reader: IReader): void {
-		const ancestors: string[] = [];
-		const mainChat = session.mainChat.read(reader);
-		if (chat && !isEqual(chat.resource, mainChat.resource)) {
-			const chats = session.chats.read(reader);
-			const visited = new Set([chat.resource.toString()]);
-			let parentResource = chat.origin?.parentChat;
-			while (parentResource && !isEqual(parentResource, mainChat.resource) && !visited.has(parentResource.toString())) {
-				visited.add(parentResource.toString());
-				const parent = chats.find(candidate => isEqual(candidate.resource, parentResource));
-				if (!parent) {
-					break;
-				}
-				ancestors.unshift(parent.title.read(reader) || this._getUntitledTitle(reader));
-				parentResource = parent.origin?.parentChat;
-			}
-			ancestors.unshift(session.title.read(reader) || this._getUntitledTitle(reader));
-		}
-		this._breadcrumbsEl.replaceChildren();
-		this._breadcrumbsEl.hidden = ancestors.length === 0;
-		for (const title of ancestors) {
-			append(this._breadcrumbsEl, $('span.session-header-breadcrumb', undefined, title));
-			append(this._breadcrumbsEl, renderIcon(sessionBreadcrumbSeparatorIcon));
-		}
-		this._titlePath = [...ancestors, this._titleTextEl.textContent ?? ''].join(' / ');
+	private _updateTitle(session: IActiveSession, chat: IChat | undefined, title: string, reader: IReader): void {
+		const ancestors = getSessionChatAncestors(session, chat, reader);
+		const description = session.scopedChatResource || this._showParentContext ? ancestors.join(' / ') : '';
+		this._titleLabel.setLabel(title, description);
+		this._titleEl.classList.toggle('has-description', description.length > 0);
+		this._titlePath = [...ancestors, title].join(' / ');
 		this._container.setAttribute('aria-label', localize('chatHeaderLabel', "Chat: {0}", this._titlePath));
 	}
 

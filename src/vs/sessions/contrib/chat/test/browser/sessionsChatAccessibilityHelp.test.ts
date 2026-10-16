@@ -56,10 +56,12 @@ suite('SessionsChatAccessibilityHelp', () => {
 			back: content.includes('Go back through visited sessions, the New Session view, and custom views such as Automations<keybinding:sessions.goBack>'),
 			forward: content.includes('Go forward through visited sessions and views<keybinding:sessions.goForward>'),
 			singletonViews: content.includes('moves its single history entry to the most recent position'),
-			breadcrumbs: content.includes('Sub-session titles show their parent session and chat ancestors as breadcrumbs.'),
+			parentContext: content.includes('In both single and multiple tab layouts, sub-sessions in separate panes show their title followed by a dot and parent context as a secondary description, like editor tabs.'),
 			independentDrag: content.includes('without moving its parent.'),
+			independentVisibility: content.includes('Closing the parent pane leaves independent sub-session panes open.'),
+			positionalPaneFocus: content.includes('Focus Session 1 in Grid<keybinding:sessions.focusSessionInGrid1>'),
 			keyboardMove: content.includes('<keybinding:sessions.moveChatToNextGroup>'),
-		}, { back: true, forward: true, singletonViews: true, breadcrumbs: true, independentDrag: true, keyboardMove: true });
+		}, { back: true, forward: true, singletonViews: true, parentContext: true, independentDrag: true, independentVisibility: true, positionalPaneFocus: true, keyboardMove: true });
 	});
 
 	test('documents connector recommendations when the marketplace is available', () => {

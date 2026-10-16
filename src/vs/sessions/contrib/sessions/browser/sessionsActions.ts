@@ -528,13 +528,12 @@ for (let index = 0; index < 9; index++) {
 			const sessionsService = accessor.get(ISessionsService);
 			const sessionsPartService = accessor.get(ISessionsPartService);
 
-			const visible = sessionsService.visibleSessions.get();
-			const targetIndex = isLast ? visible.length - 1 : index;
-			if (targetIndex < 0 || targetIndex >= visible.length) {
+			const target = sessionsPartService.getSessionAtPosition(isLast ? -1 : index);
+			if (target === undefined) {
 				return;
 			}
 
-			const session = visible[targetIndex];
+			const session = target ?? undefined;
 			sessionsService.setActive(session);
 			sessionsPartService.focusSession(session);
 		}
@@ -1672,8 +1671,10 @@ export class SessionConversationActionsContribution extends Disposable implement
 	) {
 		super();
 		this._register(autorun(reader => {
-			for (const session of this._sessionsService.visibleSessions.read(reader)) {
-				if (session) {
+			const owners = new Set<string>();
+			for (const session of this._sessionsService.visibleSessionPanes.read(reader)) {
+				if (session && !owners.has(session.sessionId)) {
+					owners.add(session.sessionId);
 					reader.store.add(this._registerSessionConversationActions(session, reader));
 				}
 			}
