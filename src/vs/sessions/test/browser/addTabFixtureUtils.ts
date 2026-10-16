@@ -29,7 +29,7 @@ export interface IFixtureEntry {
 	readonly submenu?: readonly string[];
 	/** Renders the entry disabled, as when its precondition does not hold. */
 	readonly disabled?: boolean;
-	/** The menu group, `navigation` by default. */
+	/** The menu group, `navigation` by default. Groups render in the order their first entry appears. */
 	readonly group?: string;
 }
 
@@ -37,8 +37,8 @@ export const fixtureChanges: IFixtureEntry = { id: 'sessions.fixture.addTab.chan
 export const fixtureFiles: IFixtureEntry = { id: 'sessions.fixture.addTab.files', title: 'Files', icon: Codicon.files, keybinding: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyE };
 export const fixtureBrowser: IFixtureEntry = { id: 'sessions.fixture.addTab.browser', title: 'Browser', icon: Codicon.globe, keybinding: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyB };
 export const fixtureCanvas: IFixtureEntry = { id: 'sessions.fixture.addTab.canvas', title: 'Canvas', icon: Codicon.preview, submenu: ['Kusto'] };
-export const fixtureTogglePanel: IFixtureEntry = { id: 'sessions.fixture.layout.panel', title: 'Show Panel', icon: Codicon.layoutPanelOff, keybinding: KeyMod.CtrlCmd | KeyCode.KeyJ, group: 'layout' };
-export const fixtureToggleSidePanel: IFixtureEntry = { id: 'sessions.fixture.layout.sidePanel', title: 'Toggle Side Panel', icon: Codicon.layoutSidebarRightOff, keybinding: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyB, group: 'layout' };
+export const fixtureTogglePanel: IFixtureEntry = { id: 'sessions.fixture.layout.panel', title: 'Show Panel', icon: Codicon.layoutPanelOff, keybinding: KeyMod.CtrlCmd | KeyCode.KeyJ, group: '3_panel' };
+export const fixtureToggleSidePanel: IFixtureEntry = { id: 'sessions.fixture.layout.sidePanel', title: 'Toggle Side Panel', icon: Codicon.layoutSidebarRightOff, keybinding: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyB, group: '1_sidePanel' };
 
 export class FixtureMenuService extends mock<IMenuService>() {
 

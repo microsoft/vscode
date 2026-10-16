@@ -14,6 +14,9 @@ export const SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING = 'sessions.experimental
 /** Whether the Session Activity Bar is shown beside the active chat in the desktop Agents window. */
 export const SESSION_ACTIVITY_BAR_SETTING = 'sessions.showSessionActivityBar';
 
+/** Whether the Session Activity Bar hosts the side panel and panel toggles in place of the title bar. */
+export const SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING = 'sessions.sessionActivityBar.showLayoutActions';
+
 /** The setting {@link SESSION_ACTIVITY_BAR_SETTING} was named before the Session Toolbar became the Session Activity Bar. */
 export const LEGACY_SESSION_TOOLBAR_SETTING = 'sessions.showSessionToolbar';
 

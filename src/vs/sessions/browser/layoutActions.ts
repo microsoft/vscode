@@ -10,7 +10,7 @@ import { localize, localize2 } from '../../nls.js';
 import { Categories } from '../../platform/action/common/actionCommonCategories.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../platform/contextkey/common/contextkey.js';
-import { Menus } from './menus.js';
+import { Menus, SessionActivityBarGroup } from './menus.js';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../platform/keybinding/common/keybindingsRegistry.js';
 import { registerIcon } from '../../platform/theme/common/iconRegistry.js';
@@ -19,9 +19,9 @@ import { TogglePanelAction } from '../../workbench/browser/parts/panel/panelActi
 import { LayoutDensityMenu } from '../../workbench/browser/actions/layoutDensityActions.js';
 import { IsAuxiliaryWindowContext, IsWindowAlwaysOnTopContext, PanelVisibleContext, SideBarVisibleContext } from '../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../workbench/services/layout/browser/layoutService.js';
-import { SessionsWelcomeVisibleContext, CustomViewVisibleContext, DesktopLayoutContext, IsPhoneLayoutContext, SessionActivityBarEnabledContext } from '../common/contextkeys.js';
+import { SessionsWelcomeVisibleContext, CustomViewVisibleContext, DesktopLayoutContext, IsPhoneLayoutContext, SessionActivityBarLayoutActionsContext } from '../common/contextkeys.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
-import { SESSION_ACTIVITY_BAR_SETTING } from '../common/sessionConfig.js';
+import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../common/sessionConfig.js';
 
 for (const menu of [Menus.TitleBarContext, MenuId.MenubarViewMenu]) {
 	MenuRegistry.appendMenuItem(menu, {
@@ -79,6 +79,36 @@ MenuRegistry.appendMenuItem(Menus.SessionActivityBarContext, {
 	},
 	group: 'navigation',
 	order: 1,
+});
+
+export const TOGGLE_SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_COMMAND_ID = 'workbench.action.agentSessions.toggleSessionActivityBarLayoutActions';
+
+registerAction2(class ToggleSessionActivityBarLayoutActionsAction extends Action2 {
+	constructor() {
+		super({
+			id: TOGGLE_SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_COMMAND_ID,
+			title: localize2('toggleSessionActivityBarLayoutActions', "Toggle Layout Actions in Session Activity Bar"),
+			category: Categories.View,
+			f1: true,
+			precondition: ContextKeyExpr.and(DesktopLayoutContext, ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_SETTING}`, true)),
+			toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`, true),
+		});
+	}
+
+	override run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		return configurationService.updateValue(SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, !configurationService.getValue<boolean>(SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING));
+	}
+});
+
+MenuRegistry.appendMenuItem(Menus.SessionActivityBarContext, {
+	command: {
+		id: TOGGLE_SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_COMMAND_ID,
+		title: localize('showSessionActivityBarLayoutActions', "Show Layout Actions"),
+		toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`, true),
+	},
+	group: 'navigation',
+	order: 0,
 });
 
 // Register Icons
@@ -146,9 +176,9 @@ MenuRegistry.appendMenuItem(Menus.TitleBarAccessibility, {
 	when: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, IsPhoneLayoutContext.negate())
 });
 
-// The Session Activity Bar hosts these toggles in place of the title bar while it is enabled.
-const titleBarPanelWhen = ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsPhoneLayoutContext.negate(), SessionActivityBarEnabledContext.negate());
-const sessionActivityBarPanelWhen = ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionActivityBarEnabledContext);
+// The Session Activity Bar hosts these toggles in place of the title bar while it shows its layout actions.
+const titleBarPanelWhen = ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsPhoneLayoutContext.negate(), SessionActivityBarLayoutActionsContext.negate());
+const sessionActivityBarPanelWhen = ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionActivityBarLayoutActionsContext);
 
 const showPanelCommand = {
 	id: TogglePanelAction.ID,
@@ -179,15 +209,15 @@ MenuRegistry.appendMenuItem(Menus.TitleBarSessionMenu, {
 
 MenuRegistry.appendMenuItem(Menus.SessionActivityBar, {
 	command: showPanelCommand,
-	group: 'layout',
-	order: 10,
+	group: SessionActivityBarGroup.Panel,
+	order: 0,
 	when: ContextKeyExpr.and(sessionActivityBarPanelWhen, PanelVisibleContext.toNegated())
 });
 
 MenuRegistry.appendMenuItem(Menus.SessionActivityBar, {
 	command: hidePanelCommand,
-	group: 'layout',
-	order: 10,
+	group: SessionActivityBarGroup.Panel,
+	order: 0,
 	when: ContextKeyExpr.and(sessionActivityBarPanelWhen, PanelVisibleContext)
 });
 

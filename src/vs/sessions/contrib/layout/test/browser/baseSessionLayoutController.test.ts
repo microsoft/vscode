@@ -62,7 +62,7 @@ suite('BaseLayoutController', () => {
 		return { owner: owner && { session: owner.sessionResource.toString(), chat: owner.chatResource?.toString() }, restoring, applying };
 	}
 
-	test('moves the side panel toggle from the title bar to the session activity bar while it is enabled', () => {
+	test('moves the side panel toggle from the title bar to the top of the session activity bar while it shows its layout actions', () => {
 		const registration = BaseLayoutController.registerSidePaneToggleAction();
 		try {
 			const describe = (menu: MenuId) => MenuRegistry.getMenuItems(menu).filter(isIMenuItem)
@@ -70,8 +70,8 @@ suite('BaseLayoutController', () => {
 				.map(item => ({ group: item.group, order: item.order, when: item.when?.serialize() }));
 
 			assert.deepStrictEqual({ titleBar: describe(Menus.TitleBarSessionMenu), activityBar: describe(Menus.SessionActivityBar) }, {
-				titleBar: [{ group: 'navigation', order: 11, when: '!agentSessionsDesktopLayout && !isAuxiliaryWindow && !sessionsWelcomeVisible || !config.sessions.showSessionActivityBar && !isAuxiliaryWindow && !sessionsWelcomeVisible' }],
-				activityBar: [{ group: 'layout', order: 11, when: 'agentSessionsDesktopLayout && config.sessions.showSessionActivityBar && !isAuxiliaryWindow' }],
+				titleBar: [{ group: 'navigation', order: 11, when: '!agentSessionsDesktopLayout && !isAuxiliaryWindow && !sessionsWelcomeVisible || !config.sessions.sessionActivityBar.showLayoutActions && !isAuxiliaryWindow && !sessionsWelcomeVisible || !config.sessions.showSessionActivityBar && !isAuxiliaryWindow && !sessionsWelcomeVisible' }],
+				activityBar: [{ group: '1_sidePanel', order: 0, when: 'agentSessionsDesktopLayout && config.sessions.sessionActivityBar.showLayoutActions && config.sessions.showSessionActivityBar && !isAuxiliaryWindow' }],
 			});
 		} finally {
 			registration.dispose();

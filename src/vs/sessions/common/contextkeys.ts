@@ -6,7 +6,7 @@
 import { localize } from '../../nls.js';
 import { ContextKeyExpr, RawContextKey } from '../../platform/contextkey/common/contextkey.js';
 import { AuxiliaryBarFocusContext, EditorAreaFocusContext } from '../../workbench/common/contextkeys.js';
-import { SESSION_ACTIVITY_BAR_SETTING } from './sessionConfig.js';
+import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from './sessionConfig.js';
 
 //#region < --- Active Session --- >
 
@@ -189,9 +189,13 @@ export const IsPhoneLayoutContext = new RawContextKey<boolean>('sessionsIsPhoneL
 export const KeyboardVisibleContext = new RawContextKey<boolean>('sessionsKeyboardVisible', false, localize('sessionsKeyboardVisible', "Whether the virtual keyboard is visible"));
 
 /**
- * Whether the desktop layout shows the Session Activity Bar. It then hosts the Toggle Panel and
- * Toggle Side Panel actions in place of the title bar.
+ * Whether the desktop layout shows the Session Activity Bar with its layout actions. It then hosts
+ * the Toggle Side Panel and Toggle Panel actions in place of the title bar.
  */
-export const SessionActivityBarEnabledContext = ContextKeyExpr.and(DesktopLayoutContext, ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_SETTING}`, true))!;
+export const SessionActivityBarLayoutActionsContext = ContextKeyExpr.and(
+	DesktopLayoutContext,
+	ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_SETTING}`, true),
+	ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`, true),
+)!;
 
 //#endregion

@@ -19,8 +19,8 @@ import { PanelVisibleContext, SecondarySideBarVisibleContext } from '../../../wo
 import { TogglePanelAction } from '../../../workbench/browser/parts/panel/panelActions.js';
 import { LayoutSettings, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { Menus } from '../../browser/menus.js';
-import { TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID } from '../../browser/layoutActions.js';
-import { SESSION_ACTIVITY_BAR_SETTING } from '../../common/sessionConfig.js';
+import { TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID, TOGGLE_SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_COMMAND_ID } from '../../browser/layoutActions.js';
+import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../common/sessionConfig.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { upcastPartial } from '../../../base/test/common/mock.js';
 
@@ -101,6 +101,31 @@ suite('Sessions - Layout Actions', () => {
 		});
 	});
 
+	test('toggles the session activity bar layout actions from its context menu', async () => {
+		const items = MenuRegistry.getMenuItems(Menus.SessionActivityBarContext).filter(isIMenuItem)
+			.map(item => ({ id: item.command.id, title: item.command.title, toggled: item.command.toggled, order: item.order }))
+			.sort((first, second) => (first.order ?? 0) - (second.order ?? 0));
+		const configurationService = new class extends TestConfigurationService {
+			override updateValue(key: string, value: unknown): Promise<void> {
+				return this.setUserConfiguration(key, value);
+			}
+		}({ [SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING]: true });
+		const accessor = upcastPartial<ServicesAccessor>({ get: <T>() => configurationService as T });
+		const run = async () => {
+			await CommandsRegistry.getCommand(TOGGLE_SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_COMMAND_ID)!.handler(accessor);
+			return configurationService.getValue(SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING);
+		};
+
+		assert.deepStrictEqual({ items, afterFirstRun: await run(), afterSecondRun: await run() }, {
+			items: [
+				{ id: TOGGLE_SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_COMMAND_ID, title: 'Show Layout Actions', toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`, true), order: 0 },
+				{ id: TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID, title: 'Hide Session Activity Bar', toggled: undefined, order: 1 },
+			],
+			afterFirstRun: false,
+			afterSecondRun: true,
+		});
+	});
+
 	test('hides the session activity bar from its context menu and toggles it from the chat background menus', () => {
 		const find = (menu: MenuId) => MenuRegistry.getMenuItems(menu).filter(isIMenuItem).find(item => item.command.id === TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID);
 		const describe = (item: ReturnType<typeof find>) => ({ title: item?.command.title, toggled: item?.command.toggled, group: item?.group, when: item?.when?.serialize() });
@@ -116,14 +141,14 @@ suite('Sessions - Layout Actions', () => {
 		});
 	});
 
-	test('adds the panel toggle to the session activity bar while it is enabled', () => {
+	test('adds the panel toggle below the tab entries of the session activity bar while it shows its layout actions', () => {
 		const items = MenuRegistry.getMenuItems(Menus.SessionActivityBar).filter(isIMenuItem)
 			.filter(item => item.command.id === TogglePanelAction.ID)
 			.map(item => ({ title: item.command.title, group: item.group, order: item.order, when: item.when?.serialize() }));
 
 		assert.deepStrictEqual(items, [
-			{ title: 'Show Panel', group: 'layout', order: 10, when: `agentSessionsDesktopLayout && config.${SESSION_ACTIVITY_BAR_SETTING} && !isAuxiliaryWindow && !${PanelVisibleContext.key}` },
-			{ title: 'Hide Panel', group: 'layout', order: 10, when: `agentSessionsDesktopLayout && config.${SESSION_ACTIVITY_BAR_SETTING} && ${PanelVisibleContext.key} && !isAuxiliaryWindow` },
+			{ title: 'Show Panel', group: '3_panel', order: 0, when: `agentSessionsDesktopLayout && config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING} && config.${SESSION_ACTIVITY_BAR_SETTING} && !isAuxiliaryWindow && !${PanelVisibleContext.key}` },
+			{ title: 'Hide Panel', group: '3_panel', order: 0, when: `agentSessionsDesktopLayout && config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING} && config.${SESSION_ACTIVITY_BAR_SETTING} && ${PanelVisibleContext.key} && !isAuxiliaryWindow` },
 		]);
 	});
 
@@ -178,15 +203,15 @@ suite('Sessions - Layout Actions', () => {
 					order: 10,
 					icon: Codicon.layoutPanel.id,
 					hasToggledState: false,
-					// Hidden while the Session Activity Bar hosts the toggle.
-					when: `${PanelVisibleContext.key} && !agentSessionsDesktopLayout && !isAuxiliaryWindow && !sessionsIsPhoneLayout && !sessionsWelcomeVisible || ${PanelVisibleContext.key} && !config.${SESSION_ACTIVITY_BAR_SETTING} && !isAuxiliaryWindow && !sessionsIsPhoneLayout && !sessionsWelcomeVisible`,
+					// Hidden while the Session Activity Bar shows its layout actions.
+					when: 'panelVisible && !agentSessionsDesktopLayout && !isAuxiliaryWindow && !sessionsIsPhoneLayout && !sessionsWelcomeVisible || panelVisible && !config.sessions.sessionActivityBar.showLayoutActions && !isAuxiliaryWindow && !sessionsIsPhoneLayout && !sessionsWelcomeVisible || panelVisible && !config.sessions.showSessionActivityBar && !isAuxiliaryWindow && !sessionsIsPhoneLayout && !sessionsWelcomeVisible',
 				},
 				{
 					group: 'navigation',
 					order: 10,
 					icon: Codicon.layoutPanelOff.id,
 					hasToggledState: false,
-					when: `!agentSessionsDesktopLayout && !isAuxiliaryWindow && !${PanelVisibleContext.key} && !sessionsIsPhoneLayout && !sessionsWelcomeVisible || !config.${SESSION_ACTIVITY_BAR_SETTING} && !isAuxiliaryWindow && !${PanelVisibleContext.key} && !sessionsIsPhoneLayout && !sessionsWelcomeVisible`,
+					when: '!agentSessionsDesktopLayout && !isAuxiliaryWindow && !panelVisible && !sessionsIsPhoneLayout && !sessionsWelcomeVisible || !config.sessions.sessionActivityBar.showLayoutActions && !isAuxiliaryWindow && !panelVisible && !sessionsIsPhoneLayout && !sessionsWelcomeVisible || !config.sessions.showSessionActivityBar && !isAuxiliaryWindow && !panelVisible && !sessionsIsPhoneLayout && !sessionsWelcomeVisible',
 				},
 			],
 			terminalActionPresent: false,

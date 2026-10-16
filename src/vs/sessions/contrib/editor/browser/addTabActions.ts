@@ -23,7 +23,7 @@ import { NEW_FILE_TAB_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { EmptyFileEditorInput } from './emptyFileEditorInput.js';
-import { Menus } from '../../../browser/menus.js';
+import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
 
 export const NEW_BROWSER_TAB_COMMAND_ID = 'workbench.action.agentSessions.newBrowserTab';
 export const NEW_SEARCH_TAB_COMMAND_ID = 'workbench.action.agentSessions.newSearchTab';
@@ -92,7 +92,7 @@ export class NewFileTabAction extends Action2 {
 				when: filesAddTabWhen
 			}, {
 				id: Menus.SessionActivityBar,
-				group: 'navigation',
+				group: SessionActivityBarGroup.Tabs,
 				order: 1,
 				when: filesTabActionWhen
 			}]
@@ -140,7 +140,7 @@ export class NewBrowserTabAction extends Action2 {
 				when: addTabLayoutWhen
 			}, {
 				id: Menus.SessionActivityBar,
-				group: 'navigation',
+				group: SessionActivityBarGroup.Tabs,
 				order: 2,
 				when: addTabActionWhen
 			}]
@@ -216,7 +216,7 @@ export class NewChangesTabAction extends Action2 {
 				when: changesAddTabWhen
 			}, {
 				id: Menus.SessionActivityBar,
-				group: 'navigation',
+				group: SessionActivityBarGroup.Tabs,
 				order: 0,
 				// Offered whenever the tab is available; an open tab is activated in place.
 				when: changesTabActionWhen

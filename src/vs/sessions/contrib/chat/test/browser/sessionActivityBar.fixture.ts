@@ -49,7 +49,7 @@ interface IFixtureOptions {
 	readonly dragBy?: number;
 }
 
-const workspaceChatEntries = [fixtureChanges, fixtureFiles, fixtureBrowser, fixtureCanvas, fixtureTogglePanel, fixtureToggleSidePanel];
+const workspaceChatEntries = [fixtureToggleSidePanel, fixtureChanges, fixtureFiles, fixtureBrowser, fixtureCanvas, fixtureTogglePanel];
 const highContrastThemes: ['darkHighContrast', 'lightHighContrast'] = ['darkHighContrast', 'lightHighContrast'];
 
 function activityBarFixture(options: IFixtureOptions, additionalThemes?: typeof highContrastThemes) {
@@ -76,7 +76,8 @@ export default defineThemedFixtureGroup({ path: 'sessions/sessionActivityBar/' }
 	RulerTimelineWide: activityBarFixture({ width: 1280, rulerTimeline: true }),
 	ExternalSessionBanner: activityBarFixture({ externalBanner: true }),
 	ExternalSessionBannerWide: activityBarFixture({ width: 1280, externalBanner: true }),
-	ChatWithoutWorkspace: activityBarFixture({ entries: [fixtureBrowser, fixtureCanvas, fixtureTogglePanel, fixtureToggleSidePanel] }),
+	ChatWithoutWorkspace: activityBarFixture({ entries: [fixtureToggleSidePanel, fixtureBrowser, fixtureCanvas, fixtureTogglePanel] }),
+	WithoutLayoutActions: activityBarFixture({ entries: [fixtureChanges, fixtureFiles, fixtureBrowser, fixtureCanvas] }),
 	Moved: activityBarFixture({ dragBy: 60 }),
 	AtBottom: activityBarFixture({ dragBy: 2000 }),
 	SubmenuOpen: activityBarFixture({ openSubmenu: true }, highContrastThemes),

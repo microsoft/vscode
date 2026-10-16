@@ -37,8 +37,8 @@ import { Parts } from '../../../../workbench/services/layout/browser/layoutServi
 import { IPaneCompositePartService } from '../../../../workbench/services/panecomposite/browser/panecomposite.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { Menus } from '../../../browser/menus.js';
-import { SessionsWelcomeVisibleContext, CustomViewVisibleContext, IsQuickChatSessionContext, DesktopLayoutContext, SessionActivityBarEnabledContext } from '../../../common/contextkeys.js';
+import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
+import { SessionsWelcomeVisibleContext, CustomViewVisibleContext, IsQuickChatSessionContext, DesktopLayoutContext, SessionActivityBarLayoutActionsContext } from '../../../common/contextkeys.js';
 import { logSidePanelToggle } from '../../../common/sessionsTelemetry.js';
 import { ChatLayoutContext } from '../../../common/chatLayout.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
@@ -765,14 +765,14 @@ export abstract class BaseLayoutController extends Disposable {
 							id: Menus.TitleBarSessionMenu,
 							group: 'navigation',
 							order: 11, // After Open in VS Code (7), Run Script (8), and Toggle Panel (10)
-							when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionActivityBarEnabledContext.negate())
+							when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionActivityBarLayoutActionsContext.negate())
 						},
 						{
-							// Replaces the title bar entry while the Session Activity Bar is enabled.
+							// Replaces the title bar entry while the Session Activity Bar shows its layout actions.
 							id: Menus.SessionActivityBar,
-							group: 'layout',
-							order: 11,
-							when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionActivityBarEnabledContext)
+							group: SessionActivityBarGroup.SidePanel,
+							order: 0,
+							when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionActivityBarLayoutActionsContext)
 						}
 					]
 				});
