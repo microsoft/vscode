@@ -150,6 +150,7 @@ export interface ICompositeBarActionViewItemOptions extends IActionViewItemOptio
 	readonly hoverOptions: IActivityHoverOptions;
 	readonly hasPopup?: boolean;
 	readonly compact?: boolean;
+	readonly reserveBadgeSpace?: boolean;
 }
 
 export class CompositeBarActionViewItem extends BaseActionViewItem {
@@ -280,7 +281,7 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 		// pane composite bar active border + background
 		append(container, $('.active-item-indicator'));
 
-		hide(this.badge);
+		this.hideBadge();
 
 		this.update();
 		this.updateStyles();
@@ -315,7 +316,7 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 		this.badgeDisposable.value = new DisposableStore();
 
 		clearNode(this.badgeContent);
-		hide(this.badge);
+		this.hideBadge();
 
 		const shouldRenderBadges = this.badgesEnabled(this.compositeBarActionItem.id);
 
@@ -329,7 +330,7 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 
 			// Progress
 			if (type === 'progress') {
-				show(this.badge);
+				this.showBadge();
 				classes.push('progress-badge');
 			}
 
@@ -347,7 +348,7 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 						classes.push('compact-content');
 					}
 					this.badgeContent.textContent = badgeNumber;
-					show(this.badge);
+					this.showBadge();
 				}
 			}
 
@@ -357,7 +358,7 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 				const badgeContentClassess = ['icon-overlay', ...ThemeIcon.asClassNameArray((badges[0] as IconBadge).icon)];
 				this.badgeContent.classList.add(...badgeContentClassess);
 				this.badgeDisposable.value.add(toDisposable(() => this.badgeContent?.classList.remove(...badgeContentClassess)));
-				show(this.badge);
+				this.showBadge();
 			}
 
 			if (classes.length) {
@@ -369,6 +370,32 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 
 		this.updateTitle();
 		this.updateStyles();
+	}
+
+	/**
+	 * Hides the badge. When `reserveBadgeSpace` is enabled, uses visibility
+	 * instead of display to keep the badge's space reserved in the layout,
+	 * preventing adjacent tabs from shifting when the badge appears/disappears.
+	 */
+	private hideBadge(): void {
+		if (this.options.reserveBadgeSpace) {
+			this.badge.style.visibility = 'hidden';
+			this.badge.setAttribute('aria-hidden', 'true');
+		} else {
+			hide(this.badge);
+		}
+	}
+
+	/**
+	 * Shows the badge. Restores visibility when `reserveBadgeSpace` is enabled.
+	 */
+	private showBadge(): void {
+		if (this.options.reserveBadgeSpace) {
+			this.badge.style.visibility = 'visible';
+			this.badge.removeAttribute('aria-hidden');
+		} else {
+			show(this.badge);
+		}
 	}
 
 	private getVisibleBadges(activities: IActivity[]): { badges: IBadge[]; type: 'progress' | 'icon' | 'number' | undefined } {
