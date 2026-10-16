@@ -1174,9 +1174,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			shellToolsPromise = createShellTools(plan.shellManager, runtime.chatUri, this._terminalManager, this._logService, request => runtime.requestUnsandboxedCommandConfirmation(request));
 		}
 		// Rely on the SDK to discover skills and other plugin resources from
-		// `pluginDirectories`. Agents are projected explicitly because the SDK treats a
-		// non-empty `customAgents` array as the complete catalog, and VS Code always adds
-		// its built-in agents there (see `toSdkSessionCustomAgents`).
+		// `pluginDirectories`. Agents are projected explicitly because the SDK treats an
+		// explicit `customAgents` array as the complete catalog, and VS Code always adds its
+		// built-in agents there (see `toSdkSessionCustomAgents`).
 		// Hooks without an on-disk plugin directory are projected explicitly below.
 		const pluginsWithoutDirs = plugins.filter(p => !p.pluginDir || p.pluginDir.scheme !== Schemas.file);
 		// An ephemeral session skips the explicit enumeration (and its file I/O). The SDK can

@@ -170,11 +170,10 @@ export interface IPluginAgentsForSdk {
 /**
  * Builds the SDK's `customAgents` config for a session.
  *
- * The SDK treats a non-empty `customAgents` array as the complete agent catalog
- * and does not merge agents discovered from `pluginDirectories`. VS Code always
- * contributes built-in agents explicitly, so every enabled plugin agent must be
- * projected here as well. Other plugin resources continue to load through
- * `pluginDirectories`.
+ * The SDK treats an explicit `customAgents` array, including an empty one, as
+ * the complete agent catalog and does not merge agents discovered from
+ * `pluginDirectories`. VS Code always contributes built-in agents explicitly,
+ * so every enabled plugin agent must be projected here as well.
  */
 export async function toSdkSessionCustomAgents(
 	plugins: readonly IPluginAgentsForSdk[],
