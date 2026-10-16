@@ -130,6 +130,60 @@ suite('CopilotCustomizationInstallations', () => {
 		});
 	});
 
+	test('uses SDK catalog search for empty Canvas discovery intent', async () => {
+		let marketplaceLists = 0;
+		let observedRequest: Parameters<CopilotClient['rpc']['catalog']['search']>[0] | undefined;
+		const catalog = new class extends mock<CopilotClient['rpc']['catalog']>() {
+			override readonly search: CopilotClient['rpc']['catalog']['search'] = async request => {
+				observedRequest = request;
+				return {
+					kind: 'succeeded' as const,
+					searchId: 'canvas-search',
+					candidates: [],
+					truncated: false,
+					negotiated: { runtimeProtocolVersion: 3, grantedCapabilities: ['agent-plugin-discovery'] },
+				};
+			};
+		}();
+		const client = {
+			rpc: {
+				catalog,
+				plugins: new class extends mock<CopilotClient['rpc']['plugins']>() {
+					override readonly marketplaces = new class extends mock<CopilotClient['rpc']['plugins']['marketplaces']>() {
+						override readonly list: CopilotClient['rpc']['plugins']['marketplaces']['list'] = async () => {
+							marketplaceLists++;
+							return { marketplaces: [] };
+						};
+					}();
+				}(),
+				skills: new class extends mock<CopilotClient['rpc']['skills']>() { }(),
+				mcp: new class extends mock<CopilotClient['rpc']['mcp']>() { }(),
+			},
+		};
+		const service = store.add(new CopilotCustomizationInstallations(
+			async () => client,
+			() => 'policy-session',
+		));
+
+		const result = await service.search(URI.parse('agent-host-copilotcli:///session'), {
+			query: '',
+			canvasDiscovery: true,
+			limit: 10,
+		});
+
+		assert.deepStrictEqual({
+			marketplaceLists,
+			kinds: observedRequest?.kinds,
+			requestsPluginDiscovery: observedRequest?.contract.requiredCapabilities.includes('agent-plugin-discovery'),
+			result,
+		}, {
+			marketplaceLists: 0,
+			kinds: ['ai-skill', 'mcp-server', 'plugin'],
+			requestsPluginDiscovery: true,
+			result: { kind: 'page', items: [], nextCursor: undefined },
+		});
+	});
+
 	test('creates and reuses a hidden policy session when no chat is materialized', async () => {
 		const policySessionIds: (string | undefined)[] = [];
 		const catalog = new class extends mock<CopilotClient['rpc']['catalog']>() {

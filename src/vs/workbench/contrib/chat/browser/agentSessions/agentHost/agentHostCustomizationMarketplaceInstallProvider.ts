@@ -202,6 +202,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		const search = () => this.agentHostService.searchCustomizationMarketplace!(this.providerId, backendSession, {
 			query,
 			mediaType: options.mediaType,
+			...(options.canvasDiscovery ? { canvasDiscovery: true } : {}),
 			limit: options.pageSize ?? 30,
 			cursor: options.cursor,
 		});

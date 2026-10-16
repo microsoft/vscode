@@ -533,7 +533,13 @@ suite('AICustomizationDiscoveryPage', () => {
 		fixture.page.setSearchQuery('@type:canvas diagram');
 		fixture.page.setVisible(true);
 		await waitForRequestCount(fixture.requests, 1);
-		assert.strictEqual(fixture.requests[0].options.mediaType, CustomizationMarketplaceMediaType.CopilotPlugin);
+		assert.deepStrictEqual({
+			mediaType: fixture.requests[0].options.mediaType,
+			canvasDiscovery: fixture.requests[0].options.canvasDiscovery,
+		}, {
+			mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+			canvasDiscovery: true,
+		});
 		await fixture.requests[0].result.complete({
 			items: [
 				resource('ordinary-plugin', {
@@ -558,6 +564,48 @@ suite('AICustomizationDiscoveryPage', () => {
 				detail: row.querySelector('.customization-discovery-result-detail')?.textContent,
 			}));
 		assert.deepStrictEqual(rows, [{ name: 'Diagram Canvas', detail: 'Canvas · GitHub Feed' }]);
+	});
+
+	test('keeps SDK Canvas discovery for a queryless combined type filter', async () => {
+		const fixture = createPage(
+			['agentFinder'],
+			[AICustomizationManagementSection.Canvases, AICustomizationManagementSection.Skills],
+		);
+		fixture.page.setSearchQuery('@type:canvas @type:skill');
+		fixture.page.setVisible(true);
+		await waitForRequestCount(fixture.requests, 1);
+		assert.deepStrictEqual(fixture.requests[0].options, {
+			query: undefined,
+			mediaType: undefined,
+			canvasDiscovery: true,
+			sourceIds: undefined,
+			pageSize: 24,
+			cursor: undefined,
+		});
+		await fixture.requests[0].result.complete({
+			items: [
+				resource('review-skill'),
+				resource('diagram-canvas', {
+					mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+					tags: ['canvas'],
+				}),
+				resource('ordinary-plugin', {
+					mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+				}),
+			],
+		});
+		await timeout(0);
+
+		const names = [...fixture.container.querySelectorAll<HTMLElement>('.customization-discovery-result-name')].map(element => element.textContent);
+		assert.deepStrictEqual({
+			hasSkill: names.includes('Local mail skill'),
+			hasCanvas: names.includes('diagram-canvas'),
+			hasOrdinaryPlugin: names.includes('ordinary-plugin'),
+		}, {
+			hasSkill: true,
+			hasCanvas: true,
+			hasOrdinaryPlugin: false,
+		});
 	});
 
 	test('includes multi-purpose Canvas plugins in Accessible View', async () => {

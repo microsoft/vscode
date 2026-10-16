@@ -1358,6 +1358,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				const page = await this.marketplaceService.query({
 					query: this.query.text || undefined,
 					mediaType: getCatalogMediaType(this.query.types),
+					...(this.query.types.has('canvas') ? { canvasDiscovery: true } : {}),
 					sourceIds: this.selectedSourceId ? [this.selectedSourceId] : undefined,
 					pageSize: this.query.isEmpty() ? browseCatalogPageSize : catalogPageSize,
 					cursor: append ? this.catalogPage?.nextCursor : undefined,

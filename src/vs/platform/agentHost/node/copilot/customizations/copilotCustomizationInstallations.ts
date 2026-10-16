@@ -191,7 +191,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 	}
 
 	async search(session: URI, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult> {
-		if (!request.query.trim()) {
+		if (!request.query.trim() && !request.canvasDiscovery) {
 			if (request.mediaType !== copilotPluginMediaType) {
 				return request.mediaType
 					? { kind: 'page', items: [] }
