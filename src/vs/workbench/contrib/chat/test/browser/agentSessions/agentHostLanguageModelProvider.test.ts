@@ -280,6 +280,11 @@ suite('AgentHostLanguageModelProvider', () => {
 			// Only Auto's tier carries provider availability; other models and a plain Auto are unchanged.
 			plain: await tierOf({ ...makeModel('auto'), configSchema }),
 			notAuto: await tierOf({ ...makeModel('gpt-5', meta), configSchema }),
+			// With every tier unavailable the host sends an empty tier, which still lists them all, disabled.
+			allUnavailable: await tierOf({
+				...makeModel('auto', withAgentModelAutoTiersMeta(undefined, { tiers: [{ id: 'balance', label: 'Balance', enabled: false, message: 'Paused' }, { id: 'hydrafusion-max', label: 'Max', enabled: false }] })),
+				configSchema: { type: 'object', properties: { tier: { type: 'string', title: 'Optimize for', enum: [] } } },
+			}),
 		}, {
 			withUnavailable: {
 				enum: ['balance', 'premium', 'hydrafusion', 'hydrafusion-max'],
@@ -290,6 +295,7 @@ suite('AgentHostLanguageModelProvider', () => {
 			},
 			plain: { enum: ['balance', 'hydrafusion'], labels: ['Balance', 'High'], descriptions: ['', 'Fusion'], disabled: undefined, default: 'balance' },
 			notAuto: { enum: ['balance', 'hydrafusion'], labels: ['Balance', 'High'], descriptions: ['', 'Fusion'], disabled: undefined, default: 'balance' },
+			allUnavailable: { enum: ['balance', 'hydrafusion-max'], labels: ['Balance', 'Max'], descriptions: ['Paused', 'Not available for your account.'], disabled: [true, true], default: undefined },
 		});
 	});
 

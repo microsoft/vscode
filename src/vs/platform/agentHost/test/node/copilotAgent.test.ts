@@ -10906,6 +10906,44 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('stops accepting HydraFusion Max when a restart turns HydraFusion v2 off, before the models refresh', async () => {
+			const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
+			client.autoTierMetadata = {
+				defaultTier: 'balance',
+				tiers: [
+					{ id: 'balance', displayName: 'Balance', description: '', type: 'auto', status: { enabled: true } },
+					{ id: 'hydrafusion', displayName: 'High', description: '', type: 'fusion', status: { enabled: true } },
+					{ id: 'hydrafusion-max', displayName: 'Max', description: '', type: 'fusion', status: { enabled: true } },
+				],
+			};
+			const { agent, configurationService } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				rootConfig: { [CopilotCliConfigKey.DynamicAutoTiers]: true, [CopilotCliConfigKey.HydraFusion]: true, [CopilotCliConfigKey.HydraFusionV2]: true },
+			});
+			const accepted = () => ['hydrafusion', 'hydrafusion-max'].map(tier => getCopilotAutoTier({ id: 'auto', config: { tier } }));
+			const gate = new DeferredPromise<void>();
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.refreshModels();
+				const withV2 = accepted();
+
+				// Hold the post-restart model refresh so only the restart can change what is accepted.
+				client.modelListGate = gate.p;
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.HydraFusionV2]: false });
+				await agent.listChatsToMigrate();
+
+				assert.deepStrictEqual({ withV2, withoutV2: accepted(), stopCallCount: client.stopCallCount }, {
+					withV2: ['hydrafusion', 'hydrafusion-max'],
+					withoutV2: ['hydrafusion', undefined],
+					stopCallCount: 1,
+				});
+			} finally {
+				gate.complete();
+				await disposeAgent(agent);
+				setAdvertisedAutoModeTiers(undefined);
+			}
+		});
+
 		test('enables Claude Advisor when configured', async () => {
 			const client = new TestCopilotClient([]);
 			const { agent } = createTestAgentContext(disposables, {
@@ -13250,11 +13288,16 @@ suite('CopilotAgent', () => {
 			await agent.authenticate('https://api.github.com', 'token');
 			const published = await waitForState(agent.models, published => published.some(model => model.id === 'auto'));
 
+			const auto = published.find(model => model.id === 'auto')!;
+			const tier = auto.configSchema?.properties.tier;
 			assert.deepStrictEqual({
-				tierSchema: published.find(model => model.id === 'auto')?.configSchema?.properties.tier,
+				// The tier stays, selecting nothing, so the picker can list the unavailable tier and its reason.
+				tierSchema: { enum: tier?.enum, hasDefault: !!tier && Object.hasOwn(tier, 'default') },
+				unavailable: readAgentModelAutoTiersMeta(auto)?.tiers,
 				accepted: ['balance', 'efficiency', 'intelligence', 'hydrafusion-max'].map(tier => getCopilotAutoTier({ id: 'auto', config: { tier } })),
 			}, {
-				tierSchema: undefined,
+				tierSchema: { enum: [], hasDefault: false },
+				unavailable: [{ id: 'balance', label: 'Balance', enabled: false, message: 'Paused' }],
 				accepted: [undefined, undefined, undefined, undefined],
 			});
 		} finally {

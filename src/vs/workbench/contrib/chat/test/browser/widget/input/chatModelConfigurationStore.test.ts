@@ -16,7 +16,7 @@ import { NullLogService } from '../../../../../../../platform/log/common/log.js'
 import { IManagedSettingsService, ManagedSettingsData, NullManagedSettingsService } from '../../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { ChatInputPart } from '../../../../browser/widget/input/chatInputPart.js';
-import { extractSchemaDefaults } from '../../../../browser/widget/input/chatModelConfigurationLogic.js';
+import { extractSchemaDefaults, filterConfigurationToSchema } from '../../../../browser/widget/input/chatModelConfigurationLogic.js';
 import { ChatModelConfigurationStore } from '../../../../browser/widget/input/chatModelConfigurationStore.js';
 import { renderModelConfigurationButton } from '../../../../browser/widget/input/modelPicker/modelPickerConfiguration.js';
 import { resolveContextWindowInputTokens } from '../../../../browser/widgetHosts/viewPane/chatContextUsageWidget.js';
@@ -179,6 +179,42 @@ suite('ChatModelConfigurationStore', () => {
 		});
 		assert.deepStrictEqual(editor.getModelConfiguration(MODEL), {
 			thinkingEffort: 'low', [modelConfigurationSourceKey('thinkingEffort')]: 'explicit',
+		});
+	});
+
+	test('a chat\'s own Auto tier choices keep the provider\'s unavailable tiers disabled, in order, with their reasons', () => {
+		const control = createControllableService();
+		control.setAutoModel();
+		control.setSchema({
+			properties: {
+				tier: {
+					type: 'string',
+					enum: ['balance', 'premium', 'hydrafusion', 'hydrafusion-max'],
+					enumItemLabels: ['Balance', 'Premium', 'High', 'Max'],
+					enumDescriptions: ['', 'Contact admin', '', 'Requires more models'],
+					enumItemDisabled: [false, true, false, true],
+					default: 'balance',
+				},
+			},
+		}, ['tier']);
+		const editor = createStore(store.add(new InMemoryStorageService()), control.service, () => false);
+		// The host reports only the tiers this chat can select, with its own labels.
+		editor.setSessionModelConfiguration({
+			models: { [MODEL]: { defaults: { tier: 'hydrafusion' }, readOnly: [], choices: { tier: { values: ['balance', 'hydrafusion'], labels: ['Lite', 'Balance'], descriptions: ['Quick', 'Thorough'] } } } },
+		});
+		const tier = editor.getModelConfigurationSchema(MODEL)?.properties?.tier;
+		assert.deepStrictEqual({
+			enum: tier?.enum, labels: tier?.enumItemLabels, descriptions: tier?.enumDescriptions, disabled: tier?.enumItemDisabled, default: tier?.default,
+			unavailableKept: filterConfigurationToSchema({ tier: 'hydrafusion-max' }, editor.getModelConfigurationSchema(MODEL)),
+			selectableKept: filterConfigurationToSchema({ tier: 'hydrafusion' }, editor.getModelConfigurationSchema(MODEL)),
+		}, {
+			enum: ['balance', 'premium', 'hydrafusion', 'hydrafusion-max'],
+			labels: ['Lite', 'Premium', 'Balance', 'Max'],
+			descriptions: ['Quick', 'Contact admin', 'Thorough', 'Requires more models'],
+			disabled: [false, true, false, true],
+			default: 'hydrafusion',
+			unavailableKept: {},
+			selectableKept: { tier: 'hydrafusion' },
 		});
 	});
 

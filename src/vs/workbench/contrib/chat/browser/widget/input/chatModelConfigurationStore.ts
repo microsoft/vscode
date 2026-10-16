@@ -259,7 +259,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 					const offered = value !== undefined && (!offeredValues || offeredValues.includes(value));
 					return [key, {
 						...property,
-						...(choices ? { enum: choices.values, enumItemLabels: choices.labels, enumDescriptions: choices.descriptions } : {}),
+						...(choices ? withScopedChoices(property, choices) : {}),
 						...(offered || choices ? { default: offered ? value : undefined } : {}),
 						readOnly: offered && scoped.readOnly.includes(key),
 					}];
@@ -495,4 +495,43 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 			this.storageService.store(key, JSON.stringify(bucket), StorageScope.APPLICATION, StorageTarget.USER);
 		}
 	}
+}
+
+type IModelConfigurationPropertySchema = NonNullable<ILanguageModelConfigurationSchema['properties']>[string];
+type IScopedChoices = NonNullable<IAgentModelConfigurationReport['models'][string]['choices']>[string];
+
+/**
+ * A chat's own choices for a property. The host reports only the values the chat can select, so
+ * values the shared schema lists as unavailable are kept, disabled, in the shared order, and every
+ * parallel array is rebuilt to match.
+ */
+function withScopedChoices(property: IModelConfigurationPropertySchema, choices: IScopedChoices): Partial<IModelConfigurationPropertySchema> {
+	const scoped = { enum: choices.values, enumItemLabels: choices.labels, enumDescriptions: choices.descriptions };
+	const shared = property.enum ?? [];
+	if (!property.enumItemDisabled?.some(Boolean)) {
+		return { ...scoped, enumItemDisabled: undefined };
+	}
+	const entries: { value: unknown; label: string | undefined; description: string | undefined; disabled: boolean }[] = [];
+	const scopedEntry = (value: unknown) => {
+		const index = (choices.values as readonly unknown[]).indexOf(value);
+		return { value, label: choices.labels?.[index], description: choices.descriptions?.[index], disabled: false };
+	};
+	for (const [index, value] of shared.entries()) {
+		if ((choices.values as readonly unknown[]).includes(value)) {
+			entries.push(scopedEntry(value));
+		} else if (property.enumItemDisabled[index]) {
+			entries.push({ value, label: property.enumItemLabels?.[index], description: property.enumDescriptions?.[index], disabled: true });
+		}
+	}
+	for (const value of choices.values) {
+		if (!shared.includes(value)) {
+			entries.push(scopedEntry(value));
+		}
+	}
+	return {
+		enum: entries.map(entry => entry.value),
+		enumItemLabels: entries.map(entry => entry.label ?? String(entry.value)),
+		enumDescriptions: entries.map(entry => entry.description ?? ''),
+		enumItemDisabled: entries.map(entry => entry.disabled),
+	};
 }

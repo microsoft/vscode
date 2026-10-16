@@ -1753,6 +1753,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// one with it accepts the same tiers until the refresh says otherwise.
 		if (!this._lastStartupConfig.dynamicAutoTiers) {
 			this._setAutoTierMetadata(undefined);
+		} else {
+			// The replacement may run without HydraFusion v2, which rejects HydraFusion Max.
+			this._applyAdvertisedAutoModeTiers();
 		}
 		void this._scheduleModelRefresh();
 	}
@@ -3731,16 +3734,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const description = localize('copilot.modelAutoTier.description', "Biases which models Auto routes this session to.");
 		if (metadata) {
 			// Only selectable tiers go in `enum`; unavailable ones reach the picker through `_meta`.
-			const tiers = getPickerAutoTiers(metadata, this._isHydraFusionV2Enabled()).filter(tier => tier.status.enabled);
-			if (!tiers.length) {
+			const pickerTiers = getPickerAutoTiers(metadata, this._isHydraFusionV2Enabled());
+			if (!pickerTiers.length) {
 				return undefined;
 			}
+			const tiers = pickerTiers.filter(tier => tier.status.enabled);
 			const ids = tiers.map(tier => tier.id);
+			// With every tier unavailable the property stays, without a default, so the picker can still list them disabled with their reasons.
 			return {
 				type: 'string',
 				title,
 				description,
-				default: ids.includes(metadata.defaultTier) ? metadata.defaultTier : ids[0],
+				...(ids.length ? { default: ids.includes(metadata.defaultTier) ? metadata.defaultTier : ids[0] } : {}),
 				enum: ids,
 				enumLabels: tiers.map(tier => getProviderAutoTierLabel(tier)),
 				enumDescriptions: tiers.map(tier => tier.description || getAutoModeTierDescription(tier.id) || ''),
@@ -3767,13 +3772,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return;
 		}
 		this._autoTierMetadata = metadata;
-		const hydraFusionV2 = this._isHydraFusionV2Enabled();
-		setAdvertisedAutoModeTiers(metadata?.tiers.filter(tier => isRunnableAutoTier(tier, hydraFusionV2)).map(tier => tier.id));
+		this._applyAdvertisedAutoModeTiers();
 		if (metadata) {
 			this._logService.info(`[Copilot] Provider Auto tiers: default '${metadata.defaultTier}'; ${metadata.tiers.map(tier => `${tier.id} (${tier.type}${tier.status.enabled ? '' : ', disabled'})`).join(', ')}`);
 		} else {
 			this._logService.info('[Copilot] No provider Auto tier metadata; using built-in Auto tiers');
 		}
+	}
+
+	/** Accepts the recorded provider tiers this client can run now, which depends on the HydraFusion v2 setting. */
+	private _applyAdvertisedAutoModeTiers(): void {
+		const hydraFusionV2 = this._isHydraFusionV2Enabled();
+		setAdvertisedAutoModeTiers(this._autoTierMetadata?.tiers.filter(tier => isRunnableAutoTier(tier, hydraFusionV2)).map(tier => tier.id));
 	}
 
 	private _createModelPickerMeta(modelInfo: CopilotModelInfo, billing: ICAPIModelBilling | undefined, autoTierMetadata: CopilotAutoTierMetadata | undefined, promotions: readonly IAgentModelAutoTierPromotion[]): Record<string, unknown> | undefined {
