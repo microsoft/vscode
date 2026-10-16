@@ -1193,6 +1193,23 @@ suite('Sessions - ChatCompositeBar', () => {
 		});
 	});
 
+	test('does not measure the tab strip while hidden and measures it once shown', () => {
+		const { activeChatResource, bar, chats, tabs, visible } = createHarness(disposables);
+		const tabStrip = bar.element.querySelector<HTMLElement>('.chat-composite-bar-tabs')!;
+		let layoutReads = 0;
+		for (const property of ['clientWidth', 'scrollWidth']) {
+			Object.defineProperty(tabStrip, property, { configurable: true, get: () => { layoutReads++; return 0; } });
+		}
+
+		visible.set(false, undefined);
+		layoutReads = 0;
+		activeChatResource.set(tabs[1].dataset.chatResource!, undefined);
+		chats.set([...chats.get()], undefined);
+		const readsWhileHidden = layoutReads;
+		visible.set(true, undefined);
+
+		assert.deepStrictEqual({ readsWhileHidden, measuredWhenShown: layoutReads > 0 }, { readsWhileHidden: 0, measuredWhenShown: true });
+	});
 	test('tracks height changes from ResizeObserver', () => {
 		const { bar } = createHarness(disposables, { resizeObserverCtor: TestResizeObserver });
 		const resizeObserver = TestResizeObserver.instance;
