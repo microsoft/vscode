@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { ClassNameReference, DynamicCssRules } from '../../../browser/editorDom.js';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../browser/editorExtensions.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { countEOL } from '../../../common/core/misc/eolCounter.js';
@@ -25,9 +26,12 @@ export class ShrinkEmptyLinesController extends Disposable implements IEditorCon
 
 	private _decorationOptions: ModelDecorationOptions | undefined;
 	private _decorationIds = new Set<string>();
+	private readonly _ruleFactory: DynamicCssRules;
+	private readonly _fontSizeRule = this._register(new MutableDisposable<ClassNameReference>());
 
 	constructor(private readonly editor: ICodeEditor) {
 		super();
+		this._ruleFactory = this._register(new DynamicCssRules(editor));
 		this._register(this.editor.onDidChangeModel(() => {
 			this._decorationIds.clear();
 			this._updateAllDecorations();
@@ -50,14 +54,18 @@ export class ShrinkEmptyLinesController extends Disposable implements IEditorCon
 		const multiplier = this.editor.getOption(EditorOption.effectiveShrinkEmptyLines);
 		if (multiplier === 0 || multiplier === 1) {
 			this._decorationOptions = undefined;
+			this._fontSizeRule.clear();
 			return;
 		}
 		const fontSize = `${this.editor.getOption(EditorOption.fontInfo).fontSize * multiplier}px`;
+		this._fontSizeRule.value = this._ruleFactory.createClassNameRef({ fontSize });
 		this._decorationOptions = ModelDecorationOptions.createDynamic({
 			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 			description: 'shrink-empty-line',
+			isWholeLine: true,
 			lineHeight: multiplier,
-			fontSize
+			fontSize,
+			inlineClassName: this._fontSizeRule.value.className
 		});
 	}
 

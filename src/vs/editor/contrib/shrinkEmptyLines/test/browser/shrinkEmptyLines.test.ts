@@ -134,6 +134,8 @@ suite('Shrink Empty Lines', () => {
 		results.push(getRenderedSizes());
 		editor.updateOptions({ shrinkEmptyLines: 0 });
 		results.push(getRenderedSizes());
+		editor.updateOptions({ shrinkEmptyLines: 0.5 });
+		results.push(getRenderedSizes());
 
 		assert.deepStrictEqual(results, [
 			{ fontSizes: ['20px', '10px', '20px'], punctuationHeight: 15 },
@@ -144,6 +146,7 @@ suite('Shrink Empty Lines', () => {
 			{ fontSizes: ['24px', '18px', '24px'], punctuationHeight: 30 },
 			{ fontSizes: ['24px', '24px', '24px'], punctuationHeight: 40 },
 			{ fontSizes: ['24px', '24px', '24px'], punctuationHeight: 40 },
+			{ fontSizes: ['24px', '12px', '24px'], punctuationHeight: 20 },
 		]);
 	});
 
