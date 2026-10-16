@@ -81,7 +81,7 @@ suite('ModelPickerTelemetry', () => {
 		},
 	});
 
-	function createPicker(selectedModel = model, beforeSave?: (id: string) => Promise<void>, models = [autoModel, model, fastModel, otherModel, thirdPartyModel], entitlement = ChatEntitlement.Pro, supportsProgrammaticSelection = true, showAutoModel = true, controlManifest: IModelsControlManifest = { free: {}, paid: {} }) {
+	function createPicker(selectedModel = model, beforeSave?: (id: string) => Promise<void>, models = [autoModel, model, fastModel, otherModel, thirdPartyModel], entitlement = ChatEntitlement.Pro, supportsProgrammaticSelection = true, showAutoModel = true, controlManifest: IModelsControlManifest = { free: {}, paid: {} }, presentsConfiguration = true) {
 		const instantiationService = store.add(new TestInstantiationService());
 		const events: { name: string; data: unknown }[] = [];
 		const pickerEvents: { name: string; data: unknown }[] = [];
@@ -105,9 +105,11 @@ suite('ModelPickerTelemetry', () => {
 				await beforeSave?.(id);
 				configurations.set(id, { ...configurations.get(id), ...values });
 			},
-			presentModelConfiguration: (id, values) => {
-				configurations.set(id, { ...configurations.get(id), ...values });
-			},
+			...(presentsConfiguration ? {
+				presentModelConfiguration: (id: string, values: IStringDictionary<unknown>) => {
+					configurations.set(id, { ...configurations.get(id), ...values });
+				},
+			} : {}),
 			getModelConfigurationActions: () => [],
 		};
 		const container = dom.append(mainWindow.document.body, dom.$('.monaco-reduce-motion'));
@@ -555,14 +557,21 @@ suite('ModelPickerTelemetry', () => {
 					},
 				},
 			};
-			const result = createPicker(max, undefined, [fusion, max, model]);
+			const result = createPicker(max, undefined, [fusion, max, model], undefined, undefined, undefined, undefined, presentsConfiguration);
 			await timeout(0);
 			return { selected: result.picker.selectedModel?.identifier, tier: result.configurations.get(fusion.identifier)?.tier, savedConfigurations: result.savedConfigurations };
 		};
-		assert.deepStrictEqual({ available: await open(false), unavailable: await open(true) }, {
-			// Shown, not saved: the chat keeps running until the user picks a tier.
+		let presentsConfiguration = true;
+		const available = await open(false);
+		const unavailable = await open(true);
+		presentsConfiguration = false;
+		const withoutChatConfiguration = await open(false);
+		assert.deepStrictEqual({ available, unavailable, withoutChatConfiguration }, {
+			// Shown, not saved: the chat may be on HydraFusion only because it was the first model available.
 			available: { selected: autoModel.identifier, tier: 'hydrafusion-max', savedConfigurations: [] },
 			unavailable: { selected: max.identifier, tier: undefined, savedConfigurations: [] },
+			// Without a chat to present the tier in, nothing is saved as a preference and the chat stays put.
+			withoutChatConfiguration: { selected: max.identifier, tier: undefined, savedConfigurations: [] },
 		});
 	});
 

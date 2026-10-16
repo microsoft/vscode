@@ -158,7 +158,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 
 	/** An Auto tier presented here is session state, so it wins over a managed startup default. */
 	presentModelConfiguration(modelId: string, values: IStringDictionary<unknown>): void {
-		if (isAutoModeRoutingTier(values.tier) && !this._explicitAutoTiers.has(modelId)) {
+		if (this._isAutoTier(modelId, values.tier) && !this._explicitAutoTiers.has(modelId)) {
 			this._sessionAutoTiers.add(modelId);
 			values = { ...values, [AutoTierSourceConfigKey]: 'session' };
 		}
@@ -365,7 +365,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 		// which may come from the provider rather than the built-in list. Before the model
 		// registers there is no schema, so a provider tier is kept as captured, with its
 		// provenance, until a later sync validates it against the schema.
-		const isRoutingTier = (tier: unknown) => isAutoModeRoutingTier(tier) || ((metadata === undefined || metadata.id === 'auto') && typeof tier === 'string' && tier.length > 0);
+		const isRoutingTier = (tier: unknown) => this._isAutoTier(modelId, tier);
 		if (isRoutingTier(filtered.tier)) {
 			if (source === 'session' || (!this.isEmpty() && inherited)) {
 				this._sessionAutoTiers.add(modelId);
@@ -401,6 +401,19 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 		this._applyLocalModelConfiguration(modelId, filtered, persist, restoredDefaults && metadata
 			? filterConfigurationToSchema(restoredDefaults, this.getModelConfigurationSchema(modelId))
 			: restoredDefaults);
+	}
+
+	/**
+	 * Whether a value is one of Auto's routing tiers: a built-in one, or any tier of the Auto model,
+	 * whose schema may list the provider's own. Before the model registers there is no schema, so a
+	 * provider tier is kept as captured until a later sync validates it against the schema.
+	 */
+	private _isAutoTier(modelId: string, tier: unknown): boolean {
+		if (isAutoModeRoutingTier(tier)) {
+			return true;
+		}
+		const metadata = this.languageModelsService.lookupLanguageModel(modelId);
+		return (metadata === undefined || metadata.id === 'auto') && typeof tier === 'string' && tier.length > 0;
 	}
 
 	/**

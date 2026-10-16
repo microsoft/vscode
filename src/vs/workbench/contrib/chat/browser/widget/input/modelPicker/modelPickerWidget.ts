@@ -316,25 +316,22 @@ export class ModelPickerWidget extends Disposable {
 
 	/**
 	 * With the provider's tiers, Fusion offers a HydraFusion model as one of its own tiers, so a chat
-	 * on that model moves to Fusion with that tier, which the picker can then show as selected.
+	 * on that model is shown as Fusion with that tier. The tier is presented for this chat only: the
+	 * chat may be on the model only because it was the first one available, so it must never become
+	 * a saved preference. Without a chat to present it in, the selection is left as it is.
 	 */
 	private _normalizeHydraFusionTier(model: ILanguageModelChatMetadataAndIdentifier, models: readonly ILanguageModelChatMetadataAndIdentifier[]): ILanguageModelChatMetadataAndIdentifier | undefined {
-		if (!isHydraFusionModel(model) || isHydraFusionUpgradeOnly(this._entitlementService.entitlement)) {
+		const scopedConfiguration = this._delegate.modelConfiguration;
+		if (!isHydraFusionModel(model) || !scopedConfiguration?.presentModelConfiguration || isHydraFusionUpgradeOnly(this._entitlementService.entitlement)) {
 			return undefined;
 		}
 		const fusion = models.find(candidate => candidate.metadata.autoModelFusion && !isUserProvidedModel(candidate, this._languageModelsService));
-		const configurationAccess = this._delegate.modelConfiguration ?? this._languageModelsService;
-		const tier = fusion && getModelConfigProperty(fusion, configurationAccess, MODEL_CONFIG_GROUP_EFFORT);
+		const tier = fusion && getModelConfigProperty(fusion, scopedConfiguration, MODEL_CONFIG_GROUP_EFFORT);
 		const index = tier ? tier.schema.enum?.indexOf(model.metadata.id) ?? -1 : -1;
 		if (!fusion || !tier || index < 0 || tier.schema.enumItemDisabled?.[index] || tier.schema.readOnly) {
 			return undefined;
 		}
-		const scopedConfiguration = this._delegate.modelConfiguration;
-		if (scopedConfiguration?.presentModelConfiguration) {
-			scopedConfiguration.presentModelConfiguration(fusion.identifier, { [tier.key]: model.metadata.id });
-		} else {
-			setModelConfigValues(fusion, configurationAccess, { [tier.key]: model.metadata.id }).catch(onUnexpectedError);
-		}
+		scopedConfiguration.presentModelConfiguration(fusion.identifier, { [tier.key]: model.metadata.id });
 		return fusion;
 	}
 

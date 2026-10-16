@@ -1139,10 +1139,11 @@ export class TabbedModelPicker extends Disposable {
 	private _getModelCard(model: ILanguageModelChatMetadataAndIdentifier, context: ITabbedModelPickerContext): ModelCard {
 		let selectionVersion = this._selectionVersion;
 		const routingModel = isAutoModel(model) || isHydraFusionModel(model);
-		// With the provider's tiers, Fusion already offers HydraFusion as a tier, so it is not offered again beside them.
+		// With the provider's tiers, Fusion already offers HydraFusion as a tier, so it is not offered again
+		// beside them, unless the chat is on that HydraFusion model, which the card must still show as selected.
 		const autoTierValues = isAutoModel(model) ? getModelConfigProperty(model, context.configurationAccess, MODEL_CONFIG_GROUP_EFFORT)?.schema.enum ?? [] : [];
 		const hydraFusionModels = isAutoModel(model) && this._hostsHydraFusion(context)
-			? this._hydraFusionModels(context).filter(hydraFusion => !autoTierValues.includes(hydraFusion.metadata.id))
+			? this._hydraFusionModels(context).filter(hydraFusion => !autoTierValues.includes(hydraFusion.metadata.id) || hydraFusion.identifier === context.selectedModelId)
 			: [];
 		const hydraFusionTiers = this._hydraFusionTiers(context);
 		const ownTiers = hydraFusionTiers.includes(model) ? hydraFusionTiers : [];

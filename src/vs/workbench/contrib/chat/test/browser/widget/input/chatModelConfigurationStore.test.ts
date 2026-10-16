@@ -878,6 +878,28 @@ suite('ChatModelConfigurationStore', () => {
 		});
 	});
 
+	test('a presented provider Auto tier is session state, not a selection or preference', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const control = createControllableService();
+		control.setAutoModel();
+		control.setSchema({ properties: { tier: { type: 'string', enum: ['balance', 'hydrafusion'], default: 'balance' } } });
+		const editor = createStore(storage, control.service);
+		const selections: string[] = [];
+		store.add(editor.onDidSelectConfiguration(modelId => selections.push(modelId)));
+		editor.presentModelConfiguration(MODEL, { tier: 'hydrafusion' });
+		assert.deepStrictEqual({
+			presented: editor.getModelConfiguration(MODEL),
+			selections,
+			globalWrites: control.setConfigCalls,
+			newEditor: createStore(storage, control.service).getModelConfiguration(MODEL)?.tier,
+		}, {
+			presented: { tier: 'hydrafusion', tierSource: 'session' },
+			selections: [],
+			globalWrites: [],
+			newEditor: 'balance',
+		});
+	});
+
 	for (const registered of [true, false]) {
 		test(`restoring a managed draft retains the real user preference when registered=${registered}`, () => {
 			const storage = store.add(new InMemoryStorageService());
