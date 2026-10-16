@@ -248,6 +248,9 @@ export interface ILanguageModelConfigurationSchema extends IJSONSchema {
 }
 
 export interface ILanguageModelChatMetadata {
+	/** Host-advertised options whose defaults are not explicit user choices. */
+	readonly configurationDefaultKeys?: readonly string[];
+	readonly managedModelDefaults?: { readonly model: boolean; readonly keys: readonly string[] };
 	readonly extension: ExtensionIdentifier;
 
 	readonly name: string;
@@ -263,8 +266,8 @@ export interface ILanguageModelChatMetadata {
 	 * in {@link tooltip} instead.
 	 */
 	readonly autoModelDiscountPercent?: number;
-	/** How the agent host presents its Auto model as Ensemble, when it does. */
-	readonly autoModelEnsemble?: { readonly intelligenceUsesHydraFusion: boolean };
+	/** How the agent host presents its Auto model as Fusion, when it does. */
+	readonly autoModelFusion?: { readonly balanceUsesHydraFusion: boolean };
 	readonly multiplierNumeric?: number;
 	readonly isBYOK?: boolean;
 	readonly pricing?: string;
@@ -431,13 +434,13 @@ export namespace ILanguageModelChatMetadata {
 
 	/**
 	 * Builds the shared description shown for the Auto model, rendered as Markdown
-	 * (Auto's contains a "Learn More" link; Ensemble's does not). The discount is
+	 * (Auto's contains a "Learn More" link; Fusion's does not). The discount is
 	 * described separately by {@link getAutoModelDiscountDescription}.
 	 */
-	export function getAutoModelDescription(ensemble?: boolean): string {
-		if (ensemble) {
-			// The Auto docs don't describe Ensemble, so it has no Learn More link.
-			return localize('autoModel.ensembleDescription', "Ensemble routes based on your task and real-time system health and model performance.");
+	export function getAutoModelDescription(fusion?: boolean): string {
+		if (fusion) {
+			// The Auto docs don't describe Fusion, so it has no Learn More link.
+			return localize('autoModel.fusionDescription', "Fusion routes based on your task and real-time system health and model performance.");
 		}
 		const base = localize('autoModel.description', "Auto routes based on your task and real-time system health and model performance.");
 		const learnMore = localize('autoModel.learnMore', "[Learn More]({0})", autoModelSelectionDocsUrl);
@@ -449,13 +452,13 @@ export namespace ILanguageModelChatMetadata {
 	 *
 	 * @param discountPercent Whole-number percentage (e.g. `10` for 10%).
 	 * @param tierLabel The label of Auto's selected tier, e.g. "Efficiency".
-	 * @param ensemble Whether Auto is presented as Ensemble.
+	 * @param fusion Whether Auto is presented as Fusion.
 	 */
-	export function getAutoModelDiscountDescription(discountPercent: number, tierLabel?: string, ensemble?: boolean): string {
-		if (ensemble) {
+	export function getAutoModelDiscountDescription(discountPercent: number, tierLabel?: string, fusion?: boolean): string {
+		if (fusion) {
 			return tierLabel
-				? localize('autoModel.ensembleTierDiscount', "Models routed via Ensemble {0} receive a {1}% discount.", tierLabel, discountPercent)
-				: localize('autoModel.ensembleDiscount', "Models routed via Ensemble receive a {0}% discount.", discountPercent);
+				? localize('autoModel.fusionTierDiscount', "Models routed via Fusion {0} receive a {1}% discount.", tierLabel, discountPercent)
+				: localize('autoModel.fusionDiscount', "Models routed via Fusion receive a {0}% discount.", discountPercent);
 		}
 		return tierLabel
 			? localize('autoModel.tierDiscount', "Models routed via Auto {0} receive a {1}% discount.", tierLabel, discountPercent)
@@ -1152,7 +1155,7 @@ export function createModelConfigurationActions(
 				id: `configureModel.${key}.${value}`,
 				label: displayLabel,
 				class: undefined,
-				enabled: true,
+				enabled: !propSchema.readOnly,
 				tooltip,
 				checked: currentValue === value,
 				run: () => setValue(key, value)
@@ -1724,8 +1727,13 @@ export class LanguageModelsService implements ILanguageModelsService {
 			return undefined;
 		}
 
-		// User config overrides defaults
-		return { ...defaults, ...userConfig };
+		const configuration = { ...defaults, ...userConfig };
+		for (const [key, property] of Object.entries(schema?.properties ?? {})) {
+			if (property.readOnly && property.default !== undefined) {
+				configuration[key] = property.default;
+			}
+		}
+		return configuration;
 	}
 
 	computeTokenLength(modelId: string, message: string | IChatMessage, token: CancellationToken): Promise<number> {
@@ -1792,7 +1800,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		if (schema?.properties) {
 			for (const [key, value] of Object.entries(updatedConfig)) {
 				const propSchema = schema.properties[key];
-				if (propSchema?.default !== undefined && propSchema.default === value) {
+				if (propSchema?.default !== undefined && propSchema.default === value && !metadata.configurationDefaultKeys?.includes(key)) {
 					delete updatedConfig[key];
 				}
 			}

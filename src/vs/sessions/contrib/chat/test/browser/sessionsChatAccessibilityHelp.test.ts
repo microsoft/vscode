@@ -532,7 +532,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		assert.deepStrictEqual({
 			recordedArtifactsAndReferences: content.includes('Recorded artifacts and references'),
 			generatedImages: content.includes('Generated images from this chat automatically appear in the Generated Images section of the Artifacts pill'),
-			imageBatch: content.includes('Multiple image-generation calls in a response share one batch preview'),
+			imageBatch: content.includes('Each consecutive batch of image-generation calls has its own preview in conversation order'),
 			batchKeyboard: content.includes('Left or Right Arrow, Home, or End to select another image or its progress'),
 			selectedImageBorder: content.includes('The selected thumbnail has a highlighted border'),
 			imageConfirmationFirst: content.includes('start only when the tool executes, after any required confirmation'),

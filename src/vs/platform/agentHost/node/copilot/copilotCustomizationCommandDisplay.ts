@@ -224,10 +224,13 @@ async function invokeCopilotPluginMarketplaceCommand(input: string, plugins: ICo
 			if (!result.plugins.length) {
 				return pluginResult(localize('copilotPlugin.marketplaceEmpty', "Marketplace {0} contains no plugins.", rest), false);
 			}
-			return pluginResult([
-				localize('copilotPlugin.marketplacePlugins', "Plugins in {0}:", rest),
-				...result.plugins.map(plugin => `- ${plugin.name}:${plugin.description ? ` ${plugin.description}` : ''}`),
-			].join('\n'), false);
+			const heading = localize('copilotPlugin.marketplacePlugins', "Plugins in {0}", rest);
+			const lines = [`# ${escapeCustomizationMarkdownText(heading)}`, ''];
+			for (const plugin of result.plugins) {
+				const description = plugin.description ? ` — ${escapeCustomizationMarkdownText(plugin.description)}` : '';
+				lines.push(`- ${appendEscapedMarkdownInlineCode(plugin.name)}${description}`);
+			}
+			return { kind: 'text', text: lines.join('\n'), markdown: true };
 		}
 		case 'update':
 		case 'refresh': {
@@ -535,10 +538,6 @@ function formatCopilotPluginOutput(
 	}
 
 	const lines = result.text.trimEnd().split(/\r?\n/);
-	const namedDescriptionList = formatNamedDescriptionList(lines);
-	if (namedDescriptionList) {
-		return namedDescriptionList;
-	}
 	if (!['', 'list', 'ls'].includes(subcommand)) {
 		return undefined;
 	}
@@ -581,24 +580,6 @@ function formatCopilotPluginOutput(
 		}
 		const version = installedPlugin.version ? ` — v${escapeCustomizationMarkdownText(installedPlugin.version)}` : '';
 		output.push(`- ${appendEscapedMarkdownInlineCode(qualifiedName)}${version} (${localize('copilotPlugins.disabled', "disabled")})`);
-	}
-	return { kind: 'text', text: output.join('\n'), markdown: true };
-}
-
-function formatNamedDescriptionList(lines: readonly string[]): CopilotSlashCommandOutput | undefined {
-	const title = /^(?<title>.+):$/.exec(lines[0])?.groups?.title;
-	if (!title || lines.length < 2) {
-		return undefined;
-	}
-
-	const output = [`# ${escapeCustomizationMarkdownText(title)}`, ''];
-	for (const line of lines.slice(1)) {
-		const item = /^- (?<name>[^:]+):(?<description>.*)$/.exec(line)?.groups;
-		if (!item?.name) {
-			return undefined;
-		}
-		const description = item.description.trim();
-		output.push(`- ${appendEscapedMarkdownInlineCode(item.name.trim())}${description ? ` — ${escapeCustomizationMarkdownText(description)}` : ''}`);
 	}
 	return { kind: 'text', text: output.join('\n'), markdown: true };
 }

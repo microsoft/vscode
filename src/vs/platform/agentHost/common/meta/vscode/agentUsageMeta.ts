@@ -6,10 +6,62 @@
 import type { Mutable } from '../../../../../base/common/types.js';
 import { LOCAL_MODEL_META_KEY, localTurnExecutions, type ILocalTurnExecution } from '../../localModel.js';
 import type { UsageInfo } from '../../state/protocol/common/state.js';
-import type { IAutoModeResolvedInfo, IContextAttributionData, IContextAttributionEntry, ITurnTokenTotal } from '../../state/sessionState.js';
+import type { IAutoModeResolvedInfo, IContextAttributionData, IContextAttributionEntry, ITurnTokenTotal, SessionMeta } from '../../state/sessionState.js';
 
 function isTokenCount(value: unknown): value is number {
 	return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+}
+
+export type AiCreditsStatus = 'complete' | 'partial' | 'unavailable';
+
+export function isAiCreditsStatus(value: unknown): value is AiCreditsStatus {
+	return value === 'complete' || value === 'partial' || value === 'unavailable';
+}
+
+/** Authoritative billing for one SDK-backed chat, independent of its active turn. */
+export interface IAgentChatUsage {
+	readonly totalNanoAiu: number;
+	readonly aiCreditsStatus?: AiCreditsStatus;
+}
+
+const chatUsageMetaKey = 'vscode.chatUsage';
+
+function isMetadataRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** Reads only the exact addressed chat's billing from its owning session's metadata. */
+export function readChatUsage(session: { readonly _meta?: SessionMeta } | undefined, chat: string): IAgentChatUsage | undefined {
+	const entries = session?._meta?.[chatUsageMetaKey];
+	const usage = isMetadataRecord(entries) ? entries[chat] : undefined;
+	if (!isMetadataRecord(usage)) {
+		return undefined;
+	}
+	if (typeof usage.totalNanoAiu !== 'number' || !Number.isFinite(usage.totalNanoAiu) || usage.totalNanoAiu < 0) {
+		return undefined;
+	}
+	return {
+		totalNanoAiu: usage.totalNanoAiu,
+		...(isAiCreditsStatus(usage.aiCreditsStatus) ? { aiCreditsStatus: usage.aiCreditsStatus } : {}),
+	};
+}
+
+/** Changes one chat's billing without replacing peer entries or unrelated session metadata. */
+export function withChatUsage(session: { readonly _meta?: SessionMeta }, chat: string, usage: IAgentChatUsage | undefined): SessionMeta {
+	const meta = { ...session._meta };
+	const previous = meta[chatUsageMetaKey];
+	const entries = { ...(isMetadataRecord(previous) ? previous : {}) };
+	if (usage) {
+		entries[chat] = usage;
+	} else {
+		delete entries[chat];
+	}
+	if (Object.keys(entries).length) {
+		meta[chatUsageMetaKey] = entries;
+	} else {
+		delete meta[chatUsageMetaKey];
+	}
+	return meta;
 }
 
 const MAX_LOCAL_TURN_ID_LENGTH = 256;
@@ -51,7 +103,6 @@ export function createLocalModelTurnExecutionMeta(execution: ILocalTurnExecution
 	};
 }
 
-
 /**
  * Well-known keys that may appear on {@link UsageInfo._meta}.
  * Clients MAY read these to provide enhanced UI (e.g. credit cost display).
@@ -72,6 +123,8 @@ export interface UsageInfoMeta {
 		 * covers work billed outside any turn (e.g. an out-of-turn compaction).
 		 */
 		sessionTotalNanoAiu?: number;
+		/** Completeness of the authoritative session total, independent of its numeric value. */
+		sessionAiCreditsStatus?: AiCreditsStatus;
 		[key: string]: unknown;
 	};
 	/**
@@ -164,6 +217,7 @@ export function readUsageInfoMeta(usage: UsageInfo | undefined): UsageInfoMeta {
 		const usage: Mutable<NonNullable<UsageInfoMeta['copilotUsage']>> = {};
 		if (typeof rawUsage.totalNanoAiu === 'number') { usage.totalNanoAiu = rawUsage.totalNanoAiu; }
 		if (typeof rawUsage.sessionTotalNanoAiu === 'number') { usage.sessionTotalNanoAiu = rawUsage.sessionTotalNanoAiu; }
+		if (isAiCreditsStatus(rawUsage.sessionAiCreditsStatus)) { usage.sessionAiCreditsStatus = rawUsage.sessionAiCreditsStatus; }
 		result.copilotUsage = usage;
 	}
 	const quotaSnapshots = meta.quotaSnapshots;

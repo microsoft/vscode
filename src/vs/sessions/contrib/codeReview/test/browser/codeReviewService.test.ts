@@ -17,7 +17,7 @@ import { CommandsRegistry } from '../../../../../platform/commands/common/comman
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore, ImmortalReference, IReference } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
@@ -148,14 +148,15 @@ suite('CodeReviewService', () => {
 		}
 	}
 
-	class MockReviewThreadsFetcher {
+	class MockReviewThreadsFetcher extends mock<GitHubPRFetcher>() {
+		override readonly client = upcastPartial<GitHubPRFetcher['client']>({ onDidChange: Event.None, generation: 0 });
 		nextThreads: IGitHubPullRequestReviewThread[] = [];
 		nextError: Error | undefined;
 		getReviewThreadsGate: DeferredPromise<void> | undefined;
 		getReviewThreadsCalls = 0;
 		resolveThreadCalls: { threadId: string }[] = [];
 
-		async getReviewThreads(_owner: string, _repo: string, _prNumber: number): Promise<IGitHubPullRequestReviewThread[]> {
+		override async getReviewThreads(_owner: string, _repo: string, _prNumber: number): Promise<IGitHubPullRequestReviewThread[]> {
 			this.getReviewThreadsCalls++;
 			const result = this.nextThreads;
 			await this.getReviewThreadsGate?.p;
@@ -165,11 +166,11 @@ suite('CodeReviewService', () => {
 			return result;
 		}
 
-		async postReviewComment(_owner: string, _repo: string, _prNumber: number, body: string, inReplyTo: number): Promise<IGitHubPRComment> {
+		override async postReviewComment(_owner: string, _repo: string, _prNumber: number, body: string, inReplyTo: number): Promise<IGitHubPRComment> {
 			return makePRComment(inReplyTo, body);
 		}
 
-		async resolveThread(_owner: string, _repo: string, threadId: string): Promise<void> {
+		override async resolveThread(_owner: string, _repo: string, threadId: string): Promise<void> {
 			this.resolveThreadCalls.push({ threadId });
 		}
 	}
@@ -216,7 +217,7 @@ suite('CodeReviewService', () => {
 			const key = this._key(owner, repo, prNumber);
 			let model = this._reviewThreadsModels.get(key);
 			if (!model) {
-				model = store.add(new GitHubPullRequestReviewThreadsModel(owner, repo, prNumber, this.getReviewThreadsFetcher(owner, repo, prNumber) as unknown as GitHubPRFetcher, new NullLogService()));
+				model = store.add(new GitHubPullRequestReviewThreadsModel(owner, repo, prNumber, this.getReviewThreadsFetcher(owner, repo, prNumber), new NullLogService()));
 				this._reviewThreadsModels.set(key, model);
 			}
 			return model;

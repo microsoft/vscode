@@ -4,177 +4,119 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { restore, SinonSpy, spy } from 'sinon';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { CancellationError } from '../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { IReference, toDisposable } from '../../../../base/common/lifecycle.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { GitHubCancellation } from '../../common/cancellation.js';
-import { GitHubService, IGitHubAnonymousClient, IGitHubService } from '../../common/githubService.js';
-import { GitHubAnonymousReadOptions, GitHubTransport } from '../../common/githubTransport.js';
-import { GitHubAnonymousClientOptions, GitHubClientOptions, GitHubCredentialChange, GitHubRequestError, GitHubServiceOptions } from '../../common/githubTypes.js';
-import { RequestFetch } from '../../common/types.js';
+import { AnonymousClient } from '../../common/anonymous/anonymousClient.js';
+import { LocalApiRequestProvider } from '../../common/client/localApiRequestProvider.js';
+import { ApiRequest, IApiRequestProvider } from '../../common/client/request.js';
+import { parse, SchemaError } from '../../common/client/schema.js';
+import { GitHubService } from '../../common/githubService.js';
+import { GitHubClientOptions, GitHubCredentialChange, GitHubRequestError, GitHubServiceOptions } from '../../common/githubTypes.js';
+import { RequestFetch, RequestOptions } from '../../common/types.js';
 
 const apiBaseUri = 'https://api.github.com';
+const rawBaseUri = 'https://raw.githubusercontent.com';
+const commitSha = 'a'.repeat(40);
 const account = { host: 'api.github.com', accountId: '101' };
 const authorizedOptions: GitHubClientOptions = {
 	apiBaseUri, graphQlUri: `${apiBaseUri}/graphql`,
 	authorization: { providerId: 'github', sessionId: 'session', scopes: ['repo'] },
 };
+const signal = () => new AbortController().signal;
 
-class RecordingGitHubService extends GitHubService {
-	readonly apiBases: string[] = [];
-	private readonly _getSpies = new Map<IGitHubAnonymousClient, SinonSpy<Parameters<IGitHubAnonymousClient['get']>, ReturnType<IGitHubAnonymousClient['get']>>>();
-	releasedClients = 0;
-
-	get reads(): { readonly path: string; readonly signal: AbortSignal; readonly options: GitHubAnonymousReadOptions | undefined }[] {
-		return [...this._getSpies.values()].flatMap(spy => spy.getCalls().map(call => {
-			const [path, signal, options] = call.args;
-			assert.ok(!CancellationToken.isCancellationToken(signal));
-			return { path, signal, options };
-		}));
-	}
-
-	override acquireAnonymousClient(options?: GitHubAnonymousClientOptions): IReference<IGitHubAnonymousClient> {
-		const reference = super.acquireAnonymousClient(options);
-		this.apiBases.push(reference.object.apiBaseUri);
-		if (!this._getSpies.has(reference.object)) {
-			this._getSpies.set(reference.object, spy(reference.object, 'get'));
-		}
-		const release = toDisposable(() => {
-			this.releasedClients++;
-			reference.dispose();
-		});
-		return {
-			object: reference.object,
-			dispose: () => release.dispose(),
-		};
-	}
+function read(provider: LocalApiRequestProvider, path: string, signal: AbortSignal, options?: RequestOptions) {
+	return provider.request({ method: 'GET', path, expectedStatus: [200], options }, signal, parse.jsonValue);
 }
 
 suite('GitHub anonymous clients', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-	const signal = () => new AbortController().signal;
 	const create = (options: GitHubServiceOptions) => store.add(new GitHubService(options, new NullLogService(), NullTelemetryService));
 
 	function assertRequestError(action: () => void, kind: GitHubRequestError['kind']): void {
-		function isExpectedError(error: unknown): boolean {
+		assert.throws(action, function isExpectedRequestError(error: unknown) {
 			return error instanceof GitHubRequestError && error.kind === kind;
-		}
-		assert.throws(action, isExpectedError);
+		});
 	}
 
-	test('defaults to the shared GitHub.com client when options are omitted', async () => {
-		const urls: string[] = [];
-		const service = create({ fetch: async input => { urls.push(String(input)); return new Response('{}'); } });
-		const client = store.add(service.acquireAnonymousClient()).object;
-		const explicit = store.add(service.acquireAnonymousClient({ apiBaseUri })).object;
-		await client.get('/repos/owner/repo', signal());
-		assert.deepStrictEqual({
-			apiBaseUri: client.apiBaseUri, shared: client === explicit, urls,
-		}, { apiBaseUri, shared: true, urls: [`${apiBaseUri}/repos/owner/repo`] });
+	test('gist reads forward request options and cancellation to the provider', async () => {
+		const requests: { request: ApiRequest; signal: AbortSignal }[] = [];
+		const dispatched = new Error('Request reached the provider');
+		const provider: IApiRequestProvider = {
+			request: async (request: ApiRequest, signal: AbortSignal) => {
+				requests.push({ request, signal });
+				throw dispatched;
+			},
+		};
+		const client = store.add(new AnonymousClient(provider, undefined, Disposable.None));
+		const requestSignal = signal();
+		const options = { caller: 'test.gist', deadline: Date.now() + 10_000 };
+
+		await assert.rejects(client.gist.get('123abc', requestSignal, options), error => error === dispatched);
+		assert.deepStrictEqual(requests.map(({ request, signal }) => ({ path: request.path, options: request.options, sameSignal: signal === requestSignal })), [
+			{ path: '/gists/123abc', options, sameSignal: true },
+		]);
+	});
+
+	test('returns separate disposable facades backed by one default anonymous engine', async () => {
+		const requests: { url: string; etag: string | null }[] = [];
+		const service = create({
+			fetch: async (input, init) => {
+				const etag = new Headers(init?.headers).get('If-None-Match');
+				requests.push({ url: String(input), etag });
+				return etag ? new Response(null, { status: 304 }) : new Response(commitSha, { headers: { etag: '"commit"' } });
+			},
+		});
+		const first = store.add(service.acquireAnonymousClient());
+		const second = store.add(service.acquireAnonymousClient());
+		assert.strictEqual(requests.length, 0);
+		await first.content.resolveRef('owner', 'repo', 'HEAD', signal());
+		first.dispose();
+		const result = await second.content.resolveRef('owner', 'repo', 'HEAD', signal());
+		await assert.rejects(first.content.resolveRef('owner', 'repo', 'HEAD', signal()), isCancellationError);
+		assert.deepStrictEqual({ sameFacade: first === second, result, requests }, {
+			sameFacade: false, result: commitSha,
+			requests: [
+				{ url: `${apiBaseUri}/repos/owner/repo/commits/HEAD`, etag: null },
+				{ url: `${apiBaseUri}/repos/owner/repo/commits/HEAD`, etag: '"commit"' },
+			],
+		});
 	});
 
 	test('public reads require no credential provider, identity lookup or ambient credentials', async () => {
-		const seen: { url: string; authorization: string | null; credentials: RequestCredentials | undefined; referrerPolicy: ReferrerPolicy | undefined; method: string | undefined; body: RequestInit['body'] }[] = [];
+		const seen: { url: string; authorization: string | null; credentials: RequestCredentials | undefined; referrerPolicy: ReferrerPolicy | undefined }[] = [];
 		const service = create({
 			fetch: async (input, init) => {
 				seen.push({
 					url: String(input), authorization: new Headers(init?.headers).get('Authorization'),
-					credentials: init?.credentials, referrerPolicy: init?.referrerPolicy, method: init?.method, body: init?.body,
+					credentials: init?.credentials, referrerPolicy: init?.referrerPolicy,
 				});
-				return new Response('{"items":[]}');
+				return Response.json({ total_count: 0, incomplete_results: false, items: [] });
 			},
 		});
-		const client = store.add(service.acquireAnonymousClient({ apiBaseUri })).object;
-		const response = await client.get('/search/issues?q=test', signal());
-		assert.deepStrictEqual({ authorization: client.authorization, response: response.data, seen }, {
-			authorization: { kind: 'anonymous' },
-			response: { items: [] },
-			seen: [{ url: `${apiBaseUri}/search/issues?q=test`, authorization: null, credentials: 'omit', referrerPolicy: 'no-referrer', method: 'GET', body: undefined }],
+		const client = store.add(service.acquireAnonymousClient());
+		const response = await client.search.issues('test', signal());
+		assert.deepStrictEqual({ response, seen }, {
+			response: { total_count: 0, incomplete_results: false, items: [] },
+			seen: [{ url: `${apiBaseUri}/search/issues?q=is%3Aissue+test`, authorization: null, credentials: 'omit', referrerPolicy: 'no-referrer' }],
 		});
 		assertRequestError(() => service.acquireClient(authorizedOptions), 'authentication');
 	});
 
-	test('get rejects an already cancelled token without fetching', async () => {
-		const service = create({ fetch: async () => assert.fail('No fetch expected') });
-		const client = store.add(service.acquireAnonymousClient()).object;
-		await assert.rejects(client.get('/repos/owner/repo', CancellationToken.Cancelled), CancellationError);
-	});
-
-	test('get propagates token cancellation and releases the request listener', async () => {
-		const cancelled = store.add(new Emitter<void>());
-		const started = new DeferredPromise<AbortSignal>();
-		const service = create({
-			fetch: async (_input, init) => {
-				assert.ok(init?.signal);
-				const signal = init.signal;
-				return new Promise<Response>((_resolve, reject) => {
-					signal.addEventListener('abort', () => reject(signal.reason), { once: true });
-					started.complete(signal);
-				});
-			},
-		});
-		const client = store.add(service.acquireAnonymousClient()).object;
-		const pending = assert.rejects(client.get('/repos/owner/repo', {
-			isCancellationRequested: false, onCancellationRequested: cancelled.event,
-		}), CancellationError);
-		const active = await started.p;
-		cancelled.fire();
-		await pending;
-		assert.deepStrictEqual({ aborted: active.aborted, listening: cancelled.hasListeners() }, { aborted: true, listening: false });
-	});
-
-	for (const fails of [false, true]) {
-		test(`get retains its token listener until settlement and then removes it (fails: ${fails})`, async () => {
-			const cancelled = store.add(new Emitter<void>());
-			let listeningDuringRequest = false;
-			const service = create({
-				fetch: async () => {
-					listeningDuringRequest = cancelled.hasListeners();
-					return new Response('{}', { status: fails ? 404 : 200 });
-				},
-			});
-			const client = store.add(service.acquireAnonymousClient()).object;
-			const pending = client.get('/repos/owner/repo', { isCancellationRequested: false, onCancellationRequested: cancelled.event });
-			if (fails) {
-				await assert.rejects(pending, { kind: 'notFound' });
-			} else {
-				await pending;
-			}
-			assert.deepStrictEqual({ listeningDuringRequest, listeningAfterRequest: cancelled.hasListeners() }, {
-				listeningDuringRequest: true, listeningAfterRequest: false,
-			});
-		});
-	}
-
-	test('get removes its token listener when path validation fails', async () => {
-		const cancelled = store.add(new Emitter<void>());
-		const service = create({ fetch: async () => assert.fail('No fetch expected') });
-		const client = store.add(service.acquireAnonymousClient()).object;
-		await assert.rejects(client.get('//other.example.test', {
-			isCancellationRequested: false, onCancellationRequested: cancelled.event,
-		}), { kind: 'validation' });
-		assert.strictEqual(cancelled.hasListeners(), false);
-	});
-
-	test('anonymous clients share an origin without being invalidated by sign-out', async () => {
+	test('anonymous clients are not invalidated by sign-out', async () => {
 		const changed = store.add(new Emitter<GitHubCredentialChange>());
 		const service = create({
-			credentialProvider: { onDidChange: changed.event, getToken: () => { throw new Error('Anonymous calls must not request a token'); } },
-			fetch: async () => new Response('{"public":true}'),
+			credentialProvider: { onDidChange: changed.event, getToken: () => assert.fail('No credential lookup expected') },
+			fetch: async () => new Response(commitSha),
 		});
-		const first = store.add(service.acquireAnonymousClient({ apiBaseUri }));
-		const peer = store.add(service.acquireAnonymousClient({ apiBaseUri: 'https://API.GITHUB.COM/' }));
-		first.dispose();
+		const client = store.add(service.acquireAnonymousClient());
 		changed.fire({ providerId: 'github' });
-		const response = await peer.object.get('/repos/owner/repo', signal());
-		assert.deepStrictEqual({ shared: first.object === peer.object, response: response.data }, { shared: true, response: { public: true } });
+		assert.strictEqual(await client.content.resolveRef('o', 'r', 'HEAD', signal()), commitSha);
 	});
 
 	test('private ETags and responses cannot enter the anonymous cache', async () => {
@@ -186,24 +128,22 @@ suite('GitHub anonymous clients', () => {
 				const authorization = headers.has('Authorization');
 				const etag = headers.get('If-None-Match');
 				seen.push({ authorization, etag });
-				return etag
-					? new Response(null, { status: 304 })
-					: new Response(JSON.stringify({ visibility: authorization ? 'private' : 'public' }), { headers: { ETag: authorization ? '"private"' : '"public"' } });
+				return etag ? new Response(null, { status: 304 })
+					: Response.json({ visibility: authorization ? 'private' : 'public' }, { headers: { etag: authorization ? '"private"' : '"public"' } });
 			},
 		});
 		const authorized = store.add(service.acquireClient(authorizedOptions)).object;
-		const anonymous = store.add(service.acquireAnonymousClient({ apiBaseUri })).object;
-		const url = `${apiBaseUri}/repos/owner/repo`;
-		await authorized.transport.rest(account, 'token', { method: 'GET', url }, signal());
-		await anonymous.get('/repos/owner/repo', signal());
-		const reused = await anonymous.get('/repos/owner/repo', signal());
-		assert.deepStrictEqual({ seen, publicData: reused.data }, {
+		const anonymous = store.add(service.acquireAnonymousRequestProviders()).object.rest;
+		await authorized.transport.rest(account, 'token', { method: 'GET', url: `${apiBaseUri}/repos/o/r` }, signal());
+		await read(anonymous, '/repos/o/r', signal());
+		const reused = await read(anonymous, '/repos/o/r', signal());
+		assert.deepStrictEqual({ seen, reused }, {
 			seen: [{ authorization: true, etag: null }, { authorization: false, etag: null }, { authorization: false, etag: '"public"' }],
-			publicData: { visibility: 'public' },
+			reused: { data: { visibility: 'public' }, status: 200 },
 		});
 	});
 
-	test('anonymous reads coalesce and cancellation preserves a live peer', async () => {
+	test('disposing one facade cancels only its waiter in a shared read', async () => {
 		const started = new DeferredPromise<AbortSignal>();
 		const response = new DeferredPromise<Response>();
 		let calls = 0;
@@ -211,75 +151,72 @@ suite('GitHub anonymous clients', () => {
 			fetch: async (_input, init) => {
 				calls++;
 				assert.ok(init?.signal);
-				await started.complete(init.signal);
+				void started.complete(init.signal);
 				return response.p;
 			},
 		});
-		const first = store.add(service.acquireAnonymousClient({ apiBaseUri }));
-		const second = store.add(service.acquireAnonymousClient({ apiBaseUri }));
-		const controller = new AbortController();
-		const reason = new Error('cancelled');
-		const rejected = assert.rejects(first.object.get('/repos/owner/repo', controller.signal), error => error === reason);
-		const peer = second.object.get('/repos/owner/repo', signal());
+		const first = store.add(service.acquireAnonymousClient());
+		const peer = store.add(service.acquireAnonymousClient());
+		const rejected = assert.rejects(first.content.resolveRef('o', 'r', 'HEAD', signal()), isCancellationError);
+		const pending = peer.content.resolveRef('o', 'r', 'HEAD', signal());
 		const active = await started.p;
-		controller.abort(reason);
 		first.dispose();
 		await rejected;
-		await response.complete(new Response('{"ok":true}'));
-		await peer;
-		assert.deepStrictEqual({ calls, aborted: active.aborted }, { calls: 1, aborted: false });
+		await response.complete(new Response(commitSha));
+		assert.deepStrictEqual({ calls, aborted: active.aborted, result: await pending }, { calls: 1, aborted: false, result: commitSha });
 	});
 
-	test('last-reference disposal stops only anonymous work and later reads can reacquire', async () => {
+	test('last-reference disposal cancels its work and permits later acquisition', async () => {
 		const started = new DeferredPromise<AbortSignal>();
+		const response = new DeferredPromise<Response>();
 		let calls = 0;
 		const service = create({
 			fetch: async (_input, init) => {
-				if (++calls === 1) {
-					assert.ok(init?.signal);
-					const signal = init.signal;
-					await started.complete(signal);
-					return new Promise<Response>((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }));
+				if (++calls > 1) {
+					return new Response(commitSha);
 				}
-				return new Response('{}');
+				assert.ok(init?.signal);
+				void started.complete(init.signal);
+				return response.p;
 			},
 		});
-		const reference = store.add(service.acquireAnonymousClient({ apiBaseUri }));
-		const pending = assert.rejects(reference.object.get('/repos/owner/repo', signal()));
+		const first = store.add(service.acquireAnonymousClient());
+		const pending = assert.rejects(first.content.resolveRef('o', 'r', 'HEAD', signal()), isCancellationError);
 		const active = await started.p;
-		reference.dispose();
+		first.dispose();
 		await pending;
-		await assert.rejects(reference.object.get('/repos/owner/repo', signal()), /disposed/);
-		const replacement = store.add(service.acquireAnonymousClient({ apiBaseUri })).object;
-		await replacement.get('/repos/owner/repo', signal());
-		assert.deepStrictEqual({ aborted: active.aborted, replaced: replacement !== reference.object, calls }, { aborted: true, replaced: true, calls: 2 });
+		await response.complete(new Response(commitSha));
+		const next = store.add(service.acquireAnonymousClient());
+		assert.deepStrictEqual({ aborted: active.aborted, result: await next.content.resolveRef('o', 'r', 'HEAD', signal()) }, {
+			aborted: true, result: commitSha,
+		});
 	});
 
-	for (const mode of ['shared-origin', 'reacquired'] as const) {
-		test(`anonymous cooldown survives ${mode} while authenticated traffic remains independent`, () => runWithFakedTimers({}, async () => {
+	for (const mode of ['reacquired', 'shared'] as const) {
+		test(`anonymous cooldowns survive ${mode} without blocking authenticated reads`, () => runWithFakedTimers({}, async () => {
 			const started = Date.now();
 			const requests: { url: string; at: number; authenticated: boolean }[] = [];
 			const service = create({
 				credentialProvider: { onDidChange: Event.None, getToken: () => 'token' },
 				fetch: async (input, init) => {
 					requests.push({ url: String(input), at: Date.now() - started, authenticated: new Headers(init?.headers).has('Authorization') });
-					return requests.length === 1 ? new Response('{"message":"secondary rate limit"}', { status: 403, headers: { 'Retry-After': '5' } }) : new Response('{}');
+					return requests.length === 1 ? new Response('{"message":"secondary rate limit"}', { status: 403, headers: { 'Retry-After': '5' } }) : Response.json({});
 				},
 			});
 			try {
-				const first = store.add(service.acquireAnonymousClient({ apiBaseUri }));
-				await assert.rejects(first.object.get('/repos/owner/repo', signal()), { kind: 'rateLimit' });
+				const first = store.add(service.acquireAnonymousRequestProviders());
+				await assert.rejects(read(first.object.rest, '/first', signal()), { kind: 'rateLimit' });
 				if (mode === 'reacquired') {
 					first.dispose();
 				}
-				const second = store.add(service.acquireAnonymousClient({ apiBaseUri: mode === 'shared-origin' ? `${apiBaseUri}/api/v3` : apiBaseUri }));
+				const second = store.add(service.acquireAnonymousRequestProviders());
 				const authorized = store.add(service.acquireClient(authorizedOptions)).object;
-				await authorized.transport.rest(account, 'token', { method: 'GET', url: `${apiBaseUri}/repos/owner/other` }, signal());
-				await second.object.get('/search/issues?q=test', signal());
+				await authorized.transport.rest(account, 'token', { method: 'GET', url: `${apiBaseUri}/authenticated` }, signal());
+				await read(second.object.rest, '/second', signal());
 				assert.deepStrictEqual(requests, [
-					{ url: `${apiBaseUri}/repos/owner/repo`, at: 0, authenticated: false },
-					{ url: `${apiBaseUri}/repos/owner/other`, at: 0, authenticated: true },
-					{ url: `${second.object.apiBaseUri}/search/issues?q=test`, at: 5_000, authenticated: false },
+					{ url: `${apiBaseUri}/first`, at: 0, authenticated: false },
+					{ url: `${apiBaseUri}/authenticated`, at: 0, authenticated: true },
+					{ url: `${apiBaseUri}/second`, at: 5_000, authenticated: false },
 				]);
 			} finally {
 				service.dispose();
@@ -287,210 +224,95 @@ suite('GitHub anonymous clients', () => {
 		}));
 	}
 
-	test('authenticated failures never trigger anonymous fallback or borrow another credential', async () => {
+	test('authenticated failures never fall back to anonymous access', async () => {
 		const requests: boolean[] = [];
 		const service = create({
-			credentialProvider: { onDidChange: Event.None, getToken: () => { throw new Error('Unexpected credential selection'); } },
+			credentialProvider: { onDidChange: Event.None, getToken: () => assert.fail('Unexpected credential selection') },
 			fetch: async (_input, init) => {
 				requests.push(new Headers(init?.headers).has('Authorization'));
-				return new Response('{"message":"Not Found"}', { status: 404 });
+				return Response.json({}, { status: 404 });
 			},
 		});
 		const authorized = store.add(service.acquireClient(authorizedOptions)).object;
-		const anonymous = store.add(service.acquireAnonymousClient({ apiBaseUri })).object;
+		const anonymous = store.add(service.acquireAnonymousRequestProviders()).object.rest;
 		await assert.rejects(authorized.transport.rest(account, 'token', { method: 'GET', url: `${apiBaseUri}/private` }, signal()), { kind: 'notFound' });
-		await assert.rejects(anonymous.get('/private', signal()), { kind: 'notFound' });
+		await assert.rejects(read(anonymous, '/private', signal()), { kind: 'notFound' });
 		assert.deepStrictEqual(requests, [true, false]);
 	});
 
-	test('anonymous and authenticated contexts share the engine client-capacity limit', () => {
+	test('anonymous and authenticated contexts share the engine capacity limit', () => {
 		const service = create({ credentialProvider: { onDidChange: Event.None, getToken: () => 'token' } });
-		for (let i = 0; i < 63; i++) {
-			store.add(service.acquireClient({ ...authorizedOptions, authorization: { ...authorizedOptions.authorization, sessionId: String(i) } }));
+		for (let index = 0; index < 63; index++) {
+			store.add(service.acquireClient({ ...authorizedOptions, authorization: { ...authorizedOptions.authorization, sessionId: String(index) } }));
 		}
-		const publicClient = store.add(service.acquireAnonymousClient({ apiBaseUri }));
-		assertRequestError(() => service.acquireAnonymousClient({ apiBaseUri: 'https://other.example.test' }), 'overloaded');
-		publicClient.dispose();
-		const replacement = store.add(service.acquireAnonymousClient({ apiBaseUri: 'https://other.example.test' }));
-		assert.strictEqual(replacement.object.apiBaseUri, 'https://other.example.test');
+		const client = store.add(service.acquireAnonymousClient());
+		const peer = store.add(service.acquireAnonymousClient());
+		const extraOptions = { ...authorizedOptions, authorization: { ...authorizedOptions.authorization, sessionId: 'extra' } };
+		assertRequestError(() => service.acquireClient(extraOptions), 'overloaded');
+		client.dispose();
+		assertRequestError(() => service.acquireClient(extraOptions), 'overloaded');
+		peer.dispose();
+		const authorized = store.add(service.acquireClient(extraOptions));
+		assertRequestError(() => service.acquireAnonymousClient(), 'overloaded');
+		authorized.dispose();
+		store.add(service.acquireAnonymousClient());
 	});
 
-	test('rejects unsafe endpoints and paths before invoking fetch', async () => {
-		let calls = 0;
-		const service = create({ fetch: async () => { calls++; return new Response('{}'); } });
-		for (const endpoint of ['not a URL', 'http://api.github.com', 'https://name:password@api.github.com', 'https://api.github.com?secret=value', 'https://api.github.com#fragment']) {
-			assertRequestError(() => service.acquireAnonymousClient({ apiBaseUri: endpoint }), 'validation');
-		}
-		const client = store.add(service.acquireAnonymousClient({ apiBaseUri: 'https://enterprise.example.test/api/v3' })).object;
-		for (const path of ['https://other.example.test', '//other.example.test', '/../../outside', '/%2e%2e/%2e%2e/outside', '/repos\\owner', '/repos#fragment']) {
-			await assert.rejects(client.get(path, signal()), { kind: 'validation' });
-		}
-		assert.strictEqual(calls, 0);
-	});
-
-	test('redirects never attach credentials and cannot change origin', async () => {
-		const requests: { url: string; credentialless: boolean }[] = [];
-		const service = create({
-			fetch: async (input, init) => {
-				requests.push({ url: String(input), credentialless: init?.credentials === 'omit' && !new Headers(init.headers).has('Authorization') });
-				return new Response(null, { status: 302, headers: { Location: requests.length === 1 ? '/renamed' : 'https://other.example.test/data' } });
-			},
-		});
-		const client = store.add(service.acquireAnonymousClient({ apiBaseUri })).object;
-		await assert.rejects(client.get('/old', signal()), { kind: 'authorization' });
-		assert.deepStrictEqual(requests, [{ url: `${apiBaseUri}/old`, credentialless: true }, { url: `${apiBaseUri}/renamed`, credentialless: true }]);
-	});
-
-	for (const location of ['/outside', '../outside', '/api/v30/outside', '/api/v3/../outside', '/api/v3/%2e%2e/outside', '/api/v3']) {
-		test(`rejects anonymous redirects outside the API base: ${location}`, async () => {
-			const baseUri = 'https://enterprise.example.test/api/v3';
-			const requests: string[] = [];
-			const service = create({
-				fetch: async input => {
-					requests.push(String(input));
-					return String(input) === `${baseUri}/old`
-						? new Response(null, { status: 302, headers: { Location: location } })
-						: new Response('{"outside":true}', { headers: { ETag: '"outside"' } });
-				},
-			});
-			const client = store.add(service.acquireAnonymousClient({ apiBaseUri: `${baseUri}///` })).object;
-			await assert.rejects(client.get('/old', signal()), { kind: 'authorization' });
-			await assert.rejects(client.get('/old', signal()), { kind: 'authorization' });
-			assert.deepStrictEqual(requests, [`${baseUri}/old`, `${baseUri}/old`]);
-		});
-	}
-
-	test('anonymous redirects within the normalized API base retain conditional caching', async () => {
-		const baseUri = 'https://enterprise.example.test/api/v3';
-		const requests: { url: string; etag: string | null }[] = [];
-		const service = create({
-			fetch: async (input, init) => {
-				const etag = new Headers(init?.headers).get('If-None-Match');
-				requests.push({ url: String(input), etag });
-				if (String(input) === `${baseUri}/old`) {
-					return new Response(null, { status: 301, headers: { Location: 'renamed' } });
-				}
-				return etag
-					? new Response(null, { status: 304 })
-					: new Response('{"public":true}', { headers: { ETag: '"public"' } });
-			},
-		});
-		const client = store.add(service.acquireAnonymousClient({ apiBaseUri: 'https://enterprise.example.test/ignored/../api/v3///' })).object;
-		await client.get('/old', signal());
-		const reused = await client.get('/old', signal());
-		assert.deepStrictEqual({ requests, statusCode: reused.statusCode, data: reused.data, finalUrl: reused.finalUrl }, {
-			requests: [
-				{ url: `${baseUri}/old`, etag: null },
-				{ url: `${baseUri}/renamed`, etag: null },
-				{ url: `${baseUri}/renamed`, etag: '"public"' },
-			],
-			statusCode: 304, data: { public: true }, finalUrl: `${baseUri}/renamed`,
-		});
-	});
-
-	test('a cached anonymous redirect cannot redirect outside the API base', async () => {
-		const baseUri = 'https://enterprise.example.test/api/v3';
-		const requests: string[] = [];
-		const service = create({
-			fetch: async input => {
-				requests.push(String(input));
-				if (String(input) === `${baseUri}/old`) {
-					return new Response(null, { status: 302, headers: { Location: '/api/v3/renamed' } });
-				}
-				return requests.length === 3
-					? new Response(null, { status: 307, headers: { Location: '/outside' } })
-					: new Response('{"public":true}', { headers: { ETag: '"public"' } });
-			},
-		});
-		const client = store.add(service.acquireAnonymousClient({ apiBaseUri: baseUri })).object;
-		await client.get('/old', signal());
-		await assert.rejects(client.get('/old', signal()), { kind: 'authorization' });
-		assert.deepStrictEqual(requests, [`${baseUri}/old`, `${baseUri}/renamed`, `${baseUri}/renamed`]);
-	});
-
-	test('anonymous API path boundaries do not restrict authenticated redirects', async () => {
-		const baseUri = 'https://enterprise.example.test/api/v3';
-		const requests: string[] = [];
-		const service = create({
-			credentialProvider: { onDidChange: Event.None, getToken: () => 'token' },
-			fetch: async input => {
-				requests.push(String(input));
-				return requests.length === 1
-					? new Response(null, { status: 302, headers: { Location: '/outside' } })
-					: new Response('{"authenticated":true}');
-			},
-		});
-		const client = store.add(service.acquireClient({ ...authorizedOptions, apiBaseUri: baseUri, graphQlUri: 'https://enterprise.example.test/api/graphql' })).object;
-		const response = await client.transport.rest({ host: 'enterprise.example.test', accountId: '101' }, 'token', { method: 'GET', url: `${baseUri}/old` }, signal());
-		assert.deepStrictEqual({ requests, data: response.data }, {
-			requests: [`${baseUri}/old`, 'https://enterprise.example.test/outside'], data: { authenticated: true },
-		});
-	});
-
-	test('anonymous work participates in the same host concurrency bound as authenticated work', async () => {
+	test('anonymous and authenticated requests share process admission', async () => {
 		const gates = Array.from({ length: 3 }, () => new DeferredPromise<Response>());
 		const requests: boolean[] = [];
-		let active = 0;
-		let highWater = 0;
 		const service = create({
 			credentialProvider: { onDidChange: Event.None, getToken: () => 'token' },
 			fetch: async (_input, init) => {
 				const index = requests.length;
 				requests.push(new Headers(init?.headers).has('Authorization'));
-				highWater = Math.max(highWater, ++active);
-				try {
-					return await gates[index].p;
-				} finally {
-					active--;
-				}
+				return gates[index].p;
 			},
 		});
-		const anonymous = store.add(service.acquireAnonymousClient({ apiBaseUri })).object;
+		const anonymous = store.add(service.acquireAnonymousRequestProviders()).object.rest;
 		const authenticated = store.add(service.acquireClient(authorizedOptions)).object;
-		const operations = [
-			anonymous.get('/repos/owner/public', signal(), { caller: 'public' }),
-			authenticated.transport.rest(account, 'token', { method: 'GET', url: `${apiBaseUri}/repos/owner/first`, caller: 'first' }, signal()),
-			authenticated.transport.rest({ ...account, accountId: '202' }, 'other-token', { method: 'GET', url: `${apiBaseUri}/repos/owner/second`, caller: 'second' }, signal()),
+		const pending = [
+			read(anonymous, '/public', signal()),
+			authenticated.transport.rest(account, 'token', { method: 'GET', url: `${apiBaseUri}/first` }, signal()),
+			authenticated.transport.rest({ ...account, accountId: '202' }, 'other', { method: 'GET', url: `${apiBaseUri}/second` }, signal()),
 		];
 		await timeout(0);
 		const initiallyStarted = requests.length;
 		for (const gate of gates) {
-			await gate.complete(new Response('{}'));
+			await gate.complete(Response.json({}));
 		}
-		await Promise.all(operations);
-		assert.deepStrictEqual({ initiallyStarted, highWater, requests }, { initiallyStarted: 2, highWater: 2, requests: [false, true, true] });
+		await Promise.all(pending);
+		assert.deepStrictEqual({ initiallyStarted, requests }, { initiallyStarted: 2, requests: [false, true, true] });
 	});
 
-	test('different API paths on the same origin cannot multiply anonymous concurrency', async () => {
+	test('separate anonymous leases cannot multiply concurrency', async () => {
 		const gate = new DeferredPromise<Response>();
 		const requests: string[] = [];
 		const service = create({
 			fetch: async input => {
 				requests.push(String(input));
-				return requests.length === 1 ? gate.p : new Response('{}');
+				return requests.length === 1 ? gate.p : Response.json({});
 			},
 		});
-		const first = store.add(service.acquireAnonymousClient({ apiBaseUri })).object;
-		const otherPath = store.add(service.acquireAnonymousClient({ apiBaseUri: `${apiBaseUri}/api/v3` })).object;
-		const operations = [first.get('/first', signal()), otherPath.get('/second', signal())];
+		const first = store.add(service.acquireAnonymousRequestProviders()).object.rest;
+		const second = store.add(service.acquireAnonymousRequestProviders()).object.rest;
+		const pending = [read(first, '/first', signal()), read(second, '/second', signal())];
 		await timeout(0);
-		const beforeRelease = requests.length;
-		await gate.complete(new Response('{}'));
-		await Promise.all(operations);
-		assert.deepStrictEqual({ beforeRelease, requests }, {
-			beforeRelease: 1, requests: [`${apiBaseUri}/first`, `${apiBaseUri}/api/v3/second`],
+		const initiallyStarted = requests.length;
+		await gate.complete(Response.json({}));
+		await Promise.all(pending);
+		assert.deepStrictEqual({ initiallyStarted, requests }, {
+			initiallyStarted: 1, requests: [`${apiBaseUri}/first`, `${apiBaseUri}/second`],
 		});
 	});
 
-	test('anonymous work respects deadlines while parked by a server cooldown', () => runWithFakedTimers({}, async () => {
+	test('anonymous reads honor deadlines while parked by a cooldown', () => runWithFakedTimers({}, async () => {
 		let calls = 0;
 		const service = create({ fetch: async () => { calls++; return new Response(null, { status: 429, headers: { 'Retry-After': '60' } }); } });
 		try {
-			const client = store.add(service.acquireAnonymousClient({ apiBaseUri })).object;
-			await assert.rejects(client.get('/repos/owner/repo', signal()), { kind: 'rateLimit' });
-			const pending = assert.rejects(client.get('/repos/owner/other', signal(), { deadline: Date.now() + 50 }), { kind: 'timeout' });
-			await timeout(50);
-			await pending;
+			const provider = store.add(service.acquireAnonymousRequestProviders()).object.rest;
+			await assert.rejects(read(provider, '/first', signal()), { kind: 'rateLimit' });
+			await assert.rejects(read(provider, '/second', signal(), { deadline: Date.now() + 50 }), { kind: 'timeout' });
 			assert.strictEqual(calls, 1);
 		} finally {
 			service.dispose();
@@ -498,482 +320,232 @@ suite('GitHub anonymous clients', () => {
 	}));
 });
 
-suite('GitHub public repository files', () => {
+suite('GitHub public raw content', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-	teardown(() => restore());
-	const commitSha = 'a'.repeat(40);
-	const rawBaseUri = 'https://raw.githubusercontent.com';
 	const path = '.devcontainer/devcontainer.json';
-	const paths = ['/repos/microsoft/sample/commits/HEAD'];
 	const rawPath = `/microsoft/sample/${commitSha}/${path}`;
 	const content = '{ // JSONC and UTF-8\n"image":"image","name":"caf\u00e9",}';
+	const create = (fetch: RequestFetch) => store.add(new GitHubService({
+		fetch, credentialProvider: { onDidChange: Event.None, getToken: () => assert.fail('Raw content must remain anonymous') },
+	}, new NullLogService(), NullTelemetryService));
 
-	function fileResponse(input: Parameters<RequestFetch>[0], text = content): Response {
-		return new Response(String(input).endsWith('/commits/HEAD') ? JSON.stringify({ sha: commitSha }) : text);
-	}
-
-	function create(fetch: RequestFetch): RecordingGitHubService {
-		return store.add(new RecordingGitHubService({
-			fetch,
-			credentialProvider: {
-				onDidChange: Event.None,
-				getToken: () => { throw new Error('Public repository reads must not request credentials'); },
-			},
-		}, new NullLogService(), NullTelemetryService));
-	}
-
-	async function read(service: IGitHubService, signal: GitHubCancellation = new AbortController().signal, options?: GitHubAnonymousReadOptions) {
+	test('composes ref resolution and one pinned download without acquiring a second lease', async () => {
+		const requests: Request[] = [];
+		const service = create(async (input, init) => {
+			requests.push(new Request(input, init));
+			return new Response(String(input).includes('/commits/') ? commitSha : content);
+		});
 		const client = store.add(service.acquireAnonymousClient());
-		try {
-			return await client.object.getFile('microsoft', 'sample', path, signal, options);
-		} finally {
-			client.dispose();
-		}
-	}
-
-	test('equivalent anonymous leases share a client without fetching at construction', () => {
-		const service = create(async () => { throw new Error('No fetch expected'); });
-		const first = store.add(service.acquireAnonymousClient({ apiBaseUri }));
-		const second = store.add(service.acquireAnonymousClient({ apiBaseUri }));
-		const other = store.add(service.acquireAnonymousClient({ apiBaseUri: 'https://github.example.test/api/v3' }));
+		const options = { caller: 'devContainerSample', deadline: Date.now() + 10_000 };
+		const sha = await client.content.resolveRef('microsoft', 'sample', 'HEAD', signal(), options);
+		const result = await client.content.getRawFile('microsoft', 'sample', sha, path, signal(), options);
 		assert.deepStrictEqual({
-			sameClient: first.object === second.object,
-			differentEndpoint: first.object !== other.object, reads: service.reads,
-		}, { sameClient: true, differentEndpoint: true, reads: [] });
-	});
-
-	test('raw endpoint options participate in client identity without changing API identity', () => {
-		const service = create(async () => assert.fail('No fetch expected'));
-		const defaults = store.add(service.acquireAnonymousClient()).object;
-		const explicit = store.add(service.acquireAnonymousClient({ apiBaseUri, rawBaseUri: 'https://RAW.GITHUBUSERCONTENT.COM///' })).object;
-		const other = store.add(service.acquireAnonymousClient({ apiBaseUri, rawBaseUri: 'https://raw.example.test' })).object;
-		assert.deepStrictEqual({
-			shared: defaults === explicit, differentRawEndpoint: defaults !== other, apiBaseUri: other.apiBaseUri,
-		}, { shared: true, differentRawEndpoint: true, apiBaseUri });
-	});
-
-	test('custom API hosts require an explicit raw endpoint for file reads', async () => {
-		const service = create(async () => assert.fail('No fetch expected'));
-		const client = store.add(service.acquireAnonymousClient({ apiBaseUri: 'https://github.example.test/api/v3' })).object;
-		await assert.rejects(client.getFile('microsoft', 'sample', path, CancellationToken.None), { kind: 'validation' });
-		assert.deepStrictEqual(service.reads, []);
-	});
-
-	test('rejects invalid raw endpoints rather than falling back to GitHub.com', () => {
-		const service = create(async () => assert.fail('No fetch expected'));
-		for (const rawBaseUri of ['', 'not a URL', 'http://raw.example.test', 'https://user@raw.example.test', 'https://raw.example.test?query=value', 'https://raw.example.test#fragment']) {
-			function isValidationError(error: unknown): boolean {
-				return error instanceof GitHubRequestError && error.kind === 'validation';
-			}
-			assert.throws(() => service.acquireAnonymousClient({ apiBaseUri, rawBaseUri }), isValidationError);
-		}
-	});
-
-	test('rejects file reads after the anonymous client is disposed', async () => {
-		const service = create(async () => { throw new Error('No fetch expected'); });
-		const client = store.add(service.acquireAnonymousClient({ apiBaseUri }));
-		client.dispose();
-		await assert.rejects(client.object.getFile('microsoft', 'sample', path, CancellationToken.None), { kind: 'unknown', message: 'GitHub client was disposed' });
-		assert.strictEqual(service.releasedClients, 1);
-	});
-
-	test('uses the configured API and raw bases without acquiring another lease', async () => {
-		const endpoint = 'https://github.example.test/api/v3';
-		const rawEndpoint = 'https://github.example.test/raw';
-		const requests: Request[] = [];
-		const service = create(async (input, init) => {
-			requests.push(new Request(input, init));
-			return fileResponse(input);
-		});
-		const client = store.add(service.acquireAnonymousClient({ apiBaseUri: endpoint, rawBaseUri: rawEndpoint }));
-		const first = await client.object.getFile('microsoft', 'sample', path, CancellationToken.None);
-		const second = await client.object.getFile('microsoft', 'sample', path, new AbortController().signal);
-		assert.deepStrictEqual({
-			first, second, apiBases: service.apiBases, releasedClients: service.releasedClients,
-			requests: requests.map(request => ({ url: request.url, authorization: request.headers.get('authorization') })),
+			sha, result,
+			requests: requests.map(request => ({
+				url: request.url, authorization: request.headers.get('authorization'), credentials: request.credentials, referrerPolicy: request.referrerPolicy,
+			})),
+			rawApiHeaders: ['x-github-api-version', 'x-client-application', 'x-client-source', 'x-client-feature', 'x-is-retry'].map(name => requests[1].headers.get(name)),
 		}, {
-			first: { commitSha, content }, second: { commitSha, content }, apiBases: [endpoint], releasedClients: 0,
-			requests: [endpoint + paths[0], rawEndpoint + rawPath, endpoint + paths[0], rawEndpoint + rawPath].map(url => ({ url, authorization: null })),
+			sha: commitSha, result: content,
+			requests: [`${apiBaseUri}/repos/microsoft/sample/commits/HEAD`, rawBaseUri + rawPath].map(url => ({
+				url, authorization: null, credentials: 'omit', referrerPolicy: 'no-referrer',
+			})),
+			rawApiHeaders: [null, null, null, null, null],
 		});
 	});
 
-	test('uses one API read and a commit-pinned raw download without credentials or content parsing', () => runWithFakedTimers({}, async () => {
-		const requests: Request[] = [];
-		const download = spy(GitHubTransport.prototype, 'anonymousDownload');
-		const controller = new AbortController();
-		const startedAt = Date.now();
-		const service = create(async (input, init) => {
-			requests.push(new Request(input, init));
-			if (requests.length === 1) {
-				await timeout(10);
-				return new Response(JSON.stringify({ sha: commitSha }));
-			}
-			return new Response(content);
-		});
-		try {
-			const result = await read(service, controller.signal);
-			assert.deepStrictEqual({
-				result,
-				apiBases: service.apiBases,
-				releasedClients: service.releasedClients,
-				reads: service.reads.map(read => ({ path: read.path, options: read.options, sameSignal: read.signal === controller.signal, aborted: read.signal.aborted })),
-				rawSignal: download.firstCall.args[3] === controller.signal,
-				requests: requests.map(request => ({ url: request.url, method: request.method, credentials: request.credentials, referrerPolicy: request.referrerPolicy, authorization: request.headers.get('authorization') })),
-				rawApiHeaders: ['x-github-api-version', 'x-client-application', 'x-client-source', 'x-client-feature', 'x-is-retry'].map(name => requests[1].headers.get(name)),
-			}, {
-				result: { commitSha, content },
-				apiBases: [apiBaseUri],
-				releasedClients: 1,
-				reads: paths.map(path => ({ path, options: { deadline: startedAt + 5 * 60_000 }, sameSignal: true, aborted: false })),
-				rawSignal: true,
-				requests: [apiBaseUri + paths[0], rawBaseUri + rawPath].map(url => ({ url, method: 'GET', credentials: 'omit', referrerPolicy: 'no-referrer', authorization: null })),
-				rawApiHeaders: [null, null, null, null, null],
-			});
-		} finally {
-			service.dispose();
-		}
-	}));
-
-	test('encodes raw file path segments without changing the pinned revision', async () => {
+	test('encodes file path segments without changing the pinned revision', async () => {
 		const requests: string[] = [];
-		const service = create(async input => {
-			requests.push(String(input));
-			return fileResponse(input);
-		});
-		const client = store.add(service.acquireAnonymousClient()).object;
-		const result = await client.getFile('microsoft', 'sample', 'docs/a #?%.md', CancellationToken.None);
-		assert.deepStrictEqual({ result, requests }, {
-			result: { commitSha, content },
-			requests: [apiBaseUri + paths[0], `${rawBaseUri}/microsoft/sample/${commitSha}/docs/a%20%23%3F%25.md`],
-		});
+		const service = create(async input => { requests.push(String(input)); return new Response(content); });
+		const client = store.add(service.acquireAnonymousClient());
+		await client.content.getRawFile('microsoft', 'sample', commitSha, 'docs/a #?%.md', signal());
+		assert.deepStrictEqual(requests, [`${rawBaseUri}/microsoft/sample/${commitSha}/docs/a%20%23%3F%25.md`]);
 	});
 
-	for (const invalidPath of ['', '..', '../main/file.json', '/microsoft/sample/main/file.json', '//other.example.test/file.json']) {
-		test(`rejects a path that escapes the pinned raw revision: ${JSON.stringify(invalidPath)}`, async () => {
-			const requests: string[] = [];
-			const service = create(async input => {
-				requests.push(String(input));
-				return fileResponse(input);
-			});
-			const client = store.add(service.acquireAnonymousClient()).object;
-			await assert.rejects(client.getFile('microsoft', 'sample', invalidPath, CancellationToken.None), { kind: 'validation' });
-			assert.deepStrictEqual(requests, [apiBaseUri + paths[0]]);
+	for (const invalidPath of ['', '..', '../main/file.json', '/file.json', '//other.example.test/file.json', 'dir/../file.json', 'dir//file.json', 'dir\\file.json']) {
+		test(`rejects an invalid raw path before dispatch: ${JSON.stringify(invalidPath)}`, async () => {
+			const service = create(async () => assert.fail('No fetch expected'));
+			const client = store.add(service.acquireAnonymousClient());
+			await assert.rejects(client.content.getRawFile('microsoft', 'sample', commitSha, invalidPath, signal()), { kind: 'validation' });
 		});
 	}
 
-	test('getFile forwards caller-selected options and a shared deadline without mutating them', async () => {
-		const download = spy(GitHubTransport.prototype, 'anonymousDownload');
-		const options = Object.freeze({
-			caller: 'test.repositoryReader',
-			priority: 'background' as const,
-			deadline: Date.now() + 10_000,
-			etag: false,
+	for (const invalidSha of ['', 'main', 'a'.repeat(39), 'z'.repeat(40), `${commitSha}\n`]) {
+		test(`rejects an invalid pinned revision: ${JSON.stringify(invalidSha)}`, async () => {
+			const service = create(async () => assert.fail('No fetch expected'));
+			const client = store.add(service.acquireAnonymousClient());
+			await assert.rejects(client.content.getRawFile('microsoft', 'sample', invalidSha, path, signal()), { kind: 'validation' });
 		});
-		const service = create(async input => fileResponse(input));
-		const result = await read(service, CancellationToken.None, options);
-		assert.deepStrictEqual({
-			result, requests: service.reads.map(read => ({ path: read.path, options: read.options })),
-			rawRequest: download.firstCall.args[2],
-		}, {
-			result: { commitSha, content }, requests: paths.map(path => ({ path, options })),
-			rawRequest: { url: rawBaseUri + rawPath, maximumBytes: 1024 * 1024, timeout: 5 * 60_000, caller: options.caller, priority: options.priority, deadline: options.deadline },
-		});
-	});
+	}
 
-	test('getFile honors a caller deadline without fetching', async () => {
-		const service = create(async () => assert.fail('No fetch expected'));
-		await assert.rejects(read(service, CancellationToken.None, { deadline: Date.now() - 1 }), { kind: 'timeout' });
-		assert.strictEqual(service.releasedClients, 1);
-	});
-
-	for (const [name, response] of [
-		['missing', undefined], ['null', null], ['array', []], ['missing SHA', {}],
-		['non-string SHA', { sha: 123 }], ['short SHA', { sha: 'a'.repeat(39) }],
-		['non-hex SHA', { sha: 'z'.repeat(40) }],
-		['newline-suffixed SHA', { sha: `${commitSha}\n` }],
-	] as const) {
-		test(`rejects ${name} commit responses before requesting contents`, async () => {
-			const service = create(async () => new Response(JSON.stringify(response)));
-			await assert.rejects(read(service), { kind: 'malformedResponse' });
-			assert.deepStrictEqual({ paths: service.reads.map(read => read.path), released: service.releasedClients }, { paths: [paths[0]], released: 1 });
+	for (const invalidSha of ['', 'null', '{}', 'a'.repeat(39), 'z'.repeat(40), `${commitSha}\n`]) {
+		test(`rejects invalid commit responses: ${JSON.stringify(invalidSha)}`, async () => {
+			const service = create(async () => new Response(invalidSha));
+			const client = store.add(service.acquireAnonymousClient());
+			await assert.rejects(client.content.resolveRef('microsoft', 'sample', 'HEAD', signal()), SchemaError);
 		});
 	}
 
 	for (const size of [0, 1024 * 1024]) {
-		test(`accepts a file of exactly ${size} bytes`, async () => {
+		test(`accepts a raw file of exactly ${size} bytes`, async () => {
 			const content = 'a'.repeat(size);
-			const service = create(async input => fileResponse(input, content));
-			assert.deepStrictEqual(await read(service), { commitSha, content });
+			const service = create(async () => new Response(content));
+			const client = store.add(service.acquireAnonymousClient());
+			assert.strictEqual(await client.content.getRawFile('microsoft', 'sample', commitSha, path, signal()), content);
 		});
 	}
 
-	test('preserves raw UTF-8 text, its byte order mark and whitespace', async () => {
+	test('preserves UTF-8, the byte order mark, and whitespace', async () => {
 		const text = `\ufeff \t${content}\r\n `;
-		const service = create(async input => fileResponse(input, text));
-		assert.deepStrictEqual(await read(service), { commitSha, content: text });
+		const service = create(async () => new Response(text));
+		const client = store.add(service.acquireAnonymousClient());
+		assert.strictEqual(await client.content.getRawFile('microsoft', 'sample', commitSha, path, signal()), text);
 	});
 
-	test('bounds raw bytes rather than characters and cancels an oversized response', async () => {
+	test('enforces a byte limit and cancels the oversized response', async () => {
 		const cancelled = new DeferredPromise<void>();
 		const bytes = new TextEncoder().encode('\u00e9'.repeat(512 * 1024 + 1));
-		const service = create(async input => String(input).endsWith('/commits/HEAD')
-			? new Response(JSON.stringify({ sha: commitSha }))
-			: new Response(new ReadableStream<Uint8Array>({
-				start: controller => controller.enqueue(bytes),
-				cancel: () => { cancelled.complete(); },
-			})));
-		await assert.rejects(read(service), { kind: 'responseTooLarge' });
+		const service = create(async () => new Response(new ReadableStream<Uint8Array>({
+			start: controller => controller.enqueue(bytes),
+			cancel: () => { void cancelled.complete(); },
+		})));
+		const client = store.add(service.acquireAnonymousClient());
+		await assert.rejects(client.content.getRawFile('microsoft', 'sample', commitSha, path, signal()), { kind: 'responseTooLarge' });
 		await cancelled.p;
-		assert.strictEqual(service.releasedClients, 1);
 	});
 
-	test('a failed raw response body is not returned as a successful file', async () => {
-		const service = create(async input => String(input).endsWith('/commits/HEAD')
-			? new Response(JSON.stringify({ sha: commitSha }))
-			: new Response(new ReadableStream<Uint8Array>({ start: controller => controller.error(new Error('Body failed')) })));
-		await assert.rejects(read(service), { kind: 'network' });
-		assert.strictEqual(service.releasedClients, 1);
+	test('does not return failed response bodies as successful files', async () => {
+		const service = create(async () => new Response(new ReadableStream<Uint8Array>({ start: controller => controller.error(new Error('Body failed')) })));
+		const client = store.add(service.acquireAnonymousClient());
+		await assert.rejects(client.content.getRawFile('microsoft', 'sample', commitSha, path, signal()), { kind: 'network' });
 	});
 
 	for (const location of [
-		'https://other.example.test/file.json',
-		`http://raw.githubusercontent.com${rawPath}`,
-		`https://user@raw.githubusercontent.com${rawPath}`,
-		'/microsoft/sample/main/.devcontainer/devcontainer.json',
-		`/microsoft/other/${commitSha}/.devcontainer/devcontainer.json`,
+		'https://other.example.test/file.json', `http://raw.githubusercontent.com${rawPath}`, `https://user@raw.githubusercontent.com${rawPath}`,
+		'/microsoft/sample/main/file.json', `/microsoft/other/${commitSha}/file.json`, `/microsoft/sample/${commitSha}/../main/file.json`,
 	]) {
-		test(`rejects an unsafe or unpinned raw redirect: ${location}`, async () => {
-			const requests: Request[] = [];
-			const service = create(async (input, init) => {
-				requests.push(new Request(input, init));
-				return String(input).endsWith('/commits/HEAD')
-					? new Response(JSON.stringify({ sha: commitSha }))
-					: new Response(null, { status: 302, headers: { location } });
+		test(`rejects unsafe or unpinned raw redirects: ${location}`, async () => {
+			const requests: string[] = [];
+			const service = create(async input => {
+				requests.push(String(input));
+				return new Response(null, { status: 302, headers: { location } });
 			});
-			await assert.rejects(read(service), { kind: 'authorization' });
-			assert.deepStrictEqual(requests.map(request => ({ url: request.url, credentials: request.credentials, authorization: request.headers.get('authorization') })), [
-				{ url: apiBaseUri + paths[0], credentials: 'omit', authorization: null },
-				{ url: rawBaseUri + rawPath, credentials: 'omit', authorization: null },
-			]);
+			const client = store.add(service.acquireAnonymousClient());
+			await assert.rejects(client.content.getRawFile('microsoft', 'sample', commitSha, path, signal()), { kind: 'authorization' });
+			assert.deepStrictEqual(requests, [rawBaseUri + rawPath]);
 		});
 	}
 
 	test('raw redirects within the pinned revision remain credential-free', async () => {
 		const requests: Request[] = [];
-		const redirectedPath = `/microsoft/sample/${commitSha}/.devcontainer/renamed.json`;
+		const renamed = `/microsoft/sample/${commitSha}/renamed.json`;
 		const service = create(async (input, init) => {
 			requests.push(new Request(input, init));
-			return String(input).endsWith('/commits/HEAD')
-				? new Response(JSON.stringify({ sha: commitSha }))
-				: requests.length === 2 ? new Response(null, { status: 302, headers: { location: redirectedPath } })
-					: new Response(content);
+			return requests.length === 1 ? new Response(null, { status: 302, headers: { location: renamed } }) : new Response(content);
 		});
-		const result = await read(service);
+		const client = store.add(service.acquireAnonymousClient());
+		const result = await client.content.getRawFile('microsoft', 'sample', commitSha, path, signal());
 		assert.deepStrictEqual({
-			result, requests: requests.map(request => ({ url: request.url, credentials: request.credentials, referrerPolicy: request.referrerPolicy, authorization: request.headers.get('authorization') })),
+			result, requests: requests.map(request => ({
+				url: request.url, authorization: request.headers.get('authorization'), credentials: request.credentials,
+			}))
 		}, {
-			result: { commitSha, content },
-			requests: [apiBaseUri + paths[0], rawBaseUri + rawPath, rawBaseUri + redirectedPath].map(url => ({
-				url, credentials: 'omit', referrerPolicy: 'no-referrer', authorization: null,
-			})),
+			result: content, requests: [rawBaseUri + rawPath, rawBaseUri + renamed].map(url => ({ url, authorization: null, credentials: 'omit' })),
 		});
 	});
 
-	test('raw downloads do not wait on an exhausted REST API quota', async () => {
+	test('API quota exhaustion does not delay reads on the raw origin', async () => {
+		const service = create(async input => String(input).includes('/commits/')
+			? new Response(commitSha, { headers: { 'X-RateLimit-Remaining': '0', 'X-RateLimit-Reset': String(Math.floor(Date.now() / 1000) + 60) } })
+			: new Response(content));
+		const client = store.add(service.acquireAnonymousClient());
+		const options = { deadline: Date.now() + 1_000 };
+		const sha = await client.content.resolveRef('microsoft', 'sample', 'HEAD', signal(), options);
+		assert.strictEqual(await client.content.getRawFile('microsoft', 'sample', sha, path, signal(), options), content);
+	});
+
+	test('raw cooldowns survive reacquisition without blocking API reads', () => runWithFakedTimers({}, async () => {
 		const requests: string[] = [];
 		const service = create(async input => {
 			requests.push(String(input));
-			return String(input).endsWith('/commits/HEAD')
-				? new Response(JSON.stringify({ sha: commitSha }), { headers: { 'X-RateLimit-Remaining': '0', 'X-RateLimit-Reset': String(Math.floor(Date.now() / 1000) + 60) } })
-				: new Response(content);
-		});
-		const result = await read(service, CancellationToken.None, { deadline: Date.now() + 1000 });
-		assert.deepStrictEqual({ result, requests }, { result: { commitSha, content }, requests: [apiBaseUri + paths[0], rawBaseUri + rawPath] });
-	});
-
-	test('raw cooldowns survive client release without blocking API reads', () => runWithFakedTimers({}, async () => {
-		const requests: string[] = [];
-		let rawRequests = 0;
-		const service = create(async input => {
-			const url = String(input);
-			requests.push(url);
-			if (url.startsWith(rawBaseUri)) {
-				return ++rawRequests === 1 ? new Response(null, { status: 429, headers: { 'Retry-After': '60' } }) : new Response(content);
-			}
-			return new Response(JSON.stringify({ sha: commitSha }));
+			return String(input).startsWith(rawBaseUri) ? new Response(null, { status: 429, headers: { 'Retry-After': '60' } }) : new Response(commitSha);
 		});
 		try {
-			await assert.rejects(read(service), { kind: 'rateLimit', statusCode: 429 });
-			const client = store.add(service.acquireAnonymousClient()).object;
-			await client.get('/probe', CancellationToken.None);
-			const pending = assert.rejects(client.getFile('microsoft', 'sample', path, CancellationToken.None, { deadline: Date.now() + 50 }), { kind: 'timeout' });
-			await timeout(50);
-			await pending;
-			assert.deepStrictEqual(requests, [apiBaseUri + paths[0], rawBaseUri + rawPath, `${apiBaseUri}/probe`, apiBaseUri + paths[0]]);
+			const first = store.add(service.acquireAnonymousClient());
+			await assert.rejects(first.content.getRawFile('microsoft', 'sample', commitSha, path, signal()), { kind: 'rateLimit' });
+			first.dispose();
+			const second = store.add(service.acquireAnonymousClient());
+			const sha = await second.content.resolveRef('microsoft', 'sample', 'HEAD', signal());
+			await assert.rejects(second.content.getRawFile('microsoft', 'sample', sha, path, signal(), { deadline: Date.now() + 50 }), { kind: 'timeout' });
+			assert.deepStrictEqual(requests, [rawBaseUri + rawPath, `${apiBaseUri}/repos/microsoft/sample/commits/HEAD`]);
 		} finally {
 			service.dispose();
 		}
 	}));
 
-	test('propagates raw HTTP errors without falling back to the API and releases the lease', async () => {
-		const service = create(async input => String(input).endsWith('/commits/HEAD')
-			? new Response(JSON.stringify({ sha: commitSha }))
-			: new Response('{}', { status: 404 }));
-		await assert.rejects(read(service), { kind: 'notFound', statusCode: 404 });
-		assert.deepStrictEqual({ paths: service.reads.map(read => read.path), released: service.releasedClients }, { paths, released: 1 });
+	test('preserves raw HTTP failures without fallback and checks successful status codes', async () => {
+		let calls = 0;
+		const service = create(async () => new Response(content, { status: ++calls === 1 ? 404 : 202 }));
+		const client = store.add(service.acquireAnonymousClient());
+		await assert.rejects(client.content.getRawFile('microsoft', 'sample', commitSha, path, signal()), { kind: 'notFound', statusCode: 404 });
+		await assert.rejects(client.content.getRawFile('microsoft', 'sample', commitSha, path, signal()), { kind: 'malformedResponse', statusCode: 202 });
+		assert.strictEqual(calls, 2);
 	});
 
-	for (const [name, reason] of [['default', undefined], ['custom', new Error('Caller cancelled')], ['non-error', { cancelled: true }]] as const) {
-		test(`cancellation before reading preserves the ${name} abort reason without requests`, async () => {
-			const service = create(async () => { throw new Error('No fetch expected'); });
+	for (const reason of [undefined, new Error('Caller cancelled'), { cancelled: true }]) {
+		test(`preserves a pre-cancelled caller's ${typeof reason} reason without dispatch`, async () => {
+			const service = create(async () => assert.fail('No fetch expected'));
+			const client = store.add(service.acquireAnonymousClient());
 			const controller = new AbortController();
 			controller.abort(reason);
-			await assert.rejects(read(service, controller.signal), error => error === controller.signal.reason);
-			assert.deepStrictEqual({ apiBases: service.apiBases, reads: service.reads, released: service.releasedClients }, { apiBases: [apiBaseUri], reads: [], released: 1 });
+			await assert.rejects(client.content.getRawFile('microsoft', 'sample', commitSha, path, controller.signal), error => error === controller.signal.reason);
 		});
 	}
 
-	test('a cancelled token performs no reads', async () => {
-		const service = create(async () => assert.fail('No fetch expected'));
-		await assert.rejects(read(service, CancellationToken.Cancelled), CancellationError);
-		assert.deepStrictEqual({ apiBases: service.apiBases, reads: service.reads, released: service.releasedClients }, { apiBases: [apiBaseUri], reads: [], released: 1 });
-	});
-
-	for (const kind of ['signal', 'token'] as const) {
-		for (const cancelledRead of [1, 2]) {
-			test(`${kind} cancels read ${cancelledRead}, preserves the abort reason and releases the lease`, async () => {
-				const controller = new AbortController();
-				const token = store.add(new CancellationTokenSource());
-				const reason = new Error('Caller cancelled');
-				const started = new DeferredPromise<AbortSignal>();
-				let calls = 0;
-				const service = create(async (_input, init) => {
-					if (++calls !== cancelledRead) {
-						return new Response(JSON.stringify({ sha: commitSha }));
-					}
-					assert.ok(init?.signal);
-					const signal = init.signal;
-					return new Promise<Response>((_resolve, reject) => {
-						signal.addEventListener('abort', () => reject(signal.reason), { once: true });
-						started.complete(signal);
-					});
-				});
-				const rejected = assert.rejects(read(service, kind === 'signal' ? controller.signal : token.token),
-					error => kind === 'signal' ? error === reason : error instanceof CancellationError);
-				const signal = await started.p;
-				if (kind === 'signal') {
-					controller.abort(reason);
-				} else {
-					token.cancel();
-				}
-				await rejected;
-				assert.deepStrictEqual({ calls, aborted: signal.aborted, released: service.releasedClients }, { calls: cancelledRead, aborted: true, released: 1 });
-			});
-		}
-	}
-
-	for (const fails of [false, true]) {
-		test(`releases the token adapter and lease when the repository read settles (fails: ${fails})`, async () => {
-			const download = spy(GitHubTransport.prototype, 'anonymousDownload');
-			const token = store.add(new CancellationTokenSource());
-			const service = create(async input => String(input).endsWith('/commits/HEAD')
-				? new Response(JSON.stringify({ sha: commitSha }))
-				: new Response(content, { status: fails ? 404 : 200 }));
-			if (fails) {
-				await assert.rejects(read(service, token.token), { kind: 'notFound' });
-			} else {
-				assert.deepStrictEqual(await read(service, token.token), { commitSha, content });
-			}
-			token.cancel();
-			assert.deepStrictEqual({
-				paths: service.reads.map(read => read.path), aborted: service.reads.map(read => read.signal.aborted),
-				sameSignal: service.reads[0].signal === download.firstCall.args[3], released: service.releasedClients,
-			}, { paths, aborted: [false], sameSignal: true, released: 1 });
-		});
-	}
-
-	test('releases the token listener when the client has already been disposed', async () => {
-		const cancelled = store.add(new Emitter<void>());
-		const service = create(async () => assert.fail('No fetch expected'));
-		const client = store.add(service.acquireAnonymousClient({ apiBaseUri }));
-		client.dispose();
-		await assert.rejects(client.object.getFile('microsoft', 'sample', path, {
-			isCancellationRequested: false, onCancellationRequested: cancelled.event,
-		}), { kind: 'unknown', message: 'GitHub client was disposed' });
-		assert.strictEqual(cancelled.hasListeners(), false);
-	});
-
-	test('cancelling one repository read and releasing its lease preserves a live peer', async () => {
-		const started = new DeferredPromise<AbortSignal>();
-		const commitResponse = new DeferredPromise<Response>();
-		let attempts = 0;
-		const service = create(async (input, init) => {
-			attempts++;
-			if (String(input).endsWith('/commits/HEAD')) {
+	for (const kind of ['caller', 'client', 'service'] as const) {
+		test(`${kind} cancellation aborts outstanding raw reads`, async () => {
+			const started = new DeferredPromise<AbortSignal>();
+			const response = new DeferredPromise<Response>();
+			const service = create(async (_input, init) => {
 				assert.ok(init?.signal);
-				started.complete(init.signal);
-				return commitResponse.p;
+				void started.complete(init.signal);
+				return response.p;
+			});
+			const client = store.add(service.acquireAnonymousClient());
+			const controller = new AbortController();
+			const rejected = assert.rejects(client.content.getRawFile('microsoft', 'sample', commitSha, path, controller.signal), isCancellationError);
+			const active = await started.p;
+			if (kind === 'caller') {
+				controller.abort(new CancellationError());
+			} else if (kind === 'client') {
+				client.dispose();
+			} else {
+				service.dispose();
 			}
-			return new Response(content);
+			await rejected;
+			await response.complete(new Response(content));
+			assert.strictEqual(active.aborted, true);
 		});
-		const first = store.add(service.acquireAnonymousClient({ apiBaseUri }));
-		const second = store.add(service.acquireAnonymousClient({ apiBaseUri }));
-		const controller = new AbortController();
-		const reason = new Error('Caller cancelled');
-		const rejected = assert.rejects(first.object.getFile('microsoft', 'sample', path, controller.signal), error => error === reason);
-		const peer = second.object.getFile('microsoft', 'sample', path, CancellationToken.None);
-		const signal = await started.p;
-		controller.abort(reason);
-		first.dispose();
-		await rejected;
-		await commitResponse.complete(new Response(JSON.stringify({ sha: commitSha })));
-		const result = await peer;
-		assert.deepStrictEqual({
-			result, attempts, aborted: signal.aborted, releasedClients: service.releasedClients,
-		}, { result: { commitSha, content }, attempts: 2, aborted: false, releasedClients: 1 });
-	});
+	}
 
-	test('disposing the owning service aborts file reads and releases the lease', async () => {
-		const controller = new AbortController();
-		const started = new DeferredPromise<AbortSignal>();
-		const service = create(async (_input, init) => {
-			assert.ok(init?.signal);
-			const signal = init.signal;
-			await started.complete(signal);
-			return new Promise<Response>((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }));
-		});
-		const rejected = assert.rejects(read(service, controller.signal));
-		const signal = await started.p;
-		service.dispose();
-		await rejected;
-		assert.deepStrictEqual({ aborted: signal.aborted, callerAborted: controller.signal.aborted, released: service.releasedClients }, { aborted: true, callerAborted: false, released: 1 });
-	});
-
-	test('the second read expires at the original operation deadline', () => runWithFakedTimers({}, async () => {
-		const download = spy(GitHubTransport.prototype, 'anonymousDownload');
+	test('the second operation respects the original caller deadline', () => runWithFakedTimers({}, async () => {
 		const startedAt = Date.now();
-		const token = store.add(new CancellationTokenSource());
-		let calls = 0;
-		const service = create(async (_input, init) => {
-			if (++calls === 1) {
-				await timeout(60_000);
-				return new Response(JSON.stringify({ sha: commitSha }));
+		const response = new DeferredPromise<Response>();
+		const service = create(async input => {
+			if (String(input).includes('/commits/')) {
+				await timeout(40);
+				return new Response(commitSha);
 			}
-			assert.ok(init?.signal);
-			const signal = init.signal;
-			return new Promise<Response>((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }));
+			return response.p;
 		});
 		try {
-			const rejected = assert.rejects(read(service, token.token), { kind: 'timeout' });
-			await timeout(5 * 60_000);
-			await rejected;
-			token.cancel();
-			assert.deepStrictEqual({
-				calls, released: service.releasedClients, deadlines: service.reads.map(read => read.options?.deadline),
-				rawDeadline: download.firstCall.args[2].deadline,
-				aborted: service.reads.map(read => read.signal.aborted), elapsed: Date.now() - startedAt,
-			}, { calls: 2, released: 1, deadlines: [startedAt + 5 * 60_000], rawDeadline: startedAt + 5 * 60_000, aborted: [false], elapsed: 5 * 60_000 });
+			const client = store.add(service.acquireAnonymousClient());
+			const options = { caller: 'devContainerSample', deadline: startedAt + 50 };
+			const sha = await client.content.resolveRef('microsoft', 'sample', 'HEAD', signal(), options);
+			await assert.rejects(client.content.getRawFile('microsoft', 'sample', sha, path, signal(), options), { kind: 'timeout', requestDispatched: true });
+			assert.strictEqual(Date.now() - startedAt, 50);
 		} finally {
+			await response.complete(new Response(content));
 			service.dispose();
 		}
 	}));

@@ -15,7 +15,7 @@ import { buildBranchChangesetUri, buildDefaultChangesetCatalog, buildSessionChan
 import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, ChangesetOperationScope, ChangesetOperationStatus, SessionStatus, withSessionGitState, type ChangesetOperation, type ISessionFileDiff, type ISessionGitHubState, type ISessionGitState } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, ChangesetOperationScope, ChatOriginKind, ChangesetOperationStatus, SessionStatus, withSessionGitState, type ChangesetOperation, type ISessionFileDiff, type ISessionGitHubState, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentConfigurationService, getEffectiveWorkingDirectories, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostChangesetCoordinator } from '../../node/agentHostChangesetCoordinator.js';
 import { resolveChangesetSubscriptions } from '../../node/agentHostChangesetSummary.js';
@@ -550,6 +550,28 @@ suite('ChangesetSessionCoordinator', () => {
 		}, {
 			operationRefreshes: [session, buildDefaultChatUri(session), peer],
 			chatSummaryRefreshes: [buildDefaultChatUri(session), peer],
+		});
+	});
+
+	test('a session working-directory change refreshes Git state of inheriting chats but not of subagents', () => {
+		const session = AgentSession.uri('mock', 'subagent-git').toString();
+		const defaultChat = buildDefaultChatUri(session);
+		const subagent = buildChatUri(session, 'subagent');
+		const environment = createEnvironment();
+		createSession(environment.stateManager, session, 'file:///repoA');
+		environment.stateManager.addChat(session, subagent, defaultChat, { origin: { kind: ChatOriginKind.Tool, chat: defaultChat, toolCallId: 'tool' } });
+		const gitBaseline = environment.gitStateService.refreshed.length;
+		const summaryBaseline = environment.changesets.chatSummaryRefreshes.length;
+
+		environment.stateManager.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectorySet, directory: 'file:///repoB' });
+
+		assert.deepStrictEqual({
+			gitRefreshes: environment.gitStateService.refreshed.slice(gitBaseline).filter(key => key !== session),
+			chatSummaryRefreshes: [...environment.changesets.chatSummaryRefreshes.slice(summaryBaseline)].sort(),
+		}, {
+			gitRefreshes: [defaultChat],
+			// A subagent's changes still follow the folders it works in.
+			chatSummaryRefreshes: [defaultChat, subagent].sort(),
 		});
 	});
 
@@ -1327,6 +1349,24 @@ suite('ChangesetSessionCoordinator', () => {
 			removedOwners: [peer],
 			disposals: [],
 		});
+	});
+
+	test('moving a chat to another session keeps its own changesets', async () => {
+		const session = AgentSession.uri('mock', 'move-source').toString();
+		const target = AgentSession.uri('mock', 'move-target').toString();
+		const peer = buildChatUri(session, 'peer');
+		const root = URI.file('/projects/shared');
+		const environment = createEnvironment(undefined, createRoutingGitService(new Map([[root.toString(), root]])));
+		createSession(environment.stateManager, session, root.toString());
+		createSession(environment.stateManager, target, root.toString());
+		environment.stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer, buildDefaultChatUri(session)), { workingDirectories: [root.toString()] });
+		environment.coordinator.onFirstSubscriber(URI.parse(session));
+		await tick();
+
+		environment.stateManager.transferChats(session, target, [peer], undefined);
+		await tick();
+
+		assert.deepStrictEqual({ removedOwners: environment.changesets.removedOwners, disposals: environment.monitor.disposals }, { removedOwners: [], disposals: [] });
 	});
 
 	test('detaches a repository root watcher when a session stops resolving to it', async () => {

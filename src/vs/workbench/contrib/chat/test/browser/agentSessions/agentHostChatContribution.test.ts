@@ -54,6 +54,7 @@ import { withChatInputState } from '../../../../../../platform/agentHost/common/
 import { toSlashCommandResourceMeta } from '../../../../../../platform/agentHost/common/meta/agentSlashCommandOutputMeta.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { VSCODE_EPHEMERAL_SESSION_META_KEY } from '../../../../../../platform/agentHost/common/meta/agentEphemeralSessionMeta.js';
+import { agentModelConfigurationReportKey } from '../../../../../../platform/agentHost/common/agentModelConfiguration.js';
 import { getElementAttachmentCorrelationId, toElementAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
 import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
@@ -83,7 +84,7 @@ import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARA
 import { migrateLegacyTerminalToolSpecificData } from '../../../common/chat.js';
 import { ChatErrorLevel, ChatRequestQueueKind, ElicitationState, IChatService, IRemotePendingRequest, IChatMarkdownContent, IChatMcpAuthenticationRequired, IChatProgress, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, IChatUsage, ToolConfirmKind, type IChatResponseErrorDetails } from '../../../common/chatService/chatService.js';
 import { IChatDebugService } from '../../../common/chatDebugService.js';
-import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
+import { IChatEditingService, IChatEditingSession } from '../../../common/editing/chatEditingService.js';
 import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IChatSessionsService, type IChatSession, type IChatSessionHistoryItem, type IChatSessionContentProvider, type IChatSessionItemController, type IChatSessionRequestHistoryItem, type IChatSessionServerRequest, type IChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
@@ -152,7 +153,7 @@ import { ChatQuestionCarouselData } from '../../../common/model/chatProgressType
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
-import { ChatResponseModel, IntendedModelSlot, reviveSerializableInputState, type ChatModel, type ChatRequestModel, type IChatModel, type IChatModelInputState, type IChatPendingRequest, type IChatRequestModel, type IChatResponseModel, type IInputModel } from '../../../common/model/chatModel.js';
+import { ChatModel, ChatResponseModel, IntendedModelSlot, reviveSerializableInputState, type ChatRequestModel, type IChatModel, type IChatModelInputState, type IChatPendingRequest, type IChatRequestModel, type IChatResponseModel, type IInputModel } from '../../../common/model/chatModel.js';
 import { ModelSelectionReason } from '../../../common/modelSelection.js';
 import { convertBufferToScreenshotVariable } from '../../../browser/attachments/chatScreenshotContext.js';
 import { AgentHostCompletionReferenceKind, ChatPasteAttachmentMetadata, createChatReferenceVariableEntry, isChatReferenceVariableEntry, toAgentHostCompletionVariableEntry, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
@@ -997,6 +998,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		observeTools: () => observableValue('tools', []),
 		onDidChangeTools: Event.None,
 		getTools: () => [],
+		getAllToolsIncludingDisabled: () => [],
 		_serviceBrand: undefined,
 		...languageModelToolsServiceOverride,
 	});
@@ -1521,6 +1523,43 @@ suite('AgentHostChatContribution', () => {
 
 	});
 
+	suite('session model configuration', () => {
+		test('projects and removes the exact peer chat policy without using another chat report', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables, { provider: 'copilotcli' });
+			const backend = AgentSession.uri('copilotcli', 'model-policy-owner');
+			const peer = buildChatUri(backend.toString(), 'peer');
+			const defaultChat = buildDefaultChatUri(backend.toString());
+			const summary: SessionSummary = {
+				resource: backend.toString(), provider: 'copilotcli', title: 'Model policy', status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+			};
+			const peerSummary = createDefaultChatSummary(summary, peer);
+			const report = {
+				models: { 'gpt-5': { defaults: { thinkingLevel: 'high' }, readOnly: ['thinkingLevel'] } },
+				current: { id: 'gpt-5', config: { thinkingLevel: 'high' } },
+			};
+			agentHostService.sessionStates.set(backend.toString(), {
+				...createSessionState(summary), lifecycle: SessionLifecycle.Ready, defaultChat,
+				chats: [createDefaultChatSummary(summary, defaultChat), peerSummary],
+				config: { schema: { type: 'object', properties: {} }, values: { [agentModelConfigurationReportKey]: { [peer]: report, [defaultChat]: { models: {} } } } },
+			});
+			agentHostService.chatStates.set(peer, createChatState(peerSummary));
+			const provided = disposables.add(await sessionHandler.provideChatSessionContent(URI.from({ scheme: 'agent-host-copilot', path: '/model-policy-owner', fragment: 'peer' }), CancellationToken.None));
+			const initial = provided.modelConfigurationState?.get();
+			agentHostService.fireAction({
+				channel: backend.toString(), serverSeq: 1, origin: undefined,
+				action: { type: ActionType.SessionConfigChanged, config: { [agentModelConfigurationReportKey]: { [peer]: null } } },
+			});
+			assert.deepStrictEqual({ initial, removed: provided.modelConfigurationState?.get() }, {
+				initial: {
+					models: { 'agent-host-copilot:gpt-5': report.models['gpt-5'] },
+					current: { id: 'agent-host-copilot:gpt-5', config: { thinkingLevel: 'high' } },
+				},
+				removed: undefined,
+			});
+		});
+	});
+
 	suite('canvases', () => {
 		test('projects subscribed canvases for the exact peer chat supplied by the provider', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables, { provider: 'copilotcli' });
@@ -1638,7 +1677,7 @@ suite('AgentHostChatContribution', () => {
 
 	suite('metadata wire-to-feature', () => {
 		async function openWireSession(options?: { session?: Partial<SessionState>; chat?: Partial<ChatState>; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata> }) {
-			const { instantiationService, chatAgentService, modelService } = createTestServices(disposables, undefined, undefined, options?.languageModels);
+			const { instantiationService, chatAgentService, modelService, chatService } = createTestServices(disposables, undefined, undefined, options?.languageModels);
 			const quotaUpdates: Parameters<IChatEntitlementService['acceptQuotas']>[0][] = [];
 			instantiationService.get(IChatEntitlementService).acceptQuotas = quotas => { quotaUpdates.push(quotas); };
 			instantiationService.stub(IConfigurationService, new TestConfigurationService());
@@ -1726,8 +1765,83 @@ suite('AgentHostChatContribution', () => {
 					},
 				};
 			};
-			return { startRequest, fire, echo, peer, client, handler, chatSession, sessionResource, backendSession, chatUri, modelService, quotaUpdates };
+			return { startRequest, fire, echo, peer, client, handler, chatSession, sessionResource, backendSession, chatUri, modelService, quotaUpdates, instantiationService, chatService };
 		}
+
+		test('chat billing snapshots and idle updates reach the UI model without mutating canceled history or a peer', async () => {
+			const chatUri = 'ahp-chat:/host-assigned-conversation-73';
+			const peerUri = 'ahp-chat:/host-assigned-independent-peer';
+			const initialMeta = {
+				unrelated: 'preserved',
+				'vscode.chatUsage': {
+					[chatUri]: { totalNanoAiu: 400_000_000, aiCreditsStatus: 'complete' },
+					[peerUri]: { totalNanoAiu: 250_000_000, aiCreditsStatus: 'partial' },
+				},
+			};
+			const summary = {
+				resource: chatUri, title: 'Remote chat', status: SessionStatus.Idle, modifiedAt: '2026-09-30T12:00:00.000Z',
+			};
+			const { handler, fire, peer, instantiationService, chatService, sessionResource, backendSession, chatSession } = await openWireSession({
+				session: { chats: [summary], _meta: initialMeta },
+				chat: {
+					turns: [{
+						id: 'canceled-image', state: TurnState.Cancelled,
+						message: { text: 'Draw an image', origin: { kind: MessageKind.User } },
+						responseParts: [{ kind: ResponsePartKind.Markdown, id: 'before-cancel', content: 'Generating an image' }],
+						usage: undefined,
+					}],
+				},
+			});
+			instantiationService.stub(IChatEditingService, {
+				createEditingSession: () => upcastPartial<IChatEditingSession>({ entries: constObservable([]), requestDisablement: constObservable([]), dispose: () => { } }),
+			});
+			const createModel = (resource: URI) => disposables.add(instantiationService.createInstance(
+				ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: false, resource, disableBackgroundKeepAlive: true },
+			));
+			const model = createModel(sessionResource);
+			const request = model.addRequest({ text: 'Draw an image', parts: [] }, { variables: [] }, 0);
+			model.cancelRequest(request);
+			const canceledResponse = request.response?.toJSON();
+			const canceledHistory = chatSession.history;
+			const initial = Event.toPromise(Event.filter(model.onDidChange, event => event.kind === 'setSessionCost' && model.sessionCost === 0.4));
+			chatService.setSession(sessionResource, model);
+			await initial;
+
+			const peerSummary = {
+				...summary, resource: peerUri, title: 'Peer',
+			};
+			fire({ type: ActionType.SessionChatAdded, summary: peerSummary }, backendSession.toString());
+			const peerResource = sessionResource.with({ fragment: peerUri });
+			const peerModel = createModel(peerResource);
+			chatService.setSession(peerResource, peerModel);
+			const peerSubscribed = peer.nextRequest('subscribe');
+			const openingPeer = handler.provideChatSessionContent(peerResource, CancellationToken.None);
+			peer.deliver({
+				jsonrpc: '2.0', id: (await peerSubscribed).id,
+				result: { snapshot: { resource: peerUri, fromSeq: 1, state: createChatState(peerSummary) } },
+			});
+			disposables.add(await openingPeer);
+			const updated = Event.toPromise(Event.filter(model.onDidChange, event => event.kind === 'setSessionCost' && model.sessionCost === 0.6));
+			fire({
+				type: ActionType.SessionMetaChanged,
+				_meta: {
+					...initialMeta,
+					'vscode.chatUsage': {
+						...initialMeta['vscode.chatUsage'],
+						[chatUri]: { totalNanoAiu: 600_000_000, aiCreditsStatus: 'complete' },
+					},
+				},
+			}, backendSession.toString());
+			await updated;
+			assert.deepStrictEqual({
+				cost: model.sessionCostInfo, peerCost: peerModel.sessionCostInfo,
+				response: request.response?.toJSON(), history: chatSession.history,
+				requestCount: model.getRequests().length,
+			}, {
+				cost: { credits: 0.6, status: 'complete' }, peerCost: { credits: 0.25, status: 'partial' },
+				response: canceledResponse, history: canceledHistory, requestCount: 1,
+			});
+		});
 
 		const copilotMeta = { 'copilot.errorDetail': { errorCode: 'rateLimited', statusCode: 429, url: 'command:unsafe' } };
 		const vscodeMeta = { chatError: { fetchError: { type: 'rateLimited', retryAfter: 60 }, copilotPlan: 'free' } };
@@ -4336,6 +4450,38 @@ suite('AgentHostChatContribution', () => {
 					{ label: 'Peer chat', resource: 'agent-host-copilot:/multi-chat#peer-chat', status: undefined, isRead: undefined },
 				],
 			}]);
+		});
+
+		test('a peer chat that leaves one session for another is reported as moved, with its chat session resource in each', async () => {
+			const { listController, agentHostService } = createContribution(disposables);
+			const source = AgentSession.uri('copilot', 'move-source');
+			const target = AgentSession.uri('copilot', 'move-target');
+			const sourceDefault = buildDefaultChatUri(source.toString());
+			const targetDefault = buildDefaultChatUri(target.toString());
+			// The chat keeps its URI wherever it moves.
+			const moved = buildChatUri(source.toString(), 'mover');
+			agentHostService.addSession({
+				session: source, startTime: 1000, modifiedTime: 2000,
+				chats: [{ chat: URI.parse(sourceDefault), summary: 'Main', kind: 'default' }, { chat: URI.parse(moved), summary: 'Mover', kind: 'peer' }],
+			});
+			agentHostService.addSession({
+				session: target, startTime: 1000, modifiedTime: 2000,
+				chats: [{ chat: URI.parse(targetDefault), summary: 'Main', kind: 'default' }],
+			});
+			await listController.refresh(CancellationToken.None);
+			const moves: string[] = [];
+			disposables.add(listController.onDidMoveChat(({ from, to }) => moves.push(`${from.chat.toString()} -> ${to.chat.toString()}`)));
+			const changeChats = (session: URI, defaultChat: string, chats: string[]) => agentHostService.fireNotification({
+				type: 'root/sessionSummaryChanged',
+				channel: ROOT_STATE_URI,
+				session: session.toString(),
+				changes: { chats: chats.map(resource => ({ resource, title: 'Chat' })), defaultChat },
+			});
+
+			changeChats(target, targetDefault, [targetDefault, moved]);
+			changeChats(source, sourceDefault, [sourceDefault]);
+
+			assert.deepStrictEqual(moves, ['agent-host-copilot:/move-source#mover -> agent-host-copilot:/move-target#mover']);
 		});
 
 		test('summary changes update peer children that are no longer in the catalog', async () => {
@@ -11038,18 +11184,18 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
-		test('Fusion response footers name the Ensemble tier they ran as', async () => {
-			const footers = async (intelligenceUsesHydraFusion: boolean) => {
+		test('Fusion response footers name the Fusion tier they ran as', async () => {
+			const footers = async (balanceUsesHydraFusion: boolean) => {
 				const languageModels = new Map<string, ILanguageModelChatMetadata>([
 					['agent-host-copilot:auto', upcastPartial<ILanguageModelChatMetadata>({
-						name: 'Ensemble', autoModelEnsemble: { intelligenceUsesHydraFusion },
-						configurationSchema: { properties: { tier: { type: 'string', enum: ['balance', 'intelligence'], enumItemLabels: ['Balance', 'High'] } } },
+						name: 'Fusion', autoModelFusion: { balanceUsesHydraFusion },
+						configurationSchema: { properties: { tier: { type: 'string', enum: ['balance', 'intelligence'], enumItemLabels: ['Lite', 'Balance'] } } },
 					})],
 				]);
 				const { sessionHandler, agentHostService } = createContribution(disposables, { languageModels, provider: 'copilotcli' });
-				const sessionUri = AgentSession.uri('copilotcli', 'sess-ensemble-footers');
+				const sessionUri = AgentSession.uri('copilotcli', 'sess-fusion-footers');
 				const usage = { model: 'gpt-5.6-sol', inputTokens: 100, outputTokens: 20, _meta: { cost: 15.5 } };
-				const message = (model: string) => ({ text: 'Ensemble request', origin: { kind: MessageKind.User }, model: { id: model } } as const);
+				const message = (model: string) => ({ text: 'Fusion request', origin: { kind: MessageKind.User }, model: { id: model } } as const);
 				agentHostService.sessionStates.set(sessionUri.toString(), {
 					...createSessionState({
 						resource: sessionUri.toString(), provider: 'copilotcli', title: 'Test',
@@ -11058,16 +11204,16 @@ suite('AgentHostChatContribution', () => {
 					lifecycle: SessionLifecycle.Ready,
 					turns: [
 						{ id: 'max', message: message('hydrafusion-max'), responseParts: [], usage, state: TurnState.Complete },
-						{ id: 'intelligence', message: message('hydrafusion'), responseParts: [], usage, state: TurnState.Complete },
+						{ id: 'balance', message: message('hydrafusion'), responseParts: [], usage, state: TurnState.Complete },
 					],
 				});
-				const session = await sessionHandler.provideChatSessionContent(URI.from({ scheme: 'agent-host-copilot', path: '/sess-ensemble-footers' }), CancellationToken.None);
+				const session = await sessionHandler.provideChatSessionContent(URI.from({ scheme: 'agent-host-copilot', path: '/sess-fusion-footers' }), CancellationToken.None);
 				disposables.add(toDisposable(() => session.dispose()));
 				return session.history.filter(item => item.type === 'response').map(item => item.details);
 			};
 			assert.deepStrictEqual({ routed: await footers(true), notRouted: await footers(false) }, {
-				routed: ['Ensemble Max • 15.5 credits', 'Ensemble High • 15.5 credits'],
-				notRouted: ['Ensemble Max • 15.5 credits', 'HydraFusion • 15.5 credits'],
+				routed: ['Fusion Max • 15.5 credits', 'Fusion Balance • 15.5 credits'],
+				notRouted: ['Fusion Max • 15.5 credits', 'HydraFusion • 15.5 credits'],
 			});
 		});
 
@@ -15398,10 +15544,10 @@ suite('AgentHostChatContribution', () => {
 
 		for (const clientId of [undefined, 'test-window-1', 'other-window']) {
 			test(`restores a failed launch with a catalog child in an active turn (${clientId ?? 'server'})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-				const toolData = { id: 'task', source: ToolDataSource.Internal, displayName: 'Task', modelDescription: 'Delegate work' };
+				const toolData = { id: 'task', toolReferenceName: 'task', source: ToolDataSource.Internal, displayName: 'Task', modelDescription: 'Delegate work' };
 				const { sessionHandler, agentHostService } = createContribution(disposables, {
 					languageModelToolsServiceOverride: {
-						getToolByName: () => toolData,
+						getAllToolsIncludingDisabled: () => [toolData],
 						beginToolCall: options => new ChatToolInvocation(undefined, toolData, options.toolCallId, options.subagentInvocationId, undefined),
 					},
 				});
@@ -15448,10 +15594,10 @@ suite('AgentHostChatContribution', () => {
 			}));
 
 			test(`restored unstarted subagents append after newer progress (${clientId ?? 'server'})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-				const toolData = { id: 'task', source: ToolDataSource.Internal, displayName: 'Task', modelDescription: 'Delegate work' };
+				const toolData = { id: 'task', toolReferenceName: 'task', source: ToolDataSource.Internal, displayName: 'Task', modelDescription: 'Delegate work' };
 				const { sessionHandler, agentHostService } = createContribution(disposables, {
 					languageModelToolsServiceOverride: {
-						getToolByName: () => toolData,
+						getAllToolsIncludingDisabled: () => [toolData],
 						beginToolCall: options => new ChatToolInvocation(undefined, toolData, options.toolCallId, undefined, undefined),
 					},
 				});
@@ -15502,13 +15648,13 @@ suite('AgentHostChatContribution', () => {
 			}));
 
 			test(`restored background subagent pills observe their child chat completing (${clientId ?? 'server'})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-				const toolData = { id: 'task', source: ToolDataSource.Internal, displayName: 'Delegate task', modelDescription: 'Delegate a task' };
+				const toolData = { id: 'task', toolReferenceName: 'task', source: ToolDataSource.Internal, displayName: 'Delegate task', modelDescription: 'Delegate a task' };
 				const { sessionHandler, agentHostService } = createContribution(disposables, {
 					languageModels: new Map([
 						['agent-host-copilot:claude-sonnet-4.6', upcastPartial<ILanguageModelChatMetadata>({ name: 'Claude Sonnet 4.6' })],
 					]),
 					languageModelToolsServiceOverride: {
-						getToolByName: () => toolData,
+						getAllToolsIncludingDisabled: () => [toolData],
 						beginToolCall: options => new ChatToolInvocation(undefined, toolData, options.toolCallId, options.subagentInvocationId, undefined),
 					},
 				});
@@ -18569,10 +18715,10 @@ suite('AgentHostChatContribution', () => {
 
 		for (const [clientId, lateDiscovery] of [[undefined, false], [undefined, true], ['test-window-1', false], ['other-window', false]] as const) {
 			test(`publishes a child that starts after its parent turn completes (${clientId ?? 'server'}, lateDiscovery=${lateDiscovery})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-				const toolData = { id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal };
+				const toolData = { id: 'task', toolReferenceName: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal };
 				const { sessionHandler, agentHostService, chatAgentService, chatService } = createContribution(disposables, {
 					languageModelToolsServiceOverride: {
-						getToolByName: () => toolData,
+						getAllToolsIncludingDisabled: () => [toolData],
 						beginToolCall: options => new ChatToolInvocation(undefined, toolData, options.toolCallId, options.subagentInvocationId, undefined),
 					},
 				});
@@ -18827,10 +18973,10 @@ suite('AgentHostChatContribution', () => {
 
 		for (const clientId of [undefined, 'test-window-1', 'other-window']) {
 			test(`appends subagents in start order after intervening tools (${clientId ?? 'server'})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-				const toolData = { id: 'task', source: ToolDataSource.Internal, displayName: 'Delegate task', modelDescription: 'Delegate a task' };
+				const toolData = { id: 'task', toolReferenceName: 'task', source: ToolDataSource.Internal, displayName: 'Delegate task', modelDescription: 'Delegate a task' };
 				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
 					languageModelToolsServiceOverride: {
-						getToolByName: () => toolData,
+						getAllToolsIncludingDisabled: () => [toolData],
 						beginToolCall: options => new ChatToolInvocation(undefined, toolData, options.toolCallId, options.subagentInvocationId, undefined),
 					},
 				});
@@ -19439,7 +19585,7 @@ suite('AgentHostChatContribution', () => {
 			let capturedSubagentInvocationId: string | undefined;
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
 				languageModelToolsServiceOverride: {
-					getToolByName: () => ({ id: 'vscode_readSkill', source: ToolDataSource.Internal, displayName: 'Read skill', modelDescription: 'Reads a skill' }),
+					getAllToolsIncludingDisabled: () => [{ id: 'vscode_readSkill', toolReferenceName: 'read_file', source: ToolDataSource.Internal, displayName: 'Read skill', modelDescription: 'Reads a skill' }],
 					beginToolCall: options => {
 						capturedSubagentInvocationId = options.subagentInvocationId;
 						return undefined;

@@ -110,8 +110,8 @@ const DEFAULT_TOP_OFFSET = 4;
 /** Keeps the strip's bottom level with the chat input's: the composer's 22px footer controls, 4px gap, and 4px bottom padding. */
 const BOTTOM_CLEARANCE = 30;
 
-/** Width the strip occupies at the chat's right edge: the 34px strip (28px buttons, 2px padding, 1px border) and its 16px scrollbar clearance in `sessionToolbar.css`. */
-const COLUMN_WIDTH = 50;
+/** Width the strip occupies at the chat's right edge: the 30px strip (24px buttons, 2px padding, 1px border) and its 12px scrollbar clearance in `sessionToolbar.css`. */
+const COLUMN_WIDTH = 42;
 
 /** Minimum space between the chat content and the strip. */
 const CONTENT_GAP = 12;
@@ -126,7 +126,7 @@ const DEFAULT_POSITION: IToolbarPosition = { edge: 'top', distance: DEFAULT_TOP_
 
 /**
  * Docks the {@link SessionToolbar} strip at the right edge of a chat area in the
- * desktop layout. Hosts reserve {@link reservedWidth} at the right of the chat so
+ * desktop layout. Hosts inset the chat's content by {@link reservedWidth} on each side so
  * the strip never covers it, call {@link setActive} so that only the active chat
  * view shows it, and call {@link layout} with the area's top offset and height.
  * Users can drag the strip up and down by its grip within that area;
@@ -135,7 +135,10 @@ const DEFAULT_POSITION: IToolbarPosition = { edge: 'top', distance: DEFAULT_TOP_
  */
 export class ChatViewSessionToolbar extends Disposable {
 
-	/** The room reserved beyond the chat's own content padding so the content stays {@link CONTENT_GAP} clear of the strip. */
+	/**
+	 * The inset kept on each side of the chat's content, beyond its own content padding, so the content stays
+	 * {@link CONTENT_GAP} clear of the strip and evenly spaced on both sides.
+	 */
 	static readonly RESERVED_WIDTH = COLUMN_WIDTH + CONTENT_GAP - AGENTS_CONTENT_HORIZONTAL_PADDING;
 
 	/**

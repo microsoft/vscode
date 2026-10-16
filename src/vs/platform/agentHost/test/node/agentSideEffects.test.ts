@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { readChatUsage } from '../../common/meta/agentUsageMeta.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { DeferredPromise, SequencerByKey, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -815,6 +816,39 @@ suite('AgentSideEffects', () => {
 				error: stateManager.getChatState(defaultChatUri)?.turns.at(-1)?.state === TurnState.Error,
 			}, { sends: 1, error: false });
 		});
+
+		for (const [outcome, expectedUsed, expectedDiscardReason] of [
+			['used', true, undefined],
+			['discarded', undefined, 'modelChanged'],
+			['none', undefined, undefined],
+		] as const) {
+			test(`reports on turn telemetry whether the send used or discarded a pre-warmed session: ${outcome}`, async () => {
+				const recording = new TestTelemetryService();
+				const localSideEffects = createOverlapSideEffects(NULL_CHECKPOINT_SERVICE, disposables.add(new AgentHostTelemetryService(recording)));
+				const sendMessage = agent.chats.sendMessage;
+				agent.chats.sendMessage = async (chat, prompt, workingDirectories, attachments, turnId, senderClientId, clientType, context) => {
+					if (outcome !== 'none' && context && !URI.isUri(context)) {
+						context.reportPrewarmedSession?.(outcome === 'discarded' ? 'modelChanged' : undefined);
+					}
+					return sendMessage(chat, prompt, workingDirectories, attachments, turnId, senderClientId, clientType, context);
+				};
+				try {
+					stateManager.dispatchServerAction(defaultChatUri, turnStarted);
+					localSideEffects.handleAction(defaultChatUri, turnStarted);
+					await waitForSendMessageCalls(1);
+					agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action: { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 50 } });
+				} finally {
+					agent.chats.sendMessage = sendMessage;
+				}
+				const data = recording.events.find(event => event.eventName === 'agentHost.turnCompleted')?.data as Record<string, unknown> | undefined;
+
+				assert.deepStrictEqual({ completed: !!data, used: data?.usedPrewarmedSession, discardReason: data?.prewarmedSessionDiscardReason }, {
+					completed: true,
+					used: expectedUsed,
+					discardReason: expectedDiscardReason,
+				});
+			});
+		}
 
 		test('holds the overlap experiment trigger until the assignment context arrives', async () => {
 			const telemetry = new TestExperimentTriggerTelemetryService();
@@ -4163,6 +4197,83 @@ suite('AgentSideEffects', () => {
 
 	suite('registerProgressListener', () => {
 
+		test('rehydrates an aggregate reported before the resumed chat catalog exists', () => {
+			const sequences: number[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => sequences.push(envelope.serverSeq)));
+			disposables.add(sideEffects.registerProgressListener(agent));
+			agent.fireProgress({
+				kind: 'chat_usage', chat: URI.parse(defaultChatUri),
+				usage: { totalNanoAiu: 600_000_000, aiCreditsStatus: 'complete' },
+			});
+			setupSession();
+			assert.deepStrictEqual(readChatUsage(stateManager.getSessionState(sessionUri.toString()), defaultChatUri), { totalNanoAiu: 600_000_000, aiCreditsStatus: 'complete' });
+			assert.deepStrictEqual(sequences, [...sequences].sort((a, b) => a - b));
+		});
+
+		test('publishes late billing on the exact chat without changing canceled turns or peer metadata', () => {
+			setupSession(undefined, { unrelatedSession: 'preserved' });
+			const peer = buildChatUri(sessionUri, 'independent-peer');
+			stateManager.addChat(sessionUri.toString(), peer, peer, { title: 'Peer' });
+			startTurn('cancelled-image');
+			stateManager.dispatchServerAction(defaultChatUri, { type: ActionType.ChatTurnCancelled, turnId: 'cancelled-image', duration: 100 });
+			const canceled = stateManager.getChatState(defaultChatUri)?.turns;
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => envelopes.push(envelope)));
+			disposables.add(sideEffects.registerProgressListener(agent));
+			const usage = { totalNanoAiu: 600_000_000, aiCreditsStatus: 'complete' as const };
+			agent.fireProgress({ kind: 'chat_usage', chat: URI.parse(defaultChatUri), usage });
+			agent.fireProgress({ kind: 'chat_usage', chat: URI.parse(defaultChatUri), usage });
+			agent.fireProgress({ kind: 'chat_usage', chat: URI.parse(peer), usage: { totalNanoAiu: 250_000_000, aiCreditsStatus: 'partial' } });
+
+			assert.deepStrictEqual({
+				canceled: stateManager.getChatState(defaultChatUri)?.turns,
+				active: stateManager.getChatState(defaultChatUri)?.activeTurn,
+				billing: readChatUsage(stateManager.getSessionState(sessionUri.toString()), defaultChatUri),
+				peerBilling: readChatUsage(stateManager.getSessionState(sessionUri.toString()), peer),
+				sessionMeta: stateManager.getSessionState(sessionUri.toString())?._meta,
+				actions: envelopes.map(envelope => envelope.action.type),
+			}, {
+				canceled, active: undefined, billing: usage,
+				peerBilling: { totalNanoAiu: 250_000_000, aiCreditsStatus: 'partial' },
+				sessionMeta: {
+					unrelatedSession: 'preserved',
+					'vscode.chatUsage': {
+						[defaultChatUri]: usage,
+						[peer]: { totalNanoAiu: 250_000_000, aiCreditsStatus: 'partial' },
+					},
+				},
+				actions: [ActionType.SessionMetaChanged, ActionType.SessionMetaChanged],
+			});
+		});
+
+		test('publishes a resumed peer aggregate only after that exact chat enters the catalog', () => {
+			setupSession(undefined, { unrelatedSession: 'preserved' });
+			disposables.add(sideEffects.registerProgressListener(agent));
+			const peer = buildChatUri(sessionUri, 'resumed-peer');
+			const usage = { totalNanoAiu: 600_000_000, aiCreditsStatus: 'complete' as const };
+			agent.fireProgress({ kind: 'chat_usage', chat: URI.parse(peer), usage });
+			assert.strictEqual(readChatUsage(stateManager.getSessionState(sessionUri.toString()), peer), undefined);
+			stateManager.addChat(sessionUri.toString(), peer, peer, { title: 'Resumed peer' });
+			assert.deepStrictEqual(stateManager.getSessionState(sessionUri.toString())?._meta, {
+				unrelatedSession: 'preserved',
+				'vscode.chatUsage': { [peer]: usage },
+			});
+		});
+
+		test('removing a chat removes only its aggregate billing metadata', () => {
+			const peer = buildChatUri(sessionUri, 'removed-peer');
+			setupSession(undefined, {
+				unrelatedSession: 'preserved',
+				'vscode.chatUsage': { [defaultChatUri]: { totalNanoAiu: 600_000_000 }, [peer]: { totalNanoAiu: 250_000_000 } },
+			});
+			stateManager.addChat(sessionUri.toString(), peer, peer, { title: 'Peer' });
+			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionChatRemoved, chat: peer });
+			assert.deepStrictEqual(stateManager.getSessionState(sessionUri.toString())?._meta, {
+				unrelatedSession: 'preserved',
+				'vscode.chatUsage': { [defaultChatUri]: { totalNanoAiu: 600_000_000 } },
+			});
+		});
+
 		test('emits auth-required notifications when observable state becomes required', () => {
 			const notifications: INotification[] = [];
 			disposables.add(stateManager.onDidEmitNotification(notification => notifications.push(notification)));
@@ -4884,6 +4995,35 @@ suite('AgentSideEffects', () => {
 			// Queued message should be removed from state
 			const state = stateManager.getSessionState(sessionUri.toString());
 			assert.strictEqual(state?.queuedMessages, undefined);
+		});
+
+		test('a queued message of a chat being moved waits for the move to end', async () => {
+			setupSession();
+			disposables.add(sideEffects.registerProgressListener(agent));
+			startTurn('turn-1');
+			const setAction = {
+				type: ActionType.ChatPendingMessageSet as const,
+				kind: PendingMessageKind.Queued,
+				id: 'q-held',
+				message: { text: 'after the move', origin: { kind: MessageKind.User } },
+			};
+			stateManager.dispatchClientAction(defaultChatUri, setAction, { clientId: 'test', clientSeq: 1 });
+			sideEffects.handleAction(defaultChatUri, setAction);
+			const admission = stateManager.holdChatAdmission([defaultChatUri]);
+
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri),
+				action: { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 },
+			});
+			const heldQueue = stateManager.getChatState(defaultChatUri)?.queuedMessages?.map(message => message.id);
+			admission.dispose();
+			await waitForSendMessageCalls(1);
+
+			assert.deepStrictEqual({ heldQueue, sent: agent.sendMessageCalls.map(call => call.prompt), queueAfter: stateManager.getChatState(defaultChatUri)?.queuedMessages }, {
+				heldQueue: ['q-held'],
+				sent: ['after the move'],
+				queueAfter: undefined,
+			});
 		});
 
 		test('waits for pending steering before consuming a queued message', async () => {
@@ -7508,7 +7648,10 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(subagentSummary?.title, 'Code Reviewer');
 			assert.deepStrictEqual(subagentSummary?.origin, { kind: 'tool', chat: defaultChatUri, toolCallId: 'tc-1' });
 			assert.ok(subState!.activeTurn, 'subagent chat should have an active turn');
-			assert.strictEqual(subState!.activeTurn!.message.text, 'Review the auth module for security issues', 'subagent turn should render the spawning tool call prompt as its request');
+			assert.deepStrictEqual(subState!.activeTurn!.message, {
+				text: 'Review the auth module for security issues',
+				origin: { kind: MessageKind.Tool },
+			});
 
 			// Verify content was dispatched on the parent tool call
 			const parentState = stateManager.getSessionState(sessionUri.toString());
@@ -7822,10 +7965,12 @@ suite('AgentSideEffects', () => {
 			subState = stateManager.getSessionState(subagentUri);
 			assert.deepStrictEqual({
 				message: subState?.activeTurn?.message.text,
+				origin: subState?.activeTurn?.message.origin,
 				response: subState?.activeTurn?.responseParts[0],
 				completedTurns: subState?.turns.length,
 			}, {
 				message: 'Follow up',
+				origin: { kind: MessageKind.User },
 				response: { kind: ResponsePartKind.Markdown, id: 'follow-up-part', content: 'Follow-up response' },
 				completedTurns: 1,
 			});

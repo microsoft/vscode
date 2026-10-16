@@ -442,11 +442,13 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			readSource: async () => {
 				const lifetime = new DisposableStore();
 				try {
-					const client = lifetime.add(this._gitHubService.acquireAnonymousClient()).object;
-					return await client.getFile('microsoft', getDevContainerSampleFolder(sample), '.devcontainer/devcontainer.json', token, {
-						caller: 'devContainerSample',
-						priority: 'interactive',
-					});
+					const signal = CancellationToken.toAbortSignal(token, lifetime);
+					signal.throwIfAborted();
+					const client = lifetime.add(this._gitHubService.acquireAnonymousClient());
+					const repo = getDevContainerSampleFolder(sample);
+					const commitSha = await client.content.resolveRef('microsoft', repo, 'HEAD', signal);
+					const content = await client.content.getRawFile('microsoft', repo, commitSha, '.devcontainer/devcontainer.json', signal);
+					return { commitSha, content };
 				} finally {
 					lifetime.dispose();
 				}

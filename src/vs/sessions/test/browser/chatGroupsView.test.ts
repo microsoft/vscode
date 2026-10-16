@@ -647,10 +647,36 @@ suite('Sessions - ChatGroupsView', () => {
 		const sessionInactive = toolbars();
 
 		assert.deepStrictEqual({ single, split, previousFocused, sessionInactive }, {
-			single: [{ left: 0, active: true, chatWidth: '1000px', contentInset: '38px', headerWidth: '1000px' }],
-			split: [{ left: 0, active: false, chatWidth: '500px', contentInset: '38px', headerWidth: '500px' }, { left: 500, active: true, chatWidth: '500px', contentInset: '38px', headerWidth: '500px' }],
-			previousFocused: [{ left: 0, active: true, chatWidth: '500px', contentInset: '38px', headerWidth: '500px' }, { left: 500, active: false, chatWidth: '500px', contentInset: '38px', headerWidth: '500px' }],
-			sessionInactive: [{ left: 0, active: false, chatWidth: '500px', contentInset: '38px', headerWidth: '500px' }, { left: 500, active: false, chatWidth: '500px', contentInset: '38px', headerWidth: '500px' }],
+			single: [{ left: 0, active: true, chatWidth: '1000px', contentInset: '30px', headerWidth: '1000px' }],
+			split: [{ left: 0, active: false, chatWidth: '500px', contentInset: '30px', headerWidth: '500px' }, { left: 500, active: true, chatWidth: '500px', contentInset: '30px', headerWidth: '500px' }],
+			previousFocused: [{ left: 0, active: true, chatWidth: '500px', contentInset: '30px', headerWidth: '500px' }, { left: 500, active: false, chatWidth: '500px', contentInset: '30px', headerWidth: '500px' }],
+			sessionInactive: [{ left: 0, active: false, chatWidth: '500px', contentInset: '30px', headerWidth: '500px' }, { left: 500, active: false, chatWidth: '500px', contentInset: '30px', headerWidth: '500px' }],
+		});
+	});
+
+	test('does not show the session toolbar or reserve room for it in the new-chat view', () => {
+		const { view, configurationService } = createHarness(disposables, true, true);
+		configurationService.setUserConfiguration(SESSION_TOOLBAR_SETTING, true);
+		const main = createChat('main', SessionStatus.Untitled);
+		const session = new TestActiveSession([main]);
+		const state = () => {
+			const group = view.element.querySelector<HTMLElement>('.chat-group-view')!;
+			return {
+				kind: group.querySelector<HTMLElement>('.chat-view')?.dataset.kind,
+				toolbarShown: !!group.querySelector(':scope > .session-toolbar:not(.inactive)'),
+				contentInset: group.querySelector<HTMLElement>('.chat-view')?.style.getPropertyValue('--session-toolbar-reserved-width'),
+			};
+		};
+		view.setSession(session, options);
+		view.layout(1000, 600, 0, 0);
+
+		const newChat = state();
+		main.status.set(SessionStatus.Completed, undefined);
+		const existingChat = state();
+
+		assert.deepStrictEqual({ newChat, existingChat }, {
+			newChat: { kind: 'newChatInSession', toolbarShown: false, contentInset: '0px' },
+			existingChat: { kind: 'chat', toolbarShown: true, contentInset: '30px' },
 		});
 	});
 

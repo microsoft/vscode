@@ -15,12 +15,14 @@ import { localize } from '../../../../nls.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { AgentSession } from '../../common/agent.js';
+import { AgentSession, type IAgentModelInfo } from '../../common/agent.js';
 import type { IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { getByokLmSelectionModelId, resolveByokLmEnablement, type IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { LOCAL_MODEL_SENTINEL_PROVIDER_NAME } from '../../common/localModel.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTelemetryLevelConfigKey, agentHostConfigValueToTelemetryLevel, platformRootSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
-import { AGENT_HOST_COPILOT_CLIENT_NAME, getCopilotApprovalPolicy, resolveCopilotManagedSettings } from './copilotApprovalPolicy.js';
+import { getCopilotApprovalPolicy } from './copilotApprovalPolicy.js';
+import { AGENT_HOST_COPILOT_CLIENT_NAME, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
+import { omitCopilotManagedModelDefaults, type CopilotManagedModelPolicy } from './copilotManagedModelConfiguration.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, normalizeModelFamilyAlias, normalizeToolSearchDeferThreshold, resolveModelCapabilityOverrideField } from '../../common/copilotCliConfig.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { reasoningEffortLevels, type ReasoningEffortLevel } from '../../common/reasoningEffort.js';
@@ -56,6 +58,8 @@ import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, agentHostModelSupportsToolSearch } f
 import { createCopilotExtensionTools } from './copilotExtensionTools.js';
 
 export const ThinkingLevelConfigKey = 'thinkingLevel';
+export const CopilotReasoningEffortConfigKey = 'reasoningEffort';
+export const CopilotAutoTierConfigKey = 'autoTier';
 export { ContextSizeConfigKey };
 /**
  * @deprecated Legacy config key that stored the resolved tier string (`'default'` / `'long_context'`)
@@ -139,8 +143,6 @@ function toSdkExpAssignments(assignmentContext: unknown): { expAssignments?: Cop
 }
 
 const ContextTiers = ['default', 'long_context'] as const;
-export { AGENT_HOST_COPILOT_CLIENT_NAME };
-
 /** Copilot runtime feature flag that stores memories in the repository's `.github/copilot-memories.jsonl`. */
 const COPILOT_LOCAL_MEMORY_FEATURE_FLAG = 'copilot_swe_agent_memory_in_repo_store';
 
@@ -312,6 +314,7 @@ interface ICopilotSessionLaunchBase {
 	readonly stageRecorder?: IAgentProviderSendStageRecorder;
 	/** The on-device model provider installed on {@link client} when the user opted in: replaceable direct-selection rows and turn attribution. */
 	readonly localModelProvider?: ILocalModelProvider;
+	readonly modelPolicyModels?: () => readonly IAgentModelInfo[];
 
 	/**
 	 * Whether this is a workspace-less session. Threaded into the
@@ -411,7 +414,7 @@ export function getCopilotReasoningEffort(model: ModelSelection | undefined, eff
 	if (isCopilotReasoningEffort(effortOverride)) {
 		return toSdkReasoningEffort(effortOverride);
 	}
-	const thinkingLevel = model?.config?.[ThinkingLevelConfigKey];
+	const thinkingLevel = model?.config?.[ThinkingLevelConfigKey] ?? model?.config?.[CopilotReasoningEffortConfigKey];
 	return isCopilotReasoningEffort(thinkingLevel) ? toSdkReasoningEffort(thinkingLevel) : undefined;
 }
 
@@ -529,7 +532,7 @@ export function getCopilotAutoTier(model: ModelSelection | undefined): AutoModeT
 	if (!isAutoModel(model?.id)) {
 		return undefined;
 	}
-	const tier = normalizeAutoModeTier(model?.config?.[AutoTierConfigKey]);
+	const tier = normalizeAutoModeTier(model?.config?.[AutoTierConfigKey] ?? model?.config?.[CopilotAutoTierConfigKey]);
 	return isAutoModeTier(tier) ? tier : undefined;
 }
 
@@ -548,15 +551,15 @@ function resolveConfiguredAutoTierOverride(model: ModelSelection | undefined, co
 		return undefined;
 	}
 	logService.info(`[Copilot:${sessionId}] Applying Auto "Optimize for" override '${tier}'`);
-	return toEnsembleTier(tier, configurationService, logService, sessionId);
+	return toFusionTier(tier, configurationService, logService, sessionId);
 }
 
-/** Ensemble offers no Efficiency, so it runs as Ensemble's default instead. */
-function toEnsembleTier(tier: AutoModeTier, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string): AutoModeTier {
-	if (tier !== 'efficiency' || configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Ensemble) !== true) {
+/** Fusion offers no Efficiency, so it runs as Fusion's default instead. */
+function toFusionTier(tier: AutoModeTier, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string): AutoModeTier {
+	if (tier !== 'efficiency' || configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Fusion) !== true) {
 		return tier;
 	}
-	logService.info(`[Copilot:${sessionId}] Using Ensemble's '${defaultAutoModeTier}' in place of Auto "Optimize for" '${tier}'`);
+	logService.info(`[Copilot:${sessionId}] Using Fusion's '${defaultAutoModeTier}' in place of Auto "Optimize for" '${tier}'`);
 	return defaultAutoModeTier;
 }
 
@@ -571,7 +574,7 @@ export function resolveCopilotAutoTier(model: ModelSelection | undefined, config
 		return undefined;
 	}
 	logService.info(`[Copilot:${sessionId}] Using Auto "Optimize for" preference '${tier}'`);
-	return toEnsembleTier(tier, configurationService, logService, sessionId);
+	return toFusionTier(tier, configurationService, logService, sessionId);
 }
 
 /**
@@ -897,7 +900,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		this._logService.info(`[Copilot:${plan.sessionId}] Preparing SDK session: kind=${plan.kind}, configuration=${runtime.launchOwner.toString()}, chat=${runtime.chatUri.toString()}`);
 		let managedSettingsResolved = false;
 		plan.stageRecorder?.mark('config');
-		const config = await this._buildSessionConfig(plan, runtime, () => { managedSettingsResolved = true; });
+		const { config, modelPolicy } = await this._buildSessionConfig(plan, runtime, () => { managedSettingsResolved = true; });
 		plan.stageRecorder?.mark('create');
 		const sandboxConfig = async (session: CopilotSessionWrapper['session']) => {
 			if (!managedSettingsResolved) {
@@ -910,7 +913,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			}
 		};
 		if (plan.kind === 'create') {
-			return this._createSession(plan, config, sandboxConfig, runtime);
+			return this._createSession(plan, config, sandboxConfig, runtime, modelPolicy);
 		}
 
 		let fallbackPlan = plan;
@@ -951,7 +954,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				model: fallbackPlan.fallback.model,
 				longContextWindow: fallbackPlan.fallback.longContextWindow,
 				freeLongContext: fallbackPlan.fallback.freeLongContext,
-			}, fallbackConfig, sandboxConfig, runtime);
+			}, fallbackConfig, sandboxConfig, runtime, modelPolicy);
 			this._sessionOpenTelemetry.sdkResumeFallbackCreated(session);
 			this._logService.info(`[Copilot:${plan.sessionId}] Fallback createSession succeeded`);
 			return wrapper;
@@ -980,14 +983,16 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		return this._otelService.withTraceContext(this._otelService.getSessionTraceContext(sessionId, sessionUri), fn);
 	}
 
-	private async _createSession(plan: ICopilotCreateSessionLaunchPlan, config: ResumeSessionConfig, sandboxConfig: (session: CopilotSessionWrapper['session']) => Promise<void>, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper> {
+	private async _createSession(plan: ICopilotCreateSessionLaunchPlan, config: ResumeSessionConfig, sandboxConfig: (session: CopilotSessionWrapper['session']) => Promise<void>, runtime: ICopilotSessionRuntime, policy: CopilotManagedModelPolicy | undefined): Promise<CopilotSessionWrapper> {
+		const model = policy ? omitCopilotManagedModelDefaults(plan.model, policy) : plan.model;
+		const omittedContextDefault = plan.model?.config?.[ContextSizeConfigKey] !== undefined && model?.config?.[ContextSizeConfigKey] === undefined;
 		const raw = await this._withTraceContext(plan.sessionId, () => plan.client.createSession({
 			...config,
 			sessionId: plan.sessionId,
 			model: plan.model?.id,
-			reasoningEffort: resolveCopilotReasoningEffort(plan.model, this._configurationService, this._logService, plan.sessionId),
-			contextTier: getCopilotContextTier(plan.model, plan.longContextWindow, plan.freeLongContext),
-			...toSdkCapiSessionOptions(resolveCopilotAutoTier(plan.model, this._configurationService, this._logService, plan.sessionId)),
+			reasoningEffort: resolveCopilotReasoningEffort(model, this._configurationService, this._logService, plan.sessionId),
+			contextTier: omittedContextDefault ? undefined : getCopilotContextTier(model, plan.longContextWindow, plan.freeLongContext),
+			...toSdkCapiSessionOptions(resolveCopilotAutoTier(model, this._configurationService, this._logService, plan.sessionId)),
 			...(plan.resolvedAgentName ? { agent: plan.resolvedAgentName } : {}),
 			workingDirectory: plan.workingDirectory?.fsPath,
 		}));
@@ -1015,7 +1020,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		if (isGpt56Model(modelId)) {
 			await this._applyVerbosity(raw, 'medium', plan.sessionId);
 		}
-		return new CopilotSessionWrapper(raw, config.requestCanvasRenderer === true, { providers: config.providers, models: config.models }, this._logService);
+		return new CopilotSessionWrapper(raw, config.requestCanvasRenderer === true, { providers: config.providers, models: config.models }, config.imageGeneration?.enabled === true, this._logService);
 	}
 
 	/**
@@ -1117,7 +1122,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 	}
 
-	private async _buildSessionConfig(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime, onManagedSettingsResolved: () => void): Promise<ResumeSessionConfig> {
+	private async _buildSessionConfig(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime, onManagedSettingsResolved: () => void): Promise<{ config: ResumeSessionConfig; modelPolicy: CopilotManagedModelPolicy | undefined }> {
 		const plugins = plan.snapshot.plugins;
 		const canvasRuntimeEnabled = !plan.isEphemeral
 			&& this._configurationService.getRootValue(platformRootSchema, AgentHostCanvasesEnabledConfigKey) === true;
@@ -1127,9 +1132,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// Synthesize BYOK provider/model config (empty when BYOK is gated off or the
 		// renderer reports no BYOK models), merged into the returned config so both
 		// createSession and resumeSession advertise the models to the runtime.
-		const ensembleEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Ensemble) === true;
-		const hydraFusionEnabled = ensembleEnabled || this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusion) === true;
-		const hydraFusionV2Enabled = hydraFusionEnabled && (ensembleEnabled || this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusionV2) === true);
+		const fusionEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Fusion) === true;
+		const hydraFusionEnabled = fusionEnabled || this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusion) === true;
+		const hydraFusionV2Enabled = hydraFusionEnabled && (fusionEnabled || this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusionV2) === true);
 		const hydraFusionMultiRootEnabled = hydraFusionV2Enabled && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusionMultiRoot) === true;
 		// Throwaway chat surfaces skip memory, like the other heavyweight features they omit.
 		const memoryEnabled = !plan.isEphemeral && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Memory) === true;
@@ -1300,7 +1305,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			})}`);
 		}
 		const enableSessionTelemetry = isCopilotSessionTelemetryEnabled(this._configurationService, this._telemetryService);
-		return {
+		const config: ResumeSessionConfig = {
 			...byok,
 			...disabledMcpServers,
 			...(enableSessionTelemetry ? {} : { enableSessionTelemetry: false }),
@@ -1319,9 +1324,11 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				}
 			},
 			clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
+			imageGeneration: {
+				enabled: this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ImageGeneration) === true,
+			},
 			...(hydraFusionEnabled ? { enableExperimentalMode: true } : {}),
 			interactiveUser: true,
-			imageGeneration: { enabled: true },
 			featureFlags,
 			...toSdkExpAssignments(this._configurationService.getRootConfigValues?.()[CopilotCliVSCodeAssignmentContextKey]),
 			streaming: true,
@@ -1389,5 +1396,6 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			remoteSession: this._configurationService.getRootValue(platformRootSchema, AgentHostSessionSyncEnabledConfigKey) === true ? 'export' : undefined,
 			enableManagedSettings: true,
 		};
+		return { config, modelPolicy: resolved };
 	}
 }

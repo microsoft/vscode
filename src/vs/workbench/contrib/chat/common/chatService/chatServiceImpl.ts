@@ -660,7 +660,7 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly managedPolicy: IObservable<boolean>;
 
 	private _startSession(props: IStartSessionProps): ChatModel {
-		const { initialData, location, sessionResource, canUseTools, transferEditingSession, disableBackgroundKeepAlive, inputState, isInputBlocked, backgroundShellCount, canvasContext, sessionTypeSelectionReason } = props;
+		const { initialData, location, sessionResource, canUseTools, transferEditingSession, disableBackgroundKeepAlive, inputState, isInputBlocked, backgroundShellCount, canvasContext, modelConfigurationState, sessionTypeSelectionReason } = props;
 		let { isReadOnly, historyStatus } = props;
 		const policyStore = new DisposableStore();
 		const provider = sessionResource?.scheme === 'agent-host-claude' ? 'claude' : sessionResource?.scheme === 'agent-host-codex' ? 'codex' : undefined;
@@ -692,7 +692,7 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		const blocked = derived(this, reader => (isLocalChatSessionSubjectToManagedPolicy(sessionResource, location) && this.managedPolicy.read(reader)) || (isInputBlocked?.read(reader) ?? false));
-		const model = this.instantiationService.createInstance(ChatModel, initialData, { initialLocation: location, canUseTools, resource: sessionResource, disableBackgroundKeepAlive, inputState, isReadOnly, isInputBlocked: blocked, historyStatus, backgroundShellCount, canvasContext, sessionTypeSelectionReason });
+		const model = this.instantiationService.createInstance(ChatModel, initialData, { initialLocation: location, canUseTools, resource: sessionResource, disableBackgroundKeepAlive, inputState, isReadOnly, isInputBlocked: blocked, historyStatus, backgroundShellCount, canvasContext, modelConfigurationState, sessionTypeSelectionReason });
 		policyStore.add(model.onDidDispose(() => policyStore.dispose()));
 		if (this._hasAgentHostContribution(sessionResource)) {
 			this._serverManagedQueueModels.add(model);
@@ -1122,6 +1122,7 @@ export class ChatService extends Disposable implements IChatService {
 			historyStatus: providedSession.historyStatus,
 			backgroundShellCount: providedSession.backgroundShellCount,
 			canvasContext: providedSession.canvasContext,
+			modelConfigurationState: providedSession.modelConfigurationState,
 			sessionTypeSelectionReason
 		});
 

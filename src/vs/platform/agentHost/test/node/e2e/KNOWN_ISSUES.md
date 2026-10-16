@@ -16,6 +16,24 @@ When a valid E2E scenario exposes a gap:
 
 Capability skips are tracked separately from suspected bugs. A provider that does not advertise a capability is expected to skip positive-path tests for that capability.
 
+### Copilot strict managed-model resume is nondeterministic
+
+An SDK client can opt into mandatory model-option locks. If an administrator changes the required effort after a conversation was saved with another effort, resuming should apply the new lock and retain the conversation history. The runtime intermittently rejects that resume instead. VS Code's current integration deliberately omits the strict opt-in, and its default-only resume tests remain enabled.
+
+- Test: `strict SDK opt-in resumes under a changed effort lock without deleting history (#26739)` in `providerIntegration/copilotAutoTier.integrationTest.ts`.
+- Scope: the separate `enforceManagedModelDefaults: true` SDK mode on all platforms. Local repetitions with runtime `1.0.99-0` observed both outcomes; Linux CI also resumed successfully where the old characterization expected rejection.
+- Expected: resume `gpt-5` with managed effort `high` and preserve the earlier assistant message after saving the conversation at effort `low`.
+- Observed: either `reasoningEffort is locked to 'high'` rejects resume, or resume succeeds with effort `high` and the original history. Asserting that the defect must occur makes successful reconciliation fail CI.
+- Tracking: [github/copilot-agent-runtime#26739](https://github.com/github/copilot-agent-runtime/issues/26739).
+- Gate: only this strict-mode test is skipped. It asserts the desired success contract, not an expected rejection or acceptance of either outcome. Remove the skip after the shared runtime fixes the resume race.
+- Reproduce: temporarily replace this test's `test.skip` with `test`, then repeat the following focused command; a single passing run is not sufficient:
+
+  ```bash
+  env -u COPILOT_HOME -u COPILOT_CACHE_HOME ./scripts/test-integration.sh \
+    --run src/vs/platform/agentHost/test/node/providerIntegration/copilotAutoTier.integrationTest.ts \
+    --grep "strict SDK opt-in resumes under a changed effort lock"
+  ```
+
 ### Copilot managed identity denial retains an inherited account resource attribute
 
 An administrator can disable identity capture while the runtime inherits an explicit `user.name` resource attribute. The native runtime removes `process.user.name` and `host.name`, but the inherited `user.name` still reaches the managed collector. This scenario concerns native Copilot export, not the separate Agent Host metadata pipeline.
