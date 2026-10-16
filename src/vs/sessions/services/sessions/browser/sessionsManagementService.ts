@@ -117,7 +117,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			this._onProvidersChanged(e);
 			this._updateSessionTypes();
 		}));
-		this._subscribeToProviders(this.sessionsProvidersService.getProviders());
+		this._subscribeToProviders(this.sessionsProvidersService.getProviders({ includeSessionBackends: true }));
 		this._sessionTypes = this._collectSessionTypes();
 
 		// Mirror follow-up chat requests (sent from within an existing chat
@@ -216,7 +216,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	 * so an unresolvable session still opens the way it does today.
 	 */
 	async resolveSessionResource(resource: URI, reason?: SessionResourceResolveReason): Promise<URI> {
-		for (const provider of this.sessionsProvidersService.getProviders()) {
+		for (const provider of this.sessionsProvidersService.getProviders({ includeSessionBackends: true })) {
 			if (!provider.resolveSessionResource) {
 				continue;
 			}
@@ -290,7 +290,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	private _getMergedSessions(): ISession[] {
 		const sessions: ISession[] = [];
-		for (const provider of this.sessionsProvidersService.getProviders()) {
+		for (const provider of this.sessionsProvidersService.getProviders({ includeSessionBackends: true })) {
 			sessions.push(...provider.getSessions());
 		}
 		return sessions;
@@ -416,7 +416,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private _collectSessionTypes(): ISessionType[] {
 		const types: ISessionType[] = [];
 		const seen = new Set<string>();
-		for (const provider of this.sessionsProvidersService.getProviders()) {
+		for (const provider of this.sessionsProvidersService.getProviders({ includeSessionBackends: true })) {
 			for (const type of provider.sessionTypes) {
 				if (!seen.has(type.id)) {
 					seen.add(type.id);
@@ -1258,7 +1258,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	// -- Session Actions --
 
 	private _getProvider(session: ISession): ISessionsProvider | undefined {
-		return this.sessionsProvidersService.getProviders().find(p => p.id === session.providerId);
+		return this.sessionsProvidersService.getProvider(session.providerId);
 	}
 
 	async cancelCurrentRequest(session: ISession): Promise<void> {

@@ -51,7 +51,7 @@ import { ISessionOpenTelemetryService, SessionOpenTelemetryService } from '../..
 import { ISessionGridSlot, ISessionsPartService, SessionGridRequest } from '../../browser/sessionsPartService.js';
 import { AbstractCustomView } from '../../../customView/browser/customView.js';
 import { CustomViewService, ICustomViewService } from '../../../customView/browser/customViewService.js';
-import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../browser/sessionsProvidersService.js';
+import { ISessionsProvidersChangeEvent, ISessionsProvidersService, SessionsProvidersService } from '../../browser/sessionsProvidersService.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { SessionsHasClosedItemContext } from '../../../../common/contextkeys.js';
 import { COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME } from '../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
@@ -242,7 +242,7 @@ class TestSessionsProvider extends mock<ISessionsProvider>() {
 function createSessionsManagementService(
 	session: ISession,
 	disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>,
-	provider: ISessionsProvider | readonly ISessionsProvider[] | TestSessionsProvidersService = new TestSessionsProvider(session),
+	provider: ISessionsProvider | readonly ISessionsProvider[] | TestSessionsProvidersService | SessionsProvidersService = new TestSessionsProvider(session),
 	workspaceTrustManagementService = new TestWorkspaceTrustManagementService(),
 	workspaceTrustRequestService?: IWorkspaceTrustRequestService,
 	configurationService: IConfigurationService = new TestConfigurationService(),
@@ -255,7 +255,7 @@ function createSessionsManagementService(
 	instantiationService.stub(INotificationService, { error: message => notifications.push(message) });
 	const chatWidgetService = new TestChatWidgetService();
 	const chatService = disposables.add(new TestChatService());
-	const providersService = provider instanceof TestSessionsProvidersService ? provider : new TestSessionsProvidersService(Array.isArray(provider) ? provider : [provider]);
+	const providersService = provider instanceof TestSessionsProvidersService || provider instanceof SessionsProvidersService ? provider : new TestSessionsProvidersService(Array.isArray(provider) ? provider : [provider]);
 	const contextKeyService = disposables.add(new MockContextKeyService());
 	const customViewService = disposables.add(new CustomViewService(new NullLogService(), disposables.add(new InMemoryStorageService())));
 
@@ -796,6 +796,83 @@ suite('SessionsManagementService', () => {
 	});
 
 	suite('provider catalogue changes', () => {
+
+		for (const registerBeforeManagement of [true, false]) {
+			test(`routes existing environment sessions without advertising their backends (${registerBeforeManagement ? 'initial' : 'late'} registration)`, async () => {
+				const providers = disposables.add(new SessionsProvidersService());
+				const cloudSession = stubSession({ sessionId: 'cloud:draft', providerId: 'cloud' });
+				const workspace = upcastPartial<ISessionWorkspace>({ uri: URI.file('/repository') });
+				const cloud = new class extends TestSessionsProvider {
+					override readonly id = 'cloud';
+					override readonly supportsQuickChats = true;
+					override getSessions(): ISession[] { return []; }
+					override createQuickChat(): ISession { return cloudSession; }
+					override resolveWorkspace(): ISessionWorkspace { return workspace; }
+				}(cloudSession);
+				const ownerRegistration = disposables.add(providers.registerProvider(cloud));
+				const renamed: string[] = [];
+				const resolvedBy: string[] = [];
+				const sessions = ['first', 'second'].map(name => stubSession({
+					sessionId: `agenthost-${name}:opaque-session`,
+					providerId: `agenthost-${name}`,
+					resource: URI.parse(`remote-${name}:/opaque-session`),
+				}));
+				const backendChanges = disposables.add(new Emitter<ISessionChangeEvent>());
+				const registerBackends = () => {
+					for (const session of sessions) {
+						const backend = new class extends TestSessionsProvider {
+							override readonly id = session.providerId;
+							override readonly supportsQuickChats = true;
+							override readonly onDidChangeSessions = session === sessions[0] ? backendChanges.event : Event.None;
+							override resolveWorkspace(): ISessionWorkspace { return workspace; }
+							override async renameSession(sessionId: string): Promise<void> { renamed.push(sessionId); }
+							override async resolveSessionResource(resource: URI): Promise<URI | undefined> {
+								if (extUriBiasedIgnorePathCase.isEqual(resource, session.resource)) {
+									resolvedBy.push(this.id);
+									return resource;
+								}
+								return undefined;
+							}
+						}(session);
+						disposables.add(providers.registerSessionBackend(cloud.id, backend));
+					}
+				};
+				if (registerBeforeManagement) {
+					registerBackends();
+				}
+				const { service } = createSessionsManagementService(cloudSession, disposables, providers);
+				if (!registerBeforeManagement) {
+					registerBackends();
+				}
+				const changes: ISessionChangeEvent[] = [];
+				disposables.add(service.onDidChangeSessions(change => changes.push(change)));
+				backendChanges.fire({ added: [], removed: [], changed: [sessions[0]] });
+				for (const session of sessions) {
+					await service.renameSession(session, 'Renamed');
+				}
+				const listed = service.getSessions();
+				const targets = service.getQuickChatSessionTypes().map(type => type.providerId);
+				const allTargets = service.getAllProviderSessionTypes().map(type => type.providerId);
+				const folderTargets = service.getSessionTypesForFolder(workspace.uri).map(type => type.providerId);
+				const created = service.createQuickChat();
+				const resolved = await Promise.all(sessions.map(session => service.resolveSessionResource(session.resource)));
+				assert.throws(() => service.createQuickChat({ providerId: sessions[0].providerId }), /not found/);
+				assert.throws(() => service.createNewSession(workspace.uri, { providerId: sessions[0].providerId }), /not found/);
+				ownerRegistration.dispose();
+				assert.deepStrictEqual({
+					listed, targets, allTargets, folderTargets, created, resolved, resolvedBy, renamed,
+					changed: changes.flatMap(change => change.changed),
+					deleted: changes.flatMap(change => change.removed),
+					afterOwnerRemoval: service.getSessions(),
+				}, {
+					listed: sessions, targets: ['cloud'], allTargets: ['cloud'], folderTargets: ['cloud'], created: cloudSession,
+					resolved: sessions.map(session => session.resource),
+					resolvedBy: sessions.map(session => session.providerId),
+					renamed: sessions.map(session => session.sessionId),
+					changed: [sessions[0]], deleted: [], afterOwnerRemoval: [],
+				});
+			});
+		}
 
 		function createProvidersService(): TestSessionsProvidersService {
 			const providers: ISessionsProvider[] = [];

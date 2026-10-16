@@ -19,7 +19,7 @@ import { IContextViewDelegate, IContextViewService, IOpenContextView } from '../
 import { USLayoutResolvedKeybinding } from '../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
 import { MockKeybindingService } from '../../../platform/keybinding/test/common/mockKeybindingService.js';
 
-// Shared fixture data and services for the Add Tab surfaces (empty editor group list, side pane shortcuts).
+// Shared fixture data and services for the Add Tab surfaces (empty editor group list, session toolbar).
 
 export interface IFixtureEntry {
 	readonly id: string;
@@ -34,7 +34,6 @@ export interface IFixtureEntry {
 export const fixtureChanges: IFixtureEntry = { id: 'sessions.fixture.addTab.changes', title: 'Changes', icon: Codicon.diffMultiple, keybinding: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG };
 export const fixtureFiles: IFixtureEntry = { id: 'sessions.fixture.addTab.files', title: 'Files', icon: Codicon.files, keybinding: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyE };
 export const fixtureBrowser: IFixtureEntry = { id: 'sessions.fixture.addTab.browser', title: 'Browser', icon: Codicon.globe, keybinding: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyB };
-export const fixtureSearch: IFixtureEntry = { id: 'sessions.fixture.addTab.search', title: 'Search', icon: Codicon.search, keybinding: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyF };
 export const fixtureCanvas: IFixtureEntry = { id: 'sessions.fixture.addTab.canvas', title: 'Canvas', icon: Codicon.preview, submenu: ['Kusto'] };
 
 export class FixtureMenuService extends mock<IMenuService>() {

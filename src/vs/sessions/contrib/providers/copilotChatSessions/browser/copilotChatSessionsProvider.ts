@@ -62,7 +62,8 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { CloudSandboxEnabledSettingId, isCloudSandboxEnabled } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { getWorkbenchContribution } from '../../../../../workbench/common/contributions.js';
-import { CLOUD_SANDBOX_CREATION_PROVIDER_ID, CloudSandboxAgentHostContribution, type ICloudSandboxProvisionedSession } from '../../remoteAgentHost/browser/cloudSandboxAgentHostContribution.js';
+import { CloudSandboxAgentHostContribution, type ICloudSandboxProvisionedSession } from '../../remoteAgentHost/browser/cloudSandboxAgentHostContribution.js';
+import { CLOUD_SANDBOX_CREATION_PROVIDER_ID, COPILOT_PROVIDER_ID } from '../common/copilotChatSessions.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { resolveGitRepositoryFromGitConfig } from '../../../../services/sessions/browser/gitHubRepositoryResolver.js';
 import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
@@ -175,9 +176,6 @@ interface IGitHubContextSelection {
 	readonly url: string;
 	readonly label: string;
 }
-
-/** Provider ID for the Copilot Chat Sessions provider. */
-export const COPILOT_PROVIDER_ID = 'default-copilot';
 
 function isChangesSummary(changes: IAgentSession['changes']): changes is { readonly files: number; readonly insertions: number; readonly deletions: number } {
 	return !!changes && !Array.isArray(changes);
@@ -1878,14 +1876,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	/**
-	 * Commit a cloud new-session into a GitHub-managed sandbox instead of the server-run cloud
-	 * agent: provision the sandbox, then hand the session over to the remote-agent-host provider
-	 * that owns it and send the first turn there.
-	 *
-	 * The committed session belongs to that other provider, which is why this fires
-	 * `onDidReplaceSession` across providers — the same swap {@link _sendFirstChat} performs, just
-	 * landing outside this provider. Mission Control starts no run for the task it creates, so the
-	 * first turn has to be dispatched here rather than being picked up server-side.
+	 * Provisions a sandbox and sends its first turn through the environment backend.
+	 * The draft replacement retains that backend's routing identity under the logical Cloud provider.
 	 */
 	private async _sendFirstChatToSandbox(session: RemoteNewSession, repoNwo: string | undefined, options: ISendRequestOptions): Promise<ISession> {
 		this._sandboxSends.add(session.sessionId);

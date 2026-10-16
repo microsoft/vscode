@@ -2259,6 +2259,7 @@ export class AgentHostStateManager extends Disposable {
 			const chatEntry = this._chatEntries.get(channel);
 			const sessionKey = chatEntry?.session;
 			const chat = chatEntry?.state;
+			let readTransition: { readonly wasRead: boolean; readonly isRead: boolean } | undefined;
 			if (chat && chatEntry && sessionKey !== undefined) {
 				const newChat = chatReducer(chat, chatAction, this._log);
 				chatEntry.state = newChat;
@@ -2271,21 +2272,8 @@ export class AgentHostStateManager extends Disposable {
 					this._pruneChatCanvases(channel, new Set(newChat.canvases?.map(canvas => canvas.resource) ?? []));
 				}
 				this._onChatStateChanged(sessionKey, channel, chat, newChat);
-				if (chatAction.type === ActionType.ChatIsReadChanged && isChatInSessionReadAggregate(channel, chatEntry.summary.origin, chatEntry.summary.interactivity)) {
-					const session = this._sessionStates.get(sessionKey)?.state;
-					if (session) {
-						const sessionIsRead = isSessionStatusRead(session.status);
-						const chatWasRead = isSessionStatusRead(chat.status);
-						const chatIsRead = isSessionStatusRead(newChat.status);
-						if (!chatIsRead && sessionIsRead) {
-							sessionReadStateToSynchronize = { session: sessionKey, isRead: false };
-						} else if (chatIsRead && !chatWasRead && !sessionIsRead
-							&& session.chats
-								.filter(chat => isChatInSessionReadAggregate(chat.resource, chat.origin, chat.interactivity))
-								.every(chat => isSessionStatusRead(chat.status))) {
-							sessionReadStateToSynchronize = { session: sessionKey, isRead: true };
-						}
-					}
+				if (chatAction.type === ActionType.ChatIsReadChanged) {
+					readTransition = { wasRead: isSessionStatusRead(chat.status), isRead: isSessionStatusRead(newChat.status) };
 				}
 				resultingState = newChat;
 			} else if (chatEntry?.valid && chatAction.type === ActionType.ChatConfigChanged) {
@@ -2293,8 +2281,32 @@ export class AgentHostStateManager extends Disposable {
 				const previous = chatEntry.config;
 				chatEntry.config = chatReducer({ ...createChatState(chatEntry.summary), ...(previous ? { config: previous } : {}) }, chatAction, this._log).config;
 				this._onDidChangeChatConfig.fire({ session: chatEntry.session, chat: channel, previous, current: chatEntry.config, clientContext });
-			} else {
+			} else if (chatEntry?.valid && sessionKey !== undefined && chatAction.type === ActionType.ChatIsReadChanged) {
+				// Read state lives on the chat summary, so a registered chat whose
+				// history is not materialized yet takes it without resolving that history.
+				const summary = chatEntry.summary;
+				const status = withSessionStatusFlag(summary.status, SessionStatus.IsRead, chatAction.isRead);
+				this._onChatSummaryChanged(sessionKey, channel, { ...summary, status });
+				readTransition = { wasRead: isSessionStatusRead(summary.status), isRead: isSessionStatusRead(status) };
+			} else if (chatAction.type !== ActionType.ChatIsReadChanged) {
+				// Read toggles apply to chats of unloaded sessions without materializing
+				// them, so an absent entry is expected for them.
 				this._logService.warn(`[AgentHostStateManager] Action for unknown chat: ${channel}, type=${action.type}`);
+			}
+			if (readTransition && chatEntry && sessionKey !== undefined && isChatInSessionReadAggregate(channel, chatEntry.summary.origin, chatEntry.summary.interactivity)) {
+				const session = this._sessionStates.get(sessionKey)?.state;
+				if (session) {
+					const sessionIsRead = isSessionStatusRead(session.status);
+					const { wasRead: chatWasRead, isRead: chatIsRead } = readTransition;
+					if (!chatIsRead && sessionIsRead) {
+						sessionReadStateToSynchronize = { session: sessionKey, isRead: false };
+					} else if (chatIsRead && !chatWasRead && !sessionIsRead
+						&& session.chats
+							.filter(chat => isChatInSessionReadAggregate(chat.resource, chat.origin, chat.interactivity))
+							.every(chat => isSessionStatusRead(chat.status))) {
+						sessionReadStateToSynchronize = { session: sessionKey, isRead: true };
+					}
+				}
 			}
 		}
 
@@ -2535,6 +2547,11 @@ export class AgentHostStateManager extends Disposable {
 			}
 		}
 
+		this._onChatSummaryChanged(sessionKey, chatUri, chatSummaryFromState(next));
+	}
+
+	/** Mirrors a chat's summary onto its session's chat catalog and derived session summary. */
+	private _onChatSummaryChanged(sessionKey: string, chatUri: string, nextEntry: ChatSummary): void {
 		const entry = this._sessionStates.get(sessionKey);
 		if (!entry) {
 			return;
@@ -2543,7 +2560,6 @@ export class AgentHostStateManager extends Disposable {
 
 		// Mirror denormalized chat summary fields onto the session, aggregating
 		// across the whole chat catalog per the SessionSummary rules.
-		const nextEntry = chatSummaryFromState(next);
 		const prevEntry = sessionState.chats.find(c => c.resource === chatUri);
 		const chats = sessionState.chats.map(c => c.resource === chatUri ? nextEntry : c);
 
