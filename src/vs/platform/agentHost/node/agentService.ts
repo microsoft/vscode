@@ -144,7 +144,7 @@ import { IAgentHostChangesetService, CHANGES_SUMMARY_METADATA_KEYS, getChatChang
 import { GIT_DB_METADATA_KEYS, IAgentHostGitStateService, META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
 import { AgentHostCatalogSourceResolver, CHAT_BACKING_METADATA_KEY, chatCatalogV2ToCatalogChats, fromCatalogChatOrigin, isAgentHostChatBacking } from './agentHostCatalogSourceResolver.js';
-import { AgentHostPeerChatStore, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, IAgentHostPeerChatPersistenceService, IPersistedPeerChat } from './agentHostPeerChatStore.js';
+import { AgentHostPeerChatStore, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, IAgentHostPeerChatPersistenceService, IPersistedPeerChat, type IOlderBuildEditsImport } from './agentHostPeerChatStore.js';
 import { migrateChatCatalogV2 } from './agentHostChatCatalogMigration.js';
 import { IAgentHostChatContributions } from '../common/agentHostChatContributionsService.js';
 import { IAgentHostTurnService } from './agentHostTurnService.js';
@@ -160,6 +160,15 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const EXTERNAL_SESSION_MAX_AGE_MS = 30 * DAY_MS;
 const RECENT_EXTERNAL_SESSION_LIMIT = 2;
 const RECENT_LOCAL_SESSION_UPDATE_LIMIT = 2;
+/** The storage a peer chat's deletion removes (its own and its private descendants') and the session's other chats keep. */
+interface IPeerChatDeletionStorage {
+	readonly chat: string;
+	readonly descendants: readonly { readonly chat: URI; readonly storage: string }[];
+	readonly others: readonly string[];
+}
+
+/** Deferrals in a row, waiting for a session's re-projection, after which a chat catalog conversion is reported at warn. */
+const CATALOG_MIGRATION_REPROJECTION_WARN_ATTEMPTS = 5;
 const RECENT_LOCAL_SESSION_UPDATES_STORAGE_KEY = 'recentLocalSessionUpdates';
 /** A catalog pass slower than this is logged at info, since it delays every session-list refresh. */
 const SLOW_LIST_SESSIONS_THRESHOLD_MS = 1_000;
@@ -996,6 +1005,9 @@ export class AgentService extends Disposable implements IAgentService {
 		});
 		this._peerChatStore = core.peerChatStore;
 		this._peerChatStore.setMetadataMigration((session, resource, values) => this._migrateChatMetadataWrite(session, resource, values));
+		this._register(this._peerChatStore.onDidImportOlderBuildEdits(imported => {
+			this._applyImportedOlderBuildEdits(imported).catch(error => this._logService.warn(`[AgentService] Failed to apply imported older-build chat edits of ${imported.session.toString()} to its live state`, error));
+		}));
 		this._sessionsV2MigrationService = new AgentHostSessionsV2MigrationService(
 			this._orchestratorDatabase,
 			this._sessionDataService,
@@ -1368,6 +1380,8 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _untitledExternalSessions = new Map<string, IAgentSessionMetadata>();
 	private _externalSessionTitlingQueued = false;
 	private readonly _backgroundInitialMigrationRetries = new Map<AgentProvider, Promise<void>>();
+	/** Why each session's last chat catalog migration ended without converting it, and how many times in a row. */
+	private readonly _catalogMigrationDeferrals = new Map<string, { readonly reason: string; readonly attempts: number }>();
 	private readonly _initialProviderMigrationsNeedingRetry = new Set<AgentProvider>();
 
 	async whenCatalogReconciliationIdle(): Promise<void> {
@@ -1784,7 +1798,8 @@ export class AgentService extends Disposable implements IAgentService {
 			await restoring?.catch(() => undefined);
 			await this._sessionResidency.waitForRelease(request.session);
 			await this._whenBackgroundCatalogStateWritesIdle(key);
-			await this._peerChatStore.whenIdle();
+			// The continuation changes the source session and checks the destination's catalog; no other session's writes matter.
+			await this._peerChatStore.whenSessionsIdle([request.session, request.destination]);
 			return this.runWithChatCatalogLock(request.session, async () => {
 				if (this._catalogSyncService.isSessionDeletionFenced(request.session) || this._sessionResidency.isBeingDisposed(request.session)) {
 					throw new Error('Saved session is being deleted');
@@ -2745,7 +2760,8 @@ export class AgentService extends Disposable implements IAgentService {
 		const ownedWrite = Object.keys(ownedOverrides).length > 0
 			? persistSessionMetadataValues(this._sessionStateStore, sessionKey, ownedOverrides).catch(error => this._logService.warn(`[AgentService] Failed to persist owned list-visible state for ${sessionKey}`, error))
 			: Promise.resolve();
-		await this._peerChatStore.whenIdle();
+		// The request is built from this session's catalog alone.
+		await this._peerChatStore.whenSessionsIdle([session]);
 		const result = await this._catalogSyncService.synchronizeWithFactory(session, async database => {
 			await ownedWrite;
 			const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([sessionKey]);
@@ -2790,7 +2806,7 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _registerNewChatCatalog(session: URI, providerData: string | undefined): Promise<void> {
-		if (this._stateManager.isEphemeralSession(session.toString()) || this._orchestratorDatabase.requiresLegacyChatCatalog?.(session.toString())) {
+		if (this._stateManager.isEphemeralSession(session.toString())) {
 			return;
 		}
 		const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([session.toString()]);
@@ -2817,7 +2833,7 @@ export class AgentService extends Disposable implements IAgentService {
 			privateDescendants: [],
 		});
 		if (result.status === 'notReady') {
-			this._logService.trace(`[AgentService] Deferring normalized catalog registration for ${session.toString()}`);
+			this._logService.trace(`[AgentService] Deferring normalized catalog registration for ${session.toString()}: ${result.reason}`);
 			this._catalogReconciliationService.schedule();
 			return;
 		}
@@ -2873,6 +2889,13 @@ export class AgentService extends Disposable implements IAgentService {
 		if (snapshot?.authorityVersion === 2) {
 			return values;
 		}
+		// A conversion is not ready while the aggregate is unverified or awaits its re-projection: one read, not a
+		// conversion attempt per write (which would also delay the write and mark the payload dirty each time).
+		const source = await this._orchestratorDatabase.getSessionV2(session.toString());
+		if (!source?.verified || source.payloadDirty !== 0) {
+			this._catalogReconciliationService.convertAfterReprojection(session.toString());
+			return values;
+		}
 		let prepared: ReturnType<AgentHostPeerChatStore['prepareMetadataMutation']> | undefined;
 		const result = await this._migrateChatCatalog(session, CancellationToken.None, candidate => {
 			prepared = this._peerChatStore.prepareMetadataMutation(session, resource, values, candidate);
@@ -2894,7 +2917,7 @@ export class AgentService extends Disposable implements IAgentService {
 		catalogOverrideFactory?: () => Promise<{ readonly chats: readonly ICatalogChat[]; readonly metadataFallbacks: Readonly<Record<string, string>> } | undefined>,
 		lifetimeValidator?: () => boolean,
 	): Promise<Awaited<ReturnType<typeof migrateChatCatalogV2>> | undefined> {
-		if (token.isCancellationRequested || this._orchestratorDatabase.requiresLegacyChatCatalog?.(session.toString()) || lifetimeValidator && !lifetimeValidator()) {
+		if (token.isCancellationRequested || lifetimeValidator && !lifetimeValidator()) {
 			return;
 		}
 		await this._peerChatStore.reconcileLegacy(session);
@@ -2944,11 +2967,13 @@ export class AgentService extends Disposable implements IAgentService {
 					const result = await migrateChatCatalogV2(this._orchestratorDatabase, this._sessionDataService, session, mutation, lifetimeValidator);
 					if (result.status === 'notReady') {
 						await this._markCatalogPayloadDirty(session.toString());
+						if (result.awaitsReprojection) {
+							this._catalogReconciliationService.convertAfterReprojection(session.toString());
+						}
 					} else if (result.status === 'applied' || result.status === 'replayed') {
 						this._invalidateSessionList();
-					} else if (result.status !== 'alreadyNormalized') {
-						this._logService.trace(`[AgentService] Chat catalog migration for ${session.toString()} deferred: ${result.status}`);
 					}
+					this._reportCatalogMigration(session, result);
 					return result;
 				});
 			});
@@ -2959,6 +2984,35 @@ export class AgentService extends Disposable implements IAgentService {
 				await this._markCatalogPayloadDirty(session.toString());
 				this._catalogReconciliationService.schedule();
 			}
+		}
+	}
+
+	/**
+	 * Logs a chat catalog migration that ended without converting the session, with why, so a conversion is never left
+	 * silent: at warn the first time a session is deferred for a reason in this process, at trace after. A wait for the
+	 * session's re-projection resolves itself (the conversion is retried right after it), so it warns only once it has
+	 * deferred {@link CATALOG_MIGRATION_REPROJECTION_WARN_ATTEMPTS} attempts in a row; a provisional session never warns.
+	 */
+	private _reportCatalogMigration(session: URI, result: Awaited<ReturnType<typeof migrateChatCatalogV2>>): void {
+		const key = session.toString();
+		if (result.status === 'applied' || result.status === 'replayed' || result.status === 'alreadyNormalized') {
+			this._catalogMigrationDeferrals.delete(key);
+			return;
+		}
+		const reason = result.status === 'notReady' ? `notReady: ${result.reason}` : result.status;
+		const previous = this._catalogMigrationDeferrals.get(key);
+		const attempts = previous?.reason === reason ? previous.attempts + 1 : 1;
+		this._catalogMigrationDeferrals.set(key, { reason, attempts });
+		const warn = this._provisionalSessionKeys.has(key)
+			? false
+			: result.status === 'notReady' && result.awaitsReprojection
+				? attempts === CATALOG_MIGRATION_REPROJECTION_WARN_ATTEMPTS
+				: attempts === 1;
+		const message = `[AgentService] Chat catalog migration of ${key} ended without converting it: ${reason}${attempts > 1 ? ` (${attempts} attempts in a row)` : ''}`;
+		if (warn) {
+			this._logService.warn(message);
+		} else {
+			this._logService.trace(message);
 		}
 	}
 
@@ -6161,7 +6215,9 @@ export class AgentService extends Disposable implements IAgentService {
 					if (provider) {
 						await this._disposeChat(provider, session, chat);
 					}
-					await this._peerChatStore.whenIdle();
+					// The chat's writes are queued under its session, and under its recorded owner if that is another one.
+					const owner = this._chatOwnership.getChatOwner(chatKey);
+					await this._peerChatStore.whenSessionsIdle(owner && owner !== sessionKey ? [session, URI.parse(owner)] : [session]);
 					await this._peerChatStore.remove(session, chat);
 					membershipRemoved = true;
 					await this._clearChatDraft(session, chat);
@@ -6208,25 +6264,38 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/** A peer chat's recorded storage and that of the session's other chats, which its deletion keeps. */
-	private async _peerChatStorageForDeletion(session: URI, chat: URI): Promise<{ readonly chat: string; readonly others: readonly string[] }> {
+	private async _peerChatStorageForDeletion(session: URI, chat: URI): Promise<IPeerChatDeletionStorage> {
 		const sessionKey = session.toString();
 		const [catalog] = await this._orchestratorDatabase.readCatalogSnapshot([sessionKey]);
 		const defaultChat = this._resolveDefaultChat(session, catalog, undefined);
 		const { storage } = await this._readChatsForDeletion(session, catalog, defaultChat, this._stateManager.getSessionState(sessionKey)?.chats.map(entry => entry.resource) ?? []);
 		const chatKey = chat.toString();
+		// The chat's private descendants (its subagents) are removed with it, so their storage goes too.
+		const removed = new Set([chatKey]);
+		for (let expanded = true; expanded;) {
+			expanded = false;
+			for (const row of catalog?.authorityVersion === 2 ? catalog.chats : []) {
+				if (row.order === undefined && row.parentChat !== undefined && removed.has(row.parentChat) && !removed.has(row.chat)) {
+					removed.add(row.chat);
+					expanded = true;
+				}
+			}
+		}
+		removed.delete(chatKey);
 		return {
 			chat: storage.get(chatKey) ?? this._chatStorageResource(session, chat),
-			others: [...storage].filter(([other]) => other !== chatKey).map(([, resource]) => resource),
+			descendants: [...removed].map(descendant => ({ chat: URI.parse(descendant), storage: storage.get(descendant) ?? this._chatStorageResource(session, URI.parse(descendant)) })),
+			others: [...storage].filter(([other]) => other !== chatKey && !removed.has(other)).map(([, resource]) => resource),
 		};
 	}
 
-	/** Deletes a peer chat's central rows, its row copies in the session database and its storage. */
-	private async _deletePeerChatData(session: URI, chat: URI, storage: { readonly chat: string; readonly others: readonly string[] }): Promise<void> {
+	/** Deletes a peer chat's central rows, its row copies in the session database and its storage, with its private descendants'. */
+	private async _deletePeerChatData(session: URI, chat: URI, storage: IPeerChatDeletionStorage): Promise<void> {
 		await this._sessionStateStore.deleteChat(session, chat);
-		await this._deleteChatStorage(session, [{ chat, storage: storage.chat }], storage.others);
+		await this._deleteChatStorage(session, [{ chat, storage: storage.chat }, ...storage.descendants], storage.others);
 	}
 
-	private _schedulePeerChatCleanupRepair(session: URI, chat: URI, storage: { readonly chat: string; readonly others: readonly string[] }): void {
+	private _schedulePeerChatCleanupRepair(session: URI, chat: URI, storage: IPeerChatDeletionStorage): void {
 		const chatKey = chat.toString();
 		this._peerChatCleanupRepairs.set(chatKey, disposableTimeout(() => {
 			this._peerChatCleanupRepairs.deleteAndDispose(chatKey);
@@ -7446,6 +7515,8 @@ export class AgentService extends Disposable implements IAgentService {
 	private async _whenSessionDataIdle(session: URI): Promise<void> {
 		const ref = this._sessionDataService.openDatabase(session);
 		try {
+			// A released session's pending older-build copy is published while its database is still held.
+			await this._peerChatStore.releaseSession(session, ref);
 			await ref.object.whenIdle();
 		} finally {
 			ref.dispose();
@@ -8198,7 +8269,8 @@ export class AgentService extends Disposable implements IAgentService {
 	private async _synchronizePassiveSessionMetadata(session: URI, updates: readonly PassiveCatalogMetadataUpdate[], savedContinuation?: { readonly validate: () => Promise<void>; readonly isCurrent: () => boolean }): Promise<boolean> {
 		let requestUnavailable = false;
 		try {
-			await this._peerChatStore.whenIdle();
+			// The request is built from this session's catalog alone.
+			await this._peerChatStore.whenSessionsIdle([session]);
 			const result = await this._catalogSyncService.synchronizeWithFactory(session, async database => {
 				const sessionKey = session.toString();
 				const catalog = await this._orchestratorDatabase.getSessionV2(sessionKey);
@@ -10297,6 +10369,9 @@ export class AgentService extends Disposable implements IAgentService {
 			...GIT_DB_METADATA_KEYS,
 			...CHANGES_SUMMARY_METADATA_KEYS,
 		};
+		// Metadata writes still in flight for this session (a rename persisted fire-and-forget just before a release) land
+		// first: restore must not read what they are about to replace, and the restored state would then persist it.
+		await this._peerChatStore.whenSessionsIdle([session]);
 		const centralMetadata = this._sessionStateStore.legacyMetadata(session, Object.keys(restoreKeys));
 		const unownedKeys = Object.fromEntries(centralMetadata.unowned.map(key => [key, true] as const));
 		const ref = this._sessionDataService.tryOpenDatabase?.(session);
@@ -10638,18 +10713,29 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/** Restores authoritative central peer membership after importing cooling-period legacy changes. */
 	private async _restorePeerChats(agent: IAgent, session: URI, cachedChats?: readonly ICatalogChat[]): Promise<void> {
-		const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([session.toString()]);
+		let [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([session.toString()]);
+		let normalizedEntries: readonly IPersistedPeerChat[] | undefined;
+		if (snapshot?.authorityVersion === 2) {
+			// Imports what older builds changed in the session's older-build copy before restoring from it.
+			normalizedEntries = await this._peerChatStore.reconcileLegacy(session);
+			const peers = snapshot.chats.filter(chat => chat.order !== undefined && chat.chat !== snapshot?.header?.defaultChatUri).map(chat => chat.chat);
+			if (!equals(peers, normalizedEntries?.map(entry => entry.uri) ?? [])) {
+				[snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([session.toString()]);
+			}
+		}
 		// A legacy catalog records no storage, and migrating it records only the
 		// creation-time rule, so the storage this snapshot records holds for both paths.
 		const recordedStorage = recordedChatStorage(snapshot, this._logService);
 		if (snapshot?.authorityVersion === 2) {
-			const entries = await this._peerChatStore.tryRead(session, false);
+			const normalized = snapshot;
+			const entries = normalizedEntries;
 			if (!entries) {
 				throw new Error(`Missing normalized peer membership for ${session.toString()}`);
 			}
-			const chats = snapshot.chats.filter(chat => chat.order !== undefined).map(chat => ({
+			this._removeChatsMissingFromCatalog(session, new Set(normalized.chats.map(chat => chat.chat)));
+			const chats = normalized.chats.filter(chat => chat.order !== undefined).map(chat => ({
 				uri: chat.chat,
-				kind: snapshot.header?.defaultChatUri === chat.chat ? 'default' as const : 'peer' as const,
+				kind: normalized.header?.defaultChatUri === chat.chat ? 'default' as const : 'peer' as const,
 				title: chat.metadata?.summary,
 				interactivity: chat.metadata?.interactivity,
 				changes: chat.metadata?.changes,
@@ -10692,13 +10778,102 @@ export class AgentService extends Disposable implements IAgentService {
 			await this._peerChatStore.replace(session, restoredEntries);
 		}
 		const restoredPeerUris = new Set(restoredEntries.map(entry => entry.uri));
+		this._removeChatsMissingFromCatalog(session, restoredPeerUris);
+		await this._restorePeerChatsFromCatalog(session, restoredEntries, recordedStorage, cached);
+		await this._persistOrderedListVisibleSessionState(session, {});
+	}
+
+	/**
+	 * Brings a loaded session's live state to what an import of older-build edits changed centrally, through the
+	 * actions a local change dispatches: a chat's title, archived and read state, its draft, and the peers added or
+	 * removed. A session that is not loaded reads them when it is restored.
+	 */
+	private async _applyImportedOlderBuildEdits(imported: IOlderBuildEditsImport): Promise<void> {
+		const sessionKey = imported.session.toString();
+		const state = this._stateManager.getSessionState(sessionKey);
+		if (!state) {
+			return;
+		}
+		const added: string[] = [];
+		for (const [chat, edit] of imported.chats) {
+			const summary = state.chats.find(candidate => candidate.resource === chat);
+			if (edit.membership === 'added') {
+				if (!summary) {
+					added.push(chat);
+				}
+				continue;
+			}
+			if (!summary) {
+				continue;
+			}
+			if (edit.membership === 'removed') {
+				this._removeChatsMissingFromCatalog(imported.session, new Set(state.chats.map(candidate => candidate.resource).filter(candidate => candidate !== chat)));
+				continue;
+			}
+			if (edit.title !== undefined && edit.title.title !== summary.title) {
+				if (edit.title.titleSource === AGENT_HOST_TITLE_SOURCE_USER) {
+					this._sideEffects.markTitleRenamed(sessionKey, chat);
+				}
+				this._stateManager.updateChatTitle(sessionKey, chat, edit.title.title);
+			}
+			const resolved = this._stateManager.getChatState(chat) !== undefined;
+			for (const [value, flag, type] of [
+				[edit.archived, SessionStatus.IsArchived, ActionType.ChatIsArchivedChanged],
+				[edit.isRead, SessionStatus.IsRead, ActionType.ChatIsReadChanged],
+			] as const) {
+				const current = this._stateManager.getSessionState(sessionKey)?.chats.find(candidate => candidate.resource === chat)?.status ?? SessionStatus.Idle;
+				if (value === undefined || ((current & flag) !== 0) === value) {
+					continue;
+				}
+				// A read change applies to a chat not opened yet too, and keeps the session's read aggregate in step.
+				if (resolved || type === ActionType.ChatIsReadChanged) {
+					this._stateManager.dispatchServerAction(chat, type === ActionType.ChatIsArchivedChanged ? { type, isArchived: value } : { type, isRead: value });
+				} else {
+					// A restored chat not opened yet has only its summary.
+					this._stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionChatUpdated, chat, changes: { status: withSessionStatusFlag(current, flag, value) } });
+				}
+			}
+			if (edit.draft !== undefined) {
+				if (resolved) {
+					this._stateManager.dispatchServerAction(chat, { type: ActionType.ChatDraftChanged, draft: edit.draft ?? undefined });
+				} else {
+					// Also a cleared draft: the cached one would otherwise come back when the chat is opened.
+					this._stateManager.setUnresolvedChatDraft(chat, edit.draft ?? undefined);
+				}
+			}
+		}
+		if (!added.length) {
+			return;
+		}
+		const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([sessionKey]);
+		const entries = (await this._peerChatStore.tryRead(imported.session, false))?.filter(entry => added.includes(entry.uri) && !this._stateManager.getChatState(entry.uri)) ?? [];
+		if (!snapshot || !entries.length || !this._stateManager.getSessionState(sessionKey)) {
+			return;
+		}
+		await this._restorePeerChatsFromCatalog(imported.session, entries, recordedChatStorage(snapshot, this._logService), snapshot.chats.filter(chat => added.includes(chat.chat)).map(chat => ({
+			uri: chat.chat,
+			kind: 'peer' as const,
+			title: chat.metadata?.summary,
+			interactivity: chat.metadata?.interactivity,
+			changes: chat.metadata?.changes,
+			workingDirectories: chat.workingDirectories,
+		})));
+		for (const chat of added) {
+			const summary = this._stateManager.getSessionState(sessionKey)?.chats.find(candidate => candidate.resource === chat);
+			if (summary) {
+				// Registered silently, as restoring does: announced as a local creation is.
+				this._stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionChatAdded, summary });
+			}
+		}
+	}
+
+	/** Removes the live peers a restored catalog no longer lists, such as peers an older build deleted. Tool chats stay. */
+	private _removeChatsMissingFromCatalog(session: URI, peers: ReadonlySet<string>): void {
 		for (const chat of this._stateManager.getSessionState(session.toString())?.chats ?? []) {
-			if (!this._chatOwnership.isDefaultChat(session.toString(), chat.resource) && chat.origin?.kind !== ChatOriginKind.Tool && !restoredPeerUris.has(chat.resource)) {
+			if (!this._chatOwnership.isDefaultChat(session.toString(), chat.resource) && chat.origin?.kind !== ChatOriginKind.Tool && !peers.has(chat.resource)) {
 				this._stateManager.removeChat(session.toString(), chat.resource);
 			}
 		}
-		await this._restorePeerChatsFromCatalog(session, restoredEntries, recordedStorage, cached);
-		await this._persistOrderedListVisibleSessionState(session, {});
 	}
 
 	private async _readCentralChatCatalog(session: URI): Promise<readonly ICatalogChat[] | undefined> {
@@ -11484,6 +11659,11 @@ export class AgentService extends Disposable implements IAgentService {
 				await this._replayPendingPassiveSessionMetadata();
 				await this._debugLogsCollector?.cleanup();
 				try {
+					await this._peerChatStore.flushCompatibilityPublishes(undefined, undefined);
+				} catch (error) {
+					this._logService.error(error, '[AgentService] Failed to publish peer-chat compatibility state before shutdown');
+				}
+				try {
 					// Session state writes are fire-and-forget for their callers: let every queued write and pending mirror land before the database closes.
 					await this._sessionStateStore.whenIdle(undefined);
 				} catch (error) {
@@ -11878,25 +12058,18 @@ export class AgentService extends Disposable implements IAgentService {
 		const normalized = await this._peerChatStore.readNormalizedChat(parentSession, URI.parse(parentChat));
 		// A subagent without a recorded private row follows the creation-time rule.
 		const storageOf = (chat: string) => recordedStorage.get(chat) ?? creationTimeChatStorageResource(parentSessionStr, chat, parentChat);
-		// Compatibility sessions have no v2 chat catalog to persist private chats
-		// into, so their restored subagent chats are transient: re-derived on every
-		// restore and only registered in memory.
-		const transientOnly = this._orchestratorDatabase.requiresLegacyChatCatalog?.(parentSessionStr) === true;
 		for (const child of restored) {
 			if (!isCurrent()) {
 				return;
 			}
-			if (transientOnly) {
-				this._orchestratorDatabase.recordChatStorageIdentity(parentSessionStr, child.chatUri, { kind: 'subagent', toolCallId: child.toolCallId });
-				await this._recordLegacyPrivateChatStorage(parentSession, URI.parse(child.chatUri));
-			} else {
-				await this._peerChatStore.persistPrivateChat(parentSession, {
-					chat: child.chatUri,
-					parentChat,
-					origin: JSON.stringify(child.origin),
-					metadata: { interactivity: ChatInteractivity.Hidden },
-				}, true, isCurrent);
-			}
+			// The chat's storage spelling (a no-op unless compatibility-backed).
+			this._orchestratorDatabase.recordChatStorageIdentity(parentSessionStr, child.chatUri, { kind: 'subagent', toolCallId: child.toolCallId });
+			await this._peerChatStore.persistPrivateChat(parentSession, {
+				chat: child.chatUri,
+				parentChat,
+				origin: JSON.stringify(child.origin),
+				metadata: { interactivity: ChatInteractivity.Hidden },
+			}, true, isCurrent);
 			const { title } = await this._chatContributions.hydrateChat({
 				session: parentSessionStr,
 				chat: child.chatUri,
@@ -11908,7 +12081,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			child.title = title ?? child.title;
 		}
-		if (!transientOnly && !normalized.normalized && restored.length > 0) {
+		if (!normalized.normalized && restored.length > 0) {
 			let result: Awaited<ReturnType<typeof migrateChatCatalogV2>> | undefined;
 			try {
 				result = await this._migrateChatCatalog(parentSession, CancellationToken.None, undefined, async () => {

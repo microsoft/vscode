@@ -16,8 +16,10 @@ export class CompatibleSessionDatabase implements ISessionDatabase {
 
 	async getMetadataObject<T extends Record<string, unknown>>(obj: T): Promise<{ [K in keyof T]: string | undefined }> {
 		const keys = Object.keys(obj);
-		const values = await Promise.all(keys.map(key => this.getMetadata(key)));
-		return Object.fromEntries(keys.map((key, index) => [key, values[index]])) as { [K in keyof T]: string | undefined };
+		const storageKeys = keys.map(key => this.identity.metadataKey(key, 'storage'));
+		// One read of the underlying database for all keys.
+		const values: Record<string, string | undefined> = await this.raw.getMetadataObject(Object.fromEntries(storageKeys.map(key => [key, true])));
+		return Object.fromEntries(keys.map((key, index) => [key, this.identity.metadata(key, values[storageKeys[index]], 'runtime')])) as { [K in keyof T]: string | undefined };
 	}
 
 	async createTurn(...[turnId]: Parameters<ISessionDatabase['createTurn']>): ReturnType<ISessionDatabase['createTurn']> {
@@ -151,6 +153,11 @@ export class CompatibleSessionDatabase implements ISessionDatabase {
 
 	async getMaxTurnRowid(...[]: Parameters<ISessionDatabase['getMaxTurnRowid']>): ReturnType<ISessionDatabase['getMaxTurnRowid']> {
 		return this.raw.getMaxTurnRowid();
+	}
+
+	async getRowsWatermark(...[]: Parameters<ISessionDatabase['getRowsWatermark']>): ReturnType<ISessionDatabase['getRowsWatermark']> {
+		const result = await this.raw.getRowsWatermark();
+		return { maxTurnRowid: result.maxTurnRowid, drafts: new Map([...result.drafts].map(([chat, draft]) => [this.identity.toRuntime(chat), this.identity.message(draft, 'runtime')!])) };
 	}
 
 	async setForeignRows(...[ownerChat, turnIds]: Parameters<ISessionDatabase['setForeignRows']>): ReturnType<ISessionDatabase['setForeignRows']> {
