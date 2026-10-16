@@ -2977,6 +2977,8 @@ suite('ModernUIContribution', () => {
 		root.style.setProperty('--vscode-spacing-size20', '2px');
 		root.style.setProperty('--vscode-spacing-size40', '4px');
 		root.style.setProperty('--vscode-spacing-size60', '6px');
+		root.style.setProperty('--vscode-spacing-size200', '20px');
+		root.style.setProperty('--vscode-spacing-size240', '24px');
 		root.style.setProperty('--vscode-cornerRadius-small', '4px');
 		root.style.setProperty('--vscode-strokeThickness', '1px');
 		root.style.setProperty('--modern-ui-connected-tab-surface', '#333333');
@@ -2995,12 +2997,19 @@ suite('ModernUIContribution', () => {
 		const fill = appendElement(tab, 'tab-fill');
 		const { label, name } = createEditorTabLabel(tab);
 		name.textContent = 'main.ts';
+		const actionInsetProbe = appendElement(tab, 'action-inset-probe');
+		actionInsetProbe.style.position = 'absolute';
+		actionInsetProbe.style.width = 'var(--modern-ui-connected-tab-action-inset, 0px)';
+		const actionPaddingProbe = appendElement(tab, 'action-padding-probe');
+		actionPaddingProbe.style.position = 'absolute';
+		actionPaddingProbe.style.width = 'var(--modern-ui-tab-action-padding, 0px)';
 		const targetWindow = getWindow(root);
 
 		for (const classes of ['', 'modern-ui', 'modern-ui modern-ui-connected-editor-tabs', 'modern-ui-connected-editor-tabs']) {
 			for (const theme of ['vs-dark', 'vs', 'hc-black', 'hc-light']) {
 				root.className = `monaco-workbench modern-ui-tabs ${classes} ${theme}`;
 				const connected = classes.includes('modern-ui-connected-editor-tabs');
+				const sharesEditorFrame = connected && classes.split(' ').includes('modern-ui');
 				for (const activeGroup of [true, false]) {
 					group.classList.toggle('active', activeGroup);
 					for (const compact of [true, false]) {
@@ -3023,12 +3032,16 @@ suite('ModernUIContribution', () => {
 								fillBounds.left - activeFillBounds.left,
 								activeFillBounds.right - fillBounds.right,
 							],
+							actionInset: actionInsetProbe.getBoundingClientRect().width,
+							actionPadding: actionPaddingProbe.getBoundingClientRect().width,
 							marginRight: activeTabStyle.marginRight,
 							topRadius: activeFillStyle.borderTopLeftRadius,
 						}, {
 							tabBounds: tabBounds.toJSON(),
 							labelBounds: labelBounds.toJSON(),
-							fillExpansion: connected ? [3.5, 2, 2] : [0, 0, 0],
+							fillExpansion: connected ? [sharesEditorFrame ? 4.5 : 3.5, 2, 2] : [0, 0, 0],
+							actionInset: connected ? (compact ? sharesEditorFrame ? 4.5 : 4 : sharesEditorFrame ? 6.5 : 6) : 0,
+							actionPadding: connected ? (compact ? sharesEditorFrame ? 28.5 : 28 : sharesEditorFrame ? 30.5 : 30) : 0,
 							marginRight: connected ? `${Number.parseFloat(shoulderWidth) + 1}px` : '0px',
 							topRadius: connected ? '0px' : '4px',
 						}, JSON.stringify({ classes, theme, activeGroup, compact }));
@@ -3218,7 +3231,7 @@ suite('ModernUIContribution', () => {
 				wrappedBottom: { tabBorders: ['0px', '0px'], fillInsets: ['2px', '2px'], fillInlineStart: '2px' },
 			},
 			active: {
-				single: { tabBorders: ['0px', '0px'], fillInsets: ['0px', '-1px'], fillInlineStart: '0px' },
+				single: { tabBorders: ['0px', '0px'], fillInsets: ['-1px', '-1px'], fillInlineStart: '0px' },
 				wrappedBottom: { tabBorders: ['0px', '0px'], fillInsets: ['2px', '-1px'], fillInlineStart: '0px' },
 			},
 		});

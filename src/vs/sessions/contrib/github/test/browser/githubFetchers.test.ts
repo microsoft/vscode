@@ -12,6 +12,9 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IGitHubAccountClient } from '../../../../../platform/github/common/account/account.js';
 import { PaginationLimitError } from '../../../../../platform/github/common/client/pagination.js';
+import { CoreClient } from '../../../../../platform/github/common/core/coreClient.js';
+import { PullRequestsClient } from '../../../../../platform/github/common/core/pullRequestsClient.js';
+import { createTestPullRequestResponse, FixtureApiRequestProvider } from '../../../../../platform/github/test/common/githubClientTestUtils.js';
 import { GitHubRequestError } from '../../../../../platform/github/common/githubTypes.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { GitHubPRCIFetcher, computeOverallCIStatus } from '../../browser/fetchers/githubPRCIFetcher.js';
@@ -324,6 +327,18 @@ suite('GitHubRepositoryFetcher', () => {
 		await assert.rejects(fetcher.getRepositories('vscode', CancellationToken.None), /GitHub did not return an account/);
 		assert.deepStrictEqual(mockApi.calls.map(call => call.method), ['users.getAuthenticated', 'organizations.listForAuthenticatedUser']);
 	});
+
+	test('uses the repository full name when search omits the owner object', async () => {
+		mockApi.setResponses(
+			{ login: 'viewer' },
+			[],
+			{ items: [{ name: 'repo', full_name: 'owner/repo', owner: null, default_branch: 'main', private: true, description: null }] },
+		);
+
+		assert.deepStrictEqual(await fetcher.getRepositories('repo', CancellationToken.None), [
+			{ owner: 'owner', name: 'repo', fullName: 'owner/repo', defaultBranch: 'main', isPrivate: true, description: '' },
+		]);
+	});
 });
 
 suite('GitHubPullRequestContextFetcher', () => {
@@ -410,6 +425,31 @@ suite('GitHubPRFetcher', () => {
 	teardown(() => store.clear());
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const merged of [false, true]) {
+		test(`getPullRequest preserves closed state through real schema validation with default auto-merge text (merged=${merged})`, async () => {
+			const provider = new FixtureApiRequestProvider(createTestPullRequestResponse({
+				merged,
+				merged_at: merged ? '2026-10-02T00:00:00Z' : null,
+				auto_merge: {
+					enabled_by: { id: 2, node_id: 'U_2', login: 'reviewer', avatar_url: '', html_url: 'https://github.com/reviewer', type: 'User' },
+					merge_method: 'squash', commit_title: null, commit_message: null,
+				},
+			}));
+			const accountClient = upcastPartial<IGitHubAccountClient>({
+				pullRequests: new PullRequestsClient(new CoreClient(provider, provider)),
+			});
+			const api = new class extends mock<GitHubApiClient>() {
+				override withClient<T>(task: (client: IGitHubAccountClient, signal: AbortSignal) => Promise<T>): Promise<T> {
+					return task(accountClient, new AbortController().signal);
+				}
+			}();
+			const result = await new GitHubPRFetcher(api).getPullRequest('owner', 'repo', 1);
+			assert.deepStrictEqual({ state: result.state, draft: result.isDraft }, {
+				state: merged ? GitHubPullRequestState.Merged : GitHubPullRequestState.Closed, draft: false,
+			});
+		});
+	}
 
 	test('getPullRequest maps open PR', async () => {
 		mockApi.setNextResponse(makePRResponse({ state: 'open', merged: false, draft: false }));

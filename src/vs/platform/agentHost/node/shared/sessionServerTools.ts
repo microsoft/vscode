@@ -18,6 +18,7 @@ import { getAgentHostChatId, getInlineToolInput, getSessionRelatedPullRequestUrl
 import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import type { IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { chatUriFormatOf, mintPeerChatUri } from '../../common/agentHostChatMinting.js';
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
@@ -290,13 +291,13 @@ export type IResolvedCreateSessionArgs = {
 };
 
 /** Selects how a repository is attached to a chat's aggregate session. */
-export type IAddSessionWorkingDirectoryOptions = {
+export type IAddSessionWorkingDirectoryOptions = ({
 	readonly isolation: 'folder';
 } | {
 	readonly isolation: 'worktree';
 	readonly prompt: string;
 	readonly forceNewWorktree?: boolean;
-};
+}) & { readonly credentialSource?: IAgentHostCredentialSource };
 
 /** A folder prepared for a new chat and added to its session. */
 export interface IPreparedChatWorkingDirectory {
@@ -314,6 +315,7 @@ export interface IPreparedChatWorkingDirectory {
 
 /** AgentService-owned operations used by the session server-tool group. */
 export interface IAgentServiceSessionServerToolAccessor {
+	readonly getCredentialSource: (chat: URI) => IAgentHostCredentialSource | undefined;
 	readonly getAutomaticTitleGenerationStrategy: (session?: ProtocolURI) => AutomaticTitleGenerationStrategy;
 	readonly isWorkspaceless: (session: URI) => boolean;
 	readonly canConvertWorkspace: (session: URI) => boolean;
@@ -329,8 +331,8 @@ export interface IAgentServiceSessionServerToolAccessor {
 	readonly createSession: (config: IAgentCreateSessionConfig) => Promise<URI>;
 	readonly getModels: () => readonly IAgentModelInfo[];
 	readonly getCreationDefaults: (source: URI) => ISessionCreationDefaults | undefined;
-	readonly startPrompt: (session: URI, chat: URI, prompt: string, delegation?: IAgentMessageDelegationMeta) => Promise<void>;
-	readonly createChat: (session: URI, chat: URI, options?: { title?: string; model?: ModelSelection; workingDirectories?: readonly URI[] }) => Promise<void>;
+	readonly startPrompt: (session: URI, chat: URI, prompt: string, delegation?: IAgentMessageDelegationMeta, credentials?: IAgentHostCredentialSource) => Promise<void>;
+	readonly createChat: (session: URI, chat: URI, options?: { title?: string; model?: ModelSelection; workingDirectories?: readonly URI[] }, credentials?: IAgentHostCredentialSource) => Promise<void>;
 	readonly prepareChatWorkingDirectory: (session: URI, directory: URI, options: IAddSessionWorkingDirectoryOptions) => Promise<IPreparedChatWorkingDirectory>;
 	readonly renameChat: (session: URI, chat: URI, title: string) => Promise<IRenameTitleResult>;
 	readonly reportToolError: (toolName: SessionServerToolName, error: unknown) => void;
@@ -346,7 +348,7 @@ export interface IAgentServiceSessionServerToolAccessor {
 /** Complete dependency surface needed by the session server-tool group. */
 export interface ISessionServerToolAccessor extends IAgentServiceSessionServerToolAccessor {
 	/** Returns whether a workspace change was scheduled. */
-	readonly requestSessionWorkspaceUpdate: (chat: URI, turnId: string, workspaceFolder: URI, isolation: boolean) => boolean;
+	readonly requestSessionWorkspaceUpdate: (chat: URI, turnId: string, workspaceFolder: URI, isolation: boolean, credentials?: IAgentHostCredentialSource) => boolean;
 	/** The recorded owning session of a registered chat. */
 	readonly getChatOwner: (chat: ProtocolURI) => ProtocolURI | undefined;
 	/** The recorded default chat of a session, if any. */
@@ -926,6 +928,7 @@ export interface ICreateSessionResult {
  * Creates work with the requested relationship and sends its initial prompt.
  */
 export async function applyCreateSessionTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, source?: URI, sourceTurnId?: string, enforceSpawnDepthLimit = true): Promise<ICreateSessionResult> {
+	const credentials = source ? accessor.getCredentialSource(source) : undefined;
 	const currentSession = source ? currentSessionUri(accessor, source.toString()) : undefined;
 	const supportsChatWorkingDirectories = currentSession === undefined || accessor.supportsChatWorkingDirectories(currentSession);
 	const sessions = await getCreateSessionCatalog(accessor, rawArgs, supportsChatWorkingDirectories);
@@ -944,7 +947,7 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 		}
 		// A requested folder joins the session and is assigned only to the new chat.
 		const prepared = args.workspace !== undefined
-			? await accessor.prepareChatWorkingDirectory(currentSession, args.workspace, getChatWorkingDirectoryOptions(args.worktree, defaults?.isolation, args.prompt))
+			? await accessor.prepareChatWorkingDirectory(currentSession, args.workspace, { ...getChatWorkingDirectoryOptions(args.worktree, defaults?.isolation, args.prompt), ...(credentials ? { credentialSource: credentials } : {}) })
 			: undefined;
 		let result: ICreateChatResult;
 		try {
@@ -992,6 +995,7 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 			...(isolation !== undefined ? { [SessionConfigKey.Isolation]: isolation } : {}),
 		};
 	const config: IAgentCreateSessionConfig = {
+		...(credentials ? { credentials } : {}),
 		...(workspace !== undefined ? { workingDirectories: [workspace] } : {}),
 		...(provider !== undefined ? { provider } : {}),
 		...(args.model !== undefined ? { model: { id: args.model.id } } : defaults?.model !== undefined ? { model: defaults.model } : {}),
@@ -1016,7 +1020,7 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 		sourceSession: currentSession.toString(),
 		sourceChat: source?.toString(),
 		...(sourceTurnId !== undefined ? { sourceTurnId } : {}),
-	} : undefined);
+	} : undefined, credentials);
 	return { relationship: args.relationship, session: session.toString(), chat: chat.toString(), openLink: buildOpenSessionLinkUri(session) };
 }
 
@@ -1108,6 +1112,7 @@ export function getCreateChatArgs(rawArgs: unknown, sessions: readonly IAgentSes
 }
 
 async function createChat(accessor: ISessionServerToolAccessor, args: IResolvedCreateChatArgs, source?: URI, sourceTurnId?: string, onChatAllocated?: (chat: URI) => Promise<void>): Promise<ICreateChatResult> {
+	const credentials = source ? accessor.getCredentialSource(source) : undefined;
 	const currentSession = source ? currentSessionUri(accessor, source.toString()) : undefined;
 	const defaults = source ? accessor.getCreationDefaults(source) : undefined;
 	const targetProvider = (await accessor.getSession(args.session))?.provider ?? AgentSession.provider(args.session);
@@ -1118,7 +1123,7 @@ async function createChat(accessor: ISessionServerToolAccessor, args: IResolvedC
 		title: args.title,
 		model,
 		...(args.workingDirectories !== undefined ? { workingDirectories: args.workingDirectories } : {}),
-	});
+	}, credentials);
 	if (args.title !== undefined) {
 		await accessor.renameChat(args.session, chat, args.title);
 	}
@@ -1126,7 +1131,7 @@ async function createChat(accessor: ISessionServerToolAccessor, args: IResolvedC
 		sourceSession: currentSession.toString(),
 		sourceChat: source?.toString(),
 		...(sourceTurnId !== undefined ? { sourceTurnId } : {}),
-	} : undefined);
+	} : undefined, credentials);
 	return { session: args.session.toString(), chat: chat.toString(), openLink: buildOpenSessionLinkUri(args.session, getAgentHostChatId(chat)) };
 }
 
@@ -1338,6 +1343,7 @@ export function getSendMessageArgs(rawArgs: unknown, sessions: readonly IAgentSe
 }
 
 export async function applySendMessageTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, currentChannel?: ProtocolURI, sourceTurnId?: string, stateManager?: AgentHostStateManager): Promise<string> {
+	const credentials = currentChannel ? accessor.getCredentialSource(URI.parse(currentChannel)) : undefined;
 	const sessions = await accessor.listSessions();
 	const args = getSendMessageArgs(rawArgs, sessions, accessor.getDefaultChat);
 	const { session, chat, chatId } = args;
@@ -1370,12 +1376,18 @@ export async function applySendMessageTool(accessor: ISessionServerToolAccessor,
 				openLink,
 			});
 		}
+		const targetCredentials = accessor.getCredentialSource(chat);
+		const principal = credentials?.principal;
+		const targetPrincipal = targetCredentials?.principal;
+		if (principal && targetPrincipal && (principal.apiOrigin !== targetPrincipal.apiOrigin || principal.userId !== targetPrincipal.userId)) {
+			return JSON.stringify({ action: 'rejected', reason: 'credentialBoundary', openLink });
+		}
 		stateManager.dispatchServerAction(chat.toString(), {
 			type: ActionType.ChatPendingMessageSet,
 			kind: PendingMessageKind.Steering,
 			id: messageId,
 			message: createAgentSessionMessage(args.message, delegation),
-		});
+		}, credentials);
 		return JSON.stringify({ action: 'steered', messageId, revision, status: 'processing', openLink });
 	}
 	if (stateManager && targetState && (targetState.activeTurn || getPendingSteeringMessages(targetState).length > 0 || targetState.queuedMessages?.length)) {
@@ -1384,10 +1396,10 @@ export async function applySendMessageTool(accessor: ISessionServerToolAccessor,
 			kind: PendingMessageKind.Queued,
 			id: messageId,
 			message: createAgentSessionMessage(args.message, delegation),
-		});
+		}, credentials);
 		return JSON.stringify({ action: 'queued', messageId, revision, status: 'pending', openLink });
 	}
-	await accessor.startPrompt(session, chat, args.message, delegation);
+	await accessor.startPrompt(session, chat, args.message, delegation, credentials);
 	return JSON.stringify({ action: 'started', messageId, revision, status: 'processing', openLink });
 }
 
@@ -1738,7 +1750,7 @@ export function applySetWorkspaceTool(accessor: ISessionServerToolAccessor, rawA
 		throw new Error(`${SessionServerToolName.SetWorkspace} must run from an active chat turn.`);
 	}
 	const { workspaceFolder, isolation } = getSetWorkspaceArgs(rawArgs);
-	if (!accessor.requestSessionWorkspaceUpdate(chat, turnId, workspaceFolder, isolation)) {
+	if (!accessor.requestSessionWorkspaceUpdate(chat, turnId, workspaceFolder, isolation, accessor.getCredentialSource(chat))) {
 		return `${workspaceUnchangedResultPrefix} ${workspaceFolder.toString()}. No workspace change was scheduled. Continue the current turn normally; no automatic continuation will be started. Do not call set_workspace again for this unchanged workspace.`;
 	}
 	return isolation

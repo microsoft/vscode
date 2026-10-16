@@ -4764,6 +4764,7 @@ suite('CodexAgent chat backing durability', () => {
 				threadId: 'codex-thread',
 				turn: {
 					id: 'app-turn-1',
+					rootTurnId: null,
 					items: [],
 					itemsView: 'full',
 					status: 'inProgress',

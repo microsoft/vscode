@@ -267,6 +267,7 @@ export class ChatView extends AbstractChatView {
 	/** Cancels any in-flight model load when a new session is set or the view disposes. */
 	private readonly _loadCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	private _providerReloadCts: CancellationTokenSource | undefined;
+	private _pendingLoadInput: { readonly resource: URI; readonly inputBeforeLoad: string; readonly inputModelToPreserve?: IInputModel } | undefined;
 
 	private readonly _stickyScrollBackgroundReplica = this._register(new MutableDisposable<SessionsChatBackgroundReplica>());
 	private _stickyScrollBackgroundContainer: HTMLElement | undefined;
@@ -654,6 +655,7 @@ export class ChatView extends AbstractChatView {
 		const chatChanged = !isEqual(previousChatResource, resource);
 		this._onInput = onInput ?? (!chatChanged && chat.interactivity.get() === ChatInteractivity.Full ? this._onInput : undefined);
 		if (chatChanged) {
+			this._pendingLoadInput = undefined;
 			this._saveCurrentViewState();
 		}
 		this._historyKey = historyKey;
@@ -705,6 +707,13 @@ export class ChatView extends AbstractChatView {
 			this._preparationModel.clear();
 			this._loadChat(resource, session, { previousChatResource, previousSession });
 		}
+	}
+
+	override reopenChat(resource: URI): Promise<void> {
+		const failure = this._loadFailure.get();
+		return failure && isEqual(failure.resource, resource) && isEqual(this._currentChatResource, resource)
+			? failure.status.action?.run() ?? Promise.resolve()
+			: Promise.resolve();
 	}
 
 	private _showPreparationInput(input: Pick<ISendRequestOptions, 'query' | 'attachedContext'>): void {
@@ -836,9 +845,11 @@ export class ChatView extends AbstractChatView {
 		open.mark('selectionHandled');
 		this._setLoading(true);
 
-		// Capture the input draft before the load window opens so text typed
-		// during loading is preserved when the model binds. See #325323.
-		const inputBeforeLoad = this._widget.getInput();
+		// Provider replacement and explicit retry belong to the same input load window.
+		const previousInput = this._pendingLoadInput;
+		const input = this._pendingLoadInput = previousInput && isEqual(previousInput.resource, resource)
+			? previousInput
+			: { resource, inputBeforeLoad: this._widget.getInput(), inputModelToPreserve: options?.inputModelToPreserve };
 
 		const loadPromise = (async (): Promise<boolean> => {
 			let ref: IChatModelReference | undefined;
@@ -863,7 +874,7 @@ export class ChatView extends AbstractChatView {
 							label: localize('chatView.retryHistoryLoad', "Retry"),
 							run: async () => {
 								if (!token.isCancellationRequested && this._loadCts.value === cts && isEqual(this._currentChatResource, resource)) {
-									await this._loadChat(resource, this._currentSessionObs.get(), { inputModelToPreserve: options?.inputModelToPreserve });
+									await this._loadChat(resource, this._currentSessionObs.get());
 								}
 							},
 						},
@@ -893,11 +904,11 @@ export class ChatView extends AbstractChatView {
 				return false;
 			}
 			this.logService.trace(`[ChatView] setChat model loaded uri=${resource.toString()}`);
-			const inputState = options?.inputModelToPreserve ? this._widget.getInputState() : undefined;
+			const inputState = input.inputModelToPreserve ? this._widget.getInputState() : undefined;
 			const restoreInputFocus = !!inputState && this._widget.inputEditor.hasTextFocus();
 			if (inputState) {
 				const inputModel = ref.object.inputModel;
-				const intendedModel = options?.inputModelToPreserve?.intendedModel;
+				const intendedModel = input.inputModelToPreserve?.intendedModel;
 				if (intendedModel) {
 					inputModel.setIntendedModel(intendedModel);
 				} else if (inputState.selectedModel && inputState.selectedModelReason && isInConversationModelChoice(inputState.selectedModelReason)) {
@@ -909,12 +920,13 @@ export class ChatView extends AbstractChatView {
 				// Preserve composing state without restoring the outgoing model's permissions.
 				inputModel.setState({ ...inputState, permissionLevel: inputModel.state.get()?.permissionLevel });
 			}
+			this._pendingLoadInput = undefined;
 			this._modelRef.value = ref;
 			this._updateWidgetLockState(getChatSessionType(ref.object.sessionResource));
 			if (inputState) {
 				this._widget.setModel(ref.object);
 			} else {
-				setModelPreservingInputTypedWhileLoading(this._widget, inputBeforeLoad, () => this._widget.setModel(ref.object));
+				setModelPreservingInputTypedWhileLoading(this._widget, input.inputBeforeLoad, () => this._widget.setModel(ref.object));
 			}
 			const widgetViewState = this.viewStateService.get(resource);
 			if (widgetViewState) {

@@ -16,8 +16,8 @@ suite('GitHub client schema', () => {
 			{ parser: parse.nonEmptyString, valid: ['value', ' '], invalid: ['', null, undefined] },
 			{
 				parser: parse.sha,
-				valid: ['0123456789abcdef0123456789abcdef01234567', '0'.repeat(40)],
-				invalid: ['', null, undefined, 1, 'a'.repeat(39), 'a'.repeat(41), 'A'.repeat(40), 'g'.repeat(40), `${'a'.repeat(40)}\n`],
+				valid: ['0123456789abcdef0123456789abcdef01234567', '0'.repeat(40), '0123456789abcdef'.repeat(4)],
+				invalid: ['', null, undefined, 1, 'a'.repeat(39), 'a'.repeat(41), 'a'.repeat(63), 'a'.repeat(65), 'A'.repeat(40), 'g'.repeat(40), 'A'.repeat(64), `${'a'.repeat(40)}\n`, `${'a'.repeat(64)}\n`],
 			},
 			{ parser: parse.boolean, valid: [true, false], invalid: [0, 1, 'true'] },
 			{ parser: parse.oneOf('queued', 'done'), valid: ['queued', 'done'], invalid: ['QUEUED', false] },

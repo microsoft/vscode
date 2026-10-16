@@ -40,7 +40,7 @@ export class GitHubRepositoryFetcher {
 
 function toGitHubRepository(repository: Repository | RepositorySearchItem): IGitHubRepository {
 	return {
-		owner: repository.owner.login,
+		owner: repository.owner?.login ?? repository.full_name.split('/')[0],
 		name: repository.name,
 		fullName: repository.full_name,
 		defaultBranch: repository.default_branch,

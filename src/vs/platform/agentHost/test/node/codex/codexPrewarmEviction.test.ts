@@ -1619,7 +1619,7 @@ suite('CodexAgent prewarm eviction', () => {
 				agent['_dispatchTurnCompleted']({
 					threadId,
 					turn: {
-						id: 'turn-1', items: recovered ? [completed] : [], itemsView: 'full',
+						id: 'turn-1', rootTurnId: null, items: recovered ? [completed] : [], itemsView: 'full',
 						status: 'completed', error: null, startedAt: null, completedAt: null, durationMs: 1,
 					},
 				});
