@@ -65,6 +65,7 @@ import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from '../.
 import { IChatResponseFileChangesService } from '../../../../contrib/chat/browser/chatResponseFileChangesService.js';
 import { IChatPetService } from '../../../../contrib/chat/browser/chatPetService.js';
 import { ChatPetWidgetService, IChatPetWidgetService } from '../../../../contrib/chat/browser/widget/chatPetWidgetService.js';
+import { ChatOpenDiagnosticsService, IChatOpenDiagnosticsService } from '../../../../contrib/chat/common/chatOpenDiagnosticsService.js';
 import { IChatOutputRendererService } from '../../../../contrib/chat/browser/chatOutputItemRenderer.js';
 import { IAiEditTelemetryService } from '../../../../contrib/editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { EditSuggestionId } from '../../../../../editor/common/textModelEditSource.js';
@@ -283,6 +284,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override register() { return { dispose() { } }; }
 	}());
 	reg.define(IChatPetWidgetService, ChatPetWidgetService);
+	reg.define(IChatOpenDiagnosticsService, ChatOpenDiagnosticsService);
 	reg.defineInstance(IChatAccessibilityService, new class extends mock<IChatAccessibilityService>() {
 		override acceptRequest() { }
 		override disposeRequest() { }

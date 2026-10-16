@@ -838,7 +838,7 @@ per-word capitalization does not survive translation. */
 	min-width: 0;
 }
 
-.mcp-server-item .mcp-server-secondary-line > .mcp-server-compatibility-message:is(.partially-supported, .unsupported) {
+.mcp-server-item .mcp-server-secondary-line > .mcp-server-compatibility-message:is(.migration-available, .partially-supported, .unsupported) {
 	flex-shrink: 0;
 }
 
@@ -979,6 +979,32 @@ per-word capitalization does not survive translation. */
 	margin: 0 0 6px 0;
 }
 
+.ai-customization-list-widget .section-title-header .section-title-actions,
+.mcp-list-widget .section-title-header .section-title-actions {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	gap: var(--vscode-spacing-size60);
+}
+
+.ai-customization-list-widget .section-title-header .section-title-actions > .monaco-button,
+.mcp-list-widget .section-title-header .section-title-actions > .monaco-button {
+	width: auto;
+	height: var(--vscode-spacing-size240);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.plugin-list-widget .section-title-header .section-title-actions > .section-title-more-action.monaco-button {
+	box-sizing: border-box;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-spacing-size240);
+	min-width: var(--vscode-spacing-size240);
+	padding: var(--vscode-spacing-sizeNone);
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
 .ai-customization-list-widget .section-title-header .section-title-back-slot,
 .mcp-list-widget .section-title-header .section-title-back-slot {
 	display: flex;
@@ -993,6 +1019,8 @@ per-word capitalization does not survive translation. */
 .ai-customization-list-widget .section-title-header .section-title,
 .mcp-list-widget .section-title-header .section-title,
 .ai-customization-management-editor .tools-list-widget .section-title-header .section-title {
+	flex: 1;
+	min-width: 0;
 	font-size: var(--vscode-fontSize-heading2);
 	font-weight: var(--vscode-fontWeight-semiBold);
 	margin: 0;
@@ -1148,7 +1176,7 @@ per-word capitalization does not survive translation. */
 	height: 100%;
 	display: flex;
 	flex-direction: column;
-	padding-block: var(--vscode-spacing-size400) var(--vscode-spacing-size160);
+	padding-block: var(--vscode-spacing-size400) var(--vscode-spacing-sizeNone);
 	padding-inline: var(--vscode-spacing-size400);
 	background: var(--vscode-agentsPanel-background);
 	border: 1px solid var(--vscode-agentsPanel-border);

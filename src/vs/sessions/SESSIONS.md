@@ -40,6 +40,8 @@ The registry:
 - resolves providers by identifier;
 - announces registration changes.
 
+Logical providers own creation choices. A provider can also own internal, connection-bound session backends, which use the same operation contract without contributing creation targets. Default enumeration returns only logical providers; existing-session consumers explicitly include backends. Lookup preserves existing sessions' backend routing identifiers. Backends are available only while their logical owner is registered, regardless of discovery order, and registration notifications include their availability changes.
+
 It does not aggregate sessions, choose a provider for an operation, or own UI state.
 
 ### `ISessionsManagementService`
@@ -113,6 +115,8 @@ Draft-only interactivity allows local composition without permitting sends or tr
 
 When an unread chat in a multi-chat session becomes active, the view service asks the owning provider to mark that exact chat read. Activating the main chat does not directly mark the stored session aggregate read. The aggregate may remain unread after every chat becomes read, but it must be unread whenever any normal user-visible chat is unread. Tool-created subagent chats retain exact per-chat read state but do not participate in this aggregate. The main row always presents the main chat's exact read state, whether the chat hierarchy is expanded or collapsed; peer read state appears only on the corresponding peer row. Mark as Read and Mark as Unread on a session row target the main chat represented by that row; providers without independent chat read state may implement that operation through their session state.
 
+Bulk chat read actions route all targeted chats in a session through one provider operation when available. Providers may publish the local read-state changes atomically while persisting each chat through their native transport.
+
 ### Workspaces and quick chats
 
 `ISession.workspace` describes the complete workspace in which a session operates. `IChat.workspace` describes the effective workspace available to that chat and may be a subset of the session workspace. Each folder of a chat's workspace reports that folder's own repository and pull request information, so chats sharing a folder share its pull requests. Each folder also has its own Agent Merge settings: Agent Merge actions and indicators for the focused conversation follow the folder `IActiveSession.activeChat` works in, while session-wide surfaces such as the sessions list use the session folder (the main chat's). A folder that is a VS Code-created worktree (`<repo>.worktrees/<name>`) reports its repository as the folder's project, so a chat working in such a worktree shows that project. Filesystem-facing UI and actions for the focused conversation use `IActiveSession.activeChat.workspace`; session lifecycle, creation, and list presentation continue to use the aggregate session workspace. In the compact sessions list, a chat row shows the folder its chat works in, on hover or focus, when the session spans more than one project and the chat works in exactly one folder. A quick chat is workspace-less by product intent and is identified through `ISession.isQuickChat`. An absent workspace alone does not prove that a session is a quick chat because workspace state may still be hydrating.
@@ -147,7 +151,7 @@ Recorded GitHub issue and pull request artifacts are resolved from `ISession.art
 
 ## Provider contract
 
-`ISessionsProvider` is defined in `services/sessions/common/sessionsProvider.ts`. A provider represents one compute environment. A provider may advertise multiple session types, and multiple providers may advertise the same logical type.
+`ISessionsProvider` is defined in `services/sessions/common/sessionsProvider.ts`. A logical provider represents a session destination and may manage several concrete compute environments through internal backends. A provider may advertise multiple session types, and multiple providers may advertise the same logical type. Session and chat resources, session IDs, and backend routing IDs remain stable when a backend belongs to a logical provider; ownership does not rekey existing conversations.
 
 ### Discovery and catalog
 

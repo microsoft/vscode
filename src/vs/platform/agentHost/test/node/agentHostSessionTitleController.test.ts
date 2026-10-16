@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
 import assert from 'assert';
 import * as sinon from 'sinon';
 import type Anthropic from '@anthropic-ai/sdk';
@@ -104,6 +105,14 @@ class TestGitHubQuery extends mock<IGitHubQuery>() {
 		return response;
 	}
 
+}
+
+/** Reads session values straight from `db`, standing in for a session that has no central state. */
+function readDatabaseValues(db: TestSessionDatabase): (session: URI, keys: readonly string[]) => Promise<ReadonlyMap<string, string>> {
+	return async (_session, keys) => {
+		const values = await db.getMetadataObject(Object.fromEntries(keys.map(key => [key, true])));
+		return new Map(Object.entries(values).filter((entry): entry is [string, string] => entry[1] !== undefined));
+	};
 }
 
 suite('AgentHostSessionTitleController', () => {
@@ -289,6 +298,7 @@ suite('AgentHostSessionTitleController', () => {
 		controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
 		const restored = disposables.add(new AgentHostSessionTitleController(stateManager, {
 			sessionDataService: createSessionDataService(db),
+			readSessionValues: readDatabaseValues(db),
 			getInitialTitleGenerationStrategy: () => 'utility',
 			utilityModelService: createUtilityModelService(copilotApiService, () => 'gh-token'),
 		}, new NullLogService(), createTestChatOwnershipService(stateManager)));
@@ -651,6 +661,7 @@ suite('AgentHostSessionTitleController', () => {
 		controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
 		const restored = disposables.add(new AgentHostSessionTitleController(stateManager, {
 			sessionDataService: createSessionDataService(db),
+			readSessionValues: readDatabaseValues(db),
 			getInitialTitleGenerationStrategy: () => 'utility',
 			utilityModelService: createUtilityModelService(copilotApiService, () => 'gh-token'),
 		}, new NullLogService(), createTestChatOwnershipService(stateManager)));
@@ -669,7 +680,7 @@ suite('AgentHostSessionTitleController', () => {
 		}, { calls: 1, pendingSeed: '' });
 	});
 
-	test('normalized deferred peer fork restores its inherited-turn boundary without legacy title mirrors', async () => {
+	test('normalized deferred peer fork restores its inherited-turn boundary without importing legacy titles', async () => {
 		const { stateManager, session, db, copilotApiService } = setupDeferred();
 		const chat = buildChatUri(session, 'deferred-peer');
 		const inherited = firstTurn('Inherited request', [textPart('Inherited answer')]);
@@ -681,7 +692,7 @@ suite('AgentHostSessionTitleController', () => {
 			peers: [{ chat, order: 1 }],
 			privateDescendants: [],
 		});
-		const store = new AgentHostPeerChatStore(database, createSessionDataService(db), new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined));
+		const store = new AgentHostPeerChatStore(database, createSessionDataService(db), new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(database, createSessionDataService(db)));
 		const options = {
 			sessionDataService: createSessionDataService(db),
 			getInitialTitleGenerationStrategy: () => 'deferred' as const,
@@ -712,6 +723,7 @@ suite('AgentHostSessionTitleController', () => {
 		freshState.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'new-turn', duration: 10 });
 		restored.refineTitleFromFirstTurn(session.toString(), chat);
 		await waitForCondition(async () => (await store.readNormalizedChat(session, URI.parse(chat))).chat?.metadata?.summary === 'Generated title', 'restored normalized fork should refine');
+		// The stale legacy key is never imported and, as on main, a normalized chat's title is not rendered into it.
 		assert.deepStrictEqual({
 			calls: copilotApiService.utilityCalls.length,
 			title: freshState.getChatState(chat)?.title,

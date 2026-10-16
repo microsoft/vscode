@@ -100,7 +100,7 @@ function createEnsembleModel(intelligenceUsesHydraFusion = true): ILanguageModel
 			configurationSchema: {
 				properties: {
 					tier: {
-						type: 'string', group: 'navigation', title: 'Thinking Level',
+						type: 'string', group: 'navigation', title: 'Effort Level',
 						enum: ['balance', 'intelligence'],
 						enumItemLabels: ['Balance', 'High'],
 						default: 'balance',
@@ -344,7 +344,7 @@ suite('TabbedModelPicker', () => {
 		return Array.from(popup.querySelectorAll('.chat-model-picker-model[aria-checked="true"] .title'), title => title.textContent!);
 	}
 
-	test('guided selection keeps the popup open, excludes routing, and exposes accessible navigation', () => {
+	test('guided selection keeps the popup open, preserves configuration edits, excludes routing, and exposes accessible navigation', async () => {
 		const attempts: IModelPickerWorkflowState = {
 			title: 'Attempts', description: 'Select models.', summary: '2 Attempts', selectedModelIds: [],
 			multiple: true, maxSelections: 10, canGoBack: false, canGoNext: false, canFinish: false,
@@ -362,15 +362,67 @@ suite('TabbedModelPicker', () => {
 			next: () => state.set({ ...attempts, title: state.get()?.title === 'Judge' ? 'Synthesizer' : 'Judge', description: 'Optional review.', multiple: false, canGoBack: true, canFinish: true }, undefined),
 			finish: () => finished = true,
 		};
-		const { popup, picker, selections } = createPicker({ models: [createAutoModel(), createHydraFusionModel(), ...models], workflow });
+		const promotional = { ...models[0], metadata: { ...models[0].metadata, promo: { id: 'offer', discountPercent: 25, message: 'Temporary offer.' } } };
+		const { popup, picker, selections, values } = createPicker({ models: [createAutoModel(), createHydraFusionModel(), promotional, ...models.slice(1)], workflow });
+		const workflowAction = element(popup, '[data-id="workflow"]');
+		const searchAction = element(popup, '[data-id="search"]');
+		assert.deepStrictEqual({
+			actions: [...popup.querySelectorAll<HTMLElement>('.tabbed-action-list-tabbar > .tabbed-action-list-tabbar-action')].map(action => action.dataset.id),
+			workflow: {
+				ariaLabel: workflowAction.getAttribute('aria-label'),
+				htmlTitle: workflowAction.getAttribute('title'),
+				pressed: workflowAction.getAttribute('aria-pressed'),
+			},
+			search: {
+				ariaLabel: searchAction.getAttribute('aria-label'),
+				htmlTitle: searchAction.getAttribute('title'),
+				marginLeft: dom.getWindow(searchAction).getComputedStyle(searchAction).marginLeft,
+			},
+		}, {
+			actions: ['workflow', 'search'],
+			workflow: {
+				ariaLabel: 'Compare Models',
+				htmlTitle: null,
+				pressed: 'false',
+			},
+			search: {
+				ariaLabel: 'Search Models',
+				htmlTitle: 'Search Models',
+				marginLeft: '0px',
+			},
+		});
 		element(popup, '[aria-label="Compare Models"]').click();
 		// Counted from the set size, since a short popup may scroll some choices out of view.
 		const offered = (role: string) => Number(popup.querySelector(`[role="${role}"]`)?.getAttribute('aria-setsize') ?? 0);
+		const firstRow = element(popup, '.chat-model-picker-model');
 		assert.deepStrictEqual({
 			heading: popup.querySelector('.action-list-header-text')?.textContent,
 			routing: listRows(popup).some(label => label === 'Auto' || label === 'HydraFusion'),
 			checks: offered('menuitemcheckbox'),
-		}, { heading: 'Attempts\nSelect models.', routing: false, checks: 3 });
+			badge: firstRow.querySelector('.action-item-badge')?.textContent,
+			configuration: firstRow.querySelector('.action-list-item-toolbar .action-label')?.textContent,
+			details: firstRow.querySelector('.action-list-item-toolbar .action-label')?.getAttribute('aria-label'),
+			accessible: firstRow.getAttribute('aria-label'),
+			hover: firstRow.getAttribute('title'),
+		}, {
+			heading: 'Attempts\nSelect models.', routing: false, checks: 3,
+			badge: '25% off', configuration: 'Low · 32K', details: 'First Details, Low · 32K',
+			accessible: 'First, 25% off, Effort Level: Low, Context: 32K',
+			hover: 'First · Low · 32K',
+		});
+		openDetails(popup, 'First');
+		element(popup, '.chat-model-card [aria-label="Effort Level"] [role="radio"]:last-child').click();
+		await timeout(0);
+		assert.deepStrictEqual({
+			step: state.get()?.title,
+			workflowModels: state.get()?.selectedModelIds,
+			configuration: values.get(promotional.identifier),
+			selections,
+			visible: picker.isVisible,
+		}, {
+			step: 'Attempts', workflowModels: [], configuration: { effort: 'high' }, selections: [], visible: true,
+		});
+		goBack(popup);
 		const list = element(popup, '.monaco-list');
 		list.focus();
 		list.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
@@ -636,7 +688,7 @@ suite('TabbedModelPicker', () => {
 		assert.deepStrictEqual({ overridden, changedPolicy, explanation, unmanagedDetails, focusedControl, unmanaged: defaultBadgeModels(popup), selections }, {
 			overridden: ['First'], changedPolicy: ['Second'],
 			explanation: 'Your organization sets Second as the default for new chats. You can choose another model for this chat.',
-			unmanagedDetails: null, focusedControl: 'Thinking Effort', unmanaged: [], selections: [],
+			unmanagedDetails: null, focusedControl: 'Effort Level', unmanaged: [], selections: [],
 		});
 	});
 
@@ -706,9 +758,9 @@ suite('TabbedModelPicker', () => {
 		});
 	});
 
-	/** The labels of the options in the open details' tier control: Auto's "Optimize for", or Ensemble's "Thinking Level". */
+	/** The labels of the options in the open details' tier control: Auto's "Optimize for", or Ensemble's "Effort Level". */
 	function autoTiers(popup: HTMLElement): string[] {
-		return Array.from(popup.querySelectorAll('.tabbed-action-list-details :is([role="radiogroup"][aria-label="Optimize for"], [role="radiogroup"][aria-label="Thinking Level"]) [role="radio"]'), option => option.textContent ?? '');
+		return Array.from(popup.querySelectorAll('.tabbed-action-list-details :is([role="radiogroup"][aria-label="Optimize for"], [role="radiogroup"][aria-label="Effort Level"]) [role="radio"]'), option => option.textContent ?? '');
 	}
 
 	function chooseOption(popup: HTMLElement, label: string): void {
@@ -1345,7 +1397,7 @@ suite('TabbedModelPicker', () => {
 		rows().find(row => row.querySelector('.title')?.textContent === 'Qwen Coder')?.click();
 		assert.deepStrictEqual({ rows: snapshot, selections, visible: picker.isVisible }, {
 			rows: [
-				{ title: 'Example Flash 1.0', badge: 'Active', label: 'Example Flash 1.0, Active, Thinking: Medium, Context: 128K, No usage limit', text: '', check: true, checked: 'true', popup: 'dialog', actions: ['Example Flash 1.0 Details, Medium \u00b7 128K'], toggle: undefined },
+				{ title: 'Example Flash 1.0', badge: 'Active', label: 'Example Flash 1.0, Active, Effort Level: Medium, Context: 128K, No usage limit', text: '', check: true, checked: 'true', popup: 'dialog', actions: ['Example Flash 1.0 Details, Medium \u00b7 128K'], toggle: undefined },
 				{ title: 'Qwen Coder', badge: '', label: 'Qwen Coder, Not loaded', text: '', check: false, checked: 'false', popup: 'dialog', actions: ['Qwen Coder Details'], toggle: undefined },
 				{ title: 'Example Vision 7B', badge: '', label: 'Example Vision 7B, Not downloaded, Downloading 42%', text: '', check: false, checked: 'false', popup: 'dialog', actions: ['Example Vision 7B Details, Downloading 42%'], toggle: undefined },
 				{ title: 'Example Mini 3B', badge: '', label: 'Example Mini 3B, Not downloaded, 52.8 GB download', text: '', check: false, checked: 'false', popup: 'dialog', actions: ['Download Example Mini 3B'], toggle: undefined },
@@ -1443,7 +1495,7 @@ suite('TabbedModelPicker', () => {
 			before: { tabs: ['Copilot', 'On This Device'], active: 'On This Device', rows: ['Example Flash 1.0', 'Qwen Coder', 'Example Vision 7B', 'Example Mini 3B'], focused: 'Qwen Coder', panels: '' },
 			updated: {
 				tabs: ['Copilot', 'On This Device'], active: 'On This Device', rows: ['Example Flash 1.0', 'Qwen Coder', 'Example Vision 7B', 'Example Mini 3B'], focused: 'Qwen Coder', panels: '',
-				states: ['Example Flash 1.0, Active, Thinking: Medium, Context: 128K, No usage limit', 'Qwen Coder, Loading model…', 'Example Vision 7B, Not downloaded, Downloading 80%', 'Example Mini 3B, Not downloaded, 52.8 GB download'],
+				states: ['Example Flash 1.0, Active, Effort Level: Medium, Context: 128K, No usage limit', 'Qwen Coder, Loading model…', 'Example Vision 7B, Not downloaded, Downloading 80%', 'Example Mini 3B, Not downloaded, 52.8 GB download'],
 			},
 			gone: { tabs: false, active: 'Copilot' },
 		});
@@ -1468,7 +1520,7 @@ suite('TabbedModelPicker', () => {
 		const page = localModelPage(popup);
 		goBack(popup);
 		assert.deepStrictEqual({ page, tab: tabState(popup).active, focused: document.activeElement?.getAttribute('aria-label') }, {
-			page: { label: 'Example Flash 1.0 Details', name: 'Example Flash 1.0', state: 'Ready', choices: ['Thinking', 'Context'], icons: ['Stop Example Flash 1.0', 'Remove Example Flash 1.0...'], buttons: [], focused: true },
+			page: { label: 'Example Flash 1.0 Details', name: 'Example Flash 1.0', state: 'Ready', choices: ['Effort Level', 'Context'], icons: ['Stop Example Flash 1.0', 'Remove Example Flash 1.0...'], buttons: [], focused: true },
 			tab: 'On This Device',
 			focused: 'Example Flash 1.0 Details, Medium \u00b7 128K',
 		});
@@ -1476,7 +1528,7 @@ suite('TabbedModelPicker', () => {
 
 	test('the detail page sets an on-device model\'s thinking level for the chat, reports it, and its row shows it', async () => {
 		const { popup, values, configurationChanges } = createPicker({ models: [createAutoModel(), model('First'), exampleFlash, qwen], selectedModelId: exampleFlash.identifier, localModels: onDevicePresentation(), details: exampleFlash.identifier });
-		Array.from(popup.querySelectorAll<HTMLElement>('[aria-label="Thinking"] [role="radio"]')).find(option => option.textContent === 'High')!.click();
+		Array.from(popup.querySelectorAll<HTMLElement>('[aria-label="Effort Level"] [role="radio"]')).find(option => option.textContent === 'High')!.click();
 		await timeout(0);
 		goBack(popup);
 		await timeout(0);
@@ -1531,7 +1583,7 @@ suite('TabbedModelPicker', () => {
 	for (const { name, routing, requested, expected } of [
 		{ name: 'Auto with tiers', routing: [createAutoModel()], requested: 'auto', expected: { model: 'Auto', groups: ['Optimize for'] } },
 		{ name: 'Auto without a schema', routing: [model('auto', false)], requested: 'auto', expected: { model: 'auto', groups: [] } },
-		{ name: 'HydraFusion as Ensemble\'s tier', routing: [createEnsembleModel(), createHydraFusionModel()], requested: 'hydrafusion', expected: { model: 'Ensemble', groups: ['Thinking Level'] } },
+		{ name: 'HydraFusion as Ensemble\'s tier', routing: [createEnsembleModel(), createHydraFusionModel()], requested: 'hydrafusion', expected: { model: 'Ensemble', groups: ['Effort Level'] } },
 		{ name: 'HydraFusion with Default and Max', routing: [createAutoModel(), createHydraFusionModel(), createHydraFusionMaxModel()], requested: 'hydrafusion-max', expected: { model: 'HydraFusion', groups: ['HydraFusion tier'] } },
 		{ name: 'HydraFusion without HydraFusion Max', routing: [createAutoModel(), createHydraFusionModel()], requested: 'hydrafusion', expected: undefined },
 		{ name: 'HydraFusion without an Auto to join', routing: [createHydraFusionModel()], requested: 'hydrafusion', expected: undefined },
@@ -1650,7 +1702,7 @@ suite('TabbedModelPicker', () => {
 				focusedControl,
 				restoredFocus: document.activeElement?.getAttribute('aria-label'),
 				selections,
-			}, { focusedControl: 'Thinking Effort', restoredFocus: 'First Details, Low · 32K', selections: [] });
+			}, { focusedControl: 'Effort Level', restoredFocus: 'First Details, Low · 32K', selections: [] });
 		});
 	}
 
@@ -1712,7 +1764,7 @@ suite('TabbedModelPicker', () => {
 				selectionHint: card.textContent?.includes('Changing options selects this model.'),
 				groups: Array.from(card.querySelectorAll('[role="radiogroup"]'), group => group.getAttribute('aria-label')),
 				selections: result.selections,
-			}, { currentModelCopy: false, selectionHint: false, groups: ['Thinking Effort', 'Context'], selections: [] });
+			}, { currentModelCopy: false, selectionHint: false, groups: ['Effort Level', 'Context'], selections: [] });
 		});
 	}
 
@@ -1739,7 +1791,7 @@ suite('TabbedModelPicker', () => {
 			selections,
 		}, {
 			hasPopup: { row: 'dialog', button: 'dialog' },
-			opened: { prevented: true, model: 'First', focusedControl: 'Thinking Effort' },
+			opened: { prevented: true, model: 'First', focusedControl: 'Effort Level' },
 			listFocused: true,
 			focusedRow: 'First',
 			visible: true,
@@ -1761,7 +1813,7 @@ suite('TabbedModelPicker', () => {
 				pageFocused: document.activeElement === page,
 				focusedControl: document.activeElement?.closest('[role="radiogroup"]')?.getAttribute('aria-label'),
 				selections: result.selections,
-			}, { pageFocused: direct, focusedControl: direct ? undefined : 'Thinking Effort', selections: [] });
+			}, { pageFocused: direct, focusedControl: direct ? undefined : 'Effort Level', selections: [] });
 		});
 	}
 

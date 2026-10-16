@@ -75,7 +75,7 @@ class TestAutomationConnection {
 			serverSeq: 0,
 			snapshots: [],
 			automations: { create: {}, runCancellation: {} },
-			_meta: getAgentHostExtensionInitializeResultMeta(true, false, false, false, true),
+			_meta: getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, true),
 		});
 	}
 

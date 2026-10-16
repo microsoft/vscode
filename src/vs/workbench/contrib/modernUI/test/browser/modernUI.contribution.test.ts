@@ -2988,7 +2988,7 @@ suite('ModernUIContribution', () => {
 						}, {
 							tabBounds: tabBounds.toJSON(),
 							labelBounds: labelBounds.toJSON(),
-							fillExpansion: connected ? [0, 2, 2] : [0, 0, 0],
+							fillExpansion: connected ? [3.5, 2, 2] : [0, 0, 0],
 							marginRight: connected ? `${Number.parseFloat(shoulderWidth) + 1}px` : '0px',
 							topRadius: connected ? '0px' : '4px',
 						}, JSON.stringify({ classes, theme, activeGroup, compact }));
@@ -3174,7 +3174,7 @@ suite('ModernUIContribution', () => {
 			topFrame: { borderColors: ['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)'], borderTopLeftRadius: '4px', borderWidths: ['1px', '1px'] },
 			upper: { tabBorders: ['0px', '0px'], fillInsets: ['2px', '2px'], fillInlineStart: '2px' },
 			inactive: {
-				single: { tabBorders: ['0px', '0px'], fillInsets: ['0px', '0px'], fillInlineStart: '2px' },
+				single: { tabBorders: ['0px', '0px'], fillInsets: ['3.5px', '3.5px'], fillInlineStart: '2px' },
 				wrappedBottom: { tabBorders: ['0px', '0px'], fillInsets: ['2px', '2px'], fillInlineStart: '2px' },
 			},
 			active: {

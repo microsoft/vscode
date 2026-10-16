@@ -30,13 +30,16 @@ export interface ISessionChangeEvent {
 /** Why a session resource is being resolved, so a provider can pick a latency budget. */
 export type SessionResourceResolveReason = 'open' | 'restore';
 
-/** Schema-backed configuration consumed by mode and approval pickers, including pre-provisioning drafts. */
+/**
+ * Schema-backed configuration consumed by mode and approval pickers, including pre-provisioning drafts.
+ * Reads and writes name the chat they are for: a host may let each chat set some properties for itself.
+ */
 export interface ISessionConfigProvider {
 	readonly onDidChangeSessionConfig: Event<string>;
-	getSessionConfig(sessionId: string): ResolveSessionConfigResult | undefined;
+	getSessionConfig(sessionId: string, chat: URI): ResolveSessionConfigResult | undefined;
 	getCreateSessionConfig(sessionId: string): Record<string, unknown> | undefined;
-	isSessionConfigResolving(sessionId: string): IObservable<boolean>;
-	setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void>;
+	isSessionConfigResolving(sessionId: string, chat: URI): IObservable<boolean>;
+	setSessionConfigValue(sessionId: string, chat: URI, property: string, value: unknown): Promise<void>;
 	trackSessionConfigOperation?(sessionId: string, operation: Promise<void>): void;
 }
 
@@ -185,11 +188,8 @@ export interface IDeleteChatOptions {
 }
 
 /**
- * A sessions provider encapsulates a compute environment.
- * It owns workspace discovery, session creation, session listing, and picker contributions.
- *
- * One provider can serve multiple session types. Multiple provider instances can
- * serve the same session type (e.g., one per remote agent host).
+ * A logical sessions provider owns creation targets and may use internal, connection-bound backends for existing sessions.
+ * Both implement this contract; only logical providers advertise workspace and session creation choices.
  */
 export interface ISessionsProvider {
 	readonly sessionConfig?: ISessionConfigProvider;
@@ -512,7 +512,7 @@ export interface ISessionsProvider {
 	 * Returns the current on-disk size of the session's isolated worktree.
 	 * Providers without host-owned worktrees leave this capability undefined.
 	 */
-	getSessionWorktreeDiskUsage?(sessionId: string): Promise<number | undefined>;
+	getSessionWorktreeDiskUsage?(sessionId: string, token?: CancellationToken): Promise<number | undefined>;
 
 	/**
 	 * Unarchive a session.
@@ -541,6 +541,12 @@ export interface ISessionsProvider {
 	 * Returns `false` when the transition was not accepted and may be retried.
 	 */
 	setChatReadState?(sessionId: string, chatResource: URI, isRead: boolean): Promise<boolean | void>;
+
+	/**
+	 * Set the read/unread state of multiple chats in one provider operation.
+	 * Providers may use this to publish one atomic local state change before persisting each chat.
+	 */
+	setChatReadStates?(sessionId: string, chatResources: readonly URI[], isRead: boolean): Promise<void>;
 
 	/**
 	 * Delete a session.

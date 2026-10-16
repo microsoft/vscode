@@ -11,7 +11,7 @@ import { getModelConfigChoices, getModelConfigProperty, IModelConfigurationAcces
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelConfigurationSchema } from '../../../../../common/languageModels.js';
 
 /**
- * Builds a model whose schema advertises a Thinking Effort and a Context Size
+ * Builds a model whose schema advertises an Effort Level and a Context Size
  * group. A producer that cannot resolve a default leaves it `undefined` (see
  * the agent host's `thinkingLevel` schema), so each group's default is
  * omittable to cover that case.
@@ -174,7 +174,7 @@ suite('ModelPickerConfiguration', () => {
 		assert.deepStrictEqual(render(createModel(), { effort: 'medium', context: 65536 }), {
 			visible: true,
 			label: 'Medium · 64K',
-			ariaLabel: 'Test Model details, Thinking Effort: Medium, Context: 64K',
+			ariaLabel: 'Test Model details, Effort Level: Medium, Context: 64K',
 		});
 	});
 
@@ -182,7 +182,7 @@ suite('ModelPickerConfiguration', () => {
 		assert.deepStrictEqual(render(createModel()), {
 			visible: true,
 			label: 'Low · 32K',
-			ariaLabel: 'Test Model details, Thinking Effort: Low, Context: 32K',
+			ariaLabel: 'Test Model details, Effort Level: Low, Context: 32K',
 		});
 	});
 

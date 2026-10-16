@@ -12,8 +12,10 @@ import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../bro
 import { DesktopLayoutController } from './desktopLayoutController.js';
 import { localize } from '../../../../nls.js';
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { SESSIONS_LAYOUT_SCOPE_SETTING } from '../../../common/chatLayout.js';
+import { SESSION_TOOLBAR_SETTING } from '../../../common/sessionConfig.js';
 import { ISessionEditorWorkingSetService, SessionEditorWorkingSetService } from '../common/sessionEditorWorkingSet.js';
 
 registerSingleton(ISessionEditorWorkingSetService, SessionEditorWorkingSetService, InstantiationType.Delayed);
@@ -56,6 +58,12 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
 			description: localize('sessionsLayoutScope.description', "Choose whether layout state belongs to each session or each chat in non-phone Agents windows. Pane sizes remain shared. Terminal behavior is unchanged in all modes. Changes take effect after manually reloading the window."),
+		},
+		[SESSION_TOOLBAR_SETTING]: {
+			type: 'boolean',
+			default: product.quality !== 'stable',
+			experiment: { mode: 'auto' },
+			description: localize('sessions.showSessionToolbar', "Controls whether the Session Toolbar, which opens the Changes, Files, Browser, and Canvas tabs, is shown at the right edge of the active chat in the Agents window."),
 		},
 	},
 });

@@ -10,7 +10,7 @@ import type { IConfigurationService } from '../../../../../platform/configuratio
 import { ChatConfiguration } from '../../common/constants.js';
 import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { CustomizationMigrationCandidate, CustomizationMigrationType, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationExclusion, IMcpServerCustomizationMigrationFailure, isConfiguredLocationMigrationCandidate, isMcpServerCustomizationMigrationCandidate, isPromptFileMigrationCandidate, isUserDataMigrationCandidate, McpServerCustomizationMigrationFailureReason, mcpServerCustomizationMigrationRemovableProperties, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationCandidate, CustomizationMigrationType, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationExclusion, IMcpServerCustomizationMigrationFailure, isConfiguredLocationMigrationCandidate, isMcpServerCustomizationMigrationCandidate, isPluginMarketplaceCustomizationMigrationCandidate, isPromptFileMigrationCandidate, isUserDataMigrationCandidate, McpServerCustomizationMigrationFailureReason, mcpServerCustomizationMigrationRemovableProperties, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 
 export const enum CustomizationMigrationCategoryId {
@@ -18,6 +18,7 @@ export const enum CustomizationMigrationCategoryId {
 	UserData = 'userData',
 	ConfiguredLocations = 'configuredLocations',
 	McpServers = 'mcpServers',
+	PluginMarketplaces = 'pluginMarketplaces',
 }
 
 export const homepageMigrationCategories = [
@@ -25,6 +26,7 @@ export const homepageMigrationCategories = [
 	CustomizationMigrationCategoryId.UserData,
 	CustomizationMigrationCategoryId.ConfiguredLocations,
 	CustomizationMigrationCategoryId.McpServers,
+	CustomizationMigrationCategoryId.PluginMarketplaces,
 ] as const;
 
 
@@ -450,6 +452,70 @@ const mcpServersMigrationCategory: ICustomizationMigrationCategory = {
 	},
 };
 
+const pluginMarketplacesMigrationCategory: ICustomizationMigrationCategory = {
+	id: CustomizationMigrationCategoryId.PluginMarketplaces,
+	migrationType: CustomizationMigrationType.PluginMarketplaces,
+	enablementSetting: ChatConfiguration.ChatCustomizationsMigrationEnabled,
+	configurationSettingIds: [ChatConfiguration.PluginMarketplaces],
+	shortcutLabel: localize('pluginMarketplacesMigrationShortcutLabel', "Migrate Plugin Marketplaces"),
+	shortcutTooltip: localize('pluginMarketplacesMigrationShortcutTooltip', "Migrate plugin marketplaces from VS Code settings to Copilot settings"),
+	cardLabel: localize('pluginMarketplacesMigrationCardLabel', "Migrate Plugin Marketplaces"),
+	cardActionLabel: localize('pluginMarketplacesMigrationCardAction', "Migrate..."),
+	cardActionAriaLabel: localize('pluginMarketplacesMigrationCardActionAriaLabel', "Migrate plugin marketplaces to Copilot settings"),
+	noFilesMigratedMessage: localize('pluginMarketplacesMigrationNoneMigrated', "No plugin marketplaces were migrated."),
+
+	getModifiedSettingIds(configurationService) {
+		const inspected = configurationService.inspect<readonly unknown[]>(ChatConfiguration.PluginMarketplaces);
+		const configuredValue = inspected?.applicationValue ?? inspected?.userValue;
+		return Array.isArray(configuredValue) && configuredValue.length > 0 ? [ChatConfiguration.PluginMarketplaces] : [];
+	},
+
+	getCandidateLabel(customization) {
+		if (!isPluginMarketplaceCustomizationMigrationCandidate(customization)) {
+			throw new Error('Expected a plugin marketplace migration candidate');
+		}
+		return customization.name;
+	},
+
+	getShortcutAriaLabel(count) {
+		return count === 1
+			? localize('pluginMarketplacesMigrationShortcutAriaLabelSingle', "Plugin marketplaces, 1 marketplace needs migration")
+			: localize('pluginMarketplacesMigrationShortcutAriaLabel', "Plugin marketplaces, {0} marketplaces need migration", count);
+	},
+
+	getCardDescription(customizations) {
+		return customizations.length === 1
+			? localize('pluginMarketplacesMigrationCardDescriptionSingle', "Found 1 plugin marketplace used by the Local agent. Migrate it to Copilot settings so both agents can use it.")
+			: localize('pluginMarketplacesMigrationCardDescription', "Found {0} plugin marketplaces used by the Local agent. Migrate them to Copilot settings so both agents can use them.", customizations.length);
+	},
+
+	getConfirmation(customizations) {
+		return {
+			message: customizations.length === 1
+				? localize('pluginMarketplacesMigrationConfirmMessageSingle', "Migrate 1 plugin marketplace to Copilot?")
+				: localize('pluginMarketplacesMigrationConfirmMessage', "Migrate {0} plugin marketplaces to Copilot?", customizations.length),
+			detail: localize('pluginMarketplacesMigrationConfirmDetail', "This adds the marketplace to Copilot. The Local agent will keep using the existing VS Code setting."),
+			primaryButton: localize('pluginMarketplacesMigrationConfirmButton', "Migrate"),
+		};
+	},
+
+	getMigratedMessage(migratedCount) {
+		return migratedCount === 1
+			? localize('pluginMarketplacesMigrationCompletedSingle', "Migrated 1 plugin marketplace to Copilot.")
+			: localize('pluginMarketplacesMigrationCompleted', "Migrated {0} plugin marketplaces to Copilot.", migratedCount);
+	},
+
+	getFailedMessage(failedMarketplaceNames, hiddenMarketplaceCount) {
+		const failedCount = failedMarketplaceNames.length + hiddenMarketplaceCount;
+		if (failedCount === 1) {
+			return localize('pluginMarketplacesMigrationFailedSingle', "Failed to migrate plugin marketplace: {0}.", failedMarketplaceNames[0]);
+		}
+		return hiddenMarketplaceCount > 0
+			? localize('pluginMarketplacesMigrationFailedWithRemainder', "Failed to migrate {0} plugin marketplaces: {1}, and {2} more.", failedCount, failedMarketplaceNames.join(', '), hiddenMarketplaceCount)
+			: localize('pluginMarketplacesMigrationFailed', "Failed to migrate {0} plugin marketplaces: {1}.", failedCount, failedMarketplaceNames.join(', '));
+	},
+};
+
 function getMcpServerMigrationWarnings(server: IMcpServerCustomizationMigrationCandidate, harnessLabel: string): string[] {
 	const inputWarnings = server.environmentVariables?.length
 		? [localize('mcpMigrationInputsToEnvironmentVariables', "Inputs will become environment variables. Configure them in the MCP server details after migrating.")]
@@ -489,6 +555,7 @@ export const CUSTOMIZATION_MIGRATION_CATEGORIES: readonly ICustomizationMigratio
 	userDataMigrationCategory,
 	configuredLocationsMigrationCategory,
 	mcpServersMigrationCategory,
+	pluginMarketplacesMigrationCategory,
 ];
 
 export function getCustomizationMigrationCategory(id: CustomizationMigrationCategoryId): ICustomizationMigrationCategory {
@@ -507,14 +574,14 @@ export function getCustomizationMigrationSourceTypes(categories: readonly ICusto
 }
 
 function getFileCandidateLabel(customization: CustomizationMigrationCandidate): string {
-	if (isMcpServerCustomizationMigrationCandidate(customization)) {
+	if (isMcpServerCustomizationMigrationCandidate(customization) || isPluginMarketplaceCustomizationMigrationCandidate(customization)) {
 		throw new Error('Expected a file migration candidate');
 	}
 	return customization.name ?? basename(customization.uri);
 }
 
 function countPromptStorages(customizations: readonly CustomizationMigrationCandidate[]): { workspaceCount: number; userCount: number; totalCount: number } {
-	const fileCustomizations = customizations.filter(customization => !isMcpServerCustomizationMigrationCandidate(customization));
+	const fileCustomizations = customizations.filter(customization => !isMcpServerCustomizationMigrationCandidate(customization) && !isPluginMarketplaceCustomizationMigrationCandidate(customization));
 	const workspaceCount = fileCustomizations.filter(customization => customization.storage === PromptsStorage.local).length;
 	const userCount = fileCustomizations.filter(customization => customization.storage === PromptsStorage.user).length;
 	return { workspaceCount, userCount, totalCount: workspaceCount + userCount };

@@ -26,13 +26,13 @@ import { ChatResponseModelChangeReason, IChatModel, IChatProgressResponseContent
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
-import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID, chatPetAchievements, ChatPetAccessoryIds, ChatPetAchievementIds, didExplicitlyEnableChatPetAutopilot, disabledChatPetAchievements, getChatPetAchievement, getChatPetAchievementPresentation, getChatPetCustomizationAchievementIds, getUnlockedChatPetAccessories, isUserAuthoredChatPetCustomization, shouldUnlockChatPetIntegratedBrowserShare } from '../../../browser/chatPetAchievements.js';
+import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID, chatPetAchievements, ChatPetAccessoryIds, ChatPetAchievementIds, didExplicitlyEnableChatPetAutopilot, disabledChatPetAchievements, getChatPetAchievement, getChatPetAchievementForAccessory, getChatPetAchievementPresentation, getChatPetCustomizationAchievementIds, getUnlockedChatPetAccessories, isUserAuthoredChatPetCustomization, shouldUnlockChatPetIntegratedBrowserShare } from '../../../browser/chatPetAchievements.js';
 import { ChatPetService, getChatPetVariant } from '../../../browser/chatPetService.js';
 import { CHAT_PET_CHANGE_COLOR_COMMAND_ID, ChatPetColor, getChatPetColoredSprite } from '../../../browser/chatPetColors.js';
 import '../../../browser/widget/media/chat.css';
 import { getChatPetAccessoryImageSource, hasChatPetAccessoryImageDimensions, hasChatPetBodyImageDimensions } from '../../../browser/widget/chatPetAccessoryRenderer.js';
 import { getChatPetAccessoryRigFrame, getChatPetAccessoryRigPose, getChatPetAccessoryTrack, getChatPetAntennaeOcclusionBounds, getChatPetEyeAccessoryAnchor, getChatPetReducedMotionRigFrame } from '../../../browser/widget/chatPetAccessoryRig.js';
-import { CHAT_PET_ACHIEVEMENT_UNLOCKED_DURATION, CHAT_PET_BOUNCE_RESULT_DURATION, CHAT_PET_CONFETTI_SCORE, CHAT_PET_CONFIRMATION_ATTENTION_DURATION, CHAT_PET_ICON_TRANSFORMATION_CHANCE, CHAT_PET_IDLE_SLEEP_DELAY, CHAT_PET_MOUSE_BOUNCE_RELEASE_GRACE_DURATION, CHAT_PET_OVERLAY_CLASS, CHAT_PET_WALL_IMPACT_DURATION, CHAT_PET_YAPPING_CHANCE, ChatPetBlinkController, ChatPetDirectionChangeController, ChatPetFacingController, ChatPetHopController, ChatPetWidget, IChatPetWidgetHost, advanceChatPetThrow, doesChatPetStateBlink, doesChatPetStateTrackCursor, drawChatPetAchievementStar, getChatPetAnchoredHorizontalPosition, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBlinkDelay, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetEyeAccessoryGazeOffset, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalAnchor, getChatPetHorizontalPosition, getChatPetListPadding, getChatPetMouseBounceVelocity, getChatPetMouseCollisionTime, getChatPetPillPlatformTop, getChatPetPlatformTop, getChatPetStackPlatformTop, getChatPetRelativeHorizontalPosition, getChatPetRenderedState, getChatPetRespawnFrameDurations, getChatPetRestoredHorizontalPosition, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetSweptPlatformTop, getChatPetThrowLanding, getChatPetThrowRotation, getChatPetThrowVelocity, getChatPetVerticalOffset, getChatPetWallReboundVelocity, getChatPetWideSpriteHorizontalOffset, isChatPetImageSource, isChatPetKeyboardInteractionEnabled, isChatPetMouseBounceEligible, isChatPetMouseBounceGracePeriodElapsed, isChatPetMouseContact, isChatPetVisible, isChatPetWindowActive, setChatPetWideLayerOffset, shouldCelebrateChatPetBounceScore, shouldClaimChatPetWindowOnConstruction, shouldDismissChatPetBounceResult, shouldPlaceChatPetSpeechBubbleLeft, shouldSettleChatPetThrow } from '../../../browser/widget/chatPetWidget.js';
+import { CHAT_PET_ACHIEVEMENT_UNLOCKED_DURATION, CHAT_PET_BOUNCE_RESULT_DURATION, CHAT_PET_CONFETTI_SCORE, CHAT_PET_CONFIRMATION_ATTENTION_DURATION, CHAT_PET_ICON_TRANSFORMATION_CHANCE, CHAT_PET_IDLE_SLEEP_DELAY, CHAT_PET_MOUSE_BOUNCE_RELEASE_GRACE_DURATION, CHAT_PET_OVERLAY_CLASS, CHAT_PET_WALL_IMPACT_DURATION, CHAT_PET_YAPPING_CHANCE, ChatPetBlinkController, ChatPetDirectionChangeController, ChatPetFacingController, ChatPetHopController, ChatPetWidget, IChatPetWidgetHost, advanceChatPetThrow, doesChatPetStateBlink, doesChatPetStateTrackCursor, drawChatPetAchievementStar, getChatPetAnchoredHorizontalPosition, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBlinkDelay, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetEyeAccessoryGazeOffset, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalAnchor, getChatPetHorizontalPosition, getChatPetListPadding, getChatPetMouseBounceVelocity, getChatPetMouseCollisionTime, getChatPetPillPlatformTop, getChatPetPlatformTop, getChatPetStackPlatformTop, getChatPetRelativeHorizontalPosition, getChatPetRenderedState, getChatPetRespawnFrameDurations, getChatPetRestoredHorizontalPosition, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetSpriteSources, getChatPetSweptPlatformTop, getChatPetThrowLanding, getChatPetThrowRotation, getChatPetThrowVelocity, getChatPetVerticalOffset, getChatPetWallReboundVelocity, getChatPetWideSpriteHorizontalOffset, isChatPetImageSource, isChatPetKeyboardInteractionEnabled, isChatPetMouseBounceEligible, isChatPetMouseBounceGracePeriodElapsed, isChatPetMouseContact, isChatPetVisible, isChatPetWindowActive, setChatPetWideLayerOffset, shouldCelebrateChatPetBounceScore, shouldClaimChatPetWindowOnConstruction, shouldDismissChatPetBounceResult, shouldPlaceChatPetSpeechBubbleLeft, shouldSettleChatPetThrow } from '../../../browser/widget/chatPetWidget.js';
 
 suite('ChatPetWidget', () => {
 
@@ -84,7 +84,38 @@ suite('ChatPetWidget', () => {
 		};
 	}
 
-	function createHostTransitionHarness(motionReduced = false, initialTransition: IChatPetWidgetHost['transition'] = 'teleport', color?: ChatPetColor) {
+	class TestIntersectionObserver extends mock<IntersectionObserver>() {
+		private readonly targets = new Set<Element>();
+
+		constructor(private readonly callback: IntersectionObserverCallback) {
+			super();
+		}
+
+		override observe(target: Element): void {
+			this.targets.add(target);
+		}
+
+		override unobserve(target: Element): void {
+			this.targets.delete(target);
+		}
+
+		override disconnect(): void {
+			this.targets.clear();
+		}
+
+		setVisible(visible: boolean): void {
+			if (this.targets.size === 0) {
+				return;
+			}
+			this.callback([...this.targets].map(target => new class extends mock<IntersectionObserverEntry>() {
+				override readonly target = target;
+				override readonly isIntersecting = visible;
+				override readonly boundingClientRect = target.getBoundingClientRect();
+			}()), this);
+		}
+	}
+
+	function createHostTransitionHarness(motionReduced = false, initialTransition: IChatPetWidgetHost['transition'] = 'teleport', color?: ChatPetColor, intersectionObserverCtor?: typeof IntersectionObserver) {
 		const root = mainWindow.document.createElement('div');
 		root.style.cssText = 'position:fixed;left:0;top:0;width:800px;height:640px';
 		const firstParent = mainWindow.document.createElement('div');
@@ -128,7 +159,7 @@ suite('ChatPetWidget', () => {
 			service.setColor(color);
 		}
 		const widget = disposables.add(new ChatPetWidget(
-			firstHost, TestResizeObserver, service, accessibilityService,
+			firstHost, { resizeObserverCtor: TestResizeObserver, intersectionObserverCtor }, service, accessibilityService,
 			new class extends mock<IContextMenuService>() { }(),
 			new class extends mock<ICommandService>() { }(),
 			new NullLogService(),
@@ -179,7 +210,7 @@ suite('ChatPetWidget', () => {
 		test(`live color changes preserve the current frame and double buffering (${reducedMotion ? 'reduced motion' : 'animated'})`, async () => {
 			const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
 			try {
-				const { button, service } = createHostTransitionHarness(reducedMotion, 'teleport', '#ff8800');
+				const { button, service } = createHostTransitionHarness(reducedMotion, 'teleport', '#ff8800', TestIntersectionObserver);
 				const firstImage = button.querySelector<HTMLImageElement>('.chat-pet-sprite img[src]')!;
 				const firstLoaded = whenSpriteLoaded(firstImage);
 				await firstImage.decode();
@@ -210,6 +241,191 @@ suite('ChatPetWidget', () => {
 			}
 		});
 	}
+
+	test('coalesced idle poses preserve every source pixel, rig frame, and cycle boundary in both variants', async () => {
+		const results = [];
+		for (const variant of ['stable', 'insiders'] as const) {
+			for (const state of ['idle', 'rendering', 'achievementUnlocked'] as const) {
+				const source = getChatPetSpriteSources(variant)[state].animated;
+				const image = mainWindow.document.createElement('img');
+				image.src = source.url;
+				await image.decode();
+				const canvas = mainWindow.document.createElement('canvas');
+				canvas.width = source.frameWidth;
+				canvas.height = source.frameHeight ?? 96;
+				const context = canvas.getContext('2d', { willReadFrequently: true })!;
+				const pixels: Uint8ClampedArray[] = [];
+				for (let index = 0; index < source.frameCount; index++) {
+					context.clearRect(0, 0, canvas.width, canvas.height);
+					context.drawImage(image, index * canvas.width, 0, canvas.width, canvas.height, 0, 0, canvas.width, canvas.height);
+					pixels.push(context.getImageData(0, 0, canvas.width, canvas.height).data);
+				}
+				results.push({
+					variant, state,
+					dimensionsValid: hasChatPetBodyImageDimensions(image, canvas.width, canvas.height, source.frameCount),
+					durations: source.frameDurations,
+					sourceFrames: source.frameIndices,
+					equivalent: pixels.every((frame, index) => {
+						const representative = index < 20 ? 0 : 20;
+						return frame.every((value, pixel) => value === pixels[representative][pixel])
+							&& JSON.stringify(getChatPetAccessoryRigFrame(state, index)) === JSON.stringify(getChatPetAccessoryRigFrame(state, representative));
+					}),
+					boundaries: [0, 799, 800, 1_999, 2_000].map(time => {
+						const frame = getChatPetAnimationFrame(source.frameDurations, time, source.iterations);
+						return source.frameIndices?.[frame.frameIndex];
+					}),
+				});
+			}
+		}
+		assert.deepStrictEqual(results, (['stable', 'insiders'] as const).flatMap(variant =>
+			(['idle', 'rendering', 'achievementUnlocked'] as const).map(state => ({
+				variant, state, dimensionsValid: true, durations: [800, 1_200],
+				sourceFrames: [0, 20], equivalent: true, boundaries: [0, 0, 20, 20, 0],
+			}))));
+	});
+
+	test('schedules only distinct poses, pauses invisible sprites, and resumes eyes at the body phase', async () => {
+		const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
+		try {
+			let visibilityObserver: TestIntersectionObserver | undefined;
+			class VisibilityObserver extends TestIntersectionObserver {
+				constructor(callback: IntersectionObserverCallback) {
+					super(callback);
+					visibilityObserver = this;
+				}
+			}
+			const { button, widget, service } = createHostTransitionHarness(false, 'teleport', 'stable', VisibilityObserver);
+			await button.querySelector<HTMLImageElement>('.chat-pet-sprite img[src]')!.decode();
+			await Promise.resolve();
+			const canvas = button.querySelector<HTMLCanvasElement>('.chat-pet-sprite:not(.hidden) canvas')!;
+			const draws = sinon.spy(canvas.getContext('2d')!, 'drawImage');
+			const eyes = button.querySelector('.chat-pet-eyes')!;
+			const snapshots: { draws: number; lowered: boolean; paused: boolean }[] = [];
+			const record = () => snapshots.push({
+				draws: draws.callCount,
+				lowered: eyes.classList.contains('bobbed'),
+				paused: button.classList.contains('animation-paused'),
+			});
+			clock.tick(799);
+			record();
+			clock.tick(1);
+			record();
+			assert.ok(visibilityObserver);
+			visibilityObserver.setVisible(false);
+			clock.tick(1_200);
+			record();
+			visibilityObserver.setVisible(true);
+			record();
+			visibilityObserver.setVisible(false);
+			service.toggle();
+			const disabledWhileHidden = button.classList.contains('hidden') && button.tabIndex === -1;
+			widget.dispose();
+			clock.tick(4_000);
+			assert.deepStrictEqual({ snapshots, disabledWhileHidden, drawsAfterDisposal: draws.callCount }, {
+				snapshots: [
+					{ draws: 0, lowered: false, paused: false },
+					{ draws: 1, lowered: true, paused: false },
+					{ draws: 1, lowered: true, paused: true },
+					{ draws: 2, lowered: false, paused: false },
+				],
+				disabledWhileHidden: true,
+				drawsAfterDisposal: 2,
+			});
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('does not rewrite pupils or redraw an accessory when the quantized gaze is unchanged', async () => {
+		const { button, service } = createHostTransitionHarness(true, 'teleport', 'stable', TestIntersectionObserver);
+		service.unlockAchievement(getChatPetAchievementForAccessory(ChatPetAccessoryIds.TopHatMonocle).id);
+		service.setAccessory(ChatPetAccessoryIds.TopHatMonocle);
+		await waitForPetAnimation(() => !button.querySelector('.chat-pet-eye-accessory')!.classList.contains('hidden'), 'the eye accessory must load');
+		const canvas = button.querySelector<HTMLCanvasElement>('.chat-pet-eye-accessory-canvas')!;
+		const draws = sinon.spy(canvas.getContext('2d')!, 'drawImage');
+		let mutations = 0;
+		const observer = new mainWindow.MutationObserver(records => mutations += records.length);
+		disposables.add(toDisposable(() => observer.disconnect()));
+		for (const pupil of button.querySelectorAll('.chat-pet-pupil')) {
+			observer.observe(pupil, { attributes: true, attributeFilter: ['style'] });
+		}
+		const bounds = button.getBoundingClientRect();
+		const move = async (x: number) => {
+			mainWindow.document.dispatchEvent(new mainWindow.PointerEvent('pointermove', {
+				clientX: x, clientY: bounds.top + bounds.height / 2, bubbles: true,
+			}));
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			mutations += observer.takeRecords().length;
+		};
+		await move(bounds.left - 100);
+		draws.resetHistory();
+		mutations = 0;
+		await move(bounds.left - 90);
+		const unchanged = { mutations, draws: draws.callCount };
+		await move(bounds.right + 100);
+		const changed = { mutations: mutations > 0, redrawn: draws.called, facing: button.dataset.facing };
+		service.setOnTheRun(true);
+		await waitForPetAnimation(() => button.dataset.state === 'onTheRun', 'the fixed-eye state must finish loading');
+		await move(bounds.left + bounds.width / 2);
+		service.setOnTheRun(false);
+		await waitForPetAnimation(() => button.querySelector('.chat-pet-eyes')!.classList.contains('tracking'), 'cursor tracking must resume');
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		assert.deepStrictEqual({
+			unchanged,
+			changed,
+			afterFixedEyeState: [...button.querySelectorAll<HTMLElement>('.chat-pet-pupil')].map(pupil => pupil.style.transform),
+		}, {
+			unchanged: { mutations: 0, draws: 0 },
+			changed: { mutations: true, redrawn: true, facing: 'right' },
+			afterFixedEyeState: ['translate(0px, 0px)', 'translate(0px, 0px)'],
+		});
+	});
+
+	test('moves the pet without reading its changed bounds and commits the translated release position', async () => {
+		const { root, button } = createHostTransitionHarness(true, 'teleport', 'stable', TestIntersectionObserver);
+		root.classList.add('monaco-workbench', 'monaco-reduce-motion');
+		await button.querySelector<HTMLImageElement>('.chat-pet-sprite img[src]')!.decode();
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		const initial = button.getBoundingClientRect();
+		const startLeft = Number.parseFloat(button.style.left);
+		sinon.stub(button, 'setPointerCapture').throws(new Error('Synthetic pointer events do not establish pointer capture'));
+		const move = (distance: number) => mainWindow.dispatchEvent(new mainWindow.PointerEvent('pointermove', {
+			clientX: initial.left + 24 - distance,
+			clientY: initial.top + 24 - distance,
+			buttons: 1, pointerId: 1, bubbles: true,
+		}));
+		button.dispatchEvent(new mainWindow.PointerEvent('pointerdown', {
+			clientX: initial.left + 24, clientY: initial.top + 24,
+			button: 0, buttons: 1, pointerId: 1, bubbles: true,
+		}));
+		move(10);
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		const enter = new mainWindow.KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true });
+		Object.defineProperty(enter, 'keyCode', { value: 13 });
+		button.dispatchEvent(enter);
+		const movementReads = sinon.spy(root, 'getBoundingClientRect');
+		const buttonReads = sinon.spy(button, 'getBoundingClientRect');
+		move(20);
+		move(30);
+		move(40);
+		const beforeFrame = button.getBoundingClientRect().left;
+		buttonReads.resetHistory();
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		const afterFrame = { movementReads: movementReads.callCount, buttonReads: buttonReads.callCount, left: button.getBoundingClientRect().left };
+		move(50);
+		mainWindow.dispatchEvent(new mainWindow.PointerEvent('pointerup', { button: 0, buttons: 0, pointerId: 1 }));
+		assert.deepStrictEqual({
+			beforeFrame, afterFrame, afterRelease: Number.parseFloat(button.style.left),
+			afterReleaseBounds: button.getBoundingClientRect().left,
+			afterReleaseTranslation: button.style.translate,
+		}, {
+			beforeFrame: initial.left - 40,
+			afterFrame: { left: initial.left - 40, movementReads: 3, buttonReads: 0 },
+			afterRelease: startLeft - 50,
+			afterReleaseBounds: initial.left - 50,
+			afterReleaseTranslation: '',
+		});
+	});
 
 	test('runs one timed hop for a single key press', () => {
 		const clock = sinon.useFakeTimers();
@@ -292,7 +508,7 @@ suite('ChatPetWidget', () => {
 		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
 		disposables.add(new ChatPetWidget(
 			createPetHost(parent, dragBounds, movementBounds),
-			TestResizeObserver as unknown as typeof ResizeObserver,
+			{ resizeObserverCtor: TestResizeObserver as unknown as typeof ResizeObserver },
 			service,
 			new TestAccessibilityService(),
 			new class extends mock<IContextMenuService>() { }(),

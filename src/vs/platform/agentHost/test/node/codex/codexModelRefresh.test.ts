@@ -31,7 +31,7 @@ import { IAgentSdkDownloader } from '../../../node/agentSdkDownloader.js';
 import { RecordingAgentSdkDownloader } from '../testAgentSdkDownloader.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../common/agentHostCheckpointService.js';
 import { AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY, AGENT_SDK_SETUP_RELOAD_REQUEST_KEY, readAgentSdkSetupInfos } from '../../../common/agentSdkSetup.js';
-import { AgentChatMigrationDeferred, AgentSession } from '../../../common/agent.js';
+import { AgentChatMigrationDeferred, AgentSession, fixedChatOwnerRef } from '../../../common/agent.js';
 import { buildDefaultChatUri } from '../../../common/state/sessionState.js';
 import { CodexAgent, toCodexModelSelectionId } from '../../../node/codex/codexAgent.js';
 import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
@@ -1739,7 +1739,7 @@ suite('CodexAgent — agent SDK setup channel', () => {
 			await agent.authenticate(agent.getProtectedResources()[0].resource, 'token');
 			const session = AgentSession.uri('codex', 'fresh-chat');
 			const chat = URI.parse(buildDefaultChatUri(session));
-			await agent.chats.createChat(chat, { resource: session, configurationResource: session, subagentChatUriFormat: 'shaped' as const }, {
+			await agent.chats.createChat(chat, { resource: session, sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), subagentChatUriFormat: 'shaped' as const }, {
 				workingDirectories: [URI.file('/workspace')],
 				deferBacking: true,
 			});
