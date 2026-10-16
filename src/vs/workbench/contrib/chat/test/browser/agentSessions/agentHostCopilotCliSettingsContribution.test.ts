@@ -188,7 +188,7 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 
 		// The shared forwarder dispatches one RootConfigChanged per key; merge them
 		// and assert the full forwarded set (order-independent). Fusion is mirrored
-		// declaratively to every host rather than by this local-only forwarder.
+		// by the protocol client to every host rather than by this local-only forwarder.
 		assert.strictEqual(agentHostService.dispatchedActions.length, 18);
 		const merged = Object.assign({}, ...agentHostService.dispatchedActions.map(a => (a.action as IRootConfigChangedAction).config));
 		assert.deepStrictEqual(merged, {
@@ -315,7 +315,7 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 		});
 	});
 
-	test('forwards Fusion Balance routing and leaves Fusion itself to declarative mirroring', async () => {
+	test('forwards Fusion Balance routing and leaves Fusion itself to the protocol client', async () => {
 		const fusionSchema = {
 			[CopilotCliConfigKey.Fusion]: fullSchema[CopilotCliConfigKey.Fusion],
 			[CopilotCliConfigKey.FusionBalanceUsesHydraFusion]: fullSchema[CopilotCliConfigKey.FusionBalanceUsesHydraFusion],
