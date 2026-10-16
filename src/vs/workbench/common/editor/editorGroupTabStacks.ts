@@ -18,6 +18,7 @@ export type TabStackId = string;
  */
 export const TAB_STACK_COLORS = ['blue', 'purple', 'pink', 'red', 'orange', 'yellow', 'green', 'cyan', 'gray'] as const;
 
+/** One of the preset colors in {@link TAB_STACK_COLORS}. */
 export type TabStackPresetColor = typeof TAB_STACK_COLORS[number];
 
 /**
@@ -34,13 +35,14 @@ function isTabStackPresetColor(value: string): value is TabStackPresetColor {
  * A snapshot of a tab stack: a named, colored run of adjacent editors in an editor group.
  */
 export interface ITabStack {
+
+	/** The identifier of the tab stack within its group. */
 	readonly id: TabStackId;
 
-	/**
-	 * The name of the tab stack, empty when it has no name.
-	 */
+	/** The name of the tab stack, empty when it has no name. */
 	readonly label: string;
 
+	/** The color of the tab stack. */
 	readonly color: TabStackColor;
 
 	/**
@@ -55,16 +57,14 @@ export interface ITabStack {
  * the time of the move.
  */
 export interface ITabStackEditorMove {
+
+	/** The editor that moved. */
 	readonly editor: EditorInput;
 
-	/**
-	 * The index of the editor before the move.
-	 */
+	/** The index of the editor before the move. */
 	readonly from: number;
 
-	/**
-	 * The index of the editor after the move.
-	 */
+	/** The index of the editor after the move. */
 	readonly to: number;
 }
 

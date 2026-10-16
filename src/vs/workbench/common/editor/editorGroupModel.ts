@@ -1484,9 +1484,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 			} else {
 				targetTabStack = tabStackId;
 
-				const members = this.getTabStackEditors(tabStackId);
-				const start = this.editors.indexOf(members[0]);
-				const end = start + members.length - 1;
+				const { start, end } = this.getTabStackRange(tabStackId);
 
 				this.moveEditorsBefore(editors.filter(editor => this.editors.indexOf(editor) < start), start, moves);
 				this.moveEditorsBefore(editors.filter(editor => this.editors.indexOf(editor) > end), end + 1, moves);
@@ -1513,9 +1511,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 					continue; // editors in no tab stack
 				}
 
-				const members = this.getTabStackEditors(tabStack);
-				const start = this.editors.indexOf(members[0]);
-				const end = start + members.length - 1;
+				const { members, start, end } = this.getTabStackRange(tabStack);
 				const middle = Math.floor(members.length / 2);
 
 				this.moveEditorsBefore(editors.filter(editor => members.indexOf(editor) < middle), start, moves);
@@ -1693,8 +1689,15 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		return this.tabStackOfEditor.get(this.editors[index]);
 	}
 
-	private getTabStackEditors(tabStack: TabStackId): EditorInput[] {
-		return this.editors.filter(editor => this.tabStackOfEditor.get(editor) === tabStack);
+	/**
+	 * Returns the editors of the tab stack in sequential order, with the indices of its first and
+	 * last editor.
+	 */
+	private getTabStackRange(tabStack: TabStackId): { members: EditorInput[]; start: number; end: number } {
+		const members = this.editors.filter(editor => this.tabStackOfEditor.get(editor) === tabStack);
+		const start = this.editors.indexOf(members[0]);
+
+		return { members, start, end: start + members.length - 1 };
 	}
 
 	/**
@@ -1702,13 +1705,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 	 * sequential order.
 	 */
 	private resolveEditors(candidates: readonly EditorInput[]): EditorInput[] {
-		const editors = new Set<EditorInput>();
-		for (const candidate of candidates) {
-			const editor = this.findEditor(candidate)?.[0];
-			if (editor) {
-				editors.add(editor);
-			}
-		}
+		const editors = new Set(coalesce(candidates.map(candidate => this.findEditor(candidate)?.[0])));
 
 		return this.editors.filter(editor => editors.has(editor));
 	}

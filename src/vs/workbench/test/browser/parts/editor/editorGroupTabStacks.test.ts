@@ -15,6 +15,7 @@ suite('EditorGroupTabStacks', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('parseTabStackColor accepts presets and #rgb or #rrggbb colors', () => {
+		// Parse each value, pairing it with its result
 		const values: unknown[] = ['blue', '#ABC', '#AbCdEf', '#abcd', '#aabbccdd', '#ggg', 'grey', 42];
 
 		assert.deepStrictEqual(values.map(value => [value, parseTabStackColor(value)]), [
@@ -33,19 +34,28 @@ suite('EditorGroupTabStacks', () => {
 	});
 
 	test('isCustomTabStackColor tells custom colors from preset colors', () => {
+		// Check a preset and a custom color, pairing each with its result
 		const colors: TabStackColor[] = ['blue', '#aabbcc'];
 
 		assert.deepStrictEqual(colors.map(color => [color, isCustomTabStackColor(color)]), [
+			// Preset
 			['blue', false],
+
+			// Custom
 			['#aabbcc', true],
 		]);
 	});
 
 	test('getLeastUsedTabStackColor ignores custom colors and picks the earliest preset on ties', () => {
 		assert.deepStrictEqual({
+			// Ties between unused presets
 			noColors: getLeastUsedTabStackColor([]),
 			tiesPickEarliest: getLeastUsedTabStackColor(['blue', 'pink']),
+
+			// Custom colors use no preset
 			customColorsIgnored: getLeastUsedTabStackColor(['#123456', ...TAB_STACK_COLORS.slice(0, -1)]),
+
+			// Every preset used at least once
 			allPresetsUsed: getLeastUsedTabStackColor([...TAB_STACK_COLORS, 'blue']),
 		}, {
 			noColors: 'blue',
