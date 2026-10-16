@@ -45,7 +45,7 @@ import { ILayoutService } from '../../../../../platform/layout/browser/layoutSer
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IQuickInputHideEvent, IQuickInputService, IQuickTree, IQuickTreeItem, QuickInputHideReason } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import { IHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
+import { IDelayedHoverOptions, IHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { createWorkbenchDialogOptions } from '../../../../../workbench/browser/parts/dialogs/dialog.js';
@@ -54,6 +54,7 @@ import { IChatSessionsService } from '../../../../../workbench/contrib/chat/comm
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ChatInputPart } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPart.js';
 import { IAutomationDescriptor, IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { automationScheduleToLocal, automationScheduleToUTC } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { AutomationCatalogueState, AutomationToolCatalog, IAutomationCustomizationChoice, IAutomationProviderConfiguration, IAutomationService, IAutomationTool, IAutomationWorkspaceTarget } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IShowAutomationDialogOptions } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
@@ -118,6 +119,12 @@ suite('Automation dialog creation', () => {
 		instantiationService.stub(IHoverService, 'showInstantHover', (options: IHoverOptions) => {
 			hovers.push(typeof options.content === 'string' ? options.content : String(options.content));
 			return undefined;
+		});
+		const delayedHovers = new Map<HTMLElement, string>();
+		instantiationService.stub(IHoverService, 'setupDelayedHover', (target: HTMLElement, options: IDelayedHoverOptions | (() => IDelayedHoverOptions)) => {
+			const content = (typeof options === 'function' ? options() : options).content;
+			delayedHovers.set(target, typeof content === 'string' ? content : String(content));
+			return toDisposable(() => delayedHovers.delete(target));
 		});
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
 			automationSession: constObservable(undefined),
@@ -207,7 +214,9 @@ suite('Automation dialog creation', () => {
 			getWorkspaceDisabledReason: () => workspaceDisabledReason,
 			getPickerCloudMode: () => pickerCloudMode?.get(),
 			cloudEnabled,
+			configurationService,
 			hovers,
+			getSaveTooltip: () => delayedHovers.get(saveButton),
 			setRefresh: (value: () => Promise<void>) => { refresh = value; },
 			selectWorkspace: async (uri: URI | undefined, fromRepository = uri?.scheme === GITHUB_REMOTE_FILE_SCHEME) => {
 				if (await workspacePicker.onWillSelectWorkspace?.()) {
@@ -937,6 +946,7 @@ suite('Automation dialog creation', () => {
 
 	test('cloud gate revocation keeps Cloud selected and blocks save with the reason instead of falling back locally', async () => {
 		const dialog = openDialog({}, cloudConfiguration());
+		await dialog.configurationService.setUserConfiguration(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
 		dialog.setPrompt('Review changes');
 		await dialog.setCloud(true);
 		await dialog.selectWorkspace(REPOSITORY);
@@ -967,8 +977,45 @@ suite('Automation dialog creation', () => {
 		await dialog.result;
 	});
 
+	test('Create blocked by the disabled cloud setting names the setting and shows the visible reason as its tooltip', async () => {
+		const dialog = openDialog({}, cloudConfiguration());
+		await dialog.configurationService.setUserConfiguration(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		dialog.setPrompt('Review changes');
+		await dialog.setCloud(true);
+		await dialog.selectWorkspace(REPOSITORY);
+		const snapshot = () => {
+			const error = dialog.container.querySelector('#automation-target-error')?.textContent || undefined;
+			const tooltip = dialog.getSaveTooltip();
+			return {
+				disabled: dialog.saveButton.getAttribute('aria-disabled'),
+				namesSetting: !!error?.includes(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING),
+				tooltipMatchesError: tooltip !== undefined && tooltip === error,
+				tooltip: tooltip !== undefined,
+				describedBy: dialog.saveButton.getAttribute('aria-describedby'),
+			};
+		};
+		const available = snapshot();
+		await dialog.configurationService.setUserConfiguration(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, false);
+		transaction(tx => {
+			dialog.cloudEnabled.set(false, tx);
+			dialog.providers.set([{ id: 'host', label: 'Host' }], tx);
+		});
+		await timeout(0);
+		const blocked = snapshot();
+		await dialog.setCloud(false);
+		const unblocked = { disabled: 'false', namesSetting: false, tooltipMatchesError: false, tooltip: false, describedBy: null };
+		assert.deepStrictEqual({ available, blocked, local: snapshot() }, {
+			available: unblocked,
+			blocked: { disabled: 'true', namesSetting: true, tooltipMatchesError: true, tooltip: true, describedBy: 'automation-target-error' },
+			local: unblocked,
+		});
+		dialog.cancelButton.click();
+		await dialog.result;
+	});
+
 	test('a cloud provider that stops accepting automations keeps Cloud selected until it can create again', async () => {
 		const dialog = openDialog({}, cloudConfiguration());
+		await dialog.configurationService.setUserConfiguration(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
 		dialog.setPrompt('Review changes');
 		await dialog.setCloud(true);
 		await dialog.selectWorkspace(REPOSITORY);

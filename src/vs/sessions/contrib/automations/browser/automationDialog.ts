@@ -61,6 +61,7 @@ import { IGitRepository, IGitService } from '../../../../workbench/contrib/git/c
 import { AutomationInterval, AutomationTarget, IAutomationDescriptor } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationToolCatalog, IAutomationCustomizationChoice, IAutomationProviderConfiguration, IAutomationService, IAutomationTool } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { automationScheduleToUTC, DAYS_OF_WEEK } from '../../../../workbench/contrib/chat/common/automations/schedule.js';
+import { CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
 import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -275,6 +276,8 @@ interface IRenderFormHandle {
 	readonly getCustomizationIds: () => readonly string[] | undefined;
 	readonly waitForCustomizationChoices: (token: CancellationToken) => Promise<void>;
 	readonly showTargetValidationError: (message: string | undefined) => void;
+	/** Returns the reason Create is blocked because cloud automations are unavailable, with the id of the element showing it. */
+	readonly getSaveBlockedReason: (message: string | undefined) => { readonly message: string; readonly elementId: string } | undefined;
 	readonly showScheduleValidationError: (message: string | undefined) => void;
 	readonly showSaveError: (message: string | undefined) => void;
 	readonly focusSaveError: () => void;
@@ -1205,9 +1208,11 @@ export function renderForm(
 	const openCloudProvider = isEdit ? (initialProviderConfiguration ? state.providerId : undefined) : findCloudProvider(undefined);
 	const cloudProvider = derived(reader => findCloudProvider(reader) ?? (runInCloud.read(reader) ? openCloudProvider : undefined));
 	const cloudCreatable = () => allowedProviders.get().some(id => getProviderConfiguration(id) !== undefined);
-	const cloudUnavailableMessage = isEdit
+	const cloudUnavailableMessage = () => isEdit
 		? localize('automation.form.cloudUnavailableEdit', "Cloud automations are unavailable. Try again in a few moments.")
-		: localize('automation.form.cloudUnavailableRetry', "Cloud automations are unavailable. Try again in a few moments, or turn off Run in the cloud.");
+		: configurationService.getValue<boolean>(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING) !== true
+			? localize('automation.form.cloudDisabled', "Cloud automations are disabled. To create this automation, enable the {0} setting or turn off Run in the cloud.", CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING)
+			: localize('automation.form.cloudUnavailableRetry', "Cloud automations are unavailable. Try again in a few moments, or turn off Run in the cloud.");
 	// Provider configurations are not observable; the allowed providers change whenever the cloud gate does.
 	const availableCloudConfiguration = derived(reader => {
 		allowedProviders.read(reader);
@@ -1304,7 +1309,7 @@ export function renderForm(
 			}
 			if (!cloudCreatable()) {
 				state.targetPending = undefined;
-				state.targetDisabledReason = cloudUnavailableMessage;
+				state.targetDisabledReason = cloudUnavailableMessage();
 			}
 		}
 		if (connectingCloud) {
@@ -1611,9 +1616,6 @@ export function renderForm(
 		DOM.append(targetRow, $('span.automation-form-hint', undefined, initialProviderConfiguration.targetChangeDisabledReason));
 	}
 	const promptSection = DOM.append(sessionSection, $('.automation-prompt-section'));
-	if (isEdit) {
-		DOM.append(promptSection, $('.automation-description', undefined, localize('automation.dialog.editDescription', "Update the schedule, prompt, or run target for this automation.")));
-	}
 	const promptRow = DOM.append(promptSection, $('.automation-form-row'));
 	const promptHost = DOM.append(promptRow, $('.automation-form-prompt-host.interactive-session'));
 	const editorOverflowWidgetsDomNode = layoutService.getContainer(DOM.getWindow(promptHost)).appendChild($('.chat-editor-overflow.automation-dialog-editor-overflow.monaco-editor'));
@@ -2014,7 +2016,7 @@ export function renderForm(
 		getCustomizationIds: () => customizationSelection?.getSelectedIds(),
 		waitForCustomizationChoices: async token => customizationSelection?.waitForChoices(token),
 		showTargetValidationError: message => {
-			if (!isEdit && runInCloud.get() && !state.folderUri && message !== cloudUnavailableMessage) {
+			if (!isEdit && runInCloud.get() && !state.folderUri && message !== cloudUnavailableMessage()) {
 				message = undefined;
 			}
 			const text = message ?? '';
@@ -2042,6 +2044,9 @@ export function renderForm(
 				targetError.textContent = text;
 			}
 		},
+		getSaveBlockedReason: message => !isEdit && message !== undefined && message === cloudUnavailableMessage()
+			? { message, elementId: targetError.id }
+			: undefined,
 		waitForAutomationSessionSync: token => {
 			updateAutomationSessionTarget();
 			return automationSessionDraftSynchronizer.waitForSync(token);
