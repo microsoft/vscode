@@ -4039,6 +4039,10 @@ export class AgentService extends Disposable implements IAgentService {
 		this._readableProviderCatalogs.add(provider.id);
 		if (readableTransition) {
 			this._queuePublishedSessionListRefresh(provider.id);
+			// The provider can vouch for its sessions now: those parked while it could not are re-projected (and converted).
+			if (this._catalogReconciliationService.wakeParkedProviderSessions(provider.id)) {
+				this._catalogReconciliationService.schedule();
+			}
 		}
 		if (report.marked) {
 			this._initialProviderMigrationsNeedingRetry.delete(provider.id);
