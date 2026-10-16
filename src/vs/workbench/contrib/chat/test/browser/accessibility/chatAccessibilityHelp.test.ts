@@ -133,7 +133,7 @@ suite('Chat Accessibility Help', () => {
 			harnesses: help.includes('Copilot and Codex agent sessions share this presentation'),
 			position: help.includes('Completed steps collapse only before the first image-generation tool, keeping image tools in their original position'),
 			placeholder: help.includes('A compact decorative band of shifting glyphs remains visible below the dropdown'),
-			overlapping: help.includes('Multiple image-generation calls in a response share one batch preview'),
+			overlapping: help.includes('Each consecutive batch of image-generation calls has its own preview in conversation order'),
 			reducedMotion: help.includes('does not indicate a percentage complete and stays still when reduced motion is enabled or a high contrast theme is active'),
 			reveal: help.includes('The reveal is skipped in those modes and when reopening a chat'),
 			dropdown: help.includes('While generation runs, expand the tool dropdown to inspect the submitted prompt'),
@@ -326,8 +326,8 @@ suite('Chat Accessibility Help', () => {
 			hydraTiers: help.includes('HydraFusion\'s details offer two tiers, Default and Max, along with a Learn more link'),
 			hydraSelection: help.includes('HydraFusion stays in the model list with that tier as its readout'),
 			autoEntry: help.includes('The preference readout beside Auto in the chat input opens the same details'),
-			ensemble: help.includes('When Auto is presented as Ensemble, its details hold an "Effort Level" setting instead'),
-		}, { details: true, inspection: true, inputShortcut: true, defaults: true, visibility: true, preferences: true, activation: true, discount: true, hydra: true, hydraTiers: true, hydraSelection: true, autoEntry: true, ensemble: true });
+			fusion: help.includes('When Auto is presented as Fusion, its details hold an "Effort Level" setting instead'),
+		}, { details: true, inspection: true, inputShortcut: true, defaults: true, visibility: true, preferences: true, activation: true, discount: true, hydra: true, hydraTiers: true, hydraSelection: true, autoEntry: true, fusion: true });
 	});
 
 	test('documents Right Arrow details, provider tab keys, and the Back keys', () => {

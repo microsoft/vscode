@@ -441,8 +441,8 @@ suite('ModelPickerTelemetry', () => {
 		result.hide();
 	});
 
-	test('the input shows a HydraFusion tier as Ensemble with that tier, or as HydraFusion with its own tier, and opening on an Ensemble that can route Intelligence reports its trigger', () => {
-		const ensemble = { ...autoModel, metadata: { ...autoModel.metadata, name: 'Ensemble', autoModelEnsemble: { intelligenceUsesHydraFusion: true } } };
+	test('the input shows a HydraFusion tier as Fusion with that tier, or as HydraFusion with its own tier, and opening on a Fusion that can route Balance reports its trigger', () => {
+		const fusion = { ...autoModel, metadata: { ...autoModel.metadata, name: 'Fusion', autoModelFusion: { balanceUsesHydraFusion: true } } };
 		const hydraFusion = createModel('hydrafusion', { name: 'HydraFusion', modelGroup: { id: 'copilotcli' }, configurationSchema: undefined });
 		const max = createModel('hydrafusion-max', { name: 'HydraFusion Max', modelGroup: { id: 'copilotcli' }, configurationSchema: undefined });
 		const triggers = (picker: ReturnType<typeof createPicker>) => picker.events.flatMap(event => event.name === 'experimentTrigger' ? [(event.data as IStringDictionary<unknown>).treatmentName] : []);
@@ -454,51 +454,51 @@ suite('ModelPickerTelemetry', () => {
 		const plainDefault = createPicker(hydraFusion, undefined, [autoModel, hydraFusion, max, model]);
 		const withoutMax = createPicker(hydraFusion, undefined, [autoModel, hydraFusion, model]);
 		// The picker does not offer a Max this build cannot run, so neither tier is shown.
-		// An Ensemble this build cannot run is not offered, so HydraFusion keeps its own tiers.
-		const ensembleNeedsUpdate = createPicker(max, undefined, [ensemble, hydraFusion, max, model], undefined, undefined, undefined, {
-			free: {}, paid: { auto: { label: 'Ensemble', exists: true, featured: true, minVSCodeVersion: '99.0.0' } },
+		// A Fusion this build cannot run is not offered, so HydraFusion keeps its own tiers.
+		const fusionNeedsUpdate = createPicker(max, undefined, [fusion, hydraFusion, max, model], undefined, undefined, undefined, {
+			free: {}, paid: { auto: { label: 'Fusion', exists: true, featured: true, minVSCodeVersion: '99.0.0' } },
 		});
 		const maxNeedsUpdate = createPicker(hydraFusion, undefined, [autoModel, hydraFusion, max, model], undefined, undefined, undefined, {
 			free: {}, paid: { 'hydrafusion-max': { label: 'HydraFusion Max', exists: true, featured: true, minVSCodeVersion: '99.0.0' } },
 		});
-		const withoutHydraFusion = createPicker(max, undefined, [ensemble, max, model]);
-		const result = createPicker(max, undefined, [ensemble, hydraFusion, max, model]);
+		const withoutHydraFusion = createPicker(max, undefined, [fusion, max, model]);
+		const result = createPicker(max, undefined, [fusion, hydraFusion, max, model]);
 		assert.deepStrictEqual({
 			input: input(result),
 			hydraFusionMax: input(plain),
 			hydraFusionDefault: input(plainDefault),
 			hydraFusionWithoutMax: input(withoutMax),
 			hydraFusionMaxNeedsUpdate: input(maxNeedsUpdate),
-			ensembleNeedsUpdate: input(ensembleNeedsUpdate),
-			ensembleTriggers: triggers(result),
+			fusionNeedsUpdate: input(fusionNeedsUpdate),
+			fusionTriggers: triggers(result),
 			withoutHydraFusionTriggers: triggers(withoutHydraFusion),
 			autoTriggers: triggers(plain),
 		}, {
-			input: ['Ensemble', 'Max'],
+			input: ['Fusion', 'Max'],
 			hydraFusionMax: ['HydraFusion', 'Max'],
 			hydraFusionDefault: ['HydraFusion', 'Default'],
 			hydraFusionWithoutMax: ['HydraFusion'],
 			hydraFusionMaxNeedsUpdate: ['HydraFusion'],
-			ensembleNeedsUpdate: ['HydraFusion', 'Max'],
-			ensembleTriggers: ['config.chat.copilot.ensemble.intelligenceUsesHydraFusion'],
+			fusionNeedsUpdate: ['HydraFusion', 'Max'],
+			fusionTriggers: ['config.chat.copilot.ensemble.intelligenceUsesHydraFusion'],
 			withoutHydraFusionTriggers: [],
 			autoTriggers: [],
 		});
 	});
 
-	test('a chat moves between HydraFusion and Ensemble\'s Intelligence as Ensemble routes Intelligence', async () => {
+	test('a chat moves between HydraFusion and Fusion\'s Balance as Fusion routes Balance', async () => {
 		const hydraFusion = createModel('hydrafusion', { name: 'HydraFusion', modelGroup: { id: 'copilotcli' } });
-		const open = async (intelligenceUsesHydraFusion: boolean, selected: 'hydraFusion' | 'ensembleIntelligence') => {
-			const ensemble = { ...autoModel, metadata: { ...autoModel.metadata, name: 'Ensemble', autoModelEnsemble: { intelligenceUsesHydraFusion } } };
-			const result = createPicker(selected === 'hydraFusion' ? hydraFusion : model, undefined, [ensemble, hydraFusion, model]);
-			if (selected === 'ensembleIntelligence') {
-				result.configurations.set(ensemble.identifier, { tier: 'intelligence' });
-				result.picker.setSelectedModel(ensemble);
+		const open = async (balanceUsesHydraFusion: boolean, selected: 'hydraFusion' | 'fusionBalance') => {
+			const fusion = { ...autoModel, metadata: { ...autoModel.metadata, name: 'Fusion', autoModelFusion: { balanceUsesHydraFusion } } };
+			const result = createPicker(selected === 'hydraFusion' ? hydraFusion : model, undefined, [fusion, hydraFusion, model]);
+			if (selected === 'fusionBalance') {
+				result.configurations.set(fusion.identifier, { tier: 'intelligence' });
+				result.picker.setSelectedModel(fusion);
 			}
 			await timeout(0);
 			return {
 				selected: result.picker.selectedModel?.identifier,
-				tier: result.configurations.get(ensemble.identifier)?.tier,
+				tier: result.configurations.get(fusion.identifier)?.tier,
 				triggers: result.events.flatMap(event => event.name === 'experimentTrigger' ? [(event.data as IStringDictionary<unknown>).treatmentName] : []),
 			};
 		};
@@ -506,41 +506,41 @@ suite('ModelPickerTelemetry', () => {
 		assert.deepStrictEqual({
 			hydraFusionNotRouted: await open(false, 'hydraFusion'),
 			hydraFusionRouted: await open(true, 'hydraFusion'),
-			ensembleIntelligenceRouted: await open(true, 'ensembleIntelligence'),
-			ensembleIntelligenceNotRouted: await open(false, 'ensembleIntelligence'),
+			fusionBalanceRouted: await open(true, 'fusionBalance'),
+			fusionBalanceNotRouted: await open(false, 'fusionBalance'),
 		}, {
 			hydraFusionNotRouted: { selected: autoModel.identifier, tier: 'intelligence', triggers },
 			hydraFusionRouted: { selected: hydraFusion.identifier, tier: undefined, triggers },
-			ensembleIntelligenceRouted: { selected: hydraFusion.identifier, tier: 'intelligence', triggers },
-			ensembleIntelligenceNotRouted: { selected: autoModel.identifier, tier: 'intelligence', triggers },
+			fusionBalanceRouted: { selected: hydraFusion.identifier, tier: 'intelligence', triggers },
+			fusionBalanceNotRouted: { selected: autoModel.identifier, tier: 'intelligence', triggers },
 		});
 	});
 
-	test('showing HydraFusion as Ensemble\'s Intelligence is not a selection', async () => {
+	test('showing HydraFusion as Fusion\'s Balance is not a selection', async () => {
 		const hydraFusion = createModel('hydrafusion', { name: 'HydraFusion', modelGroup: { id: 'copilotcli' } });
-		const ensemble = { ...autoModel, metadata: { ...autoModel.metadata, name: 'Ensemble', autoModelEnsemble: { intelligenceUsesHydraFusion: false } } };
-		const result = createPicker(hydraFusion, undefined, [ensemble, hydraFusion, model]);
+		const fusion = { ...autoModel, metadata: { ...autoModel.metadata, name: 'Fusion', autoModelFusion: { balanceUsesHydraFusion: false } } };
+		const result = createPicker(hydraFusion, undefined, [fusion, hydraFusion, model]);
 		await timeout(0);
 
 		assert.deepStrictEqual({
 			selected: result.picker.selectedModel?.identifier,
-			tier: result.configurations.get(ensemble.identifier)?.tier,
+			tier: result.configurations.get(fusion.identifier)?.tier,
 			savedConfigurations: result.savedConfigurations,
 			delegateSelections: result.delegateSelections,
 			programmaticDelegateSelections: result.programmaticDelegateSelections,
 		}, {
-			selected: ensemble.identifier,
+			selected: fusion.identifier,
 			tier: 'intelligence',
 			savedConfigurations: [],
 			delegateSelections: [],
-			programmaticDelegateSelections: [ensemble.identifier],
+			programmaticDelegateSelections: [fusion.identifier],
 		});
 	});
 
 	test('normalizing a matching HydraFusion selection does not persist it again', () => {
 		const hydraFusion = createModel('hydrafusion', { name: 'HydraFusion', modelGroup: { id: 'copilotcli' } });
-		const ensemble = { ...autoModel, metadata: { ...autoModel.metadata, name: 'Ensemble', autoModelEnsemble: { intelligenceUsesHydraFusion: true } } };
-		const result = createPicker(hydraFusion, undefined, [ensemble, hydraFusion, model]);
+		const fusion = { ...autoModel, metadata: { ...autoModel.metadata, name: 'Fusion', autoModelFusion: { balanceUsesHydraFusion: true } } };
+		const result = createPicker(hydraFusion, undefined, [fusion, hydraFusion, model]);
 		result.picker.setSelectedModel({ ...hydraFusion });
 
 		assert.deepStrictEqual(result.programmaticDelegateSelections, []);

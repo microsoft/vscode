@@ -8313,6 +8313,10 @@ export class CodexAgent extends Disposable implements IAgent {
 			// The chat changed owner: withdraw what was published under the previous one.
 			this._releaseMcpPublisher(session);
 		}
+		if (session.threadOwner !== undefined && !isEqual(session.threadOwner, session.owner.get())) {
+			// Started for its previous owner (Block 4, C6): it publishes for its new owner once its next send relaunches it.
+			return;
+		}
 		if (this._preferredMcpPublisher(session.owner.get()) !== session) {
 			return;
 		}

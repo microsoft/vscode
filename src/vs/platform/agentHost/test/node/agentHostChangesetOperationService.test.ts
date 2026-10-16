@@ -22,7 +22,7 @@ import { ChangesetOperationScope, ChangesetOperationStatus, ISessionGitHubState,
 import { AgentHostChangesetOperationService } from '../../node/agentHostChangesetOperationService.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
-import type { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import type { IAgentChatConfigurationTarget, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostChangesetSubscriptionService } from '../../node/agentHostChangesetSubscriptionService.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
@@ -132,6 +132,7 @@ class TestConfigurationService implements IAgentConfigurationService {
 	readonly onDidChangeWorkingDirectoryPending = Event.None;
 	getSessionSandboxEnabled(): undefined { return undefined; }
 	getChatSandboxEnabled(): undefined { return undefined; }
+	getChatAttachmentScopes(target: IAgentChatConfigurationTarget): readonly string[] { return [target.session]; }
 	setChatSandboxEnabled(): void { }
 	rejectChatSandboxChange(): void { }
 

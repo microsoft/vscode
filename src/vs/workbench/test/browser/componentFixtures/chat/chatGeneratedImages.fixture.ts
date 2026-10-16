@@ -121,6 +121,56 @@ async function renderGeneratedImage(context: ComponentFixtureContext, options: {
 	}
 }
 
+async function renderSeparateImageBatches(context: ComponentFixtureContext, lastBatchRunning: boolean): Promise<void> {
+	context.container.classList.add('monaco-reduce-motion');
+	const image = createImage(800, 400);
+	const tool = (batch: number, index: number): NonNullable<IFixtureMessage['assistant']>[number] => {
+		const running = batch === 2 && lastBatchRunning;
+		const failed = batch === 1 && index === 3;
+		return {
+			kind: 'tool', toolId: 'image_generation', displayName: 'Generate Image', invocationMessage: 'Generating image',
+			pastTenseMessage: failed ? 'Generated image failed' : 'Generated image with GPT Image 2.5 Sunburst',
+			complete: !running,
+			toolSpecificData: running ? {
+				kind: 'input', rawInput: '{"prompt":"Draw another landscape"}', imageGeneration: { requestedModel: { id: 'image-preview', name: 'GPT Image 2.5 Sunburst' } },
+			} : failed ? undefined : { kind: 'generatedImage' },
+			resultDetails: running ? undefined : {
+				input: '{"prompt":"Draw an abstract mountain landscape"}',
+				output: failed ? [{ type: 'embed', value: 'Image generation returned no usable image.', isText: true }] : [{ type: 'embed', value: image, mimeType: 'image/png' }],
+				isError: failed,
+			},
+		};
+	};
+	await renderChatWidget(context, {
+		width: 760, height: 1400, listHeight: 1400, inputVisible: false,
+		thinkingStyle: ThinkingDisplayMode.Collapsed,
+		collapsedTools: CollapsedToolsDisplayMode.Always,
+		persistentProgress: ChatProgressAnimation.Off,
+		additionalServices: registration => registration.defineInstance(IAccessibilityService, new FixtureMotionAccessibilityService(context.container, context.disposableStore)),
+		messages: [{
+			user: 'Generate fifteen abstract mountain landscapes',
+			responseComplete: !lastBatchRunning,
+			assistant: [
+				{ kind: 'markdown', text: 'I will start with five compositions.' },
+				...Array.from({ length: 5 }, (_, index) => tool(0, index)),
+				{ kind: 'thinking', text: '' },
+				...Array.from({ length: 5 }, (_, index) => tool(1, index)),
+				{ kind: 'thinking', text: 'Planning the next batch.' },
+				{ kind: 'markdown', text: 'Nine images are ready. I will create six more compositions.' },
+				...Array.from({ length: 6 }, (_, index) => tool(2, index)),
+			],
+		}],
+	});
+	await retry(async () => {
+		const batches = context.container.querySelectorAll('.chat-image-generation-batch');
+		const images = [...context.container.querySelectorAll<HTMLImageElement>('.chat-generated-image-result img')];
+		if (batches.length !== 3 || images.length !== (lastBatchRunning ? 2 : 3)) {
+			throw new Error('All three image batches must render independently');
+		}
+		await Promise.all([...context.container.querySelectorAll<HTMLImageElement>('.chat-image-generation-batch img')].map(image => image.decode()));
+	}, 50, 20);
+}
+
 const previewInput = z.object({
 	enableAnimations: z.boolean().default(true),
 	harness: z.enum(['Copilot', 'Codex']).default('Copilot'),
@@ -348,6 +398,16 @@ export default defineThemedFixtureGroup({ path: 'chat/generatedImages/' }, {
 	Landscape: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderGeneratedImage(context, { landscape: true }) }),
 	Narrow: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderGeneratedImage(context, { width: 360, landscape: true }) }),
 	Gallery: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderGeneratedImage(context, { multiple: true }) }),
+	SeparateBatches: defineComponentFixture({
+		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['Three image previews have separate thumbnail rows and counts. The first batch has five ready images, the second has four ready and one failure, and the third has six ready. The assistant update precedes the third batch.'],
+		render: context => renderSeparateImageBatches(context, false),
+	}),
+	SeparateBatchesInProgress: defineComponentFixture({
+		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['Two completed batches of five images stay above the assistant update, with one failed image in the second batch. A separate six-image batch below the update shows its own compact generation band and pending thumbnails.'],
+		render: context => renderSeparateImageBatches(context, true),
+	}),
 	PersistentProgress: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderGeneratedImage(context, { progress: ChatProgressAnimation.Draw }) }),
 	Running: defineComponentFixture({ labels: { kind: 'animated' }, render: context => renderGeneratedImage(context, { running: true }) }),
 	GeneratingWithImageModel: defineComponentFixture({
