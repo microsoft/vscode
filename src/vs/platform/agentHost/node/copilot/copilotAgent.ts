@@ -42,12 +42,12 @@ import { workspacelessChatsRoot, workspacelessScratchDir } from '../../common/wo
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import type { IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { IAgentHostReviewService } from '../../common/agentHostReviewService.js';
-import { createPricingMetaFromBilling, hasLongContextSurcharge, normalizeCAPIBilling, withAgentModelEnsembleMeta, type ICAPIModelBilling } from '../../common/meta/agentModelMeta.js';
+import { createPricingMetaFromBilling, hasLongContextSurcharge, normalizeCAPIBilling, withAgentModelFusionMeta, type ICAPIModelBilling } from '../../common/meta/agentModelMeta.js';
 import { agentModelConfigurationReportKey, createContextSizeConfigSchemaProperty } from '../../common/agentModelConfiguration.js';
 import { createAgentModelNoticesMeta } from '../../common/agentModelNotices.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
-import { AgentHostEnsembleEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAMES, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, isCopilotHydraFusionModelId, normalizeSkillCharBudget, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
+import { AgentHostFusionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAMES, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, isCopilotHydraFusionModelId, normalizeSkillCharBudget, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { getCopilotApprovalConfig, getCopilotApprovalPolicy } from './copilotApprovalPolicy.js';
 import { AGENT_HOST_COPILOT_CLIENT_NAME, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
@@ -57,7 +57,7 @@ import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPlu
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
 import { AgentChatOperationContext, AgentSession, fixedChatOwnerRef, type IAgentChatOwnerRef, resolveSessionBackedStorage, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatSessionSettings, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent } from '../../common/agent.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
-import { autoModeTiers, defaultAutoModeTier, getAutoModeTierDescription, getAutoModeTierLabel, getEnsembleAutoModeTierLabel } from '../../common/autoModeTiers.js';
+import { autoModeTiers, defaultAutoModeTier, getAutoModeTierDescription, getAutoModeTierLabel, getFusionAutoModeTierLabel } from '../../common/autoModeTiers.js';
 import { AUTO_MODEL_ID, isAutoModel } from './modelIdentifiers.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
@@ -876,7 +876,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _managedModelPolicy: Parameters<typeof projectCopilotManagedModelConfiguration>[1] | undefined;
 	/** See {@link _getFallbackAutoModel}. */
 	private _fallbackAutoModel: IAgentModelInfo | undefined;
-	private _ensembleExperimentTriggerPending = false;
+	private _fusionExperimentTriggerPending = false;
 	private _byokModels: readonly IAgentModelInfo[] = [];
 
 	/** Model IDs whose long-context tier costs the same as the default tier (free long context). */
@@ -1191,11 +1191,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._secondaryAssignmentContext = this._instantiationService.createInstance(CopilotSecondaryAssignmentContext);
 		this._register(this._configurationService.onDidRootConfigChange(() => {
 			this._updateVSCodeAssignmentContext();
-			if (this._ensembleExperimentTriggerPending) {
+			if (this._fusionExperimentTriggerPending) {
 				// Deferred so that the listener installing the forwarded assignment context on telemetry runs first.
 				queueMicrotask(() => {
-					if (this._ensembleExperimentTriggerPending && !this._store.isDisposed) {
-						this._reportEnsembleExperimentTrigger();
+					if (this._fusionExperimentTriggerPending && !this._store.isDisposed) {
+						this._reportFusionExperimentTrigger();
 					}
 				});
 			}
@@ -1334,11 +1334,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _isHydraFusionEnabled(): boolean {
-		return this._isEnsembleEnabled() || this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusion) === true;
+		return this._isFusionEnabled() || this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusion) === true;
 	}
 
 	private _isHydraFusionV2Enabled(): boolean {
-		return this._isHydraFusionEnabled() && (this._isEnsembleEnabled() || this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusionV2) === true);
+		return this._isHydraFusionEnabled() && (this._isFusionEnabled() || this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusionV2) === true);
 	}
 
 	/** Mirrors the launcher's gate: the sticky-root hint only affects HydraFusion v2 plans. */
@@ -1346,12 +1346,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._isHydraFusionV2Enabled() && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusionMultiRoot) === true;
 	}
 
-	private _isEnsembleEnabled(): boolean {
-		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Ensemble) === true;
+	private _isFusionEnabled(): boolean {
+		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Fusion) === true;
 	}
 
-	private _isEnsembleIntelligenceUsingHydraFusion(): boolean {
-		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.EnsembleIntelligenceUsesHydraFusion) === true;
+	private _isFusionBalanceUsingHydraFusion(): boolean {
+		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.FusionBalanceUsesHydraFusion) === true;
 	}
 
 	private _isLocalMemoryEnabled(): boolean {
@@ -3146,7 +3146,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * allocated each call so the observable always notifies its consumers.
 	 */
 	private _publishModels(): void {
-		const ensemble = this._isEnsembleEnabled();
+		const fusion = this._isFusionEnabled();
 		const hydraFusionModels: IAgentModelInfo[] = [];
 		for (const [id, name] of COPILOT_HYDRA_FUSION_MODEL_NAMES) {
 			// The runtime only offers Max with HydraFusion v2.
@@ -3163,11 +3163,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		const capiModels = this._capiModels
 			.map(model => this._managedModelPolicy ? projectCopilotManagedModelConfiguration(model, this._managedModelPolicy, this._logService) : model)
-			// Ensemble's tiers route through HydraFusion, so they only offer what its settings enable.
-			.filter(model => !ensemble || !isCopilotHydraFusionModelId(model.id) || (model.id === COPILOT_HYDRA_FUSION_MAX_MODEL_ID ? this._isHydraFusionV2Enabled() : this._isHydraFusionEnabled()))
-			.map(model => ensemble ? this._asEnsemble(model) : model);
+			// Fusion's tiers route through HydraFusion, so they only offer what its settings enable.
+			.filter(model => !fusion || !isCopilotHydraFusionModelId(model.id) || (model.id === COPILOT_HYDRA_FUSION_MAX_MODEL_ID ? this._isHydraFusionV2Enabled() : this._isHydraFusionEnabled()))
+			.map(model => this._asPresented(model, fusion));
 		if (this._capiModels.some(model => isAutoModel(model.id))) {
-			this._reportEnsembleExperimentTrigger();
+			this._reportFusionExperimentTrigger();
 		}
 		this._models.set([...capiModels, ...hydraFusionModels, ...this._byokModels, ...this._getLocalModelRows()].map(model => this._withModelConfigAliases(model)), undefined);
 		for (const entry of this._chatEntriesBySdkId.values()) {
@@ -3191,17 +3191,22 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Ensemble's effects all start when a model list with Auto is published, in every arm. Held until the
+	 * Fusion's effects all start when a model list with Auto is published, in every arm. Held until the
 	 * workbench forwards its assignment context, without which agent host telemetry has no experiment.
 	 */
-	private _reportEnsembleExperimentTrigger(): void {
-		this._ensembleExperimentTriggerPending = typeof this._configurationService.getRootConfigValues?.()[CopilotCliVSCodeAssignmentContextKey] !== 'string';
-		if (!this._ensembleExperimentTriggerPending) {
-			logSettingExperimentTrigger(this._telemetryService, AgentHostEnsembleEnabledSettingId);
+	private _reportFusionExperimentTrigger(): void {
+		this._fusionExperimentTriggerPending = typeof this._configurationService.getRootConfigValues?.()[CopilotCliVSCodeAssignmentContextKey] !== 'string';
+		if (!this._fusionExperimentTriggerPending) {
+			logSettingExperimentTrigger(this._telemetryService, AgentHostFusionEnabledSettingId);
 		}
 	}
 
-	private _asEnsemble(model: IAgentModelInfo): IAgentModelInfo {
+	/** The model as the picker presents it, so per-chat reports offer the same choices as the catalog. */
+	private _asPresented(model: IAgentModelInfo, fusion = this._isFusionEnabled()): IAgentModelInfo {
+		return fusion ? this._asFusion(model) : model;
+	}
+
+	private _asFusion(model: IAgentModelInfo): IAgentModelInfo {
 		if (!isAutoModel(model.id)) {
 			return model;
 		}
@@ -3213,12 +3218,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 				...model.configSchema.properties,
 				[AutoTierConfigKey]: {
 					...tier,
-					// Ensemble's tiers read as an effort level, like other models' effort setting.
-					title: localize('copilotAgent.ensembleTier.title', "Effort Level"),
+					// Fusion's tiers read as an effort level, like other models' effort setting.
+					title: localize('copilotAgent.fusionTier.title', "Effort Level"),
 					enum: kept.map(index => tier.enum![index]),
-					enumLabels: kept.map(index => tier.enum![index] === 'intelligence' || !tier.enumLabels
-						? getEnsembleAutoModeTierLabel(String(tier.enum![index]))
-						: tier.enumLabels[index]),
+					// Fusion names its tiers itself, so the provider's Auto labels would mislabel them.
+					enumLabels: kept.map(index => getFusionAutoModeTierLabel(String(tier.enum![index]))),
 					...(tier.enumDescriptions && { enumDescriptions: kept.map(index => tier.enumDescriptions![index]) }),
 					default: tier.default === 'efficiency' ? defaultAutoModeTier : tier.default,
 				},
@@ -3226,10 +3230,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		} : model.configSchema;
 		return {
 			...model,
-			name: localize('copilotAgent.ensembleModelName', "Ensemble"),
+			name: localize('copilotAgent.fusionModelName', "Fusion"),
 			configSchema,
 			// HydraFusion stays published either way, so sessions that already selected it keep working.
-			_meta: withAgentModelEnsembleMeta(model._meta, { intelligenceUsesHydraFusion: this._isEnsembleIntelligenceUsingHydraFusion() }),
+			_meta: withAgentModelFusionMeta(model._meta, { balanceUsesHydraFusion: this._isFusionBalanceUsingHydraFusion() }),
 		};
 	}
 
@@ -7690,7 +7694,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * A pre-warmed launch defers the on-device Auto session start until a send claims it.
 	 */
 	private _createAgentSession(launchPlan: CopilotSessionLaunchPlan, customizationDirectory: URI | undefined, activeClient: ActiveClient, identity: ICopilotAgentSessionIdentity, options?: { readonly deferAutoSessionStart?: boolean }): CopilotAgentSession {
-		launchPlan = { ...launchPlan, modelPolicyModels: () => this._capiModels };
+		launchPlan = { ...launchPlan, modelPolicyModels: () => this._capiModels.map(model => this._asPresented(model)) };
 		const { owner, chatChannelUri } = identity;
 		// On-device models: the provider installed on this client contributes rows and attribution.
 		const localModelProvider = this._localModelProvider;
