@@ -1067,9 +1067,9 @@ export function parseLsFiles(raw: string): LsFilesElement[] {
 		.map(([, mode, object, stage, file]) => ({ mode, object, stage, file }));
 }
 
-const stashRegex = /([0-9a-f]{40})\n(.*)\nstash@{(\d+)}\n(WIP\s)?on\s([^:]+):\s(.*)\n(\d+)\n(\d+)(?:\x00)/gmi;
+const stashRegex = /([0-9a-f]{40})\n(.*)\nstash@{(\d+)}\n(?:(WIP\s)?on\s([^:]+):\s)?(.*)\n(\d+)\n(\d+)(?:\x00)/gmi;
 
-function parseGitStashes(raw: string): Stash[] {
+export function parseGitStashes(raw: string): Stash[] {
 	const result: Stash[] = [];
 
 	let match, hash, parents, index, wip, branchName, description, authorDate, commitDate;
@@ -1083,9 +1083,9 @@ function parseGitStashes(raw: string): Stash[] {
 		[, hash, parents, index, wip, branchName, description, authorDate, commitDate] = match;
 		result.push({
 			hash,
-			parents: parents.split(' '),
+			parents: parents ? parents.split(' ') : [],
 			index: parseInt(index),
-			branchName: branchName.trim(),
+			branchName: branchName ? branchName.trim() : undefined,
 			description: wip ? `WIP (${description.trim()})` : description.trim(),
 			authorDate: authorDate ? new Date(Number(authorDate) * 1000) : undefined,
 			commitDate: commitDate ? new Date(Number(commitDate) * 1000) : undefined,

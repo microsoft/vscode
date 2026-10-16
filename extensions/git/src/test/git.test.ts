@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import { GitStatusParser, parseGitCommits, parseGitFileLog, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
+import { GitStatusParser, parseGitCommits, parseGitFileLog, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors, parseGitStashes } from '../git';
 import * as assert from 'assert';
 import { splitInChunks } from '../util';
 
@@ -773,6 +773,155 @@ suite('git', () => {
 				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 9)],
 				[['0', '01', '012', '0', '01'], ['012', '0', '01', '012']]
 			);
+		});
+	});
+
+	suite('parseGitStashes', () => {
+		test('empty', () => {
+			assert.deepStrictEqual(parseGitStashes(''), []);
+		});
+
+		test('standard stash with WIP', () => {
+			const raw = '97110ac73d2cadfa18e9c0be60c22f274cddd872\nparent1 parent2\nstash@{0}\nWIP on main: 97110ac initial commit\n1700000000\n1700000000\0';
+			assert.deepStrictEqual(parseGitStashes(raw), [
+				{
+					hash: '97110ac73d2cadfa18e9c0be60c22f274cddd872',
+					parents: ['parent1', 'parent2'],
+					index: 0,
+					branchName: 'main',
+					description: 'WIP (97110ac initial commit)',
+					authorDate: new Date(1700000000 * 1000),
+					commitDate: new Date(1700000000 * 1000)
+				}
+			]);
+		});
+
+		test('stash created with custom message via push', () => {
+			const raw = '97110ac73d2cadfa18e9c0be60c22f274cddd872\nparent1 parent2\nstash@{0}\nOn main: custom stash message\n1700000000\n1700000000\0';
+			assert.deepStrictEqual(parseGitStashes(raw), [
+				{
+					hash: '97110ac73d2cadfa18e9c0be60c22f274cddd872',
+					parents: ['parent1', 'parent2'],
+					index: 0,
+					branchName: 'main',
+					description: 'custom stash message',
+					authorDate: new Date(1700000000 * 1000),
+					commitDate: new Date(1700000000 * 1000)
+				}
+			]);
+		});
+
+		test('stash created on detached HEAD', () => {
+			const raw = '97110ac73d2cadfa18e9c0be60c22f274cddd872\nparent1 parent2\nstash@{0}\nWIP on (no branch): 97110ac initial commit\n1700000000\n1700000000\0';
+			assert.deepStrictEqual(parseGitStashes(raw), [
+				{
+					hash: '97110ac73d2cadfa18e9c0be60c22f274cddd872',
+					parents: ['parent1', 'parent2'],
+					index: 0,
+					branchName: '(no branch)',
+					description: 'WIP (97110ac initial commit)',
+					authorDate: new Date(1700000000 * 1000),
+					commitDate: new Date(1700000000 * 1000)
+				}
+			]);
+		});
+
+		test('lint-staged automatic backup stash without on branch prefix (#257960)', () => {
+			const raw = '7dbb62a1d6c4dc22b4bf23b27c6ec956be320d1a\nparent1 parent2\nstash@{0}\nlint-staged automatic backup (1234567)\n1700000000\n1700000000\0';
+			assert.deepStrictEqual(parseGitStashes(raw), [
+				{
+					hash: '7dbb62a1d6c4dc22b4bf23b27c6ec956be320d1a',
+					parents: ['parent1', 'parent2'],
+					index: 0,
+					branchName: undefined,
+					description: 'lint-staged automatic backup (1234567)',
+					authorDate: new Date(1700000000 * 1000),
+					commitDate: new Date(1700000000 * 1000)
+				}
+			]);
+		});
+
+		test('stash with arbitrary custom store message', () => {
+			const raw = '93f35eeee5351795c0ae7f7c41bee41b387b7af5\nparent1 parent2\nstash@{0}\narbitrary stash store message\n1700000000\n1700000000\0';
+			assert.deepStrictEqual(parseGitStashes(raw), [
+				{
+					hash: '93f35eeee5351795c0ae7f7c41bee41b387b7af5',
+					parents: ['parent1', 'parent2'],
+					index: 0,
+					branchName: undefined,
+					description: 'arbitrary stash store message',
+					authorDate: new Date(1700000000 * 1000),
+					commitDate: new Date(1700000000 * 1000)
+				}
+			]);
+		});
+
+		test('stash with empty description', () => {
+			const raw = '55c681ecb691306880f68da3636a61f127ef0433\nparent1 parent2\nstash@{0}\n\n1700000000\n1700000000\0';
+			assert.deepStrictEqual(parseGitStashes(raw), [
+				{
+					hash: '55c681ecb691306880f68da3636a61f127ef0433',
+					parents: ['parent1', 'parent2'],
+					index: 0,
+					branchName: undefined,
+					description: '',
+					authorDate: new Date(1700000000 * 1000),
+					commitDate: new Date(1700000000 * 1000)
+				}
+			]);
+		});
+
+		test('stash with colons in description', () => {
+			const raw = '93f35eeee5351795c0ae7f7c41bee41b387b7af5\nparent1 parent2\nstash@{0}\nOn main: fix: resolve null reference\n1700000000\n1700000000\0';
+			assert.deepStrictEqual(parseGitStashes(raw), [
+				{
+					hash: '93f35eeee5351795c0ae7f7c41bee41b387b7af5',
+					parents: ['parent1', 'parent2'],
+					index: 0,
+					branchName: 'main',
+					description: 'fix: resolve null reference',
+					authorDate: new Date(1700000000 * 1000),
+					commitDate: new Date(1700000000 * 1000)
+				}
+			]);
+		});
+
+		test('multiple stashes interleaved with custom messages', () => {
+			const raw = [
+				'1111111111111111111111111111111111111111\nparent1\nstash@{0}\nlint-staged automatic backup (1234567)\n1700000002\n1700000002\0',
+				'2222222222222222222222222222222222222222\nparent2\nstash@{1}\nWIP on feature/auth: 9999999 wip changes\n1700000001\n1700000001\0',
+				'3333333333333333333333333333333333333333\nparent3\nstash@{2}\nOn main: my stash\n1700000000\n1700000000\0'
+			].join('');
+
+			assert.deepStrictEqual(parseGitStashes(raw), [
+				{
+					hash: '1111111111111111111111111111111111111111',
+					parents: ['parent1'],
+					index: 0,
+					branchName: undefined,
+					description: 'lint-staged automatic backup (1234567)',
+					authorDate: new Date(1700000002 * 1000),
+					commitDate: new Date(1700000002 * 1000)
+				},
+				{
+					hash: '2222222222222222222222222222222222222222',
+					parents: ['parent2'],
+					index: 1,
+					branchName: 'feature/auth',
+					description: 'WIP (9999999 wip changes)',
+					authorDate: new Date(1700000001 * 1000),
+					commitDate: new Date(1700000001 * 1000)
+				},
+				{
+					hash: '3333333333333333333333333333333333333333',
+					parents: ['parent3'],
+					index: 2,
+					branchName: 'main',
+					description: 'my stash',
+					authorDate: new Date(1700000000 * 1000),
+					commitDate: new Date(1700000000 * 1000)
+				}
+			]);
 		});
 	});
 });
