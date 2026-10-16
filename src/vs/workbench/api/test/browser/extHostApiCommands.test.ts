@@ -768,7 +768,10 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		disposables.push(extHost.registerDocumentSymbolProvider(nullExtensionDescription, defaultSelector, <vscode.DocumentSymbolProvider>{
 			provideDocumentSymbols(): any {
 				const root = new types.DocumentSymbol('DocumentSymbol', 'DocumentSymbol#detail', types.SymbolKind.Enum, new types.Range(1, 0, 1, 0), new types.Range(1, 0, 1, 0));
-				root.children = [new types.DocumentSymbol('DocumentSymbol#child', 'DocumentSymbol#detail#child', types.SymbolKind.Enum, new types.Range(1, 0, 1, 0), new types.Range(1, 0, 1, 0))];
+				root.tooltip = 'DocumentSymbol#tooltip';
+				const child = new types.DocumentSymbol('DocumentSymbol#child', 'DocumentSymbol#detail#child', types.SymbolKind.Enum, new types.Range(1, 0, 1, 0), new types.Range(1, 0, 1, 0));
+				child.tooltip = 'DocumentSymbol#child#tooltip';
+				root.children = [child];
 				return [root];
 			}
 		}));
@@ -782,6 +785,8 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				assert.strictEqual(second instanceof types.SymbolInformation, true);
 				assert.strictEqual(first.name, 'DocumentSymbol');
 				assert.strictEqual(first.children.length, 1);
+				assert.strictEqual(first.tooltip, 'DocumentSymbol#tooltip');
+				assert.strictEqual(first.children[0].tooltip, 'DocumentSymbol#child#tooltip');
 				assert.strictEqual(second.name, 'SymbolInformation');
 			});
 		});
