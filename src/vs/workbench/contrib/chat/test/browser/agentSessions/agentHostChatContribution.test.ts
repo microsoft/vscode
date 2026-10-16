@@ -998,6 +998,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		observeTools: () => observableValue('tools', []),
 		onDidChangeTools: Event.None,
 		getTools: () => [],
+		getAllToolsIncludingDisabled: () => [],
 		_serviceBrand: undefined,
 		...languageModelToolsServiceOverride,
 	});
@@ -15436,10 +15437,10 @@ suite('AgentHostChatContribution', () => {
 
 		for (const clientId of [undefined, 'test-window-1', 'other-window']) {
 			test(`restores a failed launch with a catalog child in an active turn (${clientId ?? 'server'})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-				const toolData = { id: 'task', source: ToolDataSource.Internal, displayName: 'Task', modelDescription: 'Delegate work' };
+				const toolData = { id: 'task', toolReferenceName: 'task', source: ToolDataSource.Internal, displayName: 'Task', modelDescription: 'Delegate work' };
 				const { sessionHandler, agentHostService } = createContribution(disposables, {
 					languageModelToolsServiceOverride: {
-						getToolByName: () => toolData,
+						getAllToolsIncludingDisabled: () => [toolData],
 						beginToolCall: options => new ChatToolInvocation(undefined, toolData, options.toolCallId, options.subagentInvocationId, undefined),
 					},
 				});
@@ -15486,10 +15487,10 @@ suite('AgentHostChatContribution', () => {
 			}));
 
 			test(`restored unstarted subagents append after newer progress (${clientId ?? 'server'})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-				const toolData = { id: 'task', source: ToolDataSource.Internal, displayName: 'Task', modelDescription: 'Delegate work' };
+				const toolData = { id: 'task', toolReferenceName: 'task', source: ToolDataSource.Internal, displayName: 'Task', modelDescription: 'Delegate work' };
 				const { sessionHandler, agentHostService } = createContribution(disposables, {
 					languageModelToolsServiceOverride: {
-						getToolByName: () => toolData,
+						getAllToolsIncludingDisabled: () => [toolData],
 						beginToolCall: options => new ChatToolInvocation(undefined, toolData, options.toolCallId, undefined, undefined),
 					},
 				});
@@ -15540,13 +15541,13 @@ suite('AgentHostChatContribution', () => {
 			}));
 
 			test(`restored background subagent pills observe their child chat completing (${clientId ?? 'server'})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-				const toolData = { id: 'task', source: ToolDataSource.Internal, displayName: 'Delegate task', modelDescription: 'Delegate a task' };
+				const toolData = { id: 'task', toolReferenceName: 'task', source: ToolDataSource.Internal, displayName: 'Delegate task', modelDescription: 'Delegate a task' };
 				const { sessionHandler, agentHostService } = createContribution(disposables, {
 					languageModels: new Map([
 						['agent-host-copilot:claude-sonnet-4.6', upcastPartial<ILanguageModelChatMetadata>({ name: 'Claude Sonnet 4.6' })],
 					]),
 					languageModelToolsServiceOverride: {
-						getToolByName: () => toolData,
+						getAllToolsIncludingDisabled: () => [toolData],
 						beginToolCall: options => new ChatToolInvocation(undefined, toolData, options.toolCallId, options.subagentInvocationId, undefined),
 					},
 				});
@@ -18607,10 +18608,10 @@ suite('AgentHostChatContribution', () => {
 
 		for (const [clientId, lateDiscovery] of [[undefined, false], [undefined, true], ['test-window-1', false], ['other-window', false]] as const) {
 			test(`publishes a child that starts after its parent turn completes (${clientId ?? 'server'}, lateDiscovery=${lateDiscovery})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-				const toolData = { id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal };
+				const toolData = { id: 'task', toolReferenceName: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal };
 				const { sessionHandler, agentHostService, chatAgentService, chatService } = createContribution(disposables, {
 					languageModelToolsServiceOverride: {
-						getToolByName: () => toolData,
+						getAllToolsIncludingDisabled: () => [toolData],
 						beginToolCall: options => new ChatToolInvocation(undefined, toolData, options.toolCallId, options.subagentInvocationId, undefined),
 					},
 				});
@@ -18865,10 +18866,10 @@ suite('AgentHostChatContribution', () => {
 
 		for (const clientId of [undefined, 'test-window-1', 'other-window']) {
 			test(`appends subagents in start order after intervening tools (${clientId ?? 'server'})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-				const toolData = { id: 'task', source: ToolDataSource.Internal, displayName: 'Delegate task', modelDescription: 'Delegate a task' };
+				const toolData = { id: 'task', toolReferenceName: 'task', source: ToolDataSource.Internal, displayName: 'Delegate task', modelDescription: 'Delegate a task' };
 				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
 					languageModelToolsServiceOverride: {
-						getToolByName: () => toolData,
+						getAllToolsIncludingDisabled: () => [toolData],
 						beginToolCall: options => new ChatToolInvocation(undefined, toolData, options.toolCallId, options.subagentInvocationId, undefined),
 					},
 				});
@@ -19477,7 +19478,7 @@ suite('AgentHostChatContribution', () => {
 			let capturedSubagentInvocationId: string | undefined;
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
 				languageModelToolsServiceOverride: {
-					getToolByName: () => ({ id: 'vscode_readSkill', source: ToolDataSource.Internal, displayName: 'Read skill', modelDescription: 'Reads a skill' }),
+					getAllToolsIncludingDisabled: () => [{ id: 'vscode_readSkill', toolReferenceName: 'read_file', source: ToolDataSource.Internal, displayName: 'Read skill', modelDescription: 'Reads a skill' }],
 					beginToolCall: options => {
 						capturedSubagentInvocationId = options.subagentInvocationId;
 						return undefined;

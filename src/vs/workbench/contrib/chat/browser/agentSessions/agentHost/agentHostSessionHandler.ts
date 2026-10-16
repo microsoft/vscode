@@ -3120,14 +3120,19 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return invocation;
 	}
 
-	/** The workbench tool a runtime client-tool call maps to, or `undefined` when it is not installed. */
+	/** Resolves a client tool without considering MCP tools, which the host executes separately. */
 	private _resolveClientTool(toolName: string): IToolData | undefined {
 		const isCopilotSession = isCopilotAgentHostSessionType(this._config.sessionType);
 		if (isCopilotSession && toolName === SEMANTIC_SEARCH_TOOL_NAME) {
 			return this._toolsService.getTool(CLIENT_SEMANTIC_SEARCH_TOOL_ID);
 		}
 		const clientToolName = toolName === RUNTIME_TOOL_SEARCH_TOOL_NAME ? CLIENT_TOOL_SEARCH_REFERENCE_NAME : toolName;
-		return this._toolsService.getToolByName(clientToolName);
+		for (const tool of this._toolsService.getAllToolsIncludingDisabled()) {
+			if (tool.source.type !== 'mcp' && tool.toolReferenceName === clientToolName) {
+				return tool;
+			}
+		}
+		return undefined;
 	}
 
 	/**
