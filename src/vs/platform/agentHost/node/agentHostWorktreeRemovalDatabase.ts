@@ -97,6 +97,11 @@ export function coOwnedWorktreeRemovalOwner(session: string, worktreePath: strin
 export interface IWorktreeCoOwnedFolder {
 	readonly worktreePath: string;
 	readonly repositoryRoot: string;
+	/**
+	 * The worktree's branch when the move shared it. A snapshot is enough: the host never renames a branch it created,
+	 * and the original owner's record holds the same creation-time name. A branch removed outside the host keeps the
+	 * folder intact (its removal is skipped and retried), as for a worktree that was never shared.
+	 */
 	readonly branch: string;
 }
 
