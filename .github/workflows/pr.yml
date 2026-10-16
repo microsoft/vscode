@@ -25,7 +25,7 @@ jobs:
   # checks. Jobs also run when change detection fails.
   changes:
     name: Detect Changes
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-slim
     outputs:
       cli: ${{ steps.detect.outputs.cli }}
       copilot-shim: ${{ steps.detect.outputs.copilot-shim }}
@@ -339,7 +339,7 @@ jobs:
     name: ${{ matrix.check }}
     needs: [linux-electron-smoke-test-shards, macos-electron-smoke-test-shards, windows-electron-smoke-test-shards]
     if: ${{ always() }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-slim
     strategy:
       fail-fast: false
       matrix:
@@ -360,7 +360,7 @@ jobs:
     name: ${{ matrix.check }}
     needs: [linux-browser-test-parts, macos-browser-test-parts, windows-browser-test-parts]
     if: ${{ always() }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-slim
     strategy:
       fail-fast: false
       matrix:
@@ -379,7 +379,7 @@ jobs:
     name: Copilot - Check Test Cache
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=copilot-check-test-cache-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    runs-on: ubuntu-slim
     permissions:
       contents: read
       pull-requests: read
@@ -426,7 +426,7 @@ jobs:
     name: Copilot - Check Telemetry
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=copilot-check-telemetry-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    runs-on: ubuntu-slim
     permissions:
       contents: read
     steps:

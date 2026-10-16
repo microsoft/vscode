@@ -478,7 +478,7 @@ jobs:
     needs:
       - playwright
       - screenshots
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     steps:
       - name: Verify fixture test results
         run: |
