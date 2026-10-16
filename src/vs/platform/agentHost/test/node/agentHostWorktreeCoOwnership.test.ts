@@ -32,6 +32,7 @@ function input(overrides: Partial<IWorktreeMoveInput>): IWorktreeMoveInput {
 		remainingFolders: [[primary.worktreePath]],
 		source: { primary, additional: [own, sessionLevel], coOwned: [coOwned] },
 		targetPrimary: undefined,
+		targetHasOlderBuildCopy: true,
 		...overrides,
 	};
 }
@@ -65,6 +66,9 @@ suite('AgentHostWorktreeCoOwnership', () => {
 			sessionMove: decisions(planWorktreeMove(input({ kind: 'session', chatFolders: [primary.worktreePath], remainingFolders: [] }))),
 			// ...unless it already shares that worktree: its share continues as the target's.
 			sharedSessionMove: decisions(planWorktreeMove(input({ kind: 'session', chatFolders: [primary.worktreePath], remainingFolders: [], source: { primary, additional: [], coOwned: [primary] } }))),
+			// Into a session older builds read no session values of (a promoted one): nothing names it an owner, it shares (M2).
+			ownAloneNoCopy: decisions(planWorktreeMove(input({ chatFolders: [own.workingDirectory], targetHasOlderBuildCopy: false }))),
+			sessionMoveNoCopy: decisions(planWorktreeMove(input({ kind: 'session', chatFolders: [primary.worktreePath], remainingFolders: [], targetHasOlderBuildCopy: false }))),
 		}, {
 			// `presented`: the worktrees the target records as worktree folders (its own is filtered when it records them).
 			primary: { transfers: [], coOwned: [`${primary.worktreePath}:agents/source`], withhold: [true, false], handOver: false, presented: [primary.worktreePath] },
@@ -75,6 +79,8 @@ suite('AgentHostWorktreeCoOwnership', () => {
 			shared: { transfers: [], coOwned: [`${sessionLevel.workingDirectory}:agents/lib`, `${coOwned.worktreePath}:agents/origin`], withhold: [false, false], handOver: false, presented: [sessionLevel.workingDirectory, coOwned.worktreePath] },
 			sessionMove: { transfers: [`${own.workingDirectory}:${chat}`, `${sessionLevel.workingDirectory}:${chat}`], coOwned: [], withhold: [false, false], handOver: true, presented: [] },
 			sharedSessionMove: { transfers: [], coOwned: [], withhold: [false, false], handOver: false, presented: [primary.worktreePath] },
+			ownAloneNoCopy: { transfers: [], coOwned: [`${own.workingDirectory}:agents/own`], withhold: [false, false], handOver: false, presented: [own.workingDirectory] },
+			sessionMoveNoCopy: { transfers: [], coOwned: [`${primary.worktreePath}:agents/source`, `${own.workingDirectory}:agents/own`, `${sessionLevel.workingDirectory}:agents/lib`], withhold: [false, false], handOver: false, presented: [primary.worktreePath] },
 		});
 	});
 

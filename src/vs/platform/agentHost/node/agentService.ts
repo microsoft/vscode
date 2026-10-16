@@ -6506,7 +6506,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const validate = () => {
 			checkMoved();
 			this._validateChatMove(sourceKey, targetKey, chatKey, moved, after, chatFolders, sessionMove);
-			return this._planMoveWorktrees(sourceKey, chatKey, moved, chatFolders, sourceWorktrees, targetPrimaryWorktree, sessionMove);
+			return this._planMoveWorktrees(sourceKey, chatKey, moved, chatFolders, sourceWorktrees, targetPrimaryWorktree, sessionMove, this._hasOlderBuildSessionCopy(targetKey));
 		};
 		validate();
 		const targetFolders = this._stateManager.getSessionSummary(targetKey)?.workingDirectories ?? [];
@@ -6843,7 +6843,8 @@ export class AgentService extends Disposable implements IAgentService {
 		const sourceWorktrees = await this._worktreeCoOwnership.readSessionWorktrees(session);
 		const validate = () => {
 			this._validateChatMove(sourceKey, undefined, chatKey, moved, undefined, chatFolders);
-			return this._planMoveWorktrees(sourceKey, chatKey, moved, chatFolders, sourceWorktrees, undefined, false);
+			// A promoted chat's session has no older-build copy of its session values: its default chat keeps its own storage.
+			return this._planMoveWorktrees(sourceKey, chatKey, moved, chatFolders, sourceWorktrees, undefined, false, false);
 		};
 		// The new session is a worktree session when its primary folder is a worktree the promotion shares or transfers (Block 5).
 		const promotedWorktreeFolders = withSessionWorktreeFolders(undefined, presentedWorktreeFolders(validate().presented, undefined));
@@ -7125,7 +7126,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * additional worktree that a chat staying in the source also uses (D2). Synchronous, from what was read before
 	 * validating and the source's chats in memory, so a move runs it again right before committing.
 	 */
-	private _planMoveWorktrees(sourceKey: string, chat: string, moved: readonly string[], chatFolders: readonly string[], worktrees: ISessionWorktreeRecords, targetPrimary: string | undefined, sessionMove: boolean): IWorktreeMoveDecisions {
+	private _planMoveWorktrees(sourceKey: string, chat: string, moved: readonly string[], chatFolders: readonly string[], worktrees: ISessionWorktreeRecords, targetPrimary: string | undefined, sessionMove: boolean, targetHasOlderBuildCopy: boolean): IWorktreeMoveDecisions {
 		const sourceFolders = this._stateManager.getSessionSummary(sourceKey)?.workingDirectories ?? [];
 		const plan = planWorktreeMove({
 			kind: sessionMove ? 'session' : 'chat',
@@ -7137,6 +7138,7 @@ export class AgentService extends Disposable implements IAgentService {
 				.map(candidate => candidate.workingDirectories ?? sourceFolders),
 			source: worktrees,
 			targetPrimary,
+			targetHasOlderBuildCopy,
 		});
 		if (plan.refused !== undefined) {
 			throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.WorktreeFolder, `Chat ${chat} works in its own worktree ${plan.refused}, which another chat of ${sourceKey} also uses.`);
@@ -7162,6 +7164,16 @@ export class AgentService extends Disposable implements IAgentService {
 			[SessionConfigKey.Isolation]: 'worktree',
 			...(baseBranch !== undefined && properties[SessionConfigKey.Branch] ? { [SessionConfigKey.Branch]: baseBranch } : {}),
 		};
+	}
+
+	/**
+	 * Whether older builds read `session`'s values from its database: its default chat stores there (Q8a). A promoted
+	 * session's default chat keeps its own storage, so older builds get no copy of its session values.
+	 */
+	private _hasOlderBuildSessionCopy(session: string): boolean {
+		const defaultChat = this._stateManager.getSessionState(session)?.defaultChat;
+		const storage = defaultChat === undefined ? undefined : this._stateManager.getChatStorageResource(defaultChat);
+		return storage === undefined || storage === session;
 	}
 
 	/** A move retried after importing older-build edits keeps the worktree decisions it prepared, or is refused. */

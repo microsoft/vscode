@@ -32340,6 +32340,50 @@ suite('AgentService (node dispatcher)', () => {
 					assert.deepStrictEqual({ refused, target: foldersOf(target) }, { refused: AgentChatMoveRefusal.Conflict, target: [primary.toString()] });
 				});
 
+				test('a chat\'s own worktree is shared, not transferred, into a session older builds read no session values of: a promotion, and a move into the promoted session (M2, Block 5)', async () => {
+					const { service, source, peer } = await setupFolders();
+					const store = getTestSessionStateStore(service);
+					const sessionData = (service as unknown as { _sessionDataService: ISessionDataService })._sessionDataService;
+					const third = URI.file('/workspace/third');
+					const second = URI.parse(buildChatUri(source, 'second'));
+					await service.createChat(source, second, { title: 'Second', workingDirectories: [await service.addSessionWorkingDirectoryForChat(source, third, { isolation: 'folder' })] });
+					const records = new Map([[generateUuid(), { chat: peer, folder: other }], [generateUuid(), { chat: second, folder: third }]]);
+					const owners: string[] = [];
+					setTestAgentHostWorktreeIsolation(service, createTestAgentHostWorktreeIsolation({
+						readDetachedWorktreeForRemoval: async handle => records.has(handle) ? { worktree: records.get(handle)!.folder, repositoryRoot: URI.file('/main'), branchName: `agents/${records.get(handle)!.folder.path.split('/').pop()}` } : undefined,
+						setDetachedWorktreeOwner: async (handle, owner) => { owners.push(`${handle}:${owner.toString()}`); },
+					}));
+					await writeSessionAdditionalWorktrees(store, source, [...records].map(([handle, { chat, folder }]) => ({ handle, workingDirectory: folder.toString(), repositoryRoot: URI.file('/main').toString(), chat: chat.toString() })));
+					await timeout(0);
+					completeTurn(service, peer);
+					completeTurn(service, second);
+					const promoted = await service.moveChat(source, peer, { kind: 'newSession' });
+					await service.moveChat(source, second, { kind: 'session', session: promoted, after: undefined });
+					const sourceDb = sessionData.openDatabase(source);
+					let olderBuildList: string | undefined;
+					try {
+						olderBuildList = await sourceDb.object.getMetadata(ADDITIONAL_WORKTREES_METADATA_KEY);
+					} finally {
+						sourceDb.dispose();
+					}
+					const coOwners = async (folder: URI) => (await getTestAgentHostDatabase(service).readWorktreeCoOwners(folder.toString())).map(row => row.session === source.toString() ? 'source' : row.session === promoted.toString() ? 'promoted' : row.session).sort();
+
+					assert.deepStrictEqual({
+						promotedLists: (await readSessionAdditionalWorktrees(store, promoted)).length,
+						sourceLists: (await readSessionAdditionalWorktrees(store, source)).map(entry => entry.handle).sort(),
+						// What 1.142 reads: the owner it finds in each record still lists it.
+						olderBuildLists: (JSON.parse(olderBuildList ?? '[]') as { handle: string }[]).map(entry => entry.handle).sort(),
+						owners,
+						shares: [await coOwners(other), await coOwners(third)],
+					}, {
+						promotedLists: 0,
+						sourceLists: [...records.keys()].sort(),
+						olderBuildLists: [...records.keys()].sort(),
+						owners: [],
+						shares: [['promoted', 'source'], ['promoted', 'source']],
+					});
+				});
+
 				test('the source of a promoted chat lets go of the folders no remaining chat uses', async () => {
 					const { service, source, peer, foldersOf } = await setupFolders();
 					completeTurn(service, peer);

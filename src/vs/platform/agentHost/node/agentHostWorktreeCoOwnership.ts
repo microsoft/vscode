@@ -41,6 +41,12 @@ export interface IWorktreeMoveInput {
 	readonly source: ISessionWorktreeRecords;
 	/** The worktree the target records as its own, if any (a chat moving back to the session whose worktree it uses). */
 	readonly targetPrimary: string | undefined;
+	/**
+	 * Whether older builds read the target's session values (its default chat stores in the session's database).
+	 * A promoted session, or one whose default chat stores elsewhere, has no such copy: a worktree record moved
+	 * there would name an owner whose older-build copy never lists it, so it is shared instead.
+	 */
+	readonly targetHasOlderBuildCopy: boolean;
 }
 
 /** What a move does with the worktrees of its source (Block 5). */
@@ -90,6 +96,22 @@ export function sharedOwnAdditionalWorktree(additional: readonly ISessionAdditio
  */
 export function planWorktreeMove(input: IWorktreeMoveInput): IWorktreeMovePlan {
 	const { source } = input;
+	if (input.kind === 'session' && !input.targetHasOlderBuildCopy) {
+		// The source ends: its records stay where they are (older builds no longer list it), the target shares them.
+		const shared: IWorktreeCoOwnedFolder[] = [
+			...(source.primary && !source.coOwned.some(folder => sameWorktree(folder.worktreePath, source.primary!.worktreePath)) ? [source.primary] : []),
+			...source.additional.map(worktree => ({ worktreePath: worktree.workingDirectory, repositoryRoot: worktree.repositoryRoot, branch: worktree.branch })),
+		];
+		return {
+			refused: undefined,
+			transfers: [],
+			coOwned: shared,
+			withholdSource: false,
+			withholdTarget: false,
+			handOver: false,
+			presented: [...shared, ...source.coOwned].filter(folder => uses(input.chatFolders, folder.worktreePath)),
+		};
+	}
 	if (input.kind === 'session') {
 		const primary = source.primary;
 		return {
@@ -120,7 +142,7 @@ export function planWorktreeMove(input: IWorktreeMoveInput): IWorktreeMovePlan {
 		if (!uses(input.chatFolders, worktree.workingDirectory)) {
 			continue;
 		}
-		if (worktree.chat !== undefined && input.moved.includes(worktree.chat)) {
+		if (worktree.chat !== undefined && input.moved.includes(worktree.chat) && input.targetHasOlderBuildCopy) {
 			transfers.push({ handle: worktree.handle, workingDirectory: worktree.workingDirectory, repositoryRoot: worktree.repositoryRoot, chat: worktree.chat });
 		} else {
 			share({ worktreePath: worktree.workingDirectory, repositoryRoot: worktree.repositoryRoot, branch: worktree.branch });
