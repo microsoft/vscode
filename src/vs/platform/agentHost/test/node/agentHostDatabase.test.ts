@@ -3721,6 +3721,32 @@ suite('AgentHostDatabase sessions_v2', () => {
 			});
 		});
 
+		test('a promotion refuses an older build\'s edit of its source\'s chat list, and applies once it is imported (Block 4a)', async () => {
+			const { instance, raw } = await seedAll();
+			await exec(raw, `UPDATE session_chats SET is_read = 1 WHERE session_uri = '${sessionA}'; UPDATE session_chat_catalogs SET revision = revision + 1 WHERE session_uri = '${sessionA}';`);
+			const refused = (await instance.promoteChatV2(promotion('session://promoted', { expectedSourceRevision: await revision(instance, sessionA) }))).status;
+			const created = (await all(raw, 'SELECT 1 AS present FROM sessions_v2 WHERE session_uri = ?', ['session://promoted'])).length;
+			await exec(raw, `UPDATE session_chat_catalogs SET projected_revision = revision WHERE session_uri = '${sessionA}'`);
+			const applied = (await instance.promoteChatV2(promotion('session://promoted', { expectedSourceRevision: await revision(instance, sessionA) }))).status;
+
+			assert.deepStrictEqual({ refused, created, applied }, { refused: 'olderBuildEdits', created: 0, applied: 'applied' });
+		});
+
+		test('a reorder refuses an older build\'s edit of its chat list, and applies once it is imported (Block 4a)', async () => {
+			const { instance, raw } = await seedAll();
+			await exec(raw, `UPDATE session_chats SET is_read = 1 WHERE session_uri = '${sessionA}'; UPDATE session_chat_catalogs SET revision = revision + 1 WHERE session_uri = '${sessionA}';`);
+			const order = async () => (await all(raw, 'SELECT chat_uri FROM chats_v2 WHERE owner_session_uri = ? AND chat_order IS NOT NULL ORDER BY chat_order', [sessionA])).map(row => row.chat_uri);
+			const before = await order();
+			const refused = (await instance.reorderChatV2(sessionA, `${sessionA}#peer`, undefined, await revision(instance, sessionA))).status;
+			const unchanged = await order();
+			await exec(raw, `UPDATE session_chat_catalogs SET projected_revision = revision WHERE session_uri = '${sessionA}'`);
+			const applied = (await instance.reorderChatV2(sessionA, `${sessionA}#peer`, undefined, await revision(instance, sessionA))).status;
+
+			assert.deepStrictEqual({ refused, unchanged: unchanged.join() === before.join(), applied, after: await order() }, {
+				refused: 'olderBuildEdits', unchanged: true, applied: 'applied', after: [`${sessionA}#peer`, `${sessionA}#default`],
+			});
+		});
+
 		test('a session move refuses an older build\'s edit of either chat list (Block 4a)', async () => {
 			const { instance, raw } = await seedAll();
 			await instance.moveChatV2({

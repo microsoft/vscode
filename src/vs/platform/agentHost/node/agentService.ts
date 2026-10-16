@@ -6419,6 +6419,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// Queued turns of the moved chats wait for the move, so they start in the target; both sessions stay resident.
 		const admission = this._stateManager.holdChatAdmission(moved);
 		// The folders the chat brings are in transit until the target lists it: archiving or deleting a target chat meanwhile doesn't detach them.
+		// A folder the move prepares in the target is also reserved by its preparation; reservations are counted per holder, so each ends independently.
 		const transit = this._reserveChatWorkingDirectories(target, chatFolders);
 		this._chatMoveSessions.add(sourceKey);
 		this._chatMoveSessions.add(targetKey);
@@ -6451,39 +6452,29 @@ export class AgentService extends Disposable implements IAgentService {
 					await this._sessionStateStore.chatRows.setChatConfig(session, chat, { ...previousConfig, ...config });
 					restoreConfig = () => this._sessionStateStore.chatRows.setChatConfig(session, chat, previousConfig);
 				}
-				const sourceFolders = this._stateManager.getSessionSummary(sourceKey)?.workingDirectories ?? [];
-				const remaining = (this._stateManager.getSessionState(sourceKey)?.chats ?? [])
-					.filter(candidate => !moved.includes(candidate.resource) && candidate.origin?.kind !== ChatOriginKind.Tool)
-					.map(candidate => candidate.workingDirectories ?? sourceFolders);
-				const commit = () => (sessionMove ? this._sessionStateStore.moveSession({
-					source: session,
-					target,
-					chat,
-					after: after === undefined ? undefined : URI.parse(after),
-					expectedSourceCatalogRevision: catalogs.get(sourceKey) ?? 0,
-					expectedTargetCatalogRevision: catalogs.get(targetKey) ?? 0,
-					folders: {
+				// Read when committing, so a retry after importing older-build edits sees the chats and folders they added.
+				const commit = () => {
+					const sourceFolders = this._stateManager.getSessionSummary(sourceKey)?.workingDirectories ?? [];
+					const folders = {
 						source: sourceFolders,
 						target: this._stateManager.getSessionSummary(targetKey)?.workingDirectories ?? targetFolders,
 						chat: chatFolders,
 						chatHadOwnFolders: sourceSummary?.workingDirectories !== undefined,
-						remaining: [],
-					},
-				}) : this._sessionStateStore.moveChat({
-					source: session,
-					target,
-					chat,
-					after: after === undefined ? undefined : URI.parse(after),
-					expectedSourceCatalogRevision: catalogs.get(sourceKey) ?? 0,
-					expectedTargetCatalogRevision: catalogs.get(targetKey) ?? 0,
-					folders: {
-						source: sourceFolders,
-						target: this._stateManager.getSessionSummary(targetKey)?.workingDirectories ?? targetFolders,
-						chat: chatFolders,
-						chatHadOwnFolders: sourceSummary?.workingDirectories !== undefined,
-						remaining,
-					},
-				}));
+						remaining: sessionMove ? [] : (this._stateManager.getSessionState(sourceKey)?.chats ?? [])
+							.filter(candidate => !moved.includes(candidate.resource) && candidate.origin?.kind !== ChatOriginKind.Tool)
+							.map(candidate => candidate.workingDirectories ?? sourceFolders),
+					};
+					const move = {
+						source: session,
+						target,
+						chat,
+						after: after === undefined ? undefined : URI.parse(after),
+						expectedSourceCatalogRevision: catalogs.get(sourceKey) ?? 0,
+						expectedTargetCatalogRevision: catalogs.get(targetKey) ?? 0,
+						folders,
+					};
+					return sessionMove ? this._sessionStateStore.moveSession(move) : this._sessionStateStore.moveChat(move);
+				};
 				let result = await commit();
 				if (result.status === 'olderBuildEdits') {
 					// An older build edited either chat list since the move read it: import its edits, then try once more.
@@ -6596,7 +6587,6 @@ export class AgentService extends Disposable implements IAgentService {
 		return Object.fromEntries(Object.entries(filterChatConfigValues(schema, effective)).filter(([key]) => schema?.properties[key]?.readOnly !== true));
 	}
 
-	/** Normalizes a legacy catalog before a chat moves into or out of it (Q8b); older builds keep working from its projection. */
 	/**
 	 * Prepares the sessions a move, promotion or reorder re-projects, as 4a's contract for two-session writes asks
 	 * (agentHostChatCatalogV2.md): waits for their in-flight peer-store writes, converts a legacy chat catalog to
@@ -7006,12 +6996,17 @@ export class AgentService extends Disposable implements IAgentService {
 	/** Places a chat after `after` (first when `undefined`) within its own session. */
 	private async _reorderChat(session: URI, chat: string, after: string | undefined): Promise<void> {
 		const sessionKey = session.toString();
-		const state = this._stateManager.getSessionState(sessionKey);
-		if (after !== undefined && !state?.chats.some(candidate => candidate.resource === after && candidate.origin?.kind !== ChatOriginKind.Tool && candidate.interactivity !== ChatInteractivity.Hidden)) {
-			throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.InvalidAnchor, `Chat ${after} is not a visible chat of ${sessionKey}.`);
-		}
+		const checkAnchor = () => {
+			const state = this._stateManager.getSessionState(sessionKey);
+			if (after !== undefined && !state?.chats.some(candidate => candidate.resource === after && candidate.origin?.kind !== ChatOriginKind.Tool && candidate.interactivity !== ChatInteractivity.Hidden)) {
+				throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.InvalidAnchor, `Chat ${after} is not a visible chat of ${sessionKey}.`);
+			}
+		};
+		checkAnchor();
 		const reorder = async () => {
 			await this._prepareCatalogsForMove([sessionKey]);
+			// Importing older-build edits may have removed the anchor: an invalid anchor, not a conflict to retry.
+			checkAnchor();
 			const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([sessionKey]);
 			if (snapshot?.authorityVersion !== 2 || !snapshot.header) {
 				throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.LegacyCatalog, `Session ${sessionKey} can't reorder its chats yet.`);

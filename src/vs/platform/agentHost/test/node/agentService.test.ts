@@ -53,7 +53,7 @@ import type { TerminalState } from '../../common/state/protocol/channels-termina
 import { resolveAgentHostSession } from '../../common/agentHostSubscriptionService.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
-import { SessionStateDeletedError, SessionStateMirrorFlush, sessionStatePatch } from '../../common/agentHostSessionStateStore.js';
+import { chatMoveFolderTransfers, SessionStateDeletedError, SessionStateMirrorFlush, sessionStatePatch, type ISessionStateChatMoveFolders } from '../../common/agentHostSessionStateStore.js';
 import { readChatSandboxState, readSessionSandboxState } from '../../common/meta/agentSandboxStateMeta.js';
 import { CompletionItemKind } from '../../common/state/protocol/channels-session/commands.js';
 import { ISessionCatalogSyncPendingSnapshot, ISessionCatalogSyncSnapshot, ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME, SessionCatalogSyncWriteResult, SessionCatalogSyncWriteValidator } from '../../common/sessionDataService.js';
@@ -31499,6 +31499,46 @@ suite('AgentService (node dispatcher)', () => {
 						moved: { source: [primary.toString()], target: [primary.toString(), other.toString()] },
 						afterArchive: [primary.toString()],
 					});
+				});
+
+				test('a retry after importing older-build edits keeps the folder state of a chat they added in the source that shares the moving chat\'s folder', async () => {
+					const { service, source, target, peer, foldersOf } = await setupFolders();
+					const stateManager = getStateManager(service);
+					const sibling = buildChatUri(source, 'older-build-sibling');
+					const store = (service as unknown as IMoveInternals)._sessionStateStore as unknown as { moveChat(move: { readonly folders: ISessionStateChatMoveFolders }): Promise<unknown> };
+					const commit = store.moveChat.bind(store);
+					const attempts: ISessionStateChatMoveFolders[] = [];
+					stub(store, 'moveChat').callsFake(async move => {
+						attempts.push(move.folders);
+						if (attempts.length === 1) {
+							// An older build listed a chat working in the same folder: the guard refuses, and the import adds it.
+							stateManager.addChat(source.toString(), sibling, creationTimeChatStorageResource(source.toString(), sibling, buildDefaultChatUri(source)), { workingDirectories: [other.toString()] });
+							return { status: 'olderBuildEdits' };
+						}
+						return commit(move);
+					});
+
+					await service.moveChat(source, peer, { kind: 'session', session: target, after: undefined });
+					await whenArchivedChatWorkspaceUpdatesSettled(service, source);
+					const keptInSource = (folders: ISessionStateChatMoveFolders) => chatMoveFolderTransfers(folders).filter(transfer => transfer.kind === 'git').map(transfer => transfer.keepInSource);
+
+					assert.deepStrictEqual({ attempts: attempts.map(keptInSource), source: foldersOf(source) }, {
+						// The retry copies the folder's Git state instead of moving it away from the chat that still works there.
+						attempts: [[false], [true]],
+						source: [primary.toString(), other.toString()],
+					});
+				});
+
+				test('a refused move leaves the destination\'s folders unreserved: archiving the chat that works in one detaches it', async () => {
+					const { service, source, target, peer, foldersOf, archive } = await setupFolders();
+					const sharing = URI.parse(buildChatUri(target, 'sharing'));
+					await service.createChat(target, sharing, { title: 'Sharing', workingDirectories: [await service.addSessionWorkingDirectoryForChat(target, other, { isolation: 'folder' })] });
+					(service as unknown as IMoveInternals)._sessionStateStore.moveChat = async () => ({ status: 'conflict' });
+
+					const refused = await refusalOf(service.moveChat(source, peer, { kind: 'session', session: target, after: undefined }));
+					await archive(sharing, target);
+
+					assert.deepStrictEqual({ refused, target: foldersOf(target) }, { refused: AgentChatMoveRefusal.Conflict, target: [primary.toString()] });
 				});
 
 				test('the source of a promoted chat lets go of the folders no remaining chat uses', async () => {
