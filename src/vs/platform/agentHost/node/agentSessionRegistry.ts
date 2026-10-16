@@ -11,6 +11,7 @@ import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { AgentProvider, AgentSession } from '../common/agent.js';
 import { AgentSessionRegistrationSource, IAgentHostDatabase, IAgentHostDatabaseExternalUpdate, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionOptions } from './agentHostDatabase.js';
+import type { IWorktreeRemovalRequest } from './agentHostWorktreeRemovalDatabase.js';
 
 export const IAgentSessionRegistry = createDecorator<AgentSessionRegistry>('agentSessionRegistry');
 
@@ -45,7 +46,8 @@ export type IResolvedDiscoveredSessionIdentity =
 		readonly message: string;
 	};
 
-export type RegisteredSessionMigration = (entry: IStoredRegisteredSession) => Promise<IRegisteredSession | undefined>;
+/** Resolves an entry's provenance; `entries` is the whole batch being resolved with it. */
+export type RegisteredSessionMigration = (entry: IStoredRegisteredSession, entries: readonly IStoredRegisteredSession[]) => Promise<IRegisteredSession | undefined>;
 
 /**
  * A durable, orchestrator-owned index of the sessions that exist, keyed by
@@ -133,9 +135,10 @@ export class AgentSessionRegistry extends Disposable {
 	 * session the user explicitly removed and to keep a session that must never
 	 * be listed (e.g. a throwaway chat surface) out of the registry entirely.
 	 * No-op on the registry entry if absent; the tombstone is still written.
+	 * `worktreeRemovals` are recorded in the same transaction as the tombstone.
 	 */
-	async tombstone(session: URI): Promise<void> {
-		await this._database.tombstoneAndUnregisterSession(session.toString());
+	async tombstone(session: URI, worktreeRemovals?: readonly IWorktreeRemovalRequest[]): Promise<void> {
+		await this._database.tombstoneAndUnregisterSession(session.toString(), worktreeRemovals);
 	}
 
 	/** Advances the durable last-observed provider modification time. */
@@ -254,7 +257,7 @@ export class AgentSessionRegistry extends Disposable {
 		}));
 		const limiter = new Limiter<IRegisteredSession | undefined>(4);
 		const migrations: readonly (IRegisteredSession | undefined)[] = migrate
-			? await Promise.all(entries.map(entry => limiter.queue(() => migrate(entry))))
+			? await Promise.all(entries.map(entry => limiter.queue(() => migrate(entry, entries))))
 			: entries.map(() => undefined);
 		const updates: IAgentHostDatabaseExternalUpdate[] = [];
 		const result = entries.map((entry, index): IRegisteredSession => {
@@ -294,7 +297,7 @@ export class AgentSessionRegistry extends Disposable {
 			external: stored.external,
 			source: stored.source,
 		};
-		const migrated = await migrate?.(entry);
+		const migrated = await migrate?.(entry, [entry]);
 		if (migrated) {
 			await this._database.updateRuntimeSessionExternal([{ session: migrated.session.toString(), external: migrated.external }]);
 			return migrated;

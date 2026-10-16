@@ -45,6 +45,8 @@ The items in [Known warts](#known-warts) are not target patterns. They remain be
 
 Bootstrap creates the pre-DI foundation, awaits telemetry, registers lazy descriptors, creates the strict instantiation service, composes `AgentService`, and finally activates contributions.
 
+The foundation loads persisted session storage identities before constructing `SessionDataService` or any provider. The orchestrator and per-session storage boundaries share that codec and retain foundation ownership.
+
 Tests use the same synchronous foundation, core registrations, and composition, but supply telemetry directly, apply typed overrides after registering core defaults, skip production host services, and use a mutable worktree seam whose default delegate is `NullAgentHostWorktreeIsolation`.
 
 ## Where does a new object go?

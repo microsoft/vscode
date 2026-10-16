@@ -938,7 +938,7 @@ MenuRegistry.appendMenuItem(Menus.SessionBarToolbar, {
 		id: CLOSE_CHAT_COMMAND_ID,
 		title: localize('closeChatGroup', "Close"),
 		tooltip: localize('closeChatGroupTooltip', "Close Chat Group"),
-		icon: Codicon.closeCompact,
+		icon: Codicon.closeSmall,
 	},
 	when: ContextKeyExpr.and(SessionHeaderShowsChatContext, SessionActiveChatIsClosableContext),
 	group: 'navigation',
@@ -1311,8 +1311,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 /**
  * Base class for the compact pill button rendered in the sessions UI (e.g. the "New" session/chat
- * buttons, the empty file editor's "Search Files" button). Subclasses provide the command id,
- * label and hover/aria text.
+ * buttons and the empty file editor actions). Subclasses provide the command id,
+ * label, optional icon and hover/aria text.
  */
 export abstract class CompactButtonActionViewItem extends BaseActionViewItem {
 
@@ -1330,6 +1330,11 @@ export abstract class CompactButtonActionViewItem extends BaseActionViewItem {
 
 	/** Visible pill label (e.g. "New", "New Chat"). */
 	protected abstract get label(): string;
+
+	/** Optional leading icon for the pill. */
+	protected get icon(): ThemeIcon | undefined {
+		return undefined;
+	}
 
 	/** Hover text; receives the resolved keybinding label, if any. */
 	protected abstract getHoverContent(keybindingLabel: string | undefined): string;
@@ -1391,6 +1396,13 @@ export abstract class CompactButtonActionViewItem extends BaseActionViewItem {
 		}));
 
 		const buttonLabel = $('span.new-session-button-label', undefined, this.label);
+		const icon = this.icon;
+		if (icon) {
+			const iconElement = $('span.new-session-button-icon');
+			iconElement.classList.add(...ThemeIcon.asClassNameArray(icon));
+			iconElement.setAttribute('aria-hidden', 'true');
+			buttonLabel.prepend(iconElement);
+		}
 		const keybindingHint = $('span.new-session-keybinding-hint');
 		const keybindingHintLabel = this.showKeybindingHint
 			? this._register(new KeybindingLabel(keybindingHint, OS, {
@@ -1939,7 +1951,7 @@ registerAction2(class CloseSessionAction extends Action2 {
 			id: CLOSE_SESSION_COMMAND_ID,
 			title: localize2('chatCompositeBar.close', "Close"),
 			tooltip: localize2('chatCompositeBar.closeTooltip', "Close Session"),
-			icon: Codicon.closeCompact,
+			icon: Codicon.closeSmall,
 			keybinding: {
 				weight: KeybindingWeight.SessionsContrib,
 				when: ContextKeyExpr.and(

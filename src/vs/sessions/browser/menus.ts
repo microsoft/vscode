@@ -57,6 +57,8 @@ export const Menus = {
 
 	/** Header actions of the Automations custom view. */
 	CustomViewAutomations: new MenuId('SessionsCustomViewAutomations'),
+	/** Context menu for the Automations sidebar shortcut. */
+	AutomationsContext: new MenuId('SessionsAutomationsContext'),
 	/** Context menu actions for an Automation definition card. */
 	AutomationCardContext: new MenuId('SessionsAutomationCardContext'),
 	/** Unified toolbar for all session-backed Automation history rows. Actions are conditionally shown via sessionItem.status context key. */
@@ -93,6 +95,27 @@ export const Menus = {
 	SessionsEditorTabsBarContext: new MenuId('SessionsEditorTabsBarContext'),
 	SessionsEditorTabsBarAddTab: new MenuId('SessionsEditorTabsBarAddTab'),
 	SessionsEditorTabsBarAddTabCanvas: new MenuId('SessionsEditorTabsBarAddTabCanvas'),
+	EmptyFileEditorActions: new MenuId('SessionsEmptyFileEditorActions'),
+	/**
+	 * The Add Tab actions listed in place of the watermark in an empty editor
+	 * group. A subset of {@link SessionsEditorTabsBarAddTab}, which still backs
+	 * the group's `+` dropdown.
+	 */
+	SessionsEmptyEditorGroupAddTab: new MenuId('SessionsEmptyEditorGroupAddTab'),
+	/**
+	 * The Session Toolbar, docked at the right edge of the active chat view. Each entry opens or
+	 * activates its side pane tab, revealing the side pane when it is closed.
+	 * Entries are gated on availability only.
+	 */
+	SessionToolbar: new MenuId('SessionToolbar'),
+	/** The Session Toolbar's context menu, shown after the toolbar's own entry actions. */
+	SessionToolbarContext: new MenuId('SessionToolbarContext'),
+	/**
+	 * The Agents window's View > Appearance submenu. It is separate from the
+	 * workbench `MenubarAppearanceMenu`, whose editor-window entries do not
+	 * apply to the Agents window.
+	 */
+	ViewAppearance: new MenuId('SessionsViewAppearance'),
 	/**
 	 * Entries merged into the dropdown of the changes button bar's primary
 	 * button. A submenu contributed to its `primary` group names a group of

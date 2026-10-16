@@ -3,59 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Issue } from '../../../../../platform/github/common/core/issues.js';
 import { GitHubIssueState, GitHubIssueStateReason, IGitHubIssue } from '../../common/types.js';
-import { GitHubApiClient, IGitHubApiResponse } from '../githubApiClient.js';
-
-interface IGitHubIssueResponse {
-	readonly number: number;
-	readonly title: string;
-	readonly body: string | null;
-	readonly state: 'open' | 'closed';
-	readonly state_reason: string | null;
-	readonly user: { readonly login: string; readonly avatar_url: string };
-	readonly created_at: string;
-	readonly updated_at: string;
-	readonly closed_at: string | null;
-	/** Only set when the "issue" is actually a pull request. */
-	readonly pull_request?: unknown;
-}
+import { GitHubApiClient } from '../githubApiClient.js';
 
 export class GitHubIssueFetcher {
+	constructor(readonly client: GitHubApiClient) { }
 
-	constructor(
-		private readonly _apiClient: GitHubApiClient,
-	) { }
-
-	async getIssue(owner: string, repo: string, issueNumber: number, etag?: string): Promise<IGitHubApiResponse<IGitHubIssue>> {
-		const response = await this._apiClient.request<IGitHubIssueResponse>(
-			'GET',
-			`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues/${issueNumber}`,
-			'githubApi.getIssue',
-			{ etag }
-		);
-
-		return {
-			...response,
-			data: response.data ? mapIssue(response.data) : undefined
-		};
+	getIssue(owner: string, repo: string, issueNumber: number, token?: CancellationToken): Promise<IGitHubIssue> {
+		return this.client.withClient(async (client, signal) => {
+			const issue = await client.issues.get({ owner, name: repo }, issueNumber, signal);
+			return {
+				number: issue.number,
+				title: issue.title,
+				body: issue.body ?? '',
+				state: issue.state === 'closed' ? GitHubIssueState.Closed : GitHubIssueState.Open,
+				stateReason: mapStateReason(issue.state_reason),
+				author: {
+					login: issue.user?.login ?? 'ghost',
+					avatarUrl: issue.user?.avatar_url ?? ''
+				},
+				createdAt: issue.created_at,
+				updatedAt: issue.updated_at,
+				closedAt: issue.closed_at ?? undefined,
+			};
+		}, token);
 	}
 }
 
-function mapIssue(data: IGitHubIssueResponse): IGitHubIssue {
-	return {
-		number: data.number,
-		title: data.title,
-		body: data.body ?? '',
-		state: data.state === 'closed' ? GitHubIssueState.Closed : GitHubIssueState.Open,
-		stateReason: mapStateReason(data.state_reason),
-		author: { login: data.user.login, avatarUrl: data.user.avatar_url },
-		createdAt: data.created_at,
-		updatedAt: data.updated_at,
-		closedAt: data.closed_at ?? undefined,
-	};
-}
-
-function mapStateReason(value: string | null): GitHubIssueStateReason | undefined {
+function mapStateReason(value: Issue['state_reason']): GitHubIssueStateReason | undefined {
 	switch (value) {
 		case 'completed': return GitHubIssueStateReason.Completed;
 		case 'not_planned': return GitHubIssueStateReason.NotPlanned;

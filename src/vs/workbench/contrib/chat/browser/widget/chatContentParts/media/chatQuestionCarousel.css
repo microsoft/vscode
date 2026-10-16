@@ -629,7 +629,7 @@
 .interactive-session .interactive-response.chat-persistent-progress .chat-question-carousel-conversation-summary {
 	.chat-question-summary-item {
 		font-size: var(--vscode-chat-font-size-body-m);
-		gap: var(--chat-persistent-nested-gap);
+		gap: calc(var(--chat-persistent-nested-gap) + var(--vscode-spacing-size40));
 	}
 
 	.chat-question-summary-decision {
@@ -659,7 +659,7 @@
 
 		.chat-question-summary-answer-icon {
 			position: absolute;
-			left: calc(var(--vscode-codiconFontSize-compact) * 0.2);
+			left: var(--chat-persistent-icon-left);
 			top: calc(50% - var(--vscode-codiconFontSize-compact) / 2);
 			width: var(--vscode-codiconFontSize-compact);
 			height: var(--vscode-codiconFontSize-compact);

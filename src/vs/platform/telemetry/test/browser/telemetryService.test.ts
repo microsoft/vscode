@@ -176,6 +176,34 @@ suite('TelemetryService', () => {
 		service.dispose();
 	}));
 
+	test('Event data redacts file paths beneath user content paths', sinonTestFn(function () {
+		const testAppender = new TestTelemetryAppender();
+		const userHome = '/home/someone';
+		const appRoot = '/home/someone/.local/share/code/resources/app';
+		const extensionsPath = '/home/someone/.vscode/extensions';
+		const service = new TelemetryService({ appenders: [testAppender], piiPaths: [appRoot, extensionsPath, userHome], userContentPaths: [userHome] }, new TestConfigurationService(), TestProductService);
+
+		const data = {
+			userFile: `Failed to read ${userHome}/projects/sample/config.py`,
+			userNodeModulesFile: `at load (${userHome}/projects/sample/node_modules/@scope/pkg/index.js:1:2)`,
+			userExtensionsFile: `at activate (${userHome}/projects/sample/.vscode/extensions/sample.extension/out/main.js:1:2)`,
+			appNodeModulesFile: `at load (${appRoot}/node_modules/pkg/index.js:1:2)`,
+			extensionFile: `at activate (${extensionsPath}/publisher.extension-1.0.0/out/extension.js:1:2)`,
+		};
+		service.publicLog('testEvent', data);
+
+		const sent = testAppender.events[0].data;
+		assert.deepStrictEqual(Object.fromEntries(Object.keys(data).map(key => [key, sent[key]])), {
+			userFile: 'Failed to read <REDACTED: user-file-path>',
+			userNodeModulesFile: 'at load (<REDACTED: user-file-path>:1:2)',
+			userExtensionsFile: 'at activate (<REDACTED: user-file-path>:1:2)',
+			appNodeModulesFile: 'at load (/node_modules/pkg/index.js:1:2)',
+			extensionFile: 'at activate (/publisher.extension-1.0.0/out/extension.js:1:2)',
+		});
+
+		service.dispose();
+	}));
+
 	test('common properties added to *all* events, simple event', function () {
 		const testAppender = new TestTelemetryAppender();
 		const service = new TelemetryService({

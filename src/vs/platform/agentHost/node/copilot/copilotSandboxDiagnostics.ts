@@ -40,16 +40,41 @@ export class CopilotSandboxDiagnostics extends Disposable {
 					return;
 				}
 				if (!support.supported) {
-					reasons = [support.reason || localize('copilot.sandbox.unsupported', "The sandbox backend is unavailable on this host.")];
+					this._logService.warn(`[Copilot:${this._session}] Sandbox backend unavailable`, support.reason);
+					reasons = [localize('copilot.sandbox.missingDependencies', "Missing sandbox dependencies may prevent terminal commands from running.")];
 				} else {
 					const network = config.userPolicy?.network;
-					reasons = support.capabilities.filter(capability => !capability.supported && (
+					const missingCapabilities = support.capabilities.filter(capability => !capability.supported && (
 						capability.name === 'shell'
 						|| capability.name === 'filesystem_enumeration'
 						|| capability.name === 'network' && network?.allowOutbound === true
 						|| capability.name === 'network_filtering'
 						|| capability.name === 'denied_paths' && !!config.userPolicy?.filesystem?.deniedPaths?.length
-					)).map(capability => capability.reason || localize('copilot.sandbox.capabilityUnavailable', "The sandbox capability '{0}' is unavailable on this host.", capability.name));
+					));
+					for (const capability of missingCapabilities) {
+						this._logService.warn(`[Copilot:${this._session}] Sandbox capability '${capability.name}' unavailable`, capability.reason);
+					}
+					const capability = missingCapabilities[0];
+					if (capability) {
+						reasons = [getMissingCapabilityMessage(capability.name)];
+					}
+				}
+
+				function getMissingCapabilityMessage(capability: string): string {
+					switch (capability) {
+						case 'shell':
+							return localize('copilot.sandbox.missingShell', "Missing sandbox dependencies may prevent terminal commands from running.");
+						case 'filesystem_enumeration':
+							return localize('copilot.sandbox.missingFilesystemEnumeration', "Missing sandbox dependencies may prevent terminal commands from accessing folders.");
+						case 'network':
+							return localize('copilot.sandbox.missingNetwork', "Missing sandbox dependencies may prevent terminal commands from connecting to the network.");
+						case 'network_filtering':
+							return localize('copilot.sandbox.missingNetworkFiltering', "Missing sandbox dependencies may prevent network access restrictions from working.");
+						case 'denied_paths':
+							return localize('copilot.sandbox.missingDeniedPaths', "Missing sandbox dependencies may prevent blocked files and folders from being protected.");
+						default:
+							return localize('copilot.sandbox.missingDependencies', "Missing sandbox dependencies may prevent terminal commands from running.");
+					}
 				}
 			} catch (error) {
 				this._logService.warn(`[Copilot:${this._session}] Failed to query sandbox host support`, error);

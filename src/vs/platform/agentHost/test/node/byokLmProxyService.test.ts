@@ -173,6 +173,32 @@ suite('ByokLmProxyService', () => {
 		assert.deepStrictEqual(captured?.input, [{ type: 'message', role: 'user', content: [{ type: 'text', text: 'hi' }] }]);
 	});
 
+	test('forwards the authenticated session as conversation ID while preserving model options', async () => {
+		const captured: IByokLmChatRequest[] = [];
+		await withProxy(
+			async request => {
+				captured.push(request);
+				return { output: [{ type: 'message', content: [{ type: 'text', text: 'ok' }] }] };
+			},
+			async handle => {
+				for (const selectedSessionId of [sessionId, sessionId, 'sess-2']) {
+					const response = await fetch(responsesUrl(handle, 'acme'), {
+						method: 'POST',
+						headers: authHeaders(handle, selectedSessionId),
+						body: JSON.stringify({ model: 'm', input: 'hi', temperature: 0.5, top_p: 0.9, max_output_tokens: 100 }),
+					});
+					assert.strictEqual(response.status, 200);
+					await response.text();
+				}
+			},
+		);
+		assert.deepStrictEqual(captured.map(request => request.modelOptions), [
+			{ temperature: 0.5, top_p: 0.9, max_tokens: 100, _conversationId: sessionId },
+			{ temperature: 0.5, top_p: 0.9, max_tokens: 100, _conversationId: sessionId },
+			{ temperature: 0.5, top_p: 0.9, max_tokens: 100, _conversationId: 'sess-2' },
+		]);
+	});
+
 	test('forwards image input on the initial and subsequent turns', async () => {
 		const captured: IByokLmChatRequest[] = [];
 		const statuses: number[] = [];
@@ -400,6 +426,15 @@ suite('ByokLmProxyService', () => {
 		);
 
 		assert.strictEqual(captured[1]?.previousResponseId, 'resp_explicit');
+		assert.deepStrictEqual(captured.map(request => request.modelOptions), [
+			{ _conversationId: sessionId },
+			{ _conversationId: sessionId },
+			{ _conversationId: 'sess-2' },
+			{ _conversationId: sessionId },
+			{ _conversationId: sessionId },
+			{ _conversationId: sessionId },
+			{ _conversationId: sessionId },
+		]);
 		assert.deepStrictEqual(captured.slice(2, 5).map(request => request.previousResponseId), [undefined, undefined, undefined]);
 		assert.deepStrictEqual({
 			previousResponseId: captured[5]?.previousResponseId,

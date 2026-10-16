@@ -111,9 +111,15 @@ export function getModelConfigProperty(
 		if (schema.group !== group || !schema.enum?.length) {
 			continue;
 		}
-		return { key, value: Object.hasOwn(currentConfig, key) ? currentConfig[key] : schema.default, schema };
+		const saved = Object.hasOwn(currentConfig, key) && (key !== 'tier' || isOfferedAutoTier(schema, currentConfig[key]));
+		return { key, value: saved ? currentConfig[key] : schema.default, schema };
 	}
 	return undefined;
+}
+
+/** Counts the legacy `fast` tier, which still shows as Automatic beside Efficiency. */
+function isOfferedAutoTier(schema: IModelConfigPropertySchema, value: unknown): boolean {
+	return !!schema.enum?.includes(value) || (value === 'fast' && !!schema.enum?.includes('efficiency'));
 }
 
 /** The label an enum value is shown with, falling back to a formatted raw value. */
@@ -161,9 +167,13 @@ export function getModelConfigDisplayValues(model: ILanguageModelChatMetadataAnd
 		if (property?.value !== undefined && property.schema.enum?.includes(property.value)) {
 			const label = getModelConfigValueLabel(property.schema, property.value);
 			const title = property.schema.title ?? (group === MODEL_CONFIG_GROUP_EFFORT
-				? localize('chat.effort.header', "Thinking Effort")
+				? localize('chat.effort.header', "Effort Level")
 				: localize('chat.context.header', "Context"));
-			values.push({ group, label, description: localize('chat.modelPicker.configValue', "{0}: {1}", title, label) });
+			values.push({
+				group, label, description: property.schema.readOnly
+					? localize('chat.modelPicker.managedConfigValue', "{0}: {1}, managed by the agent host", title, label)
+					: localize('chat.modelPicker.configValue', "{0}: {1}", title, label),
+			});
 		} else if (!property && group === MODEL_CONFIG_GROUP_CONTEXT && model && !isAutoModel(model) && !isHydraFusionModel(model)) {
 			const total = getModelContextWindowTotal(model.metadata);
 			if (Number.isFinite(total) && total > 0) {
@@ -183,7 +193,7 @@ export function getChangedModelConfigProperties(
 	const properties: IModelConfigProperty[] = [];
 	for (const group of [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT]) {
 		const property = getModelConfigProperty(model, configurationAccess, group);
-		if (!property || property.value === undefined || property.value === property.schema.default) {
+		if (!property || property.schema.readOnly || property.value === undefined || property.value === property.schema.default) {
 			continue;
 		}
 		properties.push(property);
