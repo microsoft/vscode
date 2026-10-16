@@ -14,6 +14,8 @@ import { ICodeEditor, isCodeEditor } from '../../../../editor/browser/editorBrow
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { ITextResourcePropertiesService } from '../../../../editor/common/services/textResourceConfiguration.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { URI } from '../../../../base/common/uri.js';
 import * as nls from '../../../../nls.js';
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -330,10 +332,13 @@ CommandsRegistry.registerCommand({
 		const textResourcePropertiesService = accessor.get(ITextResourcePropertiesService);
 		const clipboardService = accessor.get(IClipboardService);
 		const debugService = accessor.get(IDebugService);
+		const labelService = accessor.get(ILabelService);
 		const frame = getFrame(debugService, context);
 		if (frame) {
 			const eol = textResourcePropertiesService.getEOL(frame.source.uri);
-			await clipboardService.writeText(frame.thread.getCallStack().map(sf => sf.toString()).join(eol));
+			// Format the paths with the label service so they use the path separator of the (possibly remote) file system
+			const uriLabelFormatter = (uri: URI) => labelService.getUriLabel(uri, { noPrefix: true });
+			await clipboardService.writeText(frame.thread.getCallStack().map(sf => sf.toString(uriLabelFormatter)).join(eol));
 		}
 	}
 });
