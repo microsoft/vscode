@@ -45,9 +45,13 @@ export class BYOKContrib extends Disposable implements IExtensionContribution {
 	) {
 		super();
 		this._byokStorageService = new BYOKStorageService(extensionContext);
-		this._register(speech.registerVoiceLiveSessionProvider(GPT_LIVE_SESSION_PROVIDER_ID, {
-			provideVoiceLiveSession: (sdp, token) => this._provideGptLiveSession(sdp, token),
-		}));
+		try {
+			this._register(speech.registerVoiceLiveSessionProvider(GPT_LIVE_SESSION_PROVIDER_ID, {
+				provideVoiceLiveSession: (sdp, token) => this._provideGptLiveSession(sdp, token),
+			}));
+		} catch (error) {
+			this._logService.error(error instanceof Error ? error : String(error), 'BYOK: failed to register GPT-Live voice provider.');
+		}
 		this._applyPolicy();
 		this._register(this._authService.onDidAuthenticationChange(() => this._applyPolicy()));
 		// A token minted after a failed attempt arrives without an identity change. Token loss is left to

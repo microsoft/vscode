@@ -9,6 +9,8 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore, type IDisposable } from '../../../../base/common/lifecycle.js';
 import { Event } from '../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { mock } from '../../../../base/test/common/mock.js';
+import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AGENT_HOST_MERGE_CHANGESET_OPERATION_ID, type IChangesetOperationContribution, type IChangesetOperationContext, type IChangesetOperationHandler, type IChangesetOperationRegistry } from '../../common/agentHostChangesetOperationService.js';
 import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
@@ -20,6 +22,7 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import { JsonRpcErrorCodes } from '../../common/state/sessionProtocol.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, ISessionGitHubState, ISessionGitState, MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, type ChangesetOperation, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentHostChangesetOperationService } from '../../node/agentHostChangesetOperationService.js';
+import { AgentHostDiscardChangesOperationContribution } from '../../node/agentHostDiscardChangesOperationProvider.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import type { IAgentChatConfigurationTarget, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -660,7 +663,8 @@ suite('AgentHostChangesetOperationService', () => {
 	test('single-folder session with absent git state does not dispatch (no premature clear)', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const sessionKey = 'agent:/session';
-		const changesetUri = buildTurnChangesetUri(sessionKey, 'turn-1');
+		// Turn changesets don't wait for Git state, so use one whose operations do.
+		const changesetUri = buildUncommittedChangesetUri(sessionKey);
 		stateManager.registerChangeset(changesetUri);
 		const service = createService(stateManager, new TestConfigurationService(['file:///a']));
 		disposables.add(service.registerContribution(new OperationsContribution(sampleOperations)));
@@ -780,6 +784,70 @@ suite('AgentHostChangesetOperationService', () => {
 			...sampleOperations[0],
 			status: ChangesetOperationStatus.Disabled,
 		}]);
+	});
+
+	test('advertises Discard Changes only on the last turn changeset as turns start and complete, with or without Git state', () => {
+		const run = (gitState: ISessionGitState | undefined) => {
+			const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const sessionKey = 'agent:/session';
+			const chat = buildDefaultChatUri(sessionKey);
+			stateManager.createSession({
+				resource: sessionKey,
+				provider: 'copilot',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+				defaultChat: chat,
+			});
+			const startTurn = (turnId: string) => stateManager.dispatchServerAction(chat, {
+				type: ActionType.ChatTurnStarted,
+				turnId,
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'hi', origin: { kind: MessageKind.User } },
+			});
+			const completeTurn = (turnId: string) => stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId, duration: 1 });
+			const subscriptions = disposables.add(new AgentHostChangesetSubscriptionService());
+			const turnUris = ['turn-1', 'turn-2', 'turn-3'].map(turnId => buildTurnChangesetUri(chat, turnId));
+			for (const turnUri of turnUris) {
+				stateManager.registerChangeset(turnUri);
+				subscriptions.addSubscription(chat, turnUri);
+			}
+			const service = disposables.add(new AgentHostChangesetOperationService(stateManager, new TestGitStateService(), subscriptions, new TestConfigurationService(['file:///a']), createTestChatOwnershipService(stateManager)));
+			// Only the advertising half of the contribution is under test; its handler needs file services.
+			const discard = disposables.add(new AgentHostDiscardChangesOperationContribution(stateManager, new (mock<IInstantiationService>())()));
+			disposables.add(service.registerContribution({ registerHandlers: () => Disposable.None, getOperations: context => discard.getOperations(context), dispose: () => { } }));
+			// Operations of other contributions wait for Git state, even ones that would be offered without it.
+			disposables.add(service.registerContribution({ registerHandlers: () => Disposable.None, getOperations: context => context.gitState ? undefined : sampleOperations, dispose: () => { } }));
+			// The coordinator refreshes the operations of subscribed changesets whenever a turn starts or completes.
+			const refresh = () => {
+				service.updateOperations(sessionKey, undefined, gitState);
+				return Object.fromEntries(turnUris.map((turnUri, index) => [`turn-${index + 1}`, stateManager.getChangesetState(turnUri)?.operations?.map(operation => `${operation.id}:${operation.status}`) ?? []]));
+			};
+
+			startTurn('turn-1');
+			completeTurn('turn-1');
+			startTurn('turn-2');
+			completeTurn('turn-2');
+			const afterTurn2 = refresh();
+			startTurn('turn-3');
+			const whileTurn3Runs = refresh();
+			completeTurn('turn-3');
+			const afterTurn3 = refresh();
+			const branch = service.getOperations(sessionKey, buildBranchChangesetUri(chat), gitState).map(operation => operation.id);
+			return { afterTurn2, whileTurn3Runs, afterTurn3, branch };
+		};
+
+		const lastTurnOnly = {
+			afterTurn2: { 'turn-1': [], 'turn-2': ['discard-changes:idle'], 'turn-3': [] },
+			whileTurn3Runs: { 'turn-1': [], 'turn-2': [], 'turn-3': ['discard-changes:disabled'] },
+			afterTurn3: { 'turn-1': [], 'turn-2': [], 'turn-3': ['discard-changes:idle'] },
+		};
+		assert.deepStrictEqual({ withGit: run(sampleGitState), withoutGit: run(undefined) }, {
+			withGit: { ...lastTurnOnly, branch: ['discard-changes'] },
+			// Other operations still wait for the session's Git state.
+			withoutGit: { ...lastTurnOnly, branch: [] },
+		});
 	});
 
 	test('offers pull request workflows on every folder scope Branch and Uncommitted changeset and keeps merge with the default chat', () => {

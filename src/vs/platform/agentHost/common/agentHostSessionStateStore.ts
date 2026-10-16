@@ -223,7 +223,7 @@ export interface ISessionStateExclusive {
 	 * Adopts old-format session values the caller is about to write to session.db
 	 * itself (keys the store does not own are ignored). Returns the revision and
 	 * the entries the raw write leaves exactly as the store would render them,
-	 * to pass to {@link noteMirrored} once the write succeeded. Does not mark the
+	 * to pass to {@link noteMirrored} once the write applied them. Does not mark the
 	 * catalog payload dirty: the caller is itself synchronizing the catalog.
 	 */
 	writeLegacyMetadata(values: Readonly<Record<string, string | null>>, flush: SessionStateMirrorFlush): Promise<{ readonly revision: number; readonly entries: readonly string[] }>;

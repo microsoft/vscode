@@ -1588,6 +1588,7 @@ function createFixtureProvider(workspace: ISessionWorkspace, sessionTypes: reado
 		override readonly order = 0;
 		override readonly sessionTypes = sessionTypes;
 		override readonly onDidChangeSessionTypes = Event.None;
+		override getSessionTypes(_workspaceUri: URI): ISessionType[] { return [...this.sessionTypes]; }
 		override readonly onDidChangeSessions = Event.None;
 		override readonly onDidChangeModels = Event.None;
 		override readonly browseActions = [

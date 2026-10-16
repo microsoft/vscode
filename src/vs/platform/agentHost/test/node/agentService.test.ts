@@ -91,6 +91,7 @@ import type { IAgentHostStorageService } from '../../node/agentHostStorageServic
 import { AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, CATALOG_VERIFICATION_VERSION, type IAgentHostCatalogReconciliationReport } from '../../node/agentHostCatalogReconciliationService.js';
 import { AgentSessionRegistry, type IRegisteredSession } from '../../node/agentSessionRegistry.js';
 import { AgentHostManagementService } from '../../node/agentHostManagementService.js';
+import { AgentHostSystemWakeService } from '../../node/agentHostSystemWakeService.js';
 import { AGENT_HOST_TITLE_SOURCE_AGENT, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY, SESSION_WORKING_DIRECTORIES_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { MockAgent, ScriptedMockAgent } from './mockAgent.js';
 import type { IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
@@ -3209,7 +3210,7 @@ suite('AgentService (node dispatcher)', () => {
 				managedKeys: ['permissions'],
 			});
 			registerTestAgentProvider(service, provider);
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), new AgentHostSystemWakeService());
 
 			assert.deepStrictEqual(await managementService.getManagedSettingsDiagnostics(), [{
 				provider: 'copilot',
@@ -3237,7 +3238,7 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(service, provider);
 			registerTestAgentProvider(service, otherProvider);
 			registerTestAgentProvider(service, unsupportedProvider);
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), new AgentHostSystemWakeService());
 
 			await managementService.refreshCopilotConnectorSessions();
 			await managementService.refreshCopilotConnectorSessions('mail');
@@ -3252,7 +3253,7 @@ suite('AgentService (node dispatcher)', () => {
 			provider.installPlugin = async (request, operationSession) => { calls.push(['install', request, operationSession?.toString()]); };
 			provider.uninstallPlugin = async (request, operationSession) => { calls.push(['uninstall', request, operationSession?.toString()]); };
 			registerTestAgentProvider(service, provider);
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), new AgentHostSystemWakeService());
 
 			await managementService.installPlugin(provider.id, { source: 'spark@copilot-plugins' }, session);
 			await managementService.uninstallPlugin(provider.id, { name: 'spark', marketplace: 'copilot-plugins' }, session);
@@ -3288,7 +3289,7 @@ suite('AgentService (node dispatcher)', () => {
 				return [{ name: name ?? 'marketplace', success: true }];
 			};
 			registerTestAgentProvider(service, provider);
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), new AgentHostSystemWakeService());
 
 			const listed = await managementService.listPluginMarketplaces(provider.id, session);
 			const added = await managementService.addPluginMarketplace(provider.id, session, 'owner/repository');
@@ -3361,7 +3362,7 @@ suite('AgentService (node dispatcher)', () => {
 					}, [], creationTimeChatStorageResource);
 				}
 			};
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), new AgentHostSystemWakeService());
 			const session = AgentSession.uri('copilot', 'canvas-session');
 			const chat = URI.parse(buildDefaultChatUri(session.toString()));
 
@@ -3431,7 +3432,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 			let restoreCalls = 0;
 			service.restoreSession = async () => { restoreCalls++; };
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), new AgentHostSystemWakeService());
 			const coldSession = AgentSession.uri('copilot', 'canvas-cold-session');
 			const resource = URI.parse('ahp-canvas:/preview');
 
@@ -3475,7 +3476,7 @@ suite('AgentService (node dispatcher)', () => {
 				},
 			});
 			service.restoreSession = async () => { };
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), new AgentHostSystemWakeService());
 
 			await assert.rejects(
 				managementService.listSessionCanvases(requestedSession, foreignChat),
@@ -3516,7 +3517,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 			let restoreCalls = 0;
 			service.restoreSession = async () => { restoreCalls++; };
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), new AgentHostSystemWakeService());
 
 			await assert.rejects(
 				managementService.listSessionCanvases(session, chat),
@@ -4116,7 +4117,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 	});
 
-	test('materialization preserves the chat modified time until a turn starts', async () => {
+	test('materialization preserves the chat modified time and publishes readiness only once', async () => {
 		class ProvisionalAgent extends MockAgent {
 			private readonly _onDidMaterializeChat = new Emitter<IAgentMaterializeChatEvent>();
 			override readonly onDidMaterializeChat = this._onDidMaterializeChat.event;
@@ -4142,6 +4143,17 @@ suite('AgentService (node dispatcher)', () => {
 		const agent = disposables.add(new ProvisionalAgent('copilot'));
 		registerTestAgentProvider(service, agent);
 		const session = await service.createSession({ legacyChatUris: true, provider: agent.id });
+		const lifecycleEvents: string[] = [];
+		disposables.add(getStateManager(service).onDidEmitNotification(notification => {
+			if (notification.type === NotificationType.SessionAdded) {
+				lifecycleEvents.push(notification.type);
+			}
+		}));
+		disposables.add(getStateManager(service).onDidEmitEnvelope(envelope => {
+			if (envelope.action.type === ActionType.SessionReady) {
+				lifecycleEvents.push(envelope.action.type);
+			}
+		}));
 		const before = getStateManager(service).getSessionSummary(session.toString())?.modifiedAt;
 		assert.ok(before);
 		while (Date.now() <= Date.parse(before)) {
@@ -4149,8 +4161,15 @@ suite('AgentService (node dispatcher)', () => {
 		}
 
 		agent.materialize(session);
+		agent.materialize(session);
 
-		assert.strictEqual(getStateManager(service).getSessionSummary(session.toString())?.modifiedAt, before);
+		assert.deepStrictEqual({
+			modifiedAt: getStateManager(service).getSessionSummary(session.toString())?.modifiedAt,
+			lifecycleEvents,
+		}, {
+			modifiedAt: before,
+			lifecycleEvents: [NotificationType.SessionAdded, ActionType.SessionReady],
+		});
 	});
 
 	test('publishes a materialized worktree with its generated branch', async () => {
@@ -7797,6 +7816,58 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual([...written.value.buffer], [...png]);
 		});
 
+		test('independent steering preserves attachment snapshots and rejects in-flight edits', async () => {
+			const { svc, agent, session, attachmentsRoot } = await setup();
+			await dispatchTurnAndWait(svc, agent, session, []);
+			const chat = buildDefaultChatUri(session);
+			const stateManager = getStateManager(svc);
+			const action = {
+				type: ActionType.ChatPendingMessageSet as const,
+				kind: PendingMessageKind.Steering, id: 'steer-a', message: {
+					text: 'A', origin: { kind: MessageKind.User },
+					attachments: [{
+						type: MessageAttachmentKind.EmbeddedResource as const,
+						label: 'context.txt', contentType: 'text/plain',
+						data: encodeBase64(VSBuffer.fromString('steering context')),
+					}],
+				},
+			};
+			const accepted = Event.toPromise(Event.filter(svc.onDidAction, envelope =>
+				envelope.action.type === ActionType.ChatPendingMessageSet && envelope.action.id === 'steer-a'));
+			await svc.dispatchAction(chat, action, 'test-client', 2);
+			await accepted;
+			const attachment = stateManager.getChatState(chat)?.queuedMessages?.[0].message.attachments?.[0];
+			assert.ok(attachment?.type === MessageAttachmentKind.Resource);
+			assert.ok(attachment.uri.startsWith(attachmentsRoot.toString() + '/'));
+			const contents = await fileService.readFile(URI.parse(attachment.uri));
+			const rejections: string[] = [];
+			disposables.add(svc.onDidAction(envelope => {
+				if (envelope.rejectionReason) {
+					rejections.push(envelope.rejectionReason);
+				}
+			}));
+			const changed = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 3));
+			svc.dispatchAction(chat, {
+				type: ActionType.ChatPendingMessageSet,
+				kind: PendingMessageKind.Steering, id: 'steer-a', message: { text: 'Changed A', origin: { kind: MessageKind.User } },
+			}, 'test-client', 3);
+			await changed;
+			const removed = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 4));
+			svc.dispatchAction(chat, { type: ActionType.ChatPendingMessageRemoved, kind: PendingMessageKind.Steering, id: 'steer-a' }, 'test-client', 4);
+			await removed;
+			assert.deepStrictEqual({
+				contents: contents.value.toString(),
+				pending: stateManager.getChatState(chat)?.queuedMessages?.map(message => message.message.text),
+				rejections,
+			}, {
+				contents: 'steering context', pending: ['A'],
+				rejections: [
+					'Cannot change a steering message while it is being processed.',
+					'Cannot change a steering message while it is being processed.',
+				],
+			});
+		});
+
 		test('snapshots embedded text attachments as text files without retaining the payload in state', async () => {
 			const { svc, agent, session, attachmentsRoot } = await setup();
 			const metadata = { kind: 'paste' };
@@ -7991,7 +8062,7 @@ suite('AgentService (node dispatcher)', () => {
 			const provider: IAgent = copilotAgent;
 			provider.getSessionStateFile = async session => URI.file(`/state/${AgentSession.id(session)}/events.jsonl`);
 			registerTestAgentProvider(service, provider);
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), new AgentHostSystemWakeService());
 
 			assert.deepStrictEqual({
 				supported: (await managementService.getSessionStateFile(AgentSession.uri('copilot', 'session-1')))?.toString(),
@@ -22459,7 +22530,7 @@ suite('AgentService (node dispatcher)', () => {
 			service.claimDetachedWorktree = async handle => { calls.push(`claim:${handle}`); };
 			service.deleteDetachedWorktree = async handle => { calls.push(`delete:${handle}`); };
 			service.reconcileDetachedWorktrees = async (scope, activeHandles) => { calls.push(`reconcile:${scope}:${activeHandles.join(',')}`); };
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), new AgentHostSystemWakeService());
 
 			const created = await managementService.createDetachedWorktree(session, 'prepare');
 			await managementService.setDetachedWorktreeArchived(created.handle, true);
@@ -22819,7 +22890,7 @@ suite('AgentService (node dispatcher)', () => {
 			};
 			nullSessionDataService.whenIdle = async () => { flushCount++; };
 			let ingressShutdownCount = 0;
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { ingressShutdownCount++; }, nullSessionDataService, new NullLogService());
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { ingressShutdownCount++; }, nullSessionDataService, new NullLogService(), new AgentHostSystemWakeService());
 
 			const first = managementService.shutdown();
 			const second = managementService.shutdown();
@@ -22848,7 +22919,7 @@ suite('AgentService (node dispatcher)', () => {
 			};
 			service.shutdown = async () => { providerShutdownCount++; };
 			nullSessionDataService.whenIdle = async () => { flushCount++; };
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, () => stalled.p, nullSessionDataService, new NullLogService());
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, () => stalled.p, nullSessionDataService, new NullLogService(), new AgentHostSystemWakeService());
 
 			void managementService.createSessionWithExtensions({});
 			await managementService.shutdown();
@@ -22870,7 +22941,7 @@ suite('AgentService (node dispatcher)', () => {
 			service.createSession = () => createSession.p;
 			service.shutdown = async () => { providerShutdownCount++; };
 			nullSessionDataService.whenIdle = async () => { flushCount++; };
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), new AgentHostSystemWakeService());
 
 			const mutation = managementService.createSessionWithExtensions({});
 			const shutdown = managementService.shutdown();
