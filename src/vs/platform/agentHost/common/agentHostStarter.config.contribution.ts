@@ -203,6 +203,17 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostCanvasesEnabledConfigKey },
+			policy: {
+				name: 'ChatCanvasesEnabled',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.142',
+				localization: {
+					description: {
+						key: 'chat.canvases.enabled',
+						value: nls.localize('chat.canvases.enabled', "Controls whether agents can open Canvases with interactive content in the Agents Window. Newly created sessions pick up changes to this setting."),
+					},
+				},
+			},
 		},
 		[AgentHostAutoAttachPullRequestsSettingId]: {
 			type: 'boolean',

@@ -506,6 +506,24 @@
             }
         },
         {
+            "key": "chat.canvases.enabled",
+            "name": "ChatCanvasesEnabled",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.142",
+            "localization": {
+                "description": {
+                    "key": "chat.canvases.enabled",
+                    "value": "Controls whether agents can open Canvases with interactive content in the Agents Window. Newly created sessions pick up changes to this setting."
+                }
+            },
+            "type": "boolean",
+            "default": false,
+            "included": true,
+            "agentHost": {
+                "status": "enforced"
+            }
+        },
+        {
             "key": "chat.customizations.strictPluginOnlyCustomization",
             "name": "ChatStrictPluginOnlyCustomization",
             "category": "InteractiveSession",
