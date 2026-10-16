@@ -63,6 +63,7 @@ import { ObservedTokenUsage } from './observedTokenUsage.js';
 import { META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { getToolCallDurationMs, toToolCallMeta, type IToolCallMeta, type IToolCallUiMeta, type IToolSearchCandidate } from '../../common/meta/agentToolCallMeta.js';
+import { readAgentMcpAuthenticationIdentity } from '../../common/meta/agentMcpAuthenticationMeta.js';
 import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmitter.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { CopilotSessionApprovalPolicy, fromCopilotPermissionMode } from './copilotApprovalPolicy.js';
@@ -210,6 +211,7 @@ function isCopilotSdkAuthRejection(error: { readonly errorType: string; readonly
 
 interface IPendingMcpAuthRequest {
 	readonly serverName: string;
+	readonly oauthClientId?: string;
 	readonly resource: ProtectedResourceMetadata;
 	readonly requiredScopes: readonly string[];
 	readonly toolCalls: IMcpAuthToolCall[];
@@ -4314,11 +4316,17 @@ export class CopilotAgentSession extends Disposable {
 
 	/** Resolves only matching, currently pending SDK authentication callbacks. */
 	async resolveMcpAuthentication(params: AuthenticateParams): Promise<boolean> {
+		const identity = readAgentMcpAuthenticationIdentity(params);
+		const matches = [...this._pendingMcpAuthRequests.entries()].filter(([, pending]) =>
+			pending.resource.resource === params.resource &&
+			this._scopesSatisfy(params.scopes, pending.requiredScopes) &&
+			(!identity || (pending.serverName === identity.serverName && (!identity.clientId || pending.oauthClientId === identity.clientId)))
+		);
+		if (!identity && matches.length !== 1) {
+			return false;
+		}
 		let resolved = false;
-		for (const [requestId, pending] of this._pendingMcpAuthRequests.entries()) {
-			if (pending.resource.resource !== params.resource || !this._scopesSatisfy(params.scopes, pending.requiredScopes)) {
-				continue;
-			}
+		for (const [requestId, pending] of matches) {
 			for (const toolCall of pending.toolCalls) {
 				this._emitAction({
 					type: ActionType.ChatToolCallAuthResolved,
@@ -4403,6 +4411,7 @@ export class CopilotAgentSession extends Disposable {
 		const toolCalls = this._activeMcpToolCalls(request.serverName);
 		const pending: IPendingMcpAuthRequest = {
 			serverName: request.serverName,
+			oauthClientId: request.staticClientConfig?.clientId,
 			resource,
 			requiredScopes,
 			toolCalls,

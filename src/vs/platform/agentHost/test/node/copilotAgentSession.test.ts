@@ -44,6 +44,7 @@ import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanR
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
+import { agentMcpAuthenticationIdentityMeta } from '../../common/meta/agentMcpAuthenticationMeta.js';
 import { readImageGenerationToolMetadata } from '../../common/meta/agentImageGenerationMeta.js';
 import { readMcpServerControllingSetting, readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin } from '../../common/meta/mcpCustomizationMeta.js';
 import { agentModelCallMetaKey, readAgentModelCallDiagnostics } from '../../common/meta/agentModelCallMeta.js';
@@ -26457,6 +26458,59 @@ Use the attached image as context.
 				{ kind: 'token', accessToken: 'first-token' },
 				{ kind: 'token', accessToken: 'second-token' },
 			]);
+		});
+
+		test('MCP authentication replies resolve only the matching server and OAuth client', async () => {
+			const { session, runtime } = await createAgentSession(disposables);
+			const resource = 'https://mcp.slack.com';
+			const firstAuth = runtime.handleMcpAuthRequest({
+				requestId: 'auth-slack-a',
+				serverName: 'slack-a',
+				serverUrl: resource,
+				reason: 'upscope',
+				staticClientConfig: { clientId: 'client-a' },
+			}, { sessionId: 'test-session-1' });
+			const secondAuth = runtime.handleMcpAuthRequest({
+				requestId: 'auth-slack-b',
+				serverName: 'slack-b',
+				serverUrl: resource,
+				reason: 'upscope',
+				staticClientConfig: { clientId: 'client-b' },
+			}, { sessionId: 'test-session-1' });
+
+			const legacyReplyHandled = await session.resolveMcpAuthentication({ resource, scopes: [], token: 'legacy-token' });
+			const firstReplyHandled = await session.resolveMcpAuthentication({
+				resource,
+				scopes: [],
+				token: 'workspace-a-token',
+				_meta: agentMcpAuthenticationIdentityMeta({ serverName: 'slack-a', clientId: 'client-a' }),
+			});
+			let secondSettledBeforeOwnReply = false;
+			void secondAuth.then(() => secondSettledBeforeOwnReply = true);
+			await Promise.resolve();
+			const secondReplyHandled = await session.resolveMcpAuthentication({
+				resource,
+				scopes: [],
+				token: 'workspace-b-token',
+				_meta: agentMcpAuthenticationIdentityMeta({ serverName: 'slack-b', clientId: 'client-b' }),
+			});
+
+			assert.deepStrictEqual({
+				legacyReplyHandled,
+				firstReplyHandled,
+				secondSettledBeforeOwnReply,
+				secondReplyHandled,
+				results: await Promise.all([firstAuth, secondAuth]),
+			}, {
+				legacyReplyHandled: false,
+				firstReplyHandled: true,
+				secondSettledBeforeOwnReply: false,
+				secondReplyHandled: true,
+				results: [
+					{ kind: 'token', accessToken: 'workspace-a-token' },
+					{ kind: 'token', accessToken: 'workspace-b-token' },
+				],
+			});
 		});
 
 		test('republishes an identical authentication challenge after token delivery starts the server', async () => {

@@ -12,6 +12,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { IAgentHostMcpOAuthMetadataService } from '../../../../../../platform/agentHost/common/agentHostMcpOAuthMetadataService.js';
 import { authenticationAccountId, authenticationAccountMeta } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
+import { agentMcpAuthenticationIdentityMeta, type IAgentMcpAuthenticationIdentity } from '../../../../../../platform/agentHost/common/meta/agentMcpAuthenticationMeta.js';
 import { deriveGitHubEndpoints } from '../../../../../../platform/github/common/githubEndpoints.js';
 import { type McpAuthRequirement, type McpOAuthClient, type ModelSelection, type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -86,9 +87,9 @@ export class AgentHostAuthTokenCache {
 	 * Forwards a token once per resource/scope pair. Same-token callers share
 	 * and await an in-flight authentication.
 	 */
-	async authenticate(resource: string, scopes: readonly string[] | undefined, token: string, authenticate: () => Promise<unknown>, accountId?: string): Promise<boolean> {
+	async authenticate(resource: string, scopes: readonly string[] | undefined, token: string, authenticate: () => Promise<unknown>, accountId?: string, identity?: string): Promise<boolean> {
 		const credentialKey = JSON.stringify([token, accountId]);
-		const key = this._key(resource, scopes);
+		const key = this._key(resource, scopes, identity);
 		const globalGeneration = this._globalGeneration;
 		const keyGeneration = this._keyGenerations.get(key) ?? 0;
 		const pending = this._pendingAuthentications.get(key);
@@ -109,7 +110,7 @@ export class AgentHostAuthTokenCache {
 			if (!this._isCurrentGeneration(key, globalGeneration, keyGeneration)) {
 				throw new CancellationError();
 			}
-			return this.authenticate(resource, scopes, token, authenticate, accountId);
+			return this.authenticate(resource, scopes, token, authenticate, accountId, identity);
 		}
 
 		if (this._completedTokens.get(key) === credentialKey) {
@@ -142,10 +143,15 @@ export class AgentHostAuthTokenCache {
 	clear(resource?: string, scopes?: readonly string[]): void {
 		if (resource !== undefined) {
 			if (scopes !== undefined) {
-				const key = this._key(resource, scopes);
-				this._invalidateKey(key);
-				this._completedTokens.delete(key);
-				this._pendingAuthentications.delete(key);
+				const prefix = `${this._key(resource, scopes)}\x00`;
+				const keys = new Set([...this._completedTokens.keys(), ...this._pendingAuthentications.keys(), ...this._keyGenerations.keys()]);
+				for (const key of keys) {
+					if (key === this._key(resource, scopes) || key.startsWith(prefix)) {
+						this._invalidateKey(key);
+						this._completedTokens.delete(key);
+						this._pendingAuthentications.delete(key);
+					}
+				}
 				return;
 			}
 			const prefix = `${resource}\x00`;
@@ -186,8 +192,9 @@ export class AgentHostAuthTokenCache {
 		return this._globalGeneration === globalGeneration && (this._keyGenerations.get(key) ?? 0) === keyGeneration;
 	}
 
-	private _key(resource: string, scopes: readonly string[] | undefined): string {
-		return `${resource}\x00${scopes ? [...new Set(scopes)].sort().join('\x00') : ''}`;
+	private _key(resource: string, scopes: readonly string[] | undefined, identity?: string): string {
+		const baseKey = `${resource}\x00${scopes ? [...new Set(scopes)].sort().join('\x00') : ''}`;
+		return identity === undefined ? baseKey : `${baseKey}\x00${identity}`;
 	}
 }
 
@@ -535,6 +542,7 @@ async function forwardAuthenticationToken(
 	scopes: readonly string[] | undefined,
 	session: (Pick<AuthenticationSession, 'accessToken' | 'expiresAfter'> & Partial<Pick<AuthenticationSession, 'id' | 'account' | 'authorizationServer'>>) | undefined,
 	providerId?: string,
+	mcpAuthenticationIdentity?: IAgentMcpAuthenticationIdentity,
 ): Promise<boolean> {
 	throwIfAuthenticationStale(options);
 	const token = session?.accessToken ?? '';
@@ -549,15 +557,26 @@ async function forwardAuthenticationToken(
 		accountId: session.account.id,
 		...(session.authorizationServer ? { authorizationServer: session.authorizationServer.toString() } : {}),
 	} : undefined;
+	const metadata = {
+		...(account ? authenticationAccountMeta(account) : {}),
+		...(mcpAuthenticationIdentity ? agentMcpAuthenticationIdentityMeta(mcpAuthenticationIdentity) : {}),
+	};
 	const request: IAgentHostAuthenticateRequest = {
 		resource,
 		scopes,
 		token,
 		...(expiresAfter !== undefined && Number.isInteger(expiresAfter) && expiresAfter > 0 ? { expiresIn: Math.ceil(expiresAfter / 1000) } : {}),
-		...(account ? { _meta: authenticationAccountMeta(account) } : {}),
+		...(Object.keys(metadata).length > 0 ? { _meta: metadata } : {}),
 	};
 	if (options.authTokenCache) {
-		return options.authTokenCache.authenticate(resource, scopes ?? [], token, () => options.authenticate(request), authenticationAccountId(account));
+		return options.authTokenCache.authenticate(
+			resource,
+			scopes ?? [],
+			token,
+			() => options.authenticate(request),
+			authenticationAccountId(account),
+			mcpAuthenticationIdentity ? JSON.stringify([mcpAuthenticationIdentity.serverName, mcpAuthenticationIdentity.clientId]) : undefined,
+		);
 	}
 	await options.authenticate(request);
 	return true;
@@ -960,7 +979,7 @@ export async function resolveMcpServerAuthentication(
 	const authenticationOperations = getMcpAuthenticationOperations(authenticationService);
 	for (const authorizationServer of protectedResource.authorization_servers ?? []) {
 		const authorizationServerUri = URI.parse(authorizationServer);
-		const providerOperationId = getDynamicAuthenticationProviderId(authorizationServerUri, protectedResource);
+		const providerOperationId = getDynamicAuthenticationProviderId(authorizationServerUri, protectedResource, options.oauthClient?.clientId);
 		const authenticated = await authenticationOperations.queue(providerOperationId, async () => {
 			const providerId = await getOrCreateProviderForMcpResource(
 				authorizationServerUri,
@@ -1045,7 +1064,7 @@ async function getOrCreateProviderForMcpResource(
 	authorizationServerMetadataFetcher: typeof fetchAuthorizationServerMetadata,
 ): Promise<string | undefined> {
 	const resourceUri = URI.parse(protectedResource.resource);
-	const dynamicProviderId = getDynamicAuthenticationProviderId(authorizationServer, protectedResource);
+	const dynamicProviderId = getDynamicAuthenticationProviderId(authorizationServer, protectedResource, oauthClient?.clientId);
 	let clientId = oauthClient?.clientId;
 	let clientSecret = oauthClient?.clientSecret;
 	if (oauthClient) {
@@ -1122,7 +1141,10 @@ async function authenticateMcpSession(
 	updateAccess: boolean,
 	agentHost: { readonly authority: string; readonly label: string } | undefined,
 ): Promise<void> {
-	await forwardAuthenticationToken(options, options.mcpServerUrl, scopes, session);
+	await forwardAuthenticationToken(options, options.mcpServerUrl, scopes, session, undefined, {
+		serverName: options.mcpServerName,
+		...(options.oauthClient ? { clientId: options.oauthClient.clientId } : {}),
+	});
 	if (updateAccess) {
 		authenticationMcpAccessService.updateAllowedMcpServers(providerId, session.account.label, [{ id: options.mcpServerId, name: options.mcpServerName, allowed: true, url: options.mcpServerUrl, agentHost }]);
 		authenticationMcpService.updateAccountPreference(options.mcpServerId, providerId, session.account);

@@ -24,6 +24,7 @@ import { AgentHostSessionMoveUnsupportedError, DevContainerConnectExtensionMetho
 import { McpAuthRequiredReason } from '../../common/state/protocol/channels-session/state.js';
 import { AuthenticateParams } from '../../common/agent.js';
 import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
+import { agentMcpAuthenticationIdentityMeta } from '../../common/meta/agentMcpAuthenticationMeta.js';
 import { agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js';
 import { AgentHostFileSystemProvider } from '../../common/agentHostFileSystemProvider.js';
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
@@ -1040,6 +1041,31 @@ suite('AgentHostProtocolClient', () => {
 		await revoke;
 
 		assert.deepStrictEqual([...client['_authentication'].values()], []);
+	});
+
+	test('retains authentication separately for MCP server and OAuth client identities', async () => {
+		const { client, transport } = createClient();
+		for (const [serverName, clientId, token] of [
+			['slack-a', 'client-a', 'workspace-a-token'],
+			['slack-b', 'client-b', 'workspace-b-token'],
+		]) {
+			const authenticate = client.authenticate({
+				resource: 'https://mcp.slack.com',
+				scopes: ['search:read'],
+				token,
+				_meta: agentMcpAuthenticationIdentityMeta({ serverName, clientId }),
+			});
+			const request = transport.sentMessages.at(-1) as JsonRpcRequest;
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: { authenticated: true } });
+			await authenticate;
+		}
+		assert.deepStrictEqual([...client['_authentication'].values()].map(({ params }) => ({
+			token: params.token,
+			identity: params._meta,
+		})), [
+			{ token: 'workspace-a-token', identity: agentMcpAuthenticationIdentityMeta({ serverName: 'slack-a', clientId: 'client-a' }) },
+			{ token: 'workspace-b-token', identity: agentMcpAuthenticationIdentityMeta({ serverName: 'slack-b', clientId: 'client-b' }) },
+		]);
 	});
 
 	test('listSessions carries the workspace-less marker and compatible working directories', async () => {

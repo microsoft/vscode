@@ -130,8 +130,9 @@ export interface IAuthenticationProviderHostDelegate {
 	createXaa?(issuer: URI): Promise<string>;
 }
 
-export function getDynamicAuthenticationProviderId(authorizationServer: URI, resource: IAuthorizationProtectedResourceMetadata | undefined): string {
-	return resource ? `${authorizationServer.toString(true)} ${resource.resource}` : authorizationServer.toString(true);
+export function getDynamicAuthenticationProviderId(authorizationServer: URI, resource: IAuthorizationProtectedResourceMetadata | undefined, clientId?: string): string {
+	const baseId = resource ? `${authorizationServer.toString(true)} ${resource.resource}` : authorizationServer.toString(true);
+	return clientId === undefined ? baseId : `${baseId} ${JSON.stringify(clientId)}`;
 }
 
 export const IAuthenticationService = createDecorator<IAuthenticationService>('IAuthenticationService');

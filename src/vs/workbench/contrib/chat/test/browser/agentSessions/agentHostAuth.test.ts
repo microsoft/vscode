@@ -15,6 +15,7 @@ import { type ProtectedResourceMetadata } from '../../../../../../platform/agent
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostMcpOAuthMetadataService, IAgentHostMcpOAuthMetadataService } from '../../../../../../platform/agentHost/common/agentHostMcpOAuthMetadataService.js';
 import { authenticationAccountMeta, readAuthenticationAccount } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
+import { agentMcpAuthenticationIdentityMeta } from '../../../../../../platform/agentHost/common/meta/agentMcpAuthenticationMeta.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -31,7 +32,7 @@ import { NullTelemetryService } from '../../../../../../platform/telemetry/commo
 import { IAuthenticationMcpAccessService } from '../../../../../services/authentication/browser/authenticationMcpAccessService.js';
 import { IAuthenticationMcpService } from '../../../../../services/authentication/browser/authenticationMcpService.js';
 import { IAuthenticationMcpUsageService } from '../../../../../services/authentication/browser/authenticationMcpUsageService.js';
-import { IAuthenticationService, type AuthenticationSession, type IAuthenticationProvider, type IAuthenticationProviderSessionOptions } from '../../../../../services/authentication/common/authentication.js';
+import { getDynamicAuthenticationProviderId, IAuthenticationService, type AuthenticationSession, type IAuthenticationProvider, type IAuthenticationProviderSessionOptions } from '../../../../../services/authentication/common/authentication.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../browser/actions/chatActions.js';
 import { AgentHostAuthenticationRecovery, autoAuthenticateMcpServer, authenticateProtectedResources, resolveAuthenticationInteractively, resolveSessionForResource, AgentHostAuthTokenCache, agentHostMcpServerId, resolveMcpServerAuthentication, modelRequiresAgentAuthentication, revokeAuthenticationForRemovedSessions, type IAgentHostAuthenticationOptions } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
@@ -275,6 +276,19 @@ suite('AgentHostAuthTokenCache', () => {
 			await cache.authenticate('resource', ['repo'], 'token', send, 'account-b'),
 		];
 		assert.deepStrictEqual({ results, calls }, { results: [true, true, false, true], calls: 3 });
+	});
+
+	test('forwards the same resource token independently for distinct MCP servers', async () => {
+		const cache = new AgentHostAuthTokenCache();
+		const calls: string[] = [];
+		const authenticate = async (serverName: string) => {
+			calls.push(serverName);
+		};
+		const results = await Promise.all([
+			cache.authenticate('https://api.example.com', ['read'], 'tok1', () => authenticate('slack-a'), undefined, 'slack-a'),
+			cache.authenticate('https://api.example.com', ['read'], 'tok1', () => authenticate('slack-b'), undefined, 'slack-b'),
+		]);
+		assert.deepStrictEqual({ results, calls }, { results: [true, true], calls: ['slack-a', 'slack-b'] });
 	});
 
 	test('different tokens are serialized for the same resource and scopes', async () => {
@@ -1005,7 +1019,12 @@ suite('autoAuthenticateMcpServer', () => {
 			authenticated: allowed,
 			serverIds: [agentHostMcpServerId('', 'Docs', 'https://docs.example/mcp')],
 			sessionRequests: [{ scopes: ['read'], silent: true }],
-			authenticateRequests: allowed ? [{ resource: 'https://docs.example/mcp', scopes: ['read'], token: 'docs-token' }] : [],
+			authenticateRequests: allowed ? [{
+				resource: 'https://docs.example/mcp',
+				scopes: ['read'],
+				token: 'docs-token',
+				_meta: agentMcpAuthenticationIdentityMeta({ serverName: 'Docs', clientId: 'docs-client' }),
+			}] : [],
 		})));
 	});
 });
@@ -1375,36 +1394,38 @@ suite('resolveMcpServerAuthentication', () => {
 				resource: 'https://mcp.notion.com/mcp',
 				scopes: [],
 				token: 'notion-token',
+				_meta: agentMcpAuthenticationIdentityMeta({ serverName: 'notion' }),
 			}],
 		});
 	});
 
-	test('serializes authentication transactions for different configured clients', async () => {
-		const dynamicProviderId = 'https://mcp.example.com/ https://mcp.example.com/resource';
+	test('isolates concurrent authentication transactions for different configured clients', async () => {
 		const firstSessionStarted = new DeferredPromise<void>();
 		const firstSessionGate = new DeferredPromise<void>();
-		const providerCreations: string[] = [];
+		const secondSessionStarted = new DeferredPromise<void>();
+		const providerCreations: { clientId: string; providerId: string }[] = [];
 		const sessionRequests: string[] = [];
 		const authenticateRequests: string[] = [];
-		let activeClient: string | undefined;
-		let providerActive = false;
+		const registeredClients = new Map<string, { clientId: string; clientSecret: string | undefined }>();
 		const authService = createMockAuthService({
-			isDynamicAuthenticationProvider: providerId => providerId === dynamicProviderId && providerActive,
-			createDynamicAuthenticationProvider: async (_authorizationServer, _metadata, _resource, clientId) => {
-				activeClient = clientId;
-				providerActive = true;
-				providerCreations.push(clientId ?? '');
-				return { id: dynamicProviderId };
+			isDynamicAuthenticationProvider: providerId => registeredClients.has(providerId),
+			createDynamicAuthenticationProvider: async (authorizationServer, _metadata, resource, clientId, clientSecret) => {
+				const providerId = getDynamicAuthenticationProviderId(authorizationServer, resource, clientId);
+				registeredClients.set(providerId, { clientId: clientId!, clientSecret });
+				providerCreations.push({ clientId: clientId!, providerId });
+				return { id: providerId };
 			},
 			unregisterAuthenticationProvider: () => {
-				providerActive = false;
+				assert.fail('Distinct OAuth clients must not unregister each other');
 			},
-			getSessions: async () => {
-				const clientId = activeClient ?? '';
+			getSessions: async providerId => {
+				const clientId = registeredClients.get(providerId)!.clientId;
 				sessionRequests.push(clientId);
 				if (clientId === 'first-client') {
 					firstSessionStarted.complete();
 					await firstSessionGate.p;
+				} else {
+					secondSessionStarted.complete();
 				}
 				return [{
 					id: `${clientId}-session`,
@@ -1426,10 +1447,8 @@ suite('resolveMcpServerAuthentication', () => {
 			addAccountUsage: () => { },
 		});
 		instantiationService.stub(IDynamicAuthenticationProviderStorageService, {
-			getClientRegistration: () => Promise.resolve(activeClient ? { clientId: activeClient } : undefined),
-			removeDynamicProvider: async () => {
-				activeClient = undefined;
-			},
+			getClientRegistration: async providerId => registeredClients.get(providerId),
+			removeDynamicProvider: async providerId => { registeredClients.delete(providerId); },
 		});
 		instantiationService.stub(ILogService, new NullLogService());
 		const protectedResource = {
@@ -1460,33 +1479,46 @@ suite('resolveMcpServerAuthentication', () => {
 		const first = instantiationService.invokeFunction(resolveMcpServerAuthentication, protectedResource, options('first-client'));
 		const second = instantiationService.invokeFunction(resolveMcpServerAuthentication, protectedResource, options('second-client'));
 		await firstSessionStarted.p;
+		await secondSessionStarted.p;
 		const beforeResolution = {
 			providerCreations: [...providerCreations],
 			sessionRequests: [...sessionRequests],
 		};
+		const secondResult = await second;
 		firstSessionGate.complete();
-		const results = await Promise.all([first, second]);
+		const results = [await first, secondResult];
 
 		assert.deepStrictEqual({
 			beforeResolution,
 			results,
 			providerCreations,
+			providerIds: providerCreations.map(({ providerId }) => providerId),
 			sessionRequests,
 			authenticateRequests,
 		}, {
 			beforeResolution: {
-				providerCreations: ['first-client'],
-				sessionRequests: ['first-client'],
+				providerCreations: [
+					{ clientId: 'first-client', providerId: getDynamicAuthenticationProviderId(URI.parse('https://mcp.example.com'), protectedResource, 'first-client') },
+					{ clientId: 'second-client', providerId: getDynamicAuthenticationProviderId(URI.parse('https://mcp.example.com'), protectedResource, 'second-client') },
+				],
+				sessionRequests: ['first-client', 'second-client'],
 			},
 			results: [true, true],
-			providerCreations: ['first-client', 'second-client'],
+			providerCreations: [
+				{ clientId: 'first-client', providerId: getDynamicAuthenticationProviderId(URI.parse('https://mcp.example.com'), protectedResource, 'first-client') },
+				{ clientId: 'second-client', providerId: getDynamicAuthenticationProviderId(URI.parse('https://mcp.example.com'), protectedResource, 'second-client') },
+			],
+			providerIds: [
+				getDynamicAuthenticationProviderId(URI.parse('https://mcp.example.com'), protectedResource, 'first-client'),
+				getDynamicAuthenticationProviderId(URI.parse('https://mcp.example.com'), protectedResource, 'second-client'),
+			],
 			sessionRequests: ['first-client', 'second-client'],
 			authenticateRequests: ['first-client-token', 'second-client-token'],
 		});
 	});
 
 	test('restores a persisted configured provider without user interaction', async () => {
-		const dynamicProviderId = 'https://mcp.slack.com/ https://mcp.slack.com';
+		const dynamicProviderId = getDynamicAuthenticationProviderId(URI.parse('https://mcp.slack.com'), { resource: 'https://mcp.slack.com' }, 'slack-client-id');
 		const providerCreations: string[] = [];
 		const authenticateRequests: { resource: string; scopes?: readonly string[]; token: string }[] = [];
 		let isProviderActive = false;
@@ -1552,21 +1584,21 @@ suite('resolveMcpServerAuthentication', () => {
 				resource: 'https://mcp.slack.com',
 				scopes: ['search:read.public'],
 				token: 'slack-token',
+				_meta: agentMcpAuthenticationIdentityMeta({ serverName: 'Slack', clientId: 'slack-client-id' }),
 			}],
 		});
 	});
 
 	test('uses configured public and confidential clients when creating a dynamic provider', async () => {
-		const dynamicProviderId = 'https://mcp.slack.com/ https://mcp.slack.com';
 		const providerCreations: { authorizationServer: string; resource: string | undefined; clientId: string | undefined; clientSecret: string | undefined }[] = [];
 		const sessionRequests: { clientId: string | undefined; clientSecret: string | undefined }[] = [];
 		const sessionCreations: { clientId: string | undefined; clientSecret: string | undefined }[] = [];
 		const authenticateRequests: { resource: string; scopes?: readonly string[]; token: string }[] = [];
 		const removedProviders: string[] = [];
-		let registeredClient: { clientId?: string; clientSecret?: string } | undefined;
+		const registeredClients = new Map<string, { clientId: string; clientSecret: string | undefined }>();
 		let getSessionsCall = 0;
 		const provider: IAuthenticationProvider = {
-			id: dynamicProviderId,
+			id: getDynamicAuthenticationProviderId(URI.parse('https://mcp.slack.com'), { resource: 'https://mcp.slack.com' }, 'public-client-id'),
 			label: 'Slack',
 			supportsMultipleAccounts: false,
 			onDidChangeSessions: Event.None,
@@ -1601,14 +1633,15 @@ suite('resolveMcpServerAuthentication', () => {
 					clientId,
 					clientSecret,
 				});
-				registeredClient = { clientId, clientSecret };
-				return { id: dynamicProviderId };
+				const providerId = getDynamicAuthenticationProviderId(authorizationServer, resource, clientId);
+				registeredClients.set(providerId, { clientId: clientId!, clientSecret });
+				return { id: providerId };
 			},
 			getProvider: () => provider,
-			isDynamicAuthenticationProvider: providerId => providerId === dynamicProviderId && registeredClient !== undefined,
+			isDynamicAuthenticationProvider: providerId => registeredClients.has(providerId),
 			unregisterAuthenticationProvider: providerId => {
 				removedProviders.push(providerId);
-				registeredClient = undefined;
+				registeredClients.delete(providerId);
 			},
 		});
 		const instantiationService = disposables.add(new TestInstantiationService());
@@ -1625,9 +1658,10 @@ suite('resolveMcpServerAuthentication', () => {
 			addAccountUsage: () => { },
 		});
 		instantiationService.stub(IDynamicAuthenticationProviderStorageService, {
-			getClientRegistration: () => Promise.resolve(registeredClient),
+			getClientRegistration: async providerId => registeredClients.get(providerId),
 			removeDynamicProvider: async providerId => {
 				removedProviders.push(providerId);
+				registeredClients.delete(providerId);
 			},
 		});
 		instantiationService.stub(ILogService, new NullLogService());
@@ -1698,14 +1732,16 @@ suite('resolveMcpServerAuthentication', () => {
 					resource: 'https://mcp.slack.com',
 					scopes: ['search:read.public'],
 					token: 'public-token',
+					_meta: agentMcpAuthenticationIdentityMeta({ serverName: 'Example', clientId: 'public-client-id' }),
 				},
 				{
 					resource: 'https://mcp.slack.com',
 					scopes: ['search:read.public'],
 					token: 'confidential-token',
+					_meta: agentMcpAuthenticationIdentityMeta({ serverName: 'Example', clientId: 'confidential-client-id' }),
 				},
 			],
-			removedProviders: [dynamicProviderId, dynamicProviderId],
+			removedProviders: [],
 		});
 	});
 });
