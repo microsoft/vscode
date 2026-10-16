@@ -56,7 +56,6 @@ import { buildCopilotBuiltinAgentsContainer, COPILOT_BUILTIN_AGENT_NAMES_BY_URI,
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
 import { AgentChatOperationContext, AgentSession, fixedChatOwnerRef, type IAgentChatOwnerRef, resolveSessionBackedStorage, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatSessionSettings, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent } from '../../common/agent.js';
-import type { ChatUriFormat } from '../../common/agentHostChatMinting.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import { autoModeTiers, defaultAutoModeTier, getAutoModeTierDescription, getAutoModeTierLabel, getEnsembleAutoModeTierLabel } from '../../common/autoModeTiers.js';
 import { AUTO_MODEL_ID, isAutoModel } from './modelIdentifiers.js';
@@ -337,7 +336,6 @@ interface ICopilotAgentSessionIdentity {
 	readonly chatChannelUri: URI;
 	/** Host-chosen persistence/config scope (the {@link IAgentChatContext.resource}). */
 	readonly resource: URI;
-	readonly subagentChatUriFormat: ChatUriFormat;
 }
 
 interface IWorkingDirectoryMetadataSnapshot {
@@ -947,16 +945,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	/** Exact chat -> host-selected persistence scope. */
 	private readonly _chatStorageScopes = new Map<string, URI>();
 
-	/** Exact chat -> the format its session's subagent chat ids take. */
-	private readonly _chatSubagentFormats = new Map<string, ChatUriFormat>();
-
-	/** The subagent id format recorded for `chat` by the host context that created or restored it. Contextless legacy resumes only ever run after such a record exists. */
-	private _subagentFormatFor(chat: URI): ChatUriFormat {
-		return this._chatSubagentFormats.get(chat.toString()) ?? 'shaped';
-	}
-
-	private _rememberChatScope(chat: URI, owner: IAgentChatOwnerRef, storageScope: URI, format: ChatUriFormat): void {
-		this._chatSubagentFormats.set(chat.toString(), format);
+	private _rememberChatScope(chat: URI, owner: IAgentChatOwnerRef, storageScope: URI): void {
 		this._chatOwners.set(chat.toString(), owner);
 		this._chatStorageScopes.set(chat.toString(), storageScope);
 	}
@@ -1260,10 +1249,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 */
 	private _emitSpawnedChatForSubagentSignal(signal: AgentSignal): void {
 		const spawn = SubagentChatSignal.toSpawnEvent(signal, chat => {
-			const ownerRef = this._chatOwners.get(chat);
-			const owner = (ownerRef?.get() ?? this._findChatByUri(chat)?.ownerSessionUri)?.toString();
-			const format = ownerRef?.getSubagentChatUriFormat() ?? this._chatSubagentFormats.get(chat);
-			return owner !== undefined && format !== undefined ? { owner, format } : undefined;
+			const owner = this._chatOwners.get(chat);
+			return owner && { owner: owner.get().toString(), format: owner.getSubagentChatUriFormat() };
 		});
 		if (spawn) {
 			this._onDidSpawnChat.fire(spawn);
@@ -2338,7 +2325,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const context = this._resolveChatContext(chat, {
 			owner,
 			resource: this._resolveChatStorageScope(chat),
-			subagentChatUriFormat: this._subagentFormatFor(chat),
 			sessionSettings: undefined,
 			launchWorkingDirectories: undefined,
 		});
@@ -4690,7 +4676,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// runs (which re-records the same scope for an idempotent duplicate) so
 		// the check reflects what existed walking in, not what this call added.
 		const preexisting = this._chatOwners.has(chatKey) || this._chatBackings.has(chatKey) || !!this._findChatByUri(chat);
-		this._rememberChatScope(chat, context.owner, context.resource, context.subagentChatUriFormat);
+		this._rememberChatScope(chat, context.owner, context.resource);
 		try {
 			if (options.deferBacking) {
 				return await this._reserveChatBacking(chat, context, options);
@@ -4735,7 +4721,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// The scope was recorded optimistically before the create attempt; it
 		// never produced a backing, so it must stop counting as a live chat.
 		this._chatOwners.delete(chatKey);
-		this._chatSubagentFormats.delete(chatKey);
 		this._chatStorageScopes.delete(chatKey);
 		// A partially-completed reserve/import can record a backing before the
 		// operation that follows it fails (e.g. `_resumeSession` records one
@@ -5596,7 +5581,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 				owner: this._resolveChatOwnerRef(chatChannelUri),
 				chatChannelUri,
 				resource: storage,
-				subagentChatUriFormat: this._subagentFormatFor(chatChannelUri),
 			});
 			const initializingSession = agentSession;
 			await this._initializeAndRegisterSession(initializingSession, () => {
@@ -6137,7 +6121,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._logService.warn(`[Copilot] Subagent chat ${chat.toString()} addressed without its host-supplied tool-call origin; no turns to reconstruct`);
 			return [];
 		}
-		const { owner, subagentChatUriFormat } = resolveAgentChatContext(sessionOrContext, chat);
+		const { owner } = resolveAgentChatContext(sessionOrContext, chat);
 		// Subagent chats move with their parent, so the parent shares the subagent's owner. It resumes from the storage
 		// recorded when it was created or restored (a peer's own resource), or its live runtime's; a parent neither
 		// recorded nor live has no known storage.
@@ -6146,7 +6130,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._logService.warn(`[Copilot] Subagent chat ${chat.toString()}: its parent ${spawnedFrom.chat.toString()} is not restored; no turns to reconstruct`);
 			return [];
 		}
-		const parentContext = this._resolveChatContext(spawnedFrom.chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner, resource: parentStorage, subagentChatUriFormat });
+		const parentContext = this._resolveChatContext(spawnedFrom.chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner, resource: parentStorage });
 		const parentEntry = await this._ensureResolvedChatSession(parentContext).catch(err => {
 			this._logService.warn(`[Copilot:${parentContext.sdkSessionId ?? parentContext.ownerSessionId}] Failed to resume exact source chat for subagent restore`, err);
 			return undefined;
@@ -6297,7 +6281,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			let sourceEntry: CopilotAgentSession | undefined;
 			let inheritedWorkingDirectories: readonly URI[] | undefined;
 			if (fork) {
-				sourceEntry = await this._ensureResolvedChatSession(this._resolveChatContext(fork.source, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: this._resolveChatOwnerRef(fork.source), resource: this._resolveChatStorageScope(fork.source), subagentChatUriFormat: context.subagentChatUriFormat }));
+				sourceEntry = await this._ensureResolvedChatSession(this._resolveChatContext(fork.source, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: this._resolveChatOwnerRef(fork.source), resource: this._resolveChatStorageScope(fork.source) }));
 				if (!sourceEntry) {
 					throw new Error(`[Copilot] createChat fork: source chat ${fork.source.toString()} not found`);
 				}
@@ -6356,7 +6340,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 			let agentSession: CopilotAgentSession | undefined;
 			try {
-				agentSession = this._createAgentSession(launchPlan, workingDirectory, activeClient, { owner: context.owner, chatChannelUri: chat, resource: storageScope, subagentChatUriFormat: context.subagentChatUriFormat });
+				agentSession = this._createAgentSession(launchPlan, workingDirectory, activeClient, { owner: context.owner, chatChannelUri: chat, resource: storageScope });
 				const initializingSession = agentSession;
 				await this._initializeAndRegisterSession(initializingSession, () => {
 					this._throwIfClientReplaced(client, initializingSession);
@@ -6536,7 +6520,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._canvasHandoffs.delete(chat);
 			this._chatBackings.delete(chatKey);
 			this._chatOwners.delete(chatKey);
-			this._chatSubagentFormats.delete(chatKey);
 			this._chatStorageScopes.delete(chatKey);
 
 			if (target) {
@@ -6632,7 +6615,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	async materializeChat(chat: URI, context: URI | IAgentChatContext, providerData: string | undefined): Promise<IAgentCreateChatResult | void> {
 		this._noteHostCustomizations(context);
 		const resolved = resolveAgentChatContext(context, chat);
-		this._rememberChatScope(chat, resolved.owner, resolved.resource, resolved.subagentChatUriFormat);
+		this._rememberChatScope(chat, resolved.owner, resolved.resource);
 		const chatKey = chat.toString();
 		// A chat stored in a session's database takes that session's SDK id and deferred-execution state, whichever session owns it now.
 		const sessionStorage = resolveSessionBackedStorage(resolved, chat);
@@ -6681,7 +6664,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	async recoverLegacyChat(chat: URI, context: URI | IAgentChatContext): Promise<IAgentCreateChatResult> {
 		const resolved = resolveAgentChatContext(context, chat);
-		this._rememberChatScope(chat, resolved.owner, resolved.resource, resolved.subagentChatUriFormat);
+		this._rememberChatScope(chat, resolved.owner, resolved.resource);
 		const backing = { sdkSessionId: AgentSession.id(resolveSessionBackedStorage(resolved, chat) ?? resolved.owner.get()) };
 		this._chatBackings.set(chat.toString(), backing);
 		return { providerData: encodeProviderData(backing) };
@@ -6916,7 +6899,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				stageRecorder,
 				fallback: { model: info.model, longContextWindow: this._longContextWindowFor(info.model?.id), freeLongContext: this._isFreeLongContext(info.model?.id) },
 			};
-			agentSession = this._createAgentSession(launchPlan, workingDirectory, activeClient, { owner: context.ownerRef, chatChannelUri: chat, resource: context.resource, subagentChatUriFormat: this._subagentFormatFor(chat) });
+			agentSession = this._createAgentSession(launchPlan, workingDirectory, activeClient, { owner: context.ownerRef, chatChannelUri: chat, resource: context.resource });
 			const initializingSession = agentSession;
 			await this._initializeAndRegisterSession(initializingSession, () => {
 				this._throwIfClientReplaced(client, initializingSession);
@@ -7364,7 +7347,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 				owner,
 				chatChannelUri,
 				resource: identity.resource,
-				subagentChatUriFormat: identity.subagentChatUriFormat,
 				rawSessionId: launchPlan.sessionId,
 				onDidSessionProgress: this._onDidChatProgress,
 				onSessionEvent: event => {
@@ -7688,7 +7670,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				},
 			};
 
-			const agentSession = this._createAgentSession(launchPlan, customizationDirectory, activeClient, { owner, chatChannelUri, resource: sessionUri, subagentChatUriFormat: this._subagentFormatFor(chatChannelUri) });
+			const agentSession = this._createAgentSession(launchPlan, customizationDirectory, activeClient, { owner, chatChannelUri, resource: sessionUri });
 			try {
 				await this._initializeAndRegisterSession(agentSession, () => {
 					this._registerInitializedSession(sessionId, agentSession, activeClient, launchPlan.client);

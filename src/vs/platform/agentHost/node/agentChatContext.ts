@@ -114,7 +114,6 @@ export function createAgentChatContext(stateManager: AgentHostStateManager, sess
 	return {
 		resource: storageResource === sessionKey ? sessionUri : storageResource === chatKey ? toUri(chat) : URI.parse(storageResource),
 		owner: createChatOwnerRef(stateManager, chat, session),
-		subagentChatUriFormat: chatUriFormatOf(stateManager.getDefaultChat(sessionKey)),
 		sessionSettings,
 		launchWorkingDirectories: isToolChat || sessionSettings?.workspaceless || !launch?.length ? undefined : launch.map(entry => URI.parse(entry)),
 		...(origin ? { origin } : {}),
