@@ -191,7 +191,7 @@ suite('localModel downloader', () => {
 			phases: [...phases].sort(),
 			telemetry: [telemetry[0]?.name, event?.phase, event?.outcome, event?.registry, event?.totalBytes, event?.sasRefreshes],
 		}, {
-			result: { downloadedBytes: PRIMARY.byteLength + INI.byteLength, reusedFiles: [], resumed: false, sasRenewals: 0 },
+			result: { downloadedBytes: PRIMARY.byteLength + INI.byteLength, reusedFiles: [], resumed: false, sasRenewals: 0, sha256s: [sha(PRIMARY), sha(INI)] },
 			files: ['llama-default.ini', 'model.gguf'],
 			familyFiles: ['3'],
 			primary: true,
@@ -199,6 +199,25 @@ suite('localModel downloader', () => {
 			requests: [['GET', '/models/mai/model.gguf', undefined, 'identity'], ['GET', '/models/mai/llama-default.ini', undefined, 'identity']],
 			phases: ['downloading', 'placing', 'verifying'],
 			telemetry: ['localModel.setup', 'download', 'success', 'azureml', PRIMARY.byteLength + INI.byteLength, 0],
+		});
+	});
+
+	test('a file without a published checksum (a regional replica) needs a strong ETag, which binds it; its SHA-256 is computed, and its placed copy, which nothing verifies, downloads again', async () => {
+		const unchecked: IDownloadFileSpec = { ...spec('model.gguf', PRIMARY), sha256: undefined };
+		const http = new FakeHttp(blobServer({ 'model.gguf': PRIMARY }));
+		const first = await run(createDownloader(http), [unchecked]);
+		const again = await run(createDownloader(http), [unchecked]);
+		const otherEtag = new FakeHttp(blobServer({}, () => ({ status: 200, headers: { 'etag': '"etag-other"', 'content-length': String(PRIMARY.byteLength) }, body: PRIMARY })));
+		assert.deepStrictEqual({
+			first: typeof first === 'object' ? first.sha256s : first,
+			again: typeof again === 'object' ? [again.reusedFiles, again.downloadedBytes] : again,
+			otherContent: await run(createDownloader(otherEtag), [unchecked]),
+			weakEtag: await run(createDownloader(http), [{ ...unchecked, etag: 'W/"etag-model.gguf"' }]),
+		}, {
+			first: [sha(PRIMARY)],
+			again: [[], PRIMARY.byteLength],
+			otherContent: 'identityChanged',
+			weakEtag: 'noChecksum',
 		});
 	});
 
@@ -212,7 +231,7 @@ suite('localModel downloader', () => {
 			primary: await fileMatches('model.gguf', PRIMARY),
 			files: await listDir(targetDir),
 		}, {
-			result: { downloadedBytes: PRIMARY.byteLength - MiB, reusedFiles: [], resumed: true, sasRenewals: 0 },
+			result: { downloadedBytes: PRIMARY.byteLength - MiB, reusedFiles: [], resumed: true, sasRenewals: 0, sha256s: [sha(PRIMARY)] },
 			headers: { 'Accept-Encoding': 'identity', 'Range': `bytes=${MiB}-`, 'If-Match': '"etag-model.gguf"' },
 			primary: true,
 			files: ['model.gguf'],
@@ -288,7 +307,7 @@ suite('localModel downloader', () => {
 			rangesResume: starts.slice(1).every((start, index) => start > 0 && start >= starts[index]),
 			retryDelays,
 		}, {
-			result: { downloadedBytes: size, reusedFiles: [], resumed: false, sasRenewals: 0 },
+			result: { downloadedBytes: size, reusedFiles: [], resumed: false, sasRenewals: 0, sha256s: [sha(PRIMARY)] },
 			primary: true,
 			files: ['model.gguf'],
 			ifMatch: [null, null, null, null, null],
