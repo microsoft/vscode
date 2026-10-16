@@ -36,10 +36,12 @@ import { SessionStateMirrorFlush, sessionStatePatch } from '../../common/agentHo
 import { resolveAgentMergeOwningChat, resolveGitHubStateFolder } from '../../node/agentHostBranchChangesetScope.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { createArtifactServerToolGroup } from '../../node/shared/artifactServerTools.js';
-import { GitHubPullRequestLookup, GitHubPullRequestLookupOptions, GitHubQueryApi, GitHubRepositoryRef } from '../../../github/common/githubQueryService.js';
+import { RepositoryRef } from '../../../github/common/client/types.js';
+import { IPullRequestsClient, ListPullRequestsOptions } from '../../../github/common/core/pullRequests.js';
+import { GitHubPullRequestLookup } from '../../../github/common/githubQueryService.js';
 import { TestSessionDatabase, createNoopGitService, createSessionDataService } from '../common/sessionTestHelpers.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
-import { createTestGitHubClient, createTestGitHubService, createTestPullRequest } from './testGitHubService.js';
+import { createTestGitHubService, createTestPullRequest, toTestPullRequestSummary } from './testGitHubService.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 const SESSION = 'mock:/session-1';
@@ -207,7 +209,7 @@ suite('AgentHostGitStateService', () => {
 		]);
 	});
 
-	function createHarness(options?: { query?: GitHubQueryApi; authenticationService?: IAgentHostAuthenticationService; enterpriseUri?: string; autoAttachPullRequests?: boolean; telemetryService?: ITelemetryService; database?: TestSessionDatabase; chatDatabases?: ReadonlyMap<string, TestSessionDatabase> }) {
+	function createHarness(options?: { query?: IPullRequestsClient; authenticationService?: IAgentHostAuthenticationService; enterpriseUri?: string; autoAttachPullRequests?: boolean; telemetryService?: ITelemetryService; database?: TestSessionDatabase; chatDatabases?: ReadonlyMap<string, TestSessionDatabase> }) {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const db = options?.database ?? new TestSessionDatabase();
 		const baseSessionDataService = createSessionDataService(db);
@@ -247,21 +249,25 @@ suite('AgentHostGitStateService', () => {
 
 		const pullRequestCalls: string[] = [];
 		const pullRequestShaCalls: string[] = [];
-		const pullRequestCandidateCalls: Array<readonly string[] | undefined> = [];
+		const pullRequestPageSizes: Array<number | undefined> = [];
 		const pullRequestsByBranch = new Map<string, GitHubPullRequestLookup>();
 		const pullRequestsBySha = new Map<string, GitHubPullRequestLookup>();
 		let onPullRequestLookup: ((branch: string) => Promise<void>) | undefined;
-		const query = new class extends mock<GitHubQueryApi>() {
-			override async findPullRequestByHeadBranch(_ref: GitHubRepositoryRef, branch: string, _headOwner: string | undefined, _signal: AbortSignal, options?: GitHubPullRequestLookupOptions) {
-				const allowedPullRequestUrls = options?.allowedPullRequestUrls;
+		const query = new class extends mock<IPullRequestsClient>() {
+			override async list(_repository: RepositoryRef, _signal: AbortSignal, options?: ListPullRequestsOptions) {
+				const head = options?.query?.head;
+				assert.ok(head);
+				const branch = head.slice(head.indexOf(':') + 1);
 				pullRequestCalls.push(branch);
-				pullRequestCandidateCalls.push(allowedPullRequestUrls ? [...allowedPullRequestUrls] : undefined);
+				pullRequestPageSizes.push(options?.query?.per_page);
 				await onPullRequestLookup?.(branch);
-				return pullRequestsByBranch.get(branch);
+				const pullRequest = pullRequestsByBranch.get(branch);
+				return pullRequest ? [toTestPullRequestSummary(pullRequest)] : [];
 			}
-			override async findPullRequestByHeadSha(_ref: GitHubRepositoryRef, sha: string) {
+			override async listForCommit(_repository: RepositoryRef, sha: string) {
 				pullRequestShaCalls.push(sha);
-				return pullRequestsBySha.get(sha);
+				const pullRequest = pullRequestsBySha.get(sha);
+				return pullRequest ? [toTestPullRequestSummary(pullRequest, sha)] : [];
 			}
 		}();
 		const authenticationService: IAgentHostAuthenticationService = {
@@ -276,7 +282,7 @@ suite('AgentHostGitStateService', () => {
 		const service = disposables.add(new AgentHostGitStateService(
 			stateManager,
 			gitService,
-			createTestGitHubService(createTestGitHubClient({ query: options?.query ?? query })),
+			createTestGitHubService(undefined, undefined, { pullRequests: options?.query ?? query }),
 			options?.authenticationService ?? authenticationService,
 			createTestGitHubEndpointService(options?.enterpriseUri),
 			new NullLogService(),
@@ -310,7 +316,7 @@ suite('AgentHostGitStateService', () => {
 			gitHubStateEvents,
 			pullRequestCalls,
 			pullRequestShaCalls,
-			pullRequestCandidateCalls,
+			pullRequestPageSizes,
 			setGitResult: (state: ISessionGitState | undefined) => { gitResult = state; },
 			setGitResultPromise: (promise: Promise<ISessionGitState | undefined> | undefined) => { gitResultPromise = promise; },
 			setGitError: (error: Error) => { gitError = error; },
@@ -909,7 +915,7 @@ suite('AgentHostGitStateService', () => {
 			wrongRepository,
 			associated,
 			alreadyAssociated,
-			lookups: h.pullRequestCandidateCalls,
+			pageSizes: h.pullRequestPageSizes,
 			mainFolder: h.service.getGitHubState(SESSION),
 			peerFolder: h.service.getGitHubState(peer),
 			persistedPeer: persisted[getWorkingDirectoryKey(peerDirectory)],
@@ -920,7 +926,7 @@ suite('AgentHostGitStateService', () => {
 			wrongRepository: false,
 			associated: true,
 			alreadyAssociated: true,
-			lookups: [['https://github.com/microsoft/vscode/pull/2'], [pullRequestUrl], [pullRequestUrl]],
+			pageSizes: [100, 100, 100],
 			mainFolder: { owner: 'contoso', repo: 'main' },
 			peerFolder: {
 				owner: 'microsoft',
@@ -1001,7 +1007,7 @@ suite('AgentHostGitStateService', () => {
 			pendingBeforeRestore,
 			restoredPeer: restored.service.getGitHubState(peer),
 			pendingAfterRestore: await first.db.getMetadata(META_PENDING_RECORDED_PULL_REQUESTS),
-			lookups: restored.pullRequestCandidateCalls,
+			pageSizes: restored.pullRequestPageSizes,
 		}, {
 			associatedBeforeRestore: false,
 			pendingBeforeRestore: [{
@@ -1015,7 +1021,7 @@ suite('AgentHostGitStateService', () => {
 				pullRequestUrls: [url], pullRequestBranchName: 'feature', associatedPullRequestUrls: [url],
 			},
 			pendingAfterRestore: undefined,
-			lookups: [[url]],
+			pageSizes: [100],
 		});
 	}));
 
@@ -1045,13 +1051,13 @@ suite('AgentHostGitStateService', () => {
 			pendingAfterFailure,
 			afterRetry: h.service.getGitHubState(peer),
 			pendingAfterRetry: await h.db.getMetadata(META_PENDING_RECORDED_PULL_REQUESTS),
-			lookups: h.pullRequestCandidateCalls,
+			pageSizes: h.pullRequestPageSizes,
 		}, {
 			recorded: { associated: undefined, pending: [url], unmatched: [] },
 			pendingAfterFailure: [{ chat: peer, folderKey: getWorkingDirectoryKey('file:///peer'), workingDirectory: 'file:///peer', url, owner: 'microsoft', repo: 'vscode', branchName: 'feature' }],
 			afterRetry: { owner: 'microsoft', repo: 'vscode', pullRequestUrls: [url], pullRequestBranchName: 'feature', associatedPullRequestUrls: [url] },
 			pendingAfterRetry: undefined,
-			lookups: [[url], [url]],
+			pageSizes: [100, 100],
 		});
 	}));
 
@@ -1103,13 +1109,13 @@ suite('AgentHostGitStateService', () => {
 		assert.deepStrictEqual({
 			before,
 			beforePeerRefresh,
-			lookups: h.pullRequestCandidateCalls,
+			pageSizes: h.pullRequestPageSizes,
 			after,
 			pending: await h.db.getMetadata(META_PENDING_RECORDED_PULL_REQUESTS),
 		}, {
 			before: { associated: undefined, pending: urls, unmatched: [] },
 			beforePeerRefresh: { owner: 'microsoft', repo: 'vscode' },
-			lookups: [urls, urls],
+			pageSizes: [100, 100],
 			after: { owner: 'microsoft', repo: 'vscode', pullRequestUrls: [urls[0]], pullRequestBranchName: 'feature', associatedPullRequestUrls: [urls[0]] },
 			pending: undefined,
 		});
@@ -1137,7 +1143,7 @@ suite('AgentHostGitStateService', () => {
 			peerResult,
 			gitHubState: h.service.getGitHubState(peer),
 			pending: await h.db.getMetadata(META_PENDING_RECORDED_PULL_REQUESTS),
-			lookups: h.pullRequestCandidateCalls,
+			pageSizes: h.pullRequestPageSizes,
 		}, {
 			defaultResult: { associated: undefined, pending: [urls[0]], unmatched: [] },
 			peerResult: { associated: urls[1], pending: [], unmatched: [] },
@@ -1157,7 +1163,7 @@ suite('AgentHostGitStateService', () => {
 				repo: 'vscode',
 				branchName: 'feature',
 			}]),
-			lookups: [[urls[0]], [urls[0]], [urls[1]]],
+			pageSizes: [100, 100, 100],
 		});
 	}));
 
@@ -1272,11 +1278,11 @@ suite('AgentHostGitStateService', () => {
 		assert.deepStrictEqual({
 			peer: h.service.getGitHubState(peer),
 			pending: await h.db.getMetadata(META_PENDING_RECORDED_PULL_REQUESTS),
-			lookups: h.pullRequestCandidateCalls,
+			pageSizes: h.pullRequestPageSizes,
 		}, {
 			peer: { owner: 'microsoft', repo: 'vscode' },
 			pending: undefined,
-			lookups: [[url]],
+			pageSizes: [100],
 		});
 	}));
 
@@ -1595,10 +1601,15 @@ suite('AgentHostGitStateService', () => {
 	test('preserves pull request attachment when a later refresh replaces its queued refresh', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const calls: { owner: string; repo: string; branch: string; headOwner: string | undefined }[] = [];
-			const query = new class extends mock<GitHubQueryApi>() {
-				override async findPullRequestByHeadBranch({ owner, repo }: GitHubRepositoryRef, branch: string, headOwner: string | undefined) {
+			const query = new class extends mock<IPullRequestsClient>() {
+				override async list({ owner, name: repo }: RepositoryRef, _signal: AbortSignal, options?: ListPullRequestsOptions) {
+					const head = options?.query?.head;
+					assert.ok(head);
+					const separator = head.indexOf(':');
+					const headOwner = head.slice(0, separator);
+					const branch = head.slice(separator + 1);
 					calls.push({ owner, repo, branch, headOwner });
-					return createTestPullRequest(1);
+					return [toTestPullRequestSummary(createTestPullRequest(1))];
 				}
 			}();
 			const authenticationService: IAgentHostAuthenticationService = {
@@ -1696,10 +1707,10 @@ suite('AgentHostGitStateService', () => {
 			await h.service.attachSessionGitHubPullRequest(SESSION, URI.parse(WORKING_DIRECTORY));
 
 			assert.deepStrictEqual({
-				pullRequestCandidateCalls: h.pullRequestCandidateCalls,
+				pullRequestPageSizes: h.pullRequestPageSizes,
 				github: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta, WORKING_DIRECTORY),
 			}, {
-				pullRequestCandidateCalls: [['https://github.com/microsoft/vscode/pull/2']],
+				pullRequestPageSizes: [100],
 				github: {
 					owner: 'microsoft',
 					repo: 'vscode',
@@ -1851,8 +1862,8 @@ suite('AgentHostGitStateService', () => {
 			const gitState: ISessionGitState = { branchName: 'feature', baseBranchName: 'main' };
 			const h = createHarness({
 				autoAttachPullRequests: false,
-				query: new class extends mock<GitHubQueryApi>() {
-					override async findPullRequestByHeadBranch(): Promise<never> { throw new Error('GitHub unavailable'); }
+				query: new class extends mock<IPullRequestsClient>() {
+					override async list(): Promise<never> { throw new Error('GitHub unavailable'); }
 				}(),
 			});
 			seedSession(h.stateManager, {
@@ -1910,10 +1921,15 @@ suite('AgentHostGitStateService', () => {
 			};
 			const calls: Array<{ branch: string; headOwner: string | undefined }> = [];
 			const h = createHarness({
-				query: new class extends mock<GitHubQueryApi>() {
-					override async findPullRequestByHeadBranch(_ref: GitHubRepositoryRef, branch: string, headOwner: string | undefined) {
+				query: new class extends mock<IPullRequestsClient>() {
+					override async list(_repository: RepositoryRef, _signal: AbortSignal, options?: ListPullRequestsOptions) {
+						const head = options?.query?.head;
+						assert.ok(head);
+						const separator = head.indexOf(':');
+						const headOwner = head.slice(0, separator);
+						const branch = head.slice(separator + 1);
 						calls.push({ branch, headOwner });
-						return createTestPullRequest(328975);
+						return [toTestPullRequestSummary(createTestPullRequest(328975))];
 					}
 				}(),
 			});

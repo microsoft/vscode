@@ -34,7 +34,6 @@ class MockApiClient extends mock<GitHubApiClient>() {
 	readonly tokens: CancellationToken[] = [];
 	private readonly account = upcastPartial<IGitHubAccountClient>({
 		repositories: upcastPartial<IGitHubAccountClient['repositories']>({
-			get: (repository, _signal) => this.respond('repositories.get', repository),
 			listForAuthenticatedUser: (_signal, options) => this.respond('repositories.listForAuthenticatedUser', options),
 		}),
 		users: upcastPartial<IGitHubAccountClient['users']>({
@@ -230,47 +229,11 @@ suite('GitHubRepositoryFetcher', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('getRepository returns mapped data', async () => {
-		mockApi.setNextResponse({
-			name: 'vscode',
-			full_name: 'microsoft/vscode',
-			owner: { login: 'microsoft' },
-			default_branch: 'main',
-			private: false,
-			description: 'Visual Studio Code',
-		});
-
-		const repo = await fetcher.getRepository('microsoft', 'vscode');
-		assert.deepStrictEqual(repo, {
-			owner: 'microsoft',
-			name: 'vscode',
-			fullName: 'microsoft/vscode',
-			defaultBranch: 'main',
-			isPrivate: false,
-			description: 'Visual Studio Code',
-		});
-		assert.deepStrictEqual(mockApi.calls, [{ method: 'repositories.get', args: [{ owner: 'microsoft', name: 'vscode' }] }]);
-	});
-
-	test('getRepository handles null description', async () => {
-		mockApi.setNextResponse({
-			name: 'test',
-			full_name: 'owner/test',
-			owner: { login: 'owner' },
-			default_branch: 'main',
-			private: true,
-			description: null,
-		});
-
-		const repo = await fetcher.getRepository('owner', 'test');
-		assert.strictEqual(repo.description, '');
-	});
-
-	test('getRepository propagates API errors', async () => {
-		mockApi.setNextError(new GitHubRequestError('Not found', 'notFound', 404));
+	test('getRepositories propagates API errors', async () => {
+		mockApi.setNextError(new GitHubRequestError('Forbidden', 'authorization', 403));
 		await assert.rejects(
-			() => fetcher.getRepository('owner', 'nonexistent'),
-			{ kind: 'notFound', statusCode: 404 },
+			() => fetcher.getRepositories('', CancellationToken.None),
+			{ kind: 'authorization', statusCode: 403 },
 		);
 	});
 

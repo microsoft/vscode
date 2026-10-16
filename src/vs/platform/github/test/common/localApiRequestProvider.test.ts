@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -13,10 +14,11 @@ import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { LocalApiRequestProvider } from '../../common/client/localApiRequestProvider.js';
 import { PaginationLimitError } from '../../common/client/pagination.js';
-import { ApiRequest, PaginationOptions } from '../../common/client/request.js';
+import { ApiRequest, BufferedApiRequestProvider, PaginationOptions, parseRequest } from '../../common/client/request.js';
 import { parse, SchemaError } from '../../common/client/schema.js';
 import { ContentClient } from '../../common/content/contentClient.js';
 import { ActionsClient } from '../../common/core/actionsClient.js';
+import { ChecksClient } from '../../common/core/checksClient.js';
 import { CoreClient } from '../../common/core/coreClient.js';
 import { IssuesClient } from '../../common/core/issuesClient.js';
 import { PullRequestsClient } from '../../common/core/pullRequestsClient.js';
@@ -27,8 +29,9 @@ import { UsersClient } from '../../common/core/usersClient.js';
 import { IGitHubCredentials } from '../../common/githubCredentialService.js';
 import { GitHubService } from '../../common/githubService.js';
 import { GitHubTransport, GitHubTransportOptions } from '../../common/githubTransport.js';
-import { GitHubRequestError, IGitHubCredentialProvider } from '../../common/githubTypes.js';
-import { RequestFetch } from '../../common/types.js';
+import { GitHubRequestError, IGitHubCredentialProvider, MissingCommitError } from '../../common/githubTypes.js';
+import { RequestFetch, RequestPriority } from '../../common/types.js';
+import { getGitHubClientInternals } from './githubClientTestUtils.js';
 
 suite('LocalApiRequestProvider', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -38,6 +41,16 @@ suite('LocalApiRequestProvider', () => {
 	const read: ApiRequest & { readonly responseBody?: 'json' | 'text' } = {
 		method: 'GET', path: '/repos/o/r', expectedStatus: 200,
 	};
+
+	test('validates scheduling priorities without changing an omitted priority', () => {
+		const priorities: readonly (RequestPriority | undefined)[] = [
+			undefined, 'mutationReconciliation', 'mutation', 'interactive', 'mergeGate', 'visible', 'background', 'enrichment',
+		];
+		assert.deepStrictEqual(priorities.map(priority => parseRequest({ ...read, options: { priority } }).options?.priority), priorities);
+		for (const priority of [null, '', 'urgent', 1]) {
+			assert.throws(() => parseRequest({ ...read, options: { priority } }), SchemaError);
+		}
+	});
 
 	function anonymous(fetch: RequestFetch, options?: Partial<GitHubTransportOptions>): LocalApiRequestProvider {
 		const transport = store.add(new GitHubTransport(fetch, undefined, false, undefined, options));
@@ -60,8 +73,132 @@ suite('LocalApiRequestProvider', () => {
 			apiBaseUri, graphQlUri: `${apiBaseUri}/graphql`,
 			authorization: { providerId: 'github', sessionId: 'selected-session', scopes: ['repo', 'gist'] },
 		})).object;
-		return new LocalApiRequestProvider(target === 'graphql' ? `${apiBaseUri}/graphql` : apiBaseUri, client.transport, client.credentials, target);
+		return new LocalApiRequestProvider(target === 'graphql' ? `${apiBaseUri}/graphql` : apiBaseUri, getGitHubClientInternals(client).transport, client.credentials, target);
 	}
+
+	for (const scenario of [
+		{ name: 'missing commit', body: '{"message":"No commit found for SHA: missing"}', status: 422, missing: true },
+		{ name: 'different validation failure', body: '{"message":"Validation Failed"}', status: 422, missing: false },
+		{ name: 'unrelated field', body: '{"message":"Validation Failed","detail":"No commit found for SHA: missing"}', status: 422, missing: false },
+		{ name: 'non-string message', body: '{"message":42}', status: 422, missing: false },
+		{ name: 'null body', body: 'null', status: 422, missing: false },
+		{ name: 'array body', body: '["No commit found for SHA: missing"]', status: 422, missing: false },
+		{ name: 'non-JSON body', body: 'No commit found for SHA: missing', status: 422, missing: false },
+		{ name: 'missing repository', body: '{"message":"No commit found for SHA: missing"}', status: 404, missing: false },
+		{ name: 'authorization failure', body: '{"message":"No commit found for SHA: missing"}', status: 403, missing: false },
+	]) {
+		test(`listForCommit classifies ${scenario.name} without retrying`, async () => {
+			let calls = 0;
+			const provider = authenticated(async () => {
+				calls++;
+				return new Response(scenario.body, { status: scenario.status, headers: { 'X-GitHub-Request-Id': 'commit-lookup' } });
+			});
+			const client = new PullRequestsClient(new CoreClient(provider, provider));
+			await assert.rejects(client.listForCommit({ owner: 'o', name: 'r' }, 'missing', signal()), error => {
+				assert.ok(error instanceof GitHubRequestError);
+				assert.deepStrictEqual({
+					name: error.name,
+					missing: error instanceof MissingCommitError,
+					status: error.statusCode,
+					body: error.responseBody,
+					requestId: error.responseMetadata?.requestId,
+					calls,
+				}, {
+					name: scenario.missing ? 'MissingCommitError' : 'GitHubRequestError',
+					missing: scenario.missing, status: scenario.status, body: scenario.body, requestId: 'commit-lookup', calls: 1,
+				});
+				return true;
+			});
+		});
+	}
+
+	test('listForCommit reports a missing commit on a later page without returning partial results', async () => {
+		let calls = 0;
+		const provider = authenticated(async () => ++calls === 1
+			? Response.json([], { headers: { Link: '<https://api.github.com/repos/o/r/commits/head/pulls?page=2>; rel="next"' } })
+			: Response.json({ message: 'No commit found for SHA: head' }, { status: 422 }));
+		const client = new PullRequestsClient(new CoreClient(provider, provider));
+		await assert.rejects(client.listForCommit({ owner: 'o', name: 'r' }, 'head', signal(), {
+			maxPages: 2, pageLimitBehavior: 'returnPartial',
+		}), MissingCommitError);
+		assert.strictEqual(calls, 2);
+	});
+
+	for (const authenticatedRequest of [false, true]) {
+		test(`classifies missing commits across typed domains (authenticated=${authenticatedRequest})`, async () => {
+			const requests: string[] = [];
+			const fetch: RequestFetch = async input => {
+				requests.push(new URL(String(input)).pathname);
+				return Response.json({ message: 'No commit found for SHA: head' }, { status: 422 });
+			};
+			const provider = authenticatedRequest ? authenticated(fetch) : anonymous(fetch);
+			const core = new CoreClient(provider, provider);
+			const repository = { owner: 'o', name: 'r' };
+			await assert.rejects(new RepositoriesClient(core).getCommit(repository, 'head', signal()), MissingCommitError);
+			await assert.rejects(new PullRequestsClient(core).listForCommit(repository, 'head', signal()), MissingCommitError);
+			await assert.rejects(new ChecksClient(core).listRuns(repository, 'head', signal()), MissingCommitError);
+			await assert.rejects(new ChecksClient(core).listSuites(repository, 'head', signal()), MissingCommitError);
+			await assert.rejects(new ContentClient(provider).resolveRef('o', 'r', 'head', signal()), MissingCommitError);
+			assert.deepStrictEqual(requests, [
+				'/repos/o/r/commits/head', '/repos/o/r/commits/head/pulls',
+				'/repos/o/r/commits/head/check-runs', '/repos/o/r/commits/head/check-suites', '/repos/o/r/commits/head',
+			]);
+		});
+	}
+
+	test('classifies the shared missing-commit response for writes and gist revisions', async () => {
+		const requests: string[] = [];
+		const provider = authenticated(async (input, init) => {
+			requests.push(`${init?.method} ${new URL(String(input)).pathname}`);
+			return Response.json({ message: 'No commit found for SHA: head' }, { status: 422 });
+		});
+		await assert.rejects(provider.request({
+			method: 'POST', path: '/repos/o/r/check-suites', body: { head_sha: 'head' }, expectedStatus: 201,
+		}, signal(), parseValue), MissingCommitError);
+		await assert.rejects(provider.request({
+			method: 'GET', path: '/gists/id/head', expectedStatus: 200,
+		}, signal(), parseValue), MissingCommitError);
+		assert.deepStrictEqual(requests, ['POST /repos/o/r/check-suites', 'GET /gists/id/head']);
+	});
+
+	test('MissingCommitError preserves diagnostics without changing raw execution errors', async () => {
+		const original = new GitHubRequestError('Commit lookup failed', 'validation', 422,
+			'{"message":"No commit found for SHA: missing"}', [], 'Unprocessable Entity',
+			{ requestId: 'commit-lookup', serverDate: 'Thu, 01 Jan 2026 00:00:00 GMT', retryAfterSeconds: 2 });
+		const provider = new class extends BufferedApiRequestProvider {
+			protected override async execute(): Promise<never> { throw original; }
+		}();
+		const client = new PullRequestsClient(new CoreClient(provider, provider));
+		await assert.rejects(client.listForCommit({ owner: 'o', name: 'r' }, 'missing', signal()), error => {
+			assert.ok(error instanceof MissingCommitError);
+			assert.deepStrictEqual({
+				message: error.message, kind: error.kind, statusCode: error.statusCode, statusText: error.statusText,
+				responseBody: error.responseBody, graphQLErrors: error.graphQLErrors, metadata: error.responseMetadata,
+				originalCause: error.cause === original,
+			}, {
+				message: original.message, kind: original.kind, statusCode: original.statusCode, statusText: original.statusText,
+				responseBody: original.responseBody, graphQLErrors: original.graphQLErrors, metadata: original.responseMetadata,
+				originalCause: true,
+			});
+			return true;
+		});
+		await assert.rejects(provider.requestText(read, signal()), error => error === original);
+	});
+
+	test('typed requests leave cancellation, unrelated failures and classified errors unchanged', async () => {
+		for (const failure of [
+			new CancellationError(),
+			new Error('Network unavailable'),
+			new GitHubRequestError('Validation failed', 'validation', 422, '{"message":"Validation Failed"}'),
+			new MissingCommitError(new GitHubRequestError('Missing commit', 'validation', 422, '{"message":"No commit found for SHA: head"}')),
+		]) {
+			const provider = new class extends BufferedApiRequestProvider {
+				protected override async execute(): Promise<never> { throw failure; }
+			}();
+			const client = new PullRequestsClient(new CoreClient(provider, provider));
+			await assert.rejects(client.listForCommit({ owner: 'o', name: 'r' }, 'head', signal()), error => error === failure);
+		}
+	});
 
 	test('runs content and search clients through the same anonymous REST provider', async () => {
 		const requests: { url: string; authorization: string | null; credentials?: RequestCredentials; referrerPolicy?: ReferrerPolicy }[] = [];

@@ -12,10 +12,8 @@ import {
 } from './githubPullRequestService.js';
 import { GitHubPullRequestLookup, GitHubRepositoryRef } from './githubQueryService.js';
 
-export type GitHubMutationOutcome = 'succeeded' | 'reconciled' | 'indeterminate';
-
 export interface PullRequestMutationResult<T> {
-	readonly outcome: GitHubMutationOutcome;
+	readonly outcome: 'succeeded' | 'reconciled' | 'indeterminate';
 	readonly value?: T;
 }
 
@@ -44,12 +42,9 @@ export interface PullRequestNodeOptions {
 	readonly pullRequestId: string;
 }
 
-export interface PullRequestReplyOptions extends PullRequestOperation {
+export interface PullRequestReplyAndResolveOptions extends PullRequestOperation {
 	readonly threadId: string;
 	readonly body: string;
-}
-
-export interface PullRequestReplyAndResolveOptions extends PullRequestReplyOptions {
 	readonly resolve: boolean;
 }
 
@@ -77,36 +72,6 @@ export interface GitHubWorkflowRun {
 	readonly url?: string;
 	readonly createdAt?: string;
 	readonly updatedAt?: string;
-}
-
-export interface GitHubWorkflowJob {
-	readonly id: string;
-	readonly runId: string;
-	readonly name: string;
-	readonly headSha?: string;
-	readonly runAttempt?: number;
-	readonly status?: string;
-	readonly conclusion?: string;
-	readonly steps?: readonly {
-		readonly number: number;
-		readonly name: string;
-		readonly status?: string;
-		readonly conclusion?: string;
-	}[];
-	readonly checkRunId?: string;
-	readonly url?: string;
-	readonly startedAt?: string;
-	readonly completedAt?: string;
-}
-
-export interface GitHubCheckAnnotation {
-	readonly path: string;
-	readonly startLine: number;
-	readonly endLine: number;
-	readonly level: string;
-	readonly message: string;
-	readonly title?: string;
-	readonly rawDetails?: string;
 }
 
 export interface GitHubWorkflowLog {
@@ -163,9 +128,6 @@ export interface PullRequestMutationApi {
 	disableAutoMerge(ref: PullRequestRef, options: PullRequestNodeOptions, signal: AbortSignal): Promise<void>;
 	markReadyForReview(ref: PullRequestRef, options: PullRequestNodeOptions, signal: AbortSignal): Promise<void>;
 	replyAndResolveThread(ref: PullRequestRef, options: PullRequestReplyAndResolveOptions, signal: AbortSignal): Promise<PullRequestReplyAndResolveResult>;
-	listWorkflowRuns(ref: PullRequestRef, headSha: string, signal: AbortSignal): Promise<readonly GitHubWorkflowRun[]>;
-	listWorkflowJobs(ref: PullRequestRef, runId: string, signal: AbortSignal, runAttempt?: number): Promise<readonly GitHubWorkflowJob[]>;
-	listCheckAnnotations(ref: PullRequestRef, checkRunId: string, signal: AbortSignal): Promise<readonly GitHubCheckAnnotation[]>;
 	downloadWorkflowJobLog(ref: PullRequestRef, jobId: string, signal: AbortSignal): Promise<GitHubWorkflowLog>;
 	rerunWorkflow(ref: PullRequestRef, options: GitHubWorkflowRerunOptions, signal: AbortSignal): Promise<PullRequestMutationResult<GitHubWorkflowRun>>;
 	prepareMerge(ref: PullRequestRef, expectedHeadSha: string, signal: AbortSignal): Promise<PullRequestMergePreparation>;

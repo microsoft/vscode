@@ -57,7 +57,7 @@ export class LocalMissionControlRequestProvider extends BufferedApiRequestProvid
 				method: metadata.method, url: url.href, bodyText, accept: metadata.accept ?? 'application/json',
 				apiVersion: this.endpoint.apiVersion ?? null, integrationId: this.endpoint.integrationId,
 				rateLimitResource: 'agents', caller: metadata.options?.caller ?? 'github.missionControl', deadline: metadata.options?.deadline,
-				priority: mutation ? 'mutation' : 'interactive', retry, etag: !sensitive, coalesce: sensitive ? false : undefined,
+				priority: metadata.options?.priority ?? (mutation ? 'mutation' : 'interactive'), retry, etag: !sensitive, coalesce: sensitive ? false : undefined,
 				followRedirects: false, responseBody: metadata.responseBody,
 				onDidDispatch: mutation ? () => { dispatched = true; } : undefined,
 			}, combinedSignal);

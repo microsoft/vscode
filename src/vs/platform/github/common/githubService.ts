@@ -17,7 +17,8 @@ import { LocalMissionControlRequestProvider, missionControlAccount } from './cli
 import { GitHubCredentialService, IGitHubCredentials } from './githubCredentialService.js';
 import { BackoffGate } from './backoff.js';
 import { deriveGitHubEndpoints, normalizeReadApiBaseUri, resolveReadApiUrl } from './githubEndpoints.js';
-import { GitHubHostCapabilitiesService, IGitHubCapabilities } from './githubHostCapabilitiesService.js';
+import { GitHubHostCapabilitiesService } from './githubHostCapabilitiesService.js';
+import { PullRequestMutationApi } from './githubPullRequestMutationService.js';
 import { GitHubQueryApi } from './githubQueryService.js';
 import { GitHubQueryService } from './githubQueryServiceImpl.js';
 import { GitHubRequestMetadata } from './githubRequestMetadata.js';
@@ -28,7 +29,7 @@ import { systemRequestScheduler } from './scheduler.js';
 import { GitHubBootstrapReadOptions, GitHubRestResponse, GitHubTransport, IGitHubTransport } from './githubTransport.js';
 import { GitHubAuthorizationContext, GitHubBootstrapClientOptions, GitHubClientOptions, GitHubCredentialChange, GitHubRequestError, GitHubServiceOptions, IGitHubCredentialProvider, IGitHubEndpointProvider } from './githubTypes.js';
 import { BootstrapAccount } from './types.js';
-import { IPullRequestMutations, PullRequestMutationService } from './pullRequestMutationService.js';
+import { PullRequestMutationService } from './pullRequestMutationService.js';
 import { PullRequestQueryService } from './pullRequestQueryService.js';
 import { IPullRequestResources, PullRequestResourceService } from './pullRequestResourceService.js';
 import { MissionControlClient } from './missionControl/missionControlClient.js';
@@ -76,14 +77,10 @@ export interface IGitHubBootstrapClient {
 /** Authorization-scoped GitHub operations and resources shared by equivalent client leases. */
 export interface IGitHubClient {
 	readonly authorization: GitHubAuthorizationContext;
-	readonly onDidInvalidate: Event<void>;
-	readonly endpoint: IGitHubEndpointProvider;
 	readonly credentials: IGitHubCredentials;
-	readonly transport: IGitHubTransport;
-	readonly capabilities: IGitHubCapabilities;
 	readonly query: GitHubQueryApi;
 	readonly pullRequests: IPullRequestResources;
-	readonly mutations: IPullRequestMutations;
+	readonly mutations: PullRequestMutationApi;
 }
 
 /** Engine-owned grant entry retaining its leases, client resources and identity backoff. */
@@ -139,7 +136,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 		return this._acquireClient(options, credentialProvider, 0);
 	}
 
-	private _acquireClient(options: GitHubClientOptions, credentialProvider: IGitHubCredentialProvider, scope: number): IReference<IGitHubClient> {
+	private _acquireClient(options: GitHubClientOptions, credentialProvider: IGitHubCredentialProvider, scope: number): IReference<GitHubClient> {
 		if (this._store.isDisposed) {
 			throw new GitHubRequestError('GitHub service was disposed', 'unknown');
 		}
@@ -381,10 +378,9 @@ class GitHubClient extends Disposable implements IGitHubClient {
 	readonly transport: IGitHubTransport;
 	readonly endpoint: IGitHubEndpointProvider;
 	readonly credentials: IGitHubCredentials;
-	readonly capabilities: IGitHubCapabilities;
 	readonly query: GitHubQueryApi;
 	readonly pullRequests: IPullRequestResources;
-	readonly mutations: IPullRequestMutations;
+	readonly mutations: PullRequestMutationApi;
 
 	constructor(
 		context: GitHubClientOptions,
@@ -417,8 +413,8 @@ class GitHubClient extends Disposable implements IGitHubClient {
 			host: new URL(context.apiBaseUri).host,
 			accountId: `bootstrap:${JSON.stringify([context.authorization.providerId, context.authorization.sessionId, context.authorization.accountId, context.authorization.authorizationServer, context.apiBaseUri])}`,
 		}, backoff));
-		this.capabilities = this._register(new GitHubHostCapabilitiesService(undefined, undefined, this.transport, this.endpoint, logService));
-		const pullRequestQuery = new PullRequestQueryService(this.transport, this.capabilities, this.endpoint, logService);
+		const capabilities = this._register(new GitHubHostCapabilitiesService(undefined, undefined, this.transport, this.endpoint, logService));
+		const pullRequestQuery = new PullRequestQueryService(this.transport, capabilities, this.endpoint, logService);
 		this.pullRequests = this._register(new PullRequestResourceService(
 			undefined,
 			undefined,
@@ -440,7 +436,7 @@ class GitHubClient extends Disposable implements IGitHubClient {
 			this.credentials,
 			this.transport,
 			this.endpoint,
-			this.capabilities,
+			capabilities,
 			logService,
 		));
 	}

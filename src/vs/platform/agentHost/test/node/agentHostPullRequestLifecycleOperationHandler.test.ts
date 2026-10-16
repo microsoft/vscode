@@ -11,8 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import type { IGitHubClient } from '../../../github/common/githubService.js';
 import { createTestGitHubService } from './testGitHubService.js';
-import type { PullRequestMergeOptions, PullRequestMergePreparation } from '../../../github/common/githubPullRequestMutationService.js';
-import type { IPullRequestMutations } from '../../../github/common/pullRequestMutationService.js';
+import type { PullRequestMergeOptions, PullRequestMergePreparation, PullRequestMutationApi } from '../../../github/common/githubPullRequestMutationService.js';
 import { AgentMergeConfigKey } from '../../common/agentMerge.js';
 import { buildBranchChangesetUri, buildFolderChangesetOwnerUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
 import type { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -83,7 +82,7 @@ suite('AgentHostPullRequestLifecycleOperationHandler', () => {
 		const merged: string[] = [];
 		const currentStatus = options?.status === null ? undefined : options?.status ?? status();
 
-		const mutations = new class extends mock<IPullRequestMutations>() {
+		const mutations = new class extends mock<PullRequestMutationApi>() {
 			override async prepareMerge(): Promise<PullRequestMergePreparation> {
 				recorded.calls.push('prepareMerge');
 				if (options?.prepareMergeError) {
@@ -111,7 +110,6 @@ suite('AgentHostPullRequestLifecycleOperationHandler', () => {
 				async getCredential() {
 					return { account: { host: 'api.github.com', accountId: '1' }, token: 't', generation: 1, signal: new AbortController().signal };
 				},
-				async resolveCredential(): Promise<never> { throw new Error('not implemented'); },
 				handleRequestError() { },
 			};
 		}());

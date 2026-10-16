@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import type { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ImmortalReference, type DisposableStore } from '../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -25,15 +25,19 @@ import { AgentHostUtilityModelService } from '../../node/agentHostUtilityModelSe
 import { NullByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
-import { CreatedPullRequest, CreatePullRequestOptions, EnablePullRequestAutoMergeOptions } from '../../../github/common/githubPullRequestMutationService.js';
+import { IGitHubAccountClient } from '../../../github/common/account/account.js';
+import { ApiRequestOptions } from '../../../github/common/client/request.js';
+import { RepositoryRef } from '../../../github/common/client/types.js';
+import { IPullRequestsClient, ListPullRequestsOptions } from '../../../github/common/core/pullRequests.js';
+import { IRepositoriesClient, Repository } from '../../../github/common/core/repositories.js';
+import { CreatedPullRequest, CreatePullRequestOptions, EnablePullRequestAutoMergeOptions, PullRequestMutationApi } from '../../../github/common/githubPullRequestMutationService.js';
 import { PullRequestMergeMethod } from '../../../github/common/githubPullRequestService.js';
-import { GitHubPullRequestLookup, GitHubQueryApi, GitHubRepositoryMergeCapabilities, GitHubRepositoryRef } from '../../../github/common/githubQueryService.js';
+import { GitHubPullRequestLookup, GitHubRepositoryRef } from '../../../github/common/githubQueryService.js';
 import { IGitHubClient } from '../../../github/common/githubService.js';
 import { GitHubRequestTimeoutError } from '../../../github/common/githubTypes.js';
 import { RequestFetch } from '../../../github/common/types.js';
-import { IPullRequestMutations } from '../../../github/common/pullRequestMutationService.js';
-import { AgentHostGitHubService } from '../../node/agentHostGitHubService.js';
-import { createTestGitHubClient, createTestGitHubService, createTestPullRequest } from './testGitHubService.js';
+import { AgentHostGitHubService, IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
+import { createTestGitHubClient, createTestPullRequest, createTestPullRequestSummary, toTestPullRequestSummary } from './testGitHubService.js';
 import type { ICopilotApiService, ICopilotApiServiceRequestOptions, ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
@@ -183,8 +187,11 @@ class TestGitHubClient extends mock<IGitHubClient>() {
 	createError: Error | undefined;
 	findAfterCreateError: Error | undefined;
 	autoMergeError: Error | undefined;
-	repositoryCapabilities: GitHubRepositoryMergeCapabilities = { autoMergeAllowed: true, mergeMethods: ['MERGE', 'SQUASH', 'REBASE'] };
+	repository = repositoryResponse();
 	capabilitiesError: Error | undefined;
+	apiAcquisitions = 0;
+	apiDisposals = 0;
+	readonly repositoryRequests: { repository: RepositoryRef; signal: AbortSignal; options?: ApiRequestOptions }[] = [];
 	onMutation: ((operation: string) => void) | undefined;
 	created = createTestPullRequest(123, { id: 'PR_node_123' });
 	lastTitle: string | undefined;
@@ -194,30 +201,43 @@ class TestGitHubClient extends mock<IGitHubClient>() {
 	readonly findRequests: { branch: string; headOwner: string | undefined }[] = [];
 
 	override readonly credentials = createTestGitHubClient().credentials;
-	override readonly query = new class extends mock<GitHubQueryApi>() {
-		constructor(private readonly client: TestGitHubClient) { super(); }
 
-		override async findPullRequestByHeadBranch(_ref: GitHubRepositoryRef, branch: string, headOwner: string | undefined): Promise<GitHubPullRequestLookup | undefined> {
-			this.client.calls.push(`findPullRequestByHeadBranch:${branch}`);
-			this.client.findRequests.push({ branch, headOwner });
-			if (this.client.calls.some(call => call.startsWith('createPullRequest:'))) {
-				if (this.client.findAfterCreateError) {
-					throw this.client.findAfterCreateError;
+	acquireApiClient(): IGitHubAccountClient {
+		this.apiAcquisitions++;
+		const client = this;
+		return new class extends mock<IGitHubAccountClient>() {
+			override readonly pullRequests = new class extends mock<IPullRequestsClient>() {
+				override async list(_repository: RepositoryRef, _signal: AbortSignal, options?: ListPullRequestsOptions) {
+					const head = options?.query?.head;
+					assert.ok(head);
+					const separator = head.indexOf(':');
+					const headOwner = head.slice(0, separator);
+					const branch = head.slice(separator + 1);
+					client.calls.push(`pullRequests.list:${branch}`);
+					client.findRequests.push({ branch, headOwner });
+					if (client.calls.some(call => call.startsWith('createPullRequest:'))) {
+						if (client.findAfterCreateError) {
+							throw client.findAfterCreateError;
+						}
+						return client.existingAfterCreateFailure ? [toTestPullRequestSummary(client.existingAfterCreateFailure)] : [];
+					}
+					return client.existing ? [toTestPullRequestSummary(client.existing)] : [];
 				}
-				return this.client.existingAfterCreateFailure;
-			}
-			return this.client.existing;
-		}
-
-		override async getRepositoryMergeCapabilities({ owner, repo }: GitHubRepositoryRef): Promise<GitHubRepositoryMergeCapabilities> {
-			this.client.calls.push(`getRepositoryMergeCapabilities:${owner}/${repo}`);
-			if (this.client.capabilitiesError) {
-				throw this.client.capabilitiesError;
-			}
-			return this.client.repositoryCapabilities;
-		}
-	}(this);
-	override readonly mutations = new class extends mock<IPullRequestMutations>() {
+			}();
+			override readonly repositories = new class extends mock<IRepositoriesClient>() {
+				override async get(repository: RepositoryRef, signal: AbortSignal, options?: ApiRequestOptions): Promise<Repository> {
+					client.calls.push(`repositories.get:${repository.owner}/${repository.name}`);
+					client.repositoryRequests.push({ repository, signal, options });
+					if (client.capabilitiesError) {
+						throw client.capabilitiesError;
+					}
+					return client.repository;
+				}
+			}();
+			override dispose(): void { client.apiDisposals++; }
+		}();
+	}
+	override readonly mutations = new class extends mock<PullRequestMutationApi>() {
 		constructor(private readonly client: TestGitHubClient) { super(); }
 
 		override async createPullRequest(_ref: GitHubRepositoryRef, { title, body, head, base, draft }: CreatePullRequestOptions): Promise<CreatedPullRequest> {
@@ -243,6 +263,18 @@ class TestGitHubClient extends mock<IGitHubClient>() {
 	}(this);
 }
 
+function repositoryResponse(overrides: Partial<Repository> = {}): Repository {
+	return {
+		id: 1, node_id: 'R1', name: 'vscode', full_name: 'microsoft/vscode',
+		owner: { id: 2, node_id: 'U2', login: 'microsoft', avatar_url: '', html_url: 'https://github.com/microsoft', type: 'Organization' },
+		private: false, html_url: 'https://github.com/microsoft/vscode', url: 'https://api.github.com/repos/microsoft/vscode',
+		description: null, fork: false, default_branch: 'main', clone_url: 'https://github.com/microsoft/vscode.git',
+		ssh_url: 'git@github.com:microsoft/vscode.git', archived: false, disabled: false, language: null, stargazers_count: 0,
+		allow_auto_merge: true, allow_merge_commit: true, allow_squash_merge: true, allow_rebase_merge: true,
+		...overrides,
+	};
+}
+
 function createAuthenticationService(withCopilotToken = false): IAgentHostAuthenticationService {
 	return {
 		_serviceBrand: undefined,
@@ -260,7 +292,7 @@ function createAuthenticationService(withCopilotToken = false): IAgentHostAuthen
 	};
 }
 
-function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitService, gitHubClient: IGitHubClient, options?: { copilotApiService?: TestCopilotApiService; withCopilotToken?: boolean; turns?: Turn[]; draft?: boolean; autoMergeMethod?: PullRequestMergeMethod; enableAgentMerge?: boolean; agentMergeAvailable?: boolean; sessionAgentMergeEnabled?: boolean; agentMergeDefaults?: Partial<AgentMergeConfiguration>; agentMergeOverrides?: AgentMergeSessionOverrides; agentMergeControllerState?: AgentMergeControllerState; baseBranch?: string; branchPrefix?: string; workingDirectory?: string; logService?: ILogService }): { handler: AgentHostPullRequestOperationHandler; session: URI; stateManager: AgentHostStateManager; createdEvents: string[]; createdOwners: string[]; createdConversationChats: (string | undefined)[]; createdBranches: string[]; sessionConfigUpdates: Record<string, unknown>[]; sessionConfigValues: Record<string, unknown>; copilotApiService: TestCopilotApiService; branchNameGenerator: TestBranchNameGenerator } {
+function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitService, gitHubClient: TestGitHubClient | IAgentHostGitHubService, options?: { copilotApiService?: TestCopilotApiService; withCopilotToken?: boolean; turns?: Turn[]; draft?: boolean; autoMergeMethod?: PullRequestMergeMethod; enableAgentMerge?: boolean; agentMergeAvailable?: boolean; sessionAgentMergeEnabled?: boolean; agentMergeDefaults?: Partial<AgentMergeConfiguration>; agentMergeOverrides?: AgentMergeSessionOverrides; agentMergeControllerState?: AgentMergeControllerState; baseBranch?: string; branchPrefix?: string; workingDirectory?: string; logService?: ILogService }): { handler: AgentHostPullRequestOperationHandler; session: URI; stateManager: AgentHostStateManager; createdEvents: string[]; createdOwners: string[]; createdConversationChats: (string | undefined)[]; createdBranches: string[]; sessionConfigUpdates: Record<string, unknown>[]; sessionConfigValues: Record<string, unknown>; copilotApiService: TestCopilotApiService; branchNameGenerator: TestBranchNameGenerator } {
 	const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 	const session = URI.parse('agent:/session');
 	const createdEvents: string[] = [];
@@ -335,6 +367,10 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 	const authenticationService = createAuthenticationService(options?.withCopilotToken);
 	const gitHubEndpointService = createTestGitHubEndpointService();
 	const logService = options?.logService ?? new NullLogService();
+	const gitHubService = gitHubClient instanceof TestGitHubClient ? new class extends mock<IAgentHostGitHubService>() {
+		override acquireRepositoryClient() { return new ImmortalReference(gitHubClient); }
+		override acquireRepositoryApiClient() { return gitHubClient.acquireApiClient(); }
+	}() : gitHubClient;
 	const providerService = new class extends mock<IAgentHostProviderService>() {
 		override getProviderForSession() { return undefined; }
 	}();
@@ -360,7 +396,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 				createdConversationChats.push(event.conversationChat);
 				createdBranches.push(event.branchName);
 			},
-			authenticationService, gitService, createTestGitHubService(gitHubClient), gitHubEndpointService, utilityModelService, branchNameGenerator, configurationService, logService, stateManager),
+			authenticationService, gitService, gitHubService, gitHubEndpointService, utilityModelService, branchNameGenerator, configurationService, logService, stateManager),
 		session,
 		stateManager,
 		createdEvents,
@@ -393,9 +429,8 @@ function agentMergeFolderPatch(session: URI, state: { readonly enabled: boolean;
 suite('AgentHostPullRequestOperationHandler', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createNetworkClient(fetch: RequestFetch): IGitHubClient {
-		const service = disposables.add(new AgentHostGitHubService({ fetch }, createAuthenticationService(), createTestGitHubEndpointService(), new NullLogService(), NullTelemetryService));
-		return disposables.add(service.acquireRepositoryClient(new AbortController().signal)).object;
+	function createNetworkService(fetch: RequestFetch): IAgentHostGitHubService {
+		return disposables.add(new AgentHostGitHubService({ fetch }, createAuthenticationService(), createTestGitHubEndpointService(), new NullLogService(), NullTelemetryService));
 	}
 
 	const submittedOptions: IPullRequestCreateOptions = {
@@ -624,7 +659,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 			gitService.uncommitted = true;
 			gitService.gitState = { branchName: 'release', baseBranchName: 'release' };
 			const gitHubClient = new TestGitHubClient();
-			gitHubClient.repositoryCapabilities = { autoMergeAllowed: false, mergeMethods: ['SQUASH'] };
+			gitHubClient.repository = repositoryResponse({ allow_auto_merge: false, allow_merge_commit: false, allow_rebase_merge: false });
 			const { handler, session, createdEvents, sessionConfigUpdates, branchNameGenerator, copilotApiService } = setup(disposables, gitService, gitHubClient, {
 				withCopilotToken: true,
 				agentMergeAvailable,
@@ -674,7 +709,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 				gitCalls: ['computeSessionFileDiffs'],
 				requestedBaseBranches: ['release'],
 				uncommitted: true,
-				octoCalls: ['getRepositoryMergeCapabilities:microsoft/vscode'],
+				octoCalls: ['repositories.get:microsoft/vscode'],
 				createdEvents: [],
 				sessionConfigUpdates: [],
 				branchRequests: [],
@@ -731,7 +766,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 				hasGenerationError: true,
 				callsBeforeCreate: {
 					git: ['computeSessionFileDiffs'],
-					octo: ['getRepositoryMergeCapabilities:microsoft/vscode'],
+					octo: ['repositories.get:microsoft/vscode'],
 					utility: reason === 'missing token' ? 0 : 1,
 				},
 				submittedTitle: submittedOptions.title,
@@ -751,7 +786,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 			const logService = new class extends NullLogService {
 				override warn(message: string): void { warnings.push(message); }
 			}();
-			const gitHubClient = createNetworkClient(async input => new URL(String(input)).pathname === '/user'
+			const gitHubClient = createNetworkService(async input => new URL(String(input)).pathname === '/user'
 				? new Response('{"id":1}')
 				: new Response(JSON.stringify(response.body), { status: response.status }));
 			const { handler, session, sessionConfigUpdates, createdEvents } = setup(disposables, gitService, gitHubClient, {
@@ -801,6 +836,161 @@ suite('AgentHostPullRequestOperationHandler', () => {
 		});
 	});
 
+	for (const settings of [
+		{ auto: true, merge: true, squash: true, rebase: true, methods: ['MERGE', 'SQUASH', 'REBASE'] },
+		{ auto: false, merge: false, squash: false, rebase: false, methods: [] },
+		{ auto: true, merge: false, squash: true, rebase: false, methods: ['SQUASH'] },
+		{ auto: false, merge: true, squash: false, rebase: false, methods: ['MERGE'] },
+		{ auto: true, merge: false, squash: false, rebase: true, methods: ['REBASE'] },
+	]) {
+		test(`prepares merge settings from the typed repository flags ${JSON.stringify(settings)}`, async () => {
+			const gitService = new TestGitService();
+			const client = new TestGitHubClient();
+			client.repository = repositoryResponse({
+				allow_auto_merge: settings.auto, allow_merge_commit: settings.merge,
+				allow_squash_merge: settings.squash, allow_rebase_merge: settings.rebase,
+			});
+			const { handler, session } = setup(disposables, gitService, client, { withCopilotToken: true });
+			const details = readPullRequestDetailsResult(await handler.prepare({
+				channel: buildSessionChangesetUri(session.toString()), operationId: PREPARE_PULL_REQUEST_OPERATION_ID,
+			}, CancellationToken.None));
+			assert.deepStrictEqual({
+				autoMergeAllowed: details.autoMergeAllowed,
+				mergeMethods: details.mergeMethods,
+				requests: client.repositoryRequests.map(({ repository, signal, options }) => ({ repository, options, aborted: signal.aborted })),
+				leases: { acquired: client.apiAcquisitions, disposed: client.apiDisposals },
+			}, {
+				autoMergeAllowed: settings.auto,
+				mergeMethods: settings.methods,
+				requests: [{ repository: { owner: 'microsoft', name: 'vscode' }, options: { caller: 'agentHost.pullRequest' }, aborted: false }],
+				leases: { acquired: 1, disposed: 1 },
+			});
+		});
+	}
+
+	for (const field of ['allow_auto_merge', 'allow_merge_commit', 'allow_squash_merge', 'allow_rebase_merge'] as const) {
+		for (const value of [undefined, null, 'true']) {
+			test(`incomplete or malformed ${field}=${String(value)} cannot enable auto-merge`, async () => {
+				const requests: string[] = [];
+				const warnings: string[] = [];
+				const service = createNetworkService(async input => {
+					const path = new URL(String(input)).pathname;
+					requests.push(path);
+					return path === '/user'
+						? Response.json({ id: 1 })
+						: Response.json({ ...repositoryResponse(), [field]: value });
+				});
+				const gitService = new TestGitService();
+				gitService.uncommitted = true;
+				const { handler, session, sessionConfigUpdates, createdEvents } = setup(disposables, gitService, service, {
+					withCopilotToken: true, sessionAgentMergeEnabled: true,
+					logService: new class extends NullLogService {
+						override warn(message: string): void { warnings.push(message); }
+					}(),
+				});
+				const channel = buildSessionChangesetUri(session.toString());
+				const details = readPullRequestDetailsResult(await handler.prepare({ channel, operationId: PREPARE_PULL_REQUEST_OPERATION_ID }, CancellationToken.None));
+				await assert.rejects(handler.invoke({
+					channel, operationId: 'create-pr', _meta: createPullRequestOperationMeta({ ...submittedOptions, autoMergeMethod: 'SQUASH' }),
+				}, CancellationToken.None), value === undefined ? /repository does not allow the requested auto-merge method/ : { name: 'SchemaError' });
+				assert.deepStrictEqual({
+					autoMergeAllowed: details.autoMergeAllowed, mergeMethods: details.mergeMethods,
+					requests, gitCalls: gitService.calls, sessionConfigUpdates, createdEvents, warnings,
+				}, {
+					autoMergeAllowed: false, mergeMethods: [],
+					requests: ['/user', '/repos/microsoft/vscode', '/repos/microsoft/vscode'],
+					gitCalls: ['computeSessionFileDiffs'], sessionConfigUpdates: [], createdEvents: [],
+					warnings: value === undefined
+						? Array(2).fill('[AgentHostPullRequestOperationHandler] Repository merge settings are incomplete; GitHub auto-merge is unavailable.')
+						: ['[AgentHostPullRequestOperationHandler] Could not read repository merge settings; GitHub auto-merge is unavailable during PR preparation.'],
+				});
+			});
+		}
+	}
+
+	test('refused repository settings stop submitted auto-merge without retrying or writing', async () => {
+		const requests: string[] = [];
+		const service = createNetworkService(async input => {
+			const path = new URL(String(input)).pathname;
+			requests.push(path);
+			return path === '/user' ? Response.json({ id: 1 }) : Response.json({ message: 'Forbidden' }, { status: 403 });
+		});
+		const gitService = new TestGitService();
+		gitService.uncommitted = true;
+		const { handler, session, sessionConfigUpdates, createdEvents } = setup(disposables, gitService, service, { sessionAgentMergeEnabled: true });
+		await assert.rejects(handler.invoke({
+			channel: buildSessionChangesetUri(session.toString()), operationId: 'create-pr',
+			_meta: createPullRequestOperationMeta({ ...submittedOptions, autoMergeMethod: 'SQUASH' }),
+		}, CancellationToken.None), { kind: 'authorization', statusCode: 403 });
+		assert.deepStrictEqual({ requests, gitCalls: gitService.calls, sessionConfigUpdates, createdEvents }, {
+			requests: ['/user', '/repos/microsoft/vscode'], gitCalls: [], sessionConfigUpdates: [], createdEvents: [],
+		});
+	});
+
+	for (const enterpriseUri of [undefined, 'https://tenant.ghe.com', 'https://github.enterprise.test']) {
+		test(`typed repository settings use the host-selected endpoint ${enterpriseUri ?? 'github.com'}`, async () => {
+			const endpoint = createTestGitHubEndpointService(enterpriseUri);
+			const requests: string[] = [];
+			const authentication = new class extends mock<IAgentHostAuthenticationService>() {
+				override readonly onDidChangeAuthToken = Event.None;
+				override getAuthAccount() { return undefined; }
+				override getAuthToken() { return 'repository-token'; }
+			}();
+			const service = disposables.add(new AgentHostGitHubService({
+				fetch: async input => {
+					const url = String(input);
+					requests.push(url);
+					return url === `${endpoint.getApiBaseUri()}/user`
+						? Response.json({ id: 1 })
+						: Response.json(repositoryResponse({ allow_merge_commit: false, allow_rebase_merge: false }));
+				},
+			}, authentication, endpoint, new NullLogService(), NullTelemetryService));
+			const { handler, session } = setup(disposables, new TestGitService(), service, { withCopilotToken: true });
+			const details = readPullRequestDetailsResult(await handler.prepare({
+				channel: buildSessionChangesetUri(session.toString()), operationId: PREPARE_PULL_REQUEST_OPERATION_ID,
+			}, CancellationToken.None));
+			assert.deepStrictEqual({ requests, autoMergeAllowed: details.autoMergeAllowed, mergeMethods: details.mergeMethods }, {
+				requests: [`${endpoint.getApiBaseUri()}/user`, `${endpoint.getApiBaseUri()}/repos/microsoft/vscode`],
+				autoMergeAllowed: true, mergeMethods: ['SQUASH'],
+			});
+		});
+	}
+
+	test('an account change during the settings read stops auto-merge before any writes', async () => {
+		const endpoint = createTestGitHubEndpointService();
+		const changed = disposables.add(new Emitter<IAgentHostAuthTokenChangeEvent>());
+		let selected = 'first';
+		const requests: { path: string; account: string }[] = [];
+		const authentication = new class extends mock<IAgentHostAuthenticationService>() {
+			override readonly onDidChangeAuthToken = changed.event;
+			override getAuthAccount() { return { providerId: 'github', accountId: selected }; }
+			override getAuthToken() { return selected; }
+		}();
+		const service = disposables.add(new AgentHostGitHubService({
+			fetch: async input => {
+				const path = new URL(String(input)).pathname;
+				requests.push({ path, account: selected });
+				if (path === '/user') {
+					return Response.json({ id: 1 });
+				}
+				selected = 'second';
+				changed.fire({ resource: endpoint.getRepoResource().resource, scopes: ['repo'], token: selected });
+				return Response.json(repositoryResponse());
+			},
+		}, authentication, endpoint, new NullLogService(), NullTelemetryService));
+		const gitService = new TestGitService();
+		gitService.uncommitted = true;
+		const { handler, session, sessionConfigUpdates, createdEvents } = setup(disposables, gitService, service, { sessionAgentMergeEnabled: true });
+		await assert.rejects(handler.invoke({
+			channel: buildSessionChangesetUri(session.toString()), operationId: 'create-pr',
+			_meta: createPullRequestOperationMeta({ ...submittedOptions, autoMergeMethod: 'SQUASH' }),
+		}, CancellationToken.None));
+		assert.deepStrictEqual({ requests, gitCalls: gitService.calls, sessionConfigUpdates, createdEvents }, {
+			requests: [{ path: '/user', account: 'first' }, { path: '/repos/microsoft/vscode', account: 'first' }],
+			gitCalls: [], sessionConfigUpdates: [], createdEvents: [],
+		});
+	});
+
 	test('preparation propagates cancellation during capability lookup', async () => {
 		const gitService = new TestGitService();
 		const source = disposables.add(new CancellationTokenSource());
@@ -808,7 +998,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 		const logService = new class extends NullLogService {
 			override warn(message: string): void { warnings.push(message); }
 		}();
-		const gitHubClient = createNetworkClient(async input => {
+		const gitHubClient = createNetworkService(async input => {
 			if (new URL(String(input)).pathname === '/user') {
 				return new Response('{"id":1}');
 			}
@@ -838,7 +1028,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 			createdEvents,
 		}, {
 			gitCalls: ['computeSessionFileDiffs'],
-			octoCalls: ['getRepositoryMergeCapabilities:microsoft/vscode'],
+			octoCalls: ['repositories.get:microsoft/vscode'],
 			aborted: true,
 			createdEvents: [],
 		});
@@ -867,7 +1057,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 			title: submittedOptions.title,
 			body: '',
 			message: { markdown: 'Created draft pull request [#123](https://github.com/microsoft/vscode/pull/123).' },
-			octoCalls: ['findPullRequestByHeadBranch:feature/test', 'createPullRequest:true'],
+			octoCalls: ['pullRequests.list:feature/test', 'createPullRequest:true'],
 			utilityCalls: [],
 			gitCalls: ['hasUncommittedChanges', 'commitAll:Agent Host changes for feature/test', 'computeSessionFileDiffs', 'hasUpstream', 'push:feature/test:true'],
 		});
@@ -992,7 +1182,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 				utilityCalls: copilotApiService.calls,
 				sessionConfigUpdates,
 			}, {
-				octoCalls: ['getRepositoryMergeCapabilities:microsoft/vscode', 'findPullRequestByHeadBranch:feature/test', 'createPullRequest:false', `enableAutoMerge:PR_node_123:${autoMergeMethod}`],
+				octoCalls: ['repositories.get:microsoft/vscode', 'pullRequests.list:feature/test', 'createPullRequest:false', `enableAutoMerge:PR_node_123:${autoMergeMethod}`],
 				title: submittedOptions.title,
 				body: submittedOptions.description,
 				utilityCalls: [],
@@ -1045,15 +1235,15 @@ suite('AgentHostPullRequestOperationHandler', () => {
 		});
 	}
 
-	for (const capabilities of [
-		{ autoMergeAllowed: false, mergeMethods: ['SQUASH'] },
-		{ autoMergeAllowed: true, mergeMethods: ['MERGE'] },
-	] satisfies GitHubRepositoryMergeCapabilities[]) {
-		test(`rejects unavailable submitted auto-merge before changing git: ${JSON.stringify(capabilities)}`, async () => {
+	for (const settings of [
+		{ allow_auto_merge: false, allow_merge_commit: false, allow_squash_merge: true, allow_rebase_merge: false },
+		{ allow_auto_merge: true, allow_merge_commit: true, allow_squash_merge: false, allow_rebase_merge: false },
+	]) {
+		test(`rejects unavailable submitted auto-merge before changing git: ${JSON.stringify(settings)}`, async () => {
 			const gitService = new TestGitService();
 			gitService.uncommitted = true;
 			const gitHubClient = new TestGitHubClient();
-			gitHubClient.repositoryCapabilities = capabilities;
+			gitHubClient.repository = repositoryResponse(settings);
 			const { handler, session, sessionConfigUpdates } = setup(disposables, gitService, gitHubClient, { sessionAgentMergeEnabled: true });
 
 			await assert.rejects(() => handler.invoke({
@@ -1062,7 +1252,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 				_meta: createPullRequestOperationMeta({ ...submittedOptions, autoMergeMethod: 'SQUASH' }),
 			}, CancellationToken.None), /repository does not allow/);
 			assert.deepStrictEqual({ git: gitService.calls, octo: gitHubClient.calls, sessionConfigUpdates }, {
-				git: [], octo: ['getRepositoryMergeCapabilities:microsoft/vscode'], sessionConfigUpdates: [],
+				git: [], octo: ['repositories.get:microsoft/vscode'], sessionConfigUpdates: [],
 			});
 		});
 	}
@@ -1161,7 +1351,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 
 			assert.deepStrictEqual({ message: result.message, octo: gitHubClient.calls, createdEvents, utilityCalls: copilotApiService.calls }, {
 				message: { markdown: 'Pull request [#8](https://github.com/microsoft/vscode/pull/8) already exists; enabled auto-merge (squash).' },
-				octo: ['getRepositoryMergeCapabilities:microsoft/vscode', 'findPullRequestByHeadBranch:feature/test', ...(existingAfterFailure ? ['createPullRequest:false', 'findPullRequestByHeadBranch:feature/test'] : []), 'enableAutoMerge:PR_8:SQUASH'],
+				octo: ['repositories.get:microsoft/vscode', 'pullRequests.list:feature/test', ...(existingAfterFailure ? ['createPullRequest:false', 'pullRequests.list:feature/test'] : []), 'enableAutoMerge:PR_8:SQUASH'],
 				createdEvents: ['agent:/session:https://github.com/microsoft/vscode/pull/8'],
 				utilityCalls: [],
 			});
@@ -1217,7 +1407,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 			requestedBaseBranches: ['release'],
 			pullRequestBase: 'release',
 			octoCalls: [
-				'findPullRequestByHeadBranch:feature/test',
+				'pullRequests.list:feature/test',
 				'createPullRequest:false',
 			],
 			createdEvents: ['agent:/session:https://github.com/microsoft/vscode/pull/123'],
@@ -1271,7 +1461,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 		}, {
 			message: { markdown: 'Created draft pull request [#123](https://github.com/microsoft/vscode/pull/123) and enabled Agent Merge.' },
 			octoCalls: [
-				'findPullRequestByHeadBranch:feature/test',
+				'pullRequests.list:feature/test',
 				'createPullRequest:true',
 			],
 			sessionConfigUpdates: [agentMergeFolderPatch(session, { enabled: true })],
@@ -1384,7 +1574,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 			createdEvents,
 		}, {
 			message: { markdown: 'Pull request [#7](https://github.com/microsoft/vscode/pull/7) already exists.' },
-			octoCalls: ['findPullRequestByHeadBranch:feature/test'],
+			octoCalls: ['pullRequests.list:feature/test'],
 			followUp: { content: { uri: 'https://github.com/microsoft/vscode/pull/7', contentType: 'text/html' }, external: true },
 			createdEvents: ['agent:/session:https://github.com/microsoft/vscode/pull/7'],
 		});
@@ -1434,7 +1624,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 
 		assert.deepStrictEqual({ message: result.message, octoCalls: gitHubClient.calls, createdEvents }, {
 			message: { markdown: 'Pull request [#8](https://github.com/microsoft/vscode/pull/8) already exists.' },
-			octoCalls: ['findPullRequestByHeadBranch:feature/test', 'createPullRequest:false', 'findPullRequestByHeadBranch:feature/test'],
+			octoCalls: ['pullRequests.list:feature/test', 'createPullRequest:false', 'pullRequests.list:feature/test'],
 			createdEvents: ['agent:/session:https://github.com/microsoft/vscode/pull/8'],
 		});
 	});
@@ -1454,7 +1644,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 
 	test('reconciles an ambiguous create through the captured client without replaying the write', async () => {
 		const requests: string[] = [];
-		const gitHubClient = createNetworkClient(async (input, init) => {
+		const gitHubClient = createNetworkService(async (input, init) => {
 			const path = new URL(String(input)).pathname;
 			requests.push(`${init?.method}:${path}`);
 			if (path === '/user') {
@@ -1465,7 +1655,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 				throw new Error('Connection lost after create');
 			}
 			return new Response(JSON.stringify(requests.some(request => request.startsWith('POST:'))
-				? [{ number: 8, html_url: 'https://github.com/microsoft/vscode/pull/8', title: 'Recovered title', node_id: 'PR8', state: 'open' }]
+				? [createTestPullRequestSummary(8, { title: 'Recovered title', node_id: 'PR8' })]
 				: []));
 		});
 		const { handler, session, createdEvents } = setup(disposables, new TestGitService(), gitHubClient);
@@ -1473,7 +1663,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 		const result = await handler.invoke({ channel: buildSessionChangesetUri(session.toString()), operationId: 'create-pr' }, CancellationToken.None);
 
 		assert.deepStrictEqual({ requests, message: result.message, createdEvents }, {
-			requests: ['GET:/user', 'GET:/repos/microsoft/vscode/pulls', 'POST:/repos/microsoft/vscode/pulls', 'GET:/repos/microsoft/vscode/pulls'],
+			requests: ['GET:/user', 'GET:/user', 'GET:/repos/microsoft/vscode/pulls', 'POST:/repos/microsoft/vscode/pulls', 'GET:/repos/microsoft/vscode/pulls'],
 			message: { markdown: 'Pull request [#8](https://github.com/microsoft/vscode/pull/8) already exists.' },
 			createdEvents: ['agent:/session:https://github.com/microsoft/vscode/pull/8'],
 		});
@@ -1504,13 +1694,12 @@ suite('AgentHostPullRequestOperationHandler', () => {
 				return new Response('[]');
 			},
 		}, authentication, endpoint, new NullLogService(), NullTelemetryService));
-		const client = disposables.add(service.acquireRepositoryClient(new AbortController().signal)).object;
-		const { handler, session, createdEvents } = setup(disposables, new TestGitService(), client);
+		const { handler, session, createdEvents } = setup(disposables, new TestGitService(), service);
 
 		await assert.rejects(handler.invoke({ channel: buildSessionChangesetUri(session.toString()), operationId: 'create-pr' }, CancellationToken.None));
 
 		assert.deepStrictEqual({ requests, createdEvents }, {
-			requests: ['GET:/user:account-a', 'GET:/repos/microsoft/vscode/pulls:account-a', 'POST:/repos/microsoft/vscode/pulls:account-a'],
+			requests: ['GET:/user:account-a', 'GET:/user:account-a', 'GET:/repos/microsoft/vscode/pulls:account-a', 'POST:/repos/microsoft/vscode/pulls:account-a'],
 			createdEvents: [],
 		});
 	});
@@ -1536,7 +1725,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 			};
 			const createStarted = new DeferredPromise<void>();
 			const createResponse = new DeferredPromise<Response>();
-			const pullRequest = { number: 8, html_url: 'https://github.com/microsoft/vscode/pull/8', title: 'Created title', node_id: 'PR8', state: 'open' };
+			const pullRequest = createTestPullRequestSummary(8, { title: 'Created title', node_id: 'PR8' });
 			const requests: string[] = [];
 			let created = false;
 			let createSignal: AbortSignal | undefined;
@@ -1569,7 +1758,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 			}, authentication, endpoint, new NullLogService(), NullTelemetryService));
 			const client = disposables.add(service.acquireRepositoryClient(new AbortController().signal)).object;
 			const source = disposables.add(new CancellationTokenSource());
-			const { handler, session, copilotApiService, createdEvents } = setup(disposables, new TestGitService(), client, { withCopilotToken: true, autoMergeMethod: 'SQUASH' });
+			const { handler, session, copilotApiService, createdEvents } = setup(disposables, new TestGitService(), service, { withCopilotToken: true, autoMergeMethod: 'SQUASH' });
 			if (scenario.renewal === 'before create') {
 				copilotApiService.onUtilityChatCompletion = renewToken;
 			}
@@ -1608,11 +1797,12 @@ suite('AgentHostPullRequestOperationHandler', () => {
 				interruptedCreate: scenario.renewal === 'during create',
 				requests: [
 					'GET:/user:Bearer first-token',
+					'GET:/user:Bearer first-token',
 					'GET:/repos/microsoft/vscode/pulls:Bearer first-token',
 					...(scenario.renewal === 'before create' ? [] : ['POST:/repos/microsoft/vscode/pulls:Bearer first-token']),
 					'GET:/user:Bearer renewed-token',
 					...(scenario.renewal === 'before create' ? ['POST:/repos/microsoft/vscode/pulls:Bearer renewed-token'] : []),
-					...(scenario.renewal === 'during create' && !scenario.cancelled ? ['GET:/repos/microsoft/vscode/pulls:Bearer renewed-token'] : []),
+					...(scenario.renewal === 'during create' && !scenario.cancelled ? ['GET:/user:Bearer renewed-token', 'GET:/repos/microsoft/vscode/pulls:Bearer renewed-token'] : []),
 					...(scenario.cancelled ? [] : ['POST:/graphql:Bearer renewed-token']),
 				],
 			});
@@ -1632,7 +1822,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 				await assert.rejects(pending, { kind: 'timeout', requestDispatched: false });
 			}
 			assert.deepStrictEqual({ calls: gitHubClient.calls, createdEvents }, {
-				calls: ['findPullRequestByHeadBranch:feature/test', 'createPullRequest:false', ...(dispatched ? ['findPullRequestByHeadBranch:feature/test'] : [])],
+				calls: ['pullRequests.list:feature/test', 'createPullRequest:false', ...(dispatched ? ['pullRequests.list:feature/test'] : [])],
 				createdEvents: dispatched ? ['agent:/session:https://github.com/microsoft/vscode/pull/8'] : [],
 			});
 		});
@@ -1780,7 +1970,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 		}, {
 			message: { markdown: 'Created pull request [#123](https://github.com/microsoft/vscode/pull/123) with auto-merge (squash) enabled.' },
 			octoCalls: [
-				'findPullRequestByHeadBranch:feature/test',
+				'pullRequests.list:feature/test',
 				'createPullRequest:false',
 				'enableAutoMerge:PR_node_123:SQUASH',
 			],

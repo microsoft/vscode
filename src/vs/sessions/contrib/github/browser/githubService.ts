@@ -9,7 +9,6 @@ import { createDecorator, IInstantiationService } from '../../../../platform/ins
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IGitHubChangedFile, IGitHubPullRequestContext, IGitHubPullRequestSummary, IGitHubPullRequestsPage, IGitHubRepository } from '../common/types.js';
 import { GitHubApiClient } from './githubApiClient.js';
-import { GitHubRepositoryModel, GitHubRepositoryModelReferenceCollection } from './models/githubRepositoryModel.js';
 import { GitHubPullRequestModel, GitHubPullRequestModelReferenceCollection } from './models/githubPullRequestModel.js';
 import { GitHubPullRequestReviewThreadsModel, GitHubPullRequestReviewThreadsModelReferenceCollection } from './models/githubPullRequestReviewThreadsModel.js';
 import { GitHubPullRequestCIModel, GitHubPullRequestCIModelReferenceCollection } from './models/githubPullRequestCIModel.js';
@@ -54,11 +53,6 @@ export interface IGitHubService {
 
 	/** Silently search up to 100 repositories, or list the user's most recently updated accessible repositories for an empty query. */
 	getRepositories(query: string, token: CancellationToken): Promise<readonly IGitHubRepository[]>;
-
-	/**
-	 * Get a reference to a reactive model for a GitHub repository.
-	 */
-	createRepositoryModelReference(owner: string, repo: string): IReference<GitHubRepositoryModel>;
 
 	/**
 	 * Get a reference to a reactive model for a GitHub pull request.
@@ -127,7 +121,6 @@ export class GitHubService extends Disposable implements IGitHubService {
 	private readonly _pullRequestFetcher: GitHubPRFetcher;
 	private readonly _pullRequestContextFetcher: GitHubPullRequestContextFetcher;
 	private readonly _repositoryFetcher: GitHubRepositoryFetcher;
-	private readonly _repositoryReferences: GitHubRepositoryModelReferenceCollection;
 	private readonly _pullRequestReferences: GitHubPullRequestModelReferenceCollection;
 	private readonly _pullRequestReviewThreadsReferences: GitHubPullRequestReviewThreadsModelReferenceCollection;
 	private readonly _pullRequestCIReferences: GitHubPullRequestCIModelReferenceCollection;
@@ -164,7 +157,6 @@ export class GitHubService extends Disposable implements IGitHubService {
 		this._pullRequestContextFetcher = new GitHubPullRequestContextFetcher(apiClient);
 		this._repositoryFetcher = new GitHubRepositoryFetcher(apiClient);
 
-		this._repositoryReferences = instantiationService.createInstance(GitHubRepositoryModelReferenceCollection, apiClient);
 		this._pullRequestReferences = instantiationService.createInstance(GitHubPullRequestModelReferenceCollection, apiClient);
 		this._pullRequestReviewThreadsReferences = instantiationService.createInstance(GitHubPullRequestReviewThreadsModelReferenceCollection, apiClient);
 		this._pullRequestCIReferences = instantiationService.createInstance(GitHubPullRequestCIModelReferenceCollection, apiClient);
@@ -246,10 +238,6 @@ export class GitHubService extends Disposable implements IGitHubService {
 
 	getRepositories(query: string, token: CancellationToken): Promise<readonly IGitHubRepository[]> {
 		return this._repositoryFetcher.getRepositories(query, token);
-	}
-
-	createRepositoryModelReference(owner: string, repo: string): IReference<GitHubRepositoryModel> {
-		return this._repositoryReferences.acquire(`${owner}/${repo}`, owner, repo);
 	}
 
 	createPullRequestModelReference(owner: string, repo: string, prNumber: number): IReference<GitHubPullRequestModel> {

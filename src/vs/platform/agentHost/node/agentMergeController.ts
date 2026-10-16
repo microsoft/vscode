@@ -12,6 +12,7 @@ import { autorun } from '../../../base/common/observable.js';
 import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import { IGitHubAccountClient } from '../../github/common/account/account.js';
 import { IGitHubClient } from '../../github/common/githubService.js';
 import { IParsedPullRequestUrl, parsePullRequestUrl } from '../../github/common/githubUrls.js';
 import { GitHubWorkflowRerunOptions, PullRequestReplyAndResolveResult } from '../../github/common/githubPullRequestMutationService.js';
@@ -36,7 +37,7 @@ import { IAgentHostGitHubService } from './agentHostGitHubService.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { AgentHostStateManager, ChatRemovalReason, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
-import { IAgentMergeTurnContext, isFailedConclusion } from './agentMergeTools.js';
+import { getWorkflowRuns, IAgentMergeTurnContext, isFailedConclusion } from './agentMergeTools.js';
 import { getAgentMergeConfiguration } from './agentMergeConfiguration.js';
 
 const snapshotDebounce = 30_000;
@@ -80,6 +81,7 @@ interface IActiveAgentMergeTurnContext extends IAgentMergeTurnContext {
 class AgentMergeRuntime extends Disposable {
 
 	readonly clientReference = this._register(new MutableDisposable<IReference<IGitHubClient>>());
+	readonly apiClientReference = this._register(new MutableDisposable<IGitHubAccountClient>());
 	readonly subscription = this._register(new MutableDisposable<PullRequestSubscription>());
 	readonly snapshotObserver = this._register(new MutableDisposable<DisposableStore>());
 	readonly cancellation = new CancellationTokenSource();
@@ -100,6 +102,13 @@ class AgentMergeRuntime extends Disposable {
 			throw new GitHubRequestError('Agent Merge has no authorized GitHub client', 'authentication');
 		}
 		return this.clientReference.value.object;
+	}
+
+	get apiClient(): IGitHubAccountClient {
+		if (!this.apiClientReference.value) {
+			throw new GitHubRequestError('Agent Merge has no authorized GitHub API client', 'authentication');
+		}
+		return this.apiClientReference.value;
 	}
 
 	constructor(
@@ -929,6 +938,7 @@ export class AgentMergeController extends Disposable {
 					configuration,
 					snapshot,
 					client: runtime.client,
+					apiClient: runtime.apiClient,
 					signal: runtime.abortController.signal,
 					commentWatermark: gate.context.commentWatermark,
 					reviewReplies: [],
@@ -1035,7 +1045,7 @@ export class AgentMergeController extends Disposable {
 		if (pending.length === 0) {
 			return;
 		}
-		const runs = await runtime.client.mutations.listWorkflowRuns(ref, headSha, runtime.abortController.signal);
+		const runs = await getWorkflowRuns(runtime.apiClient, ref, headSha, runtime.abortController.signal);
 		for (const request of pending) {
 			const state = this._stateManager.getSessionState(session.toString());
 			const current = readAgentMergeFolderState(state?.config?.values, runtime.folderKey, this._sessionFolderKey(state));
@@ -1056,20 +1066,21 @@ export class AgentMergeController extends Disposable {
 				this._schedule(key, 0);
 				return;
 			}
-			const run = runs.find(run => run.id === request.options.runId && run.headSha === request.headSha);
+			const run = runs.find(run => String(run.id) === request.options.runId && run.head_sha === request.headSha);
 			if (!run) {
 				this._logService.warn(`[AgentMergeController] Deferred workflow run is no longer available: session=${session}, run=${request.options.runId}`);
 				runtime.deferredWorkflowReruns.delete(request.options.runId);
 				this._schedule(key, 0);
 				continue;
 			}
-			if (run.runAttempt > request.options.expectedRunAttempt) {
+			const runAttempt = run.run_attempt ?? 1;
+			if (runAttempt > request.options.expectedRunAttempt) {
 				request.settled = true;
-				this._logService.info(`[AgentMergeController] Deferred workflow was already rerun: session=${session}, run=${run.id}, currentAttempt=${run.runAttempt}`);
+				this._logService.info(`[AgentMergeController] Deferred workflow was already rerun: session=${session}, run=${run.id}, currentAttempt=${runAttempt}`);
 				continue;
 			}
-			if (run.runAttempt < request.options.expectedRunAttempt || run.status?.toUpperCase() !== 'COMPLETED' || !run.conclusion) {
-				this._logService.debug(`[AgentMergeController] Waiting to rerun workflow: session=${session}, run=${run.id}, status=${run.status}, currentAttempt=${run.runAttempt}`);
+			if (runAttempt < request.options.expectedRunAttempt || run.status?.toUpperCase() !== 'COMPLETED' || !run.conclusion) {
+				this._logService.debug(`[AgentMergeController] Waiting to rerun workflow: session=${session}, run=${run.id}, status=${run.status}, currentAttempt=${runAttempt}`);
 				continue;
 			}
 			if (!isFailedConclusion(run.conclusion)) {
@@ -1083,8 +1094,8 @@ export class AgentMergeController extends Disposable {
 				this._logService.info(`[AgentMergeController] Deferred workflow rerun requested: session=${session}, run=${run.id}, outcome=${result.outcome}`);
 			} finally {
 				// Failed or unconfirmed mutations return to the ordinary, budgeted repair flow.
-				if (!request.settled && runtime.deferredWorkflowReruns.get(run.id) === request) {
-					runtime.deferredWorkflowReruns.delete(run.id);
+				if (!request.settled && runtime.deferredWorkflowReruns.get(request.options.runId) === request) {
+					runtime.deferredWorkflowReruns.delete(request.options.runId);
 					this._schedule(key, 0);
 				}
 			}
@@ -1145,6 +1156,7 @@ export class AgentMergeController extends Disposable {
 
 	private async _resolveRef(parsed: IParsedPullRequestUrl, runtime: AgentMergeRuntime): Promise<PullRequestRef | undefined> {
 		runtime.clientReference.value ??= this._gitHubService.acquireRepositoryClient(runtime.abortController.signal);
+		runtime.apiClientReference.value ??= this._gitHubService.acquireRepositoryApiClient(runtime.abortController.signal);
 		const credential = await runtime.client.credentials.getCredential(runtime.abortController.signal);
 		// The bound pull request URL carries its own host: after a restore or an
 		// endpoint switch the same owner/repo/number can name a different GitHub

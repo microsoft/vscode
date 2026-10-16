@@ -26,8 +26,7 @@ import { IGitHubClient } from '../../../github/common/githubService.js';
 import { createTestGitHubService } from './testGitHubService.js';
 import { GitHubCredential, IGitHubCredentials } from '../../../github/common/githubCredentialService.js';
 import { PullRequestSnapshot, PullRequestSubscription } from '../../../github/common/githubPullRequestService.js';
-import { PullRequestReplyAndResolveResult } from '../../../github/common/githubPullRequestMutationService.js';
-import { IPullRequestMutations } from '../../../github/common/pullRequestMutationService.js';
+import { PullRequestMutationApi, PullRequestReplyAndResolveResult } from '../../../github/common/githubPullRequestMutationService.js';
 import { IPullRequestResources } from '../../../github/common/pullRequestResourceService.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
@@ -552,11 +551,11 @@ suite('AgentMergeController', () => {
 
 		function createReviewReplyHarness() {
 			const initial = repairSnapshot();
-			const replies: Parameters<IPullRequestMutations['replyAndResolveThread']>[] = [];
-			const mutations = new class extends mock<IPullRequestMutations>() {
+			const replies: Parameters<PullRequestMutationApi['replyAndResolveThread']>[] = [];
+			const mutations = new class extends mock<PullRequestMutationApi>() {
 				outcome: 'pending' | 'succeeded' | 'reconciled' | 'indeterminate' = 'pending';
 				beforeReply: (() => Promise<void>) | undefined;
-				override async replyAndResolveThread(...args: Parameters<IPullRequestMutations['replyAndResolveThread']>): Promise<PullRequestReplyAndResolveResult> {
+				override async replyAndResolveThread(...args: Parameters<PullRequestMutationApi['replyAndResolveThread']>): Promise<PullRequestReplyAndResolveResult> {
 					replies.push(args);
 					await this.beforeReply?.();
 					const published = this.outcome === 'succeeded' || this.outcome === 'reconciled';
@@ -1773,7 +1772,7 @@ suite('AgentMergeController', () => {
 	 * for that folder and owned by `owningChat` (the peer chat by default). The
 	 * pull request has a failing check, so the controller starts a repair turn.
 	 */
-	function createPeerRepairHarness(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, owningChat?: (stateManager: AgentHostStateManager) => string, initialSnapshot = repairSnapshot(), mutations?: IPullRequestMutations) {
+	function createPeerRepairHarness(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, owningChat?: (stateManager: AgentHostStateManager) => string, initialSnapshot = repairSnapshot(), mutations?: PullRequestMutationApi) {
 		const logService = new NullLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
 		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
@@ -1819,7 +1818,7 @@ suite('AgentMergeController', () => {
 			gitStateService,
 			gitService,
 			createTestGitHubService(new class extends mock<IGitHubClient>() {
-				override readonly mutations = mutations ?? new class extends mock<IPullRequestMutations>() { }();
+				override readonly mutations = mutations ?? new class extends mock<PullRequestMutationApi>() { }();
 				override readonly credentials = new class extends mock<IGitHubCredentials>() {
 					override async getCredential(signal: AbortSignal): Promise<GitHubCredential> {
 						return { account: snapshot.get().ref, token: 'test-token', generation: 1, signal };

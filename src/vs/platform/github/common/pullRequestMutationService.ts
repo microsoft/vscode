@@ -12,8 +12,6 @@ import {
 	CreatedPullRequest,
 	CreatePullRequestOptions,
 	EnablePullRequestAutoMergeOptions,
-	GitHubCheckAnnotation,
-	GitHubWorkflowJob,
 	GitHubWorkflowLog,
 	GitHubWorkflowRerunOptions,
 	GitHubWorkflowRun,
@@ -27,7 +25,6 @@ import {
 	PullRequestNodeOptions,
 	PullRequestReplyAndResolveOptions,
 	PullRequestReplyAndResolveResult,
-	PullRequestReplyOptions,
 	PullRequestReplyResult,
 } from './githubPullRequestMutationService.js';
 import { GitHubRepositoryRef } from './githubQueryService.js';
@@ -41,14 +38,11 @@ import {
 } from './githubPullRequestService.js';
 import { GitHubRequestTimeoutError, IGitHubEndpointProvider } from './githubTypes.js';
 import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from './githubCredentialService.js';
-import { arrayProperty, asArray, asObject, booleanProperty, idProperty, nextLink, normalizedEnumProperty, nullableStringProperty, numberProperty, objectAt, optionalObjectProperty, requiredId, requiredNumber, requiredString, stringProperty } from './githubResponse.js';
+import { asObject, booleanProperty, idProperty, normalizedEnumProperty, nullableStringProperty, numberProperty, objectAt, optionalObjectProperty, requiredId, requiredNumber, requiredString, stringProperty } from './githubResponse.js';
 import { IRequestScheduler, systemRequestScheduler } from './scheduler.js';
 import { GitHubGraphQLError, GitHubRequestError, IGitHubTransport } from './githubTransport.js';
 import { IPullRequestResources } from './pullRequestResourceService.js';
 import { PullRequestScheduler } from './pullRequestScheduler.js';
-
-export interface IPullRequestMutations extends PullRequestMutationApi {
-}
 
 interface IPreparationState {
 	readonly value: PullRequestMergePreparation;
@@ -63,7 +57,6 @@ interface IUnconfirmedRerun {
 
 const operationMarkerPrefix = '<!-- vscode-agent-host-operation:';
 const operationIdPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
-const maximumPaginationPages = 100;
 const maximumWorkflowLogBytes = 16 * 1024 * 1024;
 const workflowLogTimeout = 30_000;
 const mergePreparationLifetime = 5 * 60_000;
@@ -106,7 +99,7 @@ const markReadyForReviewMutation = `mutation AgentHostMarkPullRequestReadyForRev
 	}
 }`;
 
-export class PullRequestMutationService extends Disposable implements IPullRequestMutations {
+export class PullRequestMutationService extends Disposable implements PullRequestMutationApi {
 
 	private readonly _mutationTails = new Map<string, Promise<void>>();
 	private readonly _preparations = new Map<string, IPreparationState>();
@@ -226,48 +219,6 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 			} catch (error) {
 				return { reply, resolved: false, resolveError: toFragmentError(error) };
 			}
-		});
-	}
-
-	listWorkflowRuns(ref: PullRequestRef, headSha: string, signal: AbortSignal): Promise<readonly GitHubWorkflowRun[]> {
-		return this._withCredential(ref, signal, async (credential, combinedSignal) => {
-			const values = await this._fetchRestArray(
-				ref,
-				credential,
-				`actions/runs?head_sha=${encodeURIComponent(headSha)}&per_page=100`,
-				combinedSignal,
-				'workflow_runs',
-			);
-			return values.map(toWorkflowRun);
-		});
-	}
-
-	listWorkflowJobs(ref: PullRequestRef, runId: string, signal: AbortSignal, runAttempt?: number): Promise<readonly GitHubWorkflowJob[]> {
-		return this._withCredential(ref, signal, async (credential, combinedSignal) => {
-			if (runAttempt !== undefined && (!Number.isSafeInteger(runAttempt) || runAttempt < 1)) {
-				throw new GitHubRequestError('GitHub workflow run attempt must be a positive integer', 'validation');
-			}
-			const attemptPath = runAttempt === undefined ? '' : `/attempts/${runAttempt}`;
-			const values = await this._fetchRestArray(
-				ref,
-				credential,
-				`actions/runs/${encodeURIComponent(runId)}${attemptPath}/jobs?per_page=100`,
-				combinedSignal,
-				'jobs',
-			);
-			return values.map(value => toWorkflowJob(value, runId));
-		});
-	}
-
-	listCheckAnnotations(ref: PullRequestRef, checkRunId: string, signal: AbortSignal): Promise<readonly GitHubCheckAnnotation[]> {
-		return this._withCredential(ref, signal, async (credential, combinedSignal) => {
-			const values = await this._fetchRestArray(
-				ref,
-				credential,
-				`check-runs/${encodeURIComponent(checkRunId)}/annotations?per_page=100`,
-				combinedSignal,
-			);
-			return values.map(toCheckAnnotation);
 		});
 	}
 
@@ -520,7 +471,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 
 	private async _replyToThread(
 		ref: PullRequestRef,
-		options: PullRequestReplyOptions,
+		options: PullRequestReplyAndResolveOptions,
 		signal: AbortSignal,
 	): Promise<PullRequestReplyResult> {
 		const body = withOperationMarker(options.body, options.operationId);
@@ -676,35 +627,6 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 			throwGraphQLErrors(response.errors);
 			return requiredString(objectAt(response.data, 'enqueuePullRequest', 'mergeQueueEntry'), 'id');
 		});
-	}
-
-	private async _fetchRestArray(
-		ref: PullRequestRef,
-		credential: GitHubCredential,
-		route: string,
-		signal: AbortSignal,
-		arrayPropertyName?: string,
-	): Promise<readonly unknown[]> {
-		const values: unknown[] = [];
-		let url: string | undefined = this._restUrl(ref, route);
-		for (let page = 0; url && page < maximumPaginationPages; page++) {
-			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
-				caller: 'github.mutations',
-				method: 'GET',
-				url,
-				etag: true,
-				priority: 'interactive',
-			}, signal);
-			const pageValues = arrayPropertyName
-				? arrayProperty(asObject(response.data, 'GitHub paginated response was malformed'), arrayPropertyName)
-				: asArray(response.data, 'GitHub paginated response was not an array');
-			values.push(...pageValues);
-			url = nextLink(response.link);
-		}
-		if (url) {
-			throw new GitHubRequestError('GitHub pagination exceeded its page limit', 'malformedResponse');
-		}
-		return values;
 	}
 
 	private async _pullRequestNodeMutation(
@@ -973,46 +895,6 @@ function toWorkflowRun(value: unknown): GitHubWorkflowRun {
 		url: stringProperty(item, 'html_url'),
 		createdAt: stringProperty(item, 'created_at'),
 		updatedAt: stringProperty(item, 'updated_at'),
-	};
-}
-
-function toWorkflowJob(value: unknown, runId: string): GitHubWorkflowJob {
-	const item = asObject(value, 'GitHub workflow job was malformed');
-	const steps = Reflect.get(item, 'steps');
-	return {
-		id: requiredId(item, 'id'),
-		runId,
-		name: requiredString(item, 'name'),
-		headSha: stringProperty(item, 'head_sha'),
-		runAttempt: numberProperty(item, 'run_attempt'),
-		status: normalizedEnumProperty(item, 'status'),
-		conclusion: normalizedEnumProperty(item, 'conclusion'),
-		steps: steps === undefined || steps === null ? undefined : asArray(steps, 'GitHub workflow job steps were malformed').map(value => {
-			const step = asObject(value, 'GitHub workflow job step was malformed');
-			return {
-				number: requiredNumber(step, 'number'),
-				name: requiredString(step, 'name'),
-				status: normalizedEnumProperty(step, 'status'),
-				conclusion: normalizedEnumProperty(step, 'conclusion'),
-			};
-		}),
-		checkRunId: idProperty(item, 'check_run_id') ?? /\/check-runs\/(?<id>\d+)(?:[?#]|$)/.exec(stringProperty(item, 'check_run_url') ?? '')?.groups?.id,
-		url: stringProperty(item, 'html_url'),
-		startedAt: stringProperty(item, 'started_at'),
-		completedAt: stringProperty(item, 'completed_at'),
-	};
-}
-
-function toCheckAnnotation(value: unknown): GitHubCheckAnnotation {
-	const item = asObject(value, 'GitHub check annotation was malformed');
-	return {
-		path: requiredString(item, 'path'),
-		startLine: numberProperty(item, 'start_line') ?? 0,
-		endLine: numberProperty(item, 'end_line') ?? numberProperty(item, 'start_line') ?? 0,
-		level: requiredString(item, 'annotation_level'),
-		message: requiredString(item, 'message'),
-		title: nullableStringProperty(item, 'title'),
-		rawDetails: nullableStringProperty(item, 'raw_details'),
 	};
 }
 

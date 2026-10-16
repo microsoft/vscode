@@ -17,7 +17,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
-import { AgentHostGitHubService } from '../../node/agentHostGitHubService.js';
+import { AgentHostGitHubService, IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentHostPeerChatStore } from '../../node/agentHostPeerChatStore.js';
@@ -25,13 +25,16 @@ import { AgentHostSessionTitleController, type AutomaticTitleGenerationStrategy 
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { ActionType, NotificationType } from '../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, MessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, TurnState, type ResponsePart, type SessionSummary, type ToolCallCompletedState, type Turn } from '../../common/state/sessionState.js';
-import { GitHubIssueOrPullRequest, GitHubIssueRef, GitHubQueryApi } from '../../../github/common/githubQueryService.js';
+import { IGitHubAccountClient } from '../../../github/common/account/account.js';
+import { ApiRequestOptions } from '../../../github/common/client/request.js';
+import { RepositoryRef } from '../../../github/common/client/types.js';
+import { IIssuesClient, Issue } from '../../../github/common/core/issues.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 import { AgentHostUtilityModelUnavailableError, AgentHostUtilityModelUnavailableReason, type IAgentHostUtilityModelContext, type IAgentHostUtilityModelService } from '../../node/agentHostUtilityModelService.js';
 import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { sessionServerToolDefinitions } from '../../node/shared/sessionServerTools.js';
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
-import { createTestGitHubClient, createTestGitHubService } from './testGitHubService.js';
+import { createTestGitHubIssue } from './testGitHubService.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { createLiveChatOwnership, createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
@@ -77,13 +80,13 @@ function createUtilityModelService(copilotApiService: TestCopilotApiService, get
 	};
 }
 
-class TestGitHubQuery extends mock<GitHubQueryApi>() {
-	readonly calls: { owner: string; repo: string; number: number; accountId: string; signal: AbortSignal }[] = [];
-	readonly responses = new Map<string, GitHubIssueOrPullRequest | Error>();
+class TestGitHubQuery extends mock<IIssuesClient>() {
+	readonly calls: { owner: string; repo: string; number: number; options?: ApiRequestOptions; signal: AbortSignal }[] = [];
+	readonly responses = new Map<string, Pick<Issue, 'title' | 'body'> | Error>();
 	readonly pendingResponses = new Set<string>();
 
-	override async getIssueOrPullRequest({ owner, repo, number, accountId }: GitHubIssueRef, signal: AbortSignal): Promise<GitHubIssueOrPullRequest> {
-		this.calls.push({ owner, repo, number, accountId, signal });
+	override async get({ owner, name: repo }: RepositoryRef, number: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<Issue> {
+		this.calls.push({ owner, repo, number, options, signal });
 		const key = `${owner}/${repo}#${number}`;
 		if (this.pendingResponses.has(key)) {
 			return new Promise((_resolve, reject) => {
@@ -101,7 +104,7 @@ class TestGitHubQuery extends mock<GitHubQueryApi>() {
 		if (!response) {
 			throw new Error('missing test response');
 		}
-		return response;
+		return createTestGitHubIssue(number, { ...response, body: response.body });
 	}
 
 }
@@ -165,6 +168,8 @@ suite('AgentHostSessionTitleController', () => {
 		catalogSyncs: { session: string; metadataOverrides: Readonly<Record<string, string>> }[];
 		copilotApiService: TestCopilotApiService;
 		query: TestGitHubQuery;
+		clientDisposals: () => number;
+		logService: NullLogService;
 	} {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const db = new TestSessionDatabase();
@@ -177,17 +182,27 @@ suite('AgentHostSessionTitleController', () => {
 				titleActions.push(e.action.title);
 			}
 		}));
+		let clientDisposals = 0;
+		const logService = disposables.add(new NullLogService());
 		const controller = disposables.add(new AgentHostSessionTitleController(stateManager, {
 			sessionDataService: createSessionDataService(db),
 			queueCatalogSync: (session, metadataOverrides) => catalogSyncs.push({ session, metadataOverrides }),
 			getGitHubToken,
 			getGitHubHost,
 			gitHubContextRequestTimeout,
-			gitHubService: createTestGitHubService(createTestGitHubClient({ query })),
+			gitHubService: new class extends mock<IAgentHostGitHubService>() {
+				override acquireRepositoryApiClient(signal: AbortSignal): IGitHubAccountClient {
+					signal.throwIfAborted();
+					return new class extends mock<IGitHubAccountClient>() {
+						override readonly issues = query;
+						override dispose(): void { clientDisposals++; }
+					}();
+				}
+			}(),
 			utilityModelService: createUtilityModelService(copilotApiService, getGitHubCopilotToken),
 			getInitialTitleGenerationStrategy: () => initialTitleGenerationStrategy,
-		}, new NullLogService(), createTestChatOwnershipService(stateManager)));
-		return { controller, stateManager, session, db, titleActions, catalogSyncs, copilotApiService, query };
+		}, logService, createTestChatOwnershipService(stateManager)));
+		return { controller, stateManager, session, db, titleActions, catalogSyncs, copilotApiService, query, clientDisposals: () => clientDisposals, logService };
 	}
 
 	test('queues matching parent catalog overrides for automatic and manual peer titles', () => {
@@ -1029,7 +1044,7 @@ suite('AgentHostSessionTitleController', () => {
 		const query = new TestGitHubQuery();
 		query.responses.set('microsoft/vscode#123', { title: 'Issue title', body: 'Issue body' });
 		query.responses.set('microsoft/vscode#456', { title: 'Pull request title', body: 'Pull request body' });
-		const { controller, session, db } = setup(copilotApiService, '', () => 'gh-token', query);
+		const { controller, session, db, clientDisposals } = setup(copilotApiService, '', () => 'gh-token', query);
 		const prompt = 'Fix https://github.com/microsoft/vscode/issues/123 and review https://github.com/microsoft/vscode/pull/456. Duplicate: https://www.github.com/microsoft/vscode/issues/123#issuecomment-1';
 
 		controller.seedTitleFromFirstMessage(session.toString(), prompt);
@@ -1037,13 +1052,15 @@ suite('AgentHostSessionTitleController', () => {
 
 		const userMessage = copilotApiService.utilityCalls[0].request.messages.find(message => message.role === 'user')?.content;
 		assert.deepStrictEqual({
-			calls: query.calls.map(call => ({ owner: call.owner, repo: call.repo, number: call.number, accountId: call.accountId })),
+			calls: query.calls.map(({ signal, ...call }) => call),
+			clientDisposals: clientDisposals(),
 			userMessage,
 		}, {
 			calls: [
-				{ owner: 'microsoft', repo: 'vscode', number: 123, accountId: '1' },
-				{ owner: 'microsoft', repo: 'vscode', number: 456, accountId: '1' },
+				{ owner: 'microsoft', repo: 'vscode', number: 123, options: { caller: 'agentHost.sessionTitle', priority: 'background' } },
+				{ owner: 'microsoft', repo: 'vscode', number: 456, options: { caller: 'agentHost.sessionTitle', priority: 'background' } },
 			],
+			clientDisposals: 1,
 			userMessage: [
 				'Please write a brief title for the following request:',
 				'',
@@ -1063,6 +1080,24 @@ suite('AgentHostSessionTitleController', () => {
 			].join('\n'),
 		});
 	});
+
+	for (const body of [null, undefined]) {
+		test(`seedTitleFromFirstMessage ${body === null ? 'normalizes a null issue body' : 'omits a representation without its issue body'}`, async () => {
+			const query = new TestGitHubQuery();
+			query.responses.set('microsoft/vscode#123', { title: 'Issue title', body });
+			const { controller, session, db, copilotApiService, clientDisposals, logService } = setup(undefined, '', undefined, query);
+			const warnings = sinon.spy(logService, 'warn');
+			controller.seedTitleFromFirstMessage(session.toString(), 'Fix https://github.com/microsoft/vscode/issues/123');
+			await waitForCondition(async () => await db.getMetadata('customTitle') === 'Generated title', 'generated title should be persisted');
+			const content = copilotApiService.utilityCalls[0].request.messages.find(message => message.role === 'user')?.content ?? '';
+			assert.deepStrictEqual({
+				hasContext: content.includes('The title of the issue is: Issue title'),
+				hasMissingBodyText: content.includes('undefined') || content.includes('null'),
+				disposed: clientDisposals(),
+				warnings: warnings.callCount,
+			}, { hasContext: body === null, hasMissingBodyText: false, disposed: 1, warnings: 0 });
+		});
+	}
 
 	test('seedTitleFromFirstMessage only fetches links from the configured GitHub host', async () => {
 		const copilotApiService = new TestCopilotApiService();
@@ -1118,12 +1153,19 @@ suite('AgentHostSessionTitleController', () => {
 			const requests: string[] = [];
 			let activeRequests = 0;
 			let maximumActiveRequests = 0;
+			const reads: sinon.SinonSpy<Parameters<IIssuesClient['get']>, ReturnType<IIssuesClient['get']>>[] = [];
 			const authentication = new class extends mock<IAgentHostAuthenticationService>() {
 				override readonly onDidChangeAuthToken = Event.None;
 				override getAuthAccount() { return undefined; }
 				override getAuthToken() { return 'test-token'; }
 			}();
-			const gitHubService = disposables.add(new AgentHostGitHubService({
+			const gitHubService = disposables.add(new class extends AgentHostGitHubService {
+				override acquireRepositoryApiClient(signal: AbortSignal): IGitHubAccountClient {
+					const client = super.acquireRepositoryApiClient(signal);
+					reads.push(sinon.spy(client.issues, 'get'));
+					return client;
+				}
+			}({
 				fetch: async (input, init) => {
 					const path = new URL(String(input)).pathname;
 					requests.push(path);
@@ -1139,14 +1181,12 @@ suite('AgentHostSessionTitleController', () => {
 							await started.complete(init.signal);
 							await release.p;
 						}
-						return new Response(JSON.stringify({ title: `Issue ${number}`, body: `Body ${number}` }));
+						return Response.json(createTestGitHubIssue(number, { title: `Issue ${number}`, body: `Body ${number}` }));
 					} finally {
 						activeRequests--;
 					}
 				},
 			}, authentication, createTestGitHubEndpointService(), new NullLogService(), NullTelemetryService));
-			const client = disposables.add(gitHubService.acquireRepositoryClient(new AbortController().signal)).object;
-			const rest = sinon.spy(client.transport, 'rest');
 			const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 			const copilotApiService = new TestCopilotApiService();
 			const persistedTitles: string[] = [];
@@ -1166,7 +1206,7 @@ suite('AgentHostSessionTitleController', () => {
 			try {
 				const wireSignal = await started.p;
 				await waitForCondition(
-					() => rest.getCalls().filter(call => call.args[2].url.includes('/issues/')).length === 20,
+					() => reads.reduce((count, read) => count + read.callCount, 0) === 20,
 					'both bounded context batches should be submitted directly to the GitHub client',
 				);
 				const beforeRelease = [...requests];
