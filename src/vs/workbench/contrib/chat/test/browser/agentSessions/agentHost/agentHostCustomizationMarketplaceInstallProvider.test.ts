@@ -11,7 +11,7 @@ import { observableValue } from '../../../../../../../base/common/observable.js'
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { IAgentCustomizationInstallation } from '../../../../../../../platform/agentHost/common/agent.js';
+import { IAgentCustomizationInstallation, type IAgentCustomizationMarketplaceSearchRequest } from '../../../../../../../platform/agentHost/common/agent.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentHostService } from '../../../../../../../platform/agentHost/common/agentService.js';
 import { CustomizationMarketplaceRecoveryGroup } from '../../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
@@ -264,15 +264,18 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 	test('projects SDK catalog searches and featured plugin browse results', async () => {
 		const frontendSession = URI.parse('agent-host-copilotcli:/frontend-session');
 		const backendSession = URI.parse('ahp-session:/backend-session');
-		const calls: { readonly provider: string; readonly session: string; readonly query: string }[] = [];
+		const calls: { readonly provider: string; readonly session: string; readonly query: string; readonly canvasDiscovery: boolean | undefined }[] = [];
 		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
 			'copilotcli',
 			async () => true,
 			new class extends mock<IAgentHostService>() {
 				override readonly onAgentHostStart = Event.None;
 				override readonly onAgentHostExit = Event.None;
-				override async searchCustomizationMarketplace(provider: string, session: URI, request: { readonly query: string }) {
-					calls.push({ provider, session: session.toString(), query: request.query });
+				override async searchCustomizationMarketplace(provider: string, session: URI, request: IAgentCustomizationMarketplaceSearchRequest) {
+					calls.push({ provider, session: session.toString(), query: request.query, canvasDiscovery: request.canvasDiscovery });
+					if (request.canvasDiscovery) {
+						return { kind: 'page' as const, items: [] };
+					}
 					return {
 						kind: 'page' as const,
 						items: request.query ? [
@@ -291,6 +294,19 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 								description: 'Browser automation',
 								itemUrl: 'https://api.mcp.github.com/oss/v0.1/servers/microsoft%2Fplaywright-mcp/versions/latest',
 								installable: true,
+							},
+							{
+								selectionId: 'plugin:diagram',
+								kind: 'plugin' as const,
+								displayName: 'Diagram Canvas',
+								description: 'Interactive architecture diagrams.',
+								publisher: 'octo-org',
+								version: '1.2.3',
+								repository: 'owner/repository',
+								path: '.github/plugin/plugin.json',
+								tags: ['canvas', 'canvas-only'],
+								installable: false,
+								unavailableMessage: 'Install this plugin from a configured marketplace or its repository.',
 							},
 						] : [{
 							selectionId: 'featured-plugin:awesome-copilot:azure',
@@ -324,10 +340,12 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 
 		const page = await provider.query(frontendSession, { query: 'demo', pageSize: 12 }, CancellationToken.None);
 		const browse = await provider.query(frontendSession, {}, CancellationToken.None);
+		const canvasDiscovery = await provider.query(frontendSession, { canvasDiscovery: true }, CancellationToken.None);
 
 		assert.deepStrictEqual({
 			calls,
 			browse,
+			canvasDiscovery,
 			page: page && {
 				...page,
 				items: page.items.map(item => ({
@@ -338,9 +356,11 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			},
 		}, {
 			calls: [
-				{ provider: 'copilotcli', session: backendSession.toString(), query: 'demo' },
-				{ provider: 'copilotcli', session: backendSession.toString(), query: '' },
+				{ provider: 'copilotcli', session: backendSession.toString(), query: 'demo', canvasDiscovery: undefined },
+				{ provider: 'copilotcli', session: backendSession.toString(), query: '', canvasDiscovery: undefined },
+				{ provider: 'copilotcli', session: backendSession.toString(), query: '', canvasDiscovery: true },
 			],
+			canvasDiscovery: { items: [], nextCursor: undefined },
 			browse: {
 				items: [{
 					identifier: '["GitHub: github/awesome-copilot","awesome-copilot","azure"]',
@@ -392,6 +412,25 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 						resourceKind: 'mcp',
 						selectionId: 'playwright',
 						itemUrl: 'https://api.mcp.github.com/oss/v0.1/servers/microsoft%2Fplaywright-mcp/versions/latest',
+					},
+				}, {
+					identifier: 'plugin:diagram',
+					displayName: 'Diagram Canvas',
+					description: 'Interactive architecture diagrams.',
+					mediaType: 'application/vnd.github.copilot-plugin',
+					tags: ['canvas', 'canvas-only'],
+					capabilities: [],
+					representativeQueries: [],
+					version: '1.2.3',
+					repository: URI.parse('https://github.com/owner/repository'),
+					publisher: 'octo-org',
+					publisherUrl: 'https://github.com/octo-org',
+					icon: 'https://github.com/octo-org.png',
+					installation: {
+						kind: 'providerCatalog',
+						resourceKind: 'plugin',
+						selectionId: 'plugin:diagram',
+						itemUrl: undefined,
 					},
 				}],
 				nextCursor: 'next',

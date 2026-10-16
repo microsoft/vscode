@@ -17,7 +17,7 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceResource } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceResource, isCustomizationMarketplaceCanvasOnlyResource } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -280,11 +280,13 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 		}
 		const fallbackIcon = resource.mediaType === CustomizationMarketplaceMediaType.McpServer
 			? Codicon.server
-			: isPlugin(resource)
-				? Codicon.extensions
-				: resource.mediaType === CustomizationMarketplaceMediaType.Skill
-					? Codicon.lightbulb
-					: Codicon.file;
+			: isCustomizationMarketplaceCanvasOnlyResource(resource)
+				? Codicon.preview
+				: isPlugin(resource)
+					? Codicon.extensions
+					: resource.mediaType === CustomizationMarketplaceMediaType.Skill
+						? Codicon.lightbulb
+						: Codicon.file;
 		renderCustomizationMarketplaceIcon(this.iconEl, fallbackIcon, resource.icon, this.themeService.getColorTheme().type, this.iconDisposables);
 	}
 
@@ -624,6 +626,9 @@ function getRepositoryLabel(repository: URI): string {
 }
 
 function getMarketplaceTypeLabel(resource: ICustomizationMarketplaceResource): string {
+	if (isCustomizationMarketplaceCanvasOnlyResource(resource)) {
+		return localize('marketplaceDetail.canvas', "Canvas");
+	}
 	switch (resource.mediaType) {
 		case CustomizationMarketplaceMediaType.Skill:
 			return localize('marketplaceDetail.skill', "Skill");

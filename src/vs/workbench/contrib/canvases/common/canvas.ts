@@ -68,6 +68,8 @@ export interface ICanvasReopenTarget {
 
 export interface ICanvasContext {
 	readonly owner: ICanvasOwner;
+	/** Frontend chat-session resource used for navigation and customization management. */
+	readonly frontendSessionResource: URI;
 	readonly canvases: IObservable<readonly ICanvas[] | undefined>;
 	readonly openRequests?: IObservable<ReadonlyMap<string, ICanvasOpenRequest>>;
 	/** Present when this chat can list and directly open registered canvas types. */

@@ -5506,6 +5506,7 @@ suite('ChatService', () => {
 			const before = ref.object.canvasContext?.get();
 			const context: ICanvasContext = {
 				owner: { providerId: 'test', session: resource, chat: URI.parse('chat:/peer') },
+				frontendSessionResource: resource,
 				canvases: constObservable([{
 					resource: URI.parse('canvas:/secret-presentation'),
 					instanceId: 'preview',

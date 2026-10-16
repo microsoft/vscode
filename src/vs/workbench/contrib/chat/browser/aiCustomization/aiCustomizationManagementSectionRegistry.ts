@@ -14,6 +14,7 @@ export interface IAICustomizationManagementSectionWidget extends IDisposable {
 	focus?(): void;
 	setSearchQuery?(query: string): void;
 	setVisible?(visible: boolean): void;
+	getAccessibilityContent?(): string;
 }
 
 export interface IAICustomizationManagementSectionContribution {

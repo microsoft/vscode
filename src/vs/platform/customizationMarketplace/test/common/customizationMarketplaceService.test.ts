@@ -11,7 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ColorScheme } from '../../../theme/common/theme.js';
-import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceMediaType, CustomizationMarketplaceService, getCustomizationMarketplaceIconUri, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceCursor, ICustomizationMarketplaceEntry, ICustomizationMarketplacePage, ICustomizationMarketplaceProvider, ICustomizationMarketplaceQuery, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery, isCustomizationMarketplaceIconEqual } from '../../common/customizationMarketplaceService.js';
+import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceMediaType, CustomizationMarketplaceService, getCustomizationMarketplaceIconUri, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceCursor, ICustomizationMarketplaceEntry, ICustomizationMarketplacePage, ICustomizationMarketplaceProvider, ICustomizationMarketplaceQuery, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery, isCustomizationMarketplaceCanvasOnlyResource, isCustomizationMarketplaceCanvasResource, isCustomizationMarketplaceIconEqual } from '../../common/customizationMarketplaceService.js';
 
 suite('CustomizationMarketplaceService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -54,6 +54,24 @@ suite('CustomizationMarketplaceService', () => {
 			themedEqual: true,
 			crossSyntaxEqual: false,
 		});
+
+		test('classifies canvas-capable Copilot plugins by catalog tags', () => {
+			const resource = (mediaType: string, tags: readonly string[]) => ({ mediaType, tags });
+
+			assert.deepStrictEqual({
+				canvasOnly: isCustomizationMarketplaceCanvasOnlyResource(resource(CustomizationMarketplaceMediaType.CopilotPlugin, ['canvas', 'canvas-only'])),
+				canvasCapable: isCustomizationMarketplaceCanvasResource(resource(CustomizationMarketplaceMediaType.CopilotPlugin, ['canvas'])),
+				canvasOnlyImpliesCapable: isCustomizationMarketplaceCanvasResource(resource(CustomizationMarketplaceMediaType.CopilotPlugin, ['canvas-only'])),
+				ordinaryPlugin: isCustomizationMarketplaceCanvasResource(resource(CustomizationMarketplaceMediaType.CopilotPlugin, ['github-copilot'])),
+				otherMediaType: isCustomizationMarketplaceCanvasResource(resource(CustomizationMarketplaceMediaType.ClaudePlugin, ['canvas', 'canvas-only'])),
+			}, {
+				canvasOnly: true,
+				canvasCapable: true,
+				canvasOnlyImpliesCapable: true,
+				ordinaryPlugin: false,
+				otherMediaType: false,
+			});
+		});
 	});
 
 	test('aggregates registered sources without conflating identifiers or mutating their entries', async () => {
@@ -65,7 +83,7 @@ suite('CustomizationMarketplaceService', () => {
 				return { items: [entry], total: 1 };
 			},
 		}));
-		const options = { query: '  review  ', mediaType: CustomizationMarketplaceMediaType.Skill, pageSize: 24 };
+		const options = { query: '  review  ', mediaType: CustomizationMarketplaceMediaType.Skill, canvasDiscovery: true, pageSize: 24 };
 		const page = await new CustomizationMarketplaceService(sources).query({ ...options, sourceIds: ['first', 'second'] }, CancellationToken.None);
 		assert.deepStrictEqual({
 			page,
@@ -211,7 +229,7 @@ suite('CustomizationMarketplaceService', () => {
 		const service = new CustomizationMarketplaceService(sources);
 		const options = { sourceIds: ['first', 'second'], query: 'review', mediaType: CustomizationMarketplaceMediaType.Skill, pageSize: 1 };
 		const page = await service.query(options, CancellationToken.None);
-		for (const change of [{ query: '' }, { query: 'another' }, { mediaType: CustomizationMarketplaceMediaType.McpServer }, { pageSize: 12 }, { sourceIds: ['second'] }]) {
+		for (const change of [{ query: '' }, { query: 'another' }, { mediaType: CustomizationMarketplaceMediaType.McpServer }, { canvasDiscovery: true }, { pageSize: 12 }, { sourceIds: ['second'] }]) {
 			await assert.rejects(service.query({ ...options, ...change, cursor: page.nextCursor }, CancellationToken.None), /Start a new search/);
 		}
 		for (const changedSources of [[...sources].reverse(), sources.slice(1), [...sources, { id: 'third', query: sources[0].query }]]) {

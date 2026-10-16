@@ -130,6 +130,60 @@ suite('CopilotCustomizationInstallations', () => {
 		});
 	});
 
+	test('uses SDK catalog search for empty Canvas discovery intent', async () => {
+		let marketplaceLists = 0;
+		let observedRequest: Parameters<CopilotClient['rpc']['catalog']['search']>[0] | undefined;
+		const catalog = new class extends mock<CopilotClient['rpc']['catalog']>() {
+			override readonly search: CopilotClient['rpc']['catalog']['search'] = async request => {
+				observedRequest = request;
+				return {
+					kind: 'succeeded' as const,
+					searchId: 'canvas-search',
+					candidates: [],
+					truncated: false,
+					negotiated: { runtimeProtocolVersion: 3, grantedCapabilities: ['agent-plugin-discovery'] },
+				};
+			};
+		}();
+		const client = {
+			rpc: {
+				catalog,
+				plugins: new class extends mock<CopilotClient['rpc']['plugins']>() {
+					override readonly marketplaces = new class extends mock<CopilotClient['rpc']['plugins']['marketplaces']>() {
+						override readonly list: CopilotClient['rpc']['plugins']['marketplaces']['list'] = async () => {
+							marketplaceLists++;
+							return { marketplaces: [] };
+						};
+					}();
+				}(),
+				skills: new class extends mock<CopilotClient['rpc']['skills']>() { }(),
+				mcp: new class extends mock<CopilotClient['rpc']['mcp']>() { }(),
+			},
+		};
+		const service = store.add(new CopilotCustomizationInstallations(
+			async () => client,
+			() => 'policy-session',
+		));
+
+		const result = await service.search(URI.parse('agent-host-copilotcli:///session'), {
+			query: '',
+			canvasDiscovery: true,
+			limit: 10,
+		});
+
+		assert.deepStrictEqual({
+			marketplaceLists,
+			kinds: observedRequest?.kinds,
+			requestsPluginDiscovery: observedRequest?.contract.requiredCapabilities.includes('agent-plugin-discovery'),
+			result,
+		}, {
+			marketplaceLists: 0,
+			kinds: ['ai-skill', 'mcp-server', 'plugin'],
+			requestsPluginDiscovery: true,
+			result: { kind: 'page', items: [], nextCursor: undefined },
+		});
+	});
+
 	test('creates and reuses a hidden policy session when no chat is materialized', async () => {
 		const policySessionIds: (string | undefined)[] = [];
 		const catalog = new class extends mock<CopilotClient['rpc']['catalog']>() {
@@ -317,8 +371,131 @@ suite('CopilotCustomizationInstallations', () => {
 			items: [
 				{ kind: 'skill', displayName: 'Installable Skill', itemUrl: 'https://example.test/installable-skill', installable: true },
 				{ kind: 'mcp', displayName: 'Installable MCP', itemUrl: 'https://example.test/installable-mcp', installable: true },
+				{ kind: 'plugin', displayName: 'Pinned Plugin', itemUrl: undefined, installable: false },
 			],
 			hasNextCursor: true,
+		});
+	});
+
+	test('projects Agent Plugin candidates as inert catalog metadata with compatibility tags', async () => {
+		let observedRequest: Parameters<CopilotClient['rpc']['catalog']['search']>[0] | undefined;
+		const catalog = new class extends mock<CopilotClient['rpc']['catalog']>() {
+			override readonly search: CopilotClient['rpc']['catalog']['search'] = async request => {
+				observedRequest = request;
+				return {
+					kind: 'succeeded' as const,
+					searchId: 'plugin-search',
+					candidates: [{
+						kind: 'plugin' as const,
+						mediaType: 'application/vnd.github.copilot-plugin' as const,
+						identity: 'owner/repository:.github/plugin/plugin.json@v1.2.3',
+						displayName: 'Diagram Canvas',
+						description: 'Interactive architecture diagrams.',
+						publisher: 'octo-org',
+						version: '1.2.3',
+						source: { repository: 'owner/repository', path: '.github/plugin/plugin.json' },
+						compatibilityTags: ['canvas' as const, 'canvas-only' as const, 'github-copilot' as const],
+						provenance: {
+							authority: 'agentfinder.github.com',
+							observedAt: new Date().toISOString(),
+							mediaType: 'application/vnd.github.copilot-plugin' as const,
+						},
+					}],
+					truncated: false,
+					negotiated: { runtimeProtocolVersion: 3, grantedCapabilities: ['agent-plugin-discovery'] },
+				};
+			};
+		}();
+		const client = {
+			rpc: {
+				catalog,
+				skills: new class extends mock<CopilotClient['rpc']['skills']>() { }(),
+				mcp: new class extends mock<CopilotClient['rpc']['mcp']>() { }(),
+			},
+		};
+		const service = store.add(new CopilotCustomizationInstallations(
+			async () => client,
+			() => 'policy-session',
+		));
+
+		const result = await service.search(URI.parse('agent-host-copilotcli:///session'), {
+			query: '',
+			mediaType: 'application/vnd.github.copilot-plugin',
+			limit: 10,
+		});
+
+		assert.deepStrictEqual({
+			kinds: observedRequest?.kinds,
+			requestsPluginDiscovery: observedRequest?.contract.requiredCapabilities.includes('agent-plugin-discovery'),
+			result,
+		}, {
+			kinds: ['plugin'],
+			requestsPluginDiscovery: true,
+			result: {
+				kind: 'page',
+				items: [{
+					selectionId: 'plugin:owner/repository:.github/plugin/plugin.json@v1.2.3',
+					kind: 'plugin',
+					displayName: 'Diagram Canvas',
+					description: 'Interactive architecture diagrams.',
+					publisher: 'octo-org',
+					version: '1.2.3',
+					repository: 'owner/repository',
+					path: '.github/plugin/plugin.json',
+					tags: ['canvas', 'canvas-only', 'github-copilot'],
+					installable: false,
+					unavailableMessage: 'Install this plugin from a configured marketplace or its repository.',
+				}],
+				nextCursor: undefined,
+			},
+		});
+	});
+
+	test('retries general catalog search without plugins when Agent Plugin discovery is unavailable', async () => {
+		const requests: Parameters<CopilotClient['rpc']['catalog']['search']>[0][] = [];
+		const catalog = new class extends mock<CopilotClient['rpc']['catalog']>() {
+			override readonly search: CopilotClient['rpc']['catalog']['search'] = async request => {
+				requests.push(request);
+				return requests.length === 1 ? {
+					kind: 'unsupported-kind' as const,
+					requestedKinds: ['plugin' as const],
+					supportedKinds: ['ai-skill' as const, 'mcp-server' as const],
+					message: 'Agent Plugin discovery is unavailable.',
+				} : {
+					kind: 'succeeded' as const,
+					searchId: 'fallback-search',
+					candidates: [],
+					truncated: false,
+					negotiated: { runtimeProtocolVersion: 3, grantedCapabilities: [] },
+				};
+			};
+		}();
+		const client = {
+			rpc: {
+				catalog,
+				skills: new class extends mock<CopilotClient['rpc']['skills']>() { }(),
+				mcp: new class extends mock<CopilotClient['rpc']['mcp']>() { }(),
+			},
+		};
+		const service = store.add(new CopilotCustomizationInstallations(
+			async () => client,
+			() => 'policy-session',
+		));
+
+		const result = await service.search(URI.parse('agent-host-copilotcli:///session'), { query: 'demo', limit: 10 });
+
+		assert.deepStrictEqual({
+			requests: requests.map(request => ({
+				kinds: request.kinds,
+				requestsPluginDiscovery: request.contract.requiredCapabilities.includes('agent-plugin-discovery'),
+			})),
+			result,
+		}, {
+			requests: [
+				{ kinds: ['ai-skill', 'mcp-server', 'plugin'], requestsPluginDiscovery: true },
+				{ kinds: ['ai-skill', 'mcp-server'], requestsPluginDiscovery: false },
+			],
+			result: { kind: 'page', items: [], nextCursor: undefined },
 		});
 	});
 
@@ -478,12 +655,13 @@ suite('CopilotCustomizationInstallations', () => {
 						'trust-snapshot',
 						'ai-skill-discovery',
 						'skill-confirmed-installation',
+						'agent-plugin-discovery',
 					],
 				},
 				policySessionId: 'sdk-session',
 				query: 'demo',
 				limit: 10,
-				kinds: ['ai-skill', 'mcp-server'],
+				kinds: ['ai-skill', 'mcp-server', 'plugin'],
 				page: { token: 'private-sdk-token', number: 2 },
 			},
 		});

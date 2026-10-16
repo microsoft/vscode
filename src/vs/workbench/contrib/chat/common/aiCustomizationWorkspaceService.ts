@@ -45,6 +45,8 @@ export const AICustomizationManagementSection = {
 	Automations: 'automations',
 	McpServers: 'mcpServers',
 	Plugins: 'plugins',
+	Extensions: 'extensions',
+	Canvases: 'canvases',
 	Models: 'models',
 	Tools: 'tools',
 	HarnessSettings: 'harnessSettings',

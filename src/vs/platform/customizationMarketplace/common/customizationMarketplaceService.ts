@@ -99,6 +99,15 @@ export interface ICustomizationMarketplaceResource extends ICustomizationMarketp
 	readonly sourceId: string;
 }
 
+export function isCustomizationMarketplaceCanvasOnlyResource(resource: Pick<ICustomizationMarketplaceEntry, 'mediaType' | 'tags'>): boolean {
+	return resource.mediaType === CustomizationMarketplaceMediaType.CopilotPlugin && resource.tags.includes('canvas-only');
+}
+
+export function isCustomizationMarketplaceCanvasResource(resource: Pick<ICustomizationMarketplaceEntry, 'mediaType' | 'tags'>): boolean {
+	return resource.mediaType === CustomizationMarketplaceMediaType.CopilotPlugin
+		&& (resource.tags.includes('canvas') || isCustomizationMarketplaceCanvasOnlyResource(resource));
+}
+
 /** Identifiers and versions are opaque and only unique within their source. */
 export function getCustomizationMarketplaceResourceKey(resource: Pick<ICustomizationMarketplaceResource, 'sourceId' | 'identifier' | 'version'>): string {
 	return JSON.stringify([resource.sourceId, resource.identifier, resource.version ?? null]);
@@ -112,11 +121,13 @@ export interface ICustomizationMarketplaceCursor {
 export interface ICustomizationMarketplaceQuery {
 	readonly query?: string;
 	readonly mediaType?: CustomizationMarketplaceMediaType;
+	/** Requests source-native Canvas discovery when one media type cannot represent the selected type filters. */
+	readonly canvasDiscovery?: boolean;
 	/** Limit the query to the listed registered sources. An absent value queries every source. */
 	readonly sourceIds?: readonly string[];
 	/** Maximum number of entries in the combined page. */
 	readonly pageSize?: number;
-	/** Continue with the same query, media type, page size, and selected sources. */
+	/** Continue with the same query, media type, Canvas intent, page size, and selected sources. */
 	readonly cursor?: ICustomizationMarketplaceCursor;
 }
 
@@ -241,6 +252,7 @@ interface IMarketplaceSourceState {
 interface IMarketplaceContinuation {
 	readonly query: string;
 	readonly mediaType?: CustomizationMarketplaceMediaType;
+	readonly canvasDiscovery: boolean;
 	readonly pageSize: number;
 	readonly sourceIds: readonly string[];
 	readonly states: readonly IMarketplaceSourceState[];
@@ -266,10 +278,12 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 		const sources = this.sources.filter(source => requestedSourceIds.has(source.sourceId ?? source.id));
 		const selectedSourceIds = new Set(sources.map(source => source.sourceId ?? source.id));
 		const query = options.query?.trim() ?? '';
+		const canvasDiscovery = options.canvasDiscovery === true;
 		const requestedPageSize = options.pageSize ?? defaultPageSize;
 		if (requestedSourceIds.size !== options.sourceIds.length || selectedSourceIds.size !== requestedSourceIds.size ||
 			[...requestedSourceIds].some(sourceId => !selectedSourceIds.has(sourceId)) ||
 			query.length > maxQueryLength || !Number.isSafeInteger(requestedPageSize) || requestedPageSize <= 0 ||
+			(options.canvasDiscovery !== undefined && typeof options.canvasDiscovery !== 'boolean') ||
 			(options.mediaType !== undefined && !Object.values(CustomizationMarketplaceMediaType).includes(options.mediaType))) {
 			throw new Error(localize('customizationMarketplace.invalidQuery', "The marketplace query is invalid."));
 		}
@@ -280,7 +294,7 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 			}
 		}
 		const continuation = options.cursor && this.continuations.get(options.cursor.token);
-		if (options.cursor && (!continuation || continuation.query !== query || continuation.mediaType !== options.mediaType || continuation.pageSize !== pageSize ||
+		if (options.cursor && (!continuation || continuation.query !== query || continuation.mediaType !== options.mediaType || continuation.canvasDiscovery !== canvasDiscovery || continuation.pageSize !== pageSize ||
 			continuation.sourceIds.length !== sources.length || continuation.sourceIds.some((id, index) => id !== sources[index].id) ||
 			continuation.states.some(state => state.cacheToken?.isCancellationRequested))) {
 			throw new Error(localize('customizationMarketplace.invalidCursor', "The marketplace page is invalid. Start a new search."));
@@ -300,7 +314,13 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 					}
 					let page: ICustomizationMarketplaceSourcePage;
 					try {
-						page = await sources[index].query({ query, mediaType: options.mediaType, pageSize, cursor: state.cursor }, cancellation.token);
+						page = await sources[index].query({
+							query,
+							mediaType: options.mediaType,
+							...(canvasDiscovery ? { canvasDiscovery: true } : {}),
+							pageSize,
+							cursor: state.cursor,
+						}, cancellation.token);
 					} catch (error) {
 						if (isCancellationError(error) || cancellation.token.isCancellationRequested) {
 							throw new CancellationError();
@@ -369,7 +389,7 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 			if (states.some(state => state.items.length || !state.exhausted)) {
 				nextCursor = { token: generateUuid() };
 				this.continuations.set(nextCursor.token, {
-					query, mediaType: options.mediaType, pageSize, sourceIds: sources.map(source => source.id),
+					query, mediaType: options.mediaType, canvasDiscovery, pageSize, sourceIds: sources.map(source => source.id),
 					states, nextSourceIndex, expiresAt: Date.now() + continuationLifetimeMs,
 				});
 			}

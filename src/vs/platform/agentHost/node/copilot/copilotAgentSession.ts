@@ -4767,6 +4767,10 @@ export class CopilotAgentSession extends Disposable {
 		this._logService.info(`[Copilot:${this.sessionId}] Extensions reloaded`);
 	}
 
+	async reconcileExtensions(): Promise<void> {
+		await this._awaitControlPlaneRpc('rpc.extensions.reconcile', this._wrapper.session.rpc.extensions.reconcile());
+	}
+
 	/**
 	 * Build a read-only reminder naming each host-created snapshot attachment
 	 * (pasted content, unsaved editor, git: diff, …) so the model treats the

@@ -15,6 +15,8 @@ import { canvasOwnerKey, compareCanvasDefinitions, ICanvasDefinition, ICanvasOwn
 /** The chat whose registered canvas types a {@link CanvasDefinitionStore} lists. */
 export interface ICanvasDefinitionSource {
 	readonly owner: ICanvasOwner;
+	/** Defaults to definitions that can be opened without additional input. */
+	readonly includeDefinition?: (definition: ICanvasDefinition) => boolean;
 	listCanvases(): Promise<readonly ICanvasDefinition[]>;
 }
 
@@ -29,12 +31,13 @@ interface ILoadedCanvasDefinitions {
 }
 
 /**
- * Lists the openable canvas types registered for one chat at a time, refreshing whenever `source` re-evaluates.
+ * Lists selected canvas types registered for one chat at a time, refreshing whenever `source` re-evaluates.
+ * Sources list definitions that can be opened without additional input by default.
  * Refreshes keep the current list so commands built from it stay registered; only an owner change or an unavailable source clears it.
  */
 export class CanvasDefinitionStore extends Disposable {
 
-	/** The current owner's openable definitions in menu order, empty until a listing for that owner succeeds. */
+	/** The current owner's selected definitions in menu order, empty until a listing for that owner succeeds. */
 	readonly definitions: IObservable<readonly ICanvasDefinition[]>;
 
 	private readonly loaded = observableValue<ILoadedCanvasDefinitions | undefined>(this, undefined);
@@ -82,7 +85,8 @@ export class CanvasDefinitionStore extends Disposable {
 		try {
 			const definitions = await request.source.listCanvases();
 			if (this.isCurrent(request)) {
-				this.loaded.set({ ownerKey: request.ownerKey, definitions: definitions.filter(isOpenableExtensionCanvasDefinition).sort(compareCanvasDefinitions) }, undefined);
+				const includeDefinition = request.source.includeDefinition ?? isOpenableExtensionCanvasDefinition;
+				this.loaded.set({ ownerKey: request.ownerKey, definitions: definitions.filter(includeDefinition).sort(compareCanvasDefinitions) }, undefined);
 			}
 		} catch (error) {
 			if (this.isCurrent(request)) {
