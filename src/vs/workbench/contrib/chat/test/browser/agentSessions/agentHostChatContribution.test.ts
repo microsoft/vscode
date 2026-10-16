@@ -4452,6 +4452,38 @@ suite('AgentHostChatContribution', () => {
 			}]);
 		});
 
+		test('a peer chat that leaves one session for another is reported as moved, with its chat session resource in each', async () => {
+			const { listController, agentHostService } = createContribution(disposables);
+			const source = AgentSession.uri('copilot', 'move-source');
+			const target = AgentSession.uri('copilot', 'move-target');
+			const sourceDefault = buildDefaultChatUri(source.toString());
+			const targetDefault = buildDefaultChatUri(target.toString());
+			// The chat keeps its URI wherever it moves.
+			const moved = buildChatUri(source.toString(), 'mover');
+			agentHostService.addSession({
+				session: source, startTime: 1000, modifiedTime: 2000,
+				chats: [{ chat: URI.parse(sourceDefault), summary: 'Main', kind: 'default' }, { chat: URI.parse(moved), summary: 'Mover', kind: 'peer' }],
+			});
+			agentHostService.addSession({
+				session: target, startTime: 1000, modifiedTime: 2000,
+				chats: [{ chat: URI.parse(targetDefault), summary: 'Main', kind: 'default' }],
+			});
+			await listController.refresh(CancellationToken.None);
+			const moves: string[] = [];
+			disposables.add(listController.onDidMoveChat(({ from, to }) => moves.push(`${from.chat.toString()} -> ${to.chat.toString()}`)));
+			const changeChats = (session: URI, defaultChat: string, chats: string[]) => agentHostService.fireNotification({
+				type: 'root/sessionSummaryChanged',
+				channel: ROOT_STATE_URI,
+				session: session.toString(),
+				changes: { chats: chats.map(resource => ({ resource, title: 'Chat' })), defaultChat },
+			});
+
+			changeChats(target, targetDefault, [targetDefault, moved]);
+			changeChats(source, sourceDefault, [sourceDefault]);
+
+			assert.deepStrictEqual(moves, ['agent-host-copilot:/move-source#mover -> agent-host-copilot:/move-target#mover']);
+		});
+
 		test('summary changes update peer children that are no longer in the catalog', async () => {
 			const { listController, agentHostService } = createContribution(disposables);
 			const session = AgentSession.uri('copilot', 'changing-chats');

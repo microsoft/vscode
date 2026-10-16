@@ -661,6 +661,7 @@ class TestSessionDataService extends Disposable implements ISessionDataService {
 	}
 
 	deleteSessionData(): Promise<void> { return Promise.resolve(); }
+	deleteSessionDataExcept(): Promise<void> { return Promise.resolve(); }
 	readonly onWillDeleteSessionData = Event.None;
 	cleanupOrphanedData(): Promise<void> { return Promise.resolve(); }
 	async whenIdle(): Promise<void> {
@@ -19652,14 +19653,14 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('falls back to the owning session-backed chat named by the context, not a subagent URI walk', async () => {
+		test('never completes on another chat of the owner when neither the chat nor its spawning chat has a runtime', async () => {
 			const agent = createTestAgent(disposables);
 			try {
 				const sessionUri = AgentSession.uri('copilotcli', 'session-subagent-fallback');
 				const { calls } = installStubSession(agent, AgentSession.id(sessionUri));
 				// Addressed to a subagent chat whose spawning chat has no live
-				// backing: routing lands on the owning session's session-backed
-				// chat, resolved from `context.owner.get()`.
+				// backing: the owner's session-backed chat did not make the call
+				// (after a move it is another session's), so nothing completes.
 				const subagentChat = URI.parse(buildSubagentChatUri(buildChatUri(sessionUri, 'gone'), 'tool-9'));
 
 				const result: ToolCallResult = { success: true, pastTenseMessage: 'fallback done' };
@@ -19669,7 +19670,7 @@ suite('CopilotAgent', () => {
 					origin: { kind: ChatOriginKind.Tool, chat: buildChatUri(sessionUri, 'gone'), toolCallId: 'tool-9' },
 				});
 
-				assert.deepStrictEqual(calls, [{ toolCallId: 'tc-fallback', result }]);
+				assert.deepStrictEqual(calls, []);
 			} finally {
 				await disposeAgent(agent);
 			}

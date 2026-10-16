@@ -499,6 +499,12 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 			if (await this._catalogDatabase.getSessionV2PayloadDirty(sessionKey) !== observedDirty) {
 				return;
 			}
+			// The emptiness was read at the session's own storage, which says nothing when its default chat is stored elsewhere.
+			const [catalog] = await this._catalogDatabase.readCatalogSnapshot([sessionKey]);
+			const defaultChat = catalog?.authorityVersion === 2 ? catalog.chats.find(chat => chat.chat === catalog.header?.defaultChatUri) : undefined;
+			if (defaultChat?.storageResource !== undefined && defaultChat.storageResource !== sessionKey) {
+				return;
+			}
 			await this._catalogDatabase.setSessionProvisional(sessionKey, true);
 			this._markedProvisionalSessions.add(sessionKey);
 		} catch (error) {

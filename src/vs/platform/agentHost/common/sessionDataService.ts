@@ -649,6 +649,14 @@ export interface ISessionDataService {
 	deleteSessionData(session: URI, workingDirectories?: readonly string[]): Promise<void>;
 
 	/**
+	 * Like {@link deleteSessionData}, but keeps the children of the session's
+	 * data directory named in `keep`: a deleted session keeps the attachments
+	 * that chats moved out of it still read. A later {@link deleteSessionData}
+	 * removes the rest.
+	 */
+	deleteSessionDataExcept(session: URI, keep: readonly string[], workingDirectories?: readonly string[]): Promise<void>;
+
+	/**
 	 * Fires immediately before a session's data directory (and the
 	 * SQLite database within it) is deleted by {@link deleteSessionData}.
 	 *

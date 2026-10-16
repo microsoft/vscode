@@ -1256,6 +1256,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	/** The on-device model provider installed on the client, if the user opted in. */
 	localModelProvider?: ILocalModelProvider;
 	sandboxPolicy?: ReturnType<IAgentConfigurationService['getSessionSandboxPolicy']>;
+	/** The sessions and storages whose attachments the chat reads, besides its own session (a moved chat's origin). */
+	attachmentScopes?: readonly string[];
 	getSandboxHostSupport?: CopilotSessionLaunchPlan['client']['rpc']['sandbox']['getHostSupport'];
 	realpath?: (path: string) => Promise<string>;
 	/** Canvases handed over by a replaced runtime. */
@@ -1475,6 +1477,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		getSessionSandboxEnabled: () => sandboxEnabled,
 		setSessionSandboxPolicy: () => { },
 		getChatSandboxEnabled: () => sandboxEnabled,
+		getChatAttachmentScopes: target => [target.session, ...options?.attachmentScopes ?? []],
 		setChatSandboxEnabled: (_target, enabled, error) => { sandboxEnabled = enabled; sandboxResults.push(error?.message ?? enabled); },
 		rejectChatSandboxChange: (_target, _values, _origin, message) => { sandboxResults.push(message); },
 		updateSessionConfig: (session, patch) => {
@@ -2162,21 +2165,23 @@ suite('CopilotAgentSession', () => {
 			const second = AgentSession.uri('copilot', 'owner-second');
 			const owner = disposables.add(new TestChatOwnerRef(first));
 			const { session, signals } = await createAgentSession(disposables, { sessionUri: first, owner });
-			owner.set(second);
 			const internals = session as unknown as {
 				_configTarget(): { readonly session: string };
 				_emitAction(action: SessionAction): void;
 				_emitLaunchAction(action: SessionAction): void;
 			};
+			internals._emitLaunchAction({ type: ActionType.SessionCustomizationRemoved, id: 'mcp-before-move' });
+			owner.set(second);
 			internals._emitAction({ type: ActionType.SessionActivityChanged, activity: 'Working' });
-			internals._emitLaunchAction({ type: ActionType.SessionCustomizationRemoved, id: 'mcp-launch' });
+			// Block 4 (C6): the launch configuration's session state is published to neither owner until the relaunch.
+			internals._emitLaunchAction({ type: ActionType.SessionCustomizationRemoved, id: 'mcp-after-move' });
 
 			assert.deepStrictEqual({
 				configTarget: internals._configTarget().session,
 				published: signals.flatMap(signal => signal.kind === 'action' && (signal.action.type === ActionType.SessionActivityChanged || signal.action.type === ActionType.SessionCustomizationRemoved) ? [`${signal.action.type} ${signal.resource.toString()}`] : []),
 			}, {
 				configTarget: first.toString(),
-				published: [`${ActionType.SessionActivityChanged} ${second.toString()}`, `${ActionType.SessionCustomizationRemoved} ${first.toString()}`],
+				published: [`${ActionType.SessionCustomizationRemoved} ${first.toString()}`, `${ActionType.SessionActivityChanged} ${second.toString()}`],
 			});
 		});
 
@@ -12379,6 +12384,24 @@ suite('CopilotAgentSession', () => {
 						network: { allowOutbound: false },
 					},
 				});
+			});
+
+			test(`per-request sandbox: a moved chat also reads the attachments of its storage and the session it came from on ${platform}`, async () => {
+				const { session, mockSession } = await createAgentSession(disposables, {
+					platform,
+					sandboxPolicy: { enabled: true },
+					attachmentScopes: ['copilot:/chat-storage', 'copilot:/origin-session'],
+					rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+				});
+
+				await session.send('hello', undefined, 'turn-1');
+
+				const native = (path: string) => platform === 'win32' ? path.replace(/\//g, '\\') : path;
+				assert.deepStrictEqual((mockSession.sandboxConfigUpdates.at(-1) as { userPolicy?: { filesystem?: { readonlyPaths?: string[] } } } | undefined)?.userPolicy?.filesystem?.readonlyPaths, [
+					native(TEST_SESSION_ATTACHMENTS_DIR),
+					native(URI.file('/session-data/chat-storage/attachments').fsPath),
+					native(URI.file('/session-data/origin-session/attachments').fsPath),
+				]);
 			});
 
 			test(`per-request sandbox: sends managed outbound denial and keeps local bypass false on ${platform}`, async () => {

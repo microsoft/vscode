@@ -6096,13 +6096,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	/** Routes a completed client tool call to the runtime that owns it. */
+	/**
+	 * Routes a completed client tool call to the runtime of the chat that made it: the chat's own, else the runtime
+	 * of the chat that spawned it. Never to another chat of its owner, which a moved chat (Block 4) no longer shares.
+	 */
 	onClientToolCallComplete(chat: URI, toolCallId: string, result: ToolCallResult, context?: IAgentChatContext): void {
 		const spawnedFrom = resolveSubagentChatParent(context);
-		const target = this._findChatByUri(chat)
-			?? (spawnedFrom ? this._findChatByUri(spawnedFrom.chat) : undefined)
-			?? (context ? this._findSessionChat(context.owner.get()) : undefined);
-		target?.handleClientToolCallComplete(toolCallId, result);
+		const target = this._findChatByUri(chat) ?? (spawnedFrom ? this._findChatByUri(spawnedFrom.chat) : undefined);
+		if (!target) {
+			// Every `ChatToolCallComplete` is forwarded, also of SDK-owned tools and of chats without a runtime.
+			this._logService.trace(`[Copilot] No runtime of ${chat.toString()} completes client tool call ${toolCallId}`);
+			return;
+		}
+		target.handleClientToolCallComplete(toolCallId, result);
 	}
 
 	private async _sendMessage(chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientType = AgentHostClientType.Unknown, workingDirectories?: readonly URI[], operationContext?: URI | IAgentChatContext, clientTelemetryContext?: IAgentHostClientTelemetryContext): Promise<void> {
