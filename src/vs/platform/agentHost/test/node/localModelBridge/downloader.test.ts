@@ -207,17 +207,44 @@ suite('localModel downloader', () => {
 		const http = new FakeHttp(blobServer({ 'model.gguf': PRIMARY }));
 		const first = await run(createDownloader(http), [unchecked]);
 		const again = await run(createDownloader(http), [unchecked]);
-		const otherEtag = new FakeHttp(blobServer({}, () => ({ status: 200, headers: { 'etag': '"etag-other"', 'content-length': String(PRIMARY.byteLength) }, body: PRIMARY })));
+		const servedWith = (etag: string | undefined) => createDownloader(new FakeHttp(blobServer({}, () => ({ status: 200, headers: { ...(etag ? { etag } : {}), 'content-length': String(PRIMARY.byteLength) }, body: PRIMARY }))));
 		assert.deepStrictEqual({
 			first: typeof first === 'object' ? first.sha256s : first,
 			again: typeof again === 'object' ? [again.reusedFiles, again.downloadedBytes] : again,
-			otherContent: await run(createDownloader(otherEtag), [unchecked]),
+			otherContent: await run(servedWith('"etag-other"'), [unchecked]),
+			missingResponseEtag: await run(servedWith(undefined), [unchecked]),
+			weakResponseEtag: await run(servedWith('W/"etag-model.gguf"'), [unchecked]),
 			weakEtag: await run(createDownloader(http), [{ ...unchecked, etag: 'W/"etag-model.gguf"' }]),
 		}, {
 			first: [sha(PRIMARY)],
 			again: [[], PRIMARY.byteLength],
 			otherContent: 'identityChanged',
+			missingResponseEtag: 'identityChanged',
+			weakResponseEtag: 'identityChanged',
 			weakEtag: 'noChecksum',
+		});
+	});
+
+	test('a retry after a later file failed replaces a placed copy it can\'t reuse instead of downloading a second copy beside it', async () => {
+		const unchecked: IDownloadFileSpec = { ...spec('model.gguf', PRIMARY), sha256: undefined };
+		let iniPublished = false;
+		const placedWhenRequested: boolean[] = [];
+		const http = new FakeHttp(blobServer({ 'model.gguf': PRIMARY, 'llama-default.ini': INI }, (_request, name) => {
+			if (name === 'model.gguf') {
+				placedWhenRequested.push(fs.existsSync(path.join(targetDir, 'model.gguf')));
+			}
+			return name === 'llama-default.ini' && !iniPublished ? { status: 404 } : undefined;
+		}));
+		const failed = await run(createDownloader(http), [unchecked, spec('llama-default.ini', INI)]);
+		const afterFailure = await listDir(targetDir);
+		iniPublished = true;
+		const retried = await run(createDownloader(http), [unchecked, spec('llama-default.ini', INI)]);
+		assert.deepStrictEqual({ failed, afterFailure, placedWhenRequested, retried: typeof retried === 'object' ? retried.downloadedBytes : retried, files: await listDir(targetDir) }, {
+			failed: 'notPublished',
+			afterFailure: ['llama-default.ini.vscode.partial.json', 'model.gguf'],
+			placedWhenRequested: [false, false],
+			retried: PRIMARY.byteLength + INI.byteLength,
+			files: ['llama-default.ini', 'model.gguf'],
 		});
 	});
 

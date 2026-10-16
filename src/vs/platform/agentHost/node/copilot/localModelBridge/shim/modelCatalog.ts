@@ -977,6 +977,10 @@ export class ModelCatalog extends Disposable {
 					break;
 				}
 			}
+			if (continuationToken) {
+				// A version beyond the last page could make a `latest` label ambiguous, so a partial result isn't used.
+				throw new LocalModelCatalogError('network', 'Search results exceeded the page limit');
+			}
 			// Selected across every page: a model's versions can be split between pages.
 			const selection = selectUnambiguousLatestHits(hits);
 			if (selection.ambiguousModels) {

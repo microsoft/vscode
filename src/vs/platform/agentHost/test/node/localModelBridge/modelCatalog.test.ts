@@ -468,11 +468,14 @@ suite('localModel modelCatalog', () => {
 			empty: await states({}),
 			down: await states({ publicStatus: 503 }),
 			denied: await states({ publicStatus: 403 }),
+			// Hits beyond the page limit could make a `latest` label ambiguous, so an incomplete search isn't used.
+			pastPageLimit: await states({ publicHits: Array.from({ length: 21 }, (_, page) => [searchHit('azureml', `Model-${page}`, '1', MAI)]) }),
 		}, {
 			ready: 'ready/ready',
 			empty: 'empty/empty',
 			down: 'unavailable/unavailable',
 			denied: 'unavailable/unavailable',
+			pastPageLimit: 'unavailable/unavailable',
 		});
 	});
 

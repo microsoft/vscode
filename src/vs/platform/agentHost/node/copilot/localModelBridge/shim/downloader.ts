@@ -641,6 +641,10 @@ export class ModelDownloader {
 				return { reused: true, resumed: false, downloadedBytes: 0, sha256: hash };
 			}
 		}
+		// Removed before downloading again so a retry doesn't need room for a second copy.
+		if (finalStat) {
+			await fs.promises.rm(finalPath, { force: true });
+		}
 
 		// Resume only against an identical sidecar.
 		let offset = 0;
@@ -677,7 +681,9 @@ export class ModelDownloader {
 					discardResponse(response);
 					throw new LocalModelDownloadError('network', `HTTP ${response.status} from ${hostForLog(spec.url)}`, true);
 				}
-				if (response.status === 412 || !etagsMatch(response.headers.etag, spec.etag)) {
+				// Without a published checksum only the strong ETag binds the bytes, so it must be present and identical.
+				const unbound = spec.sha256 === undefined && (!strongEtag(response.headers.etag) || response.headers.etag !== spec.etag);
+				if (response.status === 412 || unbound || !etagsMatch(response.headers.etag, spec.etag)) {
 					discardResponse(response);
 					await this._resetPartial(partialPath, sidecarPath);
 					throw new LocalModelDownloadError('identityChanged');
