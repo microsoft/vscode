@@ -14,7 +14,7 @@ import { upcastPartial } from '../../../../../../../../base/test/common/mock.js'
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
 import { IActionWidgetService } from '../../../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ICommandService } from '../../../../../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService, IConfigurationValue } from '../../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { MockContextKeyService, MockKeybindingService } from '../../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -34,6 +34,7 @@ import { ModelPickerWidget } from '../../../../../browser/widget/input/modelPick
 import { IModelPickerComparison, IModelPickerComparisonState } from '../../../../../browser/widget/input/modelPicker/modelPickerComparison.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../common/languageModels.js';
 import { SessionType } from '../../../../../common/chatSessionsService.js';
+import { ChatConfiguration } from '../../../../../common/constants.js';
 import { NullLanguageModelsService } from '../../../../common/languageModels.js';
 import '../../../../../browser/widget/media/chat.css';
 
@@ -67,7 +68,7 @@ suite('ModelPickerActionItem', () => {
 	 * name followed by its thinking effort / context size readout. By default the
 	 * name has no icon, so it keeps its label even when the picker is compact.
 	 */
-	function renderPicker(model: ILanguageModelChatMetadataAndIdentifier, options: { readonly compact?: boolean; readonly minimal?: boolean; readonly comparison?: IModelPickerComparison; readonly itemWidth?: number; readonly models?: readonly ILanguageModelChatMetadataAndIdentifier[]; readonly showModelIcon?: boolean } = {}) {
+	function renderPicker(model: ILanguageModelChatMetadataAndIdentifier, options: { readonly compact?: boolean; readonly minimal?: boolean; readonly comparison?: IModelPickerComparison; readonly itemWidth?: number; readonly models?: readonly ILanguageModelChatMetadataAndIdentifier[]; readonly showModelIcon?: boolean; readonly configurationService?: TestConfigurationService } = {}) {
 		const models = options.models ? [...options.models] : [model];
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IActionWidgetService, {});
@@ -87,12 +88,13 @@ suite('ModelPickerActionItem', () => {
 		instantiationService.stub(IWorkspaceTrustManagementService, disposables.add(new TestWorkspaceTrustManagementService()));
 		instantiationService.stub(IWorkspaceTrustRequestService, {});
 		instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
-		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IConfigurationService, options.configurationService ?? new TestConfigurationService());
 
 		const action: IAction = { id: 'test.modelPicker', label: '', tooltip: '', class: undefined, enabled: true, run: async () => { } };
+		const currentModel = observableValue<ILanguageModelChatMetadataAndIdentifier | undefined>('currentModel', model);
 		const delegate: IModelPickerDelegate = {
 			comparison: options.comparison,
-			currentModel: constObservable(model),
+			currentModel,
 			setModel: () => { },
 			setModelProgrammatically: () => { },
 			getModels: () => models,
@@ -129,6 +131,9 @@ suite('ModelPickerActionItem', () => {
 		const configuration = container.querySelector<HTMLElement>('.model-picker-config')!;
 		return {
 			item,
+			currentModel,
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers
+			getHoverContents: () => item['_getHoverContents'](),
 			domNode: container.querySelector<HTMLElement>('.model-picker-split')!,
 			minimumWidth: item.minimumWidth,
 			container: container.getBoundingClientRect(),
@@ -142,6 +147,84 @@ suite('ModelPickerActionItem', () => {
 			})),
 		};
 	}
+
+	function createManagedConfiguration(policyDefault?: string) {
+		const policy = new TestConfigurationService({ [ChatConfiguration.DefaultModel]: policyDefault });
+		const configuration = new class extends TestConfigurationService {
+			override inspect<T>(key: string): IConfigurationValue<T> {
+				const result = super.inspect<T>(key);
+				const policyValue = policy.getValue<T>(key);
+				return { ...result, policyValue, value: policyValue ?? result.value };
+			}
+		}({ [ChatConfiguration.DefaultModel]: 'Second' });
+		disposables.add(policy.onDidChangeConfigurationEmitter);
+		disposables.add(configuration.onDidChangeConfigurationEmitter);
+		const changePolicy = async (value: string | undefined) => {
+			await policy.setUserConfiguration(ChatConfiguration.DefaultModel, value);
+			configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+				affectsConfiguration: key => key === ChatConfiguration.DefaultModel,
+			}));
+		};
+		return { configuration, changePolicy };
+	}
+
+	test('explains the organization default without claiming it selected the current model', () => {
+		const first = createModel('First');
+		const second = createModel('Second');
+		const { configuration } = createManagedConfiguration('First');
+		const { getHoverContents, domNode, currentModel } = renderPicker(second, { models: [first, second], configurationService: configuration });
+		const button = domNode.querySelector<HTMLElement>('.model-picker-name')!;
+		const read = () => ({ label: button.ariaLabel, description: button.ariaDescription, hover: getHoverContents() });
+		const differentChoice = read();
+		currentModel.set(first, undefined);
+		const description = 'Your organization sets First as the default for new chats. You can choose another model for this chat.';
+		assert.deepStrictEqual({ differentChoice, sameChoice: read(), saved: configuration.inspect(ChatConfiguration.DefaultModel).userValue }, {
+			differentChoice: { label: 'Models, Second', description, hover: `Models • Second\n\n${description}` },
+			sameChoice: { label: 'Models, First', description, hover: `Models • First\n\n${description}` },
+			saved: 'Second',
+		});
+	});
+
+	test('refreshes the closed picker explanation when policy arrives, changes and is removed', async () => {
+		const first = createModel('First');
+		const second = createModel('Second');
+		const { configuration, changePolicy } = createManagedConfiguration();
+		const { getHoverContents, domNode, currentModel } = renderPicker(second, { models: [first, second], configurationService: configuration });
+		const button = domNode.querySelector<HTMLElement>('.model-picker-name')!;
+		const read = () => ({ description: button.ariaDescription, hover: getHoverContents() });
+		const initial = read();
+		await changePolicy('First');
+		const arrived = read();
+		await changePolicy('Second');
+		const changed = read();
+		await changePolicy('Unavailable');
+		const unavailable = read();
+		await changePolicy(undefined);
+		const firstDescription = 'Your organization sets First as the default for new chats. You can choose another model for this chat.';
+		const secondDescription = 'Your organization sets Second as the default for new chats. You can choose another model for this chat.';
+		assert.deepStrictEqual({ initial, arrived, changed, unavailable, removed: read(), selected: currentModel.get()?.identifier }, {
+			initial: { description: '', hover: 'Models • Second' },
+			arrived: { description: firstDescription, hover: `Models • Second\n\n${firstDescription}` },
+			changed: { description: secondDescription, hover: `Models • Second\n\n${secondDescription}` },
+			unavailable: { description: '', hover: 'Models • Second' },
+			removed: { description: '', hover: 'Models • Second' },
+			selected: second.identifier,
+		});
+	});
+
+	test('does not describe a model comparison as using the organization default', () => {
+		const { configuration } = createManagedConfiguration('First');
+		const { getHoverContents, domNode } = renderPicker(createModel('First'), {
+			configurationService: configuration,
+			comparison: upcastPartial<IModelPickerComparison>({
+				available: constObservable(true), summary: constObservable('3 Attempts'), state: constObservable(undefined),
+			}),
+		});
+		assert.deepStrictEqual({
+			description: domNode.querySelector<HTMLElement>('.model-picker-name')!.ariaDescription,
+			hover: getHoverContents(),
+		}, { description: '', hover: 'Models • 3 Attempts' });
+	});
 
 	test('composer label follows committed comparison summary, not working selections', () => {
 		const summary = observableValue<string | undefined>('summary', undefined);

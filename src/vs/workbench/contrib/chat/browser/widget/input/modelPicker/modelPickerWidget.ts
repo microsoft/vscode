@@ -35,6 +35,7 @@ import { AgentHostFusionBalanceUsesHydraFusionSettingId, COPILOT_HYDRA_FUSION_MA
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { COPILOT_VENDOR_ID, getLanguageModelProviderDisplayName, IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isUserProvidedModel } from '../../../../common/languageModels.js';
 import { SessionType } from '../../../../common/chatSessionsService.js';
+import { ChatConfiguration } from '../../../../common/constants.js';
 import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../../common/languageModelSourcePresentation.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
 import { IModelPickerDelegate } from './modelPickerActionItem.js';
@@ -54,6 +55,7 @@ import { ITabbedModelPickerContext, TabbedModelPicker } from './modelPickerTabbe
 import { IModelPickerOpenTrigger, ModelPickerTelemetrySession } from './modelPickerTelemetry.js';
 import { getModelConfigProperty, MODEL_CONFIG_GROUP_EFFORT, setModelConfigValues, whenModelConfigValuesSaved } from './modelPickerModelConfig.js';
 import { IModelPickerProviderPlaceholder } from './modelPickerTabs.js';
+import { getOrganizationDefaultDescription, getOrganizationDefaultModel } from './modelPickerBadges.js';
 import { formatLocalModelOnDeviceName, ILocalModelPickerActionEvent, isLocalModelDirectRow, ModelPickerLocalModels } from './modelPickerLocalModelItems.js';
 import { getFusionTierLabel, getHydraFusionTierLabel, getModelPickerUnavailableReason, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly, ModelPickerUnavailableReason, modelPickerRequiresSetup, shouldShowCacheBreakHint as computeShouldShowCacheBreakHint } from './modelPickerPresentation.js';
 
@@ -257,6 +259,11 @@ export class ModelPickerWidget extends Disposable {
 		this._register(this._entitlementService.onDidChangeEntitlement(() => this.setSelectedModel(this._selectedModel)));
 		this._register(this._entitlementService.onDidChangeSentiment(() => this._renderLabel()));
 		this._register(this._entitlementService.onDidChangeAnonymous(() => this._renderLabel()));
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.DefaultModel)) {
+				this._renderLabel();
+			}
+		}));
 
 		// Also refresh the label when the per-editor config layer (if any) reports
 		// a change. The global service path is already covered above via
@@ -833,6 +840,14 @@ export class ModelPickerWidget extends Disposable {
 		}
 	}
 
+	get organizationDefaultDescription(): string | undefined {
+		if (this._unavailableReason() !== undefined || this._delegate.comparison?.summary.get()) {
+			return undefined;
+		}
+		const model = getOrganizationDefaultModel(this._configurationService, this._delegate.getModels());
+		return model ? getOrganizationDefaultDescription(model.metadata.name) : undefined;
+	}
+
 	private _renderLabel(): void {
 		if (!this._domNode || !this._nameButton) {
 			return;
@@ -925,6 +940,7 @@ export class ModelPickerWidget extends Disposable {
 				: localize('chat.modelPicker.ariaLabel', "Models, {0}", modelLabel);
 		this._domNode.ariaLabel = ariaLabel;
 		this._nameButton.ariaLabel = ariaLabel;
+		this._nameButton.ariaDescription = this.organizationDefaultDescription ?? '';
 
 		const nameMinimumWidth = showModelLabel ? this._getNameMinimumWidth(this._nameButton) : MODEL_PICKER_COMPACT_NAME_WIDTH;
 		// A name narrower than the minimum is held at exactly its own width; a pixel value

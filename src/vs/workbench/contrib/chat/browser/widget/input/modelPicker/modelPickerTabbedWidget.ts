@@ -35,11 +35,10 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, isUserProvidedModel } from '../../../../common/languageModels.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
-import { resolveConfiguredModel } from '../../../../common/modelSelection.js';
 import { getModelConfigDescription, getModelConfigProperty, getModelConfigSummary, IModelConfigurationAccess, MODEL_CONFIG_GROUP_EFFORT, ModelConfigChangeListener } from './modelPickerModelConfig.js';
 import { IModelCardOptions, IPricingDisclosure, ModelCard } from './modelPickerCard.js';
 import { getPreferredSpeedVariant, IModelSpeedVariants } from './modelPickerVariants.js';
-import { getModelBadge, getOrganizationDefaultDescription, organizationDefaultLabel } from './modelPickerBadges.js';
+import { getModelBadge, getOrganizationDefaultDescription, getOrganizationDefaultModel, organizationDefaultLabel } from './modelPickerBadges.js';
 import { createModelAction, createUnavailableModelItem, getUnavailableReason, requiresNewerVSCode } from './modelPickerItemPrimitives.js';
 import { getModelPickerAccessibilityProvider, getModelPickerControlModels } from './modelPickerItems.js';
 import { filterModelPickerControlModelsForEntitlement, filterModelPickerModelsForEntitlement, getFusionTierLabel, getHydraFusionTierLabel, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly } from './modelPickerPresentation.js';
@@ -704,8 +703,7 @@ export class TabbedModelPicker extends Disposable {
 	}
 
 	private _getOrganizationDefaultModel(context: ITabbedModelPickerContext): ILanguageModelChatMetadataAndIdentifier | undefined {
-		const configuredDefault = this._configurationService.inspect<string>(ChatConfiguration.DefaultModel).policyValue?.trim();
-		return resolveConfiguredModel(configuredDefault, context.models);
+		return getOrganizationDefaultModel(this._configurationService, context.models);
 	}
 
 	private _getOrganizationDefaultForModel(model: ILanguageModelChatMetadataAndIdentifier, context: ITabbedModelPickerContext): ILanguageModelChatMetadataAndIdentifier | undefined {
