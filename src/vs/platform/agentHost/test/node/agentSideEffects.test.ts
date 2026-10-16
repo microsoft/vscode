@@ -266,6 +266,7 @@ function createTestSideEffects(
 		requestSessionWorkspaceUpdate: () => true,
 		isPending: () => false,
 		isConversionTurn: () => false,
+		onDidChangePending: Event.None,
 		cancel: () => { },
 		updateSessionWorkspace: async () => { },
 	});

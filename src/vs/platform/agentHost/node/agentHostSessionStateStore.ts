@@ -5,6 +5,7 @@
 
 import { Limiter, RunOnceScheduler, SequencerByKey } from '../../../base/common/async.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
+import { Emitter, type Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { getComparisonKey } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
@@ -13,7 +14,7 @@ import { ChatOriginKind } from '../common/state/protocol/state.js';
 import { ILogService } from '../../log/common/log.js';
 import { DETACHED_WORKTREE_OWNER_SCHEME } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
-import { baseBranchFolderKey, chatMoveFolderTransfers, IAgentHostSessionStateStore, ISessionStateChatMove, ISessionStateChatPromotion, SessionStateChatMoveResult, SessionStateChatPromotionResult, ISessionStateChatEntry, ISessionStateKnownCatalog, ISessionStateExclusive, ISessionStateFolderEntry, ISessionStateFolderPatch, ISessionStateLegacyMetadata, ISessionStateMetadataReader, ISessionStateMetadataReference, ISessionStatePatch, ISessionStateSnapshot, readSessionBaseBranch, SessionStateDeletedError, SessionStateFolderKind, SessionStateNotASessionError, SessionStateMirrorFlush, sessionStatePatch, SessionStateValuesPrefetch, ISessionStateValuesPrefetchEntry } from '../common/agentHostSessionStateStore.js';
+import { baseBranchFolderKey, chatMoveFolderTransfers, IAgentHostSessionStateStore, type ISessionStateChange, ISessionStateChatMove, ISessionStateChatPromotion, SessionStateChatMoveResult, SessionStateChatPromotionResult, ISessionStateChatEntry, ISessionStateKnownCatalog, ISessionStateExclusive, ISessionStateFolderEntry, ISessionStateFolderPatch, ISessionStateLegacyMetadata, ISessionStateMetadataReader, ISessionStateMetadataReference, ISessionStatePatch, ISessionStateSnapshot, readSessionBaseBranch, SessionStateDeletedError, SessionStateFolderKind, SessionStateNotASessionError, SessionStateMirrorFlush, sessionStatePatch, SessionStateValuesPrefetch, ISessionStateValuesPrefetchEntry } from '../common/agentHostSessionStateStore.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { AgentHostChatRowStore } from './agentHostChatRowStore.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
@@ -149,6 +150,8 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 	/** Loaded legacy-catalog sessions whose authority refresh failed, re-checked on their next locked load. */
 	private readonly _authorityRechecks = new Set<string>();
 	readonly chatRows: AgentHostChatRowStore;
+	private readonly _onDidChangeLoadedState = this._register(new Emitter<ISessionStateChange>());
+	readonly onDidChangeLoadedState: Event<ISessionStateChange> = this._onDidChangeLoadedState.event;
 
 	constructor(
 		private readonly _mirrorFlushDelay: number,
@@ -218,6 +221,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			}
 			record.model = new SessionStateModel(state, 2);
 			record.snapshot = undefined;
+			this._onDidChangeLoadedState.fire({ session: key, values: [], authority: true });
 			// A normalized catalog's chat keys are not the store's, so its chats have no mirror entries.
 			for (const id of [...record.dirty, ...record.base.keys()]) {
 				if (parseMirrorEntryId(id).kind === 'chat') {
@@ -1125,6 +1129,10 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		this._noteCentralWrite(record.key);
 		record.model.apply(patch, result.revision);
 		record.snapshot = undefined;
+		const values = Object.keys(patch.values);
+		if (values.length > 0) {
+			this._onDidChangeLoadedState.fire({ session: record.key, values, authority: false });
+		}
 		if (markDirty) {
 			for (const entry of entries) {
 				if (entry.kind !== 'chat' || record.model.authority === 1) {

@@ -25,7 +25,7 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common
 import { isStickyPromptHeaderShown } from '../promptTimeline/promptTimelineWidgetContrib.js';
 import { FocusAgentSessionsAction } from '../agentSessions/agentSessionsActions.js';
 import { AGENT_SESSION_RENAME_ACTION_ID } from '../agentSessions/agentSessions.js';
-import { IChatWidgetService, isIChatResourceViewContext } from '../chat.js';
+import { IChatWidgetService, isIChatResourceViewContext, isResponseSelectionSupported } from '../chat.js';
 import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from '../chatEditing/chatEditingActions.js';
 import { getModePickerAccessibilityHelp } from '../agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { getBackgroundShellsPillAccessibilityHelp } from '../sessionBackgroundShellsControl.js';
@@ -70,7 +70,7 @@ export class AgentChatAccessibilityHelp implements IAccessibleViewImplementation
 	}
 }
 
-export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView', keybindingService: IKeybindingService, supportsFileReferences: boolean, isSessionsWindow: boolean = false, stickyPromptHeaderShown: boolean = false, sessionStatusPillsSupported: boolean = type === 'panelChat' || type === 'agentView', sessionArchiveNudgeShown: boolean = false, sessionArchiveActionWording = ChatSessionArchiveActionWording.Archive, codexContinuationShown: boolean = false, localModelEnabled: boolean = false): string {
+export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView', keybindingService: IKeybindingService, supportsFileReferences: boolean, isSessionsWindow: boolean = false, stickyPromptHeaderShown: boolean = false, sessionStatusPillsSupported: boolean = type === 'panelChat' || type === 'agentView', sessionArchiveNudgeShown: boolean = false, sessionArchiveActionWording = ChatSessionArchiveActionWording.Archive, codexContinuationShown: boolean = false, localModelEnabled: boolean = false, responseSelectionSupported = isResponseSelectionSupported()): string {
 	const content = [];
 	if (type !== 'inlineChat' && type !== 'quickChat') {
 		content.push(localize('chat.historyRefresh', "Cloud sandbox conversations can show previously loaded messages while refreshing silently. If recent messages cannot be loaded, use Tab to reach Refresh in the banner and press Enter or Space. Refresh retries recorded history without restarting the session, waking its environment, or sending your draft."));
@@ -219,7 +219,9 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 		}
 		content.push(localize('chat.sandboxUnavailable', "If the agent host cannot support the configured sandbox, a notification above the input explains why. You can select and copy the warning text. Use Tab to reach support links or Dismiss notification, and Enter to open a focused link. Dismissing hides the warning for this session until the window reloads, without changing sandboxing or preventing messages."));
 		if (isSessionsWindow) {
-			content.push(localize('sessions.selectionSideChat', 'When you select text within an assistant response, an Ask Question input appears near the selection. Type a question and press Enter to start a new side chat scoped to that selection.'));
+			if (responseSelectionSupported) {
+				content.push(localize('sessions.selectionSideChat', 'When you select text within an assistant response, an Ask Question input appears near the selection. Type a question and press Enter to start a new side chat scoped to that selection.'));
+			}
 			content.push(localize('sessions.requestOrigin', 'Some requests include a source chat button above the message. Use Tab to focus it, then Enter or Space to open the originating chat.'));
 			content.push(localize('sessions.threadCoordinationResult', 'Completed create-session, create-chat, and send-message operations can include a target session or chat button in the response. Use Tab to focus it, Enter or Space to open it normally, or Alt+Enter (Option+Enter on macOS) to open it to the side.'));
 		}

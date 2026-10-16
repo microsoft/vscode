@@ -970,6 +970,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 		requestSessionWorkspaceUpdate: () => true,
 		isPending: () => false,
 		isConversionTurn: () => false,
+		onDidChangePending: Event.None,
 		cancel: () => { },
 		updateSessionWorkspace: async () => { observed?.push('sessionWorkspaceConversion'); },
 	});
@@ -1056,6 +1057,7 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 		requestSessionWorkspaceUpdate: () => true,
 		isPending: () => conversionPending,
 		isConversionTurn: () => false,
+		onDidChangePending: Event.None,
 		cancel: () => {
 			conversionPending = false;
 		},
