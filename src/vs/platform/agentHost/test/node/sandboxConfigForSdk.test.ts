@@ -290,7 +290,7 @@ suite('buildSandboxConfigForSdk', () => {
 				{ envVars: [] },
 				{ envVars: 'MY_API_TOKEN' },
 			].map(maskedCredentials => sandboxConfigSchema.validate(AgentHostSandboxConfigKey.Sandbox, { credentials: maskedCredentials })),
-			[true, true, true, false, false, false, false, false]);
+				[true, true, true, false, false, false, false, false]);
 		});
 
 	});
