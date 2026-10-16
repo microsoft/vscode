@@ -13,10 +13,10 @@ import { getWorkingDirectoryKey } from '../common/agentHostWorkingDirectories.js
 import { readAgentMergeFolderStates } from '../common/agentMerge.js';
 import { readSessionMovable, withSessionMovable } from '../common/meta/agentHostSessionMoveMeta.js';
 import { ActionType, type StateAction } from '../common/state/sessionActions.js';
-import { ChatOriginKind, isSessionStatusArchived, readSessionWorkspaceless, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { ChatOriginKind, isSessionStatusArchived, readSessionWorkspaceless, type ChatSummary, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import type { IAgentConfigurationService } from './agentConfigurationService.js';
 import type { AgentHostStateManager } from './agentHostStateManager.js';
-import { sharedOwnAdditionalWorktree } from './agentHostWorktreeCoOwnership.js';
+import { additionalWorktreeUsers, sharedOwnAdditionalWorktreeOf } from './agentHostWorktreeCoOwnership.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY, type ISessionAdditionalWorktree, parseSessionAdditionalWorktrees } from './shared/sessionAdditionalWorktrees.js';
 
 /** The in-memory state, held by other services, that decides whether a chat's session refuses its move (Block 4). */
@@ -49,6 +49,23 @@ interface ISourceSessionContext {
 	readonly additionalWorktrees: readonly ISessionAdditionalWorktree[];
 	/** Chats that run Agent Merge for a folder of the session. */
 	readonly agentMergeChats: ReadonlySet<string>;
+	/** The session's chats by resource. */
+	readonly summaries: ReadonlyMap<ProtocolURI, ChatSummary>;
+	/** The session's chats by the chat whose tool call spawned them. */
+	readonly children: ReadonlyMap<ProtocolURI, readonly ProtocolURI[]>;
+	/** The staying chats using each additional worktree recorded for a chat, built on first use (see {@link additionalWorktreeUsers}). */
+	worktreeUsers: ReadonlyMap<ISessionAdditionalWorktree, readonly ProtocolURI[]> | undefined;
+}
+
+/** `chat` and the chats of its session whose recorded parent chain reaches it, from the session's {@link ISourceSessionContext.children}. */
+function subtreeOf(children: ReadonlyMap<ProtocolURI, readonly ProtocolURI[]>, chat: ProtocolURI): ReadonlySet<ProtocolURI> {
+	const subtree = new Set([chat]);
+	for (const member of subtree) {
+		for (const child of children.get(member) ?? []) {
+			subtree.add(child);
+		}
+	}
+	return subtree;
 }
 
 /** Session actions after which a session's chats may become movable or not. */
@@ -60,6 +77,8 @@ const SESSION_INPUT_ACTIONS: ReadonlySet<StateAction['type']> = new Set([
 	ActionType.SessionWorkingDirectoryRemoved,
 	ActionType.SessionWorkingDirectoryReplaced,
 ]);
+
+const EMPTY_WORKTREE_USERS: ReadonlyMap<ISessionAdditionalWorktree, readonly ProtocolURI[]> = new Map();
 
 /** Session values recording the worktrees a session owns that decide whether its chats may move. */
 const WORKTREE_VALUES: ReadonlySet<string> = new Set([ADDITIONAL_WORKTREES_METADATA_KEY]);
@@ -181,16 +200,12 @@ export class AgentHostChatMovability extends Disposable {
 	 * request checks this, and validates the conditions of the chat and its sessions itself, to refuse with their reason.
 	 */
 	isStructurallyMovable(chat: ProtocolURI, owner: ProtocolURI): boolean | undefined {
-		const eligibility = this._structuralEligibility(chat, owner);
-		return eligibility && isChatStructurallyMovable(eligibility);
-	}
-
-	private _structuralEligibility(chat: ProtocolURI, owner: ProtocolURI): IChatMoveStructuralEligibility | undefined {
 		const current = this._stateManager.getChatOwner(chat);
 		const summary = current === undefined ? undefined : this._stateManager.getSessionState(current)?.chats.find(candidate => candidate.resource === chat);
-		if (!summary) {
-			return undefined;
-		}
+		return summary && isChatStructurallyMovable(this._structuralEligibility(chat, owner, summary));
+	}
+
+	private _structuralEligibility(chat: ProtocolURI, owner: ProtocolURI, summary: ChatSummary): IChatMoveStructuralEligibility {
 		return {
 			enabled: this._configurationService.getRootValue(chatMoveRootConfigSchema, ChatMoveConfigKey.Enabled) === true,
 			isDefault: this._stateManager.isDefaultChat(owner, chat),
@@ -199,41 +214,66 @@ export class AgentHostChatMovability extends Disposable {
 		};
 	}
 
+	/**
+	 * Linear in a pass: each session's context, with its chats indexed, is built once and reused for all its chats, so
+	 * a chat costs its own subtree, not its session's chats.
+	 */
 	private _isMovableIn(chat: ProtocolURI, owner: ProtocolURI, contexts: Map<ProtocolURI, ISourceSessionContext | undefined> | undefined): boolean | undefined {
-		const structural = this._structuralEligibility(chat, owner);
-		if (!structural) {
+		const current = this._stateManager.getChatOwner(chat);
+		const currentContext = current === undefined ? undefined : this._context(current, contexts);
+		const summary = currentContext?.summaries.get(chat);
+		if (!summary || !currentContext) {
 			return undefined;
 		}
+		const structural = this._structuralEligibility(chat, owner, summary);
 		if (!isChatStructurallyMovable(structural)) {
 			return false;
 		}
-		let context = contexts?.get(owner);
-		if (!contexts?.has(owner)) {
-			context = this._sourceContext(owner);
-			contexts?.set(owner, context);
-		}
+		const context = owner === current ? currentContext : this._context(owner, contexts);
 		if (!context) {
 			return false;
 		}
-		const current = this._stateManager.getChatOwner(chat)!;
-		const summary = this._stateManager.getSessionState(current)?.chats.find(candidate => candidate.resource === chat);
 		// A chat without folders of its own works in its current owner's; a move to `owner` pins those (`_movedChatFolders`).
-		const folders = this._stateManager.getChatState(chat)?.workingDirectories ?? summary?.workingDirectories
-			?? (current === owner ? context.folders : this._stateManager.getSessionSummary(current)?.workingDirectories ?? []);
-		const subtree = chatSubtree(this._stateManager, current, chat);
-		const remainingFolders = (this._stateManager.getSessionState(current)?.chats ?? [])
-			.filter(candidate => !subtree.includes(candidate.resource) && candidate.origin?.kind !== ChatOriginKind.Tool)
-			.map(candidate => candidate.workingDirectories ?? context.folders);
+		const folders = this._stateManager.getChatState(chat)?.workingDirectories ?? summary.workingDirectories
+			?? (current === owner ? context.folders : currentContext.folders);
+		const subtree = subtreeOf(currentContext.children, chat);
 		return isChatMovable({
 			...structural,
 			sessionArchived: context.archived,
 			workspaceless: context.workspaceless || folders.length === 0,
-			converting: context.quarantined || subtree.some(candidate => this._sources.conversions.isPending(candidate)),
+			converting: context.quarantined || [...subtree].some(candidate => this._sources.conversions.isPending(candidate)),
 			// Worktrees are shared by moves (Block 5): only a chat's own one that a staying chat also uses keeps it (D2).
-			worktreeFolder: sharedOwnAdditionalWorktree(context.additionalWorktrees, subtree, folders, remainingFolders) !== undefined,
-			agentMergeOwner: subtree.some(candidate => context.agentMergeChats.has(candidate)),
+			worktreeFolder: sharedOwnAdditionalWorktreeOf(this._worktreeUsers(context, currentContext), subtree, folders) !== undefined,
+			agentMergeOwner: [...subtree].some(candidate => context.agentMergeChats.has(candidate)),
 			legacyCatalog: context.legacyCatalog,
 		});
+	}
+
+	private _context(session: ProtocolURI, contexts: Map<ProtocolURI, ISourceSessionContext | undefined> | undefined): ISourceSessionContext | undefined {
+		if (contexts?.has(session)) {
+			return contexts.get(session);
+		}
+		const context = this._sourceContext(session);
+		contexts?.set(session, context);
+		return context;
+	}
+
+	/**
+	 * The chats of `chats`' session (not tool chats) using each additional worktree `context`'s session records for a
+	 * chat; none, without building anything, when it records none for a chat. Cached on the context for its own chats.
+	 */
+	private _worktreeUsers(context: ISourceSessionContext, chats: ISourceSessionContext): ReadonlyMap<ISessionAdditionalWorktree, readonly ProtocolURI[]> {
+		if (!context.additionalWorktrees.some(worktree => worktree.chat !== undefined)) {
+			return EMPTY_WORKTREE_USERS;
+		}
+		const build = () => additionalWorktreeUsers(context.additionalWorktrees, [...chats.summaries.values()]
+			.filter(candidate => candidate.origin?.kind !== ChatOriginKind.Tool)
+			.map(candidate => ({ chat: candidate.resource, folders: candidate.workingDirectories ?? context.folders })));
+		if (context !== chats) {
+			return build();
+		}
+		context.worktreeUsers ??= build();
+		return context.worktreeUsers;
 	}
 
 	/** What the chats of `session` share, from in-memory state only; `undefined` when the session isn't loaded. */
@@ -245,6 +285,18 @@ export class AgentHostChatMovability extends Disposable {
 		const resource = URI.parse(session);
 		const folders = this._stateManager.getSessionSummary(session)?.workingDirectories ?? [];
 		const snapshot = this._sources.sessionState.peek(resource);
+		const children = new Map<ProtocolURI, ProtocolURI[]>();
+		for (const chat of state.chats) {
+			const parent = this._stateManager.getChatParent(chat.resource);
+			if (parent !== undefined) {
+				let siblings = children.get(parent);
+				if (!siblings) {
+					siblings = [];
+					children.set(parent, siblings);
+				}
+				siblings.push(chat.resource);
+			}
+		}
 		const agentMergeChats = new Set<string>();
 		for (const folder of readAgentMergeFolderStates(state.config?.values, folders[0] === undefined ? undefined : getWorkingDirectoryKey(folders[0])).values()) {
 			if (folder.enabled && folder.chat !== undefined) {
@@ -260,6 +312,9 @@ export class AgentHostChatMovability extends Disposable {
 			folders,
 			additionalWorktrees: parseSessionAdditionalWorktrees(snapshot?.values.get(ADDITIONAL_WORKTREES_METADATA_KEY)),
 			agentMergeChats,
+			summaries: new Map(state.chats.map(chat => [chat.resource, chat])),
+			children,
+			worktreeUsers: undefined,
 		};
 	}
 

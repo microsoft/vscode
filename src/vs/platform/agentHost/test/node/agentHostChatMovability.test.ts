@@ -246,6 +246,69 @@ suite('AgentHostChatMovability', () => {
 		}, { primary: shared, sessionLevel: shared, ownShared: flipped, own: shared });
 	});
 
+	test('a recompute of every chat is linear in the number of chats, with or without additional worktrees recorded for a chat (perf, Block 5)', async () => {
+		/** Counts the per-chat lookups a pass makes, which a per-chat scan of the session's chats multiplies. */
+		class CountingStateManager extends AgentHostStateManager {
+			parentLookups = 0;
+			sessionLookups = 0;
+			override getChatParent(chat: ProtocolURI): string | undefined {
+				this.parentLookups++;
+				return super.getChatParent(chat);
+			}
+			override getSessionState(candidate: ProtocolURI) {
+				this.sessionLookups++;
+				return super.getSessionState(candidate);
+			}
+		}
+		const pass = async (chats: number, ownWorktree: boolean) => {
+			const store = new DisposableStore();
+			try {
+				const stateManager = store.add(new CountingStateManager(new NullLogService()));
+				const configuration = store.add(new AgentConfigurationService(stateManager, new NullLogService()));
+				const sources = new TestSources();
+				store.add(new AgentHostChatMovability(stateManager, configuration, sources));
+				stateManager.createSession(summary(session));
+				const defaultChat = buildDefaultChatUri(session);
+				for (let i = 0; i < chats; i++) {
+					const peer = buildChatUri(session, `peer-${i}`);
+					stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer, defaultChat));
+					if (i % 10 === 0) {
+						const subagent = buildChatUri(session, `subagent-${i}`);
+						stateManager.addChat(session, subagent, subagent, { origin: { kind: ChatOriginKind.Tool, chat: peer, toolCallId: `call-${i}` } });
+					}
+				}
+				if (ownWorktree) {
+					// The first peer's own worktree, which every other chat of the session also works in.
+					sources.values.set(ADDITIONAL_WORKTREES_METADATA_KEY, JSON.stringify([{ handle: generateUuid(), workingDirectory: folder, repositoryRoot: folder, chat: buildChatUri(session, 'peer-0') }]));
+				}
+				configuration.updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
+				await timeout(0);
+				stateManager.parentLookups = 0;
+				stateManager.sessionLookups = 0;
+				configuration.updateRootConfig({ [ChatMoveConfigKey.Enabled]: false });
+				configuration.updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
+				const registered = stateManager.getSessionState(session)!.chats.length;
+				const lookups = stateManager.parentLookups + stateManager.sessionLookups;
+				return {
+					perChat: Math.floor(lookups / registered),
+					overhead: lookups % registered,
+					refused: !(stateManager.getSessionState(session)!.chats.find(chat => chat.resource === buildChatUri(session, 'peer-0'))?.movable ?? false),
+				};
+			} finally {
+				store.dispose();
+			}
+		};
+
+		const results = { none: [await pass(100, false), await pass(400, false)], ownWorktree: [await pass(100, true), await pass(400, true)] };
+		const linear = { perChat: 2, overhead: 9 };
+		assert.deepStrictEqual(results, {
+			// Two passes (off, on): each looks up each chat's parent once, and its session a fixed number of times, whatever its size.
+			none: [{ ...linear, refused: false }, { ...linear, refused: false }],
+			// The first peer's own worktree, which staying chats use: refused (D2), at the same cost.
+			ownWorktree: [{ ...linear, refused: true }, { ...linear, refused: true }],
+		});
+	});
+
 	test('a chat that runs Agent Merge for a folder of its session is not movable until it stops', async () => {
 		const { stateManager, peer, flip } = await setupStrict();
 		stateManager.setSessionConfig(session, { schema: { type: 'object', properties: {} }, values: {} });

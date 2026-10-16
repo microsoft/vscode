@@ -90,6 +90,42 @@ export function sharedOwnAdditionalWorktree(additional: readonly ISessionAdditio
 }
 
 /**
+ * The chats of a session that work in each additional worktree recorded for a chat (keyed by that worktree): what
+ * {@link sharedOwnAdditionalWorktree} checks the staying chats against, indexed once for every chat of a session.
+ * `chats` are the chats that count as staying when they don't move (not tool chats), with their folders.
+ */
+export function additionalWorktreeUsers(additional: readonly ISessionAdditionalWorktree[], chats: Iterable<{ readonly chat: string; readonly folders: readonly string[] }>): ReadonlyMap<ISessionAdditionalWorktree, readonly string[]> {
+	const users = new Map<ISessionAdditionalWorktree, string[]>();
+	const own = additional.filter(worktree => worktree.chat !== undefined);
+	if (own.length === 0) {
+		return users;
+	}
+	for (const { chat, folders } of chats) {
+		for (const worktree of own) {
+			if (uses(folders, worktree.workingDirectory)) {
+				let chatsOfWorktree = users.get(worktree);
+				if (!chatsOfWorktree) {
+					chatsOfWorktree = [];
+					users.set(worktree, chatsOfWorktree);
+				}
+				chatsOfWorktree.push(chat);
+			}
+		}
+	}
+	return users;
+}
+
+/** {@link sharedOwnAdditionalWorktree} over the {@link additionalWorktreeUsers} of the moved chats' session. */
+export function sharedOwnAdditionalWorktreeOf(users: ReadonlyMap<ISessionAdditionalWorktree, readonly string[]>, moved: ReadonlySet<string>, chatFolders: readonly string[]): ISessionAdditionalWorktree | undefined {
+	for (const [worktree, chats] of users) {
+		if (moved.has(worktree.chat!) && uses(chatFolders, worktree.workingDirectory) && chats.some(chat => !moved.has(chat))) {
+			return worktree;
+		}
+	}
+	return undefined;
+}
+
+/**
  * Decides what a move does with each worktree of its source (Block 5): an additional worktree recorded for a moved
  * chat that no staying chat uses transfers to the target (case a), one a staying chat also uses refuses the move (D2),
  * and every other worktree the moved chat works in becomes shared by the source and the target, its own recorder
