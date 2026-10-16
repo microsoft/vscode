@@ -307,6 +307,9 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 	}
 
 	private _onMouseLeave(e: MouseEvent): void {
+		if (this._contentHoverWidget.isResizing) {
+			return;
+		}
 		const editorDomNode = this._editor.getDomNode();
 		const isMousePositionOutsideOfEditor = !editorDomNode || !isMousePositionWithinElement(editorDomNode, e.x, e.y);
 		if (isMousePositionOutsideOfEditor) {

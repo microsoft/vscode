@@ -154,6 +154,9 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 		if (!this._contentWidget || !this._contentWidget.getDomNode().isConnected) {
 			return false;
 		}
+		if (this._contentWidget.containsNode(mouseEvent.event.target)) {
+			return true;
+		}
 		return isMousePositionWithinElement(this._contentWidget.getDomNode(), mouseEvent.event.posx, mouseEvent.event.posy);
 	}
 
