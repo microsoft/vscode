@@ -5560,6 +5560,35 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('hover counts of a provider without catalog summaries come from the main chat changes, not its default changeset', () => {
+			const main = { root: URI.file('/workspace/main'), workingDirectory: URI.file('/workspace/main'), name: 'main', description: undefined };
+			const base = createMultiFolderSession([main], [[main]]);
+			// A default changeset can compute a diff when its changes are read, e.g. an archived Copilot Chat session's All Changes.
+			const changesetReads: string[] = [];
+			const mainChat: IChat = {
+				...base.mainChat.get(),
+				changes: constObservable([{ modifiedUri: URI.file('/workspace/main/file.ts'), insertions: 3, deletions: 1 }]),
+				changesets: constObservable([upcastPartial<ISessionChangeset>({
+					id: 'allChanges',
+					isDefault: constObservable(true),
+					changes: derived(() => { changesetReads.push('allChanges'); return []; }),
+				})]),
+			};
+			const session: ISession = { ...base, mainChat: constObservable(mainChat), changesSummary: constObservable(undefined) };
+			const data = getSessionSummaryHoverData(
+				session,
+				upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }),
+				upcastPartial<IOpenerService>({ open: () => Promise.resolve(true) }),
+				upcastPartial<ILabelService>({ getUriLabel: resource => resource.path }),
+				upcastPartial<IPreferencesService>({}),
+			);
+
+			assert.deepStrictEqual({ changes: data.location?.changes, changesetReads }, {
+				changes: { files: 1, insertions: 3, deletions: 1 },
+				changesetReads: [],
+			});
+		});
+
 		suite('session hover pull requests', () => {
 
 			function createPullRequestFolder(name: string, pullRequestNumbers: readonly number[]): ISessionFolder {

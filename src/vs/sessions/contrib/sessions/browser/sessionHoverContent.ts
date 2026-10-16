@@ -20,9 +20,8 @@ import { BRANCH_CHANGES_CHANGESET_ID, getSessionOwnedGitHubPullRequestRefs, getS
 import { ISessionChangesStats, readChatChangesStats, readSessionChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
 
 /** Shared session diff counts, omitting entries without line changes. */
-export function getSessionDiffStats(session: ISession, reader?: IReader): { files: number; insertions: number; deletions: number } | undefined {
-	const stats = readSessionChangesStats(session, reader);
-	return stats && (stats.insertions > 0 || stats.deletions > 0) ? stats : undefined;
+export function getSessionDiffStats(session: ISession, reader?: IReader): ISessionSummaryHoverLocation['changes'] {
+	return withLineChanges(readSessionChangesStats(session, reader));
 }
 
 function withLineChanges(stats: ISessionChangesStats | undefined): ISessionSummaryHoverLocation['changes'] {
@@ -41,12 +40,17 @@ function getChatHoverChanges(chat: IChat, preferredChangesetId?: string): ISessi
 	return withLineChanges(readChatChangesStats(chat, undefined, preferredChangesetId));
 }
 
-/** The session's catalog counts, else its main chat's, read the same way as {@link getChatHoverChanges}. */
+/**
+ * The session's catalog counts, else its main chat's catalog counts. A provider without catalog counts keeps the
+ * previous reading of the main chat's own changes, because its default changeset can compute a diff when read.
+ */
 function getSessionHoverChanges(session: ISession): ISessionSummaryHoverLocation['changes'] {
 	const summary = session.changesSummary?.get();
-	return summary
-		? withLineChanges({ files: summary.files, insertions: summary.additions, deletions: summary.deletions })
-		: getChatHoverChanges(session.mainChat.get());
+	if (summary) {
+		return withLineChanges({ files: summary.files, insertions: summary.additions, deletions: summary.deletions });
+	}
+	const mainChat = session.mainChat.get();
+	return mainChat.changesSummary ? getChatHoverChanges(mainChat) : getSessionDiffStats(session);
 }
 
 /**
