@@ -103,8 +103,12 @@
 .modern-ui-tabs.modern-ui-connected-editor-tabs .chat-pet-customization-tabs {
 	gap: 0;
 	padding-bottom: 0;
-	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-editorGroupHeader-tabsBorder, var(--vscode-tab-border, var(--vscode-contrastBorder)));
-	background: var(--vscode-editorGroupHeader-tabsBackground, var(--vscode-editor-background));
+	border-bottom: 0;
+	background-color: var(--vscode-editorGroupHeader-tabsBackground, var(--vscode-editor-background));
+	background-image: linear-gradient(var(--vscode-editorGroupHeader-tabsBorder, var(--vscode-tab-border, var(--vscode-contrastBorder))), var(--vscode-editorGroupHeader-tabsBorder, var(--vscode-tab-border, var(--vscode-contrastBorder))));
+	background-position: bottom;
+	background-repeat: no-repeat;
+	background-size: 100% var(--vscode-strokeThickness);
 }
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs .chat-pet-customization-tabs .monaco-button {
@@ -131,6 +135,7 @@
 }
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs .chat-pet-customization-tabs .monaco-button:not([aria-selected='true']) {
+	border-radius: var(--vscode-cornerRadius-small);
 	color: var(--vscode-tab-inactiveForeground, var(--vscode-descriptionForeground));
 }
 
@@ -140,7 +145,7 @@
 }
 
 :is(.hc-black, .hc-light).modern-ui-tabs.modern-ui-connected-editor-tabs .chat-pet-customization-tabs {
-	border-bottom-color: var(--vscode-contrastBorder);
+	background-image: linear-gradient(var(--vscode-contrastBorder), var(--vscode-contrastBorder));
 }
 
 :is(.hc-black, .hc-light).modern-ui-tabs.modern-ui-connected-editor-tabs .chat-pet-customization-tabs .monaco-button[aria-selected='true'] {
