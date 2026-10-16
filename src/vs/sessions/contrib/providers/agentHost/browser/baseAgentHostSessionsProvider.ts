@@ -679,10 +679,10 @@ function toGitHubInfo(meta: SessionMeta | undefined, workingDirectory: URI | und
 	const headBranchPullRequest = isSessionFolder ? readAgentHeadBranchPullRequest({ _meta: meta }) : undefined;
 	if (headBranchPullRequest) {
 		const { owner, repo, number, title, url } = headBranchPullRequest;
-		const state = headBranchPullRequest.state === 'draft' ? 'open' : headBranchPullRequest.state;
+		const state = headBranchPullRequest.state === 'draft' ? undefined : headBranchPullRequest.state;
 		const icon = headBranchPullRequest.state ? computePullRequestIcon(headBranchPullRequest.state) : undefined;
 		const pullRequest = { owner, repo, number, title, uri: URI.parse(url), state, icon };
-		return { owner, repo, pullRequest };
+		return { owner, repo, pullRequest, pullRequests: [{ ...pullRequest, createdByThisSession: false }] };
 	}
 	const state = workingDirectory && folderKey ? readCompatibleFolderGitHubState(meta, workingDirectory, folderKey) : readFolderGitHubState(meta, folderKey);
 	// The session's Git state describes the session folder.
@@ -2763,13 +2763,13 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			const primaryIndex = Math.max(0, baseRefs.findIndex(isPrimaryPullRequest));
 			const pullRequests = baseRefs.map((pullRequest, index) => ({
 				...pullRequest,
-				...(pullRequest.uri.authority.toLowerCase() === 'github.com' ? computePullRequestRefPresentation(
+				...computePullRequestRefPresentation(
 					reader,
 					this._gitHubService,
 					this._pullRequestIconCache,
 					pullRequest,
 					index === primaryIndex ? computePullRequestIcon(GitHubPullRequestState.Open) : undefined,
-				) : {})
+				)
 			}));
 			const primaryPullRequest = pullRequests[primaryIndex];
 			return {

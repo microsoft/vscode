@@ -98,4 +98,21 @@ suite('Agent session GitHub references', () => {
 		});
 		assert.deepStrictEqual(withAgentSessionGitHubReferences({ workingDirectories: ['file:///repo'], _meta })._meta?.['copilot.githubReferences'], [{ ...reference, title: '' }]);
 	});
+
+	test('publishes and clears only the head-branch relation in a mixed reference list', () => {
+		const attached = { ...reference, number: 7, url: 'https://github.com/owner/repo/pull/7', relations: ['headBranch', 'attached'], future: true };
+		const created = { ...reference, relations: ['created'], future: { keep: true } };
+		const issue = { referenceType: 'issue', repository: 'owner/repo', number: 9, title: 'Issue', url: 'https://github.com/owner/repo/issues/9', relations: ['attached'] };
+		const unknown = { referenceType: 'future', relations: ['future'], keep: true };
+		const source = { workingDirectories: ['file:///repo'], _meta: { ...hostMetadata(), 'copilot.githubReferences': [attached, created, issue, unknown] } };
+		const published = withAgentSessionGitHubReferences(source);
+		const cleared = withAgentSessionGitHubReferences({ ...published, _meta: withSessionGitState(published._meta, { branchName: 'other' }) });
+		assert.deepStrictEqual([
+			published._meta?.['copilot.githubReferences'],
+			cleared._meta?.['copilot.githubReferences'],
+		], [
+			[{ ...created, title: '', state: 'merged', relations: ['headBranch', 'created'] }, { ...attached, relations: ['attached'] }, issue, unknown],
+			[{ ...created, title: '', state: 'merged' }, { ...attached, relations: ['attached'] }, issue, unknown],
+		]);
+	});
 });

@@ -53,7 +53,12 @@ import { ISessionChangeEvent, ISessionsProvider, ISessionsProviderCreateSessionO
 import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
 import { DevContainerIdleTimeoutSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../../common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ChatInteractivity, ChatModelSource, SessionRemoteConnectionFailureReason, SessionStatus, type ISession, type ISessionFileChange } from '../../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatModelSource, getGitHubPullRequestRefs, getSessionOwnedGitHubPullRequestRefs, SessionRemoteConnectionFailureReason, SessionStatus, type ISession, type ISessionFileChange } from '../../../../../services/sessions/common/session.js';
+import { SessionPullRequestPresentationModel } from '../../../../github/browser/pullRequestIconStatus.js';
+import { buildSessionPullRequestSections } from '../../../../chat/browser/sessionChatInputToolbar.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { RemoteAgentHostSessionsProvider, type IRemoteAgentHostSessionsProviderConfig } from '../../browser/remoteAgentHostSessionsProvider.js';
 import { CloudSandboxSessionsProvider } from '../../browser/cloudSandboxSessionsProvider.js';
 import { ProviderAutomationService } from '../../../../automations/browser/providerAutomationService.js';
@@ -513,7 +518,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 				changes: { _meta: meta({ ...reference, state: 'merged', title: 'Merged PR' }) },
 			});
 			assert.deepStrictEqual([initial, snapshot(session)], [{
-				owner: 'owner', repo: 'repo', number: 42, title: 'Host PR', state: 'open',
+				owner: 'owner', repo: 'repo', number: 42, title: 'Host PR', state: undefined,
 				icon: 'git-pull-request-draft', url: reference.url, artifacts: [],
 			}, {
 				owner: 'owner', repo: 'repo', number: 42, title: 'Merged PR', state: 'merged',
@@ -564,6 +569,30 @@ suite('RemoteAgentHostSessionsProvider', () => {
 				changes: { _meta: meta({ ...reference, relations: ['attached'] }) },
 			});
 			assert.strictEqual(snapshot(provider.getSessions()[0]), undefined);
+		});
+
+		test('keeps host drafts accessible as drafts without claiming session ownership', async () => {
+			addSession();
+			const provider = createProvider(disposables, connection);
+			await timeout(0);
+			const session = provider.getSessions()[0] as AgentHostSessionAdapter;
+			const info = session.gitHubInfo.get();
+			const presentation = disposables.add(new SessionPullRequestPresentationModel(constObservable(getGitHubPullRequestRefs(info)), new class extends mock<IGitHubService>() {
+				override readonly enterpriseHost = undefined;
+				override createPullRequestModelReference = () => new ImmortalReference(new class extends mock<GitHubPullRequestModel>() {
+					override readonly pullRequest = constObservable(undefined);
+				}());
+			}()));
+			const entries = buildSessionPullRequestSections(presentation.pullRequests.get(), undefined,
+				upcastPartial<ICommandService>({}), upcastPartial<IClipboardService>({}),
+				upcastPartial<IOpenerService>({}), upcastPartial<ISessionsService>({})).flatMap(section => section.entries);
+			assert.deepStrictEqual({
+				owned: getSessionOwnedGitHubPullRequestRefs(info),
+				pills: entries.map(entry => ({ state: entry.pullRequestState, description: entry.ariaDescription })),
+			}, {
+				owned: [],
+				pills: [{ state: 'draft', description: `draft. ${reference.url}` }],
+			});
 		});
 	});
 

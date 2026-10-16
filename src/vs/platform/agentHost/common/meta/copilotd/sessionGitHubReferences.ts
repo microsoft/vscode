@@ -5,6 +5,7 @@
 
 import { equals } from '../../../../../base/common/objects.js';
 import { isObject } from '../../../../../base/common/types.js';
+import { getPullRequestUrlKey } from '../../../../github/common/githubUrls.js';
 import type { IAgentMetadataSource } from '../metadata.js';
 
 const githubReferencesKey = 'copilot.githubReferences';
@@ -64,15 +65,36 @@ export function readCopilotHeadBranchPullRequest(source: IAgentMetadataSource): 
 
 /** Publishes the head-branch convention while preserving unrelated metadata. */
 export function withCopilotHeadBranchPullRequest(meta: IAgentMetadataSource['_meta'], pullRequest: IAgentHeadBranchPullRequest | undefined): IAgentMetadataSource['_meta'] {
-	const references = pullRequest ? [{
+	const previous = meta?.[githubReferencesKey];
+	const retained: unknown[] = [];
+	let matching: Record<string, unknown> | undefined;
+	for (const entry of Array.isArray(previous) ? previous : []) {
+		if (isObject(entry) && Array.isArray(entry.relations)) {
+			const relations = entry.relations.filter((relation: unknown) => relation !== 'headBranch');
+			if (pullRequest && typeof entry.url === 'string' && getPullRequestUrlKey(entry.url) === getPullRequestUrlKey(pullRequest.url)) {
+				matching = { ...entry, relations };
+				continue;
+			}
+			if (relations.length !== entry.relations.length) {
+				if (relations.length) {
+					retained.push({ ...entry, relations });
+				}
+				continue;
+			}
+		}
+		retained.push(entry);
+	}
+	const entries = pullRequest ? [{
+		...matching,
 		referenceType: 'pr',
 		repository: `${pullRequest.owner}/${pullRequest.repo}`,
 		number: pullRequest.number,
 		title: pullRequest.title,
 		...(pullRequest.state ? { state: pullRequest.state } : {}),
 		url: pullRequest.url,
-		relations: ['headBranch'],
-	}] : undefined;
+		relations: ['headBranch', ...(Array.isArray(matching?.relations) ? matching.relations : [])],
+	}, ...retained].slice(0, 10) : retained;
+	const references = entries.length ? entries : undefined;
 	if (equals(meta?.[githubReferencesKey], references)) {
 		return meta;
 	}
