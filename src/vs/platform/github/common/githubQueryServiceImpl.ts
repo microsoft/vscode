@@ -9,6 +9,7 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { ISettableObservable, observableValue } from '../../../base/common/observable.js';
 import { hasKey } from '../../../base/common/types.js';
 import { ILogService } from '../../log/common/log.js';
+import { getGraphQLErrorKind } from './client/graphql.js';
 import {
 	GitHubChangedFile,
 	GitHubCommit,
@@ -1641,22 +1642,9 @@ function throwGraphQLErrors(errors: readonly GitHubGraphQLError[]): void {
 	if (errors.length === 0) {
 		return;
 	}
-	const types = errors.map(error => error.type?.toUpperCase());
-	const codes = errors.map(error => error.extensions?.code?.toUpperCase());
-	const kind = types.includes('RATE_LIMIT') || types.includes('RATE_LIMITED')
-		? 'rateLimit'
-		: types.some(type => type === 'FORBIDDEN' || type === 'UNAUTHORIZED')
-			? 'authorization'
-			: types.some(type => type?.includes('NOT_FOUND'))
-				? 'notFound'
-				: types.some(type => type?.includes('VALIDATION'))
-					? 'schema'
-					: codes.some(code => code === 'UNDEFINEDFIELD' || code === 'ARGUMENTNOTACCEPTED' || code === 'VARIABLEMISMATCH')
-						? 'schema'
-						: 'server';
 	throw new GitHubRequestError(
 		`GitHub GraphQL query failed: ${errors.map(error => error.message ?? error.type ?? 'unknown error').join('; ')}`,
-		kind,
+		getGraphQLErrorKind(errors),
 		200,
 		undefined,
 		errors,
