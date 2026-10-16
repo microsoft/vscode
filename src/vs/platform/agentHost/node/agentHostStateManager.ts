@@ -1681,6 +1681,18 @@ export class AgentHostStateManager extends Disposable {
 	}
 
 	/**
+	 * Replaces the draft a registered chat whose state is not resolved yet
+	 * takes when it is (`undefined` clears it). A resolved chat changes its
+	 * draft through {@link ActionType.ChatDraftChanged} instead.
+	 */
+	setUnresolvedChatDraft(chat: URI, draft: Message | undefined): void {
+		const entry = this._chatEntries.get(chat);
+		if (entry?.valid && !entry.state) {
+			entry.draft = draft;
+		}
+	}
+
+	/**
 	 * Renames a single chat within a session independently of the session
 	 * title. Updates the chat's authoritative {@link ChatState} title (so
 	 * later `chatSummaryFromState` projections stay consistent) and dispatches
@@ -2291,16 +2303,20 @@ export class AgentHostStateManager extends Disposable {
 				const previous = chatEntry.config;
 				chatEntry.config = chatReducer({ ...createChatState(chatEntry.summary), ...(previous ? { config: previous } : {}) }, chatAction, this._log).config;
 				this._onDidChangeChatConfig.fire({ session: chatEntry.session, chat: channel, previous, current: chatEntry.config, clientContext });
-			} else if (chatEntry?.valid && sessionKey !== undefined && chatAction.type === ActionType.ChatIsReadChanged) {
-				// Read state lives on the chat summary, so a registered chat whose
-				// history is not materialized yet takes it without resolving that history.
+			} else if (chatEntry?.valid && sessionKey !== undefined && (chatAction.type === ActionType.ChatIsReadChanged || chatAction.type === ActionType.ChatIsArchivedChanged)) {
+				// Read and archived state live on the chat summary, so a registered chat
+				// whose history is not materialized yet takes them without resolving that history.
 				const summary = chatEntry.summary;
-				const status = withSessionStatusFlag(summary.status, SessionStatus.IsRead, chatAction.isRead);
+				const status = chatAction.type === ActionType.ChatIsReadChanged
+					? withSessionStatusFlag(summary.status, SessionStatus.IsRead, chatAction.isRead)
+					: withSessionStatusFlag(summary.status, SessionStatus.IsArchived, chatAction.isArchived);
 				this._onChatSummaryChanged(sessionKey, channel, { ...summary, status });
-				readTransition = { wasRead: isSessionStatusRead(summary.status), isRead: isSessionStatusRead(status) };
-			} else if (chatAction.type !== ActionType.ChatIsReadChanged) {
-				// Read toggles apply to chats of unloaded sessions without materializing
-				// them, so an absent entry is expected for them.
+				if (chatAction.type === ActionType.ChatIsReadChanged) {
+					readTransition = { wasRead: isSessionStatusRead(summary.status), isRead: isSessionStatusRead(status) };
+				}
+			} else if (chatAction.type !== ActionType.ChatIsReadChanged && chatAction.type !== ActionType.ChatIsArchivedChanged) {
+				// Read and archive toggles apply to chats of unloaded sessions without
+				// materializing them, so an absent entry is expected for them.
 				this._logService.warn(`[AgentHostStateManager] Action for unknown chat: ${channel}, type=${action.type}`);
 			}
 			if (readTransition && chatEntry && sessionKey !== undefined && isChatInSessionReadAggregate(channel, chatEntry.summary.origin, chatEntry.summary.interactivity)) {

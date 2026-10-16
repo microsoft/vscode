@@ -902,14 +902,20 @@ export function getStreamingInvocationMessage(toolName: string, displayName: str
 	}
 }
 
-export function getSdkImageGenerationMetadata(data: unknown): IImageGenerationToolMetadata | undefined {
-	if (!isObject(data)) {
-		return undefined;
-	}
-	const structuredContent = (data as Record<string, unknown>)['structuredContent'];
-	return isObject(structuredContent)
-		? parseImageGenerationToolMetadata((structuredContent as Record<string, unknown>)['imageGeneration'])
+export function getSdkImageGenerationMetadata(data: unknown, toolUsage?: unknown): IImageGenerationToolMetadata | undefined {
+	const structuredContent = isObject(data) ? (data as Record<string, unknown>)['structuredContent'] : undefined;
+	const image = isObject(structuredContent)
+		? (structuredContent as Record<string, unknown>)['imageGeneration']
 		: undefined;
+	const identity = parseImageGenerationToolMetadata({
+		requestedModel: isObject(image) ? (image as Record<string, unknown>).requestedModel : undefined,
+	})?.requestedModel;
+	const reportedModel = isObject(toolUsage) ? (toolUsage as Record<string, unknown>).model : undefined;
+	const requestedModel = typeof reportedModel === 'string' && reportedModel.trim()
+		? identity?.id === reportedModel ? identity : { id: reportedModel }
+		: identity;
+	// Only the runtime-owned completion field may supply billing, never result JSON.
+	return parseImageGenerationToolMetadata({ requestedModel, usage: toolUsage });
 }
 
 export function getPastTenseMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined, success: boolean, resultText?: string, resolvePath: ToolPathResolver = identityPathResolver, resolveAgentName?: ToolAgentNameResolver, imageGeneration?: IImageGenerationToolMetadata): StringOrMarkdown {

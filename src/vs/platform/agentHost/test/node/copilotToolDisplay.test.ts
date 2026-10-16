@@ -162,6 +162,24 @@ suite('copilotToolDisplay — friendly tool names', () => {
 			builtIn: 'Run Shell Command',
 		});
 	});
+
+	test('uses only the runtime-owned image usage, including charged failures without result metadata', () => {
+		const usage = { requestId: 'image-operation', inputTokens: 21, outputTokens: 196, copilotUsage: { totalNanoAiu: 598_500_000 } };
+		const result = {
+			structuredContent: {
+				imageGeneration: { requestedModel: { id: 'image-model', name: 'Image Model' }, usage },
+			},
+		};
+		assert.deepStrictEqual({
+			forged: getSdkImageGenerationMetadata(result),
+			success: getSdkImageGenerationMetadata(result, { ...usage, model: 'image-model' }),
+			failure: getSdkImageGenerationMetadata(undefined, { ...usage, model: 'image-model' }),
+		}, {
+			forged: { requestedModel: { id: 'image-model', name: 'Image Model' } },
+			success: { requestedModel: { id: 'image-model', name: 'Image Model' }, usage },
+			failure: { requestedModel: { id: 'image-model' }, usage },
+		});
+	});
 });
 
 suite('copilotToolDisplay — edit tool classification', () => {
