@@ -35,6 +35,7 @@ export class MockCliSdkSession {
 	};
 	public summary?: string;
 	public context?: { cwd?: string; gitRoot?: string; repository?: string };
+	public alreadyInUse = false;
 	constructor(public readonly sessionId: string, public readonly startTime: Date) { }
 	getChatContextMessages(): Promise<{}[]> { return Promise.resolve(this.messages); }
 	getEvents(): {}[] { return this.events; }
@@ -78,6 +79,8 @@ export class MockSkillLocations implements ICopilotCLISkills {
 
 export class MockCliSdkSessionManager {
 	public sessions = new Map<string, MockCliSdkSession>();
+	/** Sessions that another process holds an in-use lock on. */
+	public sessionsInUseByOtherProcesses = new Set<string>();
 	constructor(public readonly opts: {}) { }
 	createSession(_options: SessionOptions & { sessionId?: string }) {
 		const id = _options.sessionId ?? `sess_${generateUuid()}`;
@@ -100,6 +103,9 @@ export class MockCliSdkSessionManager {
 	}
 	deleteSession(id: string) { this.sessions.delete(id); return Promise.resolve(); }
 	closeSession(_id: string) { return Promise.resolve(); }
+	checkSessionsInUse(sessionIds: string[]): Promise<Set<string>> {
+		return Promise.resolve(new Set(sessionIds.filter(id => this.sessionsInUseByOtherProcesses.has(id))));
+	}
 	forkSession(sourceId: string, _toEventId?: string): Promise<{ sessionId: string }> {
 		const newId = `${sourceId}-fork-${generateUuid()}`;
 		const source = this.sessions.get(sourceId);

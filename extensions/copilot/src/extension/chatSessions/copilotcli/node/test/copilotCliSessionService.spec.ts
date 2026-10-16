@@ -44,7 +44,7 @@ import { IChatDelegationSummaryService } from '../../common/delegationSummarySer
 import { getCopilotCLISessionDir } from '../cliHelpers';
 import { ICopilotCLISDK } from '../copilotCli';
 import { CopilotCLISession, ICopilotCLISession } from '../copilotcliSession';
-import { COPILOT_CLI_CHAT_PANEL_SYSTEM_MESSAGE, CopilotCLISessionService, CopilotCLISessionWorkspaceTracker, ICopilotCLISessionItem } from '../copilotcliSessionService';
+import { COPILOT_CLI_CHAT_PANEL_SYSTEM_MESSAGE, CopilotCLISessionInUseError, CopilotCLISessionService, CopilotCLISessionWorkspaceTracker, ICopilotCLISessionItem } from '../copilotcliSessionService';
 import { CopilotCLIMCPHandler } from '../mcpHandler';
 import { MissionControlApiClient } from '../missionControlApiClient';
 import { IQuestion, IQuestionAnswer, IUserQuestionHandler } from '../userInputHelpers';
@@ -537,6 +537,29 @@ describe('CopilotCLISessionService', () => {
 			const session = await service.getSession({ sessionId: 'does-not-exist', ...sessionOptionsFor() }, CancellationToken.None);
 			disposables.add(session!);
 			expect(session).toBeUndefined();
+		});
+	});
+
+	describe('CopilotCLISessionService.getSession in use by another process', () => {
+		it('refuses to resume a session that another process has open', async () => {
+			const id = 'in-use';
+			manager.sessions.set(id, new MockCliSdkSession(id, new Date()));
+			manager.sessionsInUseByOtherProcesses.add(id);
+			const getSessionSpy = vi.spyOn(manager, 'getSession');
+
+			await expect(service.getSession({ sessionId: id, ...sessionOptionsFor() }, CancellationToken.None)).rejects.toBeInstanceOf(CopilotCLISessionInUseError);
+			expect(getSessionSpy).not.toHaveBeenCalled();
+		});
+
+		it('closes and refuses a session that another process opened while it was resuming', async () => {
+			const id = 'opened-while-resuming';
+			const sdkSession = new MockCliSdkSession(id, new Date());
+			sdkSession.alreadyInUse = true;
+			manager.sessions.set(id, sdkSession);
+			const closeSessionSpy = vi.spyOn(manager, 'closeSession');
+
+			await expect(service.getSession({ sessionId: id, ...sessionOptionsFor() }, CancellationToken.None)).rejects.toBeInstanceOf(CopilotCLISessionInUseError);
+			expect(closeSessionSpy).toHaveBeenCalledWith(id);
 		});
 	});
 

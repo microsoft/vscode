@@ -128,6 +128,17 @@ export interface ICopilotCLISessionService {
 
 export const ICopilotCLISessionService = createServiceIdentifier<ICopilotCLISessionService>('ICopilotCLISessionService');
 
+/**
+ * Thrown when a session can't be resumed because another process, such as the Copilot CLI
+ * in a terminal or a request running in another VS Code window, has it open.
+ */
+export class CopilotCLISessionInUseError extends Error {
+	constructor() {
+		super(l10n.t('This session is open in Copilot CLI or another VS Code window. Close it there or wait for it to finish, then try again.'));
+		this.name = 'CopilotCLISessionInUseError';
+	}
+}
+
 export class CopilotCLISessionService extends Disposable implements ICopilotCLISessionService {
 	declare _serviceBrand: undefined;
 
@@ -857,12 +868,25 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 				this.mcpHandler.loadMcpConfig(SessionIdForCLI.getResource(options.sessionId)),
 			]);
 			try {
+				// Resuming a session appends to its event log, which only one process may do at a time.
+				if ((await sessionManager.checkSessionsInUse([options.sessionId])).has(options.sessionId)) {
+					this.logService.info(`[CopilotCLISession] Session ${options.sessionId} is in use by another process.`);
+					throw new CopilotCLISessionInUseError();
+				}
 				const sessionOptions = await this.createSessionsOptions({ ...options, mcpServers });
 
 				const sdkSession = await sessionManager.getSession({ ...sessionOptions, sessionId: options.sessionId }, true);
 				if (!sdkSession) {
 					this.logService.error(`[CopilotCLISession] CopilotCLI failed to get session ${options.sessionId}.`);
 					return undefined;
+				}
+				if (sdkSession.alreadyInUse) {
+					// Another process opened the session after the check above.
+					this.logService.info(`[CopilotCLISession] Session ${options.sessionId} was opened by another process while resuming.`);
+					await sessionManager.closeSession(sdkSession.sessionId).catch(error => {
+						this.logService.error(`[CopilotCLISession] Failed to close session ${sdkSession.sessionId} that is in use by another process: ${error}`);
+					});
+					throw new CopilotCLISessionInUseError();
 				}
 				await sessionManager.loadDeferredRepoHooks(sdkSession.sessionId);
 				const session = this.createCopilotSession(sdkSession, options.workspace, options.agent?.name, sessionManager, sessionOptions.sandboxConfig);
