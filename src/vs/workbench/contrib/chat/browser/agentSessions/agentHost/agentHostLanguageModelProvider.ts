@@ -15,7 +15,6 @@ import { LOCAL_MODEL_SENTINEL_PROVIDER_NAME } from '../../../../../../platform/a
 import { readLocalModelRowMeta } from '../../../../../../platform/agentHost/common/meta/localModelStatus.js';
 import { ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { readAgentModelEnsembleMeta, readAgentModelPricingMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
-import { readAgentImageModels } from '../../../../../../platform/agentHost/common/meta/agentImageModels.js';
 import { readAgentManagedModelDefaults, readAgentModelConfigurationDefaults } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { readAgentModelGroupId, readAgentModelSourceId } from '../../../../../../platform/agentHost/common/agentModelSource.js';
@@ -157,7 +156,6 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 						cacheCost: pricing.cacheCost ?? known?.cacheCost,
 						cacheWriteCost: pricing.cacheWriteCost ?? known?.cacheWriteCost,
 						outputCost: pricing.outputCost ?? known?.outputCost,
-						imageModels: readAgentImageModels(m),
 						longContextInputCost: pricing.longContextInputCost ?? known?.longContextInputCost,
 						longContextCacheCost: pricing.longContextCacheCost ?? known?.longContextCacheCost,
 						longContextCacheWriteCost: pricing.longContextCacheWriteCost ?? known?.longContextCacheWriteCost,

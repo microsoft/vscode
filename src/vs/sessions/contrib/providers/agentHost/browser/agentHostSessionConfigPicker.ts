@@ -385,7 +385,7 @@ function isRenderableSessionConfigProperty(property: string, schema: SessionConf
 		|| (schema.readOnly && ['effectiveApprovalMode', 'availableApprovalModes', 'effectiveAutoTier'].includes(property))) {
 		return false;
 	}
-	if (property === SessionConfigKey.SandboxEnabled || (property === SessionConfigKey.ImageGenerationEnabled && schema.type === 'boolean')) {
+	if (property === SessionConfigKey.SandboxEnabled) {
 		return false;
 	}
 	// TODO: Consolidate timeout configuration UI with other clients.

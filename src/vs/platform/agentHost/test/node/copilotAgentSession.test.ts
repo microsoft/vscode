@@ -1179,7 +1179,6 @@ type TestCopilotSessionRuntime = Omit<ICopilotSessionRuntime, 'handlePermissionR
 };
 
 async function createAgentSession(disposables: DisposableStore, options?: {
-	imageGenerationEnabled?: boolean;
 	clientSnapshot?: IActiveClientSnapshot;
 	activeClientToolSet?: ActiveClientToolSet;
 	environmentServiceRegistration?: 'native' | 'none';
@@ -1249,7 +1248,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	modelPolicyModels?: CopilotSessionLaunchPlan['modelPolicyModels'];
 	resume?: boolean;
 	initializeEnablementSession?: (session: string) => Promise<void>;
-	beforeLaunch?: () => void;
+	beforeLaunch?: (rootValues: Record<string, unknown>) => void;
 	/** BYOK providers and models the SDK session launches with. */
 	launchByokConfig?: ICopilotByokSessionConfig;
 	/** BYOK providers and models the launcher currently resolves. */
@@ -1335,7 +1334,6 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		githubCredentials: options?.githubCredentials ?? CopilotGitHubSessionCredentials.fromToken(options?.githubToken),
 		isEphemeral: options?.isEphemeral,
 		hasScopedEditSurface: options?.hasScopedEditSurface,
-		imageGenerationEnabled: options?.imageGenerationEnabled,
 		localModelProvider: options?.localModelProvider,
 		modelPolicyModels: options?.modelPolicyModels,
 	};
@@ -1356,9 +1354,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	const logService = options?.logService ?? new NullLogService();
 	const sessionLauncher: ICopilotSessionLauncher = {
 		launch: async (_plan, runtime) => {
-			const imageGenerationEnabled = (options?.rootValues?.[CopilotCliConfigKey.ImageGeneration] ?? options?.imageGenerationEnabled) === true
-				&& options?.configValues?.[SessionConfigKey.ImageGenerationEnabled] !== false;
-			options?.beforeLaunch?.();
+			const imageGenerationEnabled = rootValues[CopilotCliConfigKey.ImageGeneration] === true;
+			options?.beforeLaunch?.(rootValues);
 			launchedRuntime = runtime;
 			if (options?.captureRuntime) {
 				options.captureRuntime.current = runtime;
@@ -1739,10 +1736,10 @@ suite('CopilotAgentSession', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('image generation preference', () => {
-		for (const channelDefault of [true, false]) {
-			test(`the feature setting overrides the channel default live (${channelDefault})`, async () => {
-				const rig = await createAgentSession(disposables, { imageGenerationEnabled: channelDefault });
-				for (const enabled of [!channelDefault, channelDefault]) {
+		for (const initial of [true, false]) {
+			test(`the Sunburst setting applies live without changing the chat model (${initial})`, async () => {
+				const rig = await createAgentSession(disposables, { rootValues: { [CopilotCliConfigKey.ImageGeneration]: initial } });
+				for (const enabled of [!initial, initial]) {
 					const updated = new DeferredPromise<void>();
 					rig.mockSession.onImageGenerationUpdate = () => { void updated.complete(); };
 					rig.setRootValue(CopilotCliConfigKey.ImageGeneration, enabled);
@@ -1750,27 +1747,25 @@ suite('CopilotAgentSession', () => {
 					await updated.p;
 				}
 				await rig.session.send('hello', undefined, 'feature-toggle-turn');
-				assert.deepStrictEqual(rig.mockSession.imageGenerationUpdates, [!channelDefault, channelDefault]);
+				assert.deepStrictEqual(rig.mockSession.imageGenerationUpdates, [!initial, initial]);
 				assert.deepStrictEqual(rig.mockSession.setModelCalls, []);
 			});
 		}
 
-		test('a feature opt-in does not override an explicit per-session Off preference', async () => {
+		test('the feature setting is authoritative over a retired per-session picker preference', async () => {
 			const rig = await createAgentSession(disposables, {
-				imageGenerationEnabled: false,
-				configValues: { [SessionConfigKey.ImageGenerationEnabled]: false },
+				configValues: { 'vscode.imageGenerationEnabled': false },
 			});
 			rig.setRootValue(CopilotCliConfigKey.ImageGeneration, true);
 			rig.fireRootConfigChange();
-			await rig.session.send('hello', undefined, 'still-off');
-			assert.deepStrictEqual(rig.mockSession.imageGenerationUpdates, []);
+			await rig.session.send('hello', undefined, 'setting-on');
+			assert.deepStrictEqual(rig.mockSession.imageGenerationUpdates, [true]);
 		});
 
 		test('launch reconciles a preference changed while the SDK session was being created', async () => {
-			const configValues = { [SessionConfigKey.ImageGenerationEnabled]: true };
 			const { mockSession } = await createAgentSession(disposables, {
-				imageGenerationEnabled: true, configValues,
-				beforeLaunch: () => { configValues[SessionConfigKey.ImageGenerationEnabled] = false; },
+				rootValues: { [CopilotCliConfigKey.ImageGeneration]: true },
+				beforeLaunch: rootValues => { rootValues[CopilotCliConfigKey.ImageGeneration] = false; },
 			});
 			assert.deepStrictEqual(mockSession.imageGenerationUpdates, [false]);
 			assert.deepStrictEqual(mockSession.setModelCalls, []);
@@ -1778,19 +1773,17 @@ suite('CopilotAgentSession', () => {
 
 		test('image preferences changed before the SDK wrapper is ready are applied after launch', async () => {
 			const errors: unknown[][] = [];
-			const configValues = { [SessionConfigKey.ImageGenerationEnabled]: true };
 			let created: CopilotAgentSession | undefined;
 			let pendingUpdate: Promise<void> | undefined;
 			const { mockSession } = await createAgentSession(disposables, {
-				imageGenerationEnabled: true,
-				configValues,
+				rootValues: { [CopilotCliConfigKey.ImageGeneration]: true },
 				logService: new class extends NullLogService {
 					override error(...args: unknown[]): void { errors.push(args); }
 				}(),
 				onSessionCreated: session => { created = session; },
-				beforeLaunch: () => {
+				beforeLaunch: rootValues => {
 					assert.ok(created);
-					configValues[SessionConfigKey.ImageGenerationEnabled] = false;
+					rootValues[CopilotCliConfigKey.ImageGeneration] = false;
 					pendingUpdate = created['_syncImageGenerationAfterConfigChange']();
 				},
 			});
@@ -1802,18 +1795,17 @@ suite('CopilotAgentSession', () => {
 			const entered = new DeferredPromise<void>();
 			const release = new DeferredPromise<void>();
 			const rig = await createAgentSession(disposables, {
-				imageGenerationEnabled: true,
-				configValues: { [SessionConfigKey.ImageGenerationEnabled]: true },
+				rootValues: { [CopilotCliConfigKey.ImageGeneration]: true },
 			});
 			assert.deepStrictEqual(rig.mockSession.imageGenerationUpdates, []);
 			rig.mockSession.imageGenerationUpdateGate = release.p;
 			rig.mockSession.onImageGenerationUpdate = () => { void entered.complete(); };
 			try {
-				rig.setConfigValue(SessionConfigKey.ImageGenerationEnabled, false);
-				rig.fireSessionConfigChange({ [SessionConfigKey.ImageGenerationEnabled]: false });
+				rig.setRootValue(CopilotCliConfigKey.ImageGeneration, false);
+				rig.fireRootConfigChange();
 				await entered.p;
-				rig.setConfigValue(SessionConfigKey.ImageGenerationEnabled, true);
-				rig.fireSessionConfigChange({ [SessionConfigKey.ImageGenerationEnabled]: true });
+				rig.setRootValue(CopilotCliConfigKey.ImageGeneration, true);
+				rig.fireRootConfigChange();
 				await release.complete();
 				await rig.session.send('hello', undefined, 'image-toggle-turn');
 				assert.deepStrictEqual(rig.mockSession.imageGenerationUpdates, [false, true]);
@@ -1825,10 +1817,10 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('a rejected Off update prevents sending and is reapplied before a later turn', async () => {
-			const rig = await createAgentSession(disposables, { imageGenerationEnabled: true });
+			const rig = await createAgentSession(disposables, { rootValues: { [CopilotCliConfigKey.ImageGeneration]: true } });
 			rig.mockSession.imageGenerationUpdateSuccess = false;
-			rig.setConfigValue(SessionConfigKey.ImageGenerationEnabled, false);
-			rig.fireSessionConfigChange({ [SessionConfigKey.ImageGenerationEnabled]: false });
+			rig.setRootValue(CopilotCliConfigKey.ImageGeneration, false);
+			rig.fireRootConfigChange();
 			await assert.rejects(() => rig.session.send('blocked', undefined, 'blocked-image-toggle'), /did not apply the image generation setting/);
 			assert.deepStrictEqual(rig.mockSession.sendRequests, []);
 			rig.mockSession.imageGenerationUpdateSuccess = true;
@@ -1837,21 +1829,19 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(rig.mockSession.sendRequests.length, 1);
 		});
 
-		test('peer chats read and observe the opaque owning configuration scope', async () => {
+		test('peer chats use the same host-wide Sunburst setting', async () => {
 			const rig = await createAgentSession(disposables, {
-				imageGenerationEnabled: true,
 				sessionUri: URI.parse('provider:/opaque-owner'),
 				resource: URI.parse('other:/peer-resource'),
-				configValues: { [SessionConfigKey.ImageGenerationEnabled]: false },
 			});
-			rig.setConfigValue(SessionConfigKey.ImageGenerationEnabled, true);
-			rig.fireSessionConfigChange({ [SessionConfigKey.ImageGenerationEnabled]: true });
+			rig.setRootValue(CopilotCliConfigKey.ImageGeneration, true);
+			rig.fireRootConfigChange();
 			await rig.session.send('hello', undefined, 'peer-image-toggle');
 			assert.deepStrictEqual(rig.mockSession.imageGenerationUpdates, [true]);
 		});
 
 		test('a failed live preference update ends the host turn even when SDK idle arrives during abort', async () => {
-			const rig = await createAgentSession(disposables, { imageGenerationEnabled: true });
+			const rig = await createAgentSession(disposables, { rootValues: { [CopilotCliConfigKey.ImageGeneration]: true } });
 			await rig.session.send('hello', undefined, 'active-image-toggle');
 			rig.mockSession.fire('assistant.turn_start', { turnId: 'sdk-image-toggle' });
 			assert.strictEqual(rig.session.hasActiveTurn, true);
@@ -1862,8 +1852,8 @@ suite('CopilotAgentSession', () => {
 			rig.mockSession.imageGenerationUpdateSuccess = false;
 			const failed = rig.waitForSignal(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatError);
 			try {
-				rig.setConfigValue(SessionConfigKey.ImageGenerationEnabled, false);
-				rig.fireSessionConfigChange({ [SessionConfigKey.ImageGenerationEnabled]: false });
+				rig.setRootValue(CopilotCliConfigKey.ImageGeneration, false);
+				rig.fireRootConfigChange();
 				await abortEntered.p;
 				rig.mockSession.fire('session.idle', {});
 				await abortRelease.complete();

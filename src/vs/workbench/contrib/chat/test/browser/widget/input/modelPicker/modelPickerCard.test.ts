@@ -154,34 +154,6 @@ suite('ModelCard', () => {
 		return Array.from(card.element.querySelectorAll('[role="radio"][aria-checked="true"]'), option => option.textContent ?? '');
 	}
 
-	test('image catalog metadata never adds image prices or notes to chat-model details', () => {
-		for (const isUBB of [false, true]) {
-			const { card } = createCard({}, {
-				isUBB, model: createModel({
-					imageModels: [{ id: 'image-one', name: 'Image One', supportedOperations: ['generate'], isDefault: true }],
-				})
-			});
-			assert.deepStrictEqual({
-				hasImageName: card.element.textContent?.includes('Image One'),
-				hasImageNote: !!card.element.querySelector('.chat-model-tool-pricing'),
-				chatRateLabels: Array.from(card.element.querySelectorAll('.chat-model-card-pricing-label'), row => row.textContent),
-			}, {
-				hasImageName: false, hasImageNote: false,
-				chatRateLabels: isUBB ? ['Input', 'Output'] : [],
-			});
-		}
-	});
-
-	test('Auto does not render a fictitious price for an auxiliary image catalog', () => {
-		const auto = createAutoModel();
-		const { card } = createCard({}, { model: { ...auto, metadata: { ...auto.metadata, imageModels: [] } } });
-		assert.deepStrictEqual({
-			hasImageNote: !!card.element.querySelector('.chat-model-tool-pricing'),
-			chatRates: card.element.querySelectorAll('.chat-model-card-pricing-row').length,
-			hasRateCaption: !!card.element.querySelector('.chat-model-card-pricing-caption'),
-		}, { hasImageNote: false, chatRates: 0, hasRateCaption: false });
-	});
-
 	/** The option labels of the first segmented control, split where a row break sits. */
 	function segmentRows(card: ModelCard): string[][] {
 		const rows: string[][] = [[]];

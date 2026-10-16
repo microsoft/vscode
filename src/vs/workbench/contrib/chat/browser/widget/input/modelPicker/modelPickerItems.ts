@@ -83,7 +83,7 @@ export function getModelPickerAccessibilityProvider(isSearch = false, multiple =
 			return [element.label, element.badge, ...(element.additionalBadges?.map(badge => badge.label) ?? []), description, currentModel].filter((part): part is string => !!part).join(', ');
 		},
 		isChecked(element: IActionListItem<IActionWidgetDropdownAction>) {
-			if (isSearch || element.isSectionToggle || (element.opensDialog && element.item?.checked === undefined)) {
+			if (isSearch || element.isSectionToggle) {
 				return undefined;
 			}
 			return element.kind === ActionListItemKind.Action ? !!element.item?.checked : undefined;
@@ -92,7 +92,7 @@ export function getModelPickerAccessibilityProvider(isSearch = false, multiple =
 			if (isSearch) {
 				return element.kind === ActionListItemKind.Action ? 'option' : 'separator';
 			}
-			if (element.isSectionToggle || (element.opensDialog && element.item?.checked === undefined)) {
+			if (element.isSectionToggle) {
 				return 'menuitem';
 			}
 			switch (element.kind) {

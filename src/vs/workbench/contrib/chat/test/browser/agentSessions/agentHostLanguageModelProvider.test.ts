@@ -11,7 +11,6 @@ import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { PolicyState, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { withAgentModelEnsembleMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
-import { withAgentImageModels, type IImageToolModel } from '../../../../../../platform/agentHost/common/meta/agentImageModels.js';
 import { createLocalModelRowMeta } from '../../../../../../platform/agentHost/common/meta/localModelStatus.js';
 import { withAgentManagedModelDefaults, withAgentModelConfigurationDefaults } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
 import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
@@ -27,28 +26,6 @@ suite('AgentHostLanguageModelProvider', () => {
 	function createProvider(): AgentHostLanguageModelProvider {
 		return store.add(new AgentHostLanguageModelProvider('agent-host-copilotcli', 'copilotcli'));
 	}
-
-	test('a remote image catalog stays auxiliary across wire round trips and catalog removal', async () => {
-		const provider = store.add(new AgentHostLanguageModelProvider('remote-session', 'opaque-host-vendor'));
-		const images: readonly IImageToolModel[] = [
-			{ id: 'opaque/image:one', name: 'Remote Image One', supportedOperations: ['generate'], isDefault: true, pricing: { batchSize: 100_000, textInputPrice: 50, textOutputPrice: 0, imageInputPrice: 80.125, imageOutputPrice: 300.001 } },
-			{ id: 'opaque/image:two', name: 'Remote Image Two', supportedOperations: ['edit'], isDefault: false },
-		];
-		const model: SessionModelInfo = {
-			id: 'remote-chat:model', provider: 'opaque-provider', name: 'Remote Chat',
-			_meta: withAgentImageModels({ inputCost: 3 }, images),
-		};
-		provider.updateModels(JSON.parse(JSON.stringify([model])));
-		const listed = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
-		provider.updateModels([{ id: model.id, provider: model.provider, name: model.name }]);
-		const cleared = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
-		assert.deepStrictEqual({
-			chatIds: listed.map(model => model.metadata.id),
-			images: listed[0].metadata.imageModels,
-			chatCost: listed[0].metadata.inputCost,
-			cleared: cleared[0].metadata.imageModels,
-		}, { chatIds: ['remote-chat:model'], images, chatCost: 3, cleared: undefined });
-	});
 
 	test('passes host-owned defaults and locks through without assuming model identifiers', async () => {
 		const provider = createProvider();

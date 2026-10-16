@@ -25,8 +25,6 @@ export const enum SessionConfigKey {
 	Permissions = 'permissions',
 	/** Session sandbox selection; persistence records the successfully applied value. */
 	SandboxEnabled = 'sandboxEnabled',
-	/** Independent opt-in to the provider's native image generation tool. */
-	ImageGenerationEnabled = 'vscode.imageGenerationEnabled',
 	/** `'isolation'` — host-owned `'folder'` or `'worktree'` selection. */
 	Isolation = 'isolation',
 	/** `'branch'` — host-owned base branch to work from. */

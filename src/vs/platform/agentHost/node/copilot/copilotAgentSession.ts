@@ -38,7 +38,7 @@ import { ILogService, LogLevel } from '../../../log/common/log.js';
 import product from '../../../product/common/product.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { getCopilotHomePath, getCopilotMcpConfigurationPath } from '../../../environment/common/copilotHome.js';
-import { AgentHostHydraFusionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, copilotImageGenerationSessionSchema, isCopilotHydraFusionModelId } from '../../common/copilotCliConfig.js';
+import { AgentHostHydraFusionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, isCopilotHydraFusionModelId } from '../../common/copilotCliConfig.js';
 import { logSettingExperimentTrigger } from '../../../telemetry/common/experimentTrigger.js';
 import { withCustomizationEnablement } from '../../common/customizationEnablement.js';
 import { isAutoModeRoutingTier, type AutoModeRoutingTier } from '../../common/autoModeTiers.js';
@@ -6677,9 +6677,6 @@ export class CopilotAgentSession extends Disposable {
 			if (Object.hasOwn(event.config, SessionConfigKey.ShellInitScripts)) {
 				void this._syncShellInitScript();
 			}
-			if (Object.hasOwn(event.config, SessionConfigKey.ImageGenerationEnabled)) {
-				void this._syncImageGenerationAfterConfigChange();
-			}
 		}));
 	}
 
@@ -6718,8 +6715,7 @@ export class CopilotAgentSession extends Disposable {
 
 	private _syncImageGeneration(): Promise<void> {
 		return this._imageGenerationSequencer.queue(async () => {
-			const enabled = (this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ImageGeneration) ?? this._launchPlan.imageGenerationEnabled) === true
-				&& this._configurationService.getEffectiveValue(this._ownerSessionUri.toString(), copilotImageGenerationSessionSchema, SessionConfigKey.ImageGenerationEnabled) !== false;
+			const enabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ImageGeneration) === true;
 			if (enabled === this._appliedImageGenerationEnabled) {
 				return;
 			}

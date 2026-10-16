@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { Emitter } from '../../../../base/common/event.js';
-import { CancellationError } from '../../../../base/common/errors.js';
-import { autorun, derived, IObservable, ISettableObservable, observableValue, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { autorun, derived, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { localize2 } from '../../../../nls.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
@@ -24,13 +22,10 @@ import { IChatPetService } from '../../../../workbench/contrib/chat/browser/chat
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { getAgentHostProviderForTelemetry, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
-import { getSessionConfigProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
+import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
 import { Menus } from '../../../browser/menus.js';
 import { IsPhoneLayoutContext, SessionUsesCombinedConfigPickerContext } from '../../../common/contextkeys.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { SessionConfigKey } from '../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { isSessionConfigWritable } from '../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionModelSelection } from './sessionModelSelection.js';
 import { INewChatModelPickerService } from './newChatModelPicker.js';
@@ -50,7 +45,6 @@ export class ModelPicker extends Disposable {
 	private readonly _delegate: IModelPickerDelegate;
 	private readonly _modelPicker: ModelPickerActionItem;
 	private _container: HTMLElement | undefined;
-	private readonly _onDidChangeImageGeneration = this._register(new Emitter<void>());
 
 	constructor(
 		compact: IObservable<boolean>,
@@ -63,27 +57,12 @@ export class ModelPicker extends Disposable {
 		@ISessionModelSelection private readonly _selectionModel: ISessionModelSelection,
 		@IChatPetService private readonly _chatPetService: IChatPetService,
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
-		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 	) {
 		super();
 		const currentModel = derived(this, reader => this._selectionModel.state.read(reader).currentModel);
 
 		this._delegate = {
-			imageGeneration: {
-				onDidChange: this._onDidChangeImageGeneration.event,
-				getState: () => {
-					const context = this._getImageGenerationContext();
-					return context ? { enabled: context.enabled, readOnly: context.readOnly } : undefined;
-				},
-				setEnabled: async enabled => {
-					const context = this._getImageGenerationContext();
-					if (!context || context.readOnly) {
-						throw new CancellationError();
-					}
-					await context.provider.setSessionConfigValue(context.sessionId, context.chat, SessionConfigKey.ImageGenerationEnabled, enabled);
-				},
-			},
 			workflow: this._selectionModel.workflow,
 			currentModel,
 			modelConfiguration: this._selectionModel.modelConfiguration,
@@ -126,24 +105,6 @@ export class ModelPicker extends Disposable {
 				return session ? session.status.get() !== SessionStatus.Untitled : false;
 			},
 		};
-
-		const imageConfigListener = this._register(new MutableDisposable());
-		const providersChanged = observableSignalFromEvent(this, this._sessionsProvidersService.onDidChangeProviders);
-		this._register(autorun(reader => {
-			providersChanged.read(reader);
-			const session = this._sessionContext.session.read(reader);
-			const provider = session && this._sessionsProvidersService.getProvider(session.providerId);
-			const configProvider = provider && getSessionConfigProvider(provider);
-			imageConfigListener.value = session && configProvider?.onDidChangeSessionConfig(id => {
-				if (id === session.sessionId) {
-					this._onDidChangeImageGeneration.fire();
-				}
-			});
-			if (session && configProvider) {
-				configProvider.isSessionConfigResolving(session.sessionId, session.activeChat.read(reader).resource).read(reader);
-			}
-			this._onDidChangeImageGeneration.fire();
-		}));
 
 		const pickerOptions: IChatInputPickerOptions = {
 			compact,
@@ -194,27 +155,6 @@ export class ModelPicker extends Disposable {
 
 	show(anchor?: HTMLElement): void {
 		this._modelPicker.show(anchor);
-	}
-
-	private _getImageGenerationContext() {
-		const session = this._sessionContext.session.get();
-		const provider = session && this._sessionsProvidersService.getProvider(session.providerId);
-		const configProvider = provider && getSessionConfigProvider(provider);
-		if (!session || !configProvider) {
-			return undefined;
-		}
-		const chat = session.activeChat.get().resource;
-		const config = configProvider.getSessionConfig(session.sessionId, chat);
-		const schema = config?.schema.properties[SessionConfigKey.ImageGenerationEnabled];
-		const value = config?.values[SessionConfigKey.ImageGenerationEnabled] ?? schema?.default;
-		if (schema?.type !== 'boolean' || typeof value !== 'boolean') {
-			return undefined;
-		}
-		return {
-			provider: configProvider, sessionId: session.sessionId, chat, enabled: value,
-			readOnly: !isSessionConfigWritable(schema, configProvider.getCreateSessionConfig(session.sessionId) !== undefined)
-				|| configProvider.isSessionConfigResolving(session.sessionId, chat).get(),
-		};
 	}
 
 	/**

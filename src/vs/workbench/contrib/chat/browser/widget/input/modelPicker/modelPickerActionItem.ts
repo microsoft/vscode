@@ -22,13 +22,6 @@ import { IModelPickerWorkflow } from './modelPickerWorkflow.js';
 import { IChatInputPickerOptions } from '../chatInputPickerActionItem.js';
 import { IModelConfigurationAccess } from './modelPickerModelConfig.js';
 import { IModelPickerOpenOptions, ModelPickerWidget } from './modelPickerWidget.js';
-import { Event } from '../../../../../../../base/common/event.js';
-
-export interface IImageGenerationPickerAccess {
-	readonly onDidChange: Event<void>;
-	getState(): { readonly enabled: boolean; readonly readOnly: boolean } | undefined;
-	setEnabled(enabled: boolean): Promise<void>;
-}
 
 export interface IModelPickerPresentationOptions {
 	readonly showManageModelsAction: boolean;
@@ -38,7 +31,6 @@ export interface IModelPickerPresentationOptions {
 }
 
 export interface IModelPickerDelegate {
-	readonly imageGeneration?: IImageGenerationPickerAccess;
 	readonly workflow?: IModelPickerWorkflow;
 	readonly currentModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>;
 	setModel(model: ILanguageModelChatMetadataAndIdentifier): void;

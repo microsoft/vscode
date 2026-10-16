@@ -126,7 +126,7 @@ Copilot image completions carry optional `_meta["vscode.toolCallDurationMs"]`, d
 
 For native image-generation results, `structuredContent.imageGeneration.images[].contentIndex` identifies original images in SDK `result.contents`. Use those validated indexes for display rather than also displaying resized model-facing copies from `contents` or `binaryResultsForLlm`; preserve all content when the optional index metadata is absent or invalid.
 
-Every Copilot SDK create/resume configuration sets `imageGeneration.enabled` from `chat.copilot.imageGeneration.enabled` (off by default in all builds) and per-session Off. This non-persisted consent is reapplied after host restarts; the CLI rollout environment flag is not a substitute. The runtime still owns image-model availability, account authorization, policy, and tool permissions; opting in cannot bypass those checks.
+Every Copilot SDK create/resume configuration sets `imageGeneration.enabled` from `chat.copilot.imageGeneration.enabled` (off by default in all builds). This setting controls Sunburst generation and editing without a model-picker entry and is reapplied after host restarts. The runtime still owns image-model availability, account authorization, policy, and tool permissions; opting in cannot bypass those checks.
 
 ### Orchestrator layer
 

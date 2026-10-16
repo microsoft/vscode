@@ -23,8 +23,7 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabl
 import { getCopilotApprovalPolicy } from './copilotApprovalPolicy.js';
 import { AGENT_HOST_COPILOT_CLIENT_NAME, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
 import { omitCopilotManagedModelDefaults, type CopilotManagedModelPolicy } from './copilotManagedModelConfiguration.js';
-import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, copilotImageGenerationSessionSchema, normalizeModelFamilyAlias, normalizeToolSearchDeferThreshold, resolveModelCapabilityOverrideField } from '../../common/copilotCliConfig.js';
-import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, normalizeModelFamilyAlias, normalizeToolSearchDeferThreshold, resolveModelCapabilityOverrideField } from '../../common/copilotCliConfig.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { reasoningEffortLevels, type ReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { getSessionSandboxConfig } from '../sessionSandbox.js';
@@ -278,8 +277,6 @@ interface ICopilotSessionLaunchBase {
 	readonly extensionSdkPath?: string;
 	/** Whether this launch is for a transient session that skips durable-only provider work. */
 	readonly isEphemeral?: boolean;
-	/** Owner consent for the preview image tool, reapplied on create and cold resume. */
-	readonly imageGenerationEnabled?: boolean;
 	/**
 	 * Whether the owning chat surface is scoped to editing a single file, so
 	 * blanket shell auto-approvals must not apply. See
@@ -1326,8 +1323,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			},
 			clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
 			imageGeneration: {
-				enabled: (this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ImageGeneration) ?? plan.imageGenerationEnabled) === true
-					&& this._configurationService.getEffectiveValue(runtime.launchOwner.toString(), copilotImageGenerationSessionSchema, SessionConfigKey.ImageGenerationEnabled) !== false,
+				enabled: this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ImageGeneration) === true,
 			},
 			...(hydraFusionEnabled ? { enableExperimentalMode: true } : {}),
 			interactiveUser: true,

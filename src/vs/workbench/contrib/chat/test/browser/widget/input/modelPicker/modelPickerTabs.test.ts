@@ -110,32 +110,6 @@ suite('Model picker destinations', () => {
 	/** The destination id a provider gets, keyed by identity rather than by display name. */
 	const providerId = (vendor: string, label: string) => `provider:${getProviderGroupKey(vendor, label)}`;
 
-	test('Images is a separate deduplicated runtime-default catalog beside Copilot and user providers', () => {
-		const imageModels = [
-			{ id: 'image-second', name: 'Second Image', supportedOperations: ['edit'] as const, isDefault: false },
-			{ id: 'image-first', name: 'First Image', supportedOperations: ['generate', 'edit'] as const, isDefault: true },
-		];
-		const catalogModels = [auto, gpt, claude].map(model => ({ ...model, metadata: { ...model.metadata, imageModels } }));
-		const destinations = buildModelPickerDestinations([...catalogModels, llama], service);
-		assert.deepStrictEqual(destinations.map(destination => ({
-			label: destination.label,
-			chatModels: destination.models.map(model => model.metadata.name),
-			images: destination.imageModels?.map(image => image.model.name),
-		})), [
-			{ label: 'GitHub Copilot', chatModels: ['GPT-5.5', 'Claude Sonnet 5'], images: undefined },
-			{ label: 'Images', chatModels: [], images: ['First Image'] },
-			{ label: 'Ollama', chatModels: ['Llama 3'], images: undefined },
-		]);
-	});
-
-	test('an empty supported image catalog has an empty-state tab, while an older host has none', () => {
-		const empty = { ...gpt, metadata: { ...gpt.metadata, imageModels: [] } };
-		assert.deepStrictEqual({
-			absent: buildModelPickerDestinations([gpt], service).map(destination => destination.id),
-			empty: buildModelPickerDestinations([empty], service).map(destination => destination.id),
-		}, { absent: ['builtIn'], empty: ['builtIn', 'images'] });
-	});
-
 	test('a host that relays the built-in provider keeps its models built in', () => {
 		// An agent host registers a vendor of its own and republishes the built-in
 		// provider's catalogue under it, so neither the vendor nor the BYOK flags say

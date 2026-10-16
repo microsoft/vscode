@@ -1701,7 +1701,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[CopilotImageGenerationEnabledSettingId]: {
 			type: 'boolean',
-			description: nls.localize('chat.copilot.imageGeneration.enabled', "Show Images in the model picker and enable image generation for accounts with access. Turn image generation off for an individual session in the picker. Disabling this setting hides Images and disables future image tool calls."),
+			description: nls.localize('chat.copilot.imageGeneration.enabled', "Enable image generation and editing with GPT Image 2.5 Sunburst. Prompts and selected images are sent to the image model and use AI credits in addition to the conversation model. Account access and tool permissions still apply. Disabling this setting prevents future image tool calls."),
 			default: DEFAULT_COPILOT_IMAGE_GENERATION_ENABLED,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['preview', 'experimental'],

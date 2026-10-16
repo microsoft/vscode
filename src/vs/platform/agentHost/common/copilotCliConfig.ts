@@ -8,7 +8,6 @@ import { localize } from '../../../nls.js';
 import { createSchema, schemaProperty } from './agentHostSchema.js';
 import { getLocalModelSafetyDisclosure } from './localModel.js';
 import { reasoningEffortLevels } from './reasoningEffort.js';
-import { SessionConfigKey } from './sessionConfigKeys.js';
 
 export const COPILOT_HYDRA_FUSION_MODEL_ID = 'hydrafusion';
 /** The runtime's HydraFusion Max model, which it only offers with HydraFusion v2 (`HYDRAFUSION_PLAN_V2`). */
@@ -35,7 +34,7 @@ export const enum CopilotCliConfigKey {
 	EnableCustomTerminalTool = 'enableCustomTerminalTool',
 	/** Apply the shell init script a client published for a session to SDK shell commands. Off by default. */
 	EnableShellInitScript = 'enableShellInitScript',
-	/** Enable image generation independently of a session's image preference. */
+	/** Enable native Sunburst image generation and editing. Off by default. */
 	ImageGeneration = 'imageGeneration',
 	/** Log level passed to the Copilot SDK client. */
 	CopilotSdkLogLevel = 'copilotSdkLogLevel',
@@ -209,21 +208,11 @@ export function resolveModelCapabilityOverrideField<K extends keyof ICopilotCliM
 	return undefined;
 }
 
-export const copilotImageGenerationSessionSchema = createSchema({
-	[SessionConfigKey.ImageGenerationEnabled]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.imageGeneration.title', "Image Generation"),
-		description: localize('agentHost.config.imageGeneration.description', "Allow the native image tool to use the runtime default image model. Model access and permissions still apply."),
-		default: true,
-		sessionMutable: true,
-	}),
-});
-
 export const copilotCliConfigSchema = createSchema({
 	[CopilotCliConfigKey.ImageGeneration]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.imageGenerationEnabled.title', "Image Generation"),
-		description: localize('agentHost.config.imageGenerationEnabled.description', "Enable the Images model picker and native image generation. Account access and the session's image preference still apply."),
+		description: localize('agentHost.config.imageGenerationEnabled.description', "Enable image generation and editing with GPT Image 2.5 Sunburst. Uses AI credits in addition to the conversation model. Account access and tool permissions still apply."),
 	}),
 	[CopilotCliConfigKey.EnableCustomTerminalTool]: schemaProperty<boolean>({
 		type: 'boolean',
