@@ -211,6 +211,7 @@ class MockCopilotSession {
 	abortGate: Promise<void> | undefined;
 	onAbort: (() => void) | undefined;
 	modelGate: Promise<void> | undefined;
+	modelError: Error | undefined;
 	readonly setModelCalls: Parameters<CopilotSession['setModel']>[] = [];
 	readonly providerSyncCalls: ICopilotByokSessionConfig[] = [];
 	agentSelectGate: Promise<void> | undefined;
@@ -454,6 +455,9 @@ class MockCopilotSession {
 	async setModel(...args: Parameters<CopilotSession['setModel']>) {
 		this.setModelCalls.push(args);
 		await this.modelGate;
+		if (this.modelError) {
+			throw this.modelError;
+		}
 	}
 	async disconnect() {
 		this.disconnectCalls++;
@@ -2816,6 +2820,69 @@ suite('CopilotAgentSession', () => {
 			providerSyncCalls: [[968_000], [200_000]],
 			setModelCalls: ['acme/big', 'acme/big'],
 		});
+	});
+
+	/**
+	 * A session on `acme/big` at 968K whose launcher sizes the model from the
+	 * selection it is given, for the races between `setModel` and a background
+	 * `syncByokModels` (a bridge or on-device refresh) below.
+	 */
+	async function createSizedByokSession(): Promise<{ session: CopilotAgentSession; mockSession: MockCopilotSession; registeredSizes: () => (number | undefined)[] }> {
+		const provider = { name: 'acme', type: 'openai' as const, wireApi: 'responses' as const, baseUrl: 'http://127.0.0.1:1/v/acme', bearerToken: 'nonce.test-session-1' };
+		const sizeOf = (model: ModelSelection | undefined) => model?.id === 'acme/big' ? Number(model.config?.contextSize ?? 968_000) : 968_000;
+		const { session, mockSession } = await createAgentSession(disposables, {
+			modelId: 'acme/big',
+			launchByokConfig: { providers: [provider], models: [{ id: 'big', provider: 'acme', maxPromptTokens: 968_000 }] },
+			resolveByokSessionConfig: model => ({ providers: [provider], models: [{ id: 'big', provider: 'acme', maxPromptTokens: sizeOf(model) }] }),
+		});
+		return { session, mockSession, registeredSizes: () => mockSession.providerSyncCalls.map(call => call.models?.[0]?.maxPromptTokens) };
+	}
+
+	test('a background BYOK sync during a model change sizes the model from the selection being applied', async () => {
+		const { session, mockSession, registeredSizes } = await createSizedByokSession();
+		const sdkSwitch = new DeferredPromise<void>();
+		mockSession.modelGate = sdkSwitch.p;
+
+		const change = session.setModel('acme/big', undefined, undefined, undefined, { id: 'acme/big', config: { contextSize: 200_000 } });
+		// Wait for the switch to reach the SDK, so the pre-switch registration is done and the SDK call is in flight.
+		while (mockSession.setModelCalls.length === 0) {
+			await timeout(0);
+		}
+		// A bridge refresh now re-syncs. It must not re-register the 968K the switch is replacing.
+		const background = session.syncByokModels();
+		sdkSwitch.complete();
+		await Promise.all([change, background]);
+		// With the switch applied, a further sync sees the same selection and changes nothing.
+		await session.syncByokModels();
+
+		assert.deepStrictEqual(registeredSizes(), [200_000]);
+	});
+
+	test('a background BYOK sync queued before a model change still sizes the model from the new selection', async () => {
+		const { session, mockSession, registeredSizes } = await createSizedByokSession();
+		const sdkSwitch = new DeferredPromise<void>();
+		mockSession.modelGate = sdkSwitch.p;
+
+		// Queued first, so it runs first; the selection is read when it runs, not when it was queued.
+		const background = session.syncByokModels();
+		const change = session.setModel('acme/big', undefined, undefined, undefined, { id: 'acme/big', config: { contextSize: 200_000 } });
+		sdkSwitch.complete();
+		await Promise.all([background, change]);
+
+		assert.deepStrictEqual(registeredSizes(), [200_000]);
+	});
+
+	test('a rejected model change leaves the previous selection in force for BYOK sizing', async () => {
+		const { session, mockSession, registeredSizes } = await createSizedByokSession();
+		mockSession.modelError = new Error('switch rejected');
+
+		await assert.rejects(session.setModel('acme/big', undefined, undefined, undefined, { id: 'acme/big', config: { contextSize: 200_000 } }), /switch rejected/);
+		// The pre-switch registration went out at 200K; with the switch rejected the
+		// session is still on 968K, and the next sync puts the registration back.
+		mockSession.modelError = undefined;
+		await session.syncByokModels();
+
+		assert.deepStrictEqual(registeredSizes(), [200_000, 968_000]);
 	});
 
 	test('a failed BYOK registration does not block the model change (#337742)', async () => {
