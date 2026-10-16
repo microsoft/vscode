@@ -256,10 +256,10 @@ const parsePullRequest = parse.object<PullRequest>({
 	comments: parse.nonNegativeInteger,
 	review_comments: parse.nonNegativeInteger,
 	auto_merge: parse.nullable(parse.object({
-		enabled_by: parseAccount,
+		enabled_by: parse.nullable(parseAccount),
 		merge_method: parse.oneOf('merge', 'squash', 'rebase'),
-		commit_title: parse.string,
-		commit_message: parse.string,
+		commit_title: parse.nullable(parse.string),
+		commit_message: parse.nullable(parse.string),
 	})),
 });
 

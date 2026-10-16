@@ -125,7 +125,7 @@ export function resolveRawContentUrl(rawBaseUri: string, path: string): { url: U
 		throw new GitHubRequestError('Invalid GitHub raw content path encoding', 'validation');
 	}
 	if (segments.length < 4 || path.includes('?')
-		|| !/^[a-f0-9]{40}$/.test(segments[2])
+		|| !/^[a-f0-9]{40}(?:[a-f0-9]{24})?$/.test(segments[2])
 		|| decoded.some(segment => !segment || segment === '.' || segment === '..' || /[\\/\r\n\0]/.test(segment))) {
 		throw new GitHubRequestError('Expected a GitHub file path pinned to a repository commit', 'validation');
 	}
