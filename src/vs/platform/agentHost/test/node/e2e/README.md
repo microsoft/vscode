@@ -102,6 +102,35 @@ The residual case is `providerHostOnlyTest(...)`: per-provider, but no model tra
 
 ---
 
+## CI execution profiles
+
+Execution priority is independent of conformance/parity. `AGENT_HOST_TEST_PROFILE=full` runs every enabled scenario and is the default for local commands and DevOps. `AGENT_HOST_TEST_PROFILE=pr` keeps representative host/provider contracts while skipping explicitly classified full-only variations. Both profiles retain the existing provider, platform, live-test, and recording gates.
+
+```bash
+# Full deterministic E2E coverage (default).
+npm run test-agent-host-e2e
+
+# PR-profile E2E coverage.
+AGENT_HOST_TEST_PROFILE=pr npm run test-agent-host-e2e
+
+# The same profile also applies to neighboring provider integration tests.
+AGENT_HOST_TEST_PROFILE=pr ./scripts/test-integration.sh --run \
+  src/vs/platform/agentHost/test/node/providerIntegration/copilotOtel.integrationTest.ts
+```
+
+GitHub PR jobs use the existing broad affected-file check to skip the parallel E2E runner for unrelated changes. Relevant implementation changes select the PR profile. Any Agent Host test, fixture, snapshot, test harness, selection infrastructure, build infrastructure, or dependency-manifest change forces Full in that same PR. Renames check both old and new paths. Failed or incomplete changed-file lookups also select Full. The selected profile and reason appear in integration-test output. Provider-integration tests outside the parallel runner inherit the same profile; the affected-file skip still applies only to the parallel runner.
+
+New tests remain in PR coverage by default. Use `fullOnlyTest(...)` from `../../agentHostTestProfile.js` (relative to an E2E suite) for native-runtime stress or redundant variations, preserving existing capability gates. Existing file-operation and peer registrars accept a final `'full'` profile argument. Do not rename tests to classify them: titles identify committed fixtures.
+
+The initial full-only list is deliberately small:
+
+- File operations: nested read, JSON read, line count, workspace listing, and Git status.
+- Peer chats: nested read and nested file creation.
+- Copilot native tools: view range, grep, and glob variations.
+- Provider integration: the two native OTel concurrency stress cases.
+
+Permission enforcement, routing, persistence, checkpoints, customizations, managed telemetry, and the prompt matrix remain in PR coverage. Coverage-report runs always select Full. Full-only is an execution priority, not a known issue or unsupported capability.
+
 ## Organization
 
 | Path | Role |
@@ -137,6 +166,8 @@ Native Copilot OTel concurrency coverage runs 288 real shell-tool calls with tel
 Copilot's native `run_dynamic_workflow` and `dynamic_workflows_manage` tools are excluded from Agent Host sessions until their execution and approval behavior is validated. Prompt snapshots pin their absence from the model's tool inventory.
 
 Copilot's native SDK sessions expose the bundled `customize-cloud-agent` and `github-pr-media` skills. Prompt snapshots pin their catalog descriptions and the `skill` tool schema alongside the existing tool inventory.
+
+`../providerIntegration/copilotImageGeneration.integrationTest.ts` tests native image-tool availability through the real Agent Host and bundled SDK, using a local synthetic model catalog. It asserts the tool in actual chat-model requests on creation and after a cold host restart, with a negative control for an unavailable image model. The default replay catalog has only chat models, so ordinary prompt snapshots cannot detect missing image consent. No image inference is performed and no credentials or credits are required.
 
 Workspace lifecycle tests enable each provider's multi-root capability only for their scenario and restore the previous root configuration afterward. They distinguish the session's aggregate folders, a peer's selected subset, and the actual directory used by its tools. Delegation tests verify that the invoking provider finishes its response, the child finishes its local command, and session disposal removes owned additional worktrees.
 
@@ -209,7 +240,7 @@ exchanges:
   | `${shell_output_N}` | the Nth generated original-output path, rebound from live requests during replay |
   | `${plugin_copy}` | the path-derived directory name of a client plugin copied into the isolated Agent Host home |
 
-  Tool-call ids are also normalized to stable ordinals (`toolcall_0`, `toolcall_1`, …).
+  Tool-call ids are also normalized to stable ordinals (`toolcall_0`, `toolcall_1`, …). JSON `toolCallId` references embedded in permission-judge text reuse the same mapping; unknown identifiers and the surrounding text remain unchanged and asserted. Quoted JSON strings normalize only escaped path separators inside whitespace-delimited placeholder-path tokens; newline and Unicode escapes outside those tokens remain byte-for-byte asserted. Unquoted path normalization also stops at whitespace, preserving authored backslashes later in the text. The same normalization applies to recorded and live request comparisons, independently of code-fence formatting.
 
   UUID placeholders are rebound dynamically during replay. The proxy aligns each recorded request with the live request, learns the fresh UUID corresponding to `${uuid_N}`, normalizes the request before comparison, and expands later model tool arguments with the learned value. Bindings are cleared whenever the shared proxy switches fixtures.
 
@@ -229,7 +260,7 @@ Both sides go through the same projection, so captures keep their existing shape
 | Text and attachment content | The model id |
 | Tool names, inputs, and `tool_use_id` wiring | Reasoning blocks |
 
-Each elision has a reason, and dropping any of them would make the assertion either platform-coupled or permanently red. Reasoning blocks are the least obvious: aggregating a recorded reply drops them, so the assistant turn replayed back to the agent never carries one even though the live recording did.
+Each elision has a reason, and dropping any of them would make the assertion either platform-coupled or permanently red. Path placeholders include an optional leading separator so Git diff prefixes such as `a${workdir}` and `a/${workdir}` compare equally across platforms; surrounding diff metadata, hunks, and authored content remain asserted. Reasoning blocks are the least obvious: aggregating a recorded reply drops them, so the assistant turn replayed back to the agent never carries one even though the live recording did.
 
 A single text block left after removing reasoning is compared as bare text, matching the replay codec's representation. Multiple text blocks and mixed text/tool content retain their structure.
 
@@ -422,7 +453,7 @@ The suite pins `gh` discovery with a temporary executable probe on its test-owne
 
 Pinning a new model is opt-in. Nothing here is derived from the live `/models` catalog, so a newly released model does not appear until a maintainer adds it to `capiStubs.ts` — and adding it there alone does not fail the suite, because the CLI's inlined model listing is elided. A model is only pinned once someone also adds it to `SNAPSHOT_MODELS` and commits its fixture and baseline.
 
-The repository instructions and the model catalog are the two elisions that are not about run-to-run variance. The CLI injects `.github/copilot-instructions.md` and `AGENTS.md` verbatim, and their content is stable across machines, so it could be pinned. It is not, because the cost would land on the wrong file: appending a single line to `AGENTS.md` would rewrite every baseline here and fail CI for an unrelated docs edit. The `<custom_instruction>` wrappers still assert that instructions are injected, how many, and where they sit in the prompt.
+The repository instructions and the model catalog are the two elisions that are not about run-to-run variance. Each prompt scenario writes `.github/copilot-instructions.md` and `AGENTS.md` into its isolated workspace and asserts that both marker bodies reach the model before normalizing them. The `<custom_instruction>` wrappers still assert how many instructions are injected and where they sit in the prompt; the test does not rely on discovering files from the Agent Host's own working directory.
 
 The model catalog is the same trade. The CLI inlines the whole `/models` list into the `Task` tool's schema, as a count and a per-model listing, so left verbatim a single new entry in `capiStubs.ts` would rewrite every baseline — including those of models nobody snapshots. The labels survive, so the catalog vanishing from the prompt, or changing shape, still fails.
 
@@ -459,6 +490,18 @@ After recording, **review the diff** (paths normalized? no usernames, tokens, or
 ### Managed-settings schema snapshot
 
 [`../copilotSdkManagedSettings.integrationTest.ts`](../copilotSdkManagedSettings.integrationTest.ts) snapshots the complete `managedSettings.schema()` response from the bundled SDK/runtime. This is a sessionless SDK integration test, not an AHP scenario: it creates no chat, calls no model, and starts no MCP servers. It uses an isolated home without login credentials. The snapshot preserves the schema's descriptions, defaults, validation rules, and composition metadata.
+
+The same suite verifies the bundled model-policy composition contract: model-specific effort/context options stay with the channel supplying the model, Auto and missing-model policies discard those options with diagnostics, and lock/default metadata survives composition. Composition is not model-catalog validation: an unavailable model or unsupported effort can still appear in `values`. These tests do not certify session enforcement or picker behavior.
+
+The Agent Host model-default integration in [`copilotManagedModelConfiguration.ts`](../../../node/copilot/copilotManagedModelConfiguration.ts) projects matching runtime values onto offered model options and uses scalar configuration-source markers to distinguish implicit defaults from explicit choices across serialization. It enables managed settings without opting into `enforceManagedModelDefaults`: plain server-delivered model defaults do not create picker locks. Authoring wrappers may have been removed by server composition, so their absence cannot establish end-user mutability. Generic host-advertised read-only schema properties remain supported independently. Live sessions resolve policy with their working directory and publish a protected, chat-scoped report with defaults and SDK `model.getCurrent()` values. Reports do not become personal preferences. The runtime must supply a concrete matching model ID; the client never implements its own alias resolver.
+
+[`../providerIntegration/copilotAutoTier.integrationTest.ts`](../providerIntegration/copilotAutoTier.integrationTest.ts) exercises session-level model controls against a synthetic local endpoint serving plain scalar settings, matching the server-normalized shape rather than raw authoring wrappers. These tests stub the payload after composition; they do not exercise GitHub's team-membership or settings-composition service. They verify implicit effort/context defaults, preserved explicit choices, editable Auto tiers through actual synthetic inference requests, switching models, and an unavailable managed model. Resume coverage persists a completed turn and explicit options, changes the scalar policy, and checks that the conversation's choices and history survive. No real account or model service is contacted.
+
+Run this suite without native model or permission policy. Its temporary home and mock server do not isolate machine-wide MDM, registry, or managed-settings files; the setup preflight fails explicitly if device policy controls the model, Auto/Fusion tier, effort, context, or permissions. Unrelated device settings, such as remote-control policy, do not block the local SDK scenarios. Do not interpret results from a conflicting device-governed run as evidence about the synthetic server policy, or remove machine policy automatically to make the tests pass.
+
+The [github/copilot-agent-runtime#26681](https://github.com/github/copilot-agent-runtime/issues/26681) test characterizes unsupported effort being forwarded to synthetic inference even without strict enforcement; a passing characterization test is not a fix. The separate strict SDK resume scenario for [github/copilot-agent-runtime#26739](https://github.com/github/copilot-agent-runtime/issues/26739) now specifies successful policy reconciliation and retained history but is skipped while the runtime intermittently rejects it. Requiring that rejection as an expected failure is itself flaky: the identical scenario can also resume successfully under the new lock. The narrowly gated scenario and reproduction are tracked in [KNOWN_ISSUES.md](./KNOWN_ISSUES.md#copilot-strict-managed-model-resume-is-nondeterministic); default-only resume tests remain enabled. VS Code does not enable strict model enforcement. Unsupported effort validation still requires a runtime fix; use supported model/effort combinations for manual testing.
+
+Traffic summaries omit unsolicited, report-only `vscode.modelConfiguration` patches because their asynchronous readback timing is independent of conversation ordering. Client writes, rejections, replacements, and patches containing other settings remain in the summaries. The raw notifications are retained, and the materialized Copilot scenario independently waits for and asserts the protected per-chat report and applied model.
 
 ```bash
 # Compare with the committed baseline.

@@ -141,6 +141,10 @@ class TestSessionsProvidersService extends Disposable implements ISessionsProvid
 		return toDisposable(() => this.providers.delete(provider.id));
 	}
 
+	registerSessionBackend(): IDisposable {
+		throw new Error('Unexpected internal session backend');
+	}
+
 	getProviders(): ISessionsProvider[] {
 		return Array.from(this.providers.values());
 	}

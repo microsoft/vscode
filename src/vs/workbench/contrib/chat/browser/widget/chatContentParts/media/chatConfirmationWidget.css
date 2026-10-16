@@ -627,8 +627,19 @@
 		background-clip: text;
 		-webkit-background-clip: text;
 		-webkit-text-fill-color: transparent;
-		animation: chat-thinking-shimmer 2s linear infinite;
+		animation: chat-thinking-shimmer 2s steps(60, end) infinite;
 		will-change: background-position;
+	}
+
+	.chat-confirmation-widget.shimmer-progress .chat-confirmation-widget-title-inner.chat-progress-animation > .rendered-markdown > p {
+		animation-timing-function: linear;
+		animation-play-state: paused;
+	}
+
+	.monaco-reduce-motion & .chat-confirmation-widget.shimmer-progress .chat-confirmation-widget-title-inner > .rendered-markdown > p {
+		animation: none;
+		background: none;
+		-webkit-text-fill-color: currentColor;
 	}
 
 }

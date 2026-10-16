@@ -26,7 +26,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { getSessionReferenceResource } from './sessionReference.js';
 import { IChatDeletedEvent, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IDeferredNewSessionRequestOptions, IMarkSessionReadOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
-import { IDeleteChatOptions, IPreparedNewSession, ISessionChangeEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
+import { IChatMovedEvent, IDeleteChatOptions, IPreparedNewSession, ISessionChangeEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
 import { ChatModelSource, IChat, ISession, ISessionCanvasDefinition, ISessionWorkspace, ISideChatSelection, isActiveSessionStatus, SessionStatus, ISessionType } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -68,6 +68,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	private readonly _onDidReplaceSession = this._register(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 	readonly onDidReplaceSession: Event<{ readonly from: ISession; readonly to: ISession }> = this._onDidReplaceSession.event;
+	private readonly _onDidMoveChat = this._register(new Emitter<IChatMovedEvent>());
+	readonly onDidMoveChat: Event<IChatMovedEvent> = this._onDidMoveChat.event;
 	private readonly _explicitlyMarkedUnreadMainChats = new ResourceMap<number | undefined>();
 
 	private readonly _onDidDiscardNewSession = this._register(new Emitter<ISession>());
@@ -117,7 +119,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			this._onProvidersChanged(e);
 			this._updateSessionTypes();
 		}));
-		this._subscribeToProviders(this.sessionsProvidersService.getProviders());
+		this._subscribeToProviders(this.sessionsProvidersService.getProviders({ includeSessionBackends: true }));
 		this._sessionTypes = this._collectSessionTypes();
 
 		// Mirror follow-up chat requests (sent from within an existing chat
@@ -165,6 +167,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			this._providerListeners.set(provider.id, disposables);
 			added.push(...sessions);
 			disposables.add(provider.onDidChangeSessions(e => this.onDidChangeSessionsFromSessionsProviders(e)));
+			disposables.add(provider.onDidMoveChat(e => this._onDidMoveChat.fire(e)));
 			if (provider.onDidReplaceSession) {
 				disposables.add(provider.onDidReplaceSession(e => this._handleDidReplaceSession(e.from, e.to)));
 			}
@@ -216,7 +219,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	 * so an unresolvable session still opens the way it does today.
 	 */
 	async resolveSessionResource(resource: URI, reason?: SessionResourceResolveReason): Promise<URI> {
-		for (const provider of this.sessionsProvidersService.getProviders()) {
+		for (const provider of this.sessionsProvidersService.getProviders({ includeSessionBackends: true })) {
 			if (!provider.resolveSessionResource) {
 				continue;
 			}
@@ -290,7 +293,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	private _getMergedSessions(): ISession[] {
 		const sessions: ISession[] = [];
-		for (const provider of this.sessionsProvidersService.getProviders()) {
+		for (const provider of this.sessionsProvidersService.getProviders({ includeSessionBackends: true })) {
 			sessions.push(...provider.getSessions());
 		}
 		return sessions;
@@ -416,7 +419,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private _collectSessionTypes(): ISessionType[] {
 		const types: ISessionType[] = [];
 		const seen = new Set<string>();
-		for (const provider of this.sessionsProvidersService.getProviders()) {
+		for (const provider of this.sessionsProvidersService.getProviders({ includeSessionBackends: true })) {
 			for (const type of provider.sessionTypes) {
 				if (!seen.has(type.id)) {
 					seen.add(type.id);
@@ -1258,7 +1261,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	// -- Session Actions --
 
 	private _getProvider(session: ISession): ISessionsProvider | undefined {
-		return this.sessionsProvidersService.getProviders().find(p => p.id === session.providerId);
+		return this.sessionsProvidersService.getProvider(session.providerId);
 	}
 
 	async cancelCurrentRequest(session: ISession): Promise<void> {
@@ -1291,8 +1294,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._onDidArchiveSession.fire(session);
 	}
 
-	getSessionWorktreeDiskUsage(session: ISession): Promise<number | undefined> {
-		return this._getProvider(session)?.getSessionWorktreeDiskUsage?.(session.sessionId) ?? Promise.resolve(undefined);
+	getSessionWorktreeDiskUsage(session: ISession, token?: CancellationToken): Promise<number | undefined> {
+		return this._getProvider(session)?.getSessionWorktreeDiskUsage?.(session.sessionId, token) ?? Promise.resolve(undefined);
 	}
 
 	async unarchiveSession(session: ISession): Promise<void> {
@@ -1325,6 +1328,22 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	async markChatRead(session: ISession, chat: IChat): Promise<boolean | void> {
 		return this._getProvider(session)?.setChatReadState?.(session.sessionId, chat.resource, true) ?? false;
+	}
+
+	async markChatsRead(session: ISession, chats: readonly IChat[]): Promise<void> {
+		const provider = this._getProvider(session);
+		if (!provider || chats.length === 0) {
+			return;
+		}
+		if (provider.setChatReadStates) {
+			await provider.setChatReadStates(session.sessionId, chats.map(chat => chat.resource), true);
+			return;
+		}
+		if (!provider.setChatReadState) {
+			return;
+		}
+		const setChatReadState = (chat: IChat) => provider.setChatReadState?.(session.sessionId, chat.resource, true) ?? Promise.resolve(false);
+		await Promise.all(chats.map(setChatReadState));
 	}
 
 	markRead(session: ISession, options?: IMarkSessionReadOptions): Promise<boolean | void> {

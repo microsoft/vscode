@@ -47,7 +47,7 @@ import { RequestService } from '../../platform/request/node/requestService.js';
 import { resolveCommonProperties } from '../../platform/telemetry/common/commonProperties.js';
 import { ITelemetryService, TelemetryLevel } from '../../platform/telemetry/common/telemetry.js';
 import { ITelemetryServiceConfig } from '../../platform/telemetry/common/telemetryService.js';
-import { getPiiPathsFromEnvironment, isInternalTelemetry, isLoggingOnly, ITelemetryAppender, NullAppender, supportsTelemetry } from '../../platform/telemetry/common/telemetryUtils.js';
+import { getPiiPathsFromEnvironment, getUserContentPathsFromEnvironment, isInternalTelemetry, isLoggingOnly, ITelemetryAppender, NullAppender, supportsTelemetry } from '../../platform/telemetry/common/telemetryUtils.js';
 import ErrorTelemetry from '../../platform/telemetry/node/errorTelemetry.js';
 import { IPtyService, TerminalSettingId } from '../../platform/terminal/common/terminal.js';
 import { PtyHostService } from '../../platform/terminal/node/ptyHostService.js';
@@ -195,7 +195,8 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 		const config: ITelemetryServiceConfig = {
 			appenders: [oneDsAppender, new TelemetryLogAppender('', true, loggerService, environmentService, productService)],
 			commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version + '-remote', machineId, sqmId, devDeviceId, isInternal, productService.date, 'remoteAgent'),
-			piiPaths: getPiiPathsFromEnvironment(environmentService)
+			piiPaths: getPiiPathsFromEnvironment(environmentService),
+			userContentPaths: getUserContentPathsFromEnvironment(environmentService)
 		};
 		const initialTelemetryLevelArg = environmentService.args['telemetry-level'];
 		let injectedTelemetryLevel: TelemetryLevel = TelemetryLevel.USAGE;

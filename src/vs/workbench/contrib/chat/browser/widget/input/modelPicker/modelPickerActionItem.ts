@@ -12,6 +12,7 @@ import { IAction } from '../../../../../../../base/common/actions.js';
 import { MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../../nls.js';
+import type { IAgentConnection } from '../../../../../../../platform/agentHost/common/agentService.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
@@ -34,7 +35,7 @@ export interface IModelPickerDelegate {
 	readonly currentModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>;
 	setModel(model: ILanguageModelChatMetadataAndIdentifier): void;
 	/**
-	 * Persists a model change without treating it as a user selection.
+	 * Shows the selection as an equivalent model without treating it as a user selection.
 	 * Delegates whose {@link setModel} has no user-selection side effects may omit this; {@link setModel} is used instead.
 	 */
 	setModelProgrammatically?(model: ILanguageModelChatMetadataAndIdentifier): void;
@@ -54,6 +55,8 @@ export interface IModelPickerDelegate {
 	 * the Manage Models editor to that harness's Copilot models.
 	 */
 	getSessionType?(): string | undefined;
+	/** The Agent Host connection the chat runs on, for its on-device models; when omitted, a local Copilot Agent Host chat assumes the local Agent Host. */
+	getLocalModelConnection?(): IAgentConnection | undefined;
 	/**
 	 * UI hint flag controlling whether the picker shows the cache-break hint.
 	 * Returns `true` when the session has likely warmed the prompt cache (e.g. it
@@ -223,6 +226,10 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 		}
 		if (this._pickerWidget.isSetupRequired()) {
 			return localize('chat.modelPicker.setupRequiredHover', "{0} • Sign in to GitHub Copilot to choose a model.", label);
+		}
+		const workflowSummary = this.delegate.workflow?.summary.get();
+		if (workflowSummary) {
+			return localize('chat.modelPicker.workflowSummaryHover', "{0} • {1}", label, workflowSummary);
 		}
 		const selectedModel = this._pickerWidget.selectedModel;
 		const { statusIcon, tooltip } = selectedModel?.metadata || {};

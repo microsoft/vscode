@@ -6,7 +6,7 @@
 import { localize } from '../../../nls.js';
 import { structuralEquals } from '../../../base/common/equals.js';
 import { ConfigurationTarget, type IConfigurationService, type IConfigurationValue } from '../../configuration/common/configuration.js';
-import { ChatExternalSessionsMode, DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, type ChatEditAutoApprovePatterns } from '../../chat/common/chatSettings.js';
+import { ChatExternalSessionsMode, DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, type ChatEditAutoApprovePatterns, type IChatSensitiveEditLocation } from '../../chat/common/chatSettings.js';
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import { TelemetryConfiguration, TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { telemetryLevelToAgentHostValue } from './agentHostTelemetry.js';
@@ -298,6 +298,7 @@ const permissionsProperty = schemaProperty<IPermissionsValue>({
 	},
 	default: { allow: [], deny: [] },
 	sessionMutable: true,
+	chatMutable: true,
 });
 
 /**
@@ -335,6 +336,29 @@ const shellInitScriptsProperty = schemaProperty<readonly IShellInitScript[]>({
 	sessionMutable: true,
 });
 
+const sensitiveEditLocationsProperty = schemaProperty<readonly IChatSensitiveEditLocation[]>({
+	type: 'array',
+	title: localize('agentHost.sessionConfig.sensitiveEditLocations', "Sensitive Edit Locations"),
+	description: localize('agentHost.sessionConfig.sensitiveEditLocationsDescription', "Workspace-relative customization locations whose edits always require confirmation."),
+	items: {
+		type: 'object',
+		title: localize('agentHost.sessionConfig.sensitiveEditLocations.item', "Sensitive Edit Location"),
+		properties: {
+			path: {
+				type: 'string',
+				title: localize('agentHost.sessionConfig.sensitiveEditLocations.path', "Path"),
+			},
+			isDirectory: {
+				type: 'boolean',
+				title: localize('agentHost.sessionConfig.sensitiveEditLocations.isDirectory', "Directory"),
+			},
+		},
+		required: ['path', 'isDirectory'],
+	},
+	readOnly: true,
+	sessionMutable: true,
+});
+
 /**
  * Session-config properties owned by the platform itself — i.e. consumed
  * by the agent host rather than by any particular agent.
@@ -350,6 +374,7 @@ export const platformSessionSchema = createSchema({
 		description: localize('agentHost.sessionConfig.sandboxEnabledDescription', "Sandbox behavior for this session. Default follows the global setting."),
 		enum: ['default', 'on', 'off'],
 		sessionMutable: true,
+		chatMutable: true,
 	}),
 	[SessionConfigKey.AutoApprove]: schemaProperty<AutoApproveLevel>({
 		type: 'string',
@@ -368,6 +393,7 @@ export const platformSessionSchema = createSchema({
 		],
 		default: 'default',
 		sessionMutable: true,
+		chatMutable: true,
 	}),
 	[SessionConfigKey.Permissions]: permissionsProperty,
 	[SessionConfigKey.Mode]: schemaProperty<SessionMode>({
@@ -387,8 +413,10 @@ export const platformSessionSchema = createSchema({
 		],
 		default: 'interactive',
 		sessionMutable: true,
+		chatMutable: true,
 	}),
 	[SessionConfigKey.ShellInitScripts]: shellInitScriptsProperty,
+	[SessionConfigKey.SensitiveEditLocations]: sensitiveEditLocationsProperty,
 });
 
 /**
@@ -612,6 +640,8 @@ export const AgentHostArtifactToolsConfigKey = 'artifactTools';
 /** Root config key controlling Canvas extensions in Copilot sessions. */
 export const AgentHostCanvasesEnabledConfigKey = 'canvasesEnabled';
 
+export const AgentHostAhpJsonlLoggingEnabledConfigKey = 'ahpJsonlLoggingEnabled';
+
 /** Root config key controlling automatic pull request association for the checked-out branch. */
 export const AgentHostAutoAttachPullRequestsConfigKey = 'autoAttachPullRequests';
 
@@ -623,15 +653,17 @@ export const AgentHostAutoAttachPullRequestsConfigKey = 'autoAttachPullRequests'
  */
 export const AgentHostOverlapProviderPreparationConfigKey = 'overlapProviderPreparation';
 
+/**
+ * Root config key forwarded from the renderer's
+ * `chat.agentHost.experimental.prewarmSessions` setting. When `true`, a new
+ * Copilot draft starts its SDK session and MCP servers before the first send.
+ */
+export const AgentHostPrewarmSessionsConfigKey = 'prewarmSessions';
+
 // Root config key forwarded from the renderer when the `chat.agentSessions.migrateLegacyCopilotCli`
 // setting changes. When `true`, `listSessions` surfaces un-adopted extension-host Copilot CLI
 // sessions as adoptable agent-host sessions, and opening one adopts it in place. Experimental; off.
 export const AgentHostMigrateLegacyCopilotCliEnabledConfigKey = 'migrateLegacyCopilotCliEnabled';
-
-// Root config key forwarded from the renderer when the `chat.agentHost.sessionCatalog.enabled`
-// setting changes. When `false`, the host lists sessions from provider metadata and per-session
-// storage instead of the central catalog, and performs no catalog import or background repair.
-export const AgentHostSessionCatalogEnabledConfigKey = 'sessionCatalogEnabled';
 
 export const AgentHostShowExternalSessionsConfigKey = 'showExternalSessions';
 
@@ -847,6 +879,12 @@ const mcpServersValueProperties: Record<string, SessionConfigPropertySchema> = {
 
 export const platformRootSchema = createSchema({
 	...agentHostProxyConfigDefinition,
+	[AgentHostAhpJsonlLoggingEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.ahpJsonlLogging.title', "AHP Transport Logging"),
+		description: localize('agentHost.config.ahpJsonlLogging.description', "Capture Mission Control AHP transport messages on the host."),
+		readOnly: true,
+	}),
 	[SessionConfigKey.Permissions]: permissionsProperty,
 	[AgentHostDisableRepoInfoTelemetryConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
@@ -1043,17 +1081,17 @@ export const platformRootSchema = createSchema({
 		description: localize('agentHost.config.overlapProviderPreparation.description', "Whether agents prepare their session for a turn while the turn-start checkpoint is captured, instead of after it."),
 		default: false,
 	}),
+	[AgentHostPrewarmSessionsConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.prewarmSessions.title', "Prewarm Sessions"),
+		description: localize('agentHost.config.prewarmSessions.description', "Whether new Copilot chats start their runtime and MCP servers before the first message."),
+		default: false,
+	}),
 	[AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.migrateLegacyCopilotCliEnabled.title', "Migrate Legacy Copilot CLI Sessions"),
 		description: localize('agentHost.config.migrateLegacyCopilotCliEnabled.description', "Whether un-adopted extension-host Copilot CLI sessions are surfaced as adoptable agent-host sessions and migrated in place when opened."),
 		default: false,
-	}),
-	[AgentHostSessionCatalogEnabledConfigKey]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.sessionCatalogEnabled.title', "Session Catalog"),
-		description: localize('agentHost.config.sessionCatalogEnabled.description', "Whether the session list is served from the central catalog. When disabled, sessions are listed from provider metadata and per-session storage instead."),
-		default: true,
 	}),
 	[AgentHostShowExternalSessionsConfigKey]: schemaProperty<ChatExternalSessionsMode>({
 		type: 'string',

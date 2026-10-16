@@ -14,11 +14,11 @@ import { AgentHostCodexAgentBinaryArgsEnvVar } from '../../../common/agentServic
 import { AgentHostCodexMultiRootEnabledConfigKey } from '../../../common/agentHostSchema.js';
 import { CodexSessionConfigKey, type CodexPermissionsPreset } from '../../../common/codexSessionConfigKeys.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, customizationId, CustomizationType, MessageKind, ROOT_STATE_URI, type ClientPluginCustomization, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
+import { customizationId, CustomizationType, MessageKind, ROOT_STATE_URI, type ClientPluginCustomization, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { CustomizationEnablementKind } from '../../../common/state/protocol/state.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import { CODEX_SDK_ROOT } from '../e2e/providers/codexTestConfiguration.js';
-import { fetchSessionWithChat, getActionEnvelope, isActionNotification, type IServerHandle, startRealServer, stopServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
+import { fetchSessionWithChat, getActionEnvelope, isActionNotification, type IServerHandle, startRealServer, stopServer, TestProtocolClient, defaultChatChannel } from '../serverIntegrationTestHelpers.js';
 
 interface ICapturedRequest {
 	readonly path: string;
@@ -198,13 +198,13 @@ suite('Agent Host Provider Integration — Codex Sandbox', function () {
 		}, 30_000);
 		sessions.push(session);
 		await client.call('subscribe', { channel: session });
-		await client.call('subscribe', { channel: buildDefaultChatUri(session) });
+		await client.call('subscribe', { channel: defaultChatChannel(session) });
 		return session;
 	}
 
 	async function probe(session: string, scenario: string) {
 		const requestOffset = server!.mockLlm?.getRequests?.().length ?? 0;
-		const chat = buildDefaultChatUri(session);
+		const chat = defaultChatChannel(session);
 		const turnId = generateUuid();
 		client.dispatch({
 			channel: chat,

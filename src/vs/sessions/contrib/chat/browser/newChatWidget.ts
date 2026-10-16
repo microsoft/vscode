@@ -29,6 +29,7 @@ import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultS
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { SessionConfigKey } from '../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { getSessionWorkspaceProperties } from '../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { deriveGitHubEndpoints } from '../../../../platform/github/common/githubEndpoints.js';
 import { asJson, IRequestService, isSuccess } from '../../../../platform/request/common/request.js';
 import { localize } from '../../../../nls.js';
@@ -58,7 +59,7 @@ import { buildNewSessionPrompt } from '../../agentFeedback/browser/agentFeedback
 import { SessionInputBannerWidget } from '../../sessionInputBanners/browser/sessionInputBannerWidget.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ChatInputTipPresenter } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputTipPresenter.js';
-import { chatInputStackClass, ChatInputStackSlot, setChatInputStackSlot } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
+import { chatInputStackClass, chatInputStackSlotClass, chatInputSurfaceStackClass, ChatInputStackSlot, setChatInputStackSlot } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
 import { IChatPetService } from '../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { IChatTipService } from '../../../../workbench/contrib/chat/browser/chatTipService.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -81,6 +82,7 @@ import { isAutoModel, isHydraFusionModel } from '../../../../workbench/contrib/c
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
 import { reviveChatDraft } from '../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
 import { NewChatMigrationNotice } from './newChatMigrationNotice.js';
+import { NewChatConnectorRecommendations } from './newChatConnectorRecommendations.js';
 import { FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN, FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN } from './newChatPickerKeybinding.js';
 import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
@@ -94,8 +96,8 @@ import { ISessionsRecentWorkspacesService } from '../../../services/sessions/bro
 const MIN_SESSIONS_FOR_FIRST_RUN_NOTICES = 2;
 /** Persists whether the user explicitly chose to expand the new-session options tray. */
 const SESSION_OPTIONS_EXPANDED_STORAGE_KEY = 'agentSessions.newSession.sessionOptionsExpanded2';
+const WELCOME_PHRASE_INDEX_STORAGE_KEY = 'agentSessions.newSession.welcomePhraseIndex';
 let sessionOptionsIdPool = 0;
-let nextNewSessionWelcomePhraseIndex = 0;
 const githubProfileNames = new Map<string, Promise<string | undefined>>();
 
 function getComparisonSelectedWorkspaceFolder(selectedWorkspace: ISessionWorkspace | undefined, selectedFolderUri: URI | undefined): ISessionWorkspace['folders'][number] | undefined {
@@ -181,14 +183,15 @@ export class NewChatWidget extends Disposable {
 
 	readonly pickerVisibility: IObservable<ISessionPickerVisibility>;
 	private readonly _comparisonSelection: SessionComparisonModelSelection;
-	private readonly _welcomePhraseIndex = NewChatWidget._takeNextWelcomePhraseIndex();
+	private readonly _welcomePhraseIndex: number;
 	private readonly _githubProfileName = observableValue<string | undefined>(this, undefined);
 	private _githubProfileAccountKey: string | undefined;
 	private _welcomePhraseAnnounced = false;
 
-	private static _takeNextWelcomePhraseIndex(): number {
-		const index = nextNewSessionWelcomePhraseIndex;
-		nextNewSessionWelcomePhraseIndex = index + 1 < Number.MAX_SAFE_INTEGER ? index + 1 : 0;
+	private static _takeNextWelcomePhraseIndex(storageService: IStorageService): number {
+		const index = storageService.getNumber(WELCOME_PHRASE_INDEX_STORAGE_KEY, StorageScope.PROFILE, 0);
+		const nextIndex = index + 1 < Number.MAX_SAFE_INTEGER ? index + 1 : 0;
+		storageService.store(WELCOME_PHRASE_INDEX_STORAGE_KEY, nextIndex, StorageScope.PROFILE, StorageTarget.MACHINE);
 		return index;
 	}
 
@@ -227,6 +230,7 @@ export class NewChatWidget extends Disposable {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
+		this._welcomePhraseIndex = NewChatWidget._takeNextWelcomePhraseIndex(storageService);
 		this._newSessionAttachContextMenu = this._register(menuService.createMenu(Menus.NewSessionAttachContext, this.contextKeyService));
 		this._usage = new AgentsWindowUsage(storageService);
 		this._register(this._pendingPreferredUpgrade);
@@ -351,7 +355,7 @@ export class NewChatWidget extends Disposable {
 		const comparisonConfigResolving = derived(this, reader => {
 			const session = this._session.read(reader);
 			const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
-			return !!session && !!provider && isAgentHostProvider(provider) && provider.isSessionConfigResolving(session.sessionId).read(reader);
+			return !!session && !!provider && isAgentHostProvider(provider) && provider.isSessionConfigResolving(session.sessionId, session.mainChat.read(reader).resource).read(reader);
 		});
 		this._comparisonSelection = this._register(new SessionComparisonModelSelection(derived(this, reader => {
 			comparisonWorkspaceChanged.read(reader);
@@ -765,7 +769,25 @@ export class NewChatWidget extends Disposable {
 					: undefined
 			);
 		}));
-		this._register(this.instantiationService.createInstance(NewChatMigrationNotice, chatWidgetContent, this._session, () => this.focusInput()));
+		const belowInputSurfaces = dom.append(chatWidgetContent, dom.$(`.new-session-below-input-surfaces.${chatInputSurfaceStackClass}`));
+		const updateBelowInputSurfacesHeight = () => {
+			if (chatWidgetContainer.closest('.phone-layout')) {
+				belowInputSurfaces.style.removeProperty('max-height');
+				return;
+			}
+			const availableHeight = chatWidgetContainer.getBoundingClientRect().bottom - belowInputSurfaces.getBoundingClientRect().top;
+			belowInputSurfaces.style.maxHeight = `${Math.max(0, availableHeight)}px`;
+		};
+		const belowInputSurfacesResizeObserver = this._register(new dom.DisposableResizeObserver(
+			'NewChatWidget.belowInputSurfaces',
+			updateBelowInputSurfacesHeight,
+			dom.getWindow(belowInputSurfaces),
+		));
+		this._register(belowInputSurfacesResizeObserver.observe(chatWidgetContainer));
+		this._register(belowInputSurfacesResizeObserver.observe(chatWidgetContent));
+		this._register(toDisposable(() => belowInputSurfaces.style.removeProperty('max-height')));
+		const connectorRecommendations = this._register(this.instantiationService.createInstance(NewChatConnectorRecommendations, () => this.focusInput()));
+		belowInputSurfaces.appendChild(connectorRecommendations.element);
 
 		// In the experimental composer the getting-started tip is demoted to a standalone
 		// notice below the input (like the migration notice) so it never sits between the
@@ -774,13 +796,17 @@ export class NewChatWidget extends Disposable {
 		// experimental layout (which requires the unified workspace picker) moves the tip without
 		// recreating the presenter.
 		const inputTipSlot = this._newChatInput.gettingStartedTipContainerElement;
-		// The below host carries the tip container class so the shared tip styling applies in the
-		// demoted position exactly as it does in the input's own slot.
-		const tipBelowHost = dom.append(chatWidgetContent, dom.$('.new-session-getting-started-tip-below.chat-getting-started-tip-container'));
-		const chatTipContainer = dom.$('.new-session-getting-started-tip');
+		const chatTipContainer = dom.$(`.new-session-getting-started-tip.chat-getting-started-tip-container.${chatInputStackSlotClass}`);
 		this._register(autorun(reader => {
-			(this._useExperimentalComposerLayout.read(reader) ? tipBelowHost : inputTipSlot)?.appendChild(chatTipContainer);
+			const showBelowInput = this._useExperimentalComposerLayout.read(reader);
+			chatTipContainer.classList.toggle('new-session-getting-started-tip-below', showBelowInput);
+			if (showBelowInput) {
+				connectorRecommendations.element.insertAdjacentElement('afterend', chatTipContainer);
+			} else {
+				inputTipSlot?.appendChild(chatTipContainer);
+			}
 		}));
+		this._register(this.instantiationService.createInstance(NewChatMigrationNotice, belowInputSurfaces, this._session, () => this.focusInput()));
 		this._chatTipPresenter.value = this.instantiationService.createInstance(
 			ChatInputTipPresenter,
 			{
@@ -829,7 +855,7 @@ export class NewChatWidget extends Disposable {
 				session?.loading.read(reader);
 				const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
 				if (session && provider && isAgentHostProvider(provider)) {
-					provider.isSessionConfigResolving(session.sessionId).read(reader);
+					provider.isSessionConfigResolving(session.sessionId, session.mainChat.read(reader).resource).read(reader);
 				}
 				const useHeaderHost = isQuickChat && !isWorkspacePickerQuickChat;
 				const target = useHeaderHost ? this._quickChatHeaderPickerHost : this._workspaceSessionOptionsHost;
@@ -990,7 +1016,7 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private _updateWelcomeMessage(container: HTMLElement, title: HTMLElement, visible: boolean, phrases: readonly string[], phraseIndex: number): string | undefined {
-		container.hidden = !visible;
+		container.hidden = !visible || phrases.length === 0;
 		if (!visible || phrases.length === 0) {
 			title.textContent = '';
 			return undefined;
@@ -1310,28 +1336,28 @@ export class NewChatWidget extends Disposable {
 			|| !this._useConsolidatedRemoteWorkspaces.get()) {
 			return undefined;
 		}
-		const providers = this.sessionsProvidersService.getProviders()
-			.filter(provider => isAgentHostProvider(provider)
-				&& !provider.hostGroup
-				&& provider.supportsQuickChats);
+		const quickChatProviders = this.sessionsProvidersService.getProviders()
+			.filter(isAgentHostProvider)
+			.filter(provider => !provider.hostGroup && provider.supportsQuickChats);
+		const providers = quickChatProviders.filter(provider => provider.isVisibleInEnvironmentPicker?.get() !== false);
 		if (!isWorkspacePickerQuickChat
-			&& !this.sessionsManagementService.isQuickChatTargetAvailable()
-			&& providers.length === 0) {
+			&& providers.length === 0
+			&& (quickChatProviders.length > 0 || !this.sessionsManagementService.isQuickChatTargetAvailable())) {
 			return undefined;
 		}
 		const activeProviderId = isWorkspacePickerQuickChat ? this._session.get()?.providerId : undefined;
-		const activeProvider = activeProviderId ? providers.find(provider => provider.id === activeProviderId) : undefined;
+		const activeProvider = activeProviderId ? quickChatProviders.find(provider => provider.id === activeProviderId) : undefined;
 		const submenuActions = providers.length > 1
 			? providers.map(provider => {
 				const label = provider.id === LOCAL_AGENT_HOST_PROVIDER_ID
-					? localize('newSessionWorkspacePicker.localQuickChat', "Local")
+					? localize('newSessionWorkspacePicker.localQuickChat', "This Computer")
 					: provider.label;
 				const action = toAction({
 					id: `newSessionWorkspacePicker.quickChat.${provider.id}`,
 					label,
 					checked: provider.id === activeProviderId,
 					run: () => {
-						if (provider.id !== activeProviderId) {
+						if (provider.isVisibleInEnvironmentPicker?.get() !== false && provider.id !== activeProviderId) {
 							this.selectNoWorkspace({ providerId: provider.id });
 						}
 					},
@@ -1347,7 +1373,10 @@ export class NewChatWidget extends Disposable {
 				: undefined,
 			select: () => {
 				if (!isWorkspacePickerQuickChat) {
-					this.selectNoWorkspace(providers.length === 1 ? { providerId: providers[0].id } : undefined);
+					const provider = providers.length === 1 ? providers[0] : undefined;
+					if (provider?.isVisibleInEnvironmentPicker?.get() !== false) {
+						this.selectNoWorkspace(provider ? { providerId: provider.id } : undefined);
+					}
 				}
 			},
 			submenuActions,
@@ -1506,7 +1535,7 @@ export class NewChatWidget extends Disposable {
 		const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
 		const selectedFolderUri = this._workspacePicker.selectedFolderUri;
 		const providerIsAgentHost = !!provider && isAgentHostProvider(provider);
-		const resolvingConfig = session && providerIsAgentHost ? provider.isSessionConfigResolving(session.sessionId).get() : false;
+		const resolvingConfig = session && providerIsAgentHost ? provider.isSessionConfigResolving(session.sessionId, session.mainChat.get().resource).get() : false;
 		const sessionMatchesSelectedFolder = !!selectedFolderUri && !!session?.workspace.get()?.folders.some(folder => isEqual(folder.root, selectedFolderUri));
 		if (!sessionMatchesSelectedFolder) {
 			return false;
@@ -1515,6 +1544,9 @@ export class NewChatWidget extends Disposable {
 		if (hasGitRemote !== true) {
 			return false;
 		}
+		const sessionConfig = session && providerIsAgentHost && !resolvingConfig ? provider.getSessionConfig(session.sessionId, session.mainChat.get().resource) : undefined;
+		const supportsWorktreeIsolation = !!sessionConfig
+			&& getSessionWorkspaceProperties(sessionConfig.schema).isolation?.schema.enum?.includes('worktree') === true;
 		return this._compareAgentsEnabled.get()
 			&& selectedFolderUri !== undefined
 			&& !!session
@@ -1523,6 +1555,7 @@ export class NewChatWidget extends Disposable {
 			&& this.sessionsManagementService.getSessionTypesForFolder(selectedFolderUri).some(type =>
 				type.providerId === session.providerId && type.sessionType.id === session.sessionType && type.sessionType.supportsWorktreeConfiguration)
 			&& !resolvingConfig
+			&& supportsWorktreeIsolation
 			&& this._getComparisonBranch(session) !== undefined;
 	}
 
@@ -1963,8 +1996,8 @@ export class NewChatWidget extends Disposable {
 		this._aquariumToggle?.setHostVisible(visible);
 	}
 
-	sendQuery(text: string): void {
-		this._newChatInput.sendQuery(text);
+	sendQuery(text: string): Promise<boolean> {
+		return this._newChatInput.sendQuery(text);
 	}
 
 	submitInput(): Promise<boolean> {

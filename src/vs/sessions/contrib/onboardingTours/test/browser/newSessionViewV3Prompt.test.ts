@@ -23,7 +23,7 @@ import { GITHUB_REMOTE_FILE_SCHEME, ISessionWorkspace } from '../../../../servic
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { INewSessionComposerService, INewSessionPromptOptionsController, NewSessionPromptOptionsState } from '../../../chat/browser/newSessionComposerService.js';
-import { GitHubAuthenticationError } from '../../../github/browser/githubApiClient.js';
+import { GitHubRequestError } from '../../../../../platform/github/common/githubTypes.js';
 import { IGitHubRecentUserWork } from '../../../github/browser/fetchers/githubRecentUserWorkFetcher.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { NewSessionViewV3PromptRunner, selectNewSessionViewV3GitHubCandidate } from '../../browser/newSessionViewV3Prompt.js';
@@ -274,7 +274,7 @@ suite('NewSessionViewV3Prompt', () => {
 	test('falls back to the prompt variation when silent GitHub authentication is unavailable', async () => {
 		const result = await runPrompt({
 			'onb.newSessionViewV3.variation': 'githubPrompt',
-		}, {}, new GitHubAuthenticationError());
+		}, {}, new GitHubRequestError('Authentication required', 'authentication'));
 
 		assert.deepStrictEqual({
 			animation: result.animation,
@@ -683,7 +683,7 @@ suite('NewSessionViewV3Prompt', () => {
 		const result = await runPrompt(
 			{ 'onb.newSessionViewV3.variation': 'options' },
 			{},
-			new GitHubAuthenticationError(),
+			new GitHubRequestError('Authentication required', 'authentication'),
 		);
 
 		assert.deepStrictEqual({
