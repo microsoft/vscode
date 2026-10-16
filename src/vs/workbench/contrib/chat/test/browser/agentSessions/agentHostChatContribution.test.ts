@@ -1112,6 +1112,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		onDidContinueInBackground: Event.None,
 		registerTerminalInstanceWithToolSession: () => { },
 		getAhpCommandSource: () => undefined,
+		getOutputSource: () => undefined,
 	});
 	instantiationService.stub(IAgentHostTerminalService, {
 		reviveTerminal: async () => undefined!,
@@ -11636,6 +11637,44 @@ suite('AgentHostChatContribution', () => {
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 			assert.strictEqual(attachmentDisposed, true);
+		});
+
+		test('completed output-only terminal whose command still runs stays attached after the turn ends and the command exits, until the chat closes', async () => {
+			let attachmentDisposed = false;
+			const onDidChange = disposables.add(new Emitter<void>());
+			const source = { onDidChange: onDidChange.event, output: 'tick 1\n', hasExited: false, exitCode: undefined };
+			const { sessionHandler, agentHostService, chatAgentService, instantiationService } = createContribution(disposables, {
+				agentHostTerminalServiceOverride: {
+					attachOutputTerminal: () => toDisposable(() => attachmentDisposed = true),
+				},
+			});
+			instantiationService.stub(ITerminalChatService, 'getOutputSource', () => source);
+			const { turnPromise, chatSession, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({ type: 'chat/toolCallStart', session, turnId, toolCallId: 'tc-detached', toolName: 'bash', displayName: 'Bash', _meta: { toolKind: 'terminal', language: 'shellscript' } } as ChatAction);
+			fire({ type: 'chat/toolCallReady', session, turnId, toolCallId: 'tc-detached', invocationMessage: 'Running command', toolInput: 'npm run dev', confirmed: 'not-needed' } as ChatAction);
+			fire({
+				type: 'chat/toolCallComplete',
+				session,
+				turnId,
+				toolCallId: 'tc-detached',
+				result: {
+					success: true,
+					pastTenseMessage: 'Started command',
+					content: [{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://shell/detached', title: 'Terminal', isPty: false }],
+				},
+			} as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+			const disposedAtTurnEnd = attachmentDisposed;
+			// A card rendered after the command exited still looks up this output.
+			source.hasExited = true;
+			onDidChange.fire();
+			await timeout(0);
+			const disposedAfterExit = attachmentDisposed;
+			chatSession.dispose();
+
+			assert.deepStrictEqual({ disposedAtTurnEnd, disposedAfterExit, disposedAfterChatClosed: attachmentDisposed }, { disposedAtTurnEnd: false, disposedAfterExit: false, disposedAfterChatClosed: true });
 		});
 
 		test('completed output-only terminal with an empty preview and no exit code snapshots before retiring its live attachment', async () => {

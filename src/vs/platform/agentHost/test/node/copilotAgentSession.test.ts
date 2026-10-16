@@ -129,6 +129,8 @@ import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 
 type BackgroundTasks = Awaited<ReturnType<CopilotSession['rpc']['tasks']['list']>>['tasks'];
+type TaskOutputRead = Parameters<CopilotSession['rpc']['tasks']['readOutput']>[0];
+type TaskOutputPage = Awaited<ReturnType<CopilotSession['rpc']['tasks']['readOutput']>>;
 
 const noOpWorkingDirectoryChangeTransaction: ICopilotWorkingDirectoryChangeTransaction = {
 	prepare: async () => { },
@@ -320,6 +322,10 @@ class MockCopilotSession {
 	backgroundTaskRefreshCalls = 0;
 	readonly backgroundTaskCancelCalls: string[] = [];
 	backgroundTaskListError: Error | undefined;
+	/** What each `tasks.readOutput` call returns in order, keyed by task ID; a read with nothing left keeps waiting. */
+	readonly taskOutputPages = new Map<string, (TaskOutputPage | (() => Promise<TaskOutputPage>))[]>();
+	readonly taskOutputReads: TaskOutputRead[] = [];
+	onTaskOutputRead: ((read: TaskOutputRead) => void) | undefined;
 
 	private readonly _handlers = new Map<string, Set<(event: SessionEvent) => void>>();
 	private readonly _allHandlers = new Set<SessionEventHandler>();
@@ -694,6 +700,16 @@ class MockCopilotSession {
 			cancel: async (params: { id: string }) => {
 				this.backgroundTaskCancelCalls.push(params.id);
 				return { cancelled: true };
+			},
+			readOutput: async (read: TaskOutputRead): Promise<TaskOutputPage> => {
+				this.taskOutputReads.push(read);
+				this.onTaskOutputRead?.(read);
+				const page = this.taskOutputPages.get(read.id)?.shift();
+				if (typeof page === 'function') {
+					return page();
+				}
+				// With nothing queued, the read keeps waiting like a long poll.
+				return page ?? new Promise<TaskOutputPage>(() => { });
 			},
 		},
 		connectors: {
@@ -2342,6 +2358,118 @@ suite('CopilotAgentSession', () => {
 				afterUnobserve: 2,
 			});
 		}));
+
+		suite('detached shell output', () => {
+			const detached = { ...shell('server'), attachmentMode: 'detached' as const, pid: 4242 };
+			const terminalUri = defaultNonPtyShellTerminalUri('tc-detached');
+
+			function startDetachedShell(mockSession: MockCopilotSession): void {
+				mockSession.fire('tool.execution_start', {
+					toolCallId: 'tc-detached',
+					toolName: 'bash',
+					arguments: { command: detached.command },
+				} as SessionEventPayload<'tool.execution_start'>['data']);
+				mockSession.fire('tool.execution_complete', {
+					toolCallId: 'tc-detached',
+					success: true,
+					result: { content: `<command started in detached background with shellId: ${detached.id}>` },
+				} as SessionEventPayload<'tool.execution_complete'>['data']);
+			}
+
+			test('streams each read from the previous cursor into the terminal of the tool call and its background work until the shell exits', async () => {
+				const { mockSession, signals, waitForSignal, terminalManager } = await createAgentSession(disposables);
+				const lastPage = new DeferredPromise<TaskOutputPage>();
+				mockSession.backgroundTasks = [detached];
+				mockSession.taskOutputPages.set(detached.id, [{ text: 'tick 1\n', cursor: 'cursor-1' }, () => lastPage.p]);
+				startDetachedShell(mockSession);
+				await waitForSignal(signal => isAction(signal, ActionType.ChatBackgroundWorkSet));
+				mockSession.backgroundTasks = [];
+				lastPage.complete({ text: 'tick 2\n', cursor: 'cursor-2', exit: { status: 'completed', exitCode: 0 } });
+				await waitForSignal(signal => isAction(signal, ActionType.ChatBackgroundWorkRemoved));
+
+				const completed = getActions(signals).find(action => action.type === ActionType.ChatToolCallComplete) as ChatToolCallCompleteAction;
+				assert.deepStrictEqual({
+					reads: mockSession.taskOutputReads,
+					toolCallTerminal: completed.result.content?.find(content => content.type === ToolResultContentType.Terminal),
+					work: workActions(signals).map(action => action.type === ActionType.ChatBackgroundWorkSet
+						? { set: action.work.id, terminal: action.work.kind === BackgroundWorkKind.Shell ? action.work.terminal : undefined }
+						: { removed: action.id }),
+					data: terminalManager.outputTerminalData,
+					finalized: terminalManager.outputTerminalsFinalized,
+				}, {
+					reads: [
+						{ id: detached.id, cursor: undefined, waitMs: 30_000 },
+						{ id: detached.id, cursor: 'cursor-1', waitMs: 30_000 },
+					],
+					toolCallTerminal: { type: ToolResultContentType.Terminal, resource: terminalUri, title: 'Run Shell Command', isPty: false },
+					work: [{ set: 'shell:server', terminal: terminalUri }, { removed: 'shell:server' }],
+					data: [{ uri: terminalUri, data: 'tick 1\n' }, { uri: terminalUri, data: 'tick 2\n' }],
+					finalized: [{ uri: terminalUri, exitCode: 0 }],
+				});
+			});
+
+			test('keeps reading output written before an exit the task list reports first', async () => {
+				const { mockSession, waitForSignal, terminalManager } = await createAgentSession(disposables);
+				const lastPage = new DeferredPromise<TaskOutputPage>();
+				mockSession.backgroundTasks = [detached];
+				mockSession.taskOutputPages.set(detached.id, [{ text: 'first\n', cursor: 'cursor-1' }, () => lastPage.p]);
+				startDetachedShell(mockSession);
+				await waitForSignal(signal => isAction(signal, ActionType.ChatBackgroundWorkSet));
+				mockSession.backgroundTasks = [];
+				mockSession.fire('session.background_tasks_changed', {});
+				await waitForSignal(signal => isAction(signal, ActionType.ChatBackgroundWorkRemoved));
+				const finalizedByTaskList = [...terminalManager.outputTerminalsFinalized];
+				lastPage.complete({ text: 'last\n', cursor: 'cursor-2', exit: { status: 'completed', exitCode: 3 } });
+				await timeout(0);
+
+				assert.deepStrictEqual({
+					finalizedByTaskList,
+					data: terminalManager.outputTerminalData.map(({ data }) => data),
+					finalized: terminalManager.outputTerminalsFinalized,
+				}, {
+					finalizedByTaskList: [],
+					data: ['first\n', 'last\n'],
+					finalized: [{ uri: terminalUri, exitCode: 3 }],
+				});
+			});
+
+			test('leaves the shell to the task list when a read fails, and reads nothing after disposal', async () => {
+				const { session, mockSession, waitForSignal, terminalManager } = await createAgentSession(disposables);
+				mockSession.backgroundTasks = [detached];
+				mockSession.taskOutputPages.set(detached.id, [async () => { throw new Error('Unhandled method session.tasks.readOutput'); }]);
+				startDetachedShell(mockSession);
+				await waitForSignal(signal => isAction(signal, ActionType.ChatBackgroundWorkSet));
+				await timeout(0);
+				const finalizedAfterFailure = [...terminalManager.outputTerminalsFinalized];
+				mockSession.backgroundTasks = [];
+				mockSession.fire('session.background_tasks_changed', {});
+				await waitForSignal(signal => isAction(signal, ActionType.ChatBackgroundWorkRemoved));
+				const finalizedByTaskList = [...terminalManager.outputTerminalsFinalized];
+
+				// A read still waiting when the session is disposed appends nothing.
+				const pendingPage = new DeferredPromise<TaskOutputPage>();
+				mockSession.backgroundTasks = [{ ...detached, id: 'watcher' }];
+				mockSession.taskOutputPages.set('watcher', [() => pendingPage.p]);
+				mockSession.fire('tool.execution_start', { toolCallId: 'tc-watcher', toolName: 'bash', arguments: { command: 'npm run watch' } } as SessionEventPayload<'tool.execution_start'>['data']);
+				mockSession.fire('tool.execution_complete', { toolCallId: 'tc-watcher', success: true, result: { content: '<command started in detached background with shellId: watcher>' } } as SessionEventPayload<'tool.execution_complete'>['data']);
+				await timeout(0);
+				session.dispose();
+				pendingPage.complete({ text: 'after disposal\n', cursor: 'cursor-1' });
+				await timeout(0);
+
+				assert.deepStrictEqual({
+					reads: mockSession.taskOutputReads.map(({ id, cursor }) => ({ id, cursor })),
+					finalizedAfterFailure,
+					finalizedByTaskList,
+					data: terminalManager.outputTerminalData,
+				}, {
+					reads: [{ id: detached.id, cursor: undefined }, { id: 'watcher', cursor: undefined }],
+					finalizedAfterFailure: [],
+					finalizedByTaskList: [{ uri: terminalUri, exitCode: undefined }],
+					data: [],
+				});
+			});
+		});
 	});
 
 	test('initializes customization enablement before launching the SDK session', async () => {
