@@ -526,6 +526,9 @@ export interface ICopilotApiService {
 	/** Resolve the raw Copilot entitlement SKU cached from `/copilot_internal/user`. */
 	resolveCopilotSku?(githubToken: string): Promise<string | undefined>;
 
+	/** Revalidates discovery when a client observes a different SKU for the same analytics account. */
+	refreshCopilotUser?(githubToken: string, trackingId: string, sku: string): Promise<void>;
+
 	/** Read the SKU only while its account discovery cache entry remains usable. */
 	getCachedCopilotSku?(githubToken: string): string | undefined;
 
@@ -539,6 +542,7 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 
 	private _capiBasePromise: Promise<ICapiBase> | null = null;
 	private readonly _clientsByToken = new Map<string, IClientRequest>();
+	private readonly _entitlementRefreshes = new WeakMap<IClientRequest, Promise<void>>();
 	private readonly _fetch: FetchFunction;
 
 	constructor(
@@ -884,6 +888,37 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 
 	async resolveCopilotSku(githubToken: string): Promise<string | undefined> {
 		return (await this._getEntryForToken(githubToken)).copilotSku;
+	}
+
+	async refreshCopilotUser(githubToken: string, trackingId: string, sku: string): Promise<void> {
+		const request = this._clientsByToken.get(githubToken);
+		const entry = this._readCachedClient(request?.skuCell);
+		if (!entry || entry.trackingId !== trackingId || entry.copilotSku === sku) {
+			return;
+		}
+		if (!request) {
+			return;
+		}
+		const existing = this._entitlementRefreshes.get(request);
+		if (existing) {
+			return existing;
+		}
+		const pending = this._buildClientForToken(githubToken).then(refreshed => {
+			if (this._clientsByToken.get(githubToken) === request && request.skuCell.valid && request.skuCell.value === entry) {
+				request.skuCell.value = refreshed;
+			}
+		}).catch(error => {
+			if (this._clientsByToken.get(githubToken) === request && request.skuCell.value === entry) {
+				if (error instanceof CopilotApiError && (error.status === 401 || error.status === 403)) {
+					this._invalidateClientRequest(githubToken, request);
+				} else {
+					request.skuCell.value = undefined;
+				}
+			}
+			throw error;
+		}).finally(() => this._entitlementRefreshes.delete(request));
+		this._entitlementRefreshes.set(request, pending);
+		return pending;
 	}
 
 	getCachedCopilotSku(githubToken: string): string | undefined {

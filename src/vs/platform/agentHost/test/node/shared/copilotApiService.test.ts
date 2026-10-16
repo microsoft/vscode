@@ -132,6 +132,61 @@ suite('CopilotApiService', () => {
 	suite('account telemetry context', () => {
 		teardown(() => sinon.restore());
 
+		test('revalidates changed entitlements without copying client values or affecting another token', async () => {
+			let requests = 0;
+			const service = createService(async () => {
+				requests++;
+				return userResponse({ access_type_sku: requests <= 2 ? 'no_access' : 'server-sku', analytics_tracking_id: 'analytics' });
+			});
+			await service.resolveCopilotSku('token-a');
+			await service.resolveCopilotSku('token-b');
+			const read = service.captureCopilotTelemetryContext('token-a');
+			await service.refreshCopilotUser('token-a', 'another-account', 'free');
+			await service.refreshCopilotUser('token-a', 'analytics', 'no_access');
+			const before = { requests, context: read() };
+			await Promise.all([
+				service.refreshCopilotUser('token-a', 'analytics', 'free'),
+				service.refreshCopilotUser('token-a', 'analytics', 'free'),
+			]);
+			assert.deepStrictEqual({ before, requests, context: read(), other: service.getCachedCopilotSku('token-b') }, {
+				before: { requests: 2, context: { copilotSku: 'no_access', copilotTrackingId: 'analytics' } },
+				requests: 3,
+				context: { copilotSku: 'server-sku', copilotTrackingId: 'analytics' },
+				other: 'no_access',
+			});
+		});
+
+		test('keeps existing discovery usable during refresh and clears stale telemetry after failure', async () => {
+			const refresh = new DeferredPromise<Response>();
+			let requests = 0;
+			const service = createService(async () => ++requests === 1
+				? userResponse({ access_type_sku: 'no_access', analytics_tracking_id: 'analytics' })
+				: refresh.p);
+			await service.resolveCopilotSku('token');
+			const read = service.captureCopilotTelemetryContext('token');
+			const work = service.refreshCopilotUser('token', 'analytics', 'free');
+			const pending = await service.resolveCopilotSku('token');
+			refresh.complete(new Response('Unavailable', { status: 503 }));
+			await assert.rejects(work);
+			assert.deepStrictEqual({ pending, after: read() }, { pending: 'no_access', after: undefined });
+		});
+
+		test('rejected entitlement refresh permanently invalidates the captured account context', async () => {
+			let status = 200;
+			const service = createService(async () => status === 200
+				? userResponse({ access_type_sku: 'no_access', analytics_tracking_id: 'analytics' })
+				: new Response('Rejected', { status }));
+			await service.resolveCopilotSku('token');
+			const old = service.captureCopilotTelemetryContext('token');
+			status = 403;
+			await assert.rejects(service.refreshCopilotUser('token', 'analytics', 'free'));
+			status = 200;
+			await service.resolveCopilotSku('token');
+			assert.deepStrictEqual({ old: old(), fresh: service.captureCopilotTelemetryContext('token')() }, {
+				old: undefined, fresh: { copilotSku: 'no_access', copilotTrackingId: 'analytics' },
+			});
+		});
+
 		test('maps account properties only at emission without leaking internal names or refreshing credentials', async () => {
 			let requests = 0;
 			let current = true;

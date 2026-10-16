@@ -8,6 +8,7 @@ import { mock } from '../../../../base/test/common/mock.js';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
+import { agentEntitlementMeta } from '../../common/meta/agentEntitlementMeta.js';
 import { spy, stub, useFakeTimers } from 'sinon';
 import { workspacelessChatsRoot, workspacelessScratchDir } from '../../common/workspacelessScratchDir.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
@@ -5361,7 +5362,7 @@ suite('CopilotAgent', () => {
 		}, TEST_PRODUCT_SERVICE)));
 		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), copilotApiService: apiService, gitHubEndpointService: endpoints, telemetryService });
 		try {
-			const oldAuthentication = agent.authenticate(endpoints.getCopilotResource().resource, 'test-token-a');
+			const oldAuthentication = agent.authenticate(endpoints.getCopilotResource().resource, 'test-token-a', undefined, agentEntitlementMeta({ trackingId: 'analytics', sku: 'free' }));
 			await discoveryStarted.p;
 			configuration.updateRootConfig({ [AgentHostConfigKey.GithubEnterpriseUri]: 'https://acme.ghe.com' });
 			const newAuthentication = agent.authenticate(endpoints.getCopilotResource().resource, 'test-token-b');
@@ -5396,6 +5397,53 @@ suite('CopilotAgent', () => {
 				unavailableSku: undefined, recoveredSku: 'recovered-sku',
 			});
 		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('refreshes same-token discovery for matching account entitlement hints without trusting their SKU', async () => {
+		let sku = 'no_access';
+		const copilotApiService = disposables.add(new CopilotApiService(async () => Response.json({
+			endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: sku, analytics_tracking_id: 'analytics',
+		}), new NullLogService(), TEST_PRODUCT_SERVICE, createTestGitHubEndpointService()));
+		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), copilotApiService });
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			const before = agent.getTelemetryContext().copilotSku;
+			sku = 'server-sku';
+			await agent.authenticate('https://api.github.com', 'token', undefined, agentEntitlementMeta({ trackingId: 'other', sku: 'free' }));
+			const unrelated = agent.getTelemetryContext().copilotSku;
+			await agent.authenticate('https://api.github.com', 'token', undefined, agentEntitlementMeta({ trackingId: 'analytics', sku: 'free' }));
+			await copilotApiService.refreshCopilotUser('token', 'analytics', 'free');
+			assert.deepStrictEqual({ before, unrelated, refreshed: agent.getTelemetryContext().copilotSku }, {
+				before: 'no_access', unrelated: 'no_access', refreshed: 'server-sku',
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('pending entitlement refresh does not block same-token authentication or revocation', async () => {
+		const refresh = new DeferredPromise<Response>();
+		const refreshStarted = new DeferredPromise<void>();
+		let requests = 0;
+		const copilotApiService = disposables.add(new CopilotApiService(async () => {
+			if (++requests === 1) {
+				return Response.json({ endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'no_access', analytics_tracking_id: 'analytics' });
+			}
+			refreshStarted.complete();
+			return refresh.p;
+		}, new NullLogService(), TEST_PRODUCT_SERVICE, createTestGitHubEndpointService()));
+		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), copilotApiService });
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			await agent.authenticate('https://api.github.com', 'token', undefined, agentEntitlementMeta({ trackingId: 'analytics', sku: 'free' }));
+			await refreshStarted.p;
+			await agent.authenticate('https://api.github.com', 'token');
+			await agent.authenticate('https://api.github.com', '');
+			assert.deepStrictEqual({ sku: agent.getTelemetryContext().copilotSku, requests }, { sku: undefined, requests: 2 });
+		} finally {
+			refresh.complete(Response.json({ endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'free', analytics_tracking_id: 'analytics' }));
 			await disposeAgent(agent);
 		}
 	});
