@@ -146,9 +146,16 @@ class MockProtocolServer implements IProtocolServer {
 
 class CountingLogService extends NullLogService {
 	errorCount = 0;
+	readonly errors: string[] = [];
+	readonly infos: string[] = [];
 
-	override error(_message: string, ..._args: unknown[]): void {
+	override error(message: string | Error, ..._args: unknown[]): void {
 		this.errorCount++;
+		this.errors.push(String(message));
+	}
+
+	override info(message: string, ..._args: unknown[]): void {
+		this.infos.push(message);
 	}
 }
 
@@ -7072,12 +7079,15 @@ suite('ProtocolServerHandler', () => {
 					codes.push(response.error?.code);
 				}
 				agentService.moveChatResult = new AgentChatMoveRefusedError(AgentChatMoveRefusal.NotSingleChat, 'Session has other chats.');
+				const errorsBefore = logService.errors.length;
 				const refused = await send(transport, { session: sessionUri, destination: targetUri, after: null }) as { error?: { code: number; data?: unknown } };
 
-				assert.deepStrictEqual({ codes, refused: { code: refused.error?.code, data: refused.error?.data }, moved: agentService.movedSessions.length }, {
+				assert.deepStrictEqual({ codes, refused: { code: refused.error?.code, data: refused.error?.data }, moved: agentService.movedSessions.length, refusalLogs: { errors: logService.errors.slice(errorsBefore), infos: logService.infos.filter(message => message.includes('refused')) } }, {
 					codes: [JsonRpcErrorCodes.InvalidParams, JsonRpcErrorCodes.InvalidParams, JsonRpcErrorCodes.InvalidParams],
 					refused: { code: JsonRpcErrorCodes.InvalidParams, data: { reason: AgentChatMoveRefusal.NotSingleChat } },
 					moved: 1,
+					// An expected refusal is not an error.
+					refusalLogs: { errors: [], infos: [`[ProtocolServer] Extension request 'vscode/moveSession' failed: refused (${AgentChatMoveRefusal.NotSingleChat}): Session has other chats.`] },
 				});
 			});
 		});
@@ -7120,11 +7130,20 @@ suite('ProtocolServerHandler', () => {
 				});
 			});
 
-			test('maps a refusal to InvalidParams with its reason', async () => {
+			test('maps a refusal to InvalidParams with its reason and logs it at info, not as an error (B4-4)', async () => {
 				agentService.moveChatResult = new AgentChatMoveRefusedError(AgentChatMoveRefusal.NotMovable, 'The chat cannot be moved');
 				const resp = await move({ channel: peerChat, destination: { kind: ChatMoveDestinationKind.Session, session: targetUri } });
 
-				assert.deepStrictEqual(resp.error, { code: JsonRpcErrorCodes.InvalidParams, message: 'The chat cannot be moved', data: { reason: AgentChatMoveRefusal.NotMovable } });
+				const refusedLogs = { errors: [...logService.errors], infos: logService.infos.filter(message => message.includes('refused')) };
+				agentService.moveChatResult = new Error('unexpected');
+				await move({ channel: peerChat, destination: { kind: ChatMoveDestinationKind.Session, session: targetUri } });
+
+				assert.deepStrictEqual({ error: resp.error, refusedLogs, unexpected: logService.errors }, {
+					error: { code: JsonRpcErrorCodes.InvalidParams, message: 'The chat cannot be moved', data: { reason: AgentChatMoveRefusal.NotMovable } },
+					// An expected refusal is logged at info without a stack; an unexpected failure stays an error.
+					refusedLogs: { errors: [], infos: [`[ProtocolServer] Request 'moveChat' id=2 failed: refused (${AgentChatMoveRefusal.NotMovable}): The chat cannot be moved`] },
+					unexpected: [`[ProtocolServer] Request 'moveChat' id=2 failed`],
+				});
 			});
 
 			test('rejects malformed destinations and unknown chats without forwarding', async () => {

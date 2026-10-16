@@ -190,6 +190,25 @@ class SubscriptionCancelledError extends ProtocolError {
 	}
 }
 
+/**
+ * A chat or session move the host refused (Block 4): an expected outcome, not a failure. Clients read `reason` from
+ * `data`; the request is logged at info, without a stack.
+ */
+class ChatMoveRefusedProtocolError extends ProtocolError {
+	constructor(readonly refusal: AgentChatMoveRefusedError) {
+		super(JsonRpcErrorCodes.InvalidParams, refusal.message, { reason: refusal.reason });
+	}
+}
+
+/** Logs a failed request: an expected move refusal at info, anything else at error. */
+function logFailedRequest(logService: ILogService, message: string, error: unknown): void {
+	if (error instanceof ChatMoveRefusedProtocolError) {
+		logService.info(`${message}: refused (${error.refusal.reason}): ${error.message}`);
+	} else {
+		logService.error(message, error);
+	}
+}
+
 function shouldLogFailedRequest(method: string, params: unknown, err: unknown): boolean {
 	if (!(err instanceof ProtocolError) || err.code !== AhpErrorCodes.NotFound || !isFileResourceRead(method, params)) {
 		return true;
@@ -2051,7 +2070,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			} catch (error) {
 				if (error instanceof AgentChatMoveRefusedError) {
 					// A refusal changes nothing; `reason` lets clients explain it.
-					throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, error.message, { reason: error.reason });
+					throw new ChatMoveRefusedProtocolError(error);
 				}
 				throw error;
 			}
@@ -2347,7 +2366,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				if (client.disposables.isDisposed) {
 					return;
 				}
-				this._logService.error(`[ProtocolServer] Extension request '${method}' failed`, err);
+				logFailedRequest(this._logService, `[ProtocolServer] Extension request '${method}' failed`, err);
 				client.transport.send(jsonRpcErrorFrom(id, err));
 			});
 			return;
@@ -2401,7 +2420,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			if (error instanceof SubscriptionCancelledError) {
 				this._logService.trace(`[ProtocolServer] Request '${method}' id=${id} cancelled`, error.message);
 			} else if (shouldLogFailedRequest(method, params, error)) {
-				this._logService.error(`[ProtocolServer] Request '${method}' id=${id} failed`, error);
+				logFailedRequest(this._logService, `[ProtocolServer] Request '${method}' id=${id} failed`, error);
 			}
 			client.transport.send(jsonRpcErrorFrom(id, error));
 		});
@@ -3000,7 +3019,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		} catch (error) {
 			if (error instanceof AgentChatMoveRefusedError) {
 				// A refusal changes nothing; `reason` lets clients explain it.
-				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, error.message, { reason: error.reason });
+				throw new ChatMoveRefusedProtocolError(error);
 			}
 			throw error;
 		}
