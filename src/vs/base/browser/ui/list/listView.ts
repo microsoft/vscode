@@ -726,12 +726,16 @@ export class ListView<T> implements IListView<T> {
 		const insertRanges = [elementsRange, ...unrenderedRestRanges].map(r => Range.intersect(renderRange, r)).reverse();
 		const insertedItems: IItem<T>[] = [];
 
-		for (const range of insertRanges) {
+		insert: for (const range of insertRanges) {
 			for (let i = range.end - 1; i >= range.start; i--) {
 				const item = this.items[i];
 				const rows = rowsToDispose.get(item.templateId);
 				const row = rows?.pop();
 				this.insertItemInDOM(i, row);
+				if (!item.row) {
+					// Rendering recycled this row, invalidating the remaining insertion ranges.
+					break insert;
+				}
 				insertedItems.push(item);
 			}
 		}
@@ -1034,7 +1038,7 @@ export class ListView<T> implements IListView<T> {
 			renderer.renderElement(item.element, index, item.row.templateData, { height: item.size });
 		}
 
-		// After renderElement, item.row may become null due to reentrant splice/dispose operations
+		// Rendering can synchronously recycle the row, for example when the viewport collapses.
 		if (!item.row) {
 			return;
 		}

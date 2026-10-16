@@ -7,48 +7,158 @@ import assert from 'assert';
 import { CachedListVirtualDelegate, IListRenderer, IListVirtualDelegate } from '../../../../browser/ui/list/list.js';
 import { ListView } from '../../../../browser/ui/list/listView.js';
 import { range } from '../../../../common/arrays.js';
+import { DisposableStore } from '../../../../common/lifecycle.js';
 import { IRange } from '../../../../common/range.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
 suite('ListView', function () {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('insertItemInDOM does not throw when renderElement causes reentrant splice that nulls item.row', function () {
+	for (const horizontalScrolling of [false, true]) {
+		for (const supportDynamicHeights of [false, true]) {
+			if (horizontalScrolling && supportDynamicHeights) {
+				continue;
+			}
+			test(`recovers when rendering collapses the viewport (horizontal: ${horizontalScrolling}, dynamic: ${supportDynamicHeights})`, () => {
+				const disposables = store.add(new DisposableStore());
+				const element = document.createElement('div');
+				const delegate: IListVirtualDelegate<number> = {
+					getHeight() { return 20; },
+					getTemplateId() { return 'template'; },
+					getDynamicHeight() { return 20; }
+				};
+				const rendered: number[] = [];
+				const disposed: number[] = [];
+				const dragURIs: number[] = [];
+				let templates = 0;
+				let collapseOnRender = true;
+				const renderer: IListRenderer<number, HTMLElement> = {
+					templateId: 'template',
+					renderTemplate(container) {
+						templates++;
+						return container;
+					},
+					renderElement(value, _index, container) {
+						rendered.push(value);
+						container.textContent = String(value);
+						if (collapseOnRender) {
+							collapseOnRender = false;
+							listView.layout(0, 200);
+						}
+					},
+					disposeElement(value) { disposed.push(value); },
+					disposeTemplate() { templates--; }
+				};
+				const listView = disposables.add(new ListView<number>(element, delegate, [renderer], {
+					horizontalScrolling,
+					supportDynamicHeights,
+					dnd: {
+						getDragElements(value) { return [value]; },
+						getDragURI(value) {
+							dragURIs.push(value);
+							return value === 42 ? 'test:42' : null;
+						},
+						onDragStart() { },
+						onDragOver() { return false; },
+						drop() { },
+						dispose() { }
+					}
+				}));
+				listView.layout(200, 200);
+				listView.splice(0, 0, [42]);
+
+				assert.deepStrictEqual({
+					length: listView.length,
+					row: listView.domElement(0),
+					rowsInDOM: element.querySelectorAll('.monaco-list-row').length,
+					rendered,
+					disposed,
+					dragURIs
+				}, {
+					length: 1,
+					row: null,
+					rowsInDOM: 0,
+					rendered: [42],
+					disposed: [42],
+					dragURIs: []
+				});
+
+				listView.layout(200, 200);
+				const row = listView.domElement(0)!;
+				assert.deepStrictEqual({
+					text: row.textContent,
+					draggable: row.draggable,
+					rendered,
+					dragURIs,
+					templates
+				}, {
+					text: '42',
+					draggable: true,
+					rendered: [42, 42],
+					dragURIs: [42],
+					templates: 1
+				});
+
+				listView.splice(0, 1, [7]);
+				assert.deepStrictEqual({
+					reused: listView.domElement(0) === row,
+					text: row.textContent,
+					draggable: row.draggable,
+					rendered,
+					disposed,
+					dragURIs
+				}, {
+					reused: true,
+					text: '7',
+					draggable: false,
+					rendered: [42, 42, 7],
+					disposed: [42, 42],
+					dragURIs: [42, 7]
+				});
+
+				disposables.dispose();
+				assert.deepStrictEqual({ templates, disposed }, { templates: 0, disposed: [42, 42, 7] });
+			});
+		}
+	}
+
+	test('does not render stale insertion ranges after a reentrant viewport collapse', () => {
 		const element = document.createElement('div');
-		element.style.height = '200px';
-		element.style.width = '200px';
-
-		const delegate: IListVirtualDelegate<number> = {
-			getHeight() { return 20; },
-			getTemplateId() { return 'template'; }
-		};
-
-		let listView: ListView<number>;
-		let renderCount = 0;
-
-		const renderer: IListRenderer<number, void> = {
+		let collapseOnRender = false;
+		const renderer: IListRenderer<number, HTMLElement> = {
 			templateId: 'template',
-			renderTemplate() { },
-			renderElement() {
-				renderCount++;
-				// On the first render, trigger a reentrant splice that removes all items.
-				// This simulates the reentrancy path that nulls item.row mid-insertItemInDOM.
-				if (renderCount === 1) {
-					listView.splice(0, 1);
+			renderTemplate(container) { return container; },
+			renderElement(value, _index, container) {
+				container.textContent = String(value);
+				if (collapseOnRender) {
+					collapseOnRender = false;
+					listView.layout(0, 200);
 				}
 			},
 			disposeTemplate() { }
 		};
+		const listView = store.add(new ListView<number>(element, {
+			getHeight() { return 20; },
+			getTemplateId() { return 'template'; }
+		}, [renderer]));
+		listView.layout(200, 200);
+		listView.splice(0, 0, [1, 2, 3]);
+		collapseOnRender = true;
+		listView.splice(0, 3, [4, 5, 6]);
+		const collapsedRows = element.querySelectorAll('.monaco-list-row').length;
 
-		listView = new ListView<number>(element, delegate, [renderer]);
-		listView.layout(200);
+		listView.splice(0, 3, [7]);
+		listView.layout(200, 200);
 
-		// Should not throw even though renderElement triggers reentrant splice
-		assert.doesNotThrow(() => {
-			listView.splice(0, 0, [42]);
+		assert.deepStrictEqual({
+			collapsedRows,
+			length: listView.length,
+			renderedRows: Array.from(element.querySelectorAll('.monaco-list-row'), row => row.textContent)
+		}, {
+			collapsedRows: 0,
+			length: 1,
+			renderedRows: ['7']
 		});
-
-		listView.dispose();
 	});
 
 	test('all rows get disposed', function () {
