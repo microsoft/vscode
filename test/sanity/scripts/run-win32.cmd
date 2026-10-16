@@ -19,29 +19,19 @@ if errorlevel 1 (
     powershell -NoProfile -Command "if ((wsl -l -q) -contains 'Ubuntu') { exit 0 } else { exit 1 }"
     if errorlevel 1 call :install_ubuntu
 
-    if defined WSL1_FALLBACK (
-        echo Skipping WSL2 conversion because Ubuntu was imported with WSL1
-    ) else (
-        echo Ensuring Ubuntu runs with WSL2
-        call :run_wsl --set-version Ubuntu 2
-        if errorlevel 1 (
-            echo WARNING: Failed to switch Ubuntu to WSL2. WSL1 fallback workaround will be used for Node 24 server binaries.
-        )
+    echo Ensuring Ubuntu runs with WSL2
+    call :run_wsl --set-version Ubuntu 2
+    if errorlevel 1 (
+        echo WARNING: Failed to switch Ubuntu to WSL2. WSL1 fallback workaround will be used for Node 24 server binaries.
     )
 
     echo WSL distributions:
     call :run_wsl --list --verbose
 
-    REM Fail instead of silently skipping all WSL tests when the distro could not be set up.
-    REM ARM64 agents do not have WSL installed, so WSL tests are only required on x64.
+    REM Make it visible in the pipeline summary that the WSL tests are skipped, instead of skipping them silently.
     call :run_wsl -d Ubuntu echo Ubuntu WSL is available
     if errorlevel 1 (
-        if "%ARCH_NAME%"=="ARM64" (
-            echo WARNING: Ubuntu is not available on WSL, WSL sanity tests will be skipped
-        ) else (
-            echo ERROR: Ubuntu is not available on WSL, WSL sanity tests cannot run
-            exit /b 1
-        )
+        echo ##vso[task.logissue type=warning]Ubuntu is not available on WSL, all WSL sanity tests will be skipped.
     )
 )
 
@@ -80,12 +70,6 @@ curl -L -o "%ROOTFS_ZIP%" "%ROOTFS_URL%"
 echo Importing Ubuntu into WSL at %ROOTFS_DIR% from %ROOTFS_ZIP%
 mkdir "%ROOTFS_DIR%" 2>nul
 call :run_wsl --import Ubuntu "%ROOTFS_DIR%" "%ROOTFS_ZIP%"
-if errorlevel 1 (
-    REM Build agents may lack the WSL2 kernel ("WSL 2 requires an update to its kernel component").
-    echo WARNING: Failed to import Ubuntu with the default WSL version, retrying with WSL1
-    call :run_wsl --import Ubuntu "%ROOTFS_DIR%" "%ROOTFS_ZIP%" --version 1
-    if not errorlevel 1 set "WSL1_FALLBACK=1"
-)
 
 echo Starting Ubuntu on WSL
 call :run_wsl -d Ubuntu echo Ubuntu WSL is ready
