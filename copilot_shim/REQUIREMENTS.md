@@ -862,10 +862,11 @@ own output are neither, and are always visible.
 ## Enterprise policy
 
 The VS Code policy `CopilotCliCommand` controls the core setting
-`chat.copilotCliCommand.enabled`. When it is disabled:
+`chat.copilotCliCommand.enabled`. The native Rust shim discovers an installed
+Copilot CLI before checking this policy. When the policy is disabled, an
+installed CLI still launches; a missing CLI is not installed:
 
-- the shim still launches a Copilot CLI that is already installed, but never
-  installs one. It prints a message that names the policy and exits with `10`;
+- the shim prints a message that names the policy and exits with `10`;
 - `probe` reports `policy=disabled` and skips its network check, and `install`
   reports the `policy` status;
 - VS Code setup on Windows doesn't show its Copilot CLI page, doesn't publish
@@ -881,9 +882,26 @@ quality, the `HKLM` value takes precedence over the `HKCU` value, as in VS Code.
 A disabled policy in any quality wins, because the shim of any installed quality
 can be the one on `PATH`; VS Code setup applies the same rule.
 
-On macOS and Linux the shim doesn't read the policy. It is reachable only from
-integrated terminals there, and the Copilot extension applies the policy
-through the setting.
+On Linux the shim reads `/etc/vscode/policy.json`. Only a JSON object member
+named `CopilotCliCommand` whose value is the JSON boolean `false` disables
+installation. A missing or unreadable file, malformed JSON, a non-object root,
+an absent member, `true`, and every wrong type fail open.
+
+On macOS the shim uses `CFPreferencesCopyAppValue` to read the effective
+`CopilotCliCommand` value in `com.microsoft.VSCode`,
+`com.microsoft.VSCodeInsiders`, `com.microsoft.VSCodeExploration`, and
+`com.visualstudio.code.oss`. Only an actual `CFBoolean` false disables
+installation; missing, true, and wrong-typed values fail open. It does not
+require `CFPreferencesAppValueIsForced`. False in any quality wins, so a stale
+false in another quality can disable shared shim installation.
+
+These readers run on every fresh shim invocation that needs an installation
+decision; there is no cache or watcher. They apply only to the native Rust
+shim, not retired script shims. The existing `probe` and `install` setup
+commands consume the same policy result: disabled `probe` reports
+`policy=disabled` without a download check, and disabled `install` retains its
+existing policy status and exit code `10`. Policy never blocks launching an
+already installed CLI.
 
 `CopilotCliCommand` is the only local control over the shim and installation.
 It doesn't turn Copilot CLI itself on or off: that's a GitHub organization or
@@ -1173,8 +1191,16 @@ fixtures.
 - The MSI registration can be queried.
 - With the `CopilotCliCommand` policy disabled, a missing CLI produces the
   policy message and exits with code `10` without a prompt; an installed CLI
-  still launches.
+  still launches. `probe` reports `policy=disabled` without a download check,
+  and `install` preserves its existing policy status and exit code `10`.
 - Policy registry values are read only from `REG_DWORD` values.
+- Policy-reader matrices cover Linux `/etc/vscode/policy.json`
+  false/true/missing/unreadable/malformed/non-object/wrong-type cases; and
+  macOS assertions of the four production-domain
+  constants, with separately exercised effective copied-value
+  reduction/ownership and false/true/missing/wrong-type and any-false-wins
+  behavior. Linux and macOS invalid or unavailable values fail open; the tests
+  do not claim MDM delivery or `cfprefsd` propagation.
 
 ### Launch behavior
 
@@ -1245,6 +1271,14 @@ The work is complete only when:
 17. Shim entries do not suppress the official installer's profile prompt, and
     a verified official-script installation launches immediately and on later
     stale-PATH invocations without another installation.
+18. The native Rust shim reads `CopilotCliCommand` for installation on every
+    platform: the existing Windows registry reader retains its four-quality,
+    machine-over-user behavior; Linux accepts only JSON boolean `false` in
+    `/etc/vscode/policy.json`; and macOS accepts only effective `CFBoolean`
+    false across its four product domains, where false in any domain wins.
+    Invalid, missing, or unavailable Linux and macOS data fails open. These
+    platform reader tests do not certify MDM delivery or `cfprefsd`
+    propagation.
 
 ## Source references
 
