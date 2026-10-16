@@ -3,5 +3,5 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export { agentEntitlementMeta, readAgentEntitlement } from './vscode/agentEntitlementMeta.js';
-export type { IAgentEntitlement } from './vscode/agentEntitlementMeta.js';
+export { agentEntitlementHintMeta, readAgentEntitlementHint } from './vscode/agentEntitlementHintMeta.js';
+export type { IAgentEntitlementHint } from './vscode/agentEntitlementHintMeta.js';

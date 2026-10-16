@@ -13,7 +13,7 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { IAgentHostMcpOAuthMetadataService } from '../../../../../../platform/agentHost/common/agentHostMcpOAuthMetadataService.js';
 import { authenticationAccountId, authenticationAccountMeta } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
-import { agentEntitlementMeta, type IAgentEntitlement } from '../../../../../../platform/agentHost/common/meta/agentEntitlementMeta.js';
+import { agentEntitlementHintMeta, type IAgentEntitlementHint } from '../../../../../../platform/agentHost/common/meta/agentEntitlementHintMeta.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import type { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
 import { deriveGitHubEndpoints } from '../../../../../../platform/github/common/githubEndpoints.js';
@@ -90,7 +90,7 @@ export class AgentHostAuthTokenCache {
 	 * Forwards a token once per resource/scope pair. Same-token callers share
 	 * and await an in-flight authentication.
 	 */
-	async authenticate(resource: string, scopes: readonly string[] | undefined, token: string, authenticate: () => Promise<unknown>, accountId?: string, entitlement?: IAgentEntitlement): Promise<boolean> {
+	async authenticate(resource: string, scopes: readonly string[] | undefined, token: string, authenticate: () => Promise<unknown>, accountId?: string, entitlement?: IAgentEntitlementHint): Promise<boolean> {
 		const credentialKey = JSON.stringify([token, accountId, entitlement?.trackingId, entitlement?.sku]);
 		const key = this._key(resource, scopes);
 		const globalGeneration = this._globalGeneration;
@@ -506,6 +506,18 @@ interface IResolvedAgentHostAuthenticationOptions extends IAgentHostAuthenticati
 	readonly getDefaultAccount: () => IDefaultAccount | null;
 }
 
+interface IAgentHostAuthenticationForwardingOptions extends Pick<IAgentHostAuthenticationOptions, 'authTokenCache' | 'authenticate' | 'isCurrent'> {
+	readonly getDefaultAccount?: () => IDefaultAccount | null;
+}
+
+interface IForwardedAuthenticationSession {
+	readonly accessToken: string;
+	readonly expiresAfter?: number;
+	readonly id?: string;
+	readonly account?: AuthenticationSession['account'];
+	readonly authorizationServer?: URI;
+}
+
 function resolveAuthenticationOptions(accessor: ServicesAccessor, options: IAgentHostAuthenticationOptions): IResolvedAgentHostAuthenticationOptions {
 	const defaultAccountService = accessor.get(IDefaultAccountService);
 	return {
@@ -537,10 +549,10 @@ export interface IAgentHostMcpAuthenticationOptionsBase {
 }
 
 async function forwardAuthenticationToken(
-	options: Pick<IAgentHostAuthenticationOptions, 'authTokenCache' | 'authenticate' | 'isCurrent'> & Partial<Pick<IResolvedAgentHostAuthenticationOptions, 'getDefaultAccount'>>,
+	options: IAgentHostAuthenticationForwardingOptions,
 	resource: string,
 	scopes: readonly string[] | undefined,
-	session: (Pick<AuthenticationSession, 'accessToken' | 'expiresAfter'> & Partial<Pick<AuthenticationSession, 'id' | 'account' | 'authorizationServer'>>) | undefined,
+	session: IForwardedAuthenticationSession | undefined,
 	providerId?: string,
 	entitlementSessionId?: string,
 ): Promise<boolean> {
@@ -558,17 +570,23 @@ async function forwardAuthenticationToken(
 		...(session.authorizationServer ? { authorizationServer: session.authorizationServer.toString() } : {}),
 	} : undefined;
 	const defaultAccount = options.getDefaultAccount?.();
-	const data = defaultAccount?.authenticationProvider.id === providerId
-		&& (defaultAccount?.sessionId === session?.id || defaultAccount?.sessionId === entitlementSessionId)
-		? defaultAccount?.entitlementsData : undefined;
-	const entitlement = data?.analytics_tracking_id?.trim() && data.access_type_sku?.trim()
-		? { trackingId: data.analytics_tracking_id, sku: data.access_type_sku } : undefined;
+	let entitlement: IAgentEntitlementHint | undefined;
+	if (defaultAccount) {
+		const matchesProvider = defaultAccount.authenticationProvider.id === providerId;
+		const matchesSession = defaultAccount.sessionId === session?.id || defaultAccount.sessionId === entitlementSessionId;
+		if (matchesProvider && matchesSession) {
+			const data = defaultAccount.entitlementsData;
+			if (data?.analytics_tracking_id?.trim() && data.access_type_sku?.trim()) {
+				entitlement = { trackingId: data.analytics_tracking_id, sku: data.access_type_sku };
+			}
+		}
+	}
 	const request: IAgentHostAuthenticateRequest = {
 		resource,
 		scopes,
 		token,
 		...(expiresAfter !== undefined && Number.isInteger(expiresAfter) && expiresAfter > 0 ? { expiresIn: Math.ceil(expiresAfter / 1000) } : {}),
-		...((account || entitlement) ? { _meta: { ...(account ? authenticationAccountMeta(account) : {}), ...(entitlement ? agentEntitlementMeta(entitlement) : {}) } } : {}),
+		...((account || entitlement) ? { _meta: { ...(account ? authenticationAccountMeta(account) : {}), ...(entitlement ? agentEntitlementHintMeta(entitlement) : {}) } } : {}),
 	};
 	if (options.authTokenCache) {
 		return options.authTokenCache.authenticate(resource, scopes ?? [], token, () => options.authenticate(request), authenticationAccountId(account), entitlement);

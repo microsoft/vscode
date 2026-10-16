@@ -8,12 +8,12 @@ import { isObject } from '../../../../../base/common/types.js';
 const entitlementKey = 'vscode.authentication.entitlement';
 
 /** Client-observed account metadata used only to request discovery revalidation. */
-export interface IAgentEntitlement {
+export interface IAgentEntitlementHint {
 	readonly trackingId: string;
 	readonly sku: string;
 }
 
-export function readAgentEntitlement(source: { readonly _meta?: Record<string, unknown> }): IAgentEntitlement | undefined {
+export function readAgentEntitlementHint(source: { readonly _meta?: Record<string, unknown> }): IAgentEntitlementHint | undefined {
 	const value = source._meta?.[entitlementKey];
 	if (!isObject(value)) {
 		return undefined;
@@ -26,6 +26,6 @@ export function readAgentEntitlement(source: { readonly _meta?: Record<string, u
 	return { trackingId: raw.trackingId, sku: raw.sku };
 }
 
-export function agentEntitlementMeta(entitlement: IAgentEntitlement): Record<string, unknown> {
-	return { [entitlementKey]: { ...entitlement } };
+export function agentEntitlementHintMeta(hint: IAgentEntitlementHint): Record<string, unknown> {
+	return { [entitlementKey]: { ...hint } };
 }

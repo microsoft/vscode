@@ -116,7 +116,7 @@ import { ShellManager } from './copilotShellTools.js';
 import { isAgentHostTelemetryService } from '../agentHostTelemetryService.js';
 import { ICopilotApiService, type IRestrictedTelemetryContext } from '../shared/copilotApiService.js';
 import { captureCopilotTelemetryContext } from '../shared/copilotSkuTelemetry.js';
-import { readAgentEntitlement } from '../../common/meta/agentEntitlementMeta.js';
+import { readAgentEntitlementHint } from '../../common/meta/agentEntitlementHintMeta.js';
 import { AgentHostGitHubTelemetryRouter } from '../agentHostGitHubTelemetryRouter.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { CopilotSlashCommandCompletionProvider, ICopilotRuntimeSlashCommandQueryOptions } from './copilotSlashCommandCompletionProvider.js';
@@ -2789,7 +2789,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			this._automationAuthenticationReady.set(token.length > 0, undefined);
 		});
-		const entitlement = readAgentEntitlement({ _meta });
+		const entitlement = readAgentEntitlementHint({ _meta });
 		if (token && entitlement && endpointGeneration === this._gitHubEndpointGeneration && this._githubCredentials.token === token) {
 			void this._copilotApiService.refreshCopilotUser?.(token, entitlement.trackingId, entitlement.sku).then(async () => {
 				if (endpointGeneration === this._gitHubEndpointGeneration && this._githubCredentials.token === token) {

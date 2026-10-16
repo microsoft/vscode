@@ -8,7 +8,7 @@ import { mock } from '../../../../base/test/common/mock.js';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
-import { agentEntitlementMeta } from '../../common/meta/agentEntitlementMeta.js';
+import { agentEntitlementHintMeta } from '../../common/meta/agentEntitlementHintMeta.js';
 import { spy, stub, useFakeTimers } from 'sinon';
 import { workspacelessChatsRoot, workspacelessScratchDir } from '../../common/workspacelessScratchDir.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
@@ -5362,7 +5362,7 @@ suite('CopilotAgent', () => {
 		}, TEST_PRODUCT_SERVICE)));
 		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), copilotApiService: apiService, gitHubEndpointService: endpoints, telemetryService });
 		try {
-			const oldAuthentication = agent.authenticate(endpoints.getCopilotResource().resource, 'test-token-a', undefined, agentEntitlementMeta({ trackingId: 'analytics', sku: 'free' }));
+			const oldAuthentication = agent.authenticate(endpoints.getCopilotResource().resource, 'test-token-a', undefined, agentEntitlementHintMeta({ trackingId: 'analytics', sku: 'free' }));
 			await discoveryStarted.p;
 			configuration.updateRootConfig({ [AgentHostConfigKey.GithubEnterpriseUri]: 'https://acme.ghe.com' });
 			const newAuthentication = agent.authenticate(endpoints.getCopilotResource().resource, 'test-token-b');
@@ -5412,9 +5412,9 @@ suite('CopilotAgent', () => {
 			await agent.authenticate('https://api.github.com', 'token');
 			const before = agent.getTelemetryContext().copilotSku;
 			sku = 'server-sku';
-			await agent.authenticate('https://api.github.com', 'token', undefined, agentEntitlementMeta({ trackingId: 'other', sku: 'free' }));
+			await agent.authenticate('https://api.github.com', 'token', undefined, agentEntitlementHintMeta({ trackingId: 'other', sku: 'free' }));
 			const unrelated = agent.getTelemetryContext().copilotSku;
-			await agent.authenticate('https://api.github.com', 'token', undefined, agentEntitlementMeta({ trackingId: 'analytics', sku: 'free' }));
+			await agent.authenticate('https://api.github.com', 'token', undefined, agentEntitlementHintMeta({ trackingId: 'analytics', sku: 'free' }));
 			assert.deepStrictEqual(refresh.args, [
 				['token', 'other', 'free'],
 				['token', 'analytics', 'free'],
@@ -5443,7 +5443,7 @@ suite('CopilotAgent', () => {
 		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), copilotApiService });
 		try {
 			await agent.authenticate('https://api.github.com', 'token');
-			await agent.authenticate('https://api.github.com', 'token', undefined, agentEntitlementMeta({ trackingId: 'analytics', sku: 'free' }));
+			await agent.authenticate('https://api.github.com', 'token', undefined, agentEntitlementHintMeta({ trackingId: 'analytics', sku: 'free' }));
 			await refreshStarted.p;
 			await agent.authenticate('https://api.github.com', 'token');
 			await agent.authenticate('https://api.github.com', '');

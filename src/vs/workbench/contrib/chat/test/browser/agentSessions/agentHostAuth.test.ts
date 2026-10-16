@@ -15,7 +15,7 @@ import { type ProtectedResourceMetadata } from '../../../../../../platform/agent
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostMcpOAuthMetadataService, IAgentHostMcpOAuthMetadataService } from '../../../../../../platform/agentHost/common/agentHostMcpOAuthMetadataService.js';
 import { authenticationAccountMeta, readAuthenticationAccount } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
-import { readAgentEntitlement } from '../../../../../../platform/agentHost/common/meta/agentEntitlementMeta.js';
+import { readAgentEntitlementHint } from '../../../../../../platform/agentHost/common/meta/agentEntitlementHintMeta.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import type { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -1822,10 +1822,10 @@ suite('authenticateProtectedResources', () => {
 			const agents = [new class extends mock<AgentInfo>() {
 				override readonly protectedResources = [{ ...protectedResource, resource: 'https://api.github.com' }];
 			}()];
-			const observed: ReturnType<typeof readAgentEntitlement>[] = [];
+			const observed: ReturnType<typeof readAgentEntitlementHint>[] = [];
 			const options: IAgentHostAuthenticationOptions = {
 				logPrefix: '[test]', authTokenCache: new AgentHostAuthTokenCache(),
-				authenticate: async request => { observed.push(readAgentEntitlement(request)); },
+				authenticate: async request => { observed.push(readAgentEntitlementHint(request)); },
 			};
 			await instantiation.invokeFunction(authenticateProtectedResources, agents, options);
 			await instantiation.invokeFunction(authenticateProtectedResources, agents, options);
