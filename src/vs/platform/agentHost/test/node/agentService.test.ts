@@ -32397,6 +32397,8 @@ suite('AgentService (node dispatcher)', () => {
 						});
 					},
 					legacyCatalog: async ({ internals, source }) => {
+						// Its reconciliation is parked: its provider can't vouch for its chats.
+						(internals as unknown as { _catalogReconciliationService: { isParked(session: string): boolean } })._catalogReconciliationService.isParked = session => session === source.toString();
 						const read = internals._orchestratorDatabase.readCatalogSnapshot.bind(internals._orchestratorDatabase);
 						internals._orchestratorDatabase.readCatalogSnapshot = async sessions => (await read(sessions)).map(entry => entry.session === source.toString() ? { ...entry, authorityVersion: 1 } : entry);
 						internals._migrateChatCatalog = async () => { };
@@ -32421,6 +32423,28 @@ suite('AgentService (node dispatcher)', () => {
 					owners: Object.fromEntries(Object.keys(cases).map(name => [name, 'source'])),
 				});
 			});
+
+			/** A target an older build created: its catalog is legacy and its aggregate awaits a re-projection. */
+			async function setupLegacyTarget() {
+				// Each session reads its own older-build chat list, so the target's conversion never sees the source's.
+				const env = await setupMove(true, URI.file('/other'), true, undefined, true);
+				const database = getTestAgentHostDatabase(env.service);
+				const target = AgentSession.uri('copilot', 'legacy-target');
+				const folder = URI.file('/other').toString();
+				await database.registerRuntimeSession(target.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+				await database.upsertSessionV2(catalogEnvelope(target, {
+					modifiedTime: 1, summary: 'Older build', isRead: true, isArchived: false, workingDirectories: [folder],
+					chats: [{ uri: buildDefaultChatUri(target), order: 0, kind: 'default', summary: 'Older build', workingDirectories: [folder] }],
+				}), undefined);
+				await database.markSessionV2PayloadDirty(target.toString());
+				// Its provider still has the conversation.
+				const getChatMetadata = env.agent.getChatMetadata.bind(env.agent);
+				env.agent.getChatMetadata = async (chat, context, providerData) => chat.toString() === buildDefaultChatUri(target)
+					? { chat, startTime: 1, modifiedTime: 1, summary: 'Older build', workingDirectories: [URI.file('/other')] }
+					: getChatMetadata(chat, context, providerData);
+				await env.service.restoreSession(target);
+				return { env, database, target };
+			}
 
 			suite('a refused move changes nothing', () => {
 				type MoveEnv = Pick<Awaited<ReturnType<typeof setupMove>>, 'service' | 'source' | 'peer'>;
@@ -32522,25 +32546,10 @@ suite('AgentService (node dispatcher)', () => {
 					});
 				});
 
-				test('a target whose legacy chat catalog can\'t be converted yet (parked, authority 1)', async () => {
-					// Each session reads its own older-build chat list, so the target's conversion attempt never sees the source's.
-					const env = await setupMove(true, URI.file('/other'), true, undefined, true);
-					const database = getTestAgentHostDatabase(env.service);
-					// An older build's session: its catalog is legacy, and its aggregate awaits a re-projection, so 4a parks its conversion.
-					const target = AgentSession.uri('copilot', 'parked-legacy-target');
-					const folder = URI.file('/other').toString();
-					await database.registerRuntimeSession(target.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
-					await database.upsertSessionV2(catalogEnvelope(target, {
-						modifiedTime: 1, summary: 'Older build', isRead: true, isArchived: false, workingDirectories: [folder],
-						chats: [{ uri: buildDefaultChatUri(target), order: 0, kind: 'default', summary: 'Older build', workingDirectories: [folder] }],
-					}), undefined);
-					await database.markSessionV2PayloadDirty(target.toString());
-					// Its provider still has the conversation.
-					const getChatMetadata = env.agent.getChatMetadata.bind(env.agent);
-					env.agent.getChatMetadata = async (chat, context, providerData) => chat.toString() === buildDefaultChatUri(target)
-						? { chat, startTime: 1, modifiedTime: 1, summary: 'Older build', workingDirectories: [URI.file('/other')] }
-						: getChatMetadata(chat, context, providerData);
-					await env.service.restoreSession(target);
+				test('a target whose legacy catalog is parked (its chats can\'t be verified)', async () => {
+					const { env, database, target } = await setupLegacyTarget();
+					const reconciliation = (env.service as unknown as { _catalogReconciliationService: { _park(session: string, observedDirty: number | undefined): Promise<unknown> } })._catalogReconciliationService;
+					await reconciliation._park(target.toString(), await database.getSessionV2PayloadDirty(target.toString()));
 
 					const first = await refuse(env, target);
 					// Refused again, it changes nothing either: an attempt leaves nothing behind for the next one to act on.
@@ -32551,6 +32560,52 @@ suite('AgentService (node dispatcher)', () => {
 						again: refused(AgentChatMoveRefusal.LegacyCatalog, again),
 						authority: 1,
 					});
+				});
+
+				test('a target its conversion attempt finds unverifiable (parked meanwhile) is a legacy catalog', async () => {
+					const { env, database, target } = await setupLegacyTarget();
+					const internals = env.service as unknown as IMoveInternals & { _catalogReconciliationService: { _park(session: string, observedDirty: number | undefined): Promise<unknown> } };
+					// The conversion fails because the provider can't vouch for the target's chats, and its reconciliation parks it.
+					internals._migrateChatCatalog = async session => {
+						await internals._catalogReconciliationService._park(session.toString(), await database.getSessionV2PayloadDirty(session.toString()));
+					};
+
+					const outcome = await refuse(env, target);
+					assert.deepStrictEqual(outcome.actual, refused(AgentChatMoveRefusal.LegacyCatalog, outcome));
+				});
+
+				test('a session whose legacy catalog still can\'t be converted is not ready, not a legacy catalog', async () => {
+					const { env, target } = await setupLegacyTarget();
+					// The conversion keeps failing (here: it never converts), though the session isn't parked.
+					(env.service as unknown as IMoveInternals)._migrateChatCatalog = async () => { };
+
+					const outcome = await refuse(env, target);
+					assert.deepStrictEqual(outcome.actual, refused(AgentChatMoveRefusal.SessionNotReady, outcome));
+				});
+			});
+
+			test('a move converts a session that is legacy only because its re-projection is pending, at once, and moves', async () => {
+				const { env, target } = await setupLegacyTarget();
+				const stateManager = getStateManager(env.service);
+				const [before] = await getTestAgentHostDatabase(env.service).readCatalogSnapshot([target.toString()]);
+				const movableBefore = stateManager.getSessionState(env.source.toString())?.chats.find(chat => chat.resource === env.peer.toString())?.movable;
+
+				const result = await env.service.moveChat(env.source, env.peer, { kind: 'session', session: target, after: undefined });
+				const [after] = await getTestAgentHostDatabase(env.service).readCatalogSnapshot([target.toString()]);
+
+				assert.deepStrictEqual({
+					movableBefore,
+					authority: [before?.authorityVersion, after?.authorityVersion],
+					result: result.toString(),
+					owner: stateManager.getChatOwner(env.peer.toString()),
+					targetCatalog: after?.chats.map(chat => chat.chat),
+				}, {
+					// A chat whose move would convert its session on demand is movable.
+					movableBefore: true,
+					authority: [1, 2],
+					result: target.toString(),
+					owner: target.toString(),
+					targetCatalog: [env.peer.toString(), buildDefaultChatUri(target)],
 				});
 			});
 

@@ -6,7 +6,6 @@
 import assert from 'assert';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
-import { timeout } from '../../../../../../base/common/async.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { AgentChatMoveRefusal, ChatMoveConfigKey } from '../../../../common/agentHostChatMove.js';
@@ -46,10 +45,7 @@ export function defineChatMoveTests(context: IAgentHostE2ETestContext): void {
 	async function createSession(prefix: string, folder: URI): Promise<string> {
 		if (initializedClient !== context.client) {
 			initializedClient = context.client;
-			const session = await createRealSession(context.client, config, `${prefix}-${config.provider}`, createdSessions, folder);
-			// As a client does at startup: the host settles its startup, and with it its chat catalog maintenance, once it served a listing.
-			await context.client.call<ListSessionsResult>('listSessions', {}, 30_000);
-			return session;
+			return createRealSession(context.client, config, `${prefix}-${config.provider}`, createdSessions, folder);
 		}
 		// The connection is initialized and authenticated already.
 		const session = URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString();
@@ -164,24 +160,6 @@ export function defineChatMoveTests(context: IAgentHostE2ETestContext): void {
 
 	async function moveSession(session: string, destination: string, after: string | null): Promise<string> {
 		return (await context.client.call<{ session: string }>(MoveAgentHostSessionExtensionMethod, { session, destination, after }, 30_000)).session;
-	}
-
-	/**
-	 * Runs the first move of new sessions. Their chat catalogs convert to normalized authority once a reconciliation pass
-	 * re-projected them, which the refused move itself schedules; until then it is refused as `legacyCatalog`, changing
-	 * nothing, so it is tried again until the host can prepare the sessions.
-	 */
-	async function firstMove<T>(move: () => Promise<T>): Promise<T> {
-		for (let attempt = 0; ; attempt++) {
-			try {
-				return await move();
-			} catch (error) {
-				if (attempt >= 120 || !(error instanceof ProtocolError) || (error.data as { reason?: string } | undefined)?.reason !== AgentChatMoveRefusal.LegacyCatalog) {
-					throw error;
-				}
-			}
-			await timeout(250);
-		}
 	}
 
 	async function refusalOf(move: Promise<unknown>): Promise<string> {
@@ -304,12 +282,11 @@ export function defineChatMoveTests(context: IAgentHostE2ETestContext): void {
 		const folder = workspace('provider-peer-move');
 		const source = await createSession('provider-peer-move-source', folder);
 		const target = await createSession('provider-peer-move-target', folder);
-		await driveTurn(defaultChatChannel(source), MATERIALIZE);
 		await driveTurn(defaultChatChannel(target), MATERIALIZE);
 		const peer = await createPeer(source);
 		await driveTurn(peer, REMEMBER);
 		await withChatMoves(async () => {
-			const moved = await firstMove(() => moveChat(peer, { kind: ChatMoveDestinationKind.Session, session: target, after: defaultChatChannel(target) }));
+			const moved = await moveChat(peer, { kind: ChatMoveDestinationKind.Session, session: target, after: defaultChatChannel(target) });
 			const afterMove = { source: await catalog(source), target: await catalog(target) };
 			// Placed first in its new session.
 			const reordered = await moveChat(peer, { kind: ChatMoveDestinationKind.Session, session: target });
@@ -331,11 +308,10 @@ export function defineChatMoveTests(context: IAgentHostE2ETestContext): void {
 
 	providerMoveTest('a peer chat promoted to a new session keeps its provider conversation as its default chat', async function () {
 		const source = await createSession('provider-promote', workspace('provider-promote'));
-		await driveTurn(defaultChatChannel(source), MATERIALIZE);
 		const peer = await createPeer(source);
 		await driveTurn(peer, REMEMBER);
 		await withChatMoves(async () => {
-			const promoted = await firstMove(() => moveChat(peer, { kind: ChatMoveDestinationKind.NewSession }));
+			const promoted = await moveChat(peer, { kind: ChatMoveDestinationKind.NewSession });
 			createdSessions.push(promoted);
 			const listed = await context.client.call<ListSessionsResult>('listSessions', {}, 30_000);
 			const afterPromotion = { source: await catalog(source), promoted: await catalog(promoted) };
@@ -364,7 +340,7 @@ export function defineChatMoveTests(context: IAgentHostE2ETestContext): void {
 		// This connection initialized while moving chats was off: the move runs without reconnecting.
 		await withChatMoves(async () => {
 			context.client.clearReceived();
-			const moved = await firstMove(() => moveSession(source, destination, defaultChatChannel(destination)));
+			const moved = await moveSession(source, destination, defaultChatChannel(destination));
 			// The session ended with the move: there is nothing left to dispose.
 			createdSessions.splice(createdSessions.indexOf(source), 1);
 			const announced = context.client.receivedNotifications(n => isActionNotification(n, ActionType.SessionChatAdded) && getActionEnvelope(n).channel === destination)

@@ -15,15 +15,6 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Do not use any tools. Reply with only the word OK.
-    response:
-      content: OK
-      stopReason: end_turn
-  - request:
-      model: gpt-5.3-codex
-      system: ${system}
-      messages:
-        - role: user
           content: Remember the code word PELICAN. Do not use any tools. Reply with only the word OK.
     response:
       content: OK

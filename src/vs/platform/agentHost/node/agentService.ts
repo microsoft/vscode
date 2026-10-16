@@ -6658,8 +6658,8 @@ export class AgentService extends Disposable implements IAgentService {
 	/** The refusal a move, promotion or reorder the database didn't apply reports. */
 	private _moveRefusalOf(status: 'conflict' | 'notReady' | 'notImported' | 'missingSession' | 'tombstoned' | 'olderBuildEdits' | 'alreadyNormalized' | 'cancelled'): AgentChatMoveRefusal {
 		switch (status) {
-			// A catalog 4a can't convert yet (its provider can't vouch for it, or its conversion is parked).
-			case 'notReady': return AgentChatMoveRefusal.LegacyCatalog;
+			// A catalog that is no longer normalized after it was prepared: preparing it again may convert it.
+			case 'notReady': return AgentChatMoveRefusal.SessionNotReady;
 			case 'tombstoned': return AgentChatMoveRefusal.SessionNotReady;
 			// Older-build edits refused twice, or any other concurrent change: the move can be retried.
 			default: return AgentChatMoveRefusal.Conflict;
@@ -6668,17 +6668,52 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/**
 	 * Converts a legacy (authority-1) chat catalog to normalized authority (Block 4a), so its chats can move. A session
-	 * 4a can't convert yet (its provider can't vouch for its chats, or its conversion is parked) is refused.
+	 * that is legacy only because it is new (its default chat materialized after it was created, or its aggregate
+	 * awaits a re-projection the background reconciliation hasn't run yet) is converted now: as 4a does on restore, its
+	 * aggregate is staged from its live state, which is authoritative while it is loaded, and then converted. A session
+	 * whose reconciliation is parked (its provider can't vouch for it) is refused as `legacyCatalog`; one that still
+	 * can't be converted is refused as not ready. A normalized catalog costs one snapshot read.
 	 */
 	private async _normalizeCatalogForMove(session: string): Promise<void> {
-		const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([session]);
-		if (snapshot?.authorityVersion !== 2) {
-			await this._migrateChatCatalog(URI.parse(session), CancellationToken.None);
-			const [normalized] = await this._orchestratorDatabase.readCatalogSnapshot([session]);
-			if (normalized?.authorityVersion !== 2) {
-				throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.LegacyCatalog, `Session ${session} can't be prepared for moving chats yet.`);
-			}
+		const isNormalized = async () => (await this._orchestratorDatabase.readCatalogSnapshot([session]))[0]?.authorityVersion === 2;
+		if (await isNormalized()) {
+			return;
 		}
+		if (this._catalogReconciliationService.isParked(session)) {
+			throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.LegacyCatalog, `Session ${session} can't be prepared for moving chats: its chats can't be verified.`);
+		}
+		const resource = URI.parse(session);
+		let result = await this._migrateChatCatalog(resource, CancellationToken.None);
+		if (!await isNormalized() && this._stateManager.getSessionState(session)) {
+			// Read before the conversion holds the session's peer store exclusively.
+			const persisted = await this._peerChatStore.tryRead(resource);
+			result = await this._migrateChatCatalog(resource, CancellationToken.None, undefined, async () => this._liveCatalogOverride(session, persisted));
+		}
+		if (!await isNormalized()) {
+			const why = result?.status === 'notReady' ? `${result.status}: ${result.reason}` : result?.status ?? 'not attempted';
+			throw this._catalogReconciliationService.isParked(session)
+				? new AgentChatMoveRefusedError(AgentChatMoveRefusal.LegacyCatalog, `Session ${session} can't be prepared for moving chats: its chats can't be verified.`)
+				: new AgentChatMoveRefusedError(AgentChatMoveRefusal.SessionNotReady, `Session ${session} can't be prepared for moving chats yet (${why}); try again.`);
+		}
+	}
+
+	/**
+	 * The chat catalog of a loaded session, from its live state, to stage its aggregate from (see
+	 * {@link _normalizeCatalogForMove}). A peer's recorded origin and folders are those it was persisted with (a peer
+	 * created without an origin is listed with the default one), which the conversion checks its own database against.
+	 */
+	private _liveCatalogOverride(session: string, persisted: readonly IPersistedPeerChat[] | undefined): { readonly chats: readonly ICatalogChat[]; readonly metadataFallbacks: Readonly<Record<string, string>> } | undefined {
+		const state = this._stateManager.getSessionState(session);
+		const defaultChat = this._defaultChat(session);
+		if (!state || defaultChat === undefined) {
+			return undefined;
+		}
+		const recorded = new Map(persisted?.map(entry => [entry.uri, entry]));
+		const chats = this._catalogChatsFromState(state, defaultChat).map(chat => {
+			const entry = recorded.get(chat.uri);
+			return entry ? { ...chat, origin: entry.origin, workingDirectories: chat.workingDirectories ?? entry.workingDirectories } : chat;
+		});
+		return { chats, metadataFallbacks: {} };
 	}
 
 	/**
@@ -7008,7 +7043,10 @@ export class AgentService extends Disposable implements IAgentService {
 			if (isSessionStatusArchived(state.status)) {
 				refuse(AgentChatMoveRefusal.SessionArchived, `Session ${key} is archived.`);
 			}
-			if (state.lifecycle !== SessionLifecycle.Ready || this._stateManager.isIdleProvisionalSession(key) || this._sessionResidency.isBeingDisposed(key)) {
+			// A chat moves out of a new session whose default chat hasn't run yet (created provisional, recorded as such):
+			// the session stays as it was. A session that moves, or one a chat moves into, must be durable.
+			const provisionalSource = key === sourceKey && !sessionMove && state.lifecycle === SessionLifecycle.Creating && this._provisionalSessionKeys.has(key);
+			if ((state.lifecycle !== SessionLifecycle.Ready && !provisionalSource) || (this._stateManager.isIdleProvisionalSession(key) && !provisionalSource) || this._sessionResidency.isBeingDisposed(key)) {
 				refuse(AgentChatMoveRefusal.SessionNotReady, `Session ${key} is not ready.`);
 			}
 			if (readSessionWorkspaceless(state._meta)) {
@@ -7074,7 +7112,7 @@ export class AgentService extends Disposable implements IAgentService {
 			checkAnchor();
 			const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([sessionKey]);
 			if (snapshot?.authorityVersion !== 2 || !snapshot.header) {
-				throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.LegacyCatalog, `Session ${sessionKey} can't reorder its chats yet.`);
+				throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.SessionNotReady, `Session ${sessionKey} can't reorder its chats yet.`);
 			}
 			return this._orchestratorDatabase.reorderChatV2(sessionKey, chat, after, snapshot.header.revision);
 		};
