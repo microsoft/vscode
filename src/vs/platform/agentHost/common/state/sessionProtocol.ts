@@ -144,6 +144,33 @@ export class ProtocolError extends Error {
 }
 
 /**
+ * Client-side error code for requests failed because the connection closed or
+ * was lost. Hosts can also send this code, so it does not by itself prove the
+ * connection was lost; use {@link isAgentHostConnectionClosedError} for that.
+ */
+export const AHP_CLIENT_CONNECTION_CLOSED = -32000;
+
+/**
+ * A request failed because the client lost or closed its connection before a
+ * response arrived. Only the client constructs this type, so unlike the code
+ * it cannot come from a host-sent error. Some older checks in the protocol
+ * client still classify by code.
+ */
+export class AgentHostConnectionClosedError extends ProtocolError {
+	constructor(message: string) {
+		super(AHP_CLIENT_CONNECTION_CLOSED, message);
+	}
+}
+
+/**
+ * Whether the client lost its connection before a response arrived. The
+ * outcome of a non-idempotent request with this error is unknown.
+ */
+export function isAgentHostConnectionClosedError(error: unknown): error is AgentHostConnectionClosedError {
+	return error instanceof AgentHostConnectionClosedError;
+}
+
+/**
  * VS Code-specific extension: set the auth token on the server.
  * Not yet part of the official protocol.
  */

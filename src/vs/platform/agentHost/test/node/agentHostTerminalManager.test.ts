@@ -229,6 +229,8 @@ class TestPty implements IPty {
 
 class TestAgentHostTerminalManager extends AgentHostTerminalManager {
 	spawnOptions: IPtyForkOptions | IWindowsPtyForkOptions | undefined;
+	spawnCount = 0;
+	spawnGate: Promise<void> | undefined;
 
 	constructor(
 		stateManager: AgentHostStateManager,
@@ -241,6 +243,8 @@ class TestAgentHostTerminalManager extends AgentHostTerminalManager {
 	}
 
 	protected override async _spawnPty(_file: string, _args: string[], options: IPtyForkOptions | IWindowsPtyForkOptions): Promise<IPty> {
+		this.spawnCount++;
+		await this.spawnGate;
 		this.spawnOptions = options;
 		this._pty.cols = options.cols ?? this._pty.cols;
 		this._pty.rows = options.rows ?? this._pty.rows;
@@ -876,6 +880,101 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 			{ type: ActionType.TerminalData, data: 'hi\r\n' },
 			{ type: ActionType.TerminalCommandFinished },
 		]);
+	});
+});
+
+suite('AgentHostTerminalManager – concurrent creation', () => {
+
+	const disposables = new DisposableStore();
+	teardown(() => disposables.clear());
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const uri = 'agenthost-terminal://test/concurrent';
+	const params = { channel: uri, claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' }, cwd: process.cwd() } as const;
+
+	function createManager(): { manager: TestAgentHostTerminalManager; pty: TestPty; spawnGate: DeferredPromise<void> } {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		const productService = { _serviceBrand: undefined, applicationName: 'vscode' } as IProductService;
+		const pty = new TestPty();
+		const manager = disposables.add(new TestAgentHostTerminalManager(stateManager, logService, productService, configurationService, pty));
+		const spawnGate = new DeferredPromise<void>();
+		manager.spawnGate = spawnGate.p;
+		return { manager, pty, spawnGate };
+	}
+
+	test('a duplicate request while creation is pending does not spawn a second process', async () => {
+		const { manager, pty, spawnGate } = createManager();
+
+		const original = manager.createTerminal(params, { shell: '/bin/bash' });
+		const duplicate = manager.createTerminal(params, { shell: '/bin/bash' }).then(() => 'created', (err: Error) => err.message);
+		await timeout(0);
+		spawnGate.complete();
+		await pty.dataListenerRegistered.p;
+		pty.fireData('prompt');
+		await original;
+
+		assert.deepStrictEqual({ duplicate: await duplicate, spawnCount: manager.spawnCount, exists: manager.hasTerminal(uri) }, {
+			duplicate: `Terminal already exists: ${uri}`,
+			spawnCount: 1,
+			exists: true,
+		});
+	});
+
+	test('disposal while creation is pending disposes the terminal once created', async () => {
+		const { manager, pty, spawnGate } = createManager();
+
+		const creation = manager.createTerminal(params, { shell: '/bin/bash' });
+		await timeout(0);
+		manager.disposeTerminal(uri);
+		spawnGate.complete();
+		await pty.dataListenerRegistered.p;
+		pty.fireData('prompt');
+		await creation;
+
+		assert.strictEqual(manager.hasTerminal(uri), false);
+	});
+
+	test('a duplicate waiting on a disposed creation does not recreate the terminal', async () => {
+		const { manager, pty, spawnGate } = createManager();
+
+		const original = manager.createTerminal(params, { shell: '/bin/bash' });
+		const duplicate = manager.createTerminal(params, { shell: '/bin/bash' }).then(() => 'created', (err: Error) => err.message);
+		await timeout(0);
+		manager.disposeTerminal(uri);
+		spawnGate.complete();
+		await pty.dataListenerRegistered.p;
+		pty.fireData('prompt');
+		await original;
+
+		assert.deepStrictEqual({ duplicate: await duplicate, spawnCount: manager.spawnCount, exists: manager.hasTerminal(uri) }, {
+			duplicate: `Terminal was disposed while it was being created: ${uri}`,
+			spawnCount: 1,
+			exists: false,
+		});
+	});
+
+	test('a duplicate waiting on a failed creation creates the terminal itself', async () => {
+		const { manager, pty, spawnGate } = createManager();
+
+		const original = manager.createTerminal(params, { shell: '/bin/bash' }).then(() => 'created', (err: Error) => err.message);
+		const duplicate = manager.createTerminal(params, { shell: '/bin/bash' }).then(() => 'created', (err: Error) => err.message);
+		while (manager.spawnCount === 0) {
+			await timeout(0);
+		}
+		// Fail only the original spawn; the duplicate's spawn proceeds ungated.
+		manager.spawnGate = undefined;
+		spawnGate.error(new Error('spawn failed'));
+		await pty.dataListenerRegistered.p;
+		pty.fireData('prompt');
+
+		assert.deepStrictEqual({ original: await original, duplicate: await duplicate, spawnCount: manager.spawnCount, exists: manager.hasTerminal(uri) }, {
+			original: 'spawn failed',
+			duplicate: 'created',
+			spawnCount: 2,
+			exists: true,
+		});
 	});
 });
 

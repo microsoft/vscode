@@ -22,6 +22,14 @@ import { normalizeLegacyChatStateErrors } from './legacyProtocolCompatibility.js
 
 // --- Public API --------------------------------------------------------------
 
+/** The host reported during reconnect that a subscribed resource no longer exists. */
+export class AgentSubscriptionMissingError extends Error {
+	constructor(readonly resource: URI) {
+		super(`Subscription no longer available after reconnect: ${resource.toString()}`);
+		this.name = 'AgentSubscriptionMissingError';
+	}
+}
+
 /**
  * A read-only subscription to an agent host resource (root, session, or terminal).
  *
@@ -1348,7 +1356,7 @@ export class AgentSubscriptionManager extends Disposable {
 				if (entry.sub instanceof SessionStateSubscription || entry.sub instanceof ChatStateSubscription || entry.sub instanceof AnnotationsStateSubscription) {
 					entry.sub.clearPending();
 				}
-				entry.sub.setError(new Error(`Subscription no longer available after reconnect: ${resource.toString()}`));
+				entry.sub.setError(new AgentSubscriptionMissingError(resource));
 			}
 		}
 	}

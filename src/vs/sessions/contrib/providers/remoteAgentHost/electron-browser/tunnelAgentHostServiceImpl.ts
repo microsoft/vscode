@@ -324,7 +324,7 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 					LOG_PREFIX,
 					AgentHostClientConnectionKind.DevTunnel,
 				),
-				{ clientInfo: agentsWindowAgentHostClientInfo },
+				{ clientInfo: agentsWindowAgentHostClientInfo, displayName: tunnel.name },
 			);
 			return {
 				connection,

@@ -198,6 +198,13 @@ interface IOutputTerminal {
 	lifecycle: TerminalState['lifecycle'];
 }
 
+/** A terminal creation that has not settled yet. */
+interface IPendingTerminalCreation {
+	readonly promise: Promise<void>;
+	/** Set when the terminal is disposed before creation settles; requests waiting on it must not recreate it. */
+	disposed: boolean;
+}
+
 /**
  * Manages terminal processes for the agent host. Each terminal is backed by
  * a node-pty instance and identified by a protocol URI.
@@ -211,6 +218,8 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 
 	private readonly _terminals = new Map<string, IManagedTerminal>();
 	private readonly _outputTerminals = new Map<string, IOutputTerminal>();
+	/** Creations still in progress, keyed by URI. At most one exists per URI. */
+	private readonly _pendingCreations = new Map<string, IPendingTerminalCreation>();
 
 	constructor(
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
@@ -292,9 +301,37 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 	 */
 	async createTerminal(params: CreateTerminalParams, options?: { shell?: string; preventShellHistory?: boolean; nonInteractive?: boolean; vscodeTerminalIdentity?: boolean }): Promise<void> {
 		const uri = params.channel;
+		const pending = this._pendingCreations.get(uri);
+		if (pending) {
+			// A client retrying after a lost response must not spawn a second
+			// process for the same URI. Settle the original first so the retry
+			// reports a duplicate only when that creation succeeded.
+			this._logService.info(`[TerminalManager] Duplicate createTerminal for ${uri} while creation is pending; waiting for the original request.`);
+			await pending.promise.catch(() => undefined);
+			if (pending.disposed) {
+				throw new Error(`Terminal was disposed while it was being created: ${uri}`);
+			}
+			return this.createTerminal(params, options);
+		}
 		if (this._terminals.has(uri)) {
 			throw new Error(`Terminal already exists: ${uri}`);
 		}
+
+		const creation: IPendingTerminalCreation = { promise: this._createTerminal(params, options), disposed: false };
+		this._pendingCreations.set(uri, creation);
+		try {
+			await creation.promise;
+		} finally {
+			this._pendingCreations.delete(uri);
+			if (creation.disposed) {
+				this._logService.info(`[TerminalManager] Disposing terminal ${uri} that was disposed while it was being created.`);
+				this.disposeTerminal(uri);
+			}
+		}
+	}
+
+	private async _createTerminal(params: CreateTerminalParams, options?: { shell?: string; preventShellHistory?: boolean; nonInteractive?: boolean; vscodeTerminalIdentity?: boolean }): Promise<void> {
+		const uri = params.channel;
 
 		const cwd = await this._resolveCwd(params.cwd, uri);
 		const cols = params.cols ?? 80;
@@ -919,6 +956,12 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 	disposeTerminal(uri: string): void {
 		if (this._outputTerminals.delete(uri)) {
 			return;
+		}
+		const pending = this._pendingCreations.get(uri);
+		if (pending) {
+			// Applied once creation settles; it may also still be waiting for
+			// the prompt after registering, so dispose any registered terminal now too.
+			pending.disposed = true;
 		}
 		const terminal = this._terminals.get(uri);
 		if (terminal) {
