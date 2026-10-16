@@ -140,7 +140,6 @@ export const CopilotSkillCharBudgetSettingId = 'chat.copilot.skillCharBudget';
 
 export const CopilotAutoModeTierOverrideSettingId = 'github.copilot.chat.autoModeTierOverride';
 
-export const AgentHostModelCapabilityOverridesSettingId = 'chat.agentHost.modelCapabilityOverrides';
 export const AgentHostCopilotModelCapabilityOverridesSettingId = 'chat.agentHost.copilot.modelCapabilityOverrides';
 
 export const copilotSdkLogLevelSettingValues = ['info', 'trace'] as const;
