@@ -186,6 +186,17 @@ export interface IAgentHostWorktreeRemovalDatabase {
 	findAdditionalWorktreeOwners(handle: string): Promise<readonly string[]>;
 	/** Whether `session` is registered and not deleted (tombstoned), by its recorded state. */
 	isSessionLive(session: string): Promise<boolean>;
+	/**
+	 * Deletes the co-owner rows of sessions that are deleted (not registered, or tombstoned; also by an older build),
+	 * keeping one row of a folder no other row is left for: the marker that it was ever shared. Clean-up passes only.
+	 */
+	pruneDeletedWorktreeCoOwners(): Promise<void>;
+	/**
+	 * Deletes every co-owner row of a removed worktree folder that isn't live (its session deleted, or no longer
+	 * working there), the marker included: a co-owner that still works there, archived, keeps its row to recreate it
+	 * from. The caller holds the folder's lock.
+	 */
+	clearStaleWorktreeCoOwners(worktreePath: string): Promise<void>;
 }
 
 const columns = 'kind, owner, owner_session, worktree_path, repository_root, branch, mode, owner_deleted, attempts, requested_at, next_attempt_at';
@@ -411,6 +422,25 @@ export class AgentHostWorktreeRemovalTables implements IAgentHostWorktreeRemoval
 				await connection.run('DELETE FROM worktree_co_owners WHERE worktree_path = ? AND session_uri = ?', [row.worktreePath, row.session]);
 			}
 			return rows.filter(row => !pruned.includes(row));
+		});
+	}
+
+	pruneDeletedWorktreeCoOwners(): Promise<void> {
+		return this._host.write('Failed to prune the co-owner rows of deleted sessions', async connection => {
+			await connection.run(`DELETE FROM worktree_co_owners WHERE NOT ${sessionLiveSql('worktree_co_owners.session_uri')}
+				AND EXISTS (SELECT 1 FROM worktree_co_owners o
+					WHERE rtrim(lower(o.worktree_path), '/') = rtrim(lower(worktree_co_owners.worktree_path), '/') AND o.session_uri <> worktree_co_owners.session_uri
+						AND (${sessionLiveSql('o.session_uri')} OR o.session_uri < worktree_co_owners.session_uri))`, []);
+		});
+	}
+
+	clearStaleWorktreeCoOwners(worktreePath: string): Promise<void> {
+		return this._host.write('Failed to clear the co-owners of a removed worktree', async connection => {
+			for (const row of (await connection.all(worktreeCoOwnersSql, [worktreePath.replace(/\/+$/, '')])).map(toCoOwnerState)) {
+				if (!row.live) {
+					await connection.run('DELETE FROM worktree_co_owners WHERE worktree_path = ? AND session_uri = ?', [row.worktreePath, row.session]);
+				}
+			}
 		});
 	}
 

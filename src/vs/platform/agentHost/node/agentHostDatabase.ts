@@ -4273,6 +4273,8 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	pruneWorktreeCoOwners(...args: Parameters<IAgentHostWorktreeRemovalDatabase['pruneWorktreeCoOwners']>) { return this._worktreeRemovals.pruneWorktreeCoOwners(...args); }
 	findAdditionalWorktreeOwners(...args: Parameters<IAgentHostWorktreeRemovalDatabase['findAdditionalWorktreeOwners']>) { return this._worktreeRemovals.findAdditionalWorktreeOwners(...args); }
 	isSessionLive(...args: Parameters<IAgentHostWorktreeRemovalDatabase['isSessionLive']>) { return this._worktreeRemovals.isSessionLive(...args); }
+	pruneDeletedWorktreeCoOwners(...args: Parameters<IAgentHostWorktreeRemovalDatabase['pruneDeletedWorktreeCoOwners']>) { return this._worktreeRemovals.pruneDeletedWorktreeCoOwners(...args); }
+	clearStaleWorktreeCoOwners(...args: Parameters<IAgentHostWorktreeRemovalDatabase['clearStaleWorktreeCoOwners']>) { return this._worktreeRemovals.clearStaleWorktreeCoOwners(...args); }
 
 	private async _rollback(database: Database, error: unknown, message: string): Promise<never> {
 		try {

@@ -201,6 +201,8 @@ export abstract class SessionStateUnsupportedDatabase implements IAgentHostSessi
 	pruneWorktreeCoOwners(...args: Parameters<IAgentHostWorktreeRemovalDatabase['pruneWorktreeCoOwners']>): ReturnType<IAgentHostWorktreeRemovalDatabase['pruneWorktreeCoOwners']> { return this._sessionState.pruneWorktreeCoOwners(...args); }
 	findAdditionalWorktreeOwners(...args: Parameters<IAgentHostWorktreeRemovalDatabase['findAdditionalWorktreeOwners']>): ReturnType<IAgentHostWorktreeRemovalDatabase['findAdditionalWorktreeOwners']> { return this._sessionState.findAdditionalWorktreeOwners(...args); }
 	isSessionLive(...args: Parameters<IAgentHostWorktreeRemovalDatabase['isSessionLive']>): ReturnType<IAgentHostWorktreeRemovalDatabase['isSessionLive']> { return this._sessionState.isSessionLive(...args); }
+	pruneDeletedWorktreeCoOwners(...args: Parameters<IAgentHostWorktreeRemovalDatabase['pruneDeletedWorktreeCoOwners']>): ReturnType<IAgentHostWorktreeRemovalDatabase['pruneDeletedWorktreeCoOwners']> { return this._sessionState.pruneDeletedWorktreeCoOwners(...args); }
+	clearStaleWorktreeCoOwners(...args: Parameters<IAgentHostWorktreeRemovalDatabase['clearStaleWorktreeCoOwners']>): ReturnType<IAgentHostWorktreeRemovalDatabase['clearStaleWorktreeCoOwners']> { return this._sessionState.clearStaleWorktreeCoOwners(...args); }
 }
 
 /** A real session state store over `database` and `service`, outside the leak check. */

@@ -480,6 +480,41 @@ suite('AgentHostWorktreeCleanupService', () => {
 			}
 		});
 
+		test('rows of sessions an older build deleted are pruned by a pass, and a shared folder\'s removal (in commit mode) leaves no row a deleted or departed session kept; an archived co-owner still in it keeps its row (real-data D1)', async () => {
+			const rows = async (database: AgentHostDatabase) => (await database.readWorktreeCoOwners(sharedKey)).map(row => row.session === SESSION.toString() ? 'source' : row.session === OTHER_SESSION.toString() ? 'coOwner' : row.session);
+			const outcomes: Record<string, unknown> = {};
+			for (const last of ['deleted', 'archivedStaying'] as const) {
+				const { database, worktree, cleanup } = create();
+				// SESSION records the worktree and shared it with OTHER_SESSION; an older build then deleted SESSION.
+				await useWorktree(database, SESSION, shared);
+				await useWorktree(database, OTHER_SESSION, shared, last === 'archivedStaying');
+				await share(database, SESSION, shared);
+				await share(database, OTHER_SESSION, shared);
+				// What is left of it: its co-owner row, which older builds don't know.
+				await sql(database, 'DELETE FROM sessions_v2 WHERE session_uri = ?', [SESSION.toString()]);
+				await sql(database, 'DELETE FROM session_state_values WHERE session_uri = ?', [SESSION.toString()]);
+				if (last === 'archivedStaying') {
+					await cleanup.runPass();
+				}
+				const beforeRemoval = await rows(database);
+				if (last === 'deleted') {
+					// The lift deletes the last co-owner before any pass ran (as on real data): the source's row is still there.
+					await database.tombstoneAndUnregisterSession(OTHER_SESSION.toString(), await cleanup.prepareSessionDeletion(OTHER_SESSION, [], 'delete'));
+				} else {
+					// The source's own removal runs while its archived co-owner still works in the folder (archived chats included).
+					await database.upsertPendingWorktreeRemoval({ kind: 'session', owner: SESSION.toString(), ownerSession: SESSION.toString(), worktreePath: sharedKey, repositoryRoot: shared.repositoryRoot.toString(), branch: shared.branchName, mode: 'delete', ownerDeleted: true, requestedAt: 1 });
+				}
+				await cleanup.runPass();
+				outcomes[last] = { beforeRemoval, calls: worktree.calls, pending: await pending(database), rows: await rows(database) };
+			}
+
+			assert.deepStrictEqual(outcomes, {
+				deleted: { beforeRemoval: ['source', 'coOwner'], calls: [`remove:${sharedKey}:commit:agents/archived`], pending: [], rows: [] },
+				// A pass prunes the deleted source's row while its co-owner is live.
+				archivedStaying: { beforeRemoval: ['coOwner'], calls: [`remove:${sessionId}:commit:agents/archived`], pending: [], rows: ['coOwner'] },
+			});
+		});
+
 		test('a session records one removal per folder: its own worktree\'s removal covers its share of it, its other shares get their own (G3)', async () => {
 			const { database, cleanup } = create();
 			const other = recorded('other');
@@ -507,8 +542,8 @@ suite('AgentHostWorktreeCleanupService', () => {
 			assert.deepStrictEqual({ calls: worktree.calls, pending: await pending(database), marker: (await database.readWorktreeCoOwners(sharedKey)).map(row => `${row.session}:${row.live}`) }, {
 				calls: [`remove:${sessionId}:commit:agents/archived`],
 				pending: [],
-				// The marker row only forces commit mode.
-				marker: [`${OTHER_SESSION.toString()}:false`],
+				// The marker row only forced commit mode; once the folder is removed, it goes too (real-data D1).
+				marker: [],
 			});
 		});
 

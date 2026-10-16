@@ -714,6 +714,14 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 		return (await this.raw.pruneWorktreeCoOwners(worktreePath)).map(row => ({ ...row, session: this.identity.toRuntime(row.session) }));
 	}
 
+	pruneDeletedWorktreeCoOwners(): ReturnType<IAgentHostDatabase['pruneDeletedWorktreeCoOwners']> {
+		return this.raw.pruneDeletedWorktreeCoOwners();
+	}
+
+	clearStaleWorktreeCoOwners(...[worktreePath]: Parameters<IAgentHostDatabase['clearStaleWorktreeCoOwners']>): ReturnType<IAgentHostDatabase['clearStaleWorktreeCoOwners']> {
+		return this.raw.clearStaleWorktreeCoOwners(worktreePath);
+	}
+
 	isSessionLive(...[session]: Parameters<IAgentHostDatabase['isSessionLive']>): ReturnType<IAgentHostDatabase['isSessionLive']> {
 		return this.raw.isSessionLive(this.identity.toStorage(session));
 	}

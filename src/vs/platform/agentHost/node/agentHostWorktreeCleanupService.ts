@@ -295,6 +295,8 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 
 	private async _runPass(): Promise<void> {
 		const now = this._now();
+		// Rows of sessions deleted since (also by an older build) keep nothing in use; only a folder's marker stays.
+		await this._database.pruneDeletedWorktreeCoOwners();
 		for (const removal of await this._database.listPendingWorktreeRemovals()) {
 			if (this._store.isDisposed) {
 				return;
@@ -355,6 +357,10 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 			}
 			if (removal.kind === 'detached' && removal.ownerDeleted) {
 				await this._worktree.deleteDetachedWorktreeRecord(removal.owner);
+			}
+			if (coOwners.length > 0) {
+				// The folder is gone, removed in commit mode as it was ever shared: rows that can't recreate it go, the marker too.
+				await this._database.clearStaleWorktreeCoOwners(removal.worktreePath);
 			}
 			await this._database.deletePendingWorktreeRemoval(removal.kind, removal.owner, removal);
 		} catch (error) {
