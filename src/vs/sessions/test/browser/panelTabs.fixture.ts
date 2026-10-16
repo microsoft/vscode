@@ -20,7 +20,7 @@ import { ComponentFixtureContext, createEditorServices, defineComponentFixture, 
 
 import '../../../workbench/browser/media/part.css';
 import '../../../workbench/browser/parts/media/paneCompositePart.css';
-import '../../../workbench/browser/parts/panel/media/panelPart.css';
+import '../../../workbench/browser/parts/panel/media/panelpart.css';
 // eslint-disable-next-line local/code-import-patterns
 import '../../../workbench/contrib/modernUI/browser/media/padding.css';
 // eslint-disable-next-line local/code-import-patterns
@@ -63,7 +63,8 @@ function renderPanelTabs(context: ComponentFixtureContext, options: IPanelTabsFi
 		colorTheme: theme,
 		additionalServices: registerWorkbenchServices,
 	});
-	const root = append(container, $('.monaco-workbench.agent-sessions-workbench.modern-ui.modern-ui-tabs'));
+	const root = append(container, $('.monaco-workbench.agent-sessions-workbench.modern-ui-tabs'));
+	root.classList.add(...theme.classNames);
 	root.classList.toggle('modern-ui-connected-editor-tabs', options.presentation === 'connected');
 	root.classList.toggle('modern-ui-compact', options.density === 'compact');
 	root.style.width = '528px';
