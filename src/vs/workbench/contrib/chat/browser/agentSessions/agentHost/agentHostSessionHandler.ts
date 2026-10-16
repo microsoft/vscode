@@ -149,8 +149,8 @@ import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversation, IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
 import { activeTurnToProgress, appendToolOutput, BOOLEAN_TRUE_OPTION_ID, canOwnSubagentChat, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, convertProtocolPlanReviewResult, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getAgentHostActivityProgressId, getTerminalContent, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToRequestOrigin, messageToRequestSource, messageToVariableData, parseAhpTerminalToolSessionId, rewriteAgentHostLinkTarget, shouldObserveSubagentChat, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, turnToResponseDetails, turnToResultMetadata, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type ITurnModelInfo, type TurnModelLookup } from './stateToProgressAdapter.js';
-import { AgentHostEnsembleIntelligenceUsesHydraFusionSettingId, COPILOT_HYDRA_FUSION_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAMES, isCopilotHydraFusionModelId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
-import { getEnsembleTierLabel } from '../../widget/input/modelPicker/modelPickerPresentation.js';
+import { AgentHostFusionBalanceUsesHydraFusionSettingId, COPILOT_HYDRA_FUSION_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAMES, isCopilotHydraFusionModelId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { getFusionTierLabel } from '../../widget/input/modelPicker/modelPickerPresentation.js';
 import { autoAuthenticateMcpServer, agentHostMcpServerId, modelRequiresAgentAuthentication } from './agentHostAuth.js';
 import { AgentHostSubagentProgress, isUnstartedSubagent } from './agentHostSubagentProgress.js';
 export { toolDataToDefinition };
@@ -6727,13 +6727,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				// e.g. an "Auto" pick reads "Auto (raptor-mini)".
 				const billedModelId = resolved && !resolved.resolvedFromRaw ? billedId : undefined;
 				const fusionModelName = responseModelId === undefined ? undefined : COPILOT_HYDRA_FUSION_MODEL_NAMES.get(responseModelId);
-				const ensemble = fusionModelName ? lookupRawModel(AUTO_RAW_MODEL_ID) : undefined;
-				if (ensemble?.model.autoModelEnsemble && responseModelId === COPILOT_HYDRA_FUSION_MODEL_ID) {
-					logSettingExperimentTrigger(this._telemetryService, AgentHostEnsembleIntelligenceUsesHydraFusionSettingId);
+				const fusion = fusionModelName ? lookupRawModel(AUTO_RAW_MODEL_ID) : undefined;
+				if (fusion?.model.autoModelFusion && responseModelId === COPILOT_HYDRA_FUSION_MODEL_ID) {
+					logSettingExperimentTrigger(this._telemetryService, AgentHostFusionBalanceUsesHydraFusionSettingId);
 				}
-				const ensembleTier = ensemble && responseModelId ? getEnsembleTierLabel(ensemble.model, responseModelId) : undefined;
-				const responseModel = ensemble && ensembleTier ? {
-					name: localize({ key: 'agentHost.ensembleTierResponseModel', comment: ['{0} is the routing model, e.g. Ensemble, and {1} its tier, e.g. Max'] }, "{0} {1}", displayName(ensemble), ensembleTier),
+				const fusionTier = fusion && responseModelId ? getFusionTierLabel(fusion.model, responseModelId) : undefined;
+				const responseModel = fusion && fusionTier ? {
+					name: localize({ key: 'agentHost.fusionTierResponseModel', comment: ['{0} is the routing model, e.g. Fusion, and {1} its tier, e.g. Max'] }, "{0} {1}", displayName(fusion), fusionTier),
 					pricing: resolved?.model.pricing,
 				} : resolved ? {
 					name: displayName(resolved),

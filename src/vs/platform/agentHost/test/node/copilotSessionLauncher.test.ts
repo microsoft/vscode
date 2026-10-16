@@ -2450,11 +2450,11 @@ suite('getCopilotAutoTier', () => {
 		);
 	});
 
-	test('resolves an Efficiency preference or override to Balance under Ensemble', () => {
+	test('resolves an Efficiency preference or override to Balance under Fusion', () => {
 		const log = new NullLogService();
-		const configOf = (ensemble: boolean, autoModeTierOverride?: string): Pick<IAgentConfigurationService, 'getRootValue'> => ({
+		const configOf = (fusion: boolean, autoModeTierOverride?: string): Pick<IAgentConfigurationService, 'getRootValue'> => ({
 			getRootValue: (schema, key) => {
-				const value = copilotCliConfigSchema.values({ ensemble, autoModeTierOverride })[key];
+				const value = copilotCliConfigSchema.values({ [CopilotCliConfigKey.Fusion]: fusion, autoModeTierOverride })[key];
 				return schema.validate(key, value) ? value : undefined;
 			},
 		});
@@ -2668,12 +2668,12 @@ suite('CopilotSessionLauncher resume config', () => {
 		});
 	});
 
-	test('enables experimental mode with HydraFusion or Ensemble opt-in', async () => {
+	test('enables experimental mode with HydraFusion or Fusion opt-in', async () => {
 		const store = disposables.add(new DisposableStore());
 		const enabled = await buildResumeConfig(createLauncher(store, { hydraFusion: true }), { id: 'hydrafusion' });
 		const v2 = await buildResumeConfig(createLauncher(store, { hydraFusion: true, hydraFusionV2: true }), { id: 'hydrafusion' });
 		const v2WithoutHydraFusion = await buildResumeConfig(createLauncher(store, { hydraFusionV2: true }), { id: 'gpt-5' });
-		const ensemble = await buildResumeConfig(createLauncher(store, { ensemble: true, hydraFusion: false, hydraFusionV2: false }), { id: 'auto' });
+		const fusion = await buildResumeConfig(createLauncher(store, { [CopilotCliConfigKey.Fusion]: true, hydraFusion: false, hydraFusionV2: false }), { id: 'auto' });
 		const disabled = await buildResumeConfig(createLauncher(store, { hydraFusion: false }), { id: 'gpt-5' });
 		const notOptedIn = await buildResumeConfig(createLauncher(store, {}), { id: 'gpt-5' });
 		const connectors = await buildResumeConfig(createLauncher(store, { [AgentHostMcpConnectorsEnabledConfigKey]: true }), { id: 'gpt-5' });
@@ -2684,8 +2684,8 @@ suite('CopilotSessionLauncher resume config', () => {
 			enabledFeatureFlags: enabled.featureFlags,
 			v2FeatureFlags: v2.featureFlags,
 			v2WithoutHydraFusionFeatureFlags: v2WithoutHydraFusion.featureFlags,
-			ensembleExperimentalMode: ensemble.enableExperimentalMode,
-			ensembleFeatureFlags: ensemble.featureFlags,
+			fusionExperimentalMode: fusion.enableExperimentalMode,
+			fusionFeatureFlags: fusion.featureFlags,
 			disabledExperimentalMode: disabled.enableExperimentalMode,
 			disabledFeatureFlags: disabled.featureFlags,
 			defaultExperimentalMode: notOptedIn.enableExperimentalMode,
@@ -2718,8 +2718,8 @@ suite('CopilotSessionLauncher resume config', () => {
 				HYDRAFUSION_PLAN_V2: true,
 			},
 			v2WithoutHydraFusionFeatureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false },
-			ensembleExperimentalMode: true,
-			ensembleFeatureFlags: {
+			fusionExperimentalMode: true,
+			fusionFeatureFlags: {
 				...catalogInstallationFeatureFlags,
 				AUTO_APPROVAL: true,
 				CONNECTORS: false,
@@ -2743,7 +2743,7 @@ suite('CopilotSessionLauncher resume config', () => {
 		const store = disposables.add(new DisposableStore());
 		const configs = {
 			v2: await buildResumeConfig(createLauncher(store, { hydraFusion: true, hydraFusionV2: true, [CopilotCliConfigKey.HydraFusionMultiRoot]: true }), { id: 'hydrafusion' }),
-			ensemble: await buildResumeConfig(createLauncher(store, { ensemble: true, [CopilotCliConfigKey.HydraFusionMultiRoot]: true }), { id: 'auto' }),
+			fusion: await buildResumeConfig(createLauncher(store, { [CopilotCliConfigKey.Fusion]: true, [CopilotCliConfigKey.HydraFusionMultiRoot]: true }), { id: 'auto' }),
 			v1: await buildResumeConfig(createLauncher(store, { hydraFusion: true, [CopilotCliConfigKey.HydraFusionMultiRoot]: true }), { id: 'hydrafusion' }),
 			withoutHydraFusion: await buildResumeConfig(createLauncher(store, { [CopilotCliConfigKey.HydraFusionMultiRoot]: true }), { id: 'gpt-5' }),
 			notOptedIn: await buildResumeConfig(createLauncher(store, { hydraFusion: true, hydraFusionV2: true }), { id: 'hydrafusion' }),
@@ -2751,7 +2751,7 @@ suite('CopilotSessionLauncher resume config', () => {
 
 		assert.deepStrictEqual(Object.fromEntries(Object.entries(configs).map(([name, config]) => [name, config.featureFlags?.HYDRAFUSION_STICKY_ROOT])), {
 			v2: true,
-			ensemble: true,
+			fusion: true,
 			v1: undefined,
 			withoutHydraFusion: undefined,
 			notOptedIn: undefined,
