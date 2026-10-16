@@ -32497,6 +32497,49 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		for (const renamed of [true, false]) {
+			test(renamed
+				? '1.140 renaming a peer without touching the chat list or its revision: restoring the session imports the rename'
+				: 'restoring a normalized session no other build touched imports nothing', async () => {
+					class MultiChatAgent extends MockAgent {
+						override async createChat(): Promise<IAgentCreateChatResult> {
+							return { providerData: 'peer-backing' };
+						}
+					}
+					const database = disposables.add(new AgentHostDatabase(':memory:'));
+					const sessionData = createPerSessionDataService().service;
+					const residency = createResidencyTestService(1, 30_000, true, new MultiChatAgent('copilot'), sessionData, database);
+					const svc = residency.service;
+					const session = await createUsedSession(svc, residency.agent);
+					const peer = URI.parse(buildChatUri(session, 'renamed-in-place'));
+					await svc.createChat(session, peer, { title: 'Before' });
+					const peerStore = (svc as unknown as { readonly _peerChatStore: AgentHostPeerChatStore })._peerChatStore;
+					await svc.whenCatalogReconciliationIdle();
+					await peerStore.flushCompatibilityPublishes(undefined, undefined);
+					await createUsedSession(svc, residency.agent);
+					await waitForResidency(() => !getStateManager(svc).getSessionState(session.toString()), 'session was not evicted');
+					const row = async () => (await database.readCatalogSnapshot([session.toString()]))[0].chats.find(chat => chat.chat === peer.toString())!;
+					const before = (await row()).metadataRevision;
+					if (renamed) {
+						// Genuine 1.140 (live B4 L5): the rename lands in the session database and the peer's own; nothing else moves.
+						await editChatStateAsOldBuild(sessionData, { session: session.toString() }, peer.toString(), { title: 'Renamed by 1.140' });
+					}
+
+					await svc.restoreSession(session);
+
+					const after = await row();
+					assert.deepStrictEqual({
+						stored: after.metadata?.summary,
+						live: getStateManager(svc).getSessionState(session.toString())?.chats.find(chat => chat.resource === peer.toString())?.title,
+						metadataWritten: after.metadataRevision !== before,
+					}, {
+						stored: renamed ? 'Renamed by 1.140' : 'Before',
+						live: renamed ? 'Renamed by 1.140' : 'Before',
+						metadataWritten: renamed,
+					});
+				});
+		}
+
 		test('deleting an evicted session disposes every persisted peer chat', async () => {
 			class MultiChatAgent extends MockAgent {
 				override async createChat(_session: URI, _chat: URI): Promise<void> { }

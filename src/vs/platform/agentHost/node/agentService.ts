@@ -10716,8 +10716,15 @@ export class AgentService extends Disposable implements IAgentService {
 		let [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([session.toString()]);
 		let normalizedEntries: readonly IPersistedPeerChat[] | undefined;
 		if (snapshot?.authorityVersion === 2) {
-			// Imports what older builds changed in the session's older-build copy before restoring from it.
-			normalizedEntries = await this._peerChatStore.reconcileLegacy(session);
+			// Imports what older builds changed in the session's older-build copy before restoring from it, reading the
+			// session database's copy too (restore opens it anyway): 1.140 renames a peer there without touching the list
+			// or its revision, so nothing in agent-host.db shows the edit.
+			const sessionDatabase = await this._sessionDataService.tryOpenDatabase(session);
+			try {
+				normalizedEntries = await this._peerChatStore.reconcileLegacy(session, sessionDatabase);
+			} finally {
+				sessionDatabase?.dispose();
+			}
 			const peers = snapshot.chats.filter(chat => chat.order !== undefined && chat.chat !== snapshot?.header?.defaultChatUri).map(chat => chat.chat);
 			if (!equals(peers, normalizedEntries?.map(entry => entry.uri) ?? [])) {
 				[snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([session.toString()]);
