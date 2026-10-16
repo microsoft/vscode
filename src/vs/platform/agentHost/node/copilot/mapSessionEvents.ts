@@ -741,6 +741,11 @@ export async function mapSessionEvents(
 			}
 			continue;
 		}
+		if (!e.agentId && pendingSkillBuilder && (e.type === 'abort' || e.type === 'session.error')) {
+			flushParent();
+			parentBuilder = pendingSkillBuilder;
+			pendingSkillBuilder = undefined;
+		}
 		switch (e.type) {
 			case 'assistant.turn_start':
 				if (e.agentId) {

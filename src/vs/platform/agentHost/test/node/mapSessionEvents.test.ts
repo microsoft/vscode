@@ -2099,6 +2099,57 @@ suite('mapSessionEvents — history replay', () => {
 		}]);
 	});
 
+	for (const boundary of ['abort', 'session.error'] as const) {
+		for (const hasPreviousTurn of [false, true]) {
+			for (const hasReplacementRequest of [false, true]) {
+				test(`preserves a pending skill at ${boundary} (previous: ${hasPreviousTurn}, replacement: ${hasReplacementRequest})`, async () => {
+					const previousEvents: ISessionEvent[] = hasPreviousTurn ? [
+						{ type: 'user.message', id: 'previous-user', data: { content: 'Previous request' } },
+						{ type: 'assistant.message', data: { content: 'Previous response' } },
+					] : [];
+					const replacementEvents: ISessionEvent[] = hasReplacementRequest ? [
+						{ type: 'user.message', id: 'replacement-user', data: { content: 'Explain this file' } },
+						{ type: 'assistant.message', data: { content: 'File explanation' } },
+					] : [];
+					const { turns } = await mapSessionEvents(session, undefined, toSessionEvents([
+						...previousEvents,
+						{ type: 'skill.invoked', id: 'user-skill', data: { name: 'publish', path: '/skills/publish/SKILL.md', content: '', trigger: 'user-invoked' } },
+						boundary === 'abort'
+							? { type: 'abort', data: { reason: 'user requested' } }
+							: { type: 'session.error', data: { errorType: 'requestFailed', message: 'Skill request failed' } },
+						...replacementEvents,
+					]));
+
+					assert.deepStrictEqual(turns.map(turn => ({
+						message: turn.message.text,
+						state: turn.state,
+						parts: turn.responseParts.map(part => part.kind),
+						error: getTurnError(turn)?.message,
+					})), [
+						...(hasPreviousTurn ? [{
+							message: 'Previous request',
+							state: TurnState.Complete,
+							parts: [ResponsePartKind.Markdown],
+							error: undefined,
+						}] : []),
+						{
+							message: '',
+							state: boundary === 'abort' ? TurnState.Cancelled : TurnState.Error,
+							parts: boundary === 'abort' ? [ResponsePartKind.ToolCall] : [ResponsePartKind.ToolCall, ResponsePartKind.Error],
+							error: boundary === 'abort' ? undefined : 'Skill request failed',
+						},
+						...(hasReplacementRequest ? [{
+							message: 'Explain this file',
+							state: TurnState.Complete,
+							parts: [ResponsePartKind.Markdown],
+							error: undefined,
+						}] : []),
+					]);
+				});
+			}
+		}
+	}
+
 	test('synthetic user messages do not start a new turn', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', id: 'user-event-1', data: { interactionId: 'interaction-1', content: 'Use the skill' } },
