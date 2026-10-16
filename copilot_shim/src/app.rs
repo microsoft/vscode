@@ -664,6 +664,7 @@ mod tests {
 		messages: RefCell<Vec<String>>,
 		diagnostics_enabled: Cell<bool>,
 		policy_disabled: Cell<bool>,
+		policy_reads: Cell<usize>,
 		no_terminal: Cell<bool>,
 	}
 
@@ -698,6 +699,7 @@ mod tests {
 				messages: RefCell::new(Vec::new()),
 				diagnostics_enabled: Cell::new(true),
 				policy_disabled: Cell::new(false),
+				policy_reads: Cell::new(0),
 				no_terminal: Cell::new(false),
 			}
 		}
@@ -852,6 +854,7 @@ mod tests {
 
 	impl PolicyEffects for FakeRuntime {
 		fn copilot_cli_command_disabled(&self) -> bool {
+			self.policy_reads.set(self.policy_reads.get() + 1);
 			self.policy_disabled.get()
 		}
 	}
@@ -1271,7 +1274,15 @@ mod tests {
 					PathBuf::from("/home/test/.local/bin/copilot"),
 					PathBuf::from("/home/test/.local/bin/copilot")
 				],
-				vec![None, Some(OsString::from("/tools")), None, None],
+				vec![
+					None,
+					#[cfg(target_os = "linux")]
+					None,
+					#[cfg(not(target_os = "linux"))]
+					Some(OsString::from("/tools")),
+					None,
+					None,
+				],
 				Some(CommandArguments::Native(arguments)),
 				Some(OsString::from("/tools")),
 			)
@@ -1674,7 +1685,7 @@ mod tests {
 	}
 
 	#[test]
-	fn policy_blocks_install_but_launches_an_installed_cli() {
+	fn policy_blocks_install_after_cli_discovery() {
 		let policy_runtime = |directory: &str| {
 			let runtime = FakeRuntime::default();
 			runtime.policy_disabled.set(true);
@@ -1699,8 +1710,10 @@ mod tests {
 				missing_exit,
 				missing.prompts.borrow().len(),
 				missing.messages.borrow().clone(),
+				missing.policy_reads.get(),
 				installed_exit,
 				programs(&installed),
+				installed.policy_reads.get(),
 			),
 			(
 				10,
@@ -1708,8 +1721,116 @@ mod tests {
 				vec![String::from(
 					"GitHub Copilot CLI was not found. Installing it from VS Code is turned off by the CopilotCliCommand policy; contact your administrator."
 				)],
+				1,
 				7,
 				vec![cli_path("/cli")],
+				0,
+			)
+		);
+	}
+
+	#[cfg(unix)]
+	#[test]
+	fn policy_is_not_read_before_fallback_cli_discovery() {
+		let runtime = FakeRuntime::default();
+		runtime.policy_disabled.set(true);
+		runtime.set_path(&[Path::new("/empty")]);
+		let fallback = PathBuf::from("/home/test/.local/bin/copilot");
+		runtime.add_program(&fallback);
+		runtime.push_process_result(Ok(interactive_exit(8)));
+
+		let exit = run(
+			&runtime,
+			vec![OsString::from("--resume")],
+			Some(HostTarget::LinuxGnuX64),
+		);
+
+		assert_eq!(
+			(
+				exit,
+				runtime.policy_reads.get(),
+				runtime.prompts.borrow().clone(),
+				programs(&runtime),
+			),
+			(8, 0, Vec::<String>::new(), vec![fallback])
+		);
+	}
+
+	#[test]
+	fn disabled_policy_suppresses_probe_network_check() {
+		let runtime = FakeRuntime::default();
+		runtime.policy_disabled.set(true);
+		runtime.set_path(&[Path::new("/empty")]);
+		let directory = tempfile::tempdir().expect("create probe result directory");
+		let result_file = directory.path().join("probe.ini");
+
+		let exit = run(
+			&runtime,
+			vec![
+				OsString::from("--vscode-shim"),
+				OsString::from("probe"),
+				OsString::from("--result-file"),
+				result_file.as_os_str().to_os_string(),
+			],
+			Some(HostTarget::LinuxGnuX64),
+		);
+
+		let bytes = std::fs::read(result_file).expect("read probe result");
+		let result = String::from_utf16(
+			&bytes
+				.as_chunks::<2>()
+				.0
+				.iter()
+				.map(|bytes| u16::from_le_bytes(*bytes))
+				.collect::<Vec<_>>(),
+		)
+		.expect("decode UTF-16 probe result");
+		assert_eq!(
+			(
+				exit,
+				runtime.policy_reads.get(),
+				runtime.commands.borrow().len()
+			),
+			(0, 1, 0)
+		);
+		assert!(result.contains("policy=disabled\r\n"), "{result}");
+		assert!(
+			result.contains("reason=the CopilotCliCommand policy is disabled\r\n"),
+			"{result}"
+		);
+		assert!(!result.contains("download:"), "{result}");
+		assert!(!result.contains("unsupported"), "{result}");
+	}
+
+	#[test]
+	fn disabled_policy_blocks_interactive_setup_install() {
+		let runtime = FakeRuntime::default();
+		runtime.policy_disabled.set(true);
+
+		let exit = run(
+			&runtime,
+			vec![
+				OsString::from("--vscode-shim"),
+				OsString::from("install"),
+				OsString::from("--interactive"),
+			],
+			Some(HostTarget::LinuxGnuX64),
+		);
+
+		assert_eq!(
+			(
+				exit,
+				runtime.policy_reads.get(),
+				runtime.commands.borrow().len(),
+				runtime.messages.borrow().clone(),
+			),
+			(
+				10,
+				1,
+				0,
+				vec![String::from(
+					"GitHub Copilot CLI couldn't be installed: installing GitHub Copilot CLI from VS Code is turned off by the CopilotCliCommand policy"
+				)],
 			)
 		);
 	}
