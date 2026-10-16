@@ -7986,7 +7986,9 @@ export class AgentService extends Disposable implements IAgentService {
 		// the deferred `SessionAdded` notification atomically so subscribers
 		// see consistent state through both paths.
 		this._stateManager.markSessionPersisted(sessionKey, summary);
-		this._stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionReady });
+		if (state.lifecycle !== SessionLifecycle.Ready) {
+			this._stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionReady });
+		}
 		if (workingDirectoryReplacement) {
 			this._stateManager.dispatchServerAction(sessionKey, {
 				type: ActionType.SessionWorkingDirectoryReplaced,
