@@ -33,7 +33,7 @@ suite('Open Timeline command', () => {
 				openView: async id => { calls.push(`openView ${id}`); return null; },
 			}));
 			instantiationService.stub(ITimelineService, upcastPartial<ITimelineService>({
-				setUri: async uri => { calls.push(`setUri ${uri.path}`); },
+				setUri: async uri => { calls.push(`setUri ${uri?.path}`); },
 			}));
 
 			await instantiationService.invokeFunction(CommandsRegistry.getCommand('files.openTimeline')!.handler, options.argument);

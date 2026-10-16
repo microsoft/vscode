@@ -102,11 +102,11 @@ const CHAT_DATA_KEYS: readonly { readonly identifier: string; readonly key: stri
 const ALLOWLIST: readonly IAllowance[] = [
 	// Peer store: legacy-catalog (v1) peers' own databases, which older builds overlay over `peerChats` (goes away with v1), and
 	// the one-time title adoption of chats central state does not know yet.
-	{ file: 'agentHostPeerChatStore.ts', key: 'SESSION_CUSTOM_TITLE_KEY', count: 1, removedBy: 'permanent', reason: 'restoring a private chat adopts the title in its own database' },
-	{ file: 'agentHostPeerChatStore.ts', key: 'SESSION_CUSTOM_TITLE_SOURCE_KEY', count: 2, removedBy: 'permanent', reason: 'restoring a private chat adopts its own-db title source; a normalized default title snapshot adopts the source main writes to session.db' },
-	{ file: 'agentHostPeerChatStore.ts', key: 'customChatTitleMetadataKey', count: 1, removedBy: 'permanent', reason: 'restoring a private chat adopts the title an older build wrote to session.db' },
-	{ file: 'agentHostPeerChatStore.ts', key: 'customChatTitleSourceMetadataKey', count: 1, removedBy: 'permanent', reason: 'restoring a private chat adopts the title source an older build wrote to session.db' },
-	{ file: 'agentHostPeerChatStore.ts', key: 'AH_META_IS_READ_DB_KEY', count: 2, removedBy: 'permanent', reason: 'v1 peer read state in its own database, read and written as on main (group 6)' },
+	{ file: 'agentHostPeerChatStore.ts', key: 'SESSION_CUSTOM_TITLE_KEY', count: 2, removedBy: 'permanent', reason: 'restoring a private chat adopts the title in its own database; a normalized peer\'s title is published to and imported from its own database for older builds' },
+	{ file: 'agentHostPeerChatStore.ts', key: 'SESSION_CUSTOM_TITLE_SOURCE_KEY', count: 3, removedBy: 'permanent', reason: 'restoring a private chat adopts its own-db title source; a normalized default title snapshot adopts the source main writes to session.db; a normalized peer\'s title source is published to and imported from its own database' },
+	{ file: 'agentHostPeerChatStore.ts', key: 'customChatTitleMetadataKey', count: 3, removedBy: 'permanent', reason: 'restoring a private chat adopts the title an older build wrote to session.db; a normalized peer\'s title is published to and imported from session.db for older builds, and removed when it leaves their list' },
+	{ file: 'agentHostPeerChatStore.ts', key: 'customChatTitleSourceMetadataKey', count: 3, removedBy: 'permanent', reason: 'restoring a private chat adopts the title source an older build wrote to session.db; a normalized peer\'s title source is published to and imported from session.db, and removed when it leaves their list' },
+	{ file: 'agentHostPeerChatStore.ts', key: 'AH_META_IS_READ_DB_KEY', count: 1, removedBy: 'permanent', reason: 'a peer\'s read state in its own database, read and written for older builds as on main, for legacy and normalized catalogs alike (group 6)' },
 	// Chat-own data: the peer's own title (group 6) and the default chat's own database, neither a session.db mirror.
 	{ file: 'chatContributions/sessionTitle/sessionTitleContribution.ts', key: 'SESSION_CUSTOM_TITLE_KEY', count: 1, removedBy: 'permanent', reason: 'hydration fallback: the chat\'s own title in its own database' },
 	{ file: 'chatContributions/sessionTitle/sessionTitleContribution.ts', key: 'customChatTitleMetadataKey', count: 1, removedBy: 'permanent', reason: 'hydration fallback for chats central state never imported (provider-discovered legacy chats): only an older build wrote their title, to session.db' },
@@ -129,7 +129,7 @@ const ALLOWLIST: readonly IAllowance[] = [
 	{ file: 'copilot/copilotAgent.ts', key: '_META_PROJECT_DISPLAY_NAME', count: 2, removedBy: 'permanent', reason: 'reads through _openMetadata: the store for a session, a peer backing\'s own db' },
 	{ file: 'copilot/copilotAgent.ts', key: '_META_PROJECT_RESOLVED', count: 2, removedBy: 'permanent', reason: 'reads through _openMetadata: the store for a session, a peer backing\'s own db' },
 	// Legacy-catalog (v1) membership: the peer store is its writer, with its own revision tracking, as on main (group 5).
-	{ file: 'agentHostPeerChatStore.ts', key: 'PEER_CHATS_METADATA_KEY', count: 4, removedBy: 'permanent', reason: 'v1 peerChats read and written by its owner, the peer store, as on main (group 5)' },
+	{ file: 'agentHostPeerChatStore.ts', key: 'PEER_CHATS_METADATA_KEY', count: 4, removedBy: 'permanent', reason: 'peerChats read and written by its owner, the peer store: as on main for legacy catalogs; the older-build copy of normalized ones, read back before it is overwritten (group 5)' },
 	{ file: 'agentHostSavedChatService.ts', key: 'PEER_CHATS_METADATA_KEY', count: 2, removedBy: 'permanent', reason: 'v1 saved-chat membership read, as on main (group 5)' },
 	// A chat's working directories in the chat's own database (group 6).
 	{ file: 'agentHostPeerChatStore.ts', key: 'CHAT_WORKING_DIRECTORIES_METADATA_KEY', count: 3, removedBy: 'permanent', reason: 'a peer\'s own db: written only when its working directories change, read for chats central state does not know (group 6)' },

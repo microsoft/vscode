@@ -24,6 +24,7 @@ import { ChatModelSource, IChat, SessionStatus } from '../../../../services/sess
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { restoreReasonForSource, SessionModelSelection } from '../../browser/sessionModelSelection.js';
 import { AutomationModelConfiguration } from '../../../automations/browser/automationModelConfiguration.js';
+import { modelConfigurationSourceKey } from '../../../../../platform/agentHost/common/agentModelConfiguration.js';
 
 function model(identifier: string): ILanguageModelChatMetadataAndIdentifier {
 	return {
@@ -246,6 +247,36 @@ suite('SessionModelSelection', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('managed models seed new chats, preserve available existing choices and replace unavailable ones', () => {
+		const managed = { ...second, metadata: { ...second.metadata, managedModelDefaults: { model: true, keys: [] } } };
+		const observations = [];
+		for (const status of [SessionStatus.Untitled, SessionStatus.Completed]) {
+			for (const selected of [undefined, first.identifier, 'removed-model']) {
+				if (status === SessionStatus.Completed && !selected) {
+					continue;
+				}
+				const session = createSession('provider', status, selected);
+				const provider = disposables.add(createProvider('provider', (id, source) => session.modelId.set(id, undefined, source)));
+				provider.models = [first, managed];
+				const storage = disposables.add(new InMemoryStorageService());
+				storeSelectedModel(storage, ChatAgentLocation.Chat, modelTarget, first.identifier);
+				const selection = disposables.add(new SessionModelSelection(
+					observableValue<IActiveSession | undefined>('session', session.session),
+					{ modelConfiguration: true }, createProvidersService([provider]), storage,
+					createConfigurationService(first.metadata.id), disposables.add(new NullLogService()),
+				));
+				observations.push({ status, selected, current: selection.state.get().currentModel?.identifier, writes: [...provider.writes] });
+			}
+		}
+		assert.deepStrictEqual(observations, [
+			{ status: SessionStatus.Untitled, selected: undefined, current: second.identifier, writes: [second.identifier] },
+			{ status: SessionStatus.Untitled, selected: first.identifier, current: first.identifier, writes: [] },
+			{ status: SessionStatus.Untitled, selected: 'removed-model', current: undefined, writes: [] },
+			{ status: SessionStatus.Completed, selected: first.identifier, current: first.identifier, writes: [] },
+			{ status: SessionStatus.Completed, selected: 'removed-model', current: second.identifier, writes: [second.identifier] },
+		]);
+	});
+
 	suite('Automation model configuration', () => {
 		class ConfigurationService extends mock<ILanguageModelsService>() {
 			metadata: ILanguageModelChatMetadata | undefined = {
@@ -266,6 +297,144 @@ suite('SessionModelSelection', () => {
 				this.configuration = { ...this.configuration, ...values };
 			}
 		}
+
+		test('host defaults remain implicit until an explicit selection, including the default itself', async () => {
+			const service = new ConfigurationService();
+			service.configuration = {};
+			service.metadata = { ...service.metadata!, configurationDefaultKeys: ['thinkingLevel'] };
+			const configuration = disposables.add(new AutomationModelConfiguration(service));
+			const initial = configuration.getModelConfigurationForRequest(first.identifier);
+			const implicit = configuration.captureModelConfiguration(first.identifier);
+			await configuration.setModelConfiguration(first.identifier, { thinkingLevel: 'medium' });
+			const captured = configuration.captureModelConfiguration(first.identifier);
+			const reopened = disposables.add(new AutomationModelConfiguration(service, { modelId: first.identifier, modelConfiguration: captured }));
+			assert.deepStrictEqual({
+				initial, implicit, captured, reopened: reopened.getModelConfigurationForRequest(first.identifier),
+			}, {
+				initial: { thinkingLevel: 'medium', [modelConfigurationSourceKey('thinkingLevel')]: 'default' },
+				implicit: {},
+				captured: { thinkingLevel: 'medium' },
+				reopened: { thinkingLevel: 'medium', [modelConfigurationSourceKey('thinkingLevel')]: 'explicit' },
+			});
+
+		});
+
+		test('managed startup options outrank inherited preferences but not restored or current-chat choices', async () => {
+			const service = new ConfigurationService();
+			service.configuration = { thinkingLevel: 'low', contextSize: 200_000, tier: 'efficiency' };
+			service.metadata = {
+				...service.metadata!,
+				configurationDefaultKeys: ['thinkingLevel', 'contextSize', 'tier'],
+				managedModelDefaults: { model: true, keys: ['thinkingLevel', 'contextSize', 'tier'] },
+				configurationSchema: {
+					properties: {
+						thinkingLevel: { enum: ['low', 'high'], default: 'high' },
+						contextSize: { enum: [200_000, 1_000_000], default: 1_000_000 },
+						tier: { enum: ['efficiency', 'intelligence'], default: 'intelligence' },
+					}
+				},
+			};
+			const draft = disposables.add(new AutomationModelConfiguration(service));
+			const restored = disposables.add(new AutomationModelConfiguration(service, {
+				modelId: first.identifier, modelConfiguration: { thinkingLevel: 'low', contextSize: 200_000, tier: 'efficiency' },
+			}));
+			const initial = draft.getModelConfigurationForRequest(first.identifier);
+			const captured = draft.captureModelConfiguration(first.identifier);
+			const reopenedDraft = disposables.add(new AutomationModelConfiguration(service, { modelId: first.identifier, modelConfiguration: captured }));
+			const reopened = reopenedDraft.getModelConfigurationForRequest(first.identifier);
+			await draft.setModelConfiguration(first.identifier, { thinkingLevel: 'low' });
+			const edited = draft.getModelConfigurationForRequest(first.identifier);
+			const restoredValue = restored.getModelConfigurationForRequest(first.identifier);
+			service.metadata = { ...service.metadata, managedModelDefaults: undefined };
+			assert.deepStrictEqual({ initial, captured, reopened, edited, restored: restoredValue, removed: draft.getModelConfigurationForRequest(first.identifier) }, {
+				initial: { thinkingLevel: 'high', contextSize: 1_000_000, tier: 'intelligence', [modelConfigurationSourceKey('thinkingLevel')]: 'default', [modelConfigurationSourceKey('contextSize')]: 'default', [modelConfigurationSourceKey('tier')]: 'default' },
+				captured: {},
+				reopened: initial,
+				edited: { ...initial, thinkingLevel: 'low', [modelConfigurationSourceKey('thinkingLevel')]: 'explicit' },
+				restored: { thinkingLevel: 'low', contextSize: 200_000, tier: 'efficiency', [modelConfigurationSourceKey('thinkingLevel')]: 'explicit', [modelConfigurationSourceKey('contextSize')]: 'explicit', [modelConfigurationSourceKey('tier')]: 'explicit' },
+				removed: { thinkingLevel: 'low', contextSize: 200_000, tier: 'efficiency', [modelConfigurationSourceKey('thinkingLevel')]: 'explicit', [modelConfigurationSourceKey('contextSize')]: 'explicit', [modelConfigurationSourceKey('tier')]: 'explicit' },
+			});
+		});
+
+		test('ordinary picker edits update an eagerly captured draft without changing another automation', async () => {
+			const service = new ConfigurationService();
+			service.configuration = {};
+			service.metadata = {
+				...service.metadata!,
+				configurationDefaultKeys: ['thinkingLevel', 'contextSize'],
+				configurationSchema: {
+					properties: {
+						thinkingLevel: { type: 'string', enum: ['low', 'medium', 'high'], default: 'medium' },
+						contextSize: { type: 'number', enum: [200_000, 1_000_000], default: 200_000 },
+					}
+				},
+			};
+			const draft = disposables.add(new AutomationModelConfiguration(service));
+			const automation = disposables.add(new AutomationModelConfiguration(service, {
+				modelId: first.identifier, modelConfiguration: { thinkingLevel: 'low', contextSize: 200_000 },
+			}));
+			const initial = draft.getModelConfigurationForRequest(first.identifier);
+			const session = createSession('provider', SessionStatus.Untitled, first.identifier);
+			const provider = disposables.add(createProvider('provider'));
+			provider.getAutomationModelConfiguration = () => draft;
+			const selection = disposables.add(new SessionModelSelection(
+				observableValue<IActiveSession | undefined>('session', session.session),
+				{ modelConfiguration: true, fallbackModelConfiguration: service },
+				createProvidersService([provider]), disposables.add(new InMemoryStorageService()),
+				createConfigurationService(), disposables.add(new NullLogService()),
+			));
+			const access = selection.modelConfiguration!;
+			await access.setModelConfiguration(first.identifier, { thinkingLevel: 'high', contextSize: 1_000_000 });
+			const sent = draft.getModelConfigurationForRequest(first.identifier);
+			const shown = access.getModelConfiguration(first.identifier);
+			provider.getAutomationModelConfiguration = () => undefined;
+			provider.modelChanges.fire();
+			await access.setModelConfiguration(first.identifier, { thinkingLevel: 'low' });
+			assert.deepStrictEqual({
+				initial, shown, sent,
+				automation: automation.captureModelConfiguration(first.identifier),
+				fallback: access.getModelConfiguration(first.identifier),
+			}, {
+				initial: { thinkingLevel: 'medium', contextSize: 200_000, [modelConfigurationSourceKey('thinkingLevel')]: 'default', [modelConfigurationSourceKey('contextSize')]: 'default' },
+				shown: { thinkingLevel: 'high', contextSize: 1_000_000, [modelConfigurationSourceKey('thinkingLevel')]: 'explicit', [modelConfigurationSourceKey('contextSize')]: 'explicit' },
+				sent: { thinkingLevel: 'high', contextSize: 1_000_000, [modelConfigurationSourceKey('thinkingLevel')]: 'explicit', [modelConfigurationSourceKey('contextSize')]: 'explicit' },
+				automation: { thinkingLevel: 'low', contextSize: 200_000 },
+				fallback: { thinkingLevel: 'low', contextSize: 1_000_000 },
+			});
+		});
+
+		test('host locks leave captured automation preferences intact and restore them after removal', async () => {
+			const service = new ConfigurationService();
+			service.metadata = { ...service.metadata!, configurationDefaultKeys: ['thinkingLevel'] };
+			const original = service.metadata;
+			const configuration = disposables.add(new AutomationModelConfiguration(service, { modelId: first.identifier, modelConfiguration: { thinkingLevel: 'low' } }));
+			service.metadata = {
+				...original,
+				configurationSchema: { properties: { thinkingLevel: { type: 'string', title: 'Effort', enum: ['low', 'high'], default: 'high', readOnly: true } } },
+			};
+			const locked = configuration.getModelConfiguration(first.identifier);
+			await assert.rejects(configuration.setModelConfiguration(first.identifier, { thinkingLevel: 'low' }), /managed by the agent host/);
+			const captured = configuration.captureModelConfiguration(first.identifier);
+			service.metadata = original;
+			assert.deepStrictEqual({ locked, captured, removed: configuration.getModelConfiguration(first.identifier), writes: service.writes }, {
+				locked: { thinkingLevel: 'high', [modelConfigurationSourceKey('thinkingLevel')]: 'managed' },
+				captured: { thinkingLevel: 'low' },
+				removed: { thinkingLevel: 'low', [modelConfigurationSourceKey('thinkingLevel')]: 'explicit' },
+				writes: [],
+			});
+		});
+
+		test('restored running chats retain their applied defaults after the admin changes them', () => {
+			const service = new ConfigurationService();
+			service.metadata = { ...service.metadata!, configurationDefaultKeys: ['thinkingLevel'], managedModelDefaults: { model: true, keys: ['thinkingLevel'] } };
+			const saved = { thinkingLevel: 'low', [modelConfigurationSourceKey('thinkingLevel')]: 'default' };
+			const restored = disposables.add(new AutomationModelConfiguration(service, {
+				modelId: first.identifier, modelConfiguration: saved,
+			}, true));
+			assert.deepStrictEqual(restored.getModelConfigurationForRequest(first.identifier), {
+				thinkingLevel: 'low', [modelConfigurationSourceKey('thinkingLevel')]: 'explicit',
+			});
+		});
 
 		test('scopes picker options to each Automation and only remembers explicit choices', async () => {
 			const languageModelsService = new ConfigurationService();

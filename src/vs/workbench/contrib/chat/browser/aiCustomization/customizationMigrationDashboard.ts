@@ -525,6 +525,8 @@ export class CustomizationMigrationDashboard extends Disposable {
 				overrideStyles: customizationTreeStyles,
 				multipleSelectionSupport: false,
 				horizontalScrolling: false,
+				// Rows with migration warnings grow to fit all of them instead of clipping at a fixed height.
+				supportDynamicHeights: true,
 				openOnSingleClick: true,
 				identityProvider: { getId: entry => entry.id },
 				accessibilityProvider: {
@@ -628,7 +630,8 @@ export class CustomizationMigrationDashboard extends Disposable {
 			treeContainer.style.height = '';
 			const height = treeContainer.clientHeight || getCustomizationTreeContentHeight(this.element, treeContainer, this.availableHeight);
 			treeContainer.style.height = `${height}px`;
-			tree.layout(height);
+			// Passing the width lets the tree re-measure wrapped warning rows when the dashboard is resized.
+			tree.layout(height, treeContainer.clientWidth);
 			this.callbacks.onDidChangeContent?.();
 		};
 		this.layoutTree = layoutTree;

@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
+import { cancelOnDispose } from '../../../../../base/common/cancellation.js';
+import { structuralEquals } from '../../../../../base/common/equals.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableSet, IDisposable, ReferenceCollection, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -37,24 +40,20 @@ export class GitHubPullRequestModelReferenceCollection extends ReferenceCollecti
 	}
 }
 
-/**
- * Reactive model for a GitHub pull request. Wraps fetcher data in
- * observables, supports on-demand refresh, and can poll periodically.
- */
+/** Pull request metadata and mergeability with coalesced refresh and periodic polling. */
 export class GitHubPullRequestModel extends Disposable {
 
-	private _pullRequestEtag: string | undefined = undefined;
+	private readonly _token = cancelOnDispose(this._store);
 	private readonly _pullRequest = observableValue<IGitHubPullRequest | undefined>(this, undefined);
 	readonly pullRequest: IObservable<IGitHubPullRequest | undefined> = this._pullRequest;
 
-	private _reviewsEtag: string | undefined = undefined;
 	private readonly _reviews = observableValue<readonly IGitHubPullRequestReview[] | undefined>(this, undefined);
 	readonly reviews: IObservable<readonly IGitHubPullRequestReview[] | undefined> = this._reviews;
 
 	private readonly _mergeability = observableValue<IGitHubPullRequestMergeability | undefined>(this, undefined);
 	readonly mergeability: IObservable<IGitHubPullRequestMergeability | undefined> = this._mergeability;
 
-	private _refreshPromise: Promise<void> | undefined = undefined;
+	private _refreshPromise: Promise<void> | undefined;
 
 	private readonly _pollScheduler: RunOnceScheduler;
 	private readonly _pollingDisposables = this._register(new DisposableSet());
@@ -69,34 +68,42 @@ export class GitHubPullRequestModel extends Disposable {
 		super();
 
 		this._pollScheduler = this._register(new RunOnceScheduler(() => this._poll(), DEFAULT_POLL_INTERVAL_MS));
+		this._register(_fetcher.client.onDidChange(() => {
+			const shouldRefresh = this._refreshPromise !== undefined || this._pullRequest.get() !== undefined;
+			this._refreshPromise = undefined;
+			transaction(tx => {
+				this._pullRequest.set(undefined, tx);
+				this._reviews.set(undefined, tx);
+				this._mergeability.set(undefined, tx);
+			});
+			if (shouldRefresh) {
+				void this.refresh();
+			}
+		}));
 	}
 
-	/**
-	 * Refresh all PR data: pull request info, and mergeability.
-	 */
+	/** Refreshes pull request metadata, reviews, and mergeability. */
 	refresh(): Promise<void> {
-		if (!this._refreshPromise) {
-			this._refreshPromise = this._refresh()
-				.finally(() => {
-					this._refreshPromise = undefined;
-				});
-		}
-
-		return this._refreshPromise;
+		const pending = this._refreshPromise ??= this._refresh().finally(() => {
+			if (this._refreshPromise === pending) {
+				this._refreshPromise = undefined;
+			}
+		});
+		return pending;
 	}
 
 	/**
 	 * Post a top-level issue comment on the PR.
 	 */
 	async postIssueComment(body: string): Promise<IGitHubPRComment> {
-		return this._fetcher.postIssueComment(this.owner, this.repo, this.prNumber, body);
+		return this._fetcher.postIssueComment(this.owner, this.repo, this.prNumber, body, this._token);
 	}
 
 	/**
 	 * Post a review comment on a line in the pull request head.
 	 */
 	async postReviewComment(body: string, commitId: string, path: string, line: number, startLine: number | undefined, pendingReview?: Pick<IGitHubPullRequestReview, 'id' | 'nodeId'>): Promise<void> {
-		await this._fetcher.postPullRequestReviewComment(this.owner, this.repo, this.prNumber, body, commitId, path, line, startLine, pendingReview);
+		await this._fetcher.postPullRequestReviewComment(this.owner, this.repo, this.prNumber, body, commitId, path, line, startLine, pendingReview, this._token);
 	}
 
 	/**
@@ -130,46 +137,38 @@ export class GitHubPullRequestModel extends Disposable {
 	}
 
 	private async _refresh(): Promise<void> {
-		this._logService.trace(`${TRACE_PREFIX} [PRModel] Refreshing ${this.owner}/${this.repo}#${this.prNumber} (prEtag ${this._pullRequestEtag ?? 'none'}, reviewsEtag ${this._reviewsEtag ?? 'none'})`);
+		const generation = this._fetcher.client.generation;
+		this._logService.trace(`${TRACE_PREFIX} [PRModel] Refreshing ${this.owner}/${this.repo}#${this.prNumber}`);
 		try {
 			const [pr, reviews] = await Promise.all([
-				this._fetcher.getPullRequest(this.owner, this.repo, this.prNumber, this._pullRequestEtag),
-				this._fetcher.getReviews(this.owner, this.repo, this.prNumber, this._reviewsEtag),
+				this._fetcher.getPullRequest(this.owner, this.repo, this.prNumber, this._token),
+				this._fetcher.getReviews(this.owner, this.repo, this.prNumber, this._token),
 			]);
+			if (this._store.isDisposed || generation !== this._fetcher.client.generation) {
+				return;
+			}
 
 			transaction(tx => {
-				if (pr.statusCode === 200 && pr.data) {
-					this._pullRequestEtag = pr.etag;
-					this._pullRequest.set(pr.data, tx);
+				const prChanged = !structuralEquals(pr, this._pullRequest.get());
+				const reviewsChanged = !structuralEquals(reviews, this._reviews.get());
+				if (prChanged) {
+					this._pullRequest.set(pr, tx);
 				}
-
-				if (reviews.statusCode === 200 && reviews.data) {
-					this._reviewsEtag = reviews.etag;
-					this._reviews.set(reviews.data, tx);
+				if (reviewsChanged) {
+					this._reviews.set(reviews, tx);
 				}
-
-				// Recompute mergeability if either the pull request or reviews changed. Both
-				// are needed to compute mergeability, so we wait until both requests complete
-				// before updating.
-				if (pr.statusCode === 200 || reviews.statusCode === 200) {
-					const prData = pr.data ?? this._pullRequest.get();
-					const reviewsData = reviews.data ?? this._reviews.get();
-
-					if (prData && reviewsData) {
-						const mergeability = computeMergeability(prData, reviewsData);
-						this._mergeability.set(mergeability, tx);
-					}
+				if (prChanged || reviewsChanged) {
+					this._mergeability.set(computeMergeability(pr, reviews), tx);
 				}
 			});
 
 			const current = this._pullRequest.get();
-			this._logService.trace(`${TRACE_PREFIX} [PRModel] Refreshed ${this.owner}/${this.repo}#${this.prNumber}: prStatus ${pr.statusCode}, reviewsStatus ${reviews.statusCode}, state ${current?.state ?? 'unknown'}, isDraft ${current?.isDraft ?? 'unknown'}, headSha ${current?.headSha ?? 'unknown'}`);
+			this._logService.trace(`${TRACE_PREFIX} [PRModel] Refreshed ${this.owner}/${this.repo}#${this.prNumber}: state ${current?.state ?? 'unknown'}, isDraft ${current?.isDraft ?? 'unknown'}, headSha ${current?.headSha ?? 'unknown'}`);
 		} catch (err) {
-			this._logService.error(`${TRACE_PREFIX} ${LOG_PREFIX} Failed to refresh PR #${this.prNumber}:`, err);
+			if (!isCancellationError(err)) {
+				this._logService.error(`${TRACE_PREFIX} ${LOG_PREFIX} Failed to refresh PR #${this.prNumber}:`, err);
+			}
 		}
 	}
 
-	override dispose(): void {
-		super.dispose();
-	}
 }

@@ -23,6 +23,13 @@ function* resolveExtensionResources(extension: vscode.Extension<any>, resourcePa
 	}
 }
 
+import { codeBlockEditorPresentation, type ResolvedCodeBlockEditor } from './preview/markdownEditorProtocol';
+
+export function codeBlockEditorPresentationEqual(a: ResolvedCodeBlockEditor['presentation'], b: ResolvedCodeBlockEditor['presentation']): boolean {
+	return a?.resizable === b?.resizable && a?.fullWidth === b?.fullWidth
+		&& a?.fullView === b?.fullView && a?.minHeight === b?.minHeight;
+}
+
 export interface MarkdownPreviewScript {
 	readonly resource: vscode.Uri;
 	readonly type?: 'module';
@@ -53,6 +60,7 @@ export interface MarkdownCodeBlockEditorProvider {
 	readonly source: MarkdownCodeBlockEditorSource;
 	readonly contentType: 'text' | 'json';
 	readonly initialHeight?: number;
+	readonly presentation?: ResolvedCodeBlockEditor['presentation'];
 	readonly sandbox?: MarkdownCodeBlockEditorSandbox;
 }
 
@@ -106,6 +114,7 @@ export namespace MarkdownContributions {
 				&& sourceEqual(x.source, y.source)
 				&& x.contentType === y.contentType
 				&& x.initialHeight === y.initialHeight
+				&& codeBlockEditorPresentationEqual(x.presentation, y.presentation)
 				&& sandboxEqual(x.sandbox, y.sandbox));
 	}
 
@@ -184,6 +193,7 @@ export namespace MarkdownContributions {
 				|| (provider.runtimeKey !== undefined && (typeof provider.runtimeKey !== 'string' || provider.runtimeKey.length === 0 || provider.runtimeKey.length > 256))
 				|| (provider.contentType !== undefined && provider.contentType !== 'text' && provider.contentType !== 'json')
 				|| (provider.initialHeight !== undefined && !isPositiveNumber(provider.initialHeight))
+				|| (provider.presentation !== undefined && !codeBlockEditorPresentation.safeParse(provider.presentation).success)
 			) {
 				continue;
 			}
@@ -197,6 +207,7 @@ export namespace MarkdownContributions {
 				source,
 				contentType: provider.contentType ?? 'text',
 				initialHeight: provider.initialHeight as number | undefined,
+				presentation: provider.presentation === undefined ? undefined : codeBlockEditorPresentation.parse(provider.presentation),
 				sandbox: readSandbox(provider.sandbox),
 			};
 		}

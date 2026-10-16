@@ -43,10 +43,10 @@ const HAS_ADD_TAB_WATERMARK_CLASS = 'sessions-has-add-tab-watermark';
 const TELEMETRY_SOURCE = 'emptyEditorGroupAddTab';
 
 /**
- * Renders the Add Tab menu in an empty editor group: the `+` dropdown at the top
- * (where the hidden tab bar would show it) and the menu's actions as a centered
- * list in place of the editor watermark. Nothing is rendered while the group has
- * editors.
+ * Renders the Add Tab actions in an empty editor group: the `+` dropdown at the top
+ * (where the hidden tab bar would show it) from `dropdownMenuId`, and the actions of
+ * `listMenuId` as a centered list in place of the editor watermark. Nothing is
+ * rendered while the group has editors.
  */
 export class EmptyEditorGroupAddTab extends Disposable {
 
@@ -54,7 +54,8 @@ export class EmptyEditorGroupAddTab extends Disposable {
 
 	constructor(
 		private readonly group: IEmptyEditorGroup,
-		private readonly menuId: MenuId,
+		private readonly dropdownMenuId: MenuId,
+		private readonly listMenuId: MenuId,
 		@IMenuService private readonly menuService: IMenuService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -87,7 +88,7 @@ export class EmptyEditorGroupAddTab extends Disposable {
 			store.add(addDisposableListener(container, EventType.DBLCLICK, e => EventHelper.stop(e, true)));
 		}
 
-		store.add(this.instantiationService.createInstance(EditorAddTabControl, addTabContainer, this.menuId, contextKeyService, undefined));
+		store.add(this.instantiationService.createInstance(EditorAddTabControl, addTabContainer, this.dropdownMenuId, contextKeyService, undefined));
 
 		const actionRunner = store.add(new ActionRunner());
 		store.add(actionRunner.onWillRun(e => this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: TELEMETRY_SOURCE })));
@@ -106,7 +107,7 @@ export class EmptyEditorGroupAddTab extends Disposable {
 		}));
 
 		// Submenu entries such as Canvas render their items, so changes inside them must refresh the list too.
-		const menu = store.add(this.menuService.createMenu(this.menuId, contextKeyService, { emitEventsForSubmenuChanges: true }));
+		const menu = store.add(this.menuService.createMenu(this.listMenuId, contextKeyService, { emitEventsForSubmenuChanges: true }));
 		let renderedSignature: string | undefined;
 		const update = (force: boolean) => {
 			const actions = getFlatActionBarActions(menu.getActions({ shouldForwardArgs: true }));

@@ -4,19 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { SchemaError } from '../../common/client/schema.js';
+import { ApiRequest, ApiResponse, IApiRequestProvider } from '../../common/client/request.js';
+import { PaginationLimitError } from '../../common/client/pagination.js';
+import { parse, SchemaError } from '../../common/client/schema.js';
 import { GitHubService, IGitHubClient } from '../../common/githubService.js';
 import { GitHubRestRequest, GitHubTransport } from '../../common/githubTransport.js';
 import { GitHubClientOptions, IGitHubCredentialProvider } from '../../common/githubTypes.js';
 import { AutomationDetail, AutomationToolGroup, AutomationTriggerDefinition } from '../../common/missionControl/automations.js';
 import { ClientTokenResponse } from '../../common/missionControl/environments.js';
-import { ApiRequestError } from '../../common/missionControl/missionControlClient.js';
+import { ApiRequestError, MissionControlClient } from '../../common/missionControl/missionControlClient.js';
 import { Task } from '../../common/missionControl/tasks.js';
 
 const signal = () => new AbortController().signal;
@@ -71,7 +74,6 @@ function clientOptions(): GitHubClientOptions {
 		graphQlUri: 'https://api.github.com/graphql',
 		missionControl: {
 			endpoint: { apiBaseUri: `${apiBaseUri}/agents`, integrationId: 'test-integration' },
-			copilotEndpoint: { apiBaseUri, integrationId: 'test-integration' },
 		},
 	};
 }
@@ -108,6 +110,37 @@ suite('Mission Control client', () => {
 		return { service, reference, client: reference.object, requests, identities };
 	}
 
+	test('uses shared request policies, response modes, and nested metadata', async () => {
+		const requests: ApiRequest[] = [];
+		const body = '{"tasks":[]}';
+		const metadata = { nextLink: `${apiBaseUri}/agents/tasks?page=2`, serverDate, retryAfterSeconds: 5 };
+		const provider: IApiRequestProvider = {
+			request: async <T>(request: ApiRequest, _signal: AbortSignal, parser?: parse.Parser<T>): Promise<ApiResponse<T | void>> => {
+				requests.push(request);
+				return { data: parser?.(body), status: request.responseBody === 'none' ? 204 : 200, metadata };
+			},
+		};
+		const client = new MissionControlClient(provider);
+		for (const responseBody of [undefined, 'json', 'text', 'none'] as const) {
+			const request: ApiRequest = {
+				method: 'GET', path: '/tasks', expectedStatus: responseBody === 'none' ? 204 : 200,
+				responseBody, policy: { retry: false }, options: { caller: 'test.shared-contract' },
+			};
+			const response = await client.request(request, signal(), response => response);
+			assert.deepStrictEqual({ response, request: requests.at(-1) }, {
+				response: {
+					data: responseBody === 'none' ? undefined : responseBody === 'text' ? body : { tasks: [] },
+					status: request.expectedStatus,
+					metadata,
+				},
+				request: {
+					...request, authentication: 'required', accept: 'application/json',
+					responseBody: responseBody === 'none' ? 'none' : 'text',
+				},
+			});
+		}
+	});
+
 	test('acquired clients execute every automation operation with selected credentials and exact routes', async () => {
 		const { prompt, ...summary } = automation;
 		const nextLink = `${apiBaseUri}${collection}/v2?page=2`;
@@ -131,7 +164,7 @@ suite('Mission Control client', () => {
 		const create = { name: automation.name, description: automation.description, prompt };
 		const update = { tools: [], triggers: {}, model: '' };
 		const results = [
-			await client.automations.list(repository, signal(), { page: 1, per_page: 10, disabled: false }),
+			await client.automations.list(repository, signal(), { query: { page: 1, per_page: 10, disabled: false } }),
 			await client.automations.get(repository, automation.id, signal()),
 			await client.automations.create(repository, create, signal()),
 			await client.automations.update(repository, automation.id, update, signal()),
@@ -174,6 +207,92 @@ suite('Mission Control client', () => {
 			headers: Array(9).fill(['test-integration', null, 'omit', 'manual', 'no-store', 'no-referrer']),
 			identityUrl: ['https://api.github.com/user'],
 		});
+	});
+
+	test('forwards caller and deadline independently of Mission Control query parameters', async () => {
+		const { client } = setup(() => Response.json(emptyPage));
+		const options = { caller: 'test.automations', deadline: Date.now() + 10_000 };
+		const sandbox = sinon.createSandbox();
+		try {
+			const request = sandbox.spy(client.transport, 'restText');
+			await client.automations.list(repository, signal(), { ...options, query: { page: 2, disabled: false } });
+			const { url, caller, deadline } = request.firstCall.args[2];
+			assert.deepStrictEqual({ url, caller, deadline }, {
+				url: `${apiBaseUri}${collection}/v2?page=2&disabled=false`, ...options,
+			});
+		} finally {
+			sandbox.restore();
+		}
+	});
+
+	test('collects automation, task, run, and event pages with final metadata and unsummed totals', async () => {
+		const { prompt, ...summary } = automation;
+		const event = { id: 'event', timestamp: date, parentId: null, type: 'message', data: { text: 'Hello' } };
+		const { client, requests } = setup(({ url }) => {
+			const second = url.searchParams.get('page') === '2';
+			const number = second ? 2 : 1;
+			const next = new URL(url);
+			next.searchParams.set('page', '2');
+			const data = url.pathname.endsWith('/v2')
+				? { automations: [{ ...summary, id: `automation-${number}` }], total_count: 2 }
+				: url.pathname.endsWith('/events')
+					? { events: [{ ...event, id: `event-${number}` }], total: 2 }
+					: { tasks: [{ ...task, id: `task-${number}` }], total_active_count: 2 };
+			return Response.json(data, { headers: { date: serverDate, ...(second ? {} : { link: `<${next.href}>; rel="next"` }) } });
+		});
+		const results = [
+			await client.automations.list(repository, signal(), { maxPages: 2 }),
+			await client.tasks.list(signal(), { maxPages: 2 }),
+			await client.automations.listRuns(automation.id, signal(), { maxPages: 2 }),
+			await client.tasks.getEvents(task.id, signal(), { maxPages: 2 }),
+		];
+		assert.deepStrictEqual({ results, requests: requests.map(request => request.url.pathname + request.url.search) }, {
+			results: [
+				{ automations: [1, 2].map(number => ({ ...summary, id: `automation-${number}` })), total_count: 2 },
+				{ tasks: [1, 2].map(number => ({ ...task, id: `task-${number}` })), total_active_count: 2 },
+				{ tasks: [1, 2].map(number => ({ ...task, id: `task-${number}` })), total_active_count: 2 },
+				{ events: [1, 2].map(number => ({ ...event, id: `event-${number}` })), total: 2 },
+			].map(data => ({ data, nextLink: undefined, serverDate })),
+			requests: [
+				`${collection}/v2`, `${collection}/v2?page=2`,
+				'/agents/tasks', '/agents/tasks?page=2',
+				`/agents/automations/${automation.id}/tasks`, `/agents/automations/${automation.id}/tasks?page=2`,
+				`/agents/tasks/${task.id}/events`, `/agents/tasks/${task.id}/events?page=2`,
+			],
+		});
+	});
+
+	test('partial Mission Control pages keep a continuation but later errors still reject', async () => {
+		let failSecondPage = false;
+		const { client } = setup(({ url }) => {
+			const page = Number(url.searchParams.get('page') ?? 1);
+			if (page === 2 && failSecondPage) {
+				return Response.json({ message: 'Denied' }, { status: 403 });
+			}
+			return Response.json({ tasks: [{ ...task, id: `task-${page}` }], total_active_count: 3 }, {
+				headers: { link: `<${apiBaseUri}/agents/tasks?page=${page + 1}>; rel="next"`, date: serverDate },
+			});
+		});
+		await assert.rejects(client.tasks.list(signal(), { maxPages: 1 }), PaginationLimitError);
+		assert.deepStrictEqual(await client.tasks.list(signal(), { maxPages: 1, pageLimitBehavior: 'returnPartial' }), {
+			data: { tasks: [task], total_active_count: 3 },
+			nextLink: `${apiBaseUri}/agents/tasks?page=2`, serverDate,
+		});
+		const result = await client.tasks.list(signal(), { maxPages: 2, pageLimitBehavior: 'returnPartial' });
+		assert.deepStrictEqual(result, {
+			data: { tasks: [1, 2].map(number => ({ ...task, id: `task-${number}` })), total_active_count: 3 },
+			nextLink: `${apiBaseUri}/agents/tasks?page=3`, serverDate,
+		});
+		failSecondPage = true;
+		await assert.rejects(client.tasks.list(signal(), { maxPages: 3, pageLimitBehavior: 'returnPartial' }), { kind: 'authorization' });
+	});
+
+	test('single-page Mission Control limits reject invalid or repeated continuations', async () => {
+		for (const link of ['not-a-link; rel="next"', `<${apiBaseUri}/agents/tasks>; rel="next"`]) {
+			const { client, requests } = setup(() => Response.json({ tasks: [task] }, { headers: { link } }));
+			await assert.rejects(client.tasks.list(signal(), { maxPages: 1, pageLimitBehavior: 'returnPartial' }), { kind: 'malformedResponse' });
+			assert.strictEqual(requests.length, 1);
+		}
 	});
 
 	test('automation discovery preserves public metadata without inventing internal fields or defaults', async () => {
@@ -275,32 +394,27 @@ suite('Mission Control client', () => {
 	test('missing configuration disables only Mission Control operations', async () => {
 		const { client, identities, requests } = setup(() => Response.json({}), { ...clientOptions(), missionControl: undefined });
 		await assert.rejects(client.automations.list(repository, signal()), /No approved Mission Control API endpoint/);
-		await assert.rejects(client.missionControlModels.list(signal()), /No approved Mission Control API endpoint/);
 		const credential = await client.credentials.getCredential(signal());
 		assert.deepStrictEqual({ account: credential.account, requests: requests.length, identities: identities.length }, {
 			account: { host: 'api.github.com', accountId: '101' }, requests: 0, identities: 1,
 		});
 	});
 
-	test('lease identity includes canonical service endpoints, integration identity and API version', () => {
+	test('lease identity includes the canonical service endpoint, integration identity and API version', () => {
 		const options = clientOptions();
 		const { service, client } = setup(() => Response.json({}), options);
 		const acquire = (missionControl: GitHubClientOptions['missionControl']) => store.add(service.acquireClient({ ...options, missionControl })).object;
 		const endpoint = { apiBaseUri: `${apiBaseUri}/agents`, integrationId: 'test-integration' };
-		const copilotEndpoint = { apiBaseUri, integrationId: 'test-integration' };
 		const equivalent = acquire({
 			endpoint: { integrationId: endpoint.integrationId, apiBaseUri: 'https://API.GITHUBCOPILOT.COM/agents/' },
-			copilotEndpoint: { ...copilotEndpoint, apiBaseUri: `${apiBaseUri}/` },
 		});
 		const distinct = [
 			acquire(undefined),
-			acquire({ endpoint }),
-			acquire({ endpoint: { ...endpoint, apiBaseUri: `${apiBaseUri}/other` }, copilotEndpoint }),
-			acquire({ endpoint: { ...endpoint, integrationId: 'other' }, copilotEndpoint }),
-			acquire({ endpoint: { ...endpoint, apiVersion: '2025-04-01' }, copilotEndpoint }),
-			acquire({ endpoint, copilotEndpoint: { ...copilotEndpoint, apiBaseUri: 'https://other.example.test' } }),
+			acquire({ endpoint: { ...endpoint, apiBaseUri: `${apiBaseUri}/other` } }),
+			acquire({ endpoint: { ...endpoint, integrationId: 'other' } }),
+			acquire({ endpoint: { ...endpoint, apiVersion: '2025-04-01' } }),
 		];
-		assert.deepStrictEqual({ equivalent: equivalent === client, distinct: new Set([client, ...distinct]).size }, { equivalent: true, distinct: 7 });
+		assert.deepStrictEqual({ equivalent: equivalent === client, distinct: new Set([client, ...distinct]).size }, { equivalent: true, distinct: 5 });
 	});
 
 	test('coalesces safe reads without letting one cancelled caller abort a peer', async () => {
@@ -630,12 +744,9 @@ suite('Mission Control client', () => {
 		await assert.rejects(client.tasks.get(task.id, signal()), new SchemaError('Task response did not match the requested task'));
 	});
 
-	test('tasks and SWE models use their existing contracts and configured service routes', async () => {
-		const models = { data: [{ id: 'model-1', name: 'Model' }], default_model: 'model-1' };
-		const { client, requests } = setup(request => request.url.pathname.endsWith('/models')
-			? Response.json(models)
-			: request.init.method === 'DELETE' ? new Response(null, { status: 204 })
-				: Response.json(task, { status: request.init.method === 'POST' && request.url.pathname === '/agents/tasks' ? 201 : 200 }));
+	test('tasks use their existing contracts and configured service routes', async () => {
+		const { client, requests } = setup(request => request.init.method === 'DELETE' ? new Response(null, { status: 204 })
+			: Response.json(task, { status: request.init.method === 'POST' && request.url.pathname === '/agents/tasks' ? 201 : 200 }));
 		const results = [
 			await client.tasks.create({ prompt: 'Do the task' }, signal()),
 			await client.tasks.get(task.id, signal()),
@@ -643,11 +754,10 @@ suite('Mission Control client', () => {
 			await client.tasks.archive(task.id, signal()),
 			await client.tasks.unarchive(task.id, signal()),
 			await client.tasks.delete(task.id, signal()),
-			await client.missionControlModels.list(signal()),
 		];
 		assert.deepStrictEqual({ results, routes: requests.map(request => request.url.pathname) }, {
-			results: [task, task, task, task, task, undefined, models],
-			routes: ['/agents/tasks', '/agents/tasks/task-1', '/agents/tasks/task-1', '/agents/tasks/task-1/archive', '/agents/tasks/task-1/unarchive', '/agents/tasks/task-1', '/agents/swe/models'],
+			results: [task, task, task, task, task, undefined],
+			routes: ['/agents/tasks', '/agents/tasks/task-1', '/agents/tasks/task-1', '/agents/tasks/task-1/archive', '/agents/tasks/task-1/unarchive', '/agents/tasks/task-1'],
 		});
 	});
 

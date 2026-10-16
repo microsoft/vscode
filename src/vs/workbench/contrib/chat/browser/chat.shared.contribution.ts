@@ -23,8 +23,8 @@ import '../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostAutoReplyEnabledConfigKey, AgentHostByokUtilityModelDefaultConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostUtilitySmallModelConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
 import { AgentMergeSettingId } from '../../../../platform/agentHost/common/agentMerge.js';
-import { AgentHostAhpJsonlLoggingSettingId, AgentHostAllowSignedOutWhenUsableSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
-import { AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotMemoryEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotRuntimePathSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostEnsembleEnabledSettingId, AgentHostEnsembleIntelligenceUsesHydraFusionSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotSkillCharBudgetSettingId, CopilotTgrepEnabledSettingId, copilotSdkLogLevelSettingValues, DEFAULT_COPILOT_SKILL_CHAR_BUDGET, normalizeSkillCharBudget } from '../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostAllowSignedOutWhenUsableSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
+import { AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotMemoryEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotRuntimePathSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostEnsembleEnabledSettingId, AgentHostEnsembleIntelligenceUsesHydraFusionSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, CopilotImageGenerationEnabledSettingId, isImageGenerationEnabledByDefault, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, copilotCliConfigSchema, CopilotSkillCharBudgetSettingId, CopilotTgrepEnabledSettingId, copilotSdkLogLevelSettingValues, DEFAULT_COPILOT_SKILL_CHAR_BUDGET, normalizeSkillCharBudget } from '../../../../platform/agentHost/common/copilotCliConfig.js';
 import { getLocalModelSafetyDisclosure, LOCAL_MODEL_MIN_GPU_MEMORY_GB_PLACEHOLDER, LocalModelEnabledSettingId, LocalModelLlamaServerPathSettingId, LocalModelUseInAutoSettingId } from '../../../../platform/agentHost/common/localModel.js';
 import '../../../services/agentHost/browser/localModelService.js';
 import { ChatMicrosoftAuthenticationEnabledSettingId, ChatMicrosoftAuthenticationMode, DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, mergeChatEditAutoApprovePatterns } from '../../../../platform/chat/common/chatSettings.js';
@@ -1551,12 +1551,6 @@ configurationRegistry.registerConfiguration({
 			ignoreSync: true,
 			tags: ['advanced'],
 		},
-		[AgentHostAhpJsonlLoggingSettingId]: {
-			type: 'boolean',
-			description: nls.localize('chat.agentHost.ahpJsonlLogging', "When enabled, logs all AHP transport messages for agent host connections to JSONL files under the window's log directory."),
-			default: product.quality !== 'stable',
-			tags: ['experimental', 'advanced'],
-		},
 		[AgentHostAgentDebugLogEnabledSettingId]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.agentHost.agentDebugLog.enabled', "Enable agent debug logging for agent host sessions: surface their debug events in the agent debug panel. Takes effect immediately; only sessions that run while this is enabled are captured."),
@@ -1704,6 +1698,14 @@ configurationRegistry.registerConfiguration({
 			experiment: { mode: 'startup' },
 			scope: ConfigurationScope.APPLICATION_MACHINE,
 			tags: ['preview', 'experimental', 'advanced'],
+		},
+		[CopilotImageGenerationEnabledSettingId]: {
+			type: 'boolean',
+			markdownDescription: copilotCliConfigSchema.definition[CopilotCliConfigKey.ImageGeneration].protocol.description,
+			default: isImageGenerationEnabledByDefault(product.quality),
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['preview', 'experimental'],
+			agentHost: { key: CopilotCliConfigKey.ImageGeneration },
 		},
 		[AgentHostEnsembleEnabledSettingId]: {
 			type: 'boolean',
@@ -2390,6 +2392,23 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.disableAIFeatures', "Disable and hide built-in AI features provided by GitHub Copilot, including chat and inline suggestions."),
 			default: false,
 			scope: ConfigurationScope.WINDOW,
+		},
+		[ChatConfiguration.CopilotCliCommandEnabled]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.copilotCliCommand.enabled', "Controls whether integrated terminals include the `copilot` command that ships with VS Code. The command runs GitHub Copilot CLI and offers to install it when it's missing. A GitHub Copilot CLI that you installed yourself isn't affected."),
+			default: true,
+			scope: ConfigurationScope.APPLICATION,
+			policy: {
+				name: 'CopilotCliCommand',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.143',
+				localization: {
+					description: {
+						key: 'chat.copilotCliCommand.enabled.policy',
+						value: nls.localize('chat.copilotCliCommand.enabled.policy', "Controls whether VS Code provides the copilot command for GitHub Copilot CLI. When disabled, VS Code setup on Windows doesn't add the command to PATH and removes the entry it added, VS Code doesn't install GitHub Copilot CLI, and integrated terminals don't include the command. A GitHub Copilot CLI that was installed separately isn't affected."),
+					}
+				},
+			}
 		},
 		[ChatConfiguration.TitleBarSignInEnabled]: {
 			type: 'boolean',
