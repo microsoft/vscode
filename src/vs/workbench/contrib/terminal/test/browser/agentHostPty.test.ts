@@ -7,28 +7,40 @@ import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import type { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore, IReference } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IReference } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { hasKey } from '../../../../../base/common/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
-import { constObservable, IObservable } from '../../../../../base/common/observable.js';
+import { observableValue } from '../../../../../base/common/observable.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { AgentHostDebugLogsArtifactKind, IAgentConnection, IAgentCreateSessionConfig, IAgentHostDebugLogsArtifact, IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../../../../../platform/agentHost/common/agentService.js';
 import { ActionType, StateAction } from '../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { RootState, TerminalClaimKind, TerminalLifecycleStatus, type TerminalState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
-import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
+import type { CompletionsParams, CompletionsResult, CreateTerminalParams, InitializeResult, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../../../../platform/agentHost/common/state/protocol/channels-automation/commands.js';
 import type { ActionEnvelope, ChatAction, ClientAnnotationsAction, ClientAutomationAction, ClientAutomationRunAction, ClientChangesetAction, IRootConfigChangedAction, SessionAction, TerminalAction, INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, ResourceMkdirParams, ResourceMkdirResult } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { AgentHostConnectionClosedError, AHP_CLIENT_CONNECTION_CLOSED, JSON_RPC_INTERNAL_ERROR, ProtocolError, ReconnectResultType, type AhpResponse, type AhpSuccessResponse, type JsonRpcRequest, type ProtocolMessage, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWriteParams, type ResourceWriteResult, type CreateResourceWatchParams, type CreateResourceWatchResult, type ResourceMkdirParams, type ResourceMkdirResult } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import type { ITerminalLogService } from '../../../../../platform/terminal/common/terminal.js';
 import { AgentHostPty } from '../../browser/agentHostPty.js';
 import { AgentHostOutputChannel } from '../../browser/agentHostOutputChannel.js';
 import { IActiveSubscriptionInfo, IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { AhpErrorCodes } from '../../../../../platform/agentHost/common/state/protocol/common/errors.js';
+import { ROOT_STATE_URI, StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { terminalReducer } from '../../../../../platform/agentHost/common/state/protocol/reducers.js';
 import type { IRemoteWatchHandle } from '../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import { identityAgentHostResourceUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { getAgentHostExtensionInitializeResultMeta } from '../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
+import { PROTOCOL_VERSION } from '../../../../../platform/agentHost/common/state/protocol/version/registry.js';
+import { AgentHostSerializedTerminalCreationCapabilityMetaKey } from '../../../../../platform/agentHost/common/meta/agentHostTerminalMeta.js';
+import { AgentHostProtocolClient } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
+import { IAgentHostResourceService } from '../../../../../platform/agentHost/common/agentHostResourceService.js';
+import type { IProtocolTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 // ---- Mock IAgentConnection --------------------------------------------------
 
 class MockAgentConnection implements IAgentConnection {
@@ -46,7 +58,7 @@ class MockAgentConnection implements IAgentConnection {
 	private readonly _onDidNotification = new Emitter<INotification>();
 	readonly onDidNotification: Event<INotification> = this._onDidNotification.event;
 	readonly onMcpNotification: Event<import('../../../../../platform/agentHost/common/agentService.js').IMcpNotification> = Event.None;
-	readonly initializeResult: IObservable<import('../../../../../platform/agentHost/common/state/protocol/common/commands.js').InitializeResult | undefined> = constObservable(undefined);
+	readonly initializeResult = observableValue<InitializeResult | undefined>(this, undefined);
 
 	readonly dispatchedActions: { channel: string; action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction }[] = [];
 	readonly createdTerminals: CreateTerminalParams[] = [];
@@ -604,6 +616,391 @@ suite('AgentHostPty', () => {
 			result: { message: 'transport disconnected' },
 			disposeCount: 1,
 			disposedTerminals: [terminalUri.toString()],
+		});
+	});
+
+	suite('lost terminal creation response', () => {
+		const lostResponse = () => new AgentHostConnectionClosedError('Connection appears dead: My Machine; no data received for 25131ms.');
+
+		/** A subscription whose result is controlled by the test. */
+		function createControlledSubscription<T>(): { readonly reference: IReference<IAgentSubscription<T>>; fireError(error: Error): void; fireChange(state: TerminalState): void } {
+			const onDidChange = new Emitter<TerminalState>();
+			const onDidError = new Emitter<Error>();
+			let value: TerminalState | Error | undefined;
+			const sub: IAgentSubscription<TerminalState> = {
+				get value() { return value; },
+				get verifiedValue() { return value instanceof Error ? undefined : value; },
+				onDidChange: onDidChange.event,
+				onDidError: onDidError.event,
+				onWillApplyAction: Event.None,
+				onDidApplyAction: Event.None,
+			};
+			return {
+				reference: {
+					object: sub as IAgentSubscription<T>,
+					dispose: () => {
+						onDidChange.dispose();
+						onDidError.dispose();
+					},
+				},
+				fireError: error => {
+					value = error;
+					onDidError.fire(error);
+				},
+				fireChange: state => {
+					value = state;
+					onDidChange.fire(state);
+				},
+			};
+		}
+
+		/** Routes the first subscription (the probe) to `probe` and later ones to the connection's default. */
+		function useProbeSubscription(conn: MockAgentConnection, probe: { readonly reference: IReference<IAgentSubscription<unknown>> }): void {
+			const defaultGetSubscription = conn.getSubscription.bind(conn);
+			let subscriptions = 0;
+			conn.getSubscription = <T>(kind: StateComponents, resource: URI): IReference<IAgentSubscription<T>> =>
+				subscriptions++ === 0 ? probe.reference as IReference<IAgentSubscription<T>> : defaultGetSubscription<T>(kind, resource);
+		}
+
+		test('attaches when the host reports the terminal after reconnecting', async () => {
+			const conn = disposables.add(new MockAgentConnection());
+			conn.createTerminal = async params => {
+				conn.createdTerminals.push(params);
+				throw lostResponse();
+			};
+			const probe = createControlledSubscription<TerminalState>();
+			useProbeSubscription(conn, probe);
+			const pty = new TestAgentHostPty(1, conn, terminalUri, undefined, logService);
+			let ready = false;
+			disposables.add(pty.onProcessReady(() => ready = true));
+
+			const start = pty.start();
+			await timeout(0);
+			assert.strictEqual(ready, false, 'startup must wait for the probe to settle');
+			probe.fireChange({
+				title: 'Test Terminal', content: [], claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
+				lifecycle: { status: TerminalLifecycleStatus.Running },
+			});
+			const result = await start;
+			pty.shutdown(false);
+			await timeout(0);
+
+			assert.deepStrictEqual({ result, ready, created: conn.createdTerminals.length }, { result: undefined, ready: true, created: 1 });
+		});
+
+		test('does not probe or retry when the host itself rejects creation with the connection-closed code', async () => {
+			const conn = disposables.add(new MockAgentConnection());
+			conn.createTerminal = async params => {
+				conn.createdTerminals.push(params);
+				throw new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, 'host error');
+			};
+			const defaultGetSubscription = conn.getSubscription.bind(conn);
+			let subscriptions = 0;
+			conn.getSubscription = <T>(kind: StateComponents, resource: URI): IReference<IAgentSubscription<T>> => {
+				subscriptions++;
+				return defaultGetSubscription<T>(kind, resource);
+			};
+			const pty = new TestAgentHostPty(1, conn, terminalUri, undefined, logService);
+
+			const result = await pty.start();
+			pty.shutdown(false);
+			await timeout(0);
+
+			assert.deepStrictEqual({ result, created: conn.createdTerminals.length, subscriptions }, {
+				result: { message: 'host error' },
+				created: 1,
+				subscriptions: 0,
+			});
+		});
+
+		test('attaches when the host created the terminal before the response was lost', async () => {
+			const conn = disposables.add(new MockAgentConnection());
+			conn.createTerminal = async params => {
+				conn.createdTerminals.push(params);
+				throw lostResponse();
+			};
+			const pty = new TestAgentHostPty(1, conn, terminalUri, undefined, logService);
+			let ready = false;
+			disposables.add(pty.onProcessReady(() => ready = true));
+
+			const result = await pty.start();
+			pty.shutdown(false);
+			await timeout(0);
+
+			assert.deepStrictEqual({ result, ready, created: conn.createdTerminals.length }, { result: undefined, ready: true, created: 1 });
+		});
+
+		test('retries creation when the host reports the terminal missing', async () => {
+			const conn = disposables.add(new MockAgentConnection());
+			conn.initializeResult.set({ protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [], _meta: getAgentHostExtensionInitializeResultMeta() }, undefined);
+			let creations = 0;
+			conn.createTerminal = async params => {
+				conn.createdTerminals.push(params);
+				if (creations++ === 0) {
+					throw lostResponse();
+				}
+			};
+			const probe = createControlledSubscription<TerminalState>();
+			useProbeSubscription(conn, probe);
+			const pty = new TestAgentHostPty(1, conn, terminalUri, undefined, logService);
+			let ready = false;
+			disposables.add(pty.onProcessReady(() => ready = true));
+
+			const start = pty.start();
+			await timeout(0);
+			// What the host sends when subscribing to a terminal URI it has never created.
+			probe.fireError(new ProtocolError(AhpErrorCodes.SessionNotFound, `No agent for session: ${terminalUri.toString()}`));
+			const result = await start;
+			pty.shutdown(false);
+			await timeout(0);
+
+			assert.deepStrictEqual({ result, ready, created: conn.createdTerminals.length }, { result: undefined, ready: true, created: 2 });
+		});
+
+		test('reports the original error when the connection is still unavailable', async () => {
+			const conn = disposables.add(new MockAgentConnection());
+			conn.createTerminal = async params => {
+				conn.createdTerminals.push(params);
+				throw lostResponse();
+			};
+			const probe = createControlledSubscription<TerminalState>();
+			conn.getSubscription = <T>(): IReference<IAgentSubscription<T>> => probe.reference as IReference<IAgentSubscription<T>>;
+			const pty = new TestAgentHostPty(1, conn, terminalUri, undefined, logService);
+
+			const start = pty.start();
+			await timeout(0);
+			probe.fireError(new AgentHostConnectionClosedError('Connection closed: My Machine'));
+			const result = await start;
+			pty.shutdown(false);
+			await timeout(0);
+
+			assert.deepStrictEqual({ result, created: conn.createdTerminals.length }, {
+				result: { message: 'Connection appears dead: My Machine; no data received for 25131ms.' },
+				created: 1,
+			});
+		});
+
+		test('does not retry when the probe fails for an unrelated reason', async () => {
+			const conn = disposables.add(new MockAgentConnection());
+			conn.createTerminal = async params => {
+				conn.createdTerminals.push(params);
+				throw lostResponse();
+			};
+			const probe = createControlledSubscription<TerminalState>();
+			conn.getSubscription = <T>(): IReference<IAgentSubscription<T>> => probe.reference as IReference<IAgentSubscription<T>>;
+			const pty = new TestAgentHostPty(1, conn, terminalUri, undefined, logService);
+
+			const start = pty.start();
+			await timeout(0);
+			probe.fireError(new ProtocolError(JSON_RPC_INTERNAL_ERROR, 'Not authorized'));
+			const result = await start;
+			pty.shutdown(false);
+			await timeout(0);
+
+			assert.deepStrictEqual({ result, created: conn.createdTerminals.length }, {
+				result: { message: 'Connection appears dead: My Machine; no data received for 25131ms.' },
+				created: 1,
+			});
+		});
+
+		test('attaches when a retry races the original creation', async () => {
+			const conn = disposables.add(new MockAgentConnection());
+			conn.initializeResult.set({ protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [], _meta: getAgentHostExtensionInitializeResultMeta() }, undefined);
+			let creations = 0;
+			conn.createTerminal = async params => {
+				conn.createdTerminals.push(params);
+				creations++;
+				throw creations === 1 ? lostResponse() : new Error(`Terminal already exists: ${terminalUri.toString()}`);
+			};
+			const probe = createControlledSubscription<TerminalState>();
+			useProbeSubscription(conn, probe);
+			const pty = new TestAgentHostPty(1, conn, terminalUri, undefined, logService);
+
+			const start = pty.start();
+			await timeout(0);
+			probe.fireError(new ProtocolError(AhpErrorCodes.NotFound, 'Terminal not found'));
+			const result = await start;
+			pty.shutdown(false);
+			await timeout(0);
+
+			assert.deepStrictEqual({ result, created: conn.createdTerminals.length }, { result: undefined, created: 2 });
+		});
+	});
+
+	suite('terminal creation across protocol reconnect', () => {
+		class ReconnectTestTransport extends Disposable implements IProtocolTransport {
+			private readonly _message = this._register(new Emitter<ProtocolMessage>());
+			readonly onMessage = this._message.event;
+			readonly close = this._register(new Emitter<void>());
+			readonly onClose = this.close.event;
+			readonly requests: JsonRpcRequest[] = [];
+
+			constructor(private readonly _respond: (request: JsonRpcRequest) => AhpResponse | undefined) {
+				super();
+			}
+
+			send(message: Parameters<IProtocolTransport['send']>[0]): void {
+				if (hasKey(message, { method: true, id: true })) {
+					this.requests.push(message);
+					const response = this._respond(message);
+					if (response) {
+						queueMicrotask(() => this._message.fire(response));
+					}
+				}
+			}
+		}
+
+		async function runReconnectScenario(options: {
+			readonly meta?: Record<string, unknown>;
+			readonly restoreError?: number;
+			readonly probe: number | 'exists';
+			readonly originalRequestDelivered?: boolean;
+		}) {
+			const reconnectRelease = new DeferredPromise<void>();
+			const transports: ReconnectTestTransport[] = [];
+			const traces: string[] = [];
+			const wireTerminal = URI.parse('opaque-terminal:/host-selected-id');
+			let creates = 0;
+			let subscribes = 0;
+			let shells = 0;
+			let originalCreationPending = options.originalRequestDelivered !== false;
+			const terminalState: TerminalState = {
+				title: 'Remote shell', content: [], claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
+				lifecycle: { status: TerminalLifecycleStatus.Running },
+			};
+			const log = new class extends NullLogService {
+				readonly _logBrand = undefined;
+				override trace(message: string): void { traces.push(message); }
+			};
+			const client = disposables.add(new AgentHostProtocolClient(
+				'test.example:1234',
+				() => {
+					const transport = disposables.add(new ReconnectTestTransport(request => {
+						const reply = <T extends AhpSuccessResponse['result']>(result: T): { readonly jsonrpc: '2.0'; readonly id: number; readonly result: T } => ({ jsonrpc: '2.0', id: request.id, result });
+						const fail = (code: number): AhpResponse => ({ jsonrpc: '2.0', id: request.id, error: { code, message: 'Request failed' } });
+						switch (request.method) {
+							case 'initialize':
+								return reply({
+									protocolVersion: PROTOCOL_VERSION, serverSeq: 0, _meta: options.meta,
+									snapshots: [{ resource: ROOT_STATE_URI, state: { agents: [], activeSessions: 0 }, fromSeq: 0 }],
+								});
+							case 'reconnect':
+								return options.restoreError !== undefined ? fail(AhpErrorCodes.NotFound)
+									: reply({ type: ReconnectResultType.Replay, actions: [], missing: [wireTerminal.toString()] });
+							case 'createTerminal':
+								if (++creates === 1) {
+									return undefined;
+								}
+								if (originalCreationPending && options.meta?.[AgentHostSerializedTerminalCreationCapabilityMetaKey] === true) {
+									originalCreationPending = false;
+									shells++;
+									return fail(AhpErrorCodes.AlreadyExists);
+								}
+								shells++;
+								return reply({});
+							case 'subscribe':
+								subscribes++;
+								if (options.restoreError !== undefined && subscribes === 1) {
+									return fail(options.restoreError);
+								}
+								return options.probe === 'exists' || shells > 0
+									? reply({ snapshot: { resource: wireTerminal.toString(), state: terminalState, fromSeq: 0 } })
+									: fail(options.probe);
+							default:
+								return reply({});
+						}
+					}));
+					transports.push(transport);
+					return transport;
+				},
+				{ displayName: 'Test Host', prepareReconnect: () => reconnectRelease.p, reconnectPolicy: { autoRestore: true, initialDelayMs: 1, maxDelayMs: 1, maxAttempts: 1 } },
+				log,
+				new class extends mock<IAgentHostResourceService>() { override connectionClosed(): void { } }(),
+				new TestConfigurationService(),
+				NullTelemetryService,
+				{ _serviceBrand: undefined, isWorkspaceTrustEnabled: () => false },
+				new class extends mock<IWorkspaceTrustManagementService>() {
+					override onDidChangeTrust = Event.None;
+					override onDidChangeTrustedFolders = Event.None;
+					override getTrustedUris(): URI[] { return []; }
+				}(),
+				new class extends mock<IWorkspaceTrustRequestService>() { }(),
+			));
+			await client.connect();
+			const pty = disposables.add(new AgentHostPty(1, client, wireTerminal, undefined, log));
+			let ready = false;
+			disposables.add(pty.onProcessReady(() => ready = true));
+			const starting = pty.start();
+			for (let attempts = 0; creates === 0; attempts++) {
+				assert.ok(attempts < 100, 'createTerminal was not sent');
+				await timeout(1);
+			}
+			transports[0].close.fire();
+			await timeout(0);
+			await reconnectRelease.complete();
+			const result = await starting;
+			const pendingAtResult = originalCreationPending;
+			if (originalCreationPending) {
+				originalCreationPending = false;
+				shells++;
+			}
+			pty.shutdown(false);
+			await timeout(0);
+			return {
+				result, ready, creates, shells, pendingAtResult,
+				recheckedRestoreFailure: traces.some(message => message.includes('Subscription no longer available after reconnect:')) && subscribes >= 2,
+			};
+		}
+
+		const safeMeta = getAgentHostExtensionInitializeResultMeta();
+
+		for (const restoreError of [undefined, JSON_RPC_INTERNAL_ERROR, AhpErrorCodes.PermissionDenied]) {
+			test(`does not recreate after an inconclusive reconnect restore (${restoreError ?? 'missing list'})`, async () => {
+				const actual = await runReconnectScenario({ meta: safeMeta, restoreError, probe: JSON_RPC_INTERNAL_ERROR });
+				assert.deepStrictEqual(actual, {
+					result: { message: 'Transport lost (reconnecting): Test Host' }, ready: false, creates: 1, shells: 1,
+					pendingAtResult: true, recheckedRestoreFailure: true,
+				});
+			});
+		}
+
+		test('rechecks reconnect missing with a fresh subscribe before retrying on a capable host', async () => {
+			const actual = await runReconnectScenario({ meta: safeMeta, probe: AhpErrorCodes.NotFound, originalRequestDelivered: false });
+			assert.deepStrictEqual(actual, {
+				result: undefined, ready: true, creates: 2, shells: 1, pendingAtResult: false, recheckedRestoreFailure: true,
+			});
+		});
+
+		test('attaches when serialized creation finishes while the retry waits', async () => {
+			const actual = await runReconnectScenario({ meta: safeMeta, probe: AhpErrorCodes.NotFound });
+			assert.deepStrictEqual(actual, {
+				result: undefined, ready: true, creates: 2, shells: 1, pendingAtResult: false, recheckedRestoreFailure: true,
+			});
+		});
+
+		test('attaches when a fresh subscribe finds a terminal omitted by reconnect', async () => {
+			const actual = await runReconnectScenario({ meta: safeMeta, probe: 'exists' });
+			assert.deepStrictEqual(actual, {
+				result: undefined, ready: true, creates: 1, shells: 1, pendingAtResult: true, recheckedRestoreFailure: true,
+			});
+		});
+
+		for (const advertised of [undefined, false, 'true']) {
+			test(`does not recreate an in-progress terminal without negotiated protection (${advertised})`, async () => {
+				const meta = advertised === undefined ? undefined : { [AgentHostSerializedTerminalCreationCapabilityMetaKey]: advertised };
+				const actual = await runReconnectScenario({ meta, probe: AhpErrorCodes.NotFound });
+				assert.deepStrictEqual(actual, {
+					result: { message: 'Transport lost (reconnecting): Test Host' }, ready: false, creates: 1, shells: 1,
+					pendingAtResult: true, recheckedRestoreFailure: true,
+				});
+			});
+		}
+
+		test('attaches to an existing terminal on an older host without retrying creation', async () => {
+			const actual = await runReconnectScenario({ probe: 'exists' });
+			assert.deepStrictEqual(actual, {
+				result: undefined, ready: true, creates: 1, shells: 1, pendingAtResult: true, recheckedRestoreFailure: true,
+			});
 		});
 	});
 

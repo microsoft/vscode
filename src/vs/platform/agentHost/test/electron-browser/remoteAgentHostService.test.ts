@@ -295,6 +295,7 @@ suite('RemoteAgentHostService', () => {
 	let configService: TestConfigurationService;
 	let createdClients: MockProtocolClient[];
 	let createdClientInfos: (Implementation | undefined)[];
+	let createdDisplayNames: (string | undefined)[];
 	let registeredFormatters: ResourceLabelFormatter[];
 	let instantiationService: TestInstantiationService;
 	let service: RemoteAgentHostService;
@@ -306,6 +307,7 @@ suite('RemoteAgentHostService', () => {
 
 		createdClients = [];
 		createdClientInfos = [];
+		createdDisplayNames = [];
 
 		instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
@@ -339,6 +341,7 @@ suite('RemoteAgentHostService', () => {
 				}
 				const client = new MockProtocolClient(args[0] as string);
 				createdClientInfos.push((args[2] as IAgentHostProtocolClientOptions | undefined)?.clientInfo);
+				createdDisplayNames.push((args[2] as IAgentHostProtocolClientOptions | undefined)?.displayName);
 				disposables.add(client);
 				createdClients.push(client);
 				return client;
@@ -438,9 +441,11 @@ suite('RemoteAgentHostService', () => {
 		assert.deepStrictEqual({
 			connection: connected.map(({ address, name }) => ({ address, name })),
 			clientInfo: createdClientInfos,
+			displayName: createdDisplayNames,
 		}, {
 			connection: [{ address: 'host1:8080', name: 'Host 1' }],
 			clientInfo: [editorWindowAgentHostClientInfo],
+			displayName: ['Host 1'],
 		});
 	});
 
