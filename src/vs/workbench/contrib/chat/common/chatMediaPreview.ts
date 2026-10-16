@@ -19,6 +19,12 @@ export const enum ChatMediaKind {
 	Deck = 'deck',
 }
 
+/**
+ * The skills whose media shows by default: the ones that make videos and decks, and the code walkthrough, which
+ * records its video with one of them.
+ */
+export const defaultChatMediaPreviewSkills: readonly string[] = ['pr-studio:generate-video', 'pr-studio:generate-presentation', 'create-code-walkthrough'];
+
 /** A video or slide deck that an agent recorded as an artifact of its turn. */
 export interface IChatMediaItem {
 	readonly kind: ChatMediaKind;

@@ -110,12 +110,12 @@ suite('ChatFindWidget', () => {
 		previous.disposables.dispose();
 	});
 
-	test('locates response parts after a media preview that leads the row', () => {
+	test('locates response parts past the media preview, walkthrough cards and tool calls that matches do not count', () => {
 		const { widget } = createWidget();
 		const part = (id: string) => ({ domNode: Object.assign(document.createElement('div'), { id }) });
 		const template = {
-			renderedContent: [{ kind: 'mediaPreview', items: [] }, { kind: 'references', references: [] }],
-			renderedParts: [part('media'), part('references'), part('markdown'), part('trailing')],
+			renderedContent: [{ kind: 'mediaPreview', items: [] }, { kind: 'toolInvocationSerialized' }, { kind: 'references', references: [] }, { kind: 'toolInvocationSerialized' }, { kind: 'markdownContent' }, { kind: 'turnPills' }],
+			renderedParts: [part('media'), part('cards'), part('references'), part('tool'), part('markdown'), part('trailing')],
 		};
 		const locate = (match: Pick<IChatFindMatch, 'partIndex' | 'scopeStartPartIndex'>) => (widget as unknown as { _locateMatchRoots(match: Pick<IChatFindMatch, 'partIndex' | 'scopeStartPartIndex'>, template: object): HTMLElement[] })._locateMatchRoots(match, template).map(root => root.id);
 		assert.deepStrictEqual({

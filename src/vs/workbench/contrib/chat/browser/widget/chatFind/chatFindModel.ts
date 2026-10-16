@@ -8,13 +8,38 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ChatTreeItem } from '../../chat.js';
 import { getChatFindTextParts } from './chatFindContent.js';
-import { isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
+import { isRequestVM, isResponseVM, type IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { annotateSpecialMarkdownContentWithSource } from '../../../common/widget/annotations.js';
-import { moveResponseOutcomeToolsAfterFinalResponse } from '../chatListRenderer.js';
 import { getChatRequestText } from '../../chatRequestText.js';
 
 /** Upper bound on tracked matches, mirroring `LIMIT_FIND_COUNT` in `textModelSearch.ts`, so a pathological regex can't pin the UI. */
 export const MAX_FIND_MATCHES = 9999;
+
+/**
+ * Rendered parts that match positions do not count: a media preview, which leads the row, and tool calls, which hold
+ * no indexed text and which the renderer may move.
+ */
+export function isChatFindUncountedPart(part: IChatRendererContent): boolean {
+	return part.kind === 'mediaPreview' || part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized';
+}
+
+/** The index into a row's rendered parts of the part that a match's {@link IChatFindMatch.partIndex} counts to. */
+export function toRenderedPartIndex(renderedContent: readonly IChatRendererContent[] | undefined, index: number): number {
+	if (!renderedContent) {
+		return index;
+	}
+	let counted = 0;
+	for (let renderedIndex = 0; renderedIndex < renderedContent.length; renderedIndex++) {
+		if (isChatFindUncountedPart(renderedContent[renderedIndex])) {
+			continue;
+		}
+		if (counted === index) {
+			return renderedIndex;
+		}
+		counted++;
+	}
+	return renderedContent.length + index - counted;
+}
 
 export interface IChatFindOptions {
 	readonly isRegex: boolean;
@@ -27,7 +52,11 @@ export type ChatFindItemKind = 'request' | 'response';
 export interface IChatFindMatch {
 	readonly itemId: string;
 	readonly itemKind: ChatFindItemKind;
-	/** Index into the row's rendered parts, or `-1` for row-level text. */
+	/**
+	 * Index into the row's rendered parts, counting from the references slot and leaving out the
+	 * parts {@link isChatFindUncountedPart} names, or `-1` for row-level text. Map it to a rendered
+	 * part with {@link toRenderedPartIndex}.
+	 */
 	readonly partIndex: number;
 	/**
 	 * For `partIndex === -1` response matches, the first rendered-part index that can hold this
@@ -72,9 +101,9 @@ function buildSegments(items: readonly ChatTreeItem[]): IChatFindSegment[] {
 			// A filtered response renders no content at all, so row-level text starts at 0.
 			const isFiltered = !!item.errorDetails?.responseIsFiltered;
 			const annotated = isFiltered ? [] : annotateSpecialMarkdownContentWithSource(item.response.value);
-			const renderedContent = item.isComplete
-				? moveResponseOutcomeToolsAfterFinalResponse(annotated.map(entry => entry.content))
-				: annotated.map(entry => entry.content);
+			// Tool calls are left out: they hold no indexed text, and the renderer moves some of them once the response
+			// completes (outcome tools, walkthrough cards). Everything else keeps its rendered order.
+			const renderedContent = annotated.map(entry => entry.content).filter(part => !isChatFindUncountedPart(part));
 			// Mirrors the renderer, which puts the references slot first and code citations
 			// between the response content and the trailing parts that hold row-level text.
 			const trailingPartIndex = isFiltered ? 0 : renderedContent.length + 1 + (item.codeCitations?.length ? 1 : 0);

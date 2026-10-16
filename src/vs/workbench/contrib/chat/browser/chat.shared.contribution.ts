@@ -63,6 +63,7 @@ import { autoApprovePolicyValue } from '../common/agentHostConfigPolicy.js';
 import { IChatVariablesService } from '../common/attachments/chatVariables.js';
 import { IChatDebugService } from '../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../common/chatDebugServiceImpl.js';
+import { defaultChatMediaPreviewSkills } from '../common/chatMediaPreview.js';
 import { ChatModeService, IChatMode, IChatModeService, IChatModes } from '../common/chatModes.js';
 import { IChatService } from '../common/chatService/chatService.js';
 import { ChatRequestOriginService, IChatRequestOriginService } from '../common/chatRequestOrigin.js';
@@ -917,7 +918,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.MediaPreviewSkills]: {
 			type: 'array',
 			items: { type: 'string' },
-			default: ['pr-studio:generate-video', 'pr-studio:generate-presentation'],
+			default: [...defaultChatMediaPreviewSkills],
 			markdownDescription: nls.localize('chat.mediaPreview.skills', "Skills whose videos and slide decks show at the top of the response, as a card that expands into a player. Applies to the turn that runs one of these skills and to later turns of the same chat, when the agent records a video or slide deck as an artifact. Name each skill as in its slash command, without the slash. An empty list turns the previews off."),
 			tags: ['experimental'],
 		},

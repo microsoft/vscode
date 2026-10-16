@@ -381,6 +381,36 @@ export function moveResponseOutcomeToolsAfterFinalResponse(content: ReadonlyArra
 	return reordered;
 }
 
+/** Walkthrough cards, which present a walkthrough together with the video above them. */
+function isMediaCompanionPart(part: IChatRendererContent | undefined): boolean {
+	return !!part && (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && shouldRenderSemanticDiffResult(part);
+}
+
+/**
+ * A completed response's own content in display order: the parts that lead it, directly below its media card, and the
+ * rest. Outcome tools follow the final message, except walkthrough cards under a video, which lead the response so the
+ * video and the cards read as one answer.
+ */
+export function arrangeCompletedResponseContent(content: ReadonlyArray<IChatRendererContent>, leadsWithMedia: boolean): { readonly leading: IChatRendererContent[]; readonly rest: IChatRendererContent[] } {
+	const leading = leadsWithMedia ? content.filter(isMediaCompanionPart) : [];
+	return {
+		leading,
+		rest: moveResponseOutcomeToolsAfterFinalResponse(leading.length ? content.filter(part => !leading.includes(part)) : content),
+	};
+}
+
+/** How many parts lead a response above its folded steps: its media card and the walkthrough cards below it. */
+export function getLeadingResponsePartCount(content: ReadonlyArray<IChatRendererContent>): number {
+	if (content[0]?.kind !== 'mediaPreview') {
+		return 0;
+	}
+	let count = 1;
+	while (isMediaCompanionPart(content[count])) {
+		count++;
+	}
+	return count;
+}
+
 export function formatCompletedResponseDisclosureLabel(stepCount: number, elapsedMs: number | undefined): string {
 	const elapsed = formatChatResponseElapsedTime(elapsedMs);
 	if (stepCount === 1) {
@@ -475,6 +505,17 @@ export function shouldCollapseCompletedResponsePart(part: IChatRendererContent):
 /** Parts the renderer adds after a response's own content, which stay visible below its folded steps. */
 const trailingResponsePartKinds: ReadonlySet<IChatRendererContent['kind']> = new Set(['codeCitations', 'errorDetails', 'changesSummary', 'turnPills']);
 
+/** Whether a response leads with a media card that shows media. The card then stands for the answer. */
+function leadsWithMedia(content: ReadonlyArray<IChatRendererContent>): boolean {
+	return content[0]?.kind === 'mediaPreview' && content[0].items.length > 0;
+}
+
+/** Where a response's own content ends: at the first part the renderer adds after it, from {@link start} on. */
+function getResponseContentEndIndex(content: ReadonlyArray<IChatRendererContent>, start: number): number {
+	const index = content.findIndex((part, partIndex) => partIndex >= start && trailingResponsePartKinds.has(part.kind));
+	return index === -1 ? content.length : index;
+}
+
 export function getCompletedResponseCollapseEndIndex(content: ReadonlyArray<IChatRendererContent>, finalResponseStartIndex: number): number {
 	const activeSubagentGroups = new Set<string>();
 	for (const part of content) {
@@ -488,7 +529,7 @@ export function getCompletedResponseCollapseEndIndex(content: ReadonlyArray<ICha
 			}
 		}
 	}
-	for (let index = 0; index < finalResponseStartIndex; index++) {
+	for (let index = getLeadingResponsePartCount(content); index < finalResponseStartIndex; index++) {
 		const part = content[index];
 		// Descendant tools share their root subagent's rendered card.
 		const hasActiveSubagent = (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized')
@@ -500,7 +541,7 @@ export function getCompletedResponseCollapseEndIndex(content: ReadonlyArray<ICha
 	// A media card stands for the answer, so everything after it folds with the steps, up to the parts that follow the
 	// response itself.
 	let collapseEndIndex = finalResponseStartIndex;
-	if (content[0]?.kind === 'mediaPreview' && content[0].items.length) {
+	if (leadsWithMedia(content)) {
 		while (collapseEndIndex < content.length && !trailingResponsePartKinds.has(content[collapseEndIndex].kind) && shouldCollapseCompletedResponsePart(content[collapseEndIndex])) {
 			collapseEndIndex++;
 		}
@@ -2126,11 +2167,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			content.push(mediaPreviewPart);
 		}
 		if (!isFiltered) {
+			const responseContent = annotateSpecialMarkdownContent(element.response.value);
+			const { leading, rest } = element.isComplete
+				? arrangeCompletedResponseContent(responseContent, !!mediaPreviewPart?.items.length)
+				: { leading: [], rest: responseContent };
+			content.push(...leading);
 			// Always add the references to avoid shifting the content parts when a reference is added, and having to re-diff all the content.
 			// The part will hide itself if the list is empty.
 			content.push({ kind: 'references', references: element.contentReferences });
-			const responseContent = annotateSpecialMarkdownContent(element.response.value);
-			content.push(...(element.isComplete ? moveResponseOutcomeToolsAfterFinalResponse(responseContent) : responseContent));
+			content.push(...rest);
 			if (element.codeCitations.length) {
 				content.push({ kind: 'codeCitations', citations: element.codeCitations });
 			}
@@ -3718,15 +3763,19 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const responseContent = annotateSpecialMarkdownContent(element.response.value);
 		const responseFinalStartIndex = getFinalResponseStartIndexAfterMovingResponseOutcomeTools(responseContent);
-		// The media preview leads the response and stays visible above the folded steps.
-		const firstCollapsibleIndex = content[0]?.kind === 'mediaPreview' ? 1 : 0;
-		const finalResponseStartIndex = responseFinalStartIndex === undefined ? undefined : responseFinalStartIndex + firstCollapsibleIndex + 1;
-		if (finalResponseStartIndex === undefined || !isFinalResponseRendered(content, finalResponseStartIndex) || finalResponseStartIndex === 0 || !content.slice(firstCollapsibleIndex, finalResponseStartIndex).some(part => part.kind !== 'references' || part.references.length > 0)) {
+		// The media preview, and the walkthrough cards below it, lead the response and stay visible above the folded steps.
+		const firstCollapsibleIndex = getLeadingResponsePartCount(content);
+		// A media card stands for the answer, so its steps fold even when the response has no closing message.
+		const hasClosingMessage = responseFinalStartIndex !== undefined;
+		const finalResponseStartIndex = hasClosingMessage
+			? responseFinalStartIndex + firstCollapsibleIndex + 1
+			: leadsWithMedia(content) ? getResponseContentEndIndex(content, firstCollapsibleIndex) : undefined;
+		if (finalResponseStartIndex === undefined || (hasClosingMessage && !isFinalResponseRendered(content, finalResponseStartIndex)) || finalResponseStartIndex === 0 || !content.slice(firstCollapsibleIndex, finalResponseStartIndex).some(part => part.kind !== 'references' || part.references.length > 0)) {
 			this.removeCompletedResponseDisclosure(templateData);
 			return;
 		}
 		const finalResponsePart = templateData.renderedParts?.[finalResponseStartIndex];
-		if (!(finalResponsePart instanceof ChatMarkdownContentPart) || !finalResponsePart.isRenderComplete) {
+		if (hasClosingMessage && (!(finalResponsePart instanceof ChatMarkdownContentPart) || !finalResponsePart.isRenderComplete)) {
 			this.removeCompletedResponseDisclosure(templateData);
 			if (finalResponsePart instanceof ChatMarkdownContentPart) {
 				templateData.completedResponseDisclosureDisposables.add(Event.once(finalResponsePart.onDidFinishRendering)(() => {
@@ -3801,9 +3850,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.removeCompletedResponseDisclosure(templateData);
 		const valueChildren = Array.from(templateData.value.childNodes);
 		const collapseEndChildIndex = collapseAnchor ? valueChildren.indexOf(collapseAnchor) : valueChildren.length;
-		const mediaPreviewNode = firstCollapsibleIndex > 0 ? templateData.renderedParts?.[0]?.domNode : undefined;
-		let collapseStartChildIndex = mediaPreviewNode && mediaPreviewNode.parentElement === templateData.value
-			? valueChildren.indexOf(mediaPreviewNode) + 1
+		let leadingRoot = firstCollapsibleIndex > 0 ? templateData.renderedParts?.[firstCollapsibleIndex - 1]?.domNode : undefined;
+		while (leadingRoot?.parentElement && leadingRoot.parentElement !== templateData.value) {
+			leadingRoot = leadingRoot.parentElement;
+		}
+		let collapseStartChildIndex = leadingRoot && leadingRoot.parentElement === templateData.value
+			? valueChildren.indexOf(leadingRoot) + 1
 			: 0;
 		const workspaceTransitionNode = workspaceTransitionIndex >= 0 ? templateData.renderedParts?.[workspaceTransitionIndex]?.domNode : undefined;
 		if (workspaceTransitionNode) {
@@ -3971,16 +4023,19 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const incrementalRendering = this.configService.getValue<boolean>(ChatConfiguration.IncrementalRendering) === true;
 
 		const responseContent = annotateSpecialMarkdownContent(element.response.value);
-		const renderableResponse = element.isComplete ? moveResponseOutcomeToolsAfterFinalResponse(responseContent) : responseContent;
+		const mediaPreviewPart = this.getChatMediaPreviewPart(element);
+		const { leading, rest: renderableResponse } = element.isComplete
+			? arrangeCompletedResponseContent(responseContent, !!mediaPreviewPart?.items.length)
+			: { leading: [], rest: responseContent };
 
 		this.traceLayout('getNextProgressiveRenderContent', `Want to render ${data.numWordsToRender} at ${data.rate} words/s, counting...`);
 		let numNeededWords = data.numWordsToRender;
 		const partsToRender: IChatRendererContent[] = [];
 
-		const mediaPreviewPart = this.getChatMediaPreviewPart(element);
 		if (mediaPreviewPart) {
 			partsToRender.push(mediaPreviewPart);
 		}
+		partsToRender.push(...leading);
 		// Always add the references to avoid shifting the content parts when a reference is added, and having to re-diff all the content.
 		// The part will hide itself if the list is empty.
 		partsToRender.push({ kind: 'references', references: element.contentReferences });

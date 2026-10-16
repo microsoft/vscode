@@ -102,6 +102,15 @@ suite('ChatFindModel', () => {
 		model.dispose();
 	});
 
+	test('counts part positions without tool calls, which the renderer may move', () => {
+		const items = [fakeResponse('resp1', [toolInvocation('Classifying hunks'), markdown('needle'), toolInvocation('Recording a video'), markdown('needle')])];
+		const model = new ChatFindModel(() => items);
+		model.setQuery('needle', { isRegex: false, matchCase: false, wholeWord: false });
+
+		assert.deepStrictEqual(model.matches.map(match => match.partIndex), [2, 1]);
+		model.dispose();
+	});
+
 	test('does not index error details the renderer replaces or omits', () => {
 		// Canceled responses drop the error part, and the quota/rate-limit variants render fixed
 		// copy instead of the message, so indexing it would count unreachable matches.

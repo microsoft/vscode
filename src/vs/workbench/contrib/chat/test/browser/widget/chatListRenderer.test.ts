@@ -53,7 +53,7 @@ import { getCompactCodicon } from '../../../browser/chatIcons.js';
 import { IChatToolRiskAssessmentService } from '../../../browser/tools/chatToolRiskAssessmentService.js';
 import { completedToolCallToSerialized, finalizeToolInvocation, toolCallStateToInvocation, toolCallStateToPreparedInvocation, updateRunningToolSpecificData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { AcceptToolConfirmationActionId, registerChatToolActions, SkipToolConfirmationActionId } from '../../../browser/actions/chatToolActions.js';
-import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingResponseOutcomeTools, getPersistentActivityLabel, getPersistentBackgroundActivity, getPersistentProgressState, getTrailingProgressLabel, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isAnchorTarget, isBlockingToolState, isFinalResponseRendered, isWaitingForMcpServers, moveResponseOutcomeToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowTurnPillsSummary, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
+import { arrangeCompletedResponseContent, buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingResponseOutcomeTools, getLeadingResponsePartCount, getPersistentActivityLabel, getPersistentBackgroundActivity, getPersistentProgressState, getTrailingProgressLabel, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isAnchorTarget, isBlockingToolState, isFinalResponseRendered, isWaitingForMcpServers, moveResponseOutcomeToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowTurnPillsSummary, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { ChatToolConfirmationCarouselPart } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolConfirmationCarouselPart.js';
@@ -77,7 +77,7 @@ import { ChatSessionOperationLog } from '../../../common/model/chatSessionOperat
 import { getGeneratedImageResources } from '../../../common/chatImageExtraction.js';
 import { ChatResponseResourceFileSystemProvider } from '../../../common/widget/chatResponseResourceFileSystemProvider.js';
 import { ChatViewModel, IChatPendingDividerViewModel, IChatRendererContent, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
-import { ChatMediaKind } from '../../../common/chatMediaPreview.js';
+import { ChatMediaKind, defaultChatMediaPreviewSkills } from '../../../common/chatMediaPreview.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
@@ -318,6 +318,31 @@ suite('ChatListRenderer', () => {
 					stepAfterMessage: 4,
 					toEnd: 3,
 					cardWithoutItems: 2,
+				});
+			});
+
+			test('puts walkthrough cards directly under a video, above the folded steps and closing message', () => {
+				const tool = (toolCallId: string, toolId: string, toolSpecificData: IChatToolInvocationSerialized['toolSpecificData']): IChatToolInvocationSerialized => ({
+					kind: 'toolInvocationSerialized', toolCallId, toolId, invocationMessage: toolCallId, originMessage: undefined, pastTenseMessage: toolCallId,
+					isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded }, isComplete: true, source: ToolDataSource.Internal, presentation: undefined, resultDetails: undefined, toolSpecificData,
+				});
+				const video: IChatRendererContent = { kind: 'mediaPreview', items: [{ kind: ChatMediaKind.Video, uri: URI.file('/out/walkthrough.mp4'), label: 'Walkthrough' }] };
+				const references: IChatRendererContent = { kind: 'references', references: [] };
+				const step = tool('inspect-diff', 'read_file', undefined);
+				const cards = tool('publish-cards', SemanticDiffServerToolName.ClassifyDiffHunks, { kind: 'semanticDiff', state: 'complete', result: { ok: true, report: createSemanticDiffExample() } });
+				const message: IChatRendererContent = { kind: 'markdownContent', content: new MarkdownString('Start with the first card.') };
+				const withVideo = arrangeCompletedResponseContent([step, cards, message], true);
+				const content = [video, ...withVideo.leading, references, ...withVideo.rest];
+				assert.deepStrictEqual({
+					withVideo,
+					withoutVideo: arrangeCompletedResponseContent([step, cards, message], false),
+					leadingParts: getLeadingResponsePartCount(content),
+					collapseEnd: getCompletedResponseCollapseEndIndex(content, 4),
+				}, {
+					withVideo: { leading: [cards], rest: [step, message] },
+					withoutVideo: { leading: [], rest: [step, message, cards] },
+					leadingParts: 2,
+					collapseEnd: 5,
 				});
 			});
 
@@ -11415,6 +11440,91 @@ suite('ChatListRenderer', () => {
 			}, { cards: 3, pinned: false, inThinking: false, restoredCards: 3, restoredInThinking: false, restoredInCompletedWork: false });
 			restored.disposables.dispose();
 			disposables.dispose();
+		});
+	}
+
+	for (const [order, closingMessage] of [['videoFirst', false], ['videoFirst', true], ['cardsFirst', false], ['cardsFirst', true]] as const) {
+		test(`a completed code walkthrough shows only its video, the cards directly under it, and its folded steps (${order}, closingMessage=${closingMessage})`, async () => {
+			const { disposables, instantiationService, configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({
+				persistentProgress: ChatProgressAnimation.Off,
+				sessionResource: URI.from({ scheme: SessionType.AgentHostCopilot, path: '/walkthrough' }),
+				requestText: '/create-code-walkthrough',
+			});
+			try {
+				instantiationService.stub(IChatResponseFileChangesService, new class extends mock<IChatResponseFileChangesService>() {
+					override getChangesForRequest() { return undefined; }
+				}());
+				configurationService.setUserConfiguration(ChatConfiguration.MediaPreviewSkills, defaultChatMediaPreviewSkills);
+				configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
+				const step = (toolCallId: string, toolId: string, toolSpecificData: IChatToolInvocationSerialized['toolSpecificData']): IChatToolInvocationSerialized => ({
+					kind: 'toolInvocationSerialized',
+					toolCallId,
+					toolId,
+					invocationMessage: toolCallId,
+					originMessage: undefined,
+					pastTenseMessage: toolCallId,
+					isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+					isComplete: true,
+					source: ToolDataSource.Internal,
+					presentation: undefined,
+					resultDetails: undefined,
+					toolSpecificData,
+				});
+				const layout = () => {
+					const rowChild = (node: Element | null) => {
+						let child = node;
+						while (child?.parentElement && child.parentElement !== template.value) {
+							child = child.parentElement;
+						}
+						return child;
+					};
+					const video = rowChild(template.value.querySelector('.chat-media-preview.kind-video'));
+					const cards = rowChild(template.value.querySelector('.chat-semantic-diff'));
+					const disclosure = template.completedResponseDisclosure;
+					return {
+						videoBeforeCards: !!video && !!cards && !!(video.compareDocumentPosition(cards) & Node.DOCUMENT_POSITION_FOLLOWING),
+						cardsUnderVideo: !!video && !!cards && video.nextElementSibling === cards,
+						stepsCollapsed: !!disclosure && !disclosure.open,
+						otherVisibleText: Array.from(template.value.children)
+							.filter(child => child !== video && child !== cards && child !== disclosure && child.getClientRects().length > 0)
+							.map(child => child.textContent?.trim())
+							.filter(text => !!text),
+					};
+				};
+				// The list disposes a row's element before rendering it again, which stops its progressive render timer.
+				const render = () => {
+					renderer.disposeElement(node, 0, template);
+					renderer.renderElement(node, 0, template);
+				};
+				const recordVideo = step('record-video', 'add_artifact_or_reference', {
+					kind: 'input',
+					rawInput: { items: [{ type: 'file', label: 'Walkthrough', isArtifact: true, uri: 'walkthrough-test:/out/walkthrough.mp4' }] },
+				});
+				const publishCards = step('publish-cards', SemanticDiffServerToolName.ClassifyDiffHunks, {
+					kind: 'semanticDiff', state: 'complete', result: { ok: true, report: createSemanticDiffExample() },
+				});
+
+				// The skill records the video before it publishes the cards; the renderer copes with either order.
+				for (const part of [step('inspect-diff', 'read_file', undefined), ...(order === 'videoFirst' ? [recordVideo, publishCards] : [publishCards, recordVideo])]) {
+					model.acceptResponseProgress(request, part);
+					render();
+				}
+				const whileStreaming = layout().videoBeforeCards;
+				if (closingMessage) {
+					model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Start with the first card.') });
+				}
+				request.response?.complete();
+				render();
+				await timeout(150);
+				render();
+
+				assert.deepStrictEqual({ whileStreaming, completed: layout() }, {
+					whileStreaming: true,
+					completed: { videoBeforeCards: true, cardsUnderVideo: true, stepsCollapsed: true, otherVisibleText: [] },
+				});
+			} finally {
+				disposables.dispose();
+			}
 		});
 	}
 

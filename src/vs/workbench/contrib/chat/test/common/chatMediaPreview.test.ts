@@ -7,7 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AgentHostCompletionReferenceKind, toAgentHostCompletionVariableEntry } from '../../common/attachments/chatVariableEntries.js';
-import { getChatMediaItems, IChatMediaPreviewRequest, isChatMediaPreviewTurn } from '../../common/chatMediaPreview.js';
+import { defaultChatMediaPreviewSkills, getChatMediaItems, IChatMediaPreviewRequest, isChatMediaPreviewTurn } from '../../common/chatMediaPreview.js';
 import { IChatToolInvocationSerialized } from '../../common/chatService/chatService.js';
 
 function artifactCall(toolId: string, rawInput: unknown, overrides: Partial<IChatToolInvocationSerialized> = {}): IChatToolInvocationSerialized {
@@ -72,6 +72,7 @@ suite('Chat media preview', () => {
 			isChatMediaPreviewTurn([request('attached', 'Explain this', '/PR-Studio:Generate-Video')], 'attached', skills),
 			isChatMediaPreviewTurn([request('longer', '/pr-studio:generate-videos 1')], 'longer', skills),
 			isChatMediaPreviewTurn(chat, 'typed', []),
-		], [false, true, true, true, false, false]);
+			isChatMediaPreviewTurn([request('walkthrough', '/create-code-walkthrough main')], 'walkthrough', defaultChatMediaPreviewSkills),
+		], [false, true, true, true, false, false, true]);
 	});
 });
