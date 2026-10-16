@@ -1056,6 +1056,17 @@ suite('TabbedModelPicker', () => {
 		{ name: 'an unavailable managed default', policyDefault: 'Unavailable', expected: [] },
 		{ name: 'Auto as the managed default', models: [createAutoModel(), ...models], policyDefault: 'auto', expected: ['Auto'], selected: ['Auto'] },
 		{ name: 'Auto overriding the managed default', models: [createAutoModel(), ...models], policyDefault: 'First', expected: ['First'], selected: ['Auto'] },
+		...[
+			{ name: 'a host-only managed default', policyDefault: undefined, managedModel: true, expected: ['Second'] },
+			{ name: 'a host default overriding local policy', policyDefault: 'First', managedModel: true, expected: ['Second'] },
+			{ name: 'local policy when only host configuration is managed', policyDefault: 'First', managedModel: false, expected: ['First'] },
+		].map(scenario => ({
+			...scenario,
+			selected: ['First'],
+			models: models.map(candidate => candidate.metadata.name === 'Second'
+				? { ...candidate, metadata: { ...candidate.metadata, managedModelDefaults: { model: scenario.managedModel, keys: ['reasoningEffort'] } } }
+				: candidate),
+		})),
 		...[false, true].map(pinned => ({
 			name: `an older managed default ${pinned ? 'pinned' : 'in the shortlist'}`,
 			models: [model('example-5.5'), model('example-5.6')],

@@ -143,7 +143,6 @@ jobs:
     if: ${{ !cancelled() }}
     uses: ./.github/workflows/pr-linux-cli-test.yml
     with:
-      job_name: CLI
       rustup_toolchain: 1.88
       affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.cli == 'true' }}
 
@@ -153,7 +152,6 @@ jobs:
     if: ${{ !cancelled() }}
     uses: ./.github/workflows/pr-linux-cli-test.yml
     with:
-      job_name: Copilot-Shim
       rustup_toolchain: 1.88
       working_directory: copilot_shim
       format: true
