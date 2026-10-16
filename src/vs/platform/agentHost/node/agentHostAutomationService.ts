@@ -21,7 +21,7 @@ import { toTelemetryModel } from './agentHostTelemetryReporter.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AgentSession } from '../common/agent.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
-import { ActionType, NotificationType, type ActionEnvelope, type AutomationCreateRequestedAction, type AutomationRemovedAction, type AutomationRunCancelRequestedAction, type AutomationRunLifecycleChangedAction, type AutomationRunPrimarySessionChangedAction, type AutomationRunSessionSetAction, type AutomationUpdateRequestedAction, type INotification } from '../common/state/sessionActions.js';
+import { ActionType, type ActionEnvelope, type AutomationCreateRequestedAction, type AutomationRemovedAction, type AutomationRunCancelRequestedAction, type AutomationRunLifecycleChangedAction, type AutomationRunPrimarySessionChangedAction, type AutomationRunSessionSetAction, type AutomationUpdateRequestedAction } from '../common/state/sessionActions.js';
 import { AUTOMATION_CATALOG_URI, type AutomationState, type Message, type SessionActiveClient } from '../common/state/sessionState.js';
 import { automationReducer } from '../common/state/sessionReducers.js';
 import type { AutomationCapabilities } from '../common/state/protocol/common/commands.js';
@@ -144,7 +144,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			this._stateManager.setAutomationRunState(run);
 		}
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => this._handleEnvelope(envelope)));
-		this._register(this._stateManager.onDidEmitNotification(notification => this._handleNotification(notification)));
+		this._register(this._stateManager.onDidDeleteSession(session => this._cancelRunsForDeletedSession(session)));
 		this._startup = this._enqueueMutation(async () => {
 			if (this._catalog) {
 				await this._customizations.collectGarbage(this._catalog.entries);
@@ -847,12 +847,6 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			}
 			await this._commitRun({ ...current, lifecycle }, [{ type: ActionType.AutomationRunLifecycleChanged, lifecycle }]);
 		}).catch(error => this._logService.error(`[AgentHostAutomationService] Failed to persist terminal automation lifecycle: run=${run.resource}, error=${toErrorMessage(error)}`));
-	}
-
-	private _handleNotification(notification: INotification): void {
-		if (notification.type === NotificationType.SessionRemoved) {
-			this._cancelRunsForDeletedSession(notification.session);
-		}
 	}
 
 	/** A deleted session can no longer report a terminal turn, so its run would otherwise remain active forever. */

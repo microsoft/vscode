@@ -1445,54 +1445,57 @@ suite('AgentHostAutomationService', () => {
 		});
 	}));
 
-	test('deleting the session of an active run cancels the run', async () => {
-		const session = URI.parse('mock:/deleted-session');
-		const started = new DeferredPromise<void>();
-		let cancelCalls = 0;
-		const service = createService({
-			createSession: async () => {
-				stateManager.createSession({
-					resource: session.toString(), provider: 'mock', title: '', status: SessionStatus.Idle,
-					createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
-					defaultChat: buildDefaultChatUri(session.toString()),
-				});
-				return session;
-			},
-			startSession: async (createdSession, message) => {
-				stateManager.dispatchServerAction(buildDefaultChatUri(createdSession), {
-					type: ActionType.ChatTurnStarted, turnId: 'deleted-turn', startedAt: new Date().toISOString(), message,
-				});
-				await started.complete();
-			},
-			cancelSession: async () => {
-				cancelCalls++;
-				return false;
-			},
-		});
-		await enableAndCreate(service);
-		const run = await service.runAutomation({
-			channel: 'ahp-automations://',
-			automation: 'ahp-automation:/review-changes',
-			requestId: 'deleted-session',
-		});
-		await started.p;
-		const completed = terminalRun(run.resource);
+	for (const emitNotification of [true, false]) {
+		// A provisional session is never announced to clients, so deleting it emits no `SessionRemoved`.
+		test(`deleting the ${emitNotification ? 'published' : 'provisional'} session of an active run cancels the run`, async () => {
+			const session = URI.parse('mock:/deleted-session');
+			const started = new DeferredPromise<void>();
+			let cancelCalls = 0;
+			const service = createService({
+				createSession: async () => {
+					stateManager.createSession({
+						resource: session.toString(), provider: 'mock', title: '', status: SessionStatus.Idle,
+						createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+						defaultChat: buildDefaultChatUri(session.toString()),
+					}, { emitNotification });
+					return session;
+				},
+				startSession: async (createdSession, message) => {
+					stateManager.dispatchServerAction(buildDefaultChatUri(createdSession), {
+						type: ActionType.ChatTurnStarted, turnId: 'deleted-turn', startedAt: new Date().toISOString(), message,
+					});
+					await started.complete();
+				},
+				cancelSession: async () => {
+					cancelCalls++;
+					return false;
+				},
+			});
+			await enableAndCreate(service);
+			const run = await service.runAutomation({
+				channel: 'ahp-automations://',
+				automation: 'ahp-automation:/review-changes',
+				requestId: 'deleted-session',
+			});
+			await started.p;
+			const completed = terminalRun(run.resource);
 
-		stateManager.deleteSession(session.toString());
-		await completed;
+			stateManager.deleteSession(session.toString());
+			await completed;
 
-		assert.deepStrictEqual({
-			status: stateManager.getAutomationRunState(run.resource)?.lifecycle.status,
-			removeAvailable: stateManager.getAutomationCatalogState()?.entries[0].operations.includes(AutomationOperation.Remove),
-			outcomes: telemetry.events.filter(event => event.name === 'automation.runCompleted').map(event => event.data.outcome),
-			cancelCalls,
-		}, {
-			status: AutomationRunStatus.Cancelled,
-			removeAvailable: true,
-			outcomes: ['cancelled'],
-			cancelCalls: 0,
+			assert.deepStrictEqual({
+				status: stateManager.getAutomationRunState(run.resource)?.lifecycle.status,
+				removeAvailable: stateManager.getAutomationCatalogState()?.entries[0].operations.includes(AutomationOperation.Remove),
+				outcomes: telemetry.events.filter(event => event.name === 'automation.runCompleted').map(event => event.data.outcome),
+				cancelCalls,
+			}, {
+				status: AutomationRunStatus.Cancelled,
+				removeAvailable: true,
+				outcomes: ['cancelled'],
+				cancelCalls: 0,
+			});
 		});
-	});
+	}
 
 	test('cancellation wins a session-creation race without sending the prompt', async () => {
 		const session = URI.parse('mock:/cancelled-session');
