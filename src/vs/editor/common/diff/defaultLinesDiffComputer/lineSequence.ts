@@ -34,6 +34,10 @@ export class LineSequence implements ISequence {
 	isStronglyEqual(offset1: number, offset2: number): boolean {
 		return this.lines[offset1] === this.lines[offset2];
 	}
+
+	public getLineValue(offset: number): string {
+		return this.lines[offset];
+	}
 }
 
 function getIndentation(str: string): number {
