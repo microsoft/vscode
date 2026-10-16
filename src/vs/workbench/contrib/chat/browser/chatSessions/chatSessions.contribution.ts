@@ -1307,17 +1307,23 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	public async getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession> {
-		{
+		const resourceKey = sessionResource.toString();
+		let pendingSession = this._pendingSessionResolutions.get(resourceKey);
+		// Cancelled resolutions can still own cached content until their cleanup settles.
+		while (pendingSession?.cancellationTokenSource.token.isCancellationRequested) {
+			await raceCancellationError(pendingSession.promise.then(undefined, () => undefined), token);
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			pendingSession = this._pendingSessionResolutions.get(resourceKey);
+		}
+		if (!pendingSession) {
 			const existingSessionData = this._sessions.get(sessionResource);
 			if (existingSessionData) {
 				this._logService.trace(`[ChatSessionsService] getOrCreateChatSession: cache hit for ${sessionResource.toString()}`);
 				return existingSessionData.session;
 			}
-		}
 
-		const resourceKey = sessionResource.toString();
-		let pendingSession = this._pendingSessionResolutions.get(resourceKey);
-		if (!pendingSession) {
 			const disposables = new DisposableStore();
 			const cancellationTokenSource = disposables.add(new CancellationTokenSource());
 			const providerAttempt = disposables.add(new MutableDisposable<CancellationTokenSource>());
@@ -1346,7 +1352,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			released = true;
 			pendingSession.waiterCount--;
 			if (pendingSession.waiterCount === 0 && this._pendingSessionResolutions.get(resourceKey) === pendingSession) {
-				this._pendingSessionResolutions.delete(resourceKey);
 				pendingSession.cancellationTokenSource.cancel();
 			}
 		};
@@ -1362,7 +1367,12 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		while (!token.isCancellationRequested) {
 			const attempt = providerAttempt.value = new CancellationTokenSource(token);
 			try {
-				return await this._getOrCreateChatSession(sessionResource, attempt.token);
+				const session = await this._getOrCreateChatSession(sessionResource, attempt.token);
+				if (attempt.token.isCancellationRequested) {
+					session.dispose();
+					throw new CancellationError();
+				}
+				return session;
 			} catch (error) {
 				const resolvedType = this._resolveToPrimaryType(sessionType) ?? sessionType;
 				if (!isCancellationError(error) || !attempt.token.isCancellationRequested || token.isCancellationRequested || !this._contentProviders.has(resolvedType)) {
@@ -1399,7 +1409,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}
 
 		let session: IChatSession;
-		const newSessionOptionGroups = isUntitledChatSession(sessionResource) ? await this.getNewChatSessionInputState(resolvedType, sessionResource) : undefined;
+		const newSessionOptionGroups = isUntitledChatSession(sessionResource)
+			? await raceCancellationError(this.getNewChatSessionInputState(resolvedType, sessionResource), token)
+			: undefined;
 		if (isUntitledChatSession(sessionResource) && (newSessionOptionGroups || resolvedType.startsWith('agent-host-'))) {
 			const options: ChatSessionOptionsMap = new Map();
 			for (const group of newSessionOptionGroups ?? []) {
