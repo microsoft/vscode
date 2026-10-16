@@ -3563,7 +3563,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this.renderChatEditingSessionState(null);
 
-		this.dnd.addOverlay(this.options.dndContainer ?? container, this.options.dndContainer ?? container);
+		this.dnd.addOverlay(this.options.dndContainer ?? container, this.options.dndContainer ?? container, this.container);
 
 		const inputScopedContextKeyService = this._register(this.contextKeyService.createScoped(inputContainer));
 		ChatContextKeys.inChatInput.bindTo(inputScopedContextKeyService).set(true);
