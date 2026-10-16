@@ -33232,6 +33232,27 @@ suite('AgentService (node dispatcher)', () => {
 				assert.deepStrictEqual({ attempts, afterMove, afterNextPublish: await withheld() }, { attempts: 2, afterMove: 'true', afterNextPublish: 'true' });
 			});
 
+			test('the source\'s next older-build publish gives its branch back to older builds once the moved chat no longer shares its worktree (L7, Block 5)', async () => {
+				const { service, source, target, peer, folder } = await setupMove(true, URI.file('/other'), true);
+				const repositoryRoot = URI.file('/main');
+				setTestAgentHostWorktreeIsolation(service, createTestAgentHostWorktreeIsolation({
+					readSessionWorktreeForRemoval: async session => session.toString() === source.toString() ? { worktree: folder, repositoryRoot, branchName: 'agents/source' } : undefined,
+				}));
+				const store = getTestSessionStateStore(service);
+				await store.writeMetadata(source, source, { [WORKTREE_META_PATH]: folder.toString(), 'copilot.worktree.branchName': 'agents/source', [WORKTREE_META_REPOSITORY_ROOT]: repositoryRoot.toString() }, SessionStateMirrorFlush.Immediate);
+				const peerChatStore = (service as unknown as { _peerChatStore: { scheduleOlderBuildCopyPublish(session: URI): void; flushCompatibilityPublishes(session: URI, database: undefined): Promise<void> } })._peerChatStore;
+				const withheld = async () => (await store.readWithoutImport(source, [OLDER_BUILD_WORKTREE_WITHHELD_KEY])).get(OLDER_BUILD_WORKTREE_WITHHELD_KEY) || undefined;
+
+				await service.moveChat(source, peer, { kind: 'session', session: target, after: undefined });
+				const shared = await withheld();
+				await service.disposeChat(target, peer);
+				await whenArchivedChatWorkspaceUpdatesSettled(service, target);
+				peerChatStore.scheduleOlderBuildCopyPublish(source);
+				await peerChatStore.flushCompatibilityPublishes(source, undefined);
+
+				assert.deepStrictEqual({ shared, afterPublish: await withheld() }, { shared: 'true', afterPublish: undefined });
+			});
+
 			test('a session that moves under another hands its own worktree to it: the target lists it for the chat, and its record names the target (Block 5)', async () => {
 				const { service, source, target } = await setupMove();
 				const defaultChat = getStateManager(service).getSessionState(source.toString())!.defaultChat!;

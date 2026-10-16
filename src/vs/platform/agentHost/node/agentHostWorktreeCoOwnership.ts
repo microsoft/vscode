@@ -8,6 +8,7 @@ import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentSession } from '../common/agent.js';
 import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../common/agentHostSessionStateStore.js';
+import type { IOlderBuildCopyParticipant } from './agentHostPeerChatStore.js';
 import type { IAgentHostWorktreeRemovalDatabase, IWorktreeCoOwnedFolder } from './agentHostWorktreeRemovalDatabase.js';
 import { OLDER_BUILD_WORKTREE_WITHHELD_KEY } from './agentHostSessionStateMirror.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY, ISessionAdditionalWorktree, readSessionAdditionalWorktrees } from './shared/sessionAdditionalWorktrees.js';
@@ -194,7 +195,7 @@ export interface IWorktreeWithholding {
 	undo(): Promise<void>;
 }
 
-export class AgentHostWorktreeCoOwnership {
+export class AgentHostWorktreeCoOwnership implements IOlderBuildCopyParticipant {
 
 	/** Moves sharing a session's worktree that haven't committed or been refused yet, by session. */
 	private readonly _sharesInFlight = new Map<string, number>();
@@ -301,6 +302,10 @@ export class AgentHostWorktreeCoOwnership {
 			}
 		}
 		return [...sessions.values()];
+	}
+
+	beforeOlderBuildCopyPublish(session: URI): Promise<void> {
+		return this.releaseWithholding(session);
 	}
 
 	/**

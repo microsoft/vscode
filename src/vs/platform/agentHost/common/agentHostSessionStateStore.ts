@@ -458,12 +458,6 @@ export interface IAgentHostSessionStateStore {
 	 */
 	deleteChat(session: URI, chat: URI): Promise<void>;
 	/**
-	 * Moves a chat and its private descendants to another session (Block 4). Holds both sessions, then commits the
-	 * catalog move and the chats' central state (their chat rows, pinned to the chat's folders, and the per-folder
-	 * state of {@link chatMoveFolderTransfers}) in one agent-host.db transaction, and refreshes both loaded states.
-	 * Writes nothing to either session's old-format mirrors: older builds see the move through the catalog.
-	 */
-	/**
 	 * The sessions sharing a worktree folder since a chat moved (Block 5), each with the branch and repository the
 	 * folder can be recreated from. Read only where the folder is missing (resume repair), never on a hot path.
 	 */
@@ -473,6 +467,13 @@ export interface IAgentHostSessionStateStore {
 	 * startup repair of a handle transfer a crash interrupted.
 	 */
 	findAdditionalWorktreeOwners(handle: string): Promise<readonly URI[]>;
+	/**
+	 * Moves a chat and its private descendants to another session (Block 4). Holds both sessions, then commits the
+	 * catalog move and the chats' central state (their chat rows, pinned to the chat's folders, and the per-folder
+	 * state of {@link chatMoveFolderTransfers}) in one agent-host.db transaction, and refreshes both loaded states.
+	 * Older builds see the move through the catalog. The only session values it writes are its worktree lists (Block
+	 * 5); those older builds read reach the sessions' old-format mirrors like any session value.
+	 */
 	moveChat(move: ISessionStateChatMove): Promise<SessionStateChatMoveResult>;
 
 	/**

@@ -728,6 +728,8 @@ export interface IAgentServiceCore {
 	readonly orchestratorDatabase: IAgentHostDatabase;
 	readonly savedChats: AgentHostSavedChatService;
 	readonly peerChatStore: AgentHostPeerChatStore;
+	/** Shares worktrees between moved chats' sessions (Block 5); the peer chat store's older-build copy participant. */
+	readonly worktreeCoOwnership: AgentHostWorktreeCoOwnership;
 	readonly debugLogsCollector: AgentHostDebugLogsCollector | undefined;
 	readonly sessionRegistry: AgentSessionRegistry;
 	readonly stateManager: AgentHostStateManager;
@@ -1059,8 +1061,7 @@ export class AgentService extends Disposable implements IAgentService {
 		});
 		this._peerChatStore = core.peerChatStore;
 		this._peerChatStore.setMetadataMigration((session, resource, values) => this._migrateChatMetadataWrite(session, resource, values));
-		this._worktreeCoOwnership = new AgentHostWorktreeCoOwnership(this._orchestratorDatabase, this._sessionStateStore, this._worktree, this._logService);
-		this._peerChatStore.setOlderBuildCopyParticipant(session => this._worktreeCoOwnership.releaseWithholding(session));
+		this._worktreeCoOwnership = core.worktreeCoOwnership;
 		this._register(this._peerChatStore.onDidImportOlderBuildEdits(imported => {
 			this._applyImportedOlderBuildEdits(imported).catch(error => this._logService.warn(`[AgentService] Failed to apply imported older-build chat edits of ${imported.session.toString()} to its live state`, error));
 		}));

@@ -194,6 +194,15 @@ interface IReplaceCentralOptions {
 	readonly legacyMergeBase?: readonly IPersistedPeerChat[];
 }
 
+/** Runs before each publish of a session's older-build copy (Block 5). */
+export interface IOlderBuildCopyParticipant {
+	/**
+	 * Prepares older-build state the session state store holds (a withheld worktree branch) for the publish of
+	 * `session`'s older-build copy. Its failure is logged and never stops the publish.
+	 */
+	beforeOlderBuildCopyPublish(session: URI): Promise<void>;
+}
+
 export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceService, IDisposable {
 
 	declare readonly _serviceBrand: undefined;
@@ -207,7 +216,6 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 	/** Normalized sessions whose older-build edits this process imported; older builds cannot write while it runs. */
 	private readonly _olderBuildEditsImported = new Set<string>();
 	private _metadataMigration: ((session: URI, resource: URI, values: Readonly<Record<string, string>>) => Promise<Readonly<Record<string, string>>>) | undefined;
-	private _olderBuildCopyParticipant: ((session: URI) => Promise<void>) | undefined;
 	/** What the import running now changed, by session, announced when it ends. */
 	private readonly _importedEdits = new Map<string, { readonly session: URI; readonly chats: Map<string, IImportedOlderBuildChatEdit> }>();
 	private readonly _onDidImportOlderBuildEdits = new Emitter<IOlderBuildEditsImport>();
@@ -223,6 +231,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		private readonly _logService: ILogService,
 		private readonly _chatOwnership: IAgentHostChatOwnershipService,
 		private readonly _sessionStateStore: IAgentHostSessionStateStore,
+		private readonly _olderBuildCopyParticipant: IOlderBuildCopyParticipant,
 	) { }
 
 	setMetadataMigration(handler: NonNullable<AgentHostPeerChatStore['_metadataMigration']>): void {
@@ -230,17 +239,6 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 			throw new Error('Chat metadata migration is already configured');
 		}
 		this._metadataMigration = handler;
-	}
-
-	/**
-	 * Runs before each publish of a session's older-build copy, for older-build state the session state store holds
-	 * (a withheld worktree branch, Block 5). Its failure is logged and never stops the publish.
-	 */
-	setOlderBuildCopyParticipant(participant: (session: URI) => Promise<void>): void {
-		if (this._olderBuildCopyParticipant) {
-			throw new Error('The older-build copy participant is already configured');
-		}
-		this._olderBuildCopyParticipant = participant;
 	}
 
 	prepareMetadataMutation(session: URI, resource: URI, values: Readonly<Record<string, string>>, candidate: IAgentHostDatabaseChatV2NormalizationCandidate): { mutation?: IAgentHostDatabaseChatV2Mutation; remaining: Readonly<Record<string, string>> } {
@@ -1873,7 +1871,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		this._pendingCompatibilityPublishes.delete(key);
 		return this._trackMetadataWrite(pending.session, async () => {
 			try {
-				await this._olderBuildCopyParticipant?.(pending.session);
+				await this._olderBuildCopyParticipant.beforeOlderBuildCopyPublish(pending.session);
 			} catch (error) {
 				this._logService.error(error, `[AgentHostPeerChatStore] Failed to prepare the older-build copy of ${key}`);
 			}
