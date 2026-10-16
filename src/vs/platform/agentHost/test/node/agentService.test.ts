@@ -33002,7 +33002,7 @@ suite('AgentService (node dispatcher)', () => {
 				}, {
 					moved: { owner: target.toString(), coOwners: [source.toString(), target.toString()].sort(), withheld: 'true', centralBranch: 'agents/source' },
 					// A deletion force-removes a worktree only while it was never shared; the moved chat keeps it.
-					removals: ['session:commit:true', 'coOwned:commit:true'],
+					removals: ['session:commit:true'],
 					inUse: true,
 					coOwners: [target.toString()],
 				});

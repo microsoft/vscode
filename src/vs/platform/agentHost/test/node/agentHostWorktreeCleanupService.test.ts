@@ -463,10 +463,11 @@ suite('AgentHostWorktreeCleanupService', () => {
 				await cleanup.runPass();
 
 				assert.deepStrictEqual({ kept, keptAfterRestart, calls: worktree.calls, pending: await pending(database) }, {
-					kept: { calls: [], pending: ['session:commit:0', 'coOwned:commit:0'] },
-					keptAfterRestart: { calls: [], pending: ['session:commit:0', 'coOwned:commit:0'] },
-					// Each co-owner's removal runs; the folder is gone after the first, so the others only prune it.
-					calls: [`remove:${sessionId}:commit:agents/archived`, `remove:${sharedKey}:commit:agents/archived`, `remove:${sharedKey}:commit:agents/archived`],
+					// One removal per folder: SESSION's own removal covers its share of its worktree.
+					kept: { calls: [], pending: ['session:commit:0'] },
+					keptAfterRestart: { calls: [], pending: ['session:commit:0'] },
+					// Each co-owner's removal runs; the folder is gone after the first, so the other only prunes it.
+					calls: [`remove:${sessionId}:commit:agents/archived`, `remove:${sharedKey}:commit:agents/archived`],
 					pending: [],
 				});
 				cleanup.dispose();
@@ -474,6 +475,21 @@ suite('AgentHostWorktreeCleanupService', () => {
 			} finally {
 				await fs.rm(path, { force: true });
 			}
+		});
+
+		test('a session records one removal per folder: its own worktree\'s removal covers its share of it, its other shares get their own (G3)', async () => {
+			const { database, cleanup } = create();
+			const other = recorded('other');
+			await share(database, SESSION, shared);
+			await share(database, SESSION, other);
+			await cleanup.requestSessionWorktreeRemoval(SESSION, 'commit');
+			const archived = (await database.listPendingWorktreeRemovals()).map(removal => `${removal.kind}:${removal.worktreePath}`);
+			const deleted = (await cleanup.prepareSessionDeletion(SESSION, [], 'delete')).map(request => `${request.kind}:${request.worktreePath}`);
+
+			assert.deepStrictEqual({ archived, deleted }, {
+				archived: [`session:${sharedKey}`, `coOwned:${other.worktree.toString()}`],
+				deleted: [`session:${sharedKey}`, `coOwned:${other.worktree.toString()}`],
+			});
 		});
 
 		test('deleting a session whose worktree was ever shared commits it rather than force-removing it, when requested and when the removal runs', async () => {
@@ -489,7 +505,7 @@ suite('AgentHostWorktreeCleanupService', () => {
 			await cleanup.runPass();
 
 			assert.deepStrictEqual({ requested, calls: worktree.calls }, {
-				requested: ['session:commit', 'coOwned:commit'],
+				requested: ['session:commit'],
 				calls: [`remove:${AgentSession.id(earlier)}:commit:agents/earlier`],
 			});
 		});

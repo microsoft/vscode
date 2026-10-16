@@ -5,6 +5,7 @@
 
 import { RunOnceScheduler } from '../../../base/common/async.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
@@ -111,14 +112,18 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 	}
 
 	async requestSessionWorktreeRemoval(session: URI, mode: Extract<WorktreeRemovalMode, 'commit' | 'synced'>): Promise<void> {
-		await this._worktree.runExclusive(AgentSession.id(session), async () => {
+		const own = await this._worktree.runExclusive(AgentSession.id(session), async () => {
 			const worktree = await this._worktree.readSessionWorktreeForRemoval(session);
 			if (worktree) {
 				await this._database.upsertPendingWorktreeRemoval(this._request('session', session.toString(), session, worktree, mode, false));
 			}
+			return worktree;
 		});
 		for (const coOwner of await this._database.listWorktreeCoOwnersOfSession(session.toString())) {
-			await this._worktree.runExclusive(coOwner.worktreePath, () => this._database.upsertPendingWorktreeRemoval(this._coOwnedRequest(session, coOwner, mode, false)));
+			// One removal per folder: the session's own worktree's removal already covers its share of it.
+			if (!own || !isEqual(own.worktree, URI.parse(coOwner.worktreePath))) {
+				await this._worktree.runExclusive(coOwner.worktreePath, () => this._database.upsertPendingWorktreeRemoval(this._coOwnedRequest(session, coOwner, mode, false)));
+			}
 		}
 		// Even without a worktree of its own, the session may have kept another session's worktree in use.
 		this.schedule();
@@ -211,7 +216,10 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 			}
 		}
 		for (const coOwner of await this._database.listWorktreeCoOwnersOfSession(session.toString())) {
-			requests.push(this._coOwnedRequest(session, coOwner, mode, true));
+			// One removal per folder: a worktree the session records itself is already covered.
+			if (!requests.some(request => isEqual(URI.parse(request.worktreePath), URI.parse(coOwner.worktreePath)))) {
+				requests.push(this._coOwnedRequest(session, coOwner, mode, true));
+			}
 		}
 		// A folder that was ever shared is committed rather than force-removed: another co-owner's work may be in it.
 		const result: IWorktreeRemovalRequest[] = [];
