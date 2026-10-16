@@ -8,7 +8,7 @@ import { ISerializableView, IViewSize } from '../../../base/browser/ui/grid/grid
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableFromEvent, observableValue } from '../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableFromEvent, observableValue, runOnChange } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { isEqual } from '../../../base/common/resources.js';
 import { localize } from '../../../nls.js';
@@ -28,6 +28,7 @@ import { type IRemoteHostUnavailableEmptyStateContent, RemoteHostUnavailableEmpt
 import { SessionRemoteConnection } from './sessionRemoteConnection.js';
 import { ISessionReadOnlyBannerContent, SessionReadOnlyBanner } from './sessionReadOnlyBanner.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from './chatView.js';
+import { ChatViewSessionToolbar } from './sessionToolbar.js';
 import { ChatHeader } from './chatHeader.js';
 import { IGridEdgeInsets, NO_GRID_EDGE_INSETS } from './gridGap.js';
 
@@ -142,6 +143,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 
 	/** Whether this group is the active (focused) group within the session. */
 	private _groupActive = false;
+	private readonly _sessionToolbar: ChatViewSessionToolbar;
 	/** Whether this group's session is the active session in the sessions part. */
 	private _sessionActive = true;
 	/** Whether this group's session is currently visible in the sessions part. */
@@ -203,6 +205,10 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		this._contentContainer = append(this._surface, $('.chat-group-view-content'));
 		this._remoteHostUnavailableEmptyState = this._register(this._instantiationService.createInstance(RemoteHostUnavailableEmptyState));
 		append(this._contentContainer, this._remoteHostUnavailableEmptyState.domNode);
+
+		this._sessionToolbar = this._register(this._scopedInstantiationService.createInstance(ChatViewSessionToolbar, this.element));
+		this._updateSessionToolbarActive();
+		this._register(runOnChange(this._sessionToolbar.reservedWidth, () => this._layoutChildren()));
 
 		this._register(this._chatHeader.onDidChangeVisibility(() => this._layoutChildren()));
 		this._register(this._chatHeader.onDidChangeHeight(() => this._layoutChildren()));
@@ -446,6 +452,12 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		this._groupActive = active;
 		this.element.classList.toggle('active-group', active);
 		this._currentView.value?.setActive(this._sessionActive && active);
+		this._updateSessionToolbarActive();
+	}
+
+	/** Only the active group of the active, visible session shows the session toolbar. */
+	private _updateSessionToolbarActive(): void {
+		this._sessionToolbar.setActive(this._groupActive && this._sessionActive && this._sessionVisible);
 	}
 
 	get groupActive(): boolean {
@@ -459,6 +471,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		}
 		this._sessionActive = active;
 		this._currentView.value?.setActive(active && this._groupActive);
+		this._updateSessionToolbarActive();
 	}
 
 	/** Whether this group's session is currently visible in the sessions part. */
@@ -468,6 +481,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		}
 		this._sessionVisible = visible;
 		this._currentView.value?.setVisible(visible);
+		this._updateSessionToolbarActive();
 		if (visible) {
 			this._layoutChildren();
 		}
@@ -542,9 +556,11 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		const tabsHeight = this._compositeBar.visible ? this._compositeBar.height : 0;
 		const bannerHeight = this._readOnlyBanner.visible ? this._readOnlyBanner.domNode.offsetHeight : 0;
 		const barHeight = headerHeight + tabsHeight + bannerHeight;
+		const contentRightInset = this._sessionToolbar.reservedWidth.get();
 		size(this._barContainer, width, barHeight);
 		size(this._contentContainer, width, height - barHeight);
-		this._currentView.value?.layout(width, height - barHeight, top + barHeight, left);
+		this._sessionToolbar.layout(barHeight, height - barHeight);
+		this._currentView.value?.layout(width, height - barHeight, top + barHeight, left, contentRightInset);
 	}
 
 	/** Sets the index this group serializes as, so the grid deserializer can map nodes back to groups. */

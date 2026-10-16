@@ -259,7 +259,7 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 	private _rewatchProviders(): void {
 		this._providerWatchers.clear();
 
-		const providers = this._sessionsProvidersService.getProviders().filter(isRemoteAgentHostProvider);
+		const providers = this._sessionsProvidersService.getProviders({ includeSessionBackends: true }).filter(isRemoteAgentHostProvider);
 		const providerLabelsChanged = observableSignalFromEvent(this, Event.any(...providers.map(provider => provider.onDidChangeSessionTypes ?? Event.None)));
 
 		this._providerWatchers.add(autorun(reader => {

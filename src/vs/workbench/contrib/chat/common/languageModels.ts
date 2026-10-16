@@ -593,6 +593,8 @@ export interface IModelConfigurationAccess {
 	/** Effective schema for this scope, including provider or managed startup defaults. */
 	getModelConfigurationSchema?(modelId: string): ILanguageModelConfigurationSchema | undefined;
 	setModelConfiguration(modelId: string, values: IStringDictionary<unknown>): Promise<void>;
+	/** Applies values in this scope without persisting them or reporting them as a selection. */
+	presentModelConfiguration?(modelId: string, values: IStringDictionary<unknown>): void;
 	getModelConfigurationActions(modelId: string): IAction[];
 	/** Configuration changes within this scope; global access uses `onDidChangeLanguageModels`. */
 	readonly onDidChange?: Event<string>;

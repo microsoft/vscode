@@ -10,8 +10,10 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { equalSets } from '../../../../../base/common/collections.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derived, derivedOpts, IObservable, mapObservableArrayCached, observableFromEvent, observableFromPromise, observableSignalFromEvent, waitForState } from '../../../../../base/common/observable.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
+import { autorun, derived, derivedOpts, IObservable, ISettableObservable, mapObservableArrayCached, observableFromEvent, observableFromPromise, observableSignalFromEvent, observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -19,15 +21,16 @@ import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
-import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME, cloudSandboxAddress, ICloudSandboxAgentHostService, ICloudSandboxApiService } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME, cloudSandboxAddress, ICloudSandboxAgentHostService, ICloudSandboxApiService, isRetryableCloudSandboxError } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { IProgress, IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
+import { IProgress } from '../../../../../platform/progress/common/progress.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
@@ -39,10 +42,15 @@ import { GitRemote, IGitRepository, IGitService } from '../../../git/common/gitS
 import { getGitHubRepositoryFromRemoteUrl } from '../../../git/common/utils.js';
 import { ISCMService } from '../../../scm/common/scm.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { ChatConfiguration } from '../../common/constants.js';
-import { ChatSessionStatus, IChatNewSessionRequest, IChatSession, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, SessionType } from '../../common/chatSessionsService.js';
+import { isImageVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { IChatProgress, IChatService } from '../../common/chatService/chatService.js';
+import { IChatSession, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, ReadonlyChatSessionOptionsMap, SessionType } from '../../common/chatSessionsService.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
+import { IChatRequestModel } from '../../common/model/chatModel.js';
 import { isUntitledChatSession } from '../../common/model/chatUri.js';
+import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../common/participants/chatAgents.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
+import { commitChatSession } from '../chatSessions/chatSessionCommit.js';
 import { CloudSandboxModels } from './cloudSandboxModels.js';
 import { CloudSandboxRepositoryPicker } from './cloudSandboxRepositoryPicker.js';
 import { createCloudSandboxDraftOptionGroups, createCloudSandboxSessionConfig, readCloudSandboxDraftConfig, resolveCloudSandboxSessionConfig } from './cloudSandboxSessionConfig.js';
@@ -90,6 +98,8 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 	/** Models offered on a draft, from the shared cloud catalog; alive while the creation type is registered. */
 	private readonly _draftModels = this._register(new MutableDisposable<CloudSandboxModels>());
 	private readonly _repositoryPicker = this._register(new MutableDisposable<CloudSandboxRepositoryPicker>());
+	/** Whether each open draft may send, keyed by draft resource; blocked while its first turn provisions. */
+	private readonly _draftInputBlocked = new ResourceMap<ISettableObservable<boolean>>();
 
 	constructor(
 		@ICloudSandboxAgentHostService cloudSandboxService: ICloudSandboxAgentHostService,
@@ -110,7 +120,8 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 		@ISCMService scmService: ISCMService,
 		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IAgentHostService localAgentHostService: IAgentHostService,
-		@IProgressService private readonly _progressService: IProgressService,
+		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
+		@IChatService private readonly _chatService: IChatService,
 	) {
 		super(cloudSandboxService, apiService, _remoteService, connectionCustomizations, configurationService, instantiationService, _editorChatSessionsService, _editorLogService, chatEntitlementService, hostService, storageService, workspaceTrustManagementService, localAgentHostService);
 		const enabled = observableFromEvent(this, Event.any(configurationService.onDidChangeConfiguration, chatEntitlementService.onDidChangeSentiment), () => this._isEnabled());
@@ -280,11 +291,39 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 						throw new Error(`Sandbox session ${sessionResource.toString()} is served by its environment's session type.`);
 					}
 					draftModels.load();
-					return { sessionResource, onWillDispose: Event.None, history: [], dispose: () => { } };
+					// Blocked while the first turn provisions, so no follow-up can queue on a draft that is
+					// about to be replaced; the Agents window keeps its placeholder read-only the same way.
+					const isInputBlocked = observableValue(this, false);
+					this._draftInputBlocked.set(sessionResource, isInputBlocked);
+					return { sessionResource, onWillDispose: Event.None, history: [], isInputBlocked, dispose: () => { this._draftInputBlocked.delete(sessionResource); } };
 				},
 			}));
 			// Also keeps refresh available before discovery has found the first environment.
 			store.add(this._editorChatSessionsService.registerChatSessionItemController(CLOUD_SANDBOX_SESSION_TYPE, this));
+			// The draft's first turn is served by a participant of its own, like the Copilot cloud
+			// agent's drafts: the chat widget locks drafts to the participant named after their type.
+			const agentData: IChatAgentData = {
+				id: CLOUD_SANDBOX_SESSION_TYPE,
+				name: CLOUD_SANDBOX_SESSION_TYPE,
+				fullName: localize('cloudSandbox.sessionName', "Cloud"),
+				description: localize('cloudSandbox.creationDescription', "Run the agent in a new cloud sandbox."),
+				extensionId: new ExtensionIdentifier('vscode.cloud-sandbox'),
+				extensionVersion: undefined,
+				extensionPublisherId: 'vscode',
+				extensionDisplayName: localize('cloudSandbox.sessionName', "Cloud"),
+				isDefault: false,
+				isDynamic: true,
+				isCore: true,
+				metadata: { themeIcon: Codicon.cloud },
+				slashCommands: [],
+				locations: [ChatAgentLocation.Chat],
+				modes: [ChatModeKind.Agent, ChatModeKind.Ask],
+				disambiguation: [],
+			};
+			const agentImpl: IChatAgentImplementation = {
+				invoke: (request, progress, _history, token) => this._startSession(request, progress, token),
+			};
+			store.add(this._chatAgentService.registerDynamicAgent(agentData, agentImpl));
 			store.add(CommandsRegistry.registerCommand(CLOUD_SANDBOX_SELECT_REPOSITORY_COMMAND_ID, (accessor, sessionResource?: URI) =>
 				this._selectRepository(accessor.get(INotificationService), sessionResource)));
 			this._editorChatSessionsService.setOptionGroupsForSessionType(CLOUD_SANDBOX_SESSION_TYPE, 0, this._draftOptionGroups.get());
@@ -376,61 +415,131 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 	}
 
 	/**
-	 * Provision a sandbox for the drafted first turn. The returned item lives under the new
-	 * environment's own session type, so the chat infrastructure rebinds the draft to it and the
-	 * environment's Agent Host handler creates the live session when the turn is dispatched.
+	 * Serve the first turn of a draft: provision a sandbox while reporting each step in the draft's
+	 * transcript, commit the draft to the provisioned environment's session and re-send the turn
+	 * there, where the environment's Agent Host handler runs it.
 	 */
-	async newChatSessionItem(request: IChatNewSessionRequest, token: CancellationToken): Promise<IChatSessionItem | undefined> {
-		if (token.isCancellationRequested) {
-			return undefined;
+	private async _startSession(request: IChatAgentRequest, progress: (parts: IChatProgress[]) => void, token: CancellationToken): Promise<IChatAgentResult> {
+		const draftResource = request.sessionResource;
+		if (!isUntitledChatSession(draftResource)) {
+			throw new Error(`Sandbox session ${draftResource.toString()} is served by its environment's session type.`);
 		}
 		// The draft may be sent before a slow Git lookup has settled.
 		await waitForState(this._workspaceRepositoryChoices, choices => choices !== undefined, undefined, token);
-		const repoNwo = this._requestedRepository(request);
-		const draftConfig = readCloudSandboxDraftConfig(request.initialSessionOptions, this._draftConfig.get());
+		const draftOptions = this._editorChatSessionsService.getSessionOptions(draftResource);
+		const repoNwo = this._requestedRepository(draftOptions);
+		const title = repoNwo
+			? localize('cloudSandbox.creatingWithRepository', "Creating Cloud Session for {0}", repoNwo)
+			: localize('cloudSandbox.creating', "Creating Cloud Session");
+		// One progress line, updated in place as creation advances.
+		const report = (step?: string) => progress([{
+			kind: 'progressMessage',
+			id: 'cloudSandbox.creation',
+			shimmer: true,
+			content: new MarkdownString(step ? localize('cloudSandbox.creationStep', "{0}: {1}", title, step) : title),
+		}]);
+		report();
+		const inputBlocked = this._draftInputBlocked.get(draftResource);
+		inputBlocked?.set(true, undefined);
+		try {
+			const { sessionResource, sessionType } = await this._provisionForDraft(repoNwo, request.message, readCloudSandboxDraftConfig(draftOptions, this._draftConfig.get()), { report }, token);
+			// Session-option lookups for the new session resolve to the draft's picks.
+			this._editorChatSessionsService.registerSessionResourceAlias(draftResource, sessionResource);
+			const draftRequest = this._chatService.getSession(draftResource)?.getRequests().find(candidate => candidate.id === request.requestId);
+			await this._commitDraft(draftResource, sessionResource);
+			// Stopping the draft while it was being committed must not start remote work.
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			await this._sendFirstTurn(sessionResource, sessionType, request, draftRequest);
+			return {};
+		} finally {
+			inputBlocked?.set(false, undefined);
+		}
+	}
+
+	/** Provision a sandbox and confirm the draft's config with it; resolves to the session it hosts. */
+	private async _provisionForDraft(repoNwo: string | undefined, prompt: string, draftConfig: Record<string, unknown>, stepProgress: IProgress<string>, token: CancellationToken): Promise<{ sessionResource: URI; sessionType: string }> {
 		const cts = new CancellationTokenSource(token);
 		const store = new DisposableStore();
 		store.add(cts);
 		store.add(this._enabledCts.token.onCancellationRequested(() => cts.cancel()));
 		try {
-			return await this._progressService.withProgress<IChatSessionItem>({
-				location: ProgressLocation.Notification,
-				title: repoNwo
-					? localize('cloudSandbox.creatingWithRepository', "Creating Cloud Session for {0}", repoNwo)
-					: localize('cloudSandbox.creating', "Creating Cloud Session"),
-				cancellable: true,
-			}, async progress => {
-				const stepProgress: IProgress<string> = { report: message => progress.report({ message }) };
-				const provisioned = await this._provisionSandbox({ repoNwo, prompt: request.prompt }, cts.token, stepProgress);
-				const { provider, address, sessionId, name } = provisioned;
-				if (repoNwo) {
-					store.add(this.trackSessionCreationProgress(provisioned.environmentId, repoNwo, stepProgress));
+			const provisioned = await this._provisionSandbox({ repoNwo, prompt }, cts.token, stepProgress);
+			const { provider, address, sessionId } = provisioned;
+			if (repoNwo) {
+				store.add(this.trackSessionCreationProgress(provisioned.environmentId, repoNwo, stepProgress));
+			}
+			await this._whenSessionTypeResolvable(provider, address, cts.token);
+			if (Object.keys(draftConfig).length > 0) {
+				const connection = this._remoteService.getConnection(address);
+				if (!connection) {
+					throw new Error(localize('cloudSandbox.connectionUnavailable', "The connection to the cloud sandbox is no longer available."));
 				}
-				await this._whenSessionTypeResolvable(provider, address, cts.token);
-				if (Object.keys(draftConfig).length > 0) {
-					const connection = this._remoteService.getConnection(address);
-					if (!connection) {
-						throw new Error(localize('cloudSandbox.connectionUnavailable', "The connection to the cloud sandbox is no longer available."));
-					}
-					// Confirmed by the host before the first turn, so a draft pick is never silently replaced.
-					provider.setProvisionalSessionConfig(sessionId, await resolveCloudSandboxSessionConfig(connection, draftConfig, cts.token));
+				// Confirmed by the host before the first turn, so a draft pick is never silently replaced.
+				provider.setProvisionalSessionConfig(sessionId, await resolveCloudSandboxSessionConfig(connection, draftConfig, cts.token));
+			}
+			// Name the task after the prompt, as the Agents window does, so discovery lists the session the
+			// way it was seeded instead of under Mission Control's default name. A transient failure must
+			// not block the first turn.
+			try {
+				await raceCancellationError(this._renameSandboxSession(address, sessionId, provisioned.title), cts.token);
+			} catch (error) {
+				if (isCancellationError(error) || !isRetryableCloudSandboxError(error)) {
+					throw error;
 				}
-				return {
-					resource: URI.from({ scheme: provider.sessionType, path: `/${sessionId}` }),
-					label: request.prompt.trim() || name,
-					iconPath: Codicon.cloud,
-					status: ChatSessionStatus.InProgress,
-					timing: { created: Date.now(), lastRequestStarted: undefined, lastRequestEnded: undefined },
-				};
-			}, () => cts.cancel());
+				this._editorLogService.warn('[CloudSandbox] Failed to name the task after the first prompt; continuing with the first turn', error);
+			}
+			return { sessionResource: URI.from({ scheme: provider.sessionType, path: `/${sessionId}` }), sessionType: provider.sessionType };
 		} finally {
+			// Stops progress before the transcript it reports to is replaced.
 			store.dispose();
 		}
 	}
 
+	/** Swaps whatever shows the draft to the committed session and carries the draft's state over. */
+	protected _commitDraft(draftResource: URI, sessionResource: URI): Promise<void> {
+		return this._instantiationService.invokeFunction(commitChatSession, CLOUD_SANDBOX_SESSION_TYPE, draftResource, sessionResource);
+	}
+
+	/** Re-send the draft's turn on the committed session, where the environment's Agent Host handler runs it. */
+	private async _sendFirstTurn(sessionResource: URI, sessionType: string, request: IChatAgentRequest, draftRequest: IChatRequestModel | undefined): Promise<void> {
+		// The editor or view that took over the draft usually holds the session already; this
+		// reference keeps it loaded until the turn is on it when nothing shows the session.
+		const ref = await this._chatService.acquireOrLoadSession(sessionResource, request.location, CancellationToken.None);
+		if (!ref) {
+			throw new Error(localize('cloudSandbox.sessionUnavailable', "The cloud session could not be opened."));
+		}
+		try {
+			const message = draftRequest?.message.text ?? request.message;
+			const attachedContext = draftRequest?.attachedContext ?? [];
+			const result = await this._chatService.sendRequest(sessionResource, message, {
+				agentIdSilent: sessionType,
+				location: request.location,
+				modeInfo: draftRequest?.modeInfo,
+				userSelectedModelId: request.userSelectedModelId,
+				userSelectedModelConfiguration: request.modelConfiguration,
+				attachedContext,
+				// Images the widget expanded from directory attachments only exist on the resolved request.
+				resolvedVariables: request.variables.variables.filter(entry => isImageVariableEntry(entry) && !attachedContext.some(attached => attached.id === entry.id)),
+			});
+			if (result.kind === 'rejected') {
+				const error = localize('cloudSandbox.requestRejected', "The cloud session did not accept the request: {0}", result.reason);
+				// The draft that would have shown this is already replaced, so the committed session shows it.
+				this._chatService.addCompleteRequest(sessionResource, message, undefined, undefined, { message: [], result: { errorDetails: { message: error } } });
+				throw new Error(error);
+			}
+			if (result.kind === 'sent') {
+				await result.data.responseCreatedPromise;
+			}
+		} finally {
+			ref.dispose();
+		}
+	}
+
 	/** The repository to clone: an explicit pick, else the single implied workspace repository, else none. */
-	private _requestedRepository(request: IChatNewSessionRequest): string | undefined {
-		const selected = request.initialSessionOptions?.get(CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP);
+	private _requestedRepository(draftOptions: ReadonlyChatSessionOptionsMap | undefined): string | undefined {
+		const selected = draftOptions?.get(CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP);
 		const selectedId = (typeof selected === 'string' ? selected : selected?.id)?.trim();
 		// A searched repository is not among the workspace choices, so any well-formed pick counts.
 		if (selectedId && REPOSITORY_NWO_PATTERN.test(selectedId)) {

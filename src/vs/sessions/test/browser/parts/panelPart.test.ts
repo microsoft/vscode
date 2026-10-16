@@ -333,6 +333,29 @@ suite('Sessions - Panel Part', () => {
 		});
 	});
 
+	test('keeps the panel title border override scoped to the Agents window', () => {
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		disposables.add({ dispose: () => container.remove() });
+		const workbench = mainWindow.document.createElement('div');
+		workbench.className = 'monaco-workbench';
+		container.appendChild(workbench);
+		const sessions = mainWindow.document.createElement('div');
+		sessions.className = 'monaco-workbench agent-sessions-workbench';
+		container.appendChild(sessions);
+
+		const workbenchTitle = createPanelTab(workbench).title;
+		const sessionsTitle = createPanelTab(sessions).title;
+
+		assert.deepStrictEqual({
+			workbenchHasBorder: parseFloat(mainWindow.getComputedStyle(workbenchTitle).borderTopWidth) > 0,
+			sessionsBorder: mainWindow.getComputedStyle(sessionsTitle).borderTopWidth,
+		}, {
+			workbenchHasBorder: true,
+			sessionsBorder: '0px',
+		});
+	});
+
 	test('uses the editor tab presentation for bottom panel tabs', () => {
 		const root = mainWindow.document.createElement('div');
 		root.className = 'monaco-workbench agent-sessions-workbench modern-ui-tabs';
@@ -434,7 +457,10 @@ suite('Sessions - Panel Part', () => {
 			indicatorRadius: targetWindow.getComputedStyle(indicator).borderRadius,
 		};
 
-		assert.deepStrictEqual({ pill, connected, nonFirstConnected, compact, iconMode }, {
+		root.classList.remove('agent-sessions-workbench');
+		const workbenchBorderTopWidth = targetWindow.getComputedStyle(title).borderTopWidth;
+
+		assert.deepStrictEqual({ pill, connected, nonFirstConnected, compact, iconMode, workbenchBorderTopWidth }, {
 			pill: {
 				titleHeight: 32,
 				titleActions: {
@@ -495,6 +521,7 @@ suite('Sessions - Panel Part', () => {
 				indicatorHeight: '24px',
 				indicatorRadius: '4px',
 			},
+			workbenchBorderTopWidth: '1px',
 		});
 	});
 });

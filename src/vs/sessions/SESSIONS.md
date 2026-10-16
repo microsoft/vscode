@@ -40,6 +40,8 @@ The registry:
 - resolves providers by identifier;
 - announces registration changes.
 
+Logical providers own creation choices. A provider can also own internal, connection-bound session backends, which use the same operation contract without contributing creation targets. Default enumeration returns only logical providers; existing-session consumers explicitly include backends. Lookup preserves existing sessions' backend routing identifiers. Backends are available only while their logical owner is registered, regardless of discovery order, and registration notifications include their availability changes.
+
 It does not aggregate sessions, choose a provider for an operation, or own UI state.
 
 ### `ISessionsManagementService`
@@ -149,7 +151,7 @@ Recorded GitHub issue and pull request artifacts are resolved from `ISession.art
 
 ## Provider contract
 
-`ISessionsProvider` is defined in `services/sessions/common/sessionsProvider.ts`. A provider represents one compute environment. A provider may advertise multiple session types, and multiple providers may advertise the same logical type.
+`ISessionsProvider` is defined in `services/sessions/common/sessionsProvider.ts`. A logical provider represents a session destination and may manage several concrete compute environments through internal backends. A provider may advertise multiple session types, and multiple providers may advertise the same logical type. Session and chat resources, session IDs, and backend routing IDs remain stable when a backend belongs to a logical provider; ownership does not rekey existing conversations.
 
 ### Discovery and catalog
 

@@ -188,11 +188,8 @@ export interface IDeleteChatOptions {
 }
 
 /**
- * A sessions provider encapsulates a compute environment.
- * It owns workspace discovery, session creation, session listing, and picker contributions.
- *
- * One provider can serve multiple session types. Multiple provider instances can
- * serve the same session type (e.g., one per remote agent host).
+ * A logical sessions provider owns creation targets and may use internal, connection-bound backends for existing sessions.
+ * Both implement this contract; only logical providers advertise workspace and session creation choices.
  */
 export interface ISessionsProvider {
 	readonly sessionConfig?: ISessionConfigProvider;

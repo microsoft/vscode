@@ -75,6 +75,8 @@ export class ChatInputModelSelectionController extends Disposable {
 	private readonly _onDidChangeUserSelectedModel = this._register(new Emitter<{ readonly fromModelId: string; readonly toModelId: string }>());
 	readonly onDidChangeUserSelectedModel = this._onDidChangeUserSelectedModel.event;
 	private _selectionReason: ModelSelectionReason | undefined;
+	/** The model {@link currentModel} is shown in place of, see {@link applyEquivalentSelection}. */
+	private _equivalentOf: string | undefined;
 	private _pendingProgrammaticSelection: IPendingProgrammaticSelection | undefined;
 
 	constructor(
@@ -96,6 +98,7 @@ export class ChatInputModelSelectionController extends Disposable {
 	/** Drops what spoke for the outgoing conversation, so it is not read as the incoming one's. */
 	beginConversationSwitch(): void {
 		this._selectionReason = undefined;
+		this._equivalentOf = undefined;
 		this._clearPendingProgrammaticSelection();
 	}
 
@@ -159,6 +162,22 @@ export class ChatInputModelSelectionController extends Disposable {
 		this._clearPendingProgrammaticSelection();
 		this._remember({ modelId: model.identifier, model, reason: ModelSelectionReason.ProgrammaticSelection });
 		this._applyModel(model, ModelSelectionReason.ProgrammaticSelection);
+	}
+
+	/**
+	 * Shows `model` as the current selection presented differently (the picker shows HydraFusion as
+	 * Ensemble at Intelligence). The selection keeps its reason, so a fallback stays a fallback, and
+	 * the conversation's intended model moves only if it was the model being re-presented.
+	 */
+	applyEquivalentSelection(model: ILanguageModelChatMetadataAndIdentifier): void {
+		const currentModel = this._currentModel.get();
+		const intended = this._intendedModel;
+		if (intended && currentModel && intended.modelId === currentModel.identifier) {
+			this._remember({ modelId: model.identifier, model, reason: intended.reason });
+		}
+		this._diagnostics.report('equivalent-selection', { model: model.identifier, replaces: currentModel?.identifier, reason: this._selectionReason }, 'info');
+		this._applyModel(model, this._selectionReason);
+		this._equivalentOf = currentModel?.identifier;
 	}
 
 	requestProgrammaticSelection(
@@ -293,7 +312,7 @@ export class ChatInputModelSelectionController extends Disposable {
 		if (!configuredModel) {
 			return false;
 		}
-		if (configuredModel.identifier === this._currentModel.get()?.identifier) {
+		if (this._isSelected(configuredModel.identifier)) {
 			if (this._selectionReason !== ModelSelectionReason.ConfiguredDefault) {
 				this._selectionReason = ModelSelectionReason.ConfiguredDefault;
 				return true;
@@ -322,7 +341,7 @@ export class ChatInputModelSelectionController extends Disposable {
 		if (this._runtime.isEmpty()
 			&& this._selectionReason === ModelSelectionReason.FirstAvailable
 			&& declaredDefault
-			&& reconciledCurrentModel?.identifier !== declaredDefault.identifier) {
+			&& !this._isSelected(declaredDefault.identifier)) {
 			// Still the first thing on offer, only now the pool has said which that is.
 			this._applyModel(declaredDefault, ModelSelectionReason.FirstAvailable);
 			return;
@@ -577,8 +596,16 @@ export class ChatInputModelSelectionController extends Disposable {
 
 	/** Shows `model`; see {@link _stillShown} for the result. */
 	private _display(model: ILanguageModelChatMetadataAndIdentifier): boolean {
+		if (model.identifier !== this._currentModel.get()?.identifier) {
+			this._equivalentOf = undefined;
+		}
 		this._currentModel.set(model, undefined);
 		return this._stillShown(model);
+	}
+
+	/** Whether `modelId` is the current model, or the one it is shown in place of. */
+	private _isSelected(modelId: string): boolean {
+		return this._currentModel.get()?.identifier === modelId || this._equivalentOf === modelId;
 	}
 
 	/**
