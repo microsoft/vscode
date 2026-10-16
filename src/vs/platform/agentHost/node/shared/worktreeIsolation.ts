@@ -10,7 +10,7 @@ import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlCon
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { basename } from '../../../../base/common/path.js';
-import { getComparisonKey, isEqual } from '../../../../base/common/resources.js';
+import { dirname, getComparisonKey, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -21,7 +21,7 @@ import { Branch, getBranchCompletions, GitRefType, IAgentHostGitService, IBranch
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { ISchemaProperty, schemaProperty } from '../../common/agentHostSchema.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
-import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../../common/agentHostSessionStateStore.js';
+import { IAgentHostSessionStateStore, type ISessionStateWorktreeCoOwner, SessionStateMirrorFlush } from '../../common/agentHostSessionStateStore.js';
 import { getSessionPullRequestUrl, SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { DETACHED_WORKTREE_OWNER_SCHEME, DEV_CONTAINER_WORKTREE_DATA_ID_PREFIX, isAgentDevContainerWorktreeHandle } from '../../common/meta/agentDevContainerWorktreeMeta.js';
 import { getRepositoryRootFromWorktree, getWorktreesRoot } from '../../common/worktreePaths.js';
@@ -1349,13 +1349,17 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 
 		const storedMetadata = await this._readWorktreeMetadata(sessionUri).catch(() => undefined);
 		const meta = isEqual(storedMetadata?.worktreePath, workingDirectory) ? storedMetadata : undefined;
+		// A folder shared since a chat moved, or one inside it, is recorded by its original owner: its co-owners recorded
+		// its branch and repository (Block 5). Read before the archived case, which resumes for history from its repository.
+		const shared = meta ? undefined : await this._findSharedWorktree(workingDirectory);
 		const archived = await this._isSessionArchived(sessionUri);
 		if (archived) {
-			if (meta?.repositoryRoot) {
+			const repositoryRoot = meta?.repositoryRoot ?? (shared && URI.parse(shared.repositoryRoot));
+			if (repositoryRoot) {
 				try {
-					await fs.access(meta.repositoryRoot.fsPath);
-					this._logService.info(`[${this._logLabel}:${sessionId}] Archived session working directory '${workingDirectory.fsPath}' is missing; resuming against repository root '${meta.repositoryRoot.fsPath}' for history`);
-					return meta.repositoryRoot;
+					await fs.access(repositoryRoot.fsPath);
+					this._logService.info(`[${this._logLabel}:${sessionId}] Archived session working directory '${workingDirectory.fsPath}' is missing; resuming against repository root '${repositoryRoot.fsPath}' for history`);
+					return repositoryRoot;
 				} catch {
 					// Fall through when the repository root is also gone.
 				}
@@ -1365,18 +1369,16 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		}
 
 		let recreateFailureReason: string | undefined;
-		if (!meta) {
-			// A folder shared since a chat moved is recorded by its original owner: its co-owners recorded its branch (Block 5).
-			const shared = (await this._sessionStateStore.readWorktreeCoOwners(workingDirectory.toString()))[0];
-			if (shared) {
-				const worktree = { worktree: workingDirectory, repositoryRoot: URI.parse(shared.repositoryRoot), branchName: shared.branch };
-				const recreated = await this._sequencer.queue(workingDirectory.toString(), async () => await fileExists(workingDirectory.fsPath) ? { ok: true as const } : this._recreateSharedWorktree(worktree));
-				if (recreated.ok) {
-					this._logService.info(`[${this._logLabel}:${sessionId}] Recreated missing shared worktree '${workingDirectory.fsPath}' on resume`);
-					return workingDirectory;
-				}
-				recreateFailureReason = recreated.reason;
+		if (shared) {
+			// Its checkout root is recreated under the folder's lock; the chat resumes in its own folder inside it.
+			const root = URI.parse(shared.worktreePath);
+			const worktree = { worktree: root, repositoryRoot: URI.parse(shared.repositoryRoot), branchName: shared.branch };
+			const recreated = await this._sequencer.queue(root.toString(), async () => await fileExists(root.fsPath) ? { ok: true as const } : this._recreateSharedWorktree(worktree));
+			if (recreated.ok) {
+				this._logService.info(`[${this._logLabel}:${sessionId}] Recreated missing shared worktree '${root.fsPath}' on resume`);
+				return workingDirectory;
 			}
+			recreateFailureReason = recreated.reason;
 		}
 		if (meta?.worktreePath && meta.repositoryRoot) {
 			const recreated = await this._recreateWorktree(sessionId, {
@@ -1395,6 +1397,24 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 
 		this._logService.warn(`[${this._logLabel}:${sessionId}] Cannot resume: working directory '${workingDirectory.fsPath}' is missing and its worktree could not be recreated${recreateFailureReason ? `: ${recreateFailureReason}` : ''}`);
 		throw new SessionWorkingDirectoryMissingError(workingDirectory, recreateFailureReason);
+	}
+
+	/**
+	 * The shared worktree recorded at `directory` or the innermost one containing it, from its co-owner rows (Block 5).
+	 * Read only when a folder is missing on resume: one lookup per ancestor until a recorded worktree is found.
+	 */
+	private async _findSharedWorktree(directory: URI): Promise<ISessionStateWorktreeCoOwner | undefined> {
+		for (let candidate = directory; ;) {
+			const shared = (await this._sessionStateStore.readWorktreeCoOwners(candidate.toString()))[0];
+			if (shared) {
+				return shared;
+			}
+			const parent = dirname(candidate);
+			if (isEqual(parent, candidate)) {
+				return undefined;
+			}
+			candidate = parent;
+		}
 	}
 
 	/**

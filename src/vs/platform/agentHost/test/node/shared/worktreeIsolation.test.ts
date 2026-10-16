@@ -1572,6 +1572,36 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
+	test('resolveWorkingDirectoryForResume recreates a missing shared worktree for a chat working in a subfolder of it, and resumes it in that subfolder (PR review)', async () => {
+		const central = disposables.add(new AgentHostDatabase(':memory:'));
+		const isolation = createIsolation(disposables, { centralDatabase: central });
+		const missing = URI.joinPath(worktreesRoot, 'shared-missing');
+		const raw = await (central as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+		await new Promise<void>((resolve, reject) => raw.run('INSERT INTO worktree_co_owners (worktree_path, session_uri, repository_root, branch) VALUES (?, ?, ?, ?)', [missing.toString(), 'copilotcli:/origin', repoRoot.toString(), 'agents/shared'], error => error ? reject(error) : resolve()));
+		const subfolder = URI.joinPath(missing, 'src');
+
+		const resolved = await isolation.resolveWorkingDirectoryForResume(URI.parse('copilotcli:/co-owner'), 'co-owner', subfolder);
+
+		assert.deepStrictEqual({ resolved: resolved.toString(), recreated: addExistingCalls.map(call => ({ worktree: call.worktree.toString(), branchName: call.branchName })) }, {
+			resolved: subfolder.toString(),
+			recreated: [{ worktree: missing.toString(), branchName: 'agents/shared' }],
+		});
+	});
+
+	test('resolveWorkingDirectoryForResume resumes an archived session that only co-owns a removed shared worktree against its recorded repository, for history (PR review)', async () => {
+		const central = disposables.add(new AgentHostDatabase(':memory:'));
+		const isolation = createIsolation(disposables, { centralDatabase: central });
+		const missing = URI.joinPath(worktreesRoot, 'shared-archived');
+		const raw = await (central as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+		await new Promise<void>((resolve, reject) => raw.run('INSERT INTO worktree_co_owners (worktree_path, session_uri, repository_root, branch) VALUES (?, ?, ?, ?)', [missing.toString(), 'copilotcli:/origin', repoRoot.toString(), 'agents/shared'], error => error ? reject(error) : resolve()));
+		// The promoted session records no worktree of its own; it is archived, like every co-owner, and the checkout removed.
+		await db.setMetadata(AH_META_IS_ARCHIVED_DB_KEY, 'true');
+
+		const resolved = await isolation.resolveWorkingDirectoryForResume(sessionUri, sessionId, URI.joinPath(missing, 'src'));
+
+		assert.deepStrictEqual({ resolved: resolved.toString(), recreated: addExistingCalls.length }, { resolved: repoRoot.toString(), recreated: 0 });
+	});
+
 	test('reconcileDetachedWorktrees retains records whose owner metadata is unreadable and still prunes the others', async () => {
 		const { databases, service, isolation, create, setOwner } = createOwnedRecordsHarness();
 		const corruptOwner = await create('corrupt-owner');
