@@ -26,7 +26,7 @@ import {
 	parseFolderChangesetOwnerUri,
 } from '../common/changesetUri.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
-import { IAgentHostSessionStateStore, readSessionBaseBranch, SessionStateMirrorFlush } from '../common/agentHostSessionStateStore.js';
+import { IAgentHostSessionStateStore, readSessionBaseBranch, SessionStateMirrorFlush, type ISessionStateSnapshot } from '../common/agentHostSessionStateStore.js';
 import { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
 import type { ChangesetState, ChangesSummary } from '../common/state/protocol/state.js';
 import { addMillisecondsToTimestamp } from '../common/state/protocol/common/timestamps.js';
@@ -359,8 +359,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			}
 			: state;
 		const sessionUri = this._containingSessionUri(session);
+		const source = resolveBranchChangesetScopeForOwner(this._stateManager, branchChangesetOwner)?.sourceUri ?? session;
+		const baseBranch = this._getBranchBaseBranch(source, this._sessionStateStore.peek(URI.parse(sessionUri)));
 		this._stateManager.setChangesets(session, buildDefaultChangesetCatalog(session, this._chatOwnership.isRegisteredDefaultChat(session), catalogState, branchChangesetOwner,
-			(folderKey, recordedChat) => resolveAgentMergeOwningChat(this._stateManager, sessionUri, folderKey, recordedChat)));
+			(folderKey, recordedChat) => resolveAgentMergeOwningChat(this._stateManager, sessionUri, folderKey, recordedChat), baseBranch));
 	}
 
 	private _getBranchChangesetOwner(owner: ProtocolURI): ProtocolURI {
@@ -2260,19 +2262,25 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 */
 	private async _resolveBranchBaseBranch(session: ProtocolURI, db: ISessionDatabase): Promise<string | undefined> {
 		const source = resolveBranchChangesetScopeForOwner(this._stateManager, session)?.sourceUri ?? session;
+		const snapshot = await this._sessionStateStore.load(URI.parse(this._containingSessionUri(source)));
+		return resolveDiffBaseBranchName(this._getBranchBaseBranch(source, snapshot), undefined);
+	}
+
+	/** Selects the persisted folder base before the Git-state fallback for both the catalogue and diff computation. */
+	private _getBranchBaseBranch(source: ProtocolURI, snapshot: ISessionStateSnapshot | undefined): string | undefined {
 		const isSessionFolder = resolveGitHubStateFolder(this._stateManager, source).isSessionFolder;
 		const sourceIsDefaultChat = this._chatOwnership.isRegisteredDefaultChat(source);
-		const persistedBaseBranch = !sourceIsDefaultChat || isSessionFolder
-			? readSessionBaseBranch(await this._sessionStateStore.load(URI.parse(this._containingSessionUri(source))), sourceIsDefaultChat ? undefined : source)
+		const persistedBaseBranch = snapshot && (!sourceIsDefaultChat || isSessionFolder)
+			? readSessionBaseBranch(snapshot, sourceIsDefaultChat ? undefined : source)
 			: undefined;
 		const gitStateBaseBranch = this._gitStateService.getSessionGitState?.(source)?.baseBranchName
 			?? (isSessionFolder && (!isAhpChatChannel(source) || sourceIsDefaultChat)
 				? readSessionGitState(this._stateManager.getSessionState(this._containingSessionUri(source))?._meta)?.baseBranchName
 				: undefined);
 		if (!persistedBaseBranch && gitStateBaseBranch) {
-			this._logService.debug(`[AgentHostChangesetService] Using _meta.git base branch fallback for Branch Changes in ${session}: ${gitStateBaseBranch}`);
+			this._logService.debug(`[AgentHostChangesetService] Using _meta.git base branch fallback for Branch Changes in ${source}: ${gitStateBaseBranch}`);
 		}
-		return resolveDiffBaseBranchName(persistedBaseBranch, gitStateBaseBranch);
+		return persistedBaseBranch || gitStateBaseBranch;
 	}
 
 	/**
