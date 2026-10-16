@@ -10,7 +10,7 @@ import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { Delayer, disposableTimeout, raceCancellation, raceCancellationError } from '../../../../../../base/common/async.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
-import { CancellationError, getErrorCode, isCancellationError } from '../../../../../../base/common/errors.js';
+import { CancellationError, getErrorCode, getErrorMessage, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { getChatErrorDetailsFromMeta, getCopilotPlanFromEntitlement, IChatErrorContext } from '../../../common/chatErrorMessages.js';
@@ -2223,6 +2223,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (!isCancellationError(error)) {
 				this._reportInvocationFailure(request, failureStage, error);
 			}
+			if (getErrorCode(error) === 'policyResolutionFailed' && !this._isInvocationAbandoned(cancellationToken)) {
+				return { errorDetails: this._getPolicyErrorDetails(getErrorMessage(error)) };
+			}
 			throw error;
 		} finally {
 			// Always cancel the pending "preparing" status — including when an
@@ -2260,6 +2263,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		});
 	}
 
+	private _getPolicyErrorDetails(message: string, allowRetry = true): IChatResponseErrorDetails {
+		return {
+			message,
+			isExpectedError: true,
+			...(allowRetry ? {
+				confirmationButtons: [{ label: localize('agentHost.retryPolicyResolution', "Retry"), data: undefined, resend: true }],
+			} : {}),
+		};
+	}
+
 	/**
 	 * Builds the {@link IChatResponseErrorDetails} for a failed turn so the
 	 * chat response renders a proper error (and, for quota errors, the upgrade
@@ -2272,6 +2285,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const error = getTurnError(turn);
 		if (!error) {
 			return undefined;
+		}
+		if (error.errorType === 'policyResolutionFailed') {
+			return this._getPolicyErrorDetails(error.message, allowResume);
 		}
 		if (error.errorType === 'CodexThreadInUse') {
 			return {

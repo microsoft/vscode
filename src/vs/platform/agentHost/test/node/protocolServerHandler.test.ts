@@ -37,7 +37,7 @@ import { FileType } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { type IAgent, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
+import { AgentPolicyError, type IAgent, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
 import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
 import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from '../../common/meta/agentHostSavedChatMeta.js';
@@ -1091,6 +1091,23 @@ suite('ProtocolServerHandler', () => {
 		transport.simulateClose();
 		transport.dispose();
 	});
+
+	for (const method of ['resolveSessionConfig', 'createSession'] as const) {
+		test(`${method} preserves retryable policy errors across JSON-RPC`, async () => {
+			const failed = sinon.stub(agentService, method).rejects(new AgentPolicyError('Policy resolution timed out'));
+			disposables.add(toDisposable(() => failed.restore()));
+			const transport = connectClient('policy-client');
+			const response = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, method, { channel: method === 'createSession' ? sessionUri : ROOT_STATE_URI, provider: 'copilotcli' }));
+			const result = await response;
+			assert.ok(hasKey(result, { error: true }));
+			assert.deepStrictEqual(JSON.parse(JSON.stringify(result.error)), {
+				code: JSON_RPC_INTERNAL_ERROR,
+				message: 'Policy resolution timed out',
+				data: { _meta: { 'vscode.policyResolutionFailed': true } },
+			});
+		});
+	}
 
 	test('handshake with initialSubscriptions returns snapshots', () => {
 		stateManager.createSession(makeSessionSummary());
