@@ -169,7 +169,11 @@ export function getModelConfigDisplayValues(model: ILanguageModelChatMetadataAnd
 			const title = property.schema.title ?? (group === MODEL_CONFIG_GROUP_EFFORT
 				? localize('chat.effort.header', "Effort Level")
 				: localize('chat.context.header', "Context"));
-			values.push({ group, label, description: localize('chat.modelPicker.configValue', "{0}: {1}", title, label) });
+			values.push({
+				group, label, description: property.schema.readOnly
+					? localize('chat.modelPicker.managedConfigValue', "{0}: {1}, managed by the agent host", title, label)
+					: localize('chat.modelPicker.configValue', "{0}: {1}", title, label),
+			});
 		} else if (!property && group === MODEL_CONFIG_GROUP_CONTEXT && model && !isAutoModel(model) && !isHydraFusionModel(model)) {
 			const total = getModelContextWindowTotal(model.metadata);
 			if (Number.isFinite(total) && total > 0) {
@@ -189,7 +193,7 @@ export function getChangedModelConfigProperties(
 	const properties: IModelConfigProperty[] = [];
 	for (const group of [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT]) {
 		const property = getModelConfigProperty(model, configurationAccess, group);
-		if (!property || property.value === undefined || property.value === property.schema.default) {
+		if (!property || property.schema.readOnly || property.value === undefined || property.value === property.schema.default) {
 			continue;
 		}
 		properties.push(property);

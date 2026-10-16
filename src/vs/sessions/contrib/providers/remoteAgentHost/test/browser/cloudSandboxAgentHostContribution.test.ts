@@ -9,7 +9,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../ba
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { isWeb } from '../../../../../../base/common/platform.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -57,8 +57,9 @@ import { IAgentHostGroup } from '../../../../../common/agentHostSessionsProvider
 import { IAgentHostFilterService } from '../../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ISession } from '../../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
-import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { CLOUD_SANDBOX_CREATION_PROVIDER_ID, CloudSandboxAgentHostContribution } from '../../browser/cloudSandboxAgentHostContribution.js';
+import { ISessionsProvidersService, SessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
+import { CloudSandboxAgentHostContribution } from '../../browser/cloudSandboxAgentHostContribution.js';
+import { CLOUD_SANDBOX_CREATION_PROVIDER_ID, COPILOT_PROVIDER_ID } from '../../../copilotChatSessions/common/copilotChatSessions.js';
 import { IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostConnectionCustomizationFactory } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHostConnectionCustomization.js';
 import { ReadOnlyChatSession } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxReadOnlySessionHandler.js';
 import { createCloudSandboxSessionPreparation } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxLegacySessionPreparation.js';
@@ -67,6 +68,7 @@ import { IRemoteAgentHostSessionsProviderConfig } from '../../browser/remoteAgen
 import { CloudSandboxSessionsProvider } from '../../browser/cloudSandboxSessionsProvider.js';
 
 class StubProvider extends mock<CloudSandboxSessionsProvider>() {
+	override get order(): number { return 0; }
 	readonly seeded: IAgentSessionMetadata[] = [];
 	readonly workspaceless = new Map<string, boolean>();
 	/** Raw ids seeded as provisional, mirroring the real provider's listing gate. */
@@ -208,13 +210,6 @@ class TestCloudSandboxContribution extends CloudSandboxAgentHostContribution {
 	}
 }
 
-class StubSessionsProvidersService extends Disposable {
-	declare readonly _serviceBrand: undefined;
-	readonly onDidChangeProviders = Event.None;
-	registerProvider(_provider: ISessionsProvider): IDisposable { return toDisposable(() => { }); }
-	getProviders(): ISessionsProvider[] { return []; }
-}
-
 class TestLogService extends NullLogService {
 	readonly warnings: (string | Error)[] = [];
 
@@ -235,6 +230,7 @@ const CLOUD_SANDBOX_GROUP: IAgentHostGroup = {
 
 interface ITestHarness {
 	readonly contribution: TestCloudSandboxContribution;
+	readonly providersService: SessionsProvidersService;
 	readonly workspaceTrust: TestWorkspaceTrustManagementService;
 	readonly configurationService: TestConfigurationService;
 	setEnabled(enabled: boolean): Promise<void>;
@@ -440,7 +436,13 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 			};
 		}
 	}());
-	instantiationService.stub(ISessionsProvidersService, store.add(new StubSessionsProvidersService()) as unknown as ISessionsProvidersService);
+	const providersService = store.add(new SessionsProvidersService());
+	store.add(providersService.registerProvider(upcastPartial<ISessionsProvider>({
+		id: isWeb ? CLOUD_SANDBOX_CREATION_PROVIDER_ID : COPILOT_PROVIDER_ID,
+		label: 'Cloud',
+		order: 0,
+	})));
+	instantiationService.stub(ISessionsProvidersService, providersService);
 	instantiationService.stub(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
 		override readonly onDidChange = hostSelectionChanges.event;
 		override get selectedHostId() { return selectedHostId; }
@@ -507,7 +509,7 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 	if (options?.waitForDiscovery !== false) {
 		await harness.runDiscovery();
 	}
-	return Object.assign(harness, { contribution, configurationService });
+	return Object.assign(harness, { contribution, configurationService, providersService });
 }
 
 function discoveredSession(overrides?: Partial<ICloudSandboxDiscoveredSession>): ICloudSandboxDiscoveredSession {
@@ -525,6 +527,44 @@ function discoveredSession(overrides?: Partial<ICloudSandboxDiscoveredSession>):
 suite('CloudSandboxAgentHostContribution', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('keeps discovered environments behind one logical Cloud provider across restoration', async () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const sessions = [
+			discoveredSession(),
+			discoveredSession({ environmentId: 'env-2', sessionId: 'sess-2', taskId: 'task-2', name: 'Second task' }),
+		];
+		const first = await createContribution(store, sessions, { storageService });
+		const snapshot = (harness: ITestHarness) => ({
+			providers: harness.providersService.getProviders().map(provider => provider.label),
+			backends: [...harness.contribution.stubProviders.values()].map(backend => ({
+				address: backend.config.address,
+				routable: harness.providersService.getProvider(backend.id) === backend,
+				sessions: backend.seeded.map(session => session.session.toString()),
+			})),
+			registeredCount: harness.providersService.getProviders({ includeSessionBackends: true }).length,
+			connections: harness.connectedTo,
+		});
+		const before = snapshot(first);
+		first.contribution.dispose();
+		const afterDisposal = first.providersService.getProviders({ includeSessionBackends: true }).map(provider => provider.label);
+		const restored = await createContribution(store, [], {
+			storageService, listSessions: async () => ({ kind: 'failed', reason: 'offline' }),
+		});
+		const expected = {
+			providers: ['Cloud'],
+			backends: sessions.map(session => ({
+				address: cloudSandboxAddress(session.environmentId),
+				routable: true,
+				sessions: [AgentSession.uri('ahp-session', session.sessionId).toString()],
+			})),
+			registeredCount: 3,
+			connections: [],
+		};
+		assert.deepStrictEqual({ before, afterDisposal, restored: snapshot(restored) }, {
+			before: expected, afterDisposal: ['Cloud'], restored: expected,
+		});
+	});
 
 	for (const hasRepository of [true, false, undefined]) {
 		test(`preserves repository classification through offline inventory restoration: ${hasRepository}`, async () => {
@@ -2035,7 +2075,7 @@ suite('CloudSandboxAgentHostContribution provisioning', () => {
 			progress,
 		}, {
 			ids: { taskId: 'task-new', sessionId: 'sess-new', environmentId: 'env-new' },
-			seeded: [{ session: 'ahp-session:/sess-new', summary: 'osortega/simple-server', project: 'osortega/simple-server' }],
+			seeded: [{ session: 'ahp-session:/sess-new', summary: 'fix it', project: 'osortega/simple-server' }],
 			connectedTo: ['env-new'],
 			connectionSource: 'created',
 			resolvedSession: '/sess-new',

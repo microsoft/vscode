@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { localize2 } from '../../../../nls.js';
@@ -34,11 +35,20 @@ export async function executeToggleRemoteConnections(accessor: ServicesAccessor,
 	const configurationService = accessor.get(IConfigurationService);
 	if (isGitHubEnvironmentBackend(configurationService.getValue<AgentHostRemoteConnectionsBackend>(AgentHostRemoteConnectionsSettingId))) {
 		const sharingService = accessor.get(IMissionControlSharingService);
+		const logService = accessor.get(ILogService);
+		const notificationService = accessor.get(INotificationService);
 		const enabled = sharingService.state.get() !== 'disabled';
-		if (!enabled) {
-			await remoteTunnelService.stopTunnel();
+		try {
+			if (!enabled) {
+				await remoteTunnelService.stopTunnel();
+			}
+			await sharingService.setEnabled(!enabled);
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				logService.error('Failed to toggle GitHub environment sharing', error);
+				notificationService.error(error);
+			}
 		}
-		await sharingService.setEnabled(!enabled);
 		return;
 	}
 	const commandService = accessor.get(ICommandService);

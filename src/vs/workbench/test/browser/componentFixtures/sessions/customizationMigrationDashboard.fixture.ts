@@ -122,9 +122,19 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		expectedVisualDescriptions: ['A marketplace-specific error card appears above otherwise usable migration groups with an error icon, localized guidance, and a Retry button.'],
 		render: ctx => renderDashboard(ctx, 860, 'marketplaceError'),
 	}),
+	MigrationsMcpWarnings: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The GitHub MCP server row grows to show every migration warning on its own line without clipping or overlapping the next row.'],
+		render: ctx => renderDashboard(ctx, 860, 'mcpWarnings'),
+	}),
+	MigrationsMcpWarningsNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['In a narrow dashboard, the GitHub MCP server row grows to fit its wrapped migration warnings without clipping or overlapping the next row.'],
+		render: ctx => renderDashboard(ctx, 360, 'mcpWarnings'),
+	}),
 });
 
-async function renderDashboard(ctx: ComponentFixtureContext, width: number, state: 'overview' | 'tooltip' | 'partial' | 'disabled' | 'ignored' | 'loading' | 'error' | 'zero' | 'marketplaceError'): Promise<void> {
+async function renderDashboard(ctx: ComponentFixtureContext, width: number, state: 'overview' | 'tooltip' | 'partial' | 'disabled' | 'ignored' | 'loading' | 'error' | 'zero' | 'marketplaceError' | 'mcpWarnings'): Promise<void> {
 	const { container, disposableStore, theme } = ctx;
 	const dashboardContainer = state === 'tooltip' ? DOM.append(container, DOM.$('.customization-migration-dashboard-fixture')) : container;
 	container.style.width = `${state === 'tooltip' ? width + 300 : width}px`;
@@ -202,6 +212,35 @@ async function renderDashboard(ctx: ComponentFixtureContext, width: number, stat
 				label: 'Plugin marketplaces could not be checked',
 				description: 'Check the active agent connection, then try again.',
 			}],
+		};
+	} else if (state === 'mcpWarnings') {
+		// Omit prompt groups so the MCP rows are in view.
+		model = {
+			...model,
+			scopes: model.scopes.map(scope => ({
+				...scope,
+				categories: scope.categories
+					.filter(category => category.id !== CustomizationMigrationCategoryId.PromptFiles)
+					.map(category => category.id === CustomizationMigrationCategoryId.McpServers ? {
+						...category,
+						count: 2,
+						selectedCount: 2,
+						countLabel: '2 servers',
+						items: [
+							{
+								id: 'workspace-github', label: 'GitHub', scopeLabel: 'Workspace', sourceLabel: '.vscode/mcp.json',
+								changesLabel: [
+									'Inputs will become environment variables. Configure them in the MCP server details after migrating.',
+									'Configs will become environment variables. Later changes won\'t apply.',
+									'You may need to sign in again after migration.',
+									'Migrating will stop auto-updates from the MCP registry.',
+									'Removes \'dev\'. Development mode will stop.',
+								].join('\n'),
+							},
+							{ id: 'workspace-playwright', label: 'Playwright', scopeLabel: 'Workspace', sourceLabel: '.vscode/mcp.json', changesLabel: 'Migrating will stop auto-updates from the MCP registry.' },
+						],
+					} : category),
+			})),
 		};
 	}
 	const dashboard = disposableStore.add(instantiationService.createInstance(CustomizationMigrationDashboard, dashboardContainer, {
