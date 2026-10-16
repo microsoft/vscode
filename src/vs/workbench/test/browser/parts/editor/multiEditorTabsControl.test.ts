@@ -1369,6 +1369,34 @@ suite('MultiEditorTabsControl', () => {
 		assert.deepStrictEqual(tabs.map(tab => tab.getBoundingClientRect().width), pillWidths);
 	});
 
+	test('fixed and shrink Connected tabs retain short-label icons', async () => {
+		// Short titles such as terminal names keep fixed and shrink tabs narrow even when the editor
+		// has room. Hiding the icon of narrow tabs (below 102px in 1.142) made terminal colors and
+		// custom icons invisible (https://github.com/microsoft/vscode/issues/341740).
+		const group = connectedGroup();
+		const iconStyle = document.createElement('style');
+		iconStyle.textContent = '.modern-ui-tabs .tab-label::before { content: ""; }';
+		group.appendChild(iconStyle);
+		openNamedEditors(['zsh', 'bash']);
+		const results = [];
+		for (const tabSizing of ['fixed', 'shrink'] as const) {
+			const oldOptions = partOptions;
+			partOptions = { ...partOptions, tabSizing, tabSizingFixedMaxWidth: 90, hasIcons: true, editorActionsLocation: 'hidden' };
+			control.updateOptions(oldOptions, partOptions);
+			await layoutConnectedGroup(group, 1200);
+			const tabs = Array.from(container.querySelectorAll<HTMLElement>('.tabs-container > .tab'));
+			results.push({
+				tabSizing,
+				narrow: tabs.every(tab => tab.getBoundingClientRect().width < 102),
+				iconsVisible: tabs.map(tab => mainWindow.getComputedStyle(tab.querySelector<HTMLElement>('.tab-label')!, '::before').display !== 'none'),
+			});
+		}
+		assert.deepStrictEqual(results, [
+			{ tabSizing: 'fixed', narrow: true, iconsVisible: [true, true] },
+			{ tabSizing: 'shrink', narrow: true, iconsVisible: [true, true] },
+		]);
+	});
+
 	test('connected close actions keep consistent spacing across terminal and wrapped tabs', async () => {
 		const group = connectedGroup();
 		group.style.setProperty('--vscode-editorGroupHeader-tabsBorder', '#333333');
