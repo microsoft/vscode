@@ -637,16 +637,6 @@ export function rebaseUnder(uri: URI, fromDir: URI, toDir: URI): URI | undefined
 	return rel.length === 0 ? toDir : resourceJoinPath(toDir, rel);
 }
 
-/** Rebase `enablement` keys under `fromDir` onto `toDir`, preserving unmatched keys verbatim. */
-export function migrateEnablementKeys(enablement: ReadonlyMap<string, boolean>, fromDir: URI, toDir: URI): Map<string, boolean> {
-	const migrated = new Map<string, boolean>();
-	for (const [uri, enabled] of enablement) {
-		const rebased = rebaseUnder(URI.parse(uri), fromDir, toDir);
-		migrated.set(rebased ? rebased.toString() : uri, enabled);
-	}
-	return migrated;
-}
-
 class CopilotChatEntry extends Disposable {
 	constructor(
 		readonly chatSession: CopilotAgentSession,
