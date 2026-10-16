@@ -1231,8 +1231,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private readonly _serverTurnWatchers = this._register(new DisposableResourceMap());
 	/** Per-session subscription silently resolving existing MCP authentication grants. */
 	private readonly _mcpAuthWatchers = this._register(new DisposableResourceMap());
-	/** Per-session live output of completed tool calls whose commands still run after their turn ended. */
-	private readonly _runningOutputTerminals = this._register(new DisposableResourceMap<DisposableStore>());
+	/** Per-session output of completed tool calls whose commands outlived their turn, kept until the chat closes. */
+	private readonly _retainedOutputTerminals = this._register(new DisposableResourceMap<DisposableStore>());
 	/**
 	 * Ownership of actionable protocol requests, keyed by backend session URI
 	 * string. `inputNeeded` is a session-level queue and the single caller of
@@ -1889,7 +1889,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					this._draftSyncSubscriptions.deleteAndDispose(sessionResource);
 					this._serverTurnWatchers.deleteAndDispose(sessionResource);
 					this._mcpAuthWatchers.deleteAndDispose(sessionResource);
-					this._runningOutputTerminals.deleteAndDispose(sessionResource);
+					this._retainedOutputTerminals.deleteAndDispose(sessionResource);
 					this._releaseSessionInputNeeded(sessionResource);
 					this._pendingHistoryTurns.delete(sessionResource);
 					this._surfacedMcpAuthServers.delete(sessionResource);
@@ -5269,8 +5269,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	/**
 	 * Releases a tool call's live non-PTY output when its turn observation
 	 * ends. A completed call whose command still runs, such as a detached
-	 * background shell, keeps the output attached until the terminal exits or
-	 * the chat session closes, so its inline terminal keeps streaming.
+	 * background shell, keeps the output attached until the chat session
+	 * closes. Its inline terminal keeps streaming, and a card rendered after
+	 * the command exited still shows the output and exit code.
 	 */
 	private _releaseOutputTerminal(attachment: IOutputTerminalAttachment, toolCall: ToolCallState, sessionResource: URI): void {
 		const live = attachment.disposable.clearAndLeak();
@@ -5283,20 +5284,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			live.dispose();
 			return;
 		}
-		let running = this._runningOutputTerminals.get(sessionResource);
-		if (!running) {
-			running = new DisposableStore();
-			this._runningOutputTerminals.set(sessionResource, running);
+		let retained = this._retainedOutputTerminals.get(sessionResource);
+		if (!retained) {
+			retained = new DisposableStore();
+			this._retainedOutputTerminals.set(sessionResource, retained);
 		}
-		const sessionTerminals = running;
-		const kept = sessionTerminals.add(new DisposableStore());
-		kept.add(live);
-		kept.add(source.onDidChange(() => {
-			if (source.hasExited) {
-				// Detach after every listener has seen the exit.
-				queueMicrotask(() => sessionTerminals.delete(kept));
-			}
-		}));
+		retained.add(live);
 	}
 
 	/**

@@ -223,6 +223,8 @@ export class NonPtyShellTerminalStreams extends Disposable {
 	private readonly _streams = new Map<string, INonPtyShellStream>();
 	/** Tool call that started each shell still running in the background, keyed by shell ID. */
 	private readonly _backgroundShells = new Map<string, string>();
+	/** Tool call of each detached shell that exited while its log was still being read, keyed by shell ID. */
+	private readonly _drainingDetachedShells = new Map<string, string>();
 	private _shellTaskReads = 0;
 
 	constructor(
@@ -435,7 +437,8 @@ export class NonPtyShellTerminalStreams extends Disposable {
 	 * Settles a background shell's channel once the shell exits. The channel
 	 * stays subscribable, because the completed tool call still references it.
 	 * A detached shell whose log is still being read is left to that read,
-	 * which settles it after the output the shell wrote before exiting.
+	 * which settles it after the output the shell wrote before exiting, unless
+	 * a new command reuses its shell ID first.
 	 */
 	completeBackgroundShell(shellId: string, exitCode: number | undefined): void {
 		this._completeBackgroundShell(shellId, exitCode, false);
@@ -464,9 +467,7 @@ export class NonPtyShellTerminalStreams extends Disposable {
 		if (!stream?.readingDetachedOutput) {
 			return;
 		}
-		if (stream.backgroundShellId !== undefined && this._backgroundShells.get(stream.backgroundShellId) === toolCallId) {
-			this._backgroundShells.delete(stream.backgroundShellId);
-		}
+		this._forgetDetachedShell(toolCallId, stream);
 		this._finalize(stream, exitCode);
 	}
 
@@ -481,9 +482,11 @@ export class NonPtyShellTerminalStreams extends Disposable {
 			return;
 		}
 		stream.readingDetachedOutput = undefined;
-		if (stream.backgroundShellId === undefined || this._backgroundShells.get(stream.backgroundShellId) !== toolCallId) {
-			this._finalize(stream, undefined);
+		if (stream.backgroundShellId !== undefined && this._backgroundShells.get(stream.backgroundShellId) === toolCallId) {
+			return;
 		}
+		this._forgetDetachedShell(toolCallId, stream);
+		this._finalize(stream, undefined);
 	}
 
 	/**
@@ -566,14 +569,43 @@ export class NonPtyShellTerminalStreams extends Disposable {
 	}
 
 	private _completeBackgroundShell(shellId: string, exitCode: number | undefined, settleDetachedRead: boolean): void {
+		if (settleDetachedRead) {
+			const draining = this._drainingDetachedShells.get(shellId);
+			const drainingStream = draining === undefined ? undefined : this._streams.get(draining);
+			this._drainingDetachedShells.delete(shellId);
+			if (drainingStream) {
+				this._finalize(drainingStream, undefined);
+			}
+		}
 		const toolCallId = this._backgroundShells.get(shellId);
 		if (toolCallId === undefined) {
 			return;
 		}
 		this._backgroundShells.delete(shellId);
 		const stream = this._streams.get(toolCallId);
-		if (stream && (settleDetachedRead || !stream.readingDetachedOutput)) {
-			this._finalize(stream, exitCode);
+		if (!stream) {
+			return;
+		}
+		if (stream.readingDetachedOutput && !settleDetachedRead) {
+			// The read settles the channel once it has drained the log. Remember the
+			// shell meanwhile, so a new command that reuses its ID can still settle it.
+			this._drainingDetachedShells.set(shellId, toolCallId);
+			return;
+		}
+		this._finalize(stream, exitCode);
+	}
+
+	/** Removes a detached shell the tool call started from the shells still running or draining. */
+	private _forgetDetachedShell(toolCallId: string, stream: INonPtyShellStream): void {
+		const shellId = stream.backgroundShellId;
+		if (shellId === undefined) {
+			return;
+		}
+		if (this._backgroundShells.get(shellId) === toolCallId) {
+			this._backgroundShells.delete(shellId);
+		}
+		if (this._drainingDetachedShells.get(shellId) === toolCallId) {
+			this._drainingDetachedShells.delete(shellId);
 		}
 	}
 

@@ -548,6 +548,33 @@ suite('NonPtyShellTerminalStreams', () => {
 			});
 		});
 
+		test('settles a detached shell that exited while its log was still being read, when a new command reuses its shell ID', () => {
+			streams.track('call-37', 'shell');
+			const first = streams.completeToolCall('call-37', detachedStarted('20'), undefined)?.uri;
+			// The task list reports the exit before the reads have drained the log.
+			streams.reconcileBackgroundShells(new Set(), streams.beginShellTaskRead());
+			const finalizedBeforeReuse = [...manager.outputTerminalsFinalized];
+			streams.track('call-38', 'shell');
+			const second = streams.completeToolCall('call-38', detachedStarted('20'), undefined)?.uri;
+			// A read of the old shell still in flight returns the new command's output.
+			streams.appendDetachedShellOutput('call-37', 'from the new command\n');
+			streams.completeDetachedShell('call-37', 0);
+
+			deepStrictEqual({
+				finalizedBeforeReuse,
+				finalized: manager.outputTerminalsFinalized,
+				reading: { first: streams.isReadingDetachedShell('call-37'), second: streams.isReadingDetachedShell('call-38') },
+				terminal: streams.getBackgroundShellTerminal('20'),
+				content: channelContent(),
+			}, {
+				finalizedBeforeReuse: [],
+				finalized: [{ uri: first, exitCode: undefined }],
+				reading: { first: false, second: true },
+				terminal: second,
+				content: '',
+			});
+		});
+
 		test('settles a shell from task reads started after it went to the background, even if never listed', () => {
 			streams.track('call-23', 'shell');
 			const earlier = streams.beginShellTaskRead();
