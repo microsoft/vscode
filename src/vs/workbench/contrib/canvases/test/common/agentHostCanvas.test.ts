@@ -155,8 +155,9 @@ suite('AgentHost canvases', () => {
 			} : undefined;
 		}();
 		const references = constObservable<readonly CanvasReference[] | undefined>([]);
-		const closing = store.add(new AgentHostCanvasCollection(owner.providerId, createConnection(true), new NullLogService())).createContext(owner, references);
-		const unsupported = store.add(new AgentHostCanvasCollection(owner.providerId, createConnection(false), new NullLogService())).createContext(owner, references);
+		const frontendSessionResource = URI.parse('agent-host-copilotcli:/frontend-session');
+		const closing = store.add(new AgentHostCanvasCollection(owner.providerId, createConnection(true), new NullLogService())).createContext(owner, frontendSessionResource, references);
+		const unsupported = store.add(new AgentHostCanvasCollection(owner.providerId, createConnection(false), new NullLogService())).createContext(owner, frontendSessionResource, references);
 
 		await closing.closeCanvas?.(new AgentHostCanvas(resource, state, new NullLogService()));
 

@@ -237,19 +237,6 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		this._systemWake.setFullyAwake(fullyAwake);
 	}
 
-	listAgentExtensions(): Promise<IAgentExtensionInventory> {
-		if (!this._agentService.listAgentExtensions) {
-			throw new Error('Copilot extension inventory is unavailable');
-		}
-		return this._agentService.listAgentExtensions();
-	}
-
-	setAgentExtensionEnabled(extensionId: string, enabled: boolean, session?: URI): Promise<void> {
-		if (!this._agentService.setAgentExtensionEnabled) {
-			throw new Error('Copilot extension management is unavailable');
-		}
-		return this._runMutation(() => this._agentService.setAgentExtensionEnabled!(extensionId, enabled, session));
-	}
 	shutdown(): Promise<void> {
 		if (!this._shutdownPromise) {
 			this._shuttingDown = true;
