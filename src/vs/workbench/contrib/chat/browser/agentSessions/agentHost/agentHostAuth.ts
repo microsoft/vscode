@@ -69,8 +69,8 @@ export function modelRequiresAgentAuthentication(agent: AgentInfo | undefined, m
 
 /**
  * Tracks the last bearer token pushed to a given agent host connection
- * for each protected resource, so that redundant `authenticate` RPCs can
- * be suppressed when neither the resource nor the token has changed.
+ * for each protected resource and MCP server identity, suppressing redundant
+ * `authenticate` RPCs without sharing credentials between servers.
  *
  * One instance per connection. Owned by the contribution that drives
  * authentication for that connection so the cache is dropped naturally
@@ -84,8 +84,8 @@ export class AgentHostAuthTokenCache {
 	private _globalGeneration = 0;
 
 	/**
-	 * Forwards a token once per resource/scope pair. Same-token callers share
-	 * and await an in-flight authentication.
+	 * Forwards a token once per resource/scope and MCP server identity. Same-token
+	 * callers share and await an in-flight authentication.
 	 */
 	async authenticate(resource: string, scopes: readonly string[] | undefined, token: string, authenticate: () => Promise<unknown>, accountId?: string, identity?: string): Promise<boolean> {
 		const credentialKey = JSON.stringify([token, accountId]);

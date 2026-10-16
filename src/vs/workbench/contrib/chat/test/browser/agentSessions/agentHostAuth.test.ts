@@ -1513,7 +1513,7 @@ suite('resolveMcpServerAuthentication', () => {
 				getDynamicAuthenticationProviderId(URI.parse('https://mcp.example.com'), protectedResource, 'second-client'),
 			],
 			sessionRequests: ['first-client', 'second-client'],
-			authenticateRequests: ['first-client-token', 'second-client-token'],
+			authenticateRequests: ['second-client-token', 'first-client-token'],
 		});
 	});
 
@@ -1732,13 +1732,13 @@ suite('resolveMcpServerAuthentication', () => {
 					resource: 'https://mcp.slack.com',
 					scopes: ['search:read.public'],
 					token: 'public-token',
-					_meta: agentMcpAuthenticationIdentityMeta({ serverName: 'Example', clientId: 'public-client-id' }),
+					_meta: agentMcpAuthenticationIdentityMeta({ serverName: 'Slack', clientId: 'public-client-id' }),
 				},
 				{
 					resource: 'https://mcp.slack.com',
 					scopes: ['search:read.public'],
 					token: 'confidential-token',
-					_meta: agentMcpAuthenticationIdentityMeta({ serverName: 'Example', clientId: 'confidential-client-id' }),
+					_meta: agentMcpAuthenticationIdentityMeta({ serverName: 'Slack', clientId: 'confidential-client-id' }),
 				},
 			],
 			removedProviders: [],

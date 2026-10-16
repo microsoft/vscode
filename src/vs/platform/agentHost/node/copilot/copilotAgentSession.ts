@@ -4322,8 +4322,11 @@ export class CopilotAgentSession extends Disposable {
 			this._scopesSatisfy(params.scopes, pending.requiredScopes) &&
 			(!identity || (pending.serverName === identity.serverName && (!identity.clientId || pending.oauthClientId === identity.clientId)))
 		);
-		if (!identity && matches.length !== 1) {
-			return false;
+		if (!identity && matches.length > 1) {
+			const firstMatch = matches[0][1];
+			if (matches.some(([, pending]) => pending.serverName !== firstMatch.serverName || pending.oauthClientId !== firstMatch.oauthClientId)) {
+				return false;
+			}
 		}
 		let resolved = false;
 		for (const [requestId, pending] of matches) {
