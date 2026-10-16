@@ -10,7 +10,8 @@
 
 .monaco-workbench .session-toolbar.docked {
 	position: absolute;
-	right: var(--vscode-spacing-size160);
+	/* Just clears the transcript's 10px overlay scrollbar. */
+	right: var(--vscode-spacing-size120);
 	/* Above the chat transcript's sticky scroll (13), scrollbar (14), prompt timeline rail (15), and
 	 * state indicator (16) where they extend into the reserved space; below the chat's hovers. */
 	z-index: 17;
@@ -72,8 +73,9 @@
 	align-items: center;
 	justify-content: center;
 	box-sizing: border-box;
-	width: var(--vscode-spacing-size280);
-	height: var(--vscode-spacing-size280);
+	/* The minimum target size (WCAG 2.5.8) around a base-size codicon. */
+	width: var(--vscode-spacing-size240);
+	height: var(--vscode-spacing-size240);
 	padding: 0;
 	border-radius: var(--vscode-cornerRadius-small);
 }
