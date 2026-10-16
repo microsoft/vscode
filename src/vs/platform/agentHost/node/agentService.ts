@@ -77,7 +77,7 @@ import { AgentHostDebugLogsCollector, type IAgentHostDebugLogsEnvironment } from
 import { withAgentHostDebugLogsProgress } from '../common/meta/agentHostDebugLogsMeta.js';
 import { IAgentHostDatabase, IAgentHostDatabaseSessionOptions, type IAgentHostDatabaseCatalogSnapshotEntry, type IAgentHostDatabaseSessionsV2Exclusion } from './agentHostDatabase.js';
 import { AgentSessionRegistry, IRegisteredSession, IStoredRegisteredSession } from './agentSessionRegistry.js';
-import { IAgentHostSessionStateStore, readSessionBaseBranch, SessionStateDeletedError, SessionStateMirrorFlush, sessionStatePatch, type SessionStateValuesPrefetch } from '../common/agentHostSessionStateStore.js';
+import { IAgentHostSessionStateStore, type ISessionStateWorktreeListChanges, readSessionBaseBranch, SessionStateDeletedError, SessionStateMirrorFlush, sessionStatePatch, type SessionStateValuesPrefetch } from '../common/agentHostSessionStateStore.js';
 import { getSessionStateValueKey } from './agentHostSessionStateMirror.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH, tryResolvePrimaryWorktreeRoot } from '../common/agentHostGitService.js';
 import { IAgentHostSubscriptionService, resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
@@ -104,9 +104,9 @@ import { type IAddSessionWorkingDirectoryOptions, type IAgentServiceSessionServe
 import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, parseSessionWorkingDirectories, persistSessionMetadataValues, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY, SESSION_WORKING_DIRECTORIES_KEY } from './shared/persistSessionMetadata.js';
 import { type IArtifactServerToolAccessor } from './shared/artifactServerTools.js';
 import { SessionArtifacts } from './shared/sessionArtifacts.js';
-import { ADDITIONAL_WORKTREES_METADATA_KEY, readSessionAdditionalWorktrees, writeSessionAdditionalWorktrees, type ISessionAdditionalWorktree } from './shared/sessionAdditionalWorktrees.js';
+import { readSessionAdditionalWorktrees, writeSessionAdditionalWorktrees, type ISessionAdditionalWorktree } from './shared/sessionAdditionalWorktrees.js';
 import { sessionWorktreeFolderRepositoryRoot, WORKTREE_FOLDERS_KEY, withSessionWorktreeFolders } from './shared/sessionWorktreeFolders.js';
-import { AgentHostWorktreeCoOwnership, type ISessionWorktreeRecords, type IWorktreeMoveDecisions, type IWorktreeWithholding, planWorktreeMove, presentedWorktreeFolders, withoutTransferred, withTransferred } from './agentHostWorktreeCoOwnership.js';
+import { AgentHostWorktreeCoOwnership, type ISessionWorktreeRecords, type IWorktreeMoveDecisions, type IWorktreeWithholding, planWorktreeMove, presentedWorktreeFolders } from './agentHostWorktreeCoOwnership.js';
 import { parseSessionArtifacts, readSessionArtifacts, SessionArtifactType, stringifySessionArtifacts, withSessionArtifacts, type ISessionArtifact } from '../common/sessionArtifacts.js';
 import { SessionArtifactCollection } from '../common/sessionArtifactCollection.js';
 import { AgentHostCatalogDatabaseReference, AgentHostCatalogSyncService, IAgentHostCatalogSyncRequest } from './agentHostCatalogSyncService.js';
@@ -6583,7 +6583,7 @@ export class AgentService extends Disposable implements IAgentService {
 						expectedTargetCatalogRevision: catalogs.get(targetKey) ?? 0,
 						folders,
 						coOwnedWorktrees: plan.coOwned,
-						values: await this._movedWorktreeValues(session, target, chatKey, plan, handOver, sessionMove, targetPrimaryWorktree),
+						worktreeLists: this._movedWorktreeLists(chatKey, plan, handOver, sessionMove, targetPrimaryWorktree),
 					};
 					return sessionMove ? this._sessionStateStore.moveSession(move) : this._sessionStateStore.moveChat(move);
 				};
@@ -6885,13 +6885,6 @@ export class AgentService extends Disposable implements IAgentService {
 				if (config) {
 					values.configValues = JSON.stringify(getPersistedSessionConfigValues(config.values, this._configurationService.getSessionSandboxEnabled(sourceKey), undefined));
 				}
-				const transferred = withTransferred([], plan.transfers);
-				if (transferred !== null) {
-					values[ADDITIONAL_WORKTREES_METADATA_KEY] = transferred;
-				}
-				if (promotedWorktreeFolders !== null) {
-					values[WORKTREE_FOLDERS_KEY] = promotedWorktreeFolders;
-				}
 				const commit = async () => this._sessionStateStore.promoteChat({
 					source: session,
 					target,
@@ -6909,9 +6902,7 @@ export class AgentService extends Disposable implements IAgentService {
 							.map(candidate => candidate.workingDirectories ?? sourceFolders),
 					},
 					coOwnedWorktrees: plan.coOwned,
-					sourceValues: plan.transfers.length > 0
-						? { [ADDITIONAL_WORKTREES_METADATA_KEY]: withoutTransferred(await readSessionAdditionalWorktrees(this._sessionStateStore, session), plan.transfers) }
-						: {},
+					worktreeLists: this._movedWorktreeLists(chatKey, plan, undefined, false, undefined),
 				});
 				let result = await commit();
 				if (result.status === 'olderBuildEdits') {
@@ -7184,23 +7175,18 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
-	/** The session values a move's worktree records change in its transaction: transferred additional worktrees leave the source and join the target. */
-	private async _movedWorktreeValues(source: URI, target: URI, chat: string, plan: IWorktreeMoveDecisions, handOver: IWorktreeHandOver | undefined, sessionMove: boolean, targetPrimary: string | undefined): Promise<{ readonly source: Record<string, string | null>; readonly target: Record<string, string | null> }> {
-		const handedOver = handOver ? [{ handle: handOver.handle, workingDirectory: handOver.workingDirectory, repositoryRoot: handOver.repositoryRoot, chat }] : [];
-		const values: { readonly source: Record<string, string | null>; readonly target: Record<string, string | null> } = { source: {}, target: {} };
-		if (plan.transfers.length > 0 || handedOver.length > 0) {
+	/**
+	 * The worktree list changes a move makes (Block 5): transferred records leave the source and join the target (with
+	 * a handed-over worktree), and the target records the shared worktrees it presents. The store applies them to the
+	 * lists as they are when it commits, never to a copy read before.
+	 */
+	private _movedWorktreeLists(chat: string, plan: IWorktreeMoveDecisions, handOver: IWorktreeHandOver | undefined, sessionMove: boolean, targetPrimary: string | undefined): ISessionStateWorktreeListChanges {
+		return {
 			// A session that ends by the move keeps none: its central state is tombstoned in the same transaction.
-			if (!sessionMove) {
-				values.source[ADDITIONAL_WORKTREES_METADATA_KEY] = withoutTransferred(await readSessionAdditionalWorktrees(this._sessionStateStore, source), plan.transfers);
-			}
-			values.target[ADDITIONAL_WORKTREES_METADATA_KEY] = withTransferred(await readSessionAdditionalWorktrees(this._sessionStateStore, target), [...plan.transfers, ...handedOver]);
-		}
-		// The target knows the shared worktrees the moved chats work in as worktrees, from what the move recorded (central only).
-		const presented = presentedWorktreeFolders(plan.presented, targetPrimary);
-		if (presented.length > 0) {
-			values.target[WORKTREE_FOLDERS_KEY] = withSessionWorktreeFolders((await this._sessionStateStore.readWithoutImport(target, [WORKTREE_FOLDERS_KEY])).get(WORKTREE_FOLDERS_KEY), presented);
-		}
-		return values;
+			fromSource: sessionMove ? [] : plan.transfers.map(transfer => transfer.handle),
+			toTarget: [...plan.transfers, ...(handOver ? [{ handle: handOver.handle, workingDirectory: handOver.workingDirectory, repositoryRoot: handOver.repositoryRoot, chat }] : [])],
+			targetFolders: presentedWorktreeFolders(plan.presented, targetPrimary),
+		};
 	}
 
 	/** Undoes what a refused move prepared for its worktrees: older builds see a branch it withheld again, and a hand-over record is dropped. */

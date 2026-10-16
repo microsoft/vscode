@@ -32384,6 +32384,32 @@ suite('AgentService (node dispatcher)', () => {
 					});
 				});
 
+				test('a transferred worktree joins the target\'s list as it is when the move commits: one another chat created meanwhile stays listed (M3, Block 5)', async () => {
+					const { service, source, target, peer } = await setupFolders();
+					const store = getTestSessionStateStore(service);
+					const handle = generateUuid();
+					const concurrent = { handle: generateUuid(), workingDirectory: URI.file('/workspace/created-meanwhile').toString(), repositoryRoot: URI.file('/main').toString(), chat: buildDefaultChatUri(target) };
+					setTestAgentHostWorktreeIsolation(service, createTestAgentHostWorktreeIsolation({
+						readDetachedWorktreeForRemoval: async candidate => candidate === handle ? { worktree: other, repositoryRoot: URI.file('/main'), branchName: 'agents/other' } : undefined,
+					}));
+					await writeSessionAdditionalWorktrees(store, source, [{ handle, workingDirectory: other.toString(), repositoryRoot: URI.file('/main').toString(), chat: peer.toString() }]);
+					await timeout(0);
+					const internals = service as unknown as IMoveInternals;
+					const moveChat = internals._sessionStateStore.moveChat.bind(internals._sessionStateStore);
+					internals._sessionStateStore.moveChat = async move => {
+						// A chat of the target created its worktree after the move planned its worktree lists.
+						await writeSessionAdditionalWorktrees(store, target, [concurrent]);
+						return moveChat(move);
+					};
+
+					await service.moveChat(source, peer, { kind: 'session', session: target, after: undefined });
+
+					assert.deepStrictEqual({
+						target: (await readSessionAdditionalWorktrees(store, target)).map(entry => entry.handle).sort(),
+						source: (await readSessionAdditionalWorktrees(store, source)).length,
+					}, { target: [concurrent.handle, handle].sort(), source: 0 });
+				});
+
 				test('the source of a promoted chat lets go of the folders no remaining chat uses', async () => {
 					const { service, source, peer, foldersOf } = await setupFolders();
 					completeTurn(service, peer);

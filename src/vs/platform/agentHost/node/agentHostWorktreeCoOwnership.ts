@@ -180,18 +180,6 @@ export function presentedWorktreeFolders(presented: readonly IWorktreeCoOwnedFol
 		.map(folder => ({ workingDirectory: folder.worktreePath, repositoryRoot: folder.repositoryRoot, branch: folder.branch }));
 }
 
-/** The additional worktree list after a move removes `transfers` from it, as a session value (`null` when empty). */
-export function withoutTransferred(worktrees: readonly ISessionAdditionalWorktree[], transfers: readonly ISessionAdditionalWorktree[]): string | null {
-	const remaining = worktrees.filter(worktree => !transfers.some(transfer => transfer.handle === worktree.handle));
-	return remaining.length > 0 ? JSON.stringify(remaining) : null;
-}
-
-/** The additional worktree list after a move adds `transfers` to it, as a session value. */
-export function withTransferred(worktrees: readonly ISessionAdditionalWorktree[], transfers: readonly ISessionAdditionalWorktree[]): string | null {
-	const added = [...worktrees.filter(worktree => !transfers.some(transfer => transfer.handle === worktree.handle)), ...transfers];
-	return added.length > 0 ? JSON.stringify(added) : null;
-}
-
 /**
  * The worktree side of moving chats between sessions (Block 5): reads what a move needs, withholds a shared
  * worktree's branch from older builds, hands records over in the order older builds rely on, and stops withholding

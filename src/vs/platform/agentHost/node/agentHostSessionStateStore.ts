@@ -14,7 +14,7 @@ import { ChatOriginKind } from '../common/state/protocol/state.js';
 import { ILogService } from '../../log/common/log.js';
 import { DETACHED_WORKTREE_OWNER_SCHEME } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
-import { baseBranchFolderKey, chatMoveFolderTransfers, IAgentHostSessionStateStore, type ISessionStateChange, ISessionStateChatMove, ISessionStateChatPromotion, type ISessionStateWorktreeCoOwner, SessionStateChatMoveResult, SessionStateChatPromotionResult, ISessionStateChatEntry, ISessionStateKnownCatalog, ISessionStateExclusive, ISessionStateFolderEntry, ISessionStateFolderPatch, ISessionStateLegacyMetadata, ISessionStateMetadataReader, ISessionStateMetadataReference, ISessionStatePatch, ISessionStateSnapshot, readSessionBaseBranch, SessionStateDeletedError, SessionStateFolderKind, SessionStateNotASessionError, SessionStateMirrorFlush, sessionStatePatch, SessionStateValuesPrefetch, ISessionStateValuesPrefetchEntry } from '../common/agentHostSessionStateStore.js';
+import { baseBranchFolderKey, chatMoveFolderTransfers, IAgentHostSessionStateStore, type ISessionStateChange, ISessionStateChatMove, ISessionStateChatPromotion, type ISessionStateWorktreeCoOwner, type ISessionStateWorktreeListChanges, SessionStateChatMoveResult, SessionStateChatPromotionResult, ISessionStateChatEntry, ISessionStateKnownCatalog, ISessionStateExclusive, ISessionStateFolderEntry, ISessionStateFolderPatch, ISessionStateLegacyMetadata, ISessionStateMetadataReader, ISessionStateMetadataReference, ISessionStatePatch, ISessionStateSnapshot, readSessionBaseBranch, SessionStateDeletedError, SessionStateFolderKind, SessionStateNotASessionError, SessionStateMirrorFlush, sessionStatePatch, SessionStateValuesPrefetch, ISessionStateValuesPrefetchEntry } from '../common/agentHostSessionStateStore.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { AgentHostChatRowStore } from './agentHostChatRowStore.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
@@ -22,6 +22,8 @@ import type { IAgentHostSessionChatStateData, IAgentHostSessionChatStateFields, 
 import { BASE_BRANCH_MIRROR_KEY, COPILOT_LAUNCH_DIRECTORY_KEYS, getSessionStateValueKey, IMirrorReadPlan, isProjectedMirrorEntry, isRetiredLegacyKey, legacyMapWritePatch, legacyWriteEntry, ILiveChat, baseBranchSources, CHAT_WORKING_DIRECTORIES_MIRROR_KEY, MirrorReads, mergePatches, mirroredChatFields, mirrorEntryId, observedMirrorEntries, observeLegacyArchived, observeMirrorEntry, parseMirrorEntryId, patchFromMirror, patchMirrorEntries, planMirrorReads, renderLegacyMetadata, renderMirrorWrites, renderOlderBuildEntry, CENTRAL_SESSION_STATE_VALUE_KEYS, sessionFolderKey, SessionStateMirrorEntry, SessionStateModel } from './agentHostSessionStateMirror.js';
 import { META_GITHUB_STATE } from '../common/agentHostGitStateService.js';
 import { SESSION_WORKING_DIRECTORIES_KEY } from './shared/persistSessionMetadata.js';
+import { ADDITIONAL_WORKTREES_METADATA_KEY, parseSessionAdditionalWorktrees } from './shared/sessionAdditionalWorktrees.js';
+import { withSessionWorktreeFolders, WORKTREE_FOLDERS_KEY } from './shared/sessionWorktreeFolders.js';
 import { creationTimeChatStorageResource, mirrorsAtChatUri } from './agentHostStateManager.js';
 
 /** Coalescing window of the old-format mirror writes. */
@@ -644,7 +646,8 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 					expectedTargetRevision: target.model.revision,
 					chats: [{ chat, workingDirectories: move.folders.chat }],
 					folders: transfers,
-					values: move.values,
+					// Applied to the lists as they are now, under both sessions' sections.
+					values: worktreeListValues(source.model, target.model, move.worktreeLists, endSource),
 				},
 				coOwnedWorktrees: move.coOwnedWorktrees,
 			});
@@ -713,8 +716,8 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 					importVersion: SESSION_STATE_IMPORT_VERSION,
 					importedAt: Date.now(),
 					legacyMirrorBase: serializeBase(new Map()),
-					values: promotion.values,
-					sourceValues: promotion.sourceValues,
+					values: { ...promotion.values, ...newSessionWorktreeListValues(promotion.worktreeLists) },
+					sourceValues: worktreeListValues(source.model, undefined, promotion.worktreeLists, false).source,
 					chats: [{ chat, workingDirectories: promotion.folders.chat }],
 					folders: transfers,
 				},
@@ -1375,4 +1378,30 @@ class CurrentSessionStateValuesPrefetch extends Map<string, ISessionStateValuesP
 	override get(session: string): ISessionStateValuesPrefetchEntry | undefined {
 		return this.has(session) ? super.get(session) : undefined;
 	}
+}
+
+/** The session values a move's worktree list changes write, from each list's current value. A session that ended keeps none. */
+function worktreeListValues(source: SessionStateModel, target: SessionStateModel | undefined, changes: ISessionStateWorktreeListChanges, endSource: boolean): { readonly source: Record<string, string | null>; readonly target: Record<string, string | null> } {
+	const values: { readonly source: Record<string, string | null>; readonly target: Record<string, string | null> } = { source: {}, target: {} };
+	if (changes.fromSource.length > 0 && !endSource) {
+		const remaining = parseSessionAdditionalWorktrees(source.values.get(ADDITIONAL_WORKTREES_METADATA_KEY)?.value).filter(worktree => !changes.fromSource.includes(worktree.handle));
+		values.source[ADDITIONAL_WORKTREES_METADATA_KEY] = remaining.length > 0 ? JSON.stringify(remaining) : null;
+	}
+	if (target && changes.toTarget.length > 0) {
+		const listed = parseSessionAdditionalWorktrees(target.values.get(ADDITIONAL_WORKTREES_METADATA_KEY)?.value).filter(worktree => !changes.toTarget.some(added => added.handle === worktree.handle));
+		values.target[ADDITIONAL_WORKTREES_METADATA_KEY] = JSON.stringify([...listed, ...changes.toTarget]);
+	}
+	if (target && changes.targetFolders.length > 0) {
+		values.target[WORKTREE_FOLDERS_KEY] = withSessionWorktreeFolders(target.values.get(WORKTREE_FOLDERS_KEY)?.value, changes.targetFolders);
+	}
+	return values;
+}
+
+/** A promoted chat's new session's worktree lists: only what the promotion brings. */
+function newSessionWorktreeListValues(changes: ISessionStateWorktreeListChanges): Record<string, string> {
+	const folders = withSessionWorktreeFolders(undefined, changes.targetFolders);
+	return {
+		...(changes.toTarget.length > 0 ? { [ADDITIONAL_WORKTREES_METADATA_KEY]: JSON.stringify(changes.toTarget) } : {}),
+		...(folders !== null ? { [WORKTREE_FOLDERS_KEY]: folders } : {}),
+	};
 }
