@@ -575,6 +575,7 @@ class CIHarness extends Disposable {
 			client, session: 'session', chat: 'session', folderKey: 'folder', turnId: 'turn', ref, headSha: 'head', actions: ['fixCI'],
 			configuration: { ...defaultAgentMergeConfiguration, fixCI: true }, snapshot: this.snapshot.get(), signal: abort.signal,
 			commentWatermark: '', deferredCheckIds: this.deferred, initialDeferredCheckIds: new Set(), deferWorkflowRerun: () => false,
+			trackReviewReply: () => { assert.fail('Unexpected review reply in a CI turn'); },
 		};
 		const logService = new NullLogService();
 		const stateManager = this._register(new AgentHostStateManager(logService));
@@ -606,6 +607,6 @@ function makeSnapshot(count: number, headSha = 'head'): PullRequestSnapshot {
 			},
 		},
 		checks: { status: 'ready', complete: true, headSha, value: { headSha, requirednessComplete: true, expectedSuitesComplete: true, expectedSuites: [], checks } },
-		topLevelComments: missing, submittedReviews: missing, inlineComments: missing, reviewThreads: missing, mergeability: missing, participants: missing,
+		topLevelComments: missing, submittedReviews: missing, reviewThreads: missing, mergeability: missing,
 	};
 }

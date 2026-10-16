@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { DisposableStore, DisposableTracker, IDisposable, IReference, MutableDisposable, setDisposableTracker, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { $, ModifierKeyEmitter } from '../../../../base/browser/dom.js';
+import { getBaseLayerHoverDelegate, setBaseLayerHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate2.js';
 // eslint-disable-next-line local/code-import-patterns
 import '../../../../../../build/vite/style.css';
 import '../../../browser/media/style.css';
@@ -175,6 +176,9 @@ sourceMapSupport.install({
  */
 class NullStorageService implements IStorageService {
 
+	async readApplicationSharedValue(): Promise<string | undefined> { return undefined; }
+	async compareAndSwapApplicationSharedValue(): Promise<{ swapped: boolean; currentValue: string | undefined }> { return { swapped: false, currentValue: undefined }; }
+
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _onDidChangeValue = new Emitter<IStorageValueChangeEvent>();
@@ -289,12 +293,13 @@ function toThemeJsonText(theme: string | object): string {
 	return typeof theme === 'string' ? theme : JSON.stringify(theme);
 }
 
-export type ComponentFixtureFileIconTheme = 'none' | 'vs-seti' | 'vs-minimal';
+export type ComponentFixtureFileIconTheme = 'none' | 'vs-seti' | 'vs-minimal' | 'vscode-modern-icons';
 type BuiltInComponentFixtureFileIconTheme = Exclude<ComponentFixtureFileIconTheme, 'none'>;
 
 const fileIconThemeResources = {
 	'vs-seti': URI.parse(new URL('./extensions/theme-seti/icons/vs-seti-icon-theme.json', document.baseURI).href),
 	'vs-minimal': URI.parse(new URL('./extensions/theme-defaults/fileicons/vs_minimal-icon-theme.json', document.baseURI).href),
+	'vscode-modern-icons': URI.parse(new URL('./extensions/theme-modern-icons/fileicons/vscode-modern-icons-icon-theme.json', document.baseURI).href),
 } satisfies Record<BuiltInComponentFixtureFileIconTheme, URI>;
 const fileIconThemeResourceUrls = new Set(Object.values(fileIconThemeResources).map(resource => resource.toString(true)));
 
@@ -367,6 +372,7 @@ const fileIconThemes = {
 	none: FileIconThemeData.noIconTheme,
 	'vs-seti': createBuiltInFileIconTheme('vs-seti', 'vscode-theme-seti'),
 	'vs-minimal': createBuiltInFileIconTheme('vs-minimal', 'theme-defaults'),
+	'vscode-modern-icons': createBuiltInFileIconTheme('vscode-modern-icons', 'vscode-modern-icons'),
 } satisfies Record<ComponentFixtureFileIconTheme, FileIconThemeData>;
 const defaultFileIconTheme = fileIconThemes['vs-seti'];
 
@@ -448,6 +454,7 @@ export async function setupTheme(
 	container.classList.add('component-fixture', 'monaco-workbench', getPlatformClass(), 'disable-animations', ...theme.classNames);
 	fileIconThemeScope.classList.toggle('component-fixture-file-icon-theme-vs-seti', fileIconThemeId === 'vs-seti');
 	fileIconThemeScope.classList.toggle('component-fixture-file-icon-theme-vs-minimal', fileIconThemeId === 'vs-minimal');
+	fileIconThemeScope.classList.toggle('component-fixture-file-icon-theme-vscode-modern-icons', fileIconThemeId === 'vscode-modern-icons');
 	if (fileIconThemeClassName) {
 		container.classList.add('file-icons-enabled');
 	}
@@ -1019,6 +1026,52 @@ export class DisposableStackStore implements IDisposable {
 	}
 }
 
+const fixtureHoverServices = new Map<HTMLElement, IHoverService>();
+let constructingFixtureHoverService: IHoverService | undefined;
+let restoreFixtureHoverDelegate: (() => void) | undefined;
+
+/** Registers scoped base-layer hover routing; the returned callback ends synchronous widget construction. */
+export function registerFixtureHoverService(container: HTMLElement, service: IHoverService, store: DisposableStore): () => void {
+	if (!restoreFixtureHoverDelegate) {
+		const fallback = getBaseLayerHoverDelegate();
+		const delegate: typeof fallback = {
+			showInstantHover: (...args) => fallback.showInstantHover(...args),
+			showDelayedHover: (...args) => fallback.showDelayedHover(...args),
+			setupDelayedHover: (...args) => fallback.setupDelayedHover(...args),
+			setupDelayedHoverAtMouse: (...args) => fallback.setupDelayedHoverAtMouse(...args),
+			hideHover: (...args) => fallback.hideHover(...args),
+			showAndFocusLastHover: () => fallback.showAndFocusLastHover(),
+			showManagedHover: target => fallback.showManagedHover(target),
+			setupManagedHover: (options, target, content, hoverOptions) => {
+				for (let element: HTMLElement | null = target; element; element = element.parentElement) {
+					const owner = fixtureHoverServices.get(element);
+					if (owner) {
+						return owner.setupManagedHover(options, target, content, hoverOptions);
+					}
+				}
+				return (constructingFixtureHoverService ?? fallback).setupManagedHover(options, target, content, hoverOptions);
+			},
+		};
+		setBaseLayerHoverDelegate(delegate);
+		restoreFixtureHoverDelegate = () => {
+			if (getBaseLayerHoverDelegate() === delegate) {
+				setBaseLayerHoverDelegate(fallback);
+			}
+		};
+	}
+	fixtureHoverServices.set(container, service);
+	store.add(toDisposable(() => {
+		fixtureHoverServices.delete(container);
+		if (fixtureHoverServices.size === 0) {
+			restoreFixtureHoverDelegate?.();
+			restoreFixtureHoverDelegate = undefined;
+		}
+	}));
+	const previous = constructingFixtureHoverService;
+	constructingFixtureHoverService = service;
+	return () => { constructingFixtureHoverService = previous; };
+}
+
 export interface ComponentFixtureContext {
 	container: HTMLElement;
 	disposableStore: DisposableStore;
@@ -1029,6 +1082,8 @@ export interface ComponentFixtureContext {
 	readonly input: unknown;
 	/** Whether deterministic fixture focus overrides natural browser focus. */
 	readonly overrideFocus: boolean;
+	/** Whether the fixture is being explored rather than captured headlessly. */
+	readonly isInteractive: boolean;
 	/** Fires after the shared Enable Animations control changes the fixture container state. */
 	readonly onDidChangeEnableAnimations: Event<boolean>;
 	/** Applies initial focus only while deterministic fixture focus is enabled. */
@@ -1056,6 +1111,24 @@ type ThemedFixtures = ReturnType<typeof defineFixtureVariants>;
 // Permanent logging layer that detects real timer API usage.
 // Includes handler source for identification since bundled stack traces are not useful.
 const realTimeApi = captureGlobalTimeApi();
+
+/** Waits for browser-owned readiness without advancing the fixture's virtual clock. */
+export async function waitForFixtureCondition(condition: () => boolean, message: string): Promise<void> {
+	const requestAnimationFrame = realTimeApi.requestAnimationFrame;
+	if (!requestAnimationFrame) {
+		throw new Error('Fixture readiness requires browser animation frames');
+	}
+	let stableFrames = 0;
+	for (let frame = 0; frame < 120; frame++) {
+		await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+		stableFrames = condition() ? stableFrames + 1 : 0;
+		if (stableFrames === 3) {
+			return;
+		}
+	}
+	throw new Error(message);
+}
+
 const logOutsideTime = false;
 if (logOutsideTime) {
 	const loggingTimeApi = createLoggingTimeApi(realTimeApi, (name, stack, handler) => {
@@ -1246,6 +1319,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 						fileIconTheme,
 						input: context.input,
 						overrideFocus: input.overrideFocus,
+						isInteractive: context.host.kind !== 'headless',
 						onDidChangeEnableAnimations: onDidChangeEnableAnimations.event,
 						focus: target => applyFixtureFocus(input.overrideFocus, target),
 					});

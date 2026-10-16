@@ -8,8 +8,10 @@ import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/
 import { URI } from '../../../../../base/common/uri.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { AuthRequiredReason } from '../../../../../platform/agentHost/common/state/sessionActions.js';
+import { type ProtectedResourceMetadata } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IAgentHostAuthenticateRequest } from '../agentSessions/agentHost/agentHostAuth.js';
+import { IChatSessionContentProvider } from '../../common/chatSessionsService.js';
 
 /** Optional startup preparation for a selected workspace, returning a replacement host directory when needed. */
 export type RemoteAgentHostSessionPreparation = (selection: URI | undefined, token: CancellationToken) => Promise<URI | undefined>;
@@ -19,11 +21,17 @@ export type RemoteAgentHostSessionPreparation = (selection: URI | undefined, tok
  * host-agnostic remote-agent-host contribution. Connections with no customization are unaffected.
  */
 export interface IRemoteAgentHostConnectionCustomization {
+	/** Whether this managed connection requires workspace trust. Defaults to true. */
+	readonly requiresWorkspaceTrust?: boolean;
+
 	/**
 	 * Transform the outgoing `authenticate` request before it is sent. Must fail closed: throw rather
 	 * than forward a value that does not meet the host's contract. An expired challenge requires renewal.
 	 */
 	readonly authenticate?: (request: IAgentHostAuthenticateRequest, reason?: AuthRequiredReason) => Promise<IAgentHostAuthenticateRequest>;
+
+	/** Resolves a fresh connection-owned credential for an expired challenge without requiring a new user sign-in. */
+	readonly renewAuthentication?: (resource: ProtectedResourceMetadata) => Promise<IAgentHostAuthenticateRequest>;
 
 	/**
 	 * The backend session URI scheme for an agent provider when it differs from the provider itself.
@@ -33,6 +41,18 @@ export interface IRemoteAgentHostConnectionCustomization {
 
 	/** Creates connection-scoped startup preparation, invoked only for new sessions after authentication. */
 	readonly createSessionPreparation?: (connection: IAgentConnection, store: DisposableStore) => RemoteAgentHostSessionPreparation;
+
+	/** Optionally retains a content provider across its initial history-to-live transition. */
+	readonly registerChatSessionContentProvider?: (sessionType: string, provider: IChatSessionContentProvider) => IDisposable | undefined;
+
+	/** Configuration a session this client provisioned is created with; forwarded to the session handler's `resolveInitialSessionConfig`. */
+	readonly resolveInitialSessionConfig?: (sessionResource: URI) => Record<string, unknown> | undefined;
+
+	/** Vendors whose model identifiers also address this connection's models; forwarded to the session handler's `modelIdentifierAliases`. */
+	readonly modelIdentifierAliases?: readonly string[];
+
+	/** Whether a title the host reports is a stand-in (e.g. the session id) rather than a title to show; forwarded to the session handler's `isSessionTitlePlaceholder`. */
+	readonly isSessionTitlePlaceholder?: (title: string, sessionResource: URI) => boolean;
 }
 
 /** Builds a {@link IRemoteAgentHostConnectionCustomization} for a concrete connection address. */

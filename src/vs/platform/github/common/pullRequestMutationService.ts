@@ -17,8 +17,6 @@ import {
 	GitHubWorkflowLog,
 	GitHubWorkflowRerunOptions,
 	GitHubWorkflowRun,
-	PullRequestBranchUpdateOptions,
-	PullRequestCommentOptions,
 	PullRequestEnqueueResult,
 	PullRequestMergeAuthorization,
 	PullRequestMergeOptions,
@@ -30,10 +28,10 @@ import {
 	PullRequestReplyAndResolveOptions,
 	PullRequestReplyAndResolveResult,
 	PullRequestReplyOptions,
+	PullRequestReplyResult,
 } from './githubPullRequestMutationService.js';
 import { GitHubRepositoryRef } from './githubQueryService.js';
 import {
-	PullRequestComment,
 	GitHubFragmentError,
 	PullRequestInlineComment,
 	PullRequestRef,
@@ -44,7 +42,7 @@ import {
 import { GitHubRequestTimeoutError, IGitHubEndpointProvider } from './githubTypes.js';
 import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from './githubCredentialService.js';
 import { arrayProperty, asArray, asObject, booleanProperty, idProperty, nextLink, normalizedEnumProperty, nullableStringProperty, numberProperty, objectAt, optionalObjectProperty, requiredId, requiredNumber, requiredString, stringProperty } from './githubResponse.js';
-import { IGitHubScheduler, systemGitHubScheduler } from './githubScheduler.js';
+import { IRequestScheduler, systemRequestScheduler } from './scheduler.js';
 import { GitHubGraphQLError, GitHubRequestError, IGitHubTransport } from './githubTransport.js';
 import { IPullRequestResources } from './pullRequestResourceService.js';
 import { PullRequestScheduler } from './pullRequestScheduler.js';
@@ -74,7 +72,7 @@ const mergePreparationLifetime = 5 * 60_000;
 // limits are still tracked from the `x-ratelimit-*` response headers by the transport.
 const addReviewThreadReplyMutation = `mutation AgentHostAddPullRequestReviewThreadReply($threadId: ID!, $body: String!) {
 	addPullRequestReviewThreadReply(input: { pullRequestReviewThreadId: $threadId, body: $body }) {
-		comment { id databaseId body url createdAt updatedAt author { login ... on User { databaseId } } }
+		comment { id databaseId body url createdAt updatedAt state author { login ... on User { databaseId } } }
 	}
 }`;
 
@@ -116,7 +114,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 	private readonly _preparationScheduler: PullRequestScheduler;
 
 	constructor(
-		scheduler: IGitHubScheduler | undefined,
+		scheduler: IRequestScheduler | undefined,
 		private readonly _credentials: IGitHubCredentials,
 		private readonly _transport: IGitHubTransport,
 		private readonly _resources: IPullRequestResources,
@@ -124,12 +122,12 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 		private readonly _logService?: ILogService,
 	) {
 		super();
-		this._clock = scheduler ?? systemGitHubScheduler;
+		this._clock = scheduler ?? systemRequestScheduler;
 		this._preparationScheduler = this._register(new PullRequestScheduler(this._clock));
 		this._register(this._credentials.onDidInvalidate(event => this._handleCredentialInvalidation(event)));
 	}
 
-	private readonly _clock: IGitHubScheduler;
+	private readonly _clock: IRequestScheduler;
 
 	createPullRequest(
 		ref: GitHubRepositoryRef,
@@ -211,29 +209,6 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 		});
 	}
 
-	addComment(
-		ref: PullRequestRef,
-		options: PullRequestCommentOptions,
-		signal: AbortSignal,
-	): Promise<PullRequestMutationResult<PullRequestComment>> {
-		return this._serialize(ref, 'addComment', () => this._addComment(ref, options, signal));
-	}
-
-	replyToThread(
-		ref: PullRequestRef,
-		options: PullRequestReplyOptions,
-		signal: AbortSignal,
-	): Promise<PullRequestMutationResult<PullRequestInlineComment>> {
-		return this._serialize(ref, 'replyToThread', () => this._replyToThread(ref, options, signal));
-	}
-
-	resolveThread(ref: PullRequestRef, threadId: string, signal: AbortSignal): Promise<void> {
-		return this._serialize(ref, 'resolveThread', async () => {
-			await this._resolveThread(ref, threadId, signal);
-			this._resources.invalidatePullRequest(ref, ['reviewThreads']);
-		});
-	}
-
 	replyAndResolveThread(
 		ref: PullRequestRef,
 		options: PullRequestReplyAndResolveOptions,
@@ -241,7 +216,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 	): Promise<PullRequestReplyAndResolveResult> {
 		return this._serialize(ref, 'replyAndResolveThread', async () => {
 			const reply = await this._replyToThread(ref, options, signal);
-			if (reply.outcome === 'indeterminate' || !options.resolve) {
+			if (!options.resolve || (reply.outcome !== 'succeeded' && reply.outcome !== 'reconciled')) {
 				return { reply, resolved: false };
 			}
 			try {
@@ -368,24 +343,6 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 				}
 				return { outcome: 'indeterminate', value: run };
 			}
-		});
-	}
-
-	updateBranch(ref: PullRequestRef, options: PullRequestBranchUpdateOptions, signal: AbortSignal): Promise<void> {
-		return this._serialize(ref, 'updateBranch', async () => {
-			if (!options.expectedHeadSha) {
-				throw new Error('A branch update requires the expected head SHA');
-			}
-			await this._withCredential(ref, signal, async (credential, combinedSignal) => {
-				await this._transport.rest(credential.account, credential.token, {
-					caller: 'github.mutations',
-					method: 'PUT',
-					url: this._restUrl(ref, `pulls/${ref.number}/update-branch`),
-					body: { expected_head_sha: options.expectedHeadSha },
-					priority: 'mutation',
-				}, combinedSignal);
-			});
-			this._resources.invalidatePullRequest(ref, ['core', 'checks', 'mergeability']);
 		});
 	}
 
@@ -561,70 +518,28 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 		super.dispose();
 	}
 
-	private async _addComment(
-		ref: PullRequestRef,
-		options: PullRequestCommentOptions,
-		signal: AbortSignal,
-	): Promise<PullRequestMutationResult<PullRequestComment>> {
-		const body = withOperationMarker(options.body, options.operationId);
-		try {
-			const value = await this._postComment(ref, body, signal);
-			this._resources.invalidatePullRequest(ref, ['topLevelComments']);
-			return { outcome: 'succeeded', value };
-		} catch (error) {
-			if (!isAmbiguousMutationError(error)) {
-				throw error;
-			}
-			const reconciled = await this._reconcileComment(ref, 'topLevelComments', options.operationId, signal);
-			if (reconciled.proven) {
-				return reconciled.value
-					? { outcome: 'reconciled', value: reconciled.value as PullRequestComment }
-					: this._retryComment(ref, body, signal);
-			}
-			return { outcome: 'indeterminate' };
-		}
-	}
-
 	private async _replyToThread(
 		ref: PullRequestRef,
 		options: PullRequestReplyOptions,
 		signal: AbortSignal,
-	): Promise<PullRequestMutationResult<PullRequestInlineComment>> {
+	): Promise<PullRequestReplyResult> {
 		const body = withOperationMarker(options.body, options.operationId);
 		try {
 			const value = await this._postThreadReply(ref, options.threadId, body, signal);
-			this._resources.invalidatePullRequest(ref, ['reviewThreads', 'inlineComments']);
-			return { outcome: 'succeeded', value };
+			this._resources.invalidatePullRequest(ref, ['reviewThreads']);
+			return toThreadReplyResult(value, 'succeeded');
 		} catch (error) {
 			if (!isAmbiguousMutationError(error)) {
 				throw error;
 			}
-			const reconciled = await this._reconcileComment(ref, 'reviewThreads', options.operationId, signal);
+			const reconciled = await this._reconcileThreadReply(ref, options.operationId);
 			if (reconciled.proven) {
 				if (reconciled.value) {
-					this._resources.invalidatePullRequest(ref, ['inlineComments']);
-					return { outcome: 'reconciled', value: reconciled.value as PullRequestInlineComment };
+					return toThreadReplyResult(reconciled.value, 'reconciled');
 				}
 				return this._retryThreadReply(ref, options.threadId, body, signal);
 			}
 			return { outcome: 'indeterminate' };
-		}
-	}
-
-	private async _retryComment(
-		ref: PullRequestRef,
-		body: string,
-		signal: AbortSignal,
-	): Promise<PullRequestMutationResult<PullRequestComment>> {
-		try {
-			const value = await this._postComment(ref, body, signal);
-			this._resources.invalidatePullRequest(ref, ['topLevelComments']);
-			return { outcome: 'succeeded', value };
-		} catch (error) {
-			if (isAmbiguousMutationError(error)) {
-				return { outcome: 'indeterminate' };
-			}
-			throw error;
 		}
 	}
 
@@ -633,30 +548,17 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 		threadId: string,
 		body: string,
 		signal: AbortSignal,
-	): Promise<PullRequestMutationResult<PullRequestInlineComment>> {
+	): Promise<PullRequestReplyResult> {
 		try {
 			const value = await this._postThreadReply(ref, threadId, body, signal);
-			this._resources.invalidatePullRequest(ref, ['reviewThreads', 'inlineComments']);
-			return { outcome: 'succeeded', value };
+			this._resources.invalidatePullRequest(ref, ['reviewThreads']);
+			return toThreadReplyResult(value, 'succeeded');
 		} catch (error) {
 			if (isAmbiguousMutationError(error)) {
 				return { outcome: 'indeterminate' };
 			}
 			throw error;
 		}
-	}
-
-	private _postComment(ref: PullRequestRef, body: string, signal: AbortSignal): Promise<PullRequestComment> {
-		return this._withCredential(ref, signal, async (credential, combinedSignal) => {
-			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
-				caller: 'github.mutations',
-				method: 'POST',
-				url: this._restUrl(ref, `issues/${ref.number}/comments`),
-				body: { body },
-				priority: 'mutation',
-			}, combinedSignal);
-			return toComment(response.data);
-		});
 	}
 
 	private _postThreadReply(ref: PullRequestRef, threadId: string, body: string, signal: AbortSignal): Promise<PullRequestInlineComment> {
@@ -696,43 +598,37 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 		});
 	}
 
-	private async _reconcileComment(
+	private async _reconcileThreadReply(
 		ref: PullRequestRef,
-		fragment: 'topLevelComments' | 'reviewThreads',
 		operationId: string,
-		signal: AbortSignal,
-	): Promise<{ readonly proven: boolean; readonly value?: PullRequestComment | PullRequestInlineComment }> {
+	): Promise<{ readonly proven: boolean; readonly value?: PullRequestInlineComment }> {
 		const subscription = this._resources.subscribePullRequest(ref, {
 			priority: 'interactive',
-			conversation: fragment === 'topLevelComments'
-				? { topLevelComments: true, includeBodies: true }
-				: { reviewThreads: true, includeBodies: true },
+			conversation: { reviewThreads: true, includeBodies: true },
 		});
 		try {
 			try {
-				await subscription.refresh(fragment, undefined, { authoritative: true });
+				await subscription.refresh('reviewThreads', undefined, { authoritative: true });
 			} catch {
 				return { proven: false };
 			}
 			const marker = operationMarker(operationId);
-			if (fragment === 'topLevelComments') {
-				const state = subscription.resource.snapshot.get().topLevelComments;
-				if (state.status !== 'ready' || !state.complete || !state.value) {
-					return { proven: false };
-				}
-				return { proven: true, value: state.value.find(comment => comment.body?.includes(marker)) };
-			}
 			const state = subscription.resource.snapshot.get().reviewThreads;
 			if (state.status !== 'ready' || !state.complete || !state.value) {
 				return { proven: false };
 			}
+			let matchingComment: PullRequestInlineComment | undefined;
 			for (const thread of state.value) {
-				const comment = thread.comments.find(candidate => candidate.body?.includes(marker));
-				if (comment) {
-					return { proven: true, value: comment };
+				for (const comment of thread.comments) {
+					if (comment.body?.includes(marker)) {
+						if (matchingComment) {
+							return { proven: false };
+						}
+						matchingComment = comment;
+					}
 				}
 			}
-			return { proven: true };
+			return { proven: true, value: matchingComment };
 		} finally {
 			subscription.dispose();
 		}
@@ -1037,19 +933,6 @@ function pullRequestMutationKey(ref: PullRequestRef): string {
 	].join('\x00');
 }
 
-function toComment(value: unknown): PullRequestComment {
-	const item = asObject(value, 'GitHub comment response was malformed');
-	return {
-		id: requiredId(item, 'id'),
-		nodeId: idProperty(item, 'node_id'),
-		body: nullableStringProperty(item, 'body'),
-		url: stringProperty(item, 'html_url'),
-		createdAt: stringProperty(item, 'created_at'),
-		updatedAt: stringProperty(item, 'updated_at'),
-		author: toActor(optionalObjectProperty(item, 'user')),
-	};
-}
-
 function toGraphQLComment(value: unknown): PullRequestInlineComment {
 	const item = asObject(value, 'GitHub reply response was malformed');
 	return {
@@ -1060,7 +943,19 @@ function toGraphQLComment(value: unknown): PullRequestInlineComment {
 		createdAt: stringProperty(item, 'createdAt'),
 		updatedAt: stringProperty(item, 'updatedAt'),
 		author: toActor(optionalObjectProperty(item, 'author')),
+		state: stringProperty(item, 'state'),
 	};
+}
+
+function toThreadReplyResult(value: PullRequestInlineComment, outcome: 'succeeded' | 'reconciled'): PullRequestReplyResult {
+	switch (value.state) {
+		case 'SUBMITTED':
+			return { outcome, value };
+		case 'PENDING':
+			return { outcome: 'pending', value };
+		default:
+			return { outcome: 'indeterminate', value };
+	}
 }
 
 function toWorkflowRun(value: unknown): GitHubWorkflowRun {
@@ -1160,7 +1055,7 @@ function throwGraphQLErrors(errors: readonly GitHubGraphQLError[]): void {
 		return;
 	}
 	const types = errors.map(error => error.type?.toUpperCase());
-	const kind = types.includes('RATE_LIMITED')
+	const kind = types.includes('RATE_LIMIT') || types.includes('RATE_LIMITED')
 		? 'rateLimit'
 		: types.some(type => type === 'FORBIDDEN' || type === 'UNAUTHORIZED')
 			? 'authorization'

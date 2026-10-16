@@ -5,25 +5,29 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { Event } from '../../../../base/common/event.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { META_GITHUB_STATE, META_PENDING_RECORDED_PULL_REQUESTS } from '../../common/agentHostGitStateService.js';
+import { SessionStateMirrorFlush } from '../../common/agentHostSessionStateStore.js';
 import { ArtifactServerToolName } from '../../common/serverToolNames.js';
 import { SessionArtifactCollection } from '../../common/sessionArtifactCollection.js';
 import { readSessionArtifacts, SessionArtifactType, stringifySessionArtifacts, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
-import type { ISessionCatalogSyncPendingSnapshot, ISessionDatabase, SessionCatalogSyncWriteResult } from '../../common/sessionDataService.js';
+import type { ISessionCatalogSyncPendingSnapshot, ISessionDatabase, SessionCatalogSyncWriteResult, SessionCatalogSyncWriteValidator } from '../../common/sessionDataService.js';
 import { ActionType, type ActionEnvelope } from '../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { createArtifactServerToolGroup, type IArtifactServerToolAccessor } from '../../node/shared/artifactServerTools.js';
 import { SessionArtifacts } from '../../node/shared/sessionArtifacts.js';
 import { SESSION_ARTIFACTS_KEY } from '../../node/shared/persistSessionMetadata.js';
+import type { AgentService } from '../../node/agentService.js';
 import type { IAgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { decodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import { createNoopGitService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
-import { createTestAgentService, getTestAgentStateManager, registerTestAgentProvider } from './agentServiceTestUtils.js';
+import { createTestAgentService, getTestAgentStateManager, getTestSessionStateStore, registerTestAgentProvider } from './agentServiceTestUtils.js';
 import { MockAgent } from './mockAgent.js';
 
 suite('Session Artifact Removal', () => {
@@ -51,7 +55,7 @@ suite('Session Artifact Removal', () => {
 		const service = store.add(createTestAgentService(logService, fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 		const agent = store.add(new MockAgent('copilot'));
 		registerTestAgentProvider(service, agent);
-		const session = await service.createSession({ provider: 'copilot' });
+		const session = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
 		const stateManager = getTestAgentStateManager(service);
 		const meta = withSessionArtifacts({
 			...stateManager.getSessionState(session.toString())?._meta,
@@ -73,6 +77,11 @@ suite('Session Artifact Removal', () => {
 			return readSessionArtifacts(decoded.value.data._meta);
 		};
 		return { service, agent, session, stateManager, meta, artifactAccessor: internals._createArtifactServerToolAccessor(), readCentralArtifacts };
+	}
+
+	/** Seeds through the session state store, the owner of the key once the session is open. */
+	function seedPending(service: AgentService, session: URI, value: string): Promise<void> {
+		return getTestSessionStateStore(service).writeMetadata(session, session, { [META_PENDING_RECORDED_PULL_REQUESTS]: value }, SessionStateMirrorFlush.Immediate);
 	}
 
 	function addConcurrentReference({ stateManager, session, artifactAccessor }: Awaited<ReturnType<typeof createFixture>>): Promise<string> {
@@ -123,7 +132,7 @@ suite('Session Artifact Removal', () => {
 			chat: peerChat, folderKey: 'file:///work', workingDirectory: 'file:///work',
 			url: artifacts[0].link, owner: 'microsoft', repo: 'vscode', branchName: 'feature',
 		};
-		await database.setMetadata(META_PENDING_RECORDED_PULL_REQUESTS, JSON.stringify([
+		await seedPending(service, session, JSON.stringify([
 			{ ...peerPending, chat: buildDefaultChatUri(session) },
 			peerPending,
 		]));
@@ -143,12 +152,12 @@ suite('Session Artifact Removal', () => {
 		const writeStarted = new DeferredPromise<void>();
 		const finishWrite = new DeferredPromise<void>();
 		class DelayedDatabase extends TestSessionDatabase {
-			override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult> {
+			override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncWriteResult> {
 				if (values[SESSION_ARTIFACTS_KEY]?.includes('"replacement"')) {
 					await writeStarted.complete();
 					await finishWrite.p;
 				}
-				return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot);
+				return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot, validate);
 			}
 		}
 		const database = new DelayedDatabase();
@@ -158,7 +167,7 @@ suite('Session Artifact Removal', () => {
 			chat: 'recording-chat', folderKey: 'file:///work', workingDirectory: 'file:///work',
 			url: artifacts[0].link, owner: 'microsoft', repo: 'vscode', branchName: 'feature',
 		}]);
-		await database.setMetadata(META_PENDING_RECORDED_PULL_REQUESTS, pending);
+		await seedPending(service, session, pending);
 		const replacement = new SessionArtifacts(stateManager, session.toString(), buildDefaultChatUri(session), artifactAccessor.persist).mutate(collection =>
 			new SessionArtifactCollection(collection.remove('pr').artifacts).add({
 				type: SessionArtifactType.PullRequest, label: 'Replacement', isArtifact: true, link: artifacts[0].link,
@@ -179,11 +188,11 @@ suite('Session Artifact Removal', () => {
 
 	test('reports successful removal when pending-association cleanup fails', async () => {
 		class FailingCleanupDatabase extends TestSessionDatabase {
-			override async deleteMetadata(keys: readonly string[]): Promise<void> {
-				if (keys.includes(META_PENDING_RECORDED_PULL_REQUESTS)) {
+			override async applyMetadataChanges(set: Readonly<Record<string, string>>, remove: readonly string[]): Promise<void> {
+				if (remove.includes(META_PENDING_RECORDED_PULL_REQUESTS)) {
 					throw new Error('cleanup unavailable');
 				}
-				return super.deleteMetadata(keys);
+				return super.applyMetadataChanges(set, remove);
 			}
 		}
 		const warnings: string[] = [];
@@ -196,7 +205,7 @@ suite('Session Artifact Removal', () => {
 			chat: buildDefaultChatUri(session), folderKey: 'file:///work', workingDirectory: 'file:///work',
 			url: artifacts[0].link, owner: 'microsoft', repo: 'vscode', branchName: 'feature',
 		};
-		await database.setMetadata(META_PENDING_RECORDED_PULL_REQUESTS, JSON.stringify([pending]));
+		await seedPending(service, session, JSON.stringify([pending]));
 
 		await service.removeSessionArtifact(session, 'pr');
 
@@ -216,13 +225,13 @@ suite('Session Artifact Removal', () => {
 		const finishWrite = new DeferredPromise<void>();
 		class DelayedDatabase extends TestSessionDatabase {
 			delayNextArtifactWrite = false;
-			override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult> {
+			override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncWriteResult> {
 				if (this.delayNextArtifactWrite && values[SESSION_ARTIFACTS_KEY] !== undefined) {
 					this.delayNextArtifactWrite = false;
 					await writeStarted.complete();
 					await finishWrite.p;
 				}
-				return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot);
+				return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot, validate);
 			}
 		}
 		const database = new DelayedDatabase();
@@ -267,14 +276,14 @@ suite('Session Artifact Removal', () => {
 		const finishWrite = new DeferredPromise<void>();
 		class FailingDelayedDatabase extends TestSessionDatabase {
 			failNextArtifactWrite = false;
-			override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult> {
+			override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncWriteResult> {
 				if (this.failNextArtifactWrite && values[SESSION_ARTIFACTS_KEY] !== undefined) {
 					this.failNextArtifactWrite = false;
 					await writeStarted.complete();
 					await finishWrite.p;
 					throw new Error('artifact write failed');
 				}
-				return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot);
+				return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot, validate);
 			}
 		}
 		const database = new FailingDelayedDatabase();
@@ -319,11 +328,11 @@ suite('Session Artifact Removal', () => {
 	test('logs and propagates persistence failures without hiding the artifact and allows a durable retry', async () => {
 		class FailingDatabase extends TestSessionDatabase {
 			failArtifactWrites = false;
-			override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult> {
+			override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncWriteResult> {
 				if (this.failArtifactWrites && values[SESSION_ARTIFACTS_KEY] !== undefined) {
 					throw new Error('artifact write failed');
 				}
-				return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot);
+				return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot, validate);
 			}
 		}
 		const errors: string[] = [];
@@ -331,26 +340,38 @@ suite('Session Artifact Removal', () => {
 			override error(message: string): void { errors.push(message); }
 		}
 		const database = new FailingDatabase();
-		const { service, session, stateManager, meta } = await createFixture(database, new TestLogService());
+		const fixture = await createFixture(database, new TestLogService());
+		const { service, session, stateManager, meta } = fixture;
+		// session.db holds the session state store's mirror of the key, so it is read once the store has written it.
+		const readPersisted = async () => {
+			await getTestSessionStateStore(service).whenIdle(session);
+			return database.getMetadata(SESSION_ARTIFACTS_KEY);
+		};
 		database.failArtifactWrites = true;
 
 		await assert.rejects(service.removeSessionArtifact(session, 'pr'), /artifact write failed/);
 		const afterFailure = {
 			meta: stateManager.getSessionState(session.toString())?._meta,
-			persisted: await database.getMetadata(SESSION_ARTIFACTS_KEY),
+			persisted: await readPersisted(),
 		};
 		database.failArtifactWrites = false;
 		await service.removeSessionArtifact(session, 'pr');
 		await service.removeSessionArtifact(session, 'pr');
 
+		const remaining = withChat(artifacts.slice(1), buildDefaultChatUri(session));
 		assert.deepStrictEqual({
 			errors,
 			afterFailure,
-			persisted: await database.getMetadata(SESSION_ARTIFACTS_KEY),
+			meta: stateManager.getSessionState(session.toString())?._meta,
+			persisted: await readPersisted(),
+			centralArtifacts: await fixture.readCentralArtifacts(),
 		}, {
 			errors: ['[AgentService] Failed to persist session artifacts'],
-			afterFailure: { meta, persisted: stringifySessionArtifacts(artifacts) },
-			persisted: stringifySessionArtifacts(withChat(artifacts.slice(1), buildDefaultChatUri(session))),
+			// The removal reaches the session state store before the catalog sync fails; the artifact stays visible until the retry.
+			afterFailure: { meta, persisted: stringifySessionArtifacts(remaining) },
+			meta: withSessionArtifacts(meta, remaining),
+			persisted: stringifySessionArtifacts(remaining),
+			centralArtifacts: remaining,
 		});
 	});
 
@@ -386,6 +407,54 @@ suite('Session Artifact Removal', () => {
 			persisted: stringifySessionArtifacts(withChat(artifacts.slice(1), buildDefaultChatUri(session))),
 		});
 		assert.deepStrictEqual(stateManager.getSessionState(session.toString())?._meta, withSessionArtifacts(meta, withChat(artifacts.slice(1), buildDefaultChatUri(session))));
+	});
+
+	test('keeps a removal durable when a summary change is flushed while it is persisting', async () => {
+		const writeStarted = new DeferredPromise<void>();
+		const finishWrite = new DeferredPromise<void>();
+		class DelayedDatabase extends TestSessionDatabase {
+			delayNextArtifactWrite = false;
+			override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncWriteResult> {
+				if (this.delayNextArtifactWrite && values[SESSION_ARTIFACTS_KEY] !== undefined) {
+					this.delayNextArtifactWrite = false;
+					await writeStarted.complete();
+					await finishWrite.p;
+				}
+				return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot, validate);
+			}
+		}
+		const warnings: string[] = [];
+		class TestLogService extends NullLogService {
+			override warn(message: string): void { warnings.push(message); }
+		}
+		const database = new DelayedDatabase();
+		const fixture = await createFixture(database, new TestLogService());
+		database.delayNextArtifactWrite = true;
+		const { service, session, stateManager, meta } = fixture;
+		const removal = service.removeSessionArtifact(session, 'pr');
+		await writeStarted.p;
+		// The flushed summary still lists the removed artifact, because the removal is published only once persisted.
+		const latestMeta = { ...meta, unrelated: { keep: true, updated: true } };
+		const summaryFlushed = Event.toPromise(stateManager.onDidChangeSessionSummary);
+		stateManager.setSessionMeta(session.toString(), latestMeta);
+		await summaryFlushed;
+		await finishWrite.complete();
+		await removal;
+
+		const remaining = withChat(artifacts.slice(1), buildDefaultChatUri(session));
+		// The summary's trailing write replays the removal's catalog sync, which leaves session.db for the store to mirror.
+		await getTestSessionStateStore(service).whenIdle(session);
+		assert.deepStrictEqual({
+			meta: stateManager.getSessionState(session.toString())?._meta,
+			persisted: await database.getMetadata(SESSION_ARTIFACTS_KEY),
+			centralArtifacts: await fixture.readCentralArtifacts(),
+			warnings,
+		}, {
+			meta: withSessionArtifacts(latestMeta, remaining),
+			persisted: stringifySessionArtifacts(remaining),
+			centralArtifacts: remaining,
+			warnings: [],
+		});
 	});
 
 	test('rejects empty ids without changing metadata', async () => {

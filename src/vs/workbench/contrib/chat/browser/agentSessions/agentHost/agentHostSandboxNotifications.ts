@@ -8,7 +8,7 @@ import { LRUCache } from '../../../../../../base/common/map.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { readSessionSandboxState } from '../../../../../../platform/agentHost/common/meta/agentSandboxStateMeta.js';
+import { readChatSandboxStates, readSessionSandboxState } from '../../../../../../platform/agentHost/common/meta/agentSandboxStateMeta.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
@@ -39,18 +39,23 @@ export class AgentHostSandboxNotifications extends Disposable implements IWorkbe
 			if (this._listeners.has(connection)) {
 				continue;
 			}
-			const reported = new LRUCache<string, number>(100);
+			// Errors stay in the state until the next change, so each is reported once per session.
+			const reported = new LRUCache<string, true>(100);
 			this._listeners.set(connection, connection.onDidAction(envelope => {
 				if (envelope.action.type !== ActionType.SessionMetaChanged) {
 					return;
 				}
-				const error = readSessionSandboxState(envelope.action)?.error;
-				if (!error || error.clientId !== connection.clientId || reported.get(envelope.channel) === error.clientSeq) {
-					return;
+				// A chat's failed change is in its own entry; the session-level one is the default chat's or an older host's.
+				for (const state of [readSessionSandboxState(envelope.action), ...readChatSandboxStates(envelope.action).values()]) {
+					const error = state?.error;
+					const key = error && `${envelope.channel}\n${error.clientSeq}`;
+					if (!error || !key || error.clientId !== connection.clientId || reported.get(key)) {
+						continue;
+					}
+					reported.set(key, true);
+					this._logService.error('Failed to update session sandbox configuration', error.message);
+					this._notificationService.error(localize('agentHost.sandboxUpdateFailed', "Could not change sandbox access. {0}", error.message));
 				}
-				reported.set(envelope.channel, error.clientSeq);
-				this._logService.error('Failed to update session sandbox configuration', error.message);
-				this._notificationService.error(localize('agentHost.sandboxUpdateFailed', "Could not change terminal sandboxing. Try the action again. {0}", error.message));
 			}));
 		}
 	}

@@ -5,6 +5,7 @@
 
 import * as event from '../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 
@@ -20,12 +21,15 @@ export interface IChatAttachmentWidgetInstance extends IDisposable {
 }
 
 /**
- * Factory function type for creating attachment widgets.
+ * Factory function type for creating attachment widgets. `sessionResource` is
+ * the session of the chat that shows the attachment, `undefined` when the
+ * attachment is not shown in a chat session.
  */
 export type ChatAttachmentWidgetFactory = (
 	attachment: IChatRequestVariableEntry,
 	options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
 	container: HTMLElement,
+	sessionResource: URI | undefined,
 ) => IChatAttachmentWidgetInstance;
 
 export const IChatAttachmentWidgetRegistry = createDecorator<IChatAttachmentWidgetRegistry>('chatAttachmentWidgetRegistry');
@@ -41,11 +45,13 @@ export interface IChatAttachmentWidgetRegistry {
 	/**
 	 * Try to create a widget for the given attachment using a registered factory.
 	 * Returns undefined if no factory is registered for the attachment's kind.
+	 * `sessionResource` is the session of the chat that shows the attachment.
 	 */
 	createWidget(
 		attachment: IChatRequestVariableEntry,
 		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
 		container: HTMLElement,
+		sessionResource: URI | undefined,
 	): IChatAttachmentWidgetInstance | undefined;
 }
 
@@ -70,11 +76,12 @@ export class ChatAttachmentWidgetRegistry implements IChatAttachmentWidgetRegist
 		attachment: IChatRequestVariableEntry,
 		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
 		container: HTMLElement,
+		sessionResource: URI | undefined,
 	): IChatAttachmentWidgetInstance | undefined {
 		const factory = this._factories.get(attachment.kind);
 		if (!factory) {
 			return undefined;
 		}
-		return factory(attachment, options, container);
+		return factory(attachment, options, container, sessionResource);
 	}
 }

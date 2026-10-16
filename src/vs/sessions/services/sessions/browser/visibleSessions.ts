@@ -34,6 +34,7 @@ export class VisibleSession extends Disposable implements IActiveSession {
 
 	private readonly _activeChat: ISettableObservable<IChat>;
 	readonly activeChat: IObservable<IChat>;
+	private _fallenBack: { readonly from: URI; readonly to: URI } | undefined;
 
 	/**
 	 * Model and mode are scoped to the active chat so the Agents window pickers
@@ -130,7 +131,28 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	}
 
 	setActiveChat(chat: IChat): void {
-		this._activeChat.set(chat, undefined);
+		this._setActiveChat(chat, undefined);
+	}
+
+	private _setActiveChat(chat: IChat, tx: ITransaction | undefined): void {
+		if (this._fallenBack && chat.resource.toString() !== this._fallenBack.to.toString()) {
+			this._fallenBack = undefined;
+		}
+		this._activeChat.set(chat, tx);
+	}
+
+	/** Shows `to` because the session stopped listing the active chat `from`, which may have moved to another session. */
+	fallBack(from: URI, to: IChat): void {
+		this.setActiveChat(to);
+		this._fallenBack = { from, to: to.resource };
+	}
+
+	/**
+	 * The chat this view automatically fell back from, until another chat becomes active: a move of that chat paired
+	 * later then doesn't replace what the user chose.
+	 */
+	get chatFallenBackFrom(): URI | undefined {
+		return this._fallenBack?.from;
 	}
 
 	closeChat(chat: IChat): void {
@@ -152,7 +174,7 @@ export class VisibleSession extends Disposable implements IActiveSession {
 			transaction(tx => {
 				this._shownRelatedChatUris.set(nextShown, tx);
 				if (this._activeChat.get().resource.toString() === chatUri) {
-					this._activeChat.set(this._defaultActiveChat(this._closedChatUris.get(), nextShown), tx);
+					this._setActiveChat(this._defaultActiveChat(this._closedChatUris.get(), nextShown), tx);
 				}
 			});
 			return;
@@ -168,7 +190,7 @@ export class VisibleSession extends Disposable implements IActiveSession {
 			this._closedChatUris.set(next, tx);
 			// If the closed chat was active, fall back to another visible tab.
 			if (this._activeChat.get().resource.toString() === chatUri) {
-				this._activeChat.set(this._defaultActiveChat(next, this._shownRelatedChatUris.get()), tx);
+				this._setActiveChat(this._defaultActiveChat(next, this._shownRelatedChatUris.get()), tx);
 			}
 		});
 	}
@@ -238,6 +260,9 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	get resource() { return this._session.resource; }
 	get providerId() { return this._session.providerId; }
 	get sessionType() { return this._session.sessionType; }
+	get harness() { return this._session.harness; }
+	get environment() { return this._session.environment; }
+	get application() { return this._session.application; }
 	get icon() { return this._session.icon; }
 	get createdAt() { return this._session.createdAt; }
 	get workspace() { return this._session.workspace; }
@@ -291,6 +316,9 @@ class ResourceOverrideSession implements ISession {
 	get sessionId() { return this._session.sessionId; }
 	get providerId() { return this._session.providerId; }
 	get sessionType() { return this._session.sessionType; }
+	get harness() { return this._session.harness; }
+	get environment() { return this._session.environment; }
+	get application() { return this._session.application; }
 	get icon() { return this._session.icon; }
 	get createdAt() { return this._session.createdAt; }
 	get workspace() { return this._session.workspace; }
@@ -797,6 +825,11 @@ export class VisibleSessions extends Disposable {
 		this._wrappers.get(session.sessionId)?.setActiveChat(chat);
 	}
 
+	/** The chat the session's view last fell back from because the session stopped listing it; see {@link VisibleSession.chatFallenBackFrom}. */
+	getChatFallenBackFrom(session: ISession): URI | undefined {
+		return this._wrappers.get(session.sessionId)?.chatFallenBackFrom;
+	}
+
 	/**
 	 * Close (hide from the tab strip) the given chat in the session's wrapper.
 	 * No-op if the session is not currently tracked in the visibility model.
@@ -984,7 +1017,7 @@ export class VisibleSessions extends Disposable {
 				const visibleChatTabs = visibleSessionRef.visibleChatTabs.read(reader);
 				const fallback = visibleChatTabs[visibleChatTabs.length - 1] ?? session.mainChat.read(reader);
 				if (fallback) {
-					visibleSessionRef.setActiveChat(fallback);
+					visibleSessionRef.fallBack(activeChat.resource, fallback);
 				}
 			}
 		}));

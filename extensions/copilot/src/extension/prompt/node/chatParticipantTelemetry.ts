@@ -11,6 +11,7 @@ import { ConfigKey, IConfigurationService } from '../../../platform/configuratio
 import { isAutoModel } from '../../../platform/endpoint/node/autoChatEndpoint';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { ILanguageDiagnosticsService } from '../../../platform/languages/common/languageDiagnosticsService';
+import { gitHubCopilotRequestTeProperty } from '../../../platform/networking/common/fetch';
 import { IChatEndpoint } from '../../../platform/networking/common/networking';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { TelemetryData as PlatformTelemetryData } from '../../../platform/telemetry/common/telemetryData';
@@ -30,6 +31,7 @@ import { PATCH_PREFIX } from '../../tools/node/applyPatch/parseApplyPatch';
 import { ChatVariablesCollection, parseSlashCommand } from '../common/chatVariablesCollection';
 import { Conversation } from '../common/conversation';
 import { IToolCall, IToolCallRound } from '../common/intents';
+import { getGitHubCopilotRequestTeForRound } from '../common/toolCallRound';
 import { IDocumentContext } from './documentContext';
 import { IIntent, TelemetryData } from './intents';
 import { RepoInfoTelemetry } from './repoInfoTelemetry';
@@ -403,7 +405,11 @@ export abstract class ChatTelemetry<C extends IDocumentContext | undefined = IDo
 		this._editLineCount += edits.reduce((acc, edit) => acc + edit.newText.split('\n').length, 0);
 	}
 
-	public async sendTelemetry(requestId: string, responseType: ChatFetchResponseType, response: string, interactionOutcome: InteractionOutcome, toolCalls: IToolCall[]): Promise<void> {
+	/**
+	 * @param gitHubCopilotRequestTe Raw `X-GitHub-Copilot-Request-Te` value of the model call identified by `requestId`.
+	 */
+	public async sendTelemetry(requestId: string, responseType: ChatFetchResponseType, response: string, interactionOutcome: InteractionOutcome, toolCalls: IToolCall[], gitHubCopilotRequestTe?: string): Promise<void> {
+		const userTelemetry = this._userTelemetry.extendedBy(gitHubCopilotRequestTeProperty(gitHubCopilotRequestTe));
 		// We can send the user message telemetry event now that the response is returned, including off-topic prediction.
 		sendUserMessageTelemetry(
 			this._telemetryService,
@@ -412,7 +418,7 @@ export abstract class ChatTelemetry<C extends IDocumentContext | undefined = IDo
 			this._request.prompt,
 			responseType === ChatFetchResponseType.OffTopic ? true : false,
 			this._documentContext?.document,
-			this._userTelemetry,
+			userTelemetry,
 			this._getModeNameForTelemetry(),
 		);
 
@@ -424,7 +430,7 @@ export abstract class ChatTelemetry<C extends IDocumentContext | undefined = IDo
 				this._request.prompt,
 				this.telemetryMessageId, // That's the message id of the user message
 				this._documentContext?.document,
-				this._userTelemetry
+				userTelemetry
 			);
 		}
 
@@ -436,12 +442,12 @@ export abstract class ChatTelemetry<C extends IDocumentContext | undefined = IDo
 				response,
 				this.telemetryMessageId, // That's the message id of the user message
 				this._documentContext?.document,
-				this._userTelemetry.extendedBy({ replyType: interactionOutcome.kind }),
+				userTelemetry.extendedBy({ replyType: interactionOutcome.kind }),
 				this._getModeNameForTelemetry()
 			);
 		}
 
-		await this._sendResponseTelemetryEvent(responseType, response, interactionOutcome, toolCalls);
+		await this._sendResponseTelemetryEvent(responseType, response, interactionOutcome, toolCalls, gitHubCopilotRequestTe);
 		this._sendResponseInternalTelemetryEvent(responseType, response);
 
 
@@ -556,10 +562,13 @@ export abstract class ChatTelemetry<C extends IDocumentContext | undefined = IDo
 			availableTools: JSON.stringify(availableTools.map(tool => tool.name))
 		}, toolCallMeasurements);
 
+		// Only attributable when every tool call in this event came from a single model call.
+		const roundsWithToolCalls = toolCallRounds.filter(round => round.toolCalls.length > 0);
 		this._telemetryService.sendEnhancedGHTelemetryEvent('toolCallDetailsExternal', {
 			...toolCallProperties,
 			messageId: this.telemetryMessageId,
-			availableTools: JSON.stringify(availableTools.map(tool => tool.name))
+			availableTools: JSON.stringify(availableTools.map(tool => tool.name)),
+			...gitHubCopilotRequestTeProperty(roundsWithToolCalls.length === 1 ? getGitHubCopilotRequestTeForRound(roundsWithToolCalls[0]) : undefined),
 		}, toolCallMeasurements);
 
 		// Send internal repo info telemetry at the end of the tool loop
@@ -568,7 +577,7 @@ export abstract class ChatTelemetry<C extends IDocumentContext | undefined = IDo
 
 	protected abstract _sendInternalRequestTelemetryEvent(): void;
 
-	protected abstract _sendResponseTelemetryEvent(responseType: ChatFetchResponseType, response: string, interactionOutcome: InteractionOutcome, toolCalls?: IToolCall[]): Promise<void>;
+	protected abstract _sendResponseTelemetryEvent(responseType: ChatFetchResponseType, response: string, interactionOutcome: InteractionOutcome, toolCalls?: IToolCall[], gitHubCopilotRequestTe?: string): Promise<void>;
 
 	protected abstract _sendResponseInternalTelemetryEvent(responseType: ChatFetchResponseType, response: string): void;
 
@@ -647,7 +656,7 @@ export class PanelChatTelemetry extends ChatTelemetry<IDocumentContext | undefin
 		this._repoInfoTelemetry.sendBeginTelemetryIfNeeded();
 	}
 
-	protected override async _sendResponseTelemetryEvent(responseType: ChatFetchResponseType, response: string, interactionOutcome: InteractionOutcome, toolCalls: IToolCall[] = []): Promise<void> {
+	protected override async _sendResponseTelemetryEvent(responseType: ChatFetchResponseType, response: string, interactionOutcome: InteractionOutcome, toolCalls: IToolCall[] = [], gitHubCopilotRequestTe?: string): Promise<void> {
 
 
 		const turn = this._conversation.getLatestTurn();
@@ -778,6 +787,7 @@ export class PanelChatTelemetry extends ChatTelemetry<IDocumentContext | undefin
 				mode: modeName,
 				codeBlocks: JSON.stringify(codeBlocks),
 				vscodeRequestId: this._request.id,
+				...gitHubCopilotRequestTeProperty(gitHubCopilotRequestTe),
 			},
 			{
 				isAgent: this._intent.id === AgentIntent.ID ? 1 : 0,

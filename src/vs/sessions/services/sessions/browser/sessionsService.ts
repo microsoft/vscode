@@ -7,7 +7,7 @@ import { disposableTimeout, raceTimeout } from '../../../../base/common/async.js
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, autorun, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -20,10 +20,11 @@ import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 
 import { localize } from '../../../../nls.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../common/session.js';
 import { IActiveSession, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, inheritableSessionTarget, IRecentlyOpenedSessions, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
+import { IChatMovedEvent } from '../common/sessionsProvider.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { ensureSessionWorktreesTrusted } from './worktreeTrust.js';
 import { ClosedItemHistory } from './closedItemHistory.js';
-import { SessionsNavigation } from './sessionNavigation.js';
+import { SessionNavigationIntent, SessionsNavigation } from './sessionNavigation.js';
 import { SessionsRecencyHistory } from './sessionsRecencyHistory.js';
 import { VisibleSessions } from './visibleSessions.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -35,6 +36,7 @@ import { ISessionChangesStatsCache } from '../common/sessionChangesStatsCache.js
 import { ISessionOpenTelemetryAttempt, ISessionOpenTelemetryService, SessionOpenSource } from './sessionOpenTelemetryService.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
+import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { ISessionGridState, isSessionGridState, projectSessionGrid } from './sessionGridState.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
@@ -60,7 +62,8 @@ const RESTORE_SESSION_WAIT_TIMEOUT = 30_000;
 /** Maximum number of recently opened sessions reported by {@link SessionsService.getRecentlyOpenedSessions}. */
 const MAX_RECENTLY_OPENED_SESSIONS = 10;
 
-type SessionNavigationIntent = 'explicit' | 'automatic';
+/** How long a removed session's slot waits for a chat move out of it to be known, as long as providers pair a move's ends. */
+const DEPARTED_SESSION_PAIRING_MS = 10_000;
 
 export interface ISessionNavigationRequest {
 	/** The caller's token, so deferred handoffs can recognize their own navigation. */
@@ -340,6 +343,12 @@ export interface ISessionsService {
 	closeSession(session: ISession | undefined): void;
 
 	/**
+	 * Remove every visible slot except `session` without starting or cancelling
+	 * navigation. No-op when `session` is not currently visible.
+	 */
+	collapseToSession(session: IActiveSession | undefined): void;
+
+	/**
 	 * Close all sessions currently shown in the grid and land on the
 	 * new-session view. No-op when no session is currently visible.
 	 */
@@ -405,7 +414,14 @@ export class SessionsService extends Disposable implements ISessionsService {
 	private _restoringGridState: ISessionGridState | undefined;
 
 	private readonly _sessionStates: ResourceMap<ISessionState>;
+	/**
+	 * Where removed sessions were shown, for a while: a session that ends by moving its chat under another session may be
+	 * removed before the move is known, and its slot then goes to the session the chat moved to.
+	 */
+	private readonly _departedSessions = new ResourceMap<{ readonly index: number; readonly sticky: boolean; readonly activeChat: URI | undefined }>();
+	private readonly _departedSessionTimeouts = this._register(new DisposableMap<URI>());
 	private readonly _pendingRestoredChatResources = new ResourceMap<URI>();
+	private readonly _pendingExplicitChatOpens = new ResourceMap<{ readonly chatResource: URI; readonly token: CancellationToken }>();
 	private readonly _navigation: SessionsNavigation;
 	/**
 	 * The single source of truth for session recency (most-recently-opened
@@ -476,15 +492,27 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 		// Session navigation history (Back/Forward) builds on the recency history.
 		this._navigation = this._register(new SessionsNavigation(
-			this,
+			{
+				openSession: (resource, options) => this._openSession(resource, options, 'history'),
+				openChat: (session, resource) => this._openChatSession(session, resource, { source: 'navigation' }, 'history'),
+				openNewSession: async () => { await this._openNewSession({ cancelRestore: true }, CancellationToken.None, 'history'); },
+			},
 			this.activeSession,
+			this.customViewService,
 			this.sessionsManagementService,
 			this._recencyHistory,
 			this.contextKeyService,
 			this.logService,
 		));
 		this._register(this.sessionsManagementService.onDidChangeSessions(e => this._navigation.onDidRemoveSessions(e)));
-		this._register(this.sessionsManagementService.onDidDeleteSession(session => this._recencyHistory.remove(entry => entry.sessionResource.toString() === session.resource.toString())));
+		this._register(this.sessionsManagementService.onDidDeleteSession(session => this._recencyHistory.remove(entry => entry.kind === 'session' && this.uriIdentityService.extUri.isEqual(entry.sessionResource, session.resource))));
+
+		this._register(autorun(reader => {
+			if (this.customViewService.activeCustomViewOpen.read(reader)) {
+				this._openSessionCts.value?.cancel();
+				this._recordNavigation();
+			}
+		}));
 
 		// Keep the active-session context keys in sync with the visible active
 		// slot and the model's in-progress draft. The helper reads the session's
@@ -510,18 +538,6 @@ export class SessionsService extends Disposable implements ISessionsService {
 			}
 		}));
 
-		// Honor explicit unread marks until the user leaves the session and returns.
-		let previousActiveSessionId: string | undefined;
-		this._register(autorun(reader => {
-			const activeSession = this.activeSession.read(reader);
-			const isRead = activeSession?.isRead.read(reader);
-			const activeSessionChanged = activeSession?.sessionId !== previousActiveSessionId;
-			previousActiveSessionId = activeSession?.sessionId;
-			if (activeSession && (activeSessionChanged || !isRead)) {
-				this.sessionsManagementService.markRead(activeSession, { preserveExplicitUnread: !activeSessionChanged }).catch(onUnexpectedError);
-			}
-		}));
-
 		// Reflect provider-level session changes onto the grid: drop removed
 		// sessions and pick a fallback (or the new-session view) when the active
 		// one disappears.
@@ -531,6 +547,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// and pre-send draft replacement onto the same visible grid slot.
 		this._register(this.sessionsManagementService.onDidReplaceSession(({ from, to }) => this._onDidReplaceSession(from, to)));
 		this._register(this.sessionsManagementService.onDidReplaceNewDraftSession(({ from, to }) => this._onDidReplaceSession(from, to)));
+
+		// A chat that moved to another session keeps being shown there.
+		this._register(this.sessionsManagementService.onDidMoveChat(e => this._onDidMoveChat(e)));
 
 		// While a foreground send materialises new chats, keep the newest chat
 		// active in the visible slot so the user sees the chat being sent.
@@ -572,6 +591,70 @@ export class SessionsService extends Disposable implements ISessionsService {
 		const sessionView = this.sessionsPartService.getSessionView(from.sessionId);
 		const preserveFocus = !sessionView || this.sessionsPartService.getFocusedSessionView() !== sessionView;
 		this._visibility.updateSession(from, to, preserveFocus);
+	}
+
+	/**
+	 * Keeps showing a chat that moved to another session: the slot that showed it
+	 * shows its new session instead (or that session's own slot, when it is
+	 * already visible), with the chat active.
+	 */
+	private _rememberDepartedSession(session: ISession): void {
+		const slot = this._visibility.getSlot(session.sessionId);
+		const visible = this.visibleSessions.get().find(candidate => candidate?.sessionId === session.sessionId);
+		if (!slot || !visible) {
+			return;
+		}
+		this._departedSessions.set(session.resource, { index: slot.index, sticky: slot.sticky, activeChat: visible.activeChat.get()?.resource });
+		this._departedSessionTimeouts.set(session.resource, disposableTimeout(() => {
+			this._departedSessions.delete(session.resource);
+			this._departedSessionTimeouts.deleteAndDispose(session.resource);
+		}, DEPARTED_SESSION_PAIRING_MS));
+	}
+
+	private _onDidMoveChat(event: IChatMovedEvent): void {
+		const extUri = this.uriIdentityService.extUri;
+		const { from, to } = event;
+		const shown = this.visibleSessions.get().find(session => session && extUri.isEqual(session.resource, from.session.resource));
+		if (!shown) {
+			this._onDidMoveChatFromDepartedSession(event);
+			return;
+		}
+		// The view may already have fallen back when the session dropped the chat before the move was known.
+		if (!extUri.isEqual(shown.activeChat.get()?.resource, from.chat) && !extUri.isEqual(this._visibility.getChatFallenBackFrom(shown), from.chat)) {
+			return;
+		}
+		const wasActive = this.activeSession.get()?.sessionId === shown.sessionId;
+		const preserveFocus = this.sessionsPartService.getFocusedSessionView() !== this.sessionsPartService.getSessionView(shown.sessionId);
+		if (!this.visibleSessions.get().some(session => session && extUri.isEqual(session.resource, to.session.resource))) {
+			this._visibility.updateSession(shown, to.session, preserveFocus);
+		}
+		if (wasActive) {
+			void this._openChatSession(to.session, to.chat, { preserveFocus }, 'automatic').catch(onUnexpectedError);
+		} else {
+			const chat = to.session.chats.get().find(candidate => extUri.isEqual(candidate.resource, to.chat));
+			if (chat) {
+				this._visibility.openChat(to.session, chat);
+				this._visibility.setActiveChat(to.session, chat);
+				this._setChatVisibilityState(to.session, chat, true);
+			}
+		}
+		status(localize('sessions.chatMoved', "Chat moved to {0}", to.session.title.get()));
+	}
+
+	/** A session that ended by moving its shown chat under another session, and was removed before the move was known. */
+	private _onDidMoveChatFromDepartedSession({ from, to }: IChatMovedEvent): void {
+		const extUri = this.uriIdentityService.extUri;
+		const departed = this._departedSessions.get(from.session.resource);
+		if (!departed || !extUri.isEqual(departed.activeChat, from.chat)) {
+			return;
+		}
+		this._departedSessions.delete(from.session.resource);
+		this._departedSessionTimeouts.deleteAndDispose(from.session.resource);
+		if (!this.visibleSessions.get().some(session => session && extUri.isEqual(session.resource, to.session.resource))) {
+			this._visibility.insertAtIndex(to.session, departed.index, departed.sticky);
+		}
+		void this._openChatSession(to.session, to.chat, { preserveFocus: true }, 'automatic').catch(onUnexpectedError);
+		status(localize('sessions.chatMoved', "Chat moved to {0}", to.session.title.get()));
 	}
 
 	private _activeSessionViewListeners(activeSession: IActiveSession): IDisposable {
@@ -667,6 +750,58 @@ export class SessionsService extends Disposable implements ISessionsService {
 			}
 		}));
 
+		let previousActiveChat: URI | undefined;
+		let lastReadRequest: { readonly chat: URI; readonly version: number | undefined } | undefined;
+		disposables.add(autorun(reader => {
+			if (this.customViewService.activeCustomViewOpen.read(reader)) {
+				previousActiveChat = undefined;
+				lastReadRequest = undefined;
+				return;
+			}
+			const chat = activeSession.activeChat.read(reader);
+			const mainChat = activeSession.mainChat.read(reader);
+			const activeChatChanged = !chat || !previousActiveChat || !this.uriIdentityService.extUri.isEqual(chat.resource, previousActiveChat);
+			previousActiveChat = chat?.resource;
+			if (activeChatChanged) {
+				lastReadRequest = undefined;
+			}
+			if (activeSession.loading.read(reader)) {
+				lastReadRequest = undefined;
+				return;
+			}
+			if (!chat || chat.isRead.read(reader)) {
+				return;
+			}
+			const pendingExplicitChat = this._pendingExplicitChatOpens.get(activeSession.resource)?.chatResource;
+			if (pendingExplicitChat && !this.uriIdentityService.extUri.isEqual(chat.resource, pendingExplicitChat)) {
+				return;
+			}
+			const version = (chat.lastTurnEnd?.read(reader) ?? chat.updatedAt.read(reader))?.getTime();
+			// Deduplicate stale read-state echoes without suppressing the next completed turn in the active chat.
+			if (lastReadRequest
+				&& this.uriIdentityService.extUri.isEqual(lastReadRequest.chat, chat.resource)
+				&& lastReadRequest.version === version) {
+				return;
+			}
+			const readRequest = { chat: chat.resource, version };
+			lastReadRequest = readRequest;
+			const accepted = this.uriIdentityService.extUri.isEqual(chat.resource, mainChat.resource)
+				? this.sessionsManagementService.markRead(activeSession, {
+					preserveExplicitUnread: !activeChatChanged,
+				})
+				: this.sessionsManagementService.markChatRead(activeSession, chat);
+			accepted.then(result => {
+				if (result === false && lastReadRequest === readRequest) {
+					lastReadRequest = undefined;
+				}
+			}, error => {
+				if (lastReadRequest === readRequest) {
+					lastReadRequest = undefined;
+				}
+				onUnexpectedError(error);
+			});
+		}));
+
 		return disposables;
 	}
 
@@ -681,6 +816,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (e.removed.length) {
 			for (const session of e.removed) {
 				this._sessionStates.delete(session.resource);
+				this._rememberDepartedSession(session);
 			}
 			this._visibility.removeMany(e.removed.map(r => r.sessionId));
 		}
@@ -733,6 +869,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 			if (recent.length >= MAX_RECENTLY_OPENED_SESSIONS) {
 				break;
 			}
+			if (entry.kind !== 'session') {
+				continue;
+			}
 			const key = entry.sessionResource.toString();
 			if (seen.has(key)) {
 				continue;
@@ -764,11 +903,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	private _beginNavigation(intent: SessionNavigationIntent, token: CancellationToken = CancellationToken.None, preserveNavigation = false): void {
-		if (intent === 'explicit') {
+		if (intent !== 'automatic') {
 			if (!preserveNavigation) {
 				this._recordNavigation(token);
 			}
-			this.customViewService.hideCustomView();
 		}
 	}
 
@@ -796,8 +934,16 @@ export class SessionsService extends Disposable implements ISessionsService {
 	 * with the active session by the visibility model, and the model's
 	 * canonical active session is updated reactively by the mirror autorun.
 	 */
-	private _activate(session: ISession | undefined, preserveFocus?: boolean): IActiveSession | undefined {
-		return this._visibility.setActive(session, preserveFocus);
+	private _activate(session: ISession | undefined, preserveFocus?: boolean, intent: SessionNavigationIntent = 'automatic'): IActiveSession | undefined {
+		let active: IActiveSession | undefined;
+		transaction(tx => {
+			// Dismiss the custom view atomically so its covered session is not recorded as a visit.
+			if (intent !== 'automatic') {
+				this.customViewService.hideCustomView(tx);
+			}
+			active = this._visibility.setActive(session, preserveFocus);
+		});
+		return active;
 	}
 
 	openChat(session: ISession, chatUri: URI, options?: IOpenSessionOptions): Promise<void> {
@@ -809,67 +955,81 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._cancelRestore();
 		this._beginNavigation(intent);
 		const token = this._startOpenSession();
-		// Redirect a superseded resource (e.g. a legacy session adopted into another
-		// provider) before activating, the same way `openSession` does for a URI, so
-		// opening by object migrates rather than activating the old facade as-is.
-		const resolved = await this._resolveSessionForOpen(session, chatUri);
-		if (token.isCancellationRequested) {
-			return;
+		const navigation = this._navigation.beginSessionOpen(intent, token);
+		try {
+			// Redirect an adopted resource before activating its session or chat.
+			const resolved = await this._resolveSessionForOpen(session, chatUri);
+			if (token.isCancellationRequested) {
+				return;
+			}
+			session = resolved.session;
+			chatUri = resolved.chatUri ?? chatUri;
+			if (options?.source) {
+				await this.sessionOpenTelemetryService.withOpenRequest(options.source, token, async telemetryAttempt => {
+					this.sessionOpenTelemetryService.sessionResolved(
+						telemetryAttempt,
+						session.resource,
+						session.providerId,
+						this.activeSession.get()?.sessionId === session.sessionId,
+						session.loading.get(),
+					);
+					await this._openChat(session, chatUri, options.preserveFocus, token, t0, telemetryAttempt, intent);
+				});
+				return;
+			}
+			await this._openChat(session, chatUri, options?.preserveFocus, token, t0, undefined, intent);
+		} finally {
+			navigation.cancel();
 		}
-		session = resolved.session;
-		chatUri = resolved.chatUri ?? chatUri;
-		if (options?.source) {
-			await this.sessionOpenTelemetryService.withOpenRequest(options.source, token, async telemetryAttempt => {
-				this.sessionOpenTelemetryService.sessionResolved(
-					telemetryAttempt,
-					session.resource,
-					session.providerId,
-					this.activeSession.get()?.sessionId === session.sessionId,
-					session.loading.get(),
-				);
-				await this._openChat(session, chatUri, options.preserveFocus, token, t0, telemetryAttempt);
-			});
-			return;
-		}
-		await this._openChat(session, chatUri, options?.preserveFocus, token, t0);
 	}
 
-	private async _openChat(session: ISession, chatUri: URI, preserveFocus: boolean | undefined, token: CancellationToken, startTime: number, telemetryAttempt?: ISessionOpenTelemetryAttempt): Promise<void> {
-		if (telemetryAttempt) {
-			this.sessionOpenTelemetryService.sessionActivated(telemetryAttempt, chatUri);
-		}
-		this.logService.trace(`[SessionsView] openChat start uri=${chatUri.toString()} provider=${session.providerId}`);
-		this._activate(session, preserveFocus);
-		if (!await this._waitForSessionToLoad(session, token)) {
-			this.logService.trace(`[SessionsView] openChat cancelled while waiting for session to load uri=${chatUri.toString()}`);
-			return;
-		}
-
-		// Find the chat and update active chat
-		let chat: IChat | undefined;
-		const activeSession = this._visibility.activeSession.get();
-		if (activeSession) {
-			chat = activeSession.chats.get().find(c => this.uriIdentityService.extUri.isEqual(c.resource, chatUri));
-			if (chat) {
-				// Opening a chat also un-hides it if it was previously closed.
-				this._visibility.openChat(session, chat);
-				this._visibility.setActiveChat(session, chat);
-				this._setChatVisibilityState(session, chat, true);
+	private async _openChat(session: ISession, chatUri: URI, preserveFocus: boolean | undefined, token: CancellationToken, startTime: number, telemetryAttempt?: ISessionOpenTelemetryAttempt, intent: SessionNavigationIntent = 'explicit'): Promise<void> {
+		const pendingOpen = { chatResource: chatUri, token };
+		this._pendingExplicitChatOpens.set(session.resource, pendingOpen);
+		const navigation = this._navigation.beginSessionOpen(intent, token);
+		try {
+			if (telemetryAttempt) {
+				this.sessionOpenTelemetryService.sessionActivated(telemetryAttempt, chatUri);
 			}
-		}
-		if (telemetryAttempt) {
-			if (chat) {
-				this.sessionOpenTelemetryService.sessionActivated(telemetryAttempt, chat.resource);
+			this.logService.trace(`[SessionsView] openChat start uri=${chatUri.toString()} provider=${session.providerId}`);
+			this._activate(session, preserveFocus, intent);
+			if (!await this._waitForSessionToLoad(session, token)) {
+				this.logService.trace(`[SessionsView] openChat cancelled while waiting for session to load uri=${chatUri.toString()}`);
+				return;
 			}
-			this.sessionOpenTelemetryService.sessionLoaded(telemetryAttempt);
-		}
 
-		if (chat && chat.status.get() === SessionStatus.Untitled) {
-			this.logService.trace(`[SessionsView] openChat done total=${Date.now() - startTime}ms uri=${chatUri.toString()} path=untitled`);
-			return;
-		}
+			// Find the chat and update active chat
+			let chat: IChat | undefined;
+			const activeSession = this._visibility.activeSession.get();
+			if (activeSession) {
+				chat = activeSession.chats.get().find(c => this.uriIdentityService.extUri.isEqual(c.resource, chatUri));
+				if (chat) {
+					// Opening a chat also un-hides it if it was previously closed.
+					this._visibility.openChat(session, chat);
+					this._visibility.setActiveChat(session, chat);
+					this._setChatVisibilityState(session, chat, true);
+				}
+			}
+			navigation.complete();
+			if (telemetryAttempt) {
+				if (chat) {
+					this.sessionOpenTelemetryService.sessionActivated(telemetryAttempt, chat.resource);
+				}
+				this.sessionOpenTelemetryService.sessionLoaded(telemetryAttempt);
+			}
 
-		this.logService.trace(`[SessionsView] openChat done total=${Date.now() - startTime}ms uri=${chatUri.toString()}`);
+			if (chat && chat.status.get() === SessionStatus.Untitled) {
+				this.logService.trace(`[SessionsView] openChat done total=${Date.now() - startTime}ms uri=${chatUri.toString()} path=untitled`);
+				return;
+			}
+
+			this.logService.trace(`[SessionsView] openChat done total=${Date.now() - startTime}ms uri=${chatUri.toString()}`);
+		} finally {
+			if (this._pendingExplicitChatOpens.get(session.resource) === pendingOpen) {
+				this._pendingExplicitChatOpens.delete(session.resource);
+			}
+			navigation.cancel();
+		}
 	}
 
 	async closeChat(session: IActiveSession, chat: IChat, options?: ICloseChatOptions): Promise<void> {
@@ -951,31 +1111,37 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._cancelRestore();
 		this._beginNavigation(intent);
 		const token = this._startOpenSession();
-		await this.sessionOpenTelemetryService.withOpenRequest(options?.source ?? 'unknown', token, async telemetryAttempt => {
-			// Redirect a superseded resource (legacy session adopted into another
-			// provider) before lookup, so an open by URI migrates rather than reaching
-			// the old provider. Providers decline unfamiliar resources and the caller
-			// keeps the original resource.
-			const resolved = await this.sessionsManagementService.resolveSessionResource(sessionResource, 'open');
-			if (token.isCancellationRequested) {
-				return;
-			}
-			const sessionData = this._getSession(resolved);
-			await this.sessionsProvidersService.getProvider(sessionData.providerId)?.prepareSessionForOpen?.(sessionData, 'open');
-			if (token.isCancellationRequested) {
-				return;
-			}
-			this._applyActiveChatSelection(sessionData, options);
-			this.sessionOpenTelemetryService.sessionResolved(
-				telemetryAttempt,
-				sessionData.resource,
-				sessionData.providerId,
-				this.activeSession.get()?.sessionId === sessionData.sessionId,
-				sessionData.loading.get(),
-			);
-			this._showSession(sessionData, options);
-			await this._waitForOpenSessionToLoad(sessionData, token, telemetryAttempt);
-		});
+		const navigation = this._navigation.beginSessionOpen(intent, token);
+		try {
+			await this.sessionOpenTelemetryService.withOpenRequest(options?.source ?? 'unknown', token, async telemetryAttempt => {
+				// Providers redirect superseded resources and leave unfamiliar resources unchanged.
+				const resolved = await this.sessionsManagementService.resolveSessionResource(sessionResource, 'open');
+				if (token.isCancellationRequested) {
+					return;
+				}
+				const sessionData = this._getSession(resolved);
+				this._applyActiveChatSelection(sessionData, options);
+				this.sessionOpenTelemetryService.sessionResolved(
+					telemetryAttempt,
+					sessionData.resource,
+					sessionData.providerId,
+					this.activeSession.get()?.sessionId === sessionData.sessionId,
+					sessionData.loading.get(),
+				);
+				// Mount before connecting so existing loading and recovery UI can render.
+				this._showSession(sessionData, options, intent);
+				if (intent !== 'history') {
+					navigation.complete();
+				}
+				await this.sessionsProvidersService.getProvider(sessionData.providerId)?.prepareSessionForOpen?.(sessionData, 'open');
+				if (token.isCancellationRequested) {
+					return;
+				}
+				await this._waitForOpenSessionToLoad(sessionData, token, telemetryAttempt);
+			});
+		} finally {
+			navigation.cancel();
+		}
 	}
 
 	showSession(sessionResource: URI, options?: { preserveFocus?: boolean }): void {
@@ -1060,24 +1226,30 @@ export class SessionsService extends Disposable implements ISessionsService {
 			return;
 		}
 		const reference = visible.find(candidate => candidate?.sessionId === options?.referenceSessionId) ?? visible[visible.length - 1];
-		await this.sessionOpenTelemetryService.withOpenRequest(options?.source ?? 'unknown', token, async attempt => {
-			if (token.isCancellationRequested || !this.areGridSessionsCurrent([session])) {
-				return;
-			}
-			this.sessionOpenTelemetryService.sessionResolved(attempt, session.resource, session.providerId, this.activeSession.get()?.sessionId === session.sessionId, session.loading.get());
-			transaction(() => {
-				if (reference && reference.sessionId !== session.sessionId) {
-					this._visibility.insertAt(session, reference.sessionId, 'right', false);
+		const navigation = this._navigation.beginSessionOpen('explicit', token);
+		try {
+			await this.sessionOpenTelemetryService.withOpenRequest(options?.source ?? 'unknown', token, async attempt => {
+				if (token.isCancellationRequested || !this.areGridSessionsCurrent([session])) {
+					return;
 				}
-				this._applyActiveChatSelection(session, options);
-				this._showSession(session, options);
+				this.sessionOpenTelemetryService.sessionResolved(attempt, session.resource, session.providerId, this.activeSession.get()?.sessionId === session.sessionId, session.loading.get());
+				transaction(() => {
+					if (reference && reference.sessionId !== session.sessionId) {
+						this._visibility.insertAt(session, reference.sessionId, 'right', false);
+					}
+					this._applyActiveChatSelection(session, options);
+					this._showSession(session, options);
+				});
+				if (options?.chatResource) {
+					await this._openChat(session, options.chatResource, options.preserveFocus, token, Date.now(), attempt);
+				} else {
+					navigation.complete();
+					await this._waitForOpenSessionToLoad(session, token, attempt);
+				}
 			});
-			if (options?.chatResource) {
-				await this._openChat(session, options.chatResource, options.preserveFocus, token, Date.now(), attempt);
-			} else {
-				await this._waitForOpenSessionToLoad(session, token, attempt);
-			}
-		});
+		} finally {
+			navigation.cancel();
+		}
 	}
 
 	private async prepareGridSessions(sessions: readonly ISession[], token: CancellationToken): Promise<ISession[] | undefined> {
@@ -1136,29 +1308,36 @@ export class SessionsService extends Disposable implements ISessionsService {
 			if (attempt) {
 				this.sessionOpenTelemetryService.sessionResolved(attempt, primary.resource, primary.providerId, this.activeSession.get()?.sessionId === primary.sessionId, primary.loading.get());
 			}
-			transaction(() => {
-				const ordered = direction === 'right' || direction === 'down' ? [...entries].reverse() : entries;
-				for (const session of ordered) {
-					this._visibility.insertAt(session, referenceSessionId, direction, false);
-				}
-				if (options?.activate !== false) {
-					if (!splitMainChat) {
-						this._applyActiveChatSelection(primary, options);
+			const navigation = splitMainChat ? this._navigation.beginSessionOpen('explicit', token) : undefined;
+			try {
+				transaction(tx => {
+					this.customViewService.hideCustomView(tx);
+					const ordered = direction === 'right' || direction === 'down' ? [...entries].reverse() : entries;
+					for (const session of ordered) {
+						this._visibility.insertAt(session, referenceSessionId, direction, false);
 					}
-					this._showSession(primary, options);
+					if (options?.activate !== false) {
+						if (!splitMainChat) {
+							this._applyActiveChatSelection(primary, options);
+						}
+						this._showSession(primary, options);
+					}
+				});
+				if (splitMainChat) {
+					await this._showChatToSide(primary, primary.mainChat.get().resource, options);
+					if (token.isCancellationRequested) {
+						return;
+					}
+					navigation?.complete();
 				}
-			});
-			if (splitMainChat) {
-				await this._showChatToSide(primary, primary.mainChat.get().resource, options);
-				if (token.isCancellationRequested) {
-					return;
+				if (options?.activate !== false && !options?.preserveFocus) {
+					this.sessionsPartService.focusSession(this.activeSession.get());
 				}
-			}
-			if (options?.activate !== false && !options?.preserveFocus) {
-				this.sessionsPartService.focusSession(this.activeSession.get());
-			}
-			if (attempt) {
-				await this._waitForOpenSessionToLoad(primary, token, attempt);
+				if (attempt) {
+					await this._waitForOpenSessionToLoad(primary, token, attempt);
+				}
+			} finally {
+				navigation?.cancel();
 			}
 		};
 		if (options?.source && options.activate !== false) {
@@ -1179,6 +1358,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		const active = this.activeSession.get();
 		const slots = prepared.map(session => ({ session, sticky: this._visibility.getSlot(session.sessionId)?.sticky ?? false }));
 		transaction(tx => {
+			this.customViewService.hideCustomView(tx);
 			this._visibility.restoreGrid(slots, Math.max(0, prepared.findIndex(session => session.sessionId === active?.sessionId)));
 			this._gridRequest.set({ type: 'arrange' }, tx);
 		});
@@ -1224,13 +1404,19 @@ export class SessionsService extends Disposable implements ISessionsService {
 	async openChatToSide(session: ISession, chatResource: URI, options?: { preserveFocus?: boolean; referenceChatResource?: URI }): Promise<void> {
 		this._beginNavigation('explicit');
 		const token = this._startOpenSession();
-		const resolved = await this._resolveSessionForOpen(session, chatResource);
-		if (token.isCancellationRequested) {
-			return;
+		const navigation = this._navigation.beginSessionOpen('explicit', token);
+		try {
+			const resolved = await this._resolveSessionForOpen(session, chatResource);
+			if (token.isCancellationRequested) {
+				return;
+			}
+			session = resolved.session;
+			chatResource = resolved.chatUri ?? chatResource;
+			await this._showChatToSide(session, chatResource, options);
+			navigation.complete();
+		} finally {
+			navigation.cancel();
 		}
-		session = resolved.session;
-		chatResource = resolved.chatUri ?? chatResource;
-		await this._showChatToSide(session, chatResource, options);
 	}
 
 	private async _showChatToSide(session: ISession, chatResource: URI, options?: { preserveFocus?: boolean; referenceChatResource?: URI }): Promise<void> {
@@ -1270,11 +1456,11 @@ export class SessionsService extends Disposable implements ISessionsService {
 		return sessionData;
 	}
 
-	private _showSession(sessionData: ISession, options?: { preserveFocus?: boolean }): void {
+	private _showSession(sessionData: ISession, options?: { preserveFocus?: boolean }, intent: SessionNavigationIntent = 'explicit'): void {
 		const t0 = Date.now();
 		this.logService.trace(`[SessionsView] openSession start uri=${sessionData.resource.toString()} provider=${sessionData.providerId}`);
 
-		this._activate(sessionData, options?.preserveFocus);
+		this._activate(sessionData, options?.preserveFocus, intent);
 		this.logService.trace(`[SessionsView] showSession done total=${Date.now() - t0}ms uri=${sessionData.resource.toString()}`);
 	}
 
@@ -1350,7 +1536,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 						throw error;
 					}
 				}
-				this._activateOrInsert(session, options?.toSide);
+				this._activateOrInsert(session, options?.toSide, intent);
+				if (intent === 'explicit' && !options?.preserveNavigation) {
+					this._navigation.recordOpened({ kind: 'newSession' });
+				}
 				return { session, trustDeclined: false };
 			} catch (e) {
 				// When the folder cannot be resolved (e.g. the active session's
@@ -1367,6 +1556,15 @@ export class SessionsService extends Disposable implements ISessionsService {
 			this._beginNavigation(intent, token, options?.preserveNavigation);
 		}
 		if (this._visibility.activeSession.get() === undefined && !options?.toSide) {
+			if (intent !== 'automatic') {
+				if (!folderUri && !options?.preserveNavigation) {
+					this._startOpenSession();
+				}
+				this.customViewService.hideCustomView();
+			}
+			if (intent === 'explicit' && !options?.preserveNavigation) {
+				this._navigation.recordOpened({ kind: 'newSession' });
+			}
 			return { session: undefined, trustDeclined: false };
 		}
 		if (!folderUri) {
@@ -1382,12 +1580,15 @@ export class SessionsService extends Disposable implements ISessionsService {
 		const targetSession = options?.toSide && newSession?.sessionId === activeSession?.sessionId
 			? undefined
 			: newSession;
-		this._activateOrInsert(targetSession, options?.toSide);
+		this._activateOrInsert(targetSession, options?.toSide, intent);
+		if (intent === 'explicit' && !options?.preserveNavigation) {
+			this._navigation.recordOpened({ kind: 'newSession' });
+		}
 		return { session: targetSession, trustDeclined: false };
 	}
 
 	/** Open or move beside the active session when requested, keeping a single empty slot. */
-	private _activateOrInsert(session: ISession | undefined, toSide: boolean | undefined): void {
+	private _activateOrInsert(session: ISession | undefined, toSide: boolean | undefined, intent: SessionNavigationIntent): void {
 		const activeSessionId = this._visibility.activeSession.get()?.sessionId;
 		const sessionId = session?.sessionId;
 		if (toSide && activeSessionId !== sessionId) {
@@ -1395,11 +1596,16 @@ export class SessionsService extends Disposable implements ISessionsService {
 			// An empty active slot has no id; fall back to the rightmost session.
 			const anchorId = activeSessionId ?? visible[visible.length - 1]?.sessionId;
 			if (anchorId && anchorId !== sessionId) {
-				this.insertAt(session, anchorId, 'right', true);
+				transaction(tx => {
+					if (intent !== 'automatic') {
+						this.customViewService.hideCustomView(tx);
+					}
+					this.insertAt(session, anchorId, 'right', true);
+				});
 				return;
 			}
 		}
-		this._activate(session);
+		this._activate(session, undefined, intent);
 	}
 
 	openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation = false): IActiveSession | undefined {
@@ -1411,7 +1617,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._startOpenSession();
 		try {
 			const session = this.sessionsManagementService.createQuickChat(options);
-			return this._activate(session);
+			return this._activate(session, undefined, intent);
 		} catch (e) {
 			// No provider supports quick chats: leave whatever was visible as-is
 			// rather than activating an unrelated workspace-bound draft.
@@ -1423,16 +1629,20 @@ export class SessionsService extends Disposable implements ISessionsService {
 	async openNewChatInSession(session: ISession, options?: ICreateNewChatInSessionOptions): Promise<void> {
 		this._cancelRestore();
 		this._beginNavigation('explicit');
-		this._startOpenSession();
+		const token = this._startOpenSession();
 		const chat = await this.sessionsManagementService.createNewChatInSession(session, options);
-		if (!chat) {
+		if (!chat || token.isCancellationRequested) {
 			return;
 		}
 
-		this._activate(session);
-
-		// Set the chat as the active chat
-		this._visibility.setActiveChat(session, chat);
+		const navigation = this._navigation.beginSessionOpen('explicit', token);
+		try {
+			this._activate(session, undefined, 'explicit');
+			this._visibility.setActiveChat(session, chat);
+			navigation.complete();
+		} finally {
+			navigation.cancel();
+		}
 	}
 
 	setActive(session: IActiveSession | undefined): void {
@@ -1514,6 +1724,17 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (fallback === undefined) {
 			this.openNewSession();
 		}
+	}
+
+	collapseToSession(session: IActiveSession | undefined): void {
+		const sessionId = session?.sessionId;
+		const visible = this._visibility.visibleSessions.get();
+		if (!visible.some(candidate => candidate?.sessionId === sessionId)) {
+			return;
+		}
+		this._visibility.removeMany(visible
+			.filter(candidate => candidate?.sessionId !== sessionId)
+			.map(candidate => candidate?.sessionId));
 	}
 
 	closeAllSessions(): void {

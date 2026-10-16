@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createHash } from 'crypto';
+import { Schemas } from '../../../base/common/network.js';
 import { extUriBiasedIgnorePathCase, joinPath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -12,14 +13,13 @@ import { parsePlugin } from '../../agentPlugins/common/pluginParsers.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { toAgentClientUri } from '../common/agentClientUri.js';
+import { AUTOMATION_ACTIVE_CLIENT_ID, toAgentHostFileUri } from '../common/agentPluginManager.js';
 import type { AutomationEntry, AutomationSessionTemplate } from '../common/state/protocol/channels-automation/state.js';
 import { CustomizationLoadStatus, CustomizationType, type AgentSelection, type ClientPluginCustomization, type PluginCustomization, type SessionActiveClient } from '../common/state/sessionState.js';
 import { toChildCustomizations } from './copilot/copilotPluginConverters.js';
 
-/** Static active-client identity used for captured automation plugins. */
-export const AUTOMATION_ACTIVE_CLIENT_ID = 'vscode.automation';
 
-/** Owns immutable automation plugin copies, independently of connected clients and the plugin cache. */
+/** Captures automation plugins as host paths, independently of connected clients and the plugin cache. */
 export class AgentHostAutomationCustomizations {
 	private readonly _path: URI;
 	/** Copies handed to run sessions in this process; those sessions keep using them in place for follow-up turns. */
@@ -35,7 +35,7 @@ export class AgentHostAutomationCustomizations {
 	}
 
 	/** Captures changed references atomically for the caller, reusing unchanged entries without contacting their client. */
-	async capture(clientId: string | undefined, next: readonly ClientPluginCustomization[] | undefined, previous: AutomationEntry | undefined): Promise<PluginCustomization[] | undefined> {
+	async capture(clientId: string | undefined, next: readonly ClientPluginCustomization[] | undefined, previous: AutomationEntry | undefined, isLocalClient = false): Promise<PluginCustomization[] | undefined> {
 		if (!next?.length) {
 			return undefined;
 		}
@@ -56,18 +56,23 @@ export class AgentHostAutomationCustomizations {
 				if (!clientId) {
 					throw new Error('Capturing automation customizations requires a dispatching client.');
 				}
-				const key = ref.nonce === undefined ? generateUuid() : createHash('sha256').update(`${ref.uri}\n${ref.nonce}`).digest('hex');
-				const destination = joinPath(this._path, key);
-				if (!await this._fileService.exists(destination)) {
-					const staging = joinPath(this._path, `.staging-${generateUuid()}`);
-					await this._fileService.copy(toAgentClientUri(URI.parse(ref.uri), clientId), staging);
-					await this._fileService.move(staging, destination);
+				const uri = URI.parse(ref.uri);
+				const inPlace = isLocalClient && uri.scheme === Schemas.file;
+				let destination = uri;
+				if (!inPlace) {
+					const key = ref.nonce === undefined ? generateUuid() : createHash('sha256').update(`${ref.uri}\n${ref.nonce}`).digest('hex');
+					destination = joinPath(this._path, key);
+					if (!await this._fileService.exists(destination)) {
+						const staging = joinPath(this._path, `.staging-${generateUuid()}`);
+						await this._fileService.copy(toAgentClientUri(uri, clientId), staging);
+						await this._fileService.move(staging, destination);
+					}
 				}
 				const parsed = await parsePlugin(destination, this._fileService, undefined, this._userHome, destination);
 				copy = {
 					type: CustomizationType.Plugin,
 					id: ref.id,
-					uri: destination.toString(),
+					uri: inPlace ? ref.uri : destination.toString(),
 					name: ref.name,
 					children: toChildCustomizations([parsed]),
 					load: { kind: CustomizationLoadStatus.Loaded },
@@ -92,7 +97,8 @@ export class AgentHostAutomationCustomizations {
 				throw new Error(`Missing captured automation customization: ${ref.id}`);
 			}
 			this._usedByRuns.add(copy.uri);
-			return { ...ref, uri: copy.uri, clientId: AUTOMATION_ACTIVE_CLIENT_ID };
+			// Captured copies and local in-place plugins are host paths, not client resources.
+			return { ...ref, uri: toAgentHostFileUri(URI.parse(copy.uri)).toString(), clientId: AUTOMATION_ACTIVE_CLIENT_ID };
 		});
 		return customizations?.length ? {
 			clientId: AUTOMATION_ACTIVE_CLIENT_ID,

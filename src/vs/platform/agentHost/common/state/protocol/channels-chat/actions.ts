@@ -8,6 +8,7 @@
 
 import { ActionType } from '../common/actions.js';
 import type { StringOrMarkdown, FileEditCollection, UsageInfo, URI } from '../common/state.js';
+import type { CanvasReference } from '../channels-canvas/state.js';
 import type { Changeset } from '../channels-changeset/state.js';
 import type { McpAuthRequirement } from '../channels-session/state.js';
 import { ToolCallConfirmationReason, ToolCallCancellationReason, PendingMessageKind, type BackgroundWork, type Message, type ResponsePart, type ToolCallResult, type ToolResultContent, type ChatInputAnswer, type ChatInputRequest, type ChatInputResponseKind, type ConfirmationOption, type ErrorResponsePart, type ToolCallContributor, type ToolCallRiskAssessment, type ToolInput, type Turn } from './state.js';
@@ -57,7 +58,10 @@ export interface ChatTurnStartedAction {
 	startedAt: string;
 	/** The new message */
 	message: Message;
-	/** If this turn was auto-started from a queued message, the ID of that message */
+	/**
+	 * If this turn consumes a pending message, its ID. Removes the matching
+	 * entry from {@link ChatState.queuedMessages}.
+	 */
 	queuedMessageId?: string;
 	/**
 	 * Additional provider-specific metadata for this action.
@@ -593,6 +597,21 @@ export interface ChatChangesetsChangedAction {
 }
 
 /**
+ * The live canvas channels exposed by this chat changed.
+ *
+ * Replaces {@link ChatState.canvases | `state.canvases`} entirely. Set to
+ * `undefined` to clear the collection.
+ *
+ * @category Chat Actions
+ * @version 1
+ */
+export interface ChatCanvasesChangedAction {
+	type: ActionType.ChatCanvasesChanged;
+	/** New canvas channel references, or `undefined` to clear the collection. */
+	canvases: CanvasReference[] | undefined;
+}
+
+/**
  * A working directory was added to this chat's
  * {@link ChatState.workingDirectories} subset.
  *
@@ -733,11 +752,12 @@ export interface ChatTurnsLoadedAction {
 /**
  * A pending message was set (upsert semantics: creates or replaces).
  *
- * For steering messages, this always replaces the single steering message.
- * For queued messages, if a message with the given `id` already exists it is
- * updated in place; otherwise it is appended to the queue. If the chat is
- * idle when a queued message is set, the server SHOULD immediately consume it
- * and start a new turn.
+ * Both kinds are stored in {@link ChatState.queuedMessages}, including this
+ * action's `kind`. A new `id` appends an entry; an existing `id` replaces its
+ * message and kind in place.
+ *
+ * If the chat is idle when a queued message is set, the server SHOULD
+ * immediately consume it and start a new turn.
  *
  * A client is only allowed to send {@link MessageKind.User} messages.
  *
@@ -762,6 +782,10 @@ export interface ChatPendingMessageSetAction {
  * it consumes a message (e.g. starting a turn from a queued message or
  * injecting a steering message into the current turn).
  *
+ * Removes an entry from {@link ChatState.queuedMessages} only when both `id`
+ * and effective kind match. Unknown IDs and mismatched kinds are
+ * no-ops.
+ *
  * @category Chat Actions
  * @version 1
  * @clientDispatchable
@@ -775,13 +799,14 @@ export interface ChatPendingMessageRemovedAction {
 }
 
 /**
- * Reorder the queued messages.
+ * Reorder the entire shared {@link ChatState.queuedMessages} list.
  *
- * The `order` array contains the IDs of queued messages in their new
- * desired order. IDs not present in the current queue are ignored.
- * Queued messages whose IDs are absent from `order` are appended at
+ * The `order` array contains pending message IDs of either kind in their new
+ * desired raw order. Unknown and duplicate IDs are ignored.
+ * Messages whose IDs are absent from `order` are appended at
  * the end in their original relative order (so a client with a stale
- * view of the queue never silently drops messages).
+ * view of the list never silently drops messages). UIs SHOULD still group
+ * steering messages first, independently of this raw order.
  *
  * @category Chat Actions
  * @version 1
@@ -789,7 +814,7 @@ export interface ChatPendingMessageRemovedAction {
  */
 export interface ChatQueuedMessagesReorderedAction {
 	type: ActionType.ChatQueuedMessagesReordered;
-	/** Queued message IDs in the desired order */
+	/** Pending message IDs in the desired raw order */
 	order: string[];
 }
 
@@ -819,6 +844,27 @@ export interface ChatDraftChangedAction {
 }
 
 /**
+ * The read state of the chat changed.
+ *
+ * Dispatched by a client to mark any known chat, including the owning
+ * session's default chat, as read (e.g. after viewing it) or unread. This
+ * changes only the addressed chat; it does not change the read state of its
+ * owning session or sibling chats. Use `session/isReadChanged` only to change
+ * the owning session's independent read state. After accepting this action,
+ * the host also synchronizes the addressed chat's `ChatSummary.status` and
+ * `SessionChatSummary.status` projections.
+ *
+ * @category Chat Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export interface ChatIsReadChangedAction {
+	type: ActionType.ChatIsReadChanged;
+	/** Whether the chat has been read */
+	isRead: boolean;
+}
+
+/**
  * The archived state of the chat changed.
  *
  * Dispatched by a client to archive a chat independently of its owning
@@ -833,6 +879,29 @@ export interface ChatIsArchivedChangedAction {
 	type: ActionType.ChatIsArchivedChanged;
 	/** Whether the chat is archived */
 	isArchived: boolean;
+}
+
+// ─── Chat Config Actions ─────────────────────────────────────────────────────
+
+/**
+ * Config values set on a chat changed.
+ *
+ * Merges `config` into the chat's
+ * {@link ChatConfigState | `ChatState.config`} overlay, or replaces the
+ * overlay when `replace` is `true`. Only properties with `chatMutable: true`
+ * in the session's config schema may be set. To reset a property to the
+ * session's value, replace the overlay with one that omits the property.
+ *
+ * @category Chat Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export interface ChatConfigChangedAction {
+	type: ActionType.ChatConfigChanged;
+	/** Config values to set on the chat */
+	config: Record<string, unknown>;
+	/** When `true`, replaces the chat's config values instead of merging */
+	replace?: boolean;
 }
 
 // ─── Session Input Actions ──────────────────────────────────────────────────
@@ -916,6 +985,7 @@ export type ChatAction =
 	| ChatBackgroundWorkRemovedAction
 	| ChatMovableChangedAction
 	| ChatChangesetsChangedAction
+	| ChatCanvasesChangedAction
 	| ChatWorkingDirectorySetAction
 	| ChatWorkingDirectoryRemovedAction
 	| ChatUsageAction
@@ -926,7 +996,9 @@ export type ChatAction =
 	| ChatPendingMessageRemovedAction
 	| ChatQueuedMessagesReorderedAction
 	| ChatDraftChangedAction
+	| ChatIsReadChangedAction
 	| ChatIsArchivedChangedAction
+	| ChatConfigChangedAction
 	| ChatInputRequestedAction
 	| ChatInputAnswerChangedAction
 	| ChatInputCompletedAction

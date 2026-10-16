@@ -4,10 +4,73 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IObservable, IReader, ITransaction } from '../../../../../base/common/observable.js';
-import { AgentPluginDiscoveryPriority, IAgentPlugin } from './agentPluginService.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { observableMemento } from '../../../../../platform/observable/common/observableMemento.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { AgentPluginDiscoveryPriority, IAgentPlugin, IAgentPluginEnablementService } from './agentPluginService.js';
 import { IGitHubPluginSource, IGitUrlPluginSource, IMarketplacePlugin, INpmPluginSource, IPipPluginSource, PluginSourceKind } from './pluginMarketplaceService.js';
 import { type IMarketplaceReference } from './marketplaceReference.js';
-import { CollisionEnablementModel, ContributionEnablementState, IEnablementModel, isContributionEnabled } from '../enablement.js';
+import { CollisionEnablementModel, ContributionEnablementState, EnablementModel, IEnablementModel, isContributionEnabled } from '../enablement.js';
+
+export { IAgentPluginEnablementService } from './agentPluginService.js';
+
+export class AgentPluginEnablementService extends EnablementModel implements IAgentPluginEnablementService {
+	declare readonly _serviceBrand: undefined;
+	private readonly _identities;
+	private readonly _copiedIdentities = new Map<string, string>();
+
+	constructor(@IStorageService storageService: IStorageService) {
+		super('agentPlugins.enablement', storageService);
+		this._identities = this._register(observableMemento<ReadonlyMap<string, string>>({
+			key: 'agentPlugins.enablementIdentities',
+			defaultValue: new Map(),
+			toStorage: value => JSON.stringify([...value]),
+			fromStorage: value => new Map(JSON.parse(value)),
+		})(StorageScope.PROFILE, StorageTarget.MACHINE, storageService));
+	}
+
+	override readEnabled(key: string, reader?: IReader): ContributionEnablementState {
+		return super.readEnabled(this._getIdentity(key, reader), reader);
+	}
+
+	override readProfileEnabled(key: string, reader?: IReader): boolean {
+		return super.readProfileEnabled(this._getIdentity(key, reader), reader);
+	}
+
+	override setEnabled(key: string, state: ContributionEnablementState, tx?: ITransaction): void {
+		super.setEnabled(this._getIdentity(key), state, tx);
+	}
+
+	override setDefaultEnabled(key: string, enabled: boolean, tx?: ITransaction): void {
+		super.setDefaultEnabled(this._getIdentity(key), enabled, tx);
+	}
+
+	override remove(key: string): void {
+		super.remove(this._getIdentity(key));
+	}
+
+	private _getIdentity(key: string, reader?: IReader): string {
+		const identities = this._identities.read(reader);
+		// Loaded installation identities also apply after switching to a profile without persisted aliases.
+		const source = this._copiedIdentities.get(key) ?? key;
+		return identities.get(key) ?? identities.get(source) ?? source;
+	}
+
+	copyEnablement(source: URI, target: URI): void {
+		const sourceKey = source.toString();
+		const targetKey = target.toString();
+		const identities = new Map(this._identities.get());
+		const identity = this._getIdentity(sourceKey);
+		if (identity !== targetKey) {
+			const sourceIdentity = this._copiedIdentities.get(sourceKey) ?? sourceKey;
+			if (sourceIdentity !== targetKey) {
+				this._copiedIdentities.set(targetKey, sourceIdentity);
+			}
+			identities.set(targetKey, identity);
+		}
+		this._identities.set(identities, undefined);
+	}
+}
 
 export interface IDiscoveredAgentPlugins {
 	readonly plugins: readonly IAgentPlugin[];
@@ -53,6 +116,10 @@ class AgentPluginPolicyEnablementModel implements IEnablementModel {
 			return;
 		}
 		this.base.setEnabled(key, state, tx);
+	}
+
+	setDefaultEnabled(key: string, enabled: boolean, tx?: ITransaction): void {
+		this.base.setDefaultEnabled?.(key, enabled, tx);
 	}
 
 	remove(key: string): void {

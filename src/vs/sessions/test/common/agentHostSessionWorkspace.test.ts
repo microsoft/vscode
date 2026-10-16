@@ -93,10 +93,42 @@ suite('Agent Host Session Workspace', () => {
 		});
 	});
 
+	test('resolves detached folders on their own only when asked', () => {
+		const worktree = URI.file('/src/tools.worktrees/task');
+		const plainFolder = URI.file('/src/notes');
+		const gitState: ISessionGitState = { branchName: 'agents/task', baseBranchName: 'main' };
+		const summarize = (workspace: ISessionWorkspace | undefined) => workspace && {
+			uri: workspace.uri.toString(),
+			label: workspace.label,
+			folders: workspace.folders.map(folder => ({
+				root: folder.root.toString(),
+				workingDirectory: folder.workingDirectory.toString(),
+				repository: folder.gitRepository && { uri: folder.gitRepository.uri.toString(), workTreeUri: folder.gitRepository.workTreeUri?.toString(), branchName: folder.gitRepository.branchName },
+			})),
+		};
+
+		assert.deepStrictEqual({
+			attachedOnly: buildAgentHostChatWorkspace(sessionWorkspace, [worktree], undefined, gitState),
+			detached: summarize(buildAgentHostChatWorkspace(sessionWorkspace, [worktree, plainFolder], undefined, gitState, true)),
+		}, {
+			attachedOnly: undefined,
+			detached: {
+				uri: URI.file('/src/tools').toString(),
+				label: 'tools',
+				folders: [
+					{ root: URI.file('/src/tools').toString(), workingDirectory: worktree.toString(), repository: { uri: URI.file('/src/tools').toString(), workTreeUri: worktree.toString(), branchName: 'agents/task' } },
+					{ root: plainFolder.toString(), workingDirectory: plainFolder.toString(), repository: undefined },
+				],
+			},
+		});
+	});
+
 	test('projects chat-scoped Git state onto the chat workspace', () => {
 		const gitState: ISessionGitState = {
 			branchName: 'peer-feature',
 			baseBranchName: 'main',
+			defaultBranchName: 'main',
+			defaultRemoteBranchName: 'origin/main',
 			hasGitRemote: true,
 			hasGitHubRemote: true,
 			incomingChanges: 2,
@@ -111,6 +143,8 @@ suite('Agent Host Session Workspace', () => {
 				uri: folder.gitRepository.uri.toString(),
 				branchName: folder.gitRepository.branchName,
 				baseBranchName: folder.gitRepository.baseBranchName,
+				defaultBranchName: folder.gitRepository.defaultBranchName,
+				defaultRemoteBranchName: folder.gitRepository.defaultRemoteBranchName,
 				hasGitRemote: folder.gitRepository.hasGitRemote,
 				hasGitHubRemote: folder.gitRepository.hasGitHubRemote,
 				incomingChanges: folder.gitRepository.incomingChanges,
@@ -123,6 +157,8 @@ suite('Agent Host Session Workspace', () => {
 				uri: other.toString(),
 				branchName: 'peer-feature',
 				baseBranchName: 'main',
+				defaultBranchName: 'main',
+				defaultRemoteBranchName: 'origin/main',
 				hasGitRemote: true,
 				hasGitHubRemote: true,
 				incomingChanges: 2,

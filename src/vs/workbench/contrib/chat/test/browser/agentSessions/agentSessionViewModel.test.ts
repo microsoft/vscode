@@ -25,7 +25,7 @@ import { MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { AgentSessionProviders, getAgentCanContinueIn, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../../browser/agentSessions/agentSessions.js';
+import { AgentSessionProviders, getAgentCanContinueIn, getAgentSessionProvider, getAgentSessionProviderDescription, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../../browser/agentSessions/agentSessions.js';
 
 class StaticChatSessionItemController implements IChatSessionItemController {
 	readonly onDidChangeChatSessionItems = Event.None;
@@ -2594,6 +2594,11 @@ suite('AgentSessions', () => {
 			assert.ok(name.length > 0);
 		});
 
+		test('should return detailed Local provider description', () => {
+			const description = getAgentSessionProviderDescription(AgentSessionProviders.Local);
+			assert.strictEqual(description, 'Run tasks within VS Code\'s long-standing proprietary agent harness. The agent works in VS Code\'s extension host, iterates via chat, and works interactively to implement changes on your main workspace.');
+		});
+
 		test('should return correct name for Background provider', () => {
 			const name = getAgentSessionProviderName(AgentSessionProviders.Background);
 			assert.ok(name.length > 0);
@@ -2627,6 +2632,11 @@ suite('AgentSessions', () => {
 		test('should return simplified AgentHostCopilot name', () => {
 			const name = getAgentSessionProviderName(AgentSessionProviders.AgentHostCopilot);
 			assert.strictEqual(name, 'Copilot');
+		});
+
+		test('should return detailed AgentHostCopilot provider description', () => {
+			const description = getAgentSessionProviderDescription(AgentSessionProviders.AgentHostCopilot);
+			assert.strictEqual(description, 'Run tasks using the Copilot SDK, which is the agent experience shared consistently across GitHub Copilot products. The agent works in the Agent Host, which lets sessions continue in the background, independently of an editor window.');
 		});
 
 		test('should return correct name for Growth provider', () => {

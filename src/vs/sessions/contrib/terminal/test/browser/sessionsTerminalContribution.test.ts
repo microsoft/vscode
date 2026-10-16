@@ -13,6 +13,7 @@ import { IAgentHostTerminalCreateOptions, IAgentHostTerminalService } from '../.
 import { ITerminalProfileService } from '../../../../../workbench/contrib/terminal/common/terminal.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
+import { buildAgentHostSessionWorkspace } from '../../../../common/agentHostSessionWorkspace.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -33,6 +34,9 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { SESSIONS_LAYOUT_SCOPE_SETTING } from '../../../../common/chatLayout.js';
 
 const HOME_DIR = URI.file('/home/user');
 
@@ -116,6 +120,9 @@ function makeAgentSession(opts: {
 		resource: chat.resource,
 		providerId: opts.providerId ?? 'test',
 		sessionType: opts.providerType ?? AgentSessionProviders.Local,
+		harness: 'copilot',
+		environment: 'local',
+		application: constObservable({ id: 'vscode', label: 'VS Code' }),
 		icon: Codicon.copilot,
 		createdAt: chat.createdAt,
 		workspace,
@@ -186,6 +193,9 @@ function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerT
 		resource: chat.resource,
 		providerId: 'test',
 		sessionType: opts.providerType ?? AgentSessionProviders.Local,
+		harness: 'copilot',
+		environment: 'local',
+		application: constObservable({ id: 'vscode', label: 'VS Code' }),
 		icon: Codicon.copilot,
 		createdAt: chat.createdAt,
 		workspace,
@@ -531,6 +541,96 @@ suite('SessionsTerminalContribution', () => {
 		assert.strictEqual(createdTerminals.length, 1);
 		assert.strictEqual(createdTerminals[0].cwd.fsPath, URI.file('/worktree').fsPath);
 	});
+
+	test('preserves vscode-remote working directories for remote workspaces', async () => {
+		const cwd = URI.parse('vscode-remote://ssh-remote+host/workspaces/repo');
+		activeSessionObs.set(makeAgentSession({ repository: cwd }), undefined);
+		await tick();
+
+		assert.deepStrictEqual({
+			createdCwds: createdTerminals.map(terminal => terminal.cwd.toString()),
+			defaultCwd: defaultCwdCalls.at(-1)?.toString(),
+		}, {
+			createdCwds: [cwd.toString()],
+			defaultCwd: cwd.toString(),
+		});
+	});
+
+	for (const projectUri of [URI.parse('https://example.com/owner/repo'), URI.parse('repository:/owner/repo')]) {
+		test(`waits for a sandbox working directory instead of using its ${projectUri.scheme} project URI`, async () => {
+			const address = 'sandbox-host';
+			sessionProviders.set('agenthost-sandbox', new class extends mock<ISessionsProvider>() {
+				override readonly id = 'agenthost-sandbox';
+				readonly remoteAddress = address;
+			});
+			const project = { uri: projectUri, displayName: 'owner/repo' };
+			const workspaceOptions = { requiresWorkspaceTrust: false, fallbackIcon: Codicon.repo };
+			const gitHubInfo = constObservable(undefined);
+			const workspace = observableValue('sandbox.workspace', buildAgentHostSessionWorkspace(project, undefined, workspaceOptions, gitHubInfo));
+			const session = makeAgentSession({
+				providerId: 'agenthost-sandbox',
+				providerType: AgentSessionProviders.Cloud,
+				remoteConnectionStatus: { kind: 'connecting' },
+			});
+			session.activeChat.set({ ...session.activeChat.get(), workspace }, undefined);
+			activeSessionObs.set(session, undefined);
+			await tick();
+			session.remoteConnectionStatus!.set({ kind: 'connected' }, undefined);
+			await tick();
+
+			const beforeResolved = {
+				createdCwds: createdTerminals.map(terminal => terminal.cwd.toString()),
+				addresses: [...agentHostTerminalAddresses],
+				defaultCwd: defaultCwdCalls.at(-1)?.toString(),
+			};
+			const cwd = URI.file('/workspaces/repo');
+			workspace.set(buildAgentHostSessionWorkspace(project, [toAgentHostUri(cwd, address)], workspaceOptions, gitHubInfo), undefined);
+			await tick();
+			await tick();
+
+			assert.deepStrictEqual({
+				beforeResolved,
+				createdCwds: createdTerminals.map(terminal => terminal.cwd.toString()),
+				addresses: agentHostTerminalAddresses,
+				defaultCwd: defaultCwdCalls.at(-1)?.toString(),
+			}, {
+				beforeResolved: { createdCwds: [], addresses: [], defaultCwd: undefined },
+				createdCwds: [cwd.toString()],
+				addresses: [address],
+				defaultCwd: cwd.toString(),
+			});
+		});
+	}
+
+	for (const mode of ['session-shared', 'chat-shared', 'chat'] as const) {
+		test(`${mode} retains the session terminal when sibling chats share a cwd`, async () => {
+			contribution.dispose();
+			instantiationService.stub(IConfigurationService, new TestConfigurationService({ [SESSIONS_LAYOUT_SCOPE_SETTING]: mode }));
+			contribution = store.add(instantiationService.createInstance(SessionsTerminalContribution));
+			const original = makeAgentSession({ repository: URI.file('/same'), providerType: AgentSessionProviders.Local });
+			const main = original.activeChat.get();
+			const peer = { ...main, resource: URI.parse('opaque:/peer') };
+			const session = { ...original, chats: constObservable([main, peer]) };
+			activeSessionObs.set(session, undefined);
+			await tick();
+			session.activeChat.set(peer, undefined);
+			await tick();
+			session.activeChat.set(main, undefined);
+			await tick();
+
+			assert.deepStrictEqual({
+				createdCwds: createdTerminals.map(terminal => terminal.cwd.fsPath),
+				activeInstanceId,
+				backgrounded: [...backgroundedInstances],
+				disposed: disposedInstances.map(instance => instance.instanceId),
+			}, {
+				createdCwds: [URI.file('/same').fsPath],
+				activeInstanceId: 1,
+				backgrounded: [],
+				disposed: [],
+			});
+		});
+	}
 
 	test('updates the terminal cwd when the active chat workspace changes', async () => {
 		const session = makeAgentSession({ repository: URI.file('/repo-a'), providerType: AgentSessionProviders.Local });

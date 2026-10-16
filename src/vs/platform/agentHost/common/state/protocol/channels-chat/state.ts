@@ -9,6 +9,7 @@
 import type { ModelSelection } from '../channels-root/state.js';
 import type { AgentSelection, ChangesSummary, McpAuthRequirement, SessionStatus } from '../channels-session/state.js';
 import type { Changeset } from '../channels-changeset/state.js';
+import type { CanvasReference } from '../channels-canvas/state.js';
 import type { ContentRef, ErrorInfo, FileEdit, FileEditCollection, StringOrMarkdown, TextRange, TextSelection, URI, UsageInfo } from '../common/state.js';
 
 // ─── Chat State ──────────────────────────────────────────────────────────────
@@ -101,6 +102,20 @@ export interface ChatState {
 	 * chat channel.
 	 */
 	backgroundWork?: BackgroundWork[];
+	/**
+	 * Live canvases currently exposed by this chat.
+	 *
+	 * Entries intentionally contain only subscribable channel references.
+	 * Clients subscribe to each resource for the experimental presentation
+	 * state, including its current live source URL.
+	 */
+	canvases?: CanvasReference[];
+	/**
+	 * Configuration values set on this chat, applied over the owning session's
+	 * {@link SessionState.config | `SessionState.config`}. See
+	 * {@link ChatConfigState}.
+	 */
+	config?: ChatConfigState;
 
 	// ── Conversation contents ──────────────────────────────────────────
 	/** Completed turns */
@@ -116,9 +131,20 @@ export interface ChatState {
 	turnsNextCursor?: string;
 	/** Currently in-progress turn */
 	activeTurn?: ActiveTurn;
-	/** Message to inject into the current turn at a convenient point */
+	/**
+	 * Legacy steering input retained only when reading old snapshots.
+	 *
+	 * @deprecated Use {@link queuedMessages} with {@link PendingMessage.kind}.
+	 */
 	steeringMessage?: PendingMessage;
-	/** Messages to send automatically as new turns after the current turn finishes */
+	/**
+	 * Pending messages of both kinds, in host acceptance order unless explicitly
+	 * reordered.
+	 *
+	 * This raw order is not consumption priority. UIs SHOULD group steering
+	 * messages before queued messages, preserving relative order within each
+	 * group without changing the underlying array.
+	 */
 	queuedMessages?: PendingMessage[];
 	/**
 	 * The user's in-progress draft input for this chat — the message they are
@@ -372,6 +398,24 @@ export const enum ChatInteractivity {
 	Hidden = 'hidden',
 }
 
+// ─── Chat Config Types ───────────────────────────────────────────────────────
+
+/**
+ * Configuration values set on a chat: an overlay on the owning session's
+ * {@link SessionState.config | `SessionState.config`}.
+ *
+ * It carries only the chat's own values; the session's config schema
+ * applies. The effective config of a chat is the session's values with
+ * these values applied over them. Only properties with `chatMutable: true`
+ * in the session's config schema can be set on a chat.
+ *
+ * @category Chat Config Types
+ */
+export interface ChatConfigState {
+	/** Config values set on this chat, keyed by property id */
+	values: Record<string, unknown>;
+}
+
 // ─── Pending Message Types ───────────────────────────────────────────────────
 
 /**
@@ -399,7 +443,11 @@ export const enum PendingMessageKind {
 export interface PendingMessage {
 	/** Unique identifier for this pending message */
 	id: string;
-	/** The message that will start the next turn */
+	/**
+	 * Delivery kind, defaults to {@link PendingMessageKind.Queued}.
+	 */
+	kind?: PendingMessageKind;
+	/** The queued or steering message */
 	message: Message;
 }
 

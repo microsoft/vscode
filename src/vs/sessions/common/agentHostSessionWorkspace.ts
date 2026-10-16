@@ -105,19 +105,22 @@ export type IFolderGitHubInfoResolver = (workingDirectory: URI) => IObservable<I
 /**
  * Projects a chat's working-directory scope onto its owning session workspace.
  * Returns no workspace rather than exposing a partial scope when a required folder is unavailable.
+ * Pass `resolveDetachedFolders` for a chat whose folders are intentionally detached from the
+ * session workspace, such as an archived chat, so those folders are resolved on their own.
  *
  * Pass `getFolderGitHubInfo` to have each folder report its own repository and
  * pull request information instead of what the session workspace carries.
  * Pass `gitState` to project the chat scope's branch state onto its primary folder.
  */
-export function buildAgentHostChatWorkspace(sessionWorkspace: ISessionWorkspace | undefined, workingDirectories: readonly URI[] | undefined, getFolderGitHubInfo?: IFolderGitHubInfoResolver, gitState?: ISessionGitState): ISessionWorkspace | undefined {
+export function buildAgentHostChatWorkspace(sessionWorkspace: ISessionWorkspace | undefined, workingDirectories: readonly URI[] | undefined, getFolderGitHubInfo?: IFolderGitHubInfoResolver, gitState?: ISessionGitState, resolveDetachedFolders = false): ISessionWorkspace | undefined {
 	if (!sessionWorkspace || (workingDirectories === undefined && !getFolderGitHubInfo && !gitState)) {
 		return sessionWorkspace;
 	}
 
 	const folders: ISessionFolder[] = [];
 	for (const workingDirectory of workingDirectories ?? sessionWorkspace.folders.map(folder => folder.workingDirectory)) {
-		const folder = sessionWorkspace.folders.find(candidate => extUri.isEqual(candidate.workingDirectory, workingDirectory));
+		const folder = sessionWorkspace.folders.find(candidate => extUri.isEqual(candidate.workingDirectory, workingDirectory))
+			?? (resolveDetachedFolders ? createAdditionalFolder(workingDirectory, sessionWorkspace.description) : undefined);
 		if (!folder) {
 			return undefined;
 		}
@@ -143,6 +146,21 @@ export function buildAgentHostChatWorkspace(sessionWorkspace: ISessionWorkspace 
 	};
 }
 
+/** A non-primary folder; a VS Code-created worktree reports its repository as the folder's root. */
+function createAdditionalFolder(workingDirectory: URI, description: string | undefined): ISessionFolder {
+	const repositoryRoot = getRepositoryRootFromWorktree(workingDirectory);
+	const root = repositoryRoot ?? workingDirectory;
+	return {
+		root,
+		workingDirectory,
+		name: basename(root) || root.path,
+		description,
+		...(repositoryRoot ? {
+			gitRepository: { uri: repositoryRoot, workTreeUri: workingDirectory, baseBranchName: undefined, isRepository: constObservable(true), gitHubInfo: constObservable<IGitHubInfo | undefined>(undefined) },
+		} : {}),
+	};
+}
+
 function withFolderGitState(folder: ISessionFolder, gitState: ISessionGitState): ISessionFolder {
 	const repository = folder.gitRepository ?? {
 		uri: folder.root,
@@ -160,6 +178,8 @@ function withFolderGitState(folder: ISessionFolder, gitState: ISessionGitState):
 			hasGitRemote: gitState.hasGitRemote,
 			hasGitHubRemote: gitState.hasGitHubRemote,
 			upstreamBranchName: gitState.upstreamBranchName,
+			defaultBranchName: gitState.defaultBranchName,
+			defaultRemoteBranchName: gitState.defaultRemoteBranchName,
 			incomingChanges: gitState.incomingChanges,
 			outgoingChanges: gitState.outgoingChanges,
 			uncommittedChanges: gitState.uncommittedChanges,
@@ -185,30 +205,20 @@ export function buildAgentHostSessionWorkspace(project: IAgentHostSessionProject
 	const hasGitRemote = gitState?.hasGitRemote;
 	const hasGitHubRemote = gitState?.hasGitHubRemote;
 	const upstreamBranchName = gitState?.upstreamBranchName;
+	const defaultBranchName = gitState?.defaultBranchName;
+	const defaultRemoteBranchName = gitState?.defaultRemoteBranchName;
 	const incomingChanges = gitState?.incomingChanges;
 	const outgoingChanges = gitState?.outgoingChanges;
 	const uncommittedChanges = gitState?.uncommittedChanges;
 	const branchName = gitState?.branchName;
-	const gitFields = { branchName, baseBranchName, baseBranchProtected, hasGitRemote, hasGitHubRemote, upstreamBranchName, incomingChanges, outgoingChanges, uncommittedChanges };
+	const gitFields = { branchName, baseBranchName, baseBranchProtected, hasGitRemote, hasGitHubRemote, upstreamBranchName, defaultBranchName, defaultRemoteBranchName, incomingChanges, outgoingChanges, uncommittedChanges };
 
 	// The primary (index 0) is the session's process root; it carries the git
 	// state / project association. Additional directories carry no per-folder
 	// git state; a VS Code-created worktree reports its repository as the
 	// folder's project, so a chat working in it shows that project.
 	const primary = workingDirectories?.[0];
-	const additionalFolders: ISessionFolder[] = (workingDirectories ?? []).slice(1).map(dir => {
-		const repositoryRoot = getRepositoryRootFromWorktree(dir);
-		const root = repositoryRoot ?? dir;
-		return {
-			root,
-			workingDirectory: dir,
-			name: basename(root) || root.path,
-			description: options.description,
-			...(repositoryRoot ? {
-				gitRepository: { uri: repositoryRoot, workTreeUri: dir, baseBranchName: undefined, isRepository: constObservable(true), gitHubInfo: constObservable<IGitHubInfo | undefined>(undefined) },
-			} : {}),
-		};
-	});
+	const additionalFolders = (workingDirectories ?? []).slice(1).map(dir => createAdditionalFolder(dir, options.description));
 
 	if (project) {
 		const workTreeUri = extUri.isEqual(primary, project.uri) ? undefined : primary;

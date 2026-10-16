@@ -104,7 +104,7 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 		this._register(this._sessionsManagementService.onDidArchiveSession(session => this._logSessionArchived(session)));
 		this._register(this._sessionsManagementService.onDidUnarchiveSession(session => this._logSessionUnarchived(session)));
 		this._register(this._sessionsManagementService.onDidDeleteSession(session => this._logSessionDeleted(session)));
-		this._register(this._sessionsManagementService.onDidDeleteChat(session => this._logChatDeleted(session)));
+		this._register(this._sessionsManagementService.onDidDeleteChat(({ session }) => this._logChatDeleted(session)));
 		this._register(this._sessionsManagementService.onDidRenameChat(session => this._logChatRenamed(session)));
 		this._register(this._sessionsManagementService.onDidRenameSession(session => this._logSessionRenamed(session)));
 		this._register(this._sessionsService.onDidToggleSessionStickiness(e => this._logSessionStickinessToggled(e.session, e.sticky)));
@@ -114,7 +114,7 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 		// Reconcile tracked-but-missing entries (sessions deleted while this
 		// client was closed) and tracked-but-already-archived entries (sessions
 		// archived elsewhere) once each provider has loaded its sessions.
-		for (const provider of sessionsProvidersService.getProviders()) {
+		for (const provider of sessionsProvidersService.getProviders({ includeSessionBackends: true })) {
 			this._trackProviderForReconciliation(provider);
 		}
 		this._register(sessionsProvidersService.onDidChangeProviders(e => {

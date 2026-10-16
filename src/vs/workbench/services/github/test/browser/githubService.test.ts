@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
 import { Emitter } from '../../../../../base/common/event.js';
@@ -23,6 +24,7 @@ import { WorkbenchGitHubService } from '../../browser/githubService.js';
 
 suite('Workbench GitHub service', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	teardown(() => sinon.restore());
 	const signal = () => new AbortController().signal;
 	const provider = { id: 'github', name: 'GitHub', enterprise: false };
 
@@ -101,12 +103,43 @@ suite('Workbench GitHub service', () => {
 		});
 	}
 
+	test('the browser binding acquires anonymous API clients locally without account selection', async () => {
+		const { service, state, calls } = setup([]);
+		state.account = null;
+		const acquire = sinon.spy(service, 'acquireAnonymousClient');
+		const client = store.add(await service.acquireAnonymousApiClient(signal()));
+		const controller = new AbortController();
+		const reason = new Error('Cancelled acquisition');
+		controller.abort(reason);
+		await assert.rejects(service.acquireAnonymousApiClient(controller.signal), error => error === reason);
+		assert.deepStrictEqual({
+			wrapped: Object.hasOwn(client, 'object'), acquired: acquire.callCount,
+			local: acquire.firstCall.returnValue === client, authenticationCalls: calls,
+		}, { wrapped: false, acquired: 1, local: true, authenticationCalls: [] });
+	});
+
 	test('retains the selected default client between consumers', async () => {
 		const { service } = setup();
 		const first = store.add(await service.acquireDefaultAccountClient(signal()));
 		first.dispose();
 		const next = store.add(await service.acquireDefaultAccountClient(signal()));
 		assert.strictEqual(next.object === first.object, true);
+	});
+
+	test('the browser binding acquires disposable portable clients locally and reports grant invalidation', async () => {
+		const { service, sessions, changed } = setup();
+		const client = store.add(await service.acquireDefaultAccountApiClient(signal()));
+		let invalidations = 0;
+		store.add(client.onDidInvalidate(() => invalidations++));
+		sessions[0] = { ...sessions[0], scopes: ['repo', 'gist'] };
+		changed.fire({ providerId: 'github', label: 'GitHub', event: { added: [], changed: [sessions[0]], removed: [] } });
+		assert.deepStrictEqual({
+			wrapped: Object.hasOwn(client, 'object'), authorization: client.authorization,
+			domains: [typeof client.automations.list, typeof client.tasks.abort, typeof client.repositories.get], invalidations,
+		}, {
+			wrapped: false, authorization: { providerId: 'github', sessionId: 'session', accountId: 'account', scopes: ['repo'] },
+			domains: ['function', 'function', 'function'], invalidations: 1,
+		});
 	});
 
 	for (const stop of ['cancel', 'dispose'] as const) {
