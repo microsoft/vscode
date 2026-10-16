@@ -294,4 +294,24 @@ suite('DebugSession - continued events', () => {
 		assert.strictEqual(session.getThread(2)?.stopped, true);
 		assert.strictEqual(session.getThread(2)?.stoppedDetails?.reason, 'entry');
 	});
+
+	test('applies an all-thread stop with a pending threads request when its thread continues', async () => {
+		const { session, adapter } = createSession();
+		await stopFirstThread(session, adapter);
+		const running = Event.toPromise(session.onDidChangeState);
+		adapter.sendEventBody('continued', { threadId: 1, allThreadsContinued: false });
+		await running;
+
+		adapter.holdThreadsResponses = true;
+		const continued = Event.toPromise(session.onDidChangeState);
+		adapter.sendEventBody('stopped', { reason: 'breakpoint', threadId: 1, allThreadsStopped: true });
+		adapter.sendEventBody('continued', { threadId: 1, allThreadsContinued: false });
+		await continued;
+
+		adapter.releaseThreadsResponses();
+		await stopFirstThread(session, adapter);
+
+		// Thread 2 was suspended by the stop and never continued
+		assert.strictEqual(session.getThread(2)?.stopped, true);
+	});
 });
