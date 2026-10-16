@@ -89,6 +89,7 @@ suite('ModelPickerTelemetry', () => {
 		const eventNames: string[] = [];
 		const openedLinks: string[] = [];
 		const configurations = new Map<string, IStringDictionary<unknown>>();
+		const savedConfigurations: string[] = [];
 		const pinnedModelIds: string[] = [];
 		const delegateSelections: string[] = [];
 		const programmaticDelegateSelections: string[] = [];
@@ -100,7 +101,11 @@ suite('ModelPickerTelemetry', () => {
 		const configurationAccess: IModelConfigurationAccess = {
 			getModelConfiguration: id => configurations.get(id),
 			setModelConfiguration: async (id, values) => {
+				savedConfigurations.push(id);
 				await beforeSave?.(id);
+				configurations.set(id, { ...configurations.get(id), ...values });
+			},
+			presentModelConfiguration: (id, values) => {
 				configurations.set(id, { ...configurations.get(id), ...values });
 			},
 			getModelConfigurationActions: () => [],
@@ -310,7 +315,7 @@ suite('ModelPickerTelemetry', () => {
 		picker.show(container);
 
 		return {
-			events, pickerEvents, eventNames, openedLinks, picker, container, configurations, pinnedModelIds, delegateSelections, programmaticDelegateSelections,
+			events, pickerEvents, eventNames, openedLinks, picker, container, configurations, savedConfigurations, pinnedModelIds, delegateSelections, programmaticDelegateSelections,
 			get visible() { return visible; },
 			get tabbedShows() { return tabbedShows; },
 			get trustRequests() { return trustRequests; },
@@ -508,6 +513,27 @@ suite('ModelPickerTelemetry', () => {
 			hydraFusionRouted: { selected: hydraFusion.identifier, tier: undefined, triggers },
 			ensembleIntelligenceRouted: { selected: hydraFusion.identifier, tier: 'intelligence', triggers },
 			ensembleIntelligenceNotRouted: { selected: autoModel.identifier, tier: 'intelligence', triggers },
+		});
+	});
+
+	test('showing HydraFusion as Ensemble\'s Intelligence is not a selection', async () => {
+		const hydraFusion = createModel('hydrafusion', { name: 'HydraFusion', modelGroup: { id: 'copilotcli' } });
+		const ensemble = { ...autoModel, metadata: { ...autoModel.metadata, name: 'Ensemble', autoModelEnsemble: { intelligenceUsesHydraFusion: false } } };
+		const result = createPicker(hydraFusion, undefined, [ensemble, hydraFusion, model]);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			selected: result.picker.selectedModel?.identifier,
+			tier: result.configurations.get(ensemble.identifier)?.tier,
+			savedConfigurations: result.savedConfigurations,
+			delegateSelections: result.delegateSelections,
+			programmaticDelegateSelections: result.programmaticDelegateSelections,
+		}, {
+			selected: ensemble.identifier,
+			tier: 'intelligence',
+			savedConfigurations: [],
+			delegateSelections: [],
+			programmaticDelegateSelections: [ensemble.identifier],
 		});
 	});
 

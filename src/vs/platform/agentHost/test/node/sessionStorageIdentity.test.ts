@@ -262,7 +262,7 @@ suite('Session storage identity compatibility', () => {
 		});
 	});
 
-	test('historical stable identities retain writable legacy chat authority during the compatibility window', async () => {
+	test('historical stable identities keep their address and import older-build edits; a legacy catalog is converted, never registered anew', async () => {
 		const raw = track(new AgentHostDatabase(join(directory, 'agent-host.db')));
 		const session = URI.parse('copilotcli:/historical');
 		await raw.registerRuntimeSession(session.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
@@ -285,7 +285,8 @@ suite('Session storage identity compatibility', () => {
 			identity: (await db.getSessionV2Registration(session.toString()))?.session,
 			chats: (await peers.reconcileLegacy(session))?.map(entry => entry.uri),
 		}, {
-			normalized: { status: 'notReady' }, identity: session.toString(), chats: [peer, oldAdded],
+			// No compatibility gate answers for the catalog: the database itself refuses to register over a legacy catalog.
+			normalized: { status: 'conflict' }, identity: session.toString(), chats: [peer, oldAdded],
 		});
 	});
 
@@ -577,11 +578,32 @@ suite('Session storage identity compatibility', () => {
 		assert.deepStrictEqual({
 			oldPeers,
 			restored,
-			legacyAuthority: db.requiresLegacyChatCatalog(session.toString()),
+			storage: db.identity.toStorage(session.toString()),
 		}, {
 			oldPeers: [{ uri: buildChatUri('copilotcli:/new', 'first'), providerData: 'sdk-first' }],
 			restored: [{ uri: buildChatUri(session, 'replacement'), archived: true, providerData: 'sdk-replacement', origin: { ...origin, chat: buildDefaultChatUri(session) } }],
-			legacyAuthority: true,
+			// The session keeps its provider-scheme address on disk.
+			storage: 'copilotcli:/new',
+		});
+	});
+
+	test('a new compatibility-backed session registers a normalized catalog at creation under its provider-scheme address', async () => {
+		const db = await database();
+		const session = 'ahp-session:/fresh';
+		await db.prepareSessionStorage(session, 'copilotcli');
+		await db.registerRuntimeSession(session, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		const registered = await db.registerChatCatalogV2(session, { defaultChat: { chat: buildDefaultChatUri(session), order: 0 }, peers: [], privateDescendants: [] });
+		const [stored] = await db.raw.readCatalogSnapshot(['copilotcli:/fresh']);
+		assert.deepStrictEqual({
+			registered: registered.status,
+			storedAt: stored?.session,
+			authority: stored?.authorityVersion,
+			defaultChat: stored?.header?.defaultChatUri,
+		}, {
+			registered: 'applied',
+			storedAt: 'copilotcli:/fresh',
+			authority: 2,
+			defaultChat: buildDefaultChatUri('copilotcli:/fresh'),
 		});
 	});
 

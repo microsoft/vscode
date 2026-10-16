@@ -1,12 +1,14 @@
 # GitHub Copilot Managed Settings
 
-This file documents the **managed-settings** modality: how an enterprise admin's Copilot configuration (delivered to VS Code via native MDM or the GitHub server) flows into VS Code's policy stack and locks a setting. It is a companion to `SKILL.md` — read that first for the general policy lifecycle (`policy:` field, export, artifacts).
+This file documents **workbench policy projection**: how supported enterprise-managed settings feed VS Code's policy stack. It is a companion to `SKILL.md` — read that first to select the policy destination.
 
-Managed settings layer **on top of** the existing policy framework. They do **not** introduce a new `IPolicyService`; they feed `IPolicyData.managedSettings`, which the existing `policy.value(policyData)` callback already consumes via `AccountPolicyService`.
+This is not the execution contract for runtime-owned Agent Host controls. Follow [SDK/runtime managed settings](./sdk-runtime-policy.md) for those controls, including model startup defaults; do not assume every managed value locks a user-facing setting.
+
+Workbench-projected managed settings layer **on top of** the existing policy framework. They do **not** introduce a new `IPolicyService`; they feed `IPolicyData.managedSettings`, which the existing `policy.value(policyData)` callback already consumes via `AccountPolicyService`.
 
 ## The big idea: one canonical bag, three delivery channels (in VS Code)
 
-Every enterprise-managed Copilot setting resolves through a single normalized bag:
+The workbench managed-settings service exposes a single normalized bag:
 
 ```ts
 // src/vs/base/common/policy.ts

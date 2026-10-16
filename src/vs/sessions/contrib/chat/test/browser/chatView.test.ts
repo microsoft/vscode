@@ -7,7 +7,8 @@ import assert from 'assert';
 import * as sinon from 'sinon';
 import * as dom from '../../../../../base/browser/dom.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
-import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { ObjectTree } from '../../../../../base/browser/ui/tree/objectTree.js';
+import { DeferredPromise, retry, timeout } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -34,6 +35,7 @@ import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../../workben
 import { ChatInputNoticeVariant, ChatInputNoticeWidget } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeWidget.js';
 import { renderChatInputPickerSplit } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { isChatInputStackSlotShowing } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
+import { ChatOpenDiagnosticsService } from '../../../../../workbench/contrib/chat/common/chatOpenDiagnosticsService.js';
 import { IChatModelReference, ResponseModelState } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ChatModel, ChatResponseModel, IChatModel, IChatModelInputState, IChatRequestModel, IInputModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
@@ -61,8 +63,14 @@ import { NewChatWidget } from '../../browser/newChatWidget.js';
 import '../../../../../workbench/browser/media/style.css';
 import '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/media/chatAgentMergeContent.css';
 import '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/media/chatRequestOrigin.css';
-import { ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
+import { AbstractChatView, ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
+import { ChatViewSessionToolbar } from '../../../../browser/parts/sessionToolbar.js';
+import '../../../../browser/parts/media/chatCompositeBar.css';
+import '../../../../browser/parts/media/chatGroupsView.css';
 import '../../../../browser/parts/media/sessionView.css';
+import '../../../../browser/parts/media/sessionsPart.css';
+import '../../browser/media/externalSessionBanner.css';
+import '../../../../../workbench/contrib/chat/browser/promptTimeline/media/promptTimeline.css';
 
 suite('Sessions - Chat View', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -457,8 +465,9 @@ suite('Sessions - Chat View', () => {
 		let offsetReads = 0;
 		let bannerHeight = 35;
 		Object.defineProperty(widgetContainer, 'offsetTop', { get: () => { offsetReads++; return bannerHeight; } });
-		const view: { _layoutChatWidget(): void } = Object.assign(Object.create(ChatView.prototype), {
+		const view: { contentRightInset: number; _layoutChatWidget(): void } = Object.assign(Object.create(ChatView.prototype), {
 			element,
+			contentRightInset: 0,
 			_lastLayout: { width: 500, height: 400 },
 			_externalSessionBanner: { domNode: banner },
 			_widgetContainer: widgetContainer,
@@ -478,10 +487,120 @@ suite('Sessions - Chat View', () => {
 		banner.classList.add('hidden');
 		view._layoutChatWidget();
 		progressOffsets.push(progress.style.top);
-		assert.deepStrictEqual({ hiddenReads, offsetReads, layouts, progressOffsets }, {
+		view.contentRightInset = ChatViewSessionToolbar.RESERVED_WIDTH;
+		view._layoutChatWidget();
+		assert.deepStrictEqual({ hiddenReads, offsetReads, layouts, progressOffsets, viewportWidth: widgetContainer.style.width }, {
 			hiddenReads: 0, offsetReads: 2,
-			layouts: [[400, 500], [365, 500], [340, 500], [400, 500]],
+			layouts: [[400, 500], [365, 500], [340, 500], [400, 500], [400, 462]],
 			progressOffsets: ['0px', '35px', '60px', '0px'],
+			viewportWidth: '500px',
+		});
+	});
+
+	test('keeps chat content centered with the header, moving it aside only where the toolbar would cover it, and retains the outer scrollbar', async () => {
+		const root = dom.append(dom.getActiveDocument().body, dom.$('.monaco-workbench.agent-sessions-workbench'));
+		disposables.add(toDisposable(() => root.remove()));
+		root.style.setProperty('--vscode-spacing-size240', '24px');
+		root.style.setProperty('--vscode-spacing-size40', '4px');
+		root.style.setProperty('--session-view-centered-content-max-width', '950px');
+		const part = dom.append(root, dom.$('.part.sessionspart'));
+		const session = dom.append(part, dom.$('.session-view'));
+		const groups = dom.append(session, dom.$('.chat-groups-view.single-group'));
+		// The toolbar's host publishes its column for surfaces that sit beside it.
+		groups.style.setProperty('--session-toolbar-column-width', '50px');
+		const headerHost = dom.append(groups, dom.$('.chat-group-view-bar'));
+		const header = dom.append(dom.append(headerHost, dom.$('.chat-composite-bar.session-header-bar')), dom.$('.chat-composite-bar-header'));
+		const view = disposables.add(new class extends AbstractChatView {
+			readonly kind = 'chat';
+			protected doLayout(): void { }
+			toJSON(): object { return {}; }
+			focus(): void { }
+		}());
+		view.element.classList.add('chat-view-chat');
+		groups.appendChild(view.element);
+		const widget = dom.append(dom.append(view.element, dom.$('.chat-view-widget')), dom.$('.interactive-session'));
+		const listContainer = dom.append(widget, dom.$('.interactive-list'));
+		const tree = disposables.add(new ObjectTree<number>('session-toolbar-layout-test', listContainer, {
+			getHeight: () => 80,
+			getTemplateId: () => 'message',
+		}, [{
+			templateId: 'message',
+			renderTemplate: container => dom.append(container, dom.$('.interactive-item-container.interactive-response')),
+			renderElement: (node, _index, container: HTMLElement) => { container.textContent = `Response ${node.element}`; },
+			disposeTemplate: () => { },
+		}], { horizontalScrolling: false }));
+		tree.setChildren(null, Array.from({ length: 12 }, (_, element) => ({ element })));
+		const input = dom.append(widget, dom.$('.interactive-input-part'));
+		const suggestion = dom.append(widget, dom.$('.chat-suggest-next-widget'));
+		const banner = dom.append(view.element, dom.$('.external-session-banner'));
+		const rail = dom.append(widget, dom.$('.prompt-timeline-rail'));
+		await retry(async () => {
+			const targetWindow = dom.getWindow(root);
+			if (targetWindow.getComputedStyle(header).maxWidth !== '950px'
+				|| targetWindow.getComputedStyle(widget).maxWidth !== 'none'
+				|| targetWindow.getComputedStyle(banner).boxSizing !== 'border-box'
+				|| targetWindow.getComputedStyle(rail).position !== 'absolute'
+				|| !targetWindow.getComputedStyle(view.element).getPropertyValue('--session-toolbar-content-inset')) {
+				throw new Error('Session header and chat styles have not loaded');
+			}
+		}, 10, 100);
+
+		const snapshot = (width: number, inset: number, split = false) => {
+			widget.classList.remove('prompt-timeline-host', 'prompt-timeline-with-rail');
+			groups.classList.toggle('single-group', !split);
+			session.classList.toggle('grid-layout', split);
+			part.style.width = `${width}px`;
+			headerHost.style.width = `${width}px`;
+			view.layout(width, 300, 0, 0, inset);
+			tree.layout(160, Math.min(split ? Infinity : 950, width - inset));
+			const origin = view.element.getBoundingClientRect();
+			const band = (element: HTMLElement) => {
+				const bounds = element.getBoundingClientRect();
+				return [Math.round(bounds.left - origin.left), Math.round(bounds.width)];
+			};
+			const scrollbar = listContainer.querySelector<HTMLElement>('.scrollbar.vertical')!;
+			return {
+				header: band(header),
+				response: band(listContainer.querySelector<HTMLElement>('.interactive-item-container')!),
+				input: band(input),
+				suggestion: band(suggestion),
+				banner: band(banner),
+				scrollbarRight: Math.round(scrollbar.getBoundingClientRect().right - origin.left),
+			};
+		};
+		// The ruler prompt timeline beside the transcript: its offset from the right edge and where response content ends.
+		const rulerSnapshot = (width: number, inset: number) => {
+			snapshot(width, inset);
+			widget.classList.add('prompt-timeline-host', 'prompt-timeline-with-rail');
+			const origin = view.element.getBoundingClientRect();
+			const response = listContainer.querySelector<HTMLElement>('.interactive-item-container')!;
+			const responseBounds = response.getBoundingClientRect();
+			return {
+				railRightOffset: Math.round(origin.right - rail.getBoundingClientRect().right),
+				contentRight: Math.round(responseBounds.right - Number.parseFloat(dom.getWindow(root).getComputedStyle(response).paddingRight) - origin.left),
+			};
+		};
+
+		assert.deepStrictEqual({
+			narrow: snapshot(600, 38),
+			wide: snapshot(1200, 38),
+			split: snapshot(1200, 38, true),
+			// Just wide enough that the centered band would reach the strip.
+			nearlyWide: snapshot(1000, 38),
+			disabled: snapshot(600, 0),
+			wideDisabled: snapshot(1200, 0),
+			ruler: rulerSnapshot(600, 38),
+			rulerDisabled: rulerSnapshot(600, 0),
+		}, {
+			narrow: { header: [0, 600], response: [0, 562], input: [0, 562], suggestion: [0, 562], banner: [24, 514], scrollbarRight: 600 },
+			wide: { header: [125, 950], response: [125, 950], input: [125, 950], suggestion: [125, 950], banner: [125, 950], scrollbarRight: 1200 },
+			split: { header: [0, 1200], response: [0, 1162], input: [0, 1162], suggestion: [0, 1162], banner: [106, 950], scrollbarRight: 1200 },
+			nearlyWide: { header: [25, 950], response: [12, 950], input: [12, 950], suggestion: [12, 950], banner: [24, 926], scrollbarRight: 1000 },
+			disabled: { header: [0, 600], response: [0, 600], input: [0, 600], suggestion: [0, 600], banner: [24, 552], scrollbarRight: 600 },
+			wideDisabled: { header: [125, 950], response: [125, 950], input: [125, 950], suggestion: [125, 950], banner: [125, 950], scrollbarRight: 1200 },
+			// The rail clears the 50px toolbar column by 4px and reserves the transcript room itself.
+			ruler: { railRightOffset: 54, contentRight: 486 },
+			rulerDisabled: { railRightOffset: 10, contentRight: 530 },
 		});
 	});
 
@@ -732,6 +851,8 @@ suite('Sessions - Chat View', () => {
 			_modelRef: modelRef,
 			_preparationModel: { value: undefined },
 			_loadCts: loadCts,
+			_openDiagnostics: disposables.add(new MutableDisposable()),
+			chatOpenDiagnosticsService: disposables.add(new ChatOpenDiagnosticsService(new NullLogService())),
 			chatService: { onDidDisposeSession: onDidDisposeSession.event },
 			logService: new class extends NullLogService {
 				override warn(message: string): void { warnings.push(message); }
@@ -1015,6 +1136,8 @@ suite('Sessions - Chat View', () => {
 			_preparationModel: { value: undefined },
 			_modelRef: modelRef,
 			_loadCts: loadCts,
+			_openDiagnostics: disposables.add(new MutableDisposable()),
+			chatOpenDiagnosticsService: disposables.add(new ChatOpenDiagnosticsService(new NullLogService())),
 			element: dom.$('div'),
 			chatService: {
 				acquireOrLoadSession: () => {
@@ -1258,6 +1381,8 @@ suite('Sessions - Chat View', () => {
 		const viewStates = new Map<string, { scroll: number }>();
 		const boundModels: (URI | undefined)[] = [];
 		const widgetState: { input: string; attachments: IChatModelInputState['attachments']; scroll: number; model: IChatModel | undefined } = { input: '', attachments: [], scroll: 0, model: undefined };
+		const openOutcomes: string[] = [];
+		const widgetVisibility = { visible: true };
 		const modelRef = disposables.add(new MutableDisposable<IChatModelReference>());
 		const loadCts = disposables.add(new MutableDisposable<CancellationTokenSource>());
 		const view: {
@@ -1284,6 +1409,7 @@ suite('Sessions - Chat View', () => {
 			hasVisibleTranscriptContent: observableValue('transcript', false),
 			_modelRef: modelRef,
 			_loadCts: loadCts,
+			_openDiagnostics: disposables.add(new MutableDisposable()),
 			element: dom.$('div'),
 			configurationService: { getValue: () => undefined },
 			chatService: {
@@ -1294,6 +1420,11 @@ suite('Sessions - Chat View', () => {
 				},
 			},
 			logService: new NullLogService(),
+			chatOpenDiagnosticsService: disposables.add(new ChatOpenDiagnosticsService(new class extends NullLogService {
+				override info(message: string): void {
+					openOutcomes.push(message.split(' ')[2]);
+				}
+			}())),
 			viewStateService: {
 				get: (resource: URI) => viewStates.get(resource.toString()),
 				set: (resource: URI, state: { scroll: number }) => viewStates.set(resource.toString(), state),
@@ -1303,6 +1434,7 @@ suite('Sessions - Chat View', () => {
 			_layoutChatWidget: () => { },
 			showProgressWhile: (promise: Promise<void>) => completions.push(promise),
 			_widget: {
+				get visible() { return widgetVisibility.visible; },
 				get viewModel() { return widgetState.model && { sessionResource: widgetState.model.sessionResource }; },
 				getInput: () => widgetState.input,
 				setInput: (input: string) => { widgetState.input = input; },
@@ -1343,7 +1475,11 @@ suite('Sessions - Chat View', () => {
 			widgetState.scroll = scroll;
 		};
 		const snapshot = () => ({ input: widgetState.input, attachments: widgetState.attachments.map(a => a.name), scroll: widgetState.scroll });
-		return { view, createChat, complete, compose, snapshot, historyKeys, disposedReferences, boundModels };
+		const fail = async (index: number, error: Error) => {
+			await requests[index].error(error);
+			await completions[index];
+		};
+		return { view, createChat, complete, fail, compose, snapshot, historyKeys, disposedReferences, boundModels, openOutcomes, widgetVisibility };
 	}
 
 	suite('switching chats on one view', () => {
@@ -1372,6 +1508,58 @@ suite('Sessions - Chat View', () => {
 				inB: { input: '', attachments: [], scroll: 0 },
 				backInA: { input: 'draft-a', attachments: ['draft-a.md'], scroll: 120 },
 				historyKeys: ['key-a', 'key-b', 'key-a'],
+			});
+		});
+
+		suite('chat open diagnostics', () => {
+			test('still completes when the same chat is set again while it loads and after it is bound', async () => {
+				const { view, createChat, complete, openOutcomes } = createSwitchingView();
+				const chatA = createChat(resourceA);
+
+				view.setChat(chatA, 'key-a');
+				view.setChat(chatA, 'key-a');
+				const duringLoad = [...openOutcomes];
+				await complete(0, resourceA);
+				const afterLoad = [...openOutcomes];
+				view.setChat(chatA, 'key-a');
+
+				assert.deepStrictEqual({ duringLoad, afterLoad, final: openOutcomes }, { duringLoad: [], afterLoad: ['completed'], final: ['completed'] });
+			});
+
+			test('cancels diagnostics when another chat replaces the one being opened', async () => {
+				const { view, createChat, complete, openOutcomes } = createSwitchingView();
+				view.setChat(createChat(resourceA), 'key-a');
+				view.setChat(createChat(resourceB), 'key-b');
+				await complete(0, resourceA);
+				await complete(1, resourceB);
+
+				assert.deepStrictEqual(openOutcomes, ['cancelled', 'completed']);
+			});
+
+			test('fails when the chat model cannot be loaded', async () => {
+				const { view, createChat, fail, openOutcomes } = createSwitchingView();
+				view.setChat(createChat(resourceA), 'key-a');
+				await fail(0, new Error('no model'));
+
+				assert.deepStrictEqual(openOutcomes, ['failed']);
+			});
+
+			test('a chat loaded while the view is hidden is logged as hidden', async () => {
+				const { view, createChat, complete, openOutcomes, widgetVisibility } = createSwitchingView();
+				widgetVisibility.visible = false;
+				view.setChat(createChat(resourceA), 'key-a');
+				await complete(0, resourceA);
+
+				assert.deepStrictEqual(openOutcomes, ['hidden']);
+			});
+
+			test('an open ends as cancelled when the view is disposed while it loads', async () => {
+				const { view, createChat, complete, openOutcomes } = createSwitchingView();
+				view.setChat(createChat(resourceA), 'key-a');
+				view.dispose();
+				await complete(0, resourceA);
+
+				assert.deepStrictEqual(openOutcomes, ['cancelled']);
 			});
 		});
 
@@ -3750,6 +3938,8 @@ suite('Sessions - Chat View', () => {
 			_loadedChatResource: observableValue<URI | undefined>('loaded', undefined),
 			_loadFailure: observableValue('loadFailure', undefined),
 			_loadCts: viewStore.add(new MutableDisposable<CancellationTokenSource>()),
+			_openDiagnostics: viewStore.add(new MutableDisposable()),
+			chatOpenDiagnosticsService: viewStore.add(new ChatOpenDiagnosticsService(new NullLogService())),
 			_modelRef: viewStore.add(new MutableDisposable<IChatModelReference>()),
 			_preparationModel: { value: undefined },
 			isLoadingTranscript: observableValue('loading', false),
