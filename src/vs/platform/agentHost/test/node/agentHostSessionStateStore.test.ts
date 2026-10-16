@@ -28,6 +28,7 @@ import { AH_CHAT_CONFIG_VALUES_DB_KEY } from '../../node/agentHostChatRowStore.j
 import { CompatibleAgentHostDatabase } from '../../node/compatibleAgentHostDatabase.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { SESSION_WORKING_DIRECTORIES_KEY } from '../../node/shared/persistSessionMetadata.js';
+import { WORKTREE_FOLDERS_KEY } from '../../node/shared/sessionWorktreeFolders.js';
 import { createLegacySessionFixture, InMemorySessionDataService, legacySessionMetadata, readOldBuildView, writeLegacySessionState, type ILegacySessionFixture } from './sessionStateCompatibilityFixtures.js';
 
 /** Long enough that no mirror flush runs unless a test asks for it. */
@@ -120,6 +121,27 @@ suite('AgentHostSessionStateStore', () => {
 			shared: { olderBuild: undefined, central: 'agents/shared' },
 			writtenBack: { olderBuild: undefined, central: 'agents/shared' },
 			released: { olderBuild: worktree, central: 'agents/shared', withheld: undefined },
+		});
+	});
+
+	test('a session\'s worktree folders are central only: never written to older builds\' copy, read back as written, and a rebuilt catalog payload (Block 5)', async () => {
+		const session = URI.parse('copilotcli:/worktree-folders');
+		await database.registerSessionV2(session.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		const folders = JSON.stringify([{ workingDirectory: 'file:///repo.worktrees/shared', repositoryRoot: 'file:///repo', branch: 'agents/shared' }]);
+		const first = createStore();
+		await first.write(session, sessionStatePatch({ values: { [WORKTREE_FOLDERS_KEY]: folders, configValues: '{}' } }), SessionStateMirrorFlush.Immediate);
+		const prefetched = await createStore().prefetchWithoutImport([session]);
+
+		assert.deepStrictEqual({
+			olderBuildCopy: await sessionDb(session, [WORKTREE_FOLDERS_KEY, 'configValues']),
+			central: (await first.readWithoutImport(session, [WORKTREE_FOLDERS_KEY])).get(WORKTREE_FOLDERS_KEY),
+			prefetched: prefetched.get(session.toString())?.values.get(WORKTREE_FOLDERS_KEY),
+			payloadDirty: await database.getSessionV2PayloadDirty(session.toString()) !== undefined,
+		}, {
+			olderBuildCopy: { [WORKTREE_FOLDERS_KEY]: undefined, configValues: '{}' },
+			central: folders,
+			prefetched: folders,
+			payloadDirty: true,
 		});
 	});
 
@@ -1692,7 +1714,8 @@ suite('AgentHostSessionStateStore', () => {
 				result: { status: 'applied', moved: [a.chat('promoted')] },
 				chatsN: { [a.chat('promoted')]: [true, [lib], a.chat('promoted')] },
 				// The promoted chat's folder is the new session's primary folder; A still uses lib, so A keeps a copy.
-				foldersN: { '': ['{"branch":"lib-a"}', undefined], [getWorkingDirectoryScopeId([lib])]: [undefined, 'lib-base'] },
+				// The promoted chat is the new session's default chat: its base branch is the session folder's (G1, Block 5).
+				foldersN: { '': ['{"branch":"lib-a"}', 'lib-base'] },
 				valuesN: JSON.stringify([lib]),
 				chatsA: [a.chat('default'), a.chat('stays')],
 				databases: [],

@@ -11,6 +11,7 @@ import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../common/
 import type { IAgentHostWorktreeRemovalDatabase, IWorktreeCoOwnedFolder } from './agentHostWorktreeRemovalDatabase.js';
 import { OLDER_BUILD_WORKTREE_WITHHELD_KEY } from './agentHostSessionStateMirror.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY, ISessionAdditionalWorktree, readSessionAdditionalWorktrees } from './shared/sessionAdditionalWorktrees.js';
+import type { ISessionWorktreeFolder } from './shared/sessionWorktreeFolders.js';
 import { IAgentHostWorktreeIsolation, IWorktreeHandOver, WORKTREE_META_PATH } from './shared/worktreeIsolation.js';
 
 /** An additional worktree a session records, with the branch its record holds. */
@@ -54,6 +55,12 @@ export interface IWorktreeMoveDecisions {
 	readonly withholdTarget: boolean;
 	/** A session move hands the source's own, unshared worktree to the target as a detached worktree. */
 	readonly handOver: boolean;
+	/**
+	 * Shared worktrees the moved chats work in that the target records in its central worktree folders
+	 * (`agentHost.worktreeFolders`): for a chat move and a promotion the newly shared ones, for a session move the
+	 * ones its source shared, whose co-owner rows continue as the target's.
+	 */
+	readonly presented: readonly IWorktreeCoOwnedFolder[];
 }
 
 /** The decisions of a move, or the worktree that refuses it: a chat's own additional worktree a staying chat also uses (D2). */
@@ -92,6 +99,7 @@ export function planWorktreeMove(input: IWorktreeMoveInput): IWorktreeMovePlan {
 			withholdSource: false,
 			withholdTarget: false,
 			handOver: primary !== undefined && !source.coOwned.some(folder => sameWorktree(folder.worktreePath, primary.worktreePath)),
+			presented: source.coOwned.filter(folder => uses(input.chatFolders, folder.worktreePath)),
 		};
 	}
 	const refused = sharedOwnAdditionalWorktree(source.additional, input.moved, input.chatFolders, input.remainingFolders);
@@ -130,11 +138,24 @@ export function planWorktreeMove(input: IWorktreeMoveInput): IWorktreeMovePlan {
 		withholdSource: source.primary !== undefined && coOwned.some(folder => sameWorktree(folder.worktreePath, source.primary!.worktreePath)),
 		withholdTarget: input.targetPrimary !== undefined && coOwned.some(folder => sameWorktree(folder.worktreePath, input.targetPrimary!)),
 		handOver: false,
+		// A chat's own worktree that moves with it is presented too: it is the primary folder of a promoted chat's session.
+		presented: [...coOwned, ...source.additional.filter(worktree => transfers.some(transfer => transfer.handle === worktree.handle))
+			.map(worktree => ({ worktreePath: worktree.workingDirectory, repositoryRoot: worktree.repositoryRoot, branch: worktree.branch }))],
 	};
 }
 
 function sameWorktree(a: string, b: string): boolean {
 	return extUriBiasedIgnorePathCase.isEqual(URI.parse(a), URI.parse(b));
+}
+
+/**
+ * The worktree folders a move records for its target (`agentHost.worktreeFolders`): the shared worktrees it presents,
+ * except the target's own worktree (a chat moving back to the session that recorded it), which it presents natively.
+ */
+export function presentedWorktreeFolders(presented: readonly IWorktreeCoOwnedFolder[], targetPrimary: string | undefined): readonly ISessionWorktreeFolder[] {
+	return presented
+		.filter(folder => targetPrimary === undefined || !sameWorktree(folder.worktreePath, targetPrimary))
+		.map(folder => ({ workingDirectory: folder.worktreePath, repositoryRoot: folder.repositoryRoot, branch: folder.branch }));
 }
 
 /** The additional worktree list after a move removes `transfers` from it, as a session value (`null` when empty). */

@@ -49,7 +49,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, type CreateResourceWatchParams, type CreateResourceWatchResult, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, PendingMessageKind, TerminalClaimKind, TerminalLifecycleStatus, type Annotation, type AnnotationEntry, type AnnotationOrigin, type AnnotationsState, type ChatOrigin, type ChatState, type Customization, type Message, type MessageAttachment, type MessageResourceAttachment, type TerminalState, type TextRange, type ToolResultTerminalContent } from '../common/state/protocol/state.js';
 import type { ChatConfigChangedAction, ChatIsArchivedChangedAction, ChatIsReadChangedAction, ChatPendingMessageSetAction, ChatTurnStartedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
-import { isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, readSessionCreationReference, readSessionComparisonMetadata, readSessionSpawnDepth, withSessionSpawnDepth, withSessionCreationReference, parseSessionCreationReference, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, TurnState, AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, getErrorResponsePart, getSessionChatResource, isAhpChatChannel, isChatInSessionReadAggregate, isChatReadOnly, isSessionChatArchived, isSessionStatusArchived, isSessionStatusRead, isSubagentSession, needsSessionGitStateRefresh, parseResourceWatchChannelUri, parseSessionGitData, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withSessionExternal, withSessionGitData, withSessionGitHubState, withSessionGitState, withSessionHasWorkspaceTransitions, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionEhcliAdopted, withSessionEhcliLastMigratedTurn, AH_META_EHCLI_LAST_TURN_DB_KEY, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, getAllSessionRelatedPullRequestUrls, readSessionEhcliAdoptable, readSessionGitHubData, parseSessionGitHubData, parseSessionGitHubState, readSessionGitHubStateInput, withMigratedSessionGitHubState, withReplacedFolderGitHubState, withMostRecentRelatedSessionPullRequest, SESSION_META_GITHUB_DATA_KEY, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ISessionGitHubState, type ISessionSourceControlState, type ChatSummary, type ISessionWithDefaultChat, type SessionConfigState, type SessionSummary, type SessionSummaryMeta, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
+import { isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, readSessionCreationReference, readSessionComparisonMetadata, readSessionSpawnDepth, withSessionSpawnDepth, withSessionCreationReference, parseSessionCreationReference, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, TurnState, AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, getErrorResponsePart, getSessionChatResource, isAhpChatChannel, isChatInSessionReadAggregate, isChatReadOnly, isSessionChatArchived, isSessionStatusArchived, isSessionStatusRead, isSubagentSession, needsSessionGitStateRefresh, parseResourceWatchChannelUri, parseSessionGitData, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withSessionExternal, withSessionGitData, withSessionGitHubState, withSessionGitState, withSessionHasWorkspaceTransitions, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionEhcliAdopted, withSessionEhcliLastMigratedTurn, AH_META_EHCLI_LAST_TURN_DB_KEY, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, getAllSessionRelatedPullRequestUrls, readSessionEhcliAdoptable, readSessionGitHubData, parseSessionGitHubData, parseSessionGitHubState, readSessionGitHubStateInput, withMigratedSessionGitHubState, withReplacedFolderGitHubState, withMostRecentRelatedSessionPullRequest, SESSION_META_GITHUB_DATA_KEY, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ISessionGitHubState, type ISessionSourceControlState, type ChatSummary, type ISessionWithDefaultChat, type ProjectInfo, type SessionConfigState, type SessionSummary, type SessionSummaryMeta, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../common/meta/agentSnapshotAttachmentMeta.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../common/meta/agentEphemeralSessionMeta.js';
@@ -77,7 +77,7 @@ import { AgentHostDebugLogsCollector, type IAgentHostDebugLogsEnvironment } from
 import { withAgentHostDebugLogsProgress } from '../common/meta/agentHostDebugLogsMeta.js';
 import { IAgentHostDatabase, IAgentHostDatabaseSessionOptions, type IAgentHostDatabaseCatalogSnapshotEntry, type IAgentHostDatabaseSessionsV2Exclusion } from './agentHostDatabase.js';
 import { AgentSessionRegistry, IRegisteredSession, IStoredRegisteredSession } from './agentSessionRegistry.js';
-import { IAgentHostSessionStateStore, SessionStateDeletedError, SessionStateMirrorFlush, sessionStatePatch, type SessionStateValuesPrefetch } from '../common/agentHostSessionStateStore.js';
+import { IAgentHostSessionStateStore, readSessionBaseBranch, SessionStateDeletedError, SessionStateMirrorFlush, sessionStatePatch, type SessionStateValuesPrefetch } from '../common/agentHostSessionStateStore.js';
 import { getSessionStateValueKey } from './agentHostSessionStateMirror.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH, tryResolvePrimaryWorktreeRoot } from '../common/agentHostGitService.js';
 import { IAgentHostSubscriptionService, resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
@@ -105,7 +105,8 @@ import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, AGENT_HOST
 import { type IArtifactServerToolAccessor } from './shared/artifactServerTools.js';
 import { SessionArtifacts } from './shared/sessionArtifacts.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY, readSessionAdditionalWorktrees, writeSessionAdditionalWorktrees, type ISessionAdditionalWorktree } from './shared/sessionAdditionalWorktrees.js';
-import { AgentHostWorktreeCoOwnership, type ISessionWorktreeRecords, type IWorktreeMoveDecisions, planWorktreeMove, withoutTransferred, withTransferred } from './agentHostWorktreeCoOwnership.js';
+import { sessionWorktreeFolderRepositoryRoot, WORKTREE_FOLDERS_KEY, withSessionWorktreeFolders } from './shared/sessionWorktreeFolders.js';
+import { AgentHostWorktreeCoOwnership, type ISessionWorktreeRecords, type IWorktreeMoveDecisions, planWorktreeMove, presentedWorktreeFolders, withoutTransferred, withTransferred } from './agentHostWorktreeCoOwnership.js';
 import { parseSessionArtifacts, readSessionArtifacts, SessionArtifactType, stringifySessionArtifacts, withSessionArtifacts, type ISessionArtifact } from '../common/sessionArtifacts.js';
 import { SessionArtifactCollection } from '../common/sessionArtifactCollection.js';
 import { AgentHostCatalogDatabaseReference, AgentHostCatalogSyncService, IAgentHostCatalogSyncRequest } from './agentHostCatalogSyncService.js';
@@ -2498,6 +2499,7 @@ export class AgentService extends Disposable implements IAgentService {
 			metadataKeys[REMOTE_SESSION_ORIGIN_METADATA_KEY] = true;
 			metadataKeys[SESSION_WORKING_DIRECTORIES_KEY] = true;
 			metadataKeys[SESSION_INITIATOR_METADATA_KEY] = true;
+			metadataKeys[WORKTREE_FOLDERS_KEY] = true;
 			const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([session]);
 			if (snapshot?.authorityVersion === 2) {
 				delete metadataKeys[defaultChatTitleKey];
@@ -2592,7 +2594,9 @@ export class AgentService extends Disposable implements IAgentService {
 			if (folderPickerDecision) {
 				updated = { ...updated, _meta: withSessionFolderPickerDecision(updated._meta, folderPickerDecision) };
 			}
-			const worktreeProject = worktreeProjectFromRepositoryRoot(persisted[WORKTREE_META_REPOSITORY_ROOT]);
+			// Its own recorded worktree, else a shared worktree a move recorded as its primary folder (Block 5).
+			const worktreeProject = worktreeProjectFromRepositoryRoot(persisted[WORKTREE_META_REPOSITORY_ROOT]
+				?? sessionWorktreeFolderRepositoryRoot(persisted[WORKTREE_FOLDERS_KEY], updated.workingDirectories?.[0]));
 			if (worktreeProject) {
 				updated = { ...updated, project: worktreeProject };
 			}
@@ -6579,7 +6583,7 @@ export class AgentService extends Disposable implements IAgentService {
 						expectedTargetCatalogRevision: catalogs.get(targetKey) ?? 0,
 						folders,
 						coOwnedWorktrees: plan.coOwned,
-						values: await this._movedWorktreeValues(session, target, chatKey, plan, handOver, sessionMove),
+						values: await this._movedWorktreeValues(session, target, chatKey, plan, handOver, sessionMove, targetPrimaryWorktree),
 					};
 					return sessionMove ? this._sessionStateStore.moveSession(move) : this._sessionStateStore.moveChat(move);
 				};
@@ -6839,7 +6843,9 @@ export class AgentService extends Disposable implements IAgentService {
 			this._validateChatMove(sourceKey, undefined, chatKey, moved, undefined, chatFolders);
 			return this._planMoveWorktrees(sourceKey, chatKey, moved, chatFolders, sourceWorktrees, undefined, false);
 		};
-		validate();
+		// The new session is a worktree session when its primary folder is a worktree the promotion shares or transfers (Block 5).
+		const promotedWorktreeFolders = withSessionWorktreeFolders(undefined, presentedWorktreeFolders(validate().presented, undefined));
+		const promotedRepository = sessionWorktreeFolderRepositoryRoot(promotedWorktreeFolders ?? undefined, chatFolders[0]);
 		const carried = await this._sessionStateStore.readWithoutImport(session, ['customizationEnablement', SESSION_INITIATOR_METADATA_KEY]);
 		const target = await this._allocatePromotedSession(provider);
 		const targetKey = target.toString();
@@ -6852,7 +6858,7 @@ export class AgentService extends Disposable implements IAgentService {
 			const withholdings: (() => Promise<void>)[] = [];
 			const sourceConfig = this._stateManager.getSessionState(sourceKey)?.config;
 			// The chat's own values become the new session's: its future chats start from them.
-			const config: SessionConfigState | undefined = sourceConfig && { schema: sourceConfig.schema, values: { ...sourceConfig.values, ...this._movedChatConfig(sourceKey, sourceKey, chatKey) } };
+			const config: SessionConfigState | undefined = sourceConfig && { schema: sourceConfig.schema, values: { ...sourceConfig.values, ...this._movedChatConfig(sourceKey, sourceKey, chatKey), ...this._promotedIsolationConfig(sourceConfig, session, chatKey, promotedRepository) } };
 			try {
 				this._checkMovedChat(sourceKey, chatKey);
 				const current = chatSubtree(this._stateManager, sourceKey, chatKey);
@@ -6879,6 +6885,9 @@ export class AgentService extends Disposable implements IAgentService {
 				const transferred = withTransferred([], plan.transfers);
 				if (transferred !== null) {
 					values[ADDITIONAL_WORKTREES_METADATA_KEY] = transferred;
+				}
+				if (promotedWorktreeFolders !== null) {
+					values[WORKTREE_FOLDERS_KEY] = promotedWorktreeFolders;
 				}
 				const commit = async () => this._sessionStateStore.promoteChat({
 					source: session,
@@ -6930,7 +6939,8 @@ export class AgentService extends Disposable implements IAgentService {
 			// A rename not persisted yet is known in memory only, while the chat is still the source's.
 			const renamed = this._sideEffects.isTitleRenamed(sourceKey, chatKey);
 			try {
-				this._promoteMovedChats(provider, sourceKey, targetKey, chatKey, committed, chatFolders, config, sourceSummary?.workingDirectories === undefined);
+				const project = worktreeProjectFromRepositoryRoot(promotedRepository);
+				this._promoteMovedChats(provider, sourceKey, targetKey, chatKey, committed, chatFolders, config, sourceSummary?.workingDirectories === undefined, project && { uri: project.uri.toString(), displayName: project.displayName });
 			} catch (error) {
 				this._logService.error(error, `[AgentService] Chat ${chatKey} was promoted to ${targetKey}, but its in-memory move failed; it shows up after the sessions reload`);
 				await this._reloadAfterFailedMove([sourceKey, targetKey]);
@@ -6994,7 +7004,7 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/** Creates the promoted chat's new session in memory and moves the committed chats into it, synchronously. */
-	private _promoteMovedChats(provider: IAgent, source: string, target: string, chat: string, committed: readonly string[], chatFolders: readonly string[], config: SessionConfigState | undefined, inheritedFolders: boolean): void {
+	private _promoteMovedChats(provider: IAgent, source: string, target: string, chat: string, committed: readonly string[], chatFolders: readonly string[], config: SessionConfigState | undefined, inheritedFolders: boolean, project: ProjectInfo | undefined): void {
 		const inMemory = committed.filter(candidate => this._chatOwnership.getChatOwner(candidate) === source && this._stateManager.isChatRegistered(candidate));
 		if (inMemory[0] !== chat) {
 			throw new Error(`Promoted chat ${chat} is not loaded`);
@@ -7016,6 +7026,8 @@ export class AgentService extends Disposable implements IAgentService {
 			createdAt: now,
 			modifiedAt: now,
 			workingDirectories: [...chatFolders],
+			// A promoted worktree chat's session is a worktree session: it groups under the worktree's repository.
+			...(project ? { project } : {}),
 			_meta: withPublishedWorkingDirectoryIdentities(meta, chatFolders, undefined),
 			defaultChat: chat,
 		}, config, inMemory);
@@ -7129,25 +7141,51 @@ export class AgentService extends Disposable implements IAgentService {
 		return plan;
 	}
 
+	/**
+	 * The isolation a promoted chat's new session reports (Block 5): `worktree`, with the chat's base branch, when its
+	 * primary folder is a recorded worktree; `folder` otherwise. Only where the source's schema offers isolation.
+	 */
+	private _promotedIsolationConfig(sourceConfig: SessionConfigState, source: URI, chat: string, promotedRepository: string | undefined): Record<string, unknown> {
+		const properties = sourceConfig.schema.properties;
+		if (!properties?.[SessionConfigKey.Isolation]) {
+			return {};
+		}
+		if (promotedRepository === undefined) {
+			return { [SessionConfigKey.Isolation]: 'folder' };
+		}
+		const snapshot = this._sessionStateStore.peek(source);
+		const baseBranch = snapshot && readSessionBaseBranch(snapshot, chat);
+		return {
+			[SessionConfigKey.Isolation]: 'worktree',
+			...(baseBranch !== undefined && properties[SessionConfigKey.Branch] ? { [SessionConfigKey.Branch]: baseBranch } : {}),
+		};
+	}
+
 	/** A move retried after importing older-build edits keeps the worktree decisions it prepared, or is refused. */
 	private _checkWorktreePlan(chat: string, current: IWorktreeMoveDecisions, prepared: IWorktreeMoveDecisions): void {
-		const key = (plan: IWorktreeMoveDecisions) => JSON.stringify([plan.transfers.map(transfer => transfer.handle), plan.coOwned.map(folder => folder.worktreePath), plan.withholdSource, plan.withholdTarget, plan.handOver]);
+		const key = (plan: IWorktreeMoveDecisions) => JSON.stringify([plan.transfers.map(transfer => transfer.handle), plan.coOwned.map(folder => folder.worktreePath), plan.presented.map(folder => folder.worktreePath), plan.withholdSource, plan.withholdTarget, plan.handOver]);
 		if (key(current) !== key(prepared)) {
 			throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.Conflict, `Chat ${chat} changed while it was being moved; try again.`);
 		}
 	}
 
 	/** The session values a move's worktree records change in its transaction: transferred additional worktrees leave the source and join the target. */
-	private async _movedWorktreeValues(source: URI, target: URI, chat: string, plan: IWorktreeMoveDecisions, handOver: IWorktreeHandOver | undefined, sessionMove: boolean): Promise<{ readonly source: Record<string, string | null>; readonly target: Record<string, string | null> }> {
+	private async _movedWorktreeValues(source: URI, target: URI, chat: string, plan: IWorktreeMoveDecisions, handOver: IWorktreeHandOver | undefined, sessionMove: boolean, targetPrimary: string | undefined): Promise<{ readonly source: Record<string, string | null>; readonly target: Record<string, string | null> }> {
 		const handedOver = handOver ? [{ handle: handOver.handle, workingDirectory: handOver.workingDirectory, repositoryRoot: handOver.repositoryRoot, chat }] : [];
-		if (plan.transfers.length === 0 && handedOver.length === 0) {
-			return { source: {}, target: {} };
-		}
-		return {
+		const values: { readonly source: Record<string, string | null>; readonly target: Record<string, string | null> } = { source: {}, target: {} };
+		if (plan.transfers.length > 0 || handedOver.length > 0) {
 			// A session that ends by the move keeps none: its central state is tombstoned in the same transaction.
-			source: sessionMove ? {} : { [ADDITIONAL_WORKTREES_METADATA_KEY]: withoutTransferred(await readSessionAdditionalWorktrees(this._sessionStateStore, source), plan.transfers) },
-			target: { [ADDITIONAL_WORKTREES_METADATA_KEY]: withTransferred(await readSessionAdditionalWorktrees(this._sessionStateStore, target), [...plan.transfers, ...handedOver]) },
-		};
+			if (!sessionMove) {
+				values.source[ADDITIONAL_WORKTREES_METADATA_KEY] = withoutTransferred(await readSessionAdditionalWorktrees(this._sessionStateStore, source), plan.transfers);
+			}
+			values.target[ADDITIONAL_WORKTREES_METADATA_KEY] = withTransferred(await readSessionAdditionalWorktrees(this._sessionStateStore, target), [...plan.transfers, ...handedOver]);
+		}
+		// The target knows the shared worktrees the moved chats work in as worktrees, from what the move recorded (central only).
+		const presented = presentedWorktreeFolders(plan.presented, targetPrimary);
+		if (presented.length > 0) {
+			values.target[WORKTREE_FOLDERS_KEY] = withSessionWorktreeFolders((await this._sessionStateStore.readWithoutImport(target, [WORKTREE_FOLDERS_KEY])).get(WORKTREE_FOLDERS_KEY), presented);
+		}
+		return values;
 	}
 
 	/** Undoes what a refused move prepared for its worktrees: older builds see a branch it withheld again, and a hand-over record is dropped. */
@@ -12745,7 +12783,10 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!meta) {
 			return meta;
 		}
-		const project = await this._worktree.resolveWorktreeProject(session);
+		const primary = meta.workingDirectories?.[0];
+		// Its own recorded worktree, else a shared worktree a move recorded as its primary folder (Block 5); read on restore only.
+		const project = await this._worktree.resolveWorktreeProject(session)
+			?? (primary && worktreeProjectFromRepositoryRoot(sessionWorktreeFolderRepositoryRoot((await this._sessionStateStore.readWithoutImport(session, [WORKTREE_FOLDERS_KEY])).get(WORKTREE_FOLDERS_KEY), primary)));
 		return project ? { ...meta, project } : meta;
 	}
 

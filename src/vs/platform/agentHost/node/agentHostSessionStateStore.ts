@@ -19,7 +19,7 @@ import { ISessionDataService } from '../common/sessionDataService.js';
 import { AgentHostChatRowStore } from './agentHostChatRowStore.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
 import type { IAgentHostSessionChatStateData, IAgentHostSessionChatStateFields, IAgentHostSessionStateImport, IAgentHostSessionStatePatch } from './agentHostSessionStateDatabase.js';
-import { BASE_BRANCH_MIRROR_KEY, COPILOT_LAUNCH_DIRECTORY_KEYS, getSessionStateValueKey, IMirrorReadPlan, isProjectedMirrorEntry, isRetiredLegacyKey, legacyMapWritePatch, legacyWriteEntry, ILiveChat, baseBranchSources, CHAT_WORKING_DIRECTORIES_MIRROR_KEY, MirrorReads, mergePatches, mirroredChatFields, mirrorEntryId, observedMirrorEntries, observeLegacyArchived, observeMirrorEntry, parseMirrorEntryId, patchFromMirror, patchMirrorEntries, planMirrorReads, renderLegacyMetadata, renderMirrorWrites, renderOlderBuildEntry, SESSION_STATE_VALUE_KEYS, sessionFolderKey, SessionStateMirrorEntry, SessionStateModel } from './agentHostSessionStateMirror.js';
+import { BASE_BRANCH_MIRROR_KEY, COPILOT_LAUNCH_DIRECTORY_KEYS, getSessionStateValueKey, IMirrorReadPlan, isProjectedMirrorEntry, isRetiredLegacyKey, legacyMapWritePatch, legacyWriteEntry, ILiveChat, baseBranchSources, CHAT_WORKING_DIRECTORIES_MIRROR_KEY, MirrorReads, mergePatches, mirroredChatFields, mirrorEntryId, observedMirrorEntries, observeLegacyArchived, observeMirrorEntry, parseMirrorEntryId, patchFromMirror, patchMirrorEntries, planMirrorReads, renderLegacyMetadata, renderMirrorWrites, renderOlderBuildEntry, CENTRAL_SESSION_STATE_VALUE_KEYS, sessionFolderKey, SessionStateMirrorEntry, SessionStateModel } from './agentHostSessionStateMirror.js';
 import { META_GITHUB_STATE } from '../common/agentHostGitStateService.js';
 import { SESSION_WORKING_DIRECTORIES_KEY } from './shared/persistSessionMetadata.js';
 import { creationTimeChatStorageResource, mirrorsAtChatUri } from './agentHostStateManager.js';
@@ -463,7 +463,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			return new Map();
 		}
 		const sequence = this._centralWriteSequence;
-		const central = await this._database.readSessionStateValues(unloaded, SESSION_STATE_VALUE_KEYS.map(entry => entry.key));
+		const central = await this._database.readSessionStateValues(unloaded, CENTRAL_SESSION_STATE_VALUE_KEYS.map(entry => entry.key));
 		return new CurrentSessionStateValuesPrefetch(unloaded.map(session => {
 			const values = central.get(session);
 			return [session, values?.imported ? { values: values.values, mirrored: values.mirrored } : undefined];
@@ -629,7 +629,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 				await this._flushLocked(record);
 			}
 			const chat = move.chat.toString();
-			const transfers = chatMoveFolderTransfers(move.folders);
+			const transfers = chatMoveFolderTransfers(move.folders, false);
 			const apply = (databaseMove: Parameters<IAgentHostDatabase['moveChatV2']>[0]) => endSource ? this._database.moveSessionV2(databaseMove) : this._database.moveChatV2(databaseMove);
 			const result = await apply({
 				chat,
@@ -700,7 +700,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			source.scheduler.cancel();
 			await this._flushLocked(source);
 			const chat = promotion.chat.toString();
-			const transfers = chatMoveFolderTransfers({ ...promotion.folders, target: promotion.folders.chat });
+			const transfers = chatMoveFolderTransfers({ ...promotion.folders, target: promotion.folders.chat }, true);
 			const result = await this._database.promoteChatV2({
 				chat,
 				source: source.key,
@@ -1128,7 +1128,8 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			return record.model.revision;
 		}
 		const entries = patchMirrorEntries(patch);
-		const databasePatch = toDatabasePatch(patch, markPayloadDirty && entries.some(isProjectedMirrorEntry));
+		// Central-only values have no mirror entry; a projected one still rebuilds the catalog payload.
+		const databasePatch = toDatabasePatch(patch, markPayloadDirty && (entries.some(isProjectedMirrorEntry) || Object.keys(patch.values).some(key => getSessionStateValueKey(key)?.projected)));
 		let result = await this._database.writeSessionState(record.key, record.model.revision, databasePatch);
 		if (result.status === 'conflict') {
 			// Only an external repair of the same database can move the revision.

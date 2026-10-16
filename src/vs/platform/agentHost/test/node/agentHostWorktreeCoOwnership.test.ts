@@ -11,7 +11,8 @@ import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agent.js';
 import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../../common/agentHostSessionStateStore.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
-import { AgentHostWorktreeCoOwnership, IWorktreeMoveInput, planWorktreeMove } from '../../node/agentHostWorktreeCoOwnership.js';
+import { AgentHostWorktreeCoOwnership, IWorktreeMoveInput, planWorktreeMove, presentedWorktreeFolders } from '../../node/agentHostWorktreeCoOwnership.js';
+import { parseSessionWorktreeFolders, sessionWorktreeFolderRepositoryRoot, withSessionWorktreeFolders } from '../../node/shared/sessionWorktreeFolders.js';
 import { NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 
 const source = 'copilotcli:/source';
@@ -45,6 +46,7 @@ suite('AgentHostWorktreeCoOwnership', () => {
 			coOwned: plan.coOwned.map(folder => `${folder.worktreePath}:${folder.branch}`),
 			withhold: [plan.withholdSource, plan.withholdTarget],
 			handOver: plan.handOver,
+			presented: plan.presented.map(folder => folder.worktreePath),
 		};
 		assert.deepStrictEqual({
 			// In its session's own worktree (a subfolder of it): the source withholds its branch from older builds.
@@ -64,14 +66,15 @@ suite('AgentHostWorktreeCoOwnership', () => {
 			// ...unless it already shares that worktree: its share continues as the target's.
 			sharedSessionMove: decisions(planWorktreeMove(input({ kind: 'session', chatFolders: [primary.worktreePath], remainingFolders: [], source: { primary, additional: [], coOwned: [primary] } }))),
 		}, {
-			primary: { transfers: [], coOwned: [`${primary.worktreePath}:agents/source`], withhold: [true, false], handOver: false },
-			backToOrigin: { transfers: [], coOwned: [`${coOwned.worktreePath}:agents/origin`], withhold: [false, true], handOver: false },
-			ownAlone: { transfers: [`${own.workingDirectory}:${chat}`], coOwned: [], withhold: [false, false], handOver: false },
+			// `presented`: the worktrees the target records as worktree folders (its own is filtered when it records them).
+			primary: { transfers: [], coOwned: [`${primary.worktreePath}:agents/source`], withhold: [true, false], handOver: false, presented: [primary.worktreePath] },
+			backToOrigin: { transfers: [], coOwned: [`${coOwned.worktreePath}:agents/origin`], withhold: [false, true], handOver: false, presented: [coOwned.worktreePath] },
+			ownAlone: { transfers: [`${own.workingDirectory}:${chat}`], coOwned: [], withhold: [false, false], handOver: false, presented: [own.workingDirectory] },
 			ownShared: { refused: own.workingDirectory },
-			descendant: { transfers: [`${own.workingDirectory}:${staying}`], coOwned: [], withhold: [false, false], handOver: false },
-			shared: { transfers: [], coOwned: [`${sessionLevel.workingDirectory}:agents/lib`, `${coOwned.worktreePath}:agents/origin`], withhold: [false, false], handOver: false },
-			sessionMove: { transfers: [`${own.workingDirectory}:${chat}`, `${sessionLevel.workingDirectory}:${chat}`], coOwned: [], withhold: [false, false], handOver: true },
-			sharedSessionMove: { transfers: [], coOwned: [], withhold: [false, false], handOver: false },
+			descendant: { transfers: [`${own.workingDirectory}:${staying}`], coOwned: [], withhold: [false, false], handOver: false, presented: [own.workingDirectory] },
+			shared: { transfers: [], coOwned: [`${sessionLevel.workingDirectory}:agents/lib`, `${coOwned.worktreePath}:agents/origin`], withhold: [false, false], handOver: false, presented: [sessionLevel.workingDirectory, coOwned.worktreePath] },
+			sessionMove: { transfers: [`${own.workingDirectory}:${chat}`, `${sessionLevel.workingDirectory}:${chat}`], coOwned: [], withhold: [false, false], handOver: true, presented: [] },
+			sharedSessionMove: { transfers: [], coOwned: [], withhold: [false, false], handOver: false, presented: [primary.worktreePath] },
 		});
 	});
 
@@ -115,5 +118,25 @@ suite('AgentHostWorktreeCoOwnership', () => {
 		} finally {
 			await database.close();
 		}
+	});
+	test('the target records the presented worktrees as its worktree folders, never its own one; a session presents as a worktree session when its primary folder is (inside) one of them', () => {
+		const recorded = withSessionWorktreeFolders(JSON.stringify([{ workingDirectory: sessionLevel.workingDirectory, repositoryRoot: 'file:///stale', branch: 'old' }]), presentedWorktreeFolders([primary, coOwned, { worktreePath: sessionLevel.workingDirectory, repositoryRoot: sessionLevel.repositoryRoot, branch: sessionLevel.branch }], coOwned.worktreePath));
+		assert.deepStrictEqual({
+			recorded: parseSessionWorktreeFolders(recorded ?? undefined),
+			primaryInside: sessionWorktreeFolderRepositoryRoot(recorded ?? undefined, `${primary.worktreePath}/src`),
+			// The target's own worktree is presented natively, and a folder no entry names stays a folder.
+			own: sessionWorktreeFolderRepositoryRoot(recorded ?? undefined, coOwned.worktreePath),
+			unrelated: sessionWorktreeFolderRepositoryRoot(recorded ?? undefined, 'file:///repo.worktrees/unrecorded'),
+			nothing: withSessionWorktreeFolders(undefined, []),
+		}, {
+			recorded: [
+				{ workingDirectory: primary.worktreePath, repositoryRoot: primary.repositoryRoot, branch: primary.branch },
+				{ workingDirectory: sessionLevel.workingDirectory, repositoryRoot: sessionLevel.repositoryRoot, branch: sessionLevel.branch },
+			],
+			primaryInside: primary.repositoryRoot,
+			own: undefined,
+			unrelated: undefined,
+			nothing: null,
+		});
 	});
 });

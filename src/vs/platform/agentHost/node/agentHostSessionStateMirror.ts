@@ -20,6 +20,7 @@ import { SESSION_INITIATOR_METADATA_KEY } from '../common/meta/agentSessionIniti
 import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY } from '../common/state/sessionState.js';
 import { type IAgentHostSessionChatState, type IAgentHostSessionState } from './agentHostSessionStateDatabase.js';
 import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY, SESSION_WORKING_DIRECTORIES_KEY } from './shared/persistSessionMetadata.js';
+import { WORKTREE_FOLDERS_KEY } from './shared/sessionWorktreeFolders.js';
 
 // ---- Registry --------------------------------------------------------------
 
@@ -82,9 +83,14 @@ const WORKTREE_BRANCH_KEY = 'copilot.worktree.branchName';
 /** Session-level values held centrally only: the store owns them, older builds never see them. */
 const CENTRAL_ONLY_VALUE_KEYS: readonly ISessionStateValueKey[] = [
 	{ key: OLDER_BUILD_WORKTREE_WITHHELD_KEY, projected: false },
+	// The session catalog projects its worktree folders as the session's repository (`project`).
+	{ key: WORKTREE_FOLDERS_KEY, projected: true },
 ];
 
-const exactValueKeys = new Map([...SESSION_STATE_VALUE_KEYS, ...CENTRAL_ONLY_VALUE_KEYS].map(entry => [entry.key, entry]));
+/** Every session-level value the store owns: those mirrored to older builds and those held centrally only. */
+export const CENTRAL_SESSION_STATE_VALUE_KEYS: readonly ISessionStateValueKey[] = [...SESSION_STATE_VALUE_KEYS, ...CENTRAL_ONLY_VALUE_KEYS];
+
+const exactValueKeys = new Map(CENTRAL_SESSION_STATE_VALUE_KEYS.map(entry => [entry.key, entry]));
 const centralOnlyValueKeys = new Set(CENTRAL_ONLY_VALUE_KEYS.map(entry => entry.key));
 
 /** The registry entry of a session-level value key, if it is one. */

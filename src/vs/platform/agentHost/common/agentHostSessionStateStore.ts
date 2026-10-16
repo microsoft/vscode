@@ -164,10 +164,12 @@ export interface ISessionStateChatMoveFolder {
 /**
  * The per-folder state a moved chat takes along (Block 4): for each of its folders, the git and GitHub rows,
  * and the base branch of its folder scope. A row is re-keyed when no chat staying in the source uses the folder,
- * else copied. The moved chat always has its own folders in the target, so its base branch is keyed by their scope.
+ * else copied. The moved chat always has its own folders in the target, so its base branch is keyed by their scope,
+ * unless it becomes the target's default chat (a promotion, `targetIsDefault`): a default chat's base branch is the
+ * session folder's ('').
  * A row the target already has wins; the store applies that.
  */
-export function chatMoveFolderTransfers(folders: ISessionStateChatMoveFolders): readonly ISessionStateChatMoveFolder[] {
+export function chatMoveFolderTransfers(folders: ISessionStateChatMoveFolders, targetIsDefault: boolean): readonly ISessionStateChatMoveFolder[] {
 	const key = (directory: string) => getWorkingDirectoryKey(directory);
 	const remainingKeys = new Set(folders.remaining.flatMap(directories => directories.map(key)));
 	const sourcePrimary = folders.source[0] === undefined ? undefined : key(folders.source[0]);
@@ -190,7 +192,7 @@ export function chatMoveFolderTransfers(folders: ISessionStateChatMoveFolders): 
 		const sourceKept = sourceScope === ''
 			? folders.remaining.length > 0
 			: folders.remaining.some(directories => directories.length > 0 && getWorkingDirectoryScopeId(directories) === sourceScope);
-		transfers.push({ kind: 'baseBranch', sourceKey: sourceScope, targetKey: getWorkingDirectoryScopeId(folders.chat), keepInSource: sourceKept });
+		transfers.push({ kind: 'baseBranch', sourceKey: sourceScope, targetKey: targetIsDefault ? '' : getWorkingDirectoryScopeId(folders.chat), keepInSource: sourceKept });
 	}
 	return transfers;
 }
