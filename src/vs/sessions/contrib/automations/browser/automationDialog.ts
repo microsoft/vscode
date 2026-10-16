@@ -1221,9 +1221,7 @@ export function renderForm(
 		allowedProviders.read(reader);
 		return getProviderConfiguration(cloudProvider.read(reader));
 	});
-	const cloudConfiguration = derived(reader => {
-		return runInCloud.read(reader) ? availableCloudConfiguration.read(reader) : undefined;
-	});
+	const cloudConfiguration = derived(reader => runInCloud.read(reader) ? availableCloudConfiguration.read(reader) : undefined);
 	// Shown whenever cloud automations are enabled, decided once so the switch never appears or disappears
 	// while the dialog is open. Turning it on connects to the provider when it cannot create yet.
 	const showCloudSwitch = isEdit ? initialProviderConfiguration !== undefined : cloudProvider.get() !== undefined;
@@ -1283,19 +1281,7 @@ export function renderForm(
 		if (switchingTarget) {
 			return;
 		}
-		let pick = sessionTypePicker.selectedPick;
-		if (!isEdit && !runInCloud.get() && pick && getProviderConfiguration(pick.providerId)?.getWorkspaceTarget(state.folderUri).get().isPublicRepository) {
-			const localTypes = sessionTypes.get().filter(type => pickerProviders.get().includes(type.providerId) && !getProviderConfiguration(type.providerId));
-			const fallback = localTypes.find(type => type.sessionType.id === SessionType.CopilotCLI)
-				?? localTypes.find(type => type.providerId === localTarget.providerId && type.sessionType.id === localTarget.sessionTypeId)
-				?? localTypes[0];
-			if (fallback) {
-				sessionTypePicker.setFolderSource(isolationModel.folderUriObs, {
-					initialPick: { providerId: fallback.providerId, sessionTypeId: fallback.sessionType.id },
-				});
-				pick = sessionTypePicker.selectedPick;
-			}
-		}
+		const pick = sessionTypePicker.selectedPick;
 		state.providerId = pick?.providerId;
 		state.sessionTypeId = pick?.sessionTypeId;
 		const configuration = cloudConfiguration.get();
@@ -1567,13 +1553,12 @@ export function renderForm(
 	const showConnectFailure = () => {
 		const message = localize('automation.form.runInCloudUnavailable', "Unable to load cloud automations. Please try again in a few moments.");
 		status(message);
-		const hover = customizations?.hoverService.showInstantHover({
+		connectFailureHover.value = customizations?.hoverService.showInstantHover({
 			content: message,
 			target: cloudSwitch.domNode,
 			position: { hoverPosition: HoverPosition.BELOW },
 			appearance: { showPointer: true },
 		});
-		connectFailureHover.value = hover;
 	};
 	disposables.add(cloudSwitch.onChange(async checked => {
 		connectFailureHover.clear();
@@ -2047,7 +2032,7 @@ export function renderForm(
 				targetError.textContent = text;
 			}
 		},
-		getSaveBlockedReason: message => !isEdit && message !== undefined && message === cloudUnavailableMessage()
+		getSaveBlockedReason: message => !isEdit && message === cloudUnavailableMessage()
 			? { message, elementId: targetError.id }
 			: undefined,
 		waitForAutomationSessionSync: token => {
