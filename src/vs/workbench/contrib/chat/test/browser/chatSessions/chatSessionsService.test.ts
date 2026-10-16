@@ -1068,6 +1068,39 @@ suite('ChatSessionsService - session resolution', () => {
 		});
 	});
 
+	test('keeps cached content alive for a joining caller when the original caller cancels', async () => {
+		const type = 'joined-cached-content';
+		const resource = URI.from({ scheme: type, path: '/saved' });
+		const cancellation = store.add(new CancellationTokenSource());
+		const joined = new DeferredPromise<IChatSession>();
+		const willDispose = store.add(new Emitter<void>());
+		let disposed = 0;
+		let provideCalls = 0;
+		const content = store.add(toDisposable(() => { disposed++; willDispose.fire(); }));
+		const session: IChatSession = {
+			sessionResource: resource, history: [], options: new Map([['model', 'live-model']]),
+			onWillDispose: willDispose.event, dispose: () => content.dispose(),
+		};
+		store.add(service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: async () => { provideCalls++; return session; },
+		}));
+		store.add(Event.once(service.onDidChangeSessionOptions)(() => {
+			queueMicrotask(() => {
+				void joined.settleWith(service.getOrCreateChatSession(resource, CancellationToken.None));
+				cancellation.cancel();
+			});
+		}));
+		const cancelled = assert.rejects(service.getOrCreateChatSession(resource, cancellation.token), isCancellationError);
+		const joinedSession = await joined.p;
+		await cancelled;
+
+		assert.deepStrictEqual({
+			provideCalls, disposed, joinedSameSession: joinedSession === session, cachedModel: service.getSessionOption(resource, 'model'),
+		}, {
+			provideCalls: 1, disposed: 0, joinedSameSession: true, cachedModel: 'live-model',
+		});
+	});
+
 	for (const terminalAction of ['provider removal', 'session deletion', 'all callers cancelling'] as const) {
 		test(`${terminalAction} after caching terminates the shared resolution and disposes content once`, async () => {
 			const type = 'cancelled-cached-content';
