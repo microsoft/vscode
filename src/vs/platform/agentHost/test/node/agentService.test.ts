@@ -31436,6 +31436,82 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			});
 
+			suite('folders of a chat in transit (#341885)', () => {
+				const primary = URI.file('/workspace/primary');
+				const other = URI.file('/workspace/other');
+
+				/** S and T on `primary`; a peer of S works in `other` too, which S has for it. */
+				async function setupFolders() {
+					const service = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+					registerTestAgentProvider(service, disposables.add(new MovingAgent('copilot', true)));
+					getConfigurationService(service).updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
+					const source = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [primary] });
+					const target = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [primary] });
+					const peer = URI.parse(buildChatUri(source, 'mover'));
+					await service.createChat(source, peer, { title: 'Mover', workingDirectories: [await service.addSessionWorkingDirectoryForChat(source, other, { isolation: 'folder' })] });
+					await timeout(0);
+					const foldersOf = (session: URI) => getStateManager(service).getSessionSummary(session.toString())?.workingDirectories;
+					const archive = async (chat: URI, session: URI) => {
+						service.dispatchAction(chat.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'client', 1);
+						await whenArchivedChatWorkspaceUpdatesSettled(service, session);
+					};
+					return { service, source, target, peer, foldersOf, archive };
+				}
+
+				test('archiving a destination chat while a chat moves in keeps the folder the moving chat brings', async () => {
+					const { service, source, target, peer, foldersOf, archive } = await setupFolders();
+					// The moving chat also works in a folder T doesn't have, which the move prepares there.
+					const extra = URI.file('/workspace/extra');
+					getStateManager(service).dispatchServerAction(peer.toString(), { type: ActionType.ChatWorkingDirectorySet, directory: (await service.addSessionWorkingDirectoryForChat(source, extra, { isolation: 'folder' })).toString() });
+					// A chat of T already works in the other folder the moving chat brings.
+					const sharing = URI.parse(buildChatUri(target, 'sharing'));
+					await service.createChat(target, sharing, { title: 'Sharing', workingDirectories: [await service.addSessionWorkingDirectoryForChat(target, other, { isolation: 'folder' })] });
+					const prepare = service.prepareChatWorkingDirectory.bind(service);
+					stub(service, 'prepareChatWorkingDirectory').callsFake(async (session, directory, options) => {
+						// Archived while the move prepares T, when no chat of T lists the moving chat yet, and written before it goes on.
+						await archive(sharing, target);
+						await (service as unknown as IMoveInternals)._peerChatStore.whenSessionsIdle([target]);
+						await service.whenCatalogReconciliationIdle();
+						return prepare(session, directory, options);
+					});
+
+					await service.moveChat(source, peer, { kind: 'session', session: target, after: undefined });
+
+					assert.deepStrictEqual({
+						target: foldersOf(target),
+						moved: getStateManager(service).getSessionState(target.toString())?.chats.find(chat => chat.resource === peer.toString())?.workingDirectories,
+					}, {
+						target: [primary.toString(), other.toString(), extra.toString()],
+						moved: [other.toString(), extra.toString()],
+					});
+				});
+
+				test('a moved chat\'s folder prepared in the destination is in use once it lands, and detached when it is archived there; the source lets go of it', async () => {
+					const { service, source, target, peer, foldersOf, archive } = await setupFolders();
+
+					await service.moveChat(source, peer, { kind: 'session', session: target, after: undefined });
+					await whenArchivedChatWorkspaceUpdatesSettled(service, source);
+					const moved = { source: foldersOf(source), target: foldersOf(target) };
+					await archive(peer, target);
+
+					assert.deepStrictEqual({ moved, afterArchive: foldersOf(target) }, {
+						// Like a deleted chat, it leaves no folder no remaining chat of the source uses.
+						moved: { source: [primary.toString()], target: [primary.toString(), other.toString()] },
+						afterArchive: [primary.toString()],
+					});
+				});
+
+				test('the source of a promoted chat lets go of the folders no remaining chat uses', async () => {
+					const { service, source, peer, foldersOf } = await setupFolders();
+					completeTurn(service, peer);
+
+					const promoted = await service.moveChat(source, peer, { kind: 'newSession' });
+					await whenArchivedChatWorkspaceUpdatesSettled(service, source);
+
+					assert.deepStrictEqual({ source: foldersOf(source), promoted: foldersOf(promoted) }, { source: [primary.toString()], promoted: [other.toString()] });
+				});
+			});
+
 			test('adds the moved chat\'s folder to the target and keeps the target\'s other chats on their folders', async () => {
 				const other = URI.file('/other');
 				const { service, source, target, peer, folder } = await setupMove(true, other, true);
@@ -31580,7 +31656,7 @@ suite('AgentService (node dispatcher)', () => {
 				_migrateChatCatalog(session: URI, token: CancellationToken): Promise<void>;
 				_sessionStateStore: { moveChat(move: unknown): Promise<unknown> };
 				_attachmentMigration: { schedule(chats: Iterable<string>): void; resume(chats: Iterable<string>): Promise<void>; whenIdle(): Promise<void> };
-				_peerChatStore: { reconcileOlderBuildCopy(session: URI): Promise<void>; flushCompatibilityPublishes(session: URI | undefined, database: undefined): Promise<void> };
+				_peerChatStore: { reconcileOlderBuildCopy(session: URI): Promise<void>; flushCompatibilityPublishes(session: URI | undefined, database: undefined): Promise<void>; whenSessionsIdle(sessions: readonly URI[]): Promise<void> };
 				prepareChatWorkingDirectory(session: URI, directory: URI, options: unknown): Promise<unknown>;
 			}
 

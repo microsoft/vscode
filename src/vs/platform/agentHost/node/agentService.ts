@@ -6418,6 +6418,8 @@ export class AgentService extends Disposable implements IAgentService {
 
 		// Queued turns of the moved chats wait for the move, so they start in the target; both sessions stay resident.
 		const admission = this._stateManager.holdChatAdmission(moved);
+		// The folders the chat brings are in transit until the target lists it: archiving or deleting a target chat meanwhile doesn't detach them.
+		const transit = this._reserveChatWorkingDirectories(target, chatFolders);
 		this._chatMoveSessions.add(sourceKey);
 		this._chatMoveSessions.add(targetKey);
 		try {
@@ -6503,6 +6505,8 @@ export class AgentService extends Disposable implements IAgentService {
 			} catch (error) {
 				await restoreConfig?.().catch(restoreError => this._logService.warn(`[AgentService] Failed to restore the config of ${chatKey} after a refused move`, restoreError));
 				// A pinned target chat keeps the target's folders as its own; the release removes only a folder no chat uses.
+				// The chat isn't coming, so its folders are no longer in transit.
+				transit.dispose();
 				for (const release of releases.reverse()) {
 					await release().catch(releaseError => this._logService.warn(`[AgentService] Failed to undo a folder a chat move added to ${targetKey}`, releaseError));
 				}
@@ -6519,6 +6523,11 @@ export class AgentService extends Disposable implements IAgentService {
 				this._logService.error(error, `[AgentService] Chat ${chatKey} moved to ${targetKey}, but its in-memory move failed; it shows up after the sessions reload`);
 				await this._reloadAfterFailedMove([sourceKey, targetKey]);
 			}
+			// The target lists the chat now, so the folders prepared for it are in use rather than reserved.
+			this._consumePreparedChatWorkingDirectories(target, chatFolders);
+			if (!sessionMove) {
+				await this._detachMovedChatWorkingDirectories(session, chatKey, chatFolders);
+			}
 			// Its pre-move attachments are copied into its own storage in the background (Block 4b).
 			this._attachmentMigration.schedule(committed.moved);
 			// Older builds see the chats where they are now (Block 4a); a session that ended has no copy to publish.
@@ -6531,6 +6540,7 @@ export class AgentService extends Disposable implements IAgentService {
 			this._invalidateSessionList();
 			return target;
 		} finally {
+			transit.dispose();
 			this._chatMoveSessions.delete(sourceKey);
 			this._chatMoveSessions.delete(targetKey);
 			admission.dispose();
@@ -6750,6 +6760,8 @@ export class AgentService extends Disposable implements IAgentService {
 				this._logService.error(error, `[AgentService] Chat ${chatKey} was promoted to ${targetKey}, but its in-memory move failed; it shows up after the sessions reload`);
 				await this._reloadAfterFailedMove([sourceKey, targetKey]);
 			}
+			// The new session is created with the chat's folders, so none were in transit; the source lets go of those no other chat uses.
+			await this._detachMovedChatWorkingDirectories(session, chatKey, chatFolders);
 			this._attachmentMigration.schedule(committed);
 			for (const key of [sourceKey, targetKey]) {
 				this._peerChatStore.scheduleOlderBuildCopyPublish(URI.parse(key));
@@ -9894,6 +9906,21 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 		return result;
+	}
+
+	/**
+	 * Detaches the folders a chat that moved out of `session` worked in that no remaining chat uses, as for a deleted
+	 * chat: their Git and GitHub state went with the chat (`chatMoveFolderTransfers`). The move doesn't fail with it.
+	 */
+	private async _detachMovedChatWorkingDirectories(session: URI, chat: string, chatDirectories: readonly string[]): Promise<void> {
+		if (!chatDirectories.length) {
+			return;
+		}
+		try {
+			await this._detachDeletedChatWorkingDirectories(session, chat, chatDirectories);
+		} catch (error) {
+			this._logService.error(`[AgentService] Failed to detach the folders of chat ${chat}, which moved out of ${session.toString()}: ${toErrorMessage(error)}`);
+		}
 	}
 
 	/**
