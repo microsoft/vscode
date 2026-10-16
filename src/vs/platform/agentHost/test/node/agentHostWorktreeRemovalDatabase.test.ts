@@ -271,6 +271,21 @@ suite('AgentHostWorktreeRemovalDatabase', () => {
 		});
 	});
 
+	test('a normalized chat that left a shared worktree no longer keeps its share live through the folders its move recorded (PR review)', async () => {
+		const database = disposables.add(new AgentHostDatabase(':memory:'));
+		const coOwner = 'copilotcli:/co-owner';
+		await importSession(database, coOwner, {});
+		// The move recorded the chat's folders in its session-state row; the chat then left the worktree, which only its
+		// normalized row (`chats_v2`) records.
+		await sql(database, `INSERT INTO session_chat_state (session_uri, chat_uri, is_default, working_directories, revision) VALUES (?, 'ahp-chat://moved', 0, ?, 1)`, [coOwner, JSON.stringify([WORKTREE])]);
+		await share(database, coOwner);
+		const live = async () => (await database.readWorktreeCoOwners(WORKTREE)).map(row => row.live);
+		const legacyOnly = await live();
+		await sql(database, `INSERT INTO chats_v2 (chat_uri, owner_session_uri, working_directories, metadata, metadata_hash) VALUES ('ahp-chat://moved', ?, ?, '{}', 'hash')`, [coOwner, JSON.stringify(['file:///elsewhere'])]);
+
+		assert.deepStrictEqual({ legacyOnly, normalized: await live() }, { legacyOnly: [true], normalized: [false] });
+	});
+
 	test('the sessions whose central list names a detached worktree are found for the startup repair; deleted ones are not (Block 5)', async () => {
 		const database = disposables.add(new AgentHostDatabase(':memory:'));
 		const handle = '33333333-3333-4333-8333-333333333333';

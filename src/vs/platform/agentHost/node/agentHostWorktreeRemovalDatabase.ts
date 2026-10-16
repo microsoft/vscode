@@ -308,7 +308,8 @@ function withinFolderSql(directory: string): string {
 
 /**
  * Whether the session `uri` has a central folder at or inside `?1`: its session folders, or the folders of a chat
- * it owns, archived chats included (they may be unarchived).
+ * it owns, archived chats included (they may be unarchived). A chat's session-state folders count only while it has
+ * no normalized row: a normalized chat's later folder changes are recorded in `chats_v2` alone.
  */
 function sessionUsesFolderSql(uri: string): string {
 	return `(EXISTS (SELECT 1 FROM sessions_v2 p, json_each(p.payload, '$.data.workingDirectories') j
@@ -318,7 +319,8 @@ function sessionUsesFolderSql(uri: string): string {
 		OR EXISTS (SELECT 1 FROM chats_v2 c, json_each(c.working_directories) j
 			WHERE c.owner_session_uri = ${uri} AND c.tombstoned = 0 AND json_valid(c.working_directories) AND ${withinFolderSql('j.value')})
 		OR EXISTS (SELECT 1 FROM session_chat_state s, json_each(s.working_directories) j
-			WHERE s.session_uri = ${uri} AND json_valid(s.working_directories) AND ${withinFolderSql('j.value')}))`;
+			WHERE s.session_uri = ${uri} AND json_valid(s.working_directories) AND ${withinFolderSql('j.value')}
+				AND NOT EXISTS (SELECT 1 FROM chats_v2 n WHERE n.chat_uri = s.chat_uri)))`;
 }
 
 /** `?1` is the worktree folder without a trailing slash. */
