@@ -107,8 +107,9 @@ import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common
 import { AGENT_MERGE_CHANGESET_ID, buildBranchChangesetUri, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 import { getWorktreesRoot, WorktreeIsolation, WORKTREE_META_PATH, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
+import { OLDER_BUILD_WORKTREE_WITHHELD_KEY } from '../../node/agentHostSessionStateMirror.js';
 import type { IAgentHostPullRequestResolver } from '../../node/shared/pullRequestResolver.js';
-import { readSessionAdditionalWorktrees, writeSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
+import { ADDITIONAL_WORKTREES_METADATA_KEY, readSessionAdditionalWorktrees, writeSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ArtifactServerToolName, SessionServerToolName } from '../../common/serverToolNames.js';
@@ -32491,7 +32492,7 @@ suite('AgentService (node dispatcher)', () => {
 				_worktree: { getResolvedWorktree(sessionId: string): URI | undefined };
 				_orchestratorDatabase: { readCatalogSnapshot(sessions: readonly string[]): Promise<readonly { readonly session: string; readonly authorityVersion: number }[]> };
 				_migrateChatCatalog(session: URI, token: CancellationToken): Promise<void>;
-				_sessionStateStore: { moveChat(move: unknown): Promise<unknown> };
+				_sessionStateStore: { moveChat(move: unknown): Promise<unknown>; writeMetadata(session: URI, resource: URI, values: Readonly<Record<string, string | null>>, flush: SessionStateMirrorFlush): Promise<void> };
 				_attachmentMigration: { schedule(chats: Iterable<string>): void; resume(chats: Iterable<string>): Promise<void>; whenIdle(): Promise<void> };
 				_peerChatStore: { reconcileOlderBuildCopy(session: URI): Promise<void>; flushCompatibilityPublishes(session: URI | undefined, database: undefined): Promise<void>; whenSessionsIdle(sessions: readonly URI[]): Promise<void> };
 				prepareChatWorkingDirectory(session: URI, directory: URI, options: unknown): Promise<unknown>;
@@ -32523,8 +32524,11 @@ suite('AgentService (node dispatcher)', () => {
 					conversionInProgress: async ({ internals, peer }) => {
 						internals._workspaceConversionService.isPending = (resource, sessionWide) => sessionWide !== true && resource === peer.toString();
 					},
-					worktreeFolder: async ({ internals, folder }) => {
-						internals._worktree.getResolvedWorktree = () => folder;
+					worktreeFolder: async ({ internals, source, peer, folder }) => {
+						// The peer's own additional worktree, which the default chat staying in the source also uses (D2).
+						await internals._sessionStateStore.writeMetadata(source, source, {
+							[ADDITIONAL_WORKTREES_METADATA_KEY]: JSON.stringify([{ handle: generateUuid(), workingDirectory: folder.toString(), repositoryRoot: URI.file('/elsewhere').toString(), chat: peer.toString() }]),
+						}, SessionStateMirrorFlush.Immediate);
 					},
 					workspaceless: async ({ service, source }) => {
 						const stateManager = getStateManager(service);
@@ -32814,11 +32818,12 @@ suite('AgentService (node dispatcher)', () => {
 				const store = getTestSessionStateStore(service);
 				const outcomes: Record<string, unknown> = {};
 
-				// The session state store reports the worktree the session records.
-				await store.writeMetadata(source, source, { [WORKTREE_META_PATH]: folder.toString() }, SessionStateMirrorFlush.Immediate);
+				// The session state store reports the peer's own additional worktree, which the default chat also uses (D2).
+				const ownWorktree = JSON.stringify([{ handle: generateUuid(), workingDirectory: folder.toString(), repositoryRoot: URI.file('/elsewhere').toString(), chat: peer.toString() }]);
+				await store.writeMetadata(source, source, { [ADDITIONAL_WORKTREES_METADATA_KEY]: ownWorktree }, SessionStateMirrorFlush.Immediate);
 				const inWorktree = await settled();
 				const worktreeRefusal = await refusalOf(service.moveChat(source, peer, { kind: 'session', session: target, after: undefined }));
-				await store.writeMetadata(source, source, { [WORKTREE_META_PATH]: null }, SessionStateMirrorFlush.Immediate);
+				await store.writeMetadata(source, source, { [ADDITIONAL_WORKTREES_METADATA_KEY]: null }, SessionStateMirrorFlush.Immediate);
 				outcomes.worktree = { inWorktree, worktreeRefusal, released: await settled() };
 
 				// The workspace conversion service reports a chat whose workspace change was quarantined, and its release.
@@ -32956,7 +32961,10 @@ suite('AgentService (node dispatcher)', () => {
 					defaultChat: await refusalOf(service.moveChat(source, URI.parse(buildDefaultChatUri(source)), { kind: 'newSession' })),
 					foreignChat: await refusalOf(service.moveChat(target, peer, { kind: 'newSession' })),
 				};
-				(service as unknown as IMoveInternals)._worktree.getResolvedWorktree = () => URI.file('/repo');
+				// The peer's own additional worktree, which the default chat staying in the source also uses (D2).
+				await (service as unknown as IMoveInternals)._sessionStateStore.writeMetadata(source, source, {
+					[ADDITIONAL_WORKTREES_METADATA_KEY]: JSON.stringify([{ handle: generateUuid(), workingDirectory: URI.file('/repo').toString(), repositoryRoot: URI.file('/elsewhere').toString(), chat: peer.toString() }]),
+				}, SessionStateMirrorFlush.Immediate);
 				completeTurn(service, peer);
 				const worktreeFolder = await refusalOf(service.moveChat(source, peer, { kind: 'newSession' }));
 				assert.deepStrictEqual({ reasons, worktreeFolder, sessions: stateManager.getSessionUris().length - sessionsBefore, owner: stateManager.getChatOwner(peer.toString()) === source.toString() }, {
@@ -32964,6 +32972,64 @@ suite('AgentService (node dispatcher)', () => {
 					worktreeFolder: AgentChatMoveRefusal.WorktreeFolder,
 					sessions: 0,
 					owner: true,
+				});
+			});
+
+			test('a chat in its session\'s worktree moves and shares it: both sessions co-own it, older builds lose its branch, and deleting the source commits it only once unused (Block 5)', async () => {
+				const { service, source, target, peer, folder } = await setupMove();
+				const repositoryRoot = URI.file('/main');
+				setTestAgentHostWorktreeIsolation(service, createTestAgentHostWorktreeIsolation({
+					readSessionWorktreeForRemoval: async session => session.toString() === source.toString() ? { worktree: folder, repositoryRoot, branchName: 'agents/source' } : undefined,
+				}));
+				const store = getTestSessionStateStore(service);
+				await store.writeMetadata(source, source, { [WORKTREE_META_PATH]: folder.toString(), 'copilot.worktree.branchName': 'agents/source', [WORKTREE_META_REPOSITORY_ROOT]: repositoryRoot.toString() }, SessionStateMirrorFlush.Immediate);
+				const database = getTestAgentHostDatabase(service);
+
+				await service.moveChat(source, peer, { kind: 'session', session: target, after: undefined });
+				const moved = {
+					owner: getStateManager(service).getChatOwner(peer.toString()),
+					coOwners: (await database.readWorktreeCoOwners(folder.toString())).map(row => row.session).sort(),
+					withheld: (await store.readWithoutImport(source, [OLDER_BUILD_WORKTREE_WITHHELD_KEY])).get(OLDER_BUILD_WORKTREE_WITHHELD_KEY),
+					centralBranch: (await store.readWithoutImport(source, ['copilot.worktree.branchName'])).get('copilot.worktree.branchName'),
+				};
+				await service.disposeSession(source);
+
+				assert.deepStrictEqual({
+					moved,
+					removals: (await database.listPendingWorktreeRemovals()).map(removal => `${removal.kind}:${removal.mode}:${removal.ownerSession === source.toString()}`),
+					inUse: await database.isWorktreeInUse(folder.toString(), source.toString()),
+					coOwners: (await database.readWorktreeCoOwners(folder.toString())).map(row => row.session),
+				}, {
+					moved: { owner: target.toString(), coOwners: [source.toString(), target.toString()].sort(), withheld: 'true', centralBranch: 'agents/source' },
+					// A deletion force-removes a worktree only while it was never shared; the moved chat keeps it.
+					removals: ['session:commit:true', 'coOwned:commit:true'],
+					inUse: true,
+					coOwners: [target.toString()],
+				});
+			});
+
+			test('a session that moves under another hands its own worktree to it: the target lists it for the chat, and its record names the target (Block 5)', async () => {
+				const { service, source, target } = await setupMove();
+				const defaultChat = getStateManager(service).getSessionState(source.toString())!.defaultChat!;
+				await service.disposeChat(source, URI.parse(buildChatUri(source, 'mover')));
+				const handle = generateUuid();
+				const events: string[] = [];
+				setTestAgentHostWorktreeIsolation(service, createTestAgentHostWorktreeIsolation({
+					readSessionWorktreeForRemoval: async session => session.toString() === source.toString() ? { worktree: URI.file('/repo'), repositoryRoot: URI.file('/main'), branchName: 'agents/source' } : undefined,
+					prepareWorktreeHandOver: async session => {
+						events.push(`prepare:${session.toString() === source.toString()}`);
+						return { handle, workingDirectory: URI.file('/repo').toString(), repositoryRoot: URI.file('/main').toString(), dispose: () => events.push('released') };
+					},
+					completeWorktreeHandOver: async (sessionId, completed, owner) => {
+						events.push(`complete:${sessionId === AgentSession.id(source)}:${completed === handle}:${owner.toString() === target.toString()}`);
+					},
+				}));
+
+				await service.moveSession(source, target, undefined);
+
+				assert.deepStrictEqual({ events, targetWorktrees: await readSessionAdditionalWorktrees(getTestSessionStateStore(service), target) }, {
+					events: ['prepare:true', 'released', 'complete:true:true:true'],
+					targetWorktrees: [{ handle, workingDirectory: URI.file('/repo').toString(), repositoryRoot: URI.file('/main').toString(), chat: defaultChat }],
 				});
 			});
 
@@ -33196,20 +33262,25 @@ suite('AgentService (node dispatcher)', () => {
 					});
 				});
 
-				test('refuses a session that owns a worktree its chat does not work in, which only deleting the session removes; changes nothing', async () => {
+				test('a session that owns a worktree its chat does not work in moves, and the target owns that worktree from then on (Block 5)', async () => {
 					const { service, source, target, chat } = await setupSessionMove();
-					await writeSessionAdditionalWorktrees(getTestSessionStateStore(service), source, [{
-						handle: generateUuid(),
-						workingDirectory: URI.file('/elsewhere.worktrees/left-behind').toString(),
-						repositoryRoot: URI.file('/elsewhere').toString(),
-					}]);
+					const handle = generateUuid();
+					const worktree = { handle, workingDirectory: URI.file('/elsewhere.worktrees/left-behind').toString(), repositoryRoot: URI.file('/elsewhere').toString() };
+					await writeSessionAdditionalWorktrees(getTestSessionStateStore(service), source, [worktree]);
 
-					const reason = await refusalOf(service.moveSession(source, target, undefined));
+					const moved = await refusalOf(service.moveSession(source, target, undefined));
 
-					assert.deepStrictEqual({ reason, owner: getStateManager(service).getChatOwner(chat.toString()), tombstoned: await getTestAgentHostDatabase(service).isSessionTombstoned(source.toString()) }, {
-						reason: AgentChatMoveRefusal.WorktreeFolder,
-						owner: source.toString(),
-						tombstoned: false,
+					assert.deepStrictEqual({
+						moved,
+						owner: getStateManager(service).getChatOwner(chat.toString()),
+						tombstoned: await getTestAgentHostDatabase(service).isSessionTombstoned(source.toString()),
+						targetWorktrees: await readSessionAdditionalWorktrees(getTestSessionStateStore(service), target),
+					}, {
+						moved: 'moved',
+						owner: target.toString(),
+						tombstoned: true,
+						// Its record moves with it: the target's archive or deletion removes it, now for the chat it was the session's.
+						targetWorktrees: [{ ...worktree, chat: chat.toString() }],
 					});
 				});
 

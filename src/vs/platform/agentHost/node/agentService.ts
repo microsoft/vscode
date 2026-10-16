@@ -104,7 +104,8 @@ import { type IAddSessionWorkingDirectoryOptions, type IAgentServiceSessionServe
 import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, parseSessionWorkingDirectories, persistSessionMetadataValues, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY, SESSION_WORKING_DIRECTORIES_KEY } from './shared/persistSessionMetadata.js';
 import { type IArtifactServerToolAccessor } from './shared/artifactServerTools.js';
 import { SessionArtifacts } from './shared/sessionArtifacts.js';
-import { readSessionAdditionalWorktrees, writeSessionAdditionalWorktrees, type ISessionAdditionalWorktree } from './shared/sessionAdditionalWorktrees.js';
+import { ADDITIONAL_WORKTREES_METADATA_KEY, readSessionAdditionalWorktrees, writeSessionAdditionalWorktrees, type ISessionAdditionalWorktree } from './shared/sessionAdditionalWorktrees.js';
+import { AgentHostWorktreeCoOwnership, type ISessionWorktreeRecords, type IWorktreeMoveDecisions, planWorktreeMove, withoutTransferred, withTransferred } from './agentHostWorktreeCoOwnership.js';
 import { parseSessionArtifacts, readSessionArtifacts, SessionArtifactType, stringifySessionArtifacts, withSessionArtifacts, type ISessionArtifact } from '../common/sessionArtifacts.js';
 import { SessionArtifactCollection } from '../common/sessionArtifactCollection.js';
 import { AgentHostCatalogDatabaseReference, AgentHostCatalogSyncService, IAgentHostCatalogSyncRequest } from './agentHostCatalogSyncService.js';
@@ -114,7 +115,7 @@ import { IAgentHostStorageService } from './agentHostStorageService.js';
 import { AgentHostCatalogListReader, type AgentHostCatalogListManyResult } from './agentHostCatalogListReader.js';
 import { AgentHostSessionsV2CandidateResolution, AgentHostSessionsV2MigrationService, IAgentHostSessionsV2Candidate, type IAgentHostSessionsV2MigrationReport } from './agentHostSessionsV2MigrationService.js';
 
-import { detachedWorktreeRecordUri, getPullRequestSessionBranchName, IAgentHostWorktreeIsolation, WORKTREE_META_PATH, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
+import { detachedWorktreeRecordUri, getPullRequestSessionBranchName, IAgentHostWorktreeIsolation, type IWorktreeHandOver, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import type { IAgentHostSessionLifecycleCandidate } from './agentHostSessionLifecycle.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
@@ -816,6 +817,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _sessionPrewarmer: AgentHostSessionPrewarmer;
 	private readonly _catalogSourceResolver: AgentHostCatalogSourceResolver;
 	private readonly _peerChatStore: AgentHostPeerChatStore;
+	private readonly _worktreeCoOwnership: AgentHostWorktreeCoOwnership;
 	private readonly _catalogReconciliationService: AgentHostCatalogReconciliationService;
 	private readonly _catalogListReader: AgentHostCatalogListReader;
 	private readonly _sessionsV2MigrationService: AgentHostSessionsV2MigrationService<IAgentSessionMetadata>;
@@ -1056,6 +1058,8 @@ export class AgentService extends Disposable implements IAgentService {
 		});
 		this._peerChatStore = core.peerChatStore;
 		this._peerChatStore.setMetadataMigration((session, resource, values) => this._migrateChatMetadataWrite(session, resource, values));
+		this._worktreeCoOwnership = new AgentHostWorktreeCoOwnership(this._orchestratorDatabase, this._sessionStateStore, this._worktree, this._logService);
+		this._peerChatStore.setOlderBuildCopyParticipant(session => this._worktreeCoOwnership.releaseWithholding(session));
 		this._register(this._peerChatStore.onDidImportOlderBuildEdits(imported => {
 			this._applyImportedOlderBuildEdits(imported).catch(error => this._logService.warn(`[AgentService] Failed to apply imported older-build chat edits of ${imported.session.toString()} to its live state`, error));
 		}));
@@ -1326,10 +1330,8 @@ export class AgentService extends Disposable implements IAgentService {
 		});
 		this._chatMovability = this._register(new AgentHostChatMovability(this._stateManager, this._configurationService, {
 			conversions: this._workspaceConversionService,
-			worktrees: this._worktree,
 			sessionState: this._sessionStateStore,
 			catalogs: this._catalogReconciliationService,
-			sessionId: session => AgentSession.id(session),
 		}));
 		this._runWhenStartupSettled('worktree clean-up', () => this._worktreeCleanup.start());
 		this._register(core.disposables);
@@ -6495,10 +6497,12 @@ export class AgentService extends Disposable implements IAgentService {
 		const moved = chatSubtree(this._stateManager, sourceKey, chatKey);
 		const sourceSummary = this._stateManager.getSessionState(sourceKey)?.chats.find(candidate => candidate.resource === chatKey);
 		const chatFolders = await this._movedChatFolders(session, chatKey);
-		const recordedWorktrees = await this._sessionWorktrees(session);
+		const sourceWorktrees = await this._worktreeCoOwnership.readSessionWorktrees(session);
+		const targetPrimaryWorktree = await this._worktreeCoOwnership.readPrimaryWorktree(target);
 		const validate = () => {
 			checkMoved();
-			this._validateChatMove(sourceKey, targetKey, chatKey, moved, after, chatFolders, recordedWorktrees, sessionMove);
+			this._validateChatMove(sourceKey, targetKey, chatKey, moved, after, chatFolders, sessionMove);
+			return this._planMoveWorktrees(sourceKey, chatKey, moved, chatFolders, sourceWorktrees, targetPrimaryWorktree, sessionMove);
 		};
 		validate();
 		const targetFolders = this._stateManager.getSessionSummary(targetKey)?.workingDirectories ?? [];
@@ -6516,6 +6520,9 @@ export class AgentService extends Disposable implements IAgentService {
 			const releases: (() => Promise<void>)[] = [];
 			let restoreConfig: (() => Promise<void>) | undefined;
 			let committed: IMovedChats;
+			let worktreePlan: IWorktreeMoveDecisions;
+			const withholdings: (() => Promise<void>)[] = [];
+			let handOver: IWorktreeHandOver | undefined;
 			try {
 				for (const folder of missingFolders) {
 					const prepared = await this.prepareChatWorkingDirectory(target, URI.parse(folder), { isolation: 'folder' });
@@ -6531,7 +6538,18 @@ export class AgentService extends Disposable implements IAgentService {
 				if (current.length !== moved.length || current.some(candidate => !moved.includes(candidate))) {
 					refuse(AgentChatMoveRefusal.Conflict, `Chat ${chatKey} changed while it was being moved; try again.`);
 				}
-				validate();
+				worktreePlan = validate();
+				const plan = worktreePlan;
+				// Before the commit, so no older build can remove a worktree once it is shared; undone if the move is refused.
+				if (plan.withholdSource) {
+					withholdings.push(await this._worktreeCoOwnership.withhold(session));
+				}
+				if (plan.withholdTarget) {
+					withholdings.push(await this._worktreeCoOwnership.withhold(target));
+				}
+				if (plan.handOver) {
+					handOver = await this._worktree.prepareWorktreeHandOver(session, AgentSession.id(session));
+				}
 				const config = this._movedChatConfig(sourceKey, targetKey, chatKey);
 				if (Object.keys(config).length > 0) {
 					// Persisted before the commit, in the chat's own database: its values in the source don't change by it, and
@@ -6541,7 +6559,7 @@ export class AgentService extends Disposable implements IAgentService {
 					restoreConfig = () => this._sessionStateStore.chatRows.setChatConfig(session, chat, previousConfig);
 				}
 				// Read when committing, so a retry after importing older-build edits sees the chats and folders they added.
-				const commit = () => {
+				const commit = async () => {
 					const sourceFolders = this._stateManager.getSessionSummary(sourceKey)?.workingDirectories ?? [];
 					const folders = {
 						source: sourceFolders,
@@ -6560,8 +6578,8 @@ export class AgentService extends Disposable implements IAgentService {
 						expectedSourceCatalogRevision: catalogs.get(sourceKey) ?? 0,
 						expectedTargetCatalogRevision: catalogs.get(targetKey) ?? 0,
 						folders,
-						coOwnedWorktrees: [],
-						values: { source: {}, target: {} },
+						coOwnedWorktrees: plan.coOwned,
+						values: await this._movedWorktreeValues(session, target, chatKey, plan, handOver, sessionMove),
 					};
 					return sessionMove ? this._sessionStateStore.moveSession(move) : this._sessionStateStore.moveChat(move);
 				};
@@ -6576,7 +6594,7 @@ export class AgentService extends Disposable implements IAgentService {
 					if (imported.length !== moved.length || imported.some(candidate => !moved.includes(candidate))) {
 						refuse(AgentChatMoveRefusal.Conflict, `Chat ${chatKey} changed while it was being moved; try again.`);
 					}
-					validate();
+					this._checkWorktreePlan(chatKey, validate(), plan);
 					result = await commit();
 				}
 				if (result.status !== 'applied') {
@@ -6585,6 +6603,7 @@ export class AgentService extends Disposable implements IAgentService {
 				committed = { ...result, config };
 			} catch (error) {
 				await restoreConfig?.().catch(restoreError => this._logService.warn(`[AgentService] Failed to restore the config of ${chatKey} after a refused move`, restoreError));
+				await this._undoWorktreeMovePreparation(withholdings, handOver, chatKey);
 				// A pinned target chat keeps the target's folders as its own; the release removes only a folder no chat uses.
 				// The chat isn't coming, so its folders are no longer in transit.
 				transit.dispose();
@@ -6598,12 +6617,15 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 
 			// Committed: the move is reported as done whatever happens to memory below; the database is authoritative.
+			// The target lists a handed-over worktree now, so reconciliation may see its record.
+			handOver?.dispose();
 			try {
 				this._transferMovedChats(sourceKey, targetKey, chatKey, committed, after, sourceSummary?.workingDirectories === undefined ? chatFolders : undefined, sessionMove);
 			} catch (error) {
 				this._logService.error(error, `[AgentService] Chat ${chatKey} moved to ${targetKey}, but its in-memory move failed; it shows up after the sessions reload`);
 				await this._reloadAfterFailedMove([sourceKey, targetKey]);
 			}
+			await this._completeMovedWorktrees(session, target, worktreePlan, handOver, sessionMove);
 			// The target lists the chat now, so the folders prepared for it are in use rather than reserved.
 			this._consumePreparedChatWorkingDirectories(target, chatFolders);
 			if (!sessionMove) {
@@ -6812,8 +6834,12 @@ export class AgentService extends Disposable implements IAgentService {
 		const moved = chatSubtree(this._stateManager, sourceKey, chatKey);
 		const sourceSummary = this._stateManager.getSessionState(sourceKey)?.chats.find(candidate => candidate.resource === chatKey);
 		const chatFolders = await this._movedChatFolders(session, chatKey);
-		const recordedWorktrees = await this._sessionWorktrees(session);
-		this._validateChatMove(sourceKey, undefined, chatKey, moved, undefined, chatFolders, recordedWorktrees);
+		const sourceWorktrees = await this._worktreeCoOwnership.readSessionWorktrees(session);
+		const validate = () => {
+			this._validateChatMove(sourceKey, undefined, chatKey, moved, undefined, chatFolders);
+			return this._planMoveWorktrees(sourceKey, chatKey, moved, chatFolders, sourceWorktrees, undefined, false);
+		};
+		validate();
 		const carried = await this._sessionStateStore.readWithoutImport(session, ['customizationEnablement', SESSION_INITIATOR_METADATA_KEY]);
 		const target = await this._allocatePromotedSession(provider);
 		const targetKey = target.toString();
@@ -6822,6 +6848,8 @@ export class AgentService extends Disposable implements IAgentService {
 		this._chatMoveSessions.add(sourceKey);
 		try {
 			let committed: readonly string[];
+			let worktreePlan: IWorktreeMoveDecisions;
+			const withholdings: (() => Promise<void>)[] = [];
 			const sourceConfig = this._stateManager.getSessionState(sourceKey)?.config;
 			// The chat's own values become the new session's: its future chats start from them.
 			const config: SessionConfigState | undefined = sourceConfig && { schema: sourceConfig.schema, values: { ...sourceConfig.values, ...this._movedChatConfig(sourceKey, sourceKey, chatKey) } };
@@ -6831,9 +6859,14 @@ export class AgentService extends Disposable implements IAgentService {
 				if (current.length !== moved.length || current.some(candidate => !moved.includes(candidate))) {
 					refuse(AgentChatMoveRefusal.Conflict, `Chat ${chatKey} changed while it was being promoted; try again.`);
 				}
-				this._validateChatMove(sourceKey, undefined, chatKey, moved, undefined, chatFolders, recordedWorktrees);
+				worktreePlan = validate();
+				const plan = worktreePlan;
 				if (!this._hasStartedTurn(this._stateManager.getChatState(chatKey))) {
 					refuse(AgentChatMoveRefusal.Conflict, `Chat ${chatKey} changed while it was being promoted; try again.`);
+				}
+				// Before the commit, so no older build can remove a worktree once it is shared; undone if the promotion is refused.
+				if (plan.withholdSource) {
+					withholdings.push(await this._worktreeCoOwnership.withhold(session));
 				}
 				const sourceFolders = this._stateManager.getSessionSummary(sourceKey)?.workingDirectories ?? [];
 				const values: Record<string, string> = { [SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify(chatFolders) };
@@ -6843,7 +6876,11 @@ export class AgentService extends Disposable implements IAgentService {
 				if (config) {
 					values.configValues = JSON.stringify(getPersistedSessionConfigValues(config.values, this._configurationService.getSessionSandboxEnabled(sourceKey), undefined));
 				}
-				const commit = () => this._sessionStateStore.promoteChat({
+				const transferred = withTransferred([], plan.transfers);
+				if (transferred !== null) {
+					values[ADDITIONAL_WORKTREES_METADATA_KEY] = transferred;
+				}
+				const commit = async () => this._sessionStateStore.promoteChat({
 					source: session,
 					target,
 					chat,
@@ -6859,8 +6896,10 @@ export class AgentService extends Disposable implements IAgentService {
 							.filter(candidate => !moved.includes(candidate.resource) && candidate.origin?.kind !== ChatOriginKind.Tool)
 							.map(candidate => candidate.workingDirectories ?? sourceFolders),
 					},
-					coOwnedWorktrees: [],
-					sourceValues: {},
+					coOwnedWorktrees: plan.coOwned,
+					sourceValues: plan.transfers.length > 0
+						? { [ADDITIONAL_WORKTREES_METADATA_KEY]: withoutTransferred(await readSessionAdditionalWorktrees(this._sessionStateStore, session), plan.transfers) }
+						: {},
 				});
 				let result = await commit();
 				if (result.status === 'olderBuildEdits') {
@@ -6872,7 +6911,7 @@ export class AgentService extends Disposable implements IAgentService {
 					if (imported.length !== moved.length || imported.some(candidate => !moved.includes(candidate))) {
 						refuse(AgentChatMoveRefusal.Conflict, `Chat ${chatKey} changed while it was being promoted; try again.`);
 					}
-					this._validateChatMove(sourceKey, undefined, chatKey, moved, undefined, chatFolders, recordedWorktrees);
+					this._checkWorktreePlan(chatKey, validate(), plan);
 					result = await commit();
 				}
 				if (result.status !== 'applied') {
@@ -6880,6 +6919,7 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 				committed = result.moved;
 			} catch (error) {
+				await this._undoWorktreeMovePreparation(withholdings, undefined, chatKey);
 				if (error instanceof SessionStateDeletedError) {
 					refuse(AgentChatMoveRefusal.SessionNotReady, error.message);
 				}
@@ -6896,6 +6936,7 @@ export class AgentService extends Disposable implements IAgentService {
 				await this._reloadAfterFailedMove([sourceKey, targetKey]);
 			}
 			await this._persistPromotedSessionTitle(target, chatKey, renamed);
+			await this._completeMovedWorktrees(session, target, worktreePlan, undefined, false);
 			// The new session is created with the chat's folders, so none were in transit; the source lets go of those no other chat uses.
 			await this._detachMovedChatWorkingDirectories(session, chatKey, chatFolders);
 			this._attachmentMigration.schedule(committed);
@@ -7064,20 +7105,76 @@ export class AgentService extends Disposable implements IAgentService {
 			?? [];
 	}
 
-	/** The worktrees `session` recorded: its isolation worktree and its additional worktrees. */
-	private async _sessionWorktrees(session: URI): Promise<readonly URI[]> {
-		const [recordedWorktree] = (await this._sessionStateStore.readWithoutImport(session, [WORKTREE_META_PATH])).values();
-		return [
-			...(recordedWorktree ? [URI.parse(recordedWorktree)] : []),
-			...(await readSessionAdditionalWorktrees(this._sessionStateStore, session)).map(worktree => URI.parse(worktree.workingDirectory)),
-		];
+	/**
+	 * What a move does with the worktrees of its source (Block 5, {@link planWorktreeMove}); refuses a chat's own
+	 * additional worktree that a chat staying in the source also uses (D2). Synchronous, from what was read before
+	 * validating and the source's chats in memory, so a move runs it again right before committing.
+	 */
+	private _planMoveWorktrees(sourceKey: string, chat: string, moved: readonly string[], chatFolders: readonly string[], worktrees: ISessionWorktreeRecords, targetPrimary: string | undefined, sessionMove: boolean): IWorktreeMoveDecisions {
+		const sourceFolders = this._stateManager.getSessionSummary(sourceKey)?.workingDirectories ?? [];
+		const plan = planWorktreeMove({
+			kind: sessionMove ? 'session' : 'chat',
+			chat,
+			moved,
+			chatFolders,
+			remainingFolders: (this._stateManager.getSessionState(sourceKey)?.chats ?? [])
+				.filter(candidate => !moved.includes(candidate.resource) && candidate.origin?.kind !== ChatOriginKind.Tool)
+				.map(candidate => candidate.workingDirectories ?? sourceFolders),
+			source: worktrees,
+			targetPrimary,
+		});
+		if (plan.refused !== undefined) {
+			throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.WorktreeFolder, `Chat ${chat} works in its own worktree ${plan.refused}, which another chat of ${sourceKey} also uses.`);
+		}
+		return plan;
+	}
+
+	/** A move retried after importing older-build edits keeps the worktree decisions it prepared, or is refused. */
+	private _checkWorktreePlan(chat: string, current: IWorktreeMoveDecisions, prepared: IWorktreeMoveDecisions): void {
+		const key = (plan: IWorktreeMoveDecisions) => JSON.stringify([plan.transfers.map(transfer => transfer.handle), plan.coOwned.map(folder => folder.worktreePath), plan.withholdSource, plan.withholdTarget, plan.handOver]);
+		if (key(current) !== key(prepared)) {
+			throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.Conflict, `Chat ${chat} changed while it was being moved; try again.`);
+		}
+	}
+
+	/** The session values a move's worktree records change in its transaction: transferred additional worktrees leave the source and join the target. */
+	private async _movedWorktreeValues(source: URI, target: URI, chat: string, plan: IWorktreeMoveDecisions, handOver: IWorktreeHandOver | undefined, sessionMove: boolean): Promise<{ readonly source: Record<string, string | null>; readonly target: Record<string, string | null> }> {
+		const handedOver = handOver ? [{ handle: handOver.handle, workingDirectory: handOver.workingDirectory, repositoryRoot: handOver.repositoryRoot, chat }] : [];
+		if (plan.transfers.length === 0 && handedOver.length === 0) {
+			return { source: {}, target: {} };
+		}
+		return {
+			// A session that ends by the move keeps none: its central state is tombstoned in the same transaction.
+			source: sessionMove ? {} : { [ADDITIONAL_WORKTREES_METADATA_KEY]: withoutTransferred(await readSessionAdditionalWorktrees(this._sessionStateStore, source), plan.transfers) },
+			target: { [ADDITIONAL_WORKTREES_METADATA_KEY]: withTransferred(await readSessionAdditionalWorktrees(this._sessionStateStore, target), [...plan.transfers, ...handedOver]) },
+		};
+	}
+
+	/** Undoes what a refused move prepared for its worktrees: older builds see a branch it withheld again, and a hand-over record is dropped. */
+	private async _undoWorktreeMovePreparation(withholdings: readonly (() => Promise<void>)[], handOver: IWorktreeHandOver | undefined, chat: string): Promise<void> {
+		for (const undo of withholdings) {
+			await undo().catch(error => this._logService.warn(`[AgentService] Failed to undo withholding a worktree branch after the refused move of ${chat}`, error));
+		}
+		if (handOver) {
+			await this._worktree.deleteDetachedWorktreeRecord(handOver.handle).catch(error => this._logService.warn(`[AgentService] Failed to drop the hand-over record of a worktree after the refused move of ${chat}`, error));
+			handOver.dispose();
+		}
+	}
+
+	/** After a committed move: transferred worktree records name the target, in the order older builds rely on. Repaired at startup if this fails. */
+	private async _completeMovedWorktrees(source: URI, target: URI, plan: IWorktreeMoveDecisions, handOver: IWorktreeHandOver | undefined, sessionMove: boolean): Promise<void> {
+		try {
+			await this._worktreeCoOwnership.completeTransfers(source, target, plan.transfers, handOver, sessionMove);
+		} catch (error) {
+			this._logService.error(error, `[AgentService] Moved worktree records of ${source.toString()} to ${target.toString()}, but couldn't hand them over; startup reconciliation repairs them`);
+		}
 	}
 
 	/**
 	 * Refuses a move the host does not support (Block 4 design, section 1.5). Synchronous, so a move runs it again
 	 * right before committing; nothing has changed when it throws.
 	 */
-	private _validateChatMove(sourceKey: string, targetKey: string | undefined, chat: string, moved: readonly string[], after: string | undefined, chatFolders: readonly string[], recordedWorktrees: readonly URI[], sessionMove = false): void {
+	private _validateChatMove(sourceKey: string, targetKey: string | undefined, chat: string, moved: readonly string[], after: string | undefined, chatFolders: readonly string[], sessionMove = false): void {
 		const refuse = (reason: AgentChatMoveRefusal, message: string): never => {
 			throw new AgentChatMoveRefusedError(reason, message);
 		};
@@ -7122,16 +7219,6 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		if (!chatFolders.length) {
 			refuse(AgentChatMoveRefusal.Workspaceless, `Chat ${chat} has no folder.`);
-		}
-		// Until worktrees are removed by reference (#6), a chat working in its session's worktree stays there.
-		const resolvedWorktree = this._worktree.getResolvedWorktree(AgentSession.id(source));
-		const worktrees = resolvedWorktree ? [resolvedWorktree, ...recordedWorktrees] : recordedWorktrees;
-		if (chatFolders.some(folder => worktrees.some(worktree => extUriBiasedIgnorePathCase.isEqualOrParent(URI.parse(folder), worktree)))) {
-			refuse(AgentChatMoveRefusal.WorktreeFolder, `Chat ${chat} works in a worktree of ${sourceKey}.`);
-		}
-		// A session that ends by a move records no pending worktree removal (only deletion does), so it must own none.
-		if (sessionMove && worktrees.length) {
-			refuse(AgentChatMoveRefusal.WorktreeFolder, `Session ${sourceKey} owns a worktree.`);
 		}
 		const sourceFolders = this._stateManager.getSessionSummary(sourceKey)?.workingDirectories ?? [];
 		const sessionFolderKey = sourceFolders[0] === undefined ? undefined : getWorkingDirectoryKey(sourceFolders[0]);
@@ -8458,6 +8545,11 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			// Also when the session records no removal: it may have kept another session's worktree in use.
 			this._worktreeCleanup.schedule();
+			// The sessions it shared worktrees with may no longer share them: their older-build copy follows (Block 5).
+			const sharedWorktrees = worktreeRemovals.filter(removal => removal.kind === 'coOwned').map(removal => removal.worktreePath);
+			for (const coOwner of await this._worktreeCoOwnership.sessionsSharing(sharedWorktrees).catch(() => [])) {
+				this._peerChatStore.scheduleOlderBuildCopyPublish(coOwner);
+			}
 			if (!isIdleProvisional) {
 				this._invalidateSessionList();
 			}

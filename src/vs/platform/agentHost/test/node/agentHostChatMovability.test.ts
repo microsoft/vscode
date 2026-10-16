@@ -54,7 +54,6 @@ suite('AgentHostChatMovability', () => {
 			isPending: (chat: ProtocolURI, sessionWide?: boolean) => sessionWide ? this.quarantined.has(chat) : this.pending.has(chat),
 			onDidChangePending: this.onDidChangePendingEmitter.event,
 		};
-		readonly worktrees = { getResolvedWorktree: () => undefined };
 		readonly sessionState = {
 			peek: (resource: URI): ISessionStateSnapshot => ({ session: resource.toString(), authority: this.authority, revision: 1, values: this.values, folders: new Map(), chats: new Map() }),
 			onDidChangeLoadedState: this.onDidChangeLoadedStateEmitter.event,
@@ -63,9 +62,6 @@ suite('AgentHostChatMovability', () => {
 			isParked: (candidate: string) => this.parked.has(candidate),
 			onDidChangeParkedSessions: this.onDidChangeParkedSessionsEmitter.event,
 		};
-		sessionId(resource: URI): string {
-			return resource.path;
-		}
 	}
 
 	/** A source session with a peer, both sessions working in `/repo`, and moving chats enabled. */
@@ -218,9 +214,7 @@ suite('AgentHostChatMovability', () => {
 		}, { converting: flipped, quarantined: flipped });
 	});
 
-	test('a chat working in a worktree of its session is not movable while the session records it', async () => {
-		const recorded = await setupStrict();
-		const additional = await setupStrict();
+	test('a chat in a worktree of its session stays movable, unless it is its own additional worktree a staying chat also uses (Block 5)', async () => {
 		const write = (sources: TestSources, key: string, value: string | undefined) => {
 			if (value === undefined) {
 				sources.values.delete(key);
@@ -229,12 +223,27 @@ suite('AgentHostChatMovability', () => {
 			}
 			sources.onDidChangeLoadedStateEmitter.fire({ session, values: [key], authority: false });
 		};
-		const worktree = JSON.stringify([{ handle: generateUuid(), workingDirectory: folder, repositoryRoot: URI.file('/elsewhere').toString() }]);
+		const additional = (chat: string | undefined, workingDirectory = folder) => JSON.stringify([{ handle: generateUuid(), workingDirectory, repositoryRoot: URI.file('/elsewhere').toString(), ...(chat ? { chat } : {}) }]);
+		const shared = { before: { summary: true, state: true }, refused: { summary: true, state: true }, allowed: { summary: true, state: true }, announced: [] };
+
+		// The peer inherits the session's folder, which is the session's own worktree: a move shares it.
+		const primary = await setupStrict();
+		// A session-level additional worktree: shared too.
+		const sessionLevel = await setupStrict();
+		// The peer's own additional worktree, which the default chat (staying) also uses: refused (D2).
+		const ownShared = await setupStrict();
+		// The peer's own additional worktree, which only the peer uses: it transfers with the peer.
+		const own = await setupStrict();
+		const ownFolder = URI.file('/repo.worktrees/peer').toString();
+		own.stateManager.dispatchServerAction(session, { type: ActionType.SessionChatUpdated, chat: own.peer, changes: { workingDirectories: [ownFolder] } });
+		await timeout(0);
+
 		assert.deepStrictEqual({
-			// The peer inherits the session's folder, which is the session's worktree.
-			recorded: await recorded.flip(() => write(recorded.sources, WORKTREE_META_PATH, folder), () => write(recorded.sources, WORKTREE_META_PATH, undefined)),
-			additional: await additional.flip(() => write(additional.sources, ADDITIONAL_WORKTREES_METADATA_KEY, worktree), () => write(additional.sources, ADDITIONAL_WORKTREES_METADATA_KEY, undefined)),
-		}, { recorded: flipped, additional: flipped });
+			primary: await primary.flip(() => write(primary.sources, WORKTREE_META_PATH, folder), () => write(primary.sources, WORKTREE_META_PATH, undefined)),
+			sessionLevel: await sessionLevel.flip(() => write(sessionLevel.sources, ADDITIONAL_WORKTREES_METADATA_KEY, additional(undefined)), () => write(sessionLevel.sources, ADDITIONAL_WORKTREES_METADATA_KEY, undefined)),
+			ownShared: await ownShared.flip(() => write(ownShared.sources, ADDITIONAL_WORKTREES_METADATA_KEY, additional(ownShared.peer)), () => write(ownShared.sources, ADDITIONAL_WORKTREES_METADATA_KEY, undefined)),
+			own: await own.flip(() => write(own.sources, ADDITIONAL_WORKTREES_METADATA_KEY, additional(own.peer, ownFolder)), () => write(own.sources, ADDITIONAL_WORKTREES_METADATA_KEY, undefined)),
+		}, { primary: shared, sessionLevel: shared, ownShared: flipped, own: shared });
 	});
 
 	test('a chat that runs Agent Merge for a folder of its session is not movable until it stops', async () => {
