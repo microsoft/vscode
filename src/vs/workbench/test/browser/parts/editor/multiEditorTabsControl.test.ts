@@ -775,10 +775,10 @@ suite('MultiEditorTabsControl', () => {
 	test('action reservation does not make inactive clean Close buttons visible', async () => {
 		const group = connectedGroup();
 		const root = group.closest<HTMLElement>('.monaco-workbench')!;
-		const modified = disposables.add(new TestFileEditorInput(URI.file('/path/modified.ts'), 'testEditorInput'));
+		const modified = disposables.add(new TestFileEditorInput(URI.file('/path/a-naturally-wide-modified-editor.ts'), 'testEditorInput'));
 		modified.setDirty();
 		model.openEditor(modified, { pinned: true, active: false });
-		const sticky = disposables.add(new TestFileEditorInput(URI.file('/path/sticky.ts'), 'testEditorInput'));
+		const sticky = disposables.add(new TestFileEditorInput(URI.file('/path/a-naturally-wide-sticky-editor.ts'), 'testEditorInput'));
 		model.openEditor(sticky, { pinned: true, active: false });
 		model.stick(sticky);
 		control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
@@ -1314,34 +1314,38 @@ suite('MultiEditorTabsControl', () => {
 			root.classList.toggle('modern-ui-tabs', style !== 'legacy');
 			root.classList.toggle('modern-ui-connected-editor-tabs', style === 'connected');
 			for (const tabActionLocation of ['left', 'right'] as const) {
-				let oldOptions = partOptions;
-				partOptions = { ...partOptions, tabSizing: 'fit', tabActionReserveSpace: true, tabActionLocation, tabActionUnpinVisibility: true, pinnedTabSizing: 'normal', editorActionsLocation: 'hidden' };
-				control.updateOptions(oldOptions, partOptions);
-				await layoutConnectedGroup(group, 600);
-				const tab = container.querySelector<HTMLElement>('.tab:not(.active):not(.dirty):not(.sticky)')!;
-				const persistentTabs = Array.from(container.querySelectorAll<HTMLElement>('.tab:is(.dirty, .sticky)'));
-				const persistentWidths = persistentTabs.map(tab => tab.getBoundingClientRect().width);
-				const reserved = tab.getBoundingClientRect().width;
-				const widths = [];
-				let persistentStable = true;
-				for (const tabActionReserveSpace of [false, true, false]) {
-					oldOptions = partOptions;
-					partOptions = { ...partOptions, tabActionReserveSpace };
+				for (const layout of ['single', 'wrapped', 'pinned-wrapped']) {
+					let oldOptions = partOptions;
+					const wrapped = layout !== 'single';
+					partOptions = { ...partOptions, tabSizing: 'fit', tabActionReserveSpace: true, tabActionLocation, tabActionUnpinVisibility: true, pinnedTabSizing: 'normal', wrapTabs: wrapped, pinnedTabsOnSeparateRow: layout === 'pinned-wrapped', editorActionsLocation: 'hidden' };
 					control.updateOptions(oldOptions, partOptions);
-					await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
-					widths.push(tab.getBoundingClientRect().width);
-					persistentStable &&= persistentTabs.every((tab, index) => Math.abs(tab.getBoundingClientRect().width - persistentWidths[index]) < 1 / 32);
+					await layoutConnectedGroup(group, wrapped ? 240 : 600);
+					const tab = container.querySelector<HTMLElement>('.tab:not(.active):not(.dirty):not(.sticky)')!;
+					const persistentTabs = Array.from(container.querySelectorAll<HTMLElement>('.tab:is(.dirty, .sticky)')).filter(tab => !wrapped || tab.classList.contains('connected-tab-upper-row'));
+					const persistentWidths = persistentTabs.map(tab => tab.getBoundingClientRect().width);
+					const reserved = tab.getBoundingClientRect().width;
+					const widths = [];
+					let persistentStable = true;
+					for (const tabActionReserveSpace of [false, true, false]) {
+						oldOptions = partOptions;
+						partOptions = { ...partOptions, tabActionReserveSpace };
+						control.updateOptions(oldOptions, partOptions);
+						await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+						widths.push(tab.getBoundingClientRect().width);
+						persistentStable &&= persistentTabs.every((tab, index) => Math.abs(tab.getBoundingClientRect().width - persistentWidths[index]) < 1 / 32);
+					}
+					results.push({
+						style, tabActionLocation, layout,
+						toggleRestoresReservation: widths[1] === reserved,
+						toggleIsRepeatable: widths[0] === widths[2],
+						compactWithoutReservation: style === 'legacy' ? widths[0] === reserved : widths[0] < reserved,
+						persistentStable,
+						persistentUpperRows: style !== 'connected' || !wrapped || persistentTabs.length > 0,
+					});
 				}
-				results.push({
-					style, tabActionLocation,
-					toggleRestoresReservation: widths[1] === reserved,
-					toggleIsRepeatable: widths[0] === widths[2],
-					compactWithoutReservation: style === 'legacy' ? widths[0] === reserved : widths[0] < reserved,
-					persistentStable,
-				});
 			}
 		}
-		assert.deepStrictEqual(results, results.map(result => ({ ...result, toggleRestoresReservation: true, toggleIsRepeatable: true, compactWithoutReservation: true, persistentStable: true })));
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, toggleRestoresReservation: true, toggleIsRepeatable: true, compactWithoutReservation: true, persistentStable: true, persistentUpperRows: true })));
 	});
 
 	test('fit-sized Connected tabs retain short-label icons and match Pill widths', async () => {
@@ -2218,7 +2222,7 @@ suite('MultiEditorTabsControl', () => {
 						});
 						expected.push({
 							...context,
-							insets: active && !upper ? [wrapTabs && rowStart ? -2 : 0, 0, wrapTabs ? 2 : 0] : [2, 2, wrapTabs ? 2 : 3.5],
+							insets: active && !upper ? [wrapTabs && rowStart ? -2 : 0, 0, wrapTabs ? 2 : -1] : [2, 2, wrapTabs ? 2 : 3.5],
 							corners: [topLeftRadius, radius, active && !upper ? '0px' : '4px', active && !upper ? '0px' : '4px'],
 							leftBorder: rowStart ? 'rgba(0, 0, 0, 0)' : undefined,
 						});
@@ -3441,6 +3445,11 @@ suite('MultiEditorTabsControl', () => {
 					tabs.scrollLeft = 0;
 					tabs.dispatchEvent(new mainWindow.Event(EventType.SCROLL));
 					const capStyle = getTabStrokeStyle(tab);
+					const cap = tab.querySelector<HTMLElement>('.tab-connected-edge')!;
+					const capBounds = cap.getBoundingClientRect();
+					const tabsBounds = tabs.getBoundingClientRect();
+					const accentTop = capBounds.top + Number.parseFloat(capStyle.backgroundPositionY);
+					const accentHeight = modified ? 2 : 1;
 					const overflow = container.querySelector<HTMLElement>('.tab-connected-overflow-edge')!;
 					const clippedStyle = mainWindow.getComputedStyle(overflow.querySelector<HTMLElement>('.tab-connected-overflow-right-edge')!);
 					results.push({
@@ -3449,6 +3458,8 @@ suite('MultiEditorTabsControl', () => {
 						topColor: clippedStyle.borderTopColor,
 						sameSides: clippedStyle.borderRightColor === capStyle.borderRightColor,
 						sameModifiedPaint: clippedStyle.backgroundImage === capStyle.backgroundImage,
+						accentInsideViewport: accentTop >= tabsBounds.top && accentTop + accentHeight <= tabsBounds.bottom,
+						accentStartsAtViewportTop: Math.abs(accentTop - tabsBounds.top) < 1 / 64,
 					});
 				}
 			}
@@ -3461,7 +3472,7 @@ suite('MultiEditorTabsControl', () => {
 			results,
 			cleared: [overflow.style.getPropertyValue('--modern-ui-connected-tab-overflow-top-border'), overflow.style.getPropertyValue('--modern-ui-connected-tab-overflow-top-background')],
 		}, {
-			results: results.map(result => ({ ...result, rightClipped: true, topColor: result.modified ? 'rgb(255, 255, 255)' : result.activeGroup ? 'rgb(34, 211, 238)' : 'rgb(192, 132, 252)', sameSides: true, sameModifiedPaint: true })),
+			results: results.map(result => ({ ...result, rightClipped: true, topColor: result.modified ? 'rgb(255, 255, 255)' : result.activeGroup ? 'rgb(34, 211, 238)' : 'rgb(192, 132, 252)', sameSides: true, sameModifiedPaint: true, accentInsideViewport: true, accentStartsAtViewportTop: true })),
 			cleared: ['', ''],
 		});
 	});
@@ -3644,7 +3655,7 @@ suite('MultiEditorTabsControl', () => {
 			rowPaddingLeft: rowStyle.paddingLeft,
 			rowPaddingTop: rowStyle.paddingTop,
 		}, {
-			active: { top: '0px', left: '0px', right: '0px', bottom: '-1px' },
+			active: { top: '-1px', left: '0px', right: '0px', bottom: '-1px' },
 			activeEdgeBottom: '-1px',
 			inactive: { top: '3.5px', left: '2px', right: '2px', bottom: '3.5px' },
 			alignItems: 'flex-start',
