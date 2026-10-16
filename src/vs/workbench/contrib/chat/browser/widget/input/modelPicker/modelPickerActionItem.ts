@@ -247,8 +247,12 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 		if (selectedModel) {
 			label = localize('chat.modelPicker.selectedModelHover', "{0} • {1}", label, getLanguageModelDisplayNameWithSubscriptionSource(selectedModel));
 		}
-		return statusIcon && tooltip
-			? localize('chat.modelPicker.selectedModelStatusHover', "{0} • {1}", label, tooltip)
+		if (statusIcon && tooltip) {
+			label = localize('chat.modelPicker.selectedModelStatusHover', "{0} • {1}", label, tooltip);
+		}
+		const organizationDefaultDescription = this._pickerWidget.organizationDefaultDescription;
+		return organizationDefaultDescription
+			? localize('chat.modelPicker.organizationDefaultHover', "{0}\n\n{1}", label, organizationDefaultDescription)
 			: label;
 	}
 }

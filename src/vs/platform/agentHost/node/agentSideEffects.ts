@@ -23,6 +23,7 @@ import { ILogService } from '../../log/common/log.js';
 import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { IAgentHostChatContributions, type ISendTurnMessageOptions } from '../common/agentHostChatContributionsService.js';
+import { captureCredentialSource, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { getPendingSteeringMessages } from '../common/agentSessionMessage.js';
 import { isRenameChatTool } from '../common/serverToolNames.js';
@@ -85,6 +86,7 @@ import { AgentHostStateManager, resolveChatStateForUri } from './agentHostStateM
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostSessionStateStore } from '../common/agentHostSessionStateStore.js';
 import { createAgentChatContext, getSessionChatsForFanOut } from './agentChatContext.js';
+import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { AgentHostTelemetryReporter, getMessageOriginTelemetryKind, IAgentHostTelemetryReporter, type AgentHostMessageOriginTelemetryKind, type AgentHostTurnFailureStage, type AgentHostTurnResult, type IAgentHostTurnFailure } from './agentHostTelemetryReporter.js';
 import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from './agentHostToolCallTracker.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
@@ -121,7 +123,7 @@ export interface IAgentSideEffectsOptions {
 	 * hand the agent (index 0 = process root), or `undefined` for workspace-less
 	 * sessions. Provided by {@link AgentService}.
 	 */
-	readonly resolveWorkingDirectoryBeforeSend?: (params: { session: ProtocolURI; chat: ProtocolURI; turnId: string; prompt: string }) => Promise<readonly URI[] | undefined>;
+	readonly resolveWorkingDirectoryBeforeSend?: (params: { session: ProtocolURI; chat: ProtocolURI; turnId: string; prompt: string; credentials?: IAgentHostCredentialSource; agentMergeTurn?: boolean }) => Promise<readonly URI[] | undefined>;
 	/** Resolves a referenced chat's turns, hydrating its owning session when needed. */
 	readonly resolveChatAttachmentTurns?: (resource: ProtocolURI) => Promise<readonly Turn[]>;
 	/** Resolves the recorded owner of a chat that may not be loaded. */
@@ -315,6 +317,7 @@ export class AgentSideEffects extends Disposable {
 		@IAgentHostTurnService private readonly _turnService: IAgentHostTurnService,
 		@IAgentHostPeerChatPersistenceService private readonly _chatPersistence: IAgentHostPeerChatPersistenceService,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
+		@IAgentHostAuthenticationService private readonly _authenticationService: IAgentHostAuthenticationService,
 		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
 	) {
 		super();
@@ -504,6 +507,7 @@ export class AgentSideEffects extends Disposable {
 				channel: envelope.channel,
 				session: envelopeSession,
 				action: envelope.action,
+				...(this._stateManager.getActionCredentialSource(envelope) ? { credentials: this._stateManager.getActionCredentialSource(envelope) } : {}),
 				...(envelope.origin !== undefined ? { origin: envelope.origin } : {}),
 				...(envelope.rejectionReason !== undefined ? { rejectionReason: envelope.rejectionReason } : {}),
 			});
@@ -511,7 +515,7 @@ export class AgentSideEffects extends Disposable {
 	}
 
 	private _chatContext(session: ProtocolURI, chat: ProtocolURI): IAgentChatContext {
-		return createAgentChatContext(this._stateManager, session, chat, this._chatOwnership.resolveChatStorageResource(session, chat), this._sessionStateStore.peek(URI.parse(session)));
+		return createAgentChatContext(this._stateManager, this._authenticationService, session, chat, this._chatOwnership.resolveChatStorageResource(session, chat), this._sessionStateStore.peek(URI.parse(session)));
 	}
 
 	/**
@@ -700,6 +704,9 @@ export class AgentSideEffects extends Disposable {
 		disposables.add(agent.onDidChatProgress(signal => {
 			this._handleAgentSignal(agent, signal);
 		}));
+		if (agent.onDidReportProgress) {
+			disposables.add(agent.onDidReportProgress(progress => this._stateManager.emitProgress(progress)));
+		}
 		if (agent.onDidCustomizationsChange) {
 			disposables.add(agent.onDidCustomizationsChange(() => {
 				this._publishAgentInfos(this._options.agents.get());
@@ -1726,7 +1733,7 @@ export class AgentSideEffects extends Disposable {
 		this._turnTracker.markActivity(sessionKey, turnId, readyAction.type);
 	}
 
-	handleAction(channel: ProtocolURI, action: StateAction, clientId?: string, clientContextOrType: IAgentHostClientTelemetryContext | AgentHostClientType = AgentHostClientType.Unknown, resumedTurn?: Turn, automaticArchive = false, clientSeq?: number): void {
+	handleAction(channel: ProtocolURI, action: StateAction, clientId?: string, clientContextOrType: IAgentHostClientTelemetryContext | AgentHostClientType = AgentHostClientType.Unknown, resumedTurn?: Turn, automaticArchive = false, clientSeq?: number, credentials?: IAgentHostCredentialSource): void {
 		let clientContext = typeof clientContextOrType === 'string'
 			? createUnknownAgentHostClientTelemetryContext(clientContextOrType)
 			: clientContextOrType;
@@ -1744,7 +1751,7 @@ export class AgentSideEffects extends Disposable {
 				if (!chatChannel) {
 					throw new Error(`ChatTurnStarted must be handled on an AHP chat channel: ${channel}`);
 				}
-				this._turnService.handleTurnStarted(channel, action, clientId, clientContext);
+				this._turnService.handleTurnStarted(channel, action, clientId, clientContext, credentials);
 				break;
 			}
 			case ActionType.ChatTurnResume: {
@@ -1770,6 +1777,7 @@ export class AgentSideEffects extends Disposable {
 					action.turnId,
 					{
 						...this._chatContext(sessionChannel, channel),
+						...(credentials ? { credentials } : {}),
 						clientTelemetryContext: clientContext,
 						agentMergeTurn: resumedTurn.message.origin.kind === MessageKind.SystemNotification && isAgentMergeMessage(resumedTurn.message),
 						sendStageRecorder: this._turnTracker.createProviderStageRecorder(channel, action.turnId),
@@ -2036,7 +2044,7 @@ export class AgentSideEffects extends Disposable {
 				break;
 			}
 		}
-		this._chatContributions.didApplyClientAction({ channel, session: sessionChannel, action, clientId, clientContext });
+		this._chatContributions.didApplyClientAction({ channel, session: sessionChannel, action, clientId, clientContext, ...(credentials ? { credentials } : {}) });
 	}
 
 	private _recordCustomizationEnablement(session: ProtocolURI, candidate: ICustomizationEnablementCandidate, enablement: readonly CustomizationEnablement[]): void {
@@ -2111,6 +2119,7 @@ export class AgentSideEffects extends Disposable {
 		let checkpointCapture: Promise<void> | undefined;
 		let dispatchedToProvider = false;
 		try {
+			const credentials = options.credentials ? captureCredentialSource(options.credentials, agent.getProtectedResources()) : undefined;
 			this._turnTracker.setCurrentStage(turnChannel, turnId, failureStage);
 			this._turnTracker.markSendStage(turnChannel, turnId, 'workingDirectory');
 			// Host-owned working-directory resolution: resolve the session's working
@@ -2118,7 +2127,8 @@ export class AgentSideEffects extends Disposable {
 			// without ever knowing how it was derived. Returns the created worktree
 			// for worktree sessions (created here on the first send) or the picked
 			// folder for folder sessions; undefined for workspace-less sessions.
-			const resolvedWorkingDirectories = await this._options.resolveWorkingDirectoryBeforeSend?.({ session: options.sessionChannel, chat, turnId, prompt: message.text });
+			const agentMergeTurn = message.origin.kind === MessageKind.SystemNotification && isAgentMergeMessage(message);
+			const resolvedWorkingDirectories = await this._options.resolveWorkingDirectoryBeforeSend?.({ session: options.sessionChannel, chat, turnId, prompt: message.text, ...(credentials ? { credentials } : {}), ...(agentMergeTurn ? { agentMergeTurn } : {}) });
 			// Start the turn-start checkpoint as soon as the working directory is
 			// known so its git snapshot runs alongside the provider round-trips
 			// below instead of after them. It is still awaited before the message
@@ -2137,8 +2147,9 @@ export class AgentSideEffects extends Disposable {
 			const chatContext = this._chatContext(options.sessionChannel, chat);
 			const clientOperationContext = {
 				...chatContext,
+				...(credentials ? { credentials } : {}),
 				clientTelemetryContext: clientContext,
-				agentMergeTurn: message.origin.kind === MessageKind.SystemNotification && isAgentMergeMessage(message),
+				agentMergeTurn,
 			};
 
 			const selectionUpdates: Promise<void>[] = [];
@@ -2153,6 +2164,10 @@ export class AgentSideEffects extends Disposable {
 			}));
 
 			await Promise.all(selectionUpdates);
+			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {
+				await this._discardPendingTurnStartCheckpoint(checkpointCapture, sessionChannel, chatUri, turnId);
+				return;
+			}
 			if (agent.id === CODEX_AGENT_PROVIDER_ID) {
 				const state = this._stateManager.getSessionState(sessionChannel);
 				if (state?.defaultChat === chat) {
@@ -2227,6 +2242,9 @@ export class AgentSideEffects extends Disposable {
 			// failed turn retains a checkpoint pair it never earned.
 			if (!dispatchedToProvider) {
 				await this._discardPendingTurnStartCheckpoint(checkpointCapture, sessionChannel, chatUri, turnId);
+			}
+			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {
+				return;
 			}
 			const failure = buildTurnFailure(failureStage, err);
 			const error = failure.error;
@@ -2467,8 +2485,9 @@ function buildTurnFailure(stage: AgentHostTurnFailureStage, err: unknown): IAgen
 function buildTurnFailureError(stage: AgentHostTurnFailureStage, err: unknown): ErrorInfo {
 	const message = getErrorMessage(err);
 	const forwarded = tryParseForwardedChatError(err instanceof Error ? err.message : message);
-	const errorType = stage === 'modelSelection' ? 'modelSelectionFailed'
-		: stage === 'workingDirectory' ? 'workingDirectoryFailed' : 'sendFailed';
+	const errorType = getErrorCode(err) === 'policyResolutionFailed' ? 'policyResolutionFailed'
+		: stage === 'modelSelection' ? 'modelSelectionFailed'
+			: stage === 'workingDirectory' ? 'workingDirectoryFailed' : 'sendFailed';
 	if (forwarded) {
 		return { errorType, message: stripProxyErrorMarker(message), _meta: toChatErrorMeta(forwarded) };
 	}
