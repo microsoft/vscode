@@ -33,6 +33,7 @@ import { SessionTitleContribution } from './sessionTitle/sessionTitleContributio
 import { SideChatContribution } from './sideChat/sideChatContribution.js';
 import { TurnAdmissionContribution } from './turnAdmission/turnAdmissionContribution.js';
 import { TurnDelegationContribution } from './turnDelegation/turnDelegationContribution.js';
+import { ThreadDelegationContribution } from './threadDelegation/threadDelegationContribution.js';
 import { WorktreeAnnouncementContribution } from './worktreeAnnouncement/worktreeAnnouncementContribution.js';
 import { WorkspaceContextContribution } from './workspaceContext/workspaceContextContribution.js';
 import { WorktreeFailureContribution } from './worktreeFailure/worktreeFailureContribution.js';
@@ -65,6 +66,7 @@ export function registerBuiltInChatContributions(
 	registrations.add(contributions.registerContribution(ChatDraftContribution));
 	registrations.add(contributions.registerContribution(ChatConfigContribution));
 	registrations.add(contributions.registerContribution(MarkdownPlanRichLinksContribution));
+	registrations.add(contributions.registerContribution(ThreadDelegationContribution));
 	registrations.add(contributions.registerContribution(WorkspaceContextContribution));
 	registrations.add(contributions.registerContribution(ChatSurfaceContribution));
 	registrations.add(contributions.registerContribution(RemoteSessionOriginContribution));

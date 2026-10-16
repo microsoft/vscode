@@ -71,6 +71,7 @@ import { SessionTypePicker } from './sessionTypePicker.js';
 import { ChatInputPickerResponsiveLayout } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
 import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
 import { installMobileChipLaneScroll } from '../../../browser/parts/mobile/mobileChipLaneScroll.js';
+import { ThreadMentionCompletionHandler } from './threadMentionCompletions.js';
 
 /** Body height the composer lays its chat widget out with; the transcript is hidden, so it only bounds the input. */
 const COMPOSER_LAYOUT_HEIGHT = 200;
@@ -304,6 +305,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			},
 		));
 		widget.render(widgetContainer, root, this.options.petHostPreferred);
+		this._register(widgetInstantiationService.createInstance(ThreadMentionCompletionHandler, widget.inputEditor));
 		widget.setVisible(true);
 		widget.setInputPartMaxHeightOverride(COMPOSER_INPUT_MAX_HEIGHT);
 

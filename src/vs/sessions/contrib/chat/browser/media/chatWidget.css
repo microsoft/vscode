@@ -360,6 +360,68 @@
 	opacity: 1;
 }
 
+.thread-welcome-prompt-options {
+	align-self: center;
+	display: none;
+	grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+	gap: var(--vscode-spacing-size80);
+	max-width: 640px;
+	width: min(100%, 640px);
+}
+
+.thread-welcome-prompt-options.visible {
+	display: grid;
+	margin-bottom: auto;
+}
+
+.thread-welcome-prompt-options > .monaco-button {
+	background: transparent;
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, transparent);
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-foreground);
+	gap: var(--vscode-spacing-size80);
+	justify-content: flex-start;
+	min-height: var(--vscode-spacing-size400);
+	padding: var(--vscode-spacing-size100) var(--vscode-spacing-size120);
+	text-align: left;
+}
+
+.thread-welcome-prompt-options > .monaco-button:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.thread-welcome-prompt-options > .monaco-button > .codicon {
+	color: var(--vscode-descriptionForeground);
+	flex: 0 0 auto;
+}
+
+.new-chat-widget-container.thread-welcome {
+	justify-content: flex-start;
+}
+
+.new-chat-widget-container.thread-welcome .new-chat-widget-content {
+	height: 100%;
+}
+
+.new-chat-widget-container.thread-welcome .new-session-welcome-message {
+	align-self: center;
+	justify-content: flex-start;
+	margin-bottom: var(--vscode-spacing-size200);
+	margin-top: auto;
+	max-width: 640px;
+	text-align: left;
+	width: min(100%, 640px);
+}
+
+.new-chat-widget-container.thread-welcome .new-session-welcome-message-title {
+	font-weight: var(--vscode-fontWeight-regular);
+}
+
+.new-chat-widget-container.thread-welcome .chat-getting-started-tip-container,
+.new-chat-widget-container.thread-welcome .new-session-getting-started-tip-below {
+	display: none;
+}
+
 .new-chat-widget-container .new-chat-bottom-container {
 	width: 100%;
 	max-width: 800px;

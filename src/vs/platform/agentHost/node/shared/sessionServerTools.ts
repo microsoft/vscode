@@ -14,7 +14,7 @@ import { AgentSession, type AgentProvider, type IAgentCreateSessionConfig, type 
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import type { IAgentServerToolDefinition } from '../../common/agentServerTools.js';
-import { ChatInteractivity, ChatOriginKind, getAgentHostChatId, getInlineToolInput, getSessionRelatedPullRequestUrls, isAhpChatChannel, isSessionStatusArchived, isSessionStatusRead, MessageKind, PendingMessageKind, readSessionGitState, readSessionGitHubState, getAllSessionRelatedPullRequestUrls, readSessionWorkspaceless, ResponsePartKind, ToolCallStatus, TurnState, withSessionCreationReference, type Message, type ModelSelection, type PendingMessage, type ResponsePart, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
+import { ChatInteractivity, ChatOriginKind, getAgentHostChatId, getInlineToolInput, getSessionRelatedPullRequestUrls, isAhpChatChannel, isSessionStatusArchived, isSessionStatusRead, MessageKind, PendingMessageKind, readSessionGitState, readSessionGitHubState, getAllSessionRelatedPullRequestUrls, readSessionWorkspaceless, ResponsePartKind, ToolCallStatus, TurnState, withSessionCreationReference, type AgentSelection, type Message, type ModelSelection, type PendingMessage, type ResponsePart, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { buildOpenSessionLinkForChat, buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -84,6 +84,7 @@ const createSessionInputSchema: ToolDefinition['inputSchema'] = {
 		worktree: { type: 'boolean', description: 'Set true when the work needs an isolated Git worktree for the workspace, or false to work in the folder directly. A worktree is not needed for read-only work. When omitted, the current session\'s isolation is used; an independent session in another project uses a worktree. Only valid when `workspace` is also set.' },
 		title: { type: 'string', maxLength: 200, description: 'Short title for the new chat or independent session.' },
 		model: { type: 'string', description: 'Optional model ID or display name. Defaults to the current chat\'s model. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.' },
+		agent: { type: 'string', description: 'Optional exact custom-agent URI for the delegated work. Use only a URI supplied by the current Thread context; omit for the provider default agent.' },
 	},
 	required: ['prompt', 'title'],
 };
@@ -107,6 +108,7 @@ const createSessionWithSharedWorkspaceInputSchema: ToolDefinition['inputSchema']
 		worktree: { type: 'boolean', description: 'Override isolation for the new independent session. Set true only when the user explicitly asks to create a worktree, or false only when the user explicitly asks to work without one. Omit to preserve the existing isolation behavior: inherit the creating session\'s isolation for the same project, otherwise use worktree isolation. Only valid with relationship `independent`; omit for `currentSession`.' },
 		title: { type: 'string', maxLength: 200, description: 'Short title for the new chat or independent session.' },
 		model: { type: 'string', description: 'Optional model ID or display name. Defaults to the current chat\'s model. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.' },
+		agent: { type: 'string', description: 'Optional exact custom-agent URI for the delegated work. Use only a URI supplied by the current Thread context; omit for the provider default agent.' },
 	},
 	required: ['relationship', 'prompt', 'title'],
 };
@@ -281,6 +283,7 @@ interface ICreateSessionArgs {
 	readonly prompt?: unknown;
 	readonly title?: unknown;
 	readonly model?: unknown;
+	readonly agent?: unknown;
 }
 
 export type IResolvedCreateSessionArgs = {
@@ -291,6 +294,7 @@ export type IResolvedCreateSessionArgs = {
 	readonly prompt: string;
 	readonly title: string;
 	readonly model?: IAgentModelInfo;
+	readonly agent?: string;
 } | {
 	readonly relationship: 'independent';
 	readonly workspace?: URI;
@@ -298,6 +302,7 @@ export type IResolvedCreateSessionArgs = {
 	readonly prompt: string;
 	readonly title: string;
 	readonly model?: IAgentModelInfo;
+	readonly agent?: string;
 };
 
 /** Selects how a repository is attached to a chat's aggregate session. */
@@ -342,7 +347,7 @@ export interface IAgentServiceSessionServerToolAccessor {
 	readonly getModels: () => readonly IAgentModelInfo[];
 	readonly getCreationDefaults: (source: URI) => ISessionCreationDefaults | undefined;
 	readonly startPrompt: (session: URI, chat: URI, prompt: string, delegation?: IAgentMessageDelegationMeta, credentials?: IAgentHostCredentialSource) => Promise<void>;
-	readonly createChat: (session: URI, chat: URI, options?: { title?: string; model?: ModelSelection; workingDirectories?: readonly URI[] }, credentials?: IAgentHostCredentialSource) => Promise<void>;
+	readonly createChat: (session: URI, chat: URI, options?: { title?: string; model?: ModelSelection; agent?: AgentSelection; workingDirectories?: readonly URI[] }, credentials?: IAgentHostCredentialSource) => Promise<void>;
 	readonly prepareChatWorkingDirectory: (session: URI, directory: URI, options: IAddSessionWorkingDirectoryOptions) => Promise<IPreparedChatWorkingDirectory>;
 	readonly renameChat: (session: URI, chat: URI, title: string) => Promise<IRenameTitleResult>;
 	readonly reportToolError: (toolName: SessionServerToolName, error: unknown) => void;
@@ -720,6 +725,7 @@ export function getCreateSessionArgs(rawArgs: unknown, sessions: readonly IAgent
 	validateRenameTitle(title, SessionServerToolName.CreateSession);
 	const workspace = getOptionalString(args.workspace, 'workspace', SessionServerToolName.CreateSession);
 	const modelName = getOptionalString(args.model, 'model', SessionServerToolName.CreateSession);
+	const agent = getOptionalString(args.agent, 'agent', SessionServerToolName.CreateSession);
 	const worktree = getOptionalBoolean(args.worktree, 'worktree', SessionServerToolName.CreateSession);
 	const model = resolveModel(modelName, models, relationship === 'currentSession' ? currentProvider : undefined);
 	if (relationship === 'currentSession') {
@@ -741,6 +747,7 @@ export function getCreateSessionArgs(rawArgs: unknown, sessions: readonly IAgent
 			prompt,
 			title,
 			...(model !== undefined ? { model } : {}),
+			...(agent !== undefined ? { agent } : {}),
 		};
 	}
 	if (workspace === undefined) {
@@ -752,6 +759,7 @@ export function getCreateSessionArgs(rawArgs: unknown, sessions: readonly IAgent
 			prompt,
 			title,
 			...(model !== undefined ? { model } : {}),
+			...(agent !== undefined ? { agent } : {}),
 		};
 	}
 	return {
@@ -761,6 +769,7 @@ export function getCreateSessionArgs(rawArgs: unknown, sessions: readonly IAgent
 		prompt,
 		title,
 		...(model !== undefined ? { model } : {}),
+		...(agent !== undefined ? { agent } : {}),
 	};
 }
 
@@ -1043,6 +1052,7 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 				prompt: args.prompt,
 				title: args.title,
 				model: args.model,
+				agent: args.agent,
 				...(prepared !== undefined ? { workingDirectories: [prepared.directory] } : {}),
 			}, source, sourceTurnId, prepared?.associateWithChat);
 		} catch (error) {
@@ -1086,6 +1096,7 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 		...(workspace !== undefined ? { workingDirectories: [workspace] } : {}),
 		...(provider !== undefined ? { provider } : {}),
 		...(args.model !== undefined ? { model: { id: args.model.id } } : defaults?.model !== undefined ? { model: defaults.model } : {}),
+		...(args.agent !== undefined ? { agent: { uri: args.agent } } : {}),
 		...(configValues !== undefined ? { config: configValues } : {}),
 		...(currentSession !== undefined && source !== undefined ? {
 			_meta: withSessionCreationReference(undefined, {
@@ -1150,6 +1161,7 @@ interface IResolvedCreateChatArgs {
 	readonly prompt: string;
 	readonly title?: string;
 	readonly model?: IAgentModelInfo;
+	readonly agent?: string;
 	readonly workingDirectories?: readonly URI[];
 }
 
@@ -1165,6 +1177,22 @@ export function resolveKnownSession(sessionInput: string, sessions: readonly IAg
 	const candidate = fromLink?.toString() ?? sessionInput;
 	const match = sessions.find(s => s.session.toString() === candidate);
 	return match?.session;
+}
+
+function getUnknownSendMessageSessionError(sessionInput: string, sessions: readonly IAgentSessionMetadata[]): string {
+	const normalized = parseOpenSessionLinkUri(sessionInput)?.toString() ?? sessionInput;
+	let candidate: URI | undefined;
+	try {
+		candidate = URI.parse(normalized);
+	} catch {
+		// The required-string validation already reports missing values. Keep malformed
+		// non-empty values in the general invalid-identity path below.
+	}
+	const samePath = candidate && sessions.find(session => session.session.path === candidate.path);
+	if (candidate && samePath && samePath.session.scheme !== candidate.scheme) {
+		return `Invalid ${SessionServerToolName.SendMessage} input: session "${sessionInput}" uses a different URI scheme than the accessible session "${samePath.session.toString()}". Use the exact session URI or openLink returned by list_sessions.`;
+	}
+	return `Invalid ${SessionServerToolName.SendMessage} input: session "${sessionInput}" is not in this Agent Host's accessible inventory. It may belong to another Agent Host or window, or it may be unavailable. Use list_sessions and pass an exact session URI or openLink from that inventory.`;
 }
 
 /** Resolves the target session URI for `create_chat` against the known sessions. */
@@ -1209,6 +1237,7 @@ async function createChat(accessor: ISessionServerToolAccessor, args: IResolvedC
 	await accessor.createChat(args.session, chat, {
 		title: args.title,
 		model,
+		...(args.agent !== undefined ? { agent: { uri: args.agent } } : {}),
 		...(args.workingDirectories !== undefined ? { workingDirectories: args.workingDirectories } : {}),
 	}, credentials);
 	if (args.title !== undefined) {
@@ -1391,7 +1420,7 @@ export function getSendMessageArgs(rawArgs: unknown, sessions: readonly IAgentSe
 	const sessionInput = getRequiredString(args.session, 'session', SessionServerToolName.SendMessage);
 	const session = resolveKnownSession(sessionInput, sessions);
 	if (!session) {
-		throw new Error(`Invalid ${SessionServerToolName.SendMessage} input: session must match the URI of a known session (see list_sessions).`);
+		throw new Error(getUnknownSendMessageSessionError(sessionInput, sessions));
 	}
 	const chatId = parseOpenSessionLinkChatId(sessionInput);
 	const chat = chatId ? resolveLinkedChat(sessions, session, chatId) : resolveDefaultChat(sessions, session, getDefaultChat);

@@ -348,16 +348,15 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		sessions: [
 			{ id: 'thread-design', title: 'Design partner', workspace: 'vscode', minutesAgo: 1, status: SessionStatus.InProgress, thread: { name: 'Design partner', avatar: ThreadAvatarIds.Artist, automationCount: 2 } },
 			{ id: 'thread-triage', title: 'Issue triage', isQuickChat: true, minutesAgo: 4, thread: { name: 'Issue triage', avatar: ThreadAvatarIds.Cowboy } },
-			{ id: 'thread-archive', title: 'Old release helper', workspace: 'vscode', minutesAgo: 30, thread: { name: 'Old release helper', avatar: ThreadAvatarIds.Wizard, archived: true } },
 			{ id: 'inbox', title: 'Review completed implementation', workspace: 'vscode', minutesAgo: 8 },
 		],
 		header: { navigationShortcuts: true },
-		view: { inbox: true, compact: true, height: 400 },
+		view: { inbox: true, compact: true, height: 400, reducedMotion: true },
 		interaction: { hovered: { session: 'inbox' } },
 	}, {
 		labels: { kind: 'screenshot' },
 		virtualTime: { enabled: false },
-		expectedVisualDescriptions: ['The expanded Threads tree appears below New Session, Automations, and Customizations and above the Ready for you heading. Two persistent thread rows use distinct Blobby hat avatars; Design partner shows two associated automations and stays visible while running. Archived Threads is a collapsed child group. The regular actionable session appears only below Ready for you.'],
+		expectedVisualDescriptions: ['Threads appears below New Session, Automations, and Customizations and above Inbox. Threads and Inbox are always-visible static section titles with no leading icon, chevron, or reserved indentation. Two persistent thread rows use navigation-sized Blobby avatars and display only their Thread names, with no status or Automation-count secondary text. The running Design partner Thread uses Blobby’s reduced-motion rendering pose while Issue triage uses the resting pose. The only Thread row action visible on hover is the calendar-shaped Add Automation action. The Inbox session row does not show a Move Session toolbar button.'],
 	}),
 	SessionsList_Inbox_Empty: defineSessionsListFixture({
 		sessions: [],
@@ -365,7 +364,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		view: { inbox: true, height: 180 },
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The section title is "Ready for you". Directly below it, the otherwise empty list area says "Inbox empty" in concise muted text. No running-session footer is shown.'],
+		expectedVisualDescriptions: ['The static section title is "Inbox" with no leading icon or chevron. Directly below it, the otherwise empty list area says "Inbox empty" in concise muted text. No running-session footer is shown.'],
 	}),
 	SessionsList_Inbox_PinnedOnly: defineSessionsListFixture({
 		sessions: [
@@ -376,7 +375,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		view: { inbox: true, height: 220, showArchived: false, expanded: [{ section: 'pinned' }] },
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['Ready for you contains only an expanded Pinned section because every non-pinned session is done. "Inbox empty" appears immediately below the pinned session row rather than below the section title.'],
+		expectedVisualDescriptions: ['Inbox contains only an expanded Pinned section because every non-pinned session is done. "Inbox empty" appears immediately below the pinned session row rather than below the section title.'],
 	}),
 	SessionsList_Inbox_PinnedRunning: defineSessionsListFixture({
 		sessions: [
@@ -399,7 +398,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		interaction: { hovered: { section: 'running' } },
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The section title is "Ready for you". Directly below it, the empty list area says "Waiting for agents to respond" in concise muted text because both sessions are running. The pointer is over the collapsed "2 sessions running" tree section at the bottom, revealing a right-pointing chevron on the row’s right edge while retaining the animated blue pixel spinner on the left.'],
+		expectedVisualDescriptions: ['The static section title is "Inbox". Directly below it, the empty list area says "Waiting for agents to respond" in concise muted text because both sessions are running. The pointer is over the collapsed "2 sessions running" tree section at the bottom, revealing a right-pointing chevron on the row’s right edge while retaining the animated blue pixel spinner on the left.'],
 	}),
 	SessionsList_Inbox_RunningExpanded: defineSessionsListFixture({
 		sessions: [

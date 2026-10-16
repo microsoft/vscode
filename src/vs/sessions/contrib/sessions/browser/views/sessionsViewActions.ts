@@ -987,20 +987,6 @@ export const MOVE_SESSION_ON_HOLD_COMMAND_ID = 'sessionsViewPane.moveSessionOnHo
 export const MARK_SESSION_READY_TO_MERGE_COMMAND_ID = 'sessionsViewPane.markSessionReadyToMerge';
 export const MOVE_SESSION_TO_INBOX_COMMAND_ID = 'sessionsViewPane.moveSessionToInbox';
 
-MenuRegistry.appendMenuItem(Menus.SessionItemToolbar, {
-	submenu: Menus.SessionInboxDisposition,
-	title: localize2('moveSession', "Move Session"),
-	icon: Codicon.move,
-	group: 'navigation',
-	order: 1.75,
-	when: ContextKeyExpr.and(
-		SessionsViewInboxContext,
-		SessionsListPromoteNewChatActionContext.negate(),
-		ContextKeyExpr.equals(IsSessionPinnedContext.key, false),
-		ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
-	),
-});
-
 registerAction2(class MoveSessionOnHoldAction extends Action2 {
 	constructor() {
 		super({
@@ -1011,7 +997,10 @@ registerAction2(class MoveSessionOnHoldAction extends Action2 {
 				id: Menus.SessionInboxDisposition,
 				group: 'navigation',
 				order: 1,
-				when: ContextKeyExpr.equals(SessionInboxDispositionContext.key, ''),
+				when: ContextKeyExpr.or(
+					ContextKeyExpr.equals(SessionInboxDispositionContext.key, ''),
+					ContextKeyExpr.equals(SessionInboxDispositionContext.key, SessionInboxDisposition.ReadyToMerge),
+				),
 			}, {
 				id: SessionItemContextMenuId,
 				group: '1_edit',
@@ -1020,7 +1009,10 @@ registerAction2(class MoveSessionOnHoldAction extends Action2 {
 					SessionsViewInboxContext,
 					ContextKeyExpr.equals(IsSessionPinnedContext.key, false),
 					ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
-					ContextKeyExpr.equals(SessionInboxDispositionContext.key, ''),
+					ContextKeyExpr.or(
+						ContextKeyExpr.equals(SessionInboxDispositionContext.key, ''),
+						ContextKeyExpr.equals(SessionInboxDispositionContext.key, SessionInboxDisposition.ReadyToMerge),
+					),
 				),
 			}],
 		});
@@ -1055,7 +1047,10 @@ registerAction2(class MarkSessionReadyToMergeAction extends Action2 {
 				group: 'navigation',
 				order: 2,
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals(SessionInboxDispositionContext.key, ''),
+					ContextKeyExpr.or(
+						ContextKeyExpr.equals(SessionInboxDispositionContext.key, ''),
+						ContextKeyExpr.equals(SessionInboxDispositionContext.key, SessionInboxDisposition.OnHold),
+					),
 					SessionHasPullRequestContext,
 					ContextKeyExpr.equals(SessionItemStatusContext.key, SessionStatus.Completed),
 					ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
@@ -1068,7 +1063,10 @@ registerAction2(class MarkSessionReadyToMergeAction extends Action2 {
 					SessionsViewInboxContext,
 					ContextKeyExpr.equals(IsSessionPinnedContext.key, false),
 					ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
-					ContextKeyExpr.equals(SessionInboxDispositionContext.key, ''),
+					ContextKeyExpr.or(
+						ContextKeyExpr.equals(SessionInboxDispositionContext.key, ''),
+						ContextKeyExpr.equals(SessionInboxDispositionContext.key, SessionInboxDisposition.OnHold),
+					),
 					SessionHasPullRequestContext,
 					ContextKeyExpr.equals(SessionItemStatusContext.key, SessionStatus.Completed),
 					ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
