@@ -257,12 +257,11 @@ export function getExternalTunnelNetworkPolicyError(
  */
 export function rewriteRemoteLocalhostUrl(
 	url: string,
-	browserViewService: IBrowserViewWorkbenchService,
 	remoteExplorerService: IRemoteExplorerService,
+	usesRemoteNetwork: boolean,
 ): { url: string; rewritten: boolean } {
-	// When proxying is enabled (or we are not in a remote workspace) the browser
-	// can reach the remote host directly, so no rewriting is needed.
-	if (browserViewService.willUseRemoteProxy()) {
+	// A page on the remote network reaches the remote's localhost directly, so no rewriting is needed.
+	if (usesRemoteNetwork) {
 		return { url, rewritten: false };
 	}
 

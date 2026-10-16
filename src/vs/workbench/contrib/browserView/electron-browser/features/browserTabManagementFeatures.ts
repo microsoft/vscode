@@ -613,7 +613,7 @@ class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchCo
 		}
 
 		// If we are in a remote session, always use the original source URI (and not the href which may be the forwarded address)
-		if (this.browserViewWorkbenchService.willUseRemoteProxy() && ctx.sourceUri) {
+		if (this.browserViewWorkbenchService.resolveNetwork({ type: 'user' }) && ctx.sourceUri) {
 			href = ctx.sourceUri.toString();
 		}
 

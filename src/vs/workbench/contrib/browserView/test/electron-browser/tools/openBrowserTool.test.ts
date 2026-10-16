@@ -95,7 +95,7 @@ suite('OpenBrowserTool', () => {
 			}),
 			upcastPartial<IEditorService>({}),
 			upcastPartial<IBrowserViewWorkbenchService>({
-				willUseRemoteProxy: () => true,
+				resolveNetwork: () => ({ authority: 'remote' }),
 				createBrowserView: async (options, openOptions) => {
 					createOptions = options;
 					editorOpenOptions = openOptions;
@@ -128,7 +128,8 @@ suite('OpenBrowserTool', () => {
 				initialAudiences: [{ type: 'agent' as const }],
 				session: {
 					scope: BrowserViewStorageScope.Agent,
-					affinity: 'chat:session'
+					affinity: 'chat:session',
+					network: { authority: 'remote' }
 				},
 				initialUrl: 'https://example.com',
 				openSource: 'cdpCreated'
@@ -165,7 +166,7 @@ suite('OpenBrowserTool', () => {
 		const networkFilterService = disposables.add(new AgentNetworkFilterService(configService));
 		let createCount = 0;
 		const browserViewService = upcastPartial<IBrowserViewWorkbenchService>({
-			willUseRemoteProxy: () => false,
+			resolveNetwork: () => undefined,
 			createBrowserView: async () => {
 				createCount++;
 				return upcastPartial<BrowserEditorInput>({ id: 'page-id' });
@@ -218,7 +219,7 @@ suite('OpenBrowserTool', () => {
 			formatError: uri => `Blocked ${uri.authority}`,
 		});
 		const browserViewService = upcastPartial<IBrowserViewWorkbenchService>({
-			willUseRemoteProxy: () => true,
+			resolveNetwork: () => ({ authority: 'remote' }),
 			getContextualBrowserViews: () => {
 				discoveryCount++;
 				return new Map();

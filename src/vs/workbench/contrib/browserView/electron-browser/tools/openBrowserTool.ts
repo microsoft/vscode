@@ -130,7 +130,7 @@ export class OpenBrowserTool implements IToolImpl {
 			if (policyError) {
 				return errorResult(policyError);
 			}
-			const rewrite = rewriteRemoteLocalhostUrl(params.url, this.browserViewService, this.remoteExplorerService);
+			const rewrite = rewriteRemoteLocalhostUrl(params.url, this.remoteExplorerService, !!this.browserViewService.resolveNetwork({ type: 'agent', sessionId }));
 			const tunnelError = getExternalTunnelNetworkPolicyError(rewrite, this.agentNetworkFilterService);
 			if (tunnelError) {
 				return errorResult(tunnelError);
@@ -158,7 +158,7 @@ export class OpenBrowserTool implements IToolImpl {
 		// runs locally and cannot reach the remote's localhost directly. Rewrite to
 		// the forwarded local address (if any) so the page can be reached.
 		const logicalUrl = params.url;
-		const rewrite = rewriteRemoteLocalhostUrl(logicalUrl, this.browserViewService, this.remoteExplorerService);
+		const rewrite = rewriteRemoteLocalhostUrl(logicalUrl, this.remoteExplorerService, !!this.browserViewService.resolveNetwork({ type: 'agent', sessionId }));
 		const rewriteNotice = rewrite.rewritten ? remoteUrlRewriteNotice(logicalUrl, rewrite.url) : undefined;
 		params.url = rewrite.url;
 
@@ -328,7 +328,7 @@ export class OpenBrowserTool implements IToolImpl {
 
 	private async _openNewPage(sessionId: string, url: string, restrictions?: ISandboxNetworkRestrictions): Promise<IToolResult> {
 		const input = await this.browserViewService.createBrowserView({
-			...getAgentBrowserViewCreationDefaults(sessionId, restrictions || this.environmentService.isSessionsWindow ? sessionId : undefined),
+			...getAgentBrowserViewCreationDefaults(sessionId, restrictions || this.environmentService.isSessionsWindow ? sessionId : undefined, this.browserViewService.resolveNetwork({ type: 'agent', sessionId })),
 			...(restrictions?.sandboxEnabled ? { initialAudiences: [{ type: 'agent' as const, sessionId }] } : {}),
 			...(restrictions ? { sandboxNetworkRestrictions: restrictions } : {}),
 			initialUrl: url,
