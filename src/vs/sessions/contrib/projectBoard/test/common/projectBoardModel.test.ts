@@ -8,7 +8,7 @@ import { ISettableObservable, observableValue } from '../../../../../base/common
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ChatInteractivity, ChatOriginKind, IChat, IChatOrigin, ISession, ISessionCreationReference, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, IChatOrigin, ISession, ISessionArtifact, ISessionCreationReference, SessionArtifactKind, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IProjectBoardConfiguration } from '../../common/projectBoardConfiguration.js';
 import { ProjectBoardModel } from '../../common/projectBoardModel.js';
 
@@ -177,6 +177,33 @@ suite('ProjectBoardModel', () => {
 				placement: { rowId: 'general', columnId: 'p1' },
 			},
 		]);
+	});
+
+	test('promotes every recorded pull request with a canonical numbered label', () => {
+		const chat = createChat('pull-requests', ChatInteractivity.Full);
+		const session = createSession(chat);
+		const artifacts: readonly ISessionArtifact[] = [{
+			id: 'referenced-pr',
+			kind: SessionArtifactKind.PullRequest,
+			label: 'Fix build validation',
+			isArtifact: false,
+			link: URI.parse('https://github.com/microsoft/vscode/pull/4210'),
+		}, {
+			id: 'created-pr',
+			kind: SessionArtifactKind.PullRequest,
+			label: 'Follow-up',
+			isArtifact: true,
+			link: URI.parse('https://github.com/microsoft/vscode-copilot-chat/pull/99'),
+		}];
+		const model = new ProjectBoardModel();
+
+		model.updateSessions([{ ...session, artifacts: observableValue('artifacts', artifacts) }]);
+
+		assert.deepStrictEqual(model.cards[0].pullRequests.map(pr => [pr.label, pr.uri.toString()]), [
+			['microsoft/vscode#4210', 'https://github.com/microsoft/vscode/pull/4210'],
+			['microsoft/vscode-copilot-chat#99', 'https://github.com/microsoft/vscode-copilot-chat/pull/99'],
+		]);
+		assert.deepStrictEqual(model.cards[0].sharedContext, []);
 	});
 
 	test('session list presents one session and keeps new chats with its occupied cell', () => {

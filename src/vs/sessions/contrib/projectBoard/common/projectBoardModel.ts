@@ -6,8 +6,10 @@
 import { IReader } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import type { IChatStatusCanvas } from '../../../../platform/agentHost/common/chatStatusCanvas.js';
+import { parseGitHubPullRequestUrl } from '../../../../platform/github/common/githubUrls.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
+import { linkKey } from '../../../common/sessionLinks.js';
 import { IProjectBoardConfiguration } from './projectBoardConfiguration.js';
 import { IChat, ISession, ISessionArtifact, ChatInteractivity, ChatOriginKind, SessionArtifactKind, SessionStatus, getGitHubPullRequestRefs, getSessionOwnedGitHubPullRequestRefs, getSessionChildChats } from '../../../services/sessions/common/session.js';
 
@@ -168,8 +170,12 @@ export class ProjectBoardModel {
 				const uri = artifact.link ?? artifact.uri;
 				if (uri) {
 					const link = { label: artifact.label, uri };
-					if (artifact.kind === SessionArtifactKind.PullRequest && artifact.isArtifact && ['http', 'https'].includes(uri.scheme)) {
-						sharedPullRequests.set(uri.toString(), link);
+					if (artifact.kind === SessionArtifactKind.PullRequest && ['http', 'https'].includes(uri.scheme)) {
+						const pullRequest = parseGitHubPullRequestUrl(uri.toString());
+						sharedPullRequests.set(linkKey(uri.toString()), {
+							...link,
+							label: pullRequest ? `${pullRequest.owner}/${pullRequest.repo}#${pullRequest.number}` : artifact.label,
+						});
 					} else if (!sharedContext.get(uri.toString())?.artifact?.isArtifact || artifact.isArtifact) {
 						sharedContext.set(uri.toString(), { ...link, artifact });
 					}
@@ -190,17 +196,21 @@ export class ProjectBoardModel {
 							context.set(pr.uri.toString(), { label: `${pr.owner}/${pr.repo}#${pr.number}`, uri: pr.uri });
 						}
 					}
-					for (const pr of getSessionOwnedGitHubPullRequestRefs(info)) {
+					const references = getGitHubPullRequestRefs(info);
+					const relevant = info?.pullRequests
+						? references.filter(pr => pr.createdByThisSession || pr.recordedReferenceId)
+						: getSessionOwnedGitHubPullRequestRefs(info);
+					for (const pr of relevant) {
 						if (['http', 'https'].includes(pr.uri.scheme)) {
-							pullRequests.set(pr.uri.toString(), {
+							pullRequests.set(linkKey(pr.uri.toString()), {
 								label: `${pr.owner}/${pr.repo}#${pr.number}`, uri: pr.uri, title: pr.title,
 								icon: pr.icon, state: pr.liveState ?? pr.state,
 							});
 						}
 					}
 				}
-				for (const uri of pullRequests.keys()) {
-					context.delete(uri);
+				for (const pullRequest of pullRequests.values()) {
+					context.delete(pullRequest.uri.toString());
 				}
 				cards.push({
 					id: getProjectBoardCardId(session, chat),

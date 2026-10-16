@@ -14830,8 +14830,16 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	test('exposes all recorded artifacts and references alongside promoted GitHub info', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const gitHubService = new class extends mock<IGitHubService>() {
-			private readonly _model = { pullRequest: constObservable(undefined) } as unknown as GitHubPullRequestModel;
-			override createPullRequestModelReference = () => new ImmortalReference(this._model);
+			readonly foreignPullRequest = observableValue<IGitHubPullRequest | undefined>('foreignPullRequest', {
+				number: 80, title: 'Cross-repository fix', body: '', state: GitHubPullRequestState.Closed,
+				author: { login: 'author', avatarUrl: '' }, headRef: 'feature', headSha: 'head', baseRef: 'main',
+				isDraft: false, createdAt: new Date(0).toISOString(), updatedAt: new Date(0).toISOString(),
+				mergedAt: undefined, mergeable: false, mergeableState: 'blocked',
+			});
+			private readonly _emptyModel = { pullRequest: constObservable(undefined) } as unknown as GitHubPullRequestModel;
+			private readonly _foreignModel = { pullRequest: this.foreignPullRequest } as unknown as GitHubPullRequestModel;
+			override createPullRequestModelReference = (owner: string, repo: string, number: number) =>
+				new ImmortalReference(owner === 'other' && repo === 'repo' && number === 80 ? this._foreignModel : this._emptyModel);
 		}();
 
 		agentHost.addSession(createSession('pr-artifacts', { summary: 'Artifact Session', project: { uri: URI.parse('file:///repo'), displayName: 'repo' }, workingDirectory: URI.parse('file:///repo') }));
@@ -14856,6 +14864,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			{ id: 'a7', type: SessionArtifactType.Issue, label: 'Referenced issue', isArtifact: false, link: 'https://github.com/owner/repo/issues/8', isGitHub: true },
 			{ id: 'a8', type: SessionArtifactType.PullRequest, label: 'Discovered', isArtifact: false, link: 'https://github.com/owner/repo/pull/42', isGitHub: true },
 			{ id: 'a9', type: SessionArtifactType.PullRequest, label: 'Unrelated reference', isArtifact: false, link: 'https://github.com/owner/repo/pull/70', isGitHub: true },
+			{ id: 'a10', type: SessionArtifactType.PullRequest, label: 'Cross-repository fix', isArtifact: false, link: 'https://github.com/other/repo/pull/80', isGitHub: true },
 		]);
 		agentHost.setSessionState('pr-artifacts', 'copilotcli', {
 			provider: 'copilotcli', title: 'Artifact Session', status: ProtocolSessionStatus.Idle,
@@ -14868,16 +14877,24 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const gitHubInfo = session.workspace.get()!.folders[0]!.gitRepository!.gitHubInfo.get();
 		assert.deepStrictEqual({
 			activePullRequest: gitHubInfo?.pullRequest?.number,
-			pullRequests: gitHubInfo?.pullRequests?.map(pullRequest => [pullRequest.number, pullRequest.recordedReferenceId, pullRequest.createdByThisSession]),
+			pullRequests: gitHubInfo?.pullRequests?.map(pullRequest => [pullRequest.number, pullRequest.recordedReferenceId, pullRequest.createdByThisSession, pullRequest.liveState, pullRequest.title]),
 			issues: gitHubInfo?.issues?.map(issue => [issue.number, issue.title, issue.recordedReferenceId]),
 			artifacts: session.artifacts?.get().map(artifact => [artifact.id, artifact.isArtifact]),
 		}, {
 			activePullRequest: 42,
 			// The independently-associated URL makes its recorded row session-owned,
 			// while the unrelated recorded reference cannot become the active PR.
-			pullRequests: [[70, 'a9', false], [42, 'a8', true], [41, 'a3', true], [60, 'a2', false], [50, 'a1', true]],
+			pullRequests: [
+				[80, 'a10', false, GitHubPullRequestState.Closed, 'Cross-repository fix'],
+				[70, 'a9', false, undefined, 'Unrelated reference'],
+				[42, 'a8', true, undefined, 'Discovered'],
+				[41, 'a3', true, undefined, 'Duplicate'],
+				[60, 'a2', false, undefined, 'Referenced'],
+				[50, 'a1', true, undefined, 'Created'],
+			],
 			issues: [[8, 'Referenced issue', 'a7'], [7, 'Preserve promoted issue titles', 'a4']],
 			artifacts: [
+				['a10', false],
 				['a9', false],
 				['a8', false],
 				['a7', false],
@@ -14889,6 +14906,12 @@ suite('LocalAgentHostSessionsProvider', () => {
 				['a1', true],
 			],
 		});
+		gitHubService.foreignPullRequest.set({
+			...gitHubService.foreignPullRequest.get()!,
+			state: GitHubPullRequestState.Merged,
+			mergedAt: new Date(1).toISOString(),
+		}, undefined);
+		assert.strictEqual(session.workspace.get()!.folders[0]!.gitRepository!.gitHubInfo.get()?.pullRequests?.find(pr => pr.number === 80)?.liveState, GitHubPullRequestState.Merged);
 	}));
 
 	test('offers a session the nest drop from list data alone: one unarchived chat, with the host able to move sessions (Block 4)', async () => {
@@ -15081,7 +15104,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			withoutRepository: ['a1'],
 			foreignRepository: ['a2', 'a1'],
 			issues: [7],
-			pullRequests: undefined,
+			pullRequests: [9],
 		});
 	}));
 

@@ -686,8 +686,8 @@ function getFolderPullRequestLinks(meta: SessionMeta | undefined): ReadonlySet<s
 /**
  * Maps session metadata to the GitHub info of the folder with working-directory
  * key `folderKey`. The session folder also falls back to the session's Git state
- * and adopts recorded links for its repository, except pull requests another
- * folder of the session discovered for itself.
+ * and adopts recorded links, including links for other repositories, except
+ * pull requests another folder of the session discovered for itself.
  */
 function toGitHubInfo(meta: SessionMeta | undefined, workingDirectory: URI | undefined, folderKey: string | undefined, isSessionFolder: boolean): IGitHubInfo | undefined {
 	const headBranchPullRequest = isSessionFolder ? readAgentHeadBranchPullRequest({ _meta: meta }) : undefined;
@@ -736,12 +736,14 @@ function toGitHubInfo(meta: SessionMeta | undefined, workingDirectory: URI | und
 		return undefined;
 	}
 
-	// Repository metadata stays scoped to the checkout; chat pills resolve recorded links independently.
+	// Primary pull request and issue metadata stay scoped to the checkout. The session folder also
+	// retains every recorded pull request so chat pills can present live state for cross-repository work.
 	const belongsToRepository = (ref: { readonly owner: string; readonly repo: string }) =>
 		ref.owner.toLowerCase() === repository.owner.toLowerCase() && ref.repo.toLowerCase() === repository.repo.toLowerCase();
 
-	const pullRequests = allPullRequests?.filter(belongsToRepository);
-	const pullRequest = pullRequests?.find(pullRequest => pullRequest.createdByThisSession);
+	const repositoryPullRequests = allPullRequests.filter(belongsToRepository);
+	const pullRequests = isSessionFolder ? allPullRequests : repositoryPullRequests;
+	const pullRequest = repositoryPullRequests.find(pullRequest => pullRequest.createdByThisSession);
 	const issues = toGitHubIssueRefs(recordedIssues)?.filter(belongsToRepository);
 
 	return {
@@ -2797,15 +2799,15 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	private _presentGitHubInfo(baseGitHubInfoObs: IObservable<IGitHubInfo | undefined>): IObservable<IGitHubInfo | undefined> {
 		const gitHubInfoWithIcon = derived<IGitHubInfo | undefined>(this, reader => {
 			const baseGitHubInfo = baseGitHubInfoObs.read(reader);
-			if (!baseGitHubInfo?.pullRequest) {
+			const baseRefs = getGitHubPullRequestRefs(baseGitHubInfo);
+			if (!baseGitHubInfo || !baseRefs.length) {
 				return baseGitHubInfo;
 			}
 
 			const isPrimaryPullRequest = (pullRequest: IGitHubPullRequestRef) =>
 				pullRequest.number === baseGitHubInfo.pullRequest?.number &&
 				isEqual(pullRequest.uri, baseGitHubInfo.pullRequest.uri);
-			const baseRefs = getGitHubPullRequestRefs(baseGitHubInfo);
-			const primaryIndex = Math.max(0, baseRefs.findIndex(isPrimaryPullRequest));
+			const primaryIndex = baseGitHubInfo.pullRequest ? baseRefs.findIndex(isPrimaryPullRequest) : -1;
 			const pullRequests = baseRefs.map((pullRequest, index) => ({
 				...pullRequest,
 				...computePullRequestRefPresentation(
@@ -2813,19 +2815,20 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 					this._gitHubService,
 					this._pullRequestIconCache,
 					pullRequest,
-					index === primaryIndex ? computePullRequestIcon(GitHubPullRequestState.Open) : undefined,
+					primaryIndex === index ? computePullRequestIcon(GitHubPullRequestState.Open) : undefined,
 				)
 			}));
-			const primaryPullRequest = pullRequests[primaryIndex];
 			return {
 				...baseGitHubInfo,
 				pullRequests: baseGitHubInfo.pullRequests ? pullRequests : undefined,
-				pullRequest: {
-					...baseGitHubInfo.pullRequest,
-					icon: primaryPullRequest.icon,
-					liveState: primaryPullRequest.liveState,
-					title: primaryPullRequest.title,
-				}
+				...(baseGitHubInfo.pullRequest && primaryIndex >= 0 ? {
+					pullRequest: {
+						...baseGitHubInfo.pullRequest,
+						icon: pullRequests[primaryIndex].icon,
+						liveState: pullRequests[primaryIndex].liveState,
+						title: pullRequests[primaryIndex].title,
+					}
+				} : {}),
 			};
 		});
 		return derivedOpts<IGitHubInfo | undefined>({ owner: this, equalsFn: isGitHubInfoEqual }, reader => gitHubInfoWithIcon.read(reader));

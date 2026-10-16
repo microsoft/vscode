@@ -130,7 +130,18 @@ suite('ProjectBoardService', () => {
 			assert.ok(canvas);
 			assert.strictEqual(canvas.querySelector('b'), null);
 			assert.strictEqual(canvas.querySelector('dl')!.hidden, true);
-			canvas.querySelector<HTMLElement>('.project-board-canvas-toggle')!.click();
+			const toggle = canvas.querySelector<HTMLElement>('.project-board-canvas-toggle')!;
+			const toggleStyle = mainWindow.getComputedStyle(toggle);
+			assert.deepStrictEqual({
+				maxWidth: toggleStyle.maxWidth,
+				minWidth: toggleStyle.minWidth,
+				overflowWrap: toggleStyle.overflowWrap,
+			}, {
+				maxWidth: '100%',
+				minWidth: '0px',
+				overflowWrap: 'anywhere',
+			});
+			toggle.click();
 			assert.strictEqual(canvas.querySelector('dl')!.hidden, false);
 			assert.strictEqual(h.container.querySelector<HTMLElement>('.project-board-card-details')!.hidden, true);
 			assert.ok(canvas.textContent?.includes('State unknown'));
@@ -6435,7 +6446,7 @@ suite('ProjectBoardService', () => {
 			assert.strictEqual(prEntry().getAttribute('aria-label'), `example/project#12, ${label}, ${uri}`);
 		}
 		info.set(undefined, undefined);
-		assert.ok(h.popup().querySelector('[aria-label^="Recorded PR, State unavailable"]'));
+		assert.ok(h.popup().querySelector('[aria-label^="example/project#12, State unavailable"]'));
 		h.session.artifacts.set([], undefined);
 		assert.strictEqual(card().querySelector('.chat-pill-button'), null);
 		assert.strictEqual(h.actionWidget.isVisible, false);
