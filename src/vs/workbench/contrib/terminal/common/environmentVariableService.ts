@@ -13,11 +13,13 @@ import { IEnvironmentVariableCollectionWithPersistence, IEnvironmentVariableServ
 import { TerminalStorageKeys } from './terminalStorageKeys.js';
 import { IMergedEnvironmentVariableCollection, ISerializableEnvironmentDescriptionMap, ISerializableEnvironmentVariableCollection } from '../../../../platform/terminal/common/environmentVariable.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 interface ISerializableExtensionEnvironmentVariableCollection {
 	extensionIdentifier: string;
 	collection: ISerializableEnvironmentVariableCollection;
 	description?: ISerializableEnvironmentDescriptionMap;
+	remoteAuthority?: string | null;
 }
 
 /**
@@ -28,13 +30,15 @@ export class EnvironmentVariableService extends Disposable implements IEnvironme
 
 	collections: Map<string, IEnvironmentVariableCollectionWithPersistence> = new Map();
 	mergedCollection: IMergedEnvironmentVariableCollection;
+	private readonly _mergedCollectionsByAuthority = new Map<string | null, IMergedEnvironmentVariableCollection>();
 
 	private readonly _onDidChangeCollections = this._register(new Emitter<IMergedEnvironmentVariableCollection>());
 	get onDidChangeCollections(): Event<IMergedEnvironmentVariableCollection> { return this._onDidChangeCollections.event; }
 
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
-		@IStorageService private readonly _storageService: IStorageService
+		@IStorageService private readonly _storageService: IStorageService,
+		@ILogService private readonly _logService: ILogService
 	) {
 		super();
 
@@ -45,7 +49,8 @@ export class EnvironmentVariableService extends Disposable implements IEnvironme
 			collectionsJson.forEach(c => this.collections.set(c.extensionIdentifier, {
 				persistent: true,
 				map: deserializeEnvironmentVariableCollection(c.collection),
-				descriptionMap: deserializeEnvironmentDescriptionMap(c.description)
+				descriptionMap: deserializeEnvironmentDescriptionMap(c.description),
+				remoteAuthority: c.remoteAuthority
 			}));
 
 			// Asynchronously invalidate collections where extensions have been uninstalled, this is
@@ -69,8 +74,43 @@ export class EnvironmentVariableService extends Disposable implements IEnvironme
 		this._updateCollections();
 	}
 
+	getMergedCollection(remoteAuthority: string | null | undefined): IMergedEnvironmentVariableCollection {
+		const targetAuthority = remoteAuthority ?? null;
+		let mergedCollection = this._mergedCollectionsByAuthority.get(targetAuthority);
+		if (!mergedCollection) {
+			const collections = new Map<string, IEnvironmentVariableCollectionWithPersistence>();
+			this.collections.forEach((collection, extensionIdentifier) => {
+				const isKnownOrigin = collection.remoteAuthority === null || (typeof collection.remoteAuthority === 'string' && collection.remoteAuthority.length > 0);
+				if (!isKnownOrigin && collection.remoteAuthority !== undefined) {
+					this._logService.warn(`Ignoring terminal PATH contributions with an invalid origin for extension '${extensionIdentifier}'.`);
+				}
+				const map = new Map(collection.map);
+				let filteredPath = false;
+				for (const [key, mutator] of map) {
+					if (mutator.variable.toLowerCase() === 'path' && (!isKnownOrigin || collection.remoteAuthority !== targetAuthority)) {
+						map.delete(key);
+						filteredPath = true;
+					}
+				}
+				if (filteredPath && map.size === 0) {
+					return;
+				}
+				if (filteredPath && collection.descriptionMap) {
+					// PATH-specific descriptions are not truthful after filtering.
+					collections.set(extensionIdentifier, { ...collection, map, descriptionMap: undefined });
+				} else {
+					collections.set(extensionIdentifier, { ...collection, map });
+				}
+			});
+			mergedCollection = new MergedEnvironmentVariableCollection(collections);
+			this._mergedCollectionsByAuthority.set(targetAuthority, mergedCollection);
+		}
+		return mergedCollection;
+	}
+
 	private _updateCollections(): void {
 		this._persistCollectionsEventually();
+		this._mergedCollectionsByAuthority.clear();
 		this.mergedCollection = this._resolveMergedCollection();
 		this._notifyCollectionUpdatesEventually();
 	}
@@ -87,7 +127,8 @@ export class EnvironmentVariableService extends Disposable implements IEnvironme
 				collectionsJson.push({
 					extensionIdentifier,
 					collection: serializeEnvironmentVariableCollection(this.collections.get(extensionIdentifier)!.map),
-					description: serializeEnvironmentDescriptionMap(collection.descriptionMap)
+					description: serializeEnvironmentDescriptionMap(collection.descriptionMap),
+					remoteAuthority: collection.remoteAuthority
 				});
 			}
 		});

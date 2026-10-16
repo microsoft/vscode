@@ -149,8 +149,10 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 		}
 
 		const envVariableCollections: ITerminalEnvironmentVariableCollections = [];
-		for (const [k, v] of this._environmentVariableService.collections.entries()) {
-			envVariableCollections.push([k, serializeEnvironmentVariableCollection(v.map), serializeEnvironmentDescriptionMap(v.descriptionMap)]);
+		if (options.environmentVariableCollections !== undefined) {
+			for (const [k, v] of this._environmentVariableService.getMergedCollection(this._remoteAuthority).collections.entries()) {
+				envVariableCollections.push([k, serializeEnvironmentVariableCollection(v.map), serializeEnvironmentDescriptionMap(v.descriptionMap)]);
+			}
 		}
 
 		const resolverResult = await this._remoteAuthorityResolverService.resolveAuthority(this._remoteAuthority);

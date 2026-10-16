@@ -7,18 +7,25 @@ import assert from 'assert';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { EnvironmentVariableMutatorType, IEnvironmentVariableMutator, ISerializableEnvironmentVariableCollection } from '../../../../platform/terminal/common/environmentVariable.js';
 import { IViewDescriptorService } from '../../../common/views.js';
 import { ITerminalGroupService, ITerminalInstanceService, ITerminalService } from '../../../contrib/terminal/browser/terminal.js';
 import { TerminalGroupService } from '../../../contrib/terminal/browser/terminalGroupService.js';
 import { TerminalInstanceService } from '../../../contrib/terminal/browser/terminalInstanceService.js';
 import { TerminalService } from '../../../contrib/terminal/browser/terminalService.js';
+import { IEnvironmentVariableCollectionWithPersistence, IEnvironmentVariableService } from '../../../contrib/terminal/common/environmentVariable.js';
 import { ITerminalProfileService } from '../../../contrib/terminal/common/terminal.js';
 import { TestViewDescriptorService } from '../../../contrib/terminal/test/browser/xterm/xtermTestUtils.js';
 import { ITerminalLinkProviderService } from '../../../contrib/terminalContrib/links/browser/links.js';
 import { ITerminalQuickFixService } from '../../../contrib/terminalContrib/quickFix/browser/quickFix.js';
 import { ITerminalCompletionService } from '../../../contrib/terminalContrib/suggest/browser/terminalCompletionService.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { IExtHostContext } from '../../../services/extensions/common/extHostCustomers.js';
+import { ProxyIdentifier } from '../../../services/extensions/common/proxyIdentifier.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { TestTerminalProfileService, workbenchInstantiationService } from '../../../test/browser/workbenchTestServices.js';
 import { MainThreadTerminalService } from '../../browser/mainThreadTerminalService.js';
@@ -31,11 +38,13 @@ suite('MainThreadTerminalService', () => {
 	let service: MainThreadTerminalService;
 	let terminals: TerminalService;
 	let groups: TerminalGroupService;
+	let environmentVariableService: IEnvironmentVariableService;
+	let instantiationService: TestInstantiationService;
 	let input: string[];
 
 	setup(async () => {
 		input = [];
-		const instantiationService = workbenchInstantiationService({
+		instantiationService = workbenchInstantiationService({
 			configurationService: () => new TestConfigurationService({
 				files: {},
 				terminal: {
@@ -66,6 +75,11 @@ suite('MainThreadTerminalService', () => {
 		terminals = store.add(instantiationService.createInstance(TerminalService));
 		terminals.registerProcessSupport(true);
 		instantiationService.set(ITerminalService, terminals);
+		// The window is remote, while the default extension host below is local.
+		instantiationService.stub(IWorkbenchEnvironmentService, new class extends mock<IWorkbenchEnvironmentService>() {
+			override readonly remoteAuthority = 'ssh-remote+linux';
+		});
+		environmentVariableService = instantiationService.get(IEnvironmentVariableService);
 		// These provider registries are not used by terminal creation or disposal.
 		instantiationService.stub(ITerminalLinkProviderService, {});
 		instantiationService.stub(ITerminalQuickFixService, {});
@@ -79,6 +93,107 @@ suite('MainThreadTerminalService', () => {
 		})));
 		// TerminalService initializes its editor styles asynchronously, even when the test skips.
 		await timeout(0);
+	});
+
+	function createBridge(remoteAuthority: string | null, onInitialCollections: (collections: [string, ISerializableEnvironmentVariableCollection][]) => void): MainThreadTerminalService {
+		const rpc = AnyCallRPCProtocol<Pick<ExtHostTerminalServiceShape, '$initEnvironmentVariableCollections'>>({
+			$initEnvironmentVariableCollections: onInitialCollections
+		});
+		const extHostContext = new class extends mock<IExtHostContext>() {
+			override readonly remoteAuthority = remoteAuthority;
+			override getProxy<T>(identifier: ProxyIdentifier<T>) {
+				return rpc.getProxy(identifier);
+			}
+		};
+		return store.add(instantiationService.createInstance(MainThreadTerminalService, extHostContext));
+	}
+
+	function collection(entries: ISerializableEnvironmentVariableCollection): IEnvironmentVariableCollectionWithPersistence {
+		return {
+			persistent: true,
+			map: new Map(entries),
+			descriptionMap: new Map()
+		};
+	}
+
+	test('records a local extension host origin in a remote window', () => {
+		const pathCollection: ISerializableEnvironmentVariableCollection = [[
+			'PATH',
+			{ variable: 'PATH', value: 'C:\\copilot', type: EnvironmentVariableMutatorType.Prepend }
+		]];
+
+		service.$setEnvironmentVariableCollection('publisher.local', true, pathCollection, []);
+
+		assert.deepStrictEqual(environmentVariableService.collections.get('publisher.local'), {
+			...collection(pathCollection),
+			remoteAuthority: null
+		});
+	});
+
+	test('does not bootstrap a foreign PATH into a remote extension host and retains non-PATH values', () => {
+		const foreignCollection: ISerializableEnvironmentVariableCollection = [
+			['PATH', { variable: 'PATH', value: 'C:\\copilot', type: EnvironmentVariableMutatorType.Prepend }],
+			['EDITOR', { variable: 'EDITOR', value: 'code', type: EnvironmentVariableMutatorType.Replace }]
+		];
+		const persistedCollection = {
+			...collection(foreignCollection),
+			remoteAuthority: 'ssh-remote+windows'
+		};
+		const initialCollections: [string, ISerializableEnvironmentVariableCollection][][] = [];
+		environmentVariableService.set('publisher.extension', persistedCollection);
+
+		const remoteBridge = createBridge('ssh-remote+linux', collections => initialCollections.push(collections));
+
+		assert.deepStrictEqual(initialCollections, [[['publisher.extension', [
+			['EDITOR', { variable: 'EDITOR', value: 'code', type: EnvironmentVariableMutatorType.Replace }]
+		]]]]);
+
+		const resyncedCollection = initialCollections[0][0][1].map<[string, IEnvironmentVariableMutator]>(([key, mutator]) => [
+			key,
+			mutator.variable === 'EDITOR' ? { ...mutator, value: 'code-insiders' } : mutator
+		]);
+		remoteBridge.$setEnvironmentVariableCollection('publisher.extension', true, resyncedCollection, []);
+		assert.deepStrictEqual(environmentVariableService.collections.get('publisher.extension'), {
+			...collection([['EDITOR', { variable: 'EDITOR', value: 'code-insiders', type: EnvironmentVariableMutatorType.Replace }]]),
+			remoteAuthority: 'ssh-remote+linux'
+		});
+	});
+
+	test('bootstraps same-host persisted PATH into its extension host', () => {
+		const pathCollection: ISerializableEnvironmentVariableCollection = [[
+			'PATH',
+			{ variable: 'PATH', value: ':/copilot', type: EnvironmentVariableMutatorType.Prepend }
+		]];
+		const persistedCollection: IEnvironmentVariableCollectionWithPersistence = {
+			...collection(pathCollection),
+			remoteAuthority: 'ssh-remote+linux'
+		};
+		environmentVariableService.set('publisher.extension', persistedCollection);
+		const initialCollections: [string, ISerializableEnvironmentVariableCollection][][] = [];
+
+		createBridge('ssh-remote+linux', collections => initialCollections.push(collections));
+
+		assert.deepStrictEqual(initialCollections, [[['publisher.extension', pathCollection]]]);
+	});
+
+	test('initializes an empty filtered snapshot and permits empty sync and delete', () => {
+		environmentVariableService.set('publisher.legacy', collection([[
+			'PATH',
+			{ variable: 'PATH', value: 'C:\\copilot', type: EnvironmentVariableMutatorType.Prepend }
+		]]));
+		const initialCollections: [string, ISerializableEnvironmentVariableCollection][][] = [];
+		const remoteBridge = createBridge('ssh-remote+linux', collections => initialCollections.push(collections));
+
+		assert.deepStrictEqual(initialCollections, [[]]);
+
+		remoteBridge.$setEnvironmentVariableCollection('publisher.legacy', false, [], []);
+		assert.deepStrictEqual(environmentVariableService.collections.get('publisher.legacy'), {
+			...collection([]),
+			persistent: false,
+			remoteAuthority: 'ssh-remote+linux'
+		});
+		remoteBridge.$setEnvironmentVariableCollection('publisher.legacy', false, undefined, []);
+		assert.strictEqual(environmentVariableService.collections.has('publisher.legacy'), false);
 	});
 
 	test('releases the launch request after an API terminal closes', async function () {

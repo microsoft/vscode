@@ -29,6 +29,12 @@ export interface IEnvironmentVariableService {
 	readonly mergedCollection: IMergedEnvironmentVariableCollection;
 
 	/**
+	 * Gets a collection suitable for a terminal running on the provided authority. PATH
+	 * contributions are restricted to the extension host that produced them.
+	 */
+	getMergedCollection(remoteAuthority: string | null | undefined): IMergedEnvironmentVariableCollection;
+
+	/**
 	 * An event that is fired when an extension's environment variable collection changes, the event
 	 * provides the new merged collection.
 	 */
@@ -47,6 +53,11 @@ export interface IEnvironmentVariableService {
 
 export interface IEnvironmentVariableCollectionWithPersistence extends IEnvironmentVariableCollection {
 	readonly persistent: boolean;
+	/**
+	 * The extension host that produced this collection. An absent value is a legacy,
+	 * unknown origin and must not be treated as local.
+	 */
+	readonly remoteAuthority?: string | null;
 }
 
 export interface IEnvironmentVariableInfo {
