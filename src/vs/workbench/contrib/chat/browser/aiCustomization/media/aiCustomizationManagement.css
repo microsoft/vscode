@@ -980,7 +980,8 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-list-widget .section-title-header .section-title-actions,
-.mcp-list-widget .section-title-header .section-title-actions {
+.mcp-list-widget .section-title-header .section-title-actions,
+.copilot-customizations-widget .section-title-header .section-title-actions {
 	display: flex;
 	align-items: center;
 	flex-shrink: 0;
@@ -988,7 +989,8 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-list-widget .section-title-header .section-title-actions > .monaco-button,
-.mcp-list-widget .section-title-header .section-title-actions > .monaco-button {
+.mcp-list-widget .section-title-header .section-title-actions > .monaco-button,
+.copilot-customizations-widget .section-title-header .section-title-actions > .monaco-button {
 	width: auto;
 	height: var(--vscode-spacing-size240);
 	font-size: var(--vscode-fontSize-label1);
@@ -1333,6 +1335,68 @@ per-word capitalization does not survive translation. */
 	min-height: 0;
 	overflow: hidden;
 	box-sizing: border-box;
+}
+
+.ai-customization-management-editor .copilot-customizations-tree .monaco-list-row .copilot-customization-tree-item:hover {
+	background: transparent;
+}
+
+.ai-customization-management-editor .copilot-customization-tree-item {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size120);
+	height: 100%;
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
+	box-sizing: border-box;
+	cursor: pointer;
+}
+
+.ai-customization-management-editor .copilot-customization-tree-item.readonly {
+	cursor: default;
+}
+
+.ai-customization-management-editor .copilot-customization-tree-icon {
+	flex-shrink: 0;
+	width: var(--vscode-spacing-size160);
+	color: var(--vscode-descriptionForeground);
+}
+
+.ai-customization-management-editor .copilot-customization-tree-text {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.ai-customization-management-editor .copilot-customization-tree-label {
+	overflow: hidden;
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	line-height: 18px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ai-customization-management-editor .copilot-customization-tree-detail {
+	overflow: hidden;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+	line-height: 14px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ai-customization-management-editor .copilot-customization-tree-actions {
+	display: flex;
+	flex-shrink: 0;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	margin-left: auto;
+}
+
+.ai-customization-management-editor .copilot-customization-manage-button.monaco-button {
+	width: auto;
 }
 
 .ai-customization-management-editor .tools-inventory-section {

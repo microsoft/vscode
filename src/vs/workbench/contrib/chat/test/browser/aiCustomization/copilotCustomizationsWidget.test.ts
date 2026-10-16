@@ -64,6 +64,7 @@ suite('CopilotCustomizationsWidget', () => {
 		instantiationService.stub(ICustomizationHarnessService, harnessService);
 		const widget = store.add(instantiationService.createInstance(CopilotExtensionsWidget, container));
 		widget.setVisible(true);
+		widget.layout(new DOM.Dimension(900, 600));
 		return {
 			container,
 			changes,
@@ -140,6 +141,7 @@ suite('CopilotCustomizationsWidget', () => {
 		}());
 		const widget = store.add(instantiationService.createInstance(CopilotCanvasesWidget, container));
 		widget.setVisible(true);
+		widget.layout(new DOM.Dimension(900, 600));
 		return {
 			container,
 			commands,
@@ -175,11 +177,68 @@ suite('CopilotCustomizationsWidget', () => {
 		});
 	});
 
+	test('uses customization tree groups, switches, and a separate refresh action', async () => {
+		const harness = createExtensionsHarness();
+		harness.requests[0].result.complete({
+			mode: 'load_and_augment',
+			extensions: [
+				...inventory(true).extensions,
+				{
+					id: 'plugin:diagram',
+					name: 'Diagram',
+					resource: URI.file('/plugins/diagram/extension.mjs'),
+					source: 'plugin',
+					pluginName: 'Diagram Plugin',
+					enabled: false,
+				},
+			],
+		});
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			groups: [...harness.container.querySelectorAll<HTMLElement>('.copilot-customizations-tree .group-label')].map(element => element.textContent),
+			switches: harness.container.querySelectorAll('[role="switch"]').length,
+			refreshInTitle: harness.container.querySelector('.section-title-actions [aria-label="Refresh Copilot extensions"]') !== null,
+			refreshInSearch: harness.container.querySelector('.tools-list-search-and-button-container [aria-label="Refresh Copilot extensions"]') !== null,
+			standardTreeScrollHost: harness.container.querySelector('.copilot-customizations-tree .monaco-scrollable-element') !== null,
+			legacyCardScrollHost: harness.container.querySelector('.plugin-card-scrollable') !== null,
+			statusPills: harness.container.querySelectorAll('.plugin-list-item-status').length,
+		}, {
+			groups: ['User', 'Plugins'],
+			switches: 2,
+			refreshInTitle: true,
+			refreshInSearch: false,
+			standardTreeScrollHost: true,
+			legacyCardScrollHost: false,
+			statusPills: 0,
+		});
+	});
+
+	test('preserves collapsed groups while search temporarily expands matches', async () => {
+		const harness = createExtensionsHarness();
+		harness.requests[0].result.complete(inventory(true));
+		await timeout(0);
+		const userGroup = harness.container.querySelector<HTMLElement>('.monaco-list-row[aria-label^="User,"]');
+		const search = harness.container.querySelector<HTMLInputElement>('[aria-label="Search Copilot extensions"]');
+		assert.ok(userGroup && search);
+		userGroup.click();
+		await timeout(0);
+		assert.strictEqual(userGroup.getAttribute('aria-expanded'), 'false');
+		search.value = 'preview';
+		search.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+		await timeout(0);
+		search.value = '';
+		search.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+		await timeout(0);
+
+		assert.strictEqual(harness.container.querySelector('.monaco-list-row[aria-label^="User,"]')?.getAttribute('aria-expanded'), 'false');
+	});
+
 	test('preserves the focused extension action across inventory refreshes', async () => {
 		const harness = createExtensionsHarness();
 		harness.requests[0].result.complete(inventory(true));
 		await timeout(0);
-		const disable = harness.container.querySelector<HTMLButtonElement>('[aria-label="Disable extension Preview"]');
+		const disable = harness.container.querySelector<HTMLElement>('[aria-label="Disable extension Preview"]');
 		assert.ok(disable);
 		disable.focus();
 		harness.changes.fire();
@@ -189,6 +248,20 @@ suite('CopilotCustomizationsWidget', () => {
 		await timeout(0);
 
 		assert.strictEqual(DOM.getActiveElement()?.getAttribute('aria-label'), 'Enable extension Preview');
+	});
+
+	test('leaves switch keyboard activation to the switch control', async () => {
+		const harness = createExtensionsHarness();
+		harness.requests[0].result.complete(inventory(true));
+		await timeout(0);
+		let mutations = 0;
+		harness.setExtensionEnabled(async () => { mutations++; });
+		const disable = harness.container.querySelector<HTMLElement>('[aria-label="Disable extension Preview"]');
+		assert.ok(disable);
+		disable.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true }));
+		await timeout(0);
+
+		assert.strictEqual(mutations, 0);
 	});
 
 	test('keeps retained extension rows in Accessible View while refreshing', async () => {
@@ -231,7 +304,7 @@ suite('CopilotCustomizationsWidget', () => {
 		harness.requests[0].result.complete(inventory(true));
 		await timeout(0);
 		harness.setExtensionEnabled(async () => { throw new Error('Host disconnected'); });
-		const disable = harness.container.querySelector<HTMLButtonElement>('[aria-label="Disable extension Preview"]');
+		const disable = harness.container.querySelector<HTMLElement>('[aria-label="Disable extension Preview"]');
 		assert.ok(disable);
 		disable.focus();
 		disable.click();
@@ -253,7 +326,7 @@ suite('CopilotCustomizationsWidget', () => {
 		const disabledListCalls = harness.listCalls;
 		harness.enabled.set(true, undefined);
 		await timeout(0);
-		const open = harness.container.querySelector<HTMLButtonElement>('[aria-label="Open canvas Preview"]');
+		const open = harness.container.querySelector<HTMLElement>('.monaco-list-row[aria-label^="Preview."]');
 		const manage = harness.container.querySelector<HTMLButtonElement>('[aria-label="Manage the provider for canvas Preview"]');
 		assert.ok(open && manage);
 		manage.click();
@@ -321,7 +394,7 @@ suite('CopilotCustomizationsWidget', () => {
 		request.complete([harness.definition]);
 		await timeout(0);
 
-		assert.strictEqual(harness.container.querySelector('.plugin-list-item'), null);
+		assert.strictEqual(harness.container.querySelector('.copilot-customization-tree-item'), null);
 	});
 
 	test('reveals an existing Canvas instead of reopening its definition', async () => {
@@ -336,7 +409,7 @@ suite('CopilotCustomizationsWidget', () => {
 			}],
 		});
 		await timeout(0);
-		const open = harness.container.querySelector<HTMLButtonElement>('[aria-label="Open canvas Preview"]');
+		const open = harness.container.querySelector<HTMLElement>('.monaco-list-row[aria-label^="Preview."]');
 		assert.ok(open);
 		open.click();
 		await timeout(0);
