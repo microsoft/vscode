@@ -20,9 +20,10 @@ env:
 jobs:
   # Lists the files changed by the pull request so that jobs can skip checks the
   # changes cannot affect (see .github/actions/detect-changes/detect.ts).
-  # Skip with a job-level `if:` (inside the reusable workflow when the job calls
-  # one): a skipped job still reports its check, which satisfies required status
-  # checks. Jobs also run when change detection fails.
+  # Skip with a job-level `if:`: a skipped job still reports its check, which
+  # satisfies required status checks. GitHub does not evaluate expressions in the
+  # name of a skipped job, so a job that can be skipped needs a fixed `name:` and
+  # must not call a reusable workflow. Jobs also run when change detection fails.
   changes:
     name: Detect Changes
     runs-on: ubuntu-24.04
@@ -138,28 +139,37 @@ jobs:
         run: node build/lib/checkCyclicDependencies.ts out-build
 
   linux-cli-tests:
-    name: Linux
+    name: Linux / CLI
     needs: changes
-    if: ${{ !cancelled() }}
-    uses: ./.github/workflows/pr-linux-cli-test.yml
-    with:
-      job_name: CLI
-      rustup_toolchain: 1.88
-      affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.cli == 'true' }}
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.cli == 'true') }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout microsoft/vscode
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check Rust crate
+        uses: ./.github/actions/check-rust-crate
+        with:
+          working-directory: cli
+          rustup-toolchain: '1.88'
 
   linux-copilot-shim-tests:
-    name: Linux Copilot Shim
+    name: Linux Copilot Shim / Copilot-Shim
     needs: changes
-    if: ${{ !cancelled() }}
-    uses: ./.github/workflows/pr-linux-cli-test.yml
-    with:
-      job_name: Copilot-Shim
-      rustup_toolchain: 1.88
-      working_directory: copilot_shim
-      format: true
-      locked: true
-      all_targets: true
-      affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.copilot-shim == 'true' }}
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot-shim == 'true') }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout microsoft/vscode
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check Rust crate
+        uses: ./.github/actions/check-rust-crate
+        with:
+          working-directory: copilot_shim
+          rustup-toolchain: '1.88'
+          format: 'true'
+          locked: 'true'
+          all-targets: 'true'
 
   linux-electron-unit-tests:
     name: Linux

@@ -55,14 +55,14 @@ const rules: readonly IChangeRule[] = [
 			// cli/build.rs reads the version from package.json and the product configuration from product.json.
 			'package.json',
 			'product.json',
-			'.github/workflows/pr-linux-cli-test.yml',
+			'.github/actions/check-rust-crate/',
 		],
 	},
 	{
 		output: 'copilot-shim',
 		paths: [
 			'copilot_shim/',
-			'.github/workflows/pr-linux-cli-test.yml',
+			'.github/actions/check-rust-crate/',
 		],
 	},
 	{
@@ -84,6 +84,8 @@ const rules: readonly IChangeRule[] = [
 			'.github/actions/restore-node-modules/',
 			'.github/workflows/node_modules_cache/',
 			'build/azure-pipelines/common/computeNodeModulesCacheKey.ts',
+			'build/npm/dirs.ts',
+			'build/azure-pipelines/win32/exec.ps1',
 		],
 	},
 ];
