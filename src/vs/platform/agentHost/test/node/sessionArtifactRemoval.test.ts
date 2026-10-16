@@ -5,11 +5,14 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { Event } from '../../../../base/common/event.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { META_GITHUB_STATE, META_PENDING_RECORDED_PULL_REQUESTS } from '../../common/agentHostGitStateService.js';
+import { SessionStateMirrorFlush } from '../../common/agentHostSessionStateStore.js';
 import { ArtifactServerToolName } from '../../common/serverToolNames.js';
 import { SessionArtifactCollection } from '../../common/sessionArtifactCollection.js';
 import { readSessionArtifacts, SessionArtifactType, stringifySessionArtifacts, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
@@ -20,10 +23,11 @@ import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { createArtifactServerToolGroup, type IArtifactServerToolAccessor } from '../../node/shared/artifactServerTools.js';
 import { SessionArtifacts } from '../../node/shared/sessionArtifacts.js';
 import { SESSION_ARTIFACTS_KEY } from '../../node/shared/persistSessionMetadata.js';
+import type { AgentService } from '../../node/agentService.js';
 import type { IAgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { decodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import { createNoopGitService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
-import { createTestAgentService, getTestAgentStateManager, registerTestAgentProvider } from './agentServiceTestUtils.js';
+import { createTestAgentService, getTestAgentStateManager, getTestSessionStateStore, registerTestAgentProvider } from './agentServiceTestUtils.js';
 import { MockAgent } from './mockAgent.js';
 
 suite('Session Artifact Removal', () => {
@@ -51,19 +55,32 @@ suite('Session Artifact Removal', () => {
 		const service = store.add(createTestAgentService(logService, fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 		const agent = store.add(new MockAgent('copilot'));
 		registerTestAgentProvider(service, agent);
-		const session = await service.createSession({ provider: 'copilot' });
+		const session = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
 		const stateManager = getTestAgentStateManager(service);
 		const meta = withSessionArtifacts({
 			...stateManager.getSessionState(session.toString())?._meta,
 			[META_GITHUB_STATE]: { owner: 'microsoft', repo: 'vscode', pullRequest: { number: 1, url: artifacts[0].link } },
 			unrelated: { keep: true },
 		}, artifacts);
-		stateManager.setSessionMeta(session.toString(), meta);
-		await database.setMetadata(SESSION_ARTIFACTS_KEY, stringifySessionArtifacts(artifacts));
-		await service.whenCatalogReconciliationIdle();
 		const internals = service as unknown as {
 			_createArtifactServerToolAccessor(): IArtifactServerToolAccessor;
 			_orchestratorDatabase: IAgentHostDatabase;
+			_whenBackgroundCatalogStateWritesIdle(session: string): Promise<void>;
+		};
+		const sessionStateStore = getTestSessionStateStore(service);
+		// The seeded summary change is flushed and persisted before the test starts, so its background catalog write
+		// never lands during the test's own writes. Tests that need that interleaving force it.
+		const summaryFlushed = Event.toPromise(Event.filter(stateManager.onDidChangeSessionSummary, e => e.session === session.toString()));
+		stateManager.setSessionMeta(session.toString(), meta);
+		await database.setMetadata(SESSION_ARTIFACTS_KEY, stringifySessionArtifacts(artifacts));
+		await summaryFlushed;
+		await internals._whenBackgroundCatalogStateWritesIdle(session.toString());
+		await service.whenCatalogReconciliationIdle();
+		await sessionStateStore.whenIdle(session);
+		/** Reads a session.db key once the session state store, which owns the key, has mirrored it there. */
+		const readPersisted = async (key: string) => {
+			await sessionStateStore.whenIdle(session);
+			return database.getMetadata(key);
 		};
 		const readCentralArtifacts = async () => {
 			const row = await internals._orchestratorDatabase.getSessionV2(session.toString());
@@ -72,7 +89,12 @@ suite('Session Artifact Removal', () => {
 			assert.ok(decoded.ok);
 			return readSessionArtifacts(decoded.value.data._meta);
 		};
-		return { service, agent, session, stateManager, meta, artifactAccessor: internals._createArtifactServerToolAccessor(), readCentralArtifacts };
+		return { service, agent, session, stateManager, meta, artifactAccessor: internals._createArtifactServerToolAccessor(), readCentralArtifacts, readPersisted };
+	}
+
+	/** Seeds through the session state store, the owner of the key once the session is open. */
+	function seedPending(service: AgentService, session: URI, value: string): Promise<void> {
+		return getTestSessionStateStore(service).writeMetadata(session, session, { [META_PENDING_RECORDED_PULL_REQUESTS]: value }, SessionStateMirrorFlush.Immediate);
 	}
 
 	function addConcurrentReference({ stateManager, session, artifactAccessor }: Awaited<ReturnType<typeof createFixture>>): Promise<string> {
@@ -87,7 +109,7 @@ suite('Session Artifact Removal', () => {
 
 	test('persists removal and publishes metadata without removing independent associations or references', async () => {
 		const database = store.add(await SessionDatabase.open(':memory:'));
-		const { service, agent, session, stateManager, meta, readCentralArtifacts } = await createFixture(database);
+		const { service, agent, session, stateManager, meta, readCentralArtifacts, readPersisted } = await createFixture(database);
 		await database.setMetadata('unrelated', 'preserved');
 		const actions: ActionEnvelope[] = [];
 		store.add(service.onDidAction(envelope => {
@@ -102,7 +124,7 @@ suite('Session Artifact Removal', () => {
 		const expectedMeta = withSessionArtifacts(meta, remaining);
 		assert.deepStrictEqual({
 			meta: stateManager.getSessionState(session.toString())?._meta,
-			metadata: await database.getMetadataObject({ [SESSION_ARTIFACTS_KEY]: undefined, unrelated: undefined }),
+			metadata: { [SESSION_ARTIFACTS_KEY]: await readPersisted(SESSION_ARTIFACTS_KEY), unrelated: await database.getMetadata('unrelated') },
 			actions: actions.map(envelope => ({ channel: envelope.channel, action: envelope.action })),
 			modelCalls: agent.sendMessageCalls,
 			centralArtifacts: await readCentralArtifacts(),
@@ -117,13 +139,13 @@ suite('Session Artifact Removal', () => {
 
 	test('removing a recorded PR cancels its pending folder association', async () => {
 		const database = store.add(await SessionDatabase.open(':memory:'));
-		const { service, session } = await createFixture(database);
+		const { service, session, readPersisted } = await createFixture(database);
 		const peerChat = buildChatUri(session, 'peer');
 		const peerPending = {
 			chat: peerChat, folderKey: 'file:///work', workingDirectory: 'file:///work',
 			url: artifacts[0].link, owner: 'microsoft', repo: 'vscode', branchName: 'feature',
 		};
-		await database.setMetadata(META_PENDING_RECORDED_PULL_REQUESTS, JSON.stringify([
+		await seedPending(service, session, JSON.stringify([
 			{ ...peerPending, chat: buildDefaultChatUri(session) },
 			peerPending,
 		]));
@@ -131,7 +153,7 @@ suite('Session Artifact Removal', () => {
 		await service.removeSessionArtifact(session, 'pr');
 
 		assert.deepStrictEqual({
-			pending: await database.getMetadata(META_PENDING_RECORDED_PULL_REQUESTS),
+			pending: await readPersisted(META_PENDING_RECORDED_PULL_REQUESTS),
 			artifacts: readSessionArtifacts(getTestAgentStateManager(service).getSessionState(session.toString())?._meta).map(artifact => artifact.id),
 		}, {
 			pending: JSON.stringify([peerPending]),
@@ -153,12 +175,12 @@ suite('Session Artifact Removal', () => {
 		}
 		const database = new DelayedDatabase();
 		const fixture = await createFixture(database);
-		const { service, session, stateManager, artifactAccessor } = fixture;
+		const { service, session, stateManager, artifactAccessor, readPersisted } = fixture;
 		const pending = JSON.stringify([{
 			chat: 'recording-chat', folderKey: 'file:///work', workingDirectory: 'file:///work',
 			url: artifacts[0].link, owner: 'microsoft', repo: 'vscode', branchName: 'feature',
 		}]);
-		await database.setMetadata(META_PENDING_RECORDED_PULL_REQUESTS, pending);
+		await seedPending(service, session, pending);
 		const replacement = new SessionArtifacts(stateManager, session.toString(), buildDefaultChatUri(session), artifactAccessor.persist).mutate(collection =>
 			new SessionArtifactCollection(collection.remove('pr').artifacts).add({
 				type: SessionArtifactType.PullRequest, label: 'Replacement', isArtifact: true, link: artifacts[0].link,
@@ -170,7 +192,7 @@ suite('Session Artifact Removal', () => {
 
 		assert.deepStrictEqual({
 			artifacts: readSessionArtifacts(stateManager.getSessionState(session.toString())?._meta).map(artifact => artifact.id),
-			pending: await database.getMetadata(META_PENDING_RECORDED_PULL_REQUESTS),
+			pending: await readPersisted(META_PENDING_RECORDED_PULL_REQUESTS),
 		}, {
 			artifacts: ['file', 'reference', 'replacement'],
 			pending,
@@ -179,11 +201,11 @@ suite('Session Artifact Removal', () => {
 
 	test('reports successful removal when pending-association cleanup fails', async () => {
 		class FailingCleanupDatabase extends TestSessionDatabase {
-			override async deleteMetadata(keys: readonly string[]): Promise<void> {
-				if (keys.includes(META_PENDING_RECORDED_PULL_REQUESTS)) {
+			override async applyMetadataChanges(set: Readonly<Record<string, string>>, remove: readonly string[]): Promise<void> {
+				if (remove.includes(META_PENDING_RECORDED_PULL_REQUESTS)) {
 					throw new Error('cleanup unavailable');
 				}
-				return super.deleteMetadata(keys);
+				return super.applyMetadataChanges(set, remove);
 			}
 		}
 		const warnings: string[] = [];
@@ -191,18 +213,18 @@ suite('Session Artifact Removal', () => {
 			override warn(message: string): void { warnings.push(message); }
 		}
 		const database = new FailingCleanupDatabase();
-		const { service, session, stateManager } = await createFixture(database, new TestLogService());
+		const { service, session, stateManager, readPersisted } = await createFixture(database, new TestLogService());
 		const pending = {
 			chat: buildDefaultChatUri(session), folderKey: 'file:///work', workingDirectory: 'file:///work',
 			url: artifacts[0].link, owner: 'microsoft', repo: 'vscode', branchName: 'feature',
 		};
-		await database.setMetadata(META_PENDING_RECORDED_PULL_REQUESTS, JSON.stringify([pending]));
+		await seedPending(service, session, JSON.stringify([pending]));
 
 		await service.removeSessionArtifact(session, 'pr');
 
 		assert.deepStrictEqual({
 			artifacts: readSessionArtifacts(stateManager.getSessionState(session.toString())?._meta).map(artifact => artifact.id),
-			pending: await database.getMetadata(META_PENDING_RECORDED_PULL_REQUESTS),
+			pending: await readPersisted(META_PENDING_RECORDED_PULL_REQUESTS),
 			warnings,
 		}, {
 			artifacts: ['file', 'reference'],
@@ -252,7 +274,7 @@ suite('Session Artifact Removal', () => {
 		assert.deepStrictEqual({
 			labels: remaining.map(artifact => artifact.label),
 			meta: stateManager.getSessionState(session.toString())?._meta,
-			persisted: await database.getMetadata(SESSION_ARTIFACTS_KEY),
+			persisted: await fixture.readPersisted(SESSION_ARTIFACTS_KEY),
 			centralArtifacts: await fixture.readCentralArtifacts(),
 		}, {
 			labels: ['Report', 'Docs', 'Concurrent'],
@@ -304,7 +326,7 @@ suite('Session Artifact Removal', () => {
 		assert.deepStrictEqual({
 			labels: remaining.map(artifact => artifact.label),
 			meta: stateManager.getSessionState(session.toString())?._meta,
-			persisted: await database.getMetadata(SESSION_ARTIFACTS_KEY),
+			persisted: await fixture.readPersisted(SESSION_ARTIFACTS_KEY),
 			publishedLabels,
 			centralArtifacts: await fixture.readCentralArtifacts(),
 		}, {
@@ -331,39 +353,46 @@ suite('Session Artifact Removal', () => {
 			override error(message: string): void { errors.push(message); }
 		}
 		const database = new FailingDatabase();
-		const { service, session, stateManager, meta } = await createFixture(database, new TestLogService());
+		const fixture = await createFixture(database, new TestLogService());
+		const { service, session, stateManager, meta, readPersisted } = fixture;
 		database.failArtifactWrites = true;
 
 		await assert.rejects(service.removeSessionArtifact(session, 'pr'), /artifact write failed/);
 		const afterFailure = {
 			meta: stateManager.getSessionState(session.toString())?._meta,
-			persisted: await database.getMetadata(SESSION_ARTIFACTS_KEY),
+			persisted: await readPersisted(SESSION_ARTIFACTS_KEY),
 		};
 		database.failArtifactWrites = false;
 		await service.removeSessionArtifact(session, 'pr');
 		await service.removeSessionArtifact(session, 'pr');
 
+		const remaining = withChat(artifacts.slice(1), buildDefaultChatUri(session));
 		assert.deepStrictEqual({
 			errors,
 			afterFailure,
-			persisted: await database.getMetadata(SESSION_ARTIFACTS_KEY),
+			meta: stateManager.getSessionState(session.toString())?._meta,
+			persisted: await readPersisted(SESSION_ARTIFACTS_KEY),
+			centralArtifacts: await fixture.readCentralArtifacts(),
 		}, {
 			errors: ['[AgentService] Failed to persist session artifacts'],
-			afterFailure: { meta, persisted: stringifySessionArtifacts(artifacts) },
-			persisted: stringifySessionArtifacts(withChat(artifacts.slice(1), buildDefaultChatUri(session))),
+			// The removal reaches the session state store before the catalog sync fails; the artifact stays visible until the retry.
+			afterFailure: { meta, persisted: stringifySessionArtifacts(remaining) },
+			meta: withSessionArtifacts(meta, remaining),
+			persisted: stringifySessionArtifacts(remaining),
+			centralArtifacts: remaining,
 		});
 	});
 
 	test('serializes overlapping user removals against the latest committed collection', async () => {
 		const database = store.add(await SessionDatabase.open(':memory:'));
-		const { service, session, stateManager, meta } = await createFixture(database);
+		const { service, session, stateManager, meta, readPersisted } = await createFixture(database);
 		await Promise.all([
 			service.removeSessionArtifact(session, 'pr'),
 			service.removeSessionArtifact(session, 'file'),
 		]);
 		assert.deepStrictEqual({
 			meta: stateManager.getSessionState(session.toString())?._meta,
-			persisted: await database.getMetadata(SESSION_ARTIFACTS_KEY),
+			persisted: await readPersisted(SESSION_ARTIFACTS_KEY),
 		}, {
 			meta: withSessionArtifacts(meta, withChat(artifacts.slice(2), buildDefaultChatUri(session))),
 			persisted: stringifySessionArtifacts(withChat(artifacts.slice(2), buildDefaultChatUri(session))),
@@ -372,7 +401,7 @@ suite('Session Artifact Removal', () => {
 
 	test('removing an already-absent id is idempotent and leaves the collection unchanged', async () => {
 		const database = store.add(await SessionDatabase.open(':memory:'));
-		const { service, session, stateManager, meta } = await createFixture(database);
+		const { service, session, stateManager, meta, readPersisted } = await createFixture(database);
 		await service.removeSessionArtifact(session, 'pr');
 		const afterFirstRemoval = stateManager.getSessionState(session.toString())?._meta;
 		// The same id removed again, and one that was never recorded, are both no-ops.
@@ -380,12 +409,58 @@ suite('Session Artifact Removal', () => {
 		await service.removeSessionArtifact(session, 'never-recorded');
 		assert.deepStrictEqual({
 			meta: stateManager.getSessionState(session.toString())?._meta,
-			persisted: await database.getMetadata(SESSION_ARTIFACTS_KEY),
+			persisted: await readPersisted(SESSION_ARTIFACTS_KEY),
 		}, {
 			meta: afterFirstRemoval,
 			persisted: stringifySessionArtifacts(withChat(artifacts.slice(1), buildDefaultChatUri(session))),
 		});
 		assert.deepStrictEqual(stateManager.getSessionState(session.toString())?._meta, withSessionArtifacts(meta, withChat(artifacts.slice(1), buildDefaultChatUri(session))));
+	});
+
+	test('keeps a removal durable when a summary change is flushed while it is persisting', async () => {
+		const writeStarted = new DeferredPromise<void>();
+		const finishWrite = new DeferredPromise<void>();
+		class DelayedDatabase extends TestSessionDatabase {
+			delayNextArtifactWrite = false;
+			override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncWriteResult> {
+				if (this.delayNextArtifactWrite && values[SESSION_ARTIFACTS_KEY] !== undefined) {
+					this.delayNextArtifactWrite = false;
+					await writeStarted.complete();
+					await finishWrite.p;
+				}
+				return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot, validate);
+			}
+		}
+		const warnings: string[] = [];
+		class TestLogService extends NullLogService {
+			override warn(message: string): void { warnings.push(message); }
+		}
+		const database = new DelayedDatabase();
+		const fixture = await createFixture(database, new TestLogService());
+		database.delayNextArtifactWrite = true;
+		const { service, session, stateManager, meta } = fixture;
+		const removal = service.removeSessionArtifact(session, 'pr');
+		await writeStarted.p;
+		// The flushed summary still lists the removed artifact, because the removal is published only once persisted.
+		const latestMeta = { ...meta, unrelated: { keep: true, updated: true } };
+		const summaryFlushed = Event.toPromise(stateManager.onDidChangeSessionSummary);
+		stateManager.setSessionMeta(session.toString(), latestMeta);
+		await summaryFlushed;
+		await finishWrite.complete();
+		await removal;
+
+		const remaining = withChat(artifacts.slice(1), buildDefaultChatUri(session));
+		assert.deepStrictEqual({
+			meta: stateManager.getSessionState(session.toString())?._meta,
+			persisted: await fixture.readPersisted(SESSION_ARTIFACTS_KEY),
+			centralArtifacts: await fixture.readCentralArtifacts(),
+			warnings,
+		}, {
+			meta: withSessionArtifacts(latestMeta, remaining),
+			persisted: stringifySessionArtifacts(remaining),
+			centralArtifacts: remaining,
+			warnings: [],
+		});
 	});
 
 	test('rejects empty ids without changing metadata', async () => {

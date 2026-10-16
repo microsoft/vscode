@@ -23,7 +23,7 @@ import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { mcpServerIcon, promptIcon, workspaceIcon } from './aiCustomizationIcons.js';
 import { CustomizationGroupHeaderRenderer, CUSTOMIZATION_GROUP_HEADER_HEIGHT, ICustomizationGroupHeaderEntry } from './customizationGroupHeaderRenderer.js';
-import { CustomizationMigrationCategoryId } from './customizationMigrationCategories.js';
+import { CustomizationMigrationCategoryId, getCustomizationMigrationCategory } from './customizationMigrationCategories.js';
 import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHeight } from './customizationTree.js';
 
 const $ = DOM.$;
@@ -65,6 +65,7 @@ export interface ICustomizationMigrationDashboardCategory {
 	readonly selectedCount?: number;
 	readonly destinationLabel?: string;
 	readonly destinationAriaLabel?: string;
+	readonly actionLabel?: string;
 	readonly items: readonly ICustomizationMigrationDashboardItem[];
 }
 
@@ -79,8 +80,15 @@ export interface ICustomizationMigrationDashboardScope {
 export interface ICustomizationMigrationDashboardOverview {
 	readonly scopes: readonly ICustomizationMigrationDashboardScope[];
 	readonly manualReviewItems?: readonly (ICustomizationMigrationDashboardItem & { readonly storage: PromptsStorage })[];
+	readonly categoryErrors?: readonly ICustomizationMigrationDashboardCategoryError[];
 	readonly hasIgnoredGroups?: boolean;
 	readonly supportsAgentMigration?: boolean;
+}
+
+export interface ICustomizationMigrationDashboardCategoryError {
+	readonly id: CustomizationMigrationCategoryId;
+	readonly label: string;
+	readonly description: string;
 }
 
 export interface ICustomizationMigrationDashboardCallbacks {
@@ -92,6 +100,7 @@ export interface ICustomizationMigrationDashboardCallbacks {
 	readonly showItemActions: (item: ICustomizationMigrationDashboardItem, storage: PromptsStorage, anchor: HTMLElement) => void;
 	readonly ignoreCategory: (id: CustomizationMigrationCategoryId, storage: PromptsStorage) => void;
 	readonly restoreIgnoredCategories: () => void;
+	readonly retryCategory: (id: CustomizationMigrationCategoryId) => void;
 	readonly openCustomization: (item: ICustomizationMigrationDashboardItem, storage: PromptsStorage) => void;
 	readonly onDidChangeContent?: () => void;
 }
@@ -104,6 +113,7 @@ interface IMigrationGroupEntry extends ICustomizationGroupHeaderEntry {
 	readonly destinationLabel?: string;
 	readonly destinationAriaLabel?: string;
 	readonly manualReview: boolean;
+	readonly actionLabel: string;
 	selectedCount: number;
 	migrateDisabled: boolean;
 }
@@ -265,24 +275,35 @@ export class CustomizationMigrationDashboard extends Disposable {
 
 	showLoading(title: string, description: string, retry?: () => void): void {
 		this.allMigrationsComplete = false;
-		this.pendingFocus ??= this.getFocusedKey();
+		const activeElement = DOM.getActiveElement();
+		if (this.element.contains(activeElement)) {
+			this.pendingFocus ??= this.getFocusedKey() ?? focusPreferredTarget;
+		}
+		const shouldFocusError = retry !== undefined
+			&& this.pendingFocus !== undefined
+			&& (this.element.contains(activeElement) || activeElement === DOM.getWindow(this.element).document.body);
 		this.prepareRender();
 		const page = this.renderHeader(title, description);
 		page.setAttribute('aria-busy', String(!retry));
+		let retryButton: Button | undefined;
 		if (retry) {
-			this.button(page, 'retry', localize('retry', "Retry"), localize('retryMigrations', "Retry loading migrations"), () => {
+			retryButton = this.button(page, 'retry', localize('retry', "Retry"), localize('retryMigrations', "Retry loading migrations"), () => {
 				this.callbacks.actionClicked('retryClicked');
 				retry();
 			});
 		}
 		this.callbacks.onDidChangeContent?.();
+		if (shouldFocusError) {
+			(retryButton?.element ?? this.focusTargets.get('title'))?.focus();
+		}
 	}
 
 	showOverview(overview: ICustomizationMigrationDashboardOverview): void {
 		const focusedKey = this.pendingFocus ?? this.getFocusedKey();
 		this.pendingFocus = undefined;
 		const migrationGroups = this.getMigrationGroups(overview);
-		this.allMigrationsComplete = migrationGroups.length === 0 && !overview.hasIgnoredGroups;
+		const categoryErrors = overview.categoryErrors ?? [];
+		this.allMigrationsComplete = migrationGroups.length === 0 && categoryErrors.length === 0 && !overview.hasIgnoredGroups;
 		this.prepareRender();
 		const supportsAgentMigration = migrationGroups.length > 0 && overview.supportsAgentMigration !== false;
 		const page = this.renderHeader(
@@ -299,9 +320,11 @@ export class CustomizationMigrationDashboard extends Disposable {
 			} : undefined,
 		);
 
+		this.renderCategoryErrors(page, categoryErrors);
 		if (migrationGroups.length) {
+			this.renderMigrationWarnings(page, migrationGroups);
 			this.renderMigrationTree(page, migrationGroups);
-		} else {
+		} else if (categoryErrors.length === 0) {
 			DOM.append(page, $('p.migration-empty', {}, overview.hasIgnoredGroups
 				? localize('noActiveMigrations', "No active migrations. Restore ignored migrations to review them.")
 				: localize('noMigrations', "No migrations are needed.")));
@@ -316,6 +339,30 @@ export class CustomizationMigrationDashboard extends Disposable {
 			this.focus();
 		} else if (focusedKey) {
 			(this.focusTargets.get(focusedKey) ?? this.focusTargets.get('title'))?.focus();
+		}
+	}
+
+	private renderCategoryErrors(parent: HTMLElement, errors: readonly ICustomizationMigrationDashboardCategoryError[]): void {
+		for (const error of errors) {
+			const card = DOM.append(parent, $('section.mcp-detail-diagnostic-card.migration.error.migration-category-error'));
+			const header = DOM.append(card, $('.mcp-detail-diagnostic-header'));
+			const icon = DOM.append(header, $('.mcp-detail-diagnostic-icon'));
+			icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.error));
+			icon.setAttribute('aria-hidden', 'true');
+			DOM.append(header, $('.mcp-detail-diagnostic-summary', {}, error.label));
+			const details = DOM.append(card, $('.mcp-detail-diagnostic-details'));
+			DOM.append(details, $('p.mcp-detail-diagnostic-message', {}, error.description));
+			this.button(
+				details,
+				`retryCategory:${error.id}`,
+				localize('retry', "Retry"),
+				localize('retryMigrationCategory', "Retry loading {0}", error.label),
+				() => {
+					this.callbacks.actionClicked('retryClicked', error.id);
+					this.callbacks.retryCategory(error.id);
+				},
+				'secondary',
+			);
 		}
 	}
 
@@ -418,8 +465,9 @@ export class CustomizationMigrationDashboard extends Disposable {
 		const categoryOrder = new Map<CustomizationMigrationCategoryId, number>([
 			[CustomizationMigrationCategoryId.PromptFiles, 0],
 			[CustomizationMigrationCategoryId.McpServers, 1],
-			[CustomizationMigrationCategoryId.UserData, 2],
-			[CustomizationMigrationCategoryId.ConfiguredLocations, 3],
+			[CustomizationMigrationCategoryId.PluginMarketplaces, 2],
+			[CustomizationMigrationCategoryId.UserData, 3],
+			[CustomizationMigrationCategoryId.ConfiguredLocations, 4],
 		]);
 		const migrationGroups = overview.scopes.flatMap(scope => scope.categories
 			.filter(category => category.items.length > 0)
@@ -430,6 +478,22 @@ export class CustomizationMigrationDashboard extends Disposable {
 		return manualReviewItems.length
 			? [...migrationGroups, { kind: 'manual-review', items: manualReviewItems }]
 			: migrationGroups;
+	}
+
+	private renderMigrationWarnings(parent: HTMLElement, groups: ReturnType<CustomizationMigrationDashboard['getMigrationGroups']>): void {
+		const promptMigration = groups.find(group => group.kind === 'migration' && group.category.id === CustomizationMigrationCategoryId.PromptFiles);
+		if (!promptMigration || promptMigration.kind !== 'migration') {
+			return;
+		}
+
+		const warning = DOM.append(parent, $('section.mcp-detail-diagnostic-card.migration.warning.migration-warning-banner'));
+		const header = DOM.append(warning, $('.mcp-detail-diagnostic-header'));
+		const icon = DOM.append(header, $('.mcp-detail-diagnostic-icon'));
+		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.warning));
+		icon.setAttribute('aria-hidden', 'true');
+		DOM.append(header, $('.mcp-detail-diagnostic-summary', {}, localize('promptMigrationWarningSummary', "Prompt-to-skill conversion changes")));
+		const details = DOM.append(warning, $('.mcp-detail-diagnostic-details'));
+		DOM.append(details, $('p.mcp-detail-diagnostic-message', {}, promptMigration.category.description));
 	}
 
 	private renderMigrationTree(parent: HTMLElement, groups: ReturnType<CustomizationMigrationDashboard['getMigrationGroups']>): void {
@@ -461,6 +525,8 @@ export class CustomizationMigrationDashboard extends Disposable {
 				overrideStyles: customizationTreeStyles,
 				multipleSelectionSupport: false,
 				horizontalScrolling: false,
+				// Rows with migration warnings grow to fit all of them instead of clipping at a fixed height.
+				supportDynamicHeights: true,
 				openOnSingleClick: true,
 				identityProvider: { getId: entry => entry.id },
 				accessibilityProvider: {
@@ -501,6 +567,7 @@ export class CustomizationMigrationDashboard extends Disposable {
 					collapsed: this.collapsedMigrationGroups.has(groupKey),
 					hasConfigurableDestination: false,
 					manualReview: true,
+					actionLabel: localize('migrate', "Migrate"),
 					selectedCount: 0,
 					migrateDisabled: true,
 				};
@@ -529,15 +596,18 @@ export class CustomizationMigrationDashboard extends Disposable {
 				count: items.length,
 				isFirst: index === 0,
 				description: category.highRisk
-					? localize('highRiskMigrationDescription', "High risk. {0}", category.description)
+					? localize('highRiskMigrationDescription', "High risk")
 					: category.description,
 				collapsed: this.collapsedMigrationGroups.has(groupId),
 				categoryId: category.id,
 				storage: scope.storage,
-				hasConfigurableDestination: scope.hasConfigurableDestinations && category.id !== CustomizationMigrationCategoryId.McpServers,
+				hasConfigurableDestination: scope.hasConfigurableDestinations
+					&& category.id !== CustomizationMigrationCategoryId.McpServers
+					&& category.id !== CustomizationMigrationCategoryId.PluginMarketplaces,
 				destinationLabel: category.destinationLabel,
 				destinationAriaLabel: category.destinationAriaLabel,
 				manualReview: false,
+				actionLabel: category.actionLabel ?? localize('migrate', "Migrate"),
 				selectedCount: category.selectedCount ?? items.length,
 				migrateDisabled: category.migrateDisabled === true,
 			};
@@ -560,7 +630,8 @@ export class CustomizationMigrationDashboard extends Disposable {
 			treeContainer.style.height = '';
 			const height = treeContainer.clientHeight || getCustomizationTreeContentHeight(this.element, treeContainer, this.availableHeight);
 			treeContainer.style.height = `${height}px`;
-			tree.layout(height);
+			// Passing the width lets the tree re-measure wrapped warning rows when the dashboard is resized.
+			tree.layout(height, treeContainer.clientWidth);
 			this.callbacks.onDidChangeContent?.();
 		};
 		this.layoutTree = layoutTree;
@@ -594,6 +665,8 @@ export class CustomizationMigrationDashboard extends Disposable {
 				return promptIcon;
 			case CustomizationMigrationCategoryId.McpServers:
 				return mcpServerIcon;
+			case CustomizationMigrationCategoryId.PluginMarketplaces:
+				return Codicon.globe;
 			default:
 				return workspaceIcon;
 		}
@@ -609,9 +682,13 @@ export class CustomizationMigrationDashboard extends Disposable {
 		this.button(actions, `ignore:${storage}:${categoryId}`, localize('ignoreMigrationGroup', "Ignore"),
 			localize('ignoreMigrationCategory', "Ignore {0}", entry.label),
 			() => this.callbacks.ignoreCategory(categoryId, storage), 'secondary', undefined, disposables);
-		const migrateButton = this.button(actions, `migrate:${storage}:${categoryId}`, localize('migrate', "Migrate"),
-			localize('migrateMigrationCategory', "Migrate {0}", entry.label),
-			() => this.migrateMigrationGroup(categoryId, storage), 'secondary', undefined, disposables);
+		const scopeLabel = storage === PromptsStorage.local
+			? localize('migrationWorkspaceScope', "Workspace")
+			: localize('migrationUserScope', "User");
+		const actionLabel = localize('migrationActionWithScope', "{0} ({1})", getCustomizationMigrationCategory(categoryId).cardActionAriaLabel, scopeLabel);
+		const migrateButton = this.button(actions, `migrate:${storage}:${categoryId}`, entry.actionLabel,
+			localize('migrationAccessibleActionWithLabel', "{0}: {1}", entry.actionLabel, entry.label),
+			() => this.migrateMigrationGroup(categoryId, storage), 'secondary', undefined, disposables, actionLabel);
 		this.migrateButtons.set(entry.groupKey, migrateButton);
 		this.updateMigrateButton(entry);
 	}
@@ -671,13 +748,15 @@ export class CustomizationMigrationDashboard extends Disposable {
 		if (!button) {
 			return;
 		}
-		button.label = entry.selectedCount === entry.count
-			? localize('migrate', "Migrate")
-			: localize('migrateSelectedCount', "Migrate {0}", entry.selectedCount);
+		const label = entry.selectedCount === entry.count
+			? entry.actionLabel
+			: localize('migrationActionSelectedCount', "{0} {1}", entry.actionLabel, entry.selectedCount);
+		button.label = label;
+		button.setAriaLabel(localize('migrationAccessibleActionWithLabel', "{0}: {1}", label, entry.label));
 		button.enabled = !entry.migrateDisabled && entry.selectedCount > 0;
 	}
 
-	private button(parent: HTMLElement, key: string, label: string, ariaLabel: string, run: () => void, kind: 'primary' | 'secondary' | 'link' | 'icon' = 'secondary', icon?: ThemeIcon, disposables: DisposableStore = this.renderDisposables): Button {
+	private button(parent: HTMLElement, key: string, label: string, ariaLabel: string, run: () => void, kind: 'primary' | 'secondary' | 'link' | 'icon' = 'secondary', icon?: ThemeIcon, disposables: DisposableStore = this.renderDisposables, hoverContent = ariaLabel): Button {
 		const button = disposables.add(new Button(parent, {
 			...defaultButtonStyles,
 			secondary: kind !== 'primary',
@@ -694,7 +773,7 @@ export class CustomizationMigrationDashboard extends Disposable {
 			DOM.append(button.element, $('span', { class: ThemeIcon.asClassName(icon), 'aria-hidden': 'true' }));
 		}
 		this.focusTargets.set(key, button.element);
-		this.hover(button.element, ariaLabel, disposables);
+		this.hover(button.element, hoverContent, disposables);
 		disposables.add(button.onDidClick(run));
 		return button;
 	}

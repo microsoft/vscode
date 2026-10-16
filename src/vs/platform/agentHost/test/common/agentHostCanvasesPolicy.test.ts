@@ -64,7 +64,7 @@ suite('AgentHostCanvasesPolicy', () => {
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION,
 			default: false,
-			minimumVersion: '1.142',
+			minimumVersion: '1.143',
 		});
 	});
 

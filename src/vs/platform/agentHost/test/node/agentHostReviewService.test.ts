@@ -13,10 +13,13 @@ import { IAgentHostGitStateService } from '../../common/agentHostGitStateService
 import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { buildBranchChangesetUri, buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
 import { buildReviewedRefName } from '../../common/agentHostReviewService.js';
-import { SessionStatus, buildChatUri, withSessionGitState, type ISessionGitState } from '../../common/state/sessionState.js';
+import { SessionStatus, buildChatUri, buildDefaultChatUri, withSessionGitState, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostReviewService } from '../../node/agentHostReviewService.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { createNoopGitService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
+import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 function createNoopGitStateService(): IAgentHostGitStateService {
 	return {
@@ -34,10 +37,14 @@ function createNoopGitStateService(): IAgentHostGitStateService {
 	};
 }
 
+function dataServiceFor() {
+	return createSessionDataService(new TestSessionDatabase());
+}
+
 suite('AgentHostReviewService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('uses the source chat database and Git state for folder review changes', async () => {
+	test('uses the source chat Git state without opening a database for folder review changes', async () => {
 		const session = 'mock:/session';
 		const chat = buildChatUri(session, 'peer');
 		const folderOwner = buildFolderChangesetOwnerUri(session, getWorkingDirectoryScopeId(['file:///chat']));
@@ -51,12 +58,13 @@ suite('AgentHostReviewService', () => {
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
 			workingDirectories: ['file:///session'],
+			defaultChat: buildDefaultChatUri(session),
 		});
 		stateManager.setSessionMeta(session, withSessionGitState(undefined, {
 			branchName: 'session-feature',
 			baseBranchName: 'session-main',
 		}));
-		stateManager.addChat(session, chat, { workingDirectories: ['file:///chat'] });
+		stateManager.addChat(session, chat, creationTimeChatStorageResource(session, chat, buildDefaultChatUri(session)), { workingDirectories: ['file:///chat'] });
 
 		const openedDatabases: string[] = [];
 		const sessionDataService = createSessionDataService(new TestSessionDatabase());
@@ -105,8 +113,10 @@ suite('AgentHostReviewService', () => {
 			stateManager,
 			gitService,
 			dataService,
+			createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), dataService),
 			gitStateService,
 			logService,
+			createTestChatOwnershipService(stateManager),
 		));
 
 		await service.setReviewState(buildBranchChangesetUri(folderOwner), ['file:///chat/file.ts'], true);
@@ -117,7 +127,7 @@ suite('AgentHostReviewService', () => {
 			baseBranches,
 			reviewedRefsAreShared: new Set(reviewedRefs).size === 1,
 		}, {
-			openedDatabases: [chat],
+			openedDatabases: [],
 			baseBranches: ['chat-main', 'chat-main'],
 			reviewedRefsAreShared: false,
 		});
@@ -138,6 +148,7 @@ suite('AgentHostReviewService', () => {
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
 			workingDirectories: [workingDirectory.toString()],
+			defaultChat: buildDefaultChatUri(session),
 		});
 		const gitService = createNoopGitService();
 		gitService.getRepositoryRoot = async resource => resource;
@@ -160,9 +171,11 @@ suite('AgentHostReviewService', () => {
 		const service = disposables.add(new AgentHostReviewService(
 			stateManager,
 			gitService,
-			createSessionDataService(new TestSessionDatabase()),
+			dataServiceFor(),
+			createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), dataServiceFor()),
 			createNoopGitStateService(),
 			new NullLogService(),
+			createTestChatOwnershipService(stateManager),
 		));
 
 		await service.getReviewedPaths(folderOwner, workingDirectory, 'main');
@@ -189,9 +202,11 @@ suite('AgentHostReviewService', () => {
 		const service = disposables.add(new AgentHostReviewService(
 			stateManager,
 			gitService,
-			createSessionDataService(new TestSessionDatabase()),
+			dataServiceFor(),
+			createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), dataServiceFor()),
 			createNoopGitStateService(),
 			new NullLogService(),
+			createTestChatOwnershipService(stateManager),
 		));
 
 		await service.copyReviewedRef(sourceSession, targetSession, workingDirectories, workingDirectories);
@@ -217,6 +232,7 @@ suite('AgentHostReviewService', () => {
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
 			workingDirectories: [workingDirectory.toString()],
+			defaultChat: buildDefaultChatUri(session),
 		});
 		const gitService = createNoopGitService();
 		gitService.getRepositoryRoot = async resource => resource;
@@ -228,9 +244,11 @@ suite('AgentHostReviewService', () => {
 		const service = disposables.add(new AgentHostReviewService(
 			stateManager,
 			gitService,
-			createSessionDataService(new TestSessionDatabase()),
+			dataServiceFor(),
+			createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), dataServiceFor()),
 			createNoopGitStateService(),
 			new NullLogService(),
+			createTestChatOwnershipService(stateManager),
 		));
 
 		await service.disposeSessionData(session, [workingDirectory.toString()]);
@@ -251,9 +269,11 @@ suite('AgentHostReviewService', () => {
 		const service = disposables.add(new AgentHostReviewService(
 			stateManager,
 			gitService,
-			createSessionDataService(new TestSessionDatabase()),
+			dataServiceFor(),
+			createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), dataServiceFor()),
 			createNoopGitStateService(),
 			new NullLogService(),
+			createTestChatOwnershipService(stateManager),
 		));
 
 		await service.disposeSessionData('mock:/session', ['file:///workspace']);
@@ -277,9 +297,11 @@ suite('AgentHostReviewService', () => {
 		const service = disposables.add(new AgentHostReviewService(
 			stateManager,
 			gitService,
-			createSessionDataService(new TestSessionDatabase()),
+			dataServiceFor(),
+			createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), dataServiceFor()),
 			createNoopGitStateService(),
 			new NullLogService(),
+			createTestChatOwnershipService(stateManager),
 		));
 
 		await service.disposeSessionData('mock:/session', ['file:///workspace-a', 'file:///workspace-b']);
@@ -302,9 +324,11 @@ suite('AgentHostReviewService', () => {
 			const service = disposables.add(new AgentHostReviewService(
 				stateManager,
 				gitService,
-				createSessionDataService(new TestSessionDatabase()),
+				dataServiceFor(),
+				createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), dataServiceFor()),
 				createNoopGitStateService(),
 				new NullLogService(),
+				createTestChatOwnershipService(stateManager),
 			));
 
 			await service.disposeSessionData('mock:/session', workingDirectories);

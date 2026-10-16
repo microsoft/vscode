@@ -6,10 +6,26 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TelemetryConfiguration, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { AgentHostClientConnectionKind, readClientConnectionKind, telemetryLevelToAgentHostValue, toAgentHostClientMeta } from '../../common/agentHostTelemetry.js';
+import { AgentHostClientConnectionKind, agentHostClientConnectionKindValidator, readClientConnectionKind, telemetryLevelToAgentHostValue, toAgentHostClientMeta } from '../../common/agentHostTelemetry.js';
 
 suite('AgentHostTelemetry', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('connection kind validation and client metadata share the bounded vocabulary', () => {
+		const values = ['local', 'direct_websocket', 'dev_tunnel', 'dev_container', 'ssh', 'wsl', 'remote_extension_host', 'web_pub_sub', 'mission_control', 'unknown'];
+		assert.deepStrictEqual(values.map(value => ({
+			validated: agentHostClientConnectionKindValidator.validate(value).content,
+			fromMeta: readClientConnectionKind({ 'vscode.clientConnectionKind': value }),
+		})), values.map(value => ({ validated: value, fromMeta: value })));
+	});
+
+	test('unrecognized connection kinds cannot expose environment identities', () => {
+		const values = [undefined, null, '', 'private-host-name', 'https://private-host', {}, 1];
+		assert.deepStrictEqual(values.map(value => ({
+			validated: agentHostClientConnectionKindValidator.validate(value).content,
+			fromMeta: readClientConnectionKind({ 'vscode.clientConnectionKind': value }),
+		})), values.map(() => ({ validated: undefined, fromMeta: AgentHostClientConnectionKind.Unknown })));
+	});
 
 	test('telemetryLevelToAgentHostValue always produces a launch argument', () => {
 		assert.deepStrictEqual([

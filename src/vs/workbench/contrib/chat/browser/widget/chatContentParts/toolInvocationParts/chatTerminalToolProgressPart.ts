@@ -558,7 +558,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			const extracted = extractImagesFromToolInvocationOutputDetails(toolInvocation, context.element.sessionResource);
 			const imageParts: IChatCollapsibleIODataPart[] = extracted.map(img => ({
 				kind: 'data',
-				value: img.data.buffer,
+				value: img.data?.buffer,
 				mimeType: img.mimeType,
 				uri: img.uri,
 			}));
@@ -1461,7 +1461,8 @@ export class ChatTerminalToolOutputSection extends Disposable {
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.FOCUS_IN, () => this._onDidFocusEmitter.fire()));
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.FOCUS_OUT, event => this._onDidBlurEmitter.fire(event)));
 
-		const resizeObserver = this._register(new dom.DisposableResizeObserver('ChatTerminalToolProgressPart.handleResize', () => this._handleResize()));
+		// Reflow can change the observed height; defer it out of ResizeObserver delivery.
+		const resizeObserver = this._register(new dom.DisposableResizeObserver('ChatTerminalToolProgressPart.handleResize', () => this._scheduleOutputRelayout()));
 		this._register(resizeObserver.observe(this.domNode));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatConfiguration.TerminalOutputReflow)) {
@@ -1871,8 +1872,7 @@ export class ChatTerminalToolOutputSection extends Disposable {
 		}
 		this._outputRelayout.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this.domNode), () => {
 			this._outputRelayout.clear();
-			this._layoutOutput();
-			this._scrollOutputToBottom();
+			void this._handleResize().catch(onUnexpectedError);
 		});
 	}
 

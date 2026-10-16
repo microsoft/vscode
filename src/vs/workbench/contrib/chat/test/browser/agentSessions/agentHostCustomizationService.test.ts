@@ -13,7 +13,8 @@ import { ResourceMap } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { remoteAgentHostSessionTypeId } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { withMcpServerControllingSettingMeta, withMcpServerDisplayNameMeta, withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -25,6 +26,8 @@ import { IOutputService } from '../../../../../services/output/common/output.js'
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, ILoggerService, NullLogService, NullLoggerService } from '../../../../../../platform/log/common/log.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IAuthenticationMcpAccessService } from '../../../../../services/authentication/browser/authenticationMcpAccessService.js';
 import { IAuthenticationMcpService } from '../../../../../services/authentication/browser/authenticationMcpService.js';
@@ -35,6 +38,7 @@ import { MCP } from '../../../../mcp/common/modelContextProtocol.js';
 import { AbstractAgentHostCustomizationService, IAgentHostCustomizationTarget, WorkbenchAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
+import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { assertCodexSkillItems, createCodexSkillCustomizations } from './agentHostSkillDiscoveryTestUtils.js';
@@ -106,6 +110,11 @@ class TestAgentHostCustomizationService extends AbstractAgentHostCustomizationSe
 
 	setTarget(sessionResource: URI, target: FakeTarget): void {
 		this._targets.set(sessionResource, target);
+	}
+
+	publishTarget(sessionResource: URI, target: FakeTarget): void {
+		this.setTarget(sessionResource, target);
+		this._fireCustomizationsChanged();
 	}
 
 	protected override _resolveTarget(sessionResource: URI): IAgentHostCustomizationTarget | undefined {
@@ -339,7 +348,7 @@ suite('AbstractAgentHostCustomizationService', () => {
 	test('preserves host-only MCP presentation metadata without requiring a source file', () => {
 		const sut = createSut();
 		const session = URI.parse('vscode-agent-session:///session-1');
-		const sources = ['user', 'workspace', 'plugin', 'builtin', 'managed'] as const;
+		const sources = ['user', 'workspace', 'plugin', 'builtin', 'managed', 'account'] as const;
 		sut.setTarget(session, new FakeTarget(sources.map(source => ({
 			...mcpServer(source, source),
 			uri: `mcp-top-level:copilot:session-1:${source}`,
@@ -484,6 +493,94 @@ suite('AbstractAgentHostCustomizationService', () => {
 		}, {
 			before: [true, false],
 			after: [false, false],
+		});
+	});
+
+	test('stops silent MCP authentication when the unchanged challenge returns after an unobserved restart', async () => {
+		const sut = createSut();
+		const session = URI.parse('vscode-agent-session:///session-1');
+		const authRequired = () => [{
+			...mcpServer('server-1', 'Server One'),
+			state: {
+				kind: McpServerStatus.AuthRequired as const,
+				reason: McpAuthRequiredReason.InsufficientScope,
+				resource: { resource: 'https://mcp.example.com', authorization_servers: ['https://auth.example.com'] },
+				requiredScopes: ['write:plugin_gateway_connections'],
+			},
+		}];
+		const initialTarget = new FakeTarget(authRequired());
+		sut.setTarget(session, initialTarget);
+		const changed = Event.toPromise(sut.onDidChangeCustomizations);
+		const beforeForward = sut.getMcpServers(session)[0].authenticating;
+		await changed;
+		const afterForward = sut.getMcpServers(session)[0].authenticating;
+
+		sut.publishTarget(session, new FakeTarget([{
+			...mcpServer('server-1', 'Server One'),
+			state: { kind: McpServerStatus.Starting, blocking: true },
+		}]));
+
+		const rejectedTarget = new FakeTarget(authRequired());
+		sut.publishTarget(session, rejectedTarget);
+		const afterRejection = sut.getMcpServers(session)[0].authenticating;
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			beforeForward,
+			afterForward,
+			afterRejection,
+			initialAuthenticationCalls: initialTarget.authenticateCalls.length,
+			rejectedAuthenticationCalls: rejectedTarget.authenticateCalls.length,
+		}, {
+			beforeForward: true,
+			afterForward: true,
+			afterRejection: false,
+			initialAuthenticationCalls: 1,
+			rejectedAuthenticationCalls: 0,
+		});
+	});
+
+	test('retries silent MCP authentication when resource name changes after restart', async () => {
+		const sut = createSut();
+		const session = URI.parse('vscode-agent-session:///session-1');
+		const authRequired = (resourceName?: string) => [{
+			...mcpServer('server-1', 'Server One'),
+			state: {
+				kind: McpServerStatus.AuthRequired as const,
+				reason: McpAuthRequiredReason.InsufficientScope,
+				resource: {
+					resource: 'https://mcp.example.com',
+					resource_name: resourceName,
+					authorization_servers: ['https://auth.example.com'],
+					scopes_supported: ['read'],
+				},
+			},
+		}];
+		const initialTarget = new FakeTarget(authRequired());
+		sut.setTarget(session, initialTarget);
+		let changed = Event.toPromise(sut.onDidChangeCustomizations);
+		sut.getMcpServers(session);
+		await changed;
+
+		sut.publishTarget(session, new FakeTarget([{
+			...mcpServer('server-1', 'Server One'),
+			state: { kind: McpServerStatus.Starting, blocking: true },
+		}]));
+
+		const changedTarget = new FakeTarget(authRequired('GitHub MCP Server'));
+		sut.publishTarget(session, changedTarget);
+		changed = Event.toPromise(sut.onDidChangeCustomizations);
+		const afterMetadataChange = sut.getMcpServers(session)[0].authenticating;
+		await changed;
+
+		assert.deepStrictEqual({
+			afterMetadataChange,
+			initialScopes: initialTarget.authenticateCalls.map(call => call.scopes),
+			changedScopes: changedTarget.authenticateCalls.map(call => call.scopes),
+		}, {
+			afterMetadataChange: true,
+			initialScopes: [['read']],
+			changedScopes: [[]],
 		});
 	});
 
@@ -659,6 +756,11 @@ suite('AbstractAgentHostCustomizationService', () => {
 suite('WorkbenchAgentHostCustomizationService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	function trackConfiguration(configuration = new TestConfigurationService()): TestConfigurationService {
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		return configuration;
+	}
+
 	test('notifies when customization enablement changes', () => {
 		const sessionResource = URI.parse('untitled:chat');
 		const backendSession = URI.parse('copilot:/session');
@@ -732,6 +834,7 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 			}(),
 			new class extends mock<IAgentHostActiveClientService>() { }(),
 			mcpService,
+			trackConfiguration(),
 		));
 		let changes = 0;
 		store.add(service.onDidChangeCustomizations(() => changes++));
@@ -807,6 +910,7 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 			}(),
 			new class extends mock<IAgentHostActiveClientService>() { }(),
 			new class extends mock<IMcpService>() { }(),
+			trackConfiguration(),
 		));
 		const createState = (workingDirectories: readonly URI[]): SessionState => createSessionState({
 			resource: backendSession.toString(),
@@ -882,10 +986,10 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 		}
 	}
 
-	function createReadinessSut(provider = 'copilot') {
-		const sessionResource = URI.parse('untitled:chat');
+	function createReadinessSut(provider = 'copilot', { configuration = new TestConfigurationService(), sessionResource = URI.parse('untitled:chat'), connectionAuthority = AMBIENT_AGENT_HOST_AUTHORITY }: { configuration?: TestConfigurationService; sessionResource?: URI; connectionAuthority?: string } = {}) {
 		const backendSession = URI.parse(`${provider}:/session`);
 		const subscription = store.add(new LiveSessionSubscription());
+		const references = { acquired: 0, released: 0 };
 		const connection = new class extends mock<IAgentConnection>() {
 			override readonly resourceUris = identityAgentHostResourceUriMapper;
 			override readonly onDidAction = Event.None;
@@ -898,9 +1002,10 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 			} satisfies IAgentSubscription<RootState>;
 
 			override getSubscription<T>(_kind: StateComponents): IReference<IAgentSubscription<T>> {
+				references.acquired++;
 				return {
 					object: subscription as unknown as IAgentSubscription<T>,
-					dispose: () => { },
+					dispose: () => { references.released++; },
 				};
 			}
 		}();
@@ -914,11 +1019,14 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 		const service = store.add(new WorkbenchAgentHostCustomizationService(
 			new class extends mock<IAgentHostConnectionsService>() {
 				override readonly ambientConnection = connection;
+				override resolveSessionResource() {
+					return { connection, connectionAuthority, backendSession };
+				}
 			}(),
 			new class extends mock<IAgentHostUntitledProvisionalSessionService>() {
 				override readonly onDidChange = Event.None;
-				override get(): URI {
-					return backendSession;
+				override get(): URI | undefined {
+					return sessionResource.scheme === 'untitled' || isUntitledChatSession(sessionResource) ? backendSession : undefined;
 				}
 				override getProvisionalWorkingDirectories(): readonly URI[] {
 					return [];
@@ -931,6 +1039,7 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 			}(),
 			new class extends mock<IAgentHostActiveClientService>() { }(),
 			new class extends mock<IMcpService>() { }(),
+			trackConfiguration(configuration),
 		));
 		const directory: Customization = {
 			type: CustomizationType.Directory,
@@ -952,7 +1061,89 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 			}),
 			customizations: [directory],
 		};
-		return { service, subscription, sessionResource, stateWithDirectory };
+		return { service, subscription, sessionResource, stateWithDirectory, references };
+	}
+
+	function createPolicyConfiguration(provider: string, initiallyBlocked: boolean) {
+		const setting = `chat.agentHost.${provider}Agent.enabled`;
+		const configuration = new class extends TestConfigurationService {
+			blocked = initiallyBlocked;
+			override inspect<T>(key: string) {
+				const value = super.inspect<T>(key);
+				return { ...value, policyValue: key === setting && this.blocked ? value.value : undefined };
+			}
+		}({ [setting]: !initiallyBlocked });
+		const setPolicy = async (blocked: boolean) => {
+			configuration.blocked = blocked;
+			await configuration.setUserConfiguration(setting, !blocked);
+			configuration.onDidChangeConfigurationEmitter.fire({
+				source: ConfigurationTarget.USER,
+				affectedKeys: new Set([setting]),
+				change: { keys: [setting], overrides: [] },
+				affectsConfiguration: key => key === setting,
+			});
+		};
+		return { configuration, setPolicy };
+	}
+
+	for (const provider of ['claude', 'codex']) {
+		for (const initiallyBlocked of [false, true]) {
+			for (const untitled of [false, true]) {
+				test(`policy-disabled ${provider} customization queries suspend session access (cold=${initiallyBlocked}, untitled=${untitled})`, async () => {
+					const { configuration, setPolicy } = createPolicyConfiguration(provider, initiallyBlocked);
+					const sessionResource = URI.parse(`agent-host-${provider}:/${untitled ? 'untitled-' : ''}session`);
+					const { service, subscription, stateWithDirectory, references } = createReadinessSut(provider, { configuration, sessionResource });
+					subscription.setSnapshot({ ...stateWithDirectory, _meta: { 'vscode.folderPicker': { hidden: true } } });
+					let changes = 0;
+					store.add(service.onDidChangeCustomizations(() => changes++));
+					const query = () => ({
+						folder: service.getFolderPickerDecision(sessionResource),
+						customizations: service.getCustomizations(sessionResource).map(customization => customization.id),
+					});
+					const opened = { ...query(), ...references };
+					if (!initiallyBlocked) {
+						await setPolicy(true);
+					}
+					const revoked = { ...references };
+					const blocked = { ...query(), ready: await service.whenCustomizationsReady(sessionResource), ...references };
+					await setPolicy(false);
+					const recovered = { ...query(), ready: await service.whenCustomizationsReady(sessionResource), ...references };
+					assert.deepStrictEqual({ opened, revoked, blocked, recovered, changes }, {
+						opened: { folder: initiallyBlocked ? undefined : { hidden: true }, customizations: initiallyBlocked ? [] : ['dir-1'], acquired: initiallyBlocked ? 0 : 1, released: 0 },
+						revoked: { acquired: initiallyBlocked ? 0 : 1, released: initiallyBlocked ? 0 : 1 },
+						blocked: { folder: undefined, customizations: [], ready: false, acquired: initiallyBlocked ? 0 : 1, released: initiallyBlocked ? 0 : 1 },
+						recovered: { folder: { hidden: true }, customizations: ['dir-1'], ready: true, acquired: initiallyBlocked ? 1 : 2, released: initiallyBlocked ? 0 : 1 },
+						changes: initiallyBlocked ? 1 : 2,
+					});
+				});
+			}
+		}
+
+		test(`policy-disabled local ${provider} leaves remote customization access intact`, async () => {
+			const { configuration, setPolicy } = createPolicyConfiguration(provider, false);
+			const sessionResource = URI.from({ scheme: remoteAgentHostSessionTypeId('remote-host', provider), path: '/session' });
+			const { service, subscription, stateWithDirectory, references } = createReadinessSut(provider, { configuration, sessionResource, connectionAuthority: 'remote-host' });
+			subscription.setSnapshot(stateWithDirectory);
+			service.getCustomizations(sessionResource);
+			await setPolicy(true);
+			assert.deepStrictEqual({ customizations: service.getCustomizations(sessionResource).map(customization => customization.id), ...references }, {
+				customizations: ['dir-1'], acquired: 1, released: 0,
+			});
+		});
+
+		test(`policy-disabled ${provider} settles a pending customization readiness wait`, async () => {
+			const { configuration, setPolicy } = createPolicyConfiguration(provider, false);
+			const sessionResource = URI.parse(`agent-host-${provider}:/session`);
+			const { service, subscription, stateWithDirectory, references } = createReadinessSut(provider, { configuration, sessionResource });
+			let result: boolean | undefined;
+			const ready = service.whenCustomizationsReady(sessionResource).then(value => { result = value; });
+			await setPolicy(true);
+			await timeout(0);
+			const revoked = { result, ...references };
+			subscription.setSnapshot(stateWithDirectory);
+			await ready;
+			assert.deepStrictEqual(revoked, { result: false, acquired: 1, released: 1 });
+		});
 	}
 
 	test('editor window exposes Codex workspace skills and validation failures from session discovery', async () => {

@@ -81,7 +81,7 @@ suite('AgentHostConfigurationSync', () => {
 				type: 'string' as const,
 				enum: ['none', 'all'],
 				default: 'none',
-				agentHost: { key: 'enumValue' },
+				agentHost: { key: 'enumValue', derivedKeys: { legacyEnumAll: (value: unknown) => value === 'all' } },
 			},
 			[FREEFORM_SETTING]: {
 				type: 'string' as const,
@@ -178,6 +178,14 @@ suite('AgentHostConfigurationSync', () => {
 			ambientValue: true,
 			hiddenValue: 'on',
 		});
+	});
+
+	test('writes derived keys alongside the mirrored key', () => {
+		const patch = resolveAgentHostConfigurationSyncPatch(createConfigurationService({
+			[ENUM_SETTING]: { defaultValue: 'none', userValue: 'all' },
+		}), AgentHostConfigurationSyncTarget.Local);
+
+		assert.deepStrictEqual({ enumValue: patch.enumValue, legacyEnumAll: patch.legacyEnumAll }, { enumValue: 'all', legacyEnumAll: true });
 	});
 
 	test('mirrors BYOK enabled by default while preserving explicit opt-out', () => {

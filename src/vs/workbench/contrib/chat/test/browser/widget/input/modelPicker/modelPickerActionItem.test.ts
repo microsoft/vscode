@@ -30,9 +30,10 @@ import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../../services/chat/common/chatEntitlementService.js';
 import { TestChatEntitlementService, TestWorkspaceTrustManagementService } from '../../../../../../../test/common/workbenchTestServices.js';
 import { ModelPickerActionItem, IModelPickerDelegate } from '../../../../../browser/widget/input/modelPicker/modelPickerActionItem.js';
-import { ModelPickerWidget, TABBED_MODEL_PICKER_SETTING_ID } from '../../../../../browser/widget/input/modelPicker/modelPickerWidget.js';
-import { IModelPickerWorkflow, IModelPickerWorkflowState } from '../../../../../browser/widget/input/modelPicker/modelPickerWorkflow.js';
+import { ModelPickerWidget } from '../../../../../browser/widget/input/modelPicker/modelPickerWidget.js';
+import { IModelPickerComparison, IModelPickerComparisonState } from '../../../../../browser/widget/input/modelPicker/modelPickerComparison.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../common/languageModels.js';
+import { SessionType } from '../../../../../common/chatSessionsService.js';
 import { NullLanguageModelsService } from '../../../../common/languageModels.js';
 import '../../../../../browser/widget/media/chat.css';
 
@@ -63,17 +64,18 @@ suite('ModelPickerActionItem', () => {
 
 	/**
 	 * Renders the real picker as the chat input toolbar does, with the model's
-	 * name followed by its thinking effort / context size readout. The name has
-	 * no icon, so it keeps its label even when the picker is compact.
+	 * name followed by its thinking effort / context size readout. By default the
+	 * name has no icon, so it keeps its label even when the picker is compact.
 	 */
-	function renderPicker(model: ILanguageModelChatMetadataAndIdentifier, options: { readonly compact?: boolean; readonly itemWidth?: number; readonly tabbed?: boolean; readonly workflow?: IModelPickerWorkflow } = {}) {
+	function renderPicker(model: ILanguageModelChatMetadataAndIdentifier, options: { readonly compact?: boolean; readonly minimal?: boolean; readonly comparison?: IModelPickerComparison; readonly itemWidth?: number; readonly models?: readonly ILanguageModelChatMetadataAndIdentifier[]; readonly showModelIcon?: boolean } = {}) {
+		const models = options.models ? [...options.models] : [model];
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IActionWidgetService, {});
 		instantiationService.stub(ICommandService, {});
 		instantiationService.stub(IOpenerService, {});
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(ILanguageModelsService, new class extends NullLanguageModelsService {
-			override getLanguageModelIds() { return [model.identifier]; }
+			override getLanguageModelIds() { return models.map(candidate => candidate.identifier); }
 		}());
 		instantiationService.stub(IProductService, {});
 		const entitlementService = new TestChatEntitlementService();
@@ -85,28 +87,26 @@ suite('ModelPickerActionItem', () => {
 		instantiationService.stub(IWorkspaceTrustManagementService, disposables.add(new TestWorkspaceTrustManagementService()));
 		instantiationService.stub(IWorkspaceTrustRequestService, {});
 		instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
-		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [TABBED_MODEL_PICKER_SETTING_ID]: options.tabbed }));
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 
 		const action: IAction = { id: 'test.modelPicker', label: '', tooltip: '', class: undefined, enabled: true, run: async () => { } };
 		const delegate: IModelPickerDelegate = {
-			workflow: options.workflow,
+			comparison: options.comparison,
 			currentModel: constObservable(model),
 			setModel: () => { },
 			setModelProgrammatically: () => { },
-			getModels: () => [model],
+			getModels: () => models,
 			getPresentationOptions: () => ({
-				useGroupedModelPicker: true,
 				showManageModelsAction: false,
 				showUnavailableFeatured: false,
-				showFeatured: false,
 				showAutoModel: true,
-				showModelIcon: false,
+				showModelIcon: options.showModelIcon ?? false,
 			}),
 		};
 		const item = disposables.add(new ModelPickerActionItem(
 			action,
 			delegate,
-			{ compact: constObservable(options.compact ?? false) },
+			{ compact: constObservable(options.compact ?? false), minimal: constObservable(options.minimal ?? false) },
 			instantiationService,
 			new MockContextKeyService(),
 			new MockKeybindingService(),
@@ -125,15 +125,16 @@ suite('ModelPickerActionItem', () => {
 		item.render(container);
 
 		const name = container.querySelector<HTMLElement>('.model-picker-name')!;
-		const label = name.querySelector<HTMLElement>('.chat-input-picker-label')!;
+		const label = name.querySelector<HTMLElement>('.chat-input-picker-label');
 		const configuration = container.querySelector<HTMLElement>('.model-picker-config')!;
 		return {
+			item,
 			domNode: container.querySelector<HTMLElement>('.model-picker-split')!,
 			minimumWidth: item.minimumWidth,
 			container: container.getBoundingClientRect(),
 			name: name.getBoundingClientRect(),
-			label: label.getBoundingClientRect(),
-			labelTruncated: label.scrollWidth > label.clientWidth,
+			label: label?.getBoundingClientRect() ?? name.getBoundingClientRect(),
+			labelTruncated: !!label && label.scrollWidth > label.clientWidth,
 			configuration: configuration.getBoundingClientRect(),
 			sections: [name, configuration].map(button => ({
 				padding: mainWindow.getComputedStyle(button).padding,
@@ -142,12 +143,11 @@ suite('ModelPickerActionItem', () => {
 		};
 	}
 
-	test('composer label follows committed workflow summary, not working selections', () => {
+	test('composer label follows committed comparison summary, not working selections', () => {
 		const summary = observableValue<string | undefined>('summary', undefined);
-		const state = observableValue<IModelPickerWorkflowState | undefined>('draft', undefined);
+		const state = observableValue<IModelPickerComparisonState | undefined>('draft', undefined);
 		const { domNode } = renderPicker(createModel('First'), {
-			tabbed: true,
-			workflow: upcastPartial<IModelPickerWorkflow>({ available: constObservable(true), summary, state }),
+			comparison: upcastPartial<IModelPickerComparison>({ available: constObservable(true), summary, state }),
 		});
 		const label = () => domNode.querySelector('.chat-input-picker-label')?.textContent;
 		const initial = label();
@@ -164,12 +164,95 @@ suite('ModelPickerActionItem', () => {
 		});
 	});
 
+	test('composer keeps the labeled summary when variants repeat a model icon', () => {
+		const model = createModel('First');
+		const { domNode } = renderPicker(model, {
+			compact: true,
+			showModelIcon: true,
+			comparison: upcastPartial<IModelPickerComparison>({
+				available: constObservable(true),
+				summary: constObservable('First, First Max'),
+				summaryModelIds: constObservable([model.identifier, model.identifier]),
+				state: constObservable(undefined),
+			}),
+		});
+
+		assert.deepStrictEqual({
+			label: domNode.querySelector('.chat-input-picker-label')?.textContent,
+			attemptIcons: domNode.querySelector('.chat-input-picker-comparison-attempt-icons')?.childElementCount,
+			ariaLabel: domNode.querySelector('.model-picker-name')?.getAttribute('aria-label'),
+		}, {
+			label: 'First, First Max',
+			attemptIcons: undefined,
+			ariaLabel: 'Models, First, First Max',
+		});
+	});
+
+	for (const presentation of [
+		{ name: 'expanded', compact: false, minimal: false, attemptIcons: 2, layers: false },
+		{ name: 'compact', compact: true, minimal: false, attemptIcons: undefined, layers: true },
+		{ name: 'minimal', compact: false, minimal: true, attemptIcons: undefined, layers: true },
+	]) {
+		test(`composer uses ${presentation.name === 'expanded' ? 'attempt icons' : 'the layers fallback'} for ${presentation.name === 'expanded' ? 'an' : 'a'} ${presentation.name} distinct-model comparison`, () => {
+			const first = createModel('First');
+			const second = createModel('Second');
+			const { domNode } = renderPicker(first, {
+				compact: presentation.compact,
+				minimal: presentation.minimal,
+				models: [first, second],
+				showModelIcon: true,
+				comparison: upcastPartial<IModelPickerComparison>({
+					available: constObservable(true),
+					summary: constObservable('First, Second'),
+					summaryModelIds: constObservable([first.identifier, second.identifier]),
+					state: constObservable(undefined),
+				}),
+			});
+
+			assert.deepStrictEqual({
+				attemptIcons: domNode.querySelector('.chat-input-picker-comparison-attempt-icons')?.childElementCount,
+				layers: !!domNode.querySelector('.codicon-layers'),
+				ariaLabel: domNode.querySelector('.model-picker-name')?.getAttribute('aria-label'),
+			}, {
+				attemptIcons: presentation.attemptIcons,
+				layers: presentation.layers,
+				ariaLabel: 'Models, First, Second',
+			});
+		});
+	}
+
+	test('hover describes the committed comparison instead of one model', () => {
+		const { item } = renderPicker(createModel('First'), {
+			comparison: upcastPartial<IModelPickerComparison>({
+				available: constObservable(true),
+				summary: constObservable('3 Attempts'),
+				state: constObservable(undefined),
+			}),
+		});
+
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers
+		assert.strictEqual(item['_getHoverContents'](), 'Models • 3 Attempts');
+	});
+
+	test('a directly selected on-device model reads "<model> · On-device", as in the Copilot CLI and app', () => {
+		const model = createModel('MAI Code 1.1 Flash');
+		const { domNode } = renderPicker({ ...model, metadata: { ...model.metadata, id: 'vscode-on-device/MAI-Code-1.1-Flash', targetChatSessionType: SessionType.AgentHostCopilot } });
+		assert.deepStrictEqual({
+			label: domNode.querySelector('.chat-input-picker-label')?.textContent,
+			ariaLabel: domNode.querySelector('.model-picker-name')?.getAttribute('aria-label'),
+		}, {
+			label: 'MAI Code 1.1 Flash \u00b7 On-device',
+			ariaLabel: 'Models, MAI Code 1.1 Flash \u00b7 On-device',
+		});
+	});
+
 	test('includes the gap in the minimum width only when the configuration section is visible', () => {
 		const model = createModel('A model name long enough to reach its minimum width');
 		const states = [true, false].map(showConfiguration => {
+			// Without configuration or a known context window there is nothing to read out.
 			const picker = renderPicker(showConfiguration ? model : {
 				...model,
-				metadata: { ...model.metadata, configurationSchema: undefined },
+				metadata: { ...model.metadata, configurationSchema: undefined, maxInputTokens: 0, maxOutputTokens: 0 },
 			}, { itemWidth: 100 });
 			const configuration = picker.domNode.querySelector<HTMLElement>('.model-picker-config')!;
 			return {
@@ -185,51 +268,47 @@ suite('ModelPickerActionItem', () => {
 	});
 
 	test('preserves fractional configuration widths when sizing a short model name', () => {
-		const picker = renderPicker(createModel('o3'), { tabbed: true });
+		const picker = renderPicker(createModel('o3'));
 
 		assert.strictEqual(picker.minimumWidth, picker.name.width + picker.configuration.width + 2);
 	});
 
-	for (const tabbed of [false, true]) {
-		test(`hovering either half highlights the full model picker with tabbed picker ${tabbed}`, () => {
-			const { domNode } = renderPicker(createModel('o3'), { tabbed });
-			domNode.closest('.interactive-session')!.classList.add('monaco-workbench');
-			domNode.style.setProperty('--vscode-toolbar-hoverBackground', '#123456');
-			domNode.style.setProperty('--vscode-toolbar-activeBackground', '#654321');
-			const buttons = Array.from(domNode.querySelectorAll<HTMLElement>('.model-picker-section'));
-			const states = buttons.map(hoveredButton => {
-				domNode.classList.add('hovered');
-				hoveredButton.classList.add('hovered');
-				const state = {
-					group: mainWindow.getComputedStyle(domNode).backgroundColor,
-					hovered: mainWindow.getComputedStyle(hoveredButton).backgroundColor,
-					other: mainWindow.getComputedStyle(buttons.find(button => button !== hoveredButton)!).backgroundColor,
-				};
-				hoveredButton.classList.remove('hovered');
-				domNode.classList.remove('hovered');
-				return state;
-			});
-			assert.deepStrictEqual({
-				states,
-				atRest: mainWindow.getComputedStyle(domNode).backgroundColor,
-			}, {
-				states: buttons.map(() => ({ group: 'rgb(18, 52, 86)', hovered: 'rgb(101, 67, 33)', other: 'rgba(0, 0, 0, 0)' })),
-				atRest: 'rgba(0, 0, 0, 0)',
-			});
-		});
-	}
-
-	test('centers both model and configuration sections with and without the tabbed picker', () => {
-		assert.deepStrictEqual([false, true].map(tabbed => {
-			const picker = renderPicker(createModel('o3'), { tabbed });
-			return {
-				sections: picker.sections,
-				gap: picker.configuration.left - picker.name.right,
+	test('hovering either half highlights the full model picker', () => {
+		const { domNode } = renderPicker(createModel('o3'));
+		domNode.closest('.interactive-session')!.classList.add('monaco-workbench');
+		domNode.style.setProperty('--vscode-toolbar-hoverBackground', '#123456');
+		domNode.style.setProperty('--vscode-toolbar-activeBackground', '#654321');
+		const buttons = Array.from(domNode.querySelectorAll<HTMLElement>('.model-picker-section'));
+		const states = buttons.map(hoveredButton => {
+			domNode.classList.add('hovered');
+			hoveredButton.classList.add('hovered');
+			const state = {
+				group: mainWindow.getComputedStyle(domNode).backgroundColor,
+				hovered: mainWindow.getComputedStyle(hoveredButton).backgroundColor,
+				other: mainWindow.getComputedStyle(buttons.find(button => button !== hoveredButton)!).backgroundColor,
 			};
-		}), [false, true].map(() => ({
+			hoveredButton.classList.remove('hovered');
+			domNode.classList.remove('hovered');
+			return state;
+		});
+		assert.deepStrictEqual({
+			states,
+			atRest: mainWindow.getComputedStyle(domNode).backgroundColor,
+		}, {
+			states: buttons.map(() => ({ group: 'rgb(18, 52, 86)', hovered: 'rgb(101, 67, 33)', other: 'rgba(0, 0, 0, 0)' })),
+			atRest: 'rgba(0, 0, 0, 0)',
+		});
+	});
+
+	test('centers both model and configuration sections', () => {
+		const picker = renderPicker(createModel('o3'));
+		assert.deepStrictEqual({
+			sections: picker.sections,
+			gap: picker.configuration.left - picker.name.right,
+		}, {
 			sections: [{ padding: '0px 6px', height: 22 }, { padding: '0px 6px', height: 22 }],
 			gap: 2,
-		})));
+		});
 	});
 
 	test('renders and opens the owned widget and disposes it with the action item', () => {
@@ -254,7 +333,6 @@ suite('ModelPickerActionItem', () => {
 			setSelectedModel: () => { },
 			setCompact: () => { },
 			setContextViewLayer: layer => contextViewLayers.push(layer),
-			setForceTabbedPicker: () => { },
 			render: container => container.appendChild(widgetElement),
 			show: anchor => anchors.push(anchor),
 			dispose: () => disposed++,
@@ -266,10 +344,8 @@ suite('ModelPickerActionItem', () => {
 			setModelProgrammatically: () => { },
 			getModels: () => models,
 			getPresentationOptions: () => ({
-				useGroupedModelPicker: true,
 				showManageModelsAction: false,
 				showUnavailableFeatured: false,
-				showFeatured: false,
 				showAutoModel: true,
 				showModelIcon: true,
 			}),
@@ -317,7 +393,6 @@ suite('ModelPickerActionItem', () => {
 
 	test('sizes a short model name to its label rather than the minimum label width', () => {
 		const expanded = renderPicker(createModel('o3'));
-		const compact = renderPicker(createModel('o3'), { compact: true });
 		// Narrower than the picker, so the name shrinks to its minimum width.
 		const long = renderPicker(createModel('A model name long enough to be truncated'), { itemWidth: 100 });
 
@@ -327,14 +402,12 @@ suite('ModelPickerActionItem', () => {
 		});
 		assert.deepStrictEqual({
 			expanded: spacing(expanded),
-			compact: spacing(compact),
 			long: {
 				nameWidth: Math.floor(long.name.width),
 				labelTruncated: long.labelTruncated,
 			},
 		}, {
 			expanded: { spaceBeforeConfiguration: 8, spaceAfterConfiguration: 0 },
-			compact: { spaceBeforeConfiguration: 8, spaceAfterConfiguration: 0 },
 			long: { nameWidth: 90, labelTruncated: true },
 		});
 	});

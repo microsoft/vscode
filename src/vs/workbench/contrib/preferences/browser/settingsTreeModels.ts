@@ -819,6 +819,9 @@ export function settingKeyToDisplayFormat(key: string, groupId: string = '', isL
 		case AgentSandboxSettingId.AgentSandboxAuthenticateGh:
 			displayLabel = localize('agentSandbox.authenticateGh.label', "Authenticate gh");
 			break;
+		case AgentSandboxSettingId.AgentSandboxMaskedEnvironmentVariables:
+			displayLabel = localize('agentSandbox.maskedEnvironmentVariables.label', "Masked environment variables");
+			break;
 		case AgentSandboxSettingId.AgentSandboxUserConfiguredPaths:
 			displayLabel = localize('agentSandbox.userConfiguredPaths.label', "User-Configured Paths");
 			break;
@@ -1155,7 +1158,7 @@ export class SearchResultModel extends SettingsTreeModel {
 		combinedFilterMatches = this.sortResults(combinedFilterMatches);
 		const result = {
 			filterMatches: combinedFilterMatches,
-			exactMatch: localResult.exactMatch // remote results should never have an exact match
+			exactMatch: localResult?.exactMatch ?? false // remote results should never have an exact match
 		};
 		this.cachedUniqueSearchResults.set(false, result);
 		return result;

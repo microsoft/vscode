@@ -63,6 +63,13 @@ export interface IAgentHostConfigurationSync {
 	 */
 	readonly transform?: (value: unknown) => unknown;
 
+	/**
+	 * Additional root configuration keys written alongside {@link key}, each
+	 * computed from the mirrored value. Use to keep legacy keys that older agent
+	 * hosts still read in step with a setting that replaced them.
+	 */
+	readonly derivedKeys?: Readonly<Record<string, (value: unknown) => unknown>>;
+
 	/** Which Agent Host targets receive this setting. Defaults to {@link AgentHostConfigurationSyncScope.All}. */
 	readonly scope?: AgentHostConfigurationSyncScope;
 }

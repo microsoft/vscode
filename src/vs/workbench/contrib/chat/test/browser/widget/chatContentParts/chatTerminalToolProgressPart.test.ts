@@ -1733,24 +1733,46 @@ suite('ChatTerminalToolOutputSection layout', () => {
 		assert.deepStrictEqual({ layouts, scrolls }, { layouts: 0, scrolls: 0 });
 	});
 
-	test('coalesces scheduled output layouts', async () => {
+	test('defers and coalesces mirror reflow with output layout', async () => {
 		const section = createSection(undefined);
+		await section.toggle(true);
+		section['_outputRelayout'].clear();
+		const laidOut = new DeferredPromise<void>();
+		let reflows = 0;
 		let layouts = 0;
 		let scrolls = 0;
-		section['_layoutOutput'] = () => layouts++;
+		section['_layoutMirrorWidth'] = async () => {
+			reflows++;
+			return { lineCount: 3 };
+		};
+		section['_layoutOutput'] = () => {
+			layouts++;
+			void laidOut.complete();
+		};
 		section['_scrollOutputToBottom'] = () => scrolls++;
 
 		section['_scheduleOutputRelayout']();
 		section['_scheduleOutputRelayout']();
-		await new Promise<void>(resolve => store.add(scheduleAtNextAnimationFrame(mainWindow, resolve)));
+		const beforeFrame = { reflows, layouts, scrolls };
+		await laidOut.p;
 
-		assert.deepStrictEqual({ layouts, scrolls }, { layouts: 1, scrolls: 1 });
+		assert.deepStrictEqual({ beforeFrame, afterFrame: { reflows, layouts, scrolls } }, {
+			beforeFrame: { reflows: 0, layouts: 0, scrolls: 0 },
+			afterFrame: { reflows: 1, layouts: 1, scrolls: 1 },
+		});
 	});
 
 	test('cancels scheduled output layout on disposal', async () => {
 		const section = createSection(undefined);
+		await section.toggle(true);
+		section['_outputRelayout'].clear();
+		let reflows = 0;
 		let layouts = 0;
 		let scrolls = 0;
+		section['_layoutMirrorWidth'] = async () => {
+			reflows++;
+			return { lineCount: 3 };
+		};
 		section['_layoutOutput'] = () => layouts++;
 		section['_scrollOutputToBottom'] = () => scrolls++;
 
@@ -1758,7 +1780,7 @@ suite('ChatTerminalToolOutputSection layout', () => {
 		section.dispose();
 		await new Promise<void>(resolve => store.add(scheduleAtNextAnimationFrame(mainWindow, resolve)));
 
-		assert.deepStrictEqual({ layouts, scrolls }, { layouts: 0, scrolls: 0 });
+		assert.deepStrictEqual({ reflows, layouts, scrolls }, { reflows: 0, layouts: 0, scrolls: 0 });
 	});
 	/* eslint-enable local/code-no-bracket-notation-for-identifiers */
 
