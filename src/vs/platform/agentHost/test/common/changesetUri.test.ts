@@ -22,6 +22,7 @@ import {
 	buildTurnChangesetUriTemplate,
 	buildUncommittedChangesetUri,
 	buildFolderChangesetOwnerUri,
+	formatBranchChangesetDescription,
 	isChangesetUri,
 	isSessionChangesetUri,
 	isUncommittedChangesetUri,
@@ -40,6 +41,42 @@ suite('changesetUri', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const sessionUri = 'copilot:/abc-123';
+
+	test('branch descriptions prefer the known remote-tracking base rather than the current branch upstream', () => {
+		const gitState = { branchName: 'feature', baseBranchName: 'main', upstreamBranchName: 'origin/feature', defaultBranchName: 'main', defaultRemoteBranchName: 'origin/main' };
+		assert.deepStrictEqual({
+			defaultBranch: formatBranchChangesetDescription({ ...gitState, branchName: 'main' }),
+			featureBranch: formatBranchChangesetDescription(gitState),
+			localBase: formatBranchChangesetDescription({ ...gitState, defaultRemoteBranchName: undefined }),
+			configuredBase: formatBranchChangesetDescription({ ...gitState, baseBranchName: 'release' }),
+			olderGitState: formatBranchChangesetDescription({ branchName: 'feature', baseBranchName: 'main' }),
+			noBase: formatBranchChangesetDescription({ ...gitState, baseBranchName: undefined }),
+			noBranch: formatBranchChangesetDescription({ ...gitState, branchName: undefined }),
+		}, {
+			defaultBranch: 'main → origin/main',
+			featureBranch: 'feature → origin/main',
+			localBase: 'feature → main',
+			configuredBase: 'feature → release',
+			olderGitState: 'feature → main',
+			noBase: 'feature',
+			noBranch: undefined,
+		});
+	});
+
+	test('the branch picker entry describes the remote-tracking default base', () => {
+		const catalogue = buildDefaultChangesetCatalog(buildDefaultChatUri(sessionUri), true, {
+			...state(),
+			_meta: withSessionGitState(undefined, {
+				branchName: 'main',
+				baseBranchName: 'main',
+				upstreamBranchName: 'origin/main',
+				defaultBranchName: 'main',
+				defaultRemoteBranchName: 'origin/main',
+			}),
+		});
+
+		assert.strictEqual(catalogue.find(changeset => changeset.changeKind === ChangesetKind.Branch)?.description, 'main → origin/main');
+	});
 
 	function turn(id: string, kind: MessageKind, agentMerge = false): Turn {
 		return {

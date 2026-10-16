@@ -94,28 +94,16 @@ const agentMergeChangesetLabel = (): string => localize('agentMergeChangeset.lab
 const agentMergeChangesetDescription = (): string => localize('agentMergeChangeset.description', "Show changes made by Agent Merge since the last user message");
 
 /**
- * Returns the description shown next to the `Branch Changes` catalogue
- * entry. Prefers `${branchName} → ${baseBranchName}` when both values
- * are known (typical worktree-isolation case). If `baseBranchName` is
- * unknown, falls back to `${branchName} → ${upstreamBranchName}` when an
- * upstream is available. Finally falls back to `branchName` alone.
- * Returns `undefined` only when no branch name is known at all, so
- * callers can omit the description entirely.
+ * Describes Branch Changes, preferring the known remote-tracking ref of the default base branch.
+ * Other bases retain their recorded name; an unrelated upstream is not a diff target.
  */
 export function formatBranchChangesetDescription(gitState: ISessionGitState): string | undefined {
-	const { baseBranchName, branchName, upstreamBranchName } = gitState;
+	const { baseBranchName, branchName, defaultBranchName, defaultRemoteBranchName } = gitState;
+	const comparisonBranchName = baseBranchName && baseBranchName === defaultBranchName
+		? defaultRemoteBranchName ?? baseBranchName
+		: baseBranchName;
 
-	// Use branch name
-	if (baseBranchName && branchName) {
-		return `${branchName} → ${baseBranchName}`;
-	}
-
-	// Use upstream branch name
-	if (upstreamBranchName && branchName) {
-		return `${branchName} → ${upstreamBranchName}`;
-	}
-
-	return branchName;
+	return branchName && comparisonBranchName ? `${branchName} → ${comparisonBranchName}` : branchName;
 }
 
 /** Marker injected into a changeset URI's path. */
