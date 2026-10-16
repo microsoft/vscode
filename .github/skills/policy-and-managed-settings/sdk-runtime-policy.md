@@ -28,6 +28,7 @@ Do not add a VS Code `policy:` merely to mirror runtime policy. Do not add a Git
 - New VS Code/AHP code transports managed rules opaquely and does not parse or match them.
 - Raw `managedApprovalRequired` preserves managed provenance and forbids reusable grants and unrelated host auto-approval shortcuts.
 - In Assisted mode, only an approving judge verdict on a derived `commands`, `read`, `write`, `url`, or `workflow` prompt with the human requirement cleared may approve a managed ask once. Missing or unsupported derived prompts remain human-required.
+- Assisted approvals use only the current permission callback's derived verdict, never an event-cached verdict keyed by tool call. A tool call can encounter multiple distinct permission requests; missing callback verdicts cannot grant Assisted approval.
 - Permission authorization never widens sandbox access.
 - Validate rule grammar through the real SDK/runtime boundary.
 
