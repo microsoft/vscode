@@ -653,6 +653,13 @@ export const AgentHostAutoAttachPullRequestsConfigKey = 'autoAttachPullRequests'
  */
 export const AgentHostOverlapProviderPreparationConfigKey = 'overlapProviderPreparation';
 
+/**
+ * Root config key forwarded from the renderer's
+ * `chat.agentHost.experimental.prewarmSessions` setting. When `true`, a new
+ * Copilot draft starts its SDK session and MCP servers before the first send.
+ */
+export const AgentHostPrewarmSessionsConfigKey = 'prewarmSessions';
+
 // Root config key forwarded from the renderer when the `chat.agentSessions.migrateLegacyCopilotCli`
 // setting changes. When `true`, `listSessions` surfaces un-adopted extension-host Copilot CLI
 // sessions as adoptable agent-host sessions, and opening one adopts it in place. Experimental; off.
@@ -1072,6 +1079,12 @@ export const platformRootSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.overlapProviderPreparation.title', "Overlap Provider Preparation"),
 		description: localize('agentHost.config.overlapProviderPreparation.description', "Whether agents prepare their session for a turn while the turn-start checkpoint is captured, instead of after it."),
+		default: false,
+	}),
+	[AgentHostPrewarmSessionsConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.prewarmSessions.title', "Prewarm Sessions"),
+		description: localize('agentHost.config.prewarmSessions.description', "Whether new Copilot chats start their runtime and MCP servers before the first message."),
 		default: false,
 	}),
 	[AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: schemaProperty<boolean>({

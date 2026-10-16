@@ -16,6 +16,7 @@ import type { IAgentServerToolHost } from './agentServerTools.js';
 import type { AgentHostClientType } from './agentHostClientInfo.js';
 import type { CodexModelProvider, IAgentTurnTelemetryCorrelation, IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder, IAgentProviderTurnTelemetryContext } from './agentHostTelemetry.js';
 import type { AgentPermissionDecisionSource } from './meta/agentPermissionResponseMeta.js';
+import type { IAgentChatUsage } from './meta/agentUsageMeta.js';
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { CanvasState } from './state/protocol/channels-canvas/state.js';
@@ -741,6 +742,13 @@ export interface IAgentChatContext {
 	/** Records provider-owned dispatch facts on the addressed turn, before progress can complete it. */
 	readonly reportCodexModelProvider?: (provider: CodexModelProvider) => void;
 	/**
+	 * Records, before progress can complete the addressed turn, that its send
+	 * found a provider session started before the first message: without a
+	 * reason when the send used it, or with the bounded reason it was discarded
+	 * and the send launched one instead.
+	 */
+	readonly reportPrewarmedSession?: (discardReason?: string) => void;
+	/**
 	 * The addressed chat's origin, taken verbatim from the host-owned chat
 	 * catalog, and exhaustive across every way a chat comes into existence:
 	 * a plainly user-created peer chat and the session-backed default chat
@@ -1078,6 +1086,18 @@ export interface IAgentChats {
 	prepareChat?(chat: URI, context: AgentChatOperationContext): Promise<IAgentPrepareChatResult>;
 
 	/**
+	 * Optionally starts the runtime of a chat that was created with a deferred
+	 * backing ({@link IAgentCreateChatResult.provisional}) before its first send,
+	 * so its MCP servers and plugins load while the user composes. The warm
+	 * runtime must not persist, list or announce the chat: the first send
+	 * claims it (or replaces it when its launch configuration went stale), and
+	 * disposing the chat discards it. Resolves `true` when a warm runtime is
+	 * live afterwards; a chat that cannot be warmed resolves `false` without
+	 * doing work.
+	 */
+	warmChat?(chat: URI, context: IAgentChatContext): Promise<boolean>;
+
+	/**
 	 * Create a fresh additional chat within an already-provisioned `session`,
 	 * using the complete working directory and config supplied in
 	 * {@link IAgentCreateChatOptions}. `chat` is the client-chosen channel URI.
@@ -1175,11 +1195,12 @@ export interface IAgentModelInfo {
  * `kind: 'action'` shape, eliminating a parallel event ontology. A small
  * number of cases that have no clean protocol action (permission
  * auto-approval, subagent session creation, steering acknowledgment, and
- * host-owned model-call telemetry) remain as discriminated non-action signals.
+ * host-owned model-call telemetry and chat billing) remain as discriminated non-action signals.
  */
 export type AgentSignal =
 	| IAgentActionSignal
 	| IAgentCanvasSignal
+	| IAgentChatUsageSignal
 	| IAgentModelCallCompletedSignal
 	| IAgentModelCallFinishedSignal
 	| IAgentToolPendingConfirmationSignal
@@ -1212,6 +1233,13 @@ export interface IAgentCanvasSignal {
 	readonly chat: URI;
 	readonly resource: URI;
 	readonly state: CanvasState;
+}
+
+/** Publishes a chat's aggregate billing without changing any turn's usage or content. */
+export interface IAgentChatUsageSignal {
+	readonly kind: 'chat_usage';
+	readonly chat: URI;
+	readonly usage: IAgentChatUsage;
 }
 
 /** Reports one completed upstream model response for host-owned turn telemetry. */
