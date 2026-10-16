@@ -268,6 +268,8 @@ A single text block left after removing reasoning is compared as bare text, matc
 
 Runtime-authored change notices are elided from user text. A standalone user message containing only those recognized notices is omitted as well; user questions, empty authored messages, assistant messages, and tool-result wiring remain asserted.
 
+Assisted-permission captures also assert the runtime's approval-judge request: transcript, assistant-role action context, and final user-role policy instruction. Managed asks must still produce a fresh human confirmation for each operation, regardless of the judge's recommendation. File reads, writes, and denied mutations are checked through actual tool results and filesystem state, not the recorded assistant's description of them.
+
 A mismatch fails the test as `[capi-replay] N model request mismatch(es)` and prints both projections. It usually means the capture is stale — the prompt or the host's prompt assembly changed without a re-record — so **re-record it** (see [Updating snapshots and fixtures](#updating-snapshots-and-fixtures)). Never hand-edit the request block to match. If a capture genuinely cannot be refreshed, add its test title to `STALE_RECORDED_REQUEST_EXCEPTIONS` in `agentHostE2ETestHarness.ts` with a `KNOWN_ISSUES.md` entry.
 
 ---
@@ -492,6 +494,8 @@ After recording, **review the diff** (paths normalized? no usernames, tokens, or
 ### Managed-settings schema snapshot
 
 [`../copilotSdkManagedSettings.integrationTest.ts`](../copilotSdkManagedSettings.integrationTest.ts) snapshots the complete `managedSettings.schema()` response from the bundled SDK/runtime. This is a sessionless SDK integration test, not an AHP scenario: it creates no chat, calls no model, and starts no MCP servers. It uses an isolated home without login credentials. The snapshot preserves the schema's descriptions, defaults, validation rules, and composition metadata.
+
+The runtime-owned schema includes `telemetry.headersProvider`, a shell-free executable and arguments for dynamic collector headers, or `false` to disable it. An enabled provider requires a managed endpoint. MCP `serverName` allowlists accept exact, case-sensitive registry-style names containing dots and forward slashes as well as ASCII letters, numbers, hyphens, and underscores. These controls remain runtime-owned; the schema snapshot does not implement or certify their enforcement in VS Code.
 
 The same suite verifies the bundled model-policy composition contract: model-specific effort/context options stay with the channel supplying the model, Auto and missing-model policies discard those options with diagnostics, and lock/default metadata survives composition. Composition is not model-catalog validation: an unavailable model or unsupported effort can still appear in `values`. These tests do not certify session enforcement or picker behavior.
 

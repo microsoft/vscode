@@ -339,7 +339,6 @@ suite('AgentHostGitStateService', () => {
 			statusLogs,
 			errors,
 			gitCalls,
-			gitService,
 			gitBaseBranches,
 			runEvents,
 			gitHubStateEvents,
