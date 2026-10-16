@@ -72,7 +72,7 @@ import { SessionsFlatList, SessionItemStatusContext, formatSessionListTime } fro
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
 import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
-import { getUnavailableAutomationsReasons } from './automationCataloguePresentation.js';
+import { getAutomationOwnershipGroups, getUnavailableAutomationsReasons } from './automationCataloguePresentation.js';
 import { automationRunWithLocalProgress } from './automationRunProgress.js';
 import { logAutomationViewShown, withAutomationDialogPersistenceTelemetry } from '../../../automations/browser/automationTelemetry.js';
 
@@ -323,6 +323,7 @@ class AutomationCardsSection extends Disposable {
 	private readonly partialErrorIcon: HTMLElement;
 	private readonly partialStateMessage: HTMLElement;
 	private readonly persistentCards = new Map<string, IAutomationCardEntry>();
+	private readonly ownershipHeaders = new Map<string, HTMLElement>();
 	private readonly latestAutomations = new Map<string, IAutomationDescriptor>();
 	private readonly emptyStateDisposables = this._register(new DisposableStore());
 	private readonly templateDisposables = this._register(new DisposableStore());
@@ -494,24 +495,41 @@ class AutomationCardsSection extends Disposable {
 		}
 
 		let index = 0;
-
-		for (const automation of automations) {
-			const prev = this.latestAutomations.get(automation.id);
-			this.latestAutomations.set(automation.id, automation);
-
-			let card = this.persistentCards.get(automation.id);
-			if (!card) {
-				card = this.renderCard(automation);
-				this.persistentCards.set(automation.id, card);
-			} else {
-				this.updateCard(card, automation, prev);
+		const groups = getAutomationOwnershipGroups(automations);
+		for (const [ownership, header] of this.ownershipHeaders) {
+			if (!groups.some(group => group.ownership === ownership)) {
+				header.remove();
+				this.ownershipHeaders.delete(ownership);
 			}
-
+		}
+		for (const group of groups) {
+			let header = this.ownershipHeaders.get(group.ownership);
+			if (!header) {
+				header = $('h3.automations-ownership-header');
+				this.ownershipHeaders.set(group.ownership, header);
+			}
+			header.textContent = group.label;
 			const currentElement = this.container.children.item(index);
-			if (currentElement !== card.element) {
-				this.container.insertBefore(card.element, currentElement);
+			if (currentElement !== header) {
+				this.container.insertBefore(header, currentElement);
 			}
 			index++;
+			for (const automation of group.automations) {
+				const prev = this.latestAutomations.get(automation.id);
+				this.latestAutomations.set(automation.id, automation);
+				let card = this.persistentCards.get(automation.id);
+				if (!card) {
+					card = this.renderCard(automation);
+					this.persistentCards.set(automation.id, card);
+				} else {
+					this.updateCard(card, automation, prev);
+				}
+				const currentElement = this.container.children.item(index);
+				if (currentElement !== card.element) {
+					this.container.insertBefore(card.element, currentElement);
+				}
+				index++;
+			}
 		}
 
 		if (!this.builtInTemplatesUserToggled) {

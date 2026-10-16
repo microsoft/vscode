@@ -124,7 +124,7 @@ class TestApi extends mock<IAutomationsClient>() {
 	}
 
 	override async list(ref: RepositoryRef, token: AbortSignal, options?: ListAutomationsOptions): Promise<PaginatedResponse<ListRepoAutomationsResponse>> {
-		assert.deepStrictEqual(options, { query: { ownership: 'user', page: 1, per_page: 100 }, maxPages: 10 });
+		assert.deepStrictEqual(options, { query: { page: 1, per_page: 100 }, maxPages: 10 });
 		this.calls.push({ method: 'list', account: this.accountName, repository: ref, token });
 		const result = this.definitions.get(ref.name) ?? [definition];
 		await this.listStarted.complete();
@@ -640,7 +640,7 @@ suite('GitHubCloudAutomationStore', () => {
 		});
 	});
 
-	test('collects pages through the real shared domain using the selected grant and user ownership', async () => {
+	test('collects pages through the real shared domain using the selected grant and both ownership kinds', async () => {
 		const secondDefinition = { ...definition, id: 'automation-2' };
 		const requests: { url: string; integration: string | null }[] = [];
 		const engine = disposables.add(new GitHubService({
@@ -670,12 +670,12 @@ suite('GitHubCloudAutomationStore', () => {
 				} else if (url.pathname.endsWith('/automation-2')) {
 					data = secondDefinition;
 				} else if (url.searchParams.get('page') === '2') {
-					assert.strictEqual(url.href, 'https://api.githubcopilot.com/agents/repos/microsoft/vscode-internalbacklog/automations/v2?ownership=user&page=2&per_page=100');
+					assert.strictEqual(url.href, 'https://api.githubcopilot.com/agents/repos/microsoft/vscode-internalbacklog/automations/v2?page=2&per_page=100');
 					data = { automations: [secondDefinition], total_count: 2 };
 				} else {
-					assert.strictEqual(url.href, 'https://api.githubcopilot.com/agents/repos/microsoft/vscode-internalbacklog/automations/v2?ownership=user&page=1&per_page=100');
+					assert.strictEqual(url.href, 'https://api.githubcopilot.com/agents/repos/microsoft/vscode-internalbacklog/automations/v2?page=1&per_page=100');
 					data = { automations: [definition], total_count: 2 };
-					headers.set('Link', '<https://api.githubcopilot.com/agents/repos/microsoft/vscode-internalbacklog/automations/v2?ownership=user&page=2&per_page=100>; rel="next"');
+					headers.set('Link', '<https://api.githubcopilot.com/agents/repos/microsoft/vscode-internalbacklog/automations/v2?page=2&per_page=100>; rel="next"');
 				}
 				return new Response(JSON.stringify(data), { status: 200, headers });
 			},
@@ -719,8 +719,8 @@ suite('GitHubCloudAutomationStore', () => {
 			requests: [
 				{ url: 'https://api.github.com/user', integration: null },
 				{ url: 'https://api.github.com/repos/microsoft/vscode-internalbacklog', integration: null },
-				{ url: 'https://api.githubcopilot.com/agents/repos/microsoft/vscode-internalbacklog/automations/v2?ownership=user&page=1&per_page=100', integration: COPILOT_INTEGRATION_ID },
-				{ url: 'https://api.githubcopilot.com/agents/repos/microsoft/vscode-internalbacklog/automations/v2?ownership=user&page=2&per_page=100', integration: COPILOT_INTEGRATION_ID },
+				{ url: 'https://api.githubcopilot.com/agents/repos/microsoft/vscode-internalbacklog/automations/v2?page=1&per_page=100', integration: COPILOT_INTEGRATION_ID },
+				{ url: 'https://api.githubcopilot.com/agents/repos/microsoft/vscode-internalbacklog/automations/v2?page=2&per_page=100', integration: COPILOT_INTEGRATION_ID },
 				{ url: 'https://api.githubcopilot.com/agents/repos/microsoft/vscode-internalbacklog/automations/automation-1', integration: COPILOT_INTEGRATION_ID },
 				{ url: 'https://api.githubcopilot.com/agents/repos/microsoft/vscode-internalbacklog/automations/automation-2', integration: COPILOT_INTEGRATION_ID },
 			],

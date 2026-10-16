@@ -301,6 +301,10 @@
 	margin: 0;
 }
 
+.automation-owner > .monaco-custom-radio {
+	width: fit-content;
+}
+
 .automation-provider-tools > p {
 	flex-basis: 100%;
 }

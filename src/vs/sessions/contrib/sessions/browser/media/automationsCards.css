@@ -116,8 +116,15 @@
 .automations-cards-grid {
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
-	grid-auto-rows: 1fr;
+	grid-auto-rows: auto;
 	gap: 12px;
+}
+
+.automations-ownership-header {
+	grid-column: 1 / -1;
+	margin: 0;
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
 /* Card Wrapper */

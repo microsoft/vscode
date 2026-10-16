@@ -5,7 +5,18 @@
 
 import { groupByMap } from '../../../../../base/common/collections.js';
 import { localize } from '../../../../../nls.js';
+import type { IAutomationDescriptor } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import type { IAutomationProviderDescriptor } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+
+export function getAutomationOwnershipGroups(automations: readonly IAutomationDescriptor[]) {
+	return [
+		{ ownership: 'user', label: localize('automations.yours', "Your automations"), automations: automations.filter(automation => automation.ownership !== 'repository') },
+		{ ownership: 'repository', label: localize('automations.repositoryOwned', "Repo owned automations"), automations: automations.filter(automation => automation.ownership === 'repository') },
+	].filter(group => group.automations.length > 0).map(group => ({
+		...group,
+		label: localize('automations.ownershipGroupCount', "{0} ({1})", group.label, group.automations.length),
+	}));
+}
 
 export function getUnavailableAutomationsReasons(unavailableProviders: readonly IAutomationProviderDescriptor[]): string[] {
 	const reasons: string[] = [];

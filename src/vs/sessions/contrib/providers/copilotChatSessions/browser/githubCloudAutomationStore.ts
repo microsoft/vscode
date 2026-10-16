@@ -313,7 +313,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 						try {
 							historySignal.throwIfAborted();
 							const tasks = await client.automations.listRuns(entry.definition.id, historySignal, { query: { per_page: 50, page: 1, sort: 'created_at', direction: 'desc', is_archived: false } }).catch(error => {
-								if (!(error instanceof ApiRequestError) || error.statusCode !== 404) {
+								if (!(error instanceof ApiRequestError) || error.statusCode !== 404 || (entry.definition.ownership ?? entry.definition.owner_type) === 'repository') {
 									throw error;
 								}
 								this.removeEntry(entry, historySignal);
@@ -454,7 +454,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 		const operationSignal = AbortSignal.any([signal, controller.signal]);
 		try {
 			const response = await api.list(repository, operationSignal, {
-				query: { ownership: 'user', page: 1, per_page: 100 },
+				query: { page: 1, per_page: 100 },
 				maxPages: 10,
 			});
 			const summaries = response.data.automations;

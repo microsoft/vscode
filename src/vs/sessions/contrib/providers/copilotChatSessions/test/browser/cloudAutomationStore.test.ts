@@ -44,7 +44,7 @@ import { ISessionsManagementService } from '../../../../../services/sessions/com
 import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionType } from '../../../../../services/sessions/common/session.js';
 import { AutomationSessionDraftSynchronizer } from '../../../../automations/browser/automationDialog.js';
-import { ConfigureAutomationTool, ListAutomationsTool, RunAutomationTool } from '../../../../automations/browser/automationTools.js';
+import { ConfigureAutomationTool, DeleteAutomationTool, ListAutomationsTool, RunAutomationTool } from '../../../../automations/browser/automationTools.js';
 import { AutomationRunner } from '../../../../automations/browser/automationRunner.js';
 import { ProviderAutomationService } from '../../../../automations/browser/providerAutomationService.js';
 import { CloudAutomationStore, cloudAutomationSchedule, cloudAutomationTriggers } from '../../browser/cloudAutomationStore.js';
@@ -239,6 +239,7 @@ suite('CloudAutomationStore', () => {
 			list: new ListAutomationsTool(service, context.configuration, providers),
 			configure: new ConfigureAutomationTool(service, sessions, context.configuration, NullTelemetryService),
 			run: new RunAutomationTool(service, runner, context.configuration),
+			delete: new DeleteAutomationTool(service, context.configuration),
 		};
 		const invoke = async (tool: IToolImpl, parameters: object, token = CancellationToken.None) => {
 			const result = await tool.invoke({ callId: 'call', toolId: 'tool', parameters, context: undefined }, async () => 0, { report: () => { } }, token);
@@ -1298,15 +1299,27 @@ suite('CloudAutomationStore', () => {
 		const shared = provider.automations.get().find(automation => !automation.isAgentAccessible)!;
 		const [listed] = await invoke(tools.list, {});
 		const results = [];
-		for (const tool of [tools.configure, tools.run]) {
+		for (const tool of [tools.configure, tools.run, tools.delete]) {
 			results.push(await tool.invoke({ callId: 'call', toolId: 'tool', parameters: { automationId: shared.id }, context: undefined }, async () => 0, { report: () => { } }, CancellationToken.None));
 		}
 		assert.deepStrictEqual({
 			names: listed.automations.map((automation: { name: string }) => automation.name),
 			leaked: JSON.stringify([listed, results]).includes('Teammate private instructions'),
 			rejected: results.map(result => !!result.toolResultError),
-			mutations: api.calls.filter(call => call === 'update' || call === 'run'),
-		}, { names: ['Review'], leaked: false, rejected: [true, true], mutations: [] });
+			mutations: api.calls.filter(call => call === 'update' || call === 'run' || call === 'delete'),
+		}, { names: ['Review'], leaked: false, rejected: [true, true, true], mutations: [] });
+	});
+
+	test('unavailable creator-scoped history does not remove a visible Repository automation', async () => {
+		const { provider, api, set } = setup();
+		api.definitions = [{ ...definition, ownership: 'repository', created_by: { login: 'teammate' } }];
+		api.historyError = new ApiRequestError(404, 'notFound');
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await assert.rejects(provider.refresh(), ApiRequestError);
+		assert.deepStrictEqual({
+			names: provider.automations.get().map(automation => automation.name),
+			catalogue: provider.catalogueState.get(), history: provider.historyState.get(),
+		}, { names: ['Review'], catalogue: 'ready', history: 'error' });
 	});
 
 	test('creation forwards the raw Cloud model and rejects unsupported templates before dispatch', async () => {

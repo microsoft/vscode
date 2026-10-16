@@ -1471,6 +1471,29 @@ suite('AutomationsCardsWidget', () => {
 		assert.strictEqual(widget.element.querySelector('.automations-card-schedule')?.textContent, `Daily at ${time}`);
 	});
 
+	test('groups mixed ownership with counts, keeps legacy and local cards personal, and removes empty groups', () => {
+		const { widget, automationService } = setup();
+		const items = [
+			automation({ id: 'shared', name: 'Repository review', ownership: 'repository' }),
+			automation({ id: 'legacy', name: 'Legacy review' }),
+			automation({ id: 'personal', name: 'Personal review', ownership: 'user' }),
+			automation({ id: 'local', name: 'Local review' }),
+		];
+		automationService.setAutomations(items);
+		const order = Array.from(widget.element.querySelectorAll('.automations-ownership-header, .automations-card-name-text'), element => element.textContent);
+		const accessible = buildAutomationsAccessibleContent(items, [], 'ready', []);
+		automationService.setAutomations([items[0]]);
+		assert.deepStrictEqual({
+			order,
+			accessibleGroups: ['Your automations (3)', 'Repo owned automations (1)'].map(label => accessible.includes(label)),
+			accessibleOrder: accessible.indexOf('Legacy review') < accessible.indexOf('Repository review'),
+			remaining: Array.from(widget.element.querySelectorAll('.automations-ownership-header'), element => element.textContent),
+		}, {
+			order: ['Your automations (3)', 'Legacy review', 'Personal review', 'Local review', 'Repo owned automations (1)', 'Repository review'],
+			accessibleGroups: [true, true], accessibleOrder: true, remaining: ['Repo owned automations (1)'],
+		});
+	});
+
 	test('accessible cloud history includes needs-input status, external link and refresh errors', () => {
 		const external = run({ status: 'running', sessionResource: undefined, needsInput: true, statusDescription: 'Needs input on GitHub', externalResource: URI.parse('https://github.com/owner/private/tasks/task') });
 		const content = buildAutomationsAccessibleContent([automation()], [external], 'ready', [], [], 'error');

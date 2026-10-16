@@ -20,7 +20,7 @@ import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { AutomationsCustomViewFocusContext } from '../../../../common/contextkeys.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
-import { formatUnavailableAutomationsMessage } from './automationCataloguePresentation.js';
+import { formatUnavailableAutomationsMessage, getAutomationOwnershipGroups } from './automationCataloguePresentation.js';
 import { automationRunWithLocalProgress } from './automationRunProgress.js';
 
 class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplementation {
@@ -52,6 +52,7 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 			localize('automationsCustomView.help.sharing', "Use Import Automation in the view header, or drop one .automation.md file anywhere in the view, to review a shared Automation blueprint. Imported Automations start disabled. Open a saved Automation's context menu and choose Export to save a portable blueprint."),
 			localize('automationsCustomView.help.cards', "For saved automations, Tab to a card's Edit control and action buttons. Use Left Arrow and Right Arrow to move between Run now and More Actions. Press Enter or Space to activate a control. Edit, or clicking anywhere else on the card, opens the automation dialog. More Actions opens the automation menu. Duplicate opens a prefilled New automation dialog, Disable prevents scheduled runs, and Delete asks for confirmation. Run now requests execution from the selected provider."),
 			localize('automationsCustomView.help.externalDefinition', "For cloud automation cards, More Actions also offers Open on GitHub to open the automation's details in your browser."),
+			localize('automationsCustomView.help.ownership', "Saved cards are grouped under Your automations and Repo owned automations. Cloud creation has an Owner control after Tools. Use the arrow keys to choose Only me or Repository; Only me is the default. Ownership cannot be changed when editing. Repository readers can view Repository automations; writers can manage them. A failed save leaves the dialog open with the server's explanation above Create."),
 			localize('automationsCustomView.help.dialog', "In the automation dialog, Target controls are above the prompt. Agent and model pickers are inside the prompt input, and execution mode and permission controls are below it. Use Tab and Shift+Tab to move between fields and pickers. When creating an automation, you only need to enter a prompt. An empty name is derived from the prompt, and the target defaults to No workspace unless one is already supplied. An available Agent Host that supports the target is still required."),
 			localize('automationsCustomView.help.weekdays', "For Agent Host automations, choose Weekdays to run Monday through Friday at the same local time, without choosing a day of the week. Weekdays is not available for Cloud automations."),
 			...(accessor.get(ISessionsManagementService).getAllProviderSessionTypes().some(type => automationService.getProviderConfiguration?.(type.providerId)?.sessionTypes.includes(type.sessionType.id)) ? [
@@ -124,15 +125,18 @@ export function buildAutomationsAccessibleContent(automations: readonly IAutomat
 	const builtInTemplates = templates.filter(template => !template.source);
 	const pluginTemplates = templates.filter(template => !!template.source);
 	if (automations.length > 0) {
-		for (const automation of automations) {
-			lines.push('');
-			lines.push(automation.enabled
-				? localize('automationsAccessibleView.automation', "{0}, enabled", automation.name)
-				: localize('automationsAccessibleView.automationDisabled', "{0}, disabled", automation.name));
-			lines.push(localize('automationsAccessibleView.schedule', "Schedule: {0}", formatSchedule(automation.schedule)));
-			lines.push(localize('automationsAccessibleView.prompt', "Prompt: {0}", automation.prompt));
-			if (automation.targetDisplay) {
-				lines.push(automation.targetDisplay.label);
+		for (const group of getAutomationOwnershipGroups(automations)) {
+			lines.push('', group.label);
+			for (const automation of group.automations) {
+				lines.push('');
+				lines.push(automation.enabled
+					? localize('automationsAccessibleView.automation', "{0}, enabled", automation.name)
+					: localize('automationsAccessibleView.automationDisabled', "{0}, disabled", automation.name));
+				lines.push(localize('automationsAccessibleView.schedule', "Schedule: {0}", formatSchedule(automation.schedule)));
+				lines.push(localize('automationsAccessibleView.prompt', "Prompt: {0}", automation.prompt));
+				if (automation.targetDisplay) {
+					lines.push(automation.targetDisplay.label);
+				}
 			}
 		}
 		if (catalogueState === 'loading') {

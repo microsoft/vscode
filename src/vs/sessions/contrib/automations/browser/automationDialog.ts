@@ -13,6 +13,7 @@ import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js'
 import { Button, IButton, unthemedButtonStyles } from '../../../../base/browser/ui/button/button.js';
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
 import { Switch } from '../../../../base/browser/ui/toggle/switch.js';
+import { Radio } from '../../../../base/browser/ui/radio/radio.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { AnchorPosition } from '../../../../base/browser/ui/contextview/contextview.js';
 import { ISelectBoxOptions, ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
@@ -225,6 +226,7 @@ export function registerAutomationDialogKeyboardNavigation(
 
 export interface IFormState {
 	name: string;
+	ownership?: 'user' | 'repository';
 	interval: AutomationInterval;
 	hour: number;
 	minute: number;
@@ -1908,11 +1910,55 @@ export function renderForm(
 		}));
 		picker.show();
 	}));
+	const ownerRow = DOM.append(promptSection, $('.automation-provider-details.automation-form-row.automation-owner', { role: 'group', 'aria-labelledby': 'automation-owner-label' }));
+	DOM.append(ownerRow, $('span.automation-form-label', { id: 'automation-owner-label' }, localize('automation.owner', "Owner")));
+	const ownerLabels = [localize('automation.owner.user', "Only me"), localize('automation.owner.repository', "Repository")];
+	const ownerDescriptions = [
+		localize('automation.owner.userDescription', "Only you can see and edit it. Runs act as you."),
+		localize('automation.owner.repositoryDescription', "Anyone who can read the repository can see it, and anyone with write access can edit it. Runs act as the Copilot app."),
+	];
+	let ownerRadio: Radio | undefined;
+	const ownerDescription = $('p', { id: 'automation-owner-description' });
+	const ownerIndex = state.ownership === 'repository' ? 1 : 0;
+	if (isEdit) {
+		DOM.append(ownerRow, $('span', undefined, ownerLabels[ownerIndex]));
+		ownerDescription.textContent = localize('automation.owner.immutable', "Ownership can't be changed after creation.");
+	} else {
+		ownerRadio = disposables.add(new Radio({
+			ariaLabel: localize('automation.owner', "Owner"),
+			className: 'segmented',
+			items: ownerLabels.map((text, index) => ({ text, isActive: index === ownerIndex })),
+		}));
+		ownerRadio.domNode.setAttribute('aria-describedby', ownerDescription.id);
+		DOM.append(ownerRow, ownerRadio.domNode);
+		ownerDescription.textContent = ownerDescriptions[ownerIndex];
+		disposables.add(ownerRadio.onDidSelect(index => {
+			state.ownership = index === 1 ? 'repository' : 'user';
+			ownerDescription.textContent = ownerDescriptions[index];
+		}));
+		// The modal captures arrow keys before the Radio receives them.
+		disposables.add(DOM.addDisposableListener(DOM.getWindow(form), DOM.EventType.KEY_DOWN, (event: KeyboardEvent) => {
+			const elements = ownerRadio!.optionElements;
+			const index = elements.findIndex(element => element === event.target);
+			const delta = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1
+				: event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 0;
+			if (index < 0 || delta === 0 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || formContent.hasAttribute('inert')) {
+				return;
+			}
+			const next = elements[(index + delta + elements.length) % elements.length];
+			next.click();
+			next.focus();
+			event.preventDefault();
+			event.stopImmediatePropagation();
+		}, true));
+	}
+	DOM.append(ownerRow, ownerDescription);
 	disposables.add(autorun(reader => {
 		const configuration = cloudConfiguration.read(reader);
 		toolsPicker.clear();
 		updateIntervalOptions(configuration !== undefined);
 		setAutomationControlVisible(providerDetails, configuration !== undefined);
+		setAutomationControlVisible(ownerRow, configuration !== undefined);
 		timeLabel.textContent = configuration?.timeZone === 'UTC' ? localize('automation.form.timeLocal', "Time (Local)") : localize('automation.form.time', "Time");
 		timeSelect.setAriaLabel(timeLabel.textContent);
 		if (!configuration) {
@@ -2059,6 +2105,7 @@ export function renderForm(
 			return automationSessionDraftSynchronizer.waitForSync(token);
 		},
 		setSaving: (saving, committing) => {
+			ownerRadio?.setEnabled(!saving);
 			formContent.toggleAttribute('inert', saving);
 			formContent.setAttribute('aria-busy', String(saving));
 			form.classList.toggle('saving', saving);

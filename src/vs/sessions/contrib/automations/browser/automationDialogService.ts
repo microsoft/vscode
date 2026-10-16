@@ -114,6 +114,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 
 		const state: IFormState = {
 			name: initial?.name ?? '',
+			ownership: initial?.ownership ?? 'user',
 			interval: initialSchedule?.interval ?? 'daily',
 			hour: initialSchedule?.scheduleHour ?? 9,
 			minute: initialSchedule?.scheduleMinute ?? 0,
@@ -195,6 +196,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 				return { kind: 'update', id: existing.id, value: patch };
 			}
 			const create: ICreateAutomationOptions = {
+				...(this.automationService.getProviderConfiguration?.(state.providerId) && state.ownership === 'repository' ? { ownership: state.ownership } : {}),
 				name: state.name.trim() ? state.name : deriveAutomationName(prompt),
 				prompt,
 				schedule,
