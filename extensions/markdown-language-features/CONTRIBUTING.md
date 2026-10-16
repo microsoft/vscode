@@ -85,8 +85,12 @@ Build outputs are written to `out/` (desktop), `dist/` (web), and `notebook-out/
 The experimental repository-root `dev.workspace.ts` can manage the initial
 `install-fast` / `build-fast` / Electron preparation, core transpile watcher,
 Markdown extension-host watcher, and the three Markdown webview watchers.
-It launches this checkout's Code OSS with an isolated profile and verifies
+It launches this checkout's Code OSS with a persistent per-slot profile and verifies
 Markdown extension activation before reporting ready.
+Settings and keybindings are shared with other worktrees of this repository;
+application state and extension installations stay separate, allowing different
+source builds to run simultaneously. The window title includes the slot and
+branch, with live branch updates while the built-in Git extension is enabled.
 
 The local setup uses a directory link at `.tmp/dev-workspace` pointing to a
 built `vscode-packages/dev-workspace` package. Use the Node version from
@@ -117,6 +121,9 @@ rebuilds/restarts the demanded chain. The existing Code OSS window is kept;
 reload it or reopen the Markdown editor to load the new webview bundle.
 Initial installation can take a while; subsequent `install-fast` and
 `build-fast` runs reuse the repository's own incremental state.
+The core watcher uses `transpile --watch --incremental` to reuse that initial
+build instead of deleting and rebuilding `out` again. Source events arriving
+during startup are queued and processed after the initial incremental build.
 
 Keep the package's `editorWatch` node active in the packages checkout's runtime.
 It owns package/dependency builds there, while this checkout watches the

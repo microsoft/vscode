@@ -51,6 +51,7 @@ function getArgValue(name: string): string | undefined {
 
 const options = {
 	watch: process.argv.includes('--watch'),
+	incremental: process.argv.includes('--incremental'),
 	minify: process.argv.includes('--minify'),
 	nls: process.argv.includes('--nls'),
 	manglePrivates: process.argv.includes('--mangle-privates'),
@@ -712,30 +713,19 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doMangl
 // Watch Mode
 // ============================================================================
 
-async function watch(): Promise<void> {
+async function watch(incremental: boolean): Promise<void> {
 	console.log('Starting transpilation...');
 
 	const outDir = OUT_DIR;
 
-	// Initial setup
-	await cleanDir(outDir);
-	console.log(`[transpile] ${SRC_DIR} → ${outDir}`);
-
-	// Initial full build
-	const t1 = Date.now();
-	try {
-		await transpile(outDir, false);
-		await copyAllNonTsFiles(outDir, false);
-		console.log(`Finished transpilation with 0 errors after ${Date.now() - t1} ms`);
-	} catch (err) {
-		console.error('[watch] Initial build failed:', err);
-		console.log(`Finished transpilation with 1 errors after ${Date.now() - t1} ms`);
-		// Continue watching anyway
+	if (!incremental) {
+		await cleanDir(outDir);
 	}
+	console.log(`[transpile] ${SRC_DIR} → ${outDir}`);
 
 	let pendingTsFiles: Set<string> = new Set();
 	let pendingCopyFiles: Set<string> = new Set();
-	let processingChanges = false;
+	let processingChanges = true;
 
 	const processChanges = async () => {
 		if (processingChanges) {
@@ -802,6 +792,23 @@ async function watch(): Promise<void> {
 		}
 	});
 
+	const t1 = Date.now();
+	try {
+		if (incremental) {
+			await runBuildFast(REPO_ROOT, false, true);
+		} else {
+			await transpile(outDir, false);
+			await copyAllNonTsFiles(outDir, false);
+		}
+		console.log(`Finished transpilation with 0 errors after ${Date.now() - t1} ms`);
+	} catch (err) {
+		console.error('[watch] Initial build failed:', err);
+		console.log(`Finished transpilation with 1 errors after ${Date.now() - t1} ms`);
+	} finally {
+		processingChanges = false;
+	}
+	await processChanges();
+
 	console.log('[watch] Watching src/**/*.{ts,css,...} (Ctrl+C to stop)');
 
 	// Keep process alive
@@ -830,6 +837,7 @@ Options for 'build-fast':
 
 Options for 'transpile':
 	--watch            Watch for changes and rebuild incrementally
+	--incremental      With --watch, reuse build-fast state for the initial build
 	--out <dir>        Output directory (default: out)
 	--exclude-tests    Exclude test files from transpilation
 
@@ -867,7 +875,7 @@ async function main(): Promise<void> {
 				break;
 			case 'transpile':
 				if (options.watch) {
-					await watch();
+					await watch(options.incremental);
 				} else {
 					const outDir = options.out ?? OUT_DIR;
 					await cleanDir(outDir);

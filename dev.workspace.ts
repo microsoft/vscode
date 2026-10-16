@@ -41,7 +41,7 @@ const coreBuild = computation({
 	output: { kind: 'mutable', path: 'out' },
 });
 const coreWatch = watch(coreBuild, {
-	command: { kind: 'process', executable: process.execPath, args: ['build/next/index.ts', 'transpile', '--watch'] },
+	command: { kind: 'process', executable: process.execPath, args: ['build/next/index.ts', 'transpile', '--watch', '--incremental'] },
 	contract: {
 		id: 'vscode-transpile-v1', reactionMs: 1000,
 		start: 'Starting transpilation', success: 'Finished transpilation with 0 errors', failure: 'Finished transpilation with [1-9][0-9]* errors',
