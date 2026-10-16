@@ -11,6 +11,7 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
+import { isWeb } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -70,10 +71,19 @@ suite('Customizations toolbar', () => {
 		assert.strictEqual(count, 1);
 	});
 
-	test('gates Canvases on the shared enablement setting', () => {
+	test('gates Canvases on desktop and the shared enablement setting', () => {
 		const canvases = CUSTOMIZATION_ITEMS.find(item => item.section === AICustomizationManagementSection.Canvases);
+		const evaluate = (enabled: boolean) => canvases?.when?.evaluate({
+			getValue: <T>(key: string) => ({ 'config.chat.canvases.enabled': enabled }[key] as T | undefined),
+		}) ?? true;
 
-		assert.strictEqual(canvases?.when?.serialize(), 'config.chat.canvases.enabled');
+		assert.deepStrictEqual({
+			enabled: evaluate(true),
+			disabled: evaluate(false),
+		}, {
+			enabled: !isWeb,
+			disabled: false,
+		});
 	});
 
 	test('tracks the active customization total and migration availability', async () => {

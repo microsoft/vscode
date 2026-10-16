@@ -12,6 +12,7 @@ import { localize } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { AICustomizationManagementEditor } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
@@ -132,7 +133,10 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		label: localize('canvases', "Canvases"),
 		icon: Codicon.preview,
 		section: AICustomizationManagementSection.Canvases,
-		when: ContextKeyExpr.equals(`config.${CanvasesEnabledSettingId}`, true),
+		when: ContextKeyExpr.and(
+			IsWebContext.negate(),
+			ContextKeyExpr.equals(`config.${CanvasesEnabledSettingId}`, true),
+		),
 	},
 	{
 		id: 'sessions.customization.mcpServers',
