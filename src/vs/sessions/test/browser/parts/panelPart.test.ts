@@ -403,6 +403,7 @@ suite('Sessions - Panel Part', () => {
 			bottom: targetWindow.getComputedStyle(indicator).bottom,
 			left: targetWindow.getComputedStyle(indicator).left,
 			boxHeight: indicator.getBoundingClientRect().height,
+			boxTopOffset: indicator.getBoundingClientRect().top - title.getBoundingClientRect().top,
 			radius: targetWindow.getComputedStyle(indicator).borderRadius,
 		};
 
@@ -436,10 +437,13 @@ suite('Sessions - Panel Part', () => {
 		secondActionItem.classList.remove('checked');
 		actionItem.classList.add('checked');
 
+		root.classList.remove('modern-ui-connected-editor-tabs');
 		title.style.height = '28px';
 		const compact = {
 			titleHeight: title.getBoundingClientRect().height,
 			itemHeight: actionItem.getBoundingClientRect().height,
+			indicatorHeight: indicator.getBoundingClientRect().height,
+			indicatorTopOffset: indicator.getBoundingClientRect().top - title.getBoundingClientRect().top,
 			titleActions: getTitleActionLayout(),
 		};
 
@@ -470,11 +474,12 @@ suite('Sessions - Panel Part', () => {
 				background: 'rgb(32, 48, 64)',
 				foreground: 'rgb(171, 205, 239)',
 				itemPadding: '0px 8px',
-				top: '0px',
+				top: '16px',
 				right: '2px',
-				bottom: '0px',
+				bottom: '-8px',
 				left: '2px',
-				boxHeight: 32,
+				boxHeight: 24,
+				boxTopOffset: 4,
 				radius: '4px',
 			},
 			connected: {
@@ -503,6 +508,8 @@ suite('Sessions - Panel Part', () => {
 			compact: {
 				titleHeight: 28,
 				itemHeight: 28,
+				indicatorHeight: 24,
+				indicatorTopOffset: 2,
 				titleActions: {
 					height: 28,
 					centerOffset: 0,

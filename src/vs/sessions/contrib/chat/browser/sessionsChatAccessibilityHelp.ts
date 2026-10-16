@@ -9,6 +9,7 @@ import { isWeb } from '../../../../base/common/platform.js';
 import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { getModePickerAccessibilityHelp } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { getBackgroundShellsPillAccessibilityHelp } from '../../../../workbench/contrib/chat/browser/sessionBackgroundShellsControl.js';
+import { isResponseSelectionSupported } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
@@ -31,7 +32,7 @@ import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { ISessionComparisonService } from '../../../services/sessions/common/sessionComparison.js';
 import { buildSessionComparisonAccessibleContent, isJudgeSession, SessionComparisonResultFocused } from './sessionComparisonResult.js';
-import { SESSION_TOOLBAR_SETTING, SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../common/sessionConfig.js';
+import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../common/sessionConfig.js';
 import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
@@ -47,6 +48,8 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 	// A custom view replaces the chat surface this help describes, and the storage cleanup editor
 	// provides its own help, so this window-wide help does not apply in either case.
 	readonly when = ContextKeyExpr.and(IsSessionsWindowContext, CustomViewVisibleContext.negate(), SessionWorktreeCleanupEditorFocusedContext.negate());
+
+	constructor(private readonly _responseSelectionSupported = isResponseSelectionSupported()) { }
 
 	getProvider(accessor: ServicesAccessor) {
 		const restoreFocus = createSessionsChatFocusRestorer(accessor);
@@ -80,10 +83,12 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		if (areDevContainerSamplesEnabled(configurationService)) {
 			content.push(localize('sessionsChat.devContainerSamples', "The workspace picker includes Dev Container Sample. Open its submenu and choose a sample with the arrow keys and Enter. Selecting a sample does not start Docker or clone the repository. The sample is prepared in a Docker volume when you send your first prompt."));
 		}
-		if (configurationService.getValue<boolean>(AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING)) {
-			content.push(localize('sessionsChat.responseSelectionMenu', "When you select assistant response text, an action menu appears. Press Tab to focus the menu, use the Up Arrow and Down Arrow keys to move between actions, and press Enter to activate one. Press Escape to dismiss the menu. Ask in a Side Chat opens a question input anchored to the selected text. Quote appends the selection as a blockquote in the chat input when the conversation is interactive. Copy copies the selected text."));
-		} else {
-			content.push(localize('sessionsChat.responseSelectionInput', "When you select assistant response text, an Ask Question input appears. Type a side question and press Enter to send it, press Shift+Enter to insert a new line, or press Escape to dismiss the input."));
+		if (this._responseSelectionSupported) {
+			if (configurationService.getValue<boolean>(AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING)) {
+				content.push(localize('sessionsChat.responseSelectionMenu', "When you select assistant response text, an action menu appears. Press Tab to focus the menu, use the Up Arrow and Down Arrow keys to move between actions, and press Enter to activate one. Press Escape to dismiss the menu. Ask in a Side Chat opens a question input anchored to the selected text. Quote appends the selection as a blockquote in the chat input when the conversation is interactive. Copy copies the selected text."));
+			} else {
+				content.push(localize('sessionsChat.responseSelectionInput', "When you select assistant response text, an Ask Question input appears. Type a side question and press Enter to send it, press Shift+Enter to insert a new line, or press Escape to dismiss the input."));
+			}
 		}
 		content.push(getModePickerAccessibilityHelp());
 		content.push(localize('sessionsChat.closePane', "When multiple session panes are visible, move focus to a pane header and activate Close to remove that pane from the grid. Closing a pane keeps the session and its worktree available in the Sessions list."));
@@ -255,8 +260,8 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		content.push(localize('sessionsChat.filesView', "Focus the Files Explorer view{0}.", '<keybinding:workbench.action.agentSessions.focusChangesFileView>'));
 		content.push(localize('sessionsChat.sessionsView', "Focus the Chat Sessions view{0}.", '<keybinding:workbench.action.chat.focusAgentSessionsViewer>'));
 		const agentLayoutService = accessor.get(IAgentWorkbenchLayoutService);
-		if (agentLayoutService.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop && !isPhoneLayout(agentLayoutService) && configurationService.getValue<boolean>(SESSION_TOOLBAR_SETTING)) {
-			content.push(localize('sessionsChat.sessionToolbar', "The Session Toolbar beside the active chat opens the Changes, Files, Browser, and Canvas tabs. Press Tab past the chat input's controls to reach it, use the Up and Down Arrow keys to move between its entries, and press Enter or Space to open one. Canvas opens a submenu: press Enter, Space, or Left Arrow to open it, and Right Arrow or Escape to close it. Open the context menu{1} on an entry to hide that entry or the whole toolbar. Toggle the toolbar from the chat background's context menu, View > Appearance > Session Toolbar, or the {0} setting.", SESSION_TOOLBAR_SETTING, '<keybinding:editor.action.showContextMenu>'));
+		if (agentLayoutService.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop && !isPhoneLayout(agentLayoutService) && configurationService.getValue<boolean>(SESSION_ACTIVITY_BAR_SETTING)) {
+			content.push(localize('sessionsChat.sessionActivityBar', "The Session Activity Bar beside the active chat opens the Changes, Files, Browser, and Canvas tabs. Its layout actions, Toggle Side Panel above the tabs and Toggle Panel below them, replace the title bar buttons; turn them off with Show Layout Actions in its context menu. Press Tab past the chat input's controls to reach it, use the Up and Down Arrow keys to move between its entries, and press Enter or Space to open one. Canvas opens a submenu: press Enter, Space, or Left Arrow to open it, and Right Arrow or Escape to close it. Open the context menu{1} on an entry to hide that entry or the whole activity bar. Toggle the activity bar from the chat background's context menu, View > Appearance > Session Activity Bar, or the {0} setting.", SESSION_ACTIVITY_BAR_SETTING, '<keybinding:editor.action.showContextMenu>'));
 		}
 		if (!isPhoneLayout(accessor.get(IWorkbenchLayoutService))) {
 			content.push(localize('sessionsChat.emptyEditorAddTab', "When the side panel's editor has no open tabs, it shows Add Tab at the top and lists the Add Tab actions, such as Changes, Files, Browser, and Search, with their keybindings. Press Tab to reach the list, use the Up and Down arrow keys to move between actions, and press Enter or Space to open one. For an action with a submenu, such as Canvas, press Enter, Space, or the Right arrow key to open the submenu, the Up and Down arrow keys to choose an item, and the Left arrow key or Escape to return to the list."));

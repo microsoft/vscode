@@ -632,7 +632,74 @@ suite('ProtocolServerHandler', () => {
 				'vscode.removeSessionArtifact': true,
 				'vscode.importSession': true,
 				'vscode.devContainers': true,
+				// Offered whether or not moving chats is enabled, so enabling it needs no reconnect.
+				'vscode.sessionMove': true,
 			},
+		});
+	});
+
+	test('mixed pending messages survive snapshots, live actions and reconnect replay', async () => {
+		stateManager.createSession(makeSessionSummary());
+		for (const id of ['a', 'b']) {
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatPendingMessageSet,
+				kind: PendingMessageKind.Steering, id, message: { text: id, origin: { kind: MessageKind.User } },
+			});
+		}
+		const transport = new MockProtocolTransport();
+		server.simulateConnection(transport);
+		const initialized = waitForResponse(transport, 1);
+		transport.simulateMessage(request(1, 'initialize', {
+			protocolVersions: [PROTOCOL_VERSION],
+			clientId: 'steering-client',
+			initialSubscriptions: [defaultChatUri],
+		}));
+		const response = await initialized;
+		assert.ok(hasKey(response, { result: true }));
+		const result = response.result as InitializeResult;
+		const initialState = result.snapshots.find(snapshot => snapshot.resource === defaultChatUri)?.state as ChatState;
+		const cursor = stateManager.serverSeq;
+		stateManager.dispatchServerAction(defaultChatUri, { type: ActionType.ChatPendingMessageRemoved, kind: PendingMessageKind.Steering, id: 'a' });
+		const live = findNotifications(transport.sent, 'action')
+			.map(notification => notification.params as ActionEnvelope)
+			.filter(envelope => envelope.action.type === ActionType.ChatPendingMessageRemoved);
+		transport.simulateClose();
+
+		const reconnected = new MockProtocolTransport();
+		server.simulateConnection(reconnected);
+		const replayed = waitForResponse(reconnected, 2);
+		reconnected.simulateMessage(request(2, 'reconnect', {
+			clientId: 'steering-client', lastSeenServerSeq: cursor, subscriptions: [defaultChatUri],
+		}));
+		const replayResponse = await replayed;
+		assert.ok(hasKey(replayResponse, { result: true }));
+		const replay = replayResponse.result as ReconnectResult;
+		assert.ok(replay.type === 'replay');
+		reconnected.simulateClose();
+
+		const snapshotTransport = new MockProtocolTransport();
+		server.simulateConnection(snapshotTransport);
+		const snapshotted = waitForResponse(snapshotTransport, 3);
+		snapshotTransport.simulateMessage(request(3, 'reconnect', {
+			clientId: 'steering-client', lastSeenServerSeq: -1, subscriptions: [defaultChatUri],
+		}));
+		const snapshotResponse = await snapshotted;
+		assert.ok(hasKey(snapshotResponse, { result: true }));
+		const snapshotResult = snapshotResponse.result as ReconnectResult;
+		assert.ok(snapshotResult.type === 'snapshot');
+		const restored = snapshotResult.snapshots.find(snapshot => snapshot.resource === defaultChatUri)?.state as ChatState;
+		assert.deepStrictEqual({
+			initial: initialState.queuedMessages?.map(message => message.id),
+			live: live.map(envelope => envelope.action.type),
+			replay: replay.actions.map(envelope => envelope.action.type),
+			restored: restored.queuedMessages?.map(message => message.id),
+			authoritative: stateManager.getChatState(defaultChatUri)?.queuedMessages?.map(message => message.id),
+		}, {
+			initial: ['a', 'b'],
+			live: [ActionType.ChatPendingMessageRemoved],
+			replay: [ActionType.ChatPendingMessageRemoved],
+			restored: ['b'],
+			authoritative: ['b'],
 		});
 	});
 
@@ -1359,6 +1426,22 @@ suite('ProtocolServerHandler', () => {
 		}, {
 			response: { jsonrpc: '2.0', id: 11, result: null },
 			shutdownCalls: 1,
+		});
+	});
+
+	test('TCP connections remain unadvertised and unsupported after protocol sync', async () => {
+		const transport = connectClient('client-tcp');
+		const initialize = findResponse(transport.sent, 1);
+		assert.ok(initialize && hasKey(initialize, { result: true }));
+		const result = initialize.result as InitializeResult;
+		const response = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'createTcpConnection', { channel: 'ahp-tcp:/test', host: 'localhost', port: 8080 }));
+		assert.deepStrictEqual({
+			capability: result.tcpConnections,
+			response: await response,
+		}, {
+			capability: undefined,
+			response: { jsonrpc: '2.0', id: 2, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: createTcpConnection' } },
 		});
 	});
 
@@ -3961,11 +4044,12 @@ suite('ProtocolServerHandler', () => {
 					restored: snapshotConfigs(restored),
 					authoritative: snapshotConfigs(stateManager.getSnapshot(chat)),
 				}, {
-					initial: Array.from({ length: 6 }, () => expected),
+					// Snapshots include both mixed-queue entries and the legacy steering mirror.
+					initial: Array.from({ length: 7 }, () => expected),
 					live: Array.from({ length: 5 }, () => expected),
 					replayed: Array.from({ length: 5 }, () => expected),
-					restored: Array.from({ length: 6 }, () => expected),
-					authoritative: Array.from({ length: 6 }, () => selection.config),
+					restored: Array.from({ length: 7 }, () => expected),
+					authoritative: Array.from({ length: 7 }, () => selection.config),
 				});
 			});
 		}
@@ -7326,25 +7410,30 @@ suite('ProtocolServerHandler', () => {
 				stateManager.createSession(makeSessionSummary(targetUri));
 			});
 
-			test('is offered and routed only while moving chats is enabled', async () => {
-				const off = connectClient(`client-session-move-${clients++}`);
-				const offResponse = await send(off, { session: sessionUri, destination: targetUri, after: null });
+			test('is offered and routed whether or not moving chats is enabled, so enabling it needs no reconnect', async () => {
+				// Connected while moving chats is off, as a client whose root config mirror arrives after it initialized.
+				const transport = connectClient(`client-session-move-${clients++}`);
+				const offered = supportsAgentHostSessionMove(initialized(transport));
+				agentService.moveChatResult = new AgentChatMoveRefusedError(AgentChatMoveRefusal.Disabled, 'Moving chats is not enabled.');
+				const disabled = await send(transport, { session: sessionUri, destination: targetUri, after: null }) as { error?: { code: number; data?: unknown } };
 				stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { [ChatMoveConfigKey.Enabled]: true } });
-				const on = connectClient(`client-session-move-${clients++}`);
+				agentService.moveChatResult = undefined;
 				const placed = buildDefaultChatUri(targetUri);
 
 				assert.deepStrictEqual({
-					offered: [supportsAgentHostSessionMove(initialized(off)), supportsAgentHostSessionMove(initialized(on))],
-					offResponse,
-					first: await send(on, { session: sessionUri, destination: targetUri, after: null }),
-					anchored: await send(on, { session: sessionUri, destination: targetUri, after: placed }),
+					offered,
+					disabled: { code: disabled.error?.code, data: disabled.error?.data },
+					first: await send(transport, { session: sessionUri, destination: targetUri, after: null }),
+					anchored: await send(transport, { session: sessionUri, destination: targetUri, after: placed }),
 					moved: agentService.movedSessions,
 				}, {
-					offered: [false, true],
-					offResponse: { jsonrpc: '2.0', id: 30, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: vscode/moveSession' } },
+					offered: true,
+					// The host refuses a move while moving chats is off.
+					disabled: { code: JsonRpcErrorCodes.InvalidParams, data: { reason: AgentChatMoveRefusal.Disabled } },
 					first: { jsonrpc: '2.0', id: 30, result: { session: targetUri } },
 					anchored: { jsonrpc: '2.0', id: 30, result: { session: targetUri } },
 					moved: [
+						{ session: sessionUri, destination: targetUri, after: undefined },
 						{ session: sessionUri, destination: targetUri, after: undefined },
 						{ session: sessionUri, destination: targetUri, after: placed },
 					],

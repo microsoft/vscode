@@ -12,7 +12,7 @@ import { CommandsRegistry } from '../../../../platform/commands/common/commands.
 import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { Menus } from '../../../browser/menus.js';
+import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
 import { getCanvasInstanceLabels, getCanvasReferenceKey, ICanvasService } from '../../../../workbench/contrib/canvases/common/canvas.js';
 import { getSessionCanvasDefinitionInstanceId, getSessionCanvasDefinitionLabels, ISessionCanvasRegistryService } from '../common/sessionCanvas.js';
 
@@ -66,12 +66,12 @@ class CanvasMenuActionRegistration extends Disposable {
 	}
 }
 
-function appendCanvasSubmenu(menu: MenuId, when: ContextKeyExpression | undefined): IDisposable {
+function appendCanvasSubmenu(menu: MenuId, when: ContextKeyExpression | undefined, group = 'navigation'): IDisposable {
 	return MenuRegistry.appendMenuItem(menu, {
 		submenu: Menus.SessionsEditorTabsBarAddTabCanvas,
 		title: localize('sessionCanvases.addTab', "Canvas"),
 		icon: Codicon.preview,
-		group: 'navigation',
+		group,
 		order: 4,
 		when,
 	});
@@ -129,7 +129,7 @@ export function registerSessionCanvasActions(canvasService: ICanvasService, regi
 			? combinedDisposable(
 				appendCanvasSubmenu(Menus.SessionsEditorTabsBarAddTab, reopenCanvasWhen),
 				appendCanvasSubmenu(Menus.SessionsEmptyEditorGroupAddTab, reopenCanvasWhen),
-				appendCanvasSubmenu(Menus.SessionToolbar, canvasAvailableWhen),
+				appendCanvasSubmenu(Menus.SessionActivityBar, canvasAvailableWhen, SessionActivityBarGroup.Tabs),
 			)
 			: undefined;
 	}));
