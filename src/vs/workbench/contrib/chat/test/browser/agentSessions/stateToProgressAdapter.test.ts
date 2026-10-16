@@ -16,6 +16,9 @@ import { MarkdownString, type IMarkdownString } from '../../../../../../base/com
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { isCopilotHydraFusionModelId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { serializeSemanticDiffToolResult } from '../../../../../../platform/agentHost/common/semanticDiff.js';
+import { SemanticDiffServerToolName } from '../../../../../../platform/agentHost/common/serverToolNames.js';
+import { createSemanticDiffExample } from '../../../../../../platform/agentHost/test/common/semanticDiffFixtures.js';
 import { toAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
 import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
@@ -338,6 +341,96 @@ suite('stateToProgressAdapter', () => {
 	});
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('semantic diff classification', () => {
+		function completed(overrides?: Partial<ICompletedToolCall>): ICompletedToolCall {
+			const report = createSemanticDiffExample();
+			return createCompletedToolCall({
+				toolName: SemanticDiffServerToolName.ClassifyDiffHunks,
+				toolInput: JSON.stringify({ schemaVersion: 1, analysis: report.analysis }),
+				content: [{ type: ToolResultContentType.Text, text: serializeSemanticDiffToolResult(report) }],
+				...overrides,
+			});
+		}
+
+		test('tool input restores validated cards in live completion and history', () => {
+			const report = createSemanticDiffExample();
+			const tc = completed();
+			const live = toolCallStateToInvocation(createToolCallState({ toolName: SemanticDiffServerToolName.ClassifyDiffHunks }));
+			finalizeToolInvocation(live, tc);
+			const history = completedToolCallToSerialized(tc, undefined, URI.file('/'), 'local');
+			const failed = completedToolCallToSerialized(completed({ ...tc, status: ToolCallStatus.Completed, success: false }), undefined, URI.file('/'), 'local');
+			const expected = { kind: 'semanticDiff', state: 'complete', result: { ok: true, report } };
+			assert.deepStrictEqual({
+				live: live.toolSpecificData,
+				history: history.toolSpecificData,
+				failed: failed.toolSpecificData?.kind === 'semanticDiff',
+			}, { live: expected, history: expected, failed: false });
+		});
+
+		test('live completion and restored history carry the same validated cards without raw JSON', () => {
+			const live = toolCallStateToInvocation(createToolCallState({ toolName: SemanticDiffServerToolName.ClassifyDiffHunks }));
+			const pendingState = live.toolSpecificData?.kind === 'semanticDiff' ? live.toolSpecificData.state : undefined;
+			finalizeToolInvocation(live, completed());
+			const restored = completedToolCallToSerialized(completed(), undefined, URI.file('/'), 'local');
+			const expected = { kind: 'semanticDiff', state: 'complete', result: { ok: true, report: createSemanticDiffExample() } };
+			assert.deepStrictEqual({
+				pendingState,
+				live: live.toolSpecificData,
+				liveRawDetails: IChatToolInvocation.resultDetails(live),
+				restored: restored.toolSpecificData,
+				restoredRawDetails: restored.resultDetails,
+			}, {
+				pendingState: 'pending',
+				live: expected,
+				liveRawDetails: undefined,
+				restored: expected,
+				restoredRawDetails: undefined,
+			});
+		});
+
+		test('handles a provider transport prefix without treating client or external MCP tools as server tools', () => {
+			const cases = [
+				completed({ toolName: `mcp__vscode__${SemanticDiffServerToolName.ClassifyDiffHunks}` }),
+				completed({ contributor: { kind: ToolCallContributorKind.Client, clientId: 'client' } }),
+				completed({ contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'external-server' } }),
+				completed({ toolName: 'different_tool' }),
+				completed({ success: false }),
+			];
+			assert.deepStrictEqual(cases.map(tc =>
+				completedToolCallToSerialized(tc, undefined, URI.file('/'), 'local').toolSpecificData?.kind === 'semanticDiff'
+			), [true, false, false, false, false]);
+			assert.strictEqual(completedToolCallToSerialized(completed(), undefined, URI.file('/'), 'remote-host').toolSpecificData?.kind === 'semanticDiff', false);
+			assert.strictEqual(rawToolCallStateToInvocation(createToolCallState({ toolName: SemanticDiffServerToolName.ClassifyDiffHunks }), undefined, URI.file('/'), 'remote-host').toolSpecificData?.kind === 'semanticDiff', false);
+		});
+
+		test('cancelled tools never publish completed cards', () => {
+			const invocation = toolCallStateToInvocation(createToolCallState({ toolName: SemanticDiffServerToolName.ClassifyDiffHunks }));
+			finalizeToolInvocation(invocation, {
+				status: ToolCallStatus.Cancelled,
+				toolCallId: 'tc-1',
+				toolName: SemanticDiffServerToolName.ClassifyDiffHunks,
+				displayName: 'Classify Diff Hunks',
+				invocationMessage: 'Classifying diff hunks',
+				reason: ToolCallCancellationReason.Skipped,
+			});
+			assert.strictEqual(invocation.toolSpecificData?.kind === 'semanticDiff', false);
+		});
+
+		test('invalid, missing, and unsupported input produce explicit invalid-result data', () => {
+			const { analysis } = createSemanticDiffExample();
+			const inputs = [
+				'not JSON',
+				undefined,
+				JSON.stringify({ schemaVersion: 99, analysis }),
+				JSON.stringify({ schemaVersion: 1, analysis: { ...analysis, groups: [] } }),
+			];
+			assert.deepStrictEqual(inputs.map(toolInput => {
+				const data = completedToolCallToSerialized(completed({ toolInput }), undefined, URI.file('/'), 'local').toolSpecificData;
+				return data?.kind === 'semanticDiff' && data.state === 'complete' && !data.result.ok;
+			}), inputs.map(() => true));
+		});
+	});
 
 	test('detects the canonical automatic reply answer', () => {
 		assert.deepStrictEqual([

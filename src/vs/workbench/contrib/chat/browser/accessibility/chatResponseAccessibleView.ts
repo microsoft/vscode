@@ -13,6 +13,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { formatSemanticDiffReport } from '../../../../../platform/agentHost/common/semanticDiff.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
@@ -20,7 +21,7 @@ import { migrateLegacyTerminalToolSpecificData } from '../../common/chat.js';
 import { autoModeRoutingTitle } from '../../common/chatAutoModeExplainability.js';
 import { formatChatToolError } from '../../common/chatProgressFormatting.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { IChatAgentFeedbackReviewConfirmationData, IChatAutomationConfigurationData, IChatAutomationConfiguredData, IChatExtensionsContent, IChatGeneratedImageData, IChatModifiedFilesConfirmationData, IChatPullRequestContent, IChatSearchToolInvocationData, IChatSessionTargetData, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolResourcesInvocationData, ILegacyChatTerminalToolInvocationData, IToolResultOutputDetailsSerialized, isLegacyChatTerminalToolInvocationData } from '../../common/chatService/chatService.js';
+import { IChatToolInvocation, IToolResultOutputDetailsSerialized, isLegacyChatTerminalToolInvocationData } from '../../common/chatService/chatService.js';
 import { IChatResponseViewModel, isResponseVM } from '../../common/model/chatViewModel.js';
 import { IToolResultInputOutputDetails, IToolResultOutputDetails, isToolResultInputOutputDetails, isToolResultOutputDetails, toolContentToA11yString } from '../../common/tools/languageModelToolsService.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
@@ -62,7 +63,7 @@ export class ChatResponseAccessibleView implements IAccessibleViewImplementation
 	}
 }
 
-type ToolSpecificData = IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionTargetData | IChatGeneratedImageData | IChatAutomationConfigurationData | IChatAutomationConfiguredData;
+type ToolSpecificData = IChatToolInvocation['toolSpecificData'];
 type ResultDetails = Array<URI | Location> | IToolResultInputOutputDetails | IToolResultOutputDetails | IToolResultOutputDetailsSerialized;
 
 export const CHAT_ACCESSIBLE_VIEW_INCLUDE_THINKING_STORAGE_KEY = 'chat.accessibleView.includeThinking';
@@ -90,6 +91,13 @@ export function getToolSpecificDataDescription(toolSpecificData: ToolSpecificDat
 	}
 
 	switch (toolSpecificData.kind) {
+		case 'semanticDiff': {
+			if (toolSpecificData.state === 'pending') {
+				return '';
+			}
+			const result = toolSpecificData.result;
+			return result.ok ? formatSemanticDiffReport(result.report) : localize('semanticDiff.invalid', "Cannot display this classification result: {0}", result.error.error.message);
+		}
 		case 'subagent': {
 			const parts: string[] = [];
 			const agentName = toolSpecificData.agentDisplayName ?? toolSpecificData.agentName;

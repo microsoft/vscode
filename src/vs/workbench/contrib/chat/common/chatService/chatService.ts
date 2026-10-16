@@ -42,6 +42,7 @@ import type { ChatToolInvocationSummary } from '../tools/toolInvocationSummary.j
 import { ConfirmationOptionKind, type McpOAuthClient, type MessageOrigin } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AgentFusionPhaseStatus } from '../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import type { IAgentRuntimeModelConfiguration } from '../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
+import { SemanticDiffValidationResult } from '../../../../../platform/agentHost/common/semanticDiff.js';
 
 export interface IChatRequest {
 	message: string;
@@ -904,7 +905,7 @@ export interface IChatToolInvocationOtherClientData {
 
 export interface IChatToolInvocation {
 	readonly presentation: IPreparedToolInvocation['presentation'];
-	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionTargetData | IChatGeneratedImageData | IChatAutomationConfigurationData | IChatAutomationConfiguredData;
+	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionTargetData | IChatGeneratedImageData | IChatAutomationConfigurationData | IChatAutomationConfiguredData | IChatSemanticDiffData;
 	/** Active-only metadata that is omitted when the invocation is serialized. */
 	readonly otherClientToolCall?: IChatToolInvocationOtherClientData;
 	/**
@@ -1211,7 +1212,7 @@ export interface IToolResultOutputDetailsSerialized {
  */
 export interface IChatToolInvocationSerialized {
 	presentation: IPreparedToolInvocation['presentation'];
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionTargetData | IChatGeneratedImageData | IChatAutomationConfiguredData;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionTargetData | IChatGeneratedImageData | IChatAutomationConfiguredData | IChatSemanticDiffData;
 	invocationMessage: string | IMarkdownString;
 	originMessage: string | IMarkdownString | undefined;
 	pastTenseMessage: string | IMarkdownString | undefined;
@@ -1335,6 +1336,19 @@ export interface IChatToolResourcesInvocationData {
 	readonly kind: 'resources';
 	readonly values: Array<URI | Location>;
 }
+
+export interface IChatSemanticDiffPendingData {
+	readonly kind: 'semanticDiff';
+	readonly state: 'pending';
+}
+
+export interface IChatSemanticDiffResultData {
+	readonly kind: 'semanticDiff';
+	readonly state: 'complete';
+	readonly result: SemanticDiffValidationResult;
+}
+
+export type IChatSemanticDiffData = IChatSemanticDiffPendingData | IChatSemanticDiffResultData;
 
 /**
  * Tool-specific data for a completed `create_session`, `create_chat`, or

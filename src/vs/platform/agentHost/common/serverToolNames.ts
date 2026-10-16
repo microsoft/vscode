@@ -30,16 +30,25 @@ export const enum SessionServerToolName {
 }
 
 /**
- * Whether {@link toolName} (a tool name as seen on a tool call) refers to
- * {@link SessionServerToolName.RenameChat}. Accepts both the bare name, as the
- * agent sees it under Copilot, and the Claude `mcp__<server>__<name>` prefixed
- * form — the same shape the feedback-annotation predicates accept.
+ * Whether {@link toolName} (a tool name as seen on a tool call) refers to the
+ * server tool {@link bareName}. Accepts both the bare name, as the agent sees it
+ * under Copilot, and a transport prefix such as Claude's `mcp__<server>__<name>`
+ * (matched as a `__`-delimited suffix).
  */
-export function isRenameChatTool(toolName: string): boolean {
-	return toolName === SessionServerToolName.RenameChat || toolName.endsWith(`__${SessionServerToolName.RenameChat}`);
+export function matchesServerToolName(toolName: string, bareName: string): boolean {
+	return toolName === bareName || toolName.endsWith(`__${bareName}`);
 }
 
-/** Names of the artifact server tools, shared between `common/` and `node/`. */export const enum ArtifactServerToolName {
+/**
+ * Whether {@link toolName} (a tool name as seen on a tool call) refers to
+ * {@link SessionServerToolName.RenameChat}.
+ */
+export function isRenameChatTool(toolName: string): boolean {
+	return matchesServerToolName(toolName, SessionServerToolName.RenameChat);
+}
+
+/** Names of the artifact server tools, shared between `common/` and `node/`. */
+export const enum ArtifactServerToolName {
 	AddArtifactOrReference = 'add_artifact_or_reference',
 	RemoveArtifactOrReference = 'remove_artifact_or_reference',
 	ListArtifactsAndReferences = 'list_artifacts_and_references',
@@ -65,4 +74,9 @@ export function isAddArtifactOrReferenceTool(toolName: string): boolean {
 	const separator = toolName.lastIndexOf('__');
 	const bareName = separator === -1 ? toolName : toolName.slice(separator + 2);
 	return (LEGACY_ARTIFACT_SERVER_TOOL_NAMES.get(bareName) ?? bareName) === ArtifactServerToolName.AddArtifactOrReference;
+}
+
+/** Names of the semantic diff server tools, shared between `common/`, `node/`, and clients. */
+export const enum SemanticDiffServerToolName {
+	ClassifyDiffHunks = 'classify_diff_hunks',
 }

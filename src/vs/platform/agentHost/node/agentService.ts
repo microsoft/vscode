@@ -62,6 +62,8 @@ import { getLegacySessionInitiator, parseSessionInitiator, readSessionInitiator,
 import { AgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { parseNonPtyShellTerminalUri, type INonPtyShellTerminalUri } from '../common/nonPtyShellTerminalUri.js';
+import { SEMANTIC_DIFF_CONTENT_SCHEME } from '../common/semanticDiffContent.js';
+import { SemanticDiffResourceProvider } from './semanticDiffContent.js';
 import { getWorkingDirectoryKey } from '../common/agentHostWorkingDirectories.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from './agentHostStateManager.js';
 import { IAgentHostSessionTitleController } from './agentHostSessionTitleController.js';
@@ -1032,6 +1034,10 @@ export class AgentService extends Disposable implements IAgentService {
 		this._register(this._resourceProviders.registerProvider(TOOL_RESULT_RESOURCE_SCHEME, instantiationService.createInstance(ToolResultResourceProvider)));
 		this._register(this._resourceProviders.registerProvider(MCP_RESOURCE_SCHEME, instantiationService.createInstance(McpResourceLinkProvider, (session: URI, chat: URI) => this._restoreSessionChat(session, chat, 'MCP resource read'))));
 		this._register(this._resourceProviders.registerProvider(SESSION_DB_SCHEME, instantiationService.createInstance(SessionDbResourceProvider)));
+		this._register(this._resourceProviders.registerProvider(SEMANTIC_DIFF_CONTENT_SCHEME, instantiationService.createInstance(SemanticDiffResourceProvider, {
+			restoreSession: session => this.restoreSession(session),
+			reconcileResidency: () => { void this._sessionResidency.reconcile(); },
+		})));
 		this._register(this._resourceProviders.registerProvider(EDIT_ATTRIBUTION_RESOURCE_SCHEME, instantiationService.createInstance(EditAttributionResourceProvider)));
 		this._register(this._resourceProviders.registerProvider(GIT_BLOB_SCHEME, instantiationService.createInstance(GitBlobResourceProvider, {
 			readSavedWorkingDirectories: (session, resource) => this._savedChats.readWorkingDirectories(session, resource),

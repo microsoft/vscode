@@ -1,0 +1,133 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-semantic-diff {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+	width: 100%;
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-chat-font-size-body-s, var(--vscode-fontSize-body1));
+	line-height: 1.5;
+	overflow-wrap: anywhere;
+	user-select: text;
+}
+
+.chat-semantic-diff .semantic-diff-card,
+.chat-semantic-diff .semantic-diff-notice,
+.chat-semantic-diff .semantic-diff-ungrouped,
+.chat-semantic-diff .semantic-diff-nontext {
+	padding: var(--vscode-spacing-size120);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-chat-requestBorder));
+	border-radius: var(--vscode-cornerRadius-medium);
+	min-width: 0;
+}
+
+.chat-semantic-diff .semantic-diff-card {
+	position: relative;
+}
+
+.chat-semantic-diff .semantic-diff-card-actions {
+	flex-shrink: 0;
+}
+
+.chat-semantic-diff .semantic-diff-card::before {
+	content: '';
+	position: absolute;
+	inset-block: var(--vscode-spacing-size80);
+	inset-inline-start: 0;
+	width: var(--vscode-spacing-size40);
+	border-radius: var(--vscode-cornerRadius-circle);
+	pointer-events: none;
+}
+
+.chat-semantic-diff .semantic-diff-accent-0::before { background: var(--vscode-charts-blue); }
+.chat-semantic-diff .semantic-diff-accent-1::before { background: var(--vscode-charts-purple); }
+.chat-semantic-diff .semantic-diff-accent-2::before { background: var(--vscode-charts-orange); }
+.chat-semantic-diff .semantic-diff-accent-3::before { background: var(--vscode-charts-yellow); }
+
+.chat-semantic-diff h3 {
+	font-size: inherit;
+	font-weight: var(--vscode-fontWeight-semiBold);
+	margin: 0;
+}
+
+.chat-semantic-diff p {
+	margin: var(--vscode-spacing-size40) 0;
+	white-space: pre-wrap;
+}
+
+.chat-semantic-diff .semantic-diff-card-heading {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: var(--vscode-spacing-size80);
+}
+
+.chat-semantic-diff .semantic-diff-title {
+	flex: 1;
+	min-width: 0;
+}
+
+.chat-semantic-diff .semantic-diff-card-controls {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	flex-shrink: 0;
+	max-width: 100%;
+	min-width: 0;
+	margin-inline-start: auto;
+}
+
+.chat-semantic-diff .semantic-diff-group-summary {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	flex-wrap: wrap;
+	min-width: 0;
+	padding: var(--vscode-spacing-size40);
+	font-variant-numeric: tabular-nums;
+}
+
+.monaco-workbench .chat-semantic-diff .semantic-diff-summary-icon.codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+	flex-shrink: 0;
+}
+
+.chat-semantic-diff button.semantic-diff-group-summary {
+	font: inherit;
+	color: inherit;
+	background: none;
+	border: none;
+	border-radius: var(--vscode-cornerRadius-small);
+	cursor: pointer;
+}
+
+.chat-semantic-diff button.semantic-diff-group-summary:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	outline: var(--vscode-strokeThickness) dashed var(--vscode-toolbar-hoverOutline);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.chat-semantic-diff button.semantic-diff-group-summary:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.chat-semantic-diff .semantic-diff-description {
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-semantic-diff .semantic-diff-error {
+	color: var(--vscode-errorForeground);
+}
+
+.chat-semantic-diff .semantic-diff-uncertainty,
+.chat-semantic-diff .semantic-diff-stale {
+	color: var(--vscode-foreground);
+	border-inline-start: var(--vscode-strokeThickness) solid var(--vscode-editorWarning-foreground);
+	padding-inline-start: var(--vscode-spacing-size80);
+}

@@ -3,12 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { matchesServerToolName } from '../../common/serverToolNames.js';
 import { feedbackServerToolGroup } from './agentFeedbackServerTools.js';
 import { createSessionServerToolGroup, type ISessionServerToolAccessor } from './sessionServerTools.js';
 import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolGroup } from './agentServerToolHost.js';
 import { createAgentMergeServerToolGroup, type IAgentMergeToolAccessor } from './agentMergeServerTools.js';
 import { createArtifactServerToolGroup, type IArtifactServerToolAccessor } from './artifactServerTools.js';
 import { createSessionIsolationToolGroup, type ISessionIsolationToolAccessor } from './sessionIsolationTools.js';
+import { createSemanticDiffServerToolGroup } from './semanticDiffServerTools.js';
 
 /**
  * Builds the server-tool groups contributed to every agent host session, in
@@ -33,6 +35,7 @@ export function buildServerToolGroups(sessionAccessor?: ISessionServerToolAccess
 		createAgentMergeServerToolGroup(agentMergeAccessor),
 		createArtifactServerToolGroup(artifactAccessor),
 		createSessionIsolationToolGroup(isolationAccessor),
+		createSemanticDiffServerToolGroup(),
 	];
 }
 
@@ -41,16 +44,6 @@ export function buildServerToolGroups(sessionAccessor?: ISessionServerToolAccess
  * session accessor since display never invokes `execute`.
  */
 const serverToolGroupsForDisplay: readonly IServerToolGroup[] = buildServerToolGroups();
-
-/**
- * Whether {@link toolName} (a tool name as seen on a tool call) refers to the
- * server tool {@link bareName}. Accepts both the bare name and a transport
- * prefix such as Claude's `mcp__<server>__<name>` (matched as a `__`-delimited
- * suffix), mirroring the convention in `agentFeedbackAnnotations.ts`.
- */
-function matchesServerToolName(toolName: string, bareName: string): boolean {
-	return toolName === bareName || toolName.endsWith(`__${bareName}`);
-}
 
 /**
  * Resolves the {@link IServerToolDisplay} for a server tool call, authored by

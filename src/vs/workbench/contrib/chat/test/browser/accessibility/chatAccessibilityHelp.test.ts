@@ -181,6 +181,22 @@ suite('Chat Accessibility Help', () => {
 		}, { shared: true, noLegacyList: true, automatic: true, subagentArtifacts: true, dropdown: true, actions: true });
 	});
 
+	test('documents opening the changes of a code walkthrough group', () => {
+		assert.ok(getAccessibilityHelpText('agentView', new MockKeybindingService(), true).includes('Use Tab to reach a card\'s change summary and press Enter or Space to open a multi-file diff editor that shows only that group\'s changes'));
+	});
+
+	test('documents code walkthrough cards on chat surfaces that render responses', () => {
+		const documentsWalkthrough = (type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView') => getAccessibilityHelpText(type, new MockKeybindingService(), true)
+			.includes('Code walkthroughs appear as intent cards in the response');
+		assert.deepStrictEqual({
+			panelChat: documentsWalkthrough('panelChat'),
+			quickChat: documentsWalkthrough('quickChat'),
+			editsView: documentsWalkthrough('editsView'),
+			agentView: documentsWalkthrough('agentView'),
+			inlineChat: documentsWalkthrough('inlineChat'),
+		}, { panelChat: true, quickChat: true, editsView: true, agentView: true, inlineChat: false });
+	});
+
 	for (const type of ['panelChat', 'editsView', 'agentView'] as const) {
 		test(`documents skipping MCP startup only on supported surfaces (${type})`, () => {
 			const help = getAccessibilityHelpText(type, new MockKeybindingService(), false);

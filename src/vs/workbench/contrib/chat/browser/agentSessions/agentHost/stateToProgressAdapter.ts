@@ -29,7 +29,8 @@ import { AICustomizationManagementCommands, AICustomizationManagementSection } f
 import { AGENT_HOST_SCHEME, createAgentHostResourceUriMapper, type IAgentHostResourceUriMapper, toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentHostElementAttachmentDisplayKind, getElementAttachmentCorrelationId } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
-import { SessionServerToolName } from '../../../../../../platform/agentHost/common/serverToolNames.js';
+import { matchesServerToolName, SemanticDiffServerToolName, SessionServerToolName } from '../../../../../../platform/agentHost/common/serverToolNames.js';
+import { parseSemanticDiffToolInput } from '../../../../../../platform/agentHost/common/semanticDiff.js';
 import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAnnotationsAttachment, isAgentFeedbackAttachment } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { getBrowserViewAttachmentMetadata, isBrowserViewAttachment } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { readAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
@@ -42,9 +43,10 @@ import { parsePartialToolInputForDisplay } from '../../../../../../platform/agen
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type ResponsePart, type StringOrMarkdown, type TextRange } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/fileEditDiff.js';
 import { AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AMBIENT_AGENT_HOST_AUTHORITY } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import product from '../../../../../../platform/product/common/product.js';
 import { ConfigureAutomationToolReferenceName } from '../../../common/automations/automationService.js';
-import { formatCopilotCreditsLabel, getSubagentIsActive, ElicitationState, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatAutomationConfiguredData, type IChatAutoModeResolutionPart, type IChatExternalEdit, type IChatGeneratedImageData, type IChatMcpAuthenticationRequiredServer, type IChatModifiedFilesConfirmationData, type IChatPlanReviewResult, type IChatProgress, type IChatQuestion, type IChatQuestionAnswerValue, type IChatQuestionAnswers, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSessionTargetData, type IChatSubagentToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
+import { formatCopilotCreditsLabel, getSubagentIsActive, ElicitationState, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatAutomationConfiguredData, type IChatAutoModeResolutionPart, type IChatExternalEdit, type IChatGeneratedImageData, type IChatMcpAuthenticationRequiredServer, type IChatModifiedFilesConfirmationData, type IChatPlanReviewResult, type IChatProgress, type IChatQuestion, type IChatQuestionAnswerValue, type IChatQuestionAnswers, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSemanticDiffData, type IChatSemanticDiffResultData, type IChatSessionTargetData, type IChatSubagentToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
 import { isTerminalCommandPrompt, type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { type IQuotaSnapshot, type IRateLimitSnapshot } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -2103,6 +2105,19 @@ function buildImageGenerationInputData(tc: ToolCallState): IChatToolInputInvocat
 	};
 }
 
+function isSemanticDiffServerToolCall(tc: ToolCallState, connectionAuthority: string): boolean {
+	return connectionAuthority === AMBIENT_AGENT_HOST_AUTHORITY
+		&& !tc.contributor
+		&& matchesServerToolName(tc.toolName, SemanticDiffServerToolName.ClassifyDiffHunks);
+}
+
+function buildSemanticDiffToolData(tc: ToolCallState, connectionAuthority: string): IChatSemanticDiffResultData | undefined {
+	if (tc.status !== ToolCallStatus.Completed || !tc.success || !isSemanticDiffServerToolCall(tc, connectionAuthority)) {
+		return undefined;
+	}
+	return { kind: 'semanticDiff', state: 'complete', result: parseSemanticDiffToolInput(getInlineToolInput(tc.toolInput)) };
+}
+
 function buildAutomationConfiguredToolData(tc: ToolCallState): IChatAutomationConfiguredData | undefined {
 	if (tc.status !== ToolCallStatus.Completed || !tc.success || tc.toolName !== ConfigureAutomationToolReferenceName) {
 		return undefined;
@@ -2229,7 +2244,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 		};
 	}
 
-	let toolSpecificData: IChatTerminalToolInvocationData | IChatSearchToolInvocationData | IChatToolInputInvocationData | IChatSessionTargetData | IChatGeneratedImageData | IChatAutomationConfiguredData | undefined;
+	let toolSpecificData: IChatTerminalToolInvocationData | IChatSearchToolInvocationData | IChatToolInputInvocationData | IChatSessionTargetData | IChatGeneratedImageData | IChatAutomationConfiguredData | IChatSemanticDiffData | undefined;
 	if (isTerminal) {
 		toolSpecificData = {
 			...buildTerminalToolSpecificData(tc, sessionResource),
@@ -2238,7 +2253,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 	} else if (getToolKind(tc) === 'search') {
 		toolSpecificData = { kind: 'search' };
 	} else {
-		toolSpecificData = buildSessionTargetToolData(tc) ?? buildGeneratedImageToolData(tc) ?? buildAutomationConfiguredToolData(tc) ?? buildImageGenerationInputData(tc);
+		toolSpecificData = buildSessionTargetToolData(tc) ?? buildGeneratedImageToolData(tc) ?? buildAutomationConfiguredToolData(tc) ?? buildImageGenerationInputData(tc) ?? buildSemanticDiffToolData(tc, connectionAuthority);
 		if (!toolSpecificData) {
 			toolSpecificData = buildMcpAppToolInputData(tc, connectionAuthority);
 		}
@@ -2792,7 +2807,9 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 		invocation.invocationMessage = addCommentReference(tc, resourceUris) ?? invocation.invocationMessage;
 	}
 
-	if (isTerminalToolCall(tc)) {
+	if (isSemanticDiffServerToolCall(tc, connectionAuthority)) {
+		invocation.toolSpecificData = { kind: 'semanticDiff', state: 'pending' };
+	} else if (isTerminalToolCall(tc)) {
 		// Set terminal toolSpecificData eagerly so the renderer shows a
 		// terminal pill (expandable command + output area) from the start,
 		// instead of falling back to the generic tool widget that only
@@ -3185,7 +3202,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 	}
 
 	if (isCompleted || isCancelled) {
-		const resultToolSpecificData = buildSessionTargetToolData(tc) ?? buildGeneratedImageToolData(tc) ?? buildAutomationConfiguredToolData(tc) ?? buildImageGenerationInputData(tc);
+		const resultToolSpecificData = buildSessionTargetToolData(tc) ?? buildGeneratedImageToolData(tc) ?? buildAutomationConfiguredToolData(tc) ?? buildImageGenerationInputData(tc) ?? (isCompleted ? buildSemanticDiffToolData(tc, connectionAuthority) : undefined);
 		if (resultToolSpecificData) {
 			// The tool required confirmation, so it was created with
 			// `HiddenAfterComplete`; clear it so the result pill stays visible.
@@ -3193,6 +3210,10 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 			invocation.toolSpecificData = resultToolSpecificData;
 			invocation.notifyToolSpecificDataChanged();
 		}
+	}
+	if ((isCancelled || (isCompleted && !tc.success)) && invocation.toolSpecificData?.kind === 'semanticDiff') {
+		invocation.toolSpecificData = undefined;
+		invocation.notifyToolSpecificDataChanged();
 	}
 
 	if (isCompleted) {
@@ -3236,6 +3257,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 	const resultDetails = !isTerminal
 		&& invocation.toolSpecificData?.kind !== 'subagent'
 		&& invocation.toolSpecificData?.kind !== 'sessionCreated'
+		&& invocation.toolSpecificData?.kind !== 'semanticDiff'
 		&& getToolKind(tc) !== 'search'
 		&& fileEdits.length === 0
 		? getToolInputOutputDetails(tc, isFailure, errorString, hasMcpAppData, connectionAuthority)

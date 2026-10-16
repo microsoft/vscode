@@ -124,7 +124,7 @@ import { ChatSubagentContentPart } from './chatContentParts/chatSubagentContentP
 import { ChatTreeContentPart, TreePool } from './chatContentParts/chatTreeContentPart.js';
 import { ChatWorkspaceEditContentPart } from './chatContentParts/chatWorkspaceEditContentPart.js';
 import { ChatExternalEditContentPart } from './chatContentParts/chatExternalEditContentPart.js';
-import { ChatToolInvocationPart } from './chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
+import { ChatToolInvocationPart, shouldRenderSemanticDiffResult } from './chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
 import { ChatImageGenerationBatchPart, getImageGenerationBatch } from './chatContentParts/chatImageGenerationBatchPart.js';
 import { ChatMarkdownDecorationsRenderer } from './chatContentParts/chatMarkdownDecorationsRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
@@ -294,7 +294,7 @@ export function getFinalResponseStartIndex(content: ReadonlyArray<IChatRendererC
 
 function isSessionCreatedOutcomeTool(part: IChatRendererContent): boolean {
 	return (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized')
-		&& part.toolSpecificData?.kind === 'sessionCreated';
+		&& (part.toolSpecificData?.kind === 'sessionCreated' || shouldRenderSemanticDiffResult(part));
 }
 
 function getSessionCreatedOutcomeLink(part: IChatRendererContent): string | undefined {
@@ -469,7 +469,7 @@ export function formatResponseTokenStats(modelTotals: readonly IChatUsageModelTo
 
 export function shouldCollapseCompletedResponsePart(part: IChatRendererContent): boolean {
 	return (part.kind !== 'toolInvocation' && part.kind !== 'toolInvocationSerialized')
-		|| (!isImageGenerationToolInvocation(part) && !toolInvocationHasMcpAppData(part) && !(isParentSubagentTool(part) && isActiveSubagentToolInvocation(part)));
+		|| (!isImageGenerationToolInvocation(part) && !toolInvocationHasMcpAppData(part) && !shouldRenderSemanticDiffResult(part) && !(isParentSubagentTool(part) && isActiveSubagentToolInvocation(part)));
 }
 
 /** Parts the renderer adds after a response's own content, which stay visible below its folded steps. */
@@ -4215,6 +4215,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return false;
 		}
 
+		// Keep classification results outside thinking even before their structured data arrives.
+		if ((part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized')
+			&& part.toolSpecificData?.kind === 'semanticDiff') {
+			return false;
+		}
+
 		// only pin terminal tools based on settings
 		const isTerminalTool = (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.toolSpecificData?.kind === 'terminal';
 		const isContributedTerminalToolInvocation = element
@@ -5095,7 +5101,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		};
 
 		const currentState = toolInvocation.state.get();
-		if (toolInvocationHasMcpAppData(toolInvocation)) {
+		if (toolInvocationHasMcpAppData(toolInvocation) || shouldRenderSemanticDiffResult(toolInvocation)) {
 			moveConfirmationWidgetOutOfThinking();
 			return;
 		}
@@ -5119,7 +5125,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const disposable = autorun(reader => {
 			const state = toolInvocation.state.read(reader);
 			toolInvocation.toolSpecificDataKind.read(reader);
-			if (toolInvocationHasMcpAppData(toolInvocation)) {
+			if (toolInvocationHasMcpAppData(toolInvocation) || shouldRenderSemanticDiffResult(toolInvocation)) {
 				if (didMoveToolOut) {
 					return;
 				}

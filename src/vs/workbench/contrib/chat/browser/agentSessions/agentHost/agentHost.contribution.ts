@@ -35,6 +35,7 @@ import { CopilotConfigSlashSubmitHandlerContribution } from './copilotConfigSlas
 import { primeLegacyMigrationStartupSnapshot } from './agentHostLegacyMigration.js';
 import './agentHostSettings.contribution.js';
 import './agentSessionSettings.contribution.js';
+import './semanticDiffActions.js';
 
 /**
  * Freezes the legacy-migration setting at startup so enabling it only takes effect

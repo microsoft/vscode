@@ -31,6 +31,8 @@ import { ConfirmationOptionKind, McpServerStatus, ToolCallCancellationReason, To
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { SemanticDiffServerToolName } from '../../../../../../platform/agentHost/common/serverToolNames.js';
+import { createSemanticDiffExample } from '../../../../../../platform/agentHost/test/common/semanticDiffFixtures.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
@@ -381,14 +383,22 @@ suite('ChatListRenderer', () => {
 				const firstStep = { kind: 'markdownContent', content: new MarkdownString('First step') } as const;
 				const finalResponse = { kind: 'markdownContent', content: new MarkdownString('Final response') } as const;
 				const trailingAdjunct = { kind: 'references', references: [] } as const;
+				const semanticDiff: IChatToolInvocationSerialized = {
+					...tool,
+					toolId: SemanticDiffServerToolName.ClassifyDiffHunks,
+					toolCallId: 'classification',
+					toolSpecificData: { kind: 'semanticDiff', state: 'complete', result: { ok: true, report: createSemanticDiffExample() } },
+				};
 
-				const content = [firstStep, tool, generatedImage, finalResponse, trailingAdjunct];
+				const content = [firstStep, tool, generatedImage, semanticDiff, finalResponse, trailingAdjunct];
 				assert.deepStrictEqual({
 					content: moveResponseOutcomeToolsAfterFinalResponse(content),
 					finalResponseStartIndex: getFinalResponseStartIndexAfterMovingResponseOutcomeTools(content),
+					classificationCollapses: shouldCollapseCompletedResponsePart(semanticDiff),
 				}, {
-					content: [firstStep, generatedImage, finalResponse, tool, trailingAdjunct],
+					content: [firstStep, generatedImage, finalResponse, tool, semanticDiff, trailingAdjunct],
 					finalResponseStartIndex: 2,
+					classificationCollapses: false,
 				});
 			});
 
@@ -11306,6 +11316,107 @@ suite('ChatListRenderer', () => {
 
 		disposables.dispose();
 	});
+
+	for (const incremental of [false, true]) {
+		test(`keeps semantic classifications visible during streaming and after response completion (incremental=${incremental})`, async () => {
+			const { disposables, model, request, template, configurationService, render } = createBackgroundSubagentRenderer();
+			configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incremental);
+			const invocation = new ChatToolInvocation(
+				{ invocationMessage: 'Classifying hunks', pastTenseMessage: 'Classified hunks', toolSpecificData: { kind: 'semanticDiff', state: 'pending' } },
+				{ id: SemanticDiffServerToolName.ClassifyDiffHunks, displayName: 'Classify hunks', modelDescription: 'Classify hunks', source: ToolDataSource.Internal },
+				'classification', undefined, {},
+			);
+			model.acceptResponseProgress(request, { kind: 'thinking', value: 'Inspecting source', id: 'before' });
+			model.acceptResponseProgress(request, invocation);
+			render();
+			const initiallyPinned = invocation.isAttachedToThinking;
+			const toolIconState = (row: HTMLElement | null | undefined) => ({
+				gutter: row?.classList.contains('chat-tool-call-with-icon'),
+				iconDisplay: row?.querySelector<HTMLElement>(':scope > .chat-tool-call-icon')?.style.display,
+			});
+			const toolIconWhileRunning = toolIconState(template.value.querySelector<HTMLElement>('.chat-tool-invocation-part'));
+			await invocation.didExecuteTool({
+				content: [],
+				toolSpecificData: { kind: 'semanticDiff', state: 'complete', result: { ok: true, report: createSemanticDiffExample() } },
+			});
+			render();
+			const initialCards = template.value.querySelector<HTMLElement>('.chat-semantic-diff');
+			assert.ok(initialCards);
+			const duringResponse = {
+				complete: request.response?.isComplete,
+				pinned: invocation.isAttachedToThinking,
+				cards: initialCards.querySelectorAll('.semantic-diff-card').length,
+			};
+			model.acceptResponseProgress(request, { kind: 'thinking', value: 'Summarizing findings', id: 'after' });
+			render();
+			const retainedDuringStreaming = template.value.querySelector('.chat-semantic-diff') === initialCards;
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Classification is ready.') });
+			request.response?.complete();
+			render();
+			await timeout(150);
+			render();
+			const finalCards = template.value.querySelector<HTMLElement>('.chat-semantic-diff');
+			assert.ok(finalCards);
+			assert.deepStrictEqual({
+				initiallyPinned,
+				toolIconWhileRunning,
+				toolIconWithCards: toolIconState(finalCards.closest<HTMLElement>('.chat-tool-invocation-part')),
+				duringResponse,
+				retainedDuringStreaming,
+				finalCardCount: template.value.querySelectorAll('.semantic-diff-card').length,
+				inCompletedWork: template.completedResponseDisclosure?.contains(finalCards) ?? false,
+				inThinking: !!finalCards.closest('.chat-thinking-tool-wrapper'),
+			}, {
+				initiallyPinned: false,
+				toolIconWhileRunning: { gutter: true, iconDisplay: '' },
+				toolIconWithCards: { gutter: false, iconDisplay: 'none' },
+				duringResponse: { complete: false, pinned: false, cards: 3 },
+				retainedDuringStreaming: true,
+				finalCardCount: 3,
+				inCompletedWork: false,
+				inThinking: false,
+			});
+			disposables.dispose();
+		});
+	}
+
+	for (const materialized of [false, true]) {
+		test(`lifts late semantic classification data from thinking and restores it visibly from history (materialized=${materialized})`, async () => {
+			const { disposables, model, request, template, render } = createBackgroundSubagentRenderer();
+			const invocation = new ChatToolInvocation(
+				{ invocationMessage: 'Classifying hunks', pastTenseMessage: 'Classified hunks' },
+				{ id: 'provider-classification-alias', displayName: 'Classify hunks', modelDescription: 'Classify hunks', source: ToolDataSource.Internal },
+				'classification', undefined, {},
+			);
+			model.acceptResponseProgress(request, invocation);
+			render();
+			if (materialized) {
+				template.renderedParts?.find(part => part instanceof ChatThinkingContentPart)?.expandContent();
+			}
+			await invocation.didExecuteTool(undefined);
+			invocation.toolSpecificData = { kind: 'semanticDiff', state: 'complete', result: { ok: true, report: createSemanticDiffExample() } };
+			invocation.notifyToolSpecificDataChanged();
+			render();
+			const cards = template.value.querySelector<HTMLElement>('.chat-semantic-diff');
+			assert.ok(cards);
+			const restored = createBackgroundSubagentRenderer();
+			restored.model.acceptResponseProgress(restored.request, invocation.toJSON());
+			restored.request.response?.complete();
+			restored.render();
+			const restoredCards = restored.template.value.querySelector<HTMLElement>('.chat-semantic-diff');
+			assert.ok(restoredCards);
+			assert.deepStrictEqual({
+				cards: cards.querySelectorAll('.semantic-diff-card').length,
+				pinned: invocation.isAttachedToThinking,
+				inThinking: !!cards.closest('.chat-thinking-tool-wrapper'),
+				restoredCards: restoredCards.querySelectorAll('.semantic-diff-card').length,
+				restoredInThinking: !!restoredCards.closest('.chat-thinking-tool-wrapper'),
+				restoredInCompletedWork: restored.template.completedResponseDisclosure?.contains(restoredCards) ?? false,
+			}, { cards: 3, pinned: false, inThinking: false, restoredCards: 3, restoredInThinking: false, restoredInCompletedWork: false });
+			restored.disposables.dispose();
+			disposables.dispose();
+		});
+	}
 
 	test('completed response disclosure announces user toggles so the list can anchor its summary', async () => {
 		const disposables = store.add(new DisposableStore());
