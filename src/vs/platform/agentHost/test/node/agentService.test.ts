@@ -111,7 +111,7 @@ import { createTestAgentHostWorktreeIsolation, createTestAgentService, getTestAg
 import { parseSessionArtifacts, readSessionArtifacts, SESSION_META_ARTIFACTS_KEY, SessionArtifactType, withSessionArtifacts } from '../../common/sessionArtifacts.js';
 import { creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { deriveLegacyDefaultChat } from '../../common/agentHostLegacyDefaultChat.js';
-import { editChatListAsOldBuild } from './sessionStateCompatibilityFixtures.js';
+import { editChatListAsOldBuild, editChatStateAsOldBuild } from './sessionStateCompatibilityFixtures.js';
 
 /**
  * Replace individual operations on an agent's chat surface, delegating every
@@ -32018,6 +32018,90 @@ suite('AgentService (node dispatcher)', () => {
 				catalog: [{ chat: buildDefaultChatUri(first), archived: false }, { chat: kept.toString(), archived: true }],
 			});
 		});
+
+		for (const build of ['1.140', '1.141'] as const) {
+			for (const imported of ['loaded', 'unloaded'] as const) {
+				test(`${build} archiving one peer and renaming another, imported while the session is ${imported}: both stick, and its open rewrite unarchives and unreads nothing`, async () => {
+					class MultiChatAgent extends MockAgent {
+						override async createChat(): Promise<IAgentCreateChatResult> {
+							return { providerData: 'peer-backing' };
+						}
+					}
+					const database = disposables.add(new AgentHostDatabase(':memory:'));
+					const sessionData = createPerSessionDataService().service;
+					const residency = createResidencyTestService(1, 30_000, true, new MultiChatAgent('copilot'), sessionData, database);
+					const svc = residency.service;
+					const session = await createUsedSession(svc, residency.agent);
+					const archived = URI.parse(buildChatUri(session, 'archived-by-old-build'));
+					const renamed = URI.parse(buildChatUri(session, 'renamed-by-old-build'));
+					const alreadyArchived = URI.parse(buildChatUri(session, 'already-archived'));
+					const unread = URI.parse(buildChatUri(session, 'unread'));
+					for (const [chat, title] of [[archived, 'To archive'], [renamed, 'Before'], [alreadyArchived, 'Archived here'], [unread, 'Unread here']] as const) {
+						await svc.createChat(session, chat, { title });
+					}
+					const peerStore = (svc as unknown as { readonly _peerChatStore: AgentHostPeerChatStore })._peerChatStore;
+					// As the UI does: the protocol actions, which their contributions persist.
+					getStateManager(svc).dispatchServerAction(alreadyArchived.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: true });
+					getStateManager(svc).dispatchServerAction(unread.toString(), { type: ActionType.ChatIsReadChanged, isRead: false });
+					await peerStore.whenIdle();
+					await svc.whenCatalogReconciliationIdle();
+					await peerStore.flushCompatibilityPublishes(undefined, undefined);
+					if (imported === 'unloaded') {
+						await createUsedSession(svc, residency.agent);
+						await waitForResidency(() => !getStateManager(svc).getSessionState(session.toString()), 'session was not evicted');
+					}
+
+					// Downgraded: the old build opens the session (1.140 rewrites every peer without archived and read state and
+					// writes the session title as the default chat's; 1.141 drops archived flags), then archives one peer and renames another.
+					const fixture = { session: session.toString() };
+					await editChatListAsOldBuild(sessionData, database, fixture, 'centralCatalog', peers => peers.map(({ archived: _archived, isRead, ...rest }) => build === '1.140' ? rest : { ...rest, ...(isRead !== undefined ? { isRead } : {}) }));
+					if (build === '1.140') {
+						const sessionDb = sessionData.openDatabase(session);
+						await sessionDb.object.setMetadataValues({ [`customChatTitle:${buildDefaultChatUri(session)}`]: 'Session title', [`customChatTitleSource:${buildDefaultChatUri(session)}`]: 'user' });
+						sessionDb.dispose();
+					}
+					await editChatListAsOldBuild(sessionData, database, fixture, 'centralCatalog', peers => peers.map(peer => peer.uri === archived.toString() ? { ...peer, archived: true } : peer));
+					await editChatStateAsOldBuild(sessionData, fixture, renamed.toString(), { title: `Renamed by ${build}` });
+
+					if (imported === 'unloaded') {
+						await svc.restoreSession(session);
+					} else {
+						await (svc as unknown as { readonly _catalogReconciliationService: { runPass(): Promise<IAgentHostCatalogReconciliationReport> } })._catalogReconciliationService.runPass();
+					}
+					await svc.whenCatalogReconciliationIdle();
+					await peerStore.flushCompatibilityPublishes(undefined, undefined);
+					await timeout(0);
+
+					const states = async () => {
+						const [snapshot] = await database.readCatalogSnapshot([session.toString()]);
+						const live = getStateManager(svc).getSessionState(session.toString())?.chats ?? [];
+						return [archived, renamed, alreadyArchived, unread].map(chat => {
+							const row = snapshot.chats.find(candidate => candidate.chat === chat.toString());
+							const summary = live.find(candidate => candidate.resource === chat.toString());
+							return {
+								stored: { archived: row?.archived, read: row?.isRead !== false, title: row?.metadata?.summary },
+								live: { archived: isSessionStatusArchived(summary?.status), read: isSessionStatusRead(summary?.status), title: summary?.title },
+							};
+						});
+					};
+					const both = (archivedState: boolean, read: boolean, title: string) => ({ stored: { archived: archivedState, read, title }, live: { archived: archivedState, read, title } });
+					// What the old build reads back after the round trip: the projection and the copy 4a republished.
+					const sqlite = await (database as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+					const rows = await new Promise<Record<string, unknown>[]>((resolve, reject) => sqlite.all('SELECT chat_uri, archived FROM session_chats WHERE session_uri = ? ORDER BY chat_order', [session.toString()], (error, result) => error ? reject(error) : resolve(result)));
+					const peerChats = JSON.parse((await sessionData.openDatabase(session).object.getMetadata(PEER_CHATS_METADATA_KEY)) ?? '[]') as IPersistedPeerChat[];
+					assert.deepStrictEqual({
+						sessionChats: rows.filter(row => row.archived === 1).map(row => row.chat_uri),
+						peerChats: peerChats.filter(peer => peer.archived).map(peer => peer.uri),
+					}, { sessionChats: [archived.toString(), alreadyArchived.toString()], peerChats: [archived.toString(), alreadyArchived.toString()] });
+					assert.deepStrictEqual(await states(), [
+						both(true, true, 'To archive'),
+						both(false, true, `Renamed by ${build}`),
+						both(true, true, 'Archived here'),
+						both(false, false, 'Unread here'),
+					]);
+				});
+			}
+		}
 
 		test('deleting an evicted session disposes every persisted peer chat', async () => {
 			class MultiChatAgent extends MockAgent {
