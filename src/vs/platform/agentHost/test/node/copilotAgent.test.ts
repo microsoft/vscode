@@ -8384,7 +8384,12 @@ suite('CopilotAgent', () => {
 						const context = exactChatContext(session, chats[0], resources[0]);
 						await agent.chats.getMessages(chats[0], context);
 						const mainMark = fixture.discoveryMark();
+						const customizationsPublished = Event.toPromise(Event.filter(agent.onDidChatProgress, signal =>
+							signal.kind === 'action' && isEqual(signal.resource, session) && signal.action.type === ActionType.SessionCustomizationsChanged
+						), disposables.add(new DisposableStore()));
 						await agent.setChatWorkingDirectory(chats[0], context, next);
+						// Wait for automatic publication before a restart can cancel the move's discovery.
+						await customizationsPublished;
 						const resumeStart = fixture.resumed.length;
 						if (resume === 'cold restart' || resume === 'peer-first cold restart') {
 							agent = await fixture.restore();
