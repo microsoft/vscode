@@ -464,6 +464,7 @@
 	}
 
 	.gutterItem {
+		position: absolute;
 		opacity: 0;
 		transition: opacity 0.7s;
 
@@ -493,7 +494,6 @@
 		}
 
 		.buttons {
-			position: absolute;
 			/*height: 100%;*/
 			width: 100%;
 
