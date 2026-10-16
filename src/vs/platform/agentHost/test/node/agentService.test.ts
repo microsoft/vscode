@@ -76,7 +76,7 @@ import { AgentSystemNotificationWorkspaceKind, serializeAgentWorkspaceTransition
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
 import { toListedSessionSummary } from '../../node/protocolServerHandler.js';
-import { mintPeerChatUri } from '../../common/agentHostChatMinting.js';
+import { mintPeerChatUri, subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { AgentHostDatabase, AgentHostDatabaseSessionChatCatalogReplaceResult, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionChat, IAgentHostDatabaseSessionChatCatalog, IAgentHostDatabaseSessionListCatalog, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionsV2ExclusionExpectation, IAgentHostDatabaseSessionOptions, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope, IAgentHostDatabaseSessionV2Receipt } from '../../node/agentHostDatabase.js';
 import { CHAT_INHERITED_TURN_METADATA_KEY, CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, type IPersistedPeerChat } from '../../node/agentHostPeerChatStore.js';
@@ -2363,13 +2363,13 @@ suite('AgentService (node dispatcher)', () => {
 			const previousSession = URI.parse('copilot:/other');
 
 			assert.deepStrictEqual({
-				previousSessionStorage: resolveAgentChatContext({ sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: previousSession, subagentChatUriFormat: 'shaped' as const }, chat).resource.toString(),
+				previousSessionStorage: resolveAgentChatContext({ sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: previousSession }, chat).resource.toString(),
 			}, {
 				previousSessionStorage: previousSession.toString(),
 			});
 			assert.deepStrictEqual({
-				configurationScoped: resolveAgentChatContext({ sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session, subagentChatUriFormat: 'shaped' as const }, chat).resource.toString(),
-				chatScoped: resolveAgentChatContext({ sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: chat, subagentChatUriFormat: 'shaped' as const }, chat).resource.toString(),
+				configurationScoped: resolveAgentChatContext({ sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session }, chat).resource.toString(),
+				chatScoped: resolveAgentChatContext({ sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: chat }, chat).resource.toString(),
 			}, {
 				configurationScoped: session.toString(),
 				chatScoped: chat.toString(),
@@ -2381,7 +2381,7 @@ suite('AgentService (node dispatcher)', () => {
 			const chat = URI.parse(buildChatUri(session, 'peer'));
 			const otherChat = URI.parse(buildChatUri(session, 'other'));
 
-			assert.throws(() => resolveAgentChatContext({ sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: otherChat, subagentChatUriFormat: 'shaped' as const }, chat), /must be the addressed chat or a session/);
+			assert.throws(() => resolveAgentChatContext({ sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: otherChat }, chat), /must be the addressed chat or a session/);
 		});
 	});
 
@@ -28394,12 +28394,15 @@ suite('AgentService (node dispatcher)', () => {
 		class BridgingSubagentAgent extends MockAgent {
 			private readonly _onDidSpawnChat = new Emitter<IAgentSpawnChatEvent>();
 			override readonly onDidSpawnChat = this._onDidSpawnChat.event;
+			readonly spawnedChats: string[] = [];
 			private readonly _bridge = this.onDidChatProgress(signal => {
 				const e = SubagentChatSignal.toSpawnEvent(signal, chat => {
-					const owner = getStateManager(service).getChatOwner(chat);
-					return owner === undefined ? undefined : { owner, format: 'shaped' };
+					const context = this.chatContexts.find(entry => entry.boundary === 'createChat' && isEqual(entry.chat, URI.parse(chat)))?.context;
+					assert.ok(context && !URI.isUri(context));
+					return { owner: context.owner.get().toString(), format: context.owner.getSubagentChatUriFormat() };
 				});
 				if (e) {
+					this.spawnedChats.push(e.chat.toString());
 					this._onDidSpawnChat.fire(e);
 				}
 			});
@@ -28409,6 +28412,53 @@ suite('AgentService (node dispatcher)', () => {
 				this._onDidSpawnChat.dispose();
 				super.dispose();
 			}
+		}
+
+		for (const legacyChatUris of [false, true]) {
+			test(`new sessions keep one child per spawn edge with a pre-registration provider context (legacy=${legacyChatUris})`, async () => {
+				const agent = disposables.add(new BridgingSubagentAgent('copilot'));
+				const manager = getStateManager(service);
+				const defaultsAtCreation: (string | undefined)[] = [];
+				const createChat = agent.chats.createChat;
+				const createStub = stub(agent.chats, 'createChat').callsFake((chat, context, options) => {
+					defaultsAtCreation.push(manager.getDefaultChat(resolveAgentChatContext(context, chat).owner.get().toString()));
+					return createChat(chat, context, options);
+				});
+				disposables.add(toDisposable(() => createStub.restore()));
+				registerTestAgentProvider(service, agent);
+				const session = await service.createSession({ legacyChatUris, provider: 'copilot' });
+				const parent = startParentTurn(session, 'turn-new');
+				const context = agent.chatContexts.find(entry => entry.boundary === 'createChat')?.context;
+				assert.ok(context && !URI.isUri(context));
+
+				for (const toolCallId of ['task-1', 'task-2']) {
+					agent.fireProgress({
+						kind: 'subagent_started', chat: URI.parse(parent), toolCallId,
+						agentName: 'explore', agentDisplayName: 'Explore',
+					});
+				}
+
+				const format = legacyChatUris ? 'shaped' : 'opaque';
+				const expectedChildren = ['task-1', 'task-2'].map(toolCallId => ({
+					toolCallId,
+					resource: subagentChatUri(format, session.toString(), parent, toolCallId),
+					started: true,
+				}));
+				assert.deepStrictEqual({
+					defaultsAtCreation,
+					providerFormat: context.owner.getSubagentChatUriFormat(),
+					mirrors: agent.spawnedChats,
+					children: manager.getSessionState(session.toString())?.chats.flatMap(chat =>
+						chat.origin?.kind === ChatOriginKind.Tool && chat.origin.chat === parent
+							? [{ toolCallId: chat.origin.toolCallId, resource: chat.resource, started: manager.getActiveTurnId(chat.resource) !== undefined }]
+							: []),
+				}, {
+					defaultsAtCreation: [undefined],
+					providerFormat: format,
+					mirrors: expectedChildren.map(child => child.resource),
+					children: expectedChildren,
+				});
+			});
 		}
 
 		test('a subagent_started signal yields exactly one catalog entry with the parent origin, title, and a started turn', async () => {

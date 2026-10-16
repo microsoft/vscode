@@ -694,7 +694,7 @@ export interface IAgentChatOwnerChange {
 export interface IAgentChatOwnerRef {
 	/** The session that owns the chat now. */
 	get(): URI;
-	/** The format new subagent chats of the current owner use. */
+	/** The current owner's subagent chat format, read at use because this reference can predate default-chat registration. */
 	getSubagentChatUriFormat(): ChatUriFormat;
 	/** Fires after the chat's owner changed. */
 	readonly onDidChange: Event<IAgentChatOwnerChange>;
@@ -735,12 +735,6 @@ export interface IAgentChatContext {
 	 * sessions and chats with no recorded launch directory.
 	 */
 	readonly launchWorkingDirectories: readonly URI[] | undefined;
-	/**
-	 * How subagent chats spawned from this chat are addressed, computed once by
-	 * the host from the owning session's recorded default chat so providers
-	 * never inspect chat URIs themselves.
-	 */
-	readonly subagentChatUriFormat: ChatUriFormat;
 	readonly clientTelemetryContext?: IAgentHostClientTelemetryContext;
 	/** The owning turn's immutable admission snapshot, supplied only for its send. */
 	readonly turnTelemetryContext?: IAgentProviderTurnTelemetryContext;
@@ -789,7 +783,7 @@ export function resolveAgentChatContext(sessionOrContext: AgentChatOperationCont
 	// A bare session URI is the legacy, session-only form (tests and providers' own legacy paths): its owner is that
 	// session. The host always supplies a full context with a live owner.
 	const context = URI.isUri(sessionOrContext)
-		? { owner: fixedChatOwnerRef(sessionOrContext), resource, subagentChatUriFormat: 'shaped' as const, sessionSettings: undefined, launchWorkingDirectories: undefined }
+		? { owner: fixedChatOwnerRef(sessionOrContext), resource, sessionSettings: undefined, launchWorkingDirectories: undefined }
 		: sessionOrContext;
 	// A chat stores under its own resource or in a session's database, which need not be its current
 	// owner's: a chat stored in its session's database keeps that storage when it changes owner. Never

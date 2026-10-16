@@ -10,7 +10,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { CLOUD_SANDBOX_AGENT_PROVIDER } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
-import { validateSessionConfigWrite } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
+import { filterSessionConfigValues, isSessionConfigWritable, validateSessionConfigWrite } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { isAutoApprovePolicyRestricted } from '../../common/agentHostConfigPolicy.js';
@@ -60,14 +60,26 @@ export function createCloudSandboxSessionConfig(configurationService: IConfigura
  * silently change, so the first turn runs with what the user picked or not at all.
  */
 export async function resolveCloudSandboxSessionConfig(connection: IAgentConnection, values: Readonly<Record<string, unknown>>, token: CancellationToken): Promise<Record<string, unknown>> {
-	const config = await raceCancellationError(connection.resolveSessionConfig({ provider: CLOUD_SANDBOX_AGENT_PROVIDER, config: { ...values } }), token);
-	for (const [key, value] of Object.entries(values)) {
+	const resolveConfig = (config: Record<string, unknown>) => raceCancellationError(connection.resolveSessionConfig({ provider: CLOUD_SANDBOX_AGENT_PROVIDER, config }), token);
+	let requestedConfig = { ...values };
+	let config = await resolveConfig(requestedConfig);
+	const imageGeneration = config.schema.properties.imageGeneration;
+
+	// Match local Copilot's native image-generation opt-in only when the host advertises it.
+	if (!Object.hasOwn(requestedConfig, 'imageGeneration') && imageGeneration?.type === 'boolean'
+		&& isSessionConfigWritable(imageGeneration, true)
+		&& filterSessionConfigValues(config.schema, { imageGeneration: true }).imageGeneration === true) {
+		requestedConfig = { ...requestedConfig, imageGeneration: true };
+		config = await resolveConfig(requestedConfig);
+	}
+
+	for (const [key, value] of Object.entries(requestedConfig)) {
 		validateSessionConfigWrite(config.schema, config.values, key, value, true);
 		if (config.values[key] !== value) {
 			throw new Error(localize('cloudSandbox.configNotApplied', "The sandbox could not apply the selected {0}. Your prompt was not sent.", key));
 		}
 	}
-	return { ...values };
+	return requestedConfig;
 }
 
 function cloudSandboxConfigIcon(key: string, value: string): ThemeIcon {

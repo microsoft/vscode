@@ -100,18 +100,19 @@ suite('Sessions - Layout Actions', () => {
 		});
 	});
 
-	test('hides the session toolbar from its context menu and toggles it from the chat background context menus', () => {
+	test('hides the session toolbar from its context menu and toggles it only from the chat transcript background menu', () => {
 		const find = (menu: MenuId) => MenuRegistry.getMenuItems(menu).filter(isIMenuItem).find(item => item.command.id === TOGGLE_SESSION_TOOLBAR_COMMAND_ID);
 		const describe = (item: ReturnType<typeof find>) => ({ title: item?.command.title, toggled: item?.command.toggled, group: item?.group, when: item?.when?.serialize() });
 
 		assert.deepStrictEqual({
 			toolbar: describe(find(Menus.SessionToolbarContext)),
 			chat: describe(find(MenuId.ChatContext)),
-			newSession: describe(find(Menus.SessionChatBackgroundContext)),
+			// The toolbar is not shown in the new-session view, so its background menu does not offer the toggle.
+			inNewSessionMenu: !!find(Menus.SessionChatBackgroundContext),
 		}, {
 			toolbar: { title: 'Hide Session Toolbar', toggled: undefined, group: 'navigation', when: undefined },
 			chat: { title: 'Session Toolbar', toggled: ContextKeyExpr.equals(`config.${SESSION_TOOLBAR_SETTING}`, true), group: 'zz_view', when: 'agentSessionsDesktopLayout && chatContextMenuIsBackground && isSessionsWindow && !sessionsIsPhoneLayout' },
-			newSession: { title: 'Session Toolbar', toggled: ContextKeyExpr.equals(`config.${SESSION_TOOLBAR_SETTING}`, true), group: 'zz_view', when: 'agentSessionsDesktopLayout && isSessionsWindow && !sessionsIsPhoneLayout' },
+			inNewSessionMenu: false,
 		});
 	});
 
