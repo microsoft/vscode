@@ -562,11 +562,11 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		const tabsHeight = this._compositeBar.visible ? this._compositeBar.height : 0;
 		const bannerHeight = this._readOnlyBanner.visible ? this._readOnlyBanner.domNode.offsetHeight : 0;
 		const barHeight = headerHeight + tabsHeight + bannerHeight;
-		const contentRightInset = this._hostsSessionToolbar ? this._sessionToolbar.reservedWidth.get() : 0;
+		const contentInset = this._hostsSessionToolbar ? this._sessionToolbar.reservedWidth.get() : 0;
 		size(this._barContainer, width, barHeight);
 		size(this._contentContainer, width, height - barHeight);
 		this._sessionToolbar.layout(barHeight, height - barHeight);
-		this._currentView.value?.layout(width, height - barHeight, top + barHeight, left, contentRightInset);
+		this._currentView.value?.layout(width, height - barHeight, top + barHeight, left, contentInset);
 	}
 
 	/** Sets the index this group serializes as, so the grid deserializer can map nodes back to groups. */

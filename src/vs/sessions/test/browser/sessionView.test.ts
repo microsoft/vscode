@@ -674,8 +674,8 @@ suite('Sessions - Session View', () => {
 
 		assert.deepStrictEqual({ draft, created, inactiveSession }, {
 			draft: { standalone: false, group: false, chatLayout: { width: 1000, contentInset: '0px', headerWidth: '1000px' } },
-			created: { standalone: false, group: true, chatLayout: { width: 1000, contentInset: '38px', headerWidth: '1000px' } },
-			inactiveSession: { standalone: false, group: false, chatLayout: { width: 1000, contentInset: '38px', headerWidth: '1000px' } },
+			created: { standalone: false, group: true, chatLayout: { width: 1000, contentInset: '30px', headerWidth: '1000px' } },
+			inactiveSession: { standalone: false, group: false, chatLayout: { width: 1000, contentInset: '30px', headerWidth: '1000px' } },
 		});
 	});
 
