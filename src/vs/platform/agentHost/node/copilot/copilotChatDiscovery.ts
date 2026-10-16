@@ -19,6 +19,8 @@ export interface ICopilotChatDiscoveryScan {
 	prepare(sessionId: string): Promise<boolean>;
 	/** Recheck unwatched candidates before publication or retirement. */
 	validate(sessionId: string): Promise<boolean>;
+	/** Keep a candidate observable without polling the SDK until its metadata files change. */
+	waitForChange(sessionId: string): void;
 	describe(sessionId: string): string;
 }
 
@@ -26,11 +28,15 @@ interface ICandidateSnapshot {
 	readonly candidate: CopilotSessionDiscoveryCandidate;
 	revision: number;
 	readonly reason: CopilotDiscoveryReason;
+	/** Readiness fingerprint before the SDK listing was requested. */
+	readonly fingerprint: string | undefined;
 }
 
 /** Coordinates bounded readiness watching and serialized, event-driven SDK catalog scans. */
 export class CopilotChatDiscovery extends Disposable {
 	private static readonly refreshDelay = 500;
+	private static readonly fastScanInterval = 5_000;
+	private static readonly minimumScanInterval = 60_000;
 	private static readonly candidateLimit = 32;
 	private readonly _directories: CopilotSessionDirectoryWatcher;
 	private readonly _candidates = this._register(new DisposableMap<string, CopilotSessionDiscoveryCandidate>());
@@ -48,7 +54,8 @@ export class CopilotChatDiscovery extends Disposable {
 	private _maintenanceRequested = false;
 	private _maintenanceAt = 0;
 	private _refreshAt = 0;
-	private _scanNotBefore = 0;
+	private _failureNotBefore = 0;
+	private _lastScanAt = -Infinity;
 	private _failures = 0;
 	private _scanId = 0;
 	private _creatingSessions = 0;
@@ -108,7 +115,7 @@ export class CopilotChatDiscovery extends Disposable {
 	}
 
 	private _schedule(delay = CopilotChatDiscovery.refreshDelay): void {
-		const at = Math.max(Date.now() + delay, this._scanNotBefore);
+		const at = Date.now() + delay;
 		if (this._started && !this._store.isDisposed && !this._running && this._creatingSessions === 0
 			&& (!this._refresh.isScheduled() || at < this._refreshAt)) {
 			this._refreshAt = at;
@@ -174,18 +181,24 @@ export class CopilotChatDiscovery extends Disposable {
 		this._maintenanceRequested = false;
 		try {
 			await this._updateCandidates(maintenance);
-			if (this._store.isDisposed || this._creatingSessions > 0 || Date.now() < this._scanNotBefore) {
+			const now = Date.now();
+			if (this._store.isDisposed || this._creatingSessions > 0 || now < this._failureNotBefore) {
 				return;
 			}
-			const candidates = new Map([...this._candidates]
-				.filter(([, candidate]) => this._initialScan || candidate.nextScanAt <= Date.now())
-				.map(([id, candidate]) => [id, { candidate, revision: candidate.revision, reason: candidate.reason }]));
-			if (this._initialScan || candidates.size > 0) {
-				await this._scanCandidates(candidates);
+			// Retries that are already due join any catalog scan that a fast or slow deadline triggers.
+			const due = [...this._candidates].filter(([, candidate]) => this._initialScan || candidate.nextScanAt <= now);
+			const triggered = this._initialScan
+				? now >= this._lastScanAt + CopilotChatDiscovery.fastScanInterval
+				: due.some(([, candidate]) => this._scanDueAt(candidate) <= now);
+			if (triggered) {
+				for (const [, candidate] of due) {
+					candidate.consumeFastScan();
+				}
+				await this._scanCandidates(new Map(due.map(([id, candidate]) => [id, { candidate, revision: candidate.revision, reason: candidate.reason, fingerprint: candidate.fingerprint }])));
 			}
 		} catch (error) {
 			this._logService.warn('[CopilotDiscovery] Discovery work failed', error);
-			this._scanNotBefore = Date.now() + 60_000;
+			this._failureNotBefore = Date.now() + 60_000;
 		} finally {
 			this._running = false;
 			this._scheduleNextRun();
@@ -199,6 +212,7 @@ export class CopilotChatDiscovery extends Disposable {
 			&& creationGeneration === this._creationGeneration && this._directories.isCurrent(id)
 			&& candidates.get(id)?.revision === this._candidates.get(id)?.revision;
 		const unwatchedReads = new Set<string>();
+		const waitingForChange = new Set<string>();
 		const scan: ICopilotChatDiscoveryScan = {
 			id: ++this._scanId,
 			sessionIds: this._initialScan ? undefined : new Set(candidates.keys()),
@@ -224,6 +238,7 @@ export class CopilotChatDiscovery extends Disposable {
 				}
 				return isCurrent(id);
 			},
+			waitForChange: id => waitingForChange.add(id),
 			describe: id => {
 				const snapshot = candidates.get(id);
 				return `scan=${scan.id}, reason=${snapshot?.reason ?? 'startup'}, observedMsAgo=${snapshot ? Date.now() - snapshot.candidate.observedAt : 0}`;
@@ -247,7 +262,7 @@ export class CopilotChatDiscovery extends Disposable {
 		}
 		if (completed === undefined) {
 			const retryMs = copilotDiscoveryRetryDelays[Math.min(this._failures++, copilotDiscoveryRetryDelays.length - 1)];
-			this._scanNotBefore = Date.now() + retryMs;
+			this._failureNotBefore = Date.now() + retryMs;
 			this._logService.warn(`[CopilotDiscovery] Scan ${scan.id} unavailable: elapsedMs=${elapsedMs}, retryMs=${retryMs}, failures=${this._failures}`);
 			if (this._failures >= copilotDiscoveryRetryDelays.length) {
 				this._initial.complete();
@@ -255,7 +270,8 @@ export class CopilotChatDiscovery extends Disposable {
 			return;
 		}
 		this._failures = 0;
-		this._scanNotBefore = 0;
+		this._failureNotBefore = 0;
+		this._lastScanAt = Date.now();
 		if (generation === this._directories.generation && creationGeneration === this._creationGeneration) {
 			this._initialScan = false;
 		}
@@ -264,9 +280,17 @@ export class CopilotChatDiscovery extends Disposable {
 				this._removeCandidate(id);
 			}
 		}
-		for (const [id, { candidate }] of candidates) {
+		for (const [id, { candidate, fingerprint }] of candidates) {
 			if (isCurrent(id)) {
-				candidate.retry();
+				// Watched candidates observe any write after the listing started through their revision.
+				// Unwatched ones are fingerprinted after the listing, so park them only when their files
+				// were unchanged across it; otherwise the SDK result may predate the observed metadata.
+				const observedBeforeListing = !unwatchedReads.has(id) || (fingerprint !== undefined && fingerprint === candidate.fingerprint);
+				if (waitingForChange.has(id) && observedBeforeListing) {
+					candidate.waitForChange();
+				} else {
+					candidate.retry();
+				}
 			}
 		}
 		this._logService.info(`[CopilotDiscovery] Scan ${scan.id} finished: elapsedMs=${elapsedMs}, completed=${completed.size}, pending=${this._candidates.size}, watched=${this._watchCount}, overflow=${this._candidates.size - this._watchCount}, ignoredHostEvents=${this._directories.ignoredEvents}`);
@@ -276,17 +300,27 @@ export class CopilotChatDiscovery extends Disposable {
 		this._initial.complete();
 	}
 
+	/** Earliest time a candidate may trigger a catalog scan: newly observed sessions use the fast cadence, everything else the slow one. */
+	private _scanDueAt(candidate: CopilotSessionDiscoveryCandidate): number {
+		const interval = candidate.urgent ? CopilotChatDiscovery.fastScanInterval : CopilotChatDiscovery.minimumScanInterval;
+		return Math.max(candidate.nextScanAt, this._lastScanAt + interval);
+	}
+
 	private _scheduleNextRun(): void {
 		if (this._store.isDisposed) {
 			return;
 		}
 		const needsWatchers = this._watchCount < Math.min(CopilotChatDiscovery.candidateLimit, this._candidates.size);
-		let due = this._initialScan || this._directories.hasChanges || needsWatchers ? Date.now() + CopilotChatDiscovery.refreshDelay : Infinity;
+		let due = this._initialScan ? this._lastScanAt + CopilotChatDiscovery.fastScanInterval : Infinity;
 		for (const candidate of this._candidates.values()) {
-			due = Math.min(due, candidate.nextScanAt);
+			due = Math.min(due, this._scanDueAt(candidate));
+		}
+		due = Math.max(due, this._failureNotBefore);
+		if (this._directories.hasChanges || needsWatchers) {
+			due = Math.min(due, Date.now() + CopilotChatDiscovery.refreshDelay);
 		}
 		if (Number.isFinite(due)) {
-			this._schedule(this._failures ? 0 : Math.max(CopilotChatDiscovery.refreshDelay, due - Date.now()));
+			this._schedule(Math.max(this._failures ? 0 : CopilotChatDiscovery.refreshDelay, due - Date.now()));
 		}
 		const delay = this._candidates.size > 0 ? 5_000 : 60_000;
 		if (!this._maintenance.isScheduled() || Date.now() + delay < this._maintenanceAt) {

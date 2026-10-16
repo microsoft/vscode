@@ -17,7 +17,7 @@ import { openNewSearchEditor } from '../../../../workbench/contrib/searchEditor/
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
-import { IsQuickChatSessionContext, SinglePaneChangesTabAvailableContext, SinglePaneChangesTabMissingContext, SinglePaneFilesTabAvailableContext, SinglePaneFilesTabMissingContext } from '../../../common/contextkeys.js';
+import { IsQuickChatSessionContext, DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../common/contextkeys.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { NEW_FILE_TAB_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
@@ -29,7 +29,7 @@ export const NEW_BROWSER_TAB_COMMAND_ID = 'workbench.action.agentSessions.newBro
 export const NEW_SEARCH_TAB_COMMAND_ID = 'workbench.action.agentSessions.newSearchTab';
 export const NEW_CHANGES_TAB_COMMAND_ID = 'workbench.action.agentSessions.newChangesTab';
 
-// The add-tab actions are only registered in the single-pane layout, so the
+// The add-tab actions are only registered in the desktop layout, so the
 // `when` clauses don't need to gate on the setting.
 const addTabActionWhen = ContextKeyExpr.and(
 	IsSessionsWindowContext,
@@ -43,15 +43,26 @@ const singleEditorTitleWhen = EditorTabsVisibleContext.negate();
 
 const changesTabActionWhen = ContextKeyExpr.and(
 	addTabActionWhen,
-	SinglePaneChangesTabAvailableContext);
+	DesktopChangesTabAvailableContext);
 
 const filesTabActionWhen = ContextKeyExpr.and(
 	addTabActionWhen,
-	SinglePaneFilesTabAvailableContext);
+	DesktopFilesTabAvailableContext);
 
 const searchTabActionWhen = ContextKeyExpr.and(
 	addTabActionWhen,
 	IsQuickChatSessionContext.negate());
+
+// Only offer the Changes and Files tabs when they are not already shown.
+const changesAddTabWhen = ContextKeyExpr.and(
+	addTabLayoutWhen,
+	DesktopChangesTabAvailableContext,
+	ContextKeyExpr.or(singleEditorTitleWhen, DesktopChangesTabMissingContext));
+
+const filesAddTabWhen = ContextKeyExpr.and(
+	addTabLayoutWhen,
+	DesktopFilesTabAvailableContext,
+	ContextKeyExpr.or(singleEditorTitleWhen, DesktopFilesTabMissingContext));
 
 export class NewFileTabAction extends Action2 {
 
@@ -60,7 +71,8 @@ export class NewFileTabAction extends Action2 {
 			id: NEW_FILE_TAB_COMMAND_ID,
 			title: localize2('newFileTab', "Files"),
 			category: SessionsCategories.Sessions,
-			icon: Codicon.newFile,
+			// Same icon as the Files tab it opens.
+			icon: EmptyFileEditorInput.ICON,
 			f1: true,
 			precondition: filesTabActionWhen,
 			keybinding: {
@@ -68,16 +80,22 @@ export class NewFileTabAction extends Action2 {
 				when: filesTabActionWhen,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyE,
 			},
-			menu: {
+			menu: [{
 				id: Menus.SessionsEditorTabsBarAddTab,
 				group: 'navigation',
 				order: 1,
-				// Only offer when the Files tab is not already shown.
-				when: ContextKeyExpr.and(
-					addTabLayoutWhen,
-					SinglePaneFilesTabAvailableContext,
-					ContextKeyExpr.or(singleEditorTitleWhen, SinglePaneFilesTabMissingContext))
-			}
+				when: filesAddTabWhen
+			}, {
+				id: Menus.SessionsEmptyEditorGroupAddTab,
+				group: 'navigation',
+				order: 1,
+				when: filesAddTabWhen
+			}, {
+				id: Menus.SessionToolbar,
+				group: 'navigation',
+				order: 1,
+				when: filesTabActionWhen
+			}]
 		});
 	}
 
@@ -89,7 +107,9 @@ export class NewFileTabAction extends Action2 {
 		const group = editorGroupsService.mainPart.activeGroup;
 		const workspace = sessionsService.activeSession.get()?.activeChat.get().workspace.get();
 
-		await editorService.openEditor(instantiationService.createInstance(EmptyFileEditorInput, workspace), { pinned: true, index: group.count }, group);
+		// An existing Files tab is activated in place rather than moved to the end.
+		const index = group.editors.some(editor => editor instanceof EmptyFileEditorInput) ? undefined : group.count;
+		await editorService.openEditor(instantiationService.createInstance(EmptyFileEditorInput, workspace), { pinned: true, index }, group);
 	}
 }
 
@@ -108,12 +128,22 @@ export class NewBrowserTabAction extends Action2 {
 				when: addTabActionWhen,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyB,
 			},
-			menu: {
+			menu: [{
 				id: Menus.SessionsEditorTabsBarAddTab,
 				group: 'navigation',
 				order: 2,
 				when: addTabLayoutWhen
-			}
+			}, {
+				id: Menus.SessionsEmptyEditorGroupAddTab,
+				group: 'navigation',
+				order: 2,
+				when: addTabLayoutWhen
+			}, {
+				id: Menus.SessionToolbar,
+				group: 'navigation',
+				order: 2,
+				when: addTabActionWhen
+			}]
 		});
 	}
 
@@ -145,6 +175,7 @@ export class NewSearchTabAction extends Action2 {
 				id: Menus.SessionsEditorTabsBarAddTab,
 				group: 'navigation',
 				order: 3,
+				// Only offered from the Add Tab dropdown.
 				when: ContextKeyExpr.and(addTabLayoutWhen, IsQuickChatSessionContext.negate())
 			}
 		});
@@ -163,7 +194,8 @@ export class NewChangesTabAction extends Action2 {
 			id: NEW_CHANGES_TAB_COMMAND_ID,
 			title: localize2('newChangesTab', "Changes"),
 			category: SessionsCategories.Sessions,
-			icon: Codicon.gitCompare,
+			// Same icon as the Changes tab it opens.
+			icon: Codicon.diffMultiple,
 			f1: false,
 			precondition: changesTabActionWhen,
 			keybinding: {
@@ -172,16 +204,23 @@ export class NewChangesTabAction extends Action2 {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG,
 				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KeyG },
 			},
-			menu: {
+			menu: [{
 				id: Menus.SessionsEditorTabsBarAddTab,
 				group: 'navigation',
 				order: 0,
-				// Only offer when the session has a Changes editor but its tab is closed.
-				when: ContextKeyExpr.and(
-					addTabLayoutWhen,
-					SinglePaneChangesTabAvailableContext,
-					ContextKeyExpr.or(singleEditorTitleWhen, SinglePaneChangesTabMissingContext))
-			}
+				when: changesAddTabWhen
+			}, {
+				id: Menus.SessionsEmptyEditorGroupAddTab,
+				group: 'navigation',
+				order: 0,
+				when: changesAddTabWhen
+			}, {
+				id: Menus.SessionToolbar,
+				group: 'navigation',
+				order: 0,
+				// Offered whenever the tab is available; an open tab is activated in place.
+				when: changesTabActionWhen
+			}]
 		});
 	}
 
@@ -193,7 +232,9 @@ export class NewChangesTabAction extends Action2 {
 		const session = sessionsService.activeSession.get();
 		if (session) {
 			const group = editorGroupsService.mainPart.activeGroup;
-			await sessionChangesService.openChangesEditor(session.resource, { index: group.count }, group);
+			// An existing Changes tab is activated in place rather than moved to the end.
+			const index = group.findEditors(sessionChangesService.getChangesEditorResource(session.resource)).length > 0 ? undefined : group.count;
+			await sessionChangesService.openChangesEditor(session.resource, { index }, group);
 		}
 	}
 }

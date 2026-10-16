@@ -30,13 +30,12 @@
 	width: 100%;
 	max-width: var(--session-view-centered-content-max-width, 950px);
 	margin: 0 auto;
-	padding: 0 var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320));
+	padding: 0 var(--vscode-spacing-size60);
 	box-sizing: border-box;
 }
 
 .session-view.grid-layout .session-header-bar > .chat-composite-bar-header {
 	max-width: none;
-	padding: 0 var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320));
 }
 
 /* Tabs host: the chat tab strip, shown only when the session has multiple chats. */
@@ -244,15 +243,30 @@
 	flex-shrink: 0;
 }
 
-/* Keep header toolbar buttons from dictating the row height */
-.chat-composite-bar-title-actions .action-item .action-label {
-	height: 20px;
-	line-height: 20px;
-	padding: 0 2px;
+/* Keep header toolbar buttons square and centered without dictating the row height. */
+.chat-composite-bar-toolbar .action-item .action-label.codicon {
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	width: var(--vscode-spacing-size200, 20px);
+	height: var(--vscode-spacing-size200, 20px);
+	padding: 0;
+	line-height: 1;
 }
 
 .chat-composite-bar-toolbar .monaco-action-bar .actions-container {
 	gap: 4px;
+}
+
+.monaco-workbench.session-comparison-grid-active .session-header-bar .chat-composite-bar-title-actions .action-label:is(.codicon-close, .codicon-close-small) {
+	opacity: 0;
+	pointer-events: none;
+}
+
+.monaco-workbench.session-comparison-grid-active .session-header-bar:hover .chat-composite-bar-title-actions .action-label:is(.codicon-close, .codicon-close-small),
+.monaco-workbench.session-comparison-grid-active .session-header-bar:focus-within .chat-composite-bar-title-actions .action-label:is(.codicon-close, .codicon-close-small) {
+	opacity: 1;
+	pointer-events: auto;
 }
 
 /* Floating variant: a lightweight, absolutely positioned toolbar with no header chrome */
@@ -567,23 +581,58 @@
 	--modern-ui-connected-tab-surface: var(--session-view-background);
 }
 
-/* Paint the frame in the same box as the tabs, rather than clipping a second
- * rounded tab border against the outside of the card. Keep its layout space. */
-.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs:not(.phone-layout) .part.sessionspart.agents-part-card {
+/* Default-density sessions own their individual frames in both tab styles.
+ * Connected tabs retain the same ownership in compact density. */
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .part.sessionspart.agents-part-card {
 	border-color: transparent;
+	background-clip: padding-box;
 }
 
-.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs:not(.phone-layout) .session-view {
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .part.sessionspart.agents-part-card::after {
+	content: none;
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .session-view {
 	position: relative;
-	border-radius: calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness));
+	border-radius: max(0px, calc(var(--agents-part-corner-radius, var(--vscode-cornerRadius-large)) - var(--vscode-strokeThickness)));
 	overflow: hidden;
 }
 
-.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs:not(.phone-layout) .session-view::after {
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .session-view > .session-view-content {
+	/* Keep sticky-scroll and other transcript overlays below the session frame. */
+	isolation: isolate;
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .session-view::after {
 	content: '';
 	position: absolute;
 	inset: 0;
-	border: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border);
+	border: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border, var(--part-border-color, transparent));
+	border-width: var(--agents-part-frame-border-width, var(--vscode-strokeThickness));
+	border-radius: inherit;
+	box-sizing: border-box;
+	pointer-events: none;
+	z-index: 10;
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .session-view.independent-chat-groups::after {
+	content: none;
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .chat-groups-view-has-gaps .chat-group-view-surface {
+	border-radius: max(0px, calc(var(--agents-part-corner-radius, var(--vscode-cornerRadius-large)) - var(--vscode-strokeThickness)));
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .chat-groups-view-has-gaps .chat-group-view-content {
+	isolation: isolate;
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .chat-groups-view-has-gaps .chat-group-view-surface::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	border: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border, var(--part-border-color, transparent));
+	border-width: var(--agents-part-frame-border-width, var(--vscode-strokeThickness));
 	border-radius: inherit;
 	box-sizing: border-box;
 	pointer-events: none;
@@ -594,9 +643,13 @@
 	border: 0;
 }
 
-.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs:not(.phone-layout) .chat-groups-view.single-group .chat-composite-bar-tab:first-child > .chat-composite-bar-tab-fill {
-	border-top-left-radius: 0;
-	border-left-color: transparent;
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs:not(.phone-layout) .chat-groups-view.chat-groups-view-has-gaps .modern-ui-editor-tab-content::after {
+	border: 0;
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs:not(.phone-layout) .chat-groups-view.single-group .chat-composite-bar-tab:first-child > :is(.chat-composite-bar-tab-fill, .tab-connected-edge) {
+	border-start-start-radius: 0;
+	border-inline-start-color: transparent;
 	background-clip: border-box;
 }
 
@@ -605,9 +658,13 @@
 	max-width: none;
 }
 
+.modern-ui-connected-editor-tabs.agent-sessions-workbench .session-view .session-chat-tabs-actions {
+	padding-right: var(--vscode-spacing-size60);
+}
+
 .modern-ui-connected-editor-tabs.monaco-workbench .session-chat-tabs-bar .chat-composite-bar-tabs-row {
 	position: relative;
-	height: calc(var(--editor-group-tab-height, var(--vscode-spacing-size240)) + var(--vscode-spacing-size80) + var(--vscode-strokeThickness));
+	height: calc(var(--modern-ui-connected-tab-row-height) + var(--vscode-strokeThickness));
 	border-bottom: 0;
 	--modern-ui-editor-tab-active-background: var(--modern-ui-connected-tab-surface);
 	--modern-ui-editor-tab-unfocused-active-background: var(--modern-ui-connected-tab-surface);
@@ -624,8 +681,8 @@
 	position: absolute;
 	bottom: 0;
 	inset-inline: 0;
-	height: var(--vscode-strokeThickness);
-	background-color: var(--modern-ui-connected-tab-border);
+	height: 0;
+	border-bottom: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border);
 	pointer-events: none;
 }
 
@@ -639,16 +696,21 @@
 
 /* Native scrolling rounds fractional bounds; reserve a stroke beyond the terminal shoulder. */
 .modern-ui-connected-editor-tabs.monaco-workbench .session-chat-tabs-bar .chat-composite-bar-tab:last-child {
-	margin-right: calc(var(--modern-ui-connected-tab-shoulder-radius) + var(--vscode-strokeThickness));
+	margin-inline-end: calc(var(--modern-ui-connected-tab-shoulder-radius) + var(--vscode-strokeThickness));
 }
 
 .modern-ui-connected-editor-tabs.modern-ui-tabs.monaco-workbench .session-chat-tabs-bar .chat-composite-bar-tab > .chat-composite-bar-tab-actions {
 	position: relative;
 	inset: auto;
 	flex-shrink: 0;
-	margin: 0 0 0 var(--vscode-spacing-size20);
+	margin: 0;
+	margin-inline-start: var(--vscode-spacing-size20);
 	border: 0;
 	border-radius: 0;
+}
+
+.modern-ui-connected-editor-tabs.modern-ui-tabs.monaco-workbench .session-chat-tabs-bar .chat-composite-bar-tab.has-chat-tab-actions {
+	padding-inline-end: var(--vscode-spacing-size20);
 }
 
 .modern-ui-connected-editor-tabs.modern-ui-tabs.monaco-workbench .session-chat-tabs-bar .chat-composite-bar-tab > .chat-composite-bar-tab-actions::before {
@@ -662,4 +724,35 @@
 
 .modern-ui-connected-editor-tabs.monaco-workbench .session-chat-tabs-bar .chat-composite-bar-tab.active > .chat-composite-bar-tab-actions .action-label {
 	opacity: 1;
+}
+
+.modern-ui-connected-editor-tabs.monaco-workbench .session-chat-tabs-bar:dir(rtl) .chat-composite-bar-tab.active.connected-tab-right-edge > .chat-composite-bar-tab-fill::before {
+	content: '';
+}
+
+.modern-ui-connected-editor-tabs.monaco-workbench .session-chat-tabs-bar:dir(rtl) .chat-composite-bar-tab.active.connected-tab-right-edge > .chat-composite-bar-tab-fill::after {
+	content: none;
+}
+
+.modern-ui-connected-editor-tabs.monaco-workbench .session-chat-tabs-bar:dir(rtl) .chat-composite-bar-tab.active.connected-tab-right-edge > .tab-connected-edge {
+	/* Clip the left stroke above its shoulder, but retain the complete terminal right stroke. */
+	clip-path: polygon(
+		0 0, 100% 0, 100% 100%,
+		calc(100% - var(--vscode-strokeThickness)) 100%,
+		calc(100% - var(--vscode-strokeThickness)) calc(100% - var(--modern-ui-connected-tab-shoulder-radius)),
+		0 calc(100% - var(--modern-ui-connected-tab-shoulder-radius))
+	);
+}
+
+.modern-ui-connected-editor-tabs.modern-ui-tabs.monaco-workbench .session-chat-tabs-bar:dir(rtl) .tab-connected-overflow-edge.connected-tab-right-clipped::after,
+.modern-ui-connected-editor-tabs.modern-ui-tabs.monaco-workbench .session-chat-tabs-bar:dir(rtl) .tab-connected-overflow-edge.connected-tab-right-clipped > .tab-connected-overflow-right {
+	display: none;
+}
+
+.modern-ui-connected-editor-tabs.modern-ui-tabs.monaco-workbench .session-chat-tabs-bar:dir(rtl) .tab-connected-overflow-edge.chat-tab-right-truncated::after {
+	display: block;
+	width: 0;
+	background: none;
+	border: 0;
+	border-right: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border);
 }

@@ -8,13 +8,16 @@ import { Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/agentHostChatIdentity.js';
 import { AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { withEphemeralSessionMeta } from '../../../../../../platform/agentHost/common/meta/agentEphemeralSessionMeta.js';
 import { ChatInteractivity, type ChangesSummary, type SessionChatSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ChatOriginKind, isDefaultChatUri, parseChatUri, SessionStatus, readSessionEhcliAdoptable, SESSION_META_EHCLI_ADOPTABLE_KEY, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChatOriginKind, SessionStatus, readSessionEhcliAdoptable, SESSION_META_EHCLI_ADOPTABLE_KEY, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { ChatSessionStatus, IChatNewSessionRequest, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../../common/chatSessionsService.js';
+import { getAgentHostSessionResource } from '../../../common/constants.js';
 import { getAgentSessionProviderIcon } from '../agentSessions.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
@@ -48,20 +51,20 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		private readonly _provider: string,
 		private readonly _sessionListStore: AgentHostSessionListStore,
 		private readonly _description: string | undefined,
-		_connectionAuthority: string,
+		private readonly _connectionAuthority: string,
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisional: IAgentHostUntitledProvisionalSessionService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
 		@IAgentHostImportConversationStore private readonly _importConversationStore: IAgentHostImportConversationStore,
 		@IChatService chatService: IChatService,
+		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 	) {
 		super();
-		void _connectionAuthority;
 
 		this._register(chatService.onDidDisposeSession(event => {
 			for (const resource of event.sessionResources) {
 				if (resource.scheme === this._sessionType) {
-					this._sessionListStore.clearPendingNewSession(this._provider, AgentSession.id(resource));
+					this._sessionListStore.clearPendingNewSession(this._provider, resource);
 				}
 			}
 		}));
@@ -79,17 +82,17 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 
 	get items(): readonly IChatSessionItem[] {
 		return this._sessionListStore.getSessions(this._provider)
-			.map(entry => this._makeItemFromSummary(entry.rawId, entry.summary, entry.statusKnown));
+			.map(entry => this._makeItemFromSummary(entry.summary, entry.statusKnown));
 	}
 
 	isNewSession(resource: URI): boolean {
 		return resource.scheme === this._sessionType
-			&& this._sessionListStore.isPendingNewSession(this._provider, resource.path.substring(1));
+			&& this._sessionListStore.isPendingNewSession(this._provider, resource);
 	}
 
 	notifySessionMaterialized(resource: URI): void {
 		if (resource.scheme === this._sessionType) {
-			this._sessionListStore.clearPendingNewSession(this._provider, AgentSession.id(resource));
+			this._sessionListStore.clearPendingNewSession(this._provider, resource);
 		}
 	}
 
@@ -98,9 +101,10 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			return undefined;
 		}
 		const rawId = generateUuid();
-		this._sessionListStore.addPendingNewSession(this._provider, rawId);
+		const resource = this._resource(rawId);
+		this._sessionListStore.addPendingNewSession(this._provider, resource);
 		const now = Date.now();
-		const item = this._makeItem(rawId, {
+		let item = this._makeItem(resource, {
 			title: request.prompt.trim(),
 			status: SessionStatus.InProgress,
 			createdAt: now,
@@ -111,13 +115,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			this._provisional.setSessionCreationMetadata(item.resource, metadata);
 		}
 
-		// Bridge any pre-creation provisional session the user built up
-		// against the untitled chat-input URI to the freshly-minted real
-		// resource. The provisional service is the source of truth for the
-		// `state.config.values` the user picked via chips; copying them
-		// here means the agent's `_materializeProvisional` will see them on
-		// first send. Recoverable failure falls through to the handler's standard
-		// create path; ambiguous final-URI cleanup rejects to prevent unsafe reuse.
+		// Graduate the draft's backend and chip selections without recreating a matching session.
 		if (request.untitledResource) {
 			const workingDirectory = this._newSessionFolderService.getFolder(request.untitledResource)
 				?? this._newSessionFolderService.getDefaultFolder()
@@ -135,7 +133,40 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			// untitled chat-input resource to the freshly-minted real resource so
 			// the provisional `getOrCreate` for the real resource seeds it.
 			this._importConversationStore.rename(request.untitledResource, item.resource);
-			await this._provisional.tryRebind(request.untitledResource, item.resource, this._provider);
+			let rebound: URI | undefined;
+			try {
+				rebound = await this._provisional.tryRebind(request.untitledResource, item.resource, this._provider, token);
+			} catch (error) {
+				this._sessionListStore.clearPendingNewSession(this._provider, item.resource);
+				this._newSessionFolderService.clear(item.resource);
+				this._provisional.clearSessionCreationMetadata(item.resource);
+				this._importConversationStore.rename(item.resource, request.untitledResource);
+				throw error;
+			}
+			const previousResource = item.resource;
+			// Use the retained backend identity; failed or retired allocations must not be reused.
+			const nextResource = previousResource.with({ path: rebound?.path ?? `/${generateUuid()}` });
+			if (nextResource.path !== previousResource.path) {
+				const pending = this._sessionListStore.isPendingNewSession(this._provider, previousResource);
+				this._sessionListStore.clearPendingNewSession(this._provider, previousResource);
+				if (pending || !rebound) {
+					this._sessionListStore.addPendingNewSession(this._provider, nextResource);
+				}
+				const currentDirectory = rebound
+					? this._provisional.getProvisionalWorkingDirectories(nextResource)?.[0]
+					: this._newSessionFolderService.getFolder(request.untitledResource)
+					?? this._newSessionFolderService.getDefaultFolder()
+					?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
+				if (currentDirectory) {
+					this._newSessionFolderService.setFolder(nextResource, currentDirectory);
+				}
+				this._newSessionFolderService.clear(previousResource);
+				this._importConversationStore.rename(previousResource, nextResource);
+				if (metadata) {
+					this._provisional.setSessionCreationMetadata(nextResource, metadata);
+				}
+				item = { ...item, resource: nextResource };
+			}
 		}
 
 		return item;
@@ -146,23 +177,23 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			return;
 		}
 
-		const rawId = AgentSession.id(resource);
+		const session = this._resolveSession(resource);
+		const entry = this._sessionListStore.getSession(this._provider, session);
 		if (resource.fragment) {
-			const entry = this._sessionListStore.getSessions(this._provider).find(entry => entry.rawId === rawId);
-			const chat = entry?.summary.chats?.find(chat => parseChatUri(chat.resource)?.chatId === resource.fragment);
+			const chat = entry?.summary.chats?.find(chat => getAgentHostChatId(chat.resource) === resource.fragment);
 			if (!chat) {
-				throw new Error(`Cannot resolve chat '${resource.fragment}' in session '${rawId}'`);
+				throw new Error(`Cannot resolve chat '${resource.fragment}' in session '${session.toString()}'`);
 			}
 			await this._sessionListStore.disposeChat(URI.parse(chat.resource));
 			return;
 		}
 
-		await this._sessionListStore.disposeSession(this._provider, rawId);
+		await this._sessionListStore.disposeSession(session);
 
 		// `root/sessionRemoved` only fires for sessions the backend had previously announced, so remove the session from
 		// the store directly (this also clears any local pending marker). If the notification does fire as well, the
 		// second call is a no-op.
-		this._sessionListStore.removeSession(this._provider, rawId);
+		this._sessionListStore.removeSession(this._provider, session);
 	}
 
 	setChatSessionItemArchived(resource: URI, archived: boolean): void {
@@ -170,7 +201,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			return;
 		}
 
-		this._sessionListStore.setSessionArchived(this._provider, AgentSession.id(resource), archived);
+		this._sessionListStore.setSessionArchived(this._provider, this._resolveSession(resource), archived);
 	}
 
 	setChatSessionItemRead(resource: URI, isRead: boolean): void {
@@ -178,7 +209,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			return;
 		}
 
-		this._sessionListStore.setSessionRead(this._provider, AgentSession.id(resource), isRead);
+		this._sessionListStore.setSessionRead(this._provider, this._resolveSession(resource), isRead);
 	}
 
 	async refresh(token: CancellationToken): Promise<void> {
@@ -195,14 +226,14 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			if (entry.provider !== this._provider) {
 				continue;
 			}
-			(addedOrUpdated ??= []).push(this._makeItemFromSummary(entry.rawId, entry.summary, entry.statusKnown));
+			(addedOrUpdated ??= []).push(this._makeItemFromSummary(entry.summary, entry.statusKnown));
 		}
 
 		for (const removal of delta.removed ?? []) {
 			if (removal.provider !== this._provider) {
 				continue;
 			}
-			(removed ??= []).push(this._resource(removal.rawId));
+			(removed ??= []).push(this._sessionListStore.getSessionResource(removal.session));
 		}
 
 		if (!addedOrUpdated && !removed) {
@@ -211,7 +242,8 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		return { ...(addedOrUpdated ? { addedOrUpdated } : undefined), ...(removed ? { removed } : undefined) };
 	}
 
-	private _makeItemFromSummary(rawId: string, summary: SessionSummary, statusKnown: boolean): IChatSessionItem {
+	private _makeItemFromSummary(summary: SessionSummary, statusKnown: boolean): IChatSessionItem {
+		const resource = this._sessionListStore.getSessionResource(URI.parse(summary.resource));
 		const workingDir = typeof summary.workingDirectories?.[0] === 'string' ? URI.parse(summary.workingDirectories?.[0]) : summary.workingDirectories?.[0];
 		const base = {
 			title: summary.title,
@@ -225,7 +257,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			adoptable: readSessionEhcliAdoptable(summary._meta),
 		};
 		if (!summary.chats?.length) {
-			return this._makeItem(rawId, base);
+			return this._makeItem(resource, base);
 		}
 
 		const defaultChat = summary.chats.find(chat => this._isDefaultChat(summary, chat));
@@ -235,10 +267,10 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			chat.origin?.kind !== ChatOriginKind.Tool &&
 			chat.origin?.kind !== ChatOriginKind.SideChat
 		);
-		return this._makeItem(rawId, {
+		return this._makeItem(resource, {
 			...base,
 			title: defaultChat?.title || summary.title,
-			children: peerChats.length ? peerChats.map(chat => this._makeItem(rawId, {
+			children: peerChats.length ? peerChats.map(chat => this._makeItem(resource, {
 				title: chat.title || summary.title,
 				workingDirectory: base.workingDirectory,
 				createdAt: base.createdAt,
@@ -248,7 +280,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		});
 	}
 
-	private _makeItem(rawId: string, opts: {
+	private _makeItem(resource: URI, opts: {
 		title?: string;
 		status?: SessionStatus;
 		/** Whether `status`'s session-scoped flag bits came from the host. */
@@ -269,8 +301,8 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			? { ...(this._buildMetadata(opts.workingDirectory) ?? {}), [SESSION_META_EHCLI_ADOPTABLE_KEY]: true }
 			: this._buildMetadata(opts.workingDirectory);
 		return {
-			resource: opts.chat ? this._chatResource(rawId, opts.chat) : this._resource(rawId),
-			label: opts.title || `Session ${rawId.substring(0, 8)}`,
+			resource: opts.chat ? resource.with({ fragment: getAgentHostChatId(opts.chat.resource) }) : resource,
+			label: opts.title || `Session ${AgentSession.id(resource).substring(0, 8)}`,
 			children: opts.children,
 			description,
 			iconPath: getAgentSessionProviderIcon(this._sessionType),
@@ -298,18 +330,18 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		};
 	}
 
-	private _chatResource(rawId: string, chat: SessionChatSummary): URI {
-		const parsed = parseChatUri(chat.resource);
-		if (!parsed) {
-			throw new Error(`Invalid chat URI '${chat.resource}' in session '${rawId}'`);
+	private _resolveSession(resource: URI): URI {
+		const registered = this._connectionsService.resolveSessionResourceIdentity(resource);
+		const identity = registered?.backendSessionIsAdvertised ? registered
+			: this._connectionsService.resolveSessionResourceIdentity(getAgentHostSessionResource(resource));
+		if (!identity || identity.connectionAuthority !== this._connectionAuthority) {
+			throw new Error(`Cannot resolve session '${resource.toString()}' on '${this._connectionAuthority}'`);
 		}
-		return this._resource(rawId).with({ fragment: parsed.chatId });
+		return identity.backendSession;
 	}
 
 	private _isDefaultChat(summary: SessionSummary, chat: SessionChatSummary): boolean {
-		return summary.defaultChat !== undefined
-			? summary.defaultChat === chat.resource
-			: isDefaultChatUri(chat.resource);
+		return summary.defaultChat === chat.resource;
 	}
 
 	private _resource(rawId: string): URI {

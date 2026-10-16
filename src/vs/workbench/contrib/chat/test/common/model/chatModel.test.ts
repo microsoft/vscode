@@ -237,6 +237,84 @@ suite('ChatModel', () => {
 		assert.ok(model.timestamp > 0);
 	});
 
+	test('response.request does not scan the transcript and stays correct across removal and insertion', () => {
+		const addRequests = (count: number) => {
+			const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const requests = Array.from({ length: count }, (_, i) => model.addRequest({ text: `r${i}`, parts: [] }, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, `id${i}`));
+			const counter = { idReads: 0 };
+			for (const request of requests) {
+				const id = request.id;
+				Object.defineProperty(request, 'id', { get: () => { counter.idReads++; return id; } });
+			}
+			return { model, requests, counter };
+		};
+		const lookups = 50;
+		const readsForTranscript = (count: number) => {
+			const { requests, counter } = addRequests(count);
+			const last = requests[count - 1].response!;
+			assert.strictEqual(last.request, requests[count - 1]);
+			counter.idReads = 0;
+			for (let i = 0; i < lookups; i++) {
+				void last.request;
+			}
+			return counter.idReads;
+		};
+		const small = readsForTranscript(20);
+		const large = readsForTranscript(400);
+
+		const { model, requests } = addRequests(200);
+		const last = requests[199].response!;
+		const first = requests[0].response!;
+		assert.strictEqual(last.request, requests[199]);
+		model.removeRequest('id0');
+		const afterRemoval = { last: last.request === requests[199], first: first.request };
+		model.addRequest({ text: 'inserted', parts: [] }, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 'inserted', undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, { index: 1 });
+
+		// A scan would read ids in proportion to the transcript size; a hinted lookup reads a small constant per call.
+		assert.deepStrictEqual({
+			boundedPerCall: [small, large].every(reads => reads <= lookups * 2),
+			independentOfTranscriptSize: small === large,
+			afterRemoval,
+			afterInsertion: last.request === requests[199],
+		}, {
+			boundedPerCall: true,
+			independentOfTranscriptSize: true,
+			afterRemoval: { last: true, first: undefined },
+			afterInsertion: true,
+		});
+	});
+
+	test('preserves Agent Host message metadata and latest-call detail across serialization', () => {
+		const metadata = { 'copilot.visibility': 'internal', opaque: { value: true } };
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const request = model.addRequest({ text: 'display', parts: [] }, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, metadata);
+		model.acceptResponseProgress(request, { kind: 'usage', promptTokens: 10, completionTokens: 2, latestModelCall: { cost: 0.5 }, contextUsage: { currentTokens: 5, tokenLimit: 100 } });
+		const restored = testDisposables.add(instantiationService.createInstance(ChatModel, { value: model.toJSON(), serializer: undefined! }, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const [roundTrip] = restored.getRequests();
+		assert.deepStrictEqual({
+			metadata: roundTrip.agentHostMetadata,
+			latest: roundTrip.response?.usage?.latestModelCall,
+			context: roundTrip.response?.usage?.contextUsage,
+			cost: roundTrip.response?.usage?.copilotCredits,
+		}, { metadata, latest: { cost: 0.5 }, context: { currentTokens: 5, tokenLimit: 100 }, cost: undefined });
+	});
+
+	test('context occupancy and latest-call changes notify the response model when token counts stay unchanged', () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const request = model.addRequest({ text: 'display', parts: [] }, { variables: [] }, 0);
+		assert.ok(request.response);
+		let updates = 0;
+		testDisposables.add(request.response.onDidChange(() => updates++));
+		const usage = { kind: 'usage' as const, promptTokens: 90, completionTokens: 10 };
+		model.acceptResponseProgress(request, { ...usage, contextUsage: { currentTokens: 200, tokenLimit: 1_000 }, latestModelCall: { duration: 12 } });
+		model.acceptResponseProgress(request, { ...usage, contextUsage: { currentTokens: 250, tokenLimit: 1_000 }, latestModelCall: { duration: 12 } });
+		model.acceptResponseProgress(request, { ...usage, contextUsage: { currentTokens: 250, tokenLimit: 1_000 }, latestModelCall: { duration: 15 } });
+		model.acceptResponseProgress(request, { ...usage, contextUsage: { currentTokens: 250, tokenLimit: 1_000 }, latestModelCall: { duration: 15 } });
+		assert.deepStrictEqual({ updates, context: request.response.usage?.contextUsage, latest: request.response.usage?.latestModelCall }, {
+			updates: 3, context: { currentTokens: 250, tokenLimit: 1_000 }, latest: { duration: 15 },
+		});
+	});
+
 	test('removeRequest', async () => {
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
 
@@ -704,16 +782,11 @@ suite('ChatModel', () => {
 	test('inputModel.setState preserves contrib keys owned by other writers', async function () {
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
 
-		// The chat service records "migration hint already shown" in `contrib`,
-		// then the input widget publishes its own contrib keys on the next sync
-		// (typing, sending, model change). That rebuild must not drop the
-		// service's key, or `chat.customizations.migration.enabled: true` degrades
-		// into "always".
-		model.inputModel.setState({ contrib: { customizationMigrationHintShown: true } });
+		model.inputModel.setState({ contrib: { serviceOwnedKey: true } });
 		model.inputModel.setState({ inputText: 'typing', contrib: { widgetOwnedKey: 'from-widget' } });
 
 		assert.deepStrictEqual(model.inputModel.state.get()?.contrib, {
-			customizationMigrationHintShown: true,
+			serviceOwnedKey: true,
 			widgetOwnedKey: 'from-widget',
 		});
 	});
@@ -2172,14 +2245,17 @@ suite('ChatResponseModel', () => {
 			response.updateContent(tool);
 			tool.setAuthenticationRequired({ id: 'server', name: 'Test MCP', resource: 'https://example.com/mcp' });
 			const authentication = pending(response);
+			tool.setAuthenticationRequired({ id: 'server', name: 'Test MCP (Connector)', resource: 'https://example.com/mcp' });
+			const refreshedAuthentication = pending(response);
 			tool.requestConfirmation({ confirmationMessages: { title: 'Approve', message: new MarkdownString('Confirm'), confirmResults: true } });
 			IChatToolInvocation.confirmWith(tool, { type: ToolConfirmKind.UserAction });
 			await tool.didExecuteTool({ content: [] });
 			const postApproval = pending(response);
 			IChatToolInvocation.confirmWith(tool, { type: ToolConfirmKind.UserAction });
 
-			assert.deepStrictEqual([authentication, postApproval, pending(response)], [
+			assert.deepStrictEqual([authentication, refreshedAuthentication, postApproval, pending(response)], [
 				{ detail: 'Authenticate Test MCP to continue...', tools: ['tool'] },
+				{ detail: 'Authenticate Test MCP (Connector) to continue...', tools: ['tool'] },
 				{ detail: 'Approve tool result?', tools: ['tool'] },
 				{ detail: undefined, tools: [] },
 			]);

@@ -6,10 +6,30 @@ These are distinct from `../e2e/`, whose prioritized cross-provider suites repla
 
 Every real provider process must use a temporary home through `createIsolatedProviderEnvironment` or the required `homeDir` option of `startRealServer`. This keeps provider configuration, logs, and sessions out of the developer's real home directory.
 
+`copilotConnectors.integrationTest.ts` exercises the production Connector reconciliation helper against the bundled SDK, a local synthetic GitHub/Connector catalog, and HTTPS MCP servers. It verifies session identity, tool inventory, ordinary no-force refresh, targeted replacement, unrelated server initialization counts, membership removal/addition, and the stopped-server safety guard. No model or live Connector service is used. The test requires OpenSSL on `PATH` to generate short-lived loopback TLS certificates in its temporary home, trusted only by the isolated runtime; certificates and keys are removed during teardown. New lifecycle tests require cross-platform Azure validation before merge.
+
 Run one suite with:
 
 ```bash
 ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/providerIntegration/copilotMockLlm.integrationTest.ts
 ```
 
+Local and DevOps runs default to `AGENT_HOST_TEST_PROFILE=full`. GitHub PR integration jobs inherit the [E2E execution profile](../e2e/README.md#ci-execution-profiles): ordinary relevant implementation changes use `pr`, while test/artifact, dependency, or infrastructure changes force `full` in that same PR. The two native OTel concurrency stress variants are full-only; all other provider-integration cases remain in PR coverage. Set `AGENT_HOST_TEST_PROFILE=full` to run these stress variants explicitly. Existing platform and provider gates are unchanged.
+
 `copilotAutoTier.integrationTest.ts` checks that a scalar default selected by the client travels through the existing `ModelSelection.config.tier` / SDK `capi.autoTier` boundary to the actual first `/auto` request and survives resume. It uses the production scalar reader and tier accessor with the bundled SDK and isolated HTTP service. Picker scope/lifecycle and send/model-change ordering are covered separately in the browser store and Copilot agent unit suites. These tests characterize client startup preferences, not runtime policy enforcement or backend authoring semantics; they do not require a real account or modify device policy.
+
+`copilotLocalModel.integrationTest.ts` runs the bundled runtime through the on-device model bridge's real `LocalModelCopilotRequestHandler` (router, route table and turn ledger) against three loopback fakes: CAPI (whose `/auto` picks the declared `-local` model with a cloud fallback), an OpenAI-compatible `llama-server` that requires its per-spawn API key and calls a tool, and an unrelated named BYOK provider. It checks a local Auto turn with a tool call and its `local` attribution (the runtime asks for JSON; the handler streams from the device and returns one assembled `chat.completion` with the merged tool call and usage), the cloud fallback with the `/auto` route token when the local server dies before its first output, the direct `vscode-on-device` sentinel row at create, resume and after `provider.sync` (including the `loading`/`done` wait reported against the runtime session while a stopped model loads), and that the unrelated BYOK row passes through untouched. Every local request is checked for the absence of CAPI/GitHub credentials, and no `-local` id may reach CAPI inference. It also pins the request-context fields the runtime reports (`/auto` carries no session, agent or interaction type; chat requests carry all three).
+
+`copilotOtel.integrationTest.ts` checks that native shell-tool execution and concurrent session-event delivery complete with OpenTelemetry both enabled and disabled. It runs the bundled SDK against the synthetic BYOK Responses service, verifies every real tool result, requires progress before the runtime's 30-second session-lock timeout, and checks that the enabled file exporter produces native tool spans. Content capture is disabled. Both variants assert successful execution and protect against [github/copilot-agent-runtime#25128](https://github.com/github/copilot-agent-runtime/issues/25128). This is a full-only concurrency regression test, not a deterministic thread-scheduling test. Run it with:
+
+```bash
+./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/providerIntegration/copilotOtel.integrationTest.ts
+```
+
+`copilotByokSelectionIds.integrationTest.ts` pins the SDK contract behind `getByokLmAgentModelId` and `isByokLmAgentModelId`: the bundled runtime lists and selects BYOK models registered through the production `synthesizeByokSessionConfig` under the agent host's `provider/[group/]id` ids, and that no Copilot model it lists has that shape. Signed out, the runtime lists Copilot models only when it can reach the Copilot API, so that half is checked opportunistically here and deterministically by `../../common/agentHostByokLm.test.ts`. The utility model service relies on that shape to keep a retained BYOK selection off the Copilot route while the renderer is disconnected, so an SDK change to either id format should fail here first. It needs no Copilot sign-in. Run it with:
+
+```bash
+./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/providerIntegration/copilotByokSelectionIds.integrationTest.ts
+```
+
+`copilotManagedPermissions.integrationTest.ts` exercises the default-on legacy bridge against the bundled runtime with an isolated synthetic BYOK model. It checks URL denials and terminal managed asks on create, cold resume, and removal, preserving unrelated shell/read/write/URL approval behavior. Managed terminal asks are also checked in Allow All and assisted modes. URL requests reaching the permission handler are rejected, so the test does not fetch external content. No Copilot sign-in or device-policy changes are needed.

@@ -8,19 +8,23 @@ import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { hasKey } from '../../../base/common/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { isIMenuItem, MenuId, MenuRegistry } from '../../../platform/actions/common/actions.js';
+import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from '../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
+import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../platform/accessibility/common/accessibility.js';
 import { ToggleAuxiliaryBarAction } from '../../../workbench/browser/parts/auxiliarybar/auxiliaryBarActions.js';
+import { LayoutDensityMenu } from '../../../workbench/browser/actions/layoutDensityActions.js';
 import { PanelVisibleContext, SecondarySideBarVisibleContext } from '../../../workbench/common/contextkeys.js';
-import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
+import { LayoutSettings, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { Menus } from '../../browser/menus.js';
-
-// Import layout actions to trigger menu registration
-import '../../browser/layoutActions.js';
+import { TOGGLE_SESSION_TOOLBAR_COMMAND_ID } from '../../browser/layoutActions.js';
+import { SESSION_TOOLBAR_SETTING } from '../../common/sessionConfig.js';
+import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
+import { upcastPartial } from '../../../base/test/common/mock.js';
 
 const TOGGLE_PANEL_ACTION_ID = 'workbench.action.togglePanel';
+const LEGACY_TOGGLE_PANEL_ALIGNMENT_ACTION_ID = 'workbench.action.agentSessions.togglePanelAlignment';
 
 suite('Sessions - Layout Actions', () => {
 
@@ -31,8 +35,85 @@ suite('Sessions - Layout Actions', () => {
 	suiteSetup(async () => {
 		await Promise.all([
 			import('../../contrib/editor/browser/editor.contribution.js'),
-			import('../../contrib/terminal/browser/sessionsTerminalContribution.js')
+			import('../../contrib/terminal/browser/sessionsTerminalContribution.js'),
+			import('../../contrib/chat/browser/chat.contribution.js'),
 		]);
+	});
+
+	test('offers shared layout density commands in the desktop View and title bar menus', () => {
+		const parents = [Menus.TitleBarContext, MenuId.MenubarViewMenu].map(menu =>
+			MenuRegistry.getMenuItems(menu).filter(isISubmenuItem).find(item => item.submenu === LayoutDensityMenu));
+		const options = MenuRegistry.getMenuItems(LayoutDensityMenu).filter(isIMenuItem);
+
+		assert.deepStrictEqual({
+			parents: parents.map(item => ({ title: item?.title, when: item?.when?.serialize() })),
+			options: options.map(item => ({
+				id: item.command.id,
+				registered: !!CommandsRegistry.getCommand(item.command.id),
+				toggled: item.command.toggled,
+			})),
+		}, {
+			parents: [
+				{ title: 'Layout Density', when: '!sessionsIsPhoneLayout' },
+				{ title: 'Layout Density', when: '!sessionsIsPhoneLayout' },
+			],
+			options: ['default', 'compact'].map(density => ({
+				id: `workbench.action.setLayoutDensity.${density}`,
+				registered: true,
+				toggled: ContextKeyExpr.equals(`config.${LayoutSettings.MODERN_UI_DENSITY}`, density),
+			})),
+		});
+	});
+
+	test('toggles the session toolbar setting from the desktop View > Appearance menu', async () => {
+		const item = MenuRegistry.getMenuItems(Menus.ViewAppearance)
+			.filter(isIMenuItem)
+			.find(item => item.command.id === TOGGLE_SESSION_TOOLBAR_COMMAND_ID);
+		const appearance = MenuRegistry.getMenuItems(MenuId.MenubarViewMenu).filter(isISubmenuItem).find(item => item.submenu === Menus.ViewAppearance);
+		const configurationService = new class extends TestConfigurationService {
+			override updateValue(key: string, value: unknown): Promise<void> {
+				return this.setUserConfiguration(key, value);
+			}
+		}({ [SESSION_TOOLBAR_SETTING]: true });
+		const accessor = upcastPartial<ServicesAccessor>({ get: <T>() => configurationService as T });
+		const run = async () => {
+			await CommandsRegistry.getCommand(TOGGLE_SESSION_TOOLBAR_COMMAND_ID)!.handler(accessor);
+			return configurationService.getValue(SESSION_TOOLBAR_SETTING);
+		};
+
+		assert.deepStrictEqual({
+			appearance: { title: appearance?.title, group: appearance?.group, when: appearance?.when?.serialize() },
+			appearanceItems: MenuRegistry.getMenuItems(Menus.ViewAppearance).length,
+			group: item?.group,
+			when: item?.when?.serialize(),
+			toggled: item?.command.toggled,
+			afterFirstRun: await run(),
+			afterSecondRun: await run(),
+		}, {
+			appearance: { title: '&&Appearance', group: '2_appearance', when: 'agentSessionsDesktopLayout' },
+			appearanceItems: 1,
+			group: '1_workbench_layout',
+			when: 'agentSessionsDesktopLayout',
+			toggled: ContextKeyExpr.equals(`config.${SESSION_TOOLBAR_SETTING}`, true),
+			afterFirstRun: false,
+			afterSecondRun: true,
+		});
+	});
+
+	test('hides the session toolbar from its context menu and toggles it only from the chat transcript background menu', () => {
+		const find = (menu: MenuId) => MenuRegistry.getMenuItems(menu).filter(isIMenuItem).find(item => item.command.id === TOGGLE_SESSION_TOOLBAR_COMMAND_ID);
+		const describe = (item: ReturnType<typeof find>) => ({ title: item?.command.title, toggled: item?.command.toggled, group: item?.group, when: item?.when?.serialize() });
+
+		assert.deepStrictEqual({
+			toolbar: describe(find(Menus.SessionToolbarContext)),
+			chat: describe(find(MenuId.ChatContext)),
+			// The toolbar is not shown in the new-session view, so its background menu does not offer the toggle.
+			inNewSessionMenu: !!find(Menus.SessionChatBackgroundContext),
+		}, {
+			toolbar: { title: 'Hide Session Toolbar', toggled: undefined, group: 'navigation', when: undefined },
+			chat: { title: 'Session Toolbar', toggled: ContextKeyExpr.equals(`config.${SESSION_TOOLBAR_SETTING}`, true), group: 'zz_view', when: 'agentSessionsDesktopLayout && chatContextMenuIsBackground && isSessionsWindow && !sessionsIsPhoneLayout' },
+			inNewSessionMenu: false,
+		});
 	});
 
 	test('always-on-top toggle action is contributed to TitleBarRight', () => {
@@ -100,20 +181,23 @@ suite('Sessions - Layout Actions', () => {
 		});
 	});
 
-	test('original-layout auxiliary bar toggle reuses the core command with state-dependent icons on the editor title layout menu', () => {
-		// The original (non-single-pane) editor-title menu items reference the core toggle command
-		// rather than registering their own; assert it is actually registered so the contribution
-		// cannot silently break. (The single-pane "Toggle Details" item is a dedicated command
-		// registered by SinglePaneLayoutController and is asserted in its own suite.)
-		assert.ok(CommandsRegistry.getCommand(ToggleAuxiliaryBarAction.ID), 'core toggle auxiliary bar command should be registered');
-
-		// Original layout: two mutually-exclusive right-panel icons on the layout group.
-		const layoutToggleIcons = MenuRegistry.getMenuItems(MenuId.EditorTitleLayout)
+	test('bottom panel does not expose the legacy alignment toggle in the overflow menu', () => {
+		const alignmentItems = MenuRegistry.getMenuItems(MenuId.ViewTitle)
 			.filter(isIMenuItem)
-			.filter(item => item.command.id === ToggleAuxiliaryBarAction.ID)
-			.map(item => ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined)
-			.sort((a, b) => (a ?? '').localeCompare(b ?? ''));
-		assert.deepStrictEqual(layoutToggleIcons, [Codicon.rightPanelHide.id, Codicon.rightPanelShow.id]);
+			.filter(item => item.command.id === LEGACY_TOGGLE_PANEL_ALIGNMENT_ACTION_ID);
+		const panelTitleAlignmentItems = MenuRegistry.getMenuItems(Menus.PanelTitle)
+			.filter(isIMenuItem)
+			.filter(item => item.command.id === LEGACY_TOGGLE_PANEL_ALIGNMENT_ACTION_ID);
+
+		assert.deepStrictEqual({
+			commandRegistered: Boolean(CommandsRegistry.getCommand(LEGACY_TOGGLE_PANEL_ALIGNMENT_ACTION_ID)),
+			viewTitleAlignmentItemCount: alignmentItems.length,
+			panelTitleAlignmentItemCount: panelTitleAlignmentItems.length,
+		}, {
+			commandRegistered: false,
+			viewTitleAlignmentItemCount: 0,
+			panelTitleAlignmentItemCount: 0,
+		});
 	});
 
 	test('core auxiliary bar command delegates to the layout service', async () => {
@@ -142,7 +226,7 @@ suite('Sessions - Layout Actions', () => {
 		assert.strictEqual(toggled.condition.serialize(), SecondarySideBarVisibleContext.key);
 	});
 
-	test('single-pane Hide/Show Editor remain registered but are always hidden', () => {
+	test('desktop Hide/Show Editor remain registered but are always hidden', () => {
 		const layoutItems = MenuRegistry.getMenuItems(MenuId.EditorTitleLayout)
 			.filter(isIMenuItem);
 		const actionState = (id: string) => layoutItems

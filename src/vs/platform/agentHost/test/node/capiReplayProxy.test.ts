@@ -15,6 +15,39 @@ suite('CapiReplayProxy', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('serves mutable managed settings locally in record and replay and resets between tests', async () => {
+		const directory = mkdtempSync(join(tmpdir(), 'capi-replay-policy-'));
+		const fixturePath = join(directory, 'capture.yaml');
+		const policy = { telemetry: { enabled: true, serviceName: 'policy-a' } };
+		try {
+			for (const mode of ['record', 'replay'] as const) {
+				const proxy = new CapiReplayProxy({ fixturePath, mode });
+				try {
+					const url = await proxy.start();
+					const readPolicy = async () => (await fetch(`${url}/copilot_internal/managed_settings`)).json();
+					proxy.setManagedSettings(policy);
+					const first = await readPolicy();
+					proxy.setManagedSettings({ telemetry: { enabled: false } });
+					const second = await readPolicy();
+					assert.deepStrictEqual({ first, second, requests: proxy.managedSettingsRequestCount }, {
+						first: policy,
+						second: { telemetry: { enabled: false } },
+						requests: 2,
+					});
+					if (mode === 'replay') {
+						proxy.resetForReplay(fixturePath);
+						assert.deepStrictEqual({ policy: await readPolicy(), requests: proxy.managedSettingsRequestCount }, { policy: {}, requests: 1 });
+					}
+				} finally {
+					await proxy.stop();
+				}
+			}
+			assert.ok(!readFileSync(fixturePath, 'utf8').includes('policy-a'), 'Managed settings must not enter model recordings');
+		} finally {
+			rmSync(directory, { recursive: true, force: true });
+		}
+	});
+
 	test('preserves relative retry controls without recording unrelated response headers', async () => {
 		const directory = mkdtempSync(join(tmpdir(), 'capi-replay-retry-'));
 		const fixturePath = join(directory, 'capture.yaml');
@@ -57,6 +90,85 @@ suite('CapiReplayProxy', () => {
 				]);
 			} finally {
 				await replay.stop();
+			}
+		} finally {
+			await recorder.stop();
+			rmSync(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('normalizes known tool-call references in permission-judge text without eliding content or wiring', async () => {
+		const directory = mkdtempSync(join(tmpdir(), 'capi-replay-permission-ids-'));
+		const fixturePath = join(directory, 'capture.yaml');
+		const recorder = new CapiReplayProxy({ fixturePath, mode: 'record' });
+		const request = (text: string) => JSON.stringify({
+			model: 'claude-sonnet-5',
+			system: 'system',
+			messages: [{ role: 'user', content: [{ type: 'text', text }] }],
+		});
+		const judgeText = (first: string, second: string, separator = '/') => {
+			const fileDiff = JSON.stringify({
+				fileName: `\${workdir}${separator}file`,
+				diff: `\ndiff --git a\${workdir}${separator}file b\${workdir}${separator}file\ncreate file mode 100644\n+preserved-content\n`,
+			}, null, 2);
+			return [
+				'Keep the authored question and opaque-first text.',
+				JSON.stringify({ toolCallId: first, managedApprovalRequired: true }),
+				JSON.stringify({ toolCallId: second }, null, 2),
+				JSON.stringify({ toolCallId: 'authored-id' }),
+				'```json', fileDiff, '```',
+				'  ```json', fileDiff, '  ```',
+				'Unfenced JSON:', fileDiff,
+			].join('\n');
+		};
+		try {
+			const url = await recorder.start();
+			recorder.setRecordingModelResponse({
+				status: 200,
+				headers: { 'content-type': 'text/event-stream' },
+				body: anthropicMessageToSse({
+					content: [
+						{ type: 'tool_use', id: 'opaque-first', name: 'view', input: { path: 'input.txt' } },
+						{ type: 'tool_use', id: 'opaque-second', name: 'create', input: { path: 'output.txt' } },
+					],
+					stopReason: 'tool_use',
+				}),
+			});
+			await (await fetch(`${url}/v1/messages`, { method: 'POST', body: request('Read and write') })).text();
+			recorder.setRecordingModelResponse({
+				status: 200,
+				headers: { 'content-type': 'text/event-stream' },
+				body: anthropicMessageToSse({ content: [{ type: 'text', text: 'ALLOW' }], stopReason: 'end_turn' }),
+			});
+			await (await fetch(`${url}/v1/messages`, { method: 'POST', body: request(judgeText('opaque-first', 'opaque-second')) })).text();
+			await recorder.stop();
+
+			const normalized = judgeText('toolcall_0', 'toolcall_1');
+			const texts = [
+				normalized,
+				judgeText('toolcall_0', 'toolcall_1', '\\'),
+				normalized.replaceAll('```', '  ```'),
+				judgeText('toolcall_1', 'toolcall_0'),
+				normalized.replace('authored question', 'different question'),
+				normalized.replace('"managedApprovalRequired":true', '"managedApprovalRequired":false'),
+				normalized.replace('authored-id', 'different-id'),
+				normalized.replace('preserved-content', 'different-content'),
+			];
+			for (const [index, text] of texts.entries()) {
+				const replay = new CapiReplayProxy({ fixturePath, mode: 'replay' });
+				try {
+					const replayUrl = await replay.start();
+					for (const body of [request('Read and write'), request(text)]) {
+						await (await fetch(`${replayUrl}/v1/messages`, { method: 'POST', body })).text();
+					}
+					if (index < 2) {
+						replay.assertNoReplayMismatches();
+					} else {
+						assert.throws(() => replay.assertNoReplayMismatches(), /model request mismatch/);
+					}
+				} finally {
+					await replay.close();
+				}
 			}
 		} finally {
 			await recorder.stop();
@@ -114,6 +226,55 @@ suite('CapiReplayProxy', () => {
 			rmSync(directory, { recursive: true, force: true });
 		}
 	});
+
+	for (const observedFailure of ['none', 'cache miss', 'model request mismatch'] as const) {
+		test(`expected-failure replay verification preserves observed failures: ${observedFailure}`, async () => {
+			const directory = mkdtempSync(join(tmpdir(), 'capi-replay-expected-failure-'));
+			const fixturePath = join(directory, 'capture.yaml');
+			const request = (text: string) => JSON.stringify({
+				model: 'claude-sonnet-5',
+				system: 'system',
+				messages: [{ role: 'user', content: text }],
+			});
+			const recorder = new CapiReplayProxy({ fixturePath, mode: 'record' });
+			try {
+				const url = await recorder.start();
+				for (const text of ['first', 'second']) {
+					recorder.setRecordingModelResponse({
+						status: 200,
+						headers: { 'content-type': 'text/event-stream' },
+						body: anthropicMessageToSse({ content: [{ type: 'text', text: 'response' }], stopReason: 'end_turn' }),
+					});
+					await (await fetch(`${url}/v1/messages`, { method: 'POST', body: request(text) })).text();
+				}
+				await recorder.stop();
+
+				const replay = new CapiReplayProxy({ fixturePath, mode: 'replay' });
+				try {
+					const replayUrl = await replay.start();
+					const endpoint = observedFailure === 'cache miss' ? '/responses' : '/v1/messages';
+					const text = observedFailure === 'model request mismatch' ? 'unexpected' : 'first';
+					await (await fetch(`${replayUrl}${endpoint}`, { method: 'POST', body: request(text) })).text();
+					assert.throws(() => replay.assertNoReplayMismatches(), /unconsumed recorded responses/);
+					const verification = { allowUnconsumedResponses: true };
+					if (observedFailure === 'none') {
+						replay.assertNoReplayMismatches(verification);
+						assert.throws(() => replay.assertNoReplayMismatches(), /unconsumed recorded responses/);
+						await replay.stop(verification);
+					} else {
+						const expected = new RegExp(observedFailure);
+						assert.throws(() => replay.assertNoReplayMismatches(verification), expected);
+						await assert.rejects(replay.stop(verification), expected);
+					}
+				} finally {
+					await replay.close();
+				}
+			} finally {
+				await recorder.stop();
+				rmSync(directory, { recursive: true, force: true });
+			}
+		});
+	}
 
 	test('preserves whitespace-only content without whitespace-only fixture lines', async () => {
 		const directory = mkdtempSync(join(tmpdir(), 'capi-replay-whitespace-'));

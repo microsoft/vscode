@@ -382,6 +382,21 @@ suite('Product test checkpoint templates', () => {
 		});
 	});
 
+	test('Windows x64 CI gives every job 70 minutes', () => {
+		const ci = readTemplate('win32/product-build-win32-ci.yml');
+		const job = records(ci).find(record => record.job === 'Windows${{ parameters.VSCODE_JOB_NAME }}');
+		assert.ok(job);
+		assert.deepStrictEqual({
+			timeout: job.timeoutInMinutes,
+			branches: Object.fromEntries(Object.entries(job).filter(([key]) => key.startsWith('${{ '))),
+			cancelTimeoutInMinutes: job.cancelTimeoutInMinutes,
+		}, {
+			timeout: 70,
+			branches: {},
+			cancelTimeoutInMinutes: 10,
+		});
+	});
+
 	test('Linux and macOS CI assign every test ID to one of four jobs', () => {
 		const pipelineFiles = ['product-build.yml', 'product-build-ado-ci.yml', 'product-build-template.yml'];
 		const observed = ([
@@ -531,7 +546,7 @@ suite('Product test checkpoint templates', () => {
 		})));
 	});
 
-	test('macOS CI includes a CLI job for each selected architecture', () => {
+	test('macOS CI includes only the ARM64 CLI job', () => {
 		const pipelineFiles = ['product-build.yml', 'product-build-ado-ci.yml', 'product-build-template.yml'];
 		const observed = pipelineFiles.map(file => {
 			const stage = records(readTemplate(file)).find(record => record.stage === 'macOS');
@@ -555,7 +570,6 @@ suite('Product test checkpoint templates', () => {
 			return {
 				file,
 				cliJobs: [
-					{ when: '${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}', arch: 'x64', checkOnly },
 					{ when: '${{ if eq(parameters.VSCODE_BUILD_MACOS_ARM64, true) }}', arch: 'arm64', checkOnly },
 				],
 			};

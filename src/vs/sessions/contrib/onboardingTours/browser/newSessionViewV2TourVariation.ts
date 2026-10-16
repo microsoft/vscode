@@ -9,9 +9,16 @@ import { getOnboardingDeveloperModeVariation } from '../../../../workbench/contr
 import { IWorkbenchAssignmentService } from '../../../../workbench/services/assignment/common/assignmentService.js';
 import { NEW_SESSION_VIEW_V2_TOUR_ID, NEW_SESSION_VIEW_V2_VARIATION_TREATMENT, NewSessionViewV2Variation } from './tours/newSessionViewV2Tour.js';
 
-export async function resolveNewSessionViewV2TourVariation(configurationService: IConfigurationService, assignmentService: IWorkbenchAssignmentService, logService: ILogService): Promise<NewSessionViewV2Variation> {
+export async function resolveNewSessionViewV2TourVariation(
+	configurationService: IConfigurationService,
+	assignmentService: IWorkbenchAssignmentService,
+	logService: ILogService,
+	options: { defaultVariation?: NewSessionViewV2Variation; useTreatment?: boolean } = {},
+): Promise<NewSessionViewV2Variation> {
 	const variation = getOnboardingDeveloperModeVariation(configurationService, NEW_SESSION_VIEW_V2_TOUR_ID)
-		?? await assignmentService.getTreatment<string>(NEW_SESSION_VIEW_V2_VARIATION_TREATMENT);
+		?? (options.useTreatment !== false ? await assignmentService.getTreatment<string>(NEW_SESSION_VIEW_V2_VARIATION_TREATMENT) : undefined)
+		?? options.defaultVariation
+		?? 'default';
 	if (variation === 'workspaceAndModel') {
 		return variation;
 	}

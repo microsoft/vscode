@@ -42,7 +42,7 @@ export interface IRelayChannel {
 export interface IRelayConnectionHandle {
 	/** Identifier of the freshly established relay channel. */
 	readonly connectionId: string;
-	/** Tear down this relay channel. Invoked when the transport is disposed. */
+	/** Releases a late-established relay after its logical client has closed. */
 	close?(): Promise<void>;
 }
 

@@ -89,6 +89,8 @@ export interface IModelCapabilityOverride {
 	 * Claude Opus 4.7 capability).
 	 */
 	family?: string;
+	/** Whether this Chat Completions model accepts thinking replayed from earlier user turns. */
+	thinkingInHistory?: boolean;
 }
 
 /**
@@ -173,6 +175,11 @@ export function isKimiFamily(model: LanguageModelChat | IChatEndpoint | string):
 	}
 
 	return matches(model.family) || matches(getModelId(model));
+}
+
+/** Kimi K3 requires preserved thinking across user turns as well as tool calls. */
+export function modelSupportsThinkingContentInHistory(model: LanguageModelChat | IChatEndpoint): boolean {
+	return [model.family, getModelId(model)].some(value => /(?:^|\/)(?:kimi-)?k3(?:$|[-:])/i.test(value));
 }
 
 export function isVSCModelA(model: LanguageModelChat | IChatEndpoint) {

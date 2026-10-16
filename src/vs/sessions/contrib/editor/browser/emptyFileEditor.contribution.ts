@@ -3,33 +3,42 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from '../../../../nls.js';
+import { localize, localize2 } from '../../../../nls.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../workbench/browser/editor.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../../workbench/common/editor.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { NEW_UNTITLED_FILE_COMMAND_ID } from '../../../../workbench/contrib/files/browser/fileConstants.js';
+import { Menus } from '../../../browser/menus.js';
+import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
+import { SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING } from '../../../common/sessionConfig.js';
 import { EmptyFileEditor } from './emptyFileEditor.js';
+import { EmptyFileEditorAccessibilityHelp } from './emptyFileEditorAccessibility.js';
 import { EmptyFileEditorInput, EmptyFileEditorSerializer } from './emptyFileEditorInput.js';
 
 /**
  * Registers the empty-file editor (the "Select a file or search with <kbd>" placeholder pane) and
- * its serializer, but only in the single-pane layout where the "Files" add-tab flow uses it.
+ * its serializer, but only in the desktop layout where the "Files" add-tab flow uses it.
  * Registered at startup (before editor restore) so persisted empty-file tabs can be deserialized.
  * Opening it is owned by `addTabActions.ts`'s "Files" action.
  */
-class SinglePaneEmptyFileEditorContribution extends Disposable implements IWorkbenchContribution {
+class DesktopEmptyFileEditorContribution extends Disposable implements IWorkbenchContribution {
 
-	static readonly ID = 'workbench.contrib.sessions.singlePaneEmptyFileEditor';
+	static readonly ID = 'workbench.contrib.sessions.desktopEmptyFileEditor';
 
 	constructor(
 		@IAgentWorkbenchLayoutService layoutService: IAgentWorkbenchLayoutService,
 	) {
 		super();
 
-		if (!layoutService.isSinglePaneLayoutEnabled) {
+		if (layoutService.agentWorkbenchLayout !== AgentWorkbenchLayout.Desktop) {
 			return;
 		}
 
@@ -49,4 +58,30 @@ class SinglePaneEmptyFileEditorContribution extends Disposable implements IWorkb
 	}
 }
 
-registerWorkbenchContribution2(SinglePaneEmptyFileEditorContribution.ID, SinglePaneEmptyFileEditorContribution, WorkbenchPhase.BlockStartup);
+registerWorkbenchContribution2(DesktopEmptyFileEditorContribution.ID, DesktopEmptyFileEditorContribution, WorkbenchPhase.BlockStartup);
+AccessibleViewRegistry.register(new EmptyFileEditorAccessibilityHelp());
+MenuRegistry.appendMenuItem(Menus.EmptyFileEditorActions, {
+	command: {
+		id: NEW_UNTITLED_FILE_COMMAND_ID,
+		title: localize2('emptyFileEditor.newFile', "New File"),
+		icon: Codicon.newFile,
+	},
+	group: 'navigation',
+	order: 1,
+});
+
+export const emptyFileEditorConfiguration = {
+	id: 'sessions',
+	properties: {
+		[SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING]: {
+			type: 'boolean',
+			default: product.quality === 'insider',
+			scope: ConfigurationScope.WINDOW,
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+			description: localize('sessions.experimental.emptyFileEditorActions', "Enables file search and a New File action in the empty Files editor."),
+		},
+	},
+} satisfies IConfigurationNode;
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration(emptyFileEditorConfiguration);

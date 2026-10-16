@@ -17,6 +17,7 @@ import { getSelectedModelStorageKey, getStoredSelectedModel, storeSelectedModel 
 import { ChatAgentLocation, ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier, type IModelConfigurationAccess } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IntendedModelSlot } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { IModelPickerWorkflow } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerWorkflow.js';
 import { IPendingModelSelection, isInConversationModelChoice, ModelSelectionReason, RestoredModelReason } from '../../../../workbench/contrib/chat/common/modelSelection.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ChatModelSource, SessionStatus } from '../../../services/sessions/common/session.js';
@@ -64,10 +65,11 @@ class ConversationModelSelection {
 export const ISessionModelSelection = createDecorator<ISessionModelSelection>('sessionModelSelection');
 
 export interface ISessionModelSelection {
+	readonly workflow?: IModelPickerWorkflow;
 	readonly _serviceBrand: undefined;
 	readonly state: IObservable<ISessionModelSelectionState>;
 	readonly modelConfiguration?: IModelConfigurationAccess;
-	selectModel(modelIdentifier: string): boolean;
+	selectModel(modelIdentifier: string, isUserAction?: boolean): boolean;
 }
 
 /**
@@ -86,6 +88,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 	private readonly _state = observableValue<ISessionModelSelectionState>(this, EMPTY_MODEL_SELECTION_STATE);
 	readonly state: IObservable<ISessionModelSelectionState> = this._state;
 	readonly modelConfiguration: IModelConfigurationAccess | undefined;
+	readonly workflow: IModelPickerWorkflow | undefined;
 
 	private readonly _providerListener = this._register(new MutableDisposable());
 	private readonly _modelConfigurationListener = this._register(new MutableDisposable());
@@ -114,20 +117,22 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 
 	constructor(
 		private readonly _session: IObservable<IActiveSession | undefined>,
-		options: { readonly modelConfiguration?: boolean },
+		options: { readonly modelConfiguration?: boolean; readonly fallbackModelConfiguration?: IModelConfigurationAccess; readonly workflow?: IModelPickerWorkflow },
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService logService: ILogService,
 	) {
 		super();
+		this.workflow = options.workflow;
+		const configurationAccess = () => this._modelConfigurationAccess ?? options.fallbackModelConfiguration;
 		this.modelConfiguration = options.modelConfiguration ? {
-			getModelConfiguration: modelId => this._modelConfigurationAccess?.getModelConfiguration(modelId),
-			getModelConfigurationSchema: modelId => this._modelConfigurationAccess?.getModelConfigurationSchema?.(modelId),
+			getModelConfiguration: modelId => configurationAccess()?.getModelConfiguration(modelId),
+			getModelConfigurationSchema: modelId => configurationAccess()?.getModelConfigurationSchema?.(modelId),
 			setModelConfiguration: async (modelId, values) => {
-				await this._modelConfigurationAccess?.setModelConfiguration(modelId, values);
+				await configurationAccess()?.setModelConfiguration(modelId, values);
 			},
-			getModelConfigurationActions: modelId => this._modelConfigurationAccess?.getModelConfigurationActions(modelId) ?? [],
+			getModelConfigurationActions: modelId => configurationAccess()?.getModelConfigurationActions(modelId) ?? [],
 			onDidChange: this._onDidChangeModelConfiguration.event,
 		} : undefined;
 		this._diagnostics = new ChatModelSelectionDiagnostics(logService, this._storageService, () => {
@@ -167,7 +172,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 		}));
 	}
 
-	selectModel(modelIdentifier: string): boolean {
+	selectModel(modelIdentifier: string, isUserAction = true): boolean {
 		const session = this._session.get();
 		const provider = session ? this._sessionsProvidersService.getProvider(session.providerId) : undefined;
 		if (!session || !provider) {
@@ -197,10 +202,17 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 		const storageKey = getSelectedModelStorageKey(ChatAgentLocation.Chat, snapshot.modelTarget);
 		const conversation = this._conversation();
 		try {
-			this._controller.applySelection(model, () => {
-				provider.setModel(session.sessionId, session.activeChat.get().resource, model.identifier, ChatModelSource.Chosen);
+			if (isUserAction) {
+				this._controller.applySelection(model, () => {
+					provider.setModel(session.sessionId, session.activeChat.get().resource, model.identifier, ChatModelSource.Chosen);
+					if (this._controller.currentModel.get()?.identifier === model.identifier) {
+						storeSelectedModel(this._storageService, ChatAgentLocation.Chat, snapshot.modelTarget, model.identifier);
+					}
+				}, true, true);
+			} else {
+				this._controller.applyProgrammaticSelection(model);
 				storeSelectedModel(this._storageService, ChatAgentLocation.Chat, snapshot.modelTarget, model.identifier);
-			}, true, true);
+			}
 		} catch (error) {
 			this._diagnostics.report('provider-selection-failed', {
 				requestedModel: modelIdentifier,
@@ -236,6 +248,10 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 			getBoundConversationKey: () => this._boundConversationKey,
 			getIntentHolder: () => this._conversation().intent,
 			applyModel: model => this._pushModelToProvider(model),
+			isModelAbsenceConclusive: modelId => {
+				const session = this._activeSession;
+				return !!session && this._activeProvider?.getModelsSnapshot(session.sessionId, modelId).desiredModelResolution.kind === 'unavailable';
+			},
 			// The provider owns Automation model preferences; the controller only selects the model.
 		};
 	}
@@ -321,7 +337,9 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 			this._controller.beginConversationSwitch();
 		}
 
-		if (this.modelConfiguration && chatModelId && snapshot.desiredModelResolution.kind === 'unavailable') {
+		const hasManagedFallback = this._models.some(model => model.metadata.managedModelDefaults?.model);
+		if (this.modelConfiguration && chatModelId && snapshot.desiredModelResolution.kind === 'unavailable'
+			&& (this._chatIsEmpty || !hasManagedFallback)) {
 			// An unavailable saved model must not lose its preferences merely by opening its Automation.
 			this._conversation().seeded = false;
 			this._publish(options, { reference: chatModelId });
@@ -381,6 +399,8 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 			if (chatModel) {
 				// A model the chat already runs on outranks `chat.defaultModel`.
 				this._claimChatModel(chatModel, chatModelSource, conversationKey);
+			} else if (chatModelId && !this._chatIsEmpty && this._models.some(model => model.metadata.managedModelDefaults?.model)) {
+				this._controller.selectDefault();
 			} else {
 				this._controller.initialize(rememberedId);
 			}

@@ -26,6 +26,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { defaultBreadcrumbsWidgetStyles, defaultButtonStyles, defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { AgentHostAhpJsonlLoggingSettingId, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ActionType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -35,6 +36,7 @@ import { IChatService } from '../../common/chatService/chatService.js';
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { AgentHostLogSourceKind, enumerateAgentHostLogSources, IAgentHostLogSource, IAgentHostLogSourceServices, isAgentHostSession, readAgentHostLogSourceContent } from './agentHostLogSources.js';
 import { setupBreadcrumbKeyboardNavigation, TextBreadcrumbItem } from './chatDebugTypes.js';
+import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
 
 const $ = DOM.$;
 
@@ -156,6 +158,7 @@ export class ChatDebugWireLogView extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IPathService private readonly pathService: IPathService,
 		@IAgentHostService private readonly agentHostService: IAgentHostService,
+		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService,
 		@IOutputService private readonly outputService: IOutputService,
 		@IFileService private readonly fileService: IFileService,
@@ -280,6 +283,7 @@ export class ChatDebugWireLogView extends Disposable {
 		return {
 			pathService: this.pathService,
 			agentHostService: this.agentHostService,
+			agentHostConnectionsService: this.agentHostConnectionsService,
 			remoteAgentHostService: this.remoteAgentHostService,
 			outputService: this.outputService,
 			fileService: this.fileService,
@@ -298,12 +302,16 @@ export class ChatDebugWireLogView extends Disposable {
 		DOM.clearNode(this.selectHost);
 		this.selectBox = undefined;
 
-		const wireLoggingEnabled = this.configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
+		const connection = this.currentSessionResource ? this.agentHostConnectionsService.resolveSessionResource(this.currentSessionResource)?.connection : undefined;
+		const missionControl = connection?.clientConnectionKind === AgentHostClientConnectionKind.MissionControl;
+		const wireLoggingEnabled = missionControl || this.configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
 		DOM.clearNode(this.hintBar);
-		if (!wireLoggingEnabled) {
+		if (missionControl || !wireLoggingEnabled) {
 			DOM.show(this.hintBar);
 			DOM.append(this.hintBar, $(`span${ThemeIcon.asCSSSelector(Codicon.info)}`));
-			DOM.append(this.hintBar, $('span', undefined, localize('chatDebug.wireLog.disabledHint', "AHP logging is disabled — enable {0} and reproduce to capture client↔host protocol frames.", AgentHostAhpJsonlLoggingSettingId)));
+			DOM.append(this.hintBar, $('span', undefined, missionControl
+				? localize('chatDebug.wireLog.hostCaptureHint', "Mission Control AHP logs are captured on the host. Configure {0} in the host's owning VS Code window.", AgentHostAhpJsonlLoggingSettingId)
+				: localize('chatDebug.wireLog.disabledHint', "AHP logging is disabled — enable {0} and reproduce to capture client↔host protocol frames.", AgentHostAhpJsonlLoggingSettingId)));
 		} else {
 			DOM.hide(this.hintBar);
 		}
@@ -316,9 +324,11 @@ export class ChatDebugWireLogView extends Disposable {
 		const allSources = await enumerateAgentHostLogSources(this.logSourceServices, this.currentSessionResource);
 		this.sources = allSources.filter(source => source.kind === AgentHostLogSourceKind.WireLog);
 		if (this.sources.length === 0) {
-			this.renderMessage(wireLoggingEnabled
-				? localize('chatDebug.wireLog.noFrames', "No AHP log was found yet for this session. Interact with the agent to capture protocol frames.")
-				: localize('chatDebug.wireLog.enableToCapture', "No AHP log is available. Enable {0} and reproduce the issue to capture protocol frames.", AgentHostAhpJsonlLoggingSettingId));
+			this.renderMessage(missionControl
+				? localize('chatDebug.wireLog.noHostFrames', "No host AHP log is available. Verify logging is enabled in the host's owning VS Code window and that the host allows reading its logs.")
+				: wireLoggingEnabled
+					? localize('chatDebug.wireLog.noFrames', "No AHP log was found yet for this session. Interact with the agent to capture protocol frames.")
+					: localize('chatDebug.wireLog.enableToCapture', "No AHP log is available. Enable {0} and reproduce the issue to capture protocol frames.", AgentHostAhpJsonlLoggingSettingId));
 			return;
 		}
 

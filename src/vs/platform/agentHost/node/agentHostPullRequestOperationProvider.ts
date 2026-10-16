@@ -11,10 +11,10 @@ import { ILogService } from '../../log/common/log.js';
 import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { SessionArtifactType, stringifySessionArtifacts } from '../common/sessionArtifacts.js';
-import { ISessionDataService } from '../common/sessionDataService.js';
+import { IAgentHostSessionStateStore } from '../common/agentHostSessionStateStore.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, hasSessionPullRequestForBranch, readFolderGitHubState, SessionLifecycle, withMostRecentRelatedSessionPullRequest, type ChangesetOperation } from '../common/state/sessionState.js';
-import { resolveGitHubStateFolder } from './agentHostBranchChangesetScope.js';
+import { resolveChangesetOwnerScope, resolveGitHubStateFolder } from './agentHostBranchChangesetScope.js';
 import { AgentHostPullRequestOperationHandler, type PullRequestCreatedEvent } from './agentHostPullRequestOperationHandler.js';
 import { AgentHostPullRequestLifecycleOperationHandler } from './agentHostPullRequestLifecycleOperationHandler.js';
 import { IAgentHostPullRequestStatusService } from './agentHostPullRequestStatusService.js';
@@ -23,7 +23,7 @@ import { AgentMergeConfigKey, agentMergeRootConfigSchema, readAgentMergeFolderSt
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { PREPARE_PULL_REQUEST_OPERATION_ID } from '../common/meta/agentPullRequestOperationMeta.js';
-import { SESSION_ARTIFACTS_KEY, persistSessionMetadataValues } from './shared/persistSessionMetadata.js';
+import { persistSessionMetadataValues, SESSION_ARTIFACTS_KEY } from './shared/persistSessionMetadata.js';
 import { SessionArtifacts } from './shared/sessionArtifacts.js';
 
 export class AgentHostPullRequestOperationContribution extends Disposable implements IChangesetOperationContribution {
@@ -39,7 +39,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService,
 		@IAgentHostPullRequestStatusService private readonly _pullRequestStatusService: IAgentHostPullRequestStatusService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
-		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
+		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -263,8 +263,9 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 	async recordCreatedPullRequest(event: PullRequestCreatedEvent): Promise<void> {
 		const sessionKey = event.sessionKey;
 
-		const artifacts = new SessionArtifacts(this._stateManager, sessionKey, async (session, entries) => {
-			await persistSessionMetadataValues(this._sessionDataService, session, {
+		const chat = event.conversationChat ?? resolveChangesetOwnerScope(this._stateManager, event.ownerUri).sourceUri;
+		const artifacts = new SessionArtifacts(this._stateManager, sessionKey, chat, async (session, entries) => {
+			await persistSessionMetadataValues(this._sessionStateStore, session, {
 				[SESSION_ARTIFACTS_KEY]: stringifySessionArtifacts(entries),
 			});
 		});

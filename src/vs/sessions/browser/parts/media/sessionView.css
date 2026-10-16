@@ -12,96 +12,184 @@
  * across the multi-session grid so attention stays on the active session.
  * ------------------------------------------------------------------------- */
 
+@property --session-view-bubble-background-opacity {
+	syntax: '<number>';
+	inherits: true;
+	initial-value: 1;
+}
+
 /* Shared inset for the header content, transcript, and composer. */
 .session-view {
-	--session-view-content-horizontal-padding: var(--vscode-spacing-size320);
+	--session-view-content-horizontal-padding: var(--vscode-spacing-size240);
+	--session-view-inactive-input-background: color-mix(in srgb, var(--vscode-agentsChatInput-background) 10%, var(--vscode-inactiveSessionView-background));
+	--session-view-request-background: var(--vscode-chat-requestBubbleBackground);
+	--session-view-request-hover-background: var(--vscode-chat-requestBubbleHoverBackground);
+}
+
+.monaco-workbench.monaco-enable-motion:not(.session-comparison-grid-active) .session-view .interactive-session .interactive-list {
+	transition: opacity 100ms ease-out, --session-view-bubble-background-opacity 100ms ease-out;
+}
+
+.monaco-workbench.monaco-enable-motion:not(.session-comparison-grid-active) .session-view .prompt-timeline-rail,
+.monaco-workbench.monaco-enable-motion:not(.session-comparison-grid-active) .session-view .chat-input-persistent-content .chat-pills {
+	transition: opacity 100ms ease-out, visibility 100ms;
+}
+
+:is(.hc-black, .hc-light) .session-view {
+	--session-view-inactive-input-background: var(--vscode-inactiveSessionView-background);
 }
 
 .session-view .session-view-centered-content {
+	/* Paint the outer header after the positioned wallpaper veil. */
+	position: relative;
 	height: 100%;
 	margin: 0 auto;
 	box-sizing: border-box;
 }
 
-/* Transitions apply to both active and inactive states so controls fade
- * smoothly in either direction. Only declared when the user has not requested
- * reduced motion so we never need to unset them. */
-@media (prefers-reduced-motion: no-preference) {
-	.session-view .chat-composite-bar.session-header-bar,
-	.session-view .interactive-session .interactive-list,
-	.session-view .interactive-session .interactive-list .chat-tool-invocation-part,
-	.session-view .interactive-session .interactive-list .chat-thinking-box,
-	.session-view .interactive-session .interactive-list .chat-footer-toolbar,
-	.session-view .interactive-session .chat-input-toolbars > .chat-input-toolbar,
-	.session-view .interactive-session .chat-secondary-toolbar,
-	.session-view .interactive-session .chat-attachments-container,
-	.session-view .interactive-session .interactive-input-followups {
-		transition: opacity 0.15s ease;
-	}
-
-	.session-view .interactive-session .chat-input-toolbars > .chat-execute-toolbar {
-		transition: filter 0.15s ease, opacity 0.15s ease;
-	}
+.monaco-workbench.monaco-enable-motion:not(.session-comparison-grid-active) .session-view .interactive-session .interactive-list .chat-tool-invocation-part,
+.monaco-workbench.monaco-enable-motion:not(.session-comparison-grid-active) .session-view .interactive-session .interactive-list .chat-thinking-box,
+.monaco-workbench.monaco-enable-motion:not(.session-comparison-grid-active) .session-view .interactive-session .interactive-list .chat-footer-toolbar,
+.monaco-workbench.monaco-enable-motion:not(.session-comparison-grid-active) .session-view .interactive-session .chat-input-toolbars > .chat-input-toolbar,
+.monaco-workbench.monaco-enable-motion:not(.session-comparison-grid-active) .session-view .interactive-session .chat-secondary-toolbar,
+.monaco-workbench.monaco-enable-motion:not(.session-comparison-grid-active) .session-view .interactive-session .chat-attachments-container,
+.monaco-workbench.monaco-enable-motion:not(.session-comparison-grid-active) .session-view .interactive-session .interactive-input-followups {
+	transition: opacity 0.15s ease;
 }
 
-/* Strongly recede the whole header (title, meta, toolbar) for inactive sessions
- * so the active session's header stands out, while keeping it legible. */
-.session-view:not(.is-active) .chat-composite-bar.session-header-bar {
-	opacity: 0.6;
+.monaco-workbench.monaco-enable-motion:not(.session-comparison-grid-active) .session-view .interactive-session .chat-input-toolbars > .chat-execute-toolbar {
+	transition: filter 0.15s ease, opacity 0.15s ease;
 }
 
-/* Recede the chat transcript for inactive sessions so it reads as quiet but
- * stays legible at a glance. The list as a whole is only lightly dimmed so the
- * agent's text responses remain readable; non-text content (tool calls) is
- * dimmed further below to keep the visual hierarchy. */
-.session-view:not(.is-active) .interactive-session .interactive-list {
-	opacity: 0.9;
+.monaco-workbench:not(.session-comparison-grid-active) .session-view:not(.is-active):not(:hover, .hovered, :focus-within) > .session-view-centered-content .chat-composite-bar.session-header-bar,
+.monaco-workbench:not(.session-comparison-grid-active) :is(.session-view:not(.is-active) .chat-group-view, .session-view .chat-group-view:not(.active-group)):not(:hover, .hovered, :focus-within) .chat-composite-bar.session-header-bar {
+	opacity: 0;
 }
 
-/* Push tool calls / invocations, thinking sections, and the per-response footer
- * toolbar further back than plain text responses in inactive sessions. Opacity
- * nests multiplicatively, so this stacks on top of the list's 0.9 for an
- * effective ~0.54 while the plain text stays at 0.9. */
-.session-view:not(.is-active) .interactive-session .interactive-list .chat-tool-invocation-part,
-.session-view:not(.is-active) .interactive-session .interactive-list .chat-thinking-box,
-.session-view:not(.is-active) .interactive-session .interactive-list .chat-footer-toolbar {
-	opacity: 0.6;
-}
-
-/* Fully fade out the in-input controls (attach, mode/model/harness pickers,
- * etc.) for inactive sessions so only the send button remains as a quiet
- * affordance. */
-.session-view:not(.is-active) .interactive-session .chat-input-toolbars > .chat-input-toolbar {
+.monaco-workbench:not(.session-comparison-grid-active) .session-view:not(.is-active):not(:hover, .hovered, :focus-within) > .session-view-content > .chat-view :is(.prompt-timeline-rail, .chat-input-persistent-content .chat-pills),
+.monaco-workbench:not(.session-comparison-grid-active) :is(.session-view:not(.is-active) .chat-group-view, .session-view .chat-group-view:not(.active-group)):not(:hover, .hovered, :focus-within) :is(.prompt-timeline-rail, .chat-input-persistent-content .chat-pills) {
 	opacity: 0;
 	visibility: hidden;
 	pointer-events: none;
 }
 
-/* Fade out the controls that sit below the input box (secondary toolbar,
- * attachments row and followups) so the inactive input reads as quiet. */
-.session-view:not(.is-active) .interactive-session .chat-secondary-toolbar,
-.session-view:not(.is-active) .interactive-session .chat-attachments-container,
-.session-view:not(.is-active) .interactive-session .interactive-input-followups {
+.monaco-workbench:not(.session-comparison-grid-active) .session-view .chat-group-view:not(.active-group) {
+	--session-view-background: var(--vscode-inactiveSessionView-background);
+	--session-view-foreground: var(--vscode-inactiveSessionView-foreground);
+	--modern-ui-connected-tab-surface: var(--session-view-background);
+}
+
+/* Paint above the shared wallpaper but below the chat surfaces and their content. */
+.monaco-workbench:not(.session-comparison-grid-active) .part.sessionspart.has-chat-background .session-view:not(.is-active)::before,
+.monaco-workbench:not(.session-comparison-grid-active) .part.sessionspart.has-chat-background .session-view.is-active .chat-group-view:not(.active-group)::before,
+.monaco-workbench:not(.session-comparison-grid-active) .session-view:not(.is-active) .sessions-chat-background-replica-viewport::after,
+.monaco-workbench:not(.session-comparison-grid-active) .session-view .chat-group-view:not(.active-group) .sessions-chat-background-replica-viewport::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background-color: color-mix(in srgb, var(--vscode-inactiveSessionView-background) 75%, transparent);
+	pointer-events: none;
+}
+
+:is(.hc-black, .hc-light).monaco-workbench:not(.session-comparison-grid-active) .part.sessionspart.has-chat-background .session-view:not(.is-active)::before,
+:is(.hc-black, .hc-light).monaco-workbench:not(.session-comparison-grid-active) .part.sessionspart.has-chat-background .session-view.is-active .chat-group-view:not(.active-group)::before,
+:is(.hc-black, .hc-light).monaco-workbench:not(.session-comparison-grid-active) .session-view:not(.is-active) .sessions-chat-background-replica-viewport::after,
+:is(.hc-black, .hc-light).monaco-workbench:not(.session-comparison-grid-active) .session-view .chat-group-view:not(.active-group) .sessions-chat-background-replica-viewport::after {
+	background-color: var(--vscode-inactiveSessionView-background);
+}
+
+.monaco-workbench:is(.hc-black, .hc-light):not(.session-comparison-grid-active) .session-view:not(.is-active) .interactive-session .interactive-list {
+	opacity: 0.9;
+}
+
+.monaco-workbench:is(.hc-black, .hc-light):not(.session-comparison-grid-active) .session-view:not(.is-active) .interactive-session .interactive-list .chat-tool-invocation-part,
+.monaco-workbench:is(.hc-black, .hc-light):not(.session-comparison-grid-active) .session-view:not(.is-active) .interactive-session .interactive-list .chat-thinking-box,
+.monaco-workbench:is(.hc-black, .hc-light):not(.session-comparison-grid-active) .session-view:not(.is-active) .interactive-session .interactive-list .chat-footer-toolbar {
+	opacity: 0.6;
+}
+
+.monaco-workbench:not(.session-comparison-grid-active, .hc-black, .hc-light) .session-view:not(.is-active) .interactive-session .interactive-list,
+.monaco-workbench:not(.session-comparison-grid-active, .hc-black, .hc-light) .session-view .chat-group-view:not(.active-group) .interactive-session .interactive-list {
+	--session-view-bubble-background-opacity: 0.75;
+	--vscode-chat-requestBubbleBackground: color-mix(in srgb, var(--session-view-request-background) calc(var(--session-view-bubble-background-opacity) * 100%), transparent);
+	--vscode-chat-requestBubbleHoverBackground: color-mix(in srgb, var(--session-view-request-hover-background) calc(var(--session-view-bubble-background-opacity) * 100%), transparent);
+}
+
+.monaco-workbench:not(.session-comparison-grid-active, .hc-black, .hc-light) .session-view:not(.is-active):not(:hover, .hovered, :focus-within) > .session-view-content > .chat-view .interactive-session .interactive-list,
+.monaco-workbench:not(.session-comparison-grid-active, .hc-black, .hc-light) :is(.session-view:not(.is-active) .chat-group-view, .session-view .chat-group-view:not(.active-group)):not(:hover, .hovered, :focus-within) .interactive-session .interactive-list {
+	opacity: 0.85;
+	--session-view-bubble-background-opacity: 0;
+}
+
+.monaco-workbench:not(.session-comparison-grid-active, .hc-black, .hc-light) .session-view .interactive-item-container.interactive-response::before {
+	opacity: var(--session-view-bubble-background-opacity);
+}
+
+.monaco-workbench:not(.session-comparison-grid-active, .hc-black, .hc-light) .session-view:not(.is-active) .interactive-list .monaco-button:not(.disabled),
+.monaco-workbench:not(.session-comparison-grid-active, .hc-black, .hc-light) .session-view .chat-group-view:not(.active-group) .interactive-list .monaco-button:not(.disabled) {
+	opacity: 0.6;
+}
+
+.monaco-workbench:not(.session-comparison-grid-active, .hc-black, .hc-light) .session-view:not(.is-active):not(:hover, .hovered, :focus-within) > .session-view-content > .chat-view .interactive-list .monaco-button:not(.disabled),
+.monaco-workbench:not(.session-comparison-grid-active, .hc-black, .hc-light) :is(.session-view:not(.is-active) .chat-group-view, .session-view .chat-group-view:not(.active-group)):not(:hover, .hovered, :focus-within) .interactive-list .monaco-button:not(.disabled) {
+	/* Account for the transcript opacity so actions match the composer notices. */
+	opacity: calc(0.6 / 0.85);
+}
+
+.monaco-workbench:not(.session-comparison-grid-active) .session-view:not(.is-active) .interactive-session .chat-input-toolbars > .chat-input-toolbar {
+	opacity: 0;
+	visibility: hidden;
+	pointer-events: none;
+}
+
+.monaco-workbench:not(.session-comparison-grid-active) .session-view:not(.is-active) .interactive-session .chat-secondary-toolbar,
+.monaco-workbench:not(.session-comparison-grid-active) .session-view:not(.is-active) .interactive-session .chat-attachments-container,
+.monaco-workbench:not(.session-comparison-grid-active) .session-view:not(.is-active) .interactive-session .interactive-input-followups {
 	opacity: 0;
 	pointer-events: none;
 }
 
-/* Fade the chat input editor (including placeholder/draft text) for inactive sessions. */
-.session-view:not(.is-active) .interactive-session .chat-editor-container {
+.monaco-workbench:is(.hc-black, .hc-light):not(.session-comparison-grid-active) .session-view:not(.is-active) .interactive-session .chat-editor-container,
+.monaco-workbench:is(.hc-black, .hc-light):not(.session-comparison-grid-active) .session-view:not(.is-active) .interactive-session .chat-input-toolbars > .chat-execute-toolbar {
 	opacity: 0.6;
 }
 
-/* Fully desaturate the in-flight chat-input border beam in inactive sessions so
- * it matches the muted treatment of the rest of the inactive input controls.
- * Relative color syntax zeroes the saturation channel while preserving hue and
- * lightness — unlike mixing toward a fixed gray, this keeps the accent's
- * lightness intact so high-contrast themes (white/black accents) still read. */
-.session-view:not(.is-active) .interactive-session .chat-input-container.working {
+.monaco-workbench:not(.session-comparison-grid-active) .session-view:not(.is-active) :is(.chat-input-container, .chat-input-stack .chat-input-notice),
+.monaco-workbench:not(.session-comparison-grid-active) .session-view .chat-group-view:not(.active-group) :is(.chat-input-container, .chat-input-stack .chat-input-notice) {
+	--vscode-agentsChatInput-background: var(--session-view-inactive-input-background);
+}
+
+.monaco-workbench:not(.session-comparison-grid-active, .hc-black, .hc-light) .session-view:not(.is-active) :is(.chat-input-container, .chat-input-stack .chat-input-notice),
+.monaco-workbench:not(.session-comparison-grid-active, .hc-black, .hc-light) .session-view .chat-group-view:not(.active-group) :is(.chat-input-container, .chat-input-stack .chat-input-notice) {
+	opacity: 0.6;
+}
+
+.monaco-workbench:not(.session-comparison-grid-active) .session-view:not(.is-active) .interactive-session .chat-input-container.working {
 	--chat-input-working-border-color1: hsl(from var(--vscode-chat-inputWorkingBorderColor1) h 0% l);
 }
 
-/* Desaturate the send button so it reads as muted while still discoverable. */
-.session-view:not(.is-active) .interactive-session .chat-input-toolbars > .chat-execute-toolbar {
+.monaco-workbench:not(.session-comparison-grid-active) .session-view:not(.is-active) .interactive-session .chat-input-toolbars > .chat-execute-toolbar {
 	filter: grayscale(1);
-	opacity: 0.6;
+}
+
+.monaco-workbench.session-comparison-grid-active .part.sessionspart.multiple-sessions-visible .session-view.is-active::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	box-sizing: border-box;
+	border: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	pointer-events: none;
+	/* Sticky transcript rows and their hover controls paint as high as 100. */
+	z-index: 101;
+}
+
+:is(.hc-black, .hc-light).monaco-workbench.session-comparison-grid-active .part.sessionspart.multiple-sessions-visible .session-view.is-active::after {
+	border-color: var(--vscode-contrastActiveBorder);
+}
+
+.monaco-workbench.session-comparison-hide-inactive-inputs
+	.part.sessionspart.multiple-sessions-visible
+	.session-view:not(.is-active)
+	.interactive-session > .interactive-input-part {
+	display: none;
 }

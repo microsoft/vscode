@@ -430,11 +430,44 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 		case ActionType.ChatActivityChanged:
 			return { ...state, activity: action.activity };
 
+		case ActionType.ChatBackgroundWorkSet: {
+			const list = state.backgroundWork ?? [];
+			const idx = list.findIndex(work => work.id === action.work.id);
+			const next = list.slice();
+			if (idx < 0) {
+				next.push(action.work);
+			} else {
+				next[idx] = action.work;
+			}
+			return { ...state, backgroundWork: next };
+		}
+
+		case ActionType.ChatBackgroundWorkRemoved: {
+			const list = state.backgroundWork ?? [];
+			const idx = list.findIndex(work => work.id === action.id);
+			if (idx < 0) {
+				return state;
+			}
+			const next = list.slice();
+			next.splice(idx, 1);
+			return { ...state, backgroundWork: next };
+		}
+
+		case ActionType.ChatMovableChanged:
+			return { ...state, movable: action.movable };
+
 		case ActionType.ChatChangesetsChanged: {
 			const { changesets: _omit, ...stateWithoutChangesets } = state;
 			return action.changesets
 				? { ...stateWithoutChangesets, changesets: action.changesets }
 				: stateWithoutChangesets;
+		}
+
+		case ActionType.ChatCanvasesChanged: {
+			const { canvases: _omit, ...stateWithoutCanvases } = state;
+			return action.canvases
+				? { ...stateWithoutCanvases, canvases: action.canvases }
+				: stateWithoutCanvases;
 		}
 
 		// ── Working Directories ───────────────────────────────────────────────
@@ -906,8 +939,24 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 		case ActionType.ChatDraftChanged:
 			return { ...state, draft: action.draft };
 
+		case ActionType.ChatIsReadChanged:
+			return { ...state, status: withStatusFlag(state.status, SessionStatus.IsRead, action.isRead) };
+
 		case ActionType.ChatIsArchivedChanged:
 			return { ...state, status: withStatusFlag(state.status, SessionStatus.IsArchived, action.isArchived) };
+
+		// ── Config ────────────────────────────────────────────────────────────
+
+		case ActionType.ChatConfigChanged:
+			return {
+				...state,
+				config: {
+					...state.config,
+					values: action.replace || !state.config
+						? { ...action.config }
+						: { ...state.config.values, ...action.config },
+				},
+			};
 
 		default:
 			softAssertNever(action, log);

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
 import * as fs from 'fs';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { ResourceSet } from '../../../util/vs/base/common/map';
@@ -11,11 +10,13 @@ import { Schemas } from '../../../util/vs/base/common/network';
 import { dirname, isEqual, joinPath } from '../../../util/vs/base/common/resources';
 import { equalsIgnoreCase } from '../../../util/vs/base/common/strings';
 import { URI } from '../../../util/vs/base/common/uri';
+import { ExcludeSettingOptions } from '../../../vscodeTypes';
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { INativeEnvService } from '../../env/common/envService';
 import { IFileSystemService } from '../../filesystem/common/fileSystemService';
 import { FileType } from '../../filesystem/common/fileTypes';
 import { ILogService } from '../../log/common/logService';
+import { ISearchService } from '../../search/common/searchService';
 import { IWorkspaceService } from '../../workspace/common/workspaceService';
 import { AgentInstructionFileType, AgentInstructionsLogger, IAgentInstructionFile, PromptConfig } from '../common/promptsService';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
@@ -49,6 +50,7 @@ export class AgentInstructionsLocator extends Disposable {
 		@INativeEnvService private readonly envService: INativeEnvService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
+		@ISearchService private readonly searchService: ISearchService,
 	) {
 		super();
 
@@ -142,9 +144,13 @@ export class AgentInstructionsLocator extends Disposable {
 		if (!useNestedAgentMD) {
 			return [];
 		}
-		// Use the proposed `vscode.workspace.findFiles` glob search so we only pull back
-		// `AGENTS.md` paths and respect the user's standard exclude/.gitignore filters.
-		const found = await vscode.workspace.findFiles('**/AGENTS.md', undefined, undefined, token);
+		const found = await this.searchService.findFiles('**/AGENTS.md', {
+			useExcludeSettings: ExcludeSettingOptions.SearchAndFilesExclude,
+			useIgnoreFiles: {
+				local: !this.configurationService.getNonExtensionConfig<boolean>('explorer.excludeGitIgnore'),
+			},
+			caseInsensitive: true,
+		}, token);
 		if (token.isCancellationRequested) {
 			return [];
 		}

@@ -17,6 +17,7 @@ import { IProgressScope, ScopedProgressIndicator } from '../../../workbench/serv
 import { IChat, ISession } from '../../services/sessions/common/session.js';
 import { WorkspaceSelectionOrigin } from '../../common/workspaceSelection.js';
 import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../services/sessions/common/sessionPickerVisibility.js';
+import type { IChatSessionHistoryStatus } from '../../../platform/chat/common/chatSessionHistory.js';
 
 /**
  * Discriminates between concrete {@link AbstractChatView} subclasses without
@@ -60,6 +61,8 @@ export type WorkspaceSelectionResult = 'applied' | 'notReady' | 'preserved';
 export abstract class AbstractChatView extends Disposable implements ISerializableView {
 
 	readonly element: HTMLElement = $('.chat-view');
+	/** Content-only gutter; scrollable viewports retain the leaf's full width. */
+	protected contentRightInset = 0;
 
 	readonly minimumWidth = 200;
 	readonly maximumWidth = Number.POSITIVE_INFINITY;
@@ -108,13 +111,14 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 
 	/** Whether an input notification already explains a temporary sending restriction. */
 	readonly isInputBlocked: IObservable<boolean> = constObservable(false);
+	readonly historyStatus: IObservable<IChatSessionHistoryStatus | undefined> = constObservable(undefined);
 
 	/**
 	 * Show the given chat in this view. The default implementation is a
 	 * no-op; subclasses that host a chat widget (e.g. `ChatView`) override
 	 * this to load the chat model and feed it into the widget.
 	 */
-	setChat(_chat: IChat, _historyKey?: string, _session?: ISession): void {
+	setChat(_chat: IChat, _historyKey?: string, _session?: ISession, _onInput?: () => void): void {
 		// no-op by default
 	}
 
@@ -219,8 +223,11 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	 * to the allocated dimensions and then delegates to {@link doLayout} so
 	 * subclasses can forward sizing to their hosted widget.
 	 */
-	layout(width: number, height: number, top: number, left: number): void {
+	layout(width: number, height: number, top: number, left: number, contentRightInset = 0): void {
 		size(this.element, width, height);
+		this.contentRightInset = contentRightInset;
+		this.element.classList.toggle('has-session-toolbar', contentRightInset > 0);
+		this.element.style.setProperty('--session-toolbar-reserved-width', `${contentRightInset}px`);
 		this.doLayout(width, height, top, left);
 	}
 

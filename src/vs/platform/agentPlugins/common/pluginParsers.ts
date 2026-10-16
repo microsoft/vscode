@@ -6,6 +6,7 @@
 import { parse as parseJSONC } from '../../../base/common/json.js';
 import { cloneAndChange, equals as objectEquals } from '../../../base/common/objects.js';
 import { isAbsolute } from '../../../base/common/path.js';
+import { isWindows } from '../../../base/common/platform.js';
 import { basename, extname, isEqualOrParent, joinPath, normalizePath, isEqual as isURLEquals, dirname } from '../../../base/common/resources.js';
 import { escapeRegExpCharacters } from '../../../base/common/strings.js';
 import { hasKey, Mutable } from '../../../base/common/types.js';
@@ -16,6 +17,7 @@ import { IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpStdioServer
 import { CustomizationType, McpServerStatus, type AgentCustomization, type HookCustomization, type McpServerCustomization, type RuleCustomization, type SkillCustomization } from '../../agentHost/common/state/protocol/state.js';
 import { DEFAULT_MCP_APP } from '../../agentHost/common/state/protocol/mcpAppDefaults.js';
 import { customizationId } from '../../agentHost/common/state/sessionState.js';
+import { withSkillArgumentHintMeta } from '../../agentHost/common/meta/skillCustomizationMeta.js';
 import { readAgentPluginManifest } from './agentPluginParser.js';
 
 // ---------------------------------------------------------------------------
@@ -111,6 +113,8 @@ export interface IAgentPluginResource extends INamedPluginResource {
 interface ISkillPluginResource extends INamedPluginResource {
 	readonly disableModelInvocation?: boolean;
 	readonly disableUserInvocation?: boolean;
+	/** The skill's frontmatter `argument-hint`, shown as placeholder text after its slash command. */
+	readonly argumentHint?: string;
 }
 
 /** A parsed agent paired with its protocol-level child customization. */
@@ -184,8 +188,9 @@ const COPILOT_FORMAT: IPluginFormatConfig = {
 	hookConfigPath: 'hooks.json',
 	pluginRootTokens: LEGACY_PLUGIN_ROOT_TOKENS,
 	pluginRootEnvVars: LEGACY_PLUGIN_ROOT_ENV_VARS,
-	parseHooks(hookUri, json, _pluginUri, workspaceRoot, userHome) {
-		return parseHooksJson(hookUri, json, workspaceRoot, userHome);
+	hookPluginRoot: PLUGIN_ROOT,
+	parseHooks(hookUri, json, pluginUri, workspaceRoot, userHome) {
+		return interpolateHookPluginRoot(hookUri, json, pluginUri, workspaceRoot, userHome, PLUGIN_ROOT);
 	},
 };
 
@@ -232,8 +237,9 @@ const AGENT_PLUGIN_FORMAT: IPluginFormatConfig = {
 	requiresManifest: true,
 	pluginRootTokens: [],
 	pluginRootEnvVars: [],
-	parseHooks(hookUri, json, _pluginUri, workspaceRoot, userHome) {
-		return parseHooksJson(hookUri, json, workspaceRoot, userHome);
+	hookPluginRoot: PLUGIN_ROOT,
+	parseHooks(hookUri, json, pluginUri, workspaceRoot, userHome) {
+		return interpolateHookPluginRoot(hookUri, json, pluginUri, workspaceRoot, userHome, PLUGIN_ROOT);
 	},
 };
 
@@ -355,6 +361,7 @@ function makeAgentCustomization(resource: IAgentPluginResource): AgentCustomizat
 
 function makeSkillCustomization(resource: ISkillPluginResource): SkillCustomization {
 	const uri = resource.uri.toString();
+	const meta = withSkillArgumentHintMeta(undefined, resource.argumentHint);
 	return {
 		type: CustomizationType.Skill,
 		id: buildChildId(resource.uri),
@@ -363,6 +370,7 @@ function makeSkillCustomization(resource: ISkillPluginResource): SkillCustomizat
 		...(resource.description ? { description: resource.description } : {}),
 		...(resource.disableModelInvocation ? { disableModelInvocation: true } : {}),
 		...(resource.disableUserInvocation ? { disableUserInvocation: true } : {}),
+		...(meta ? { _meta: meta } : {}),
 	};
 }
 
@@ -551,42 +559,40 @@ export function normalizeMcpServerConfiguration(rawConfig: unknown): IMcpServerC
 	return undefined;
 }
 
-/**
- * Characters in a file path that require shell quoting to prevent
- * word splitting or interpretation by common shells.
- */
-const shellUnsafeChars = /[\s&|<>()^;!`"']/;
+const posixShellSafePath = /^[a-zA-Z0-9_./:-]+$/;
+const powerShellSafePath = /^[a-zA-Z0-9_./\\:-]+$/;
 
 /**
  * Replaces a plugin-root token in a shell command string with the
  * given fsPath, shell-quoting if the path contains special characters.
  */
-export function shellQuotePluginRootInCommand(command: string, fsPath: string, token: string) {
+export function shellQuotePluginRootInCommand(command: string, fsPath: string, token: string, shell: 'posix' | 'powershell' = 'posix') {
 	if (!command.includes(token)) {
 		return command;
 	}
 
-	if (!shellUnsafeChars.test(fsPath)) {
+	const safePath = shell === 'powershell' ? powerShellSafePath : posixShellSafePath;
+	if (safePath.test(fsPath)) {
 		return command.replaceAll(token, fsPath);
 	}
 
 	const escapedToken = escapeRegExpCharacters(token);
 	const pattern = new RegExp(
-		`(["']?)` + escapedToken + `([\\w./\\\\~:-]*)`,
+		`(["']?)` + escapedToken + `([\\w./\\\\~:-]*)\\1`,
 		'g',
 	);
 
-	return command.replace(pattern, (_match, leadingQuote: string, suffix: string) => {
+	return command.replace(pattern, (_match, _leadingQuote: string, suffix: string) => {
 		const fullPath = fsPath + suffix;
-		if (leadingQuote) {
-			return leadingQuote + fullPath;
+		if (shell === 'powershell') {
+			return `'${fullPath.replace(/'/g, '\'\'')}'`;
 		}
-		return '"' + fullPath.replace(/"/g, '\\"') + '"';
+		return `'${fullPath.replace(/'/g, `'\\''`)}'`;
 	});
 }
 
 /**
- * Applies the plugin-root convention for a Claude or Open Plugin hook command.
+ * Applies the plugin-root convention for a plugin hook command.
  */
 export function interpolateHookCommandPluginRoot(hook: Record<string, unknown>, pluginUri: URI, format: PluginFormat): Record<string, unknown> {
 	const root = PLUGIN_FORMAT_CONFIGS[format].hookPluginRoot;
@@ -598,7 +604,8 @@ function interpolateHookCommandRoot(hook: Record<string, unknown>, pluginUri: UR
 	const result = cloneAndChange(hook, value => typeof value === 'string' ? value.replaceAll(root.token, fsPath) : undefined) as Record<string, unknown>;
 	for (const field of ['command', 'windows', 'linux', 'osx', 'bash', 'powershell'] as const) {
 		if (typeof hook[field] === 'string') {
-			result[field] = shellQuotePluginRootInCommand(hook[field], fsPath, root.token);
+			const shell = field === 'windows' || field === 'powershell' || (field === 'command' && isWindows) ? 'powershell' : 'posix';
+			result[field] = shellQuotePluginRootInCommand(hook[field], fsPath, root.token, shell);
 		}
 	}
 	result.env = {
@@ -657,6 +664,42 @@ export function interpolateMcpPluginRoot(
 	}
 
 	return { ...def, configuration: interpolated };
+}
+
+/**
+ * Applies Agent Plugins v1 MCP path semantics, which intentionally differ from legacy plugin interpolation.
+ * Only stdio args, env values, and cwd expand `PLUGIN_ROOT`; `./` commands resolve against the plugin root and remote fields remain literal.
+ */
+function interpolateAgentPluginMcpRoot(def: IMcpServerDefinition, pluginRoot: URI): IMcpServerDefinition | undefined {
+	const config = def.configuration;
+	if (config.type !== McpServerType.LOCAL) {
+		return def;
+	}
+
+	const replace = (value: string) => value.replaceAll(PLUGIN_ROOT.token, pluginRoot.fsPath);
+	const local: Mutable<IMcpStdioServerConfiguration> = { ...config };
+	if (local.command.startsWith('./')) {
+		const commandUri = normalizePath(joinPath(pluginRoot, local.command));
+		if (!isEqualOrParent(commandUri, pluginRoot)) {
+			return undefined;
+		}
+		local.command = commandUri.fsPath;
+	}
+	if (local.args) {
+		local.args = local.args.map(replace);
+	}
+	if (local.cwd) {
+		local.cwd = replace(local.cwd);
+	}
+	local.env = { ...local.env };
+	for (const [key, value] of Object.entries(local.env)) {
+		if (typeof value === 'string') {
+			local.env[key] = replace(value);
+		}
+	}
+	local.env[PLUGIN_ROOT.envVar] = pluginRoot.fsPath;
+
+	return { ...def, configuration: local };
 }
 
 /**
@@ -873,8 +916,7 @@ export function parseHooksJson(
 }
 
 /**
- * Applies plugin-root token interpolation to hook commands for
- * Claude and OpenPlugin formats.
+ * Applies plugin-root token interpolation to hook commands.
  */
 export function interpolateHookPluginRoot(
 	hookUri: URI,
@@ -962,10 +1004,12 @@ export async function readSkills(
 			return;
 		}
 		let description: string | undefined;
+		let argumentHint: string | undefined;
 		let invocationFlags: ReturnType<typeof toSkillInvocationFlags> = {};
 		try {
 			const parsedInfo = await parseSkillFile(skillMd, fileService);
 			description = parsedInfo.description;
+			argumentHint = parsedInfo.argumentHint;
 			name = parsedInfo.name || name;
 			invocationFlags = toSkillInvocationFlags(parsedInfo.userInvocable, parsedInfo.disableModelInvocation);
 		} catch {
@@ -975,7 +1019,7 @@ export async function readSkills(
 			return;
 		}
 		seen.add(name);
-		skills.push({ uri: skillMd, name, ...(description ? { description } : {}), ...invocationFlags });
+		skills.push({ uri: skillMd, name, ...(description ? { description } : {}), ...(argumentHint ? { argumentHint } : {}), ...invocationFlags });
 	};
 
 	await Promise.all(dirs.map(async dir => {
@@ -1222,15 +1266,16 @@ export function resolveAgentDisableModelInvocation(infer: boolean | undefined, d
 	return infer !== undefined ? !infer : (disableModelInvocation ?? fallback);
 }
 
-export async function parseSkillFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; userInvocable?: boolean; disableModelInvocation?: boolean }> {
+export async function parseSkillFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; argumentHint?: string; userInvocable?: boolean; disableModelInvocation?: boolean }> {
 	try {
 		const content = await fileService.readFile(uri);
 		const frontmatter = parseFrontMatter(content.value.toString());
 		const name = frontmatter?.getStringValue('name')?.trim() || basename(dirname(uri));
 		const description = frontmatter?.getStringValue('description')?.trim();
+		const argumentHint = frontmatter?.getStringValue('argument-hint')?.trim() || undefined;
 		const userInvocable = frontmatter?.getBooleanValue('user-invocable');
 		const disableModelInvocation = frontmatter?.getBooleanValue('disable-model-invocation');
-		return { name, description, userInvocable, disableModelInvocation };
+		return { name, description, argumentHint, userInvocable, disableModelInvocation };
 	} catch {
 		return { name: basename(dirname(uri)) };
 	}
@@ -1333,12 +1378,18 @@ export function parseMcpServerDefinitionMap(
 		let def: IMcpServerDefinition = {
 			name,
 			configuration,
-			...(formatConfig.format !== PluginFormat.AgentPlugin && { defaultCwd: pluginRoot }),
+			defaultCwd: pluginRoot,
 			uri: definitionURI,
 			customization: makeMcpServerCustomization(definitionURI, name),
 		};
-		def = interpolateMcpPluginRoot(def, pluginFsPath, formatConfig.pluginRootTokens, formatConfig.pluginRootEnvVars);
-		if (formatConfig.format !== PluginFormat.AgentPlugin) {
+		if (formatConfig.format === PluginFormat.AgentPlugin) {
+			const interpolated = interpolateAgentPluginMcpRoot(def, pluginRoot);
+			if (!interpolated) {
+				continue;
+			}
+			def = interpolated;
+		} else {
+			def = interpolateMcpPluginRoot(def, pluginFsPath, formatConfig.pluginRootTokens, formatConfig.pluginRootEnvVars);
 			def = convertBareEnvVarsToVsCodeSyntax(def);
 		}
 		definitions.push(def);

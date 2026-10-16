@@ -12,9 +12,10 @@ import { promiseWithResolvers, ThrottledDelayer } from '../../../../base/common/
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Lazy } from '../../../../base/common/lazy.js';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { COI } from '../../../../base/common/network.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { COI, Schemas } from '../../../../base/common/network.js';
 import { observableValue } from '../../../../base/common/observable.js';
+import { isEqualAuthority } from '../../../../base/common/resources.js';
 import { listenStream } from '../../../../base/common/stream.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -32,6 +33,7 @@ import { IRemoteAuthorityResolverService } from '../../../../platform/remote/com
 import { ITunnelService } from '../../../../platform/tunnel/common/tunnel.js';
 import { WebviewPortMappingManager } from '../../../../platform/webview/common/webviewPortMapping.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { decodeAuthority, webviewGenericCspSource, webviewRootResourceAuthority } from '../common/webview.js';
 import { loadLocalResource, WebviewResourceResponse } from './resourceLoading.js';
 import { WebviewThemeDataProvider } from './themeing.js';
@@ -150,6 +152,9 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 	protected readonly onDidHtmlChange = this._onDidHtmlChange.event;
 
 	private _messagePort?: MessagePort;
+	private _keyEventToken: string | undefined;
+	private _mountId: string | undefined;
+	private readonly _readyListener = this._register(new MutableDisposable());
 	private readonly _messageHandlers = new Map<string, Set<(data: any, e: MessageEvent) => void>>();
 
 	protected readonly _webviewFindWidget: WebviewFindWidget | undefined;
@@ -175,6 +180,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		@ITunnelService private readonly _tunnelService: ITunnelService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 	) {
 		super();
 
@@ -345,7 +351,9 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		this.element?.remove();
 		this._element = undefined;
 
-		this._messagePort = undefined;
+		this.resetHostChannel();
+		this._mountId = undefined;
+		this._readyListener.clear();
 
 		if (this._state.type === WebviewState.Type.Initializing) {
 			for (const message of this._state.pendingMessages) {
@@ -445,6 +453,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 			platform: this.platform,
 			'vscode-resource-base-authority': webviewRootResourceAuthority,
 			parentOrigin: targetWindow.origin,
+			mountId: this._mountId ?? '',
 		};
 
 		if (this._options.disableServiceWorker) {
@@ -474,6 +483,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		}
 
 		this._windowId = targetWindow.vscodeWindowId;
+		this._mountId = generateUuid();
 		this._encodedWebviewOriginPromise = parentOriginHash(targetWindow.origin, this.origin).then(id => this._encodedWebviewOrigin = id);
 		this._encodedWebviewOriginPromise.then(encodedWebviewOrigin => {
 			if (!this._disposed) {
@@ -504,8 +514,17 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		element.appendChild(this.element);
 	}
 
+	private resetHostChannel(): void {
+		if (this._messagePort) {
+			this._messagePort.onmessage = null;
+			this._messagePort.close();
+		}
+		this._messagePort = undefined;
+		this._keyEventToken = undefined;
+	}
+
 	private _registerMessageHandler(targetWindow: CodeWindow) {
-		const subscription = this._register(addDisposableListener(targetWindow, 'message', (e: MessageEvent) => {
+		const subscription = addDisposableListener(targetWindow, 'message', (e: MessageEvent) => {
 			if (!this._encodedWebviewOrigin || e?.data?.target !== this.id) {
 				return;
 			}
@@ -520,8 +539,19 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 					return;
 				}
 
+				// The mount id rejects stale handshakes; the shell token authenticates subsequent key events.
+				const keyEventToken = e.data?.data?.keyEventToken;
+				if (!this._mountId || e.data?.data?.mountId !== this._mountId
+					|| typeof keyEventToken !== 'string' || keyEventToken.length === 0
+					|| !this.element?.contentWindow || e.source !== this.element.contentWindow
+					|| !e.ports[0]) {
+					return;
+				}
+
 				this.perfMark('webview-ready');
 				this._logService.trace(`Webview(${this.id}): webview ready`);
+
+				this._keyEventToken = keyEventToken;
 
 				this._messagePort = e.ports[0];
 				this._messagePort.onmessage = (e) => {
@@ -540,9 +570,10 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 				}
 				this._state = WebviewState.Ready;
 
-				subscription.dispose();
+				this._readyListener.clear();
 			}
-		}));
+		});
+		this._readyListener.value = subscription;
 	}
 
 	private perfMark(name: string) {
@@ -624,7 +655,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 
 	public reinitializeAfterDismount(): void {
 		this._state = new WebviewState.Initializing([]);
-		this._messagePort = undefined;
+		this.resetHostChannel();
 
 		this.mountTo(this.element!.parentElement!, getWindow(this.element));
 		this.style();
@@ -711,6 +742,10 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 	}
 
 	private shouldForwardKeyEvent(event: KeyEvent): boolean {
+		// Serialized isTrusted is meaningful only for events authenticated by the shell.
+		if (!this._keyEventToken || event.keyEventToken !== this._keyEventToken) {
+			return false;
+		}
 		return event.isTrusted || !!this._content.options.forwardUntrustedKeypressEvents;
 	}
 
@@ -804,10 +839,14 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		const token = cts.token;
 
 		try {
+			const remoteOS = uri.scheme === Schemas.vscodeRemote && isEqualAuthority(this._remoteAgentService.getConnection()?.remoteAuthority, uri.authority)
+				? (await this._remoteAgentService.getEnvironment())?.os
+				: undefined;
 			const result = await this._instantiationService.invokeFunction(loadLocalResource, uri, {
 				ifNoneMatch: options.ifNoneMatch,
 				roots: this._content.options.localResourceRoots || [],
 				range: options.range,
+				remoteOS,
 			}, token);
 
 			if (this._disposed) {
