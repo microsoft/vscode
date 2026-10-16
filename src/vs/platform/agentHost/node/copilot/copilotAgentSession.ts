@@ -1700,6 +1700,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _shellInitScriptSequencer = new Sequencer();
 	private readonly _imageGenerationSequencer = new Sequencer();
 	private _appliedImageGenerationEnabled: boolean | undefined;
+	private _appliedImageGenerationWatermark: boolean | undefined;
 	private _shellInitScriptDisposing = false;
 	/**
 	 * Scopes this instance's script files so a disposed predecessor's queued
@@ -3855,6 +3856,7 @@ export class CopilotAgentSession extends Disposable {
 			this._subscribeForMemoInvalidation(this._wrapperDisposables);
 			this._subscribeForInstructionsCollectedTelemetry(this._wrapperDisposables);
 			this._appliedImageGenerationEnabled = wrapper.launchImageGenerationEnabled;
+			this._appliedImageGenerationWatermark = wrapper.launchImageGenerationWatermark;
 			await this._syncImageGeneration();
 			this.refreshModelConfiguration();
 			await this._sandbox.updateDiagnostics();
@@ -6917,14 +6919,17 @@ export class CopilotAgentSession extends Disposable {
 	private _syncImageGeneration(): Promise<void> {
 		return this._imageGenerationSequencer.queue(async () => {
 			const enabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ImageGeneration) === true;
-			if (enabled === this._appliedImageGenerationEnabled) {
+			const watermark = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ImageGenerationWatermark) === true;
+			if (enabled === this._appliedImageGenerationEnabled && watermark === this._appliedImageGenerationWatermark) {
 				return;
 			}
-			const result = await this._awaitControlPlaneRpc('image generation settings', this._wrapper.session.rpc.options.update({ imageGeneration: { enabled } }));
+			const imageGeneration = { enabled, watermark };
+			const result = await this._awaitControlPlaneRpc('image generation settings', this._wrapper.session.rpc.options.update({ imageGeneration }));
 			if (!result.success) {
 				throw new Error('The runtime did not apply the image generation setting.');
 			}
 			this._appliedImageGenerationEnabled = enabled;
+			this._appliedImageGenerationWatermark = watermark;
 		});
 	}
 
