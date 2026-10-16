@@ -186,6 +186,11 @@ export class CompatibleSessionDatabase implements ISessionDatabase {
 		return result;
 	}
 
+	async storeFileEdits(...[edits, beforeCommit]: Parameters<ISessionDatabase['storeFileEdits']>): ReturnType<ISessionDatabase['storeFileEdits']> {
+		const result = await this.raw.storeFileEdits(edits, beforeCommit);
+		return result;
+	}
+
 	async getFileEdits(...[toolCallIds]: Parameters<ISessionDatabase['getFileEdits']>): ReturnType<ISessionDatabase['getFileEdits']> {
 		const result = await this.raw.getFileEdits(toolCallIds);
 		return result;

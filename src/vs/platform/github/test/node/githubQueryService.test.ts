@@ -521,6 +521,30 @@ suite('GitHubQueryService', () => {
 		});
 	});
 
+	test('selects issue author IDs through the Node interface', async () => {
+		await withServer(async server => {
+			let query: string | undefined;
+			server.enqueue(gitHubGraphQLStep({
+				assert: request => { query = request.graphQl?.query; },
+				response: gitHubGraphQLResponse({
+					r0: { issue: { ...graphQLIssue(), author: { id: 'U2', login: 'author' } } },
+				}),
+			}));
+			const { ref, service } = setup(server);
+			const issueRef = { ...ref, number: 7 };
+			const subscription = disposables.add(service.subscribeIssue(issueRef, { priority: 'visible' }));
+			await service.hydrateResources([{ kind: 'issue', ref: issueRef }], signal());
+			assert.deepStrictEqual({
+				authorIdOnNode: query?.replace(/\s+/g, ' ').includes('author { login ... on Node { id } }'),
+				author: subscription.resource.state.get().value?.author,
+			}, {
+				authorIdOnNode: true,
+				author: { id: 'U2', login: 'author' },
+			});
+			server.assertSatisfied();
+		});
+	});
+
 	for (const failure of ['batch', 'entry'] as const) {
 		test(`recovers an observed repository after ${failure}-level hydration failure`, async () => {
 			await withServer(async server => {

@@ -17,7 +17,7 @@ import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { AgentSession, IAgentSessionProjectInfo } from '../../common/agent.js';
-import { Branch, getBranchCompletions, GitRefType, IAgentHostGitService, IBranch, IDetachedHead, IGitRemote, IRemoteBranch, IWorktreeFileProgress, META_DIFF_BASE_BRANCH, tryResolvePrimaryWorktreeRoot } from '../../common/agentHostGitService.js';
+import { Branch, getBranchCompletions, GitRefType, IAgentHostGitService, IBranch, IDetachedHead, IGitRemote, IRemoteBranch, IWorktreeFileProgress, META_DIFF_BASE_BRANCH, resolveDefaultBaseBranchName, tryResolvePrimaryWorktreeRoot } from '../../common/agentHostGitService.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { ISchemaProperty, schemaProperty } from '../../common/agentHostSchema.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
@@ -28,6 +28,7 @@ import { getRepositoryRootFromWorktree, getWorktreesRoot } from '../../common/wo
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, ResponsePart, ResponsePartKind, Turn } from '../../common/state/sessionState.js';
 import { AGENT_BRANCH_PREFIX, IAgentBranchNameGenerator } from './agentBranchNameGenerator.js';
 import { IAgentHostPullRequestResolver } from './pullRequestResolver.js';
+import type { IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY, readSessionAdditionalWorktrees } from './sessionAdditionalWorktrees.js';
 import type { WorktreeRemovalMode } from '../agentHostWorktreeRemovalDatabase.js';
 
@@ -480,6 +481,7 @@ export interface IIsolationConfigContribution {
 /** Parameters for {@link WorktreeIsolation.resolveWorkingDirectory}. */
 export interface IResolveWorkingDirectoryRequest {
 	readonly sessionUri: URI;
+	readonly credentialSource?: IAgentHostCredentialSource;
 	readonly sessionId: string;
 	readonly workingDirectory: URI | undefined;
 	readonly config: Record<string, unknown> | undefined;
@@ -1073,7 +1075,8 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		// Pull request session
 		const pullRequestUrl = getSessionPullRequestUrl(config);
 		if (pullRequestUrl !== undefined) {
-			return this._resolvePullRequestWorkingDirectory(request, pullRequestUrl);
+			const credentialSource = this._pullRequestResolver.captureSessionCredentialSource(request.sessionUri.toString(), request.credentialSource);
+			return this._resolvePullRequestWorkingDirectory({ ...request, credentialSource }, pullRequestUrl);
 		}
 
 		if (
@@ -1113,11 +1116,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 
 		// Get the default branch, preferring its upstream ref when available
 		const defaultBranch = await this._gitService.getDefaultBranch2(repositoryRoot);
-		const baseBranch = defaultBranch?.kind === GitRefType.Head
-			? defaultBranch.upstream?.name ?? defaultBranch.name
-			: defaultBranch?.kind === GitRefType.RemoteHead
-				? defaultBranch.name
-				: selectedBranch;
+		const baseBranch = resolveDefaultBaseBranchName(defaultBranch, selectedBranch);
 
 		const { worktreePath, branchName } = await this._worktreeCreationSequencer.queue(repositoryRoot.toString(), async () => {
 			const worktreesRoot = getWorktreesRoot(repositoryRoot);
@@ -1198,7 +1197,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 
 		onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.FetchingPullRequest));
 
-		const pullRequest = await this._pullRequestResolver.resolve(pullRequestUrl);
+		const pullRequest = await this._pullRequestResolver.resolve(pullRequestUrl, request.credentialSource, request.credentialSource ? request.sessionUri.toString() : undefined);
 		const remotes = await this._gitService.getFetchRemotes(repositoryRoot) ?? [];
 		const remote = findRemoteForRepository(remotes, pullRequest.webHost, pullRequest.owner, pullRequest.repo);
 		if (!remote) {

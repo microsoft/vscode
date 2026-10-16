@@ -5797,7 +5797,7 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	/**
 	 * Restarts a pre-turn Codex thread so current `dynamicTools`, MCP servers, and customizations are applied at `thread/start`.
-	 * Only safe before history exists; the first send remains responsible for publishing materialization.
+	 * Only safe before history exists; refreshes an already-published materialization receipt but keeps unsent drafts provisional.
 	 */
 	private async _restartThreadWithCurrentTools(session: ICodexSession, configResource: URI = this._launchOwner(session)): Promise<void> {
 		const conn = this._connection;
@@ -5817,7 +5817,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		session.threadId = undefined;
 		this._applyMcpInventoryToSession(session);
 		session.materializePromise = undefined;
-		await this._materializeIfNeeded(session, configResource, false);
+		const wasMaterialized = session.materializedEventFired;
+		session.materializedEventFired = false;
+		await this._materializeIfNeeded(session, configResource, wasMaterialized);
 	}
 
 	private _fireMaterialized(session: ICodexSession): void {

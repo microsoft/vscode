@@ -39,6 +39,7 @@ import { CompatibleAgentHostDatabase } from './compatibleAgentHostDatabase.js';
 import { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from './agentHostClientConnectionService.js';
+import { AgentHostSystemWakeService, IAgentHostSystemWakeService } from './agentHostSystemWakeService.js';
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from './agentHostSessionTitleController.js';
 import { AgentHostLocalTurns, IAgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { IAgentHostGitHubService } from './agentHostGitHubService.js';
@@ -128,6 +129,7 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 			[IProductService, productService],
 		);
 		services.set(IAgentHostClientConnectionService, infrastructure.add(new AgentHostClientConnectionService()));
+		services.set(IAgentHostSystemWakeService, new AgentHostSystemWakeService());
 		const agentServiceOptions: IAgentServiceOptions = {
 			rootConfigResource: joinPath(environmentService.appSettingsHome, 'globalStorage', 'agent-host-config.json'),
 			providerConfigurations: options.providerConfigurations,
@@ -190,9 +192,9 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 			readNormalizedChat: (session, chat) => foundation.callbackAdapter.value.readNormalizedChat(session, chat),
 			readSessionValues: (session, keys) => sessionStateStore.readWithoutImport(session, keys),
 			persistSurfacedSessionTitle: (session, title) => foundation.callbackAdapter.value.persistSurfacedSessionTitle(session, title),
-			getGitHubToken: () => {
+			getGitHubToken: (session, chat, source) => {
 				const resource = foundation.gitHubEndpointService.getRepoResource();
-				return foundation.authenticationService.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported });
+				return foundation.authenticationService.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported, session: chat ?? session }, source);
 			},
 			getGitHubHost: () => foundation.gitHubEndpointService.getEnterpriseHost() ?? 'github.com',
 			gitHubService,

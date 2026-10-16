@@ -56,7 +56,13 @@ suite('SessionsChatAccessibilityHelp', () => {
 			back: content.includes('Go back through visited sessions, the New Session view, and custom views such as Automations<keybinding:sessions.goBack>'),
 			forward: content.includes('Go forward through visited sessions and views<keybinding:sessions.goForward>'),
 			singletonViews: content.includes('moves its single history entry to the most recent position'),
-		}, { back: true, forward: true, singletonViews: true });
+			parentContext: content.includes('In both single and multiple tab layouts, sub-sessions in separate panes show their title followed by a dot and parent context as a secondary description, like editor tabs.'),
+			independentDrag: content.includes('without moving its parent.'),
+			independentVisibility: content.includes('Closing the parent pane leaves independent sub-session panes open.'),
+			positionalPaneFocus: content.includes('Focus Session 1 in Grid<keybinding:sessions.focusSessionInGrid1>'),
+			keyboardDetach: content.includes('Detach Chat into New Pane<keybinding:sessions.detachChat> from the Command Palette'),
+			keyboardMove: content.includes('<keybinding:sessions.moveChatToNextGroup>'),
+		}, { back: true, forward: true, singletonViews: true, parentContext: true, independentDrag: true, independentVisibility: true, positionalPaneFocus: true, keyboardDetach: true, keyboardMove: true });
 	});
 
 	test('documents connector recommendations when the marketplace is available', () => {
@@ -214,11 +220,13 @@ suite('SessionsChatAccessibilityHelp', () => {
 				githubEnvironment: content.includes('GitHub environment'),
 				sharingKeyboard: content.includes('Enter or Space to enable or disable sharing'),
 				fileSystemAccess: content.includes('read and modify files across this machine'),
-				backendSetting: content.includes('chat.agentHost.remoteConnections'),
+				backendPicker: content.includes('Select Remote Connection Method dropdown chooses Dev Tunnels or GitHub Environments'),
+				previewSetting: content.includes('The preview setting chat.agentHost.remoteConnections selects the connection method'),
 			}, {
 				discoveryHelp: enabled, folderBrowsing: enabled, refreshHelp: enabled, hiddenHelp: false,
 				githubEnvironment: !hidden && !aiDisabled, sharingKeyboard: !hidden && !aiDisabled,
-				fileSystemAccess: !hidden && !aiDisabled, backendSetting: !hidden && !aiDisabled,
+				fileSystemAccess: !hidden && !aiDisabled, backendPicker: !hidden && !aiDisabled,
+				previewSetting: !hidden && !aiDisabled,
 			});
 		});
 	}

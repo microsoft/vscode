@@ -44,6 +44,7 @@ function createNullCopilotApiService(): ICopilotApiService {
 
 const nullPullRequestResolver: IAgentHostPullRequestResolver = {
 	_serviceBrand: undefined,
+	captureSessionCredentialSource: (_session, source) => source,
 	resolve: async () => { throw new Error('Pull request resolution is not expected.'); },
 };
 
@@ -912,6 +913,7 @@ suite('WorktreeIsolation', () => {
 	function createPullRequestResolver(overrides?: Partial<IResolvedPullRequest>): IAgentHostPullRequestResolver {
 		return {
 			_serviceBrand: undefined,
+			captureSessionCredentialSource: (_session, source) => source,
 			resolve: async url => ({ url, webHost: 'github.com', owner: 'microsoft', repo: 'vscode', number: 42, headRef: 'feature/pr', baseRef: 'main', ...overrides }),
 		};
 	}
@@ -1057,8 +1059,8 @@ suite('WorktreeIsolation', () => {
 
 		assert.deepStrictEqual({
 			notRepository: await failureOf({ gitService: { getRepositoryRoot: async () => undefined }, workingDirectory: URI.file('/plain') }),
-			emptyUrl: await failureOf({ pullRequestUrl: '', resolver: { _serviceBrand: undefined, resolve: async url => { throw new Error(`Invalid pull request URL: '${url}'`); } } }),
-			resolveFailure: await failureOf({ resolver: { _serviceBrand: undefined, resolve: async () => { throw new Error('Pull request #42 has already been merged.'); } } }),
+			emptyUrl: await failureOf({ pullRequestUrl: '', resolver: { ...nullPullRequestResolver, resolve: async url => { throw new Error(`Invalid pull request URL: '${url}'`); } } }),
+			resolveFailure: await failureOf({ resolver: { ...nullPullRequestResolver, resolve: async () => { throw new Error('Pull request #42 has already been merged.'); } } }),
 			noMatchingRemote: await failureOf({ gitService: { getFetchRemotes: async () => [{ name: 'origin', url: 'https://github.com/someone/vscode.git' }] } }),
 			wrongHost: await failureOf({ gitService: { getFetchRemotes: async () => [{ name: 'origin', url: 'https://example.com/microsoft/vscode.git' }] } }),
 			fetchFailure: await failureOf({ gitService: { fetch: async () => { throw new Error('couldn\'t find remote ref'); } } }),

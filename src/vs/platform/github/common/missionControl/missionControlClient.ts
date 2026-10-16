@@ -152,12 +152,12 @@ export const parseUser = parse.object<User>({
 	url: parse.optional(parse.string),
 });
 
-/** Parses activation trace metadata and validates the version and unsigned 64-bit sequence. */
+/** Parses activation trace metadata and validates the version and canonical positive uint64 sequence. */
 export const parseActivationContext = parse.object<ActivationContext>({
 	version: parse.exact(2),
 	sequence: parse.refine(
 		parse.string,
-		sequence => /^\d{1,20}$/.test(sequence) && BigInt(sequence) <= 18446744073709551615n,
+		sequence => /^[1-9]\d{0,19}$/.test(sequence) && BigInt(sequence) <= 18446744073709551615n,
 		'Invalid activation sequence',
 	),
 	traceparent: parse.string,
