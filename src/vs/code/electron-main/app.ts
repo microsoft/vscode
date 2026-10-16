@@ -100,8 +100,9 @@ import { NativeURLService } from '../../platform/url/common/urlService.js';
 import { ElectronURLListener } from '../../platform/url/electron-main/electronUrlListener.js';
 import { IWebviewManagerService } from '../../platform/webview/common/webviewManagerService.js';
 import { WebviewMainService } from '../../platform/webview/electron-main/webviewMainService.js';
-import { AgentsWindowOpenSource, isFolderToOpen, isWorkspaceToOpen, IWindowOpenable, parseExternalAgentsWindowNewSessionLinkUri } from '../../platform/window/common/window.js';
+import { AgentsWindowOpenSource, ChatSessionToOpen, extractChatSessionToOpen, isFolderToOpen, isWorkspaceToOpen, IWindowOpenable, parseExternalAgentsWindowNewSessionLinkUri } from '../../platform/window/common/window.js';
 import { getAllWindowsExcludingOffscreen, IWindowsMainService, OpenContext } from '../../platform/windows/electron-main/windows.js';
+import { findWindowOnWorkspaceOrFolder } from '../../platform/windows/electron-main/windowsFinder.js';
 import { ICodeWindow } from '../../platform/window/electron-main/window.js';
 import { WindowsMainService } from '../../platform/windows/electron-main/windowsMainService.js';
 import { ActiveWindowManager } from '../../platform/windows/node/windowTracker.js';
@@ -919,6 +920,7 @@ export class CodeApplication extends Disposable {
 		});
 
 		const openables: IWindowOpenable[] = [];
+		const openableChatSessions: (ChatSessionToOpen | undefined)[] = [];
 		const urls: IProtocolUrl[] = [];
 
 		for (const protocolUrl of protocolUrls) {
@@ -926,7 +928,10 @@ export class CodeApplication extends Disposable {
 				continue; // invalid
 			}
 
-			const windowOpenable = this.getWindowOpenableFromProtocolUrl(protocolUrl.uri);
+			// A chat session parameter targets the window that opens, not the openable itself
+			const { uri: openableUri, chatSessionToOpen } = extractChatSessionToOpen(protocolUrl.uri);
+
+			const windowOpenable = this.getWindowOpenableFromProtocolUrl(openableUri);
 			if (windowOpenable) {
 				if (await this.shouldBlockOpenable(windowOpenable, windowsMainService, dialogMainService)) {
 					this.logService.trace('app#resolveInitialProtocolUrls() protocol url was blocked:', protocolUrl.uri.toString(true));
@@ -936,6 +941,7 @@ export class CodeApplication extends Disposable {
 					this.logService.trace('app#resolveInitialProtocolUrls() protocol url will be handled as window to open:', protocolUrl.uri.toString(true), windowOpenable);
 
 					openables.push(windowOpenable); // handled as window to open
+					openableChatSessions.push(chatSessionToOpen);
 				}
 			} else {
 				this.logService.trace('app#resolveInitialProtocolUrls() protocol url will be passed to active window for handling:', protocolUrl.uri.toString(true));
@@ -944,7 +950,11 @@ export class CodeApplication extends Disposable {
 			}
 		}
 
-		return { urls, openables };
+		return {
+			urls,
+			openables,
+			chatSessionToOpen: openables.length === 1 ? openableChatSessions[0] : undefined
+		};
 	}
 
 	private async shouldBlockOpenable(openable: IWindowOpenable, windowsMainService: IWindowsMainService, dialogMainService: IDialogMainService): Promise<boolean> {
@@ -1131,13 +1141,12 @@ export class CodeApplication extends Disposable {
 			this.environmentMainService.continueOn = continueOn ?? undefined;
 		}
 
-		// Extract session parameter to open a specific chat session in the target window
-		const session = params.get('session');
-		if (session !== null) {
-			this.logService.trace(`app#handleProtocolUrl() found 'session' as parameter:`, uri.toString(true));
+		// Extract chat session parameters to open a specific chat session in the target window
+		const { uri: uriWithoutChatSession, chatSessionToOpen } = extractChatSessionToOpen(uri);
+		if (uriWithoutChatSession !== uri) {
+			this.logService.trace(`app#handleProtocolUrl() found chat session parameter:`, uri.toString(true));
 
-			params.delete('session');
-			uri = uri.with({ query: params.toString() });
+			uri = uriWithoutChatSession;
 		}
 
 		// Check if the protocol URL is a window openable to open...
@@ -1162,8 +1171,8 @@ export class CodeApplication extends Disposable {
 				window?.focus(); // this should help ensuring that the right window gets focus when multiple are opened
 
 				// Open chat session in the target window if requested
-				if (window && session) {
-					window.sendWhenReady('vscode:openChatSession', CancellationToken.None, session);
+				if (window && chatSessionToOpen) {
+					this.openChatSessionInWindow(window, chatSessionToOpen);
 				}
 
 				return true;
@@ -1191,6 +1200,14 @@ export class CodeApplication extends Disposable {
 		this.logService.trace('app#handleProtocolUrl(): not handled', uri.toString(true), options);
 
 		return false;
+	}
+
+	private openChatSessionInWindow(window: ICodeWindow, chatSessionToOpen: ChatSessionToOpen): void {
+		if (chatSessionToOpen.kind === 'copilotCli') {
+			window.sendWhenReady('vscode:openCopilotCliSession', CancellationToken.None, chatSessionToOpen.sessionId);
+		} else {
+			window.sendWhenReady('vscode:openChatSession', CancellationToken.None, chatSessionToOpen.resource);
+		}
 	}
 
 	private setupSharedProcess(machineId: string, sqmId: string, devDeviceId: string): { sharedProcessReady: Promise<MessagePortClient>; sharedProcessClient: Promise<MessagePortClient> } {
@@ -1566,7 +1583,7 @@ export class CodeApplication extends Disposable {
 
 			// Openables can open as windows directly
 			if (initialProtocolUrls.openables.length > 0) {
-				return windowsMainService.open({
+				const windows = await windowsMainService.open({
 					context,
 					cli: args,
 					urisToOpen: initialProtocolUrls.openables,
@@ -1574,6 +1591,20 @@ export class CodeApplication extends Disposable {
 					initialStartup: true
 					// remoteAuthority: will be determined based on openables
 				});
+
+				// Open the requested chat session in the window of the openable. Windows
+				// from the previous session can be restored next to it (`window.restoreWindows`)
+				const chatSessionToOpen = initialProtocolUrls.chatSessionToOpen;
+				if (chatSessionToOpen) {
+					const openable = initialProtocolUrls.openables[0];
+					const openableUri = isWorkspaceToOpen(openable) ? openable.workspaceUri : isFolderToOpen(openable) ? openable.folderUri : openable.fileUri;
+					const window = windows.length === 1 ? windows[0] : findWindowOnWorkspaceOrFolder(windows, openableUri);
+					if (window) {
+						this.openChatSessionInWindow(window, chatSessionToOpen);
+					}
+				}
+
+				return windows;
 			}
 
 			// Protocol links with `windowId=_blank` on startup
