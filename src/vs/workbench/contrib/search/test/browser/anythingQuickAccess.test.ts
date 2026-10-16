@@ -160,6 +160,14 @@ suite('AnythingQuickAccess - links', () => {
 		});
 	});
 
+	test('renders the link icon inline rather than applying icon font classes to the row', () => {
+		const pick = getLinkPick('https://example.com');
+		assert.deepStrictEqual({ label: pick.label, iconClasses: pick.iconClasses }, {
+			label: '$(link-external) Open Link',
+			iconClasses: undefined
+		});
+	});
+
 	test('side-opening intent reaches a contributed external URI handler', async () => {
 		const openerService = store.add(new OpenerService(instantiationService.get(ICodeEditorService), NullCommandService));
 		const targets: { href: string; sourceUri: string; viewColumn: ViewColumn | undefined }[] = [];

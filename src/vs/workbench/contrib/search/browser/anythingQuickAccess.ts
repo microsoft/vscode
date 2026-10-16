@@ -433,10 +433,9 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		return {
 			resource,
-			label: localize('openQuickOpenLink', "Open Link"),
+			label: `$(link-external) ${localize('openQuickOpenLink', "Open Link")}`,
 			description: filter,
 			detail: localize('openQuickOpenLinkHint', "Hold Alt while accepting to open to the side."),
-			iconClasses: ThemeIcon.asClassNameArray(Codicon.linkExternal),
 			buttons: [{
 				iconClass: ThemeIcon.asClassName(this.configuration.openSideBySideDirection === 'right' ? Codicon.splitHorizontal : Codicon.splitVertical),
 				tooltip: openToSideLabel
