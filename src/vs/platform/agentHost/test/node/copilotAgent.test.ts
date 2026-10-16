@@ -3868,7 +3868,7 @@ suite('CopilotAgent', () => {
 		}();
 		const copilotApiService = disposables.add(new CopilotApiService(async () => Response.json({
 			endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'sku', analytics_tracking_id: 'analytics',
-		}), new NullLogService(), TEST_PRODUCT_SERVICE, createTestGitHubEndpointService()));
+		}), new NullLogService(), TEST_PRODUCT_SERVICE, createTestGitHubEndpointService(), NullTelemetryService));
 		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), telemetryService, copilotApiService });
 		try {
 			await agent.authenticate('https://api.github.com', 'token-a');
@@ -5270,7 +5270,7 @@ suite('CopilotAgent', () => {
 				return copilotDiscovery.p;
 			}
 			return Response.json({ endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'codex-sku', analytics_tracking_id: 'codex-analytics' });
-		}, new NullLogService(), TEST_PRODUCT_SERVICE, endpoints));
+		}, new NullLogService(), TEST_PRODUCT_SERVICE, endpoints, NullTelemetryService));
 		const events: ITelemetryData[] = [];
 		const sdkEvents: ITelemetryData[] = [];
 		const telemetryService = disposables.add(new AgentHostTelemetryService(TelemetryService.createWithLevel({
@@ -5354,7 +5354,7 @@ suite('CopilotAgent', () => {
 				oldCredentialReachedNewEndpoint ||= new Headers(options?.headers).get('Authorization') === 'Bearer test-token-a';
 			}
 			return Response.json({ endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'enterprise-sku' });
-		}, logService, TEST_PRODUCT_SERVICE, endpoints));
+		}, logService, TEST_PRODUCT_SERVICE, endpoints, NullTelemetryService));
 		const skus: ITelemetryData[] = [];
 		const telemetryService = disposables.add(new AgentHostTelemetryService(TelemetryService.createWithLevel({
 			telemetryLevel: TelemetryLevel.USAGE,
@@ -5383,7 +5383,7 @@ suite('CopilotAgent', () => {
 		let available = false;
 		const copilotApiService = disposables.add(new CopilotApiService(async () => available
 			? Response.json({ endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'recovered-sku' })
-			: new Response('Unavailable', { status: 503 }), new NullLogService(), TEST_PRODUCT_SERVICE, createTestGitHubEndpointService()));
+			: new Response('Unavailable', { status: 503 }), new NullLogService(), TEST_PRODUCT_SERVICE, createTestGitHubEndpointService(), NullTelemetryService));
 		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), copilotApiService });
 		try {
 			await agent.authenticate('https://api.github.com', 'test-token-a');
@@ -5405,7 +5405,7 @@ suite('CopilotAgent', () => {
 		let sku = 'no_access';
 		const copilotApiService = disposables.add(new CopilotApiService(async () => Response.json({
 			endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: sku, analytics_tracking_id: 'analytics',
-		}), new NullLogService(), TEST_PRODUCT_SERVICE, createTestGitHubEndpointService()));
+		}), new NullLogService(), TEST_PRODUCT_SERVICE, createTestGitHubEndpointService(), NullTelemetryService));
 		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), copilotApiService });
 		const refresh = spy(copilotApiService, 'refreshCopilotUser');
 		try {
@@ -5439,7 +5439,7 @@ suite('CopilotAgent', () => {
 			}
 			refreshStarted.complete();
 			return refresh.p;
-		}, new NullLogService(), TEST_PRODUCT_SERVICE, createTestGitHubEndpointService()));
+		}, new NullLogService(), TEST_PRODUCT_SERVICE, createTestGitHubEndpointService(), NullTelemetryService));
 		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), copilotApiService });
 		try {
 			await agent.authenticate('https://api.github.com', 'token');
@@ -5947,7 +5947,7 @@ suite('CopilotAgent', () => {
 		const sessionDataService = disposables.add(new TestSessionDataService());
 		const copilotApiService = disposables.add(new CopilotApiService(async () => Response.json({
 			endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'sku-a',
-		}), new NullLogService(), TEST_PRODUCT_SERVICE, createTestGitHubEndpointService()));
+		}), new NullLogService(), TEST_PRODUCT_SERVICE, createTestGitHubEndpointService(), NullTelemetryService));
 		const { agent, instantiationService } = createTestAgentContext(disposables, { sessionDataService, copilotApiService });
 		const mockSession = new MockCopilotSession();
 		const createdSession = createAgentSessionThroughAgent(agent, instantiationService, { mockSession });
@@ -18287,7 +18287,7 @@ suite('CopilotAgent', () => {
 			let capturedConfig: Parameters<ITestCopilotClient['createSession']>[0] | undefined;
 			const copilotApiService = disposables.add(new CopilotApiService(async () => Response.json({
 				endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'sku-a',
-			}), new NullLogService(), TEST_PRODUCT_SERVICE, createTestGitHubEndpointService()));
+			}), new NullLogService(), TEST_PRODUCT_SERVICE, createTestGitHubEndpointService(), NullTelemetryService));
 			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, copilotApiService });
 			client.createSession = async config => {
 				capturedConfig = config;

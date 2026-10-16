@@ -15,10 +15,20 @@ import { NullLogService } from '../../../../log/common/log.js';
 import { IProductService } from '../../../../product/common/productService.js';
 import product from '../../../../product/common/product.js';
 import { captureCopilotTelemetryContext, toCopilotTelemetryData } from '../../../node/shared/copilotSkuTelemetry.js';
+import { ITelemetryData, ITelemetryService } from '../../../../telemetry/common/telemetry.js';
+import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../telemetry/common/telemetryUtils.js';
 
 // #region Test Helpers
 
 const testProductService: IProductService = { _serviceBrand: undefined, ...product };
+
+class DiscoveryTelemetryService extends NullTelemetryServiceShape {
+	readonly events: { name: string | undefined; data?: ITelemetryData }[] = [];
+
+	override publicLog2(name?: string, data?: ITelemetryData): void {
+		this.events.push({ name, data });
+	}
+}
 
 function sseLines(...lines: string[]): Uint8Array {
 	return new TextEncoder().encode(lines.join('\n') + '\n');
@@ -125,9 +135,106 @@ suite('CopilotApiService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(fetchImpl: FetchFunction, enterpriseUri?: string): CopilotApiService {
-		return disposables.add(new CopilotApiService(fetchImpl, new NullLogService(), testProductService, createTestGitHubEndpointService(enterpriseUri)));
+	function createService(fetchImpl: FetchFunction, enterpriseUri?: string, telemetryService: ITelemetryService = NullTelemetryService): CopilotApiService {
+		return disposables.add(new CopilotApiService(fetchImpl, new NullLogService(), testProductService, createTestGitHubEndpointService(enterpriseUri), telemetryService));
 	}
+
+	suite('discovery telemetry', () => {
+		teardown(() => sinon.restore());
+
+		test('reports actual discovery, trigger, returned metadata and previous cache age without cache-hit events', async () => {
+			const clock = sinon.useFakeTimers({ now: 1_000_000, toFake: ['Date'] });
+			const telemetry = new DiscoveryTelemetryService();
+			let requests = 0;
+			const service = createService(async () => {
+				requests++;
+				clock.tick(25);
+				const response = userResponse({
+					access_type_sku: requests === 1 ? 'no_access' : 'free_limited_copilot',
+					analytics_tracking_id: 'analytics',
+				});
+				response.headers.set('x-github-request-id', 'D3ED:ABCD:1234');
+				return response;
+			}, undefined, telemetry);
+			await service.resolveCopilotSku('private-token');
+			clock.tick(1000);
+			await service.resolveCopilotSku('private-token');
+			await service.refreshCopilotUser('private-token', 'analytics', 'free_limited_copilot');
+			clock.tick(26 * 60 * 1000);
+			await service.resolveCopilotSku('private-token');
+
+			const common = {
+				outcome: 'published', durationMs: 25, httpStatus: 200,
+				gitHubRequestId: 'D3ED:ABCD:1234', copilotTrackingId: 'analytics',
+			};
+			assert.deepStrictEqual({ requests, events: telemetry.events }, {
+				requests: 3,
+				events: [
+					{ name: 'agentHost.copilotAccountDiscovery', data: { ...common, trigger: 'initial', copilotSku: 'no_access' } },
+					{
+						name: 'agentHost.copilotAccountDiscovery', data: {
+							...common, trigger: 'entitlementChange', copilotSku: 'free_limited_copilot', previousSku: 'no_access', cacheAgeMs: 1000,
+						}
+					},
+					{
+						name: 'agentHost.copilotAccountDiscovery', data: {
+							...common, trigger: 'cacheRefresh', copilotSku: 'free_limited_copilot', previousSku: 'free_limited_copilot', cacheAgeMs: 26 * 60 * 1000,
+						}
+					},
+				],
+			});
+		});
+
+		for (const failure of ['http', 'network', 'body']) {
+			test(`reports bounded ${failure} failure metadata without bodies, errors, credentials or invalid request IDs`, async () => {
+				sinon.useFakeTimers({ now: 1_000_000, toFake: ['Date'] });
+				const telemetry = new DiscoveryTelemetryService();
+				const service = createService(async () => {
+					if (failure === 'network') {
+						throw new Error('private-error-content');
+					}
+					return new Response('private-response-content', {
+						status: failure === 'http' ? 503 : 200,
+						headers: { 'x-github-request-id': failure === 'http' ? 'D3ED:FAILED:1' : 'https://private.example/user' },
+					});
+				}, undefined, telemetry);
+				await assert.rejects(service.resolveCopilotSku('private-token'));
+				assert.deepStrictEqual(telemetry.events, [{
+					name: 'agentHost.copilotAccountDiscovery',
+					data: {
+						trigger: 'initial', outcome: 'failed', durationMs: 0,
+						...(failure !== 'network' ? { httpStatus: failure === 'http' ? 503 : 200 } : {}),
+						...(failure === 'http' ? { gitHubRequestId: 'D3ED:FAILED:1' } : {}),
+					},
+				}]);
+			});
+		}
+
+		test('does not send discovery events after service disposal', async () => {
+			sinon.useFakeTimers({ now: 1_000_000, toFake: ['Date'] });
+			const telemetry = new DiscoveryTelemetryService();
+			const response = new DeferredPromise<Response>();
+			const started = new DeferredPromise<void>();
+			let requests = 0;
+			const service = createService(async () => {
+				if (++requests === 1) {
+					return userResponse({ access_type_sku: 'no_access', analytics_tracking_id: 'analytics' });
+				}
+				started.complete();
+				return response.p;
+			}, undefined, telemetry);
+			await service.resolveCopilotSku('private-token');
+			const refreshing = service.refreshCopilotUser('private-token', 'analytics', 'free');
+			await started.p;
+			service.dispose();
+			response.complete(userResponse({ access_type_sku: 'free', analytics_tracking_id: 'analytics' }));
+			await refreshing;
+			assert.deepStrictEqual(telemetry.events, [{
+				name: 'agentHost.copilotAccountDiscovery',
+				data: { trigger: 'initial', outcome: 'published', durationMs: 0, copilotSku: 'no_access', copilotTrackingId: 'analytics', httpStatus: 200 },
+			}]);
+		});
+	});
 
 	suite('account telemetry context', () => {
 		teardown(() => sinon.restore());
@@ -175,6 +282,7 @@ suite('CopilotApiService', () => {
 			for (const entitlementFinishesFirst of [false, true]) {
 				test(`entitlement cache writes supersede ordinary refresh: starts first ${entitlementStartsFirst}, finishes first ${entitlementFinishesFirst}`, async () => {
 					const clock = sinon.useFakeTimers({ now: Date.now(), toFake: ['Date'] });
+					const telemetry = new DiscoveryTelemetryService();
 					const normalResponse = new DeferredPromise<Response>();
 					const entitlementResponse = new DeferredPromise<Response>();
 					let requests = 0;
@@ -183,7 +291,7 @@ suite('CopilotApiService', () => {
 							return userResponse({ access_type_sku: 'no_access', analytics_tracking_id: 'analytics' });
 						}
 						return (requests === 2) === entitlementStartsFirst ? entitlementResponse.p : normalResponse.p;
-					});
+					}, undefined, telemetry);
 					await service.resolveCopilotSku('token');
 					clock.tick(26 * 60 * 1000);
 					let normal: Promise<string | undefined>;
@@ -206,7 +314,21 @@ suite('CopilotApiService', () => {
 						entitlementResponse.complete(userResponse({ access_type_sku: 'free', analytics_tracking_id: 'analytics' }));
 						await entitlement;
 					}
-					assert.deepStrictEqual({ requests, sku: service.getCachedCopilotSku('token') }, { requests: 3, sku: 'free' });
+					assert.deepStrictEqual({
+						requests,
+						sku: service.getCachedCopilotSku('token'),
+						outcomes: telemetry.events.slice(1).map(event => ({ trigger: event.data?.trigger, outcome: event.data?.outcome, sku: event.data?.copilotSku })),
+					}, {
+						requests: 3,
+						sku: 'free',
+						outcomes: entitlementFinishesFirst ? [
+							{ trigger: 'entitlementChange', outcome: 'published', sku: 'free' },
+							{ trigger: 'cacheRefresh', outcome: 'superseded', sku: 'no_access' },
+						] : [
+							{ trigger: 'cacheRefresh', outcome: 'superseded', sku: 'no_access' },
+							{ trigger: 'entitlementChange', outcome: 'published', sku: 'free' },
+						],
+					});
 				});
 			}
 		}
