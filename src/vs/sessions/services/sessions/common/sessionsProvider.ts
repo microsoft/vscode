@@ -173,6 +173,8 @@ export interface ISessionsProviderAutomations extends IAutomationStore {
 	readonly unavailableReason?: IObservable<string | undefined>;
 	/** Optional category for grouped unavailability messages. */
 	readonly unavailableReasonCode?: IObservable<AutomationUnavailableReasonCode | undefined>;
+	/** A complete sentence describing this provider's unavailability, used instead of naming the provider. */
+	readonly unavailableMessage?: string;
 }
 
 /**
