@@ -1442,6 +1442,32 @@ suite('Automation dialog creation', () => {
 		});
 	});
 
+	test('the cloud switch is described when creating and not when its run target is locked for editing', async () => {
+		const existing: IAutomationDescriptor = {
+			id: 'cloud-locked', name: 'Review', prompt: 'Review changes', enabled: true, createdAt: '', updatedAt: '',
+			target: { kind: 'workspace', folderUri: REPOSITORY, providerId: 'cloud', sessionTypeId: 'cloud-agent', isolation: { kind: 'default' } },
+			schedule: { interval: 'manual', timeZone: 'UTC', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1 },
+		};
+		const switchDescription = async (options: IShowAutomationDialogOptions) => {
+			const dialog = openDialog(options, cloudConfiguration());
+			const row = dialog.container.querySelector<HTMLElement>('.automation-cloud-row')!;
+			const describedBy = row.querySelector('[role="switch"]')!.getAttribute('aria-describedby');
+			const description = row.querySelector('.automation-cloud-description');
+			const snapshot = {
+				rowVisible: row.style.display !== 'none',
+				visible: !!description,
+				announced: !!describedBy && description?.id === describedBy,
+			};
+			dialog.cancelButton.click();
+			await dialog.result;
+			return snapshot;
+		};
+		assert.deepStrictEqual({ create: await switchDescription({}), edit: await switchDescription({ existing }) }, {
+			create: { rowVisible: true, visible: true, announced: true },
+			edit: { rowVisible: true, visible: false, announced: false },
+		});
+	});
+
 	test('turning cloud on keeps a private local folder displayed and saves its repository', async () => {
 		const dialog = openDialog({}, cloudConfiguration());
 		dialog.setPrompt('Review changes');
