@@ -131,6 +131,8 @@ export class ModelPickerWidget extends Disposable {
 	readonly onDidChangeMinimumWidth: Event<number> = this._onDidChangeMinimumWidth.event;
 
 	private _selectedModel: ILanguageModelChatMetadataAndIdentifier | undefined;
+	/** Reused by the hover without rebuilding the model catalog. */
+	private _organizationDefaultDescription: string | undefined;
 	private _badge: ModelPickerBadge | undefined;
 	private _compact: IObservable<boolean> | undefined;
 	private _minimal: IObservable<boolean> | undefined;
@@ -366,11 +368,10 @@ export class ModelPickerWidget extends Disposable {
 	 * The model a HydraFusion tier is shown as, with that tier: Fusion for one of
 	 * Fusion's tiers, or HydraFusion for HydraFusion's own Default or Max.
 	 */
-	private _getRoutingTier(model: ILanguageModelChatMetadataAndIdentifier): { readonly shownModel: ILanguageModelChatMetadataAndIdentifier; readonly label: string } | undefined {
+	private _getRoutingTier(model: ILanguageModelChatMetadataAndIdentifier, models: readonly ILanguageModelChatMetadataAndIdentifier[]): { readonly shownModel: ILanguageModelChatMetadataAndIdentifier; readonly label: string } | undefined {
 		if (!isHydraFusionModel(model) || isUserProvidedModel(model, this._languageModelsService)) {
 			return undefined;
 		}
-		const models = this._delegate.getModels();
 		// Matches the picker, which only offers models this build can run.
 		const controlModels = getModelPickerControlModels(this._languageModelsService.getModelsControlManifest(), this._entitlementService.entitlement, models);
 		const runnable = (candidate: ILanguageModelChatMetadataAndIdentifier) => !isUserProvidedModel(candidate, this._languageModelsService) && !requiresNewerVSCode(candidate, controlModels, this._productService.version);
@@ -404,11 +405,11 @@ export class ModelPickerWidget extends Disposable {
 	 * sign-in/setup), or `undefined` when a model is available. See
 	 * {@link getModelPickerUnavailableReason}.
 	 */
-	private _unavailableReason(): ModelPickerUnavailableReason | undefined {
+	private _unavailableReason(models: readonly ILanguageModelChatMetadataAndIdentifier[] = this._delegate.getModels()): ModelPickerUnavailableReason | undefined {
 		return getModelPickerUnavailableReason({
 			trustInitialized: this._workspaceTrustInitialized,
 			trusted: this._workspaceTrustManagementService.isWorkspaceTrusted(),
-			pickerModels: this._delegate.getModels(),
+			pickerModels: models,
 			liveModelIds: this._languageModelsService.getLanguageModelIds(),
 			requiresSetup: this._requiresSetup(),
 		});
@@ -542,11 +543,11 @@ export class ModelPickerWidget extends Disposable {
 	 * The picker's current availability, derived once so the label states and the "nothing to switch
 	 * to" hint suppression (#325185) cannot disagree.
 	 */
-	private _availability(): IModelPickerAvailability {
+	private _availability(models: readonly ILanguageModelChatMetadataAndIdentifier[] = this._delegate.getModels()): IModelPickerAvailability {
 		// Queried directly rather than through the isRestrictedMode()/isSetupRequired() wrappers,
 		// which would each recompute it.
-		const reason = this._unavailableReason();
-		const empty = this._delegate.getModels().length === 0;
+		const reason = this._unavailableReason(models);
+		const empty = models.length === 0;
 		const activating = reason === undefined && empty && this._activatingAfterTrust;
 		const genericNoModels = reason === undefined && !activating && empty && !this._delegate.getPresentationOptions().showAutoModel;
 		return { reason, activating, genericNoModels, noModels: reason !== undefined || activating || genericNoModels };
@@ -841,11 +842,7 @@ export class ModelPickerWidget extends Disposable {
 	}
 
 	get organizationDefaultDescription(): string | undefined {
-		if (this._unavailableReason() !== undefined || this._delegate.comparison?.summary.get()) {
-			return undefined;
-		}
-		const model = getOrganizationDefaultModel(this._configurationService, this._delegate.getModels());
-		return model ? getOrganizationDefaultDescription(model.metadata.name) : undefined;
+		return this._organizationDefaultDescription;
 	}
 
 	private _renderLabel(): void {
@@ -853,17 +850,20 @@ export class ModelPickerWidget extends Disposable {
 			return;
 		}
 
+		const models = this._delegate.getModels();
 		const comparisonSummary = this._delegate.comparison?.summary.get();
-		const routingTier = !comparisonSummary && this._selectedModel ? this._getRoutingTier(this._selectedModel) : undefined;
+		const routingTier = !comparisonSummary && this._selectedModel ? this._getRoutingTier(this._selectedModel, models) : undefined;
 		const shownModel = routingTier?.shownModel ?? this._selectedModel;
 		const shownName = shownModel ? getLanguageModelDisplayNameWithSubscriptionSource(shownModel) : undefined;
 		// A directly selected on-device model reads "<model> · On-device", like the Copilot CLI and app.
 		const name = comparisonSummary ?? (shownModel && shownName !== undefined && isLocalModelDirectRow(shownModel) ? formatLocalModelOnDeviceName(shownName) : shownName);
 
-		const { reason, activating, genericNoModels, noModels: noModelsAvailable } = this._availability();
+		const { reason, activating, genericNoModels, noModels: noModelsAvailable } = this._availability(models);
 		const restrictedMode = reason === ModelPickerUnavailableReason.Restricted;
 		const setupRequired = reason === ModelPickerUnavailableReason.SetupRequired;
 		const unavailable = reason !== undefined;
+		const organizationDefaultModel = !unavailable && !comparisonSummary ? getOrganizationDefaultModel(this._configurationService, models) : undefined;
+		this._organizationDefaultDescription = organizationDefaultModel ? getOrganizationDefaultDescription(organizationDefaultModel.metadata.name) : undefined;
 
 		// --- Name section ---
 		const nameChildren: (HTMLElement | string)[] = [];
@@ -878,7 +878,7 @@ export class ModelPickerWidget extends Disposable {
 		const minimal = this._minimal?.get() ?? false;
 		const summaryIcons = summaryModelIds?.length
 			? summaryModelIds.map(modelId => {
-				const model = (this._delegate.getComparisonModels?.() ?? this._delegate.getModels()).find(candidate => candidate.identifier === modelId);
+				const model = (this._delegate.getComparisonModels?.() ?? models).find(candidate => candidate.identifier === modelId);
 				return model && getCompactModelPickerIcon(model);
 			})
 			: undefined;

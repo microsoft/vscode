@@ -16,7 +16,8 @@ export function getOrganizationDefaultDescription(modelName: string): string {
 }
 
 export function getOrganizationDefaultModel(configurationService: IConfigurationService, models: readonly ILanguageModelChatMetadataAndIdentifier[]): ILanguageModelChatMetadataAndIdentifier | undefined {
-	return resolveConfiguredModel(configurationService.inspect<string>(ChatConfiguration.DefaultModel).policyValue?.trim(), models);
+	return models.find(model => model.metadata.managedModelDefaults?.model)
+		?? resolveConfiguredModel(configurationService.inspect<string>(ChatConfiguration.DefaultModel).policyValue?.trim(), models);
 }
 
 /** Color treatment for a model-row badge. */
