@@ -654,6 +654,32 @@ suite('Sessions - ChatGroupsView', () => {
 		});
 	});
 
+	test('does not show the session toolbar or reserve room for it in the new-chat view', () => {
+		const { view, configurationService } = createHarness(disposables, true, true);
+		configurationService.setUserConfiguration(SESSION_TOOLBAR_SETTING, true);
+		const main = createChat('main', SessionStatus.Untitled);
+		const session = new TestActiveSession([main]);
+		const state = () => {
+			const group = view.element.querySelector<HTMLElement>('.chat-group-view')!;
+			return {
+				kind: group.querySelector<HTMLElement>('.chat-view')?.dataset.kind,
+				toolbarShown: !!group.querySelector(':scope > .session-toolbar:not(.inactive)'),
+				contentInset: group.querySelector<HTMLElement>('.chat-view')?.style.getPropertyValue('--session-toolbar-reserved-width'),
+			};
+		};
+		view.setSession(session, options);
+		view.layout(1000, 600, 0, 0);
+
+		const newChat = state();
+		main.status.set(SessionStatus.Completed, undefined);
+		const existingChat = state();
+
+		assert.deepStrictEqual({ newChat, existingChat }, {
+			newChat: { kind: 'newChatInSession', toolbarShown: false, contentInset: '0px' },
+			existingChat: { kind: 'chat', toolbarShown: true, contentInset: '38px' },
+		});
+	});
+
 	test('keeps independent panels when the active chat changes', async () => {
 		const { sessionsService, view } = createHarness(disposables);
 		const main = createChat('main');

@@ -417,6 +417,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 				view.setPrimary(this._primary, this._split);
 				view.setActive(this._sessionActive && this._groupActive);
 				view.setVisible(this._sessionVisible);
+				this._updateSessionToolbarActive();
 				this._layoutChildren();
 			}
 
@@ -455,9 +456,14 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		this._updateSessionToolbarActive();
 	}
 
+	/** Whether the group shows an existing chat; the new-session and new-chat views have no session toolbar. */
+	private get _hostsSessionToolbar(): boolean {
+		return this._currentView.value?.kind === 'chat';
+	}
+
 	/** Only the active group of the active, visible session shows the session toolbar. */
 	private _updateSessionToolbarActive(): void {
-		this._sessionToolbar.setActive(this._groupActive && this._sessionActive && this._sessionVisible);
+		this._sessionToolbar.setActive(this._hostsSessionToolbar && this._groupActive && this._sessionActive && this._sessionVisible);
 	}
 
 	get groupActive(): boolean {
@@ -556,7 +562,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		const tabsHeight = this._compositeBar.visible ? this._compositeBar.height : 0;
 		const bannerHeight = this._readOnlyBanner.visible ? this._readOnlyBanner.domNode.offsetHeight : 0;
 		const barHeight = headerHeight + tabsHeight + bannerHeight;
-		const contentRightInset = this._sessionToolbar.reservedWidth.get();
+		const contentRightInset = this._hostsSessionToolbar ? this._sessionToolbar.reservedWidth.get() : 0;
 		size(this._barContainer, width, barHeight);
 		size(this._contentContainer, width, height - barHeight);
 		this._sessionToolbar.layout(barHeight, height - barHeight);
