@@ -20,6 +20,22 @@ export enum CustomizationMigrationType {
 	ConfiguredLocations = 'configuredLocations',
 	McpServers = 'mcpServers',
 	PluginMarketplaces = 'pluginMarketplaces',
+	ChatParticipants = 'chatParticipants',
+	ToolSets = 'toolSets',
+}
+
+export type GuidanceCustomizationMigrationType = CustomizationMigrationType.ChatParticipants | CustomizationMigrationType.ToolSets;
+
+export interface ICustomizationMigrationGuidanceItem {
+	readonly id: string;
+	readonly name: string;
+	readonly sourceLabel: string;
+	readonly sourceUri?: URI;
+}
+
+export interface GuidanceCustomizationMigration {
+	readonly type: GuidanceCustomizationMigrationType;
+	readonly items: readonly ICustomizationMigrationGuidanceItem[];
 }
 
 export interface MigratableConfiguration {
@@ -304,7 +320,7 @@ export function isFileCustomizationMigrationCandidate(candidate: CustomizationMi
 	return !isMcpServerCustomizationMigrationCandidate(candidate) && !isPluginMarketplaceCustomizationMigrationCandidate(candidate);
 }
 
-export type CustomizationMigration = FileCustomizationMigration | McpServerCustomizationMigration | PluginMarketplaceCustomizationMigration;
+export type CustomizationMigration = FileCustomizationMigration | McpServerCustomizationMigration | PluginMarketplaceCustomizationMigration | GuidanceCustomizationMigration;
 
 export interface ICustomizationMigrationHint {
 	readonly migrationFlowId: string;
@@ -325,6 +341,7 @@ export interface ICustomizationMigrationService {
 	computeMigration(sessionResource: URI, type: FileCustomizationMigrationType, token?: CancellationToken): Promise<FileCustomizationMigration>;
 	computeMigration(sessionResource: URI, type: CustomizationMigrationType.McpServers, token?: CancellationToken): Promise<McpServerCustomizationMigration>;
 	computeMigration(sessionResource: URI, type: CustomizationMigrationType.PluginMarketplaces, token?: CancellationToken): Promise<PluginMarketplaceCustomizationMigration>;
+	computeMigration(sessionResource: URI, type: GuidanceCustomizationMigrationType, token?: CancellationToken): Promise<GuidanceCustomizationMigration>;
 	migrateMcpServers(sessionResource: URI, candidates: readonly IMcpServerCustomizationMigrationCandidate[]): Promise<IMcpServerCustomizationMigrationResult>;
 	migratePluginMarketplaces(sessionResource: URI, candidates: readonly IPluginMarketplaceCustomizationMigrationCandidate[]): Promise<IPluginMarketplaceCustomizationMigrationResult>;
 	computeMigrations(sessionResource: URI, token?: CancellationToken): Promise<CustomizationMigration[]>;

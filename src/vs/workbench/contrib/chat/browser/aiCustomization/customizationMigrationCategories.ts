@@ -19,7 +19,26 @@ export const enum CustomizationMigrationCategoryId {
 	ConfiguredLocations = 'configuredLocations',
 	McpServers = 'mcpServers',
 	PluginMarketplaces = 'pluginMarketplaces',
+	ChatParticipants = 'chatParticipants',
+	ToolSets = 'toolSets',
 }
+
+export const customizationMigrationGuidance = [
+	{
+		id: CustomizationMigrationCategoryId.ChatParticipants,
+		migrationType: CustomizationMigrationType.ChatParticipants,
+		label: localize('migrationChatParticipants', "Chat Participants"),
+		description: localize('migrationChatParticipantsDescription', "Extension chat participants cannot be migrated automatically. Learn how to replace them with supported customizations."),
+		learnMoreUrl: 'https://aka.ms/vscode-migrate-customizations/chat-participants',
+	},
+	{
+		id: CustomizationMigrationCategoryId.ToolSets,
+		migrationType: CustomizationMigrationType.ToolSets,
+		label: localize('migrationToolSets', "Tool Sets"),
+		description: localize('migrationToolSetsDescription', "User-defined and extension-contributed tool sets cannot be migrated automatically. Learn how to replace them with supported customizations."),
+		learnMoreUrl: 'https://aka.ms/vscode-migrate-customizations/tool-sets',
+	},
+] as const;
 
 export const homepageMigrationCategories = [
 	CustomizationMigrationCategoryId.PromptFiles,
@@ -43,7 +62,7 @@ export interface ICustomizationMigrationConfirmation {
  */
 export interface ICustomizationMigrationCategory {
 	readonly id: CustomizationMigrationCategoryId;
-	readonly migrationType: CustomizationMigrationType;
+	readonly migrationType: Exclude<CustomizationMigrationType, CustomizationMigrationType.ChatParticipants | CustomizationMigrationType.ToolSets>;
 	/** Prompt types scanned when collecting candidates for this category. */
 	readonly sourceTypes?: readonly PromptsType[];
 	/** Experimental setting gating this migration. */

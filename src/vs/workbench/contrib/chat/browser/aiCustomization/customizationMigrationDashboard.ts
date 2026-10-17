@@ -17,6 +17,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { defaultButtonStyles, defaultCheckboxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
@@ -66,6 +67,7 @@ export interface ICustomizationMigrationDashboardCategory {
 	readonly destinationLabel?: string;
 	readonly destinationAriaLabel?: string;
 	readonly actionLabel?: string;
+	readonly learnMoreUrl?: string;
 	readonly items: readonly ICustomizationMigrationDashboardItem[];
 }
 
@@ -114,6 +116,7 @@ interface IMigrationGroupEntry extends ICustomizationGroupHeaderEntry {
 	readonly destinationAriaLabel?: string;
 	readonly manualReview: boolean;
 	readonly actionLabel: string;
+	readonly learnMoreUrl?: string;
 	selectedCount: number;
 	migrateDisabled: boolean;
 }
@@ -123,6 +126,7 @@ interface IMigrationItemEntry extends ICustomizationMigrationDashboardItem {
 	readonly categoryId: CustomizationMigrationCategoryId;
 	readonly storage: PromptsStorage;
 	readonly groupKey: string;
+	readonly readOnly?: boolean;
 	selected: boolean;
 }
 
@@ -209,14 +213,15 @@ class MigrationItemRenderer implements IListRenderer<IMigrationItemEntry, IMigra
 		templateData.label.textContent = element.label;
 		const manualReview = element.manualReviewReason !== undefined;
 		templateData.container.classList.toggle('manual-review', manualReview);
-		templateData.checkboxContainer.style.visibility = '';
-		templateData.checkbox.domNode.tabIndex = manualReview ? -1 : 0;
-		templateData.checkbox.domNode.setAttribute('aria-hidden', String(manualReview));
+		templateData.checkboxContainer.style.visibility = element.readOnly ? 'hidden' : '';
+		templateData.checkbox.domNode.tabIndex = manualReview || element.readOnly ? -1 : 0;
+		templateData.checkbox.domNode.setAttribute('aria-hidden', String(manualReview || !!element.readOnly));
 		templateData.checkbox.checked = element.selected;
 		templateData.checkbox.domNode.setAttribute('aria-label', localize('selectMigrationItem', "Select {0} for migration", element.label));
 		templateData.reviewButton.element.style.display = manualReview ? '' : 'none';
 		templateData.reviewButton.element.setAttribute('aria-label', localize('reviewMigrationItemAriaLabel', "Review {0}", element.label));
 		templateData.moreButton.element.setAttribute('aria-label', localize('migrationItemActions', "More actions for {0}", element.label));
+		templateData.moreButton.element.style.display = element.readOnly ? 'none' : '';
 		templateData.source.textContent = element.sourceLabel;
 		templateData.changes.textContent = element.changesLabel ?? '';
 		templateData.changes.style.display = element.changesLabel ? '' : 'none';
@@ -268,6 +273,7 @@ export class CustomizationMigrationDashboard extends Disposable {
 		private readonly callbacks: ICustomizationMigrationDashboardCallbacks,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super();
 		this.element = DOM.append(parent, $('.customization-migration-dashboard'));
@@ -305,14 +311,17 @@ export class CustomizationMigrationDashboard extends Disposable {
 		const categoryErrors = overview.categoryErrors ?? [];
 		this.allMigrationsComplete = migrationGroups.length === 0 && categoryErrors.length === 0 && !overview.hasIgnoredGroups;
 		this.prepareRender();
-		const supportsAgentMigration = migrationGroups.length > 0 && overview.supportsAgentMigration !== false;
+		const supportsAgentMigration = migrationGroups.some(group => group.kind === 'manual-review' || !group.category.learnMoreUrl) && overview.supportsAgentMigration !== false;
+		const guidanceOnly = migrationGroups.length > 0 && migrationGroups.every(group => group.kind === 'migration' && group.category.learnMoreUrl);
 		const page = this.renderHeader(
 			localize('migrationsTitle', "Migrations"),
 			this.allMigrationsComplete
 				? localize('migrationsCompletedDescription', "Your customizations use supported formats and locations.")
-				: supportsAgentMigration
-					? localize('migrationsDescriptionWithAgent', "Some of your agent customizations need an update to keep working. Use Migrate to have VS Code update selected customizations, or Migrate with Agent for a guided migration in chat. Agent migration uses credits.")
-					: localize('migrationsDescription', "Some of your agent customizations need an update to keep working. Review and migrate them to the new formats and locations."),
+				: guidanceOnly
+					? localize('migrationsGuidanceDescription', "These customizations cannot be migrated automatically. Use Learn More for guidance on updating them.")
+					: supportsAgentMigration
+						? localize('migrationsDescriptionWithAgent', "Some of your agent customizations need an update to keep working. Use Migrate to have VS Code update selected customizations, or Migrate with Agent for a guided migration in chat. Agent migration uses credits.")
+						: localize('migrationsDescription', "Some of your agent customizations need an update to keep working. Review and migrate them to the new formats and locations."),
 			overview.hasIgnoredGroups === true,
 			supportsAgentMigration ? () => {
 				this.callbacks.actionClicked('agentMigrationClicked');
@@ -380,7 +389,7 @@ export class CustomizationMigrationDashboard extends Disposable {
 		if (this.allMigrationsComplete) {
 			return;
 		}
-		const migrateAction = this.findFirstTarget(key => key.startsWith('migrate:'));
+		const migrateAction = this.findFirstTarget(key => key.startsWith('migrate:') || key.startsWith('learnMore:'));
 		const firstAction = this.findFirstTarget((_key, element) => element.getAttribute('role') === 'button');
 		const preferredTarget = migrateAction ?? firstAction;
 		if (preferredTarget) {
@@ -585,7 +594,8 @@ export class CustomizationMigrationDashboard extends Disposable {
 				categoryId: category.id,
 				storage: scope.storage,
 				groupKey: groupId,
-				selected: item.selected !== false,
+				readOnly: !!category.learnMoreUrl,
+				selected: !category.learnMoreUrl && item.selected !== false,
 			}));
 			const element: IMigrationGroupEntry = {
 				type: 'group-header',
@@ -602,12 +612,14 @@ export class CustomizationMigrationDashboard extends Disposable {
 				categoryId: category.id,
 				storage: scope.storage,
 				hasConfigurableDestination: scope.hasConfigurableDestinations
+					&& !category.learnMoreUrl
 					&& category.id !== CustomizationMigrationCategoryId.McpServers
 					&& category.id !== CustomizationMigrationCategoryId.PluginMarketplaces,
 				destinationLabel: category.destinationLabel,
 				destinationAriaLabel: category.destinationAriaLabel,
 				manualReview: false,
 				actionLabel: category.actionLabel ?? localize('migrate', "Migrate"),
+				learnMoreUrl: category.learnMoreUrl,
 				selectedCount: category.selectedCount ?? items.length,
 				migrateDisabled: category.migrateDisabled === true,
 			};
@@ -667,6 +679,10 @@ export class CustomizationMigrationDashboard extends Disposable {
 				return mcpServerIcon;
 			case CustomizationMigrationCategoryId.PluginMarketplaces:
 				return Codicon.globe;
+			case CustomizationMigrationCategoryId.ChatParticipants:
+				return Codicon.comment;
+			case CustomizationMigrationCategoryId.ToolSets:
+				return Codicon.tools;
 			default:
 				return workspaceIcon;
 		}
@@ -682,6 +698,16 @@ export class CustomizationMigrationDashboard extends Disposable {
 		this.button(actions, `ignore:${storage}:${categoryId}`, localize('ignoreMigrationGroup', "Ignore"),
 			localize('ignoreMigrationCategory', "Ignore {0}", entry.label),
 			() => this.callbacks.ignoreCategory(categoryId, storage), 'secondary', undefined, disposables);
+		if (entry.learnMoreUrl) {
+			const url = entry.learnMoreUrl;
+			const link = this.button(actions, `learnMore:${storage}:${categoryId}`, localize('migrationLearnMore', "Learn More"),
+				localize('migrationLearnMoreAriaLabel', "Learn how to migrate {0}", entry.label),
+				() => { void this.openerService.open(url); }, 'link', undefined, disposables);
+			link.element.setAttribute('href', url);
+			link.element.setAttribute('role', 'link');
+			disposables.add(link.onDidClick(event => DOM.EventHelper.stop(event, true)));
+			return;
+		}
 		const scopeLabel = storage === PromptsStorage.local
 			? localize('migrationWorkspaceScope', "Workspace")
 			: localize('migrationUserScope', "User");
@@ -726,11 +752,13 @@ export class CustomizationMigrationDashboard extends Disposable {
 	}
 
 	private openMigrationItem(entry: IMigrationItemEntry): void {
-		this.callbacks.openCustomization(entry, entry.storage);
+		if (!entry.readOnly) {
+			this.callbacks.openCustomization(entry, entry.storage);
+		}
 	}
 
 	private setMigrationItemSelected(entry: IMigrationItemEntry, selected: boolean): void {
-		if (entry.manualReviewReason || entry.selected === selected) {
+		if (entry.readOnly || entry.manualReviewReason || entry.selected === selected) {
 			return;
 		}
 		entry.selected = selected;
