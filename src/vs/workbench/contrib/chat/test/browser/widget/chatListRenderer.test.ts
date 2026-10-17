@@ -3511,10 +3511,7 @@ suite('ChatListRenderer', () => {
 
 	for (const [toolId, width] of ['image_generation', 'image_gen.imagegen'].flatMap(toolId => [760, 320.5, 280].map(width => [toolId, width] as const))) {
 		test(`image tool icon alignment survives the reveal and restore (${toolId}, width=${width})`, async () => {
-			const roDiag = (e: ErrorEvent) => { if (e.message.includes('ResizeObserver loop')) { console.log('RO-DIAG', dom.getRecentDisposableResizeObserverContextForLoopError(e.message, mainWindow)); } };
-			mainWindow.addEventListener('error', roDiag);
 			const { disposables, instantiationService, model, request, container, renderer, template, node } = createPersistentProgressRenderer();
-			disposables.add({ dispose: () => mainWindow.removeEventListener('error', roDiag) });
 			configurePersistentProgressTypography(container, 13);
 			container.style.width = `${width}px`;
 			container.classList.remove('monaco-reduce-motion');
