@@ -210,8 +210,6 @@ jobs:
           if ($failing -gt 0) { exit 1 }
         env:
           VSCODE_SKIP_PRELAUNCH: '1'
-        env:
-          VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run unit tests (node.js)
         if: false # TEMPORARY (flaky test flush-out): disabled to focus on the Electron loop
