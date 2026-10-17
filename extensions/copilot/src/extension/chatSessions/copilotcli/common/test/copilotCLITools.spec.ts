@@ -259,7 +259,7 @@ describe('CopilotCLITools', () => {
 
 			const turns = buildChatHistoryFromEvents('', undefined, events, getVSCodeRequestId, delegationSummary, logger, undefined, undefined, modelDetails);
 
-			expect(turns.filter(turn => turn instanceof ChatRequestTurn2).map(turn => (turn as ChatRequestTurn2).modelId)).toEqual(['opus-4.6', 'opus-4.7', 'gpt-5.4', 'gpt-5.3']);
+			expect(turns.filter(turn => turn instanceof ChatRequestTurn2).map(turn => (turn as ChatRequestTurn2).modelId)).toEqual(['copilotcli/opus-4.6', 'copilotcli/opus-4.7', 'copilotcli/gpt-5.4', 'copilotcli/gpt-5.3']);
 			expect(turns.filter(turn => turn instanceof ChatResponseTurn2).map(turn => (turn as ChatResponseTurn2).result)).toEqual([
 				{ details: 'Opus 4.6 • 4x' },
 				{ details: 'Opus 4.7 • 4x' },
@@ -278,8 +278,27 @@ describe('CopilotCLITools', () => {
 			const turns = buildChatHistoryFromEvents('', undefined, events, getVSCodeRequestId, delegationSummary, logger, undefined, undefined, new Map([['gpt-5.4', { name: 'GPT 5.4', multiplier: 2 }]]));
 
 			expect(turns).toHaveLength(2);
-			expect((turns[0] as ChatRequestTurn2).modelId).toBe('gpt-5.4');
+			expect((turns[0] as ChatRequestTurn2).modelId).toBe('copilotcli/gpt-5.4');
 			expect((turns[1] as ChatResponseTurn2).result).toEqual({ details: 'GPT 5.4 • 2x' });
+		});
+
+		it('reports request models by their language model identifier so the session model can be restored', () => {
+			// A session started in the Copilot CLI has no VS Code request details: the model comes from
+			// the session's own events. A later VS Code request made with Auto stays on Auto.
+			const events: any[] = [
+				{ type: 'session.start', data: { selectedModel: 'claude-sonnet-4.5' } },
+				{ type: 'user.message', id: 'u1', data: { content: 'From the CLI', attachments: [] } },
+				{ type: 'assistant.message', data: { content: 'One' } },
+				{ type: 'user.message', id: 'u2', data: { content: 'From VS Code', attachments: [] } },
+				{ type: 'assistant.message', data: { content: 'Two' } },
+			];
+			const detailsByEventId: Record<string, RequestIdDetails> = {
+				u2: { requestId: 'r2', toolIdEditMap: {}, responseModelId: 'gpt-5.4', isUsingAutoModel: true },
+			};
+
+			const turns = buildChatHistoryFromEvents('', undefined, events, sdkRequestId => detailsByEventId[sdkRequestId], delegationSummary, logger);
+
+			expect(turns.filter(turn => turn instanceof ChatRequestTurn2).map(turn => (turn as ChatRequestTurn2).modelId)).toEqual(['copilotcli/claude-sonnet-4.5', 'copilotcli/auto']);
 		});
 
 		it('uses persisted responseModelId to recover model details on reload for auto sessions', () => {
@@ -308,7 +327,7 @@ describe('CopilotCLITools', () => {
 			]));
 
 			expect(turns).toHaveLength(4);
-			expect(turns.filter(turn => turn instanceof ChatRequestTurn2).map(turn => (turn as ChatRequestTurn2).modelId)).toEqual(['gpt-5.4', 'claude-opus-4.7']);
+			expect(turns.filter(turn => turn instanceof ChatRequestTurn2).map(turn => (turn as ChatRequestTurn2).modelId)).toEqual(['copilotcli/gpt-5.4', 'copilotcli/claude-opus-4.7']);
 			expect(turns.filter(turn => turn instanceof ChatResponseTurn2).map(turn => (turn as ChatResponseTurn2).result)).toEqual([
 				{ details: 'GPT 5.4 • 2x' },
 				{ details: 'Claude Opus 4.7 • 4x' },
