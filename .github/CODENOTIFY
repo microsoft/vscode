@@ -58,7 +58,7 @@ src/vs/workbench/contrib/preferences/** @rzhao271
 
 # Sessions Contributions
 src/vs/sessions/contrib/browserView/** @kycutler @jruales
-src/vs/sessions/contrib/canvases/** @ulugbekna
+src/vs/sessions/contrib/canvases/** @ulugbekna @jruales
 
 # Build
 build/azure-pipelines/** @lszomoru
