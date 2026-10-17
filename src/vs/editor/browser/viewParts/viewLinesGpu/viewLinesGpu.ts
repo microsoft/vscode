@@ -30,6 +30,7 @@ import { FullFileRenderStrategy } from '../../gpu/renderStrategy/fullFileRenderS
 import { MutableDisposable } from '../../../../base/common/lifecycle.js';
 import type { ViewLineRenderingData } from '../../../common/viewModel.js';
 import { GlyphRasterizer } from '../../gpu/raster/glyphRasterizer.js';
+import type { IViewLineHitTestProvider } from '../../controller/mouseHandler.js';
 
 const enum GlyphStorageBufferInfo {
 	FloatsPerEntry = 2 + 2 + 2,
@@ -42,7 +43,7 @@ const enum GlyphStorageBufferInfo {
 /**
  * The GPU implementation of the ViewLines part.
  */
-export class ViewLinesGpu extends ViewPart implements IViewLines {
+export class ViewLinesGpu extends ViewPart implements IViewLines, IViewLineHitTestProvider {
 
 	private readonly canvas: HTMLCanvasElement;
 
