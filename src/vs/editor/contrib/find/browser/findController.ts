@@ -1030,11 +1030,12 @@ StartFindReplaceAction.addImplementation(0, (accessor: ServicesAccessor, editor:
 
 	const currentSelection = editor.getSelection();
 	const findInputFocused = controller.isFindInputFocused();
-	// we only seed search string from selection when the current selection is single line and not empty,
-	// + the find input is not focused
-	const seedSearchStringFromSelection = !currentSelection.isEmpty()
+	const seedSearchStringSetting = editor.getOption(EditorOption.find).seedSearchStringFromSelection;
+	const seedSearchStringFromNonEmptySelection = seedSearchStringSetting === 'selection';
+	const canSeedFromSelection = seedSearchStringSetting !== 'never'
+		&& getSelectionSearchString(editor, 'single', seedSearchStringFromNonEmptySelection) !== null;
+	const seedSearchStringFromSelection = canSeedFromSelection
 		&& currentSelection.startLineNumber === currentSelection.endLineNumber
-		&& (editor.getOption(EditorOption.find).seedSearchStringFromSelection !== 'never')
 		&& !findInputFocused;
 	/*
 	* if the existing search string in find widget is empty and we don't seed search string from selection, it means the Find Input is still empty, so we should focus the Find Input instead of Replace Input.
@@ -1049,8 +1050,8 @@ StartFindReplaceAction.addImplementation(0, (accessor: ServicesAccessor, editor:
 	return controller.start({
 		forceRevealReplace: true,
 		seedSearchStringFromSelection: seedSearchStringFromSelection ? 'single' : 'none',
-		seedSearchStringFromNonEmptySelection: editor.getOption(EditorOption.find).seedSearchStringFromSelection === 'selection',
-		seedSearchStringFromGlobalClipboard: editor.getOption(EditorOption.find).seedSearchStringFromSelection !== 'never',
+		seedSearchStringFromNonEmptySelection: seedSearchStringFromNonEmptySelection,
+		seedSearchStringFromGlobalClipboard: seedSearchStringSetting !== 'never',
 		shouldFocus: shouldFocus,
 		shouldAnimate: true,
 		updateSearchScope: false,
