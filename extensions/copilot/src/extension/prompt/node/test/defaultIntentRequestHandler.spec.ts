@@ -143,6 +143,7 @@ suite('defaultIntentRequestHandler', () => {
 		references: readonly ChatPromptReference[] = [];
 		toolReferences: readonly ChatLanguageModelToolReference[] = [];
 		model: LanguageModelChat = { family: '' } as any;
+		modelConfiguration?: ChatRequest['modelConfiguration'];
 		tools = new Map();
 		id = generateUuid();
 		sessionId = generateUuid();
@@ -312,6 +313,36 @@ suite('defaultIntentRequestHandler', () => {
 				toolInputRetry: 0,
 				response: 'response to tool call',
 			},
+		]);
+	});
+
+	test('forwards resolved model configuration on every tool continuation request', async () => {
+		const request = new TestChatRequest();
+		request.modelConfiguration = { reasoningEffort: 'high', contextSize: 500_000 };
+		const requestSpy = vi.spyOn(endpoint, 'makeChatRequest2');
+		const handler = makeHandler({ request });
+		chatResponse[0] = [{
+			text: 'some response here :)',
+			copilotToolCalls: [{
+				arguments: 'some args here',
+				name: 'my_func',
+				id: 'tool_call_id',
+			}],
+		}];
+		chatResponse[1] = 'response to tool call';
+
+		const toolResult = new LanguageModelToolResult([new LanguageModelTextPart('tool-result')]);
+		promptResult = {
+			...nullRenderPromptResult(),
+			messages: [{ role: Raw.ChatRole.User, content: [toTextPart('hello world!')] }],
+			metadata: promptResultMetadata([new ToolResultMetadata('tool_call_id__vscode-0', toolResult)])
+		};
+
+		await handler.getResult();
+
+		expect(requestSpy.mock.calls.map(([options]) => options.modelConfiguration)).toEqual([
+			request.modelConfiguration,
+			request.modelConfiguration,
 		]);
 	});
 

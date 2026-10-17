@@ -1576,10 +1576,13 @@ suite('LanguageModels - Per-Model Configuration', function () {
 						vendor: 'config-vendor',
 						name: 'default',
 						settings: {
-							'model-a': { temperature: 0.7, reasoningEffort: 'high' },
+							'model-a': { temperature: 0.7, reasoningEffort: 'medium', contextSize: 1_033_616 },
 							'model-b': { temperature: 0.2 }
 						}
 					}];
+				}
+				override async updateLanguageModelsProviderGroup(_from: ILanguageModelsProviderGroup, to: ILanguageModelsProviderGroup): Promise<ILanguageModelsProviderGroup> {
+					return to;
 				}
 			},
 			new class extends mock<IQuickInputService>() { },
@@ -1615,6 +1618,7 @@ suite('LanguageModels - Per-Model Configuration', function () {
 								properties: {
 									temperature: { type: 'number', default: 0.5 },
 									reasoningEffort: { type: 'string', default: 'medium' },
+									contextSize: { type: 'number', default: 1_033_616 },
 									maxTokens: { type: 'number', default: 4096 }
 								}
 							}
@@ -1660,7 +1664,7 @@ suite('LanguageModels - Per-Model Configuration', function () {
 
 	test('getModelConfiguration returns per-model config from group', function () {
 		const configA = languageModelsService.getModelConfiguration('config-vendor/default/model-a');
-		assert.deepStrictEqual(configA, { temperature: 0.7, reasoningEffort: 'high', maxTokens: 4096 });
+		assert.deepStrictEqual(configA, { temperature: 0.7, reasoningEffort: 'medium', contextSize: 1_033_616, maxTokens: 4096 });
 
 		const configB = languageModelsService.getModelConfiguration('config-vendor/default/model-b');
 		assert.deepStrictEqual(configB, { temperature: 0.2 });
@@ -1682,13 +1686,13 @@ suite('LanguageModels - Per-Model Configuration', function () {
 			resolved: languageModelsService.getModelConfiguration('config-vendor/default/model-a'),
 			unknown: languageModelsService.getModelConfiguration('config-vendor/default/model-c', false),
 		}, {
-			preferences: { temperature: 0.7, reasoningEffort: 'high' },
-			resolved: { temperature: 0.7, reasoningEffort: 'high', maxTokens: 4096 },
+			preferences: { temperature: 0.7, reasoningEffort: 'medium', contextSize: 1_033_616 },
+			resolved: { temperature: 0.7, reasoningEffort: 'medium', contextSize: 1_033_616, maxTokens: 4096 },
 			unknown: undefined,
 		});
 	});
 
-	test('sendChatRequest merges schema defaults with user config', async function () {
+	test('sendChatRequest merges schema defaults with configured model values', async function () {
 		const cts = disposables.add(new CancellationTokenSource());
 		const request = await languageModelsService.sendChatRequest(
 			'config-vendor/default/model-a',
@@ -1699,9 +1703,35 @@ suite('LanguageModels - Per-Model Configuration', function () {
 		);
 		await request.result;
 
-		// User config overrides defaults: temperature=0.7 (not 0.5), reasoningEffort='high' (not 'medium')
-		// Schema default maxTokens=4096 is included since user didn't override it
-		assert.deepStrictEqual(receivedOptions, { configuration: { temperature: 0.7, reasoningEffort: 'high', maxTokens: 4096 } });
+		// Configured values override schema defaults, and schema defaults fill omitted properties.
+		assert.deepStrictEqual(receivedOptions, { configuration: { temperature: 0.7, reasoningEffort: 'medium', contextSize: 1_033_616, maxTokens: 4096 } });
+	});
+
+	test('sendChatRequest gives caller model configuration precedence and preserves explicit defaults', async function () {
+		const cts = disposables.add(new CancellationTokenSource());
+		const sendWithConfiguration = async (configuration: { reasoningEffort: string; contextSize: number }) => {
+			const request = await languageModelsService.sendChatRequest(
+				'config-vendor/default/model-a',
+				nullExtensionDescription.identifier,
+				[{ role: ChatMessageRole.User, content: [{ type: 'text', value: 'hello' }] }],
+				{ configuration },
+				cts.token
+			);
+			await request.result;
+			return receivedOptions?.configuration;
+		};
+
+		const highOverMedium = await sendWithConfiguration({ reasoningEffort: 'high', contextSize: 500_000 });
+		await languageModelsService.setModelConfiguration('config-vendor/default/model-a', {
+			reasoningEffort: 'high',
+			contextSize: 500_000,
+		});
+		const mediumOverHigh = await sendWithConfiguration({ reasoningEffort: 'medium', contextSize: 1_033_616 });
+
+		assert.deepStrictEqual([highOverMedium, mediumOverHigh], [
+			{ temperature: 0.7, reasoningEffort: 'high', contextSize: 500_000, maxTokens: 4096 },
+			{ temperature: 0.7, reasoningEffort: 'medium', contextSize: 1_033_616, maxTokens: 4096 },
+		]);
 	});
 
 	test('sendChatRequest passes user config when model has no schema', async function () {
