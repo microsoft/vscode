@@ -86,11 +86,11 @@ export function getAutoModeTierLabel(tier: string): string {
 	}
 }
 
-/** Localized picker label for a routing profile when Auto is presented as Fusion, which names the runtime's balance tier Lite and its intelligence tier Balance. */
+/** Localized picker label for a routing profile when Auto is presented as Fusion, which names the runtime's balance tier Standard and its intelligence tier High. */
 export function getFusionAutoModeTierLabel(tier: string): string {
 	switch (tier) {
-		case 'balance': return localize('autoModeTier.fusionLite', "Lite");
-		case 'intelligence': return localize('autoModeTier.fusionBalance', "Balance");
+		case 'balance': return localize('autoModeTier.fusionStandard', "Standard");
+		case 'intelligence': return localize('autoModeTier.fusionHigh', "High");
 		default: return getAutoModeTierLabel(tier);
 	}
 }

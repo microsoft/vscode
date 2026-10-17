@@ -66,10 +66,12 @@ const rules: readonly IChangeRule[] = [
 		],
 	},
 	{
-		// The Copilot tests run against a downloaded VS Code build, not the core sources in the pull request.
+		// The Copilot tests run against a downloaded VS Code build and chat-lib is extracted from the extension;
+		// neither uses the core sources in the pull request.
 		output: 'copilot',
 		paths: [
 			'extensions/copilot/',
+			'.github/actions/test-chat-lib/',
 			// Type checking includes the VS Code API typings.
 			'src/vscode-dts/',
 			'src/typings/thenable.d.ts',

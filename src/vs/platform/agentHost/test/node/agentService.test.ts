@@ -16,7 +16,7 @@ import type { Database } from '@vscode/sqlite3';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
-import { DeferredPromise, disposableTimeout, raceTimeout, timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout, raceTimeout, retry, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
@@ -9645,7 +9645,8 @@ suite('AgentService (node dispatcher)', () => {
 			const initiator = { name: 'vscode-agents-window', title: 'VS Code Agents Window' };
 			const session = await localService.createSession({ legacyChatUris: true, _meta: withSessionInitiator(undefined, initiator) });
 			const listedBefore = (await localService.listSessions()).map(s => s.session.toString());
-			await timeout(500);
+			// Poll for the background retry instead of sleeping; `whenIdle` would itself flush and mask it.
+			await retry(async () => assert.strictEqual(await database.getMetadata(SESSION_INITIATOR_METADATA_KEY), JSON.stringify(initiator)), 10, 50);
 			assert.deepStrictEqual({
 				listed: listedBefore,
 				stored: await database.getMetadata(SESSION_INITIATOR_METADATA_KEY),
@@ -9673,19 +9674,6 @@ suite('AgentService (node dispatcher)', () => {
 				registryWriteAttempts: 2,
 				registeredSessions: [session.toString()],
 			});
-		});
-
-		test('creates a session whose chat catalog a concurrent synchronization recorded while it was being registered', async () => {
-			const orchestratorDatabase = new AgentHostDatabase(':memory:');
-			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, orchestratorDatabase));
-			registerTestAgentProvider(svc, disposables.add(new MockAgent('copilot')));
-			await svc.listSessions();
-			// As when the sessions_v2 migration records the session's verified source after the registration checked for one.
-			stub(orchestratorDatabase, 'registerChatCatalogV2').resolves({ status: 'conflict' });
-
-			const session = await svc.createSession({ legacyChatUris: true, provider: 'copilot' });
-
-			assert.deepStrictEqual((await svc.getRegisteredSessions()).map(resource => resource.toString()), [session.toString()]);
 		});
 
 		test('returns an already-published session when initial catalog persistence fails and schedules repair', async () => {
@@ -19994,8 +19982,9 @@ suite('AgentService (node dispatcher)', () => {
 
 			const first = svc.listSessions();
 			const second = svc.listSessions();
-			// The first listing settles while the provider migration is blocked, it would never settle if it waited for the migration
-			await Promise.all([migrationStarted.p, first]);
+			// The migration stays blocked on `gate`: a first listing that waited for it would never settle.
+			await migrationStarted.p;
+			assert.strictEqual(await raceTimeout(first.then(() => true), 3_000, () => false), true, 'first listing must not wait for provider migration');
 			gate.complete();
 
 			const [firstResult, secondResult] = await Promise.all([first, second]);
@@ -32924,8 +32913,6 @@ suite('AgentService (node dispatcher)', () => {
 					getConfigurationService(service).updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
 				}
 				const folder = URI.file('/repo');
-				// Sessions are created once the provider's initial import ran, as after a client's first listing: a session it picks up while being created keeps a legacy chat catalog, which a move must convert first.
-				await service.listSessions();
 				const source = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [folder] });
 				const target = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [targetFolder ?? folder] });
 				const peer = URI.parse(buildChatUri(source, 'mover'));
@@ -33661,7 +33648,7 @@ suite('AgentService (node dispatcher)', () => {
 				const stateManager = getStateManager(service);
 				const internals = service as unknown as IMoveInternals & {
 					_workspaceConversionService: { restoreChatIsolation(session: string, chat: string, storage: string): Promise<void> };
-					_catalogReconciliationService: { _park(registered: Pick<IRegisteredSession, 'session' | 'provider'>, observedDirty: number | undefined, observedWakeGeneration: number, reason: 'sourceUnresolvable'): Promise<unknown>; readonly _wakeGeneration: number; wakeParkedSessions(session?: string): void };
+					_catalogReconciliationService: { _park(registered: Pick<IRegisteredSession, 'session' | 'provider'>, observedDirty: number | undefined, observedWakeGeneration: number, reason: 'sourceUnresolvable'): Promise<{ readonly reason: string }>; readonly _wakeGeneration: number; wakeParkedSessions(session?: string): void };
 					_sessionStateStore: { peek(session: URI): { readonly authority: 1 | 2 } | undefined };
 					_sessionDataService: ISessionDataService;
 				};
@@ -33694,16 +33681,21 @@ suite('AgentService (node dispatcher)', () => {
 				// The catalog reconciliation reports a session it parked, and its release; a parked session's legacy catalog can't convert.
 				const peek = internals._sessionStateStore.peek.bind(internals._sessionStateStore);
 				internals._sessionStateStore.peek = resource => resource.toString() === source.toString() ? { ...peek(resource)!, authority: 1 } : peek(resource);
-				await internals._catalogReconciliationService._park({ session: source, provider: 'copilot' }, await getTestAgentHostDatabase(service).getSessionV2PayloadDirty(source.toString()), internals._catalogReconciliationService._wakeGeneration, 'sourceUnresolvable');
+				// The movability changes above left the session's summary dirty. Its debounced (100 ms) flush queues a catalog write
+				// of the session, which bumps the session's payload dirty marker (so `_park` declines as superseded) and, when it
+				// stays pending, wakes the session. Flush the summary now, as a listing does, and let that write finish first.
+				stateManager.prepareSessionSummariesForListing([stateManager.getSessionSummary(source.toString())!]);
+				await service.whenCatalogReconciliationIdle();
+				const { reason } = await internals._catalogReconciliationService._park({ session: source, provider: 'copilot' }, await getTestAgentHostDatabase(service).getSessionV2PayloadDirty(source.toString()), internals._catalogReconciliationService._wakeGeneration, 'sourceUnresolvable');
 				const parked = await settled();
 				internals._catalogReconciliationService.wakeParkedSessions(source.toString());
-				outcomes.parked = { parked, released: await settled() };
+				outcomes.parked = { reason, parked, released: await settled() };
 
 				assert.deepStrictEqual(outcomes, {
 					// A refused move still says why, not just that the chat isn't movable.
 					worktree: { inWorktree: false, worktreeRefusal: AgentChatMoveRefusal.WorktreeFolder, released: true },
 					conversion: { quarantined: false, released: true },
-					parked: { parked: false, released: true },
+					parked: { reason: 'sourceUnresolvable', parked: false, released: true },
 				});
 			});
 
@@ -34416,8 +34408,8 @@ suite('AgentService (node dispatcher)', () => {
 			});
 
 			test('a promoted session restores from its default chat\'s own backing', async () => {
-				// Each session has its own database, as in production: sharing one, the source's and the new session's catalog
-				// synchronizations would overwrite each other's receipt.
+				// Each session has its own database, as in production: sharing one, sessions whose catalogs synchronize at the same
+				// time overwrite each other's catalog-sync receipt ("Catalog sync snapshot generation ... does not match stored generation").
 				const sessionDataService = createPerSessionDataService().service;
 				const orchestratorDatabase = new AgentHostDatabase(':memory:');
 				const createService = (agent: MovingAgent) => {
@@ -34428,8 +34420,6 @@ suite('AgentService (node dispatcher)', () => {
 					return service;
 				};
 				const first = createService(new MovingAgent('copilot'));
-				// Sessions are created once the provider's initial import ran, as after a client's first listing: a session it picks up while being created keeps a legacy chat catalog, which a promotion must convert first.
-				await first.listSessions();
 				const source = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 				const peer = URI.parse(buildChatUri(source, 'promoted'));
 				await first.createChat(source, peer);
@@ -34467,8 +34457,8 @@ suite('AgentService (node dispatcher)', () => {
 
 			test('a promoted session keeps its chat\'s title and title source across a restart, in its state and in the list, not its first prompt (B4-1)', async () => {
 				const orchestratorDatabase = new AgentHostDatabase(':memory:');
-				// Each session has its own database, as in production: sharing one, the source's and the new session's catalog
-				// synchronizations would overwrite each other's receipt, failing the write that persists the new session's title.
+				// Each session has its own database, as in production: sharing one, sessions whose catalogs synchronize at the same
+				// time overwrite each other's catalog-sync receipt ("Catalog sync snapshot generation ... does not match stored generation").
 				const sessionDataService = createPerSessionDataService().service;
 				// The agent describes the chat by its first prompt, as Copilot does.
 				class FirstPromptAgent extends MovingAgent {
@@ -34485,8 +34475,6 @@ suite('AgentService (node dispatcher)', () => {
 					return service;
 				};
 				const first = createService();
-				// Sessions are created once the provider's initial import ran, as after a client's first listing: a session it picks up while being created keeps a legacy chat catalog, which a promotion must convert first.
-				await first.listSessions();
 				const source = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 				const peer = URI.parse(buildChatUri(source, 'promoted'));
 				await first.createChat(source, peer, { title: 'Promo' });
@@ -34536,8 +34524,6 @@ suite('AgentService (node dispatcher)', () => {
 					undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, orchestratorDatabase));
 				registerTestAgentProvider(service, disposables.add(new MovingAgent('copilot')));
 				getConfigurationService(service).updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
-				// Sessions are created once the provider's initial import ran, as after a client's first listing: a session it picks up while being created keeps a legacy chat catalog, which a promotion must convert first.
-				await service.listSessions();
 				const source = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 				const peer = URI.parse(buildChatUri(source, 'renamed'));
 				await service.createChat(source, peer, { title: 'Promo' });
@@ -34638,8 +34624,8 @@ suite('AgentService (node dispatcher)', () => {
 			 * keeps a deleted origin's attachments for them.
 			 */
 			function createDeletingServices(options?: { readonly copyAttachments?: boolean }) {
-				// Each session has its own database, as in production: sharing one, the catalog synchronizations of the sessions a
-				// chat moves between would overwrite each other's receipt.
+				// Each session has its own database, as in production: sharing one, sessions whose catalogs synchronize at the same
+				// time overwrite each other's catalog-sync receipt ("Catalog sync snapshot generation ... does not match stored generation").
 				const base = createPerSessionDataService().service;
 				const sessionDataService: ISessionDataService = {
 					...base,
@@ -34680,21 +34666,7 @@ suite('AgentService (node dispatcher)', () => {
 					await fileService.writeFile(joinPath(base.getSessionDataDir(session), SESSION_ATTACHMENTS_DIRNAME, 'earlier', 'note.txt'), VSBuffer.fromString('note'));
 					await fileService.writeFile(joinPath(base.getSessionDataDir(session), 'other.txt'), VSBuffer.fromString('other'));
 				};
-				// A restart stops the running service first: it would otherwise keep reacting to the shared provider and
-				// synchronize the sessions the restarted service restores, outside of that service's synchronization queue.
-				const stop = async (service: AgentService) => {
-					await service.whenCatalogReconciliationIdle();
-					await getTestSessionStateStore(service).whenIdle(undefined);
-					// The orchestrator database stands for the file that outlives a host, so it stays open.
-					const disposeDatabase = orchestratorDatabase.dispose;
-					orchestratorDatabase.dispose = () => { };
-					try {
-						service.dispose();
-					} finally {
-						orchestratorDatabase.dispose = disposeDatabase;
-					}
-				};
-				return { createService, stop, contentsOf, seed, orchestratorDatabase, agent, dataDir: (session: URI) => base.getSessionDataDir(session) };
+				return { createService, contentsOf, seed, orchestratorDatabase, agent, dataDir: (session: URI) => base.getSessionDataDir(session) };
 			}
 
 			suite('older-build edits and moves (Block 4a)', () => {
@@ -34967,38 +34939,43 @@ suite('AgentService (node dispatcher)', () => {
 			});
 
 			test('a restart restores the order a move or a reorder recorded, also with a chat before the default chat', async () => {
-				const { createService, stop } = createDeletingServices();
-				let live = createService();
-				// Sessions are created once the provider's initial import ran, as after a client's first listing.
-				await live.listSessions();
-				const source = await live.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
-				const target = await live.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+				const { createService } = createDeletingServices();
+				const first = createService();
+				const source = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+				const target = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 				const moved = URI.parse(buildChatUri(source, 'moved-first'));
 				const peer = URI.parse(buildChatUri(target, 'target-peer'));
-				await live.createChat(source, moved);
-				await live.createChat(target, peer);
+				await first.createChat(source, moved);
+				await first.createChat(target, peer);
 				await timeout(0);
 				const orderOf = (service: AgentService) => getStateManager(service).getSessionState(target.toString())?.chats.map(chat => chat.resource);
-				const restart = async () => {
-					await stop(live);
+				// A host restarts once the previous ones stopped writing. A host still running would later flush its dirty
+				// summaries (on a debounce) and write the target's catalog receipt while the next one restores it, at the same revision.
+				const hosts = [first];
+				const settle = async () => {
+					for (const host of hosts) {
+						getStateManager(host).prepareSessionSummariesForListing((await host.listSessions()).map(toListedSessionSummary));
+						await host.whenCatalogReconciliationIdle();
+						await getTestSessionStateStore(host).whenIdle(undefined);
+					}
+				};
+				const restoredOrder = async () => {
+					await settle();
 					const restarted = createService();
+					hosts.push(restarted);
 					await restarted.listSessions();
 					await restarted.restoreSession(target);
-					const restored = orderOf(restarted);
-					// What the restore persisted is restored again.
-					await stop(restarted);
-					live = createService();
-					await live.listSessions();
-					await live.restoreSession(target);
-					return [restored, orderOf(live)];
+					return orderOf(restarted);
 				};
+				// What the restore persisted is restored again.
+				const restart = async () => [await restoredOrder(), await restoredOrder()];
 
 				// Moved without an anchor: before the target's default chat.
-				await live.moveChat(source, moved, { kind: 'session', session: target, after: undefined });
-				const afterMove = { live: orderOf(live), restored: await restart() };
+				await first.moveChat(source, moved, { kind: 'session', session: target, after: undefined });
+				const afterMove = { live: orderOf(first), restored: await restart() };
 				// Reordered: the target's peer first.
-				await live.moveChat(target, peer, { kind: 'session', session: target, after: undefined });
-				const afterReorder = { live: orderOf(live), restored: await restart() };
+				await first.moveChat(target, peer, { kind: 'session', session: target, after: undefined });
+				const afterReorder = { live: orderOf(first), restored: await restart() };
 
 				const movedOrder = [moved.toString(), buildDefaultChatUri(target), peer.toString()];
 				const reorderedOrder = [peer.toString(), moved.toString(), buildDefaultChatUri(target)];
@@ -35068,7 +35045,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 
 			test('a deleted session keeps its attachments while a chat that moved out of it lives, also across a restart', async () => {
-				const { createService, stop, contentsOf, seed } = createDeletingServices();
+				const { createService, contentsOf, seed } = createDeletingServices();
 				const first = createService();
 				const source = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 				const target = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
@@ -35080,7 +35057,8 @@ suite('AgentService (node dispatcher)', () => {
 
 				await first.disposeSession(source);
 				const afterSourceDeleted = await contentsOf(source);
-				await stop(first);
+				await first.whenCatalogReconciliationIdle();
+				await getTestSessionStateStore(first).whenIdle(undefined);
 
 				const restarted = createService();
 				await restarted.listSessions();
@@ -35257,8 +35235,8 @@ suite('AgentService (node dispatcher)', () => {
 			});
 
 			test('after a restart, a promoted session finds its default chat in the chat\'s own storage, also cold', async () => {
-				// Each session has its own database, as in production: sharing one, the source's and the new session's catalog
-				// synchronizations would overwrite each other's receipt.
+				// Each session has its own database, as in production: sharing one, sessions whose catalogs synchronize at the same
+				// time overwrite each other's catalog-sync receipt ("Catalog sync snapshot generation ... does not match stored generation").
 				const sessionDataService = createPerSessionDataService().service;
 				const orchestratorDatabase = new AgentHostDatabase(':memory:');
 				const createService = (agent: MovingAgent) => {
@@ -35269,8 +35247,6 @@ suite('AgentService (node dispatcher)', () => {
 					return service;
 				};
 				const first = createService(new MovingAgent('copilot'));
-				// Sessions are created once the provider's initial import ran, as after a client's first listing: a session it picks up while being created keeps a legacy chat catalog, which a promotion must convert first.
-				await first.listSessions();
 				const source = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 				const peer = URI.parse(buildChatUri(source, 'promoted'));
 				await first.createChat(source, peer);

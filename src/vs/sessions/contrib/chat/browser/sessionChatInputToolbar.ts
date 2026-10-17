@@ -505,7 +505,7 @@ export class SessionChatInputToolbar extends Disposable {
 			for (const ref of issueRefs.read(reader)) {
 				const reference = reader.store.add(gitHubService.createIssueModelReference(ref.owner, ref.repo, ref.number));
 				const model = reference.object;
-				model.refresh();
+				model.refresh({ priority: 'visible' });
 				const shouldPoll = derived(this, pollReader => model.issue.read(pollReader)?.state !== GitHubIssueState.Closed);
 				reader.store.add(autorun(pollReader => {
 					if (shouldPoll.read(pollReader)) {

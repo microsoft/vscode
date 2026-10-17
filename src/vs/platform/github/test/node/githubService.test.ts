@@ -13,7 +13,6 @@ import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { GitHubCredentialService } from '../../common/githubCredentialService.js';
-import { GitHubHostCapabilitiesService } from '../../common/githubHostCapabilitiesService.js';
 import { GitHubQueryService } from '../../common/githubQueryServiceImpl.js';
 import { GitHubService } from '../../common/githubService.js';
 import { GitHubClientOptions, GitHubCredentialChange, GitHubServiceOptions } from '../../common/githubTypes.js';
@@ -22,6 +21,7 @@ import { PullRequestMutationService } from '../../common/pullRequestMutationServ
 import { PullRequestResourceService } from '../../common/pullRequestResourceService.js';
 import { nodeFetch } from './nodeFetch.js';
 import { gitHubJsonResponse, gitHubRestStep, ProgrammableGitHubServer } from './programmableGitHubServer.js';
+import { getGitHubClientInternals } from '../common/githubClientTestUtils.js';
 
 function clientOptions(apiBaseUri = 'https://api.github.com', sessionId = 'session', scopes: readonly string[] = ['repo']): GitHubClientOptions {
 	return { apiBaseUri, graphQlUri: `${apiBaseUri}/graphql`, authorization: { providerId: 'github', sessionId, scopes } };
@@ -59,18 +59,17 @@ suite('GitHubService', () => {
 		const first = disposables.add(service.acquireClient(clientOptions())).object;
 		const second = disposables.add(service.acquireClient(clientOptions(undefined, 'other'))).object;
 		assert.deepStrictEqual({
-			transport: first.transport instanceof GitHubTransport,
+			transport: getGitHubClientInternals(first).transport instanceof GitHubTransport,
 			credentials: first.credentials instanceof GitHubCredentialService,
-			capabilities: first.capabilities instanceof GitHubHostCapabilitiesService,
 			query: first.query instanceof GitHubQueryService,
 			pullRequests: first.pullRequests instanceof PullRequestResourceService,
 			mutations: first.mutations instanceof PullRequestMutationService,
-			endpoint: first.endpoint.getApiBaseUri(),
+			endpoint: getGitHubClientInternals(first).endpoint.getApiBaseUri(),
 			separateClients: first !== second,
-			separateTransports: first.transport !== second.transport,
-			sharedQuotas: first.transport.rateLimits === second.transport.rateLimits,
+			separateTransports: getGitHubClientInternals(first).transport !== getGitHubClientInternals(second).transport,
+			sharedQuotas: getGitHubClientInternals(first).transport.rateLimits === getGitHubClientInternals(second).transport.rateLimits,
 		}, {
-			transport: true, credentials: true, capabilities: true, query: true, pullRequests: true, mutations: true,
+			transport: true, credentials: true, query: true, pullRequests: true, mutations: true,
 			endpoint: 'https://api.github.com', separateClients: true, separateTransports: true, sharedQuotas: true,
 		});
 	});
@@ -115,7 +114,7 @@ suite('GitHubService', () => {
 		const second = disposables.add(service.acquireClient(clientOptions(undefined, 'second'))).object;
 		const credentials = await Promise.all([first.credentials.getCredential(signal()), second.credentials.getCredential(signal())]);
 		let invalidations = 0;
-		disposables.add(first.onDidInvalidate(() => { invalidations++; }));
+		disposables.add(getGitHubClientInternals(first).onDidInvalidate(() => { invalidations++; }));
 		tokens.delete('first');
 		changes.fire({ providerId: 'github', sessionIds: ['first'] });
 		const secondAgain = await second.credentials.getCredential(signal());
@@ -143,10 +142,10 @@ suite('GitHubService', () => {
 		const first = disposables.add(service.acquireClient(clientOptions(undefined, 'first')));
 		const second = disposables.add(service.acquireClient(clientOptions(undefined, 'second')));
 		const request = { method: 'GET' as const, url: 'https://api.github.com/resource' };
-		const pending = first.object.transport.rest(account, 'token', request, signal());
+		const pending = getGitHubClientInternals(first.object).transport.rest(account, 'token', request, signal());
 		const rejected = assert.rejects(pending, /disposed/);
 		await started.p;
-		const peer = second.object.transport.rest(account, 'token', request, signal());
+		const peer = getGitHubClientInternals(second.object).transport.rest(account, 'token', request, signal());
 		await timeout(0);
 		const beforeRelease = calls;
 		first.dispose();
@@ -162,7 +161,7 @@ suite('GitHubService', () => {
 		const second = disposables.add(service.acquireClient(clientOptions(undefined, 'second'))).object;
 		const pending = Array.from({ length: 70 }, (_, index) => {
 			const client = index % 2 ? first : second;
-			return client.transport.rest({ host: 'api.github.com', accountId: String(index % 2) }, 'token', {
+			return getGitHubClientInternals(client).transport.rest({ host: 'api.github.com', accountId: String(index % 2) }, 'token', {
 				method: 'GET', url: `https://api.github.com/resource?page=${index}`,
 			}, signal()).then(() => 'success', error => error.kind);
 		});
@@ -186,7 +185,7 @@ suite('GitHubService', () => {
 		const first = disposables.add(service.acquireClient(clientOptions()));
 		const peer = disposables.add(service.acquireClient(clientOptions()));
 		const account = { host: 'api.github.com', accountId: '101' };
-		const pending = peer.object.transport.rest(account, 'token', { method: 'GET', url: 'https://api.github.com/resource' }, signal());
+		const pending = getGitHubClientInternals(peer.object).transport.rest(account, 'token', { method: 'GET', url: 'https://api.github.com/resource' }, signal());
 		const active = await started.p;
 		first.dispose();
 		await response.complete(new Response('{}'));
@@ -250,7 +249,7 @@ suite('GitHubService', () => {
 				try {
 					const first = disposables.add(service.acquireClient(clientOptions()));
 					const credential = await first.object.credentials.getCredential(signal());
-					await assert.rejects(first.object.transport.rest(credential.account, credential.token, {
+					await assert.rejects(getGitHubClientInternals(first.object).transport.rest(credential.account, credential.token, {
 						method: 'GET', url: `https://api.github.com${resource}`,
 					}, signal()), { kind: 'rateLimit' });
 					token = 'replacement-token';
@@ -304,7 +303,7 @@ suite('GitHubService', () => {
 			try {
 				const first = disposables.add(service.acquireClient(clientOptions()));
 				const credential = await first.object.credentials.getCredential(signal());
-				await first.object.transport.rest(credential.account, credential.token, {
+				await getGitHubClientInternals(first.object).transport.rest(credential.account, credential.token, {
 					method: 'GET', url: 'https://api.github.com/repos/owner/repo',
 				}, signal());
 				token = 'replacement-token';
@@ -316,7 +315,7 @@ suite('GitHubService', () => {
 				const replacement = disposables.add(service.acquireClient(clientOptions())).object;
 				await replacement.query.hydrateResources([{ kind: 'repository', ref: { ...credential.account, owner: 'owner', repo: 'repo' } }], signal());
 				const renewed = await replacement.credentials.getCredential(signal());
-				await assert.rejects(replacement.transport.rest(renewed.account, renewed.token, {
+				await assert.rejects(getGitHubClientInternals(replacement).transport.rest(renewed.account, renewed.token, {
 					method: 'GET', url: 'https://api.github.com/repos/owner/repo', deadline: Date.now() + 100,
 				}, signal()), { kind: 'timeout' });
 				assert.deepStrictEqual({ requests }, {
@@ -384,18 +383,18 @@ suite('GitHubService', () => {
 			const client = disposables.add(service.acquireClient(clientOptions())).object;
 			const credential = await client.credentials.getCredential(signal());
 			const delays = {
-				rest: client.transport.rateLimits.getRequestDelay(credential.account, 'core'),
-				core: client.transport.rateLimits.getDelay(credential.account, 'core'),
-				graphql: client.transport.rateLimits.getRequestDelay(credential.account, 'graphql'),
+				rest: getGitHubClientInternals(client).transport.rateLimits.getRequestDelay(credential.account, 'core'),
+				core: getGitHubClientInternals(client).transport.rateLimits.getDelay(credential.account, 'core'),
+				graphql: getGitHubClientInternals(client).transport.rateLimits.getRequestDelay(credential.account, 'graphql'),
 			};
 			await client.query.hydrateResources([{ kind: 'repository', ref: { ...credential.account, owner: 'owner', repo: 'repo' } }], signal());
 			const request = { method: 'GET' as const, url: 'https://api.github.com/repos/owner/repo' };
-			await assert.rejects(client.transport.rest(credential.account, credential.token, {
+			await assert.rejects(getGitHubClientInternals(client).transport.rest(credential.account, credential.token, {
 				...request, deadline: Date.now() + 100,
 			}, signal()), { kind: 'timeout' });
 			token = 'replacement-token';
 			const renewed = await client.credentials.getCredential(signal());
-			await client.transport.rest(renewed.account, renewed.token, request, signal());
+			await getGitHubClientInternals(client).transport.rest(renewed.account, renewed.token, request, signal());
 			assert.deepStrictEqual({ requests, delays }, {
 				requests: [
 					{ path: '/user', at: 0 }, { path: '/graphql', at: 0 }, { path: '/graphql', at: 0 },
@@ -415,7 +414,7 @@ suite('GitHubService', () => {
 			const peer = disposables.add(service.acquireClient(clientOptions(undefined, 'session', ['repo', 'user:email'])));
 			const credential = await first.object.credentials.getCredential(signal());
 			const peerCredential = await peer.object.credentials.getCredential(signal());
-			first.object.transport.rateLimits.updateFromResponse(credential.account, new Response(null, {
+			getGitHubClientInternals(first.object).transport.rateLimits.updateFromResponse(credential.account, new Response(null, {
 				status: 429, headers: { 'Retry-After': '5', 'x-ratelimit-resource': 'core' },
 			}));
 			first.dispose();
@@ -442,7 +441,7 @@ suite('GitHubService', () => {
 		try {
 			const client = disposables.add(service.acquireClient(clientOptions())).object;
 			const credential = await client.credentials.getCredential(signal());
-			client.transport.rateLimits.updateFromResponse(credential.account, new Response(null, {
+			getGitHubClientInternals(client).transport.rateLimits.updateFromResponse(credential.account, new Response(null, {
 				status: 429, headers: { 'Retry-After': '5' },
 			}));
 			token = 'superseded-token';
@@ -499,10 +498,10 @@ suite('GitHubService', () => {
 				},
 			})).object;
 			const request = { method: 'GET' as const, url: 'https://api.github.com/resource' };
-			await first.transport.rest(account, 'first-token', request, signal());
+			await getGitHubClientInternals(first).transport.rest(account, 'first-token', request, signal());
 			await Promise.all([
-				first.transport.rest(account, 'first-token', request, signal()),
-				second.transport.rest(account, 'second-token', request, signal()),
+				getGitHubClientInternals(first).transport.rest(account, 'first-token', request, signal()),
+				getGitHubClientInternals(second).transport.rest(account, 'second-token', request, signal()),
 			]);
 			assert.deepStrictEqual(seen, [
 				{ token: 'Bearer first-token', etag: null },
@@ -518,12 +517,12 @@ suite('GitHubService', () => {
 		const account = { host: 'api.github.com', accountId: '101' };
 		const first = disposables.add(service.acquireClient(clientOptions(undefined, 'first'))).object;
 		const second = disposables.add(service.acquireClient(clientOptions(undefined, 'second'))).object;
-		first.transport.rateLimits.updateFromResponse(account, new Response(null, { status: 429, headers: { 'Retry-After': '120' } }));
+		getGitHubClientInternals(first).transport.rateLimits.updateFromResponse(account, new Response(null, { status: 429, headers: { 'Retry-After': '120' } }));
 		changes.fire({ providerId: 'github', sessionIds: ['first'] });
 		const newFirst = disposables.add(service.acquireClient(clientOptions(undefined, 'first'))).object;
 		assert.deepStrictEqual({
-			retainedForPeer: second.transport.rateLimits.getDelay(account, 'core') > 0,
-			retainedForRotation: newFirst.transport.rateLimits.getDelay(account, 'core') > 0,
+			retainedForPeer: getGitHubClientInternals(second).transport.rateLimits.getDelay(account, 'core') > 0,
+			retainedForRotation: getGitHubClientInternals(newFirst).transport.rateLimits.getDelay(account, 'core') > 0,
 			replaced: newFirst !== first,
 		}, { retainedForPeer: true, retainedForRotation: true, replaced: true });
 	});

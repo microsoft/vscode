@@ -376,7 +376,7 @@ export class SessionArchiveNudge extends Disposable {
 		const models = derived(this, reader => {
 			return pullRequests.read(reader)?.map(pullRequest => {
 				const model = reader.store.add(gitHubService.createPullRequestModelReference(pullRequest.owner, pullRequest.repo, pullRequest.number)).object;
-				void model.refresh();
+				void model.refresh({ priority: 'visible' });
 				reader.store.add(model.startPolling());
 				return model;
 			});

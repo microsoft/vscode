@@ -22,7 +22,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ITelemetryService, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../../../platform/telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../../../platform/telemetry/common/telemetryUtils.js';
-import { AuthenticationSession, IAuthenticationService } from '../../authentication/common/authentication.js';
+import { IAuthenticationService } from '../../authentication/common/authentication.js';
 import { IWorkbenchGitHubService } from '../common/githubService.js';
 import { getWorkbenchMissionControlOptions, WorkbenchGitHubCredentialProvider } from './githubCredentialProvider.js';
 
@@ -129,13 +129,6 @@ export class WorkbenchGitHubService extends GitHubService implements IWorkbenchG
 		return { options, accountId };
 	}
 
-	async acquireSessionClient(providerId: string, sessionId: string, signal: AbortSignal): Promise<IReference<IGitHubClient>> {
-		const combinedSignal = AbortSignal.any([signal, this._lifetime.signal]);
-		const options = await withGitHubCredentialDeadline(combinedSignal, signal => this._getSessionOptions(providerId, sessionId, signal));
-		combinedSignal.throwIfAborted();
-		return this.acquireClient(options);
-	}
-
 	private _getDefaultAccountKey(): string {
 		const account = this._defaultAccountService.currentDefaultAccount;
 		const provider = account?.authenticationProvider ?? this._defaultAccountService.getDefaultAccountAuthenticationProvider();
@@ -168,31 +161,20 @@ export class WorkbenchGitHubService extends GitHubService implements IWorkbenchG
 		if (provider.enterprise && !enterpriseUri) {
 			throw new GitHubRequestError(localize('githubUrlUnavailable', "The GitHub Enterprise URL is unavailable. Sign in and try again."), 'authentication');
 		}
-		return { options: this._sessionOptions(provider.id, repositorySession, enterpriseUri), accountId: selected.account.id };
-	}
-
-	private async _getSessionOptions(providerId: string, sessionId: string, signal: AbortSignal): Promise<GitHubClientOptions> {
-		signal.throwIfAborted();
-		const sessions = await this._credentialProvider.getSessions(providerId, signal);
-		signal.throwIfAborted();
-		const session = sessions.find(session => session.id === sessionId);
-		if (!session) {
-			throw new GitHubRequestError(localize('githubSessionUnavailable', "The selected GitHub session is unavailable."), 'authentication');
-		}
-		const enterpriseUri = session.authorizationServer?.toString();
-		if (providerId !== 'github' && !enterpriseUri) {
-			throw new GitHubRequestError(localize('githubUrlUnavailable', "The GitHub Enterprise URL is unavailable. Sign in and try again."), 'authentication');
-		}
-		return this._sessionOptions(providerId, session, enterpriseUri);
-	}
-
-	private _sessionOptions(providerId: string, session: AuthenticationSession, enterpriseUri: string | undefined): GitHubClientOptions {
 		const endpoints = deriveGitHubEndpoints(enterpriseUri);
 		return {
-			authorization: { providerId, sessionId: session.id, scopes: session.scopes, ...(session.authorizationServer ? { authorizationServer: session.authorizationServer.toString() } : {}) },
-			apiBaseUri: endpoints.apiBaseUri,
-			graphQlUri: endpoints.graphQlUri,
-			missionControl: getWorkbenchMissionControlOptions(providerId, endpoints.enterpriseHost),
+			options: {
+				authorization: {
+					providerId: provider.id,
+					sessionId: repositorySession.id,
+					scopes: repositorySession.scopes,
+					...(repositorySession.authorizationServer ? { authorizationServer: repositorySession.authorizationServer.toString() } : {}),
+				},
+				apiBaseUri: endpoints.apiBaseUri,
+				graphQlUri: endpoints.graphQlUri,
+				missionControl: getWorkbenchMissionControlOptions(provider.id, endpoints.enterpriseHost),
+			},
+			accountId: selected.account.id,
 		};
 	}
 }

@@ -19,7 +19,6 @@ import { buildConversationContext, renderResponseMarkdown, truncateMiddle } from
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 import type { IAgentHostPeerChatPersistenceService } from './agentHostPeerChatStore.js';
-import type { GitHubIssueOrPullRequest } from '../../github/common/githubQueryService.js';
 import type { IAgentHostGitHubService } from './agentHostGitHubService.js';
 import { type ICopilotUtilityChatMessage } from './shared/copilotApiService.js';
 import { AgentHostUtilityModelUnavailableError, type IAgentHostUtilityModelContext, type IAgentHostUtilityModelService } from './agentHostUtilityModelService.js';
@@ -88,7 +87,7 @@ interface IGitHubReference {
 
 interface IGitHubReferenceContext {
 	readonly reference: IGitHubReference;
-	readonly value: GitHubIssueOrPullRequest;
+	readonly value: { readonly title: string; readonly body: string };
 }
 
 /** Everything the utility model is told about when asked for a title. */
@@ -774,12 +773,17 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		const signal = AbortSignal.any([cancellationSignal, AbortSignal.timeout(this._options.gitHubContextRequestTimeout ?? GITHUB_CONTEXT_REQUEST_TIMEOUT)]);
 		const store = new DisposableStore();
 		try {
-			const client = store.add(gitHubService.acquireRepositoryClient(signal, context.credentialSource, context.chat ?? context.session)).object;
-			const { account } = await client.credentials.getCredential(signal);
+			const client = store.add(gitHubService.acquireRepositoryApiClient(signal, context.credentialSource, context.chat ?? context.session));
 			const contexts = await Promise.all(references.map(async reference => {
 				try {
-					const value = await client.query.getIssueOrPullRequest({ ...account, owner: reference.owner, repo: reference.repo, number: reference.number }, signal);
-					return { reference, value };
+					const issue = await client.issues.get({ owner: reference.owner, name: reference.repo }, reference.number, signal, {
+						caller: 'agentHost.sessionTitle',
+						priority: 'background',
+					});
+					if (issue.body === undefined) {
+						return undefined;
+					}
+					return { reference, value: { title: issue.title, body: issue.body ?? '' } };
 				} catch (error) {
 					if (!token.isCancellationRequested) {
 						this._logService.warn(`[AgentHostSessionTitleController] Failed to fetch GitHub ${reference.kind} ${reference.owner}/${reference.repo}#${reference.number}`, error);
@@ -857,7 +861,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		return truncateMiddle(`${heading}${sections.join('\n\n')}`, budget);
 	}
 
-	private _formatGitHubContext(reference: IGitHubReference, value: GitHubIssueOrPullRequest, body: string): string {
+	private _formatGitHubContext(reference: IGitHubReference, value: IGitHubReferenceContext['value'], body: string): string {
 		return [
 			`GitHub ${reference.kind} ${reference.owner}/${reference.repo}#${reference.number}:`,
 			`The title of the ${reference.kind} is: ${value.title}`,

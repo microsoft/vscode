@@ -1023,6 +1023,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 					runtime.setMcpServerDisplayNames(result.displayNames);
 				}
 			}
+			await this._configureExecutionSubagentTool(raw, config);
 		} catch (err) {
 			// Nothing owns `raw` until it is wrapped below, so a fail-closed launch has
 			// to disconnect it here or the runtime keeps an orphaned session alive.
@@ -1034,6 +1035,25 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			await this._applyVerbosity(raw, 'medium', plan.sessionId);
 		}
 		return new CopilotSessionWrapper(raw, config.requestCanvasRenderer === true, { providers: config.providers, models: config.models }, config.imageGeneration?.enabled === true, this._logService);
+	}
+
+	private async _configureExecutionSubagentTool(session: CopilotSessionWrapper['session'], config: ResumeSessionConfig): Promise<void> {
+		if (!config.tools?.some(tool => tool.name === 'executionSubagent')) {
+			return;
+		}
+		// Resolve before handing the session to its first turn: runtime assignments
+		// and model availability, not the VS Code default, decide which tool wins.
+		let hasRuntimeExecutionSubagent: boolean;
+		try {
+			const { tools } = await session.rpc.tools.getBuiltinDescriptors({});
+			hasRuntimeExecutionSubagent = tools.some(tool => tool.name === 'execution_subagent');
+		} catch (err) {
+			this._logService.warn(`[Copilot:${session.sessionId}] Could not resolve runtime tool catalog; keeping extension execution tool`, err);
+			return;
+		}
+		if (hasRuntimeExecutionSubagent) {
+			await session.setTools(config.tools.filter(tool => tool.name !== 'executionSubagent'));
+		}
 	}
 
 	/**

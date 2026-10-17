@@ -50,6 +50,7 @@ import { NullTelemetryService, NullTelemetryServiceShape } from '../../../teleme
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { AgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
 import { AgentHostStartupPerformance, IAgentHostStartupPerformance, NullAgentHostStartupPerformance } from '../../node/agentHostStartupPerformance.js';
+import { AgentHostOTelService } from '../../node/otel/agentHostOTelService.js';
 import { TestAgentHostStartupTelemetryService } from './testAgentHostStartupTelemetryService.js';
 import { IAgentSdkDownloader } from '../../node/agentSdkDownloader.js';
 import { CodexAgent } from '../../node/codex/codexAgent.js';
@@ -60,6 +61,7 @@ import { AgentHostFusionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeA
 import { readAgentModelFusionMeta } from '../../common/meta/agentModelMeta.js';
 import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
+import { buildAgentHostOTelEnv } from '../../common/agentService.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTelemetryLevelConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
@@ -1700,6 +1702,58 @@ suite('CopilotAgent', () => {
 	teardown(() => {
 		clearProxyEnvironment();
 		Object.assign(process.env, savedProxyEnvironment);
+	});
+
+	test('rejected managed OTel paths are cleared in the captured Copilot child options', async () => {
+		const rejectedPath = 'synthetic-customer-user-directory/';
+		const pathKeys = ['COPILOT_OTEL_FILE_EXPORTER_PATH', 'copilot_otel_file_exporter_path'] as const;
+		const previous = pathKeys.map(key => [key, process.env[key]] as const);
+		const userDataPath = await fs.mkdtemp(`${os.tmpdir()}/copilot-agent-otel-`);
+		const otelService = new AgentHostOTelService({
+			env: buildAgentHostOTelEnv({}, {}, { enabled: true, exporterType: 'file', outfile: rejectedPath }),
+		}, new NullLogService(), {
+			_serviceBrand: undefined,
+			userDataPath,
+			userHome: URI.file(userDataPath),
+		} as INativeEnvironmentService);
+		const agent = createTestAgent(disposables, {
+			copilotClient: new TestCopilotClient([]),
+			otelService,
+		});
+		try {
+			for (const key of pathKeys) {
+				process.env[key] = rejectedPath;
+			}
+			await agent.getManagedSettingsDiagnostics();
+			const options = getCreatedClientOptions(agent).at(-1);
+			const pathEntries = Object.entries(options?.env ?? {}).filter(([key]) => key.toLowerCase() === 'copilot_otel_file_exporter_path');
+			assert.deepStrictEqual({
+				telemetry: options?.telemetry,
+				pathEntries,
+				parentPath: process.env.COPILOT_OTEL_FILE_EXPORTER_PATH,
+			}, {
+				telemetry: {
+					exporterType: 'file',
+					filePath: '',
+					otlpEndpoint: undefined,
+					sourceName: undefined,
+					captureContent: undefined,
+				},
+				pathEntries: [],
+				parentPath: rejectedPath,
+			});
+		} finally {
+			await disposeAgent(agent);
+			otelService.dispose();
+			await fs.rm(userDataPath, { recursive: true, force: true });
+			for (const [key, value] of previous) {
+				if (value === undefined) {
+					delete process.env[key];
+				} else {
+					process.env[key] = value;
+				}
+			}
+		}
 	});
 
 	suite('session metadata persistence', () => {
@@ -7814,6 +7868,33 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('does not schedule a model refresh retry when the agent is torn down while a refresh failure is handled', async () => {
+		const client = new TestCopilotClient([], [{
+			id: 'gpt-4o',
+			name: 'GPT-4o',
+		}]);
+		client.modelListErrors.push(new Error('429 "too many requests"'));
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		// Handling a failure can take a while, e.g. while a closed connection is recovered.
+		const failureHandlingStarted = new DeferredPromise<void>();
+		const finishFailureHandling = new DeferredPromise<void>();
+		(agent as unknown as { _handleClientOperationFailure(): Promise<undefined> })._handleClientOperationFailure = async () => {
+			failureHandlingStarted.complete();
+			await finishFailureHandling.p;
+			return undefined;
+		};
+		const authenticated = agent.authenticate('https://api.github.com', 'token');
+		await failureHandlingStarted.p;
+
+		await disposeAgent(agent);
+		finishFailureHandling.complete();
+		await authenticated;
+		await timeout(0);
+
+		// A retry timer scheduled now would outlive the agent: the suite's leak check reports it.
+		assert.strictEqual(client.modelListRequests.length, 1);
+	});
+
 	test('does not refresh models or restart the client after shutdown', async () => {
 		const client = new TestCopilotClient([], [{
 			id: 'gpt-4o',
@@ -7946,7 +8027,7 @@ suite('CopilotAgent', () => {
 			assert.strictEqual(provisional?.workspaceless, true);
 		} finally {
 			await disposeAgent(agent);
-			await fs.rm(userHome.fsPath, { recursive: true, force: true });
+			await fs.rm(userHome.fsPath, { recursive: true, force: true, maxRetries: 5 });
 		}
 	}).timeout(30_000);
 
@@ -7973,7 +8054,7 @@ suite('CopilotAgent', () => {
 				assert.deepStrictEqual(uris.includes(scratchInstructions.toString()), false);
 			} finally {
 				await disposeAgent(agent);
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(userHome.fsPath, { recursive: true, force: true, maxRetries: 5 });
 			}
 		}).timeout(30_000);
 
@@ -7999,7 +8080,7 @@ suite('CopilotAgent', () => {
 				await fs.access(scratchDir.fsPath);
 			} finally {
 				await disposeAgent(agent);
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(userHome.fsPath, { recursive: true, force: true, maxRetries: 5 });
 			}
 		}).timeout(30_000);
 
@@ -8019,7 +8100,7 @@ suite('CopilotAgent', () => {
 				await assert.rejects(() => fs.access(scratchDir.fsPath));
 			} finally {
 				await disposeAgent(agent);
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(userHome.fsPath, { recursive: true, force: true, maxRetries: 5 });
 			}
 		}).timeout(30_000);
 
@@ -8045,7 +8126,7 @@ suite('CopilotAgent', () => {
 				return { afterPeer, afterDefault: await scratchExists() };
 			} finally {
 				await disposeAgent(agent);
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(userHome.fsPath, { recursive: true, force: true, maxRetries: 5 });
 			}
 		}
 
@@ -11257,6 +11338,41 @@ suite('CopilotAgent', () => {
 			});
 		});
 
+		test('supplies runtime execution defaults through ExP without inheriting direct model overrides or mutating the parent environment', () => {
+			const inherited = {
+				COPILOT_CLI_ENABLED_FEATURE_FLAGS: 'copilot_swe_agent_cli_execution_subagent',
+				copilot_swe_agent_cli_execution_subagent: 'true',
+				COPILOT_EXP_COPILOT_CLI_EXECUTION_SUBAGENT: 'true',
+				COPILOT_EXP_COPILOT_CLI_EXECUTION_SUBAGENT_MODEL: 'inherited-experiment-model',
+				EXECUTION_SUBAGENT_MODEL: 'inherited-model',
+			};
+			const before = { ...inherited };
+			const readSettings = (executionSubagent?: { enabled: boolean; model: string }) => {
+				const env = createCopilotCliEnvironment(inherited, [], false, 30_000, false, executionSubagent);
+				return [
+					env['COPILOT_EXP_COPILOT_CLI_EXECUTION_SUBAGENT'],
+					env['EXECUTION_SUBAGENT_MODEL'],
+					env['COPILOT_EXP_COPILOT_CLI_EXECUTION_SUBAGENT_MODEL'],
+				];
+			};
+
+			assert.deepStrictEqual({
+				defaults: readSettings(),
+				explicitEmptyModel: readSettings({ enabled: true, model: '' }),
+				inheritedSessionModel: readSettings({ enabled: true, model: '   ' }),
+				specificModel: readSettings({ enabled: true, model: ' exec-agent-b ' }),
+				disabledWithModel: readSettings({ enabled: false, model: 'exec-agent-b' }),
+				parentEnvironment: inherited,
+			}, {
+				defaults: ['false', undefined, 'gpt-5.6-luna'],
+				explicitEmptyModel: ['true', undefined, 'null'],
+				inheritedSessionModel: ['true', undefined, 'null'],
+				specificModel: ['true', undefined, 'exec-agent-b'],
+				disabledWithModel: ['false', undefined, 'exec-agent-b'],
+				parentEnvironment: before,
+			});
+		});
+
 		test('forces the runtime\'s own on-device model flags off so it never declares or starts on-device models', () => {
 			const inherited = createCopilotCliEnvironment({
 				COPILOT_CLI_ENABLED_FEATURE_FLAGS: 'COMPUTER_USE,auto_local_routing, WINML_LOCAL_MODELS',
@@ -12073,7 +12189,47 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('presents Auto as Fusion, keeping HydraFusion published and reporting whether Balance routes there', async () => {
+		test('restarts the runtime when execution enablement or model changes and restores session-model inheritance', async () => {
+			const client = new TestCopilotClient([]);
+			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
+			const observed: { enabled: string | undefined; model: string | undefined; experimentModel: string | undefined; stops: number }[] = [];
+			const capture = () => {
+				const env = getCreatedClientOptions(agent).at(-1)?.env;
+				observed.push({
+					enabled: env?.['COPILOT_EXP_COPILOT_CLI_EXECUTION_SUBAGENT'],
+					model: env?.['EXECUTION_SUBAGENT_MODEL'],
+					experimentModel: env?.['COPILOT_EXP_COPILOT_CLI_EXECUTION_SUBAGENT_MODEL'],
+					stops: client.stopCallCount,
+				});
+			};
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.listChatsToMigrate();
+				capture();
+				for (const config of [
+					{ [CopilotCliConfigKey.ExecutionSubagent]: true },
+					{ [CopilotCliConfigKey.ExecutionSubagentModel]: ' exec-agent-b ' },
+					{ [CopilotCliConfigKey.ExecutionSubagentModel]: '' },
+					{ [CopilotCliConfigKey.ExecutionSubagent]: false },
+				]) {
+					configurationService.updateRootConfig(config);
+					await agent.listChatsToMigrate();
+					capture();
+				}
+
+				assert.deepStrictEqual(observed, [
+					{ enabled: 'false', model: undefined, experimentModel: 'gpt-5.6-luna', stops: 0 },
+					{ enabled: 'true', model: undefined, experimentModel: 'gpt-5.6-luna', stops: 1 },
+					{ enabled: 'true', model: undefined, experimentModel: 'exec-agent-b', stops: 2 },
+					{ enabled: 'true', model: undefined, experimentModel: 'null', stops: 3 },
+					{ enabled: 'false', model: undefined, experimentModel: 'null', stops: 4 },
+				]);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('presents Auto as Fusion, keeping HydraFusion published and reporting whether High routes there', async () => {
 			const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }, { id: 'gpt-5', name: 'GPT-5' }]);
 			const { agent, configurationService } = createTestAgentContext(disposables, {
 				copilotClient: client,
@@ -12089,15 +12245,15 @@ suite('CopilotAgent', () => {
 				await agent.refreshModels();
 				const fusion = published();
 
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.FusionBalanceUsesHydraFusion]: true });
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.FusionHighUsesHydraFusion]: true });
 				await agent.refreshModels();
 				const routed = published();
 
 				configurationService.updateRootConfig({ [CopilotCliConfigKey.Fusion]: false });
 				await agent.refreshModels();
 				assert.deepStrictEqual({ fusion, routed, auto: published() }, {
-					fusion: ['auto:Fusion:fusion(balanceUsesHydraFusion=false):balance/intelligence=balance:Lite/Balance:Effort Level', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
-					routed: ['auto:Fusion:fusion(balanceUsesHydraFusion=true):balance/intelligence=balance:Lite/Balance:Effort Level', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
+					fusion: ['auto:Fusion:fusion(balanceUsesHydraFusion=false):balance/intelligence=balance:Standard/High:Effort Level', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
+					routed: ['auto:Fusion:fusion(balanceUsesHydraFusion=true):balance/intelligence=balance:Standard/High:Effort Level', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
 					auto: ['auto:Auto:efficiency/balance/intelligence=balance:Efficiency/Balance/Intelligence:Optimize for', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
 				});
 			} finally {
@@ -12122,7 +12278,7 @@ suite('CopilotAgent', () => {
 				}
 			};
 			assert.deepStrictEqual({ fusion: await tiers(true), auto: await tiers(false) }, {
-				fusion: 'balance/intelligence:Lite/Balance',
+				fusion: 'balance/intelligence:Standard/High',
 				auto: 'efficiency/balance/intelligence:Efficiency/Balance/Intelligence',
 			});
 		});
@@ -13857,6 +14013,44 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('publishes HydraFusion beside BYOK models only while signed in to GitHub', async () => {
+		const byokBridgeRegistry = new ByokLmBridgeRegistry();
+		const { agent } = createTestAgentContext(disposables, {
+			copilotClient: new TestCopilotClient([], [{ id: 'gpt-5', name: 'GPT-5' }]),
+			byokBridgeRegistry,
+			rootConfig: {
+				[AgentHostConfigKey.AllowSignedOutWhenUsable]: true,
+				[CopilotCliConfigKey.HydraFusion]: true,
+				[CopilotCliConfigKey.HydraFusionV2]: true,
+			},
+		});
+		const modelSnapshots = disposables.add(new Emitter<IByokLmModelInfo[]>());
+		disposables.add(byokBridgeRegistry.register('renderer', {
+			chat: async () => ({ output: [] }),
+			onDidChangeModels: modelSnapshots.event,
+		}));
+		const publishedModels = () => agent.models.get().map(model => model.id);
+
+		try {
+			modelSnapshots.fire([{ vendor: 'acme', id: 'model', name: 'Model' }]);
+			await waitForState(agent.models, models => models.some(model => model.id === 'acme/model'));
+			const signedOut = publishedModels();
+			await agent.authenticate('https://api.github.com', 'token');
+			await agent.refreshModels();
+			const signedIn = publishedModels();
+			await agent.authenticate('https://api.github.com', '');
+			await agent.refreshModels();
+
+			assert.deepStrictEqual({ signedOut, signedIn, signedOutAgain: publishedModels() }, {
+				signedOut: ['acme/model'],
+				signedIn: ['gpt-5', 'hydrafusion', 'hydrafusion-max', 'acme/model'],
+				signedOutAgain: ['acme/model'],
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	test('routes BYOK tool-cap warnings to the session that sent the request', async () => {
 		const onDidCapTools = disposables.add(new Emitter<IByokLmToolsCappedEvent>());
 		const byokLmProxyService: IByokLmProxyService = {
@@ -15123,8 +15317,8 @@ suite('CopilotAgent', () => {
 					[{ id: sessionId, adoptable: false }],
 				);
 			} finally {
-				await disposeAgent(agent);
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await disposeAgent(agent);
 			}
 		});
 	});
@@ -15885,8 +16079,8 @@ suite('CopilotAgent', () => {
 					{ beforeMarker: false, afterMarker: true },
 				);
 			} finally {
-				await disposeAgent(agent);
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await disposeAgent(agent);
 			}
 		});
 
@@ -18286,8 +18480,8 @@ suite('CopilotAgent', () => {
 					released: [session.toString()],
 				});
 			} finally {
-				await disposeAgent(agent);
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await disposeAgent(agent);
 			}
 		}).timeout(30_000);
 
@@ -18489,8 +18683,8 @@ suite('CopilotAgent', () => {
 					released: otelService.released,
 				}, before);
 			} finally {
-				await disposeAgent(agent);
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await disposeAgent(agent);
 			}
 		}).timeout(30_000);
 	});
@@ -26052,8 +26246,8 @@ suite('CopilotAgent', () => {
 					},
 				);
 			} finally {
-				await disposeAgent(agent);
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await disposeAgent(agent);
 			}
 		});
 
@@ -26127,8 +26321,8 @@ suite('CopilotAgent', () => {
 				);
 			} finally {
 				checkStub.restore();
-				await disposeAgent(agent);
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await disposeAgent(agent);
 			}
 		});
 
@@ -26156,8 +26350,8 @@ suite('CopilotAgent', () => {
 				db?.dispose();
 				assert.strictEqual(persistedCwd, undefined);
 			} finally {
-				await disposeAgent(agent);
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await disposeAgent(agent);
 			}
 		});
 
@@ -26384,8 +26578,8 @@ suite('CopilotAgent', () => {
 					{ adopted: { adopted: false, eligible: false, reason: 'notLegacyChat', diagnostics: { ...uninspectedStorage, sessionStateRootStatus: 'missing', markerOrigin: 'unavailable', markerStatus: 'missing', provenance: 'unknown', markerFromCache: false } }, getSessionMetadataCalls: [], openedDatabases: [] },
 				);
 			} finally {
-				await disposeAgent(agent);
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await disposeAgent(agent);
 			}
 		});
 
@@ -26414,8 +26608,8 @@ suite('CopilotAgent', () => {
 					{ adopted: { adopted: false, eligible: false, reason: 'notLegacyChat', diagnostics: { ...uninspectedStorage, markerOrigin: 'other', markerStatus: 'valid', provenance: 'external', markerFromCache: false } }, getSessionMetadataCalls: [], openedDatabases: [] },
 				);
 			} finally {
-				await disposeAgent(agent);
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await disposeAgent(agent);
 			}
 		});
 
@@ -26460,8 +26654,8 @@ suite('CopilotAgent', () => {
 						metadataCalls: [], openedDatabases: [],
 					});
 				} finally {
-					await disposeAgent(agent);
 					await fs.rm(userHome.fsPath, { recursive: true, force: true });
+					await disposeAgent(agent);
 				}
 			});
 		}
@@ -26484,8 +26678,8 @@ suite('CopilotAgent', () => {
 					{ ...uninspectedStorage, markerOrigin: 'other', markerStatus: 'valid', provenance: 'external', markerFromCache: true },
 				]);
 			} finally {
-				await disposeAgent(agent);
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await disposeAgent(agent);
 			}
 		});
 
@@ -26537,8 +26731,8 @@ suite('CopilotAgent', () => {
 						metadataCalls: [], databases: [],
 					});
 				} finally {
-					await disposeAgent(agent);
 					await fs.rm(userHome.fsPath, { recursive: true, force: true });
+					await disposeAgent(agent);
 				}
 			});
 		}
@@ -26587,8 +26781,8 @@ suite('CopilotAgent', () => {
 						status, clientName, containsPrivateContent: false, metadataCalls: [], openedDatabases: [],
 					});
 				} finally {
-					await disposeAgent(agent);
 					await fs.rm(userHome.fsPath, { recursive: true, force: true });
+					await disposeAgent(agent);
 				}
 			});
 		}
@@ -26641,8 +26835,8 @@ suite('CopilotAgent', () => {
 					if (file && file.fd !== -1) {
 						await file.close();
 					}
-					await disposeAgent(agent);
 					await fs.rm(userHome.fsPath, { recursive: true, force: true });
+					await disposeAgent(agent);
 				}
 			});
 		}
@@ -26668,8 +26862,8 @@ suite('CopilotAgent', () => {
 					});
 					assert.deepStrictEqual({ result, opened }, { result: { workspaceMetadataStatus: 'readError' }, opened: false });
 				} finally {
-					await disposeAgent(agent);
 					await fs.rm(userHome.fsPath, { recursive: true, force: true });
+					await disposeAgent(agent);
 				}
 			});
 		}
@@ -26695,8 +26889,8 @@ suite('CopilotAgent', () => {
 					{ reason: 'notLegacyChat', provenance: 'external', client: 'github-cli', cachedMarker: true },
 				]);
 			} finally {
-				await disposeAgent(agent);
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await disposeAgent(agent);
 			}
 		});
 
@@ -26717,8 +26911,8 @@ suite('CopilotAgent', () => {
 					status: 'notChecked', client: 'unavailable',
 				});
 			} finally {
-				await disposeAgent(agent);
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await disposeAgent(agent);
 			}
 		});
 
@@ -26739,8 +26933,8 @@ suite('CopilotAgent', () => {
 					},
 				});
 			} finally {
-				await disposeAgent(agent);
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await disposeAgent(agent);
 			}
 		});
 
@@ -26790,8 +26984,8 @@ suite('CopilotAgent', () => {
 					{ adopted: { adopted: false, eligible: false, reason: 'notLegacyChat', diagnostics: { ...uninspectedStorage, markerOrigin: 'missing', markerStatus: 'valid', provenance: 'unknown', markerFromCache: false } }, getSessionMetadataCalls: [], openedDatabases: [] },
 				);
 			} finally {
-				await disposeAgent(agent);
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await disposeAgent(agent);
 			}
 		});
 
@@ -26826,8 +27020,8 @@ suite('CopilotAgent', () => {
 					{ adopted: { adopted: false, eligible: false, native: true, reason: 'alreadyNative' }, getSessionMetadataCalls: [], usages: [] },
 				);
 			} finally {
-				await disposeAgent(agent);
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await disposeAgent(agent);
 			}
 		});
 
