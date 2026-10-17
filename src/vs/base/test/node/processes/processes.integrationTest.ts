@@ -59,6 +59,34 @@ suite('Processes', () => {
 		});
 	});
 
+	test('console forwarding - shared references are not reported as circular', function (done: (err?: unknown) => void) {
+		if (process.env['VSCODE_PID']) {
+			return done(); // this test fails when run from within VS Code
+		}
+
+		const child = fork('vs/base/test/node/processes/fixtures/fork_console');
+
+		child.on('message', msgFromChild => {
+			const msg = msgFromChild as { type?: string; arguments?: string };
+			if (msg.type !== '__$console') {
+				return;
+			}
+
+			child.kill();
+
+			try {
+				assert.deepStrictEqual(JSON.parse(msg.arguments!), [
+					{ value: 1 },
+					{ a: { value: 1 }, b: { value: 1 } },
+					{ name: 'circular', self: '[Circular]' }
+				]);
+				done();
+			} catch (error) {
+				done(error);
+			}
+		});
+	});
+
 	(!platform.isWindows || process.env['VSCODE_PID'] ? test.skip : test)('buffered sending - lots of data (potential deadlock on win32)', function (done: () => void) { // test is only relevant for Windows and seems to crash randomly on some Linux builds
 		const child = fork('vs/base/test/node/processes/fixtures/fork_large');
 		const sender = processes.createQueuedSender(child);
