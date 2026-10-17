@@ -788,7 +788,11 @@ export class NewChatWidget extends Disposable {
 		this._register(belowInputSurfacesResizeObserver.observe(chatWidgetContainer));
 		this._register(belowInputSurfacesResizeObserver.observe(chatWidgetContent));
 		this._register(toDisposable(() => belowInputSurfaces.style.removeProperty('max-height')));
-		const connectorRecommendations = this._register(this.instantiationService.createInstance(NewChatConnectorRecommendations, () => this.focusInput()));
+		const connectorRecommendations = this._register(this.instantiationService.createInstance(NewChatConnectorRecommendations, {
+			focusInput: () => this.focusInput(),
+			getInputValue: () => this._newChatInput.getInputValue(),
+			onDidChangeInputValue: this._newChatInput.onDidChangeInputValue,
+		}));
 		belowInputSurfaces.appendChild(connectorRecommendations.element);
 
 		// In the experimental composer the getting-started tip is demoted to a standalone

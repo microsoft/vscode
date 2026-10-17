@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Emitter } from '../../../../../base/common/event.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -24,9 +25,9 @@ import { NewChatConnectorRecommendations } from '../../browser/newChatConnectorR
 import { NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING } from '../../common/constants.js';
 
 const connectorRecommendations: NonNullable<IProductService['connectorRecommendations']> = {
-	linear: { name: 'Linear', description: 'Plan and track product work.', iconUrl: 'https://example.com/linear.png' },
-	notion: { name: 'Notion', description: 'Search team knowledge and documentation.', iconUrl: 'https://example.com/notion.png' },
-	'workiq-mail': { name: 'WorkIQ', description: 'Bring Microsoft 365 work context into chats.', iconUrl: 'https://example.com/workiq.png' },
+	linear: { name: 'Linear', description: 'Plan and track product work.', iconUrl: 'https://example.com/linear.png', urlDomains: ['linear.app'] },
+	notion: { name: 'Notion', description: 'Search team knowledge and documentation.', iconUrl: 'https://example.com/notion.png', urlDomains: ['notion.so', 'notion.site'] },
+	'workiq-mail': { name: 'WorkIQ', description: 'Bring Microsoft 365 work context into chats.', iconUrl: 'https://example.com/workiq.png', urlDomains: ['microsoft365.com', 'teams.microsoft.com'] },
 };
 
 suite('NewChatConnectorRecommendations', () => {
@@ -52,6 +53,9 @@ suite('NewChatConnectorRecommendations', () => {
 		const errors: unknown[][] = [];
 		const notifications: string[] = [];
 		const telemetryService = new TestExperimentTriggerTelemetryService();
+		const onDidChangeInput = store.add(new Emitter<void>());
+		let inputValue = '';
+		let inputReadCount = 0;
 		let focusCount = 0;
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(ICommandService, {
@@ -69,9 +73,29 @@ suite('NewChatConnectorRecommendations', () => {
 		instantiationService.stub(IProductService, { _serviceBrand: undefined, connectorRecommendations: productRecommendations ?? undefined });
 		instantiationService.stub(IThemeService, new TestThemeService());
 		instantiationService.stub(ITelemetryService, telemetryService);
-		const recommendations = store.add(instantiationService.createInstance(NewChatConnectorRecommendations, () => focusCount++));
+		const recommendations = store.add(instantiationService.createInstance(NewChatConnectorRecommendations, {
+			focusInput: () => focusCount++,
+			getInputValue: () => {
+				inputReadCount++;
+				return inputValue;
+			},
+			onDidChangeInputValue: onDidChangeInput.event,
+		}));
 		document.body.appendChild(recommendations.element);
-		return { recommendations, configurationService, commands, errors, notifications, telemetryService, get focusCount() { return focusCount; } };
+		return {
+			recommendations,
+			configurationService,
+			commands,
+			errors,
+			notifications,
+			telemetryService,
+			setInput(value: string) {
+				inputValue = value;
+				onDidChangeInput.fire();
+			},
+			get inputReadCount() { return inputReadCount; },
+			get focusCount() { return focusCount; },
+		};
 	}
 
 	test('triggers the recommendation experiment before deciding visibility', () => {
@@ -102,6 +126,7 @@ suite('NewChatConnectorRecommendations', () => {
 
 	test('renders product recommendations and opens the selected connector detail', async () => {
 		const fixture = setup(true, true);
+		fixture.setInput('Compare https://linear.app/acme/issue/ENG-1, notion.so/acme, and https://microsoft365.com.');
 		await Promise.resolve();
 		await Promise.resolve();
 		const cards = [...fixture.recommendations.element.querySelectorAll<HTMLElement>('.new-session-connector-recommendation-card')];
@@ -137,6 +162,145 @@ suite('NewChatConnectorRecommendations', () => {
 			}],
 			errors: [],
 			triggers: ['config.sessions.chat.experimental.connectorRecommendations'],
+		});
+	});
+
+	test('shows only recommendations associated with URL hosts in the prompt', () => {
+		const fixture = setup(true, true);
+		const visibleCards = () => [...fixture.recommendations.element.querySelectorAll<HTMLElement>('.new-session-connector-recommendation-card')]
+			.filter(card => !card.hidden)
+			.map(card => card.dataset.connectorId);
+
+		const states: Array<{ readonly hidden: boolean; readonly visibleCards: readonly (string | undefined)[] }> = [];
+		for (const input of [
+			'Notion can mean an ordinary notion, so product names alone do not count.',
+			'Open https://www.notion.so/acme/Project-123.',
+			'Compare linear.app/acme/issue/ENG-1 with workspace.notion.site/roadmap.',
+			'This nested URL must not count: https://example.com/redirect/notion.so/acme.',
+			'This punctuated path must not count: https://example.com/redirect;notion.so/acme.',
+			'This parenthesized path must not count: https://example.com/redirect/(notion.so)/acme.',
+			'Neither user@notion.so nor https://notion.so.example.com is a Notion URL.',
+			'Open [Notion](https://www.notion.so/acme/project).',
+			'Open (notion.so/acme/project).',
+			'',
+		]) {
+			fixture.setInput(input);
+			states.push({ hidden: fixture.recommendations.element.hidden === true, visibleCards: visibleCards() });
+		}
+
+		assert.deepStrictEqual(states, [
+			{ hidden: false, visibleCards: ['linear', 'notion', 'workiq-mail'] },
+			{ hidden: false, visibleCards: ['notion'] },
+			{ hidden: false, visibleCards: ['linear', 'notion'] },
+			{ hidden: false, visibleCards: ['linear', 'notion', 'workiq-mail'] },
+			{ hidden: false, visibleCards: ['linear', 'notion', 'workiq-mail'] },
+			{ hidden: false, visibleCards: ['linear', 'notion', 'workiq-mail'] },
+			{ hidden: false, visibleCards: ['linear', 'notion', 'workiq-mail'] },
+			{ hidden: false, visibleCards: ['notion'] },
+			{ hidden: false, visibleCards: ['notion'] },
+			{ hidden: false, visibleCards: ['linear', 'notion', 'workiq-mail'] },
+		]);
+	});
+
+	test('skips prompt matching while recommendations are disabled', () => {
+		const fixture = setup(true, true, true, connectorRecommendations, false);
+		fixture.setInput('a+'.repeat(16_000));
+
+		assert.deepStrictEqual({
+			hidden: fixture.recommendations.element.hidden === true,
+			inputReadCount: fixture.inputReadCount,
+		}, {
+			hidden: true,
+			inputReadCount: 0,
+		});
+	});
+
+	test('uses product-configured URL domains and static visibility', () => {
+		const fixture = setup(true, true, true, {
+			kusto: { name: 'Azure Data Explorer', description: 'Query Azure Data Explorer.', iconUrl: 'https://example.com/kusto.png', showStatically: false, urlDomains: ['dataexplorer.azure.com', 'kusto.windows.net'] },
+			'atlassian-rovo': { name: 'Atlassian Rovo', description: 'Search Jira and Confluence.', iconUrl: 'https://example.com/atlassian.png', showStatically: false },
+			cloudflare: { name: 'Cloudflare', description: 'Inspect Cloudflare resources.', iconUrl: 'https://example.com/cloudflare.png', showStatically: false },
+			linear: connectorRecommendations.linear,
+			notion: connectorRecommendations.notion,
+			'workiq-mail': connectorRecommendations['workiq-mail'],
+			sentry: { name: 'Sentry', description: 'Search and triage Sentry issues.', iconUrl: 'https://example.com/sentry.png', showStatically: false, urlDomains: ['sentry.io'] },
+			microsoftlearndocsmcpserver: { name: 'Microsoft Learn Docs', description: 'Search Microsoft Learn.', iconUrl: 'https://example.com/learn.png', showStatically: false },
+		});
+		const visibleCards = () => [...fixture.recommendations.element.querySelectorAll<HTMLElement>('.new-session-connector-recommendation-card')]
+			.filter(card => !card.hidden)
+			.map(card => card.dataset.connectorId);
+
+		fixture.setInput([
+			'https://dataexplorer.azure.com/clusters/demo',
+			'https://contoso.kusto.windows.net',
+			'https://teams.microsoft.com/l/message/123',
+			'https://acme.atlassian.net/browse/PROJ-1',
+			'https://cloudflare.com/',
+			'https://dash.cloudflare.com/account/workers',
+			'https://linear.app/acme/issue/ENG-1',
+			'https://www.notion.so/acme/project',
+			'https://acme.sentry.io/issues/123',
+			'https://learn.microsoft.com/azure/data-explorer/',
+			'https://figma.com/file/abc',
+		].join(' '));
+
+		assert.deepStrictEqual(visibleCards(), [
+			'kusto',
+			'linear',
+			'notion',
+			'workiq-mail',
+			'sentry',
+		]);
+
+		fixture.setInput('');
+		assert.deepStrictEqual(visibleCards(), ['linear', 'notion', 'workiq-mail']);
+	});
+
+	test('keeps static and dynamic dismissals independent', () => {
+		const beforeStaticDismissal = setup(true, true);
+		const beforeCards = [...beforeStaticDismissal.recommendations.element.querySelectorAll<HTMLElement>('.new-session-connector-recommendation-card')];
+		beforeCards[1].querySelector<HTMLElement>('.new-session-connector-recommendation-dismiss')!.click();
+		const staticAfterDismissal = beforeCards.filter(card => !card.hidden).map(card => card.dataset.connectorId);
+		beforeStaticDismissal.setInput('Open notion.so/acme/project.');
+		const dynamicAfterStaticDismissal = beforeCards.filter(card => !card.hidden).map(card => card.dataset.connectorId);
+		beforeCards[1].querySelector<HTMLElement>('.new-session-connector-recommendation-dismiss')!.click();
+		const dynamicAfterDynamicDismissal = {
+			hidden: beforeStaticDismissal.recommendations.element.hidden === true,
+			visibleCards: beforeCards.filter(card => !card.hidden).map(card => card.dataset.connectorId),
+		};
+		beforeStaticDismissal.setInput('');
+		const restoredStatic = beforeCards.filter(card => !card.hidden).map(card => card.dataset.connectorId);
+		beforeStaticDismissal.setInput('Open notion.so/acme/project.');
+		const repeatedDynamic = {
+			hidden: beforeStaticDismissal.recommendations.element.hidden === true,
+			visibleCards: beforeCards.filter(card => !card.hidden).map(card => card.dataset.connectorId),
+		};
+
+		const afterStaticDismissal = setup(true, true);
+		const afterCards = [...afterStaticDismissal.recommendations.element.querySelectorAll<HTMLElement>('.new-session-connector-recommendation-card')];
+		for (const card of afterCards) {
+			card.querySelector<HTMLElement>('.new-session-connector-recommendation-dismiss')!.click();
+		}
+		const allStaticDismissed = afterStaticDismissal.recommendations.element.hidden === true;
+		afterStaticDismissal.setInput('Open notion.so/acme/project.');
+		const dynamicAfterAllStaticDismissed = afterCards.filter(card => !card.hidden).map(card => card.dataset.connectorId);
+
+		assert.deepStrictEqual({
+			staticAfterDismissal,
+			dynamicAfterStaticDismissal,
+			dynamicAfterDynamicDismissal,
+			restoredStatic,
+			repeatedDynamic,
+			allStaticDismissed,
+			dynamicAfterAllStaticDismissed,
+		}, {
+			staticAfterDismissal: ['linear', 'workiq-mail'],
+			dynamicAfterStaticDismissal: ['notion'],
+			dynamicAfterDynamicDismissal: { hidden: true, visibleCards: [] },
+			restoredStatic: ['linear', 'workiq-mail'],
+			repeatedDynamic: { hidden: true, visibleCards: [] },
+			allStaticDismissed: true,
+			dynamicAfterAllStaticDismissed: ['notion'],
 		});
 	});
 

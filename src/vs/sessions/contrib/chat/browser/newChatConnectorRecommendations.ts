@@ -5,8 +5,10 @@
 
 import './media/newChatConnectorRecommendations.css';
 import * as dom from '../../../../base/browser/dom.js';
+import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { Button, IButtonOptions } from '../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -23,6 +25,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { mcpServerIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
 import { renderCustomizationMarketplaceIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationPresentation.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { findMatchingConnectorRecommendationIds } from '../../../../workbench/contrib/chat/common/connectorRecommendations.js';
 import { NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING } from '../common/constants.js';
 
 interface IConnectorRecommendation {
@@ -30,6 +33,7 @@ interface IConnectorRecommendation {
 	readonly name: string;
 	readonly description: string;
 	readonly icon: URI | undefined;
+	readonly showStatically: boolean;
 }
 
 interface IConnectorRecommendationCard {
@@ -57,10 +61,18 @@ export class NewChatConnectorRecommendations extends Disposable {
 
 	readonly element = dom.$('.new-session-connector-recommendations');
 	private readonly cards = new Map<string, IConnectorRecommendationCard>();
-	private readonly dismissed = new Set<string>();
+	private readonly recommendationDomains = new Map<string, readonly string[]>();
+	private readonly staticDismissed = new Set<string>();
+	private readonly dynamicDismissed = new Set<string>();
+	private visibleDynamic = new Set<string>();
+	private mode: 'static' | 'dynamic' = 'static';
 
 	constructor(
-		private readonly focusInput: () => void,
+		private readonly options: {
+			readonly focusInput: () => void;
+			readonly getInputValue: () => string;
+			readonly onDidChangeInputValue: Event<void>;
+		},
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ILogService private readonly logService: ILogService,
@@ -79,21 +91,24 @@ export class NewChatConnectorRecommendations extends Disposable {
 		this.element.setAttribute('aria-label', localize('newSession.connectorRecommendations.ariaLabel', "Recommended connectors"));
 		const cards = dom.append(this.element, dom.$('.new-session-connector-recommendation-cards'));
 		for (const [id, recommendation] of Object.entries(productService.connectorRecommendations ?? {})) {
+			this.recommendationDomains.set(id, recommendation.urlDomains ?? []);
 			this.renderCard(cards, {
 				id,
 				name: recommendation.name,
 				description: recommendation.description,
 				icon: parseIconUri(recommendation.iconUrl),
+				showStatically: recommendation.showStatically !== false,
 			});
 		}
 
-		this.updateVisibility();
+		this.updateVisibility(false);
+		this._register(this.options.onDidChangeInputValue(() => this.updateVisibility(true)));
 		this._register(this.themeService.onDidColorThemeChange(() => this.updateCardIcons()));
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled)
 				|| event.affectsConfiguration(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled)
 				|| event.affectsConfiguration(NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING)) {
-				this.updateVisibility();
+				this.updateVisibility(false);
 			}
 		}));
 	}
@@ -125,15 +140,15 @@ export class NewChatConnectorRecommendations extends Disposable {
 	private dismissCard(id: string): void {
 		const cards = [...this.cards.values()];
 		const dismissedIndex = cards.findIndex(card => card.definition.id === id);
-		this.dismissed.add(id);
-		this.updateVisibility();
-		const nextCard = cards.slice(dismissedIndex + 1).find(card => !this.dismissed.has(card.definition.id));
-		const previousCard = cards.slice(0, dismissedIndex).reverse().find(card => !this.dismissed.has(card.definition.id));
+		(this.mode === 'dynamic' ? this.dynamicDismissed : this.staticDismissed).add(id);
+		this.updateVisibility(false);
+		const nextCard = cards.slice(dismissedIndex + 1).find(card => !card.element.hidden);
+		const previousCard = cards.slice(0, dismissedIndex).reverse().find(card => !card.element.hidden);
 		const focusTarget = nextCard ?? previousCard;
 		if (focusTarget) {
 			focusTarget.primary.focus();
 		} else {
-			this.focusInput();
+			this.options.focusInput();
 		}
 	}
 
@@ -150,15 +165,34 @@ export class NewChatConnectorRecommendations extends Disposable {
 		}
 	}
 
-	private updateVisibility(): void {
+	private updateVisibility(announce: boolean): void {
+		const enabled = this.cards.size > 0
+			&& this.configurationService.getValue<boolean>(NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING) === true
+			&& this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true
+			&& this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled) === true;
+		const matching = enabled
+			? findMatchingConnectorRecommendationIds(this.options.getInputValue(), this.recommendationDomains)
+			: new Set<string>();
+		this.mode = matching.size > 0 ? 'dynamic' : 'static';
+		const dismissed = this.mode === 'dynamic' ? this.dynamicDismissed : this.staticDismissed;
+		const nextVisible = new Set<string>();
 		for (const card of this.cards.values()) {
-			card.element.hidden = this.dismissed.has(card.definition.id);
+			const visible = (this.mode === 'static' ? card.definition.showStatically : matching.has(card.definition.id)) && !dismissed.has(card.definition.id);
+			card.element.hidden = !visible;
+			if (visible) {
+				nextVisible.add(card.definition.id);
+			}
 		}
-		this.element.hidden = this.cards.size === 0
-			|| this.dismissed.size === this.cards.size
-			|| this.configurationService.getValue<boolean>(NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING) !== true
-			|| this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) !== true
-			|| this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled) !== true;
+		this.element.hidden = !enabled || nextVisible.size === 0;
+		if (!this.element.hidden && announce && this.mode === 'dynamic') {
+			const newlyVisible = [...nextVisible].filter(id => !this.visibleDynamic.has(id));
+			if (newlyVisible.length === 1) {
+				aria.status(localize('newSession.connectorRecommendations.available', "{0} connector recommendation available.", this.cards.get(newlyVisible[0])!.definition.name));
+			} else if (newlyVisible.length > 1) {
+				aria.status(localize('newSession.connectorRecommendations.availableMany', "{0} connector recommendations available.", newlyVisible.length));
+			}
+		}
+		this.visibleDynamic = this.mode === 'dynamic' ? nextVisible : new Set();
 	}
 
 	private updateCardIcons(): void {

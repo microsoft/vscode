@@ -81,7 +81,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
 			return store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent()
-				.includes('three connector cards offer Linear, Notion, and WorkIQ');
+				.includes('Static and dynamic dismissals are separate');
 		});
 
 		assert.deepStrictEqual(enabled, [false, true]);
