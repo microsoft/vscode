@@ -63,17 +63,19 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 
 	private readonly STORAGE_KEY = `agentSessions.filterExcludes.agentsessionsviewerfiltersubmenu`;
 	private readonly SORTING_STORAGE_KEY = `agentSessions.sorting`;
+	private readonly GROUPING_STORAGE_KEY = `agentSessions.grouping`;
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 
 	readonly limitResults = () => this.options.limitResults?.();
-	readonly groupResults = () => this.options.groupResults?.();
+	readonly groupResults = (): AgentSessionsGrouping | undefined => this.options.groupResults?.() ?? this.currentGrouping;
 	readonly sortResults = (): AgentSessionsSorting | undefined => this.options.sortResults?.() ?? this.currentSorting;
 
 	private excludes = DEFAULT_EXCLUDES;
 	private isStoringExcludes = false;
 	private currentSorting: AgentSessionsSorting = AgentSessionsSorting.Created;
+	private currentGrouping: AgentSessionsGrouping | undefined = undefined;
 
 	private readonly actionDisposables = this._register(new DisposableStore());
 
@@ -85,6 +87,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		super();
 
 		this.restoreSorting();
+		this.restoreGrouping();
 		this.updateExcludes(false);
 
 		this.registerListeners();
@@ -140,6 +143,27 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		if (storedSorting && Object.values(AgentSessionsSorting).includes(storedSorting as AgentSessionsSorting)) {
 			this.currentSorting = storedSorting as AgentSessionsSorting;
 		}
+	}
+
+	private restoreGrouping(): void {
+		const storedGrouping = this.storageService.get(this.GROUPING_STORAGE_KEY, StorageScope.PROFILE);
+		if (storedGrouping && Object.values(AgentSessionsGrouping).includes(storedGrouping as AgentSessionsGrouping)) {
+			this.currentGrouping = storedGrouping as AgentSessionsGrouping;
+		}
+	}
+
+	setGrouping(grouping: AgentSessionsGrouping | undefined): void {
+		if (this.currentGrouping === grouping) {
+			return;
+		}
+
+		this.currentGrouping = grouping;
+		if (grouping === undefined) {
+			this.storageService.remove(this.GROUPING_STORAGE_KEY, StorageScope.PROFILE);
+		} else {
+			this.storageService.store(this.GROUPING_STORAGE_KEY, grouping, StorageScope.PROFILE, StorageTarget.USER);
+		}
+		this._onDidChange.fire();
 	}
 
 	setSorting(sorting: AgentSessionsSorting): void {
