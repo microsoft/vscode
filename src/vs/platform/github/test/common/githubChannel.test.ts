@@ -2233,16 +2233,56 @@ suite('GitHub authenticated IPC clients', () => {
 		test('preserves documented API diagnostics and indeterminate HTTP failures without raw bodies', async () => {
 			const details = { message: 'Unavailable', documentation_url: 'https://docs.example.test', errors: [{ code: 'custom', message: 'Retry later' }] };
 			const { client } = await acquire(async () => Response.json({ ...details, secret: 'not-retained' }, {
-				status: 503, headers: { 'X-GitHub-Request-Id': 'request', 'Retry-After': '2' },
+				status: 503, headers: { 'X-GitHub-Request-Id': 'ABCD:1234:5678:90AB:CDEF', 'Retry-After': '2' },
 			}));
 			await assert.rejects(client.automations.create(repository, definition, signal()), (error: unknown) => {
 				assert.ok(error instanceof ApiRequestError);
 				assert.deepStrictEqual({
 					status: error.statusCode, response: error.response, requestId: error.requestId, retry: error.retryAfterSeconds, outcome: error.outcome, raw: error.responseBody,
-				}, { status: 503, response: details, requestId: 'request', retry: 2, outcome: 'indeterminate', raw: undefined });
+				}, { status: 503, response: details, requestId: 'ABCD:1234:5678:90AB:CDEF', retry: 2, outcome: 'indeterminate', raw: undefined });
 				return true;
 			});
 		});
+
+		for (const failure of [
+			{ status: 403, body: { error_code: 'rate_limit_exceeded', limited_resource: 'token_mint' }, code: 'rate_limit_exceeded', limitedResource: 'token_mint' },
+			{ status: 409, body: { code: 'environment_compute_terminal' }, code: 'environment_compute_terminal', limitedResource: undefined },
+			{ status: 409, body: { error_code: 'future_code' }, code: 'future_code', limitedResource: undefined },
+		]) {
+			test(`preserves credential-free ${failure.code} diagnostics across IPC`, async () => {
+				const { client } = await acquire(async () => Response.json({
+					...failure.body, message: 'private credential', access_token: 'private credential',
+				}, { status: failure.status, headers: { 'X-GitHub-Request-Id': 'ABCD:1234:5678:90AB:CDEF', 'Retry-After': '5' } }));
+				await assert.rejects(client.environments.connect('env', signal()), error => {
+					assert.ok(error instanceof ApiRequestError);
+					assert.deepStrictEqual({
+						code: error.code, limitedResource: error.limitedResource, status: error.statusCode,
+						requestId: error.requestId, retryAfterSeconds: error.retryAfterSeconds,
+						response: error.response, raw: error.responseBody, privateContent: JSON.stringify(error).includes('private credential'),
+					}, {
+						code: failure.code, limitedResource: failure.limitedResource, status: failure.status,
+						requestId: 'ABCD:1234:5678:90AB:CDEF', retryAfterSeconds: 5,
+						response: undefined, raw: undefined, privateContent: false,
+					});
+					return true;
+				});
+			});
+		}
+
+		test('sandbox rate-limit policy survives IPC without blocking task reads', () => runWithFakedTimers({}, async () => {
+			const times: number[] = [];
+			const { client } = await acquire(async (_input, init) => {
+				times.push(Date.now());
+				return init?.method === 'POST'
+					? Response.json({ error_code: 'rate_limit_exceeded', limited_resource: 'sandbox' }, { status: 429, headers: { 'Retry-After': '2' } })
+					: Response.json({ tasks: [] });
+			});
+			const request = { prompt: 'test', environment_id: 'github-sandbox' };
+			await assert.rejects(client.tasks.create(request, signal()), { code: 'rate_limit_exceeded' });
+			await client.tasks.list(signal());
+			await assert.rejects(client.tasks.create(request, signal()), { code: 'rate_limit_exceeded' });
+			assert.deepStrictEqual(times.map(time => time - times[0]), [0, 0, 2000]);
+		}));
 
 		test('malformed dispatched write responses remain indeterminate', async () => {
 			const { client } = await acquire(async () => new Response('not JSON', { status: 201 }));

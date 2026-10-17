@@ -16,6 +16,24 @@ suite('GitHub HTTP rate limits', () => {
 	const signal = () => new AbortController().signal;
 	const healthyQuota = { 'x-ratelimit-remaining': '4999', 'x-ratelimit-reset': '4600' };
 	const spentQuota = { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': '1120' };
+
+	for (const limitedResource of ['sandbox', 'token_mint', 'api', 'future_resource', undefined] as const) {
+		test(`Mission Control ${limitedResource ?? 'unclassified'} limits gate only the applicable resources`, async () => {
+			const scheduler = store.add(new FakeScheduler());
+			const transport = store.add(new GitHubTransport(async () => Response.json({
+				error_code: 'rate_limit_exceeded', limited_resource: limitedResource,
+			}, { status: 429, headers: { 'Retry-After': '5' } }), scheduler));
+			await assert.rejects(transport.restText(account, 'token', {
+				method: 'GET', url: 'https://github.example.test/agents/tasks', rateLimitResource: 'agents',
+			}, signal()), { statusCode: 429 });
+			const global = limitedResource !== 'sandbox' && limitedResource !== 'token_mint';
+			assert.deepStrictEqual(['agents', 'agents:sandbox', 'agents:token_mint', 'core'].map(resource => transport.rateLimits.getRequestDelay(account, resource)), [
+				global ? 5000 : 0, global || limitedResource === 'sandbox' ? 5000 : 0,
+				global || limitedResource === 'token_mint' ? 5000 : 0, 0,
+			]);
+		});
+	}
+
 	const cases: {
 		readonly name: string;
 		readonly headers?: Readonly<Record<string, string>>;

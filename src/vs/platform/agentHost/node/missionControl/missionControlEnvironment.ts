@@ -131,7 +131,7 @@ export class MissionControlEnvironment extends Disposable {
 	private _roots: readonly string[] = [];
 	private _initialRoots: readonly string[] | undefined;
 	private _environment: IEnvironmentResponse | undefined;
-	private _currentCheckIn: { readonly generation: number; readonly operation: Promise<void> } | undefined;
+	private _currentCheckIn: { readonly generation: number; readonly operation: Promise<boolean> } | undefined;
 	private _generation = 0;
 	private _configurationEpoch = 0;
 	private _policyRefresh = 0;
@@ -457,7 +457,9 @@ export class MissionControlEnvironment extends Disposable {
 			signal: AbortSignal.timeout(15_000),
 		});
 		if (path.endsWith('/heartbeat')) {
-			this._nextHeartbeatAt = Date.now() + heartbeatInterval;
+			if (response.ok) {
+				this._nextHeartbeatAt = Date.now() + heartbeatInterval;
+			}
 			const retryAfter = response.headers.get('Retry-After');
 			if (retryAfter !== null) {
 				const now = Date.now();
@@ -520,8 +522,8 @@ export class MissionControlEnvironment extends Disposable {
 		const current = { generation, operation };
 		this._currentCheckIn = current;
 		try {
-			await operation;
-			if (generation === this._generation) {
+			const completed = await operation;
+			if (completed && generation === this._generation) {
 				this._retryDelay = 500;
 				this._requestFailures = 0;
 				this._failureStartedAt = undefined;
@@ -558,23 +560,24 @@ export class MissionControlEnvironment extends Disposable {
 		}
 	}
 
-	private async _doCheckIn(): Promise<void> {
+	/** Returns false when no remote work completed, so a no-op cannot reset recovery budgets. */
+	private async _doCheckIn(): Promise<boolean> {
 		const options = this._options;
 		const generation = this._generation;
 		const policyRefresh = this._policyRefresh;
 		if (!options || this._recoveryStopped) {
-			return;
+			return false;
 		}
 		const waiting = this._environment && Date.now() < Math.max(this._heartbeatNotBefore, this._nextHeartbeatAt);
 		const recovering = this._environment && (!this._server.value || this._server.value.isClosed);
 		const refreshToken = !this._requiresBootstrap && this._environment && (recovering || (this._tokenExpiresAt !== undefined && Date.now() >= this._tokenExpiresAt - 30_000));
 		if (waiting && !refreshToken && this._appliedPolicyRefresh === policyRefresh) {
-			return;
+			return false;
 		}
 		if (refreshToken && this._environment) {
 			const reply = await this._request(`cmc_internal/api/agents/environments/${encodeURIComponent(this._environment.id)}/token`, {}, options);
 			if (generation !== this._generation || this._options !== options || this._store.isDisposed) {
-				return;
+				return false;
 			}
 			if (!reply || typeof reply !== 'object' || Array.isArray(reply)) {
 				throw new Error('Mission Control returned an invalid token bootstrap');
@@ -599,7 +602,7 @@ export class MissionControlEnvironment extends Disposable {
 				if (recovering) {
 					await this._connectRelay(options, generation);
 				}
-				return;
+				return true;
 			}
 		}
 		const capabilities = { ahp_version: PROTOCOL_VERSION, features: [], current_sessions: await this._boundedRegistrationWork(this._host.getSessionCount?.() ?? Promise.resolve(0), 'session count') };
@@ -611,7 +614,7 @@ export class MissionControlEnvironment extends Disposable {
 			remoteControl = await this._boundedRegistrationWork(this._host.getRemoteControlPolicy(), 'remote-control policy');
 		}
 		if (generation !== this._generation || this._options !== options || this._store.isDisposed) {
-			return;
+			return false;
 		}
 		const policy = JSON.stringify(remoteControl ?? null);
 		const register = !this._environment || (options.live && policy !== this._policy);
@@ -620,7 +623,7 @@ export class MissionControlEnvironment extends Disposable {
 			if (recovering) {
 				await this._connectRelay(options, generation);
 			}
-			return;
+			return !!recovering;
 		}
 		const path = !register && this._environment
 			? `cmc_internal/api/agents/environments/${encodeURIComponent(this._environment.id)}/heartbeat`
@@ -629,11 +632,11 @@ export class MissionControlEnvironment extends Disposable {
 			? this._createHeartbeat(options.live && (!this._server.value || this._server.value.isClosed) ? 'offline' : 'online', capabilities)
 			: await this._createRegistration(capabilities, remoteControl);
 		if (generation !== this._generation || this._options !== options || this._store.isDisposed) {
-			return;
+			return false;
 		}
 		const reply = await this._request(path, body, options);
 		if (generation !== this._generation || this._options !== options || this._store.isDisposed) {
-			return;
+			return false;
 		}
 		const response = parseEnvironment(reply);
 		if (response.user_id !== this._canonicalOwner || (this._environment && (response.id !== this._environment.id || response.owner_id !== this._environment.owner_id))) {
@@ -671,6 +674,7 @@ export class MissionControlEnvironment extends Disposable {
 		this._policy = policy;
 		this._appliedPolicyRefresh = policyRefresh;
 		await this._connectRelay(options, generation);
+		return true;
 	}
 
 	private async _connectRelay(options: IMissionControlOptions, generation: number): Promise<void> {

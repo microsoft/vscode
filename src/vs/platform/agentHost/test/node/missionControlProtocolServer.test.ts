@@ -1820,6 +1820,7 @@ suite('Mission Control WPS', () => {
 				delayHeartbeat: () => { started: Promise<void>; complete: (response?: Response) => Promise<void> };
 				delayIdentity: () => { started: Promise<void>; complete: (response: Response) => Promise<void> };
 				changePolicy: (policy: Record<string, unknown> | undefined) => Promise<void>;
+				refreshPolicy: () => void;
 				setSessionEventsFormats: (formats: readonly string[] | undefined) => void;
 			}) => Promise<void>,
 			bootstrapLifetime?: number,
@@ -1830,6 +1831,7 @@ suite('Mission Control WPS', () => {
 				sessionEventsFormats?: readonly string[];
 				manualPublishAcks?: boolean;
 				tokenReplies?: readonly { status: number; retryAfter?: string; body: object }[];
+				failSigningKeyRefresh?: boolean;
 			} = {},
 		): Promise<void> {
 			const path = await mkdtemp(join(process.cwd(), '.build', 'mission-control-retry-after-'));
@@ -1844,6 +1846,7 @@ suite('Mission Control WPS', () => {
 				const requests: { path: string; credential: string | null; body?: Record<string, unknown> }[] = [];
 				const attachments: { initialRoots: readonly string[]; getRoots: () => readonly string[]; getProjects: () => readonly string[]; defaultDirectory?: string; rootMeta?: Record<string, unknown>; server: MissionControlProtocolServer }[] = [];
 				let projectUpdates = 0;
+				let signingKeyRequests = 0;
 				let delayedHeartbeat: { started: DeferredPromise<void>; response: DeferredPromise<Response> } | undefined;
 				let delayedIdentity: { started: DeferredPromise<void>; response: DeferredPromise<Response> } | undefined;
 				let policy: Record<string, unknown> | undefined;
@@ -1870,6 +1873,9 @@ suite('Mission Control WPS', () => {
 							delayedIdentity = undefined;
 							await delayed.started.complete();
 							return delayed.response.p;
+						}
+						if (url.pathname.endsWith('/jwks.json') && overrides.failSigningKeyRefresh && signingKeyRequests++ > 0) {
+							return Response.json({ error_code: 'service_unavailable' }, { status: 503, headers: { 'Retry-After': '2' } });
 						}
 						if (url.pathname.endsWith('/token')) {
 							const reply = overrides.tokenReplies?.[tokens.length];
@@ -1941,6 +1947,7 @@ suite('Mission Control WPS', () => {
 						identityApiBase = base;
 						identityAuthorityChanged.fire();
 					},
+					refreshPolicy: () => policyChanged.fire(),
 				});
 			} finally {
 				service?.dispose();
@@ -1961,6 +1968,55 @@ suite('Mission Control WPS', () => {
 						closed: false, errors: ['Mission Control request failed (403) code=rate_limit_exceeded'],
 					});
 				});
+		});
+
+		test('failed heartbeats use server pacing and retain their retry budget through policy refreshes', async () => {
+			const failure = { status: 429, retryAfter: '2', body: JSON.stringify({ error_code: 'rate_limit_exceeded' }) };
+			await withEnvironment([{}, ...Array.from({ length: 8 }, () => failure)], async ({ clock, heartbeats, sockets, errors, refreshPolicy }) => {
+				await clock.tickAsync(61_000);
+				refreshPolicy();
+				await clock.tickAsync(299_000);
+				assert.deepStrictEqual({ heartbeats, errors, closed: sockets[0].closed }, {
+					heartbeats: [0, 60_000, 62_000, 64_000, 68_000].map(time => ({ time, status: 'online' })),
+					errors: Array(4).fill('Mission Control request failed (429) code=rate_limit_exceeded'),
+					closed: false,
+				});
+			});
+		});
+
+		test('a same-valued policy refresh cannot reset failed signing-key recovery without remote work', async () => {
+			await withEnvironment([], async ({ clock, heartbeats, requests, refreshPolicy }) => {
+				await clock.tickAsync(301_000);
+				refreshPolicy();
+				await clock.tickAsync(299_000);
+				assert.deepStrictEqual({
+					signingKeyRequests: requests.filter(request => request.path.endsWith('/jwks.json')).length,
+					heartbeats,
+				}, {
+					signingKeyRequests: 3,
+					heartbeats: [0, 60_000, 120_000, 180_000, 240_000, 300_000, 360_000].map(time => ({ time, status: 'online' })),
+				});
+			}, undefined, false, { failSigningKeyRefresh: true });
+		});
+
+		test('heartbeat failures and disconnected-relay recovery share one retry budget', async () => {
+			const failure = { status: 503, retryAfter: '2', body: JSON.stringify({ error_code: 'service_unavailable' }) };
+			await withEnvironment([{}, failure], async ({ clock, heartbeats, tokens, sockets, errors }) => {
+				await clock.tickAsync(60_000);
+				sockets[0].emit('close', 1006);
+				await clock.tickAsync(300_000);
+				assert.deepStrictEqual({ heartbeats, tokens, closed: sockets[0].closed, errors }, {
+					heartbeats: [0, 60_000].map(time => ({ time, status: 'online' })),
+					tokens: [62_000, 64_000, 68_000], closed: true,
+					errors: [
+						'Mission Control request failed (503) code=service_unavailable',
+						'Mission Control WPS socket closed (code 1006)',
+						...Array(3).fill('Mission Control request failed (503) code=service_unavailable'),
+					],
+				});
+			}, undefined, false, {
+				tokenReplies: Array.from({ length: 8 }, () => ({ status: 503, retryAfter: '2', body: { error_code: 'service_unavailable' } })),
+			});
 		});
 
 		for (const [status, code] of [[401, 'unauthenticated'], [403, 'forbidden'], [501, 'not_implemented']] as const) {

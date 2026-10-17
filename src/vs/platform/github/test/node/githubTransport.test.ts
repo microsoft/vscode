@@ -665,6 +665,27 @@ suite('GitHubTransport', () => {
 		assert.deepStrictEqual({ calls, dispatched }, { calls: 2, dispatched: ['first', 'last'] });
 	});
 
+	for (const [field, code, retryable] of [
+		['error_code', 'not_implemented', false],
+		['code', 'not_implemented', false],
+		['error_code', 'internal_error', true],
+		['error_code', 'future_server_error', true],
+	] as const) {
+		test(`Mission Control transport classifies ${field}=${code} before retrying a 500`, () => runWithFakedTimers({}, async () => {
+			const times: number[] = [];
+			const transport = disposables.add(new GitHubTransport(async () => {
+				times.push(Date.now());
+				return Response.json({ [field]: code }, { status: 500 });
+			}));
+			await assert.rejects(transport.restText(accountA, 'token', {
+				method: 'GET', url: 'https://github.example.test/agents/tasks', rateLimitResource: 'agents',
+			}, signal()), { statusCode: 500 });
+			assert.deepStrictEqual({
+				attempts: times.length, paced: times.length < 2 || times[1] - times[0] >= 1000 && times[1] - times[0] < 1250,
+			}, { attempts: retryable ? 2 : 1, paced: true });
+		}));
+	}
+
 	for (const api of ['REST', 'GraphQL'] as const) {
 		for (const firstFailure of ['fetch', 'server', 'body'] as const) {
 			test(`${api} body failures share the retry budget with ${firstFailure} failures`, () => runWithFakedTimers({}, async () => {
