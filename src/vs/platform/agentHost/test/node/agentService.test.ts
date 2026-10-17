@@ -23118,6 +23118,19 @@ suite('AgentService (node dispatcher)', () => {
 
 	suite('authenticate', () => {
 
+		test('forwards optional authentication metadata to matching providers', async () => {
+			const metadata = { 'vscode.authentication.entitlement': { trackingId: 'analytics', sku: 'free' } };
+			let received: Record<string, unknown> | undefined;
+			const provider: IAgent = copilotAgent;
+			provider.authenticate = async (_resource, _token, _expiresIn, meta) => {
+				received = meta;
+				return true;
+			};
+			registerTestAgentProvider(service, provider);
+			const result = await service.authenticate({ resource: 'https://api.github.com', token: 'token', _meta: metadata });
+			assert.deepStrictEqual({ result, received }, { result: { authenticated: true }, received: metadata });
+		});
+
 		test('routes token to provider matching the resource', async () => {
 			registerTestAgentProvider(service, copilotAgent);
 

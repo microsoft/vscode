@@ -15,6 +15,9 @@ import { type ProtectedResourceMetadata } from '../../../../../../platform/agent
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostMcpOAuthMetadataService, IAgentHostMcpOAuthMetadataService } from '../../../../../../platform/agentHost/common/agentHostMcpOAuthMetadataService.js';
 import { authenticationAccountMeta, readAuthenticationAccount } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
+import { readAgentEntitlementHint } from '../../../../../../platform/agentHost/common/meta/agentEntitlementHintMeta.js';
+import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
+import type { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -72,6 +75,9 @@ function createAuthInstantiationService(disposables: Pick<DisposableStore, 'add'
 	instantiationService.stub(ILogService, new NullLogService());
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
+	instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
+		override readonly currentDefaultAccount = null;
+	}());
 	return instantiationService;
 }
 
@@ -232,6 +238,19 @@ suite('AgentHostAuthTokenCache', () => {
 		];
 
 		assert.deepStrictEqual({ results, authenticateCalls }, { results: [true, false], authenticateCalls: 1 });
+	});
+
+	test('preserves entitlement hints when waiting for an earlier same-token authentication', async () => {
+		const cache = new AgentHostAuthTokenCache();
+		const pending = new DeferredPromise<void>();
+		const calls: string[] = [];
+		const entitlement = { trackingId: 'analytics', sku: 'free' };
+		const first = cache.authenticate('resource', [], 'token', async () => { calls.push('initial'); await pending.p; }, 'account');
+		const changed = cache.authenticate('resource', [], 'token', async () => { calls.push('changed'); }, 'account', entitlement);
+		pending.complete();
+		const results = await Promise.all([first, changed]);
+		const repeated = await cache.authenticate('resource', [], 'token', async () => { calls.push('repeated'); }, 'account', entitlement);
+		assert.deepStrictEqual({ calls, results, repeated }, { calls: ['initial', 'changed'], results: [true, true], repeated: false });
 	});
 
 	test('same-token callers await the in-flight authentication', async () => {
@@ -1772,6 +1791,60 @@ suite('authenticateProtectedResources', () => {
 	});
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const defaultSession of ['session', 'connector-session']) {
+		test(`forwards same-account entitlement changes when default account uses ${defaultSession}`, async () => {
+			const baseSession = { id: 'session', scopes: ['read'], accessToken: 'token', account: { id: 'account', label: 'Account' } };
+			const authentication = createMockAuthService({
+				getOrActivateProviderIdForServer: async () => 'github',
+				getSessions: async (_provider, scopes) => scopes ? [baseSession] : [
+					baseSession, { ...baseSession, id: 'connector-session', scopes: ['read', 'write:plugin_gateway_connections'] },
+				],
+			});
+			const instantiation = createAuthInstantiationService(disposables, authentication);
+			instantiation.stub(IConfigurationService, new TestConfigurationService({
+				[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: true,
+			}));
+			let sku = 'no_access';
+			let sessionId = defaultSession;
+			instantiation.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
+				override get currentDefaultAccount(): IDefaultAccount {
+					return {
+						sessionId, accountName: 'Account', enterprise: false,
+						authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false },
+						entitlementsData: {
+							access_type_sku: sku, analytics_tracking_id: 'analytics', chat_enabled: true, assigned_date: '',
+							can_signup_for_limited: false, copilot_plan: 'individual', organization_login_list: [],
+						},
+					};
+				}
+			}());
+			const agents = [new class extends mock<AgentInfo>() {
+				override readonly protectedResources = [{ ...protectedResource, resource: 'https://api.github.com' }];
+			}()];
+			const observed: ReturnType<typeof readAgentEntitlementHint>[] = [];
+			const options: IAgentHostAuthenticationOptions = {
+				logPrefix: '[test]', authTokenCache: new AgentHostAuthTokenCache(),
+				authenticate: async request => { observed.push(readAgentEntitlementHint(request)); },
+			};
+			await instantiation.invokeFunction(authenticateProtectedResources, agents, options);
+			await instantiation.invokeFunction(authenticateProtectedResources, agents, options);
+			sku = 'free_limited_copilot';
+			await instantiation.invokeFunction(authenticateProtectedResources, agents, options);
+			await instantiation.invokeFunction(resolveAuthenticationInteractively, agents[0].protectedResources, options);
+			await instantiation.invokeFunction(revokeAuthenticationForRemovedSessions, agents, 'github', [
+				{ ...baseSession, id: 'removed-session', accessToken: 'removed-token' },
+			], options);
+			await instantiation.invokeFunction(authenticateProtectedResources, agents, options);
+			sessionId = 'another-session';
+			await instantiation.invokeFunction(authenticateProtectedResources, agents, options);
+			assert.deepStrictEqual(observed, [
+				{ trackingId: 'analytics', sku: 'no_access' },
+				{ trackingId: 'analytics', sku: 'free_limited_copilot' },
+				undefined,
+			]);
+		});
+	}
 
 	test('forwards selected account provenance without changing the host resource', async () => {
 		const resource = { ...protectedResource, resource: 'https://other-host.example/custom/repository-resource' };
