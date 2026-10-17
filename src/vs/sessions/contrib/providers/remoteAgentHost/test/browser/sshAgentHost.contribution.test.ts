@@ -9,9 +9,10 @@ import { CancellationError } from '../../../../../../base/common/errors.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IRemoteAgentHostSSHConnection, RemoteAgentHostEntryType } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { SSHHostKeyDeniedError } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { SSHAuthMethod, SSHHostKeyDeniedError, type ISSHResolvedConfig } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { categorizeSSHConnectError } from '../../../../../common/sessionsTelemetry.js';
 import { ManagedReconnectState } from '../../browser/managedReconnectAgentHostContribution.js';
+import { buildConfiguredSSHHostConfig } from '../../browser/remoteAgentHostActions.js';
 import { disconnectSSHEntry, shouldPauseSSHReconnectAfterFailure, sshConnectionKey } from '../../browser/sshAgentHost.contribution.js';
 
 suite('SSH reconnect state', () => {
@@ -227,5 +228,54 @@ suite('sshConnectionKey', () => {
 			userHostPort: 'me@myserver.example.com:2222',
 			hostOnly: 'myserver.example.com@myserver.example.com:22',
 		});
+	});
+});
+
+suite('buildConfiguredSSHHostConfig', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const resolved = {
+		hostname: 'target.example.com',
+		user: 'me',
+		port: 22,
+		proxyJump: 'bastion.example.com:2222',
+		identityFile: ['/home/me/.ssh/id_ed25519'],
+		identityAgent: undefined,
+		forwardAgent: false,
+		userKnownHostsFiles: [],
+		globalKnownHostsFiles: [],
+		strictHostKeyChecking: undefined,
+	} satisfies ISSHResolvedConfig;
+
+	test('carries the resolved ProxyJump into the first connect', () => {
+		// Without this the configured-host action dials the target directly and
+		// a host reachable only through its jump host fails on first connect,
+		// which is the failure reported in #317445.
+		assert.strictEqual(
+			buildConfiguredSSHHostConfig(resolved, 'myalias', 'me').proxyJump,
+			'bastion.example.com:2222');
+	});
+
+	test('leaves ProxyJump unset when the config has none', () => {
+		assert.strictEqual(
+			buildConfiguredSSHHostConfig({ ...resolved, proxyJump: undefined }, 'myalias', 'me').proxyJump,
+			undefined);
+	});
+
+	test('maps the remaining connect fields from the resolved config', () => {
+		assert.deepStrictEqual(
+			buildConfiguredSSHHostConfig({ ...resolved, port: 2200, forwardAgent: true, identityAgent: 'SSH_AUTH_SOCK' }, 'myalias', 'me'),
+			{
+				host: 'target.example.com',
+				port: 2200,
+				username: 'me',
+				authMethod: SSHAuthMethod.Agent,
+				privateKeyPath: '/home/me/.ssh/id_ed25519',
+				identityAgent: 'SSH_AUTH_SOCK',
+				agentForward: true,
+				proxyJump: 'bastion.example.com:2222',
+				name: 'myalias',
+				sshConfigHost: 'myalias',
+			});
 	});
 });
