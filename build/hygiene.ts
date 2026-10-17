@@ -92,9 +92,14 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 	const productJson = es.through(function (file: VinylFile) {
 		const product = JSON.parse(file.contents!.toString('utf8'));
 
+		// Block Microsoft Marketplace (and other non-OSS galleries) in product.json.
+		// Open VSX is allowed — see https://github.com/eclipse-openvsx/openvsx/wiki/Using-Open-VSX-in-VS-Code
 		if (product.extensionsGallery) {
-			console.error(`product.json: Contains 'extensionsGallery'`);
-			errorCount++;
+			const serviceUrl = String(product.extensionsGallery.serviceUrl ?? '');
+			if (!/^https:\/\/open-vsx\.org(\/|$)/.test(serviceUrl)) {
+				console.error(`product.json: Contains 'extensionsGallery' (only https://open-vsx.org is allowed)`);
+				errorCount++;
+			}
 		}
 
 		this.emit('data', file);
