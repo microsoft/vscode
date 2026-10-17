@@ -32,7 +32,6 @@ import { FileKind } from '../../../../platform/files/common/files.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
-import { IListService } from '../../../../platform/list/browser/listService.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
@@ -61,7 +60,6 @@ import { InstanceContext } from './terminalContextMenu.js';
 import { getColorClass, getIconId, getUriClasses } from './terminalIcon.js';
 import { killTerminalIcon, newTerminalIcon } from './terminalIcons.js';
 import { ITerminalQuickPickItem } from './terminalProfileQuickpick.js';
-import { TerminalTabList } from './terminalTabsList.js';
 import { ResourceContextKey } from '../../../common/contextkeys.js';
 import { SeparatorSelectOption } from '../../../../base/browser/ui/selectBox/selectBox.js';
 
@@ -1331,7 +1329,7 @@ export function registerTerminalActions() {
 		},
 		run: async (c, accessor) => {
 			const disposePromises: Promise<void>[] = [];
-			for (const terminal of getSelectedViewInstances(accessor, true) ?? []) {
+			for (const terminal of getSelectedViewInstances(accessor) ?? []) {
 				disposePromises.push(c.service.safeDisposeTerminal(terminal));
 			}
 			await Promise.all(disposePromises);
@@ -1468,39 +1466,14 @@ function getSelectedViewInstances2(accessor: ServicesAccessor, args?: unknown): 
 	return undefined;
 }
 
-function getSelectedViewInstances(accessor: ServicesAccessor, args?: unknown, args2?: unknown): ITerminalInstance[] | undefined {
-	const listService = accessor.get(IListService);
+function getSelectedViewInstances(accessor: ServicesAccessor): ITerminalInstance[] | undefined {
 	const terminalGroupService = accessor.get(ITerminalGroupService);
-	const result: ITerminalInstance[] = [];
-
-	// Assign list only if it's an instance of TerminalTabList (#234791)
-	const list = listService.lastFocusedList instanceof TerminalTabList ? listService.lastFocusedList : undefined;
-	// Get selected tab list instance(s)
-	const selections = list?.getSelection();
-	// Get inline tab instance if there are not tab list selections #196578
-	if (terminalGroupService.lastAccessedMenu === 'inline-tab' && !selections?.length) {
+	const selection = terminalGroupService.getSelectedTabInstances();
+	if (terminalGroupService.lastAccessedMenu === 'inline-tab' && !selection?.length) {
 		const instance = terminalGroupService.activeInstance;
-		return instance ? [terminalGroupService.activeInstance] : undefined;
+		return instance ? [instance] : undefined;
 	}
-
-	if (!list || !selections) {
-		return undefined;
-	}
-	const focused = list.getFocus();
-
-	const viewInstances = terminalGroupService.instances;
-	if (focused.length === 1 && !selections.includes(focused[0])) {
-		// focused length is always a max of 1
-		// if the focused one is not in the selected list, return that item
-		result.push(viewInstances[focused[0]]);
-		return result;
-	}
-
-	// multi-select
-	for (const selection of selections) {
-		result.push(viewInstances[selection]);
-	}
-	return result.filter(r => !!r);
+	return selection;
 }
 
 export function validateTerminalName(name: string): { content: string; severity: Severity } | null {
