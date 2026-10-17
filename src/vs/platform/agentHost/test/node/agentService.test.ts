@@ -34933,20 +34933,26 @@ suite('AgentService (node dispatcher)', () => {
 				await first.createChat(target, peer);
 				await timeout(0);
 				const orderOf = (service: AgentService) => getStateManager(service).getSessionState(target.toString())?.chats.map(chat => chat.resource);
-				const restart = async () => {
-					await first.whenCatalogReconciliationIdle();
-					await getTestSessionStateStore(first).whenIdle(undefined);
+				// A host restarts once the previous ones stopped writing. A host still running would later flush its dirty
+				// summaries (on a debounce) and write the target's catalog receipt while the next one restores it, at the same revision.
+				const hosts = [first];
+				const settle = async () => {
+					for (const host of hosts) {
+						getStateManager(host).prepareSessionSummariesForListing((await host.listSessions()).map(toListedSessionSummary));
+						await host.whenCatalogReconciliationIdle();
+						await getTestSessionStateStore(host).whenIdle(undefined);
+					}
+				};
+				const restoredOrder = async () => {
+					await settle();
 					const restarted = createService();
+					hosts.push(restarted);
 					await restarted.listSessions();
 					await restarted.restoreSession(target);
-					// What the restore persisted is restored again.
-					await restarted.whenCatalogReconciliationIdle();
-					await getTestSessionStateStore(restarted).whenIdle(undefined);
-					const again = createService();
-					await again.listSessions();
-					await again.restoreSession(target);
-					return [orderOf(restarted), orderOf(again)];
+					return orderOf(restarted);
 				};
+				// What the restore persisted is restored again.
+				const restart = async () => [await restoredOrder(), await restoredOrder()];
 
 				// Moved without an anchor: before the target's default chat.
 				await first.moveChat(source, moved, { kind: 'session', session: target, after: undefined });
