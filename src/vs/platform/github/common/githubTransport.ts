@@ -36,7 +36,6 @@ export interface IGitHubTransport {
 	/** Raises the priority of a caller's queued work without restarting dispatched requests. */
 	promote(signal: AbortSignal, priority: RequestPriority): void;
 	invalidateAccount(account: AccountHandle, reason?: unknown): void;
-	clear(): void;
 }
 
 export interface GitHubRestRequest extends RequestOptions {
@@ -219,10 +218,6 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			}
 			return this._restText(account, undefined, request, signal, apiBasePath);
 		});
-	}
-
-	anonymousGet<T>(account: AnonymousAccount, apiBasePath: string, request: GitHubAnonymousReadOptions & { readonly url: string }, signal: AbortSignal): Promise<GitHubRestResponse<T>> {
-		return this._trackRequest(signal, () => this._rest<T>(account, undefined, { ...request, method: 'GET', body: undefined }, signal, apiBasePath));
 	}
 
 	bootstrapGet<T>(account: BootstrapAccount, token: string, apiBasePath: string, request: GitHubBootstrapReadOptions & { readonly url: string }, signal: AbortSignal): Promise<GitHubRestResponse<T>> {
@@ -676,7 +671,8 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		}
 	}
 
-	clear(): void {
+	override dispose(): void {
+		super.dispose();
 		this._logService?.debug(`[GitHubTransport] Clearing transport state (cache: ${this._restCache.size}, REST requests: ${this._inFlight.size}, GraphQL requests: ${this._graphQlInFlight.size})`);
 		this._queue.cancelOwner(this);
 		for (const account of this._accounts.values()) {
@@ -693,11 +689,6 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			request.controller.abort(new Error('GitHub transport state was cleared'));
 		}
 		this._graphQlInFlight.clear();
-	}
-
-	override dispose(): void {
-		super.dispose();
-		this.clear();
 	}
 
 	private async _executeRest(

@@ -17,5 +17,4 @@ export interface IWorkbenchGitHubService extends IGitHubService {
 	acquireAnonymousApiClient(signal: AbortSignal): Promise<IGitHubAnonymousClient>;
 	acquireDefaultAccountClient(signal: AbortSignal): Promise<IReference<IGitHubClient>>;
 	acquireDefaultAccountApiClient(signal: AbortSignal): Promise<IGitHubAccountClient>;
-	acquireSessionClient(providerId: string, sessionId: string, signal: AbortSignal): Promise<IReference<IGitHubClient>>;
 }
