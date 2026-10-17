@@ -1251,7 +1251,10 @@ export const enum GroupModelChangeKind {
 	EDITOR_TRANSIENT,
 	EDITOR_STICKY,
 	EDITOR_DIRTY,
-	EDITOR_WILL_DISPOSE
+	EDITOR_WILL_DISPOSE,
+
+	/* Tab Stack Changes */
+	TAB_STACKS
 }
 
 export interface IWorkbenchEditorConfiguration {
