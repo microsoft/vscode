@@ -2409,7 +2409,14 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	async importSession(session: URI): Promise<void> {
+		await this._registerSessionForImport(session);
 		await this.restoreSession(session);
+		const provider = this._providerService.getProviderForSession(session);
+		if (provider?.importChat) {
+			const runtimeSession = URI.parse(this._orchestratorDatabase.toRuntimeSession(session.toString()));
+			const chat = URI.parse(this._requireDefaultChat(runtimeSession));
+			await provider.importChat(chat, this._chatContext(runtimeSession, chat, this._chatStorageResource(runtimeSession, chat)));
+		}
 		if (!await this._sessionRegistry.adoptExternalSession(session)) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${session.toString()}`);
 		}
@@ -2434,6 +2441,21 @@ export class AgentService extends Disposable implements IAgentService {
 			throw new Error('Sandbox certificate management is unavailable for this chat.');
 		}
 		await provider[operation]!(chat, scopeId);
+	}
+
+	/**
+	 * An import may name a session the registry does not know yet: discovery may
+	 * hide external sessions, or may not have scanned one that was just created.
+	 */
+	private async _registerSessionForImport(session: URI): Promise<void> {
+		if (await this._sessionRegistry.get(session)) {
+			return;
+		}
+		const provider = this._providerService.getProviderForSession(session);
+		const discovered = await provider?.discoverChat?.(session);
+		if (provider && discovered) {
+			await this._migrateAndRegisterDiscoveredChats(provider, [discovered]);
+		}
 	}
 
 	async stopBackgroundWork(chat: URI, id: string): Promise<boolean> {
