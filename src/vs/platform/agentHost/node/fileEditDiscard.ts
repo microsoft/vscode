@@ -39,6 +39,28 @@ export function spanFileEditRevertSteps(steps: readonly IFileEditRevertStep[]): 
 }
 
 /**
+ * Returns the steps of a file's edits that no discard row undid yet, given the
+ * file's edit records and one step per record. A discard row undoes every
+ * earlier record of its turn, so those records and the row are left out. The
+ * row's snapshots span the whole turn rather than what the discard changed on
+ * disk, which kept changes made between the turn's edits, so reverting them
+ * again could overwrite or conflict with later changes to the file.
+ */
+export function getUndiscardedFileEditRevertSteps(records: readonly IFileEditRecord[], steps: readonly IFileEditRevertStep[]): IFileEditRevertStep[] {
+	const discardedTurns = new Set<string>();
+	const undiscarded: IFileEditRevertStep[] = [];
+	for (let index = records.length - 1; index >= 0; index--) {
+		const record = records[index];
+		if (record.toolCallId.startsWith(FILE_EDIT_DISCARD_TOOL_CALL_ID_PREFIX)) {
+			discardedTurns.add(record.turnId);
+		} else if (!discardedTurns.has(record.turnId)) {
+			undiscarded.push(steps[index]);
+		}
+	}
+	return undiscarded.reverse();
+}
+
+/**
  * Builds the edit row that records a discard: an edit from the turn's end
  * content back to its start content, given by `span`. Appended after the
  * turn's own rows, it makes the turn's net change to the file empty, so the

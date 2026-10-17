@@ -24,7 +24,7 @@ import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateM
 import { ILogService } from '../../log/common/log.js';
 import { resolveSessionRepositories } from './agentHostSessionRepositories.js';
 import { parseGitBlobUri } from './gitDiffContent.js';
-import { createFileEditDiscardRecord, createSessionFileEditDiscardRecords, readFileEditRevertSteps, spanFileEditRevertSteps } from './fileEditDiscard.js';
+import { createFileEditDiscardRecord, createSessionFileEditDiscardRecords, getUndiscardedFileEditRevertSteps, readFileEditRevertSteps, spanFileEditRevertSteps } from './fileEditDiscard.js';
 import { isPathWithinFolderScope } from './sessionDiffAggregator.js';
 
 /**
@@ -51,7 +51,10 @@ function isFilePath(path: string | undefined, resource: URI): boolean {
 interface IRecordedEditsDiscard {
 	/** The database the edits are recorded in, where the discard is recorded. */
 	readonly db: ISessionDatabase;
-	/** The file's edit records, in the order they were made. Must not include renames. */
+	/**
+	 * The file's edit records, in the order they were made, including rows of
+	 * earlier discards. Must not include renames.
+	 */
 	readonly records: readonly IFileEditRecord[];
 	/** Builds the rows that record the discard, given one step per record. */
 	createRows(steps: readonly IFileEditRevertStep[]): (IFileEditRecord & IFileEditContent)[];
@@ -290,16 +293,17 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 	/**
 	 * Reverts a file's recorded edits and records the discard. Each edit is
 	 * reverted separately, so changes made between them, such as the user's
-	 * between two tool calls, are kept. The file only changes inside the
-	 * transaction that records the discard, after checking that no turn ran
-	 * meanwhile: a turn's edits would be recorded before the discard, and a
-	 * recreated file couldn't be deleted again. When the discard can't be
-	 * recorded, the file is put back.
+	 * between two tool calls, are kept. Edits that an earlier discard undid
+	 * aren't reverted again, but their records still span their turn's rows.
+	 * The file only changes inside the transaction that records the discard,
+	 * after checking that no turn ran meanwhile: a turn's edits would be
+	 * recorded before the discard, and a recreated file couldn't be deleted
+	 * again. When the discard can't be recorded, the file is put back.
 	 */
 	private async _discardRecordedEdits(resource: URI, discard: IRecordedEditsDiscard, token: CancellationToken): Promise<void> {
 		const steps = await readFileEditRevertSteps(discard.db, discard.records);
 		this._throwIfCancelled(token);
-		const revert = await this._fileEditRevert.prepare(resource, steps, token);
+		const revert = await this._fileEditRevert.prepare(resource, getUndiscardedFileEditRevertSteps(discard.records, steps), token);
 		try {
 			await discard.db.storeFileEdits(discard.createRows(steps), async () => {
 				discard.throwIfTurnRan();

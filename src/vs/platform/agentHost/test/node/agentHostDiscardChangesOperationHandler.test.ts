@@ -1122,6 +1122,65 @@ suite('AgentHostDiscardChangesOperationHandler - session changes', () => {
 		});
 	});
 
+	test('does not revert edits whose turn was discarded again, keeping later changes to the file', async () => {
+		// One line per character, so each sequence reads as the file's lines.
+		const toLines = (text: string) => `${text.split('').join('\n')}\n`;
+		const sequences: Record<string, { readonly turn1: readonly (readonly [string, string])[]; readonly beforeTurn2: string; readonly turn2: readonly [string, string] }> = {
+			// The user changed line 3 between turn 1's edits, which discarding turn 1 kept, then changed it back.
+			userChangeUndoneAfterTurnDiscard: { turn1: [['abcdefg', 'Abcdefg'], ['AbCdefg', 'AbCdEfg']], beforeTurn2: 'abcdefg', turn2: ['abcdefg', 'abcdefG'] },
+			// The user changed the line whose edit discarding turn 1 reverted.
+			userChangedDiscardedLine: { turn1: [['abcde', 'Abcde']], beforeTurn2: 'Zbcde', turn2: ['Zbcde', 'ZbCde'] },
+		};
+
+		const results: Record<string, unknown> = {};
+		for (const [name, sequence] of Object.entries(sequences)) {
+			const harness = setup(disposables);
+			const chat = buildDefaultChatUri(harness.session.toString());
+			const read = async () => (await harness.diskFileService.readFile(target)).value.toString();
+			const edit = (turnId: string, toolCallId: string, [before, after]: readonly [string, string]) => harness.trackedDb.addEdit({
+				turnId, toolCallId, filePath: target.fsPath, kind: FileEditKind.Edit,
+				addedLines: undefined, removedLines: undefined,
+				beforeContent: encodeString(toLines(before)), afterContent: encodeString(toLines(after)),
+			});
+
+			addTurn(harness.stateManager, chat, 'turn-1');
+			sequence.turn1.forEach((change, index) => edit('turn-1', `tc${index + 1}`, change));
+			await harness.diskFileService.writeFile(target, VSBuffer.fromString(toLines(sequence.turn1[sequence.turn1.length - 1][1])));
+			await harness.handler.invoke({
+				channel: buildTurnChangesetUri(chat, 'turn-1'),
+				operationId: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES,
+				target: makeResourceTarget(target),
+			}, CancellationToken.None);
+			const afterTurnDiscard = await read();
+
+			await harness.diskFileService.writeFile(target, VSBuffer.fromString(toLines(sequence.beforeTurn2)));
+			addTurn(harness.stateManager, chat, 'turn-2');
+			edit('turn-2', 'tc-turn-2', sequence.turn2);
+			await harness.diskFileService.writeFile(target, VSBuffer.fromString(toLines(sequence.turn2[1])));
+			let code: number | undefined;
+			try {
+				await harness.handler.invoke({
+					channel: buildSessionChangesetUri(harness.session.toString()),
+					operationId: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES,
+					target: makeResourceTarget(target),
+				}, CancellationToken.None);
+			} catch (e) {
+				code = (e as ProtocolError).code;
+			}
+			results[name] = {
+				afterTurnDiscard,
+				code,
+				content: await read(),
+				sessionDiffs: await computeSessionDiffs('agent:/session', harness.trackedDb, new TestDiffComputeService()),
+			};
+		}
+
+		assert.deepStrictEqual(results, {
+			userChangeUndoneAfterTurnDiscard: { afterTurnDiscard: toLines('abCdefg'), code: undefined, content: toLines('abcdefg'), sessionDiffs: [] },
+			userChangedDiscardedLine: { afterTurnDiscard: toLines('abcde'), code: undefined, content: toLines('Zbcde'), sessionDiffs: [] },
+		});
+	});
+
 	test('rejects requests it can not apply without changing the file', async () => {
 		const peerEdit = () => {
 			const peerDb = new TestSessionDatabase();

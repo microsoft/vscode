@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import type { ISessionDatabase } from '../../common/sessionDataService.js';
 import { parseSessionDbUri } from '../../common/sessionDbUri.js';
 import { FileEditKind, type ISessionFileDiff } from '../../common/state/sessionState.js';
-import { createFileEditDiscardRecord, createSessionFileEditDiscardRecords, FILE_EDIT_DISCARD_TOOL_CALL_ID_PREFIX, readFileEditRevertSteps, spanFileEditRevertSteps } from '../../node/fileEditDiscard.js';
+import { createFileEditDiscardRecord, createSessionFileEditDiscardRecords, FILE_EDIT_DISCARD_TOOL_CALL_ID_PREFIX, getUndiscardedFileEditRevertSteps, readFileEditRevertSteps, spanFileEditRevertSteps } from '../../node/fileEditDiscard.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { computeSessionDiffs, computeTurnDiffs, computeUnionedDiffs } from '../../node/sessionDiffAggregator.js';
 import { TestDiffComputeService } from '../common/sessionTestHelpers.js';
@@ -42,14 +42,19 @@ async function discardTurn(db: ISessionDatabase, turnId: string): Promise<void> 
 
 /**
  * Discards the session's changes to {@link FILE} the way the discard handler
- * records them, returning the rows it appended as text.
+ * records them, returning as text the edits it reverts on disk and the rows
+ * it appends.
  */
-async function discardSession(db: ISessionDatabase): Promise<{ turnId: string; before: string | undefined; after: string | undefined }[]> {
+async function discardSession(db: ISessionDatabase): Promise<{ reverted: { start: string | undefined; end: string | undefined }[]; rows: { turnId: string; before: string | undefined; after: string | undefined }[] }> {
 	const records = (await db.getAllFileEdits()).filter(record => record.filePath === FILE);
-	const rows = createSessionFileEditDiscardRecords(records, await readFileEditRevertSteps(db, records));
+	const steps = await readFileEditRevertSteps(db, records);
+	const rows = createSessionFileEditDiscardRecords(records, steps);
 	await db.storeFileEdits(rows);
 	const decode = (bytes: Uint8Array | undefined) => bytes && new TextDecoder().decode(bytes);
-	return rows.map(row => ({ turnId: row.turnId, before: decode(row.beforeContent), after: decode(row.afterContent) }));
+	return {
+		reverted: getUndiscardedFileEditRevertSteps(records, steps).map(step => ({ start: decode(step.start), end: decode(step.end) })),
+		rows: rows.map(row => ({ turnId: row.turnId, before: decode(row.beforeContent), after: decode(row.afterContent) })),
+	};
 }
 
 /** Reduces diffs to the text of their before and after snapshots. */
@@ -186,9 +191,10 @@ suite('fileEditDiscard', () => {
 		await storeEdit(db, 't2', 'tc3', FileEditKind.Edit, 'other-0', 'other-1', '/repo/other.ts');
 		await storeEdit(db, 't3', 'tc4', FileEditKind.Edit, 'v2', 'v3');
 
-		const rows = await discardSession(db);
+		const { reverted, rows } = await discardSession(db);
 
 		assert.deepStrictEqual({
+			reverted,
 			rows,
 			session: await readDiffs(db, await computeSessionDiffs(SESSION, db, diffService)),
 			turns: {
@@ -197,6 +203,11 @@ suite('fileEditDiscard', () => {
 				t3: await readDiffs(db, await computeTurnDiffs(SESSION, db, diffService, 't3')),
 			},
 		}, {
+			reverted: [
+				{ start: 'v0', end: 'v1' },
+				{ start: 'v1-user', end: 'v2' },
+				{ start: 'v2', end: 'v3' },
+			],
 			// Newest turn first, so the last row restores the content before the session.
 			rows: [
 				{ turnId: 't3', before: 'v3', after: 'v2' },
@@ -212,7 +223,7 @@ suite('fileEditDiscard', () => {
 		});
 	});
 
-	test('a session discard folds earlier discard rows into their turns', async () => {
+	test('a session discard reverts only undiscarded edits and folds earlier discard rows into their turns', async () => {
 		const db = disposables.add(await SessionDatabase.open(':memory:'));
 		const diffService = new TestDiffComputeService();
 		await storeEdit(db, 't1', 'tc1', FileEditKind.Edit, 'v0', 'v1');
@@ -223,13 +234,16 @@ suite('fileEditDiscard', () => {
 		// A later turn changes the file again, then the session's changes are discarded once more.
 		await storeEdit(db, 't4', 'tc4', FileEditKind.Edit, 'v0', 'v4');
 
-		const rows = await discardSession(db);
+		const { reverted, rows } = await discardSession(db);
 
 		assert.deepStrictEqual({
+			reverted,
 			rows,
 			session: await computeSessionDiffs(SESSION, db, diffService),
 			turns: await Promise.all(['t1', 't2', 't3', 't4'].map(turnId => computeTurnDiffs(SESSION, db, diffService, turnId))),
 		}, {
+			// Only the edit that no discard undid yet is reverted on disk.
+			reverted: [{ start: 'v0', end: 'v4' }],
 			// Rows of turns whose changes were already discarded change nothing, but are still written.
 			rows: [
 				{ turnId: 't4', before: 'v4', after: 'v0' },
