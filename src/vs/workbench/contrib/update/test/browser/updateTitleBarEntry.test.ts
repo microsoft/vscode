@@ -17,6 +17,7 @@ import { IClipboardService } from '../../../../../platform/clipboard/common/clip
 import { ICommandEvent, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IConfirmationResult, IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -30,6 +31,12 @@ import { UpdateGlobalActivityBadgeVisibleContext, UpdateTitleBarChatInProgressCo
 class TestCommandService extends mock<ICommandService>() {
 	private readonly _onDidExecuteCommand = new Emitter<ICommandEvent>();
 	override readonly onDidExecuteCommand = this._onDidExecuteCommand.event;
+	readonly executedCommands: string[] = [];
+
+	override async executeCommand<R>(commandId: string): Promise<R | undefined> {
+		this.executedCommands.push(commandId);
+		return undefined;
+	}
 
 	fireDidExecuteCommand(commandId: string): void {
 		this._onDidExecuteCommand.fire({ commandId, args: [] });
@@ -37,6 +44,27 @@ class TestCommandService extends mock<ICommandService>() {
 
 	dispose(): void {
 		this._onDidExecuteCommand.dispose();
+	}
+}
+
+class TestDialogService extends mock<IDialogService>() {
+	confirmations = 0;
+
+	constructor(private readonly result: IConfirmationResult) {
+		super();
+	}
+
+	override async confirm(): Promise<IConfirmationResult> {
+		this.confirmations++;
+		return this.result;
+	}
+}
+
+class TestConfigurationServiceWithUpdates extends TestConfigurationService {
+	readonly updates: { readonly key: string; readonly value: unknown }[] = [];
+
+	override async updateValue(key: string, value: unknown): Promise<void> {
+		this.updates.push({ key, value });
 	}
 }
 
@@ -66,15 +94,17 @@ class TestContextKeyService extends MockContextKeyService {
 suite('UpdateTitleBarEntry', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('Show or Focus Hover focuses the tooltip while Tab remains unhandled', () => {
-		const container = mainWindow.document.createElement('div');
-		mainWindow.document.body.appendChild(container);
-		store.add(toDisposable(() => container.remove()));
-
-		const commandService = store.add(new TestCommandService());
-		const hoverService = new TestHoverService();
+	function createEntry(options: {
+		readonly state?: State;
+		readonly commandService?: TestCommandService;
+		readonly configurationService?: TestConfigurationService;
+		readonly dialogService?: IDialogService;
+		readonly hoverService?: TestHoverService;
+	} = {}): UpdateTitleBarEntry {
+		const configurationService = options.configurationService ?? new TestConfigurationService();
+		store.add(configurationService.onDidChangeConfigurationEmitter);
 		const action = store.add(new Action('workbench.actions.updateIndicator', 'Update'));
-		const entry = store.add(new UpdateTitleBarEntry(
+		return store.add(new UpdateTitleBarEntry(
 			action,
 			{},
 			AnchorAlignment.LEFT,
@@ -83,14 +113,28 @@ suite('UpdateTitleBarEntry', () => {
 			},
 			() => { },
 			() => { },
-			commandService,
-			hoverService,
-			new class extends mock<ITelemetryService>() { },
+			options.commandService ?? store.add(new TestCommandService()),
+			configurationService,
+			options.dialogService ?? new TestDialogService({ confirmed: false }),
+			options.hoverService ?? new TestHoverService(),
+			new class extends mock<ITelemetryService>() {
+				override publicLog2() { }
+			},
 			new class extends mock<IUpdateService>() {
 				override readonly onStateChange = Event.None;
-				override readonly state = State.Uninitialized;
+				override readonly state = options.state ?? State.Uninitialized;
 			},
 		));
+	}
+
+	test('Show or Focus Hover focuses the tooltip while Tab remains unhandled', () => {
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+
+		const commandService = store.add(new TestCommandService());
+		const hoverService = new TestHoverService();
+		const entry = createEntry({ commandService, hoverService });
 		entry.render(container);
 		entry.focus();
 
@@ -105,6 +149,44 @@ suite('UpdateTitleBarEntry', () => {
 			tabDefaultPrevented: false,
 			hoverShowRequests: [{ focus: true, trapFocus: true, anchorAlignment: AnchorAlignment.LEFT }],
 		});
+	});
+
+	test('asks for confirmation before restarting to update', async () => {
+		const scenarios = [
+			{ name: 'cancelled', confirmRestart: true, result: { confirmed: false } },
+			{ name: 'confirmed', confirmRestart: true, result: { confirmed: true } },
+			{ name: 'confirmed, do not ask again', confirmRestart: true, result: { confirmed: true, checkboxChecked: true } },
+			{ name: 'confirmation disabled', confirmRestart: false, result: { confirmed: false } },
+		];
+
+		const actual = [];
+		for (const scenario of scenarios) {
+			const commandService = store.add(new TestCommandService());
+			const configurationService = new TestConfigurationServiceWithUpdates({ update: { confirmRestart: scenario.confirmRestart } });
+			const dialogService = new TestDialogService(scenario.result);
+			const entry = createEntry({
+				state: State.Ready({ version: 'next', productVersion: '1.135.0' }, false, false),
+				commandService,
+				configurationService,
+				dialogService,
+			});
+
+			await entry.action.run();
+
+			actual.push({
+				name: scenario.name,
+				confirmations: dialogService.confirmations,
+				executedCommands: commandService.executedCommands,
+				settingUpdates: configurationService.updates,
+			});
+		}
+
+		assert.deepStrictEqual(actual, [
+			{ name: 'cancelled', confirmations: 1, executedCommands: [], settingUpdates: [] },
+			{ name: 'confirmed', confirmations: 1, executedCommands: ['update.restart'], settingUpdates: [] },
+			{ name: 'confirmed, do not ask again', confirmations: 1, executedCommands: ['update.restart'], settingUpdates: [{ key: 'update.confirmRestart', value: false }] },
+			{ name: 'confirmation disabled', confirmations: 0, executedCommands: ['update.restart'], settingUpdates: [] },
+		]);
 	});
 });
 
