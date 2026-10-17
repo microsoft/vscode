@@ -792,23 +792,24 @@ export class QueryGlobTester {
 				true;
 		};
 
-		return Promise.all(this._parsedExcludeExpression.map(e => {
-			const excluded = e(testPath, basename, hasSibling);
-			if (isThenable(excluded)) {
-				return excluded.then(excluded => {
-					if (excluded) {
-						return false;
-					}
-
-					return isIncluded();
-				});
+		const asyncExclusions: Promise<string | null>[] = [];
+		let syncExcluded = false;
+		for (const parsedExclude of this._parsedExcludeExpression) {
+			const excluded = parsedExclude(testPath, basename, hasSibling);
+			if (typeof excluded === 'string') {
+				syncExcluded = true;
+			} else if (isThenable(excluded)) {
+				asyncExclusions.push(excluded);
 			}
+		}
 
-			return isIncluded();
+		if (asyncExclusions.length === 0) {
+			return !syncExcluded && isIncluded();
+		}
 
-		})).then(e => e.some(e => !!e));
-
-
+		return Promise.all(asyncExclusions).then(results =>
+			syncExcluded || results.some(exclusion => !!exclusion) ? false : isIncluded()
+		);
 	}
 
 	hasSiblingExcludeClauses(): boolean {
