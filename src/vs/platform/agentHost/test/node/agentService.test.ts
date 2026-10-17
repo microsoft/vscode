@@ -16,7 +16,7 @@ import type { Database } from '@vscode/sqlite3';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
-import { DeferredPromise, disposableTimeout, raceTimeout, timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout, raceTimeout, retry, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
@@ -9645,7 +9645,8 @@ suite('AgentService (node dispatcher)', () => {
 			const initiator = { name: 'vscode-agents-window', title: 'VS Code Agents Window' };
 			const session = await localService.createSession({ legacyChatUris: true, _meta: withSessionInitiator(undefined, initiator) });
 			const listedBefore = (await localService.listSessions()).map(s => s.session.toString());
-			await timeout(500);
+			// Poll for the background retry instead of sleeping; `whenIdle` would itself flush and mask it.
+			await retry(async () => assert.strictEqual(await database.getMetadata(SESSION_INITIATOR_METADATA_KEY), JSON.stringify(initiator)), 10, 50);
 			assert.deepStrictEqual({
 				listed: listedBefore,
 				stored: await database.getMetadata(SESSION_INITIATOR_METADATA_KEY),
@@ -11630,6 +11631,7 @@ suite('AgentService (node dispatcher)', () => {
 			const createdIn = await svc.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.joinPath(usedBySession.worktree, 'src')] });
 			// A chat of another session working in the second worktree, as a cross-session fork leaves it.
 			const forkSession = await svc.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file(join(root, 'elsewhere')), usedByFork.worktree] });
+			const forkChatListed = Event.toPromise(Event.filter(getStateManager(svc).onDidChangeSessionSummary, event => event.session === forkSession.toString() && event.changes.chats !== undefined));
 			await svc.createChat(forkSession, URI.parse(buildChatUri(forkSession, 'fork')), { workingDirectories: [usedByFork.worktree] });
 			await svc.listSessions();
 			for (const used of [usedBySession, usedByFork]) {
@@ -11647,6 +11649,11 @@ suite('AgentService (node dispatcher)', () => {
 			const pending = (await waitForPendingWorktreeRemovals(svc, 3)).map(removal => removal.mode).sort();
 			const gitCallsOnArchiveAndDelete = [...gitCalls];
 
+			// Persisting what the steps above changed opens session databases too, in the background: the fork's new chat, once
+			// its debounced summary change is announced. That is done before the clean-up pass is measured.
+			await forkChatListed;
+			await svc.whenCatalogReconciliationIdle();
+			await getTestSessionStateStore(svc).whenIdle(undefined);
 			perSession.databaseOpens.length = 0;
 			const cleanup = getTestWorktreeCleanupService(svc);
 			await cleanup.runPass();
@@ -19949,11 +19956,13 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('concurrent first listings serve registered fallback data while sharing background migration', async () => {
 			const gate = new DeferredPromise<void>();
+			const migrationStarted = new DeferredPromise<void>();
 			class GatedListAgent extends MockAgent {
 				override readonly onDidDiscoverChats = Event.None;
 				listCalls = 0;
 				override async listChatsToMigrate(): Promise<IAgentListedChat[]> {
 					this.listCalls++;
+					migrationStarted.complete();
 					await gate.p;
 					return super.listExternalChats();
 				}
@@ -19973,15 +19982,9 @@ suite('AgentService (node dispatcher)', () => {
 
 			const first = svc.listSessions();
 			const second = svc.listSessions();
-			for (let i = 0; i < 20 && agent.listCalls === 0; i++) {
-				await timeout(0);
-			}
-			let listingSettled = false;
-			void first.then(() => listingSettled = true);
-			for (let i = 0; i < 20 && !listingSettled; i++) {
-				await timeout(0);
-			}
-			assert.strictEqual(listingSettled, true, 'first listing must not wait for provider migration');
+			// The migration stays blocked on `gate`: a first listing that waited for it would never settle.
+			await migrationStarted.p;
+			assert.strictEqual(await raceTimeout(first.then(() => true), 3_000, () => false), true, 'first listing must not wait for provider migration');
 			gate.complete();
 
 			const [firstResult, secondResult] = await Promise.all([first, second]);
@@ -33645,7 +33648,7 @@ suite('AgentService (node dispatcher)', () => {
 				const stateManager = getStateManager(service);
 				const internals = service as unknown as IMoveInternals & {
 					_workspaceConversionService: { restoreChatIsolation(session: string, chat: string, storage: string): Promise<void> };
-					_catalogReconciliationService: { _park(registered: Pick<IRegisteredSession, 'session' | 'provider'>, observedDirty: number | undefined, observedWakeGeneration: number, reason: 'sourceUnresolvable'): Promise<unknown>; readonly _wakeGeneration: number; wakeParkedSessions(session?: string): void };
+					_catalogReconciliationService: { _park(registered: Pick<IRegisteredSession, 'session' | 'provider'>, observedDirty: number | undefined, observedWakeGeneration: number, reason: 'sourceUnresolvable'): Promise<{ readonly reason: string }>; readonly _wakeGeneration: number; wakeParkedSessions(session?: string): void };
 					_sessionStateStore: { peek(session: URI): { readonly authority: 1 | 2 } | undefined };
 					_sessionDataService: ISessionDataService;
 				};
@@ -33678,16 +33681,21 @@ suite('AgentService (node dispatcher)', () => {
 				// The catalog reconciliation reports a session it parked, and its release; a parked session's legacy catalog can't convert.
 				const peek = internals._sessionStateStore.peek.bind(internals._sessionStateStore);
 				internals._sessionStateStore.peek = resource => resource.toString() === source.toString() ? { ...peek(resource)!, authority: 1 } : peek(resource);
-				await internals._catalogReconciliationService._park({ session: source, provider: 'copilot' }, await getTestAgentHostDatabase(service).getSessionV2PayloadDirty(source.toString()), internals._catalogReconciliationService._wakeGeneration, 'sourceUnresolvable');
+				// The movability changes above left the session's summary dirty. Its debounced (100 ms) flush queues a catalog write
+				// of the session, which bumps the session's payload dirty marker (so `_park` declines as superseded) and, when it
+				// stays pending, wakes the session. Flush the summary now, as a listing does, and let that write finish first.
+				stateManager.prepareSessionSummariesForListing([stateManager.getSessionSummary(source.toString())!]);
+				await service.whenCatalogReconciliationIdle();
+				const { reason } = await internals._catalogReconciliationService._park({ session: source, provider: 'copilot' }, await getTestAgentHostDatabase(service).getSessionV2PayloadDirty(source.toString()), internals._catalogReconciliationService._wakeGeneration, 'sourceUnresolvable');
 				const parked = await settled();
 				internals._catalogReconciliationService.wakeParkedSessions(source.toString());
-				outcomes.parked = { parked, released: await settled() };
+				outcomes.parked = { reason, parked, released: await settled() };
 
 				assert.deepStrictEqual(outcomes, {
 					// A refused move still says why, not just that the chat isn't movable.
 					worktree: { inWorktree: false, worktreeRefusal: AgentChatMoveRefusal.WorktreeFolder, released: true },
 					conversion: { quarantined: false, released: true },
-					parked: { parked: false, released: true },
+					parked: { reason: 'sourceUnresolvable', parked: false, released: true },
 				});
 			});
 
@@ -34400,8 +34408,9 @@ suite('AgentService (node dispatcher)', () => {
 			});
 
 			test('a promoted session restores from its default chat\'s own backing', async () => {
-				const db = new TestSessionDatabase();
-				const sessionDataService = createSessionDataService(db);
+				// Each session has its own database, as in production: sharing one, sessions whose catalogs synchronize at the same
+				// time overwrite each other's catalog-sync receipt ("Catalog sync snapshot generation ... does not match stored generation").
+				const sessionDataService = createPerSessionDataService().service;
 				const orchestratorDatabase = new AgentHostDatabase(':memory:');
 				const createService = (agent: MovingAgent) => {
 					const service = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
@@ -34423,6 +34432,8 @@ suite('AgentService (node dispatcher)', () => {
 				const agent = new MovingAgent('copilot');
 				const restarted = createService(agent);
 				await restarted.listSessions();
+				// Where moved chats came from loads in the background of the listing.
+				await getStateManager(restarted).whenMovedChatOriginsSettled();
 				const origin = getStateManager(restarted).getMovedChatOrigin(peer.toString());
 				await restarted.restoreSession(target);
 
@@ -34446,7 +34457,9 @@ suite('AgentService (node dispatcher)', () => {
 
 			test('a promoted session keeps its chat\'s title and title source across a restart, in its state and in the list, not its first prompt (B4-1)', async () => {
 				const orchestratorDatabase = new AgentHostDatabase(':memory:');
-				const sessionDataService = createSessionDataService(new TestSessionDatabase());
+				// Each session has its own database, as in production: sharing one, sessions whose catalogs synchronize at the same
+				// time overwrite each other's catalog-sync receipt ("Catalog sync snapshot generation ... does not match stored generation").
+				const sessionDataService = createPerSessionDataService().service;
 				// The agent describes the chat by its first prompt, as Copilot does.
 				class FirstPromptAgent extends MovingAgent {
 					override async getChatMetadata(chat: URI, context: URI | IAgentChatContext, providerData?: string): Promise<IAgentChatMetadata | undefined> {
@@ -34506,7 +34519,8 @@ suite('AgentService (node dispatcher)', () => {
 
 			test('a promoted session keeps a user rename of its chat that is not persisted yet as a user title (B4-1)', async () => {
 				const orchestratorDatabase = new AgentHostDatabase(':memory:');
-				const service = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				// Each session has its own database, as in production (see the test above).
+				const service = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
 					undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, orchestratorDatabase));
 				registerTestAgentProvider(service, disposables.add(new MovingAgent('copilot')));
 				getConfigurationService(service).updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
@@ -34610,7 +34624,9 @@ suite('AgentService (node dispatcher)', () => {
 			 * keeps a deleted origin's attachments for them.
 			 */
 			function createDeletingServices(options?: { readonly copyAttachments?: boolean }) {
-				const base = createSessionDataService(new TestSessionDatabase());
+				// Each session has its own database, as in production: sharing one, sessions whose catalogs synchronize at the same
+				// time overwrite each other's catalog-sync receipt ("Catalog sync snapshot generation ... does not match stored generation").
+				const base = createPerSessionDataService().service;
 				const sessionDataService: ISessionDataService = {
 					...base,
 					deleteSessionData: async session => {
@@ -34933,20 +34949,26 @@ suite('AgentService (node dispatcher)', () => {
 				await first.createChat(target, peer);
 				await timeout(0);
 				const orderOf = (service: AgentService) => getStateManager(service).getSessionState(target.toString())?.chats.map(chat => chat.resource);
-				const restart = async () => {
-					await first.whenCatalogReconciliationIdle();
-					await getTestSessionStateStore(first).whenIdle(undefined);
+				// A host restarts once the previous ones stopped writing. A host still running would later flush its dirty
+				// summaries (on a debounce) and write the target's catalog receipt while the next one restores it, at the same revision.
+				const hosts = [first];
+				const settle = async () => {
+					for (const host of hosts) {
+						getStateManager(host).prepareSessionSummariesForListing((await host.listSessions()).map(toListedSessionSummary));
+						await host.whenCatalogReconciliationIdle();
+						await getTestSessionStateStore(host).whenIdle(undefined);
+					}
+				};
+				const restoredOrder = async () => {
+					await settle();
 					const restarted = createService();
+					hosts.push(restarted);
 					await restarted.listSessions();
 					await restarted.restoreSession(target);
-					// What the restore persisted is restored again.
-					await restarted.whenCatalogReconciliationIdle();
-					await getTestSessionStateStore(restarted).whenIdle(undefined);
-					const again = createService();
-					await again.listSessions();
-					await again.restoreSession(target);
-					return [orderOf(restarted), orderOf(again)];
+					return orderOf(restarted);
 				};
+				// What the restore persisted is restored again.
+				const restart = async () => [await restoredOrder(), await restoredOrder()];
 
 				// Moved without an anchor: before the target's default chat.
 				await first.moveChat(source, moved, { kind: 'session', session: target, after: undefined });
@@ -35213,8 +35235,9 @@ suite('AgentService (node dispatcher)', () => {
 			});
 
 			test('after a restart, a promoted session finds its default chat in the chat\'s own storage, also cold', async () => {
-				const db = new TestSessionDatabase();
-				const sessionDataService = createSessionDataService(db);
+				// Each session has its own database, as in production: sharing one, sessions whose catalogs synchronize at the same
+				// time overwrite each other's catalog-sync receipt ("Catalog sync snapshot generation ... does not match stored generation").
+				const sessionDataService = createPerSessionDataService().service;
 				const orchestratorDatabase = new AgentHostDatabase(':memory:');
 				const createService = (agent: MovingAgent) => {
 					const service = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(),

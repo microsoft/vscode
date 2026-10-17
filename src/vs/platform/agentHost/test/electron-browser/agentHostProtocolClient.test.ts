@@ -102,7 +102,7 @@ import type { DispatchActionParams, Implementation } from '../../common/state/pr
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../../common/agentHostClientInfo.js';
 import { AgentHostChatUrisCapabilityMetaKey, AgentHostSessionUrisCapabilityMetaKey } from '../../common/meta/agentHostSessionUrisMeta.js';
 import { AgentHostClientConnectionKind } from '../../common/agentHostTelemetry.js';
-import type { IRemoteAgentHostReconnectPolicy } from '../../common/reconnectPolicy.js';
+import { DEFAULT_RECONNECT_POLICY, type IRemoteAgentHostReconnectPolicy } from '../../common/reconnectPolicy.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, type ResourceTrustRequestOptions } from '../../../workspace/common/workspaceTrust.js';
 
 type ProtocolTransportMessage = ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcResponse | JsonRpcRequest;
@@ -3870,6 +3870,12 @@ suite('AgentHostProtocolClient', () => {
 			);
 		}
 
+		/**
+		 * The default retry budget without its real-time backoff, for recovery tests
+		 * that do not assert on reconnect timing.
+		 */
+		const immediateReconnectPolicy: IRemoteAgentHostReconnectPolicy = { ...DEFAULT_RECONNECT_POLICY, initialDelayMs: 1, maxDelayMs: 1 };
+
 		/** Wait until the client transitions into the {@link AgentHostClientState.Reconnecting} state. */
 		async function waitForReconnecting(client: AgentHostProtocolClient): Promise<void> {
 			if (client.connectionState === AgentHostClientState.Reconnecting) {
@@ -4672,7 +4678,7 @@ suite('AgentHostProtocolClient', () => {
 
 		test('Dev Container facade survives parent reconnection and closes its old relay', async function () {
 			this.timeout(10_000);
-			const { client, transports } = createFactoryClient();
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, immediateReconnectPolicy);
 			await completeHandshake(transports[0], client.connect(), getAgentHostExtensionInitializeResultMeta(true, true));
 			const service = client.devContainerService;
 			assert.ok(service);
@@ -4711,7 +4717,7 @@ suite('AgentHostProtocolClient', () => {
 
 		test('retries an initial transport failure with a fresh initialization', async function () {
 			this.timeout(10_000);
-			const { client, transports } = createFactoryClient();
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, immediateReconnectPolicy);
 			const diagnostics: IConnectionDiagnosticEvent[] = [];
 			disposables.add(client.onDidConnectionDiagnostic(event => diagnostics.push(event)));
 			const connectPromise = client.connect();
@@ -4794,7 +4800,7 @@ suite('AgentHostProtocolClient', () => {
 
 		test('surfaces a non-reconnectable failure reached during initial reconnect', async function () {
 			this.timeout(10_000);
-			const { client, transports } = createFactoryClient();
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, immediateReconnectPolicy);
 			const fatalError = Event.toPromise(client.onDidFatalClose);
 			const connectPromise = client.connect();
 			transports[0].connectDeferred.error(new Error('transient failure'));
@@ -4953,7 +4959,7 @@ suite('AgentHostProtocolClient', () => {
 
 		test('can reconnect a terminal connection after an explicit host restart', async function () {
 			this.timeout(10_000);
-			const { client, transports } = createFactoryClient();
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, immediateReconnectPolicy);
 			const connectPromise = client.connect();
 			transports[0].connectDeferred.error(new NonReconnectableTransportError('terminal failure'));
 			await assert.rejects(connectPromise, /terminal failure/);
@@ -5042,7 +5048,7 @@ suite('AgentHostProtocolClient', () => {
 
 		test('retries with a fresh initialize when the factory transport closes during initial connect', async function () {
 			this.timeout(10_000);
-			const { client, transports } = createFactoryClient();
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, immediateReconnectPolicy);
 			const connectPromise = assert.rejects(client.connect());
 
 			client.notifyTransportClosed();
@@ -5072,7 +5078,7 @@ suite('AgentHostProtocolClient', () => {
 
 		test('falls back to initialize with client info when the server forgot the client', async function () {
 			this.timeout(10_000);
-			const { client, transports } = createFactoryClient(createPermissionService(), agentsWindowAgentHostClientInfo, new TestClientIdentityTelemetryService());
+			const { client, transports } = createFactoryClient(createPermissionService(), agentsWindowAgentHostClientInfo, new TestClientIdentityTelemetryService(), immediateReconnectPolicy);
 			let connectedRequest = Disposable.None;
 			try {
 				const connectPromise = client.connect();
@@ -5363,7 +5369,7 @@ suite('AgentHostProtocolClient', () => {
 
 		test('restores subscriptions before replaying pending actions when the server forgot the client', async function () {
 			this.timeout(10_000);
-			const { client, transports, configurationService } = createFactoryClient();
+			const { client, transports, configurationService } = createFactoryClient(undefined, undefined, undefined, immediateReconnectPolicy);
 			await configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, 'on');
 			const inspect = configurationService.inspect.bind(configurationService);
 			configurationService.inspect = <T>(key: string) => {
@@ -5495,7 +5501,7 @@ suite('AgentHostProtocolClient', () => {
 
 		test('restores subscriptions when a cached resource authentication is rejected after a host restart', async function () {
 			this.timeout(20_000);
-			const { client, transports } = createFactoryClient();
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, immediateReconnectPolicy);
 			const sessionUri = URI.parse('codex:/stuck-session');
 			const connectPromise = client.connect();
 			await completeHandshake(transports[0], connectPromise);
@@ -5561,7 +5567,7 @@ suite('AgentHostProtocolClient', () => {
 
 		test('finishes an interrupted post-restart subscription restore on the next reconnect', async function () {
 			this.timeout(20_000);
-			const { client, transports } = createFactoryClient();
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, immediateReconnectPolicy);
 			const sessionUri = URI.parse('codex:/stuck-session');
 			const chatUri = URI.parse('ahp-chat://default/stuck-session');
 			const connectPromise = client.connect();
@@ -5648,7 +5654,7 @@ suite('AgentHostProtocolClient', () => {
 
 		test('keeps an action that arrives before the post-restart restore snapshot', async function () {
 			this.timeout(20_000);
-			const { client, transports } = createFactoryClient();
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, immediateReconnectPolicy);
 			const chatUri = URI.parse('ahp-chat://default/racing-session');
 			const connectPromise = client.connect();
 			await completeHandshake(transports[0], connectPromise);
@@ -5733,7 +5739,7 @@ suite('AgentHostProtocolClient', () => {
 
 		test('finishes an interrupted authentication restore on the next reconnect', async function () {
 			this.timeout(20_000);
-			const { client, transports } = createFactoryClient();
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, immediateReconnectPolicy);
 			const connectPromise = client.connect();
 			await completeHandshake(transports[0], connectPromise);
 
@@ -5791,7 +5797,7 @@ suite('AgentHostProtocolClient', () => {
 
 		test('marks an Automation catalogue subscription missing when restore fails', async function () {
 			this.timeout(10_000);
-			const { client, transports } = createFactoryClient();
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, immediateReconnectPolicy);
 			const connectPromise = client.connect();
 			await completeHandshake(transports[0], connectPromise);
 
