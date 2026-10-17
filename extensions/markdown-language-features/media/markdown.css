@@ -427,8 +427,11 @@ pre code {
 
 /** Theming */
 
-pre {
+.code-block-wrapper {
 	position: relative;
+}
+
+pre {
 	background-color: var(--vscode-textCodeBlock-background);
 	border: 1px solid var(--vscode-widget-border);
 }
@@ -453,7 +456,7 @@ pre {
 	transition: opacity 0.15s ease;
 }
 
-pre:hover > .code-block-copy-button,
+.code-block-wrapper:hover > .code-block-copy-button,
 .code-block-copy-button:focus {
 	opacity: 1;
 }

@@ -236,8 +236,8 @@ function addCodeBlockCopyButtons() {
 	for (const code of codeBlocks) {
 		const pre = code.parentElement!;
 
-		// Inject copy button if not already present
-		if (!pre.querySelector('.code-block-copy-button')) {
+		// Skip if already wrapped
+		if (!pre.parentElement?.classList.contains('code-block-wrapper')) {
 			const button = document.createElement('button');
 			button.className = 'code-block-copy-button';
 			button.setAttribute('aria-label', 'Copy code block');
@@ -266,7 +266,11 @@ function addCodeBlockCopyButtons() {
 					}
 				}
 			});
-			pre.appendChild(button);
+			const wrapper = document.createElement('div');
+			wrapper.className = 'code-block-wrapper';
+			pre.parentNode!.insertBefore(wrapper, pre);
+			wrapper.appendChild(pre);
+			wrapper.appendChild(button);
 		}
 	}
 }
@@ -372,6 +376,16 @@ window.addEventListener('message', async event => {
 				morphdom(root, newRoot, {
 					childrenOnly: true,
 					onBeforeElUpdated: (fromEl: Element, toEl: Element) => {
+						// The current DOM wraps <pre> in .code-block-wrapper; new content has a bare <pre>.
+						// Morph the inner <pre> in place so the wrapper (and its scrollLeft) is preserved.
+						if (fromEl.classList.contains('code-block-wrapper') && toEl.tagName === 'PRE') {
+							const innerPre = fromEl.querySelector(':scope > pre');
+							if (innerPre) {
+								morphdom(innerPre, toEl);
+								return false;
+							}
+						}
+
 						if (areNodesEqual(fromEl, toEl)) {
 							// areEqual doesn't look at `data-line` so copy those over manually
 							const fromLines = fromEl.querySelectorAll('[data-line]');
