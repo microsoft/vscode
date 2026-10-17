@@ -30,13 +30,17 @@ on:
         description: Number of shards the Electron smoke tests are split into
         type: number
         default: 1
+      # TEMPORARY (flaky test flush-out): `baseline-<n>` or `fix-<n>`.
+      stress_arm:
+        type: string
+        default: ''
 
 jobs:
   linux-test:
     name: ${{ inputs.job_name }}
     runs-on: ubuntu-24.04
     env:
-      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}${{ inputs.smoke_shard_total > 1 && format('-shard{0}', inputs.smoke_shard_index) || '' }}
+      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}${{ inputs.smoke_shard_total > 1 && format('-shard{0}', inputs.smoke_shard_index) || '' }}${{ inputs.stress_arm && format('-{0}', inputs.stress_arm) || '' }}
       NPM_ARCH: x64
       VSCODE_ARCH: x64
       VSCODE_SKIP_PRELAUNCH: '1'
@@ -45,6 +49,16 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
+
+      # TEMPORARY (flaky test flush-out): the baseline arm runs the original windowImpl.ts from main.
+      - name: Restore baseline windowImpl.ts
+        if: ${{ startsWith(inputs.stress_arm, 'baseline') }}
+        run: |
+          set -e
+          git fetch --depth=1 origin 146176ffeb1195d7ac509dc85e61ad06f42901c6
+          git checkout FETCH_HEAD -- src/vs/platform/windows/electron-main/windowImpl.ts
+          git diff --cached --stat
+          ! grep -n 'EXTENSION_TEST_UNRESPONSIVE_GRACE_PERIOD' src/vs/platform/windows/electron-main/windowImpl.ts
 
       - name: Detect Agent Host E2E changes
         if: ${{ inputs.electron_tests && inputs.integration_tests }}
@@ -361,13 +375,17 @@ jobs:
         timeout-minutes: 20
         run: ./scripts/test-web-integration.sh --browser chromium
 
+      # TEMPORARY (flaky test flush-out): cold-launch the remote API tests window repeatedly.
+      # Revert to `./scripts/test-remote-integration.sh` with a 20 minute timeout when done.
       - name: 🧪 Run integration tests (Remote)
         if: ${{ inputs.remote_tests && inputs.integration_tests }}
-        timeout-minutes: 20
-        run: ./scripts/test-remote-integration.sh
+        timeout-minutes: 45
+        run: ./scripts/stress-remote-cold-start.sh
         env:
           DISPLAY: ":10"
           VSCODE_SKIP_PRELAUNCH: '1'
+          STRESS_ARM: ${{ inputs.stress_arm }}
+          STRESS_ITERATIONS: '15'
 
       - name: Compile smoke tests
         if: ${{ inputs.smoke_tests }}
@@ -462,7 +480,7 @@ jobs:
       # (if any), we need the compiled native modules too
       - name: Publish Node Modules
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: failure()
+        if: false # TEMPORARY (flaky test flush-out)
         continue-on-error: true
         with:
           name: ${{ format('node-modules-linux-{0}-{1}-{2}', env.VSCODE_ARCH, env.ARTIFACT_NAME, github.run_attempt) }}
