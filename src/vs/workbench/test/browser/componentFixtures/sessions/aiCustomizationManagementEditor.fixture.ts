@@ -1963,9 +1963,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		const description = ctx.container.querySelector<HTMLElement>('.customization-discovery-description');
 		const descriptionLinks = [...description?.querySelectorAll('a') ?? []].map(link => link.textContent);
 		assert(
-			description?.textContent === 'Find new ways to extend your agent with Plugins, MCP Servers, Skills, Instructions, Agents, and Hooks.'
-			&& descriptionLinks.join('\n') === ['Plugins', 'MCP Servers', 'Skills', 'Instructions', 'Agents', 'Hooks'].join('\n'),
-			'Discover must link each customization type from its description.',
+			description?.textContent === 'Tailor your agent to your tools, your team, and your workflow. Learn more'
+			&& descriptionLinks.join('\n') === 'Learn more',
+			'Discover must describe customization benefits with a single Learn more link.',
 		);
 		const featured = ctx.container.querySelector<HTMLElement>('.customization-discovery-section.featured');
 		const featuredCard = featured?.querySelector<HTMLElement>('.customization-discovery-card');
