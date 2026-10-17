@@ -61,6 +61,7 @@ export interface ApiRequest {
 		readonly retry?: false;
 		readonly credential?: boolean;
 		readonly sensitive?: boolean;
+		readonly rateLimitResource?: 'agents:sandbox';
 	};
 }
 
@@ -177,6 +178,7 @@ export const parseRequest = parse.object<Omit<ApiRequest, 'body'>>({
 		retry: parse.optional(parse.exact(false)),
 		credential: parse.optional(parse.boolean),
 		sensitive: parse.optional(parse.boolean),
+		rateLimitResource: parse.optional(parse.exact('agents:sandbox')),
 	})),
 });
 

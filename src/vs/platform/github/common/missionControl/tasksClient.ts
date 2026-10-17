@@ -48,6 +48,7 @@ export class TasksClient implements ITasksClient {
 			method: 'POST',
 			path: '/tasks',
 			body: request,
+			policy: request.environment_id === 'github-sandbox' ? { rateLimitResource: 'agents:sandbox' } : undefined,
 			expectedStatus: 201,
 			options,
 		}, signal, response => parseTaskDetail(response.data));
