@@ -148,6 +148,10 @@ export abstract class AbstractNativeExtensionTipsService extends ExtensionTipsSe
 					this.allOtherExecutableTips.set(key, { exeFriendlyName: exeBasedExtensionTip.friendlyName, windowsPath: exeBasedExtensionTip.windowsPath, recommendations: otherRecommendations });
 				}
 			});
+			console.log('these recommendations(both highImportanceRecommendations and  mediumImportanceRecommendations) always seem to be empty: ');
+			console.log('Not getting these logs triggered, nor code breakpoints');
+			console.log('highImportanceRecommendations', this.highImportanceExecutableTips);
+			console.log('mediumImportanceRecommendations', this.mediumImportanceExecutableTips);
 		}
 
 		/*
@@ -351,6 +355,8 @@ export abstract class AbstractNativeExtensionTipsService extends ExtensionTipsSe
 	}
 
 	private async getValidExecutableBasedExtensionTips(executableTips: Map<string, IExeBasedExtensionTips>): Promise<IExecutableBasedExtensionTip[]> {
+		console.log('getValidExecutableBasedExtensionTips', executableTips); // Always 0.
+
 		const result: IExecutableBasedExtensionTip[] = [];
 
 		const checkedExecutables: Map<string, boolean> = new Map<string, boolean>();
@@ -368,11 +374,17 @@ export abstract class AbstractNativeExtensionTipsService extends ExtensionTipsSe
 						.replace('%ProgramFiles%', () => env['ProgramFiles']!)
 						.replace('%APPDATA%', () => env['APPDATA']!)
 						.replace('%WINDIR%', () => env['WINDIR']!));
+					// TODO: Should we look for <LOCALAPPDATA>?
+					// .replace('%LOCALAPPDATA%', () => env['LOCALAPPDATA']!)
+					// Example we are missing out on: <C:\Users\myName\AppData\Local\Programs>
 				}
 			} else {
 				exePaths.push(join('/usr/local/bin', exeName));
 				exePaths.push(join('/usr/bin', exeName));
 				exePaths.push(join(this.userHome.fsPath, exeName));
+				// TODO: Should we look for </opt/homebrew/bin>?
+				exePaths.push(join('/opt/homebrew/bin', exeName));
+				// Example we are missing out on: </opt/homebrew/bin/nu>
 			}
 
 			for (const exePath of exePaths) {
@@ -396,6 +408,17 @@ export abstract class AbstractNativeExtensionTipsService extends ExtensionTipsSe
 				}
 			}
 		}
+		// Uncomment to see hard-coded nu-shell language extension recommendation to show up.
+
+		// result.push({
+		// 	extensionId: 'TheNuProjectContributors.vscode-nushell-lang',
+		// 	extensionName: 'yooooo',
+		// 	isExtensionPack: true,
+		// 	exeName: 'nu.exeman',
+		// 	exeFriendlyName: 'nu.exe',
+		// 	windowsPath: 'dontknow.exe',
+		// 	whenNotInstalled: ['yolo']
+		// });
 
 		return result;
 	}
