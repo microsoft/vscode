@@ -11,7 +11,8 @@ import { setARIAContainer } from '../../../../../../base/browser/ui/aria/aria.js
 import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError, transformErrorForSerialization, transformErrorFromSerialization } from '../../../../../../base/common/errors.js';
+import { AgentPolicyError } from '../../../../../../platform/agentHost/common/agent.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -962,7 +963,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		resolveEvent: async () => undefined,
 		...chatDebugServiceOverride,
 	});
-	instantiationService.stub(IDefaultAccountService, { onDidChangeDefaultAccount: Event.None, getDefaultAccount: async () => null });
+	instantiationService.stub(IDefaultAccountService, { onDidChangeDefaultAccount: Event.None, getDefaultAccount: async () => null, policyData: null, onDidChangePolicyData: Event.None });
 	const commandService = new MockCommandService();
 	instantiationService.stub(ICommandService, commandService);
 	instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None, onDidRegisterAuthenticationProvider: Event.None, ...authServiceOverride });
@@ -1111,6 +1112,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		onDidContinueInBackground: Event.None,
 		registerTerminalInstanceWithToolSession: () => { },
 		getAhpCommandSource: () => undefined,
+		getOutputSource: () => undefined,
 	});
 	instantiationService.stub(IAgentHostTerminalService, {
 		reviveTerminal: async () => undefined!,
@@ -9273,6 +9275,88 @@ suite('AgentHostChatContribution', () => {
 			});
 		}));
 
+		for (const method of ['resolveSessionConfig', 'createSession'] as const) {
+			for (const timedOut of [false, true]) {
+				test(`first-send ${method} policy ${timedOut ? 'timeout' : 'failure'} offers Retry for the saved request`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+					const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+					agentHostService.setRootState({ agents: [{ provider: 'copilot', displayName: 'Copilot', description: 'test', models: [] }], activeSessions: 0 });
+					const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-policy-retry' });
+					const failure = sinon.stub(agentHostService, method).callsFake(async () => {
+						if (timedOut) {
+							await timeout(30_000);
+						}
+						throw transformErrorFromSerialization(JSON.parse(JSON.stringify(transformErrorForSerialization(new AgentPolicyError('Policy unavailable. Please try again.')))));
+					});
+					disposables.add(toDisposable(() => failure.restore()));
+					const { turnPromise } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+						sessionResource, message: 'saved request', agentHostSessionConfig: { autoApprove: 'default' },
+					});
+					const result = await turnPromise;
+					assert.deepStrictEqual({
+						errorDetails: result.errorDetails,
+						sends: agentHostService.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatTurnStarted).length,
+					}, {
+						errorDetails: { message: 'Policy unavailable. Please try again.', isExpectedError: true, confirmationButtons: [{ label: 'Retry', data: undefined, resend: true }] },
+						sends: 0,
+					});
+					failure.restore();
+					agentHostService.dispatchedActions.length = 0;
+					const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+					const retry = registered.impl.invoke(makeRequest({
+						sessionResource, requestId: 'retry', message: 'saved request', acceptedConfirmationData: [result.errorDetails!.confirmationButtons![0].data],
+					}), () => { }, [], CancellationToken.None);
+					await timeout(10);
+					const started = agentHostService.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatTurnStarted);
+					assert.deepStrictEqual(started.map(entry => entry.action.type === ActionType.ChatTurnStarted ? entry.action.message.text : undefined), ['saved request']);
+					assert.ok(!agentHostService.dispatchedActions.some(entry => entry.action.type === ActionType.ChatTurnResume));
+					agentHostService.fireAction({ channel: started[0].channel.toString(), action: started[0].action, serverSeq: 100, origin: { clientId: agentHostService.clientId, clientSeq: started[0].clientSeq } });
+					agentHostService.fireAction({ channel: started[0].channel.toString(), action: { type: ActionType.ChatTurnComplete, turnId: 'retry', duration: 1 }, serverSeq: 101, origin: undefined });
+					await retry;
+				}));
+			}
+		}
+
+		test('policy resolution failure offers Retry as a fresh send, not a runtime resume', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			agentHostService.setRootState({
+				agents: [{ provider: 'copilot', displayName: 'Copilot', description: 'test', models: [] }],
+				activeSessions: 1,
+			});
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/policy-retry' });
+			const { turnPromise, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
+			fire({
+				type: ActionType.ChatError, turnId, duration: 100,
+				part: { kind: ResponsePartKind.Error, error: { errorType: 'policyResolutionFailed', message: 'Unable to load settings. Please try again.' } },
+			});
+			const result = await turnPromise;
+			assert.deepStrictEqual(result.errorDetails, {
+				message: 'Unable to load settings. Please try again.',
+				isExpectedError: true,
+				confirmationButtons: [{ label: 'Retry', data: undefined, resend: true }],
+			});
+			agentHostService.dispatchedActions.length = 0;
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot');
+			assert.ok(registered);
+			const retry = registered.impl.invoke(
+				makeRequest({ sessionResource, requestId: 'policy-retry-new', message: 'original request', acceptedConfirmationData: [undefined] }),
+				() => { }, [], CancellationToken.None,
+			);
+			await timeout(10);
+			const started = agentHostService.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatTurnStarted);
+			assert.deepStrictEqual(started.map(entry => entry.action.type === ActionType.ChatTurnStarted ? entry.action.message.text : undefined), ['original request']);
+			assert.ok(!agentHostService.dispatchedActions.some(entry => entry.action.type === ActionType.ChatTurnResume));
+			agentHostService.fireAction({
+				channel: started[0].channel.toString(), action: started[0].action, serverSeq: 100,
+				origin: { clientId: agentHostService.clientId, clientSeq: started[0].clientSeq },
+			});
+			agentHostService.fireAction({
+				channel: started[0].channel.toString(),
+				action: { type: ActionType.ChatTurnComplete, turnId: 'policy-retry-new', duration: 1 },
+				serverSeq: 101, origin: undefined,
+			});
+			await retry;
+		}));
+
 		test('resumable error offers Try Again and resumes the same turn', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const languageModels = new Map<string, ILanguageModelChatMetadata>([
 				['agent-host-copilot:opus-4.7', upcastPartial<ILanguageModelChatMetadata>({ name: 'Opus 4.7', pricing: '15x' })],
@@ -11194,7 +11278,7 @@ suite('AgentHostChatContribution', () => {
 				const languageModels = new Map<string, ILanguageModelChatMetadata>([
 					['agent-host-copilot:auto', upcastPartial<ILanguageModelChatMetadata>({
 						name: 'Fusion', autoModelFusion: { balanceUsesHydraFusion },
-						configurationSchema: { properties: { tier: { type: 'string', enum: ['balance', 'intelligence'], enumItemLabels: ['Lite', 'Balance'] } } },
+						configurationSchema: { properties: { tier: { type: 'string', enum: ['balance', 'intelligence'], enumItemLabels: ['Standard', 'High'] } } },
 					})],
 				]);
 				const { sessionHandler, agentHostService } = createContribution(disposables, { languageModels, provider: 'copilotcli' });
@@ -11217,7 +11301,7 @@ suite('AgentHostChatContribution', () => {
 				return session.history.filter(item => item.type === 'response').map(item => item.details);
 			};
 			assert.deepStrictEqual({ routed: await footers(true), notRouted: await footers(false) }, {
-				routed: ['Fusion Max • 15.5 credits', 'Fusion Balance • 15.5 credits'],
+				routed: ['Fusion Max • 15.5 credits', 'Fusion High • 15.5 credits'],
 				notRouted: ['Fusion Max • 15.5 credits', 'HydraFusion • 15.5 credits'],
 			});
 		});
@@ -11553,6 +11637,44 @@ suite('AgentHostChatContribution', () => {
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 			assert.strictEqual(attachmentDisposed, true);
+		});
+
+		test('completed output-only terminal whose command still runs stays attached after the turn ends and the command exits, until the chat closes', async () => {
+			let attachmentDisposed = false;
+			const onDidChange = disposables.add(new Emitter<void>());
+			const source = { onDidChange: onDidChange.event, output: 'tick 1\n', hasExited: false, exitCode: undefined };
+			const { sessionHandler, agentHostService, chatAgentService, instantiationService } = createContribution(disposables, {
+				agentHostTerminalServiceOverride: {
+					attachOutputTerminal: () => toDisposable(() => attachmentDisposed = true),
+				},
+			});
+			instantiationService.stub(ITerminalChatService, 'getOutputSource', () => source);
+			const { turnPromise, chatSession, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({ type: 'chat/toolCallStart', session, turnId, toolCallId: 'tc-detached', toolName: 'bash', displayName: 'Bash', _meta: { toolKind: 'terminal', language: 'shellscript' } } as ChatAction);
+			fire({ type: 'chat/toolCallReady', session, turnId, toolCallId: 'tc-detached', invocationMessage: 'Running command', toolInput: 'npm run dev', confirmed: 'not-needed' } as ChatAction);
+			fire({
+				type: 'chat/toolCallComplete',
+				session,
+				turnId,
+				toolCallId: 'tc-detached',
+				result: {
+					success: true,
+					pastTenseMessage: 'Started command',
+					content: [{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal://shell/detached', title: 'Terminal', isPty: false }],
+				},
+			} as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+			const disposedAtTurnEnd = attachmentDisposed;
+			// A card rendered after the command exited still looks up this output.
+			source.hasExited = true;
+			onDidChange.fire();
+			await timeout(0);
+			const disposedAfterExit = attachmentDisposed;
+			chatSession.dispose();
+
+			assert.deepStrictEqual({ disposedAtTurnEnd, disposedAfterExit, disposedAfterChatClosed: attachmentDisposed }, { disposedAtTurnEnd: false, disposedAfterExit: false, disposedAfterChatClosed: true });
 		});
 
 		test('completed output-only terminal with an empty preview and no exit code snapshots before retiring its live attachment', async () => {

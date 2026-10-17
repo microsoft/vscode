@@ -10,7 +10,7 @@ import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { Delayer, disposableTimeout, raceCancellation, raceCancellationError } from '../../../../../../base/common/async.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
-import { CancellationError, getErrorCode, isCancellationError } from '../../../../../../base/common/errors.js';
+import { CancellationError, getErrorCode, getErrorMessage, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { getChatErrorDetailsFromMeta, getCopilotPlanFromEntitlement, IChatErrorContext } from '../../../common/chatErrorMessages.js';
@@ -87,7 +87,7 @@ import { IEditorService } from '../../../../../services/editor/common/editorServ
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
-import { ITerminalChatService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
+import { ITerminalChatService, type IChatTerminalOutputSource, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { CellUri } from '../../../../notebook/common/notebookCommon.js';
 import {
 	AgentHostCompletionReferenceKind,
@@ -150,7 +150,7 @@ import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversation, IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
 import { activeTurnToProgress, appendToolOutput, BOOLEAN_TRUE_OPTION_ID, canOwnSubagentChat, chatUsageToSessionCost, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, convertProtocolPlanReviewResult, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getAgentHostActivityProgressId, getTerminalContent, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToRequestOrigin, messageToRequestSource, messageToVariableData, parseAhpTerminalToolSessionId, rewriteAgentHostLinkTarget, shouldObserveSubagentChat, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, turnToResponseDetails, turnToResultMetadata, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type ITurnModelInfo, type TurnModelLookup } from './stateToProgressAdapter.js';
-import { AgentHostFusionBalanceUsesHydraFusionSettingId, COPILOT_HYDRA_FUSION_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAMES, isCopilotHydraFusionModelId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostFusionHighUsesHydraFusionSettingId, COPILOT_HYDRA_FUSION_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAMES, isCopilotHydraFusionModelId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { getFusionTierLabel } from '../../widget/input/modelPicker/modelPickerPresentation.js';
 import { autoAuthenticateMcpServer, agentHostMcpServerId, modelRequiresAgentAuthentication } from './agentHostAuth.js';
 import { AgentHostSubagentProgress, isUnstartedSubagent } from './agentHostSubagentProgress.js';
@@ -332,6 +332,8 @@ class SubagentChatObservation extends DisposableStore {
 
 interface IOutputTerminalAttachment {
 	sessionId?: string;
+	/** The output the attachment registered for {@link sessionId}. */
+	source?: IChatTerminalOutputSource;
 	readonly disposable: MutableDisposable<IDisposable>;
 }
 
@@ -1252,6 +1254,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private readonly _serverTurnWatchers = this._register(new DisposableResourceMap());
 	/** Per-session subscription silently resolving existing MCP authentication grants. */
 	private readonly _mcpAuthWatchers = this._register(new DisposableResourceMap());
+	/** Per-session output of completed tool calls whose commands outlived their turn, kept until the chat closes. */
+	private readonly _retainedOutputTerminals = this._register(new DisposableResourceMap<DisposableStore>());
 	/**
 	 * Ownership of actionable protocol requests, keyed by backend session URI
 	 * string. `inputNeeded` is a session-level queue and the single caller of
@@ -1909,6 +1913,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					this._draftSyncSubscriptions.deleteAndDispose(sessionResource);
 					this._serverTurnWatchers.deleteAndDispose(sessionResource);
 					this._mcpAuthWatchers.deleteAndDispose(sessionResource);
+					this._retainedOutputTerminals.deleteAndDispose(sessionResource);
 					this._releaseSessionInputNeeded(sessionResource);
 					this._pendingHistoryTurns.delete(sessionResource);
 					this._surfacedMcpAuthServers.delete(sessionResource);
@@ -2223,6 +2228,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (!isCancellationError(error)) {
 				this._reportInvocationFailure(request, failureStage, error);
 			}
+			if (getErrorCode(error) === 'policyResolutionFailed' && !this._isInvocationAbandoned(cancellationToken)) {
+				return { errorDetails: this._getPolicyErrorDetails(getErrorMessage(error)) };
+			}
 			throw error;
 		} finally {
 			// Always cancel the pending "preparing" status — including when an
@@ -2260,6 +2268,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		});
 	}
 
+	private _getPolicyErrorDetails(message: string, allowRetry = true): IChatResponseErrorDetails {
+		return {
+			message,
+			isExpectedError: true,
+			...(allowRetry ? {
+				confirmationButtons: [{ label: localize('agentHost.retryPolicyResolution', "Retry"), data: undefined, resend: true }],
+			} : {}),
+		};
+	}
+
 	/**
 	 * Builds the {@link IChatResponseErrorDetails} for a failed turn so the
 	 * chat response renders a proper error (and, for quota errors, the upgrade
@@ -2272,6 +2290,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const error = getTurnError(turn);
 		if (!error) {
 			return undefined;
+		}
+		if (error.errorType === 'policyResolutionFailed') {
+			return this._getPolicyErrorDetails(error.message, allowResume);
 		}
 		if (error.errorType === 'CodexThreadInUse') {
 			return {
@@ -4615,8 +4636,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 		this._trackSubagentToolCall(initial, invocation, opts, subagentContext);
 		const outputTerminalAttachment: IOutputTerminalAttachment = {
-			disposable: store.add(new MutableDisposable())
+			disposable: new MutableDisposable()
 		};
+		store.add(toDisposable(() => this._releaseOutputTerminal(outputTerminalAttachment, part$.get().toolCall, opts.sessionResource)));
 		store.add(this._config.connection.onDidAction(envelope => {
 			const action = envelope.action;
 			if (envelope.rejectionReason || envelope.channel !== opts.chatURI || action.type !== ActionType.ChatToolCallDelta
@@ -5334,6 +5356,32 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	/**
+	 * Releases a tool call's live non-PTY output when its turn observation
+	 * ends. A completed call whose command still runs, such as a detached
+	 * background shell, keeps the output attached until the chat session
+	 * closes. Its inline terminal keeps streaming, and a card rendered after
+	 * the command exited still shows the output and exit code.
+	 */
+	private _releaseOutputTerminal(attachment: IOutputTerminalAttachment, toolCall: ToolCallState, sessionResource: URI): void {
+		const live = attachment.disposable.clearAndLeak();
+		attachment.disposable.dispose();
+		if (!live) {
+			return;
+		}
+		const source = attachment.source;
+		if (toolCall.status !== ToolCallStatus.Completed || !source || source.hasExited || this._store.isDisposed || !this._activeSessions.has(sessionResource)) {
+			live.dispose();
+			return;
+		}
+		let retained = this._retainedOutputTerminals.get(sessionResource);
+		if (!retained) {
+			retained = new DisposableStore();
+			this._retainedOutputTerminals.set(sessionResource, retained);
+		}
+		retained.add(live);
+	}
+
+	/**
 	 * Synchronizes PTY and non-PTY terminal content, including the live-to-retained output handoff, and updates invocation metadata.
 	 */
 	private _reviveTerminalIfNeeded(
@@ -5366,9 +5414,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (hasSettledNonPtySnapshot) {
 			outputTerminalAttachment.disposable.clear();
 			outputTerminalAttachment.sessionId = undefined;
+			outputTerminalAttachment.source = undefined;
 		} else if (!isPty && outputTerminalAttachment.sessionId !== sessionId) {
 			outputTerminalAttachment.disposable.value = this._agentHostTerminalService.attachOutputTerminal(this._config.connection, terminalCommandUri, sessionId);
 			outputTerminalAttachment.sessionId = sessionId;
+			outputTerminalAttachment.source = this._terminalChatService.getOutputSource(sessionId);
 		}
 		const existing = invocation.toolSpecificData?.kind === 'terminal'
 			? invocation.toolSpecificData as IChatTerminalToolInvocationData
@@ -6777,7 +6827,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				const fusionModelName = responseModelId === undefined ? undefined : COPILOT_HYDRA_FUSION_MODEL_NAMES.get(responseModelId);
 				const fusion = fusionModelName ? lookupRawModel(AUTO_RAW_MODEL_ID) : undefined;
 				if (fusion?.model.autoModelFusion && responseModelId === COPILOT_HYDRA_FUSION_MODEL_ID) {
-					logSettingExperimentTrigger(this._telemetryService, AgentHostFusionBalanceUsesHydraFusionSettingId);
+					logSettingExperimentTrigger(this._telemetryService, AgentHostFusionHighUsesHydraFusionSettingId);
 				}
 				const fusionTier = fusion && responseModelId ? getFusionTierLabel(fusion.model, responseModelId) : undefined;
 				const responseModel = fusion && fusionTier ? {
