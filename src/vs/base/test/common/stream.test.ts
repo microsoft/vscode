@@ -284,6 +284,32 @@ suite('Stream', () => {
 		assert.strictEqual(drained2, true);
 	});
 
+	test('WriteableStream - destroy settles pending backpressure writes', async () => {
+		const stream = newWriteableStream<string>(strings => strings.join(), { highWaterMark: 1 });
+
+		const res = stream.write('1');
+		assert.ok(!res);
+
+		const pendingWrite = stream.write('2');
+		assert.ok(pendingWrite instanceof Promise);
+
+		stream.destroy();
+
+		await assert.rejects(pendingWrite);
+	});
+
+	test('WriteableStream - write after destroy fails fast', () => {
+		const stream = newWriteableStream<string>(strings => strings.join(), { highWaterMark: 1 });
+
+		const res = stream.write('1');
+		assert.ok(!res);
+
+		stream.destroy();
+
+		const resAfterDestroy = stream.write('2');
+		assert.ok(!resAfterDestroy);
+	});
+
 	test('consumeReadable', () => {
 		const readable = arrayToReadable(['1', '2', '3', '4', '5']);
 		const consumed = consumeReadable(readable, strings => strings.join());
