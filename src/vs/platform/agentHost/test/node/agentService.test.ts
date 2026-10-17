@@ -2293,6 +2293,108 @@ suite('AgentService (node dispatcher)', () => {
 			}
 		}
 
+		for (const normalized of [false, true]) {
+			for (const localStorage of [false, true]) {
+				test(`repairs an unopened legacy archive through catalog verification (normalized: ${normalized}, local storage: ${localStorage})`, async () => {
+					const database = disposables.add(new AgentHostDatabase(':memory:'));
+					const backing = createPerSessionDataService();
+					const session = AgentSession.uri('copilot', 'legacy-archive-repair');
+					const defaultChat = buildDefaultChatUri(session);
+					const warnings: string[] = [];
+					class RepairLogService extends NullLogService {
+						override warn(message: string, ...args: unknown[]): void {
+							warnings.push(`${message} ${args.map(String).join(' ')}`.trim());
+						}
+					}
+					class LegacyArchiveAgent extends MockAgent {
+						adoptions = 0;
+						override async getChatMetadata(chat: URI): Promise<IAgentChatMetadata> {
+							return {
+								chat, startTime: 1, modifiedTime: 1, summary: 'Legacy',
+								status: SessionStatus.Idle | SessionStatus.IsArchived,
+								_meta: { [SESSION_META_EHCLI_ADOPTABLE_KEY]: true },
+							};
+						}
+						async ensureChatAdopted(): Promise<IAgentChatAdoptionResult> {
+							this.adoptions++;
+							throw new Error('Verification must not adopt an unopened session');
+						}
+					}
+					const svc = disposables.add(createTestAgentService(
+						new RepairLogService(), fileService, backing.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+						undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
+					));
+					getConfigurationService(svc).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+					const agent = disposables.add(new LegacyArchiveAgent('copilot'));
+					registerTestAgentProvider(svc, agent);
+					const internals = svc as unknown as {
+						_initialProviderMigrations: Map<string, Promise<void>>;
+						_catalogReconciliationService: { runPass(): Promise<IAgentHostCatalogReconciliationReport> };
+					};
+					await internals._initialProviderMigrations.get(agent.id);
+					await database.registerRuntimeSession(session.toString(), { provider: 'copilot', startTime: 1, source: 'restore' }, { checkTombstone: false });
+					await database.updateSessionV2External([{ session: session.toString(), external: false }]);
+					await database.importSessionState(session.toString(), {
+						importVersion: 1, importedAt: 1,
+						values: { [AH_META_IS_ARCHIVED_DB_KEY]: '', 'copilot.project.resolved': 'true' },
+						folders: [], chats: [],
+						legacyMirrorBase: JSON.stringify({ v: 2, entries: { '["value","isArchived"]': '', '["value","copilot.project.resolved"]': 'true' } }),
+						launchDirsBackfilled: true,
+					});
+					const data: AgentHostCatalogData = {
+						modifiedTime: 1, summary: 'Legacy', isRead: false, isArchived: false,
+						workingDirectories: [], chats: [{ uri: defaultChat, order: 0, kind: 'default' }],
+					};
+					if (normalized) {
+						await database.registerChatCatalogV2(session.toString(), {
+							defaultChat: { chat: defaultChat, order: 0, metadata: { summary: 'Legacy' } },
+							peers: [], privateDescendants: [],
+						});
+						const [snapshot] = await database.readCatalogSnapshot([session.toString()]);
+						await database.upsertSessionV2FromChatCatalog(catalogEnvelope(session, data), undefined, snapshot.header!.revision);
+					} else {
+						await database.upsertSessionV2(catalogEnvelope(session, data), undefined);
+					}
+					if (localStorage) {
+						await backing.database(session).setMetadataValues({ [AH_META_IS_ARCHIVED_DB_KEY]: '', 'copilot.project.resolved': 'true' });
+					}
+					let fallbackArchived: boolean[];
+					const catalogRead = stub(database, 'readSessionListCatalogs').resolves([]);
+					try {
+						fallbackArchived = (await svc.listSessions()).map(entry => isSessionStatusArchived(entry.status));
+					} finally {
+						catalogRead.restore();
+					}
+					const report = await internals._catalogReconciliationService.runPass();
+					await svc.whenCatalogReconciliationIdle();
+					const listed = await svc.listSessions();
+					const repaired = catalogDataOf(await database.getSessionV2(session.toString()));
+					const central = await database.readSessionStateValues([session.toString()], [AH_META_IS_ARCHIVED_DB_KEY]);
+					const restarted = disposables.add(createTestAgentService(
+						new RepairLogService(), fileService, backing.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+						undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
+					));
+					getConfigurationService(restarted).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+					assert.deepStrictEqual({
+						warnings,
+						failures: report.outcomes.filter(outcome => outcome.status === 'failed'),
+						archived: repaired?.isArchived,
+						adoptable: repaired?._meta?.[SESSION_META_EHCLI_ADOPTABLE_KEY],
+						fallbackArchived,
+						listedArchived: listed.map(entry => isSessionStatusArchived(entry.status)),
+						restartedArchived: (await restarted.listSessions()).map(entry => isSessionStatusArchived(entry.status)),
+						central: central.get(session.toString())?.values.get(AH_META_IS_ARCHIVED_DB_KEY),
+						hydrated: !!getStateManager(svc).getSessionState(session.toString()),
+						adoptions: agent.adoptions,
+					}, {
+						warnings: [], failures: [],
+						archived: true, adoptable: true, fallbackArchived: [true], listedArchived: [true], restartedArchived: [true],
+						central: localStorage ? 'true' : '', hydrated: false, adoptions: 0,
+					});
+				});
+			}
+		}
+
 		for (const defaultShape of ['canonical', 'advertised'] as const) {
 			test(`legacy synchronization and live listing preserve the stable ${defaultShape} default after routing to an archived peer`, async () => {
 				class MultiChatAgent extends MockAgent {
