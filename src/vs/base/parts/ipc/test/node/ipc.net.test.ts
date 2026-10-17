@@ -475,6 +475,96 @@ suite('PersistentProtocol reconnection', () => {
 		);
 	});
 
+	test('drops the replay buffer when unacknowledged messages exceed the configured byte limit', async () => {
+		await runWithFakedTimers(
+			{
+				useFakeTimers: true,
+				useSetImmediate: true,
+				maxTaskCount: 1000
+			},
+			async () => {
+
+				const loadEstimator: ILoadEstimator = {
+					hasHighLoad: () => false
+				};
+				const ether = new Ether();
+				const aSocket = new NodeSocket(ether.a);
+				const a = new PersistentProtocol({ socket: aSocket, loadEstimator, sendKeepAlive: false, maxOutgoingUnacknowledgedBytes: 4 });
+				const aMessages = new MessageStream(a);
+				const bSocket = new NodeSocket(ether.b);
+				const b = new PersistentProtocol({ socket: bSocket, loadEstimator, sendKeepAlive: false });
+				const bMessages = new MessageStream(b);
+
+				// never receive acks
+				b.pauseSocketWriting();
+
+				const socketTimeoutPromise = Event.toPromise(a.onSocketTimeout);
+
+				a.send(VSBuffer.fromString('a1'));
+				a.send(VSBuffer.fromString('a2'));
+				assert.strictEqual(a.unacknowledgedCount, 2);
+
+				a.send(VSBuffer.fromString('a3'));
+				const socketTimeoutEvent = await socketTimeoutPromise;
+
+				assert.strictEqual(socketTimeoutEvent.reason, SocketTimeoutReason.UNACKNOWLEDGED_MESSAGE_REPLAY_BUFFER_OVERFLOW);
+				assert.strictEqual(socketTimeoutEvent.unacknowledgedMsgCount, 3);
+				assert.strictEqual(socketTimeoutEvent.unacknowledgedMsgBytes, 6);
+				assert.strictEqual(a.unacknowledgedCount, 0);
+
+				aMessages.dispose();
+				bMessages.dispose();
+				a.dispose();
+				b.dispose();
+			}
+		);
+	});
+
+	test('drops the replay buffer when unacknowledged messages exceed the configured count limit', async () => {
+		await runWithFakedTimers(
+			{
+				useFakeTimers: true,
+				useSetImmediate: true,
+				maxTaskCount: 1000
+			},
+			async () => {
+
+				const loadEstimator: ILoadEstimator = {
+					hasHighLoad: () => false
+				};
+				const ether = new Ether();
+				const aSocket = new NodeSocket(ether.a);
+				const a = new PersistentProtocol({ socket: aSocket, loadEstimator, sendKeepAlive: false, maxOutgoingUnacknowledgedMessages: 2 });
+				const aMessages = new MessageStream(a);
+				const bSocket = new NodeSocket(ether.b);
+				const b = new PersistentProtocol({ socket: bSocket, loadEstimator, sendKeepAlive: false });
+				const bMessages = new MessageStream(b);
+
+				// never receive acks
+				b.pauseSocketWriting();
+
+				const socketTimeoutPromise = Event.toPromise(a.onSocketTimeout);
+
+				a.send(VSBuffer.fromString('a1'));
+				a.send(VSBuffer.fromString('a2'));
+				assert.strictEqual(a.unacknowledgedCount, 2);
+
+				a.send(VSBuffer.fromString('a3'));
+				const socketTimeoutEvent = await socketTimeoutPromise;
+
+				assert.strictEqual(socketTimeoutEvent.reason, SocketTimeoutReason.UNACKNOWLEDGED_MESSAGE_REPLAY_BUFFER_OVERFLOW);
+				assert.strictEqual(socketTimeoutEvent.unacknowledgedMsgCount, 3);
+				assert.strictEqual(socketTimeoutEvent.unacknowledgedMsgBytes, 6);
+				assert.strictEqual(a.unacknowledgedCount, 0);
+
+				aMessages.dispose();
+				bMessages.dispose();
+				a.dispose();
+				b.dispose();
+			}
+		);
+	});
+
 	test('onSocketTimeout is emitted at most once every 20s', async () => {
 		await runWithFakedTimers(
 			{
