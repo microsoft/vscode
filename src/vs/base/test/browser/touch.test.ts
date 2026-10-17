@@ -18,11 +18,11 @@ suite('Gesture', () => {
 		store.add({ dispose: () => target.remove() });
 
 		// Enable touch device emulation for test
-		const origMaxTouchPoints = navigator.maxTouchPoints;
-		Object.defineProperty(navigator, 'maxTouchPoints', { value: 1, configurable: true });
+		const originalIsTouchDevice = Gesture.isTouchDevice;
+		Gesture.isTouchDevice = () => true;
 		store.add({
 			dispose: () => {
-				Object.defineProperty(navigator, 'maxTouchPoints', { value: origMaxTouchPoints, configurable: true });
+				Gesture.isTouchDevice = originalIsTouchDevice;
 			}
 		});
 
@@ -85,6 +85,8 @@ suite('Gesture', () => {
 		mainWindow.document.dispatchEvent(cancelEvent);
 
 		// Must dispatch EventType.End to notify target, but NOT EventType.Tap
+		// A second cancellation for the same identifier must be ignored since touch state was released
+		mainWindow.document.dispatchEvent(cancelEvent);
 		assert.deepStrictEqual(events, ['start', 'end']);
 	});
 });
