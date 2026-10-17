@@ -46,6 +46,8 @@ import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershi
 import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostAhpJsonlLoggingEnabledConfigKey, type ISchema, type SchemaDefinition, type SchemaValue } from '../../common/agentHostSchema.js';
+import { IAgentHostGitService } from '../../common/agentHostGitService.js';
+import { MissionControlSessionPublisher } from '../../node/missionControl/missionControlSessionPublisher.js';
 
 suite('Mission Control host integration', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -121,6 +123,7 @@ suite('Mission Control host integration', () => {
 		instantiation.stub(IAgentService, agentService ?? new class extends mock<IAgentService>() { }());
 		instantiation.stub(IAgentHostStateManager, stateManager ?? new class extends mock<AgentHostStateManager>() { }());
 		instantiation.stub(IAgentHostChatOwnershipService, stateManager ? createTestChatOwnershipService(stateManager) : new class extends mock<IAgentHostChatOwnershipService>() { }());
+		instantiation.stub(IAgentHostGitService, new class extends mock<IAgentHostGitService>() { }());
 		instantiation.stub(ISessionDataService, sessionDataService ?? new class extends mock<ISessionDataService>() { }());
 		instantiation.stub(IAgentHostProviderService, providers ?? new class extends mock<IAgentHostProviderService>() { }());
 		instantiation.stubInstance(MissionControlProjects, new class extends mock<MissionControlProjects>() {
@@ -430,7 +433,7 @@ suite('Mission Control host integration', () => {
 		assert.deepStrictEqual({ count: await options.getSessionCount?.(), countReads }, { count: 42, countReads: 1 });
 	});
 
-	function createMirror() {
+	function createMirror(git?: IAgentHostGitService) {
 		const instantiation = store.add(new TestInstantiationService());
 		const state = store.add(new AgentHostStateManager(store.add(new NullLogService())));
 		const creations = sinon.spy(instantiation, 'createInstance');
@@ -441,20 +444,50 @@ suite('Mission Control host integration', () => {
 			override getProviderForSession() { return undefined; }
 		}();
 		const { host } = createHost(instantiation, state, providers);
+		if (git) {
+			instantiation.stub(IAgentHostGitService, git);
+		}
 		const enabled = sinon.stub(host.environment, 'isEnabled').get(() => true);
 		store.add(toDisposable(() => enabled.restore()));
 		const creation = creations.getCalls().find(call => call.args[0] === MissionControlEnvironment);
 		assert.ok(creation);
 		const options = creation.args[1] as IMissionControlEnvironmentHost;
 		const { mirror, source } = options.createMirror!('env');
+		const publisher = creations.getCalls().find(call => call.args[0] === MissionControlSessionPublisher)!.returnValue as MissionControlSessionPublisher;
 		store.add(mirror);
 		store.add(source);
 		const events: MissionControlMirrorEvent[] = [];
 		store.add(mirror.attach(event => { events.push(event); }));
 		const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
 		store.add(toDisposable(() => clock.restore()));
-		return { state, mirror, events, clock };
+		return { state, mirror, publisher, events, clock };
 	}
+
+	test('publishes canonical repository metadata on the first host frame without changing the local project', async () => {
+		const folder = URI.file('/checkout');
+		const git = new class extends mock<IAgentHostGitService>() {
+			override async getRepositoryRoot() { return folder; }
+			override async getFetchRemotes() { return [{ name: 'origin', url: 'git@github.com:microsoft/vscode.git' }]; }
+		}();
+		const f = createMirror(git);
+		const session = 'ahp-session:/repository';
+		const project = { uri: folder.toString(), displayName: 'checkout' };
+		f.state.restoreSession({
+			resource: session, defaultChat: buildDefaultChatUri(session), provider: 'copilotcli', title: 'Repository',
+			status: SessionStatus.Idle, createdAt: '2026-10-15T00:00:00Z', modifiedAt: '2026-10-15T00:00:00Z',
+			project, workingDirectories: [folder.toString()],
+		}, [], creationTimeChatStorageResource);
+		f.state.dispatchServerAction(session, { type: ActionType.SessionTitleChanged, title: 'Renamed' });
+		await f.publisher.registerSession(session);
+		f.clock.runAll();
+		assert.deepStrictEqual({
+			projects: f.events.flatMap(event => event.event === 'sessionEvents' ? [event.data.project] : []),
+			localProject: f.state.getSessionSummary(session)?.project,
+		}, {
+			projects: [{ uri: 'https://github.com/microsoft/vscode', display_name: 'microsoft/vscode' }],
+			localProject: project,
+		});
+	});
 
 	for (const session of ['ahp-session:/draft', 'copilotcli:/draft']) {
 		const summary = { resource: session, provider: 'copilotcli', title: '', status: SessionStatus.Idle, createdAt: '2026-10-07T18:00:00Z', modifiedAt: '2026-10-07T18:00:00Z', defaultChat: buildDefaultChatUri(session) };
@@ -470,7 +503,7 @@ suite('Mission Control host integration', () => {
 			assert.deepStrictEqual({ events: f.events, sessions: f.mirror.statistics.sessions }, { events: [], sessions: 0 });
 		});
 
-		test(`mirrors the first user message and subsequent actions after a provisional draft becomes active (${session})`, () => {
+		test(`mirrors the first user message and subsequent actions after a provisional draft becomes active (${session})`, async () => {
 			const f = createMirror();
 			f.state.createSession(summary, { emitNotification: false });
 			f.state.dispatchServerAction(session, { type: ActionType.SessionConfigChanged, config: { model: 'test-model' } });
@@ -486,6 +519,7 @@ suite('Mission Control host integration', () => {
 			});
 			f.state.dispatchServerAction(session, { type: ActionType.SessionReady });
 			f.state.dispatchServerAction(session, { type: ActionType.SessionTitleChanged, title: 'Real conversation' });
+			await f.publisher.registerSession(session);
 			f.clock.runAll();
 			assert.deepStrictEqual({
 				envelopes: f.events.flatMap(event => event.event === 'sessionEvents' && event.data.ns === 'ahp' && event.data.payload.kind === 'message' ? [event.data.payload.data] : []),
@@ -495,11 +529,12 @@ suite('Mission Control host integration', () => {
 		});
 	}
 
-	test('continues mirroring restored sessions even when their history is empty', () => {
+	test('continues mirroring restored sessions even when their history is empty', async () => {
 		const f = createMirror();
 		const session = 'ahp-session:/restored';
 		f.state.restoreSession({ resource: session, defaultChat: buildDefaultChatUri(session), provider: 'copilotcli', title: 'Restored', status: SessionStatus.Idle, createdAt: '2026-10-07T18:00:00Z', modifiedAt: '2026-10-07T18:00:00Z' }, [], creationTimeChatStorageResource);
 		f.state.dispatchServerAction(session, { type: ActionType.SessionTitleChanged, title: 'Renamed' });
+		await f.publisher.registerSession(session);
 		f.clock.runAll();
 		assert.deepStrictEqual(f.events.flatMap(event => event.event === 'sessionEvents' && event.data.ns === 'ahp' && event.data.payload.kind === 'message' ? [event.data.payload.data] : []),
 			[{ channel: session, action: { type: ActionType.SessionTitleChanged, title: 'Renamed' }, serverSeq: f.state.serverSeq }]);
