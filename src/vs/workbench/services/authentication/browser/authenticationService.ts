@@ -108,6 +108,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	private _authenticationProviders: Map<string, IAuthenticationProvider> = new Map<string, IAuthenticationProvider>();
 	private _authenticationProviderDisposables: DisposableMap<string, IDisposable> = this._register(new DisposableMap<string, IDisposable>());
 	private _dynamicAuthenticationProviderIds = new Set<string>();
+	private _accountsCache = new Map<string, ReadonlyArray<AuthenticationSessionAccount>>();
 
 	private readonly _delegates: IAuthenticationProviderHostDelegate[] = [];
 
@@ -124,6 +125,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		this._register(authenticationAccessService.onDidChangeExtensionSessionAccess(e => {
 			// The access has changed, not the actual session itself but extensions depend on this event firing
 			// when they have gained access to an account so this fires that event.
+			this._accountsCache.delete(e.providerId);
 			this._onDidChangeSessions.fire({
 				providerId: e.providerId,
 				label: e.accountName,
@@ -222,11 +224,14 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	registerAuthenticationProvider(id: string, authenticationProvider: IAuthenticationProvider): void {
 		this._authenticationProviders.set(id, authenticationProvider);
 		const disposableStore = new DisposableStore();
-		disposableStore.add(authenticationProvider.onDidChangeSessions(e => this._onDidChangeSessions.fire({
-			providerId: id,
-			label: authenticationProvider.label,
-			event: e
-		})));
+		disposableStore.add(authenticationProvider.onDidChangeSessions(e => {
+			this._accountsCache.delete(id);
+			this._onDidChangeSessions.fire({
+				providerId: id,
+				label: authenticationProvider.label,
+				event: e
+			});
+		}));
 		if (isDisposable(authenticationProvider)) {
 			disposableStore.add(authenticationProvider);
 		}
@@ -240,6 +245,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			this._authenticationProviders.delete(id);
 			// If this is a dynamic provider, remove it from the set of dynamic providers
 			this._dynamicAuthenticationProviderIds.delete(id);
+			this._accountsCache.delete(id);
 			this._onDidUnregisterAuthenticationProvider.fire({ id, label: provider.label });
 		}
 		this._authenticationProviderDisposables.deleteAndDispose(id);
@@ -261,7 +267,10 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	}
 
 	async getAccounts(id: string): Promise<ReadonlyArray<AuthenticationSessionAccount>> {
-		// TODO: Cache this
+		const cached = this._accountsCache.get(id);
+		if (cached) {
+			return [...cached];
+		}
 		const sessions = await this.getSessions(id);
 		const accounts = new Array<AuthenticationSessionAccount>();
 		const seenAccounts = new Set<string>();
@@ -271,6 +280,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 				accounts.push(session.account);
 			}
 		}
+		this._accountsCache.set(id, accounts);
 		return accounts;
 	}
 
