@@ -72,6 +72,10 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	relayEnvironment: NodeJS.ProcessEnv | undefined;
 	sandboxEnvironment: NodeJS.ProcessEnv | undefined;
 	sandboxConfigurationOutput: string | undefined;
+	useRealSandboxConfiguration = false;
+	preparedSandboxConfiguration: IDevContainerSandboxConfiguration | undefined;
+	configurationReadError: Error | undefined;
+	configurationReadExitCode = 0;
 	readonly localCommands: { readonly command: string; readonly args: readonly string[] }[] = [];
 	relayCommand: string | undefined;
 	failDevContainerUp = false;
@@ -215,7 +219,10 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		this.devContainerArgs.push([...args]);
 		this.devContainerEnvironments.push(environment);
 		if (args[0] === 'read-configuration') {
-			return Promise.resolve({ stdout: this.sandboxConfigurationOutput ?? JSON.stringify({ configuration: {}, mergedConfiguration: { mounts: this.cacheMountConfigured ? [{ target: '/vscode' }] : [] } }), stderr: '', code: 0 });
+			if (this.configurationReadError) {
+				return Promise.reject(this.configurationReadError);
+			}
+			return Promise.resolve({ stdout: this.sandboxConfigurationOutput ?? JSON.stringify({ configuration: {}, mergedConfiguration: { mounts: this.cacheMountConfigured ? [{ target: '/vscode' }] : [] } }), stderr: this.configurationReadExitCode ? 'configuration read failed' : '', code: this.configurationReadExitCode });
 		}
 		if (args[0] === 'exec') {
 			return Promise.resolve({ stdout: '', stderr: '', code: 0 });
@@ -239,7 +246,10 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		return Promise.resolve(this.containerMounts);
 	}
 
-	protected override async _prepareSandboxConfiguration(): Promise<IDevContainerSandboxConfiguration> {
+	protected override async _prepareSandboxConfiguration(configuration: Promise<string>, workspaceFolder: string, directory: string): Promise<IDevContainerSandboxConfiguration> {
+		if (this.useRealSandboxConfiguration) {
+			this.preparedSandboxConfiguration = await super._prepareSandboxConfiguration(configuration, workspaceFolder, directory);
+		}
 		this.sandboxConfigurationPrepared = true;
 		return {
 			args: ['--config', '/workspace/.devcontainer/devcontainer.json', '--override-config', '/sandbox/devcontainer.json'],
@@ -248,7 +258,8 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	}
 
 	prepareRealSandboxConfiguration(workspaceFolder: string, directory: string): Promise<IDevContainerSandboxConfiguration> {
-		return super._prepareSandboxConfiguration('sandbox', workspaceFolder, directory, CancellationToken.None);
+		assert.ok(this.sandboxConfigurationOutput);
+		return super._prepareSandboxConfiguration(Promise.resolve(this.sandboxConfigurationOutput), workspaceFolder, directory);
 	}
 
 	protected override async _getSandboxSupported(): Promise<boolean> {
@@ -675,6 +686,83 @@ suite('Dev Container Agent Host Main Service', () => {
 		});
 	});
 
+	test('reads configuration once per sandbox startup for cache mounts and the real override', async () => {
+		const directory = await mkdtemp(join(process.cwd(), '.build', 'dev-container-shared-config-'));
+		const service = store.add(new TestDevContainerAgentHostMainService('', false, undefined, {}, false, [], new Set(), tmpdir()));
+		try {
+			const configPath = join(directory, 'devcontainer.json');
+			service.useRealSandboxConfiguration = true;
+			for (const cacheMountConfigured of [false, true]) {
+				service.cacheMountConfigured = cacheMountConfigured;
+				const configuration = { image: 'test-image', remoteEnv: { STARTUP: String(cacheMountConfigured) } };
+				await writeFile(configPath, JSON.stringify(configuration));
+				service.sandboxConfigurationOutput = JSON.stringify({
+					configuration: { ...configuration, configFilePath: URI.file(configPath).toJSON() },
+					mergedConfiguration: { mounts: cacheMountConfigured ? [{ target: '/vscode' }] : [] },
+				});
+				await service.connect({ connectionId: 'shared-config', workspaceFolder: '/workspace', name: 'Project', sandboxEnabled: true });
+				const prepared = service.preparedSandboxConfiguration!;
+				const override = JSON.parse(await readFile(prepared.args[3], 'utf8'));
+				assert.deepStrictEqual(override.remoteEnv, configuration.remoteEnv);
+				assert.ok(override.runArgs.includes('seccomp=unconfined'));
+				await service.disconnect('shared-config');
+			}
+			assert.deepStrictEqual(service.devContainerArgs.filter(args => args[0] === 'read-configuration'), [
+				['read-configuration', '--log-level', 'debug', '--workspace-folder', '/workspace', '--include-merged-configuration'],
+				['read-configuration', '--log-level', 'debug', '--workspace-folder', '/workspace', '--include-merged-configuration'],
+			]);
+		} finally {
+			service.dispose();
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	for (const sandboxEnabled of [false, true]) {
+		for (const failure of ['exit', 'throw'] as const) {
+			test(`handles the shared configuration read failure without retrying (sandbox: ${sandboxEnabled}, failure: ${failure})`, async () => {
+				const logService = new TestLogService();
+				const service = store.add(new TestDevContainerAgentHostMainService('', false, undefined, {}, false, [], new Set(), tmpdir(), logService));
+				service.useRealSandboxConfiguration = true;
+				service.cacheMountConfigured = true;
+				if (failure === 'exit') {
+					service.configurationReadExitCode = 1;
+				} else {
+					service.configurationReadError = new Error('configuration read failed');
+				}
+				const connecting = service.connect({ connectionId: 'read-failure', workspaceFolder: '/workspace', name: 'Project', sandboxEnabled });
+				if (sandboxEnabled) {
+					await assert.rejects(connecting, /configuration read failed/);
+				} else {
+					await connecting;
+					await service.disconnect('read-failure');
+				}
+				assert.deepStrictEqual({
+					reads: service.devContainerArgs.filter(args => args[0] === 'read-configuration').length,
+					up: service.devContainerArgs.filter(args => args[0] === 'up').length,
+					warnings: logService.warnings.map(warning => warning.message),
+				}, {
+					reads: 1,
+					up: sandboxEnabled ? 0 : 1,
+					warnings: [
+						'[DevContainerAgentHost] Cannot add optional shared server cache mount',
+						...sandboxEnabled ? [] : ['[DevContainerAgentHost] Desktop has no product commit; falling back to non-pinned CLI install at ~/.vscode-server-oss/code-insiders.'],
+					],
+				});
+			});
+		}
+	}
+
+	test('cancels startup when the shared configuration read is cancelled', async () => {
+		const logService = new TestLogService();
+		const service = store.add(new TestDevContainerAgentHostMainService('', false, undefined, {}, false, [], new Set(), tmpdir(), logService));
+		service.configurationReadError = new CancellationError();
+		await assert.rejects(service.connect({ connectionId: 'cancelled-read', workspaceFolder: '/workspace', name: 'Project', sandboxEnabled: true }), CancellationError);
+		assert.deepStrictEqual({
+			commands: service.devContainerArgs.map(args => args[0]),
+			warnings: logService.warnings,
+		}, { commands: ['read-configuration'], warnings: [] });
+	});
+
 	for (const { platform, expectedPath } of [
 		{ platform: 'linux', expectedPath: '/shell/bin' },
 		{ platform: 'darwin', expectedPath: '/shell/bin:/usr/local/bin' },
@@ -706,7 +794,7 @@ suite('Dev Container Agent Host Main Service', () => {
 					environment: { ...resolvedEnvironment, COMPOSE_FILE: [join(directory, 'shell-compose.yml'), join(overrideDirectory, 'compose.json')].join(delimiter) },
 					configuration: { dockerComposeFile: [], service: 'workspace' },
 				});
-				assert.deepStrictEqual(service.devContainerArgs, [['read-configuration', '--log-level', 'debug', '--workspace-folder', directory]]);
+				assert.deepStrictEqual(service.devContainerArgs, []);
 				assert.deepStrictEqual(await service.resolveDevContainerEnvironment(), resolvedEnvironment);
 			} finally {
 				await rm(directory, { recursive: true, force: true });
