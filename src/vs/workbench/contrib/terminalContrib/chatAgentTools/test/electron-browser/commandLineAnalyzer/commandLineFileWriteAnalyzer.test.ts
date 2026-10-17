@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { strictEqual } from 'assert';
+import { deepStrictEqual, strictEqual } from 'assert';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { isWindows, OperatingSystem } from '../../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../../base/common/uri.js';
@@ -12,6 +12,7 @@ import { ITreeSitterLibraryService } from '../../../../../../../editor/common/se
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
 import type { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { IWorkspaceContextService, toWorkspaceFolder } from '../../../../../../../platform/workspace/common/workspace.js';
 import { Workspace } from '../../../../../../../platform/workspace/test/common/testWorkspace.js';
@@ -451,6 +452,74 @@ suite('CommandLineFileWriteAnalyzer', () => {
 		test('blocked disclaimer - absolute path outside workspace', () => checkDisclaimer('echo hello > /tmp/file.txt', 'outsideWorkspace', 'cannot be auto approved'));
 		test('allowed disclaimer - relative path inside workspace', () => checkDisclaimer('echo hello > file.txt', 'outsideWorkspace', 'File write operations detected'));
 		test('blocked disclaimer - all setting blocks everything', () => checkDisclaimer('echo hello > file.txt', 'all', 'cannot be auto approved'));
+
+		suite('unresolved paths', () => {
+			for (const { language, os, shell, targets } of [
+				{
+					language: TreeSitterCommandParserLanguage.Bash,
+					os: OperatingSystem.Linux,
+					shell: 'bash',
+					targets: ['$TMPDIR/sbxrepro/note.txt', '"$TMPDIR/sbxrepro/note.txt"', '~/note.txt', '$(pwd)/note.txt', '/tmp/$NAME/note.txt', '%HOME%/note.txt'],
+				},
+				{
+					language: TreeSitterCommandParserLanguage.PowerShell,
+					os: OperatingSystem.Windows,
+					shell: 'pwsh',
+					targets: ['$env:TEMP\\note.txt', '"$env:TEMP\\note.txt"', '~\\note.txt', '!APPDATA!\\note.txt'],
+				},
+			]) {
+				for (const target of targets) {
+					for (const context of ['local', 'remote', 'unknown'] as const) {
+						for (const setting of ['never', 'outsideWorkspace', 'all'] as const) {
+							test(`${shell}: ${target}, ${context} cwd, ${setting}`, async () => {
+								const workspaceFolder = context === 'remote'
+									? URI.from({ scheme: Schemas.vscodeRemote, authority: 'wsl+ubuntu', path: '/workspace/project' })
+									: cwd;
+								workspaceContextService.setWorkspace(new Workspace('test', [toWorkspaceFolder(workspaceFolder)]));
+								configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.BlockDetectedFileWrites, setting);
+
+								const result = await analyzer.analyze({
+									commandLine: `echo hello > ${target}`,
+									cwd: context === 'unknown' ? undefined : workspaceFolder,
+									shell,
+									os,
+									treeSitterLanguage: language,
+									terminalToolSessionId: 'test',
+									chatSessionResource: undefined,
+								});
+
+								const prefix = setting === 'never'
+									? 'File write operations detected'
+									: 'File write operations detected that cannot be auto approved';
+								deepStrictEqual(result, {
+									isAutoApproveAllowed: setting === 'never',
+									disclaimers: [`${prefix}: \`${target}\` (path could not be resolved statically)`],
+								});
+							});
+						}
+					}
+				}
+			}
+		});
+
+		test('mixed unresolved and literal destinations retain their respective labels', async () => {
+			configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.BlockDetectedFileWrites, 'outsideWorkspace');
+			workspaceContextService.setWorkspace(new Workspace('test', [toWorkspaceFolder(cwd)]));
+			const result = await analyzer.analyze({
+				commandLine: 'echo hello > "$TMPDIR/note.txt"; echo hello > note.txt; echo hello > /dev/null',
+				cwd,
+				shell: 'bash',
+				os: OperatingSystem.Linux,
+				treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
+				terminalToolSessionId: 'test',
+				chatSessionResource: undefined,
+			});
+			const literalPath = instantiationService.get(ILabelService).getUriLabel(URI.joinPath(cwd, 'note.txt'));
+			deepStrictEqual(result, {
+				isAutoApproveAllowed: false,
+				disclaimers: [`File write operations detected that cannot be auto approved: \`"$TMPDIR/note.txt"\` (path could not be resolved statically), \`${literalPath}\`, \`/dev/null\``],
+			});
+		});
 	});
 
 	suite('multiple workspace folders', () => {

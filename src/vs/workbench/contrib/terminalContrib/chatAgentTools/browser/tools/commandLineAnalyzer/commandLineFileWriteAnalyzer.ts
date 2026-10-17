@@ -20,7 +20,10 @@ import { ILabelService } from '../../../../../../../platform/label/common/label.
 
 const nullDevice = Symbol('null device');
 
-type FileWrite = URI | string | typeof nullDevice;
+interface FileWrite {
+	readonly target: URI | string | typeof nullDevice;
+	readonly unresolvedTarget?: string;
+}
 
 export class CommandLineFileWriteAnalyzer extends Disposable implements ICommandLineAnalyzer {
 	constructor(
@@ -48,8 +51,6 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 	}
 
 	private async _getFileWrites(options: ICommandLineAnalyzerOptions): Promise<FileWrite[]> {
-		let fileWrites: FileWrite[] = [];
-
 		// Get file writes from redirections (via tree-sitter grammar)
 		const capturedFileWrites = (await this._treeSitterCommandParser.getFileWrites(options.treeSitterLanguage, options.commandLine))
 			.map(this._mapNullDevice.bind(this, options));
@@ -60,41 +61,38 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 
 		const allCapturedFileWrites = [...capturedFileWrites, ...commandFileWrites];
 
+		const cwd = options.cwd;
 		if (allCapturedFileWrites.length) {
-			const cwd = options.cwd;
 			if (cwd) {
 				this._log('Detected cwd', cwd.toString());
-				fileWrites = allCapturedFileWrites.map(e => {
-					if (e === nullDevice) {
-						return e;
-					}
-
-					// Surrounding quotes where it's difficult to determine whether this is absolute
-					// or relative
-					if (/^['"].*['"]$/.test(e)) {
-						// Strip surrounding quotes to get a more reasonable view of the path. Note
-						// that this may not get the real file in the case of inner quotes, but the
-						// important thing here is the resolving whether it's absolute or not.
-						e = this._stripSurroundingQuotes(e);
-					}
-
-					// Absolute
-					const isAbsolute = options.os === OperatingSystem.Windows ? win32.isAbsolute(e) : posix.isAbsolute(e);
-					if (isAbsolute) {
-						// Ensure cwd's scheme and authority is retained
-						return cwd.with({ path: e });
-					}
-
-					// Relative
-					return URI.joinPath(cwd, e);
-				});
 			} else {
 				this._log('Cwd could not be detected');
-				fileWrites = allCapturedFileWrites;
 			}
 		}
-		this._log('File writes detected', fileWrites.map(e => e.toString()));
+		const fileWrites = allCapturedFileWrites.map((rawTarget): FileWrite => {
+			if (rawTarget === nullDevice) {
+				return { target: rawTarget };
+			}
+
+			let target: URI | string = rawTarget;
+			if (cwd) {
+				if (/^['"].*['"]$/.test(target)) {
+					target = this._stripSurroundingQuotes(target);
+				}
+				const isAbsolute = options.os === OperatingSystem.Windows ? win32.isAbsolute(target) : posix.isAbsolute(target);
+				target = isAbsolute ? cwd.with({ path: target }) : URI.joinPath(cwd, target);
+			}
+			return {
+				target,
+				unresolvedTarget: this._hasUnresolvedPath(rawTarget) ? rawTarget : undefined,
+			};
+		});
+		this._log('File writes detected', fileWrites.map(e => e.unresolvedTarget ?? e.target.toString()));
 		return fileWrites;
+	}
+
+	private _hasUnresolvedPath(path: string): boolean {
+		return /[$\(\){}`~%]/.test(path) || containsCmdDelayedExpansion(path);
 	}
 
 	private _stripSurroundingQuotes(text: string): string {
@@ -132,7 +130,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 				case 'outsideWorkspace': {
 					const workspaceFolders = this._workspaceContextService.getWorkspace().folders;
 					if (workspaceFolders.length > 0) {
-						for (const fileWrite of fileWrites) {
+						for (const { target: fileWrite } of fileWrites) {
 							if (fileWrite === nullDevice) {
 								this._log('File write to null device allowed', URI.isUri(fileWrite) ? fileWrite.toString() : fileWrite);
 								continue;
@@ -155,7 +153,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 							// not recognized as absolute by `posix.isAbsolute` / `win32.isAbsolute`, so
 							// without this guard they would be joined onto cwd and incorrectly classified
 							// as inside the workspace while expanding at runtime to a location outside it.
-							if (fileUri.fsPath.match(/[$\(\){}`~%]/) || containsCmdDelayedExpansion(fileUri.fsPath)) {
+							if (this._hasUnresolvedPath(fileUri.fsPath)) {
 								isAutoApproveAllowed = false;
 								this._log('File write blocked due to likely containing a variable, sub-command, or tilde/environment-variable expansion', fileUri.toString());
 								break;
@@ -178,7 +176,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 						}
 					} else {
 						// No workspace folders, allow safe null device paths even without workspace
-						const hasOnlyNullDevices = fileWrites.every(fw => fw === nullDevice);
+						const hasOnlyNullDevices = fileWrites.every(fw => fw.target === nullDevice);
 						if (!hasOnlyNullDevices) {
 							isAutoApproveAllowed = false;
 							this._log('File writes blocked - no workspace folders');
@@ -195,7 +193,9 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 
 		const disclaimers: string[] = [];
 		if (fileWrites.length > 0) {
-			const fileWritesList = fileWrites.map(fw => `\`${URI.isUri(fw) ? this._labelService.getUriLabel(fw) : fw === nullDevice ? '/dev/null' : fw.toString()}\``).join(', ');
+			const fileWritesList = fileWrites.map(({ target, unresolvedTarget }) => unresolvedTarget !== undefined
+				? localize('runInTerminal.fileWriteUnresolvedPath', "`{0}` (path could not be resolved statically)", unresolvedTarget)
+				: `\`${URI.isUri(target) ? this._labelService.getUriLabel(target) : target === nullDevice ? '/dev/null' : target.toString()}\``).join(', ');
 			if (!isAutoApproveAllowed) {
 				disclaimers.push(localize('runInTerminal.fileWriteBlockedDisclaimer', 'File write operations detected that cannot be auto approved: {0}', fileWritesList));
 			} else {
