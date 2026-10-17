@@ -98,7 +98,7 @@ export class TerminalClipboardContribution extends Disposable implements ITermin
 	 * Focuses and pastes the contents of the selection clipboard into the terminal instance.
 	 */
 	async pasteSelection(): Promise<void> {
-		await this._paste(await this._clipboardService.readText('selection'));
+		await this._paste(await this._clipboardService.readText('primary'));
 	}
 
 	private async _paste(value: string): Promise<void> {
