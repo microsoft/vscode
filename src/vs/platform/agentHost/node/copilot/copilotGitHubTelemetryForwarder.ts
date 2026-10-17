@@ -213,7 +213,6 @@ type ModelCallTurnCorrelatedClassification = {
 		"tool_name": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Telemetry-safe tool name; unsafe names are hashed by the runtime." },
 		"arguments": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Telemetry-safe tool arguments; unsafe values are hashed by the runtime." },
 		"result_type": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Coarse tool result outcome, either SUCCESS or FAILURE." },
-		"invoke_outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Fine-grained invocation outcome: success, error, cancelled, or disabledByUser." },
 		"search_engine": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Search implementation used by the grep tool, either ripgrep or tgrep." },
 		"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Model that requested the tool call." },
 		"tool_call_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier for this tool call, stable across correlated events." },

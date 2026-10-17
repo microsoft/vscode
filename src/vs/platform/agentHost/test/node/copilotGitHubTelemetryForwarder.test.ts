@@ -116,7 +116,7 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 		for (const toolName of ['list_canvas_capabilities', 'open_canvas', 'invoke_canvas_action', 'extensions_reload']) {
 			forwarder.forward({
 				sessionId: 'sdk-session', restricted: false,
-				event: { kind: 'tool_call_executed', properties: { tool_name: toolName, invoke_outcome: 'success' }, metrics: { duration_ms: 42 } },
+				event: { kind: 'tool_call_executed', properties: { tool_name: toolName, result_type: 'SUCCESS' }, metrics: { duration_ms: 42 } },
 			});
 		}
 		const skillNameHash = '33b7d9f0b8715b9f10e8185fb3fd5405e7ca6ac4e5e005885982b019378097f1';
@@ -129,15 +129,15 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 			event: { kind: 'skill_invoked', properties: { skill_name: 'create-canvas', skill_path: '/private/skill.md' }, metrics: {} },
 		});
 		assert.deepStrictEqual(telemetryService.events.map(({ eventName, data }) => ({
-			eventName, restricted: data?.restricted, toolName: data?.tool_name, durationMs: data?.duration_ms,
+			eventName, restricted: data?.restricted, toolName: data?.tool_name, resultType: data?.result_type, durationMs: data?.duration_ms,
 			skillNameHash: data?.skill_name_hash, skillContentLength: data?.skill_content_length, allowedToolsCount: data?.allowed_tools_count,
 		})), [
 			...['list_canvas_capabilities', 'open_canvas', 'invoke_canvas_action', 'extensions_reload'].map(toolName => ({
-				eventName: 'copilotSdk/tool_call_executed', restricted: false, toolName, durationMs: 42,
+				eventName: 'copilotSdk/tool_call_executed', restricted: false, toolName, resultType: 'SUCCESS', durationMs: 42,
 				skillNameHash: undefined, skillContentLength: undefined, allowedToolsCount: undefined,
 			})),
 			{
-				eventName: 'copilotSdk/skill_invoked', restricted: false, toolName: undefined, durationMs: undefined,
+				eventName: 'copilotSdk/skill_invoked', restricted: false, toolName: undefined, resultType: undefined, durationMs: undefined,
 				skillNameHash, skillContentLength: 200, allowedToolsCount: 0,
 			},
 		]);
@@ -371,7 +371,6 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 				properties: {
 					tool_name: 'grep',
 					result_type: 'SUCCESS',
-					invoke_outcome: 'success',
 					search_engine: 'tgrep',
 					model: 'gpt-5.5',
 					tool_call_id: 'call-1',
@@ -385,12 +384,38 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 
 		const event = telemetryService.events[0];
 		assert.strictEqual(event.eventName, 'copilotSdk/tool_call_executed');
-		assert.strictEqual(event.data?.invoke_outcome, 'success');
+		assert.strictEqual(event.data?.invoke_outcome, undefined);
 		assert.strictEqual(event.data?.result_type, 'SUCCESS');
 		assert.strictEqual(event.data?.result_token_count, 34);
 		assert.strictEqual(event.data?.duration_ms, 12);
 		assert.strictEqual(event.data?.tool_call_id, 'call-1');
 		assert.strictEqual(event.data?.search_engine, 'tgrep');
+	});
+
+	test('preserves coarse tool outcomes without inferring fine-grained outcomes', () => {
+		const telemetryService = new TestTelemetryService();
+		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, telemetryService);
+
+		for (const resultType of ['SUCCESS', 'FAILURE', 'unknown', undefined]) {
+			forwarder.forward({
+				sessionId: 'session',
+				restricted: false,
+				event: {
+					kind: 'tool_call_executed',
+					properties: {
+						tool_name: 'open_canvas',
+						...(resultType !== undefined ? { result_type: resultType } : {}),
+					},
+					metrics: {},
+				},
+			});
+		}
+
+		assert.deepStrictEqual(telemetryService.events.map(({ eventName, data }) => ({
+			eventName, resultType: data?.result_type, invokeOutcome: data?.invoke_outcome,
+		})), ['SUCCESS', 'FAILURE', 'unknown', undefined].map(resultType => ({
+			eventName: 'copilotSdk/tool_call_executed', resultType, invokeOutcome: undefined,
+		})));
 	});
 
 	test('forwards indexed search telemetry and gates restricted errors', () => {
