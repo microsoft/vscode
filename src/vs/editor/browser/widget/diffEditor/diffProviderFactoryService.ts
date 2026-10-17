@@ -148,7 +148,12 @@ export class WorkerBasedDocumentDiffProvider implements IDocumentDiffProvider, I
 		}
 
 		if (!result) {
-			throw new Error('no diff result available');
+			return {
+				changes: [],
+				identical: false,
+				quitEarly: true,
+				moves: [],
+			};
 		}
 
 		// max 10 items in cache
