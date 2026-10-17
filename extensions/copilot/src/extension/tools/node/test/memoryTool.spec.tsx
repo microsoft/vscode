@@ -246,6 +246,26 @@ suite('MemoryTool', () => {
 		expect(text).toContain('Multiple occurrences');
 	});
 
+	test('str_replace rejects an empty old_str instead of looping forever', async () => {
+		const storageUri = accessor.get(IVSCodeExtensionContext).storageUri;
+		if (!storageUri) {
+			return;
+		}
+		const fileUri = URI.joinPath(URI.from(storageUri), `memory-tool/memories/${TEST_SESSION_ID}/empty-old-str.md`);
+		mockFs.mockFile(fileUri, 'Hello world');
+
+		const result = await invokeMemoryTool(tool, {
+			command: 'str_replace',
+			path: '/memories/session/empty-old-str.md',
+			old_str: '',
+			new_str: 'prepended text',
+		});
+		const text = getResultText(result as never);
+		expect(text).toContain('non-empty string');
+		const untouched = new TextDecoder().decode(await mockFs.readFile(fileUri));
+		expect(untouched).toBe('Hello world');
+	});
+
 	// --- Local insert ---
 
 	test('insert adds text at specified line', async () => {
