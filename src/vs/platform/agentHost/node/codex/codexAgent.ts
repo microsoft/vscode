@@ -21,6 +21,7 @@ import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { freezeAndKillTree } from '../../../../base/node/processes.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../log/common/log.js';
@@ -51,7 +52,6 @@ import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { CodexChatDiscovery } from './codexChatDiscovery.js';
 import { CodexChatHistory } from './codexChatHistory.js';
-import { killLinuxProcessTree } from './linuxProcessTree.js';
 import type { InitializeResponse } from './protocol/generated/InitializeResponse.js';
 import { applyMcpServerRuntimeStates, McpCustomizationController } from '../shared/mcpCustomizationController.js';
 import { buildCodexMcpReadResult, CodexMcpInventory, codexMcpListToInventory, codexMcpServersFromConfig, codexMcpToolsChanged, codexStartupErrorNeedsAuth, injectCodexMcpAuthTokens, inventoryToSdkServers, normalizeCodexMcpResourceUrl, toCodexMcpServerJson, translateCodexMcpStartupState, type ICodexMcpServerConfigJson } from './codexMcpServers.js';
@@ -327,7 +327,7 @@ function codexConfigArgs(args: readonly string[]): string[] {
 function killCodexAppServer(child: ChildProcessWithoutNullStreams): void {
 	if (process.platform === 'linux' && child.pid !== undefined && child.exitCode === null && child.signalCode === null) {
 		try {
-			killLinuxProcessTree(child.pid);
+			freezeAndKillTree(child.pid);
 			return;
 		} catch {
 			// The process table is unreadable; fall back to killing the app-server alone.

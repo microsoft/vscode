@@ -6,10 +6,10 @@
 import assert from 'assert';
 import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
-import { timeout } from '../../../../../base/common/async.js';
-import { isLinux } from '../../../../../base/common/platform.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ILinuxProcessStat, ILinuxProcessTable, killLinuxProcessTree, parseLinuxProcessStat } from '../../../node/codex/linuxProcessTree.js';
+import { timeout } from '../../../common/async.js';
+import { isLinux } from '../../../common/platform.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../common/utils.js';
+import { freezeAndKillTree, ILinuxProcessInfo, ILinuxProcessTable, parseLinuxProcessStatus } from '../../../node/processes.js';
 
 interface IFakeProcess {
 	readonly ppid: number;
@@ -24,7 +24,7 @@ interface IFakeProcess {
 class FakeProcessTable implements ILinuxProcessTable {
 	readonly signals: string[] = [];
 	private _time = 0;
-	readProcessesError: Error | undefined;
+	listError: Error | undefined;
 
 	constructor(private readonly _processes: Map<number, IFakeProcess>) { }
 
@@ -36,14 +36,14 @@ class FakeProcessTable implements ILinuxProcessTable {
 		return this._time;
 	}
 
-	readProcesses(): readonly ILinuxProcessStat[] {
-		if (this.readProcessesError) {
-			throw this.readProcessesError;
+	list(): readonly ILinuxProcessInfo[] {
+		if (this.listError) {
+			throw this.listError;
 		}
 		return [...this._processes].map(([pid, { ppid, state }]) => ({ pid, ppid, state }));
 	}
 
-	readState(pid: number): string | undefined {
+	state(pid: number): string | undefined {
 		const process = this._processes.get(pid);
 		if (process?.state === 'stopping') {
 			if (process.forksWhileStopping !== undefined) {
@@ -84,13 +84,13 @@ function table(processes: Record<number, Omit<IFakeProcess, 'state'>>): FakeProc
 	return new FakeProcessTable(new Map(Object.entries(processes).map(([pid, process]) => [Number(pid), { state: 'S', ...process }])));
 }
 
-suite('linuxProcessTree', () => {
+suite('Processes - freezeAndKillTree', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('stops the whole tree before killing it deepest first, leaving other processes alone', () => {
 		const processes = table({ 10: { ppid: 1 }, 11: { ppid: 10 }, 12: { ppid: 11 }, 13: { ppid: 10 }, 20: { ppid: 1 }, 21: { ppid: 20 } });
 
-		killLinuxProcessTree(10, processes);
+		freezeAndKillTree(10, undefined, processes);
 
 		assert.deepStrictEqual({ signals: processes.signals, alive: processes.alive }, {
 			signals: ['SIGSTOP 10', 'SIGSTOP 11', 'SIGSTOP 13', 'SIGSTOP 12', 'SIGKILL 12', 'SIGKILL 13', 'SIGKILL 11', 'SIGKILL 10'],
@@ -103,7 +103,7 @@ suite('linuxProcessTree', () => {
 		// the launcher is killed, block forever on an eventfd as an orphan.
 		const processes = table({ 10: { ppid: 1 }, 11: { ppid: 10, stopDelay: 2, forksWhileStopping: 12 } });
 
-		killLinuxProcessTree(10, processes);
+		freezeAndKillTree(10, undefined, processes);
 
 		assert.deepStrictEqual({ signals: processes.signals, alive: processes.alive }, {
 			signals: ['SIGSTOP 10', 'SIGSTOP 11', 'SIGSTOP 12', 'SIGKILL 12', 'SIGKILL 11', 'SIGKILL 10'],
@@ -114,7 +114,7 @@ suite('linuxProcessTree', () => {
 	test('still kills a process that does not stop before the deadline', () => {
 		const processes = table({ 10: { ppid: 1 }, 11: { ppid: 10, stopDelay: Infinity }, 12: { ppid: 11 } });
 
-		killLinuxProcessTree(10, processes, 25);
+		freezeAndKillTree(10, 25, processes);
 
 		assert.deepStrictEqual({ signals: processes.signals, alive: processes.alive, time: processes.time }, {
 			signals: ['SIGSTOP 10', 'SIGSTOP 11', 'SIGSTOP 12', 'SIGKILL 12', 'SIGKILL 11', 'SIGKILL 10'],
@@ -125,9 +125,9 @@ suite('linuxProcessTree', () => {
 
 	test('kills what it stopped when the process table becomes unreadable', () => {
 		const processes = table({ 10: { ppid: 1 }, 11: { ppid: 10 } });
-		processes.readProcessesError = new Error('EACCES');
+		processes.listError = new Error('EACCES');
 
-		assert.throws(() => killLinuxProcessTree(10, processes), /EACCES/);
+		assert.throws(() => freezeAndKillTree(10, undefined, processes), /EACCES/);
 		assert.deepStrictEqual({ signals: processes.signals, alive: processes.alive }, {
 			signals: ['SIGSTOP 10', 'SIGKILL 10'],
 			alive: [11],
@@ -137,7 +137,7 @@ suite('linuxProcessTree', () => {
 	test('does nothing when the root has already exited', () => {
 		const processes = table({ 11: { ppid: 1 } });
 
-		killLinuxProcessTree(10, processes);
+		freezeAndKillTree(10, undefined, processes);
 
 		assert.deepStrictEqual({ signals: processes.signals, alive: processes.alive }, { signals: [], alive: [11] });
 	});
@@ -149,7 +149,7 @@ suite('linuxProcessTree', () => {
 		// SIGKILL is delivered asynchronously; allow the grandchild a moment to die.
 		const isRunning = async (pid: number) => {
 			for (let attempt = 0; attempt < 50; attempt++) {
-				const stat = parseLinuxProcessStat(await fs.readFile(`/proc/${pid}/stat`, 'utf8').catch(() => ''));
+				const stat = parseLinuxProcessStatus(pid, await fs.readFile(`/proc/${pid}/status`, 'utf8').catch(() => ''));
 				if (stat === undefined || stat.state === 'Z' || stat.state === 'X') {
 					return false;
 				}
@@ -158,7 +158,7 @@ suite('linuxProcessTree', () => {
 			return true;
 		};
 		try {
-			killLinuxProcessTree(child.pid!);
+			freezeAndKillTree(child.pid!);
 
 			assert.deepStrictEqual({ signal: await exited, grandchildRunning: await isRunning(grandchild) }, { signal: 'SIGKILL', grandchildRunning: false });
 		} finally {
@@ -166,11 +166,11 @@ suite('linuxProcessTree', () => {
 		}
 	});
 
-	test('parses stat lines whose command name contains spaces and parentheses', () => {
+	test('parses the parent and state from /proc/<pid>/status', () => {
 		assert.deepStrictEqual([
-			parseLinuxProcessStat('33198 (bwrap) S 1 33194 33194 0 -1 4194560'),
-			parseLinuxProcessStat('42 (a) (b c) T 7 42 42 0 -1'),
-			parseLinuxProcessStat('garbage'),
+			parseLinuxProcessStatus(33198, 'Name:\tbwrap\nUmask:\t0022\nState:\tS (sleeping)\nTgid:\t33198\nNgid:\t0\nPid:\t33198\nPPid:\t1\n'),
+			parseLinuxProcessStatus(42, 'Name:\tState: R (a)\nState:\tT (stopped)\nPPid:\t7\n'),
+			parseLinuxProcessStatus(1, 'garbage'),
 		], [
 			{ pid: 33198, ppid: 1, state: 'S' },
 			{ pid: 42, ppid: 7, state: 'T' },
