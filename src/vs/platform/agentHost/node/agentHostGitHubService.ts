@@ -184,7 +184,17 @@ export class AgentHostGitHubService extends GitHubService implements IAgentHostG
 			this._repositoryApiClient.value = store;
 			try {
 				const client = store.add(this._acquireApiClient(options));
-				store.add(Event.once(client.onDidInvalidate)(() => this._repositoryApiClient.clear()));
+				store.add(Event.once(client.onDidInvalidate)(() => {
+					const resource = this._endpointService.getRepoResource();
+					// External selection changes have their own reset; identity discovery does not.
+					if (resource.resource === client.authorization.sessionId
+						&& this._authenticationService.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported })
+						&& this._synchronizeRepositoryAccount() === client.authorization.accountId) {
+						this._resetRepositoryClient();
+					} else {
+						this._repositoryApiClient.clear();
+					}
+				}));
 			} catch (error) {
 				this._repositoryApiClient.clear();
 				throw error;

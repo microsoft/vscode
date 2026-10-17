@@ -6,9 +6,11 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
+import { IGitHubAccountClient } from '../../../github/common/account/account.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { IAgent } from '../../common/agent.js';
@@ -595,12 +597,15 @@ suite('Agent Host GitHub clients', () => {
 		const signal = new AbortController().signal;
 		const first = store.add(service.acquireRepositoryApiClient(signal));
 		const firstContext = await first.issues.get({ owner: 'owner', name: 'repo' }, 7, signal);
+		let selectionsChanged = 0;
+		store.add(service.onDidChangeRepositoryClient(() => selectionsChanged++));
 		selected = 'account-b';
 		changed.fire({ resource: endpoint.getRepoResource().resource, scopes: ['repo'], token: selected });
 		await assert.rejects(first.issues.get({ owner: 'owner', name: 'repo' }, 7, signal));
 		const second = store.add(service.acquireRepositoryApiClient(signal));
 		const secondContext = await second.issues.get({ owner: 'owner', name: 'repo' }, 7, signal);
-		assert.deepStrictEqual({ titles: [firstContext.title, secondContext.title], requests }, {
+		assert.deepStrictEqual({ selectionsChanged, titles: [firstContext.title, secondContext.title], requests }, {
+			selectionsChanged: 1,
 			titles: ['account-a', 'account-b'],
 			requests: [
 				{ path: '/user', etag: null, account: 'account-a' },
@@ -610,6 +615,54 @@ suite('Agent Host GitHub clients', () => {
 			],
 		});
 	});
+
+	for (const legacyFirst of [false, true]) {
+		test(`portable identity changes rebind consumers with a retained peer lease (legacy first: ${legacyFirst})`, async () => {
+			const endpoint = createTestGitHubEndpointService();
+			const resource = endpoint.getRepoResource();
+			const authentication = store.add(new AgentHostAuthenticationService(new NullLogService()));
+			const provider = new class extends mock<IAgent>() {
+				override getProtectedResources() { return [resource]; }
+				override async authenticate() { return true; }
+			}();
+			await authentication.authenticate({ resource: resource.resource, scopes: ['repo'], token: 'first-token' }, [provider]);
+			const service = store.add(new AgentHostGitHubService({
+				fetch: async (input, init) => {
+					const accountId = new Headers(init?.headers).get('Authorization')?.endsWith('second-token') ? 202 : 101;
+					return new URL(String(input)).pathname === '/user'
+						? Response.json({ id: accountId })
+						: Response.json(createTestGitHubIssue(7, { title: String(accountId) }));
+				},
+			}, authentication, endpoint, new NullLogService(), NullTelemetryService));
+			const signal = new AbortController().signal;
+			const legacy = store.add(service.acquireRepositoryClient(signal)).object;
+			await legacy.credentials.getCredential(signal);
+			const peer = store.add(service.acquireRepositoryApiClient(signal));
+			await peer.issues.get({ owner: 'owner', name: 'repo' }, 7, signal);
+			const consumer = store.add(new MutableDisposable<IGitHubAccountClient>());
+			const acquire = () => consumer.value ??= service.acquireRepositoryApiClient(signal);
+			await acquire().issues.get({ owner: 'owner', name: 'repo' }, 7, signal);
+			let selectionsChanged = 0;
+			store.add(service.onDidChangeRepositoryClient(() => {
+				selectionsChanged++;
+				consumer.clear();
+			}));
+
+			await authentication.authenticate({ resource: resource.resource, scopes: ['repo'], token: 'second-token' }, [provider]);
+			if (legacyFirst) {
+				await legacy.credentials.getCredential(signal);
+			}
+			const stale = acquire();
+			await assert.rejects(stale.issues.get({ owner: 'owner', name: 'repo' }, 7, signal), { name: 'Canceled' });
+			const rebound = acquire();
+			const issue = await rebound.issues.get({ owner: 'owner', name: 'repo' }, 7, signal);
+			assert.deepStrictEqual({ selectionsChanged, replaced: rebound !== stale, title: issue.title }, {
+				selectionsChanged: legacyFirst ? 2 : 1,
+				replaced: true,
+				title: '202',
+			});
+		});
+	}
 
 	test('typed repository clients survive same-account token renewal', async () => {
 		const endpoint = createTestGitHubEndpointService();
@@ -643,6 +696,38 @@ suite('Agent Host GitHub clients', () => {
 		assert.deepStrictEqual({ sentTokens, changes, invalidated }, {
 			sentTokens: ['Bearer first-token', 'Bearer renewed-token'], changes: 0, invalidated: false,
 		});
+	});
+
+	test('endpoint changes notify portable consumers once without synchronizing the old selection', async () => {
+		let selected = createTestGitHubEndpointService();
+		const changed = store.add(new Emitter<void>());
+		const endpoint = {
+			...selected,
+			onDidChange: changed.event,
+			getRepoResource: () => selected.getRepoResource(),
+			getApiBaseUri: () => selected.getApiBaseUri(),
+			getGraphQlUri: () => selected.getGraphQlUri(),
+		};
+		const authentication = new class extends mock<IAgentHostAuthenticationService>() {
+			override readonly onDidChangeAuthToken = Event.None;
+			override getAuthAccount() { return { providerId: 'github', accountId: selected.getApiBaseUri() }; }
+			override getAuthToken() { return 'token'; }
+		}();
+		const service = store.add(new AgentHostGitHubService({
+			fetch: async input => new URL(String(input)).pathname === '/user'
+				? Response.json({ id: 101 })
+				: Response.json(createTestGitHubIssue(7)),
+		}, authentication, endpoint, new NullLogService(), NullTelemetryService));
+		const signal = new AbortController().signal;
+		const client = store.add(service.acquireRepositoryApiClient(signal));
+		await client.issues.get({ owner: 'owner', name: 'repo' }, 7, signal);
+		let selectionsChanged = 0;
+		store.add(service.onDidChangeRepositoryClient(() => selectionsChanged++));
+		selected = createTestGitHubEndpointService('https://tenant.ghe.com');
+		changed.fire();
+		await assert.rejects(client.issues.get({ owner: 'owner', name: 'repo' }, 7, signal), { kind: 'authentication' });
+		await store.add(service.acquireRepositoryApiClient(signal)).issues.get({ owner: 'owner', name: 'repo' }, 7, signal);
+		assert.strictEqual(selectionsChanged, 1);
 	});
 
 	test('typed clients reject cancelled acquisitions and stop requests when the host is disposed', async () => {
@@ -762,24 +847,32 @@ suite('Agent Host GitHub clients', () => {
 			override getAuthAccount() { return undefined; }
 			override getAuthToken() { return token; }
 		}();
-		const service = store.add(new AgentHostGitHubService({ fetch: async () => new Response('{"id":101}') }, authentication, endpoint, new NullLogService(), NullTelemetryService));
+		const service = store.add(new AgentHostGitHubService({
+			fetch: async input => new URL(String(input)).pathname === '/user'
+				? Response.json({ id: 101 })
+				: Response.json(createTestGitHubIssue(7)),
+		}, authentication, endpoint, new NullLogService(), NullTelemetryService));
 		const client = store.add(service.acquireRepositoryClient(new AbortController().signal)).object;
 		const credential = await client.credentials.getCredential(new AbortController().signal);
+		const portable = store.add(service.acquireRepositoryApiClient(new AbortController().signal));
+		await portable.issues.get({ owner: 'owner', name: 'repo' }, 7, new AbortController().signal);
 		let invalidated = 0;
+		let portableInvalidated = 0;
 		let selectionsChanged = 0;
 		store.add(getGitHubClientInternals(client).onDidInvalidate(() => { invalidated++; }));
+		store.add(portable.onDidInvalidate(() => portableInvalidated++));
 		store.add(service.onDidChangeRepositoryClient(() => { selectionsChanged++; }));
 		changed.fire({ resource: endpoint.getCopilotResource().resource, scopes: ['read:user'], token: undefined });
-		const afterUnrelatedChange = { invalidated, selectionsChanged, aborted: credential.signal.aborted };
+		const afterUnrelatedChange = { invalidated, portableInvalidated, selectionsChanged, aborted: credential.signal.aborted };
 		token = undefined;
 		changed.fire({ resource: endpoint.getRepoResource().resource, scopes: ['repo'], token });
 		const replacement = store.add(service.acquireRepositoryClient(new AbortController().signal)).object;
 		await assert.rejects(replacement.credentials.getCredential(new AbortController().signal), { kind: 'authentication' });
 		assert.deepStrictEqual({
-			afterUnrelatedChange, invalidated, selectionsChanged, aborted: credential.signal.aborted, replaced: replacement !== client,
+			afterUnrelatedChange, invalidated, portableInvalidated, selectionsChanged, aborted: credential.signal.aborted, replaced: replacement !== client,
 		}, {
-			afterUnrelatedChange: { invalidated: 0, selectionsChanged: 0, aborted: false },
-			invalidated: 1, selectionsChanged: 1, aborted: true, replaced: true,
+			afterUnrelatedChange: { invalidated: 0, portableInvalidated: 0, selectionsChanged: 0, aborted: false },
+			invalidated: 1, portableInvalidated: 1, selectionsChanged: 1, aborted: true, replaced: true,
 		});
 	});
 });
