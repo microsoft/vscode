@@ -3301,6 +3301,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._handleCopilotSessionAuthRequired();
 			}
 			await this._handleClientOperationFailure(err, 'modelRefresh');
+			// Teardown may have begun while the failure was handled: a retry would outlive the agent.
+			if (this._shutdownPromise || this._store.isDisposed) {
+				return;
+			}
 			if (attempt + 1 < this._modelRefreshMaxAttempts) {
 				const delay = this._modelRefreshBackoff(attempt);
 				this._logService.warn(`[Copilot] Failed to refresh models (attempt ${attempt + 1}), retrying in ${delay}ms`, err);

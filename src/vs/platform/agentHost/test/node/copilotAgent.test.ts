@@ -7945,8 +7945,8 @@ suite('CopilotAgent', () => {
 			const provisional = (agent as unknown as { _provisionalSessions: Map<string, { workspaceless?: boolean }> })._provisionalSessions.get('temp-fallback');
 			assert.strictEqual(provisional?.workspaceless, true);
 		} finally {
-			await fs.rm(userHome.fsPath, { recursive: true, force: true });
 			await disposeAgent(agent);
+			await fs.rm(userHome.fsPath, { recursive: true, force: true });
 		}
 	}).timeout(30_000);
 
@@ -7972,8 +7972,8 @@ suite('CopilotAgent', () => {
 
 				assert.deepStrictEqual(uris.includes(scratchInstructions.toString()), false);
 			} finally {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				await disposeAgent(agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 			}
 		}).timeout(30_000);
 
@@ -7998,8 +7998,8 @@ suite('CopilotAgent', () => {
 				await internals._resumeSession(sessionId, sessionBackedChat(sessionId)).catch(() => undefined);
 				await fs.access(scratchDir.fsPath);
 			} finally {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				await disposeAgent(agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 			}
 		}).timeout(30_000);
 
@@ -8018,8 +8018,8 @@ suite('CopilotAgent', () => {
 				await disposeProvisionedSession(agent, result.session);
 				await assert.rejects(() => fs.access(scratchDir.fsPath));
 			} finally {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				await disposeAgent(agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 			}
 		}).timeout(30_000);
 
@@ -8044,8 +8044,8 @@ suite('CopilotAgent', () => {
 				await disposeProvisionedSession(agent, session);
 				return { afterPeer, afterDefault: await scratchExists() };
 			} finally {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				await disposeAgent(agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 			}
 		}
 
@@ -15123,8 +15123,8 @@ suite('CopilotAgent', () => {
 					[{ id: sessionId, adoptable: false }],
 				);
 			} finally {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				await disposeAgent(agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 			}
 		});
 	});
@@ -15885,8 +15885,8 @@ suite('CopilotAgent', () => {
 					{ beforeMarker: false, afterMarker: true },
 				);
 			} finally {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				await disposeAgent(agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 			}
 		});
 
@@ -18286,8 +18286,8 @@ suite('CopilotAgent', () => {
 					released: [session.toString()],
 				});
 			} finally {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				await disposeAgent(agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 			}
 		}).timeout(30_000);
 
@@ -18489,8 +18489,8 @@ suite('CopilotAgent', () => {
 					released: otelService.released,
 				}, before);
 			} finally {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				await disposeAgent(agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 			}
 		}).timeout(30_000);
 	});
@@ -26052,8 +26052,8 @@ suite('CopilotAgent', () => {
 					},
 				);
 			} finally {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				await disposeAgent(agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 			}
 		});
 
@@ -26127,8 +26127,8 @@ suite('CopilotAgent', () => {
 				);
 			} finally {
 				checkStub.restore();
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				await disposeAgent(agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 			}
 		});
 
@@ -26156,8 +26156,8 @@ suite('CopilotAgent', () => {
 				db?.dispose();
 				assert.strictEqual(persistedCwd, undefined);
 			} finally {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				await disposeAgent(agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 			}
 		});
 
@@ -26384,8 +26384,8 @@ suite('CopilotAgent', () => {
 					{ adopted: { adopted: false, eligible: false, reason: 'notLegacyChat', diagnostics: { ...uninspectedStorage, sessionStateRootStatus: 'missing', markerOrigin: 'unavailable', markerStatus: 'missing', provenance: 'unknown', markerFromCache: false } }, getSessionMetadataCalls: [], openedDatabases: [] },
 				);
 			} finally {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				await disposeAgent(agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 			}
 		});
 
@@ -26414,8 +26414,8 @@ suite('CopilotAgent', () => {
 					{ adopted: { adopted: false, eligible: false, reason: 'notLegacyChat', diagnostics: { ...uninspectedStorage, markerOrigin: 'other', markerStatus: 'valid', provenance: 'external', markerFromCache: false } }, getSessionMetadataCalls: [], openedDatabases: [] },
 				);
 			} finally {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				await disposeAgent(agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 			}
 		});
 
@@ -26460,8 +26460,8 @@ suite('CopilotAgent', () => {
 						metadataCalls: [], openedDatabases: [],
 					});
 				} finally {
-					await fs.rm(userHome.fsPath, { recursive: true, force: true });
 					await disposeAgent(agent);
+					await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				}
 			});
 		}
@@ -26484,8 +26484,8 @@ suite('CopilotAgent', () => {
 					{ ...uninspectedStorage, markerOrigin: 'other', markerStatus: 'valid', provenance: 'external', markerFromCache: true },
 				]);
 			} finally {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				await disposeAgent(agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 			}
 		});
 
@@ -26537,8 +26537,8 @@ suite('CopilotAgent', () => {
 						metadataCalls: [], databases: [],
 					});
 				} finally {
-					await fs.rm(userHome.fsPath, { recursive: true, force: true });
 					await disposeAgent(agent);
+					await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				}
 			});
 		}
@@ -26587,8 +26587,8 @@ suite('CopilotAgent', () => {
 						status, clientName, containsPrivateContent: false, metadataCalls: [], openedDatabases: [],
 					});
 				} finally {
-					await fs.rm(userHome.fsPath, { recursive: true, force: true });
 					await disposeAgent(agent);
+					await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				}
 			});
 		}
@@ -26641,8 +26641,8 @@ suite('CopilotAgent', () => {
 					if (file && file.fd !== -1) {
 						await file.close();
 					}
-					await fs.rm(userHome.fsPath, { recursive: true, force: true });
 					await disposeAgent(agent);
+					await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				}
 			});
 		}
@@ -26668,8 +26668,8 @@ suite('CopilotAgent', () => {
 					});
 					assert.deepStrictEqual({ result, opened }, { result: { workspaceMetadataStatus: 'readError' }, opened: false });
 				} finally {
-					await fs.rm(userHome.fsPath, { recursive: true, force: true });
 					await disposeAgent(agent);
+					await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				}
 			});
 		}
@@ -26695,8 +26695,8 @@ suite('CopilotAgent', () => {
 					{ reason: 'notLegacyChat', provenance: 'external', client: 'github-cli', cachedMarker: true },
 				]);
 			} finally {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				await disposeAgent(agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 			}
 		});
 
@@ -26717,8 +26717,8 @@ suite('CopilotAgent', () => {
 					status: 'notChecked', client: 'unavailable',
 				});
 			} finally {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				await disposeAgent(agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 			}
 		});
 
@@ -26739,8 +26739,8 @@ suite('CopilotAgent', () => {
 					},
 				});
 			} finally {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				await disposeAgent(agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 			}
 		});
 
@@ -26790,8 +26790,8 @@ suite('CopilotAgent', () => {
 					{ adopted: { adopted: false, eligible: false, reason: 'notLegacyChat', diagnostics: { ...uninspectedStorage, markerOrigin: 'missing', markerStatus: 'valid', provenance: 'unknown', markerFromCache: false } }, getSessionMetadataCalls: [], openedDatabases: [] },
 				);
 			} finally {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				await disposeAgent(agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 			}
 		});
 
@@ -26826,8 +26826,8 @@ suite('CopilotAgent', () => {
 					{ adopted: { adopted: false, eligible: false, native: true, reason: 'alreadyNative' }, getSessionMetadataCalls: [], usages: [] },
 				);
 			} finally {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				await disposeAgent(agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 			}
 		});
 
