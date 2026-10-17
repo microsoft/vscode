@@ -352,6 +352,26 @@ suite('CustomizationMigrationDashboard', () => {
 		assert.ok(height > 0 && height <= 400, `Unexpected tree height: ${treeContainer.style.height}`);
 	});
 
+	test('restores documentation link focus when refreshing a completed overview', () => {
+		const { parent, dashboard } = createDashboard();
+		dashboard.showOverview({ scopes: [] });
+		const link = parent.querySelector<HTMLAnchorElement>('.monaco-link');
+		assert.ok(link);
+		link.focus();
+		dashboard.showOverview({ scopes: [] });
+		const focusedAfterRefresh = document.activeElement === parent.querySelector('.monaco-link');
+
+		dashboard.showLoading('Migrations', 'Loading migrations');
+		dashboard.showOverview({ scopes: [] });
+		assert.deepStrictEqual({
+			focusedAfterRefresh,
+			focusedAfterLoading: document.activeElement === parent.querySelector('.monaco-link'),
+		}, {
+			focusedAfterRefresh: true,
+			focusedAfterLoading: true,
+		});
+	});
+
 	test('does not move focus into a completed overview', () => {
 		const { parent, dashboard } = createDashboard();
 		const model = overview();

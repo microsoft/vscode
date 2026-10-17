@@ -334,6 +334,9 @@ export class CustomizationMigrationDashboard extends Disposable {
 		this.layoutTree?.();
 		this.callbacks.onDidChangeContent?.();
 		if (this.allMigrationsComplete) {
+			if (focusedKey === 'learnMore') {
+				this.focusTargets.get('learnMore')?.focus();
+			}
 			return;
 		}
 		if (focusedKey === focusPreferredTarget) {
