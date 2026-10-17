@@ -27296,6 +27296,8 @@ suite('AgentService (node dispatcher)', () => {
 				internals._catalogReconciliationService.runPass = runReconciliation;
 				internals._catalogSyncSuppressedSessions.delete(sessionKey);
 				await runReconciliation();
+				// What central session state holds reaches session.db with its debounced mirror: settle it before reading session.db.
+				await getTestSessionStateStore(svc).whenIdle(undefined);
 
 				const snapshot = (await database.readCatalogSnapshot([sessionKey]))[0];
 				results.push({
