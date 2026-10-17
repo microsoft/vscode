@@ -40,8 +40,8 @@ export class InMemoryConfigurationService extends AbstractConfigurationService {
 		return inspect;
 	}
 
-	override getNonExtensionConfig<T>(configKey: string): T | undefined {
-		return this.nonExtensionOverrides.get(configKey) ?? this.baseConfigurationService.getNonExtensionConfig(configKey);
+	override getNonExtensionConfig<T>(configKey: string, scope?: ConfigurationScope): T | undefined {
+		return this.nonExtensionOverrides.get(configKey) ?? this.baseConfigurationService.getNonExtensionConfig(configKey, scope);
 	}
 
 	override setConfig<T>(key: BaseConfig<T>, value: T, _target?: ConfigTarget): Promise<void> {

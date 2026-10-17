@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { FormattingOptions, TextDocument } from 'vscode';
+import type { ConfigurationScope, FormattingOptions, TextDocument } from 'vscode';
+import type { IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { TextDocumentSnapshot } from '../../../platform/editing/common/textDocumentSnapshot';
 import * as strings from '../../../util/vs/base/common/strings';
 import { isLines, Lines } from './editGeneration';
@@ -125,6 +126,36 @@ export interface IGuessedIndentation {
 	 * Is indentation based on spaces?
 	 */
 	insertSpaces: boolean;
+}
+
+/**
+ * Indentation used when neither the content nor the editor settings give any hint.
+ */
+export const DEFAULT_INDENTATION: Readonly<IGuessedIndentation> = { tabSize: 4, insertSpaces: false };
+
+function asPositiveInteger(value: unknown): number | undefined {
+	const n = typeof value === 'string' ? Number(value) : value;
+	return typeof n === 'number' && Number.isInteger(n) && n > 0 ? n : undefined;
+}
+
+/**
+ * Resolves the indentation a new editor would use for a document in the given
+ * scope, based on the effective `editor.insertSpaces`, `editor.tabSize` and
+ * `editor.indentSize` settings (including resource and language overrides).
+ * Meant as the fallback for {@link guessIndentation} when the content itself
+ * does not reveal an indentation style.
+ */
+export function resolveIndentationDefaults(configurationService: IConfigurationService, scope: ConfigurationScope): IGuessedIndentation {
+	const insertSpaces = configurationService.getNonExtensionConfig<unknown>('editor.insertSpaces', scope);
+	const tabSize = asPositiveInteger(configurationService.getNonExtensionConfig<unknown>('editor.tabSize', scope));
+	const indentSize = asPositiveInteger(configurationService.getNonExtensionConfig<unknown>('editor.indentSize', scope));
+
+	const resolvedInsertSpaces = typeof insertSpaces === 'boolean' ? insertSpaces : DEFAULT_INDENTATION.insertSpaces;
+	// `editor.indentSize` defaults to the string "tabSize"; when it's a number it
+	// is the width of one indentation level when indenting with spaces.
+	const resolvedTabSize = (resolvedInsertSpaces ? indentSize : undefined) ?? tabSize ?? DEFAULT_INDENTATION.tabSize;
+
+	return { insertSpaces: resolvedInsertSpaces, tabSize: resolvedTabSize };
 }
 
 export function guessFileIndentInfo(source: Lines | TextDocument | TextDocumentSnapshot): FormattingOptions {
