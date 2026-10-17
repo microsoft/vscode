@@ -1918,9 +1918,14 @@ export class AgentSideEffects extends Disposable {
 					: action.turnId;
 				// Route to the chat being truncated: the default chat (addressed
 				// by the session) or a peer chat with its own backing.
-				agent?.truncateChat?.(URI.parse(chatChannel), sdkTurnId, this._chatContext(sessionChannel, chatChannel)).catch(err => {
-					this._logService.error('[AgentSideEffects] truncateChat failed', err);
-				});
+				const truncation = agent?.truncateChat?.(URI.parse(chatChannel), sdkTurnId, this._chatContext(sessionChannel, chatChannel));
+				if (truncation) {
+					void truncation.catch(err => {
+						this._logService.error('[AgentSideEffects] truncateChat failed', err);
+					}).finally(() => this._changesets.onSessionTruncated(sessionChannel));
+				} else {
+					this._changesets.onSessionTruncated(sessionChannel);
+				}
 				// Drop persisted local turns that no longer survive in the
 				// (already-truncated) chat state.
 				const survivingIds = new Set((this._stateManager.getChatState(chatChannel)?.turns ?? []).map(t => t.id));
@@ -1936,7 +1941,6 @@ export class AgentSideEffects extends Disposable {
 					trackedTurnIds.add(activeTurnId);
 				}
 				this._turnTracker.clearTurnsExcept(chatChannel, trackedTurnIds);
-				this._changesets.onSessionTruncated(sessionChannel);
 				break;
 			}
 			case ActionType.SessionActiveClientSet: {

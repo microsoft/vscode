@@ -18,7 +18,7 @@ import { Disposable, DisposableMap, DisposableResourceMap, DisposableSet, Dispos
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { equals } from '../../../../../../base/common/objects.js';
-import { autorun, autorunPerKeyedItem, constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../../../base/common/observable.js';
+import { autorun, autorunPerKeyedItem, constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, observableFromEvent, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { AgentHostFirstResponseTiming, nextRendererRootInvocationOrdinal, type AgentHostFirstResponseClassification, type AgentHostFirstResponseOutcome, type IAgentHostFirstResponseEvent } from './agentHostFirstResponseTelemetry.js';
@@ -57,6 +57,7 @@ import { readCompletionAttachmentMeta } from '../../../../../../platform/agentHo
 import { readSlashCommandResource, type ISlashCommandResource } from '../../../../../../platform/agentHost/common/meta/agentSlashCommandOutputMeta.js';
 import { IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentHostClientConnectionKind, agentHostClientConnectionKindValidator } from '../../../../../../platform/agentHost/common/agentHostTelemetry.js';
+import { ChangesetKind, resolveChangesetUriTemplate, resolveChatChangesetCatalogue } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ChatAgentFilesLocationsSettingId, ChatHookFilesLocationsSettingId, getChatSensitiveEditLocations, mergeChatSensitiveEditLocations, type IChatSensitiveEditLocation } from '../../../../../../platform/chat/common/chatSettings.js';
 import { resolveAgentHostSessionTrustFolders } from '../../../../../../platform/agentHost/common/agentHostWorkspaceTrust.js';
@@ -70,7 +71,7 @@ import { BackgroundWorkKind, ConfirmationOptionKind, CustomizationType, JsonPrim
 import { compareProtocolVersions } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { ActionType, ChatTurnStartedAction, isChatAction, type ClientChatAction, type ClientSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, AHP_NOT_FOUND, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { ChatOriginKind, getSessionChatResource, getErrorResponsePart, getInlineToolInput, getTurnError, isChatReadOnly, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, mergeSessionWithDefaultChat, readSessionWorkspaceless, type ChatState, type ISessionWithDefaultChat, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type PendingMessage, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ChatSummary, type SessionState, type StringOrMarkdown, type ToolCallPendingConfirmationState, type ToolCallResponsePart, type ToolCallRunningState, type ToolCallState, type ToolInput, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChangesetStatus, ChatOriginKind, getSessionChatResource, getErrorResponsePart, getInlineToolInput, getTurnError, isChatReadOnly, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, mergeSessionWithDefaultChat, readSessionWorkspaceless, type ChatState, type ISessionFileDiff, type ISessionWithDefaultChat, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type PendingMessage, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ChatSummary, type SessionState, type StringOrMarkdown, type ToolCallPendingConfirmationState, type ToolCallResponsePart, type ToolCallRunningState, type ToolCallState, type ToolInput, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -1483,6 +1484,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						AgentHostSnapshotController,
 						chatSessionResource,
 						config.connectionAuthority,
+						config.provider === CODEX_AGENT_PROVIDER_ID ? {
+							getChanges: requestId => this._chatResponseFileChangesService.getChangesForRequest(chatSessionResource, requestId),
+							resolve: requestId => this._resolveTurnFileEdits(chatSessionResource, requestId),
+						} : undefined,
 					);
 				},
 			},
@@ -6025,6 +6030,36 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	// ---- File edit routing ---------------------------------------------------
+
+	/** Reads immutable turn edits for checkpoint restore, without requiring edit-tool presentation. */
+	private async _resolveTurnFileEdits(sessionResource: URI, requestId: string): Promise<readonly ISessionFileDiff[] | undefined> {
+		const session = this._resolveSessionUri(sessionResource);
+		const chat = this._getChatURIOrDefault(sessionResource, session);
+		const sessionState = this._getRawSessionState(session.toString());
+		if (!chat || !sessionState) {
+			return undefined;
+		}
+		const chatState = chat === sessionState.defaultChat ? this._getDefaultChatState(session.toString()) : this._getAdditionalChatState(chat);
+		const entry = resolveChatChangesetCatalogue(chat, chatState?.changesets, sessionState.changesets, sessionState.defaultChat)
+			?.find(({ changeset }) => changeset.changeKind === ChangesetKind.Turn);
+		if (!entry) {
+			return undefined;
+		}
+		const owner = entry.owner === 'session' ? session.toString() : chat;
+		const resource = URI.parse(resolveChangesetUriTemplate(owner, entry.changeset.uriTemplate).replace('{turnId}', requestId));
+		const reference = this._config.connection.getSubscription(StateComponents.Changeset, resource, 'AgentHostSnapshotController');
+		try {
+			const state = await waitForState(observableFromEvent(this, reference.object.onDidChange, () => reference.object.value),
+				value => value !== undefined && !(value instanceof Error) && (value.status === ChangesetStatus.Ready || value.status === ChangesetStatus.Error),
+				value => value instanceof Error ? value : undefined);
+			if (!state || state instanceof Error || state.status !== ChangesetStatus.Ready) {
+				throw new Error(localize('agentHost.snapshotUnavailable', "The turn's file changes could not be loaded."));
+			}
+			return state.files.map(file => file.edit);
+		} finally {
+			reference.dispose();
+		}
+	}
 
 	/**
 	 * Ensures the chat model has a snapshot controller bound (creating one
