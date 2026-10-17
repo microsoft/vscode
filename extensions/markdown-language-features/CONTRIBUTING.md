@@ -103,6 +103,10 @@ background and glow, and defaults to enabled. Resource-specific changes are sent
 to the renderer without reloading the document or changing source-marker visibility.
 The webview reserves symmetric scrollbar gutters so the document remains centered.
 
+### Typography
+
+The rich editor follows the Markdown preview's `markdown.preview.fontFamily`, `markdown.preview.fontSize`, and `markdown.preview.lineHeight` settings, so both render Markdown with the same font. The extension sends them with the rest of the editor configuration, and the webview sets them as the `--markdown-font-family`, `--markdown-font-size`, and `--markdown-line-height` custom properties on the document root: the same variables the preview sets and the `@vscode/markdown-editor` themes read. Resource-specific changes apply without reloading the document. Values that cannot be sent to the webview, such as non-finite numbers or a non-string font family, fall back to the theme defaults.
+
 ### Outline and breadcrumbs
 
 The rich editor opts into `customTextEditorNavigation`. The workbench reuses the document's symbol providers for Outline and breadcrumbs; the extension reports each panel's source selection and routes reveal and view-state requests through the Markdown editor RPC bridge. Offset mapping uses the renderer's synchronized text, including when its line endings differ from the document.
