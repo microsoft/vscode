@@ -65,10 +65,12 @@ suite('Replace Pattern test', () => {
 		testParse('hello$100a', 'hello$100a', false);
 		// $10a0 => no treatment
 		testParse('hello$10a0', 'hello$10a0', true);
-		// $$ => no treatment
-		testParse('hello$$', 'hello$$', false);
-		// $$0 => no treatment
-		testParse('hello$$0', 'hello$$0', false);
+		// $$ => $
+		testParse('hello$$', 'hello$', false);
+		// $$0 => $0
+		testParse('hello$$0', 'hello$0', false);
+		// $$1 => $1
+		testParse('hello$$1', 'hello$1', false);
 
 		// $0 => $&
 		testParse('hello$0', 'hello$&', true);
@@ -140,6 +142,20 @@ suite('Replace Pattern test', () => {
 		testObject = new ReplacePattern('cat$1', { pattern: 'for(.*)', isRegExp: true });
 		actual = testObject.getReplaceString('for ()');
 		assert.strictEqual(actual, 'cat ()');
+	});
+
+	test('escaped dollar sign in regex replace string', () => { // #299365
+		let testObject = new ReplacePattern('$$0', { pattern: 'some_line', isRegExp: true });
+		assert.strictEqual(testObject.hasParameters, false);
+		assert.strictEqual(testObject.getReplaceString('some_line'), '$0');
+
+		testObject = new ReplacePattern('$$1', { pattern: 'some_line', isRegExp: true });
+		assert.strictEqual(testObject.hasParameters, false);
+		assert.strictEqual(testObject.getReplaceString('some_line'), '$1');
+
+		testObject = new ReplacePattern('a$$0b', { pattern: 'some_line', isRegExp: true });
+		assert.strictEqual(testObject.hasParameters, false);
+		assert.strictEqual(testObject.getReplaceString('some_line'), 'a$0b');
 	});
 
 	test('case operations', () => {

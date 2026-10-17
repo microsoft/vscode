@@ -234,6 +234,10 @@ export class ReplacePattern {
 					case CharCode.SingleQuote:
 						this._hasParameters = true;
 						break;
+					case CharCode.DollarSign:
+						// $$ => $ (escape, consistent with in-editor find/replace)
+						replaceWithCharacter = '$';
+						break;
 					default: {
 						// check if it is a valid string parameter $n (0 <= n <= 99). $0 is already handled by now.
 						if (!this.between(nextChCode, CharCode.Digit1, CharCode.Digit9)) {
