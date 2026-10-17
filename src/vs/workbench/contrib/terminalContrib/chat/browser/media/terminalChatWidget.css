@@ -9,6 +9,10 @@
 	bottom: 0;
 	z-index: 100;
 	height: auto !important;
+	/* The container is stretched between the widget's `top` (set in JS) and this
+	   `bottom: 0`, leaving empty space below the widget that would otherwise
+	   swallow clicks meant for the terminal underneath it. */
+	pointer-events: none;
 }
 
 .monaco-workbench .terminal-inline-chat .inline-chat {
@@ -20,6 +24,7 @@
 	background: var(--vscode-inlineChat-background);
 	position: relative;
 	outline: none;
+	pointer-events: auto;
 
 	border-top-style: solid;
 	border-bottom-style: solid;
