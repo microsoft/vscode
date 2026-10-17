@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { spy } from 'sinon';
 import { mainWindow } from '../../browser/window.js';
 import { fillInIncompleteTokens, renderMarkdown, renderAsPlaintext } from '../../browser/markdownRenderer.js';
-import { IMarkdownString, MarkdownString } from '../../common/htmlContent.js';
+import { appendEscapedMarkdownInlineCode, IMarkdownString, MarkdownString } from '../../common/htmlContent.js';
 import { toDisposable } from '../../common/lifecycle.js';
 import * as marked from '../../common/marked/marked.js';
 import { parse } from '../../common/marshalling.js';
@@ -621,6 +622,14 @@ suite('MarkdownRenderer', () => {
 
 	suite('PlaintextMarkdownRender', () => {
 
+		test('preserves text around URLs next to escaped angle brackets #316998', () => {
+			const inputs = ['https://example.com<br>', '<https://example.com/a?b=c> following'];
+			assert.deepStrictEqual(
+				inputs.map(input => renderAsPlaintext(new MarkdownString().appendText(input))),
+				inputs,
+			);
+		});
+
 		test('test code, blockquote, heading, list, listitem, paragraph, table, tablerow, tablecell, strong, em, br, del, text are rendered plaintext', () => {
 			const markdown = { value: '`code`\n>quote\n# heading\n- list\n\ntable | table2\n--- | --- \none | two\n\n\nbo**ld**\n_italic_\n~~del~~\nsome text' };
 			const expected = 'code\nquote\nheading\nlist\n\ntable table2\none two\nbold\nitalic\ndel\nsome text';
@@ -679,6 +688,21 @@ suite('MarkdownRenderer', () => {
 	});
 
 	suite('supportHtml', () => {
+		test('appendText uses prose escaping, unlike the inline code helper #316998', () => {
+			const input = 'a<b>';
+			const markdown = [
+				new MarkdownString('`').appendText(input).appendMarkdown('`'),
+				new MarkdownString().appendMarkdown(appendEscapedMarkdownInlineCode(input)),
+			];
+			assert.deepStrictEqual(
+				markdown.map(value => store.add(renderMarkdown(value)).element.innerHTML),
+				[
+					'<p><code>a\\&lt;b\\&gt;</code></p>',
+					'<p><code>a&lt;b&gt;</code></p>',
+				],
+			);
+		});
+
 		test('supportHtml is disabled by default', () => {
 			const mds = new MarkdownString(undefined, {});
 			mds.appendMarkdown('a<b>b</b>c');
@@ -710,6 +734,43 @@ suite('MarkdownRenderer', () => {
 			const result = store.add(renderMarkdown(mds)).element;
 			assert.strictEqual(result.innerHTML, `<p>a&lt;b&gt;b&lt;/b&gt;c</p>`);
 		});
+
+		for (const supportHtml of [false, true]) {
+			test(`appendText preserves literal HTML-like text with supportHtml=${supportHtml} #316998`, () => {
+				const inputs = ['<div>text</div>', '<span>text</span>', '<div', '\\<span>text</span>'];
+				const results = inputs.map(input => {
+					const markdown = new MarkdownString('', { supportHtml }).appendText(input);
+					return store.add(renderMarkdown(markdown)).element.innerHTML;
+				});
+
+				assert.deepStrictEqual(results, [
+					'<p>&lt;div&gt;text&lt;/div&gt;</p>',
+					'<p>&lt;span&gt;text&lt;/span&gt;</p>',
+					'<p>&lt;div</p>',
+					'<p>\\&lt;span&gt;text&lt;/span&gt;</p>',
+				]);
+			});
+
+			test(`appendText preserves multiline incomplete tags with supportHtml=${supportHtml} #316998`, () => {
+				const results = ['div', 'pre'].map(tag => {
+					const markdown = new MarkdownString('', { supportHtml })
+						.appendText(`<${tag}\ntext`)
+						.appendMarkdown('\n\n**bold**');
+					return store.add(renderMarkdown(markdown)).element.innerHTML;
+				});
+
+				assert.deepStrictEqual(results, [
+					'<p>&lt;div</p><p>text</p><p><strong>bold</strong></p>',
+					'<p>&lt;pre</p><p>text</p><p><strong>bold</strong></p>',
+				]);
+			});
+
+			test(`appendText does not create file autolinks with supportHtml=${supportHtml} #316998`, () => {
+				const markdown = new MarkdownString('', { supportHtml }).appendText('<file:///C:/folder>');
+				const result = store.add(renderMarkdown(markdown)).element;
+				assert.strictEqual(result.innerHTML, '<p>&lt;file:///C:/folder&gt;</p>');
+			});
+		}
 
 		test('Should render html images', () => {
 			if (isWeb) {
@@ -745,6 +806,79 @@ suite('MarkdownRenderer', () => {
 			// Inputs should always be disabled too
 			assert.strictEqual(result.innerHTML, `<p>text: \ncheckbox:<input type="checkbox" disabled=""></p>`);
 		});
+	});
+
+	suite('URLs next to escaped angle brackets', () => {
+		for (const render of [renderMarkdown, renderAsPlaintext]) {
+			test(`${render.name} only registers the URL override for escaped angle brackets`, () => {
+				const cases = [
+					{ value: 'Ordinary **Markdown**\nhttps://example.com', registered: false },
+					{ value: '<https://example.com>', registered: false },
+					{ value: String.raw`https://example.com/a\*b`, registered: false },
+					{ value: String.raw`https://example.com/a\<b`, registered: true },
+					{ value: String.raw`https://example.com/a\>b`, registered: true },
+					{ value: 'https://example.com/after', registered: false },
+				];
+				const useSpy = spy(marked.Marked.prototype, 'use');
+				try {
+					const results = cases.map(({ value }) => {
+						useSpy.resetHistory();
+						const result = render({ value });
+						if (typeof result !== 'string') {
+							store.add(result);
+						}
+						return {
+							value,
+							registered: useSpy.getCalls().some(call => call.args.some(extension => !!extension.tokenizer?.url)),
+						};
+					});
+					assert.deepStrictEqual(results, cases);
+				} finally {
+					useSpy.restore();
+				}
+			});
+		}
+
+		test('preserves ordinary links and paired backslashes', () => {
+			const cases = [
+				{ value: 'https://example.com/a%3Cb%3E', label: 'https://example.com/a%3Cb%3E', href: 'https://example.com/a%3Cb%3E' },
+				{ value: '<https://example.com/a?b=c>', label: 'https://example.com/a?b=c', href: 'https://example.com/a?b=c' },
+				{ value: '[label](https://example.com/a)', label: 'label', href: 'https://example.com/a' },
+				{ value: 'user@example.com', label: 'user@example.com', href: 'mailto:user@example.com' },
+				{ value: String.raw`https://example.com/a\\<b`, label: 'https://example.com/a\\', href: 'https://example.com/a\\' },
+			];
+			const results = cases.map(({ value }) => {
+				const result = store.add(renderMarkdown({ value })).element;
+				return Array.from(result.querySelectorAll('a'), link => ({ label: link.textContent, href: link.dataset.href }));
+			});
+			assert.deepStrictEqual(results, cases.map(({ label, href }) => [{ label, href }]));
+		});
+
+		for (const fillInIncompleteTokens of [false, true]) {
+			test(`appendText preserves URL boundaries with fillInIncompleteTokens=${fillInIncompleteTokens} #316998`, () => {
+				const cases = [
+					{ input: 'https://example.com<br>', label: 'https://example.com', href: 'https://example.com' },
+					{ input: '<loc>https://example.com</loc>', label: 'https://example.com', href: 'https://example.com' },
+					{ input: 'www.example.com<b>', label: 'www.example.com', href: 'http://www.example.com' },
+					{ input: 'https://example.com/a<b', label: 'https://example.com/a', href: 'https://example.com/a' },
+					{ input: '<https://example.com/a?b=c> following', label: 'https://example.com/a?b=c', href: 'https://example.com/a?b=c' },
+					{ input: 'https://example.com/a>following', label: 'https://example.com/a', href: 'https://example.com/a' },
+				];
+				const results = cases.map(({ input }) => {
+					const markdown = new MarkdownString().appendText(input);
+					const result = store.add(renderMarkdown(markdown, { fillInIncompleteTokens })).element;
+					return {
+						text: result.textContent,
+						links: Array.from(result.querySelectorAll('a'), link => ({ label: link.textContent, href: link.dataset.href })),
+					};
+				});
+
+				assert.deepStrictEqual(results, cases.map(({ input, label, href }) => ({
+					text: input.replace(/ /g, '\u00a0'),
+					links: [{ label, href }],
+				})));
+			});
+		}
 	});
 
 	suite('fillInIncompleteTokens', () => {

@@ -109,6 +109,29 @@ function renderImage({ href, title, text }: marked.Tokens.Image, transformUri?: 
 	return '<img ' + attributes.join(' ') + '>';
 }
 
+function hasEscapedAngleBrackets(value: string): boolean {
+	return value.includes('\\<') || value.includes('\\>');
+}
+
+const escapedAngleBracketUrlExtension: marked.MarkedExtension = {
+	tokenizer: {
+		url(src) {
+			const token = marked.Tokenizer.prototype.url.call(this, src);
+			if (!token) {
+				return token;
+			}
+
+			// Include the next character because marked stops before '<', leaving its escape in the URL.
+			const escapedBracket = /(?<!\\)(?:\\\\)*\\[<>]/.exec(src.slice(0, token.raw.length + 1));
+			if (escapedBracket) {
+				const end = escapedBracket.index + escapedBracket[0].length - 2;
+				return marked.Tokenizer.prototype.url.call(this, src.slice(0, end));
+			}
+			return token;
+		},
+	},
+};
+
 const defaultMarkedRenderers = Object.freeze({
 	image: renderImage,
 	paragraph(this: marked.Renderer, { tokens }: marked.Tokens.Paragraph): string {
@@ -222,9 +245,12 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	const disposables = new DisposableStore();
 	let isDisposed = false;
 
-	const markedInstance = new marked.Marked(...(options.markedExtensions ?? []));
-	const { renderer, codeBlocks, syncCodeBlocks } = createMarkdownRenderer(markedInstance, options, markdown);
 	const value = preprocessMarkdownString(markdown);
+	const markedInstance = new marked.Marked(
+		...(hasEscapedAngleBrackets(value) ? [escapedAngleBracketUrlExtension] : []),
+		...(options.markedExtensions ?? []),
+	);
+	const { renderer, codeBlocks, syncCodeBlocks } = createMarkdownRenderer(markedInstance, options, markdown);
 
 	let renderedMarkdown: string;
 	if (options.fillInIncompleteTokens) {
@@ -842,7 +868,9 @@ export function renderAsPlaintext(str: IMarkdownString | string, options?: {
 		renderer.text = parsedText;
 	}
 
-	const html = marked.parse(value, { async: false, renderer });
+	const html = hasEscapedAngleBrackets(value)
+		? new marked.Marked(escapedAngleBracketUrlExtension).parse(value, { async: false, renderer })
+		: marked.parse(value, { async: false, renderer });
 	return sanitizeRenderedMarkdown(html, { isTrusted: false }, {})
 		.toString()
 		.replace(/&(#\d+|[a-zA-Z]+);/g, m => unescapeInfo.get(m) ?? m)
