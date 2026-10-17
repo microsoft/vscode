@@ -379,6 +379,16 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			if (model) {
 				return await model.save(options) ? resource : undefined;
 			}
+
+			// For resources with a file service provider but no TextFileEditorModel
+			// (e.g. git:// staging area files), write the current model content directly
+			if (this.fileService.hasProvider(resource)) {
+				const textModel = this.modelService.getModel(resource);
+				if (textModel) {
+					await this.fileService.writeFile(resource, VSBuffer.fromString(textModel.getValue()), { unlock: options?.writeUnlock });
+					return resource;
+				}
+			}
 		}
 
 		return undefined;
