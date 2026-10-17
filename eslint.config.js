@@ -2420,6 +2420,13 @@ export default defineConfig(
 					]
 				},
 				{
+					'target': 'test/unit/**',
+					'restrictions': [
+						'test/unit/**',
+						'*' // node modules
+					]
+				},
+				{
 					'target': 'test/monaco/**',
 					'restrictions': [
 						'test/monaco/**',

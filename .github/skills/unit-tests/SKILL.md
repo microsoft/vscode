@@ -98,6 +98,14 @@ Override the default Mocha timeout for long-running tests.
 ./scripts/test.sh --run src/vs/editor/test/common/model.test.ts --timeout 10000
 ```
 
+#### `--workers [<count>]` - Run test files in parallel processes
+
+Runs the test files in `<count>` parallel processes (default: one per CPU, memory permitting). This is how CI runs the full suite. Each worker loads all test files and claims files to run as it goes, so every file runs exactly once. The output of each worker is printed when it finishes, and a failed worker also prints the test files it ran, in order, so the failure can be reproduced with `--run`. This is not supported with `--grep`, `--dev`, `--waitServer`, `--testSplit` or coverage, which fall back to a single process. `npm run test-node -- --workers` does the same for the node.js unit tests.
+
+```bash
+./scripts/test.sh --workers
+```
+
 ### Integration tests
 
 Integration tests (files ending in `.integrationTest.ts` or located in `extensions/`) are **not run** by `scripts/test.sh`. Use `scripts/test-integration.sh` (or `scripts/test-integration.bat`) instead. See the `integration-tests` skill for details.
