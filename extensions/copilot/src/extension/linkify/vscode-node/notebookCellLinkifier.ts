@@ -91,9 +91,11 @@ export class NotebookCellLinkifier extends Disposable implements IDisposable, IC
 		if (this.initialized) {
 			return;
 		}
+		this.initialized = true;
 		const updateNbCellIds = (notebook: NotebookDocument) => {
 			const ids = this.notebookCellIds.get(notebook) ?? new Set<string>();
 			ids.forEach(id => this.cells.delete(id));
+			ids.clear();
 			getCellIdMap(notebook).forEach((cell, cellId) => {
 				this.cells.set(cellId, new WeakRef(cell));
 				ids.add(cellId);
@@ -103,11 +105,12 @@ export class NotebookCellLinkifier extends Disposable implements IDisposable, IC
 
 		this._register(this.workspaceService.onDidOpenNotebookDocument(notebook => updateNbCellIds(notebook)));
 		this._register(this.workspaceService.onDidCloseNotebookDocument(notebook => {
+			const ids = this.notebookCellIds.get(notebook) ?? new Set<string>();
+			this.notebookCellIds.delete(notebook);
 			if (this.workspaceService.notebookDocuments.length === 0) {
 				this.cells.clear();
 				return;
 			}
-			const ids = this.notebookCellIds.get(notebook) ?? new Set<string>();
 			ids.forEach(id => this.cells.delete(id));
 		}));
 		this._register(this.workspaceService.onDidChangeNotebookDocument(e => {
