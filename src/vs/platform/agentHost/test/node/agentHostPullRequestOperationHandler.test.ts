@@ -199,6 +199,7 @@ class TestGitHubClient {
 	lastHead: string | undefined;
 	lastBase: string | undefined;
 	readonly findRequests: { branch: string; headOwner: string | undefined }[] = [];
+	readonly lookupPriorities: ApiRequestOptions['priority'][] = [];
 
 	acquireApiClient(): IGitHubAccountClient {
 		this.apiAcquisitions++;
@@ -213,6 +214,7 @@ class TestGitHubClient {
 					const branch = head.slice(separator + 1);
 					client.calls.push(`pullRequests.list:${branch}`);
 					client.findRequests.push({ branch, headOwner });
+					client.lookupPriorities.push(options?.priority);
 					if (client.calls.some(call => call.startsWith('createPullRequest:'))) {
 						if (client.findAfterCreateError) {
 							throw client.findAfterCreateError;
@@ -2072,9 +2074,11 @@ suite('AgentHostPullRequestOperationHandler', () => {
 		assert.deepStrictEqual({
 			message: result.message,
 			calls: gitHubClient.calls,
+			priorities: gitHubClient.lookupPriorities,
 		}, {
 			message: { markdown: 'Pull request [#55](https://github.com/microsoft/vscode/pull/55) already exists; enabled auto-merge (rebase).' },
 			calls: ['pullRequests.list:feature/test', 'createPullRequest:false', 'pullRequests.list:feature/test', 'enableAutoMerge:PR_55:REBASE'],
+			priorities: [undefined, 'mutationReconciliation'],
 		});
 	});
 });

@@ -148,6 +148,10 @@ The service never submits, discards, or replaces a pending review. Agent Merge r
 
 Portable `ApiRequestOptions.priority` selects an existing scheduling lane and is validated at local and IPC boundaries. REST, GraphQL, raw-content and Mission Control providers forward it to the engine; omission preserves each operation's current default. Priority changes queue scheduling, not credentials, quota identity, cache keys, retry policy or mutation-outcome handling.
 
+Callers use `background` for periodic PR/CI/review/issue polling, automatic branch discovery, cloud catalogue/history polling and deferred Agent Merge workflow checks; passive reads backing visible UI use `visible`. Optional personalized prompt options and commit-card metadata use `enrichment`. New user-awaited reads and writes retain their interactive and mutation defaults; failed PR creation lookups use `mutationReconciliation`.
+
+PR, CI, review-thread and issue models rejoin reads when higher-priority demand arrives so the provider can promote queued shared requests. Superseded responses cannot overwrite newer state, and forced post-write refreshes still perform a fresh read after pending work. Cloud catalogue/history operations retain their existing serialization and promise coalescing: joining an ongoing refresh does not reprioritize it.
+
 Internal requests carry caller attribution and a deadline. Current transport defaults, not public API guarantees:
 
 - At most 256 retained requests, including queued and cooldown-waiting work; 64 per account or caller. Up to eight slots in each limit are reserved for interactive/mutation work.

@@ -8,6 +8,7 @@ import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { IGitHubAccountClient } from '../../github/common/account/account.js';
+import { ApiRequestOptions } from '../../github/common/client/request.js';
 import { WorkflowJob, WorkflowRun } from '../../github/common/core/actions.js';
 import { IGitHubClient } from '../../github/common/githubService.js';
 import { GitHubWorkflowRerunOptions, PullRequestReplyAndResolveResult } from '../../github/common/githubPullRequestMutationService.js';
@@ -449,9 +450,9 @@ function hasKnownRunAttempt(run: WorkflowRun): run is WorkflowRun & { readonly r
 }
 
 /** Reads the complete bounded workflow inventory used by CI evidence and deferred reruns. */
-export async function getWorkflowRuns(client: IGitHubAccountClient, ref: PullRequestRef, headSha: string, signal: AbortSignal): Promise<readonly WorkflowRun[]> {
+export async function getWorkflowRuns(client: IGitHubAccountClient, ref: PullRequestRef, headSha: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<readonly WorkflowRun[]> {
 	const { workflow_runs } = await client.actions.listRuns({ owner: ref.owner, name: ref.repo }, signal, {
-		caller: 'agentHost.agentMerge', maxPages: 100, query: { head_sha: headSha, per_page: 100 },
+		caller: 'agentHost.agentMerge', ...options, maxPages: 100, query: { head_sha: headSha, per_page: 100 },
 	});
 	return workflow_runs;
 }

@@ -1129,7 +1129,7 @@ export class AgentMergeController extends Disposable {
 		if (pending.length === 0) {
 			return;
 		}
-		const runs = await getWorkflowRuns(runtime.apiClient, ref, headSha, runtime.abortController.signal);
+		const runs = await getWorkflowRuns(runtime.apiClient, ref, headSha, runtime.abortController.signal, { priority: 'background' });
 		for (const request of pending) {
 			const state = this._stateManager.getSessionState(session.toString());
 			const current = readAgentMergeFolderState(state?.config?.values, runtime.folderKey, this._sessionFolderKey(state));

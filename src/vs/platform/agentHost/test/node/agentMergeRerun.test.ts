@@ -14,7 +14,7 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { GitHubCredential, IGitHubCredentials } from '../../../github/common/githubCredentialService.js';
 import { IGitHubAccountClient } from '../../../github/common/account/account.js';
-import { IActionsClient, WorkflowJob, WorkflowRun } from '../../../github/common/core/actions.js';
+import { IActionsClient, ListWorkflowRunsOptions, WorkflowJob, WorkflowRun } from '../../../github/common/core/actions.js';
 import { IChecksClient } from '../../../github/common/core/checks.js';
 import { GitHubWorkflowRerunOptions, GitHubWorkflowRun, PullRequestMutationApi, PullRequestMutationResult } from '../../../github/common/githubPullRequestMutationService.js';
 import { PullRequestCheck, PullRequestRef, PullRequestSnapshot, PullRequestSubscription } from '../../../github/common/githubPullRequestService.js';
@@ -113,6 +113,7 @@ suite('Agent Merge workflow reruns', () => {
 			afterRerun: h.controllerState(),
 			prompts: h.prompts.length,
 			reruns: h.mutations.reruns.map(({ runId, expectedRunAttempt, failedJobsOnly }) => ({ runId, expectedRunAttempt, failedJobsOnly })),
+			priorities: [...new Set(h.mutations.runOptions.map(options => options?.priority))],
 		}, {
 			outcome: 'deferred',
 			run: {
@@ -125,6 +126,7 @@ suite('Agent Merge workflow reruns', () => {
 			afterRerun: { enabled: true, totalPromptCount: 1, repeatedPromptCount: 0 },
 			prompts: 1,
 			reruns: [{ runId: '1', expectedRunAttempt: 1, failedJobsOnly: true }],
+			priorities: [undefined, 'background'],
 		});
 	}));
 
@@ -654,6 +656,7 @@ class RerunTestHarness extends Disposable {
 }
 
 class TestMutations extends mock<PullRequestMutationApi>() {
+	readonly runOptions: (ListWorkflowRunsOptions | undefined)[] = [];
 	runs: WorkflowRun[] = [createTestWorkflowRun(1, { status: 'in_progress', conclusion: null })];
 	jobs: WorkflowJob[] = [];
 	readonly reruns: GitHubWorkflowRerunOptions[] = [];
@@ -664,7 +667,8 @@ class TestMutations extends mock<PullRequestMutationApi>() {
 	rerunResult: PullRequestMutationResult<GitHubWorkflowRun> = { outcome: 'succeeded' };
 
 	readonly actions = upcastPartial<IActionsClient>({
-		listRuns: async () => {
+		listRuns: async (_repository, _signal, options) => {
+			this.runOptions.push(options);
 			await this.beforeList?.();
 			return { total_count: this.runs.length, workflow_runs: this.runs };
 		},

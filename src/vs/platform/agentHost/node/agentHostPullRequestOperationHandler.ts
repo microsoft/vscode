@@ -471,7 +471,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			}
 			let foundAfterFailure: PullRequestSummary | undefined;
 			try {
-				foundAfterFailure = await findPullRequestByHeadBranch(client.pullRequests, repository, head, signal, { caller: 'agentHost.pullRequest' });
+				foundAfterFailure = await findPullRequestByHeadBranch(client.pullRequests, repository, head, signal, { caller: 'agentHost.pullRequest', priority: 'mutationReconciliation' });
 			} catch {
 				this._throwIfCancelled(token);
 				throw err;
