@@ -5,7 +5,7 @@
 
 import { commands, Disposable, ExtensionContext, extensions, l10n, LogLevel, LogOutputChannel, window } from 'vscode';
 import { TelemetryReporter } from '@vscode/extension-telemetry';
-import { GithubRemoteSourceProvider } from './remoteSourceProvider.js';
+import { FileOwnedRepositoriesCacheStorage, GithubRemoteSourceProvider } from './remoteSourceProvider.js';
 import type { API, GitExtension } from './typings/git.d.ts';
 import { registerCommands } from './commands.js';
 import { GithubCredentialProviderManager } from './credentialProvider.js';
@@ -17,7 +17,7 @@ import { GitHubBranchProtectionProviderManager } from './branchProtection.js';
 import { GitHubCanonicalUriProvider } from './canonicalUriProvider.js';
 import { VscodeDevShareProvider } from './shareProviders.js';
 import { GitHubSourceControlHistoryItemDetailsProvider } from './historyItemDetailsProvider.js';
-import { OctokitService } from './auth.js';
+import { getOctokit, getSession, OctokitService } from './auth.js';
 
 export function activate(context: ExtensionContext): void {
 	const disposables: Disposable[] = [];
@@ -39,18 +39,26 @@ export function activate(context: ExtensionContext): void {
 	const octokitService = new OctokitService();
 	disposables.push(octokitService);
 
-	disposables.push(initializeGitBaseExtension());
+	disposables.push(initializeGitBaseExtension(context, octokitService));
 	disposables.push(initializeGitExtension(context, octokitService, telemetryReporter, logger));
 }
 
-function initializeGitBaseExtension(): Disposable {
+function initializeGitBaseExtension(context: ExtensionContext, octokitService: OctokitService): Disposable {
 	const disposables = new DisposableStore();
 
 	const initialize = () => {
 		try {
 			const gitBaseAPI = gitBaseExtension.getAPI(1);
 
-			disposables.add(gitBaseAPI.registerRemoteSourceProvider(new GithubRemoteSourceProvider()));
+			const provider = new GithubRemoteSourceProvider(
+				getOctokit,
+				getSession,
+				new FileOwnedRepositoriesCacheStorage(context.globalStorageUri),
+				Date.now,
+				octokitService.onDidChangeSessions
+			);
+			disposables.add(provider);
+			disposables.add(gitBaseAPI.registerRemoteSourceProvider(provider));
 		}
 		catch (err) {
 			console.error('Could not initialize GitHub extension');
