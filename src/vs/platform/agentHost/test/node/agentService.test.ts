@@ -16078,6 +16078,75 @@ suite('AgentService (node dispatcher)', () => {
 			}, { registered: undefined, sends: 0 });
 		});
 
+		/** A provider whose discovery hides its sessions, so only an explicit import can register one. */
+		class ImportableExternalAgent extends TimedExternalAgent {
+			readonly discoverChatCalls: string[] = [];
+			readonly importChatCalls: string[] = [];
+			importChatError: Error | undefined;
+
+			override async listExternalChats(): Promise<IAgentListedChat[]> {
+				return [];
+			}
+
+			async discoverChat(session: URI): Promise<IAgentDiscoveredChat | undefined> {
+				this.discoverChatCalls.push(session.toString());
+				const entry = this.catalog.get(AgentSession.id(session));
+				return entry && { ...discoveredChat(session, true, entry.modifiedTime), ...(entry._meta ? { _meta: entry._meta } : {}) };
+			}
+
+			async importChat(chat: URI, context: IAgentChatContext): Promise<void> {
+				this.importChatCalls.push(`${context.owner.get().toString()} ${chat.toString()}`);
+				if (this.importChatError) {
+					throw this.importChatError;
+				}
+			}
+		}
+
+		async function createImportableExternalSession(importChatError?: Error) {
+			const database = new AgentHostDatabase(':memory:');
+			const svc = createCentralCatalogService(createSessionDataService(new TestSessionDatabase()), database);
+			const agent = disposables.add(new ImportableExternalAgent('copilot'));
+			agent.importChatError = importChatError;
+			const session = agent.addSession('external-import', Date.now(), { 'test.keep': 'preserved' }, 'External session');
+			registerTestAgentProvider(svc, agent);
+			return { svc, agent, session, database, chat: buildDefaultChatUri(session) };
+		}
+
+		test('imports an external session that discovery has not registered', async () => {
+			const { svc, agent, session, database, chat } = await createImportableExternalSession();
+			const registeredBefore = await database.getSessionV2Registration(session.toString());
+			await svc.importSession(session);
+			const registered = await database.getSessionV2Registration(session.toString());
+			assert.deepStrictEqual({
+				registeredBefore,
+				registered: { external: registered?.external, source: registered?.source },
+				discoverChatCalls: agent.discoverChatCalls,
+				importChatCalls: agent.importChatCalls,
+				listed: (await svc.listSessions()).map(metadata => metadata.session.toString()),
+			}, {
+				registeredBefore: undefined,
+				registered: { external: false, source: 'explicit' },
+				discoverChatCalls: [session.toString()],
+				importChatCalls: [`${session.toString()} ${chat}`],
+				listed: [session.toString()],
+			});
+		});
+
+		test('a provider that refuses an import leaves the session external', async () => {
+			const { svc, agent, session, database, chat } = await createImportableExternalSession(new ProtocolError(AhpErrorCodes.Conflict, 'Session is in use'));
+			await assert.rejects(() => svc.importSession(session), { code: AhpErrorCodes.Conflict });
+			const registered = await database.getSessionV2Registration(session.toString());
+			assert.deepStrictEqual({
+				registered: { external: registered?.external, source: registered?.source },
+				importChatCalls: agent.importChatCalls,
+				sends: agent.sendMessageCalls.length,
+			}, {
+				registered: { external: true, source: 'discovery' },
+				importChatCalls: [`${session.toString()} ${chat}`],
+				sends: 0,
+			});
+		});
+
 		for (const { outcome, hidden } of [
 			{ outcome: 'complete', hidden: false },
 			{ outcome: 'error', hidden: false },
