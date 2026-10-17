@@ -981,7 +981,6 @@ export default defineConfig(
 					// Files should (only) be removed from the list once all their `runWithFakedTimers` calls wrap whole tests
 					'exclude': [
 						'src/vs/base/test/common/virtualScheduling/virtualScheduling.test.ts',
-						'src/vs/platform/agentHost/test/electron-browser/agentHostProtocolClient.test.ts',
 						'src/vs/platform/agentHost/test/node/agentService.test.ts',
 						'src/vs/workbench/contrib/chat/test/browser/attachments/chatImageReveal.test.ts',
 					]
