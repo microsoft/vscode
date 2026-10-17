@@ -10,6 +10,7 @@ import { getCaseInsensitive } from '../../../../../base/common/objects.js';
 import { OperatingSystem, type IProcessEnvironment } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IConfigurationService, type IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { EnvironmentVariableMutatorType, type IEnvironmentVariableCollection } from '../../../../../platform/terminal/common/environmentVariable.js';
@@ -17,6 +18,8 @@ import { ITerminalChildProcess, TitleEventSource, type IProcessReadyEvent, type 
 import { ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
 import { TerminalProcessManager } from '../../browser/terminalProcessManager.js';
 import { IEnvironmentVariableService } from '../../common/environmentVariable.js';
+import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
+import { IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
 function listenerCount(emitter: Emitter<unknown>): number {
@@ -226,6 +229,42 @@ suite('Workbench - TerminalProcessManager', () => {
 
 		strictEqual(manager.environmentVariableInfo, undefined);
 	});
+
+	for (const os of [OperatingSystem.Windows, OperatingSystem.Linux, OperatingSystem.Macintosh]) {
+		test(`uses remote OS ${os} and case-insensitive authority for process options and updates`, async () => {
+			instantiationService.stub(IRemoteAgentService, {
+				getEnvironment: async () => upcastPartial<IRemoteAgentEnvironment>({ os, userHome: URI.file('/home/test') })
+			});
+			setCollection('remote.extension', {
+				remoteAuthority: 'wsl+ubuntu',
+				map: new Map([['PATH', { variable: 'PATH', value: '/tools:', type: EnvironmentVariableMutatorType.Prepend }]])
+			});
+			setCollection('local.extension', {
+				remoteAuthority: null,
+				map: new Map(['Path', 'path'].map(variable => [variable, {
+					variable, value: 'value', type: EnvironmentVariableMutatorType.Replace
+				}]))
+			});
+			const remoteManager = store.add(instantiationService.createInstance(TerminalProcessManager, 3,
+				URI.from({ scheme: Schemas.vscodeRemote, authority: 'wsl+Ubuntu', path: '/workspace' }), undefined, undefined));
+			await remoteManager.createProcess({}, 80, 24, false);
+			const variables = serializedVariables(terminalInstanceService.createProcessRequests.at(-1)!.options);
+			const beforeUpdate = remoteManager.environmentVariableInfo?.requiresAction;
+
+			const changed = Event.toPromise(environmentVariableService.onDidChangeCollections);
+			setCollection('remote.extension', {
+				remoteAuthority: 'WSL+UBUNTU',
+				map: new Map([['PATH', { variable: 'PATH', value: '/updated:', type: EnvironmentVariableMutatorType.Prepend }]])
+			});
+			await changed;
+
+			deepStrictEqual({ variables, beforeUpdate, afterUpdate: remoteManager.environmentVariableInfo?.requiresAction }, {
+				variables: os === OperatingSystem.Windows ? ['PATH'] : ['PATH', 'Path', 'path'],
+				beforeUpdate: false,
+				afterUpdate: true
+			});
+		});
+	}
 
 	test('does not accumulate environment variable collection listeners when relaunching', async () => {
 		const changeCollectionsEmitter = (environmentVariableService as unknown as { _onDidChangeCollections: Emitter<unknown> })._onDidChangeCollections;

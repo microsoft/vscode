@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from '../../../../base/common/event.js';
-import { IProcessEnvironment, isMacintosh, isWindows, OperatingSystem } from '../../../../base/common/platform.js';
+import { IProcessEnvironment, isMacintosh, isWindows, OperatingSystem, OS } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -380,7 +380,7 @@ export class LocalTerminalBackend extends BaseTerminalBackend implements ITermin
 		let environmentVariableCollections: ReturnType<typeof serializeEnvironmentVariableCollections> | undefined;
 		if (shouldUseEnvironmentVariableCollection(shellLaunchConfig)) {
 			const workspaceFolder = terminalEnvironment.getWorkspaceForTerminal(shellLaunchConfig.cwd, this._workspaceContextService, this._historyService);
-			const collection = this._environmentVariableService.getMergedCollection(this.remoteAuthority);
+			const collection = this._environmentVariableService.getMergedCollection(this.remoteAuthority, OS);
 			await collection.applyToProcessEnvironment(env, { workspaceFolder }, variableResolver);
 			environmentVariableCollections = serializeEnvironmentVariableCollections(collection.collections);
 		}

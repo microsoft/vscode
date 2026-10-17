@@ -12892,6 +12892,7 @@ declare module 'vscode' {
 	 * A collection of mutations that an extension can apply to a process environment.
 	 *
 	 * PATH modifications apply only to terminals on the same computer as the extension; a local contribution includes local terminals in remote windows, while a remote contribution applies only to its remote authority.
+	 * PATH is matched case-insensitively on Windows terminals and exactly on other platforms.
 	 * A terminal's base PATH is unchanged, and non-PATH modifications retain their existing sharing behavior.
 	 */
 	export interface EnvironmentVariableCollection extends Iterable<[variable: string, mutator: EnvironmentVariableMutator]> {

@@ -187,7 +187,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		if (environmentVariableCollections) {
 			this._extEnvironmentVariableCollection = new MergedEnvironmentVariableCollection(environmentVariableCollections);
-			this._environmentVariableCollectionListener.value = this._environmentVariableService.onDidChangeCollections(() => this._onEnvironmentVariableCollectionChange(this._environmentVariableService.getMergedCollection(this.remoteAuthority)));
+			this._environmentVariableCollectionListener.value = this._environmentVariableService.onDidChangeCollections(() => this._onEnvironmentVariableCollectionChange());
 			this.environmentVariableInfo = this._instantiationService.createInstance(EnvironmentVariableInfoChangesActive, this._extEnvironmentVariableCollection);
 			this._onEnvironmentVariableInfoChange.fire(this.environmentVariableInfo);
 		}
@@ -290,7 +290,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					if (result) {
 						newProcess = result;
 						if (this._extEnvironmentVariableCollection) {
-							this._onEnvironmentVariableCollectionChange(this._environmentVariableService.getMergedCollection(this.remoteAuthority));
+							this._onEnvironmentVariableCollectionChange();
 						}
 					} else {
 						// Warn and just create a new terminal if attach failed for some reason
@@ -347,7 +347,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					if (result) {
 						newProcess = result;
 						if (this._extEnvironmentVariableCollection) {
-							this._onEnvironmentVariableCollectionChange(this._environmentVariableService.getMergedCollection(this.remoteAuthority));
+							this._onEnvironmentVariableCollectionChange();
 						}
 					} else {
 						// Warn and just create a new terminal if attach failed for some reason
@@ -483,9 +483,9 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		this._logService.debug(`Terminal environment created with ${Object.keys(env).length} variables: ${Object.keys(env).sort().join(', ')}`);
 		this._environmentVariableCollectionListener.clear();
 		if (!this._isDisposed && shouldUseEnvironmentVariableCollection(shellLaunchConfig)) {
-			this._extEnvironmentVariableCollection = this._environmentVariableService.getMergedCollection(this.remoteAuthority);
+			this._extEnvironmentVariableCollection = this._environmentVariableService.getMergedCollection(this.remoteAuthority, this.os ?? await this.getBackendOS());
 
-			this._environmentVariableCollectionListener.value = this._environmentVariableService.onDidChangeCollections(() => this._onEnvironmentVariableCollectionChange(this._environmentVariableService.getMergedCollection(this.remoteAuthority)));
+			this._environmentVariableCollectionListener.value = this._environmentVariableService.onDidChangeCollections(() => this._onEnvironmentVariableCollectionChange());
 			// For remote terminals, this is a copy of the mergedEnvironmentCollection created on
 			// the remote side. Since the environment collection is synced between the remote and
 			// local sides immediately this is a fairly safe way of enabling the env var diffing and
@@ -743,7 +743,11 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		this._onProcessStateChange.fire();
 	}
 
-	private _onEnvironmentVariableCollectionChange(newCollection: IMergedEnvironmentVariableCollection): void {
+	private _onEnvironmentVariableCollectionChange(): void {
+		if (this.os === undefined) {
+			return; // Process creation will compare collections once the backend OS is known.
+		}
+		const newCollection = this._environmentVariableService.getMergedCollection(this.remoteAuthority, this.os);
 		const diff = this._extEnvironmentVariableCollection!.diff(newCollection, { workspaceFolder: this._cwdWorkspaceFolder });
 		if (diff === undefined) {
 			// If there are no longer differences, remove the stale info indicator

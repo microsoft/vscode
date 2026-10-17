@@ -5,6 +5,7 @@
 
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { Event } from '../../../../base/common/event.js';
+import { OperatingSystem } from '../../../../base/common/platform.js';
 import { EnvironmentVariableScope, IEnvironmentVariableCollection, IMergedEnvironmentVariableCollection } from '../../../../platform/terminal/common/environmentVariable.js';
 import { ITerminalStatus } from './terminal.js';
 
@@ -32,7 +33,7 @@ export interface IEnvironmentVariableService {
 	 * Gets a collection suitable for a terminal running on the provided authority. PATH
 	 * contributions are restricted to the extension host that produced them.
 	 */
-	getMergedCollection(remoteAuthority: string | null | undefined): IMergedEnvironmentVariableCollection;
+	getMergedCollection(remoteAuthority: string | null | undefined, os: OperatingSystem): IMergedEnvironmentVariableCollection;
 
 	/**
 	 * An event that is fired when an extension's environment variable collection changes, the event

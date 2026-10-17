@@ -111,6 +111,8 @@ The terminal link provider and Copilot session data are unchanged.
 
 ### Terminal PATH locality and recovery
 
+Authority matching follows terminal backend routing and is case-insensitive. Variable names follow the terminal's OS: Windows treats all PATH spellings alike; on macOS and Linux only `PATH` is subject to locality filtering, while `Path` and `path` remain distinct ordinary variables.
+
 The extension's terminal PATH contribution is applied only to terminals on the
 same computer as the producing extension host. A local contribution applies to
 local terminals, including local terminals in remote windows; a remote

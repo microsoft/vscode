@@ -11,7 +11,7 @@ import { IStorageService } from '../../../../../platform/storage/common/storage.
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { IProcessEnvironment } from '../../../../../base/common/platform.js';
+import { IProcessEnvironment, OperatingSystem } from '../../../../../base/common/platform.js';
 import { IHistoryService } from '../../../../services/history/common/history.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -167,6 +167,39 @@ suite('EnvironmentVariable - EnvironmentVariableService', () => {
 		});
 
 		suite('getMergedCollection', () => {
+			test('shares a cached view across authority casing, including restored origins', () => {
+				environmentVariableService.set('ext1', {
+					persistent: true,
+					remoteAuthority: 'wsl+Ubuntu',
+					map: new Map([['PATH', { variable: 'PATH', value: '/tools:', type: EnvironmentVariableMutatorType.Prepend }]])
+				});
+				environmentVariableService.persistCollections();
+				const restored = store.add(instantiationService.createInstance(TestEnvironmentVariableService));
+				const lower = restored.getMergedCollection('wsl+ubuntu', OperatingSystem.Linux);
+				const mixed = restored.getMergedCollection('wsl+Ubuntu', OperatingSystem.Linux);
+				deepStrictEqual([...lower.getVariableMap(undefined).keys()], ['PATH']);
+				strictEqual(lower, mixed);
+				deepStrictEqual([...restored.getMergedCollection('wsl+other', OperatingSystem.Linux).getVariableMap(undefined).keys()], []);
+			});
+
+			test('preserves foreign POSIX Path and path variables independently of PATH', () => {
+				environmentVariableService.set('ext1', {
+					persistent: true,
+					remoteAuthority: null,
+					map: new Map(['PATH', 'Path', 'path'].map(variable => [variable, {
+						variable, value: 'value', type: EnvironmentVariableMutatorType.Replace
+					}]))
+				});
+				const collection = environmentVariableService.getMergedCollection('ssh-remote+linux', OperatingSystem.Linux);
+				deepStrictEqual([...collection.getVariableMap(undefined).keys()], ['Path', 'path']);
+				const mac = environmentVariableService.getMergedCollection('ssh-remote+linux', OperatingSystem.Macintosh);
+				deepStrictEqual([...mac.getVariableMap(undefined).keys()], ['Path', 'path']);
+				const windows = environmentVariableService.getMergedCollection('ssh-remote+linux', OperatingSystem.Windows);
+				deepStrictEqual([...windows.getVariableMap(undefined).keys()], []);
+				notStrictEqual(windows, collection);
+				strictEqual(environmentVariableService.getMergedCollection('SSH-REMOTE+LINUX', OperatingSystem.Linux), collection);
+			});
+
 			test('filters PATH by producer authority before merging and preserves non-PATH mutations', () => {
 				environmentVariableService.set('foreignReplace', {
 					persistent: true,
@@ -190,7 +223,7 @@ suite('EnvironmentVariable - EnvironmentVariableService', () => {
 					descriptionMap: new Map()
 				});
 
-				const local = environmentVariableService.getMergedCollection(undefined);
+				const local = environmentVariableService.getMergedCollection(undefined, OperatingSystem.Windows);
 				deepStrictEqual([...local.getVariableMap(undefined).entries()], [
 					['EDITOR', [{ extensionIdentifier: 'foreignReplace', type: EnvironmentVariableMutatorType.Replace, value: 'code', variable: 'EDITOR', options: undefined }]]
 				]);
@@ -199,7 +232,7 @@ suite('EnvironmentVariable - EnvironmentVariableService', () => {
 					['PATH', [{ extensionIdentifier: 'localAppend', type: EnvironmentVariableMutatorType.Append, value: ':/copilot', variable: 'PATH', scope: { workspaceFolder: { uri: URI.file('workspace'), name: 'workspace', index: 0 } }, options: { applyAtProcessCreation: true, applyAtShellIntegration: true } }]]
 				]);
 				deepStrictEqual([...local.getDescriptionMap(undefined).entries()], []);
-				deepStrictEqual([...environmentVariableService.getMergedCollection('ssh-remote+windows').getVariableMap(undefined).entries()], [
+				deepStrictEqual([...environmentVariableService.getMergedCollection('ssh-remote+windows', OperatingSystem.Windows).getVariableMap(undefined).entries()], [
 					['Path', [{ extensionIdentifier: 'foreignReplace', type: EnvironmentVariableMutatorType.Replace, value: 'C:\\copilot;', variable: 'Path', options: undefined }]],
 					['EDITOR', [{ extensionIdentifier: 'foreignReplace', type: EnvironmentVariableMutatorType.Replace, value: 'code', variable: 'EDITOR', options: undefined }]]
 				]);
@@ -210,16 +243,16 @@ suite('EnvironmentVariable - EnvironmentVariableService', () => {
 					persistent: true,
 					map: new Map([['PATH', { variable: 'PATH', value: 'C:\\copilot;', type: EnvironmentVariableMutatorType.Prepend }]])
 				});
-				const local = environmentVariableService.getMergedCollection(null);
+				const local = environmentVariableService.getMergedCollection(null, OperatingSystem.Linux);
 				deepStrictEqual([...local.getVariableMap(undefined).entries()], []);
-				strictEqual(environmentVariableService.getMergedCollection(undefined), local);
+				strictEqual(environmentVariableService.getMergedCollection(undefined, OperatingSystem.Linux), local);
 
 				environmentVariableService.set('local', {
 					persistent: true,
 					remoteAuthority: null,
 					map: new Map([['PATH', { variable: 'PATH', value: ':/copilot', type: EnvironmentVariableMutatorType.Append }]])
 				});
-				const updated = environmentVariableService.getMergedCollection(null);
+				const updated = environmentVariableService.getMergedCollection(null, OperatingSystem.Linux);
 				notStrictEqual(updated, local);
 				deepStrictEqual([...updated.getVariableMap(undefined).keys()], ['PATH']);
 			});
@@ -236,7 +269,7 @@ suite('EnvironmentVariable - EnvironmentVariableService', () => {
 					map: new Map([['PATH', { variable: 'PATH', value: ':/copilot', type: EnvironmentVariableMutatorType.Append }]])
 				});
 
-				const local = environmentVariableService.getMergedCollection(null);
+				const local = environmentVariableService.getMergedCollection(null, OperatingSystem.Linux);
 				deepStrictEqual([...local.getVariableMap(undefined).entries()], [
 					['PATH', [{ extensionIdentifier: 'localAppend', type: EnvironmentVariableMutatorType.Append, value: ':/copilot', variable: 'PATH', options: undefined }]]
 				]);
@@ -252,7 +285,7 @@ suite('EnvironmentVariable - EnvironmentVariableService', () => {
 					map: new Map([['PATH', { variable: 'PATH', value: '/secret/path', type: EnvironmentVariableMutatorType.Append }]])
 				} satisfies IEnvironmentVariableCollectionWithPersistence);
 
-				deepStrictEqual([...environmentVariableService.getMergedCollection(null).getVariableMap(undefined).entries()], []);
+				deepStrictEqual([...environmentVariableService.getMergedCollection(null, OperatingSystem.Linux).getVariableMap(undefined).entries()], []);
 				deepStrictEqual(warnings, ['Ignoring terminal PATH contributions with an invalid origin for extension \'invalid\'.']);
 			});
 		});

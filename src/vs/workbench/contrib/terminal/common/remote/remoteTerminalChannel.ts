@@ -127,7 +127,8 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 		shouldPersistTerminal: boolean,
 		cols: number,
 		rows: number,
-		unicodeVersion: '6' | '11'
+		unicodeVersion: '6' | '11',
+		os: OperatingSystem
 	): Promise<ICreateTerminalProcessResult> {
 		// Be sure to first wait for the remote configuration
 		await this._configurationService.whenRemoteConfigurationLoaded();
@@ -150,7 +151,7 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 
 		const envVariableCollections: ITerminalEnvironmentVariableCollections = [];
 		if (options.environmentVariableCollections !== undefined) {
-			for (const [k, v] of this._environmentVariableService.getMergedCollection(this._remoteAuthority).collections.entries()) {
+			for (const [k, v] of this._environmentVariableService.getMergedCollection(this._remoteAuthority, os).collections.entries()) {
 				envVariableCollections.push([k, serializeEnvironmentVariableCollection(v.map), serializeEnvironmentDescriptionMap(v.descriptionMap)]);
 			}
 		}

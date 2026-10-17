@@ -14,6 +14,7 @@ import { TerminalStorageKeys } from './terminalStorageKeys.js';
 import { IMergedEnvironmentVariableCollection, ISerializableEnvironmentDescriptionMap, ISerializableEnvironmentVariableCollection } from '../../../../platform/terminal/common/environmentVariable.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { OperatingSystem } from '../../../../base/common/platform.js';
 
 interface ISerializableExtensionEnvironmentVariableCollection {
 	extensionIdentifier: string;
@@ -30,7 +31,7 @@ export class EnvironmentVariableService extends Disposable implements IEnvironme
 
 	collections: Map<string, IEnvironmentVariableCollectionWithPersistence> = new Map();
 	mergedCollection: IMergedEnvironmentVariableCollection;
-	private readonly _mergedCollectionsByAuthority = new Map<string | null, IMergedEnvironmentVariableCollection>();
+	private readonly _mergedCollectionsByAuthority = new Map<OperatingSystem, Map<string | null, IMergedEnvironmentVariableCollection>>();
 
 	private readonly _onDidChangeCollections = this._register(new Emitter<IMergedEnvironmentVariableCollection>());
 	get onDidChangeCollections(): Event<IMergedEnvironmentVariableCollection> { return this._onDidChangeCollections.event; }
@@ -74,9 +75,14 @@ export class EnvironmentVariableService extends Disposable implements IEnvironme
 		this._updateCollections();
 	}
 
-	getMergedCollection(remoteAuthority: string | null | undefined): IMergedEnvironmentVariableCollection {
-		const targetAuthority = remoteAuthority ?? null;
-		let mergedCollection = this._mergedCollectionsByAuthority.get(targetAuthority);
+	getMergedCollection(remoteAuthority: string | null | undefined, os: OperatingSystem): IMergedEnvironmentVariableCollection {
+		const targetAuthority = remoteAuthority?.toLowerCase() ?? null;
+		let targetCollections = this._mergedCollectionsByAuthority.get(os);
+		if (!targetCollections) {
+			targetCollections = new Map();
+			this._mergedCollectionsByAuthority.set(os, targetCollections);
+		}
+		let mergedCollection = targetCollections.get(targetAuthority);
 		if (!mergedCollection) {
 			const collections = new Map<string, IEnvironmentVariableCollectionWithPersistence>();
 			this.collections.forEach((collection, extensionIdentifier) => {
@@ -84,10 +90,12 @@ export class EnvironmentVariableService extends Disposable implements IEnvironme
 				if (!isKnownOrigin && collection.remoteAuthority !== undefined) {
 					this._logService.warn(`Ignoring terminal PATH contributions with an invalid origin for extension '${extensionIdentifier}'.`);
 				}
+				const originAuthority = typeof collection.remoteAuthority === 'string' ? collection.remoteAuthority.toLowerCase() : collection.remoteAuthority;
 				const map = new Map(collection.map);
 				let filteredPath = false;
 				for (const [key, mutator] of map) {
-					if (mutator.variable.toLowerCase() === 'path' && (!isKnownOrigin || collection.remoteAuthority !== targetAuthority)) {
+					const isPath = os === OperatingSystem.Windows ? mutator.variable.toLowerCase() === 'path' : mutator.variable === 'PATH';
+					if (isPath && (!isKnownOrigin || originAuthority !== targetAuthority)) {
 						map.delete(key);
 						filteredPath = true;
 					}
@@ -103,7 +111,7 @@ export class EnvironmentVariableService extends Disposable implements IEnvironme
 				}
 			});
 			mergedCollection = new MergedEnvironmentVariableCollection(collections);
-			this._mergedCollectionsByAuthority.set(targetAuthority, mergedCollection);
+			targetCollections.set(targetAuthority, mergedCollection);
 		}
 		return mergedCollection;
 	}

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { OperatingSystem } from '../../../../base/common/platform.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
@@ -95,12 +96,13 @@ suite('MainThreadTerminalService', () => {
 		await timeout(0);
 	});
 
-	function createBridge(remoteAuthority: string | null, onInitialCollections: (collections: [string, ISerializableEnvironmentVariableCollection][]) => void): MainThreadTerminalService {
+	function createBridge(remoteAuthority: string | null, onInitialCollections: (collections: [string, ISerializableEnvironmentVariableCollection][]) => void, remoteOS = OperatingSystem.Linux): MainThreadTerminalService {
 		const rpc = AnyCallRPCProtocol<Pick<ExtHostTerminalServiceShape, '$initEnvironmentVariableCollections'>>({
 			$initEnvironmentVariableCollections: onInitialCollections
 		});
 		const extHostContext = new class extends mock<IExtHostContext>() {
 			override readonly remoteAuthority = remoteAuthority;
+			override readonly remoteOS = remoteOS;
 			override getProxy<T>(identifier: ProxyIdentifier<T>) {
 				return rpc.getProxy(identifier);
 			}
@@ -166,7 +168,7 @@ suite('MainThreadTerminalService', () => {
 		]];
 		const persistedCollection: IEnvironmentVariableCollectionWithPersistence = {
 			...collection(pathCollection),
-			remoteAuthority: 'ssh-remote+linux'
+			remoteAuthority: 'ssh-remote+Linux'
 		};
 		environmentVariableService.set('publisher.extension', persistedCollection);
 		const initialCollections: [string, ISerializableEnvironmentVariableCollection][][] = [];
@@ -175,6 +177,31 @@ suite('MainThreadTerminalService', () => {
 
 		assert.deepStrictEqual(initialCollections, [[['publisher.extension', pathCollection]]]);
 	});
+
+	test('normalizes the producing authority when an extension publishes its collection', () => {
+		const bridge = createBridge('wsl+Ubuntu', () => { });
+		bridge.$setEnvironmentVariableCollection('publisher.extension', true, [], []);
+		assert.deepStrictEqual(environmentVariableService.collections.get('publisher.extension'), {
+			...collection([]),
+			remoteAuthority: 'wsl+ubuntu'
+		});
+	});
+
+	for (const os of [OperatingSystem.Windows, OperatingSystem.Linux, OperatingSystem.Macintosh]) {
+		test(`uses extension-host OS ${os} synchronously for cached PATH spelling`, () => {
+			const entries: ISerializableEnvironmentVariableCollection = ['PATH', 'Path', 'path', 'EDITOR'].map(variable => [
+				variable, { variable, value: 'value', type: EnvironmentVariableMutatorType.Replace }
+			]);
+			environmentVariableService.set('publisher.legacy', collection(entries));
+			const initial: [string, ISerializableEnvironmentVariableCollection][][] = [];
+
+			createBridge('ssh-remote+target', collections => initial.push(collections), os);
+
+			assert.deepStrictEqual(initial, [[['publisher.legacy', entries.filter(([, mutator]) =>
+				os === OperatingSystem.Windows ? mutator.variable === 'EDITOR' : mutator.variable !== 'PATH'
+			)]]]);
+		});
+	}
 
 	test('initializes an empty filtered snapshot and permits empty sync and delete', () => {
 		environmentVariableService.set('publisher.legacy', collection([[

@@ -5,6 +5,7 @@
 
 import { deepStrictEqual } from 'assert';
 import { Event } from '../../../../../../base/common/event.js';
+import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { IChannel } from '../../../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestContextService, TestExtensionService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
@@ -67,12 +68,14 @@ suite('RemoteTerminalChannelClient', () => {
 			persistent: false,
 			map: new Map([
 				['foreign-path', { variable: 'PATH', value: ':/foreign/bin', type: EnvironmentVariableMutatorType.Append }],
+				['foreign-mixed', { variable: 'Path', value: 'mixed', type: EnvironmentVariableMutatorType.Replace }],
+				['foreign-lower', { variable: 'path', value: 'lower', type: EnvironmentVariableMutatorType.Replace }],
 				['shared-value', { variable: 'SHARED_VALUE', value: 'available', type: EnvironmentVariableMutatorType.Replace }]
 			])
 		};
 		environmentVariableService.set('foreign.extension', foreignCollection);
 		environmentVariableService.set('target.extension', {
-			remoteAuthority: 'ssh-remote+target-host',
+			remoteAuthority: 'SSH-REMOTE+TARGET-HOST',
 			persistent: false,
 			map: new Map([
 				['target-path', { variable: 'PATH', value: ':/target/bin', type: EnvironmentVariableMutatorType.Append }],
@@ -119,11 +122,15 @@ suite('RemoteTerminalChannelClient', () => {
 			isScreenReaderOptimized: false
 		};
 
-		await client.createProcess({}, configuration, undefined, options, false, 80, 24, '6');
+		await client.createProcess({}, configuration, undefined, options, false, 80, 24, '6', OperatingSystem.Linux);
 
 		deepStrictEqual(channel.createRequest?.envVariableCollections, [[
 			'foreign.extension',
-			[['shared-value', { variable: 'SHARED_VALUE', value: 'available', type: EnvironmentVariableMutatorType.Replace }]],
+			[
+				['foreign-mixed', { variable: 'Path', value: 'mixed', type: EnvironmentVariableMutatorType.Replace }],
+				['foreign-lower', { variable: 'path', value: 'lower', type: EnvironmentVariableMutatorType.Replace }],
+				['shared-value', { variable: 'SHARED_VALUE', value: 'available', type: EnvironmentVariableMutatorType.Replace }]
+			],
 			[]
 		], [
 			'target.extension',
@@ -134,7 +141,10 @@ suite('RemoteTerminalChannelClient', () => {
 			[]
 		]]);
 
-		await client.createProcess({}, configuration, undefined, { ...options, environmentVariableCollections: undefined }, false, 80, 24, '6');
+		await client.createProcess({}, configuration, undefined, options, false, 80, 24, '6', OperatingSystem.Windows);
+		deepStrictEqual(channel.createRequest?.envVariableCollections[0][1].map(([, mutator]) => mutator.variable), ['SHARED_VALUE']);
+
+		await client.createProcess({}, configuration, undefined, { ...options, environmentVariableCollections: undefined }, false, 80, 24, '6', OperatingSystem.Linux);
 		deepStrictEqual(channel.createRequest?.envVariableCollections, []);
 	});
 });
