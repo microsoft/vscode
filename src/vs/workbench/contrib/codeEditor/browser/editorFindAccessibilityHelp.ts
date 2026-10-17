@@ -169,6 +169,7 @@ class EditorFindAccessibilityHelpProvider extends Disposable implements IAccessi
 			content.push(localize('replace.keyEnter', "- Enter: Move to the next match while staying in Find."));
 			content.push(localize('replace.keyShiftEnter', "- Shift+Enter: Move to the previous match while staying in Find."));
 			content.push(localize('replace.keyTab', "- Tab: Move between Find and Replace inputs."));
+			content.push(localize('replace.keyFocusEditor', "- {0}: Move focus to the editor without closing Find and Replace.", '<keybinding:focusEditorFromFindWidget>'));
 			content.push('');
 			content.push(localize('replace.keyNavReplaceHeader', "While focused IN the Replace input:"));
 			content.push(localize('replace.keyReplaceEnter', "- Enter: Replace the current match and move to the next."));
@@ -218,7 +219,7 @@ class EditorFindAccessibilityHelpProvider extends Disposable implements IAccessi
 
 			content.push('');
 			content.push(localize('replace.closingHeader', "Closing:"));
-			content.push(localize('replace.closingDesc', "Press Escape to close Find and Replace. Focus returns to the editor at the last replacement location, and your search and replace history is preserved."));
+			content.push(localize('replace.closingDesc', "Press Escape to close Find and Replace. Focus returns to the editor at the last replacement location, and your search and replace history is preserved. To move focus to the editor without closing Find and Replace, press {0}.", '<keybinding:focusEditorFromFindWidget>'));
 		} else {
 			// ========== FIND-ONLY MODE CONTENT ==========
 			content.push(localize('find.header', "Accessibility Help: Editor Find"));
@@ -275,6 +276,7 @@ class EditorFindAccessibilityHelpProvider extends Disposable implements IAccessi
 			content.push(localize('find.keyNavFindHeader', "While focused IN the Find input:"));
 			content.push(localize('find.keyEnter', "- Enter: Move to the next match while staying in the Find dialog."));
 			content.push(localize('find.keyShiftEnter', "- Shift+Enter: Move to the previous match while staying in the Find dialog."));
+			content.push(localize('find.keyFocusEditor', "- {0}: Move focus to the editor without closing Find.", '<keybinding:focusEditorFromFindWidget>'));
 			content.push('');
 			content.push(localize('find.keyNavEditorHeader', "While focused IN the editor (not the Find input):"));
 			content.push(localize('find.keyF3', "- {0}: Move to the next match.", '<keybinding:editor.action.nextMatchFindAction>'));
@@ -318,7 +320,7 @@ class EditorFindAccessibilityHelpProvider extends Disposable implements IAccessi
 
 			content.push('');
 			content.push(localize('find.closingHeader', "Closing:"));
-			content.push(localize('find.closingDesc', "Press Escape to close Find. Focus returns to the editor at the most recent match, and your search history is preserved."));
+			content.push(localize('find.closingDesc', "Press Escape to close Find. Focus returns to the editor at the most recent match, and your search history is preserved. To move focus to the editor without closing Find, press {0}.", '<keybinding:focusEditorFromFindWidget>'));
 		}
 
 		return content.join('\n');
