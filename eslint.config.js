@@ -975,16 +975,7 @@ export default defineConfig(
 					]
 				}
 			],
-			'local/code-run-with-faked-timers-whole-test': [
-				'warn',
-				{
-					// Files should (only) be removed from the list once all their `runWithFakedTimers` calls wrap whole tests
-					'exclude': [
-						'src/vs/base/test/common/virtualScheduling/virtualScheduling.test.ts',
-						'src/vs/workbench/contrib/chat/test/browser/attachments/chatImageReveal.test.ts',
-					]
-				}
-			]
+			'local/code-run-with-faked-timers-whole-test': 'warn'
 		}
 	},
 	// git extension - ban non-type imports from git.d.ts (use git.constants for runtime values)
