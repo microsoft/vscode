@@ -223,6 +223,8 @@ Telemetry provider dimensions use the owning agent's id or the session's explici
 
 **I8 — Providers are given host facts; they must not re-derive them.** Everything a provider needs about a chat and its owning session is published on a typed seam at the call boundary (see §8). Providers do not inject `AgentHostStateManager` or recover subagent origin or customizations by parsing a chat URI. New provider code must consume the seams.
 
+**I9 — Tools are deferred by default; the eager set is a reviewed budget.** Every tool definition the model can see is input tokens on every request, so a new server tool leaves `deferLoading` unset or `true` (a Copilot session defers it unless it is explicitly `false`; Claude and Codex keep their SDK defaults), a new client tool stays out of `NON_DEFERRED_CLIENT_TOOL_NAMES`, and a runtime built-in that arrives with an SDK bump stays off until it is added to the allow-list on purpose. The baselines in `test/node/serverToolGroups.test.ts`, `test/node/toolSearchDeferral.test.ts` and the prompt snapshot suite pin the eager set; a PR that moves them says why. Session-constant guidance goes in the system prompt, turn-specific reminders go in `additionalContext`. A runtime built-in that is not in `COPILOT_ENABLED_BUILTIN_TOOL_NAMES` is never registered. The rules and checklists are in §9.
+
 ---
 
 ## 3a. Session Registry and External Chat Discovery
@@ -796,3 +798,105 @@ Both `IAgentHostPromptCache` and `IAgentHostSessionTitleSignal` are constructed 
 | `onSessionConfigChanged` / `onChatConfigChanged` provider hooks | `IAgentConfigurationService.onDidSessionConfigChange` |
 | `_readSessionMetadata(owner)` for customization directories, project, workspaceless or additional worktrees | `context.sessionSettings` |
 | Launch folders read from the session database or another chat's database | `context.launchWorkingDirectories` |
+
+---
+
+## 9. Tools, prompt text and reminders: the token budget
+
+Every tool definition the model can see is input tokens on every request of every turn, and part of the prompt cache. A tool that is not deferred is paid for by every session on every model call, whether or not it is ever used. This document is the rule set for keeping that budget flat. Read it before adding a tool, changing a tool description, bumping `@github/copilot-sdk`, or adding text that reaches the model.
+
+### The default: deferred
+
+**New tools are deferred unless this document says otherwise.** A tool earns an eager slot only when at least one of these is true, and the PR says which:
+
+1. The model must call it on most turns without being told to (for example `view`, `edit`, `bash`).
+2. The model cannot discover it through tool search in time, because the turn that needs it is the first turn and a host reminder tells the model to call it immediately (the `rename_chat` active-agent case, the workspaceless `set_workspace` case). Scope the exception to that condition in `getDefinitionForSession`, as those two do, and keep the tool deferred everywhere else.
+3. It overrides a runtime built-in that is itself eager, so deferring it would change which implementation the model gets (`tool_search_tool`, `extensions_reload`).
+
+"It is handy", "it is read-only", "it is small", "the model will not find it otherwise" and "the previous tool in this group was eager" are not reasons. A quality-of-life tool is exactly the kind that should load on demand. If the model does not find a deferred tool, fix its description so tool search ranks it, not its deferral.
+
+Tool search is only active for models that support it (`agentHostModelSupportsToolSearch`) and when `chat.agentHost.copilot.toolSearch.enabled` is on. On every other session **everything is eager**, so an eager-by-default tool is an eager tool everywhere. Do not reason as if deferral were the common case.
+
+### Where each kind of tool is controlled
+
+| Origin | Defined in | Deferral lever | Default if you do nothing |
+| --- | --- | --- | --- |
+| Runtime built-in (ships inside the SDK) | `@github/copilot-sdk`; names in `CopilotToolName` (`node/copilot/copilotToolDisplay.ts`) | `COPILOT_ENABLED_BUILTIN_TOOL_NAMES` in `node/copilot/copilotBuiltinToolAllowlist.ts` (the default `availableTools`), plus `excludedTools` in `CopilotSessionLauncher` for conditional policy | **Off.** A built-in that is not in the allow-list is never registered, so a new SDK built-in stays off until a PR adds it. |
+| Host server tool | `node/shared/*ServerTools.ts`, `sessionIsolationTools.ts`, contributed through `serverToolGroups.ts` | `deferLoading` on `IAgentServerToolDefinition`; the Copilot session maps it to the SDK `defer` flag, Claude maps it to MCP `alwaysLoad`, Codex ignores it | Deferred on Copilot. Only an explicit `false` is eager, and the baseline test pins that set. Claude and Codex apply their SDK defaults when it is unset. |
+| Client tool (workbench `ILanguageModelToolsService` tool forwarded to the host) | Any `vscode.lm` tool in an enabled tool set; forwarded by `agentHostActiveClientService._getClientTools` | `NON_DEFERRED_CLIENT_TOOL_NAMES` in `node/copilot/toolSearchDeferral.ts` | Deferred. Only names in that set are eager. |
+| MCP tool | Workspace, plugin or connector MCP configuration | Always deferred; routed through the per-server proxy tool | Deferred. |
+| Copilot extension tool | `node/copilot/copilotExtensionTools.ts` | `defer` on the SDK `Tool` | Eager (`defer: 'never'`, it overrides a built-in). |
+| Per-model tool filter | `chat.agentHost.copilot.modelCapabilityOverrides` (`availableTools` / `excludedTools`) | Experiment and debugging knob | Not a substitute for the code-level default. |
+
+The Copilot session maps `deferLoading: false` to the SDK's `defer: 'never'` and everything else to `'auto'`, matching the SDK's own default. Claude and Codex own deferral for their runtimes; the host only forwards an explicit value to Claude.
+
+### Guardrails that fail a PR
+
+These tests pin the budget. A PR that changes any of them must say why in its description, and a reviewer should treat an unexplained baseline update as a defect.
+
+- `test/node/serverToolGroups.test.ts`, suite `serverToolGroups deferral budget`: the server tools with `deferLoading: false` are exactly the reviewed list.
+- `test/node/toolSearchDeferral.test.ts`: `NON_DEFERRED_CLIENT_TOOL_NAMES` is exactly the reviewed list.
+- `test/node/e2e/providers/copilotPromptsE2E.integrationTest.ts`: the model-facing tool list of a replayed turn equals `expectedModelFacingToolNames(model)`. This is the only guard that sees runtime built-ins. With the allow-list in place a new built-in does not appear here; a built-in that an SDK bump renames or removes does, as a missing tool.
+- The prompt baselines under `test/node/e2e/providers/__snapshots__/*.prompt.md` show the full wire request: system prompt sections, every tool definition and its description, and the user turn with the runtime's injected context. Regenerating them is not a fix. Read the diff and account for every added line.
+
+Run them with:
+
+```bash
+./scripts/test.sh --grep "serverToolGroups deferral budget|toolSearchDeferral"
+./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/e2e/providers/copilotPromptsE2E.integrationTest.ts
+```
+
+### Checklist: adding or changing a tool
+
+1. Leave `deferLoading` unset (server tool) or leave the client tool out of `NON_DEFERRED_CLIENT_TOOL_NAMES`. If you believe it needs an eager slot, justify it against the three conditions above in the PR, scope it as narrowly as `getDefinitionForSession` allows, and update the baseline test in the same PR.
+2. Write the description for a model that will see it only in tool-search results: lead with the capability, then the positive invocation criteria, then the near-neighbor exclusions. Follow `.github/instructions/language-model-tool-descriptions.instructions.md`. Keep it to the sentences the model needs; the description is tokens on every request once the tool is loaded.
+3. Keep the input schema flat and small. Do not inline enumerations that change (model catalogs, server lists); refer to them by name.
+4. Do not add a system-prompt line to advertise the tool. The runtime already lists deferred tools in its own reminder, and `tool_instructions` lines gated on a tool exist for behavior guidance, not discovery.
+5. If the tool is only useful in some sessions (ephemeral, workspaceless, worktree-capable), gate it with `enabledForEphemeralSessions`, `isEnabledForSession` or `getDefinitionForSession` so other sessions never see it at all. An unavailable tool that is still listed is the worst case: tokens paid, no capability.
+6. Run the guardrail tests above and attach the eager-set diff (or "unchanged") to the PR.
+
+### Checklist: bumping `@github/copilot-sdk`
+
+An SDK bump can add runtime built-in tools, change built-in tool descriptions, change the deferred-tools reminder, or move text between cache blocks. None of that is visible in the package diff.
+
+1. Read the SDK release notes and `types.d.ts` diff for new built-in tools. A new built-in is off by default because it is not in `COPILOT_ENABLED_BUILTIN_TOOL_NAMES`; list it in the PR either way.
+2. For each new built-in, decide in the PR: leave it off (the default; add a comment in the allow-list file if it is likely to come up again), or adopt it by adding it to `COPILOT_ENABLED_BUILTIN_TOOL_NAMES` and to `expectedModelFacingToolNames` if it is eager. The CLI A/B tests its own tool strategies; the host does not inherit those experiments by accident.
+3. Run the prompt snapshot suite. If `expectedModelFacingToolNames` fails, the runtime renamed or dropped a tool the host relied on, or a tool previously deferred is now eager. If the runtime renamed a tool the host uses, add the new name to the allow-list and keep the old one until no supported runtime ships it.
+4. Read the baseline diff for description and ordering changes. A reworded built-in description appears as one rewritten line; a moved section or a changed cache split appears as a changed `cache_control` boundary. Mention both in the PR description so the cache-hit-rate dashboards can be read against the bump.
+5. Check the managed-settings schema snapshot (`copilotSdkManagedSettings.integrationTest.ts`) for new tool-related settings that should be pinned off.
+6. Check `rpc.d.ts` / `types.d.ts` in the bump for new `SessionConfig` tool options (`toolSearch`, `defer`, filters). A new option that defaults to on belongs in the launcher with an explicit value.
+
+### Prompt text and reminders
+
+Three places carry host text to the model. They have different cache behavior, and putting text in the wrong one is how a one-line reminder breaks the cache for every turn.
+
+| Place | Lifetime | Cache behavior | Use it for |
+| --- | --- | --- | --- |
+| System prompt sections (`prompts/promptRegistry.ts`, `toolInstructions.ts`, per-model contributors) | Frozen at session create/resume | Part of the prompt-cache prefix. Static sections (`identity`, `code_change_rules`, `guidelines`) sit in the shared block; `tool_instructions`, the host `content` and anything after `</environment_limitations>` are in the per-session block. Any change invalidates every later token for that session. | Guidance that is true for the whole session and identical across turns. |
+| `additionalContext` on the user turn (`handleUserPromptSubmitted`) and `<reminder>` on steering | One turn | Appended to the newest user message, after the cached prefix. Costs its own tokens once per turn, never invalidates earlier context. | Per-turn facts: a read-only snapshot, a title that needs review, a restriction that applies to this message. |
+| Runtime-injected context (`<current_datetime>`, the deferred-tools message, `<system_reminder>`) | Runtime-owned | The runtime positions these for its own cache layout. | Nothing. Do not re-emit them, paraphrase them, or add host text that depends on their position. |
+
+Rules:
+
+- **Session-constant text goes in the system prompt; turn-specific text goes in `additionalContext`.** Never put a timestamp, a count, a title, a file list or anything derived from the current turn into a system prompt section. Never put standing guidance into `additionalContext`, where it would be re-sent and re-read every turn.
+- **Do not gate system-prompt text on state that changes mid-session.** `hasTool` gates are evaluated once at launch. A gate on a client tool or setting is fine; a gate on something a turn can change produces a prompt that is silently stale, and a relaunch that changes it throws away the cache for the whole session.
+- **Do not repeat what the runtime already says.** The runtime emits the deferred-tools list, the current datetime, the environment and the available-tools line. A host line that re-lists tools is tokens on every request and goes stale as soon as the SDK changes its own wording.
+- **Keep reminder text byte-stable.** A reminder that is sent on several turns should be the same string each time so the model and the tokenizer see a familiar block; interpolate only the value that actually varies (`chatTitleReviewReminder` interpolates the title and nothing else).
+- **Bound repetition.** A reminder that asks the model to do something must stop after it is done or after a small fixed number of turns (`MAX_TITLE_REVIEW_REMINDERS`). An unbounded reminder is a per-turn tax that also trains the model to ignore it.
+- **One sentence per `tool_instructions` line, no surrounding newlines, no markdown headings.** Lines are composed into one section; formatting leaks across lines.
+- **Prefer tool descriptions over prompt lines for tool behavior.** A description is only paid for when the tool is loaded. A `tool_instructions` line is paid for by every session that has the tool, including sessions that never call it.
+- **Do not add a new `custom_instruction`, `runtime_instructions` or `last_instructions` override for fixed guidance.** Those sections are always in the per-session block, so they cannot be shared across sessions even when the runtime's stability-ordered layout is on.
+
+### What to put in the PR
+
+- Which origin the tool belongs to and the deferral lever you used.
+- For an eager tool: which of the three conditions applies, and the scope of the exception.
+- The output of the guardrail tests, or the baseline diff with each added line explained.
+- For prompt text: which place it lives in and why it is session-constant (system prompt) or turn-specific (`additionalContext`).
+- For an SDK bump: the list of new built-ins and the exclude-or-adopt decision for each.
+
+### Related
+
+- `node/copilot/prompts/AGENTS.md`: how the system message is composed, the tool-search bridge, and the prompt-cache layout.
+- `test/node/e2e/README.md`, "Prompt snapshots": what the baselines pin and how to regenerate them.
+- `.github/instructions/language-model-tool-descriptions.instructions.md`: how to word a model-facing description.
