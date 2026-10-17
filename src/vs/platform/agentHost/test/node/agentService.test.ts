@@ -34680,7 +34680,21 @@ suite('AgentService (node dispatcher)', () => {
 					await fileService.writeFile(joinPath(base.getSessionDataDir(session), SESSION_ATTACHMENTS_DIRNAME, 'earlier', 'note.txt'), VSBuffer.fromString('note'));
 					await fileService.writeFile(joinPath(base.getSessionDataDir(session), 'other.txt'), VSBuffer.fromString('other'));
 				};
-				return { createService, contentsOf, seed, orchestratorDatabase, agent, dataDir: (session: URI) => base.getSessionDataDir(session) };
+				// A restart stops the running service first: it would otherwise keep reacting to the shared provider and
+				// synchronize the sessions the restarted service restores, outside of that service's synchronization queue.
+				const stop = async (service: AgentService) => {
+					await service.whenCatalogReconciliationIdle();
+					await getTestSessionStateStore(service).whenIdle(undefined);
+					// The orchestrator database stands for the file that outlives a host, so it stays open.
+					const disposeDatabase = orchestratorDatabase.dispose;
+					orchestratorDatabase.dispose = () => { };
+					try {
+						service.dispose();
+					} finally {
+						orchestratorDatabase.dispose = disposeDatabase;
+					}
+				};
+				return { createService, stop, contentsOf, seed, orchestratorDatabase, agent, dataDir: (session: URI) => base.getSessionDataDir(session) };
 			}
 
 			suite('older-build edits and moves (Block 4a)', () => {
@@ -34953,7 +34967,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 
 			test('a restart restores the order a move or a reorder recorded, also with a chat before the default chat', async () => {
-				const { createService } = createDeletingServices();
+				const { createService, stop } = createDeletingServices();
 				let live = createService();
 				// Sessions are created once the provider's initial import ran, as after a client's first listing.
 				await live.listSessions();
@@ -34965,13 +34979,6 @@ suite('AgentService (node dispatcher)', () => {
 				await live.createChat(target, peer);
 				await timeout(0);
 				const orderOf = (service: AgentService) => getStateManager(service).getSessionState(target.toString())?.chats.map(chat => chat.resource);
-				// A restart stops the running service first: its background catalog reconciliation would otherwise synchronize
-				// the sessions the restarted service restores, outside the restarted service's synchronization queue.
-				const stop = async (service: AgentService) => {
-					await service.whenCatalogReconciliationIdle();
-					(service as unknown as { _catalogReconciliationService: { dispose(): void } })._catalogReconciliationService.dispose();
-					await getTestSessionStateStore(service).whenIdle(undefined);
-				};
 				const restart = async () => {
 					await stop(live);
 					const restarted = createService();
@@ -35061,7 +35068,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 
 			test('a deleted session keeps its attachments while a chat that moved out of it lives, also across a restart', async () => {
-				const { createService, contentsOf, seed } = createDeletingServices();
+				const { createService, stop, contentsOf, seed } = createDeletingServices();
 				const first = createService();
 				const source = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 				const target = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
@@ -35073,8 +35080,7 @@ suite('AgentService (node dispatcher)', () => {
 
 				await first.disposeSession(source);
 				const afterSourceDeleted = await contentsOf(source);
-				await first.whenCatalogReconciliationIdle();
-				await getTestSessionStateStore(first).whenIdle(undefined);
+				await stop(first);
 
 				const restarted = createService();
 				await restarted.listSessions();
