@@ -3,14 +3,116 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
+import { Schemas } from '../../../base/common/network.js';
+import { resolve } from '../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { ICodeWindow } from '../../window/electron-main/window.js';
 import { IResolvedWorkspace, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 
+// Matches paths pointing into a git linked worktree's private metadata
+// directory, e.g. `<main-worktree>/.git/worktrees/<name>/COMMIT_EDITMSG`.
+// Captures the full path of the worktree's metadata directory itself, i.e.
+// everything up to and including `.git/worktrees/<name>`. Accepts both `/`
+// and `\` as path separators.
+const gitWorktreeFilePathRegex = /^(.*[\\/]\.git[\\/]worktrees[\\/][^\\/]+)[\\/]/;
+
+// Returns the folder(s) a window has open, for both single-folder windows and
+// (resolved) multi-root workspace windows. Returns an empty array when the
+// window has no folders opened, or its workspace could not be resolved.
+async function getOpenedFolderUris(window: ICodeWindow, localWorkspaceResolver: (workspace: IWorkspaceIdentifier) => Promise<IResolvedWorkspace | undefined>): Promise<URI[]> {
+	const workspace = window.openedWorkspace;
+	if (isSingleFolderWorkspaceIdentifier(workspace)) {
+		return [workspace.uri];
+	}
+
+	if (isWorkspaceIdentifier(workspace)) {
+		const resolvedWorkspace = await localWorkspaceResolver(workspace);
+		return resolvedWorkspace ? resolvedWorkspace.folders.map(folder => folder.uri) : [];
+	}
+
+	return [];
+}
+
+/**
+ * Git linked worktrees store their private per-worktree files (such as
+ * `COMMIT_EDITMSG` or `rebase-merge/git-rebase-todo`) inside the *main*
+ * worktree's `.git/worktrees/<name>` directory, even though the corresponding
+ * working directory lives elsewhere on disk. A plain parent-folder match on
+ * such a file's path therefore always resolves to the window that has the
+ * main worktree open, never the window with the linked worktree the file
+ * actually belongs to.
+ *
+ * This detects that case and, if the linked worktree is open in one of the
+ * candidate windows (as a single-folder window or as one folder of a
+ * multi-root workspace window), returns that window instead. Returns
+ * `undefined` when the path is not a git worktree metadata path, or when no
+ * candidate window has the corresponding linked worktree open, so callers
+ * can fall back to their normal matching logic.
+ */
+async function findWindowOnGitWorktreeFile(windows: ICodeWindow[], fileUri: URI, localWorkspaceResolver: (workspace: IWorkspaceIdentifier) => Promise<IResolvedWorkspace | undefined>): Promise<ICodeWindow | undefined> {
+	if (fileUri.scheme !== Schemas.file) {
+		return undefined;
+	}
+
+	const worktreeMatch = gitWorktreeFilePathRegex.exec(fileUri.fsPath);
+	if (!worktreeMatch) {
+		return undefined;
+	}
+
+	// The exact directory the file's worktree metadata lives in, e.g.
+	// `/path/to/main/.git/worktrees/linked`. Candidate windows are matched
+	// against this full path rather than just the trailing `<name>` segment,
+	// so that two unrelated repositories that happen to use the same worktree
+	// name (e.g. both named `linked`) cannot be confused with one another.
+	const worktreeGitDir = URI.file(worktreeMatch[1]);
+
+	for (const window of windows) {
+		for (const openedFolder of await getOpenedFolderUris(window, localWorkspaceResolver)) {
+			if (openedFolder.scheme !== Schemas.file) {
+				continue;
+			}
+
+			// A linked worktree's working directory contains a plain-text `.git`
+			// *file* (not a directory) of the form `gitdir: /path/to/main/.git/worktrees/<name>`.
+			// Reading this will fail (and is safely skipped) for ordinary repositories,
+			// where `.git` is a directory, and for folders that are not a git repository at all.
+			let gitFileContents: string;
+			try {
+				gitFileContents = await fs.promises.readFile(URI.joinPath(openedFolder, '.git').fsPath, 'utf8');
+			} catch {
+				continue;
+			}
+
+			const gitDirMatch = /^gitdir:\s*(.+)$/m.exec(gitFileContents);
+			if (!gitDirMatch) {
+				continue;
+			}
+
+			// The pointer is usually absolute, but resolve it relative to the
+			// worktree's own folder in case it is ever written as a relative path.
+			const resolvedGitDir = URI.file(resolve(openedFolder.fsPath, gitDirMatch[1].trim()));
+			if (extUriBiasedIgnorePathCase.isEqual(resolvedGitDir, worktreeGitDir)) {
+				return window;
+			}
+		}
+	}
+
+	return undefined;
+}
+
 export async function findWindowOnFile(windows: ICodeWindow[], fileUri: URI, localWorkspaceResolver: (workspace: IWorkspaceIdentifier) => Promise<IResolvedWorkspace | undefined>): Promise<ICodeWindow | undefined> {
 
-	// First check for windows with workspaces that have a parent folder of the provided path opened
+	// First, check whether the file is a git linked worktree's private metadata
+	// file and, if so, prefer the window that has that linked worktree open
+	// (see `findWindowOnGitWorktreeFile` for why this needs special handling)
+	const gitWorktreeWindow = await findWindowOnGitWorktreeFile(windows, fileUri, localWorkspaceResolver);
+	if (gitWorktreeWindow) {
+		return gitWorktreeWindow;
+	}
+
+	// Then check for windows with workspaces that have a parent folder of the provided path opened
 	for (const window of windows) {
 		const workspace = window.openedWorkspace;
 		if (isWorkspaceIdentifier(workspace)) {
