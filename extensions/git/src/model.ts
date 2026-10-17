@@ -1132,9 +1132,20 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		// The repository path may be a worktree (usually stored outside the workspace) so we have
 		// to check the repository path against all the worktree paths of the repositories that have
 		// already been opened.
-		const worktreePaths = this.repositories.map(r => r.worktrees.map(w => w.path)).flat();
-		if (worktreePaths.some(p => pathEquals(p, repositoryPath))) {
-			return false;
+		//
+		// Only treat a linked worktree as being inside the workspace when worktree detection is
+		// enabled (`git.detectWorktrees`). Otherwise a worktree that the user did not explicitly
+		// open (e.g. discovered via an open editor, the file system watcher, or the extension API)
+		// should follow the same rules as any other repository outside the workspace
+		// (`git.openRepositoryInParentFolders`), instead of being opened unconditionally.
+		const detectWorktrees = workspace
+			.getConfiguration('git', Uri.file(repositoryPath))
+			.get<boolean>('detectWorktrees', false);
+		if (detectWorktrees) {
+			const worktreePaths = this.repositories.map(r => r.worktrees.map(w => w.path)).flat();
+			if (worktreePaths.some(p => pathEquals(p, repositoryPath))) {
+				return false;
+			}
 		}
 
 		// The repository path may be a canonical path or it may contain a symbolic link so we have
