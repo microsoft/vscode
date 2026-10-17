@@ -27,7 +27,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { activeContrastBorder, editorBackground, Extensions as ColorRegistryExtensions, IColorRegistry, listHoverBackground, listHoverForeground, listInactiveSelectionBackground, listInactiveSelectionForeground, oneOf, opaque, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
 import { foreground } from '../../../../../platform/theme/common/colors/baseColors.js';
 import { Extensions as ThemeServiceExtensions, IThemingRegistry } from '../../../../../platform/theme/common/themeService.js';
-import { EDITOR_BORDER, EDITOR_GROUP_HEADER_CONNECTED_TABS_BACKGROUND, EDITOR_GROUP_HEADER_TABS_BACKGROUND, MODERN_ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_BORDER, MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ITEM_ACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ITEM_ACTIVE_FOREGROUND, MODERN_ACTIVITY_BAR_ITEM_HOVER_BACKGROUND, MODERN_ACTIVITY_BAR_ITEM_HOVER_FOREGROUND, MODERN_EDITOR_TAB_ACTIVE_ACTION_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_FOREGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_ACTION_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_ACTION_BACKGROUND, MODERN_EDITOR_TAB_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_FOREGROUND, MODERN_EDITOR_TAB_INACTIVE_BACKGROUND, MODERN_EDITOR_TAB_SELECTED_ACTION_BACKGROUND, MODERN_PANEL_BORDER, MODERN_SASH_GRIP_FOREGROUND, MODERN_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_FOREGROUND, MODERN_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_FOREGROUND, MODERN_UI_INACTIVE_SHELL_BACKGROUND, MODERN_UI_SHELL_BACKGROUND, PANEL_SECTION_BORDER, PANEL_SECTION_HEADER_BORDER, SIDE_BAR_SECTION_HEADER_BORDER, SURFACE_BORDER, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_BORDER, TAB_ACTIVE_BORDER_TOP, TAB_ACTIVE_FOREGROUND, TAB_BORDER, TAB_DIVIDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_HOVER_FOREGROUND, TAB_INACTIVE_BACKGROUND, TAB_INACTIVE_FOREGROUND, TAB_LAST_PINNED_BORDER, TAB_SELECTED_BACKGROUND, TAB_UNFOCUSED_ACTIVE_BACKGROUND, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_INACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_INACTIVE_BACKGROUND } from '../../../../common/theme.js';
+import { EDITOR_BORDER, EDITOR_GROUP_HEADER_CONNECTED_TABS_BACKGROUND, EDITOR_GROUP_HEADER_TABS_BACKGROUND, MODERN_ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_BORDER, MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ITEM_ACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ITEM_ACTIVE_FOREGROUND, MODERN_ACTIVITY_BAR_ITEM_HOVER_BACKGROUND, MODERN_ACTIVITY_BAR_ITEM_HOVER_FOREGROUND, MODERN_EDITOR_TAB_ACTIVE_ACTION_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_FOREGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_ACTION_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_ACTION_BACKGROUND, MODERN_EDITOR_TAB_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_FOREGROUND, MODERN_EDITOR_TAB_INACTIVE_BACKGROUND, MODERN_EDITOR_TAB_INACTIVE_FOREGROUND, MODERN_EDITOR_TAB_SELECTED_ACTION_BACKGROUND, MODERN_PANEL_BORDER, MODERN_SASH_GRIP_FOREGROUND, MODERN_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_FOREGROUND, MODERN_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_FOREGROUND, MODERN_UI_INACTIVE_SHELL_BACKGROUND, MODERN_UI_SHELL_BACKGROUND, PANEL_SECTION_BORDER, PANEL_SECTION_HEADER_BORDER, SIDE_BAR_SECTION_HEADER_BORDER, SURFACE_BORDER, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_BORDER, TAB_ACTIVE_BORDER_TOP, TAB_ACTIVE_FOREGROUND, TAB_BORDER, TAB_DIVIDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_HOVER_FOREGROUND, TAB_INACTIVE_BACKGROUND, TAB_INACTIVE_FOREGROUND, TAB_LAST_PINNED_BORDER, TAB_SELECTED_BACKGROUND, TAB_UNFOCUSED_ACTIVE_BACKGROUND, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_INACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_INACTIVE_BACKGROUND } from '../../../../common/theme.js';
 import { TestEnvironmentService, TestLayoutService } from '../../../../test/browser/workbenchTestServices.js';
 import { LayoutSettings, ModernUIDensity, ModernUIEditorTabStyle } from '../../../../services/layout/browser/layoutService.js';
 import { PRESERVE_MERGED_WORKSPACE_NAME_CASE_CLASS, PRESERVE_WORKSPACE_NAME_CASE_CLASS, shouldPreserveWorkspaceNameCase } from '../../../files/browser/views/explorerView.js';
@@ -3677,6 +3677,32 @@ suite('ModernUIContribution', () => {
 		}
 	});
 
+	test('uses the theme inactive foreground for pill inactive tabs in either editor group', () => {
+		const root = appendElement(document.body, 'monaco-workbench modern-ui modern-ui-tabs');
+		store.add(toDisposable(() => root.remove()));
+		const themeStyle = document.createElement('style');
+		root.appendChild(themeStyle);
+		const content = appendElement(appendElement(root, 'part editor'), 'content');
+		const labels = [true, false].map(active => {
+			const group = appendElement(content, `editor-group-container${active ? ' active' : ''}`);
+			const tabs = appendElement(appendElement(appendElement(group, 'title tabs'), 'tabs-and-actions-container'), 'tabs-container');
+			return createEditorTabLabel(appendElement(tabs, 'tab'));
+		});
+		const theme = ColorThemeData.createUnloadedTheme('vs-dark', {
+			[foreground]: '#cccccc',
+			[TAB_INACTIVE_FOREGROUND]: '#9d9d9d',
+			[MODERN_EDITOR_TAB_INACTIVE_FOREGROUND]: '#a1b2c3',
+		});
+		themeStyle.textContent = generateColorThemeCSS(theme, '.monaco-workbench', themingRegistry.getThemingParticipants(), TestEnvironmentService).code;
+		const colors = () => labels.map(label => getWindow(root).getComputedStyle(label.name).color);
+		const pill = colors();
+		root.classList.add('modern-ui-connected-editor-tabs');
+		assert.deepStrictEqual({ pill, connected: colors() }, {
+			pill: ['rgb(161, 178, 195)', 'rgb(161, 178, 195)'],
+			connected: ['rgb(157, 157, 157)', 'rgb(157, 157, 157)'],
+		});
+	});
+
 	test('preserves pill and HC label defaults and explicit connected foreground customizations', () => {
 		const root = appendElement(document.body, 'monaco-workbench modern-ui-tabs');
 		store.add(toDisposable(() => root.remove()));
@@ -4041,6 +4067,7 @@ suite('ModernUIContribution', () => {
 				'modernEditorTab.hoverBackground',
 				'modernEditorTab.hoverForeground',
 				'modernEditorTab.inactiveBackground',
+				'modernEditorTab.inactiveForeground',
 				'modernEditorTab.selectedActionBackground',
 			],
 			editorGroupHeaderColors: [
@@ -4424,6 +4451,36 @@ suite('ModernUIContribution', () => {
 			{ source: 'user', active: 'rgb(14, 55, 71)', inactive: 'rgb(90, 31, 12)', selected: 'rgb(22, 101, 52)', activeHover: '#4c1678' },
 			{ source: 'themeWithUserOverride', active: 'rgb(14, 55, 71)', inactive: 'rgb(90, 31, 12)', selected: 'rgb(18, 52, 86)', activeHover: '#4c1678' },
 		]);
+	});
+
+	test('prefers a customized pill inactive foreground over legacy tab foreground customizations', () => {
+		const theme = ColorThemeData.createUnloadedTheme('vs-dark', { [editorBackground]: '#000000' });
+		theme.setCustomColors({
+			[TAB_ACTIVE_FOREGROUND]: '#FEDCBA',
+			[TAB_INACTIVE_FOREGROUND]: '#123456',
+			[MODERN_EDITOR_TAB_INACTIVE_FOREGROUND]: '#A1B2C3',
+		});
+
+		const style = document.createElement('style');
+		style.textContent = generateColorThemeCSS(theme, '.pill-inactive-foreground-theme', themingRegistry.getThemingParticipants(), TestEnvironmentService).code;
+		document.head.appendChild(style);
+		store.add(toDisposable(() => style.remove()));
+
+		const root = appendElement(document.body, 'pill-inactive-foreground-theme monaco-workbench modern-ui-tabs');
+		store.add(toDisposable(() => root.remove()));
+		const content = appendElement(appendElement(root, 'part editor'), 'content');
+		const labels = [true, false].map(active => {
+			const group = appendElement(content, `editor-group-container${active ? ' active' : ''}`);
+			return createEditorTabLabel(appendElement(appendElement(appendElement(group, 'title'), 'tabs-container'), 'tab'));
+		});
+		const colors = () => labels.map(label => getWindow(root).getComputedStyle(label.name).color);
+		const pill = colors();
+		root.classList.add('modern-ui-connected-editor-tabs');
+
+		assert.deepStrictEqual({ pill, connected: colors() }, {
+			pill: ['rgb(161, 178, 195)', 'rgb(161, 178, 195)'],
+			connected: ['rgb(18, 52, 86)', 'rgb(18, 52, 86)'],
+		});
 	});
 
 	test('derives inactive tab foreground from a legacy active foreground customization', () => {
