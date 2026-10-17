@@ -194,9 +194,9 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 		await flush();
 
 		// The shared forwarder dispatches one RootConfigChanged per key; merge them
-		// and assert the full forwarded set (order-independent). Fusion is mirrored
-		// by the protocol client to every host rather than by this local-only forwarder.
-		assert.strictEqual(agentHostService.dispatchedActions.length, 23);
+		// and assert the full forwarded set (order-independent). Fusion and Dynamic Auto Tiers
+		// are mirrored by the protocol client to every host rather than by this local-only forwarder.
+		assert.strictEqual(agentHostService.dispatchedActions.length, 22);
 		const merged = Object.assign({}, ...agentHostService.dispatchedActions.map(a => (a.action as IRootConfigChangedAction).config));
 		assert.deepStrictEqual(merged, {
 			[CopilotCliConfigKey.CopilotSdkLogLevel]: 'trace',
@@ -216,7 +216,6 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[CopilotCliConfigKey.HydraFusionV2]: true,
 			[CopilotCliConfigKey.HydraFusionMultiRoot]: true,
 			[CopilotCliConfigKey.FusionHighUsesHydraFusion]: true,
-			[CopilotCliConfigKey.DynamicAutoTiers]: true,
 			[CopilotCliConfigKey.Memory]: true,
 			[CopilotCliConfigKey.LocalMemory]: true,
 			[CopilotCliConfigKey.AutoModeTierOverride]: 'intelligence',
@@ -573,7 +572,6 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[CopilotCliConfigKey.HydraFusionMultiRoot]: false,
 			[CopilotCliConfigKey.Fusion]: false,
 			[CopilotCliConfigKey.FusionHighUsesHydraFusion]: false,
-			[CopilotCliConfigKey.DynamicAutoTiers]: false,
 			[CopilotCliConfigKey.Memory]: false,
 			[CopilotCliConfigKey.LocalMemory]: false,
 			[CopilotCliConfigKey.AutoModeTierOverride]: '',
