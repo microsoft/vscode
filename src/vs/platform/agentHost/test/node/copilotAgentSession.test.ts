@@ -3999,20 +3999,18 @@ suite('CopilotAgentSession', () => {
 		}]);
 	});
 
-	test('reports canvas readiness timeouts without claiming every extension failed', async () => {
+	test('reports canvas readiness timeouts without claiming every extension failed', () => runWithFakedTimers({}, async () => {
 		const telemetryService = new CapturingTelemetryService();
-		await runWithFakedTimers({}, async () => {
-			await createAgentSession(disposables, {
-				telemetryService,
-				configureMockSession: mock => {
-					mock.extensions.push({ id: 'slow', name: 'Slow', source: 'project', status: 'starting' });
-				},
-			});
+		await createAgentSession(disposables, {
+			telemetryService,
+			configureMockSession: mock => {
+				mock.extensions.push({ id: 'slow', name: 'Slow', source: 'project', status: 'starting' });
+			},
 		});
 		assert.deepStrictEqual(canvasReadinessEvents(telemetryService), [{
 			schemaVersion: 1, launchKind: 'create', outcome: 'timeout', extensionCount: 1, failedExtensionCount: 0, hasDuration: true,
 		}]);
-	});
+	}));
 
 	test('reports canvas readiness errors with only observed counts and preserves the rejection', async () => {
 		const results = [];
