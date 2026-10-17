@@ -2402,4 +2402,26 @@ suite('FindModel', () => {
 		});
 	});
 
+	test('issue #130053: matchesPosition should not be "unknown" when selection sits before the first match', () => {
+		const textArr = ['no match on this line', 'hello world', 'hello again'];
+		withTestCodeEditor(textArr, {}, (_editor) => {
+			const editor = _editor as IActiveCodeEditor;
+
+			// Simulate a selection that does not overlap any match (e.g. a stale
+			// selection restored at the very start of the document after switching
+			// editors), but which precedes the first match.
+			editor.setSelection(new Selection(1, 1, 1, 1));
+
+			const findState = disposables.add(new FindReplaceState());
+			findState.change({ searchString: 'hello' }, false);
+			disposables.add(new FindModelBoundToEditorModel(editor, findState));
+
+			assert.strictEqual(findState.matchesCount, 2);
+			// The nearest match at or after the selection is the first one, so
+			// matchesPosition should resolve to 1 rather than 0 (which the find
+			// widget renders as "?").
+			assert.strictEqual(findState.matchesPosition, 1);
+		});
+	});
+
 });
