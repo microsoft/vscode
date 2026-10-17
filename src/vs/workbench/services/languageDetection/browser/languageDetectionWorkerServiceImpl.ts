@@ -73,6 +73,7 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 			languageService,
 			telemetryService,
 			webWorkerService,
+			this._logService,
 			// TODO See if it's possible to bundle vscode-languagedetection
 			useAsar
 				? FileAccess.asBrowserUri(`${moduleLocationAsar}/dist/lib/index.js`).toString(true)
@@ -190,6 +191,7 @@ export class LanguageDetectionWorkerClient extends Disposable {
 		private readonly _languageService: ILanguageService,
 		private readonly _telemetryService: ITelemetryService,
 		private readonly _webWorkerService: IWebWorkerService,
+		private readonly _logService: ILogService,
 		private readonly _indexJsUri: string,
 		private readonly _modelJsonUri: string,
 		private readonly _weightsUri: string,
@@ -210,6 +212,13 @@ export class LanguageDetectionWorkerClient extends Disposable {
 				})
 			));
 			LanguageDetectionWorkerHost.setChannel(workerClient, {
+				$logMessage: (level, message) => {
+					if (level === 'error') {
+						this._logService.error(message);
+					} else {
+						this._logService.warn(message);
+					}
+				},
 				$getIndexJsUri: async () => this.getIndexJsUri(),
 				$getLanguageId: async (languageIdOrExt) => this.getLanguageId(languageIdOrExt),
 				$sendTelemetryEvent: async (languages, confidences, timeSpent) => this.sendTelemetryEvent(languages, confidences, timeSpent),
