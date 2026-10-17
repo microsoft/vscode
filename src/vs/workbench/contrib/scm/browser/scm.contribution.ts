@@ -7,6 +7,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContributionsRegistry, registerWorkbenchContribution2, Extensions as WorkbenchExtensions, WorkbenchPhase } from '../../../common/contributions.js';
 import { VIEWLET_ID, ISCMService, VIEW_PANE_ID, ISCMProvider, ISCMViewService, REPOSITORIES_VIEW_PANE_ID, HISTORY_VIEW_PANE_ID } from '../common/scm.js';
+import { scmDiffDecorationsGutterWidthDefault, scmDiffDecorationsGutterWidthMax, scmDiffDecorationsGutterWidthMin } from '../common/quickDiff.js';
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { MenuRegistry, MenuId, registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
 import { SCMActiveResourceContextKeyController, SCMActiveRepositoryController } from './activity.js';
@@ -184,8 +185,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		'scm.diffDecorationsGutterWidth': {
 			type: 'number',
-			enum: [1, 2, 3, 4, 5],
-			default: 3,
+			minimum: scmDiffDecorationsGutterWidthMin,
+			maximum: scmDiffDecorationsGutterWidthMax,
+			default: scmDiffDecorationsGutterWidthDefault,
 			description: localize('diffGutterWidth', "Controls the width(px) of diff decorations in gutter (added & modified).")
 		},
 		'scm.diffDecorationsGutterVisibility': {
