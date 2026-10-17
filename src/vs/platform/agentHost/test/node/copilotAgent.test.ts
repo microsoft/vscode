@@ -103,6 +103,7 @@ import type { IAgentHostScopedCredential } from '../../common/agentHostCredentia
 import { AhpErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { GITHUB_MCP_SERVER_NAME } from '../../node/shared/githubMcpServer.js';
 import { AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../../node/shared/fileLinkInstructions.js';
+import { AGENT_HOST_WORKSPACELESS_INSTRUCTIONS } from '../../node/shared/workspacelessInstructions.js';
 import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION, COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS } from '../../node/copilot/prompts/toolInstructions.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostReviewService, NULL_REVIEW_SERVICE } from '../../common/agentHostReviewService.js';
@@ -7951,6 +7952,113 @@ suite('CopilotAgent', () => {
 	}).timeout(30_000);
 
 	suite('quick chat scratch directory', () => {
+		test('workspaceless system message stays identical after release and restore', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/qc-prompt-home-`));
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			const systemMessages: SessionConfig['systemMessage'][] = [];
+			client.createSession = async config => {
+				systemMessages.push(config.systemMessage);
+				return new MockCopilotSession(config.sessionId) as unknown as CopilotSession;
+			};
+			client.resumeSession = async (id, config) => {
+				systemMessages.push(config.systemMessage);
+				return new MockCopilotSession(id) as unknown as CopilotSession;
+			};
+			const options = { copilotClient: client, useRealResumePath: true, sessionDataService, userHome };
+			const first = createTestAgent(disposables, options);
+			let firstDisposed = false;
+			let restored: CopilotAgent | undefined;
+			try {
+				await first.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+				const session = URI.parse('ahp-session:/workspaceless-prompt');
+				const chat = defaultChatUri(session);
+				const created = await provisionSession(first, { session });
+				const db = sessionDataService.openDatabase(session);
+				try {
+					await db.object.setMetadata(AH_META_WORKSPACELESS_DB_KEY, 'true');
+				} finally {
+					db.dispose();
+				}
+				const context = exactChatContext(session, chat, session);
+				await first.chats.sendMessage(chat, 'hello', undefined, undefined, 'turn-1', undefined, context);
+				await first.chats.releaseChat(chat, context);
+				await disposeAgent(first);
+				firstDisposed = true;
+
+				restored = createTestAgent(disposables, options);
+				await restored.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+				await restored.materializeChat(chat, context, created.providerData);
+				await restored.chats.sendMessage(chat, 'hello again', undefined, undefined, 'turn-2', undefined, context);
+
+				assert.ok(systemMessages[0]?.content?.includes(AGENT_HOST_WORKSPACELESS_INSTRUCTIONS));
+				assert.deepStrictEqual(systemMessages, [systemMessages[0], systemMessages[0]]);
+			} finally {
+				if (restored) {
+					await disposeAgent(restored);
+				}
+				if (!firstDisposed) {
+					await disposeAgent(first);
+				}
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+			}
+		}).timeout(30_000);
+
+		test('minted peer and fork in a workspaceless session keep the parent system message across resume', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/qc-mint-home-`));
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			const launches: { kind: 'create' | 'resume'; systemMessage: SessionConfig['systemMessage'] }[] = [];
+			client.createSession = async config => {
+				launches.push({ kind: 'create', systemMessage: config.systemMessage });
+				return new MockCopilotSession(config.sessionId) as unknown as CopilotSession;
+			};
+			client.resumeSession = async (id, config) => {
+				launches.push({ kind: 'resume', systemMessage: config.systemMessage });
+				return new MockCopilotSession(id) as unknown as CopilotSession;
+			};
+			const agent = createTestAgent(disposables, { copilotClient: client, useRealResumePath: true, sessionDataService, userHome });
+			(agent as unknown as { _forkSdkChat: () => Promise<{ sessionId: string; inheritedTurnId: string | undefined }> })._forkSdkChat = async () => ({ sessionId: 'forked-sdk', inheritedTurnId: undefined });
+			try {
+				await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+				const session = URI.parse('ahp-session:/workspaceless-mint');
+				const parent = defaultChatUri(session);
+				const created = await provisionSession(agent, { session });
+				const scratchDirectory = created.resolvedWorkingDirectory;
+				assert.ok(scratchDirectory);
+				const db = sessionDataService.openDatabase(session);
+				try {
+					await db.object.setMetadata(AH_META_WORKSPACELESS_DB_KEY, 'true');
+				} finally {
+					db.dispose();
+				}
+				await agent.chats.sendMessage(parent, 'hello', undefined, undefined, 'turn-1', undefined, exactChatContext(session, parent, session));
+
+				const peer = URI.parse(buildChatUri(session, 'peer'));
+				await agent.chats.createChat(peer, exactChatContext(session, peer), { workingDirectories: [scratchDirectory] });
+				const fork = URI.parse(buildChatUri(session, 'fork'));
+				await agent.chats.createChat(fork, exactChatContext(session, fork), { fork: { source: parent, turnId: 'turn-1' }, workingDirectories: [scratchDirectory] });
+
+				for (const chat of [peer, fork]) {
+					await agent.chats.releaseChat(chat, exactChatContext(session, chat));
+					await agent.chats.sendMessage(chat, 'hello again', [scratchDirectory], undefined, `turn-${chat.toString()}`, undefined, exactChatContext(session, chat));
+				}
+
+				const parentMessage = launches[0]?.systemMessage;
+				assert.ok(parentMessage?.content?.includes(AGENT_HOST_WORKSPACELESS_INSTRUCTIONS));
+				assert.deepStrictEqual(launches, [
+					{ kind: 'create', systemMessage: parentMessage },
+					{ kind: 'create', systemMessage: parentMessage },
+					{ kind: 'resume', systemMessage: parentMessage },
+					{ kind: 'resume', systemMessage: parentMessage },
+					{ kind: 'resume', systemMessage: parentMessage },
+				]);
+			} finally {
+				await disposeAgent(agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+			}
+		}).timeout(30_000);
+
 		test('does not discover workspace customizations from scratch', async () => {
 			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/qc-home-`));
 			const agent = createTestAgent(disposables, { userHome });
@@ -24969,6 +25077,48 @@ suite('CopilotAgent', () => {
 		type AgentInternals = {
 			_resumeSession: (id: string, chat: URI) => Promise<CopilotAgentSession>;
 		};
+
+		for (const workspaceless of [true, false]) {
+			test(`resume uses the host workspaceless=${workspaceless} setting rather than SDK metadata`, async () => {
+				const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/resume-prompt-home-`));
+				const sessionDataService = disposables.add(new TestSessionDataService());
+				const session = URI.parse('ahp-session:/resume-prompt');
+				const chat = defaultChatUri(session);
+				const sdkSessionId = 'resume-prompt-sdk';
+				const sdkSessionUri = AgentSession.uri('copilotcli', sdkSessionId);
+				const hostDb = sessionDataService.openDatabase(session);
+				try {
+					await hostDb.object.setMetadata(AH_META_WORKSPACELESS_DB_KEY, String(workspaceless));
+					if (!workspaceless) {
+						const sdkDb = sessionDataService.openDatabase(sdkSessionUri);
+						try {
+							await sdkDb.object.setMetadata(AH_META_WORKSPACELESS_DB_KEY, 'true');
+						} finally {
+							sdkDb.dispose();
+						}
+					}
+				} finally {
+					hostDb.dispose();
+				}
+				const client = new TestCopilotClient([sdkSession(sdkSessionId, userHome.fsPath)]);
+				let systemMessage: SessionConfig['systemMessage'];
+				client.resumeSession = async (id, config) => {
+					systemMessage = config.systemMessage;
+					return new MockCopilotSession(id) as unknown as CopilotSession;
+				};
+				const agent = createTestAgent(disposables, { copilotClient: client, useRealResumePath: true, sessionDataService, userHome });
+				try {
+					await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+					await agent.materializeChat(chat, exactChatContext(session, chat, session), JSON.stringify({ sdkSessionId }));
+					await (agent as unknown as AgentInternals)._resumeSession(sdkSessionId, chat);
+
+					assert.strictEqual(systemMessage?.content?.includes(AGENT_HOST_WORKSPACELESS_INSTRUCTIONS), workspaceless);
+				} finally {
+					await disposeAgent(agent);
+					await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				}
+			}).timeout(30_000);
+		}
 
 		test('resume replaces the complete SDK system message when configured', async () => {
 			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/resume-system-message-`);
