@@ -156,7 +156,6 @@ function f(x: number, y: string): void { }
 - Avoid using `bind()`, `call()` and `apply()` solely to control `this` or partially apply arguments; prefer arrow functions or closures to capture the necessary context, and use these methods only when required by an API or interoperability.
 - Avoid using events to drive control flow between components. Instead, prefer direct method calls or service interactions to ensure clearer dependencies and easier traceability of logic. Events should be reserved for broadcasting state changes or notifications rather than orchestrating behavior across components.
 - Service dependencies MUST be declared in constructors and MUST NOT be accessed through the `IInstantiationService` at any other point in time.
-- Tools the model can see are input tokens on every request. In Agent Host, new tools are deferred by default and the eager set is a reviewed, test-pinned budget; prompt text and reminders have fixed homes by cache behavior. Follow §9 of [src/vs/platform/agentHost/AGENTS.md](../src/vs/platform/agentHost/AGENTS.md) when adding a tool, bumping the Copilot SDK, or adding text that reaches the model.
 
 ## Learnings
 - Minimize the amount of assertions in tests. Prefer one snapshot-style `assert.deepStrictEqual` over multiple precise assertions, as they are much more difficult to understand and to update.
