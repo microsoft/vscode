@@ -788,7 +788,7 @@ suite('AgentHostChangesetOperationService', () => {
 		}]);
 	});
 
-	test('advertises Discard Changes only on the last turn changeset as turns start and complete, with or without Git state', () => {
+	test('advertises Discard Changes on Session Changes and only on the last turn changeset as turns start and complete, with or without Git state', () => {
 		const run = (gitState: ISessionGitState | undefined) => {
 			const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 			const sessionKey = 'agent:/session';
@@ -815,6 +815,9 @@ suite('AgentHostChangesetOperationService', () => {
 				stateManager.registerChangeset(turnUri);
 				subscriptions.addSubscription(chat, turnUri);
 			}
+			const sessionUri = buildSessionChangesetUri(sessionKey);
+			stateManager.registerChangeset(sessionUri);
+			subscriptions.addSubscription(sessionKey, sessionUri);
 			const service = disposables.add(new AgentHostChangesetOperationService(stateManager, new TestGitStateService(), subscriptions, new TestConfigurationService(['file:///a']), createTestChatOwnershipService(stateManager)));
 			// Only the advertising half of the contribution is under test; its handler needs file services.
 			const discard = disposables.add(new AgentHostDiscardChangesOperationContribution(stateManager, new (mock<IInstantiationService>())()));
@@ -824,7 +827,8 @@ suite('AgentHostChangesetOperationService', () => {
 			// The coordinator refreshes the operations of subscribed changesets whenever a turn starts or completes.
 			const refresh = () => {
 				service.updateOperations(sessionKey, undefined, gitState);
-				return Object.fromEntries(turnUris.map((turnUri, index) => [`turn-${index + 1}`, stateManager.getChangesetState(turnUri)?.operations?.map(operation => `${operation.id}:${operation.status}`) ?? []]));
+				const describe = (changesetUri: string) => stateManager.getChangesetState(changesetUri)?.operations?.map(operation => `${operation.id}:${operation.status}`) ?? [];
+				return { ...Object.fromEntries(turnUris.map((turnUri, index) => [`turn-${index + 1}`, describe(turnUri)])), session: describe(sessionUri) };
 			};
 
 			startTurn('turn-1');
@@ -841,9 +845,9 @@ suite('AgentHostChangesetOperationService', () => {
 		};
 
 		const lastTurnOnly = {
-			afterTurn2: { 'turn-1': [], 'turn-2': ['discard-changes:idle'], 'turn-3': [] },
-			whileTurn3Runs: { 'turn-1': [], 'turn-2': [], 'turn-3': ['discard-changes:disabled'] },
-			afterTurn3: { 'turn-1': [], 'turn-2': [], 'turn-3': ['discard-changes:idle'] },
+			afterTurn2: { 'turn-1': [], 'turn-2': ['discard-changes:idle'], 'turn-3': [], session: ['discard-changes:idle'] },
+			whileTurn3Runs: { 'turn-1': [], 'turn-2': [], 'turn-3': ['discard-changes:disabled'], session: ['discard-changes:disabled'] },
+			afterTurn3: { 'turn-1': [], 'turn-2': [], 'turn-3': ['discard-changes:idle'], session: ['discard-changes:idle'] },
 		};
 		assert.deepStrictEqual({ withGit: run(sampleGitState), withoutGit: run(undefined) }, {
 			withGit: { ...lastTurnOnly, branch: ['discard-changes'] },
