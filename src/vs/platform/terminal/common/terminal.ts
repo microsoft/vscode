@@ -394,8 +394,8 @@ export interface IPtyService {
 
 	// #region Pty service contribution RPC calls
 
-	installAutoReply(match: string, reply: string): Promise<void>;
-	uninstallAllAutoReplies(): Promise<void>;
+	installAutoReply(match: string, reply: string, ownerId: string): Promise<void>;
+	uninstallAllAutoReplies(ownerId: string): Promise<void>;
 
 	// #endregion
 }
@@ -1208,8 +1208,8 @@ export interface ITerminalBackend extends ITerminalBackendPtyServiceContribution
 }
 
 export interface ITerminalBackendPtyServiceContributions {
-	installAutoReply(match: string, reply: string): Promise<void>;
-	uninstallAllAutoReplies(): Promise<void>;
+	installAutoReply(match: string, reply: string, ownerId: string): Promise<void>;
+	uninstallAllAutoReplies(ownerId: string): Promise<void>;
 }
 
 export const TerminalExtensions = {

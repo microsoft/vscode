@@ -366,11 +366,11 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 		return this._remoteTerminalChannel.getPerformanceMarks();
 	}
 
-	installAutoReply(match: string, reply: string): Promise<void> {
-		return this._remoteTerminalChannel.installAutoReply(match, reply);
+	installAutoReply(match: string, reply: string, ownerId: string): Promise<void> {
+		return this._remoteTerminalChannel.installAutoReply(match, reply, ownerId);
 	}
 
-	uninstallAllAutoReplies(): Promise<void> {
-		return this._remoteTerminalChannel.uninstallAllAutoReplies();
+	uninstallAllAutoReplies(ownerId: string): Promise<void> {
+		return this._remoteTerminalChannel.uninstallAllAutoReplies(ownerId);
 	}
 }
