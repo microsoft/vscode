@@ -19968,11 +19968,13 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('concurrent first listings serve registered fallback data while sharing background migration', async () => {
 			const gate = new DeferredPromise<void>();
+			const migrationStarted = new DeferredPromise<void>();
 			class GatedListAgent extends MockAgent {
 				override readonly onDidDiscoverChats = Event.None;
 				listCalls = 0;
 				override async listChatsToMigrate(): Promise<IAgentListedChat[]> {
 					this.listCalls++;
+					migrationStarted.complete();
 					await gate.p;
 					return super.listExternalChats();
 				}
@@ -19992,15 +19994,8 @@ suite('AgentService (node dispatcher)', () => {
 
 			const first = svc.listSessions();
 			const second = svc.listSessions();
-			for (let i = 0; i < 20 && agent.listCalls === 0; i++) {
-				await timeout(0);
-			}
-			let listingSettled = false;
-			void first.then(() => listingSettled = true);
-			for (let i = 0; i < 20 && !listingSettled; i++) {
-				await timeout(0);
-			}
-			assert.strictEqual(listingSettled, true, 'first listing must not wait for provider migration');
+			// The first listing settles while the provider migration is blocked, it would never settle if it waited for the migration
+			await Promise.all([migrationStarted.p, first]);
 			gate.complete();
 
 			const [firstResult, secondResult] = await Promise.all([first, second]);
@@ -34643,7 +34638,9 @@ suite('AgentService (node dispatcher)', () => {
 			 * keeps a deleted origin's attachments for them.
 			 */
 			function createDeletingServices(options?: { readonly copyAttachments?: boolean }) {
-				const base = createSessionDataService(new TestSessionDatabase());
+				// Each session has its own database, as in production: sharing one, the catalog synchronizations of the sessions a
+				// chat moves between would overwrite each other's receipt.
+				const base = createPerSessionDataService().service;
 				const sessionDataService: ISessionDataService = {
 					...base,
 					deleteSessionData: async session => {
@@ -34958,6 +34955,8 @@ suite('AgentService (node dispatcher)', () => {
 			test('a restart restores the order a move or a reorder recorded, also with a chat before the default chat', async () => {
 				const { createService } = createDeletingServices();
 				const first = createService();
+				// Sessions are created once the provider's initial import ran, as after a client's first listing.
+				await first.listSessions();
 				const source = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 				const target = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 				const moved = URI.parse(buildChatUri(source, 'moved-first'));
