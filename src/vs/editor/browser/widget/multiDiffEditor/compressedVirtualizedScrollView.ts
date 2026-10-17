@@ -5,6 +5,7 @@
 
 import { Dimension, getWindow, h, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { SmoothScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { ScrollableElementChangeOptions } from '../../../../base/browser/ui/scrollbar/scrollableElementOptions.js';
 import { compareBy, numberComparator } from '../../../../base/common/arrays.js';
 import { findFirstMax } from '../../../../base/common/arraysFind.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
@@ -147,6 +148,21 @@ export class CompressedVirtualizedScrollView<TItem extends ICompressedVirtualize
 			const requestedScrollTop = this.scrollTop.read(reader);
 			globalTransaction(tx => this._update(items, itemHeights, gap, width, height, width + maxScroll, requestedScrollTop, tx));
 		}));
+	}
+
+	/**
+	 * Changes how the scrollable responds to mouse wheel events.
+	 */
+	updateScrollOptions(options: Pick<ScrollableElementChangeOptions, 'mouseWheelScrollSensitivity' | 'fastScrollSensitivity' | 'scrollPredominantAxis'>): void {
+		this._scrollableElement.updateOptions(options);
+	}
+
+	/**
+	 * Sets how long a smooth scroll animates, in milliseconds. With 0, wheel events and
+	 * smooth scroll requests apply at once.
+	 */
+	setSmoothScrollDuration(duration: number): void {
+		this._scrollable.setSmoothScrollDuration(duration);
 	}
 
 	setScrollPosition(position: INewScrollPosition, smooth = false): void {
