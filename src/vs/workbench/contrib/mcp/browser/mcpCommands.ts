@@ -55,7 +55,7 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { getMcpServerDisplayLabel, IAgentHostCustomizationService } from '../../chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { setAgentHostPluginEnablement } from '../../chat/browser/agentPluginActions.js';
-import { IAICustomizationWorkspaceService } from '../../chat/common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementCommands, AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../chat/common/aiCustomizationWorkspaceService.js';
 import { IAgentPluginService } from '../../chat/common/plugins/agentPluginService.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { IChatElicitationRequest, IChatToolInvocation } from '../../chat/common/chatService/chatService.js';
@@ -63,7 +63,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../chat/common/constants.js'
 import { ContributionEnablementState, isContributionDisabled } from '../../chat/common/enablement.js';
 import { ILanguageModelsService } from '../../chat/common/languageModels.js';
 import { ILanguageModelToolsService } from '../../chat/common/tools/languageModelToolsService.js';
-import { extensionsFilterSubMenu, IExtensionsWorkbenchService, VIEWLET_ID } from '../../extensions/common/extensions.js';
+import { extensionsFilterSubMenu, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { mcpWorkspaceRootConfig } from '../common/mcpConfiguration.js';
@@ -1163,7 +1163,10 @@ export class AddConfigurationAction extends Action2 {
 		const instantiationService = accessor.get(IInstantiationService);
 		const notificationService = accessor.get(INotificationService);
 		try {
-			const target = configUri === undefined ? undefined : instantiationService.createInstance(McpConfigurationDestination).getExplicitTarget(configUri);
+			const target = configUri === undefined ? undefined : await instantiationService.createInstance(McpConfigurationDestination).getExplicitTarget(configUri);
+			if (configUri !== undefined && target === undefined) {
+				return;
+			}
 			await instantiationService.createInstance(McpAddConfigurationCommand, target).run();
 		} catch (error) {
 			if (!isCancellationError(error)) {
@@ -1460,6 +1463,26 @@ export class McpBrowseCommand extends Action2 {
 			category,
 			icon: Codicon.search,
 			precondition: ContextKeyExpr.and(ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		await accessor.get(ICommandService).executeCommand(
+			AICustomizationManagementCommands.OpenMarketplace,
+			AICustomizationManagementSection.McpServers,
+		);
+	}
+}
+
+export class McpBrowsePageCommand extends Action2 {
+	constructor() {
+		super({
+			id: McpCommandIds.BrowsePage,
+			title: localize2('mcp.command.browse', "MCP Servers"),
+			tooltip: localize2('mcp.command.browse.tooltip', "Browse MCP Servers"),
+			category,
+			icon: Codicon.search,
+			precondition: ContextKeyExpr.and(ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 			menu: [{
 				id: extensionsFilterSubMenu,
 				group: '1_predefined',
@@ -1474,7 +1497,7 @@ export class McpBrowseCommand extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor) {
-		accessor.get(IExtensionsWorkbenchService).openSearch('@mcp ');
+		await accessor.get(IExtensionsWorkbenchService).openSearch('@mcp ');
 	}
 }
 
@@ -1499,12 +1522,10 @@ export class ShowInstalledMcpServersCommand extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor) {
+		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 		const viewsService = accessor.get(IViewsService);
-		const view = await viewsService.openView(InstalledMcpServersViewId, true);
-		if (!view) {
-			await viewsService.openViewContainer(VIEWLET_ID);
-			await viewsService.openView(InstalledMcpServersViewId, true);
-		}
+		await extensionsWorkbenchService.openSearch('');
+		await viewsService.openView(InstalledMcpServersViewId, true);
 	}
 }
 

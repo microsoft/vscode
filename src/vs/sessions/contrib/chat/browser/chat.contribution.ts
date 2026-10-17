@@ -9,7 +9,7 @@ import { basename, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -58,8 +58,10 @@ import { WorktreeCreatedTaskDispatcher, AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SE
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import '../../sessions/browser/mobile/mobileOverlayContribution.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING } from '../common/constants.js';
-import { SessionsChatBackgroundAvailableContext, SessionsChatBackgroundImageConfiguredContext } from '../../../common/contextkeys.js';
+import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING } from '../common/constants.js';
+import { DesktopLayoutContext, IsPhoneLayoutContext, SessionsChatBackgroundAvailableContext, SessionsChatBackgroundImageConfiguredContext } from '../../../common/contextkeys.js';
+import { SESSION_ACTIVITY_BAR_SETTING } from '../../../common/sessionConfig.js';
+import { TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID } from '../../../browser/layoutActions.js';
 import { Menus } from '../../../browser/menus.js';
 import { ISessionsChatViewStateService, SessionsChatViewStateService } from './chatViewStateService.js';
 import { SessionsChatResponseFileChangesService } from './sessionTurnChanges.js';
@@ -461,6 +463,27 @@ class ChangeChatBackgroundLayoutAction extends Action2 {
 registerAction2(ChangeChatBackgroundLayoutAction);
 registerAction2(ToggleChatBackgroundTintAction);
 
+const toggleSessionActivityBarCommand = {
+	id: TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID,
+	title: localize('sessionActivityBar', "Session Activity Bar"),
+	toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_SETTING}`, true),
+};
+const toggleSessionActivityBarWhen = ContextKeyExpr.and(IsSessionsWindowContext, DesktopLayoutContext, IsPhoneLayoutContext.negate());
+// The transcript's background menu, for chats in a session.
+MenuRegistry.appendMenuItem(MenuId.ChatContext, {
+	command: toggleSessionActivityBarCommand,
+	group: 'zz_view',
+	order: 1,
+	when: ContextKeyExpr.and(toggleSessionActivityBarWhen, ChatContextKeys.contextMenuIsBackground),
+});
+// The new-session view's background menu, which only opens on its background.
+MenuRegistry.appendMenuItem(Menus.SessionChatBackgroundContext, {
+	command: toggleSessionActivityBarCommand,
+	group: 'zz_view',
+	order: 1,
+	when: toggleSessionActivityBarWhen,
+});
+
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
 		SessionWorktreeCleanupEditor,
@@ -481,11 +504,6 @@ registerAction2(class ManageAgentSessionStorageAction extends Action2 {
 			menu: [{
 				id: Menus.SidebarSessionsHeader,
 				group: 'manage',
-				order: 0,
-				when: ChatContextKeys.enabled,
-			}, {
-				id: MenuId.SessionItemContextMenu,
-				group: '9_storage',
 				order: 0,
 				when: ChatContextKeys.enabled,
 			}],
@@ -588,7 +606,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('sessions.chat.compareAgents.enabled', "Controls whether the Run and Compare Agents action is shown in eligible new-session agent pickers."),
+			description: localize('sessions.chat.compareAgents.enabled', "Controls whether the Compare Models action is shown in the model picker for eligible new Agent sessions."),
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
@@ -650,6 +668,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
+		[NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('sessions.chat.experimental.connectorRecommendations', "Controls whether the new-session composer recommends connectors that can add work context to chats."),
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
 		[NEW_SESSION_WELCOME_PHRASES_SETTING]: {
 			type: 'boolean',
 			default: false,
@@ -682,11 +708,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 					type: 'array',
 					items: { type: 'string' },
 					default: [],
-					markdownDescription: localize('sessions.chat.experimental.welcomeMessages.phrases', "Welcome phrases shown above the new-session composer. Use `{name}` to position the welcome name, for example `Back at it, {name}`. When no name is known, `{name}` and its surrounding separator are removed."),
+					markdownDescription: localize('sessions.chat.experimental.welcomeMessages.phrases', "Welcome phrases shown above the new-session composer. Use `${name}` to position the welcome name, for example `Back at it, ${name}`. When no name is known, `${name}` and its surrounding separator are removed."),
 				}
 			},
 			additionalProperties: false,
-			markdownDescription: localize('sessions.chat.experimental.welcomeMessages', "Customize the welcome phrases shown above the new-session composer. Use `\"mode\": \"replace\"` to use only your phrases, or `\"mode\": \"append\"` to add them to the defaults. Use `{name}` inside a phrase to position the welcome name."),
+			markdownDescription: localize('sessions.chat.experimental.welcomeMessages', "Customize the welcome phrases shown above the new-session composer. Use `\"mode\": \"replace\"` to use only your phrases, or `\"mode\": \"append\"` to add them to the defaults. Use `${name}` inside a phrase to position the welcome name."),
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
 		},

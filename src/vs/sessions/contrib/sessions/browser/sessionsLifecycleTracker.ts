@@ -365,8 +365,7 @@ export class SessionsLifecycleTracker extends Disposable {
 		const providerId = getSessionsTelemetryProviderId(session.providerId);
 		const workspaceUri = session.workspace.get()?.uri.toString();
 
-		const userSessionsTotal = this._usage.createdSessionCount + 1;
-		this._storageService.store(TOTAL_SESSIONS_KEY, userSessionsTotal, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const userSessionsTotal = this._usage.recordSessionCreated();
 
 		const providerCounts = this._readProviderCounterMap();
 		const userSessionsForProvider = (providerCounts[providerId] ?? 0) + 1;

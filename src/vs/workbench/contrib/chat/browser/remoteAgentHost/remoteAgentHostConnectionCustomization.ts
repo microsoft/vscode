@@ -11,6 +11,7 @@ import { AuthRequiredReason } from '../../../../../platform/agentHost/common/sta
 import { type ProtectedResourceMetadata } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IAgentHostAuthenticateRequest } from '../agentSessions/agentHost/agentHostAuth.js';
+import { IChatSessionContentProvider } from '../../common/chatSessionsService.js';
 
 /** Optional startup preparation for a selected workspace, returning a replacement host directory when needed. */
 export type RemoteAgentHostSessionPreparation = (selection: URI | undefined, token: CancellationToken) => Promise<URI | undefined>;
@@ -40,6 +41,18 @@ export interface IRemoteAgentHostConnectionCustomization {
 
 	/** Creates connection-scoped startup preparation, invoked only for new sessions after authentication. */
 	readonly createSessionPreparation?: (connection: IAgentConnection, store: DisposableStore) => RemoteAgentHostSessionPreparation;
+
+	/** Optionally retains a content provider across its initial history-to-live transition. */
+	readonly registerChatSessionContentProvider?: (sessionType: string, provider: IChatSessionContentProvider) => IDisposable | undefined;
+
+	/** Configuration a session this client provisioned is created with; forwarded to the session handler's `resolveInitialSessionConfig`. */
+	readonly resolveInitialSessionConfig?: (sessionResource: URI) => Record<string, unknown> | undefined;
+
+	/** Vendors whose model identifiers also address this connection's models; forwarded to the session handler's `modelIdentifierAliases`. */
+	readonly modelIdentifierAliases?: readonly string[];
+
+	/** Whether a title the host reports is a stand-in (e.g. the session id) rather than a title to show; forwarded to the session handler's `isSessionTitlePlaceholder`. */
+	readonly isSessionTitlePlaceholder?: (title: string, sessionResource: URI) => boolean;
 }
 
 /** Builds a {@link IRemoteAgentHostConnectionCustomization} for a concrete connection address. */

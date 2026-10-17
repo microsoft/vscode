@@ -310,7 +310,7 @@
             "default": false,
             "included": true,
             "agentHost": {
-                "status": "partial"
+                "status": "enforced"
             },
             "referencedSettings": [
                 "github.copilot.chat.otel.enabled"
@@ -341,7 +341,7 @@
                     },
                     {
                         "key": "chat.agentHost.otel.protocol.policy.file",
-                        "value": "File exporter is not selected by enterprise managed settings."
+                        "value": "Use the enterprise-managed file exporter."
                     }
                 ]
             },
@@ -432,7 +432,7 @@
             "localization": {
                 "description": {
                     "key": "chat.agentHost.otel.outfile.policy",
-                    "value": "Prevents local file export when enterprise-managed Copilot OpenTelemetry export is configured."
+                    "value": "Controls the enterprise-managed file export destination for Copilot OpenTelemetry and prevents local file export when an enterprise OTLP destination is configured."
                 }
             },
             "type": "string",
@@ -501,6 +501,24 @@
             "type": "array",
             "default": [],
             "included": false,
+            "agentHost": {
+                "status": "enforced"
+            }
+        },
+        {
+            "key": "chat.copilotCliCommand.enabled",
+            "name": "CopilotCliCommand",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.143",
+            "localization": {
+                "description": {
+                    "key": "chat.copilotCliCommand.enabled.policy",
+                    "value": "Controls whether VS Code provides the copilot command for GitHub Copilot CLI. When disabled, VS Code setup on Windows doesn't add the command to PATH and removes the entry it added, VS Code doesn't install GitHub Copilot CLI, and integrated terminals don't include the command. A GitHub Copilot CLI that was installed separately isn't affected."
+                }
+            },
+            "type": "boolean",
+            "default": true,
+            "included": true,
             "agentHost": {
                 "status": "enforced"
             }
@@ -765,27 +783,6 @@
             }
         },
         {
-            "key": "chat.plugins.strictMarketplaces",
-            "name": "ChatStrictMarketplaces",
-            "category": "InteractiveSession",
-            "minimumVersion": "1.122",
-            "localization": {
-                "description": {
-                    "key": "chat.plugins.strictMarketplaces.policy",
-                    "value": "Allowlist of plugin marketplace sources. When set, only marketplaces matching an entry are trusted; an empty array blocks all marketplaces."
-                }
-            },
-            "type": [
-                "array",
-                "null"
-            ],
-            "default": null,
-            "included": true,
-            "agentHost": {
-                "status": "partial"
-            }
-        },
-        {
             "key": "chat.sessionSync.enabled",
             "name": "CopilotSessionSync",
             "category": "InteractiveSession",
@@ -799,6 +796,24 @@
             "type": "boolean",
             "default": false,
             "included": true,
+            "agentHost": {
+                "status": "enforced"
+            }
+        },
+        {
+            "key": "chat.temporaryDefaultToLocalHarness",
+            "name": "ChatTemporaryDefaultToLocalHarness",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.142",
+            "localization": {
+                "description": {
+                    "key": "chat.temporaryDefaultToLocalHarness.policy",
+                    "value": "Temporarily keeps Local available and prevents automatic selection of the Copilot harness, overriding rollout settings and managed sandbox and permission routing. Local does not enforce runtime-only sandbox and permission settings."
+                }
+            },
+            "type": "boolean",
+            "default": false,
+            "included": false,
             "agentHost": {
                 "status": "enforced"
             }

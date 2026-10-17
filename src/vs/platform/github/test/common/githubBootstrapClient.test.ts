@@ -12,6 +12,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { GitHubService } from '../../common/githubService.js';
 import { RequestFetch } from '../../common/types.js';
+import { getGitHubClientInternals } from './githubClientTestUtils.js';
 
 suite('GitHub bootstrap clients', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -107,10 +108,10 @@ suite('GitHub bootstrap clients', () => {
 			authorization: { providerId: 'test', sessionId: 'repository', scopes: ['repo'] },
 			apiBaseUri, graphQlUri: `${apiBaseUri}/graphql`,
 		})).object;
-		await assert.rejects(repository.transport.rest({ host: 'api.github.com', accountId: '101' }, 'repository', {
+		await assert.rejects(getGitHubClientInternals(repository).transport.rest({ host: 'api.github.com', accountId: '101' }, 'repository', {
 			method: 'GET', url: `${apiBaseUri}/repos/owner/repo`, deadline: Date.now() + 100,
 		}, signal()), { kind: 'timeout' });
-		await repository.transport.rest({ host: 'api.github.com', accountId: '202' }, 'peer', {
+		await getGitHubClientInternals(repository).transport.rest({ host: 'api.github.com', accountId: '202' }, 'peer', {
 			method: 'GET', url: `${apiBaseUri}/repos/peer/repo`,
 		}, signal());
 		assert.deepStrictEqual(requests, ['/copilot_internal/user', '/repos/peer/repo']);

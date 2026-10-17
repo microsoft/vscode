@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License. See License.txt in the project root.
+
+set -euo pipefail
+
+if [[ "$(uname -s)" != Linux || "$#" -eq 0 ]]; then
+	echo "Agent Host tmpfs tests require Linux and a command." >&2
+	exit 2
+fi
+
+TEST_TMPDIR=$(mktemp -d "${TMPDIR:-/tmp}/agent-host-e2e-tmpfs.XXXXXX")
+MOUNTED=false
+
+# Describes each holder so it can be traced to the test that leaked it: its parent and process group, its age (match it
+# against the test log's timestamps), its full command line, and what it holds open on the mount. Each probe has the
+# same budget as the holder probe, since reading /proc of a stuck process can block.
+describe_holders() {
+	local pid
+	for pid in "$@"; do
+		echo "Agent Host tmpfs holder $pid (PID, parent PID, process group, age in seconds, command line):" >&2
+		timeout --signal=KILL 10s ps -o pid=,ppid=,pgid=,etimes=,args= -p "$pid" >&2 || true
+		sudo -n timeout --signal=KILL 10s find "/proc/$pid/cwd" "/proc/$pid/root" "/proc/$pid/fd" -maxdepth 1 -lname "$TEST_TMPDIR*" -printf '  %p -> %l\n' >&2 2>/dev/null || true
+	done
+}
+
+cleanup() {
+	local status=$?
+	trap - EXIT
+	if [[ "$MOUNTED" == true ]]; then
+		if ! sudo -n umount -- "$TEST_TMPDIR"; then
+			echo "Failed to unmount Agent Host test tmpfs: $TEST_TMPDIR" >&2
+			echo "Agent Host tmpfs mount holders (PID, command, and access type):" >&2
+			# fuser writes the holder PIDs to stdout and its verbose table to stderr.
+			local holders=''
+			if holders=$(sudo -n timeout --signal=KILL 10s fuser -vm "$TEST_TMPDIR"); then
+				:
+			else
+				local diagnostic_status=$?
+				echo "Agent Host tmpfs holder diagnostics exited with status $diagnostic_status; the unmount failure remains fatal." >&2
+			fi
+			# shellcheck disable=SC2086 # One argument per PID.
+			describe_holders $holders
+			exit 1
+		fi
+	fi
+	if ! rmdir -- "$TEST_TMPDIR"; then
+		echo "Failed to remove Agent Host tmpfs mount directory: $TEST_TMPDIR" >&2
+		exit 1
+	fi
+	exit "$status"
+}
+trap cleanup EXIT
+
+sudo -n mount -t tmpfs -o "size=4G,mode=700,uid=$(id -u),gid=$(id -g),nosuid,nodev" tmpfs "$TEST_TMPDIR"
+MOUNTED=true
+FILESYSTEM=$(findmnt -n -o FSTYPE --target "$TEST_TMPDIR")
+if [[ "$FILESYSTEM" != tmpfs ]]; then
+	echo "Agent Host test storage is not tmpfs: $TEST_TMPDIR" >&2
+	exit 1
+fi
+echo "Agent Host E2E storage: tmpfs ($TEST_TMPDIR)"
+findmnt --target "$TEST_TMPDIR"
+TMPDIR="$TEST_TMPDIR" TMP="$TEST_TMPDIR" TEMP="$TEST_TMPDIR" AGENT_HOST_E2E_STORAGE_BACKING=tmpfs "$@"

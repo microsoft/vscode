@@ -120,7 +120,7 @@ export class CloudSandboxModels extends Disposable {
 			this._provider = modelProvider;
 			this._register(toDisposable(() => modelProvider.updateAdditionalModels([])));
 		} else {
-			const descriptor = { vendor, displayName: localize('cloudSandbox.modelsProvider', "GitHub Sandboxes"), configuration: undefined, managementCommand: undefined, when: undefined };
+			const descriptor = { vendor, displayName: localize('cloudSandbox.modelsProvider', "Cloud"), configuration: undefined, managementCommand: undefined, when: undefined };
 			languageModelsService.deltaLanguageModelChatProviderDescriptors([descriptor], []);
 			this._register(toDisposable(() => languageModelsService.deltaLanguageModelChatProviderDescriptors([], [descriptor])));
 			this._provider = this._register(instantiationService.createInstance(AgentHostLanguageModelProvider, sessionType, vendor));

@@ -8,7 +8,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { mock } from '../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ActionWidgetService, IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
@@ -27,7 +27,7 @@ import { IContextViewService } from '../../../../../../platform/contextview/brow
 import { ContextViewService } from '../../../../../../platform/contextview/browser/contextViewService.js';
 import { ILayoutService } from '../../../../../../platform/layout/browser/layoutService.js';
 import { AgentHostChatInputPicker } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostChatInputPicker.js';
-import { toAgentHostBackendSessionUri } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionUri.js';
+import { getLocalAgentHostSessionProvider } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionUri.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostNewSessionFolderService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
@@ -47,6 +47,7 @@ import { AgentHostPermissionPickerDelegate } from '../../browser/agentHostPermis
 import { PermissionPicker } from '../../../copilotChatSessions/browser/permissionPicker.js';
 import { MobilePermissionPicker } from '../../../copilotChatSessions/browser/mobilePermissionPicker.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
+import { IChat } from '../../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
 import '../../../../chat/browser/media/chatWidget.css';
@@ -115,7 +116,7 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 		override getSessionConfig() { return config; }
 		override getCreateSessionConfig() { return newChat ? { ...config.values } : undefined; }
 		override isSessionConfigResolving() { return constObservable(false); }
-		override async setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void> {
+		override async setSessionConfigValue(sessionId: string, _chat: URI, property: string, value: unknown): Promise<void> {
 			config.values[property] = value;
 			configChanged.fire(sessionId);
 		}
@@ -126,6 +127,7 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 		override readonly sessionId = 'fixture';
 		override readonly sessionType = 'copilotcli';
 		override readonly resource = URI.parse('agent-host-copilotcli:/fixture');
+		override readonly activeChat = constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilotcli:/fixture') }));
 	}());
 	const instantiationService = createEditorServices(disposableStore, { colorTheme: theme, additionalServices: registerWorkbenchServices });
 	const connection = new class extends mock<IAgentConnection>() {
@@ -188,6 +190,7 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 		};
 		const hostService = new class extends mock<IAgentHostService>() {
 			override readonly onAgentHostStart = Event.None;
+			override readonly onAgentHostExit = Event.None;
 			override readonly onDidNotification = Event.None;
 			override getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
 				return connection.getNetworkDiagnosticsInfo();
@@ -210,8 +213,13 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 		instantiationService.stub(IAgentHostConnectionsService, {
 			ambientConnection: hostService,
 			onDidChangeSessionResolution: Event.None,
+			resolveSessionResourceIdentity: sessionResource => {
+				const provider = getLocalAgentHostSessionProvider(sessionResource);
+				return provider ? { backendSession: sessionResource.with({ scheme: provider, fragment: '' }), connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY } : undefined;
+			},
 			resolveSessionResource: sessionResource => {
-				const backendSession = toAgentHostBackendSessionUri(sessionResource);
+				const provider = getLocalAgentHostSessionProvider(sessionResource);
+				const backendSession = provider ? sessionResource.with({ scheme: provider, fragment: '' }) : undefined;
 				return backendSession ? { connection: hostService, backendSession, connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY } : undefined;
 			},
 		});

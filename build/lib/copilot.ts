@@ -28,6 +28,30 @@ export const copilotPlatforms = [
 	'win32-arm64', 'win32-x64',
 ];
 
+/**
+ * Product values that {@link renderCopilotShimLauncher} writes into `resources/win32/bin/copilot.sh`.
+ */
+export interface CopilotShimLauncherOptions {
+	readonly commit: string;
+	readonly quality: string;
+	readonly applicationName: string;
+	readonly dataFolderName: string;
+	readonly serverDataFolderName: string;
+}
+
+/**
+ * Renders the POSIX `copilot` launcher that Windows builds ship next to `copilot.exe` in `bin/copilot-shim`, so that
+ * WSL, Git Bash, and Cygwin shells that use the Windows PATH get a `copilot` command, like `bin/code` next to `code.cmd`.
+ */
+export function renderCopilotShimLauncher(template: string, options: CopilotShimLauncherOptions): string {
+	return template
+		.replace(/@@COMMIT@@/g, () => options.commit)
+		.replace(/@@QUALITY@@/g, () => options.quality)
+		.replace(/@@APPNAME@@/g, () => options.applicationName)
+		.replace(/@@DATAFOLDER@@/g, () => options.dataFolderName)
+		.replace(/@@SERVERDATAFOLDER@@/g, () => options.serverDataFolderName);
+}
+
 export function getCopilotRuntimeVersion(nodeModulesRoot = 'node_modules'): string {
 	const packageJsonPath = path.join(nodeModulesRoot, '@github', 'copilot-sdk', 'package.json');
 	const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as { readonly copilotCliVersion?: string };
@@ -84,8 +108,6 @@ const copilotTgrepPlatforms = [
 	'win32-arm64', 'win32-x64',
 ];
 
-const mxcArchitectures = ['x64', 'arm64'];
-
 const copilotOutOfProcessRuntimeExecutables = [
 	'copilot-runtime',
 	'copilot-runtime-bin',
@@ -122,7 +144,6 @@ const copilotOptionalNativePayloadDirs = [
 	'builtin-skills',
 	'clipboard',
 	'foundry-local-sdk',
-	'mxc-bin',
 	'pvrecorder',
 	'webview',
 ];
@@ -138,23 +159,6 @@ const copilotOptionalNativePayloadFiles = [
 	// merge does not need to special-case the framework binary tree.
 	'prebuilds/*/mediaremote-adapter/**',
 ];
-
-/**
- * Returns a glob filter that strips @microsoft/mxc-sdk `bin/<arch>` payload for
- * architectures other than the build target. `@microsoft/mxc-sdk` ships a full
- * set of sandbox binaries for every architecture under `bin/<arch>/`; only the
- * build target's architecture is needed. Architectures that mxc-sdk does not
- * ship (e.g. armhf) strip every `bin/<arch>` directory.
- */
-export function getMxcExcludeFilter(arch: string): string[] {
-	const target = mxcArchitectures.includes(arch) ? arch : undefined;
-	const nonTargetArchitectures = mxcArchitectures.filter(a => a !== target);
-
-	return [
-		'**',
-		...nonTargetArchitectures.map(a => `!**/node_modules/@microsoft/mxc-sdk/bin/${a}/**`),
-	];
-}
 
 /**
  * Returns a glob filter that strips @vscode/ripgrep-universal bin directories

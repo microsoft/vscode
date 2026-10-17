@@ -9,6 +9,7 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
+import { GitHubRateLimitCoordinator } from '../../common/githubRateLimitCoordinator.js';
 import { GitHubService } from '../../common/githubService.js';
 import { GitHubTransport } from '../../common/githubTransport.js';
 import { FakeScheduler } from './fakeScheduler.js';
@@ -32,6 +33,51 @@ suite('GitHub REST rate limits', () => {
 		{ name: 'legacy checks', resource: 'core', first: '/repos/o/r/check-suites/1', next: '/repos/other/repo/check-runs/2', independent: '/search/issues?q=test' },
 		{ name: 'legacy code search', resource: 'search', first: '/search/code?q=first', next: '/search/code?q=second', independent: '/repos/o/r/issues/1' },
 	];
+
+	test('isolates Agents from same-account REST fallback while retaining account-wide secondary limits', () => {
+		const scheduler = store.add(new FakeScheduler({ now: 1_000_000 }));
+		const limits = store.add(new GitHubRateLimitCoordinator(scheduler));
+		const resources = ['core', 'checks', 'search', 'code_search', 'graphql', 'agents'];
+		const delays = () => resources.map(resource => limits.getRequestDelay(account, resource));
+		limits.updateFromResponse(account, new Response(null, {
+			status: 503, headers: { 'x-ratelimit-resource': 'custom', 'retry-after': '60' },
+		}), undefined, 'core');
+		const restFallback = delays();
+		limits.updateFromAgentsResponse(account, new Response(null, { status: 429, headers: { 'retry-after': '30' } }));
+		const agents = delays();
+		limits.updateFromResponse(account, new Response(null, {
+			status: 403, headers: { 'retry-after': '90', 'x-github-secondary-rate-limited': 'true' },
+		}), undefined, 'core');
+		assert.deepStrictEqual({
+			restFallback, agents, secondary: delays(),
+			otherAccount: resources.map(resource => limits.getRequestDelay({ ...account, accountId: '202' }, resource)),
+		}, {
+			restFallback: [60_000, 60_000, 60_000, 60_000, 0, 0],
+			agents: [60_000, 60_000, 60_000, 60_000, 0, 30_000],
+			secondary: [90_000, 90_000, 90_000, 90_000, 90_000, 90_000],
+			otherAccount: [0, 0, 0, 0, 0, 0],
+		});
+	});
+
+	test('healthy responses and shorter hints do not erase an Agents cooldown', () => {
+		const scheduler = store.add(new FakeScheduler());
+		const limits = store.add(new GitHubRateLimitCoordinator(scheduler));
+		limits.updateFromAgentsResponse(account, new Response(null, { status: 429, headers: { 'retry-after': '60' } }));
+		scheduler.advanceBy(10_000);
+		limits.updateFromAgentsResponse(account, new Response(null, { status: 503, headers: { 'retry-after': '5' } }));
+		const shorterHint = limits.getRequestDelay(account, 'agents');
+		limits.updateFromAgentsResponse(account, new Response(null, { headers: { 'x-ratelimit-remaining': '4999' } }));
+		const healthy = limits.getRequestDelay(account, 'agents');
+		limits.updateFromAgentsResponse(account, new Response(null, {
+			status: 202, headers: { 'retry-after': '120', 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': '120' },
+		}));
+		const wakingHint = limits.getRequestDelay(account, 'agents');
+		scheduler.advanceBy(50_000);
+		assert.deepStrictEqual({
+			shorterHint, healthy, wakingHint, expired: limits.getRequestDelay(account, 'agents'),
+			core: limits.getRequestDelay(account, 'core'),
+		}, { shorterHint: 50_000, healthy: 50_000, wakingHint: 50_000, expired: 0, core: 0 });
+	});
 
 	for (const family of families) {
 		for (const status of [200, 403, 503]) {

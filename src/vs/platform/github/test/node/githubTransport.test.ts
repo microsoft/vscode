@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { GitHubGraphQLError } from '../../common/githubTypes.js';
@@ -66,6 +67,74 @@ suite('GitHubTransport', () => {
 				],
 			});
 			server.assertSatisfied();
+		});
+	});
+
+	test('forwards serialized bodies and returns text without JSON decoding', async () => {
+		const bodyText = '{\n\t"value" : "request"\n}\n';
+		const responseText = ' \r\nnot JSON \u00e9\r\n ';
+		const requests: { body: RequestInit['body']; contentType: string | null }[] = [];
+		const transport = disposables.add(new GitHubTransport(async (_input, init) => {
+			requests.push({ body: init?.body, contentType: new Headers(init?.headers).get('Content-Type') });
+			return new Response(responseText, { status: 201 });
+		}));
+
+		const response = await transport.restText(accountA, 'token-a', {
+			method: 'POST', url: 'https://github.example.test/repos/o/r', bodyText,
+		}, signal());
+
+		assert.deepStrictEqual({ requests, data: response.data, status: response.statusCode }, {
+			requests: [{ body: bodyText, contentType: 'application/json' }],
+			data: responseText,
+			status: 201,
+		});
+	});
+
+	test('coalesces buffered and legacy JSON reads without changing either result shape', async () => {
+		const started = new DeferredPromise<void>();
+		const release = new DeferredPromise<Response>();
+		const bodyText = ' {\n"value": 1\n} ';
+		let requests = 0;
+		const transport = disposables.add(new GitHubTransport(async () => {
+			requests++;
+			void started.complete();
+			return release.p;
+		}));
+		const request = { method: 'GET' as const, url: 'https://github.example.test/repos/o/r' };
+		const buffered = transport.restText(accountA, 'token-a', request, signal());
+		await started.p;
+		const parsed = transport.rest<{ value: number }>(accountA, 'token-a', request, signal());
+		await release.complete(new Response(bodyText));
+		const [text, json] = await Promise.all([buffered, parsed]);
+
+		assert.deepStrictEqual({ requests, text: text.data, json: json.data }, {
+			requests: 1, text: bodyText, json: { value: 1 },
+		});
+	});
+
+	test('isolates text and JSON body modes and revalidates unparsed text', async () => {
+		const validators: (string | null)[] = [];
+		const transport = disposables.add(new GitHubTransport(async (_input, init) => {
+			const validator = new Headers(init?.headers).get('If-None-Match');
+			validators.push(validator);
+			if (validator) {
+				return new Response(null, { status: 304 });
+			}
+			return validators.length === 1
+				? new Response(' plain text ', { headers: { etag: '"text"' } })
+				: Response.json({ value: 1 }, { headers: { etag: '"json"' } });
+		}));
+		const request = { method: 'GET' as const, url: 'https://github.example.test/repos/o/r' };
+		const text = await transport.restText(accountA, 'token-a', { ...request, responseBody: 'text' }, signal());
+		const json = await transport.rest(accountA, 'token-a', request, signal());
+		const revalidated = await transport.restText(accountA, 'token-a', { ...request, responseBody: 'text' }, signal());
+
+		assert.deepStrictEqual({
+			validators, text: text.data, json: json.data, cachedText: revalidated.data,
+			status: revalidated.statusCode, originalStatus: revalidated.revalidatedStatusCode,
+		}, {
+			validators: [null, null, '"text"'], text: ' plain text ', json: { value: 1 },
+			cachedText: ' plain text ', status: 304, originalStatus: 200,
 		});
 	});
 
@@ -166,6 +235,33 @@ suite('GitHubTransport', () => {
 			server.assertSatisfied();
 		});
 	});
+
+	for (const status of [200, 304]) {
+		test(`honors no-store on HTTP ${status} without retaining a cached representation`, async () => {
+			const validators: (string | null)[] = [];
+			const transport = disposables.add(new GitHubTransport(async (_url, init) => {
+				validators.push(new Headers(init?.headers).get('If-None-Match'));
+				if (validators.length === 1) {
+					return Response.json({ value: 1 }, { headers: { etag: '"old"' } });
+				}
+				if (validators.length === 2) {
+					const headers = { etag: '"new"', 'cache-control': 'private, No-Store' };
+					return status === 304 ? new Response(null, { status, headers }) : Response.json({ value: 2 }, { headers });
+				}
+				return Response.json({ value: 3 });
+			}));
+			const request = { method: 'GET' as const, url: 'https://github.example.test/repos/o/r' };
+			await transport.rest(accountA, 'token-a', request, signal());
+			const revalidated = await transport.rest(accountA, 'token-a', request, signal());
+			const fresh = await transport.rest(accountA, 'token-a', request, signal());
+			assert.deepStrictEqual({
+				validators, revalidated: revalidated.data, fresh: fresh.data, originalStatus: revalidated.revalidatedStatusCode,
+			}, {
+				validators: [null, '"old"', null], revalidated: { value: status === 304 ? 1 : 2 },
+				fresh: { value: 3 }, originalStatus: status === 304 ? 200 : undefined,
+			});
+		});
+	}
 
 	test('rejects a 304 that answers no cached representation', async () => {
 		await withServer(async server => {
@@ -283,6 +379,48 @@ suite('GitHubTransport', () => {
 			server.assertSatisfied();
 		});
 	});
+
+	test('shares legacy and buffered GraphQL reads while serializing variables once', async () => {
+		const started = new DeferredPromise<void>();
+		const response = new DeferredPromise<Response>();
+		const scheduler = disposables.add(new FakeScheduler({ now: 123 }));
+		const requests: RequestInit['body'][] = [];
+		const transport = disposables.add(new GitHubTransport(async (_input, init) => {
+			requests.push(init?.body);
+			void started.complete();
+			return response.p;
+		}, scheduler));
+		const query = 'query Viewer($a: String, $b: Int) { viewer { login } }';
+		let serializations = 0;
+		const legacy = transport.graphql<{ viewer: { login: string } }>(accountA, 'token-a', 'https://github.example.test/graphql', query, {
+			toJSON() { serializations++; return { a: 'value', b: 1 }; },
+		}, signal());
+		const buffered = transport.graphqlText(accountA, 'token-a', 'https://github.example.test/graphql', JSON.stringify({ variables: { b: 1, a: 'value' }, query }), signal());
+		await started.p;
+		const text = ' { "data" : { "viewer": { "login": "viewer" } }, "errors": [] } ';
+		await response.complete(new Response(text));
+		const raw = await buffered;
+		assert.deepStrictEqual({
+			legacy: await legacy, raw: { data: raw.data, status: raw.statusCode, errors: raw.errors, observedAt: raw.observedAt },
+			requests, serializations,
+		}, {
+			legacy: { data: { viewer: { login: 'viewer' } }, errors: [], observedAt: 123 },
+			raw: { data: text, status: 200, errors: [], observedAt: 123 },
+			requests: [JSON.stringify({ query, variables: { a: 'value', b: 1 } })], serializations: 1,
+		});
+	});
+
+	for (const operation of ['query { viewer { login } }', 'mutation { updateIssue(input: {}) { clientMutationId } }']) {
+		test(`counts GraphQL serialization against the caller deadline: ${operation}`, async () => {
+			const scheduler = disposables.add(new FakeScheduler({ now: 1_000 }));
+			let calls = 0;
+			const transport = disposables.add(new GitHubTransport(async () => { calls++; return Response.json({ data: {} }); }, scheduler));
+			await assert.rejects(transport.graphql(accountA, 'token-a', 'https://github.example.test/graphql', operation, {
+				toJSON() { scheduler.advanceBy(11); return {}; },
+			}, signal(), undefined, { deadline: 1_010 }), { kind: 'timeout', requestDispatched: false });
+			assert.strictEqual(calls, 0);
+		});
+	}
 
 	test('purges every account cache entry and aborts in-flight work on invalidation', async () => {
 		await withServer(async server => {
@@ -442,6 +580,205 @@ suite('GitHubTransport', () => {
 				requestCount: 3,
 			});
 			server.assertSatisfied();
+		});
+	});
+
+	test('a no-redirect request bypasses a learned redirect without changing ordinary reads', async () => {
+		const requests: { path: string; etag: string | null }[] = [];
+		const transport = disposables.add(new GitHubTransport(async (input, init) => {
+			const path = new URL(String(input)).pathname;
+			const etag = new Headers(init?.headers).get('If-None-Match');
+			requests.push({ path, etag });
+			return path === '/alias'
+				? new Response(null, { status: 302, headers: { location: '/repos/o/r' } })
+				: etag ? new Response(null, { status: 304 }) : Response.json({ value: 1 }, { headers: { etag: '"target"' } });
+		}));
+		const request = { method: 'GET' as const, url: 'https://github.example.test/alias' };
+		await transport.rest(accountA, 'token-a', request, signal());
+		const redirect = await transport.rest(accountA, 'token-a', { ...request, followRedirects: false }, signal());
+		const ordinary = await transport.rest(accountA, 'token-a', request, signal());
+		assert.deepStrictEqual({ requests, redirect: { data: redirect.data, status: redirect.statusCode, url: redirect.redirectUrl }, data: ordinary.data, status: ordinary.statusCode }, {
+			requests: [
+				{ path: '/alias', etag: null }, { path: '/repos/o/r', etag: null },
+				{ path: '/alias', etag: null }, { path: '/repos/o/r', etag: '"target"' },
+			],
+			redirect: { data: undefined, status: 302, url: 'https://github.example.test/repos/o/r' },
+			data: { value: 1 }, status: 304,
+		});
+	});
+
+	for (const variant of [
+		{ name: 'rate-limit resource', options: { rateLimitResource: 'agents' }, expectedData: { value: 2 } },
+		{ name: 'response body mode', options: { responseBody: 'none' }, expectedData: undefined },
+	] as const) {
+		test(`isolates concurrent reads and cached validators by ${variant.name}`, async () => {
+			const started = new DeferredPromise<void>();
+			const response = new DeferredPromise<Response>();
+			const validators: (string | null)[] = [];
+			const transport = disposables.add(new GitHubTransport(async (_url, init) => {
+				const etag = new Headers(init?.headers).get('If-None-Match');
+				validators.push(etag);
+				if (validators.length === 1) {
+					void started.complete();
+					return response.p;
+				}
+				return etag ? new Response(null, { status: 304 }) : Response.json({ value: 2 }, { headers: { etag: '"other"' } });
+			}));
+			const request = { method: 'GET' as const, url: 'https://github.example.test/repos/o/r' };
+			const ordinary = transport.rest(accountA, 'token-a', request, signal());
+			await started.p;
+			const different = transport.rest(accountA, 'token-a', { ...request, ...variant.options }, signal());
+			await response.complete(Response.json({ value: 1 }, { headers: { etag: '"original"' } }));
+			const results = await Promise.all([ordinary, different]);
+			const revalidated = await transport.rest(accountA, 'token-a', request, signal());
+			assert.deepStrictEqual({
+				data: results.map(result => result.data), validators, revalidated: revalidated.data,
+			}, {
+				data: [{ value: 1 }, variant.expectedData], validators: [null, null, '"original"'], revalidated: { value: 1 },
+			});
+		});
+	}
+
+	test('dispatch callbacks prevent sharing and do not fire for cancelled queued requests', async () => {
+		const started = new DeferredPromise<void>();
+		const response = new DeferredPromise<Response>();
+		const dispatched: string[] = [];
+		let calls = 0;
+		const transport = disposables.add(new GitHubTransport(async () => {
+			if (++calls === 1) {
+				void started.complete();
+				return response.p;
+			}
+			return Response.json({});
+		}));
+		const request = { method: 'GET' as const, url: 'https://github.example.test/repos/o/r' };
+		const first = transport.rest(accountA, 'token-a', { ...request, onDidDispatch: () => dispatched.push('first') }, signal());
+		await started.p;
+		const controller = new AbortController();
+		const reason = new Error('cancelled before dispatch');
+		const cancelled = transport.rest(accountA, 'token-a', { ...request, onDidDispatch: () => dispatched.push('cancelled') }, controller.signal);
+		const rejected = assert.rejects(cancelled, error => error === reason);
+		controller.abort(reason);
+		const last = transport.rest(accountA, 'token-a', { ...request, onDidDispatch: () => dispatched.push('last') }, signal());
+		await response.complete(Response.json({}));
+		await Promise.all([first, last, rejected]);
+		assert.deepStrictEqual({ calls, dispatched }, { calls: 2, dispatched: ['first', 'last'] });
+	});
+
+	for (const api of ['REST', 'GraphQL'] as const) {
+		for (const firstFailure of ['fetch', 'server', 'body'] as const) {
+			test(`${api} body failures share the retry budget with ${firstFailure} failures`, () => runWithFakedTimers({}, async () => {
+				let attempts = 0;
+				const streams: ReadableStream<Uint8Array>[] = [];
+				const transport = disposables.add(new GitHubTransport(async () => {
+					if (++attempts === 1) {
+						if (firstFailure === 'fetch') {
+							throw new TypeError('Failed to fetch');
+						}
+						if (firstFailure === 'server') {
+							return new Response(null, { status: 503 });
+						}
+					}
+					const stream = new ReadableStream<Uint8Array>({
+						start(controller) { controller.enqueue(new TextEncoder().encode('{"data":')); },
+						pull(controller) { controller.error(new Error('private response content')); },
+					}, { highWaterMark: 0 });
+					streams.push(stream);
+					return new Response(stream, { headers: { etag: '"incomplete"' } });
+				}));
+				try {
+					const pending = api === 'REST'
+						? transport.rest(accountA, 'token-a', { method: 'GET', url: 'https://github.example.test/repos/o/r' }, signal())
+						: transport.graphql(accountA, 'token-a', 'https://github.example.test/graphql', 'query { viewer { login } }', {}, signal());
+					await assert.rejects(pending, { name: 'GitHubRequestError', kind: 'network', message: 'GitHub response body failed (codes: unknown)' });
+					assert.deepStrictEqual({ attempts, locked: streams.some(stream => stream.locked) }, { attempts: 2, locked: false });
+				} finally {
+					transport.dispose();
+				}
+			}));
+		}
+	}
+
+	test('GraphQL reads recover from a response body failure', () => runWithFakedTimers({}, async () => {
+		let attempts = 0;
+		const transport = disposables.add(new GitHubTransport(async () => ++attempts === 1
+			? new Response(new ReadableStream<Uint8Array>({ pull: controller => controller.error(new Error('connection lost')) }))
+			: Response.json({ data: { viewer: { login: 'octocat' } } })));
+		try {
+			const result = await transport.graphql(accountA, 'token-a', 'https://github.example.test/graphql', 'query { viewer { login } }', {}, signal());
+			assert.deepStrictEqual({ data: result.data, attempts }, { data: { viewer: { login: 'octocat' } }, attempts: 2 });
+		} finally {
+			transport.dispose();
+		}
+	}));
+
+	test('GraphQL mutations do not retry response body failures', async () => {
+		let attempts = 0;
+		const transport = disposables.add(new GitHubTransport(async () => {
+			attempts++;
+			return new Response(new ReadableStream<Uint8Array>({ pull: controller => controller.error(new Error('connection lost')) }));
+		}));
+		await assert.rejects(transport.graphql(accountA, 'token-a', 'https://github.example.test/graphql', 'mutation { updateIssue(input: {}) { clientMutationId } }', {}, signal()), { kind: 'network' });
+		assert.strictEqual(attempts, 1);
+	});
+
+	for (const interruption of ['cancellation', 'deadline'] as const) {
+		test(`preserves ${interruption} during response body reads`, async () => {
+			const scheduler = disposables.add(new FakeScheduler());
+			const controller = new AbortController();
+			const reason = new Error('cancelled while reading');
+			const started = new DeferredPromise<void>();
+			const cancelled = new DeferredPromise<void>();
+			let attempts = 0;
+			const stream = new ReadableStream<Uint8Array>({
+				pull: () => { void started.complete(); },
+				cancel: () => { void cancelled.complete(); },
+			}, { highWaterMark: 0 });
+			const transport = disposables.add(new GitHubTransport(async () => {
+				attempts++;
+				return new Response(stream);
+			}, scheduler, false, undefined, { requestTimeout: 1_000 }));
+			const pending = transport.rest(accountA, 'token-a', { method: 'GET', url: 'https://github.example.test/repos/o/r', coalesce: false }, controller.signal);
+			const rejected = interruption === 'cancellation'
+				? assert.rejects(pending, error => error === reason)
+				: assert.rejects(pending, { kind: 'timeout', requestDispatched: true });
+			await started.p;
+			if (interruption === 'cancellation') {
+				controller.abort(reason);
+			} else {
+				scheduler.advanceBy(1_000);
+			}
+			await Promise.all([rejected, cancelled.p]);
+			assert.deepStrictEqual({ attempts, locked: stream.locked, timers: scheduler.pendingCount }, { attempts: 1, locked: false, timers: 0 });
+		});
+	}
+
+	for (const kind of ['responseTooLarge', 'malformedResponse'] as const) {
+		test(`does not reclassify or retry ${kind} body validation failures`, async () => {
+			let attempts = 0;
+			const transport = disposables.add(new GitHubTransport(async () => {
+				attempts++;
+				return new Response(kind === 'responseTooLarge' ? '{"value":123}' : '{');
+			}, undefined, false, undefined, { maximumResponseBytes: 8 }));
+			await assert.rejects(transport.rest(accountA, 'token-a', { method: 'GET', url: 'https://github.example.test/repos/o/r' }, signal()), { kind });
+			assert.strictEqual(attempts, 1);
+		});
+	}
+
+	test('body failures honor a cooldown received with the response headers', async () => {
+		const scheduler = disposables.add(new FakeScheduler());
+		let attempts = 0;
+		const transport = disposables.add(new GitHubTransport(async () => {
+			attempts++;
+			return new Response(new ReadableStream<Uint8Array>({ pull: controller => controller.error(new Error('connection lost')) }), {
+				status: 503, headers: { 'retry-after': '2' },
+			});
+		}, scheduler));
+		await assert.rejects(transport.rest(accountA, 'token-a', {
+			method: 'GET', url: 'https://github.example.test/agents/tasks', rateLimitResource: 'agents',
+		}, signal()), { kind: 'network' });
+		assert.deepStrictEqual({ attempts, delay: transport.rateLimits.getRequestDelay(accountA, 'agents'), timers: scheduler.pendingCount }, {
+			attempts: 1, delay: 2_000, timers: 0,
 		});
 	});
 
@@ -944,6 +1281,7 @@ suite('GitHubTransport', () => {
 			);
 
 			assert.deepStrictEqual(bounded, {
+				statusCode: 200,
 				text: 'abc',
 				truncated: true,
 				bytesRead: 3,
@@ -1054,7 +1392,7 @@ suite('GitHubTransport', () => {
 		await assert.rejects(() => transport.download(accountA, 'token-a', {
 			url: 'https://api.example.test/log', maximumBytes: 3, timeout: 30_000,
 		}, signal()), {
-			name: 'GitHubRequestError', kind: 'network', message: 'GitHub download body failed (codes: unknown)',
+			name: 'GitHubRequestError', kind: 'network', message: 'GitHub response body failed (codes: unknown)',
 		});
 		assert.deepStrictEqual({ locked: stream.locked, pendingTimers: scheduler.pendingCount }, { locked: false, pendingTimers: 0 });
 	});

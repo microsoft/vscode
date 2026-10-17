@@ -178,6 +178,7 @@ import { AllowedMcpServersService } from '../platform/mcp/common/allowedMcpServe
 import { IWebWorkerService } from '../platform/webWorker/browser/webWorkerService.js';
 import { WebWorkerService } from '../platform/webWorker/browser/webWorkerServiceImpl.js';
 import { ISessionsSetUpService, SessionsSetUpService } from './browser/sessionsSetUpService.js';
+import { AgentHostMcpOAuthMetadataService, IAgentHostMcpOAuthMetadataService } from '../platform/agentHost/common/agentHostMcpOAuthMetadataService.js';
 
 registerSingleton(IUserDataSyncLogService, UserDataSyncLogService, InstantiationType.Delayed);
 registerSingleton(IAllowedExtensionsService, AllowedExtensionsService, InstantiationType.Delayed);
@@ -196,6 +197,7 @@ registerSingleton(IWebWorkerService, WebWorkerService, InstantiationType.Delayed
 registerSingleton(IMcpGalleryService, McpGalleryService, InstantiationType.Delayed);
 registerSingleton(IAllowedMcpServersService, AllowedMcpServersService, InstantiationType.Delayed);
 registerSingleton(ISessionsSetUpService, SessionsSetUpService, InstantiationType.Delayed);
+registerSingleton(IAgentHostMcpOAuthMetadataService, AgentHostMcpOAuthMetadataService, InstantiationType.Delayed);
 
 //#endregion
 
@@ -207,6 +209,7 @@ import '../workbench/services/accounts/browser/defaultAccount.js';
 
 // Telemetry
 import '../workbench/contrib/telemetry/browser/telemetry.contribution.js';
+import '../workbench/services/policies/browser/policyTelemetry.contribution.js';
 
 // Preferences
 import '../workbench/contrib/preferences/browser/preferences.contribution.js';

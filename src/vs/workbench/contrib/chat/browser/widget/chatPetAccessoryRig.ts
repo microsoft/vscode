@@ -6,7 +6,7 @@
 import type { ChatPetState } from './chatPetWidget.js';
 
 export type ChatPetAccessoryRigPose = 'upright' | 'sleeping' | 'airborne' | 'impact' | 'splat';
-export type ChatPetAccessoryTrack = 'idle' | 'sleep' | 'waking' | 'typing' | 'rendering' | 'buttonPress' | 'love' | 'clapping' | 'jump' | 'cool' | 'yapping' | 'sing' | 'speechless' | 'worry' | 'dizzy' | 'falling' | 'wallImpact' | 'splat' | 'search';
+export type ChatPetAccessoryTrack = 'idle' | 'sleep' | 'waking' | 'typing' | 'rendering' | 'painting' | 'buttonPress' | 'love' | 'clapping' | 'jump' | 'cool' | 'yapping' | 'sing' | 'speechless' | 'worry' | 'dizzy' | 'falling' | 'wallImpact' | 'splat' | 'search';
 
 export interface IChatPetAccessoryAnchor {
 	readonly x: number;
@@ -49,6 +49,9 @@ const trackSpans: Partial<Record<ChatPetAccessoryTrack, readonly IChatPetAccesso
 	rendering: [
 		{ firstFrame: 0, lastFrame: 19, head: defaultHeadAnchor, rightEye: defaultRightEyeAnchor },
 		{ firstFrame: 20, lastFrame: 49, head: { x: 48, y: 36 }, rightEye: { x: 56, y: 60 } },
+	],
+	painting: [
+		{ firstFrame: 0, lastFrame: 7, head: defaultHeadAnchor, rightEye: defaultRightEyeAnchor },
 	],
 	sleep: [
 		{ firstFrame: 0, lastFrame: 2, head: defaultHeadAnchor, rightEye: { x: 56, y: 64 } },
@@ -104,6 +107,7 @@ export function getChatPetAccessoryTrack(state: ChatPetState): ChatPetAccessoryT
 		case 'waking':
 		case 'typing':
 		case 'rendering':
+		case 'painting':
 		case 'love':
 		case 'clapping':
 		case 'jump':
@@ -212,6 +216,8 @@ export function getChatPetReducedMotionRigFrame(state: ChatPetState): number {
 			return 7;
 		case 'buttonPress':
 			return 4;
+		case 'painting':
+			return 3;
 		case 'love':
 			return 5;
 		case 'splat':
