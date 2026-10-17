@@ -33986,8 +33986,9 @@ suite('AgentService (node dispatcher)', () => {
 			});
 
 			test('a promoted session restores from its default chat\'s own backing', async () => {
-				const db = new TestSessionDatabase();
-				const sessionDataService = createSessionDataService(db);
+				// Each session has its own database, as in production: sharing one, sessions whose catalogs synchronize at the same
+				// time overwrite each other's catalog-sync receipt ("Catalog sync snapshot generation ... does not match stored generation").
+				const sessionDataService = createPerSessionDataService().service;
 				const orchestratorDatabase = new AgentHostDatabase(':memory:');
 				const createService = (agent: MovingAgent) => {
 					const service = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
@@ -34009,6 +34010,8 @@ suite('AgentService (node dispatcher)', () => {
 				const agent = new MovingAgent('copilot');
 				const restarted = createService(agent);
 				await restarted.listSessions();
+				// Where moved chats came from loads in the background of the listing.
+				await getStateManager(restarted).whenMovedChatOriginsSettled();
 				const origin = getStateManager(restarted).getMovedChatOrigin(peer.toString());
 				await restarted.restoreSession(target);
 
@@ -34032,7 +34035,9 @@ suite('AgentService (node dispatcher)', () => {
 
 			test('a promoted session keeps its chat\'s title and title source across a restart, in its state and in the list, not its first prompt (B4-1)', async () => {
 				const orchestratorDatabase = new AgentHostDatabase(':memory:');
-				const sessionDataService = createSessionDataService(new TestSessionDatabase());
+				// Each session has its own database, as in production: sharing one, sessions whose catalogs synchronize at the same
+				// time overwrite each other's catalog-sync receipt ("Catalog sync snapshot generation ... does not match stored generation").
+				const sessionDataService = createPerSessionDataService().service;
 				// The agent describes the chat by its first prompt, as Copilot does.
 				class FirstPromptAgent extends MovingAgent {
 					override async getChatMetadata(chat: URI, context: URI | IAgentChatContext, providerData?: string): Promise<IAgentChatMetadata | undefined> {
@@ -34092,7 +34097,8 @@ suite('AgentService (node dispatcher)', () => {
 
 			test('a promoted session keeps a user rename of its chat that is not persisted yet as a user title (B4-1)', async () => {
 				const orchestratorDatabase = new AgentHostDatabase(':memory:');
-				const service = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				// Each session has its own database, as in production (see the test above).
+				const service = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
 					undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, orchestratorDatabase));
 				registerTestAgentProvider(service, disposables.add(new MovingAgent('copilot')));
 				getConfigurationService(service).updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
@@ -34196,7 +34202,9 @@ suite('AgentService (node dispatcher)', () => {
 			 * keeps a deleted origin's attachments for them.
 			 */
 			function createDeletingServices(options?: { readonly copyAttachments?: boolean }) {
-				const base = createSessionDataService(new TestSessionDatabase());
+				// Each session has its own database, as in production: sharing one, sessions whose catalogs synchronize at the same
+				// time overwrite each other's catalog-sync receipt ("Catalog sync snapshot generation ... does not match stored generation").
+				const base = createPerSessionDataService().service;
 				const sessionDataService: ISessionDataService = {
 					...base,
 					deleteSessionData: async session => {
@@ -34799,8 +34807,9 @@ suite('AgentService (node dispatcher)', () => {
 			});
 
 			test('after a restart, a promoted session finds its default chat in the chat\'s own storage, also cold', async () => {
-				const db = new TestSessionDatabase();
-				const sessionDataService = createSessionDataService(db);
+				// Each session has its own database, as in production: sharing one, sessions whose catalogs synchronize at the same
+				// time overwrite each other's catalog-sync receipt ("Catalog sync snapshot generation ... does not match stored generation").
+				const sessionDataService = createPerSessionDataService().service;
 				const orchestratorDatabase = new AgentHostDatabase(':memory:');
 				const createService = (agent: MovingAgent) => {
 					const service = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
