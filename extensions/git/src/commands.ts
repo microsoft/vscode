@@ -1519,6 +1519,49 @@ export class CommandCenter {
 		}
 	}
 
+	@command('git.acceptMergeCurrentFile')
+	async acceptMergeCurrentFile(...resourceStates: Array<SourceControlResourceState | Uri>): Promise<boolean> {
+		return this.acceptMergeFile(resourceStates, 'ours');
+	}
+
+	@command('git.acceptMergeIncomingFile')
+	async acceptMergeIncomingFile(...resourceStates: Array<SourceControlResourceState | Uri>): Promise<boolean> {
+		return this.acceptMergeFile(resourceStates, 'theirs');
+	}
+
+	private async acceptMergeFile(resourceStates: Array<SourceControlResourceState | Uri>, side: 'ours' | 'theirs'): Promise<boolean> {
+		const uris: Uri[] = [];
+		for (const resource of resourceStates) {
+			if (resource instanceof Uri) {
+				uris.push(resource);
+			} else if (resource instanceof Resource) {
+				uris.push(resource.resourceUri);
+			}
+		}
+		if (uris.length === 0) {
+			return false;
+		}
+
+		// Checkout of one side replaces the whole file, including any lines Git already merged.
+		const takeLabel = side === 'ours' ? l10n.t('Take Current File') : l10n.t('Take Incoming File');
+		const message = uris.length > 1
+			? side === 'ours'
+				? l10n.t('Take Current File replaces each selected file with the current version and stages it. Conflict markers and any already merged parts are discarded.')
+				: l10n.t('Take Incoming File replaces each selected file with the incoming version and stages it. Conflict markers and any already merged parts are discarded.')
+			: side === 'ours'
+				? l10n.t('Take Current File replaces {0} with the current version and stages it. Conflict markers and any already merged parts are discarded.', path.basename(uris[0].fsPath))
+				: l10n.t('Take Incoming File replaces {0} with the incoming version and stages it. Conflict markers and any already merged parts are discarded.', path.basename(uris[0].fsPath));
+		const pick = await window.showWarningMessage(message, { modal: true }, takeLabel);
+		if (pick !== takeLabel) {
+			return false;
+		}
+
+		const taken = await this.runByRepository(uris, async (repository, grouped: Uri | Uri[]) => {
+			return repository.takeMergeFile(Array.isArray(grouped) ? grouped : [grouped], side);
+		});
+		return taken.some(value => value);
+	}
+
 	@command('git.stage')
 	async stage(...resourceStates: SourceControlResourceState[]): Promise<void> {
 		this.logger.debug(`[CommandCenter][stage] git.stage ${resourceStates.length} `);
