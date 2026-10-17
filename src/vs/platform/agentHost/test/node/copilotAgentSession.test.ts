@@ -8639,7 +8639,7 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
-	test('completes a taskless subagent only after the completion quiet period', async () => {
+	test('completes a taskless subagent only after the completion quiet period', () => runWithFakedTimers({}, async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables, { subagentTaskCompletionDelay: 20 });
 		session.resetTurnState('turn-parent');
 		const identity = { toolCallId: 'tc-search', agentName: 'search_code_subagent', agentDisplayName: 'Search code' };
@@ -8650,9 +8650,9 @@ suite('CopilotAgentSession', () => {
 		await timeout(60);
 
 		assert.deepStrictEqual({ beforeQuietPeriod, afterQuietPeriod: completed() }, { beforeQuietPeriod: [], afterQuietPeriod: ['tc-search'] });
-	});
+	}));
 
-	test('keeps a task-backed subagent active when its lifecycle completion races a running task', async () => {
+	test('keeps a task-backed subagent active when its lifecycle completion races a running task', () => runWithFakedTimers({}, async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables, { subagentTaskCompletionDelay: 20 });
 		session.resetTurnState('turn-parent');
 		const identity = { toolCallId: 'tc-subagent', agentName: 'explore', agentDisplayName: 'Explore' };
@@ -8665,9 +8665,9 @@ suite('CopilotAgentSession', () => {
 		await timeout(60);
 
 		assert.deepStrictEqual(signals.filter(signal => signal.kind === 'subagent_completed'), []);
-	});
+	}));
 
-	test('keeps a taskless subagent active when it starts another round before the quiet period ends', async () => {
+	test('keeps a taskless subagent active when it starts another round before the quiet period ends', () => runWithFakedTimers({}, async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables, { subagentTaskCompletionDelay: 20 });
 		session.resetTurnState('turn-parent');
 		const identity = { toolCallId: 'tc-search', agentName: 'search_code_subagent', agentDisplayName: 'Search code' };
@@ -8677,9 +8677,9 @@ suite('CopilotAgentSession', () => {
 		await timeout(60);
 
 		assert.deepStrictEqual(signals.filter(signal => signal.kind === 'subagent_completed'), []);
-	});
+	}));
 
-	test('waits for subagent events to settle before completing an inactive task', async () => {
+	test('waits for subagent events to settle before completing an inactive task', () => runWithFakedTimers({}, async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables, { subagentTaskCompletionDelay: 50 });
 		session.resetTurnState('turn-parent');
 		const startedAt = new Date(0).toISOString();
@@ -8701,9 +8701,9 @@ suite('CopilotAgentSession', () => {
 		mockSession.fire('session.background_tasks_changed', {});
 		await timeout(60);
 		assert.deepStrictEqual(signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId), ['tc-subagent']);
-	});
+	}));
 
-	test('keeps running subagents active between SDK model rounds', async () => {
+	test('keeps running subagents active between SDK model rounds', () => runWithFakedTimers({}, async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables, { subagentTaskCompletionDelay: 20 });
 		session.resetTurnState('turn-parent');
 		mockSession.fire('subagent.started', {
@@ -8720,9 +8720,9 @@ suite('CopilotAgentSession', () => {
 		await timeout(50);
 
 		assert.deepStrictEqual(signals.filter(signal => signal.kind === 'subagent_completed' || signal.kind === 'subagent_resumed'), []);
-	});
+	}));
 
-	test('rechecks an inactive subagent before the completion timer closes its turn', async () => {
+	test('rechecks an inactive subagent before the completion timer closes its turn', () => runWithFakedTimers({}, async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables, { subagentTaskCompletionDelay: 20 });
 		session.resetTurnState('turn-parent');
 		mockSession.fire('subagent.started', {
@@ -8738,9 +8738,9 @@ suite('CopilotAgentSession', () => {
 		await timeout(50);
 
 		assert.deepStrictEqual(signals.filter(signal => signal.kind === 'subagent_completed'), []);
-	});
+	}));
 
-	test('ignores stale inactive task snapshots after a subagent starts its next model round', async () => {
+	test('ignores stale inactive task snapshots after a subagent starts its next model round', () => runWithFakedTimers({}, async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables, { subagentTaskCompletionDelay: 20 });
 		session.resetTurnState('turn-parent');
 		mockSession.fire('subagent.started', {
@@ -8760,7 +8760,7 @@ suite('CopilotAgentSession', () => {
 		await timeout(50);
 
 		assert.deepStrictEqual(signals.filter(signal => signal.kind === 'subagent_completed'), []);
-	});
+	}));
 
 	test('settles an inactive sibling while another subagent starts its next round', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
