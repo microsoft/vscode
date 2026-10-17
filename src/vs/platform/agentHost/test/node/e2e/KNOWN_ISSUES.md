@@ -113,6 +113,14 @@ Starting two Codex chats in the same empty workspace can fail before the first p
 
 - Host mitigation: on Linux, `CodexAgent` runs `thread/start`, `thread/resume`, and `thread/fork` one at a time per workspace root ([codexThreadCreationSequencer.ts](../../../node/codex/codexThreadCreationSequencer.ts)), so chats starting together in one workspace no longer fail their first message. Sandboxed shell commands that two chats run at the same moment in one workspace can still race, and so can several Agent Host processes sharing a workspace; that remains upstream. No upstream Codex issue tracks it yet. The defect: in [`bwrap.rs`](https://github.com/openai/codex/blob/rust-v0.162.0/codex-rs/linux-sandbox/src/bwrap.rs), readable roots are bound whenever they exist, with no check for another setup's transient mount targets (writable roots have one); it is unchanged on Codex `main`.
 
+### Codex Linux sandbox helpers orphaned when the app-server is killed
+
+An Agent Host E2E job on Linux can pass every suite and still fail the step, because the test tmpfs cannot be unmounted: `umount: <tmpfs>: target is busy`. The holder is a `bwrap ... --argv0 codex-linux-sandbox ... --codex-run-as-fs-helper` process whose parent is PID 1. It still has its pre-exec `bwrap` command line and its launcher's process group, and it holds files inherited from the Agent Host server.
+
+- Mechanism: Codex launches its filesystem helper as `bwrap --die-with-parent`, without a parent-death signal or kill-on-drop of its own ([`fs_sandbox.rs`](https://github.com/openai/codex/blob/rust-v0.162.0/codex-rs/exec-server/src/fs_sandbox.rs)). When the app-server dies, the bubblewrap launcher dies with it. The sandbox child that the launcher has just cloned blocks on an eventfd that never reports the launcher's death, and binds its own lifetime to the launcher only after that wait ([`bubblewrap.c`](https://github.com/containers/bubblewrap/blob/main/bubblewrap.c)), so it waits forever.
+- Host mitigation: on Linux, `CodexAgent` stops the app-server by first freezing it with `SIGSTOP`, so it can neither exit nor launch another helper, and then killing its process tree depth-first, so each helper is killed while its parent chain is intact. Earlier, only the app-server was killed, which left any helper it was launching at that moment in this state.
+- Diagnostics: [tmpfs.sh](../../../../../../../test/integration/agentHost/tmpfs.sh) keeps the unmount failure fatal and describes each holder's parent, process group, age, command line, and open files on the mount.
+
 ### Codex context snapshot flake
 
 Responses are correct, but session notifications intermittently differ from the snapshot. The test passes on unchanged retries; see [#338152](https://github.com/microsoft/vscode/issues/338152).

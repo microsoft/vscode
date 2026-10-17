@@ -18,6 +18,10 @@ MOUNTED=false
 describe_holders() {
 	local pid
 	for pid in "$@"; do
+		# fuser reports the mount itself as "kernel"; only processes can be described.
+		if [[ ! "$pid" =~ ^[0-9]+$ ]]; then
+			continue
+		fi
 		echo "Agent Host tmpfs holder $pid (PID, parent PID, process group, age in seconds, command line):" >&2
 		timeout --signal=KILL 10s ps -o pid=,ppid=,pgid=,etimes=,args= -p "$pid" >&2 || true
 		sudo -n timeout --signal=KILL 10s find "/proc/$pid/cwd" "/proc/$pid/root" "/proc/$pid/fd" -maxdepth 1 -lname "$TEST_TMPDIR*" -printf '  %p -> %l\n' >&2 2>/dev/null || true
