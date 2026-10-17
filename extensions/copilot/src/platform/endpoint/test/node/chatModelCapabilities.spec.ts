@@ -8,7 +8,7 @@ import { ConfigKey, IConfigurationService } from '../../../configuration/common/
 import { DefaultsOnlyConfigurationService } from '../../../configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
 import type { IChatEndpoint } from '../../../networking/common/networking';
-import { getModelCapabilityOverride, getVerbosityForModelSync, isGpt51Family, isGpt53Codex, isGpt54, isGpt55, isGpt56, isGpt6Family, isKimiFamily, isOpenAIModel, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelPrefersJsonNotebookRepresentation, modelSupportCacheBreakPoints, modelSupportsApplyPatch, modelSupportsContextEditing, modelSupportsMultiReplaceString, modelSupportsPDFDocuments, modelSupportsReplaceString, modelSupportsSimplifiedApplyPatchInstructions, modelSupportsThinkingContentInHistory, modelSupportsToolSearch } from '../../common/chatModelCapabilities';
+import { getModelCapabilityOverride, getVerbosityForModelSync, isGpt51Family, isGpt53Codex, isGpt54, isGpt55, isGpt56, isGpt6Family, isKimiFamily, isOpenAIModel, modelCanUseReplaceStringExclusively, modelPrefersJsonNotebookRepresentation, modelSupportCacheBreakPoints, modelSupportsApplyPatch, modelSupportsContextEditing, modelSupportsMultiReplaceString, modelSupportsPDFDocuments, modelSupportsReplaceString, modelSupportsSimplifiedApplyPatchInstructions, modelSupportsThinkingContentInHistory, modelSupportsToolSearch } from '../../common/chatModelCapabilities';
 
 function fakeModel(family: string, model: string = family) {
 	return { family, model, name: model } as unknown as IChatEndpoint;
@@ -58,7 +58,6 @@ describe('GPT-6 family capabilities', () => {
 			isGpt6ByFamily: isGpt6Family(family),
 			isGpt56: isGpt56(model),
 			applyPatch: modelSupportsApplyPatch(model),
-			applyPatchExclusively: modelCanUseApplyPatchExclusively(model),
 			simplifiedApplyPatchInstructions: modelSupportsSimplifiedApplyPatchInstructions(model),
 			jsonNotebook: modelPrefersJsonNotebookRepresentation(model),
 			pdf: modelSupportsPDFDocuments(model),
@@ -75,7 +74,6 @@ describe('GPT-6 family capabilities', () => {
 			isGpt6ByFamily: true,
 			isGpt56: false,
 			applyPatch: true,
-			applyPatchExclusively: true,
 			simplifiedApplyPatchInstructions: true,
 			jsonNotebook: true,
 			pdf: true,
@@ -104,14 +102,12 @@ describe('VSC Model F edit tool capabilities', () => {
 
 		expect({
 			supportsApplyPatch: modelSupportsApplyPatch(model),
-			canUseApplyPatchExclusively: modelCanUseApplyPatchExclusively(model),
 			supportsSimplifiedApplyPatchInstructions: modelSupportsSimplifiedApplyPatchInstructions(model),
 			supportsReplaceString: modelSupportsReplaceString(model),
 			supportsMultiReplaceString: modelSupportsMultiReplaceString(model),
 			canUseReplaceStringExclusively: modelCanUseReplaceStringExclusively(model),
 		}).toEqual({
 			supportsApplyPatch: false,
-			canUseApplyPatchExclusively: false,
 			supportsSimplifiedApplyPatchInstructions: false,
 			supportsReplaceString: true,
 			supportsMultiReplaceString: true,
@@ -148,7 +144,7 @@ describe('modelSupportsPDFDocuments', () => {
 });
 
 describe('Kimi edit tool capabilities', () => {
-	test('uses replace-string tools without insert-edit or apply-patch', () => {
+	test('uses replace-string tools without apply-patch', () => {
 		const models = {
 			'kimi-k2.6': fakeModel('kimi-k2.6'),
 			'kimi-k2.7-code': fakeModel('kimi-k2.7-code'),
@@ -163,7 +159,6 @@ describe('Kimi edit tool capabilities', () => {
 			supportsMultiReplaceString: modelSupportsMultiReplaceString(model),
 			canUseReplaceStringExclusively: modelCanUseReplaceStringExclusively(model),
 			supportsApplyPatch: modelSupportsApplyPatch(model),
-			canUseApplyPatchExclusively: modelCanUseApplyPatchExclusively(model),
 		}]));
 
 		expect(actual).toEqual({
@@ -173,7 +168,6 @@ describe('Kimi edit tool capabilities', () => {
 				supportsMultiReplaceString: true,
 				canUseReplaceStringExclusively: true,
 				supportsApplyPatch: false,
-				canUseApplyPatchExclusively: false,
 			},
 			'kimi-k2.7-code': {
 				isKimiFamily: true,
@@ -181,7 +175,6 @@ describe('Kimi edit tool capabilities', () => {
 				supportsMultiReplaceString: true,
 				canUseReplaceStringExclusively: true,
 				supportsApplyPatch: false,
-				canUseApplyPatchExclusively: false,
 			},
 			'kimi-k3': {
 				isKimiFamily: true,
@@ -189,7 +182,6 @@ describe('Kimi edit tool capabilities', () => {
 				supportsMultiReplaceString: true,
 				canUseReplaceStringExclusively: true,
 				supportsApplyPatch: false,
-				canUseApplyPatchExclusively: false,
 			},
 			'moonshot/kimi-k2.7-code': {
 				isKimiFamily: true,
@@ -197,7 +189,6 @@ describe('Kimi edit tool capabilities', () => {
 				supportsMultiReplaceString: true,
 				canUseReplaceStringExclusively: true,
 				supportsApplyPatch: false,
-				canUseApplyPatchExclusively: false,
 			},
 			'moonshot/kimi-k2.6': {
 				isKimiFamily: true,
@@ -205,7 +196,6 @@ describe('Kimi edit tool capabilities', () => {
 				supportsMultiReplaceString: true,
 				canUseReplaceStringExclusively: true,
 				supportsApplyPatch: false,
-				canUseApplyPatchExclusively: false,
 			},
 			'unknown-family + kimi model id': {
 				isKimiFamily: true,
@@ -213,7 +203,6 @@ describe('Kimi edit tool capabilities', () => {
 				supportsMultiReplaceString: true,
 				canUseReplaceStringExclusively: true,
 				supportsApplyPatch: false,
-				canUseApplyPatchExclusively: false,
 			},
 		});
 	});

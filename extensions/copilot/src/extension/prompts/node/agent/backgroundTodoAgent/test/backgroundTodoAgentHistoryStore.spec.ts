@@ -107,7 +107,7 @@ describe('BackgroundTodoAgentSessionHistoryStore', () => {
 		const longArgs = 'x'.repeat(500);
 		const r1 = round('r1', [call(ToolName.ReplaceString, `  ${longArgs}  `)], 'resp', thinking('  string thought  '));
 		const longThought = Array.from({ length: 50 }, (_, i) => `thought-line-${i}`); // joined length > 400
-		const r2 = round('r2', [call(ToolName.EditFile, { filePath: 'a.ts' })], 'resp2', thinking(longThought));
+		const r2 = round('r2', [call(ToolName.ReplaceString, { filePath: 'a.ts' })], 'resp2', thinking(longThought));
 		store.trackPromptContext('turn-1', ctx('go', [r1, r2]));
 
 		const history = store.getTurnHistory('turn-1')!;

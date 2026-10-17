@@ -495,10 +495,9 @@ export class AgentUserMessage extends PromptElement<AgentUserMessageProps> {
 		const hasMultiReplaceStringTool = !!this.props.availableTools?.find(tool => tool.name === ToolName.MultiReplaceString);
 		const hasApplyPatchTool = !!this.props.availableTools?.find(tool => tool.name === ToolName.ApplyPatch);
 		const hasCreateFileTool = !!this.props.availableTools?.find(tool => tool.name === ToolName.CreateFile);
-		const hasEditFileTool = !!this.props.availableTools?.find(tool => tool.name === ToolName.EditFile);
 		const hasEditNotebookTool = !!this.props.availableTools?.find(tool => tool.name === ToolName.EditNotebook);
 		const hasTerminalTool = !!this.props.availableTools?.find(tool => tool.name === ToolName.CoreRunInTerminal);
-		const hasToolsToEditNotebook = hasCreateFileTool || hasEditNotebookTool || hasReplaceStringTool || hasApplyPatchTool || hasEditFileTool;
+		const hasToolsToEditNotebook = hasCreateFileTool || hasEditNotebookTool || hasReplaceStringTool || hasApplyPatchTool;
 		const hasTodoTool = !!this.props.availableTools?.find(tool => tool.name === ToolName.CoreManageTodoList);
 		const hasMemoryTool = !!this.props.availableTools?.find(tool => tool.name === ToolName.Memory);
 
@@ -507,7 +506,6 @@ export class AgentUserMessage extends PromptElement<AgentUserMessageProps> {
 		const reminderProps: ReminderInstructionsProps = {
 			endpoint: this.props.endpoint,
 			hasTodoTool,
-			hasEditFileTool,
 			hasReplaceStringTool,
 			hasMultiReplaceStringTool,
 			hasMemoryTool,

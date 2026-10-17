@@ -12,7 +12,7 @@ import { ChatFetchResponseType, ChatLocation, ChatResponse } from '../../../plat
 import { getTextPart } from '../../../platform/chat/common/globalStringUtils';
 import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
-import { isAnthropicFamily, isXAiFamily, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelSupportsApplyPatch, modelSupportsMultiReplaceString, modelSupportsReplaceString, modelSupportsSimplifiedApplyPatchInstructions } from '../../../platform/endpoint/common/chatModelCapabilities';
+import { isAnthropicFamily, isXAiFamily, modelCanUseReplaceStringExclusively, modelSupportsApplyPatch, modelSupportsMultiReplaceString, modelSupportsReplaceString, modelSupportsSimplifiedApplyPatchInstructions } from '../../../platform/endpoint/common/chatModelCapabilities';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { IAutomodeService } from '../../../platform/endpoint/node/automodeService';
 import { SEARCH_AGENT_FAMILY } from '../../../platform/endpoint/node/searchAgentChatEndpoint';
@@ -209,22 +209,15 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 
 	const learned = editToolLearningService.getPreferredEndpointEditTool(model);
 	if (learned) { // a learning-enabled (BYOK) model, we should go with what it prefers
-		allowTools[ToolName.EditFile] = learned.includes(ToolName.EditFile);
 		allowTools[ToolName.ReplaceString] = learned.includes(ToolName.ReplaceString);
 		allowTools[ToolName.MultiReplaceString] = learned.includes(ToolName.MultiReplaceString);
 		allowTools[ToolName.ApplyPatch] = learned.includes(ToolName.ApplyPatch);
 	} else {
-		allowTools[ToolName.EditFile] = true;
 		allowTools[ToolName.ReplaceString] = modelSupportsReplaceString(model);
 		allowTools[ToolName.ApplyPatch] = modelSupportsApplyPatch(model) && !!toolsService.getTool(ToolName.ApplyPatch);
 
-		if (allowTools[ToolName.ApplyPatch] && modelCanUseApplyPatchExclusively(model)) {
-			allowTools[ToolName.EditFile] = false;
-		}
-
 		if (modelCanUseReplaceStringExclusively(model)) {
 			allowTools[ToolName.ReplaceString] = true;
-			allowTools[ToolName.EditFile] = false;
 		}
 
 		if (allowTools[ToolName.ReplaceString] && modelSupportsMultiReplaceString(model)) {
@@ -292,7 +285,6 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	// todo@connor4312: string check here is for back-compat for 1.109 Insiders
 	if (Iterable.some(request.tools, ([t, enabled]) => (typeof t === 'string' ? t : t.name) === ContributedToolName.EditFilesPlaceholder && enabled === false)) {
 		allowTools[ToolName.ApplyPatch] = false;
-		allowTools[ToolName.EditFile] = false;
 		allowTools[ToolName.ReplaceString] = false;
 		allowTools[ToolName.MultiReplaceString] = false;
 	}

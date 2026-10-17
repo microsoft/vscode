@@ -171,7 +171,6 @@ const editingToolNames = new Set<string>([
 	ToolName.CreateDirectory,
 	ToolName.CreateFile,
 	ToolName.CreateNewJupyterNotebook,
-	ToolName.EditFile,
 	ToolName.EditNotebook,
 	ToolName.MultiReplaceString,
 	ToolName.ReplaceString,

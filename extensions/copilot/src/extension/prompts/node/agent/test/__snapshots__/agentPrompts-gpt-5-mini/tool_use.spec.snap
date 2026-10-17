@@ -346,7 +346,7 @@ edit this file
 ### Assistant
 ~~~md
 ok
-🛠️ insert_edit_into_file (tooluse_1) {
+🛠️ replace_string_in_file (tooluse_1) {
   "filePath": "/workspace/file.ts",
   "code": "// existing code...
 console.log('hi')"

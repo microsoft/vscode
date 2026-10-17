@@ -454,7 +454,7 @@ export class Gpt53CodexReminderInstructions extends PromptElement<ReminderInstru
 			Tool batches: You MUST preface each batch with a one-sentence why/what/outcome preamble.<br />
 			Progress cadence: After 3 to 5 tool calls, or when you create/edit &gt; ~3 files in a burst, report progress.<br />
 			Requirements coverage: Read the user's ask in full and think carefully. Do not omit a requirement. If something cannot be done with available tools, note why briefly and propose a viable alternative.<br />
-			{getEditingReminder(this.props.hasEditFileTool, this.props.hasReplaceStringTool, false /* useStrongReplaceStringHint */, this.props.hasMultiReplaceStringTool)}
+			{getEditingReminder(this.props.hasReplaceStringTool, this.props.hasMultiReplaceStringTool)}
 		</>;
 	}
 }

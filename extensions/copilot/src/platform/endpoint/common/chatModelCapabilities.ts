@@ -304,8 +304,7 @@ export function modelSupportsMultiReplaceString(model: LanguageModelChat | IChat
 }
 
 /**
- * The model is capable of using replace_string_in_file exclusively,
- * without needing insert_edit_into_file.
+ * The model is capable of using replace_string_in_file exclusively.
  */
 export function modelCanUseReplaceStringExclusively(model: LanguageModelChat | IChatEndpoint): boolean {
 	return isAnthropicFamily(model) || isXAiFamily(model) || model.family.toLowerCase().includes('gemini-3') || isVSCModelReplaceStringSet(model) || isHiddenModelF(model) || isMinimaxFamily(model) || isHiddenFamilyH(model) || isKimiFamily(model);
@@ -350,21 +349,7 @@ export function modelSupportCacheBreakPoints(model: LanguageModelChat | IChatEnd
 }
 
 /**
- * The model is capable of using apply_patch as an edit tool exclusively,
- * without needing insert_edit_into_file.
- */
-export function modelCanUseApplyPatchExclusively(model: LanguageModelChat | IChatEndpoint): boolean {
-	// only using replace string as edit tool, disable apply_patch for VSC Models
-	if (isVSCModelReplaceStringSet(model)) {
-		return false;
-	}
-	return isGpt5PlusFamily(model) || isGpt6Family(model) || isHiddenModelI(model) || isVSCModelA(model) || isVSCModelB(model);
-}
-
-/**
- * Whether, when replace_string and insert_edit tools are both available,
- * verbiage should be added in the system prompt directing the model to prefer
- * replace_string.
+ * Whether prompts should strongly direct the model to prefer replace_string.
  */
 export function modelNeedsStrongReplaceStringHint(model: LanguageModelChat | IChatEndpoint): boolean {
 	return isGeminiFamily(model) || isHiddenModelF(model);

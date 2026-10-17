@@ -108,7 +108,7 @@ export class EditFileResult extends PromptElement<IEditFileResultProps> {
 			await this.sendEditFileResultTelemetry(totalNewDiagnostics, filesWithNewDiagnostics);
 		}
 
-		let retryMessage = <>You may use the {ToolName.EditFile} tool to retry these edits.</>;
+		let retryMessage = <>You may retry these edits.</>;
 		if (!notebookEditFailures) {
 			// No notebook files failed to edit
 		} else if (notebookEditFailures === editingErrors.length) {
@@ -116,7 +116,7 @@ export class EditFileResult extends PromptElement<IEditFileResultProps> {
 			retryMessage = <>You may use the {ToolName.EditNotebook} tool to retry editing the Notebook files.</>;
 		} else if (notebookEditFailures && notebookEditFailures !== editingErrors.length) {
 			retryMessage = <>
-				You may use the {ToolName.EditFile} tool to retry these edits except for Notebooks.<br />
+				You may retry these edits except for Notebooks.<br />
 				You may use the {ToolName.EditNotebook} tool to retry editing the Notebook files.
 			</>;
 		}

@@ -100,7 +100,7 @@ describe('AgentIntent /summarize command', () => {
 	function createEditFileToolCall(idx: number): IToolCall {
 		return {
 			id: `tooluse_${idx}`,
-			name: ToolName.EditFile,
+			name: ToolName.ReplaceString,
 			arguments: JSON.stringify({
 				filePath: '/workspace/file.ts',
 				code: `console.log('edit ${idx}')`

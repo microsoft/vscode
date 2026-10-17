@@ -692,35 +692,6 @@
         "tags": []
       },
       {
-        "name": "copilot_insertEdit",
-        "toolReferenceName": "insertEdit",
-        "displayName": "%copilot.tools.insertEdit.name%",
-        "modelDescription": "Insert new code into an existing file in the workspace. Use this tool once per file that needs to be modified, even if there are multiple changes for a file. Generate the \"explanation\" property first.\nThe system is very smart and can understand how to apply your edits to the files, you just need to provide minimal hints.\nAvoid repeating existing code, instead use comments to represent regions of unchanged code. Be as concise as possible. For example:\n// ...existing code...\n{ changed code }\n// ...existing code...\n{ changed code }\n// ...existing code...\n\nHere is an example of how you should use format an edit to an existing Person class:\nclass Person {\n\t// ...existing code...\n\tage: number;\n\t// ...existing code...\n\tgetAge() {\n\treturn this.age;\n\t}\n}",
-        "tags": [],
-        "inputSchema": {
-          "type": "object",
-          "properties": {
-            "explanation": {
-              "type": "string",
-              "description": "A short explanation of the edit being made."
-            },
-            "filePath": {
-              "type": "string",
-              "description": "An absolute path to the file to edit."
-            },
-            "code": {
-              "type": "string",
-              "description": "The code change to apply to the file.\nThe system is very smart and can understand how to apply your edits to the files, you just need to provide minimal hints.\nAvoid repeating existing code, instead use comments to represent regions of unchanged code. Be as concise as possible. For example:\n// ...existing code...\n{ changed code }\n// ...existing code...\n{ changed code }\n// ...existing code...\n\nHere is an example of how you should use format an edit to an existing Person class:\nclass Person {\n\t// ...existing code...\n\tage: number;\n\t// ...existing code...\n\tgetAge() {\n\t\treturn this.age;\n\t}\n}"
-            }
-          },
-          "required": [
-            "explanation",
-            "filePath",
-            "code"
-          ]
-        }
-      },
-      {
         "name": "copilot_createFile",
         "toolReferenceName": "createFile",
         "legacyToolReferenceFullNames": [

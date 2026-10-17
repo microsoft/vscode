@@ -123,7 +123,6 @@ function classifyEditType(toolName: string, obj: Record<string, unknown>): EditO
 		toolName === 'edit' ||
 		toolName === 'applyPatch' ||
 		toolName === 'apply_patch' ||
-		toolName === 'insert_edit_into_file' ||
 		toolName === 'edit_notebook_file' ||
 		toolName === 'NotebookEdit'
 	) {

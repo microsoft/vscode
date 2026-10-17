@@ -10,9 +10,8 @@ import { agenticBrowserTools, ToolName } from '../../../tools/common/toolNames';
 import { InstructionMessage } from '../base/instructionMessage';
 import { ResponseTranslationRules } from '../base/responseTranslationRules';
 import { Tag } from '../base/tag';
-import { EXISTING_CODE_MARKER } from '../panel/codeBlockFormattingRules';
 import { ResponseRenderingRules } from '../panel/editorIntegrationRules';
-import { ApplyPatchInstructions, CodesearchModeInstructions, DefaultAgentPromptProps, DefaultReminderInstructions, detectToolCapabilities, GenericEditingTips, McpToolInstructions, NotebookInstructions, ReminderInstructionsProps } from './defaultAgentInstructions';
+import { ApplyPatchInstructions, CodesearchModeInstructions, DefaultAgentPromptProps, DefaultReminderInstructions, detectToolCapabilities, McpToolInstructions, NotebookInstructions, ReminderInstructionsProps } from './defaultAgentInstructions';
 import { FileLinkificationInstructions } from './fileLinkificationInstructions';
 import { IAgentPrompt, PromptRegistry, ReminderInstructionsConstructor, SystemPrompt } from './promptRegistry';
 
@@ -83,7 +82,7 @@ class KimiAgentPrompt extends PromptElement<DefaultAgentPromptProps> {
 
 			{this.props.codesearchMode && <CodesearchModeInstructions {...this.props} />}
 
-			{tools[ToolName.ReplaceString] && !tools[ToolName.EditFile] && <Tag name='replaceStringInstructions'>
+			{tools[ToolName.ReplaceString] && <Tag name='replaceStringInstructions'>
 				Before editing an existing file, make sure it is already in context or read it with {ToolName.ReadFile}.<br />
 				{tools[ToolName.MultiReplaceString]
 					? <>Use {ToolName.ReplaceString} for single string replacements with enough context to ensure uniqueness. Whenever you have multiple independent edits across one or more files, always batch them into a single {ToolName.MultiReplaceString} call instead of issuing {ToolName.ReplaceString} repeatedly. A single {ToolName.MultiReplaceString} call is much faster and cheaper. Because each replacement is prepared against the original file, edits that overlap or depend on each other will conflict — combine those into one replacement or make them in separate calls. Do not announce which tool you're using.<br /></>
@@ -94,32 +93,7 @@ class KimiAgentPrompt extends PromptElement<DefaultAgentPromptProps> {
 				For each file, give a short description of what needs to be changed, then use the edit tool.<br />
 			</Tag>}
 
-			{tools[ToolName.EditFile] && !tools[ToolName.ApplyPatch] && <Tag name='editFileInstructions'>
-				{tools[ToolName.ReplaceString] ?
-					<>
-						Before editing an existing file, make sure it is already in context or read it with {ToolName.ReadFile}.<br />
-						{tools[ToolName.MultiReplaceString]
-							? <>Use {ToolName.ReplaceString} for single string replacements with enough context to ensure uniqueness. Prefer {ToolName.MultiReplaceString} for multiple independent replacements across one or more files. Do not announce which tool you're using.<br /></>
-							: <>Use {ToolName.ReplaceString} to edit files. Include sufficient surrounding context so the replacement is unique. You can use this tool multiple times per file.<br /></>}
-						Use {ToolName.EditFile} to insert code into a file only if {tools[ToolName.MultiReplaceString] ? `${ToolName.MultiReplaceString}/` : ''}{ToolName.ReplaceString} has failed.<br />
-						Group changes by file.<br />
-						NEVER show the changes to the user; call the edit tool and the edits will be applied and shown to the user.<br />
-						NEVER print a codeblock that represents a change to a file. Use {ToolName.ReplaceString}{tools[ToolName.MultiReplaceString] ? `, ${ToolName.MultiReplaceString},` : ''} or {ToolName.EditFile} instead.<br />
-						For each file, give a short description of what needs to be changed, then use the edit tool.<br /></>
-					: <>
-						Do not edit an existing file without reading it first.<br />
-						Use {ToolName.EditFile} to edit files. Group changes by file.<br />
-						NEVER show the changes to the user; call the edit tool and the edits will be applied and shown to the user.<br />
-						NEVER print a codeblock that represents a change to a file. Use {ToolName.EditFile} instead.<br />
-						For each file, give a short description of what needs to be changed, then use {ToolName.EditFile}.<br />
-					</>}
-				<GenericEditingTips {...this.props} />
-				The {ToolName.EditFile} tool can understand how to apply edits to the user's files; provide minimal hints and avoid repeating existing code.<br />
-				When using {ToolName.EditFile}, use comments to represent unchanged regions. For example:<br />
-				// {EXISTING_CODE_MARKER}<br />
-				changed code<br />
-				// {EXISTING_CODE_MARKER}<br />
-			</Tag>}
+
 
 			{tools[ToolName.ApplyPatch] && <ApplyPatchInstructions {...this.props} tools={tools} />}
 			{this.props.availableTools && <McpToolInstructions tools={this.props.availableTools} />}

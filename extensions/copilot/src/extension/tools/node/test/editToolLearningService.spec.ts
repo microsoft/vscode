@@ -134,7 +134,7 @@ describe('EditToolLearningService', () => {
 
 			const result = await service.getPreferredEditTool(model);
 
-			expect(result).toEqual([ToolName.EditFile, ToolName.ReplaceString]);
+			expect(result).toEqual([ToolName.ReplaceString]);
 		});
 
 		it('should honor BYOK editTools (apply-patch) for an unknown family', async () => {
@@ -159,17 +159,6 @@ describe('EditToolLearningService', () => {
 			expect(result).toEqual([ToolName.ReplaceString, ToolName.MultiReplaceString]);
 		});
 
-		it('should honor BYOK editTools over hardcoded family preference', async () => {
-			// Model name would otherwise trigger the hardcoded gpt -> ApplyPatch preference.
-			const model = createMockModel('gpt-byok');
-			vi.mocked(mockEndpointProvider.getChatEndpoint).mockResolvedValue(
-				createMockEndpoint(true, 'gpt', model, ['code-rewrite'])
-			);
-
-			const result = await service.getPreferredEditTool(model);
-
-			expect(result).toEqual([ToolName.EditFile]);
-		});
 	});
 
 	describe('didMakeEdit', () => {
@@ -206,7 +195,7 @@ describe('EditToolLearningService', () => {
 			await service.didMakeEdit(model, ToolName.ReplaceString, true);
 
 			expect(mockContext.globalState.update).toHaveBeenCalledWith(
-				'editToolLearning_cache',
+				'editToolLearning_cache_v2',
 				expect.objectContaining({
 					entries: expect.arrayContaining([
 						expect.arrayContaining(['custom-model', expect.any(Object)])
@@ -234,28 +223,6 @@ describe('EditToolLearningService', () => {
 			const result = await service.getPreferredEditTool(model);
 
 			expect(result).toEqual([ToolName.ReplaceString, ToolName.MultiReplaceString]);
-		});
-
-		it('should transition from Initial to EditFileOnly on failed ReplaceString usage', async () => {
-			// Simulate enough failed ReplaceString edits to fall below failure threshold
-			const totalEdits = Math.ceil(LearningConfig.MIN_SAMPLE_SIZE);
-			const failedEdits = Math.ceil(totalEdits * (1 - LearningConfig.SR_FAILURE_THRESHOLD + 0.1));
-			const successfulEdits = totalEdits - failedEdits;
-
-			await simulateEdits(model, ToolName.ReplaceString, successfulEdits, failedEdits);
-
-			const result = await service.getPreferredEditTool(model);
-
-			expect(result).toEqual([ToolName.EditFile]);
-		});
-
-		it('should transition from Initial to ReplaceStringForced when EditFile is overused', async () => {
-			// Simulate excessive EditFile usage
-			await simulateEdits(model, ToolName.EditFile, LearningConfig.WINDOW_SIZE, 0);
-
-			const result = await service.getPreferredEditTool(model);
-
-			expect(result).toEqual([ToolName.ReplaceString]);
 		});
 
 		it('should transition from ReplaceStringMaybeMulti to ReplaceStringWithMulti on successful MultiReplaceString usage', async () => {
@@ -313,7 +280,7 @@ describe('EditToolLearningService', () => {
 			const result = await newService.getPreferredEditTool(model);
 
 			// Should still be in initial state since we haven't reached MIN_SAMPLE_SIZE
-			expect(result).toEqual([ToolName.EditFile, ToolName.ReplaceString]);
+			expect(result).toEqual([ToolName.ReplaceString]);
 		});
 
 		it('should handle empty storage gracefully', async () => {
@@ -325,7 +292,7 @@ describe('EditToolLearningService', () => {
 
 			const result = await service.getPreferredEditTool(model);
 
-			expect(result).toEqual([ToolName.EditFile, ToolName.ReplaceString]);
+			expect(result).toEqual([ToolName.ReplaceString]);
 		});
 	});
 
@@ -338,7 +305,7 @@ describe('EditToolLearningService', () => {
 
 			const result = await service.getPreferredEditTool(model);
 
-			expect(result).toEqual([ToolName.EditFile, ToolName.ReplaceString]);
+			expect(result).toEqual([ToolName.ReplaceString]);
 		});
 
 		it('should handle concurrent edits correctly', async () => {
@@ -351,7 +318,7 @@ describe('EditToolLearningService', () => {
 			const promises = [
 				service.didMakeEdit(model, ToolName.ReplaceString, true),
 				service.didMakeEdit(model, ToolName.ReplaceString, false),
-				service.didMakeEdit(model, ToolName.EditFile, true),
+				service.didMakeEdit(model, ToolName.MultiReplaceString, true),
 			];
 
 			await Promise.all(promises);

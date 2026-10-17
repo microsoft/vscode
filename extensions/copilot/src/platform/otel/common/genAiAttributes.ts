@@ -282,7 +282,6 @@ export const FILE_TOOL_NAMES: ReadonlySet<string> = new Set([
 	'read_file',
 	'create_file',
 	'apply_patch',
-	'insert_edit_into_file',
 	'replace_string_in_file',
 	'multi_replace_string_in_file',
 	'edit_notebook_file',

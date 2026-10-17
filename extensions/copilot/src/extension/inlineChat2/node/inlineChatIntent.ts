@@ -193,7 +193,6 @@ class InlineChatToolCalling {
 
 	private static readonly _EDIT_TOOLS = new Set<string>([
 		ToolName.ApplyPatch,
-		ToolName.EditFile,
 		ToolName.ReplaceString,
 		ToolName.MultiReplaceString,
 	]);
@@ -564,17 +563,13 @@ class InlineChatToolCalling {
 		};
 
 		const agentTools = await this._instantiationService.invokeFunction(getAgentTools, fakeRequest, model);
-		let editTools = agentTools.filter(tool => enabledTools.has(tool.name));
+		const editTools = agentTools.filter(tool => enabledTools.has(tool.name));
 
 		if (editTools.length === 0) {
 			this._logService.error('MISSING inline chat edit tools');
 			throw new Error('MISSING inline chat edit tools');
 		}
 
-		// EditFile is a poor performer, prefer other edit tools when available
-		if (editTools.length > 1) {
-			editTools = editTools.filter(tool => tool.name !== ToolName.EditFile);
-		}
 		// const result = [exitTool, ...editTools];
 		const result = [...editTools];
 

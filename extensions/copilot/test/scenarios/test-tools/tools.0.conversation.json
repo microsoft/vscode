@@ -15,7 +15,7 @@
             "find_files": true,
 			"grep_search": true,
 			"read_file": true,
-			"insert_edit_into_file": true,
+			"replace_string_in_file": true,
 			"semantic_search": true,
 			"list_dir": true,
 			"search_workspace_symbols": true

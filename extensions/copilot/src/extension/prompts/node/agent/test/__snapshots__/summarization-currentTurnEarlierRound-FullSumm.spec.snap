@@ -12,7 +12,7 @@ summarized!
 ### Assistant
 ~~~md
 round 2
-🛠️ insert_edit_into_file (tooluse_2) {
+🛠️ replace_string_in_file (tooluse_2) {
   "filePath": "/workspace/file.ts",
   "code": "// existing code...
 console.log('hi')"

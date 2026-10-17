@@ -108,17 +108,10 @@ export function getToolInvocationSummaryFromInput(toolId: string, input: unknown
 			return { kind: 'edit', resources: [] };
 		case 'copilot_replaceString':
 		case 'replace_string_in_file':
-		case 'copilot_insertEdit':
-		case 'insert_edit_into_file':
 		case 'copilot_createFile':
 		case 'create_file':
 		case 'edit': {
 			const target = file();
-			return target ? { kind: 'edit', resources: [target] } : undefined;
-		}
-		case 'vscode_editFile':
-		case 'vscode_editFile_internal': {
-			const target = resource(getProperty(input, 'uri'));
 			return target ? { kind: 'edit', resources: [target] } : undefined;
 		}
 		case 'copilot_multiReplaceString':
