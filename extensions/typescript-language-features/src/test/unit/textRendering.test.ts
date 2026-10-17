@@ -265,6 +265,39 @@ suite('typescript.previewer', () => {
 			'*@type*  \n`Error`\n\n> Details');
 	});
 
+	test('Should not wrap a leading brace in code for tags that are not type expressions', () => {
+		assert.strictEqual(
+			tagsToMarkdown([
+				{
+					name: 'defaultValue',
+					text: '{ enabled: true }'
+				}
+			], noopToResource),
+			'*@defaultValue* — { enabled: true }');
+	});
+
+	test('Should handle a nested template literal inside an @type interpolation', () => {
+		assert.strictEqual(
+			tagsToMarkdown([
+				{
+					name: 'type',
+					text: '{`outer-${`inner-${number}`}` | Promise<string>}'
+				}
+			], noopToResource),
+			'*@type* — `` `outer-${`inner-${number}`}` | Promise<string> ``');
+	});
+
+	test('Should not end @type code span early on a brace inside a nested template-literal interpolation', () => {
+		assert.strictEqual(
+			tagsToMarkdown([
+				{
+					name: 'type',
+					text: '{`x${`}`}` | Promise<number>}'
+				}
+			], noopToResource),
+			'*@type* — `` `x${`}`}` | Promise<number> ``');
+	});
+
 	test('Should render @linkcode text as code', () => {
 		assert.strictEqual(
 			asPlainTextWithLinks([

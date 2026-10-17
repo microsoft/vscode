@@ -58,8 +58,20 @@ function getTagBodyText(
 		case 'default': {
 			return makeCodeblock(text);
 		}
-		default: {
+		// These tags are documented (JSDoc/TSDoc) to start with a `{TypeExpression}`
+		// immediately after the tag name, so -- unlike arbitrary/custom tags -- it's safe and
+		// necessary to protect that leading brace group from Markdown/HTML misinterpretation.
+		// See `wrapLeadingTypeExpressionAsCode` below.
+		case 'type':
+		case 'satisfies':
+		case 'enum':
+		case 'this':
+		case 'throws':
+		case 'exception': {
 			return wrapLeadingTypeExpressionAsCode(text);
+		}
+		default: {
+			return text;
 		}
 	}
 }
@@ -122,12 +134,23 @@ function findMatchingBraceEnd(text: string): number | undefined {
 
 /**
  * Finds the index of the quote character matching `text.charAt(start)`, skipping over
- * backslash-escaped characters.
+ * backslash-escaped characters and, for template literals, over `${...}` interpolations
+ * (which may themselves contain nested quotes/template literals, e.g. `` `a${`b`}` ``).
  */
 function findClosingQuote(text: string, start: number, quote: string): number | undefined {
 	for (let i = start + 1; i < text.length; ++i) {
 		if (text.charAt(i) === '\\') {
 			i++; // Skip the escaped character
+			continue;
+		}
+		if (quote === '`' && text.charAt(i) === '$' && text.charAt(i + 1) === '{') {
+			// Skip over the balanced `${...}` interpolation instead of treating any quote
+			// character inside it as closing this template literal.
+			const closingBraceOffset = findMatchingBraceEnd(text.slice(i + 1));
+			if (closingBraceOffset === undefined) {
+				return undefined;
+			}
+			i += closingBraceOffset + 1;
 			continue;
 		}
 		if (text.charAt(i) === quote) {
