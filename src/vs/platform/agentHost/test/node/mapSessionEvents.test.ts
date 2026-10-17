@@ -1987,6 +1987,89 @@ suite('mapSessionEvents — history replay', () => {
 		}]);
 	});
 
+	test('restores notifications delivered to a subagent in its transcript, never the parent', async () => {
+		const shellCompleted = (description: string, agentId: string): ISessionEvent => ({
+			type: 'system.notification',
+			agentId,
+			data: { content: 'Shell completed', kind: { type: 'shell_completed', shellId: description, exitCode: 0, description } },
+		});
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'user-event', data: { interactionId: 'interaction-1', content: 'Delegate a task' } },
+			{ type: 'assistant.turn_start', data: { turnId: '0', interactionId: 'interaction-1' } },
+			{ type: 'assistant.message', data: { messageId: 'parent-call', content: '', toolRequests: [{ toolCallId: 'task', name: 'task' }] } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'task', toolName: 'task', arguments: { prompt: 'Seed prompt' } } },
+			{ type: 'subagent.started', agentId: 'worker', data: { toolCallId: 'task', agentName: 'explore', agentDisplayName: 'Explore' } },
+			{ type: 'user.message', agentId: 'worker', data: { interactionId: 'seed', content: 'Seed prompt' } },
+			{ type: 'assistant.message', agentId: 'worker', data: { messageId: 'worker-1', content: 'Started the type-check.' } },
+			shellCompleted('Type-check client sources', 'worker'),
+			shellCompleted('Unknown agent shell', 'unknown-agent'),
+			{ type: 'assistant.message', agentId: 'worker', data: { messageId: 'worker-2', content: 'Type-check passed.' } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'task', success: true } },
+			{ type: 'assistant.message', data: { messageId: 'parent-final', content: 'Done.' } },
+			{ type: 'assistant.turn_end', data: { turnId: '0' } },
+			{ type: 'session.idle', data: {} },
+			shellCompleted('Run tests', 'worker'),
+			{ type: 'assistant.message', agentId: 'worker', data: { messageId: 'worker-3', content: 'Tests passed.' } },
+		];
+
+		const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual({
+			parent: turns.map(turn => ({ id: turn.id, parts: partKinds(turn.responseParts) })),
+			subagent: subagentTurnsByToolCallId.get('task')?.map(turn => ({ message: turn.message, parts: partKinds(turn.responseParts) })),
+		}, {
+			parent: [{
+				id: 'user-event',
+				parts: [{ kind: ResponsePartKind.ToolCall }, { kind: ResponsePartKind.Markdown, content: 'Done.' }],
+			}],
+			subagent: [{
+				message: { text: 'Seed prompt', origin: { kind: MessageKind.Tool } },
+				parts: [
+					{ kind: ResponsePartKind.Markdown, content: 'Started the type-check.' },
+					{ kind: ResponsePartKind.SystemNotification, content: '`Type-check client sources` completed' },
+					{ kind: ResponsePartKind.Markdown, content: 'Type-check passed.' },
+				],
+			}, {
+				message: { text: '`Run tests` completed', origin: { kind: MessageKind.SystemNotification } },
+				parts: [{ kind: ResponsePartKind.Markdown, content: 'Tests passed.' }],
+			}],
+		});
+	});
+
+	test('does not restore idle subagent notifications as a turn until the subagent resumes', async () => {
+		const shellCompleted = (description: string): ISessionEvent => ({
+			type: 'system.notification',
+			agentId: 'worker',
+			data: { content: 'Shell completed', kind: { type: 'shell_completed', shellId: description, exitCode: 0, description } },
+		});
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'user-event', data: { interactionId: 'interaction-1', content: 'Delegate a task' } },
+			{ type: 'assistant.turn_start', data: { turnId: '0', interactionId: 'interaction-1' } },
+			{ type: 'assistant.message', data: { messageId: 'parent-call', content: '', toolRequests: [{ toolCallId: 'task', name: 'task' }] } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'task', toolName: 'task', arguments: { prompt: 'Seed prompt' } } },
+			{ type: 'subagent.started', agentId: 'worker', data: { toolCallId: 'task', agentName: 'explore', agentDisplayName: 'Explore' } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'task', success: true } },
+			{ type: 'assistant.message', data: { messageId: 'parent-final', content: 'Done.' } },
+			{ type: 'assistant.turn_end', data: { turnId: '0' } },
+			{ type: 'session.idle', data: {} },
+			shellCompleted('Type-check client sources'),
+			shellCompleted('Run tests'),
+		];
+
+		const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual({
+			parent: turns.map(turn => ({ id: turn.id, parts: partKinds(turn.responseParts) })),
+			subagent: subagentTurnsByToolCallId.get('task'),
+		}, {
+			parent: [{
+				id: 'user-event',
+				parts: [{ kind: ResponsePartKind.ToolCall }, { kind: ResponsePartKind.Markdown, content: 'Done.' }],
+			}],
+			subagent: undefined,
+		});
+	});
+
 	test('synthetic user messages do not start a new turn', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', id: 'user-event-1', data: { interactionId: 'interaction-1', content: 'Use the skill' } },

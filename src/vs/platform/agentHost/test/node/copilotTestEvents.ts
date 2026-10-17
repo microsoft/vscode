@@ -137,6 +137,7 @@ export interface ISessionEventAssistantTurn {
 export interface ISessionEventSystemNotification {
 	type: 'system.notification';
 	id?: string;
+	agentId?: string;
 	/** ISO 8601 envelope timestamp; the mapper uses it to restore turn timing. */
 	timestamp?: string;
 	data: SessionEventPayload<'system.notification'>['data'];

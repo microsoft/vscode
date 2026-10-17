@@ -620,6 +620,7 @@ export async function mapSessionEvents(
 	const subagentTurnStates = new Map<string, TurnState>();
 	const terminatedSubagentTurns = new Set<string>();
 	const subagentTurns = new Map<string, Turn[]>();
+	const pendingSubagentNotificationMessages = new Map<string, string>();
 	let parentBuilder: ITurnBuilder | undefined;
 	let parentTurnState = TurnState.Cancelled;
 	let parentTurnTerminated = false;
@@ -714,6 +715,16 @@ export async function mapSessionEvents(
 		return builder;
 	};
 
+	const resumeSubagentFromPendingNotification = (parentToolCallId: string): void => {
+		const messageText = pendingSubagentNotificationMessages.get(parentToolCallId);
+		if (messageText === undefined) {
+			return;
+		}
+		pendingSubagentNotificationMessages.delete(parentToolCallId);
+		const builder = ensureSubagentBuilder(parentToolCallId);
+		builder.message = { ...builder.message, text: messageText, origin: { kind: MessageKind.SystemNotification } };
+	};
+
 	const targetBuilderFor = (parentToolCallId: string | undefined): ITurnBuilder | undefined => {
 		if (parentToolCallId) {
 			return ensureSubagentBuilder(parentToolCallId);
@@ -743,7 +754,11 @@ export async function mapSessionEvents(
 		switch (e.type) {
 			case 'assistant.turn_start':
 				if (e.agentId) {
-					recordSubagentModel(resolveParentToolCallId(e.agentId, undefined), e.data.model);
+					const parentToolCallId = resolveParentToolCallId(e.agentId, undefined);
+					recordSubagentModel(parentToolCallId, e.data.model);
+					if (parentToolCallId) {
+						resumeSubagentFromPendingNotification(parentToolCallId);
+					}
 				} else {
 					if (parentBuilder && parentTurnState === TurnState.Error) {
 						const waitingStartedAt = parentBuilder.waitingStartedAt === undefined ? undefined : Date.parse(parentBuilder.waitingStartedAt);
@@ -842,6 +857,7 @@ export async function mapSessionEvents(
 					continue;
 				}
 				if (parentToolCallId) {
+					pendingSubagentNotificationMessages.delete(parentToolCallId);
 					const builder = ensureSubagentBuilder(parentToolCallId);
 					builder.message = {
 						...builder.message,
@@ -882,6 +898,9 @@ export async function mapSessionEvents(
 				if ((!parentToolCallId && parentTurnTerminated && parentTurnState === TurnState.Error)
 					|| (parentToolCallId && terminatedSubagentTurns.has(parentToolCallId) && subagentTurnStates.get(parentToolCallId) === TurnState.Error)) {
 					break;
+				}
+				if (parentToolCallId) {
+					resumeSubagentFromPendingNotification(parentToolCallId);
 				}
 				if (!content && !reasoningText && !hasToolRequests) {
 					if (!parentToolCallId && parentBuilder && !parentTurnTerminated) {
@@ -926,6 +945,24 @@ export async function mapSessionEvents(
 			case 'system.notification': {
 				const notification = buildCopilotSystemNotification(e, resolveAgentName);
 				if (!notification) {
+					break;
+				}
+				if (e.agentId) {
+					// A notification delivered to a subagent belongs to its chat, never the parent turn.
+					const parentToolCallId = resolveParentToolCallId(e.agentId, undefined);
+					if (!parentToolCallId || terminatedSubagentTurns.has(parentToolCallId)) {
+						break;
+					}
+					if (subagentBuilders.has(parentToolCallId)) {
+						ensureSubagentBuilder(parentToolCallId).responseParts.push({
+							kind: ResponsePartKind.SystemNotification,
+							content: notification.messageText,
+						});
+					} else if (notification.startsTurn) {
+						if (!pendingSubagentNotificationMessages.has(parentToolCallId)) {
+							pendingSubagentNotificationMessages.set(parentToolCallId, notification.messageText);
+						}
+					}
 					break;
 				}
 				if (parentBuilder && (rootAssistantTurnActive || (notification.startsTurn && !(parentTurnTerminated && parentTurnState === TurnState.Error)))) {
@@ -982,6 +1019,9 @@ export async function mapSessionEvents(
 			}
 			case 'tool.execution_start': {
 				const parentToolCallId = resolveParentToolCallId(e.agentId, e.data.parentToolCallId) ?? resolveFusionPhaseToolCallId(e.agentId, e.data.fusion);
+				if (parentToolCallId) {
+					resumeSubagentFromPendingNotification(parentToolCallId);
+				}
 				if (!parentToolCallId && parentBuilder && !parentTurnTerminated) {
 					parentTurnState = TurnState.Cancelled;
 					touch(parentBuilder);
@@ -1045,6 +1085,9 @@ export async function mapSessionEvents(
 			case 'skill.invoked': {
 				const synth = synthesizeSkillToolCall(e.data, e.id);
 				const parentToolCallId = resolveParentToolCallId(e.agentId, undefined);
+				if (parentToolCallId) {
+					resumeSubagentFromPendingNotification(parentToolCallId);
+				}
 				const builder = targetBuilderFor(parentToolCallId)
 					?? (parentBuilder = newTurnBuilder(generateUuid(), '', { startedAt: currentEventTimestamp }));
 				if (!parentToolCallId && builder === parentBuilder) {
