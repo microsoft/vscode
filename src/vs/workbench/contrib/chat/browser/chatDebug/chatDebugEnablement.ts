@@ -57,7 +57,7 @@ function renderEnableSettingMessage(
 	enableButton.element.style.width = 'auto';
 	enableButton.label = localize('chatDebug.openSetting', "Enable in Settings");
 	disposables.add(enableButton.onDidClick(() => {
-		preferencesService.openSettings({ jsonEditor: false, query: settingId });
+		preferencesService.openSettings({ jsonEditor: false, query: `@id:${settingId}` });
 	}));
 }
 
