@@ -23,6 +23,7 @@ import { CompletionItem } from '../../../../../editor/contrib/suggest/browser/su
 import { WordDistance } from '../../../../../editor/contrib/suggest/browser/wordDistance.js';
 import { EditorOptions } from '../../../../../editor/common/config/editorOptions.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 
 class SimpleSnippetService implements ISnippetsService {
 	declare readonly _serviceBrand: undefined;
@@ -1061,6 +1062,61 @@ suite('SnippetsService', function () {
 			assert.strictEqual(result2.suggestions[0].insertText, 'one'); // /whiletrue matches where (WHilEtRuE)
 			assert.strictEqual(result2.suggestions.length, 1);
 		}
+	});
+
+	test('snippet completions preserve trigger-time context while snippets load #191070', async function () {
+		const pending = new DeferredPromise<Snippet[]>();
+		const snippets = new class extends SimpleSnippetService {
+			override getSnippets(): Promise<Snippet[]> {
+				return pending.p;
+			}
+		}([new Snippet(false, ['fooLang'], 'abc', 'abc', '', 'value', '', SnippetSource.User, generateUuid())]);
+		const provider = new SnippetCompletionProvider(languageService, snippets, disposables.add(new TestLanguageConfigurationService()));
+		const model = disposables.add(instantiateTextModel(instantiationService, ':'.repeat(1000) + 'a', 'fooLang'));
+		const result = provider.provideCompletionItems(model, new Position(1, 1002), defaultCompletionContext);
+		model.applyEdits([EditOperation.insert(new Position(1, 1002), 'b')]);
+		await pending.complete(snippets.snippets);
+
+		assert.deepStrictEqual((await result).suggestions.map(item => ({
+			label: item.label,
+			startColumn: (item.range as CompletionItemRanges).insert.startColumn,
+			endColumn: (item.range as CompletionItemRanges).insert.endColumn
+		})), [{ label: { label: 'abc', description: 'abc' }, startColumn: 1001, endColumn: 1002 }]);
+	});
+
+	test('snippet completion preserves long prefixes and clipped word anchors #227892', async function () {
+		const cases = [
+			{ text: ':'.repeat(600) + 'a', prefix: ':'.repeat(600) + 'abc', startColumn: 1 },
+			{ text: 'x'.repeat(2000) + 'abcd-', prefix: 'xxxabcd-', startColumn: 2005 },
+			{ text: 'a'.repeat(2000), prefix: 'a'.repeat(800), startColumn: 1506 },
+		];
+		const results: number[][] = [];
+		for (const { text, prefix } of cases) {
+			const snippets = new SimpleSnippetService([new Snippet(false, ['fooLang'], 'snippet', prefix, '', 'value', '', SnippetSource.User, generateUuid())]);
+			const provider = new SnippetCompletionProvider(languageService, snippets, disposables.add(new TestLanguageConfigurationService()));
+			const model = disposables.add(instantiateTextModel(instantiationService, text, 'fooLang'));
+			const result = await provider.provideCompletionItems(model, new Position(1, text.length + 1), defaultCompletionContext);
+			results.push(result.suggestions.map(item => (item.range as CompletionItemRanges).insert.startColumn));
+		}
+		assert.deepStrictEqual(results, cases.map(({ startColumn }) => [startColumn]));
+	});
+
+	test('snippet matching preserves ranges for different prefix lengths #227892', async function () {
+		const prefixes = ['abc', ':abc', ':'.repeat(32) + 'abc', 'zz'];
+		const snippets = new SimpleSnippetService(prefixes.map(prefix => new Snippet(false, ['fooLang'], prefix, prefix, '', 'value', '', SnippetSource.User, generateUuid())));
+		const provider = new SnippetCompletionProvider(languageService, snippets, disposables.add(new TestLanguageConfigurationService()));
+		const model = disposables.add(instantiateTextModel(instantiationService, ':'.repeat(200) + 'a', 'fooLang'));
+		const result = await provider.provideCompletionItems(model, new Position(1, 202), defaultCompletionContext);
+
+		assert.deepStrictEqual(result.suggestions.map(item => ({
+			label: typeof item.label === 'string' ? item.label : item.label.label,
+			startColumn: (item.range as CompletionItemRanges).insert.startColumn,
+			endColumn: (item.range as CompletionItemRanges).insert.endColumn
+		})), [
+			{ label: prefixes[2], startColumn: 169, endColumn: 202 },
+			{ label: prefixes[1], startColumn: 200, endColumn: 202 },
+			{ label: prefixes[0], startColumn: 201, endColumn: 202 }
+		]);
 	});
 
 	test('getSnippetsSync - include pattern', function () {
