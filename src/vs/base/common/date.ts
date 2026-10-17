@@ -240,11 +240,11 @@ export function fromNowByDay(date: number | Date, appendAgoLabel?: boolean, useF
 	const yesterdayMidnightTime = new Date(todayMidnightTime.getTime());
 	yesterdayMidnightTime.setDate(yesterdayMidnightTime.getDate() - 1);
 
-	if (date > todayMidnightTime.getTime()) {
+	if (date >= todayMidnightTime.getTime()) {
 		return localize('today', 'Today');
 	}
 
-	if (date > yesterdayMidnightTime.getTime()) {
+	if (date >= yesterdayMidnightTime.getTime()) {
 		return localize('yesterday', 'Yesterday');
 	}
 
