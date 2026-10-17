@@ -8,7 +8,7 @@ import { Color } from '../../../../base/common/color.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { CursorColumns } from '../../../common/core/cursorColumns.js';
 import type { IViewLineTokens } from '../../../common/tokens/lineTokens.js';
-import { ViewEventType, type ViewConfigurationChangedEvent, type ViewDecorationsChangedEvent, type ViewLineMappingChangedEvent, type ViewLinesChangedEvent, type ViewLinesDeletedEvent, type ViewLinesInsertedEvent, type ViewScrollChangedEvent, type ViewThemeChangedEvent, type ViewTokensChangedEvent, type ViewZonesChangedEvent } from '../../../common/viewEvents.js';
+import { ViewEventType, type ViewConfigurationChangedEvent, type ViewDecorationsChangedEvent, ViewLineMappingChangedEvent, type ViewLinesChangedEvent, type ViewLinesDeletedEvent, type ViewLinesInsertedEvent, type ViewScrollChangedEvent, type ViewThemeChangedEvent, type ViewTokensChangedEvent, type ViewZonesChangedEvent } from '../../../common/viewEvents.js';
 import type { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
 import type { ViewLineRenderingData } from '../../../common/viewModel.js';
 import type { ViewContext } from '../../../common/viewModel/viewContext.js';
@@ -43,6 +43,7 @@ type QueuedBufferEvent = (
 	ViewConfigurationChangedEvent |
 	ViewLineMappingChangedEvent |
 	ViewLinesDeletedEvent |
+	ViewLinesInsertedEvent |
 	ViewZonesChangedEvent
 );
 
@@ -77,11 +78,12 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 
 	private readonly _upToDateLines: [Set<number>, Set<number>] = [new Set(), new Set()];
 	private _visibleObjectCount: number = 0;
-	private _finalRenderedLine: number = 0;
+	private readonly _finalRenderedLines: [number, number] = [0, 0];
 
 	private _scrollOffsetBindBuffer: GPUBuffer;
 	private _scrollOffsetValueBuffer: Float32Array;
-	private _scrollInitialized: boolean = false;
+	private _scrollDevicePixelRatio: number | undefined;
+	private _bigNumbersDelta = 0;
 
 	private readonly _queuedBufferUpdates: [QueuedBufferEvent[], QueuedBufferEvent[]] = [[], []];
 
@@ -160,9 +162,8 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 	}
 
 	public override onLinesInserted(e: ViewLinesInsertedEvent): boolean {
-		// TODO: This currently invalidates everything after the deleted line, it could shift the
-		//       line data up to retain some up to date lines
 		this._invalidateLinesFrom(e.fromLineNumber);
+		this._queueBufferUpdate(e);
 		return true;
 	}
 
@@ -177,8 +178,9 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 		}
 		const dpr = getActiveWindow().devicePixelRatio;
 		this._scrollOffsetValueBuffer[0] = (e?.scrollLeft ?? this._context.viewLayout.getCurrentScrollLeft()) * dpr;
-		this._scrollOffsetValueBuffer[1] = (e?.scrollTop ?? this._context.viewLayout.getCurrentScrollTop()) * dpr;
+		this._scrollOffsetValueBuffer[1] = ((e?.scrollTop ?? this._context.viewLayout.getCurrentScrollTop()) - this._bigNumbersDelta) * dpr;
 		this._device.queue.writeBuffer(this._scrollOffsetBindBuffer, 0, this._scrollOffsetValueBuffer as Float32Array<ArrayBuffer>);
+		this._scrollDevicePixelRatio = dpr;
 		return true;
 	}
 
@@ -233,7 +235,9 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 			buffer.fill(0, 0, buffer.length);
 			this._device.queue.writeBuffer(this._cellBindBuffer, 0, buffer.buffer, 0, buffer.byteLength);
 		}
-		this._finalRenderedLine = 0;
+		this._finalRenderedLines.fill(0);
+		this._queuedBufferUpdates[0].length = 0;
+		this._queuedBufferUpdates[1].length = 0;
 	}
 
 	update(viewportData: ViewportData, viewLineOptions: ViewLineOptions): number {
@@ -274,9 +278,14 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 		const dpr = getActiveWindow().devicePixelRatio;
 		let contentSegmenter: IContentSegmenter;
 
-		if (!this._scrollInitialized) {
+		const scrollOriginChanged = this._bigNumbersDelta !== viewportData.bigNumbersDelta;
+		if (scrollOriginChanged) {
+			this._bigNumbersDelta = viewportData.bigNumbersDelta;
+			this._invalidateAllLines();
+			this._queueBufferUpdate(new ViewLineMappingChangedEvent());
+		}
+		if (this._scrollDevicePixelRatio !== dpr || scrollOriginChanged) {
 			this.onScrollChanged();
-			this._scrollInitialized = true;
 		}
 
 		// Update cell data
@@ -286,6 +295,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 		const upToDateLines = this._upToDateLines[this._activeDoubleBufferIndex];
 		let dirtyLineStart = 3000;
 		let dirtyLineEnd = 0;
+		let finalRenderedLine = this._finalRenderedLines[this._activeDoubleBufferIndex];
 
 		// Handle any queued buffer updates
 		const queuedBufferUpdates = this._queuedBufferUpdates[this._activeDoubleBufferIndex];
@@ -299,24 +309,18 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 					cellBuffer.fill(0);
 
 					dirtyLineStart = 1;
-					dirtyLineEnd = Math.max(dirtyLineEnd, this._finalRenderedLine);
-					this._finalRenderedLine = 0;
+					dirtyLineEnd = Math.max(dirtyLineEnd, finalRenderedLine);
+					finalRenderedLine = 0;
 					break;
 				}
-				case ViewEventType.ViewLinesDeleted: {
-					// Shift content below deleted line up
-					const deletedLineContentStartIndex = (e.fromLineNumber - 1) * FullFileRenderStrategy.maxSupportedColumns * Constants.IndicesPerCell;
-					const deletedLineContentEndIndex = (e.toLineNumber) * FullFileRenderStrategy.maxSupportedColumns * Constants.IndicesPerCell;
-					const nullContentStartIndex = (this._finalRenderedLine - (e.toLineNumber - e.fromLineNumber + 1)) * FullFileRenderStrategy.maxSupportedColumns * Constants.IndicesPerCell;
-					cellBuffer.set(cellBuffer.subarray(deletedLineContentEndIndex), deletedLineContentStartIndex);
-
-					// Zero out content on lines that are no longer valid
-					cellBuffer.fill(0, nullContentStartIndex);
-
-					// Update dirty lines and final rendered line
+				case ViewEventType.ViewLinesDeleted:
+				case ViewEventType.ViewLinesInserted: {
+					// Cached positions below the edit are no longer valid. Clear them in each
+					// CPU buffer independently and upload the old extent to remove stale rows.
+					cellBuffer.fill(0, (e.fromLineNumber - 1) * lineIndexCount);
 					dirtyLineStart = Math.min(dirtyLineStart, e.fromLineNumber);
-					dirtyLineEnd = Math.max(dirtyLineEnd, this._finalRenderedLine);
-					this._finalRenderedLine -= e.toLineNumber - e.fromLineNumber + 1;
+					dirtyLineEnd = Math.max(dirtyLineEnd, finalRenderedLine);
+					finalRenderedLine = Math.min(finalRenderedLine, e.fromLineNumber - 1);
 					break;
 				}
 			}
@@ -326,6 +330,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 
 			// Only attempt to render lines that the GPU renderer can handle
 			if (!this._viewGpuContext.canRender(viewLineOptions, viewportData, y)) {
+				upToDateLines.delete(y);
 				fillStartIndex = ((y - 1) * FullFileRenderStrategy.maxSupportedColumns) * Constants.IndicesPerCell;
 				fillEndIndex = (y * FullFileRenderStrategy.maxSupportedColumns) * Constants.IndicesPerCell;
 				cellBuffer.fill(0, fillStartIndex, fillEndIndex);
@@ -365,7 +370,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 
 				for (x = tokenStartIndex; x < tokenEndIndex; x++) {
 					// Only render lines that do not exceed maximum columns
-					if (x > FullFileRenderStrategy.maxSupportedColumns) {
+					if (x >= FullFileRenderStrategy.maxSupportedColumns) {
 						break;
 					}
 					segment = contentSegmenter.getSegmentAtIndex(x);
@@ -519,7 +524,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 			upToDateLines.add(y);
 		}
 
-		const visibleObjectCount = (viewportData.endLineNumber - viewportData.startLineNumber + 1) * lineIndexCount;
+		const visibleObjectCount = (viewportData.endLineNumber - viewportData.startLineNumber + 1) * FullFileRenderStrategy.maxSupportedColumns;
 
 		// Only write when there is changed data
 		dirtyLineStart = Math.min(dirtyLineStart, FullFileRenderStrategy.maxSupportedLines);
@@ -535,7 +540,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 			);
 		}
 
-		this._finalRenderedLine = Math.max(this._finalRenderedLine, dirtyLineEnd);
+		this._finalRenderedLines[this._activeDoubleBufferIndex] = Math.max(finalRenderedLine, viewportData.endLineNumber);
 
 		this._activeDoubleBufferIndex = this._activeDoubleBufferIndex ? 0 : 1;
 
