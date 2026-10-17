@@ -6913,6 +6913,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// The database copy lands in the storage scope Agent Host chose for
 			// this chat, which is also the scope its runtime reads and writes.
 			const storageScope = context.resource;
+			// The host-owned flag resume reads too, so this chat's system prompt matches its parent's and survives resume.
+			const workspaceless = this._sessionSettings.get(session)?.workspaceless;
 
 			// Forking: mint the new chat's backing by forking the source chat's
 			// SDK conversation at the requested turn (copying its database into
@@ -6943,6 +6945,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					activeClientToolSet: activeClient.toolSet,
 					shellManager,
 					githubCredentials: this._getGitHubSessionCredentials(chat),
+					workspaceless,
 					fallback: { model, longContextWindow: this._longContextWindowFor(model?.id), freeLongContext: this._isFreeLongContext(model?.id) },
 					...(options.isEphemeral ? { isEphemeral: true } : {}),
 				};
@@ -6960,6 +6963,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					activeClientToolSet: activeClient.toolSet,
 					shellManager,
 					githubCredentials: this._getGitHubSessionCredentials(chat),
+					workspaceless,
 					model,
 					longContextWindow: this._longContextWindowFor(model?.id),
 					freeLongContext: this._isFreeLongContext(model?.id),
@@ -7587,6 +7591,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				activeClientToolSet: activeClient.toolSet,
 				shellManager,
 				githubCredentials: this._getGitHubSessionCredentials(chat),
+				workspaceless: storedMetadata.workspaceless,
 				stageRecorder,
 				fallback: { model: info.model, longContextWindow: this._longContextWindowFor(info.model?.id), freeLongContext: this._isFreeLongContext(info.model?.id) },
 			};
@@ -8670,10 +8675,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
+	/** Reads chat metadata, preferring the host's workspaceless state over legacy provider storage. */
 	private async _readSessionMetadata(scope: ICopilotMetadataScope): Promise<{ model?: ModelSelection; agent?: AgentSelection; workingDirectory?: URI; workingDirectories?: readonly URI[]; customizationDirectory?: URI; workspaceless?: boolean }> {
+		const workspaceless = this._sessionSettings.get(scope.owner)?.workspaceless;
 		const ref = await this._openMetadata(scope);
 		if (!ref) {
-			return {};
+			return { workspaceless };
 		}
 		try {
 			const m = await ref.reader.getMetadataObject({
@@ -8693,7 +8700,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				workingDirectory,
 				workingDirectories: this._parseWorkingDirectories(m[CopilotAgent._META_CWDS], workingDirectory),
 				customizationDirectory: customizationDirectory ? URI.parse(customizationDirectory) : undefined,
-				workspaceless: m[AH_META_WORKSPACELESS_DB_KEY] === 'true',
+				workspaceless: workspaceless ?? m[AH_META_WORKSPACELESS_DB_KEY] === 'true',
 			};
 		} finally {
 			ref.dispose();
