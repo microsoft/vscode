@@ -12,6 +12,7 @@ import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { RenderingContext, RestrictedRenderingContext } from '../../view/renderingContext.js';
 import { ViewContext } from '../../../common/viewModel/viewContext.js';
+import { InlineDecorationType } from '../../../common/viewModel/inlineDecorations.js';
 import * as viewEvents from '../../../common/viewEvents.js';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from '../../../../base/browser/ui/mouseCursor/mouseCursor.js';
 
@@ -48,6 +49,7 @@ export class ViewCursor {
 	private _cursorStyle: TextEditorCursorStyle;
 	private _lineCursorWidth: number;
 	private _lineCursorHeight: number;
+	private _useMonospaceOptimizations: boolean;
 	private _typicalHalfwidthCharacterWidth: number;
 
 	private _isVisible: boolean;
@@ -64,6 +66,7 @@ export class ViewCursor {
 		const fontInfo = options.get(EditorOption.fontInfo);
 
 		this._cursorStyle = options.get(EditorOption.effectiveCursorStyle);
+		this._useMonospaceOptimizations = fontInfo.isMonospace && !options.get(EditorOption.disableMonospaceOptimizations);
 		this._typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		this._lineCursorWidth = Math.min(options.get(EditorOption.cursorWidth), this._typicalHalfwidthCharacterWidth);
 		this._lineCursorHeight = options.get(EditorOption.cursorHeight);
@@ -131,6 +134,7 @@ export class ViewCursor {
 		const fontInfo = options.get(EditorOption.fontInfo);
 
 		this._cursorStyle = options.get(EditorOption.effectiveCursorStyle);
+		this._useMonospaceOptimizations = fontInfo.isMonospace && !options.get(EditorOption.disableMonospaceOptimizations);
 		this._typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		this._lineCursorWidth = Math.min(options.get(EditorOption.cursorWidth), this._typicalHalfwidthCharacterWidth);
 		this._lineCursorHeight = options.get(EditorOption.cursorHeight);
@@ -216,13 +220,20 @@ export class ViewCursor {
 		}
 
 		const range = firstVisibleRangeForCharacter.ranges[0];
-		const width = (
-			nextGrapheme === '\t'
-				? this._typicalHalfwidthCharacterWidth
-				: (range.width < 1
-					? this._typicalHalfwidthCharacterWidth
-					: range.width)
-		);
+		const isPrintableBasicASCII = nextGrapheme.length === 1 && nextGrapheme.charCodeAt(0) >= 0x20 && nextGrapheme.charCodeAt(0) <= 0x7E;
+		let useMonospaceWidth = false;
+		if (this._useMonospaceOptimizations && isPrintableBasicASCII) {
+			const lineData = ctx.viewportData.getViewLineRenderingData(position.lineNumber);
+			useMonospaceWidth = !lineData.hasVariableFonts && !lineData.inlineDecorations.some(decoration =>
+				decoration.type === InlineDecorationType.RegularAffectingLetterSpacing
+				&& decoration.range.containsPosition(position)
+				&& Position.isBefore(position, decoration.range.getEndPosition())
+			);
+		}
+		const useTypicalWidth = nextGrapheme === '\t'
+			|| range.width < 1
+			|| useMonospaceWidth;
+		const width = useTypicalWidth ? this._typicalHalfwidthCharacterWidth : range.width;
 
 		if (this._cursorStyle === TextEditorCursorStyle.Block) {
 			textContent = nextGrapheme;
