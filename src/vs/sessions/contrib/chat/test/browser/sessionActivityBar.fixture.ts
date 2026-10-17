@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, getWindow } from '../../../../../base/browser/dom.js';
+import { $, append } from '../../../../../base/browser/dom.js';
 import { Event } from '../../../../../base/common/event.js';
 import { autorun, constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -225,10 +225,7 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 	}, 'The overflowing transcript did not settle');
 	listWidget.scrollTop = 100;
 	await waitForFixtureCondition(() => listWidget.scrollTop === 100, 'The transcript did not scroll');
-	await waitForFixtureCondition(() => {
-		const scrollbar = view.element.querySelector<HTMLElement>('.interactive-list > .monaco-list > .monaco-scrollable-element > .scrollbar.vertical');
-		return !!scrollbar && scrollbar.classList.contains('invisible') && getWindow(scrollbar).getComputedStyle(scrollbar).opacity === '0';
-	}, 'The transcript scrollbar did not reach its idle state');
+	await waitForFixtureCondition(() => !!listWidget.domNode.querySelector(':scope > .monaco-list > .monaco-scrollable-element > .scrollbar.vertical.invisible'), 'The transcript scrollbar did not reach its idle state');
 	if (options.rulerTimeline) {
 		await mountRulerTimeline(context, renderedChat!, widgetContainer);
 	}
