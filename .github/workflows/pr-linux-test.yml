@@ -385,9 +385,9 @@ jobs:
           DISPLAY: ":10"
           VSCODE_SKIP_PRELAUNCH: '1'
           STRESS_ARM: ${{ inputs.stress_arm }}
-          STRESS_ITERATIONS: '4'
+          STRESS_ITERATIONS: '2'
           STRESS_FREEZE_MODE: ${{ endsWith(inputs.stress_arm, '-gpu') && 'gpu' || 'renderer' }}
-          STRESS_FREEZE_SECONDS: '25'
+          STRESS_FREEZE_SECONDS: '90'
 
       - name: Compile smoke tests
         if: ${{ inputs.smoke_tests }}

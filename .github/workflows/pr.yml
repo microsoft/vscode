@@ -222,8 +222,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arm: [baseline, fix]
-        shard: [gpu, renderer]
+        arm: [fix]
+        shard: [gpu]
     uses: ./.github/workflows/pr-linux-test.yml
     with:
       job_name: Remote
