@@ -17,6 +17,7 @@ import { RequestQueue, RequestQueueOptions } from './requestQueue.js';
 import { IRequestScheduler, schedulerDelay, systemRequestScheduler } from './scheduler.js';
 import { GitHubRequestTelemetry } from './githubRequestTelemetry.js';
 import { parseRetryAfter } from './client/headers.js';
+import { isRetryableMissionControlError, missionControlRetryDelay, parseMissionControlError } from './missionControl/missionControlError.js';
 
 export type FetchFunction = RequestFetch;
 export { GitHubRequestError } from './githubTypes.js';
@@ -42,7 +43,7 @@ export interface GitHubRestRequest extends RequestOptions {
 	readonly apiVersion?: string | null;
 	readonly integrationId?: string;
 	/** Mission Control cooldowns are independent of GitHub REST quota buckets. */
-	readonly rateLimitResource?: 'agents';
+	readonly rateLimitResource?: 'agents' | 'agents:sandbox' | 'agents:token_mint';
 	readonly representationVersion?: number;
 	readonly etag?: boolean;
 	readonly unconditional?: boolean;
@@ -639,7 +640,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 				body: request.body === undefined ? undefined : JSON.stringify(request.body),
 				signal,
 				redirect: 'manual',
-				...(account.kind === 'anonymous' || account.kind === 'bootstrap' || request.rateLimitResource === 'agents' ? { credentials: 'omit', referrerPolicy: 'no-referrer' } as const : {}),
+				...(account.kind === 'anonymous' || account.kind === 'bootstrap' || request.rateLimitResource?.startsWith('agents') ? { credentials: 'omit', referrerPolicy: 'no-referrer' } as const : {}),
 			}, () => {
 				onDispatch();
 				request.onDidDispatch?.();
@@ -788,7 +789,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		throw new GitHubRequestError('GitHub API request exceeded the redirect limit', 'unknown');
 	}
 
-	private async _fetchWithRetry<T>(account: RequestAccount, resource: string, url: string, init: RequestInit & { signal: AbortSignal; headers: Record<string, string> }, retry: boolean, caller: string | undefined, onDispatch: () => void, readResponse: (response: Response) => Promise<T>): Promise<T> {
+	private async _fetchWithRetry<T extends { body: string }>(account: RequestAccount, resource: string, url: string, init: RequestInit & { signal: AbortSignal; headers: Record<string, string> }, retry: boolean, caller: string | undefined, onDispatch: () => void, readResponse: (response: Response) => Promise<T>): Promise<T> {
 		let failure: unknown;
 		for (let attempt = 0; attempt < (retry ? 2 : 1); attempt++) {
 			init.signal.throwIfAborted();
@@ -809,16 +810,24 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 					}
 					throw init.signal.reason;
 				}
-				this._updateRateLimits(account, response, resource);
-				if (retry && attempt === 0 && response.status >= 500 && this._rateLimits.getRequestDelay(account, resource) === 0) {
-					if (response.body) {
+				const agents = resource.startsWith('agents');
+				if (!agents) {
+					this._updateRateLimits(account, response, resource);
+				}
+				const result = agents && (response.status >= 500 || response.status === 408) ? await readResponse(response) : undefined;
+				const code = result ? parseMissionControlError(result.body).code : undefined;
+				if (result && !isRetryableMissionControlError(response.status, code)) {
+					return result;
+				}
+				if (retry && attempt === 0 && (response.status >= 500 || agents && response.status === 408) && this._rateLimits.getRequestDelay(account, resource) === 0) {
+					if (!result && response.body) {
 						cancelResponseBody(response.body, this._logService);
 					}
 					this._logService?.debug(`[GitHubTransport] Retrying ${formatRequestUrl(url)} after HTTP ${response.status}`);
-					await schedulerDelay(this._scheduler, 100 + this._scheduler.jitter(200), init.signal);
+					await schedulerDelay(this._scheduler, agents ? missionControlRetryDelay(code, undefined, 1) : 100 + this._scheduler.jitter(200), init.signal);
 					continue;
 				}
-				return await readResponse(response);
+				return result ?? await readResponse(response);
 			} catch (error) {
 				if (init.signal.aborted) {
 					throw init.signal.reason;
@@ -829,7 +838,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 				failure = error;
 				if (attempt === 0 && retry && this._rateLimits.getRequestDelay(account, resource) === 0) {
 					this._logService?.debug(`[GitHubTransport] Retrying ${formatRequestUrl(url)} after a network failure`);
-					await schedulerDelay(this._scheduler, 100 + this._scheduler.jitter(200), init.signal);
+					await schedulerDelay(this._scheduler, resource.startsWith('agents') ? missionControlRetryDelay(undefined, undefined, 1) : 100 + this._scheduler.jitter(200), init.signal);
 				} else {
 					break;
 				}
@@ -842,7 +851,12 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 	}
 
 	private async _readResponse(account: RequestAccount, response: Response, signal: AbortSignal, resource: string): Promise<string> {
-		const result = await this._readResponseBody(response, this._options.maximumResponseBytes, signal);
+		const result = await this._readResponseBody(response, this._options.maximumResponseBytes, signal).catch(error => {
+			if (resource.startsWith('agents')) {
+				this._updateRateLimits(account, response, resource);
+			}
+			throw error;
+		});
 		signal.throwIfAborted();
 		const body = new TextDecoder().decode(result.bytes);
 		if (response.status === 403 && classifyHttpError(response, body) === 'rateLimit') {
@@ -856,7 +870,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 	}
 
 	private _updateRateLimits(account: RequestAccount, response: Response, resource: string, body?: string): void {
-		if (resource === 'agents') {
+		if (resource.startsWith('agents')) {
 			this._rateLimits.updateFromAgentsResponse(account, response, body);
 		} else {
 			this._rateLimits.updateFromResponse(account, response, body, resource);

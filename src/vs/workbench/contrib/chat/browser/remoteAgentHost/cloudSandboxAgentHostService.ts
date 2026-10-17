@@ -29,6 +29,8 @@ import {
 	ICloudSandboxConnectOptions,
 	ICloudSandboxApiService,
 	isCloudSandboxSealedToken,
+	isRetryableCloudSandboxError,
+	CloudSandboxRequestError,
 	type CloudSandboxConnectResult,
 	type ICloudSandboxClientToken,
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
@@ -39,6 +41,7 @@ import { IWorkbenchEnvironmentService } from '../../../../services/environment/c
 import { IPowerService } from '../../../../services/power/common/powerService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { MISSION_CONTROL_RETRY_BUDGET_MS, missionControlMaxRetries, missionControlRetryDelay } from '../../../../../platform/github/common/missionControl/missionControlError.js';
 import { CloudSandboxCredentialRefresher, CloudSandboxCredentialRefreshState, MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES, MIN_CREDENTIAL_REFRESH_DELAY_MS, type ICloudSandboxCreds } from './cloudSandboxCredentialRefresh.js';
 import { getCloudSandboxConnectionSurface, ICloudSandboxTelemetryService, type CloudSandboxConnectionSurface, type ICloudSandboxConnectionTelemetry } from './cloudSandboxTelemetry.js';
 
@@ -504,6 +507,8 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 
 	/** Mint credentials, retrying waking responses and network failures within the connection deadline. */
 	private async _mintWithWaking(options: ICloudSandboxConnectOptions, token: CancellationToken, telemetry: ICloudSandboxConnectionTelemetry | undefined): Promise<ICloudSandboxClientToken> {
+		let rateLimitFailures = 0;
+		let rateLimitedAt: number | undefined;
 		for (let attempt = 1; ; attempt++) {
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
@@ -512,9 +517,22 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 			try {
 				result = await this._apiService.connect({ environmentId: options.environmentId, sessionId: options.sessionId, onRequest: telemetry?.createRequestObserver() }, token);
 			} catch (error) {
+				if (error instanceof CloudSandboxRequestError && isRetryableCloudSandboxError(error)
+					&& (error.code === 'rate_limit_exceeded' || error.statusCode === 429) && !token.isCancellationRequested) {
+					rateLimitedAt ??= Date.now();
+					const delay = missionControlRetryDelay('rate_limit_exceeded', error.retryAfterSeconds, ++rateLimitFailures);
+					if (rateLimitFailures > missionControlMaxRetries(error.code) || Date.now() + delay - rateLimitedAt >= MISSION_CONTROL_RETRY_BUDGET_MS) {
+						throw error;
+					}
+					this._logService.warn(`${LOG_PREFIX} Connection admission was rate limited; retrying after ${delay}ms.`);
+					await timeout(delay, token);
+					continue;
+				}
 				if (!(error instanceof CloudSandboxNetworkError) || token.isCancellationRequested) {
 					throw error;
 				}
+				rateLimitFailures = 0;
+				rateLimitedAt = undefined;
 				this._logService.warn(`${LOG_PREFIX} Connection request failed for environment ${options.environmentId}; retrying in ${CONNECTION_RETRY_DELAY_MS}ms: ${formatConnectionDiagnosticError(getConnectionDiagnosticError(error))}`);
 				await timeout(CONNECTION_RETRY_DELAY_MS, token);
 				continue;
@@ -543,6 +561,8 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 	private async _awaitSealedToken(options: ICloudSandboxConnectOptions, minted: ICloudSandboxClientToken, token: CancellationToken, telemetry: ICloudSandboxConnectionTelemetry | undefined): Promise<ICloudSandboxClientToken> {
 		let clientToken = minted;
 		let delayMs = this.sealedTokenRetryDelayMs;
+		let rateLimitFailures = 0;
+		let rateLimitedAt: number | undefined;
 		// Match what `_establish` accepts: an unsealed value would wrongly end the loop.
 		for (let attempt = 0; attempt < MAX_SEALED_TOKEN_RETRIES && !isCloudSandboxSealedToken(clientToken.encrypted_github_token); attempt++) {
 			if (token.isCancellationRequested) {
@@ -558,10 +578,23 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 				if (isCancellationError(err) || token.isCancellationRequested) {
 					throw err;
 				}
+				if (!isRetryableCloudSandboxError(err)) {
+					throw err;
+				}
+				if (err instanceof CloudSandboxRequestError && (err.code === 'rate_limit_exceeded' || err.statusCode === 429)) {
+					rateLimitedAt ??= Date.now();
+					delayMs = missionControlRetryDelay('rate_limit_exceeded', err.retryAfterSeconds, ++rateLimitFailures);
+					if (rateLimitFailures > missionControlMaxRetries(err.code) || Date.now() + delayMs - rateLimitedAt >= MISSION_CONTROL_RETRY_BUDGET_MS) {
+						throw err;
+					}
+					continue;
+				}
 				// The initial mint still works, so degrade rather than discard it.
 				this._logService.warn(`${LOG_PREFIX} Credential refresh for ${options.environmentId} failed; continuing without a sealed token`, err);
 				break;
 			}
+			rateLimitFailures = 0;
+			rateLimitedAt = undefined;
 			if (result.kind !== 'token') {
 				delayMs = this._wakingRetryDelay(result.waking.retryAfterSeconds, SEALED_TOKEN_RETRY_DELAY_MS);
 				continue;

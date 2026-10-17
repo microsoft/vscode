@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { ILogService } from '../../../log/common/log.js';
 import { parse, SchemaError } from '../client/schema.js';
 import { IGitHubCredentials, withGitHubCredentialDeadline } from '../githubCredentialService.js';
@@ -13,6 +14,7 @@ import { GitHubRequestError } from '../githubTypes.js';
 import { parseResponseJson } from '../responseReader.js';
 import { AccountHandle, RequestError, RequestErrorKind } from '../types.js';
 import { ActivationContext, ApiError, ApiErrorResponse, CodedApiErrorResponse, PaginatedResponse, User } from './missionControl.js';
+import { parseMissionControlError, parseMissionControlErrorCode, MissionControlErrorMetadata } from './missionControlError.js';
 
 /** An explicitly approved API base and the headers allowed to accompany its credential. */
 export interface ApiEndpoint {
@@ -50,7 +52,9 @@ export interface ApiRequest {
 	readonly retry?: false;
 	/** Credential-minting GETs have mutation semantics. */
 	readonly credential?: boolean;
-	/** Disable caching/sharing and suppress errors from endpoints that may return credentials. */
+	/** Additional quota consumed when this operation provisions managed compute. */
+	readonly rateLimitResource?: 'agents:sandbox';
+	/** Disable caching/sharing and retain only credential-free failure metadata. */
 	readonly sensitive?: boolean;
 	/** Ignore a successful body when the operation only acknowledges completion. */
 	readonly responseBody?: 'none';
@@ -72,6 +76,9 @@ export interface ApiResponse {
 
 /** An HTTP failure with structured diagnostics but no retained raw response body. */
 export class ApiRequestError extends GitHubRequestError implements ApiError {
+	readonly code: string | undefined;
+	readonly limitedResource: string | undefined;
+
 	constructor(
 		/** HTTP status reported by the service. */
 		override readonly statusCode: number,
@@ -84,9 +91,14 @@ export class ApiRequestError extends GitHubRequestError implements ApiError {
 		readonly retryAfterSeconds?: number,
 		/** Set when the dispatched mutation may already have been accepted. */
 		readonly outcome?: 'indeterminate',
+		metadata?: MissionControlErrorMetadata,
 	) {
-		super(response?.message ?? `API request failed (HTTP ${statusCode})`, kind, statusCode);
+		const code = metadata?.code ?? response?.error_code ?? (response && hasKey(response, { code: true }) ? response.code : undefined);
+		super(`API request failed (HTTP ${statusCode})${code ? ` code=${code}` : ''}${requestId ? ` requestId=${requestId}` : ''}`,
+			code === 'rate_limit_exceeded' ? 'rateLimit' : kind, statusCode);
 		this.name = 'ApiRequestError';
+		this.code = code;
+		this.limitedResource = metadata?.limitedResource ?? response?.limited_resource;
 	}
 }
 
@@ -141,67 +153,85 @@ export class MissionControlClient extends Disposable {
 			throw new GitHubRequestError('No approved Mission Control API endpoint is configured for this client', 'validation');
 		}
 		const url = requestUrl(endpoint, request.path);
-		const credential = await withGitHubCredentialDeadline(operationSignal, signal => this._credentials.getCredential(signal));
-		const combinedSignal = AbortSignal.any([operationSignal, credential.signal]);
+		let credential = await withGitHubCredentialDeadline(operationSignal, signal => this._credentials.getCredential(signal));
+		let combinedSignal = AbortSignal.any([operationSignal, credential.signal]);
 		combinedSignal.throwIfAborted();
 		const mutation = request.method !== 'GET' || request.credential === true;
 		const sensitive = request.sensitive === true || request.credential === true;
-		let dispatched = false;
-		try {
-			const response = await this._transport.rest<unknown>(serviceAccount(endpoint, credential.account), credential.token, {
-				method: request.method,
-				url,
-				body: request.body,
-				accept: request.accept ?? 'application/json',
-				apiVersion: endpoint.apiVersion ?? null,
-				integrationId: endpoint.integrationId,
-				rateLimitResource: 'agents',
-				caller: 'github.missionControl',
-				priority: mutation ? 'mutation' : 'interactive',
-				retry: mutation ? false : request.retry,
-				etag: !sensitive,
-				coalesce: sensitive ? false : undefined,
-				followRedirects: false,
-				responseBody: request.responseBody,
-				onDidDispatch: mutation ? () => { dispatched = true; } : undefined,
-			}, combinedSignal);
-			combinedSignal.throwIfAborted();
-			const status = response.statusCode === 304 ? response.revalidatedStatusCode : response.statusCode;
-			if (status === undefined || !request.expectedStatus.includes(status)) {
-				throw new GitHubRequestError('API returned an unexpected success status', 'malformedResponse', response.statusCode);
-			}
-			return parser({
-				data: response.data,
-				status,
-				link: response.link,
-				serverDate: response.serverDate,
-				retryAfterSeconds: response.retryAfterSeconds,
-			});
-		} catch (error) {
-			this._credentials.handleRequestError(credential, error);
-			if (error instanceof GitHubRequestError && error.statusCode !== undefined && error.responseMetadata) {
-				let details: ApiErrorResponse | CodedApiErrorResponse | undefined;
-				if (error.responseBody && !sensitive) {
-					try {
-						details = parseApiError(parseResponseJson<unknown>(error.responseBody, () => new SchemaError('API error body was not JSON')));
-					} catch (error) {
-						if (!(error instanceof SchemaError)) {
-							throw error;
+		for (let attempt = 0; ; attempt++) {
+			let dispatched = false;
+			try {
+				const response = await this._transport.rest<unknown>(serviceAccount(endpoint, credential.account), credential.token, {
+					method: request.method,
+					url,
+					body: request.body,
+					accept: request.accept ?? 'application/json',
+					apiVersion: endpoint.apiVersion ?? null,
+					integrationId: endpoint.integrationId,
+					rateLimitResource: request.credential ? 'agents:token_mint' : request.rateLimitResource ?? 'agents',
+					caller: 'github.missionControl',
+					priority: mutation ? 'mutation' : 'interactive',
+					retry: mutation ? false : request.retry,
+					etag: !sensitive,
+					coalesce: sensitive ? false : undefined,
+					followRedirects: false,
+					responseBody: request.responseBody,
+					onDidDispatch: mutation ? () => { dispatched = true; } : undefined,
+				}, combinedSignal);
+				combinedSignal.throwIfAborted();
+				const status = response.statusCode === 304 ? response.revalidatedStatusCode : response.statusCode;
+				if (status === undefined || !request.expectedStatus.includes(status)) {
+					throw new GitHubRequestError('API returned an unexpected success status', 'malformedResponse', response.statusCode);
+				}
+				return parser({
+					data: response.data,
+					status,
+					link: response.link,
+					serverDate: response.serverDate,
+					retryAfterSeconds: response.retryAfterSeconds,
+				});
+			} catch (error) {
+				this._credentials.handleRequestError(credential, error);
+				if (request.method === 'GET' && error instanceof GitHubRequestError && error.statusCode === 401 && attempt === 0) {
+					const replacement = await withGitHubCredentialDeadline(operationSignal, signal => this._credentials.getCredential(signal)).catch(refreshError => {
+						if (!(refreshError instanceof RequestError) || refreshError.kind !== 'authentication') {
+							throw refreshError;
 						}
-						this._logService?.debug('[MissionControlClient] HTTP failure did not contain a supported error envelope');
+						this._logService?.debug('[MissionControlClient] No replacement credential is available; reporting the original authentication refusal');
+						return undefined;
+					});
+					if (replacement && replacement.token !== credential.token && replacement.account.accountId === credential.account.accountId && replacement.account.host === credential.account.host) {
+						credential = replacement;
+						combinedSignal = AbortSignal.any([operationSignal, credential.signal]);
+						combinedSignal.throwIfAborted();
+						continue;
 					}
 				}
-				throw new ApiRequestError(error.statusCode, error.kind, details,
-					error.responseMetadata.requestId, error.responseMetadata.retryAfterSeconds,
-					mutation && dispatched && error.statusCode >= 500 ? 'indeterminate' : undefined);
+				if (error instanceof GitHubRequestError && error.statusCode !== undefined && error.responseMetadata) {
+					const metadata = parseMissionControlError(error.responseBody, error.responseMetadata.requestId);
+					let details: ApiErrorResponse | CodedApiErrorResponse | undefined;
+					if (error.responseBody && !sensitive) {
+						try {
+							details = parseApiError(parseResponseJson<unknown>(error.responseBody, () => new SchemaError('API error body was not JSON')));
+						} catch (error) {
+							if (!(error instanceof SchemaError)) {
+								throw error;
+							}
+							this._logService?.debug('[MissionControlClient] HTTP failure did not contain a supported error envelope');
+						}
+					}
+					throw new ApiRequestError(error.statusCode, error.kind, details,
+						metadata.requestId, error.responseMetadata.retryAfterSeconds,
+						mutation && dispatched && error.statusCode >= 500 ? 'indeterminate' : undefined, metadata);
+				}
+				if (mutation && dispatched) {
+					throw new MutationUncertainError(error instanceof RequestError ? error.kind : 'unknown', error instanceof RequestError ? error.statusCode : undefined);
+				}
+				if (error instanceof RequestError && error.kind === 'network') {
+					throw new GitHubRequestError('API network request failed', 'network');
+				}
+				throw error;
 			}
-			if (mutation && dispatched) {
-				throw new MutationUncertainError(error instanceof RequestError ? error.kind : 'unknown', error instanceof RequestError ? error.statusCode : undefined);
-			}
-			if (error instanceof RequestError && error.kind === 'network') {
-				throw new GitHubRequestError('API network request failed', 'network');
-			}
-			throw error;
 		}
 	}
 
@@ -238,7 +268,9 @@ export const parseActivationContext = parse.object<ActivationContext>({
 /** Retains only documented error fields, never an arbitrary response body. */
 const parseApiError: parse.Parser<ApiErrorResponse | CodedApiErrorResponse> = parse.object({
 	message: parse.string,
-	code: parse.optional(parse.string),
+	code: value => parseMissionControlErrorCode(value),
+	error_code: value => parseMissionControlErrorCode(value),
+	limited_resource: value => parseMissionControlErrorCode(value),
 	documentation_url: parse.string,
 	errors: parse.optional(parse.arrayOf(parse.object({
 		code: parse.oneOf('missing', 'missing_field', 'invalid', 'already_exists', 'unprocessable', 'active_limit_reached', 'revision_limit_reached', 'custom'),
