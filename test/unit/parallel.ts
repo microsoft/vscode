@@ -248,6 +248,23 @@ function distributeTestFiles(root: Suite, files: Map<string, ITestFile>, { worke
 }
 
 /**
+ * TEMPORARY (order stress test): makes the test files run from last to first. They are still
+ * loaded in their usual order, so only the order in which they run changes.
+ * @returns the files in reverse order, which is also the order in which workers claim them
+ */
+function reverseTestFiles(root: Suite, files: Map<string, ITestFile>): Map<string, ITestFile> {
+	const reversed = new Map([...files].reverse());
+	const fileSuites = new Set([...files.values()].flatMap(file => file.suites));
+	const fileTests = new Set([...files.values()].flatMap(file => file.tests));
+	const firstFileSuite = root.suites.findIndex(suite => fileSuites.has(suite));
+	const otherSuitesBefore = root.suites.filter((suite, i) => !fileSuites.has(suite) && (firstFileSuite === -1 || i < firstFileSuite));
+	const otherSuitesAfter = root.suites.filter((suite, i) => !fileSuites.has(suite) && firstFileSuite !== -1 && i > firstFileSuite);
+	root.suites = [...otherSuitesBefore, ...[...reversed.values()].flatMap(file => file.suites), ...otherSuitesAfter];
+	root.tests = [...root.tests.filter(test => !fileTests.has(test)), ...[...reversed.values()].flatMap(file => file.tests)];
+	return reversed;
+}
+
+/**
  * @returns a promise that resolves once the data is flushed, so exiting does not truncate it
  */
 function write(data: string | Buffer): Promise<void> {
@@ -259,4 +276,4 @@ function formatDuration(ms: number): string {
 	return seconds >= 60 ? `${Math.floor(seconds / 60)}m ${seconds % 60}s` : `${seconds}s`;
 }
 
-module.exports = { getWorkerCount, removeArgument, runInWorkers, trackTestFiles, distributeTestFiles };
+module.exports = { getWorkerCount, removeArgument, runInWorkers, trackTestFiles, distributeTestFiles, reverseTestFiles };

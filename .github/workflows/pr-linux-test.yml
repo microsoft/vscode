@@ -301,18 +301,22 @@ jobs:
             sleep 5
           done
 
+      # TEMPORARY (order stress test): run the test files from last to first, in one process or in parallel workers
       - name: 🧪 Run unit tests (Electron)
         if: ${{ inputs.electron_tests && inputs.unit_tests }}
-        timeout-minutes: 15
-        run: ./scripts/test.sh --tfs "Unit Tests" --workers
+        timeout-minutes: 30
+        run: ./scripts/test.sh --tfs "Unit Tests" ${{ contains(inputs.job_name, 'Parallel') && '--workers' || '' }}
         env:
+          VSCODE_TEST_REVERSE_FILES: '1'
           DISPLAY: ":10"
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run unit tests (node.js)
-        if: ${{ inputs.electron_tests && inputs.unit_tests }}
-        timeout-minutes: 15
-        run: npm run test-node -- --workers
+        if: ${{ !cancelled() && inputs.electron_tests && inputs.unit_tests }}
+        timeout-minutes: 30
+        run: npm run test-node -- ${{ contains(inputs.job_name, 'Parallel') && '--workers' || '' }}
+        env:
+          VSCODE_TEST_REVERSE_FILES: '1'
 
       - name: 🧪 Run unit tests (Browser, Chromium)
         if: ${{ inputs.browser_tests && inputs.unit_tests }}

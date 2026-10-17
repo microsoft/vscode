@@ -20,7 +20,7 @@ import { fileURLToPath, pathToFileURL } from 'url';
 import semver from 'semver';
 import parallel from '../parallel.ts';
 
-const { getWorkerCount, removeArgument, runInWorkers, trackTestFiles, distributeTestFiles } = parallel;
+const { getWorkerCount, removeArgument, runInWorkers, trackTestFiles, distributeTestFiles, reverseTestFiles } = parallel;
 
 /**
  * @type {{ build: boolean; run: string; runGlob: string; coverage: boolean; help: boolean; coverageFormats: string | string[]; coveragePath: string; timeout?: string; workers?: string; worker?: string; workerDir?: string; }}
@@ -161,7 +161,9 @@ function main() {
 		timeout: args.timeout ?? (IS_CI ? 30000 : 5000)
 	});
 
-	const testFiles = args.workerDir ? trackTestFiles(runner.suite) : undefined;
+	// TEMPORARY (order stress test): VSCODE_TEST_REVERSE_FILES runs the test files from last to first
+	const reverse = !!process.env.VSCODE_TEST_REVERSE_FILES;
+	let testFiles = args.workerDir || reverse ? trackTestFiles(runner.suite) : undefined;
 
 	/**
 	 * @param modules
@@ -257,7 +259,11 @@ function main() {
 				unexpectedErrors.push((err && err.message ? err.message : err) + '\n' + stack);
 			});
 
-			if (testFiles) {
+			if (testFiles && reverse) {
+				testFiles = reverseTestFiles(runner.suite, testFiles);
+				console.log(`TEMPORARY: running ${testFiles.size} test files from last to first, starting with ${[...testFiles.keys()][0]}`);
+			}
+			if (testFiles && args.workerDir) {
 				distributeTestFiles(runner.suite, testFiles, { workerId: args.worker ?? '', workerDir: args.workerDir ?? '' });
 			}
 

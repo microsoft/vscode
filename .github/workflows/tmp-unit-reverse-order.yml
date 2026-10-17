@@ -1,0 +1,67 @@
+name: Unit tests from last to first (temporary, do not merge)
+
+# TEMPORARY (order stress test): runs all Electron and node.js unit test files from last to first,
+# in one process (Serial) and in parallel worker processes (Parallel), on every platform.
+
+on:
+  push:
+    branches:
+      - agents/tmp-unit-reverse-order
+
+permissions:
+  contents: read
+
+jobs:
+  linux-serial:
+    name: Linux
+    uses: ./.github/workflows/pr-linux-test.yml
+    with:
+      job_name: Reverse-Serial
+      electron_tests: true
+      integration_tests: false
+      smoke_tests: false
+
+  linux-parallel:
+    name: Linux
+    uses: ./.github/workflows/pr-linux-test.yml
+    with:
+      job_name: Reverse-Parallel
+      electron_tests: true
+      integration_tests: false
+      smoke_tests: false
+
+  macos-serial:
+    name: macOS
+    uses: ./.github/workflows/pr-darwin-test.yml
+    with:
+      job_name: Reverse-Serial
+      electron_tests: true
+      integration_tests: false
+      smoke_tests: false
+
+  macos-parallel:
+    name: macOS
+    uses: ./.github/workflows/pr-darwin-test.yml
+    with:
+      job_name: Reverse-Parallel
+      electron_tests: true
+      integration_tests: false
+      smoke_tests: false
+
+  windows-serial:
+    name: Windows
+    uses: ./.github/workflows/pr-win32-test.yml
+    with:
+      job_name: Reverse-Serial
+      electron_tests: true
+      integration_tests: false
+      smoke_tests: false
+
+  windows-parallel:
+    name: Windows
+    uses: ./.github/workflows/pr-win32-test.yml
+    with:
+      job_name: Reverse-Parallel
+      electron_tests: true
+      integration_tests: false
+      smoke_tests: false

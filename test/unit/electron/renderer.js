@@ -66,7 +66,7 @@ const path = require('path');
 const glob = require('glob');
 const util = require('util');
 const coverage = require('../coverage');
-const { trackTestFiles, distributeTestFiles } = require('../parallel.ts');
+const { trackTestFiles, distributeTestFiles, reverseTestFiles } = require('../parallel.ts');
 const { pathToFileURL } = require('url');
 
 // Disabled custom inspect. See #38847
@@ -462,11 +462,17 @@ async function runTests(opts) {
 		mocha.timeout(opts.timeout);
 	}
 
-	const testFiles = opts.workerDir ? trackTestFiles(mocha.suite) : undefined;
+	// TEMPORARY (order stress test): VSCODE_TEST_REVERSE_FILES runs the test files from last to first
+	const reverse = !!process.env.VSCODE_TEST_REVERSE_FILES;
+	let testFiles = opts.workerDir || reverse ? trackTestFiles(mocha.suite) : undefined;
 
 	await loadTests(opts);
 
-	if (testFiles) {
+	if (testFiles && reverse) {
+		testFiles = reverseTestFiles(mocha.suite, testFiles);
+		ipcRenderer.send('tmp-order-log', `TEMPORARY: running ${testFiles.size} test files from last to first, starting with ${[...testFiles.keys()][0]}`);
+	}
+	if (testFiles && opts.workerDir) {
 		distributeTestFiles(mocha.suite, testFiles, { workerId: opts.worker, workerDir: opts.workerDir });
 	}
 

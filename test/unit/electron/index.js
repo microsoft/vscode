@@ -351,6 +351,9 @@ app.on('ready', async () => {
 		}
 	});
 
+	// TEMPORARY (order stress test): proves in the log that the test files run from last to first
+	ipcMain.on('tmp-order-log', (_, message) => console.log(message));
+
 	// We need to provide a basic `ISandboxConfiguration`
 	// for our preload script to function properly because
 	// some of our types depend on it (e.g. product.ts).
