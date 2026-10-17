@@ -188,6 +188,28 @@ suite('SimpleScreenReaderContent', () => {
 		});
 	});
 
+	test('accepts a system-caret return to the original offset without an intervening render', () => {
+		withContent(['lrd code text'], context => {
+			// Last renderer-owned caret is 13. Updating the model at 1 does not
+			// itself update the cached page mapping or trigger another render.
+			select(context, 1);
+			dispatchSelectionChange(context);
+			const first = observe(context);
+			select(context, 13);
+			dispatchSelectionChange(context);
+			const second = observe(context);
+			// The second external request must not be mistaken for the original
+			// renderer-owned selection, even though its offset is also 13.
+			assert.deepStrictEqual({ first, second, calls: context.controller.selectionCalls }, {
+				first: { inTarget: true, anchor: 1, focus: 1, editor: [1, 2, 1, 2] },
+				second: { inTarget: true, anchor: 13, focus: 13, editor: [1, 14, 1, 14] },
+				calls: 2
+			});
+			render(context);
+			assert.deepStrictEqual(observe(context), second);
+		});
+	});
+
 	test('does not send a delayed renderer-owned selection back to the model', () => {
 		withContent(['lrd code text'], context => {
 			context.clock.tick(200);
