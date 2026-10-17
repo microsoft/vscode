@@ -9,18 +9,28 @@ import { MarkdownContributionProvider, MarkdownContributions } from '../markdown
 import { githubSlugifier } from '../slugify';
 import { nulLogger } from './nulLogging';
 
-const emptyContributions = new class implements MarkdownContributionProvider {
+class TestMarkdownContributionProvider implements MarkdownContributionProvider {
 	readonly extensionUri = vscode.Uri.file('/');
-	readonly contributions = MarkdownContributions.Empty;
 
-	readonly #onContributionsChanged = new vscode.EventEmitter<this>();
-	readonly onContributionsChanged = this.#onContributionsChanged.event;
+	readonly onContributionsChanged: vscode.Event<this> = () => ({ dispose: () => { } });
 
-	dispose() {
-		this.#onContributionsChanged.dispose();
-	}
-};
+	constructor(
+		readonly contributions: MarkdownContributions,
+	) { }
 
-export function createNewMarkdownEngine(): MarkdownItEngine {
-	return new MarkdownItEngine(emptyContributions, githubSlugifier, nulLogger);
+	dispose() { }
+}
+
+const emptyContributions = new TestMarkdownContributionProvider(MarkdownContributions.Empty);
+
+export function createNewMarkdownEngine(
+	markdownItPlugins: MarkdownContributions['markdownItPlugins'] = MarkdownContributions.Empty.markdownItPlugins,
+): MarkdownItEngine {
+	const contributionProvider = markdownItPlugins === MarkdownContributions.Empty.markdownItPlugins
+		? emptyContributions
+		: new TestMarkdownContributionProvider({
+			...MarkdownContributions.Empty,
+			markdownItPlugins,
+		});
+	return new MarkdownItEngine(contributionProvider, githubSlugifier, nulLogger);
 }
