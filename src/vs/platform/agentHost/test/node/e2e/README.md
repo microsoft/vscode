@@ -165,6 +165,8 @@ Native Copilot OTel concurrency coverage runs 288 real shell-tool calls with tel
 
 Copilot's native `run_dynamic_workflow` and `dynamic_workflows_manage` tools are excluded from Agent Host sessions until their execution and approval behavior is validated. Prompt snapshots pin their absence from the model's tool inventory.
 
+Copilot's native `semantic_code_search` tool is also excluded in favor of the Agent Host's own `semantic_search` client tool. The native tool is remote-only and still under prompt and deferred-loading A/B tests in the CLI; revisit it in a future iteration.
+
 Copilot's native SDK sessions expose the bundled `customize-cloud-agent` and `github-pr-media` skills. Prompt snapshots pin their catalog descriptions and the `skill` tool schema alongside the existing tool inventory.
 
 `../providerIntegration/copilotImageGeneration.integrationTest.ts` tests native image-tool availability through the real Agent Host and bundled SDK, using a local synthetic model catalog. It asserts the tool in actual chat-model requests on creation and after a cold host restart, with a negative control for an unavailable image model. The default replay catalog has only chat models, so ordinary prompt snapshots cannot detect missing image consent. No image inference is performed and no credentials or credits are required.
@@ -705,7 +707,7 @@ Codex record/replay servers disable `features.plugins` to keep this unrelated ma
 
 ### Linux suites pass but tmpfs cannot be unmounted
 
-An `umount: target is busy` failure means a process or kernel reference still holds the mount; passing test bodies do not prove that cleanup finished. The wrapper runs a read-only `fuser -vm` probe for at most ten seconds to report holder PIDs, command names, and access types in the task log. Probe errors are reported separately, and the original cleanup failure remains fatal. Correlate the holders with server/provider cleanup logs before changing ownership; do not use lazy unmounts, process-name kills, or retries to conceal a leak.
+An `umount: target is busy` failure means a process or kernel reference still holds the mount; passing test bodies do not prove that cleanup finished. The wrapper runs a read-only `fuser -vm` probe for at most ten seconds to report holder PIDs, command names, and access types in the task log, then describes each holder it reported, within the same ten-second budget: its parent PID, process group, age in seconds, full command line, and the paths it holds open on the mount. Match the age against the test log's timestamps to find the test that started it; a parent PID of 1 means it outlived the process that started it. Probe errors are reported separately, and the original cleanup failure remains fatal. Correlate the holders with server/provider cleanup logs before changing ownership; do not use lazy unmounts, process-name kills, or retries to conceal a leak.
 
 ### Fixture leaks a username / absolute path / token
 

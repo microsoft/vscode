@@ -36,7 +36,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
 import { ChatStateSubscription } from '../../common/state/agentSubscription.js';
 import { ChangesSummary, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionInputRequestKind } from '../../common/state/protocol/state.js';
-import { ActionType, ActionEnvelope, AuthRequiredReason, type ChatAction, type INotification, type SessionAction } from '../../common/state/sessionActions.js';
+import { ActionType, ActionEnvelope, AuthRequiredReason, type ChatAction, type INotification, type ProgressParams, type SessionAction } from '../../common/state/sessionActions.js';
 import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInteractivity, createErrorResponsePart, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, readUsageInfoMeta, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ChatInputRequest, type ClientPluginCustomization, type Customization, type ISessionGitHubState, type PluginCustomization, type Turn } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
@@ -65,6 +65,9 @@ import { createTestAgentHostProviderService } from './testAgentHostProviderServi
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController, type AutomaticTitleGenerationStrategy } from '../../node/agentHostSessionTitleController.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
 import { AgentHostChatInputService, IAgentHostChatInputService } from '../../node/agentHostChatInputService.js';
+import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
+import type { IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
+import { AhpErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentSessionRegistry, IAgentSessionRegistry } from '../../node/agentSessionRegistry.js';
@@ -221,6 +224,7 @@ function createTestSideEffects(
 		worktreeIsolation?: IAgentHostWorktreeIsolation;
 		fileService?: IFileService;
 		onDidCreateTurnService?: (turnService: IAgentHostTurnService) => void;
+		authenticationService?: IAgentHostAuthenticationService;
 	},
 	gitService: IAgentHostGitService = createNoopGitService(),
 	telemetryService: ITelemetryService = NullTelemetryService,
@@ -229,12 +233,14 @@ function createTestSideEffects(
 	checkpointService: IAgentHostCheckpointService = NULL_CHECKPOINT_SERVICE,
 ): AgentSideEffects {
 	const logService = new NullLogService();
+	const authenticationService = options.authenticationService ?? disposables.add(new AgentHostAuthenticationService(logService));
 	const contributionFileService = disposables.add(new FileService(logService));
 	const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
 	const worktreeIsolation = options.worktreeIsolation ?? new NoopWorktreeIsolation();
 	const sessionStateStore = createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), options.sessionDataService);
 	const worktreeCleanup = createTestWorktreeCleanupService(disposables, worktreeIsolation);
 	const services = new ServiceCollection(
+		[IAgentHostAuthenticationService, authenticationService],
 		[ILogService, logService],
 		[IAgentConfigurationService, configService],
 		[IAgentHostChangesetService, changesets],
@@ -282,7 +288,7 @@ function createTestSideEffects(
 	const chatOwnership = createTestChatOwnershipService(stateManager);
 	services.set(IAgentHostChatOwnershipService, chatOwnership);
 	services.set(IAgentHostSessionStateStore, sessionStateStore);
-	services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, disposables.add(new AgentHostSubscriptionService(chatOwnership)), chatOwnership, createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), options.sessionDataService))));
+	services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, disposables.add(new AgentHostSubscriptionService(chatOwnership)), chatOwnership, authenticationService, sessionStateStore)));
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 	const chatContributions: IAgentHostChatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 	services.set(IAgentHostChatContributions, chatContributions);
@@ -353,6 +359,7 @@ suite('AgentSideEffects', () => {
 	let sideEffects: AgentSideEffects;
 	let agentList: ReturnType<typeof observableValue<readonly IAgent[]>>;
 	let telemetryService: TestTelemetryService;
+	let authenticationService: AgentHostAuthenticationService;
 
 	const sessionUri = AgentSession.uri('mock', 'session-1');
 	const defaultChatUri = buildDefaultChatUri(sessionUri);
@@ -432,12 +439,14 @@ suite('AgentSideEffects', () => {
 		stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		agentList = observableValue<readonly IAgent[]>('agents', [agent]);
 		telemetryService = new TestTelemetryService();
+		authenticationService = disposables.add(new AgentHostAuthenticationService(new NullLogService()));
 		customizationEnablementService = createNoopCustomizationEnablementService();
 		sideEffects = createTestSideEffects(disposables, stateManager, {
 			getAgent: () => agent,
 			agents: agentList,
 			sessionDataService: createNullSessionDataService(),
 			hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+			authenticationService,
 		}, undefined, disposables.add(new AgentHostTelemetryService(telemetryService)));
 
 		// Mimic the orchestrator's spawn channel: in production AgentService adds
@@ -462,6 +471,52 @@ suite('AgentSideEffects', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	// ---- handleAction: session/turnStarted ------------------------------
+
+	test('forwards an unavailable sponsor to a cold principal-bound resumed turn', () => {
+		setupSession();
+		const principal = { apiOrigin: 'https://api.github.com', userId: '42' };
+		authenticationService.restoreSessionCredentialPrincipal(sessionUri.toString(), principal);
+		startTurn('turn-1');
+		stateManager.dispatchServerAction(defaultChatUri, {
+			type: ActionType.ChatError,
+			turnId: 'turn-1',
+			duration: 100,
+			part: createErrorResponsePart({ errorType: 'requestFailed', message: 'failed' }, true),
+		});
+		const resumedTurn = stateManager.getChatState(defaultChatUri)?.turns.at(-1);
+		stateManager.dispatchServerAction(defaultChatUri, { type: ActionType.ChatTurnResume, turnId: 'turn-1' });
+		let credentials: IAgentHostCredentialSource | undefined;
+		agent.chats.resumeTurn = async (_chat, _turnId, context) => { credentials = URI.isUri(context) ? undefined : context.credentials; };
+		sideEffects.handleAction(defaultChatUri, { type: ActionType.ChatTurnResume, turnId: 'turn-1' }, 'client-1', AgentHostClientType.EditorWindow, resumedTurn);
+		assert.throws(() => credentials?.getCredential({ resource: principal.apiOrigin }), error => error instanceof ProtocolError && error.code === AhpErrorCodes.AuthRequired);
+	});
+
+	test('forwards unavailable credentials to cold principal-bound model and agent selection', async () => {
+		setupSession();
+		const principal = { apiOrigin: 'https://api.github.com', userId: '42' };
+		authenticationService.restoreSessionCredentialPrincipal(sessionUri.toString(), principal);
+		const forwarded: (IAgentHostCredentialSource | undefined)[] = [];
+		agent.chats.changeModel = async (_chat, _model, context) => { forwarded.push(URI.isUri(context) ? undefined : context.credentials); };
+		agent.chats.changeAgent = async (_chat, _agent, context) => { forwarded.push(URI.isUri(context) ? undefined : context.credentials); };
+		disposables.add(sideEffects.registerProgressListener(agent));
+		const action: ChatAction = {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hello', origin: { kind: MessageKind.User }, model: { id: 'model-a' } },
+		};
+		stateManager.dispatchServerAction(defaultChatUri, action);
+		sideEffects.handleAction(defaultChatUri, action);
+		await waitForSendMessageCalls(1);
+		assert.deepStrictEqual(forwarded.map(source => {
+			try {
+				source?.getCredential({ resource: principal.apiOrigin });
+				return false;
+			} catch (error) {
+				return error instanceof ProtocolError && error.code === AhpErrorCodes.AuthRequired;
+			}
+		}), [true, true]);
+	});
 
 	test('tracks a resumed turn as a new provider execution', () => {
 		setupSession();
@@ -4299,6 +4354,21 @@ suite('AgentSideEffects', () => {
 			]);
 		});
 
+		test('forwards provider setup progress on the root channel without requiring a session', () => {
+			const progress = disposables.add(new Emitter<Omit<ProgressParams, 'channel'>>());
+			const notifications: INotification[] = [];
+			disposables.add(stateManager.onDidEmitNotification(notification => notifications.push(notification)));
+			const registration = disposables.add(sideEffects.registerProgressListener(Object.assign(agent, { onDidReportProgress: progress.event })));
+			progress.fire({ progressToken: 'policy', progress: 0, total: 1, message: 'Waiting for policy' });
+			progress.fire({ progressToken: 'policy', progress: 1, total: 1 });
+			registration.dispose();
+			progress.fire({ progressToken: 'ignored', progress: 0 });
+			assert.deepStrictEqual(notifications, [
+				{ type: 'root/progress', channel: ROOT_STATE_URI, progressToken: 'policy', progress: 0, total: 1, message: 'Waiting for policy' },
+				{ type: 'root/progress', channel: ROOT_STATE_URI, progressToken: 'policy', progress: 1, total: 1 },
+			]);
+		});
+
 		test('maps agent progress events to state actions', () => {
 			setupSession();
 			startTurn('turn-1');
@@ -5357,6 +5427,28 @@ suite('AgentSideEffects', () => {
 	// ---- handleAction: session/activeClientSet ----------------------
 
 	suite('handleAction — session/activeClientSet', () => {
+
+		test('fans out exact credentials without inheriting a sponsor for an unbound peer chat', () => {
+			setupSession();
+			const peer = buildChatUri(sessionUri, 'unsponsored-peer');
+			stateManager.addChat(sessionUri.toString(), peer, creationTimeChatStorageResource(sessionUri.toString(), peer, defaultChatUri));
+			const source: IAgentHostCredentialSource = {
+				principal: { apiOrigin: 'https://api.github.com', userId: '42' },
+				getCredential: () => undefined,
+			};
+			authenticationService.bindSessionCredentials(sessionUri.toString(), source, defaultChatUri);
+			sideEffects.handleAction(sessionUri.toString(), {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: { clientId: 'client-1', tools: [] },
+			});
+			assert.deepStrictEqual(agent.activeClientCalls.map(call => {
+				const credentials = URI.isUri(call.context) ? undefined : call.context.credentials;
+				return { chat: call.chat.toString(), exact: credentials === source, isolated: credentials?.principal?.userId };
+			}), [
+				{ chat: defaultChatUri, exact: true, isolated: '42' },
+				{ chat: peer, exact: false, isolated: '42' },
+			]);
+		});
 
 		setup(() => {
 			disposables.add(sideEffects.registerProgressListener(agent));

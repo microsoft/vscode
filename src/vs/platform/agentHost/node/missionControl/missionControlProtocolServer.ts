@@ -79,7 +79,7 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 	get relayClientId(): string { return this.clientId; }
 	get relayPassive(): boolean { return this.passive; }
 	get relayAuthentication(): IProtocolTransport['relayAuthentication'] {
-		return this._authentication ? { authenticated: this._authentication.authenticated, resource: this._authentication.resource } : undefined;
+		return this._authentication ? { authenticated: this._authentication.authenticated, resource: this._authentication.resource, owner: this._authentication.owner } : undefined;
 	}
 	get onDidRelayAuthenticationExpire() { return this._authentication?.onDidExpire; }
 	readonly relayCaptureAuthorization?: () => () => void;
