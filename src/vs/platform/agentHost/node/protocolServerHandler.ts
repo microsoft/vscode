@@ -548,7 +548,7 @@ export interface IProtocolServerExtension {
 	readonly requests: ReadonlyMap<string, IProtocolServerExtensionRequest>;
 	/** Public capability metadata, also advertised before authentication. */
 	readonly rootMeta: Record<string, unknown>;
-	/** Listener-owned configuration overlaid onto the authenticated relay's host configuration. */
+	/** Listener-owned configuration overlaid onto the relay's host configuration, including before authentication. */
 	readonly rootConfig: RootConfigState;
 	/** Already-sequenced, listener-owned actions that do not update shared host configuration. */
 	readonly onDidEmitAction: Event<ActionEnvelope>;
@@ -2816,18 +2816,20 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		if (client.transport.relayClientId === undefined || !isAhpRootChannel(snapshot.resource) || !hasKey(snapshot.state, { agents: true })) {
 			return snapshot;
 		}
-		if (client.transport.relayAuthentication?.authenticated === true) {
-			if (!this._config.extension) {
-				return snapshot;
-			}
-			const config = deepClone(snapshot.state.config ?? this._config.extension.rootConfig);
+		const config = this._config.extension
+			? deepClone(snapshot.state.config ?? this._config.extension.rootConfig)
+			: snapshot.state.config;
+		if (this._config.extension) {
 			mixin(config, this._config.extension.rootConfig);
-			return { ...snapshot, state: { ...snapshot.state, config } };
+		}
+		if (client.transport.relayAuthentication?.authenticated === true) {
+			return this._config.extension ? { ...snapshot, state: { ...snapshot.state, config } } : snapshot;
 		}
 		return {
 			...snapshot,
 			state: {
 				agents: projectDiscoveryAgents(snapshot.state.agents),
+				config,
 				_meta: {
 					...this._config.relayRootMeta,
 					...this._config.extension?.rootMeta,
@@ -3849,10 +3851,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	private _isRelevantToClient(client: IConnectedClient, envelope: ActionEnvelope): boolean {
 		if (client.transport.relayAuthentication?.authenticated === false
 			&& (!isAhpRootChannel(envelope.channel) || envelope.rejectionReason
-				|| (envelope.action.type !== ActionType.RootAgentsChanged && envelope.action.type !== ActionType.RootActiveSessionsChanged))) {
-			return false;
-		}
-		if (client.transport.relayClientId !== undefined && envelope.action.type === ActionType.RootConfigChanged && client.transport.relayAuthentication?.authenticated !== true) {
+				|| (envelope.action.type !== ActionType.RootAgentsChanged && envelope.action.type !== ActionType.RootActiveSessionsChanged && envelope.action.type !== ActionType.RootConfigChanged))) {
 			return false;
 		}
 		if (!this._isChannelVisible(client, envelope.channel)) {
