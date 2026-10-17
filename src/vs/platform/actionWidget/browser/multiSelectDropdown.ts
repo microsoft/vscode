@@ -95,7 +95,8 @@ export class MultiSelectDropdown extends Disposable {
 				} else {
 					selected.add(item.id);
 				}
-				this.actionWidgetService.updateItems(buildItems(), undefined, { preserveScrollPosition: true });
+				const focusItemId = options.searchable && dom.isHTMLInputElement(dom.getActiveElement()) ? undefined : item.id;
+				this.actionWidgetService.updateItems(buildItems(), focusItemId, { preserveScrollPosition: true });
 				this._onDidChangeSelection.fire(allItems.filter(item => selected.has(item.id)).map(item => item.id));
 			},
 			onHide: () => {

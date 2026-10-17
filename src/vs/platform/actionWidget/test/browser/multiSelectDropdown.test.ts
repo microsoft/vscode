@@ -106,6 +106,30 @@ suite('MultiSelectDropdown', () => {
 		});
 	}
 
+	for (const searchable of [false, true]) {
+		test(`mouse to keyboard keeps the clicked target with search ${searchable}`, async () => {
+			const { container, row, key, changes, dropdown } = create({ searchable });
+			if (searchable) {
+				container.querySelector('input')!.dispatchEvent(new FocusEvent('blur'));
+			}
+			container.querySelector<HTMLElement>('.monaco-list')!.focus();
+			row('Wednesday').dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+			row('Wednesday').dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+			row('Wednesday').click();
+			await Promise.resolve();
+			key(' ', 32);
+			await Promise.resolve();
+			key('Enter', 13);
+			await Promise.resolve();
+			key('ArrowDown', 40);
+			key('Enter', 13);
+			assert.deepStrictEqual({ changes, visible: dropdown.isVisible }, {
+				changes: [['mon', 'wed', 'fri'], ['mon', 'fri'], ['mon', 'wed', 'fri'], ['mon', 'wed', 'fri', 'sat']],
+				visible: true,
+			});
+		});
+	}
+
 	test('click toggles repeatedly without closing; disabled rows do not toggle', () => {
 		const { dropdown, changes, row } = create();
 		row('Wednesday').click();
