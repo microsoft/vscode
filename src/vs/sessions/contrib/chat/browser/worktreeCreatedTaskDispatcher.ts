@@ -5,7 +5,10 @@
 
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, registerAutorunSelfDisposable } from '../../../../base/common/observable.js';
+import Severity from '../../../../base/common/severity.js';
+import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
@@ -50,6 +53,7 @@ export class WorktreeCreatedTaskDispatcher extends Disposable implements IWorkbe
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsTasksService private readonly _sessionsTasksService: ISessionsTasksService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IDialogService private readonly _dialogService: IDialogService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -113,9 +117,22 @@ export class WorktreeCreatedTaskDispatcher extends Disposable implements IWorkbe
 			return;
 		}
 
-		for (const { task } of tasks) {
+		let confirmed: boolean | undefined;
+		for (const { task, target } of tasks) {
 			if (task.runOptions?.runOn !== 'worktreeCreated') {
 				continue;
+			}
+			// The worktree's own tasks.json comes from the checked-out branch, so ask before running its tasks
+			if (target === 'workspace') {
+				confirmed ??= (await this._dialogService.confirm({
+					type: Severity.Warning,
+					message: localize('confirmWorktreeCreatedTasks', "Run Automatic Tasks from This Worktree?"),
+					detail: localize('confirmWorktreeCreatedTasksDetail', "The selected branch defines automatic task commands in .vscode/tasks.json. Only run them if you trust this worktree."),
+					primaryButton: localize('runWorktreeCreatedTasks', "&&Run Tasks"),
+				})).confirmed;
+				if (!confirmed) {
+					continue;
+				}
 			}
 			this._logService.trace(`${LOG_PREFIX} Running worktreeCreated task '${task.label}' for session '${session.sessionId}'`);
 			try {
