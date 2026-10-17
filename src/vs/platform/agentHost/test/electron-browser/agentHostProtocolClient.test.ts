@@ -2809,12 +2809,17 @@ suite('AgentHostProtocolClient', () => {
 	test('importSession sends the VS Code extension request without a turn', async () => {
 		const { client, transport } = createClient();
 		const result = client.importSession(URI.parse('copilotcli:/session-1'));
+		const takeOver = client.importSession(URI.parse('copilotcli:/session-2'), { takeOver: true });
 		assert.deepStrictEqual(transport.sentMessages, [{
 			jsonrpc: '2.0', id: 1, method: 'vscode/importSession',
 			params: { session: 'copilotcli:/session-1' },
+		}, {
+			jsonrpc: '2.0', id: 2, method: 'vscode/importSession',
+			params: { session: 'copilotcli:/session-2', takeOver: true },
 		}]);
 		transport.fireMessage({ jsonrpc: '2.0', id: 1, result: null });
-		await result;
+		transport.fireMessage({ jsonrpc: '2.0', id: 2, result: null });
+		await Promise.all([result, takeOver]);
 	});
 
 	test('importSession propagates unsupported host errors', async () => {

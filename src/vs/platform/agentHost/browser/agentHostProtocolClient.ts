@@ -25,7 +25,7 @@ import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService
 import { IDefaultAccountService } from '../../defaultAccount/common/defaultAccount.js';
 import { AgentPolicyError, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agent.js';
 import { isPolicyResolutionErrorData } from '../common/meta/errorMeta.js';
-import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
+import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, type IAgentImportSessionOptions } from '../common/agentService.js';
 import { supportsAgentHostDebugLogsCancellation } from '../common/meta/agentHostDebugLogsMeta.js';
 import { AgentHostSessionMoveUnsupportedError, MoveAgentHostSessionExtensionMethod, supportsAgentHostSessionMove, CompleteSavedChatContinuationExtensionMethod, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, ReadSavedChatExtensionMethod } from '../common/agentHostExtensionProtocol.js';
 import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from '../common/meta/agentHostSavedChatMeta.js';
@@ -1713,8 +1713,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		});
 	}
 
-	async importSession(session: URI): Promise<void> {
-		await this._sendExtensionRequest(ImportSessionExtensionMethod, { session: session.toString() });
+	async importSession(session: URI, options?: IAgentImportSessionOptions): Promise<void> {
+		await this._sendExtensionRequest(ImportSessionExtensionMethod, { session: session.toString(), ...(options?.takeOver ? { takeOver: true } : {}) });
 	}
 
 	async moveSession(session: URI, destination: URI, after: URI | undefined): Promise<URI> {

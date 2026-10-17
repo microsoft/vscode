@@ -27,9 +27,9 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { ILogService } from '../../log/common/log.js';
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import { chatUriFormatOf, createChatUriError, mintDefaultChatUri, subagentChatUri } from '../common/agentHostChatMinting.js';
-import { AgentChatMigrationDeferred, AgentProvider, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IAgent, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDiscoveredChat, IAgentLegacyChat, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, type IAgentSessionChatMetadata, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
+import { AgentChatMigrationDeferred, AgentProvider, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IAgent, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDiscoveredChat, type IAgentImportedChat, IAgentLegacyChat, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, type IAgentSessionChatMetadata, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
 import { getPendingSteeringMessages } from '../common/agentSessionMessage.js';
-import { type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentService, type IAgentServiceCreateSessionConfig } from '../common/agentService.js';
+import { type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type IAgentImportSessionOptions, IAgentService, type IAgentServiceCreateSessionConfig } from '../common/agentService.js';
 import { ISessionDatabase, ISessionDataService, ISessionStorageAccessCounts, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { EDIT_ATTRIBUTION_RESOURCE_SCHEME, IAgentEditAttributionService } from '../common/fileEditAttribution.js';
 import { MCP_RESOURCE_SCHEME, TOOL_RESULT_RESOURCE_SCHEME } from '../common/mcpResourceUri.js';
@@ -2031,10 +2031,67 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
-	async importSession(session: URI): Promise<void> {
+	async importSession(session: URI, options?: IAgentImportSessionOptions): Promise<void> {
+		await this._registerSessionForImport(session);
 		await this.restoreSession(session);
+		const provider = this._providerService.getProviderForSession(session);
+		if (provider?.importChat) {
+			const runtimeSession = URI.parse(this._orchestratorDatabase.toRuntimeSession(session.toString()));
+			const chat = URI.parse(this._requireDefaultChat(runtimeSession));
+			const imported = await provider.importChat(chat, this._chatContext(runtimeSession, chat, this._chatStorageResource(runtimeSession, chat)), options);
+			if (imported) {
+				await this._offerImportedChatSelection(runtimeSession, chat, imported);
+			}
+		}
 		if (!await this._sessionRegistry.adoptExternalSession(session)) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${session.toString()}`);
+		}
+	}
+
+	/**
+	 * Clients carry the model and agent of a turn on its message and seed them from the chat's
+	 * draft, so the draft decides what the next turn runs with. An imported chat continues with
+	 * the selection its runtime restored, which may differ from the turns it was rebuilt from.
+	 */
+	private async _offerImportedChatSelection(session: URI, chat: URI, imported: IAgentImportedChat): Promise<void> {
+		const chatKey = chat.toString();
+		const resolved = this._stateManager.getChatState(chatKey);
+		let current: Message | undefined;
+		try {
+			current = resolved ? resolved.draft : await this._sessionStateStore.chatRows.getDraft(session, chat);
+		} catch (err) {
+			this._logService.warn(`[AgentService] Failed to read the draft of imported chat ${chatKey}`, err);
+		}
+		const { model: _model, agent: _agent, ...unselected } = current ?? { text: '', origin: { kind: MessageKind.User } };
+		const draft: Message = {
+			...unselected,
+			...(imported.model ? { model: imported.model } : {}),
+			...(imported.agent ? { agent: imported.agent } : {}),
+		};
+		if (resolved) {
+			this._stateManager.dispatchServerAction(chatKey, { type: ActionType.ChatDraftChanged, draft });
+		} else {
+			this._stateManager.setUnresolvedChatDraft(chatKey, draft);
+		}
+		try {
+			await this._sessionStateStore.chatRows.setDraft(session, chat, draft);
+		} catch (err) {
+			this._logService.warn(`[AgentService] Failed to persist the draft of imported chat ${chatKey}`, err);
+		}
+	}
+
+	/**
+	 * An import may name a session the registry does not know yet: discovery may
+	 * hide external sessions, or may not have scanned one that was just created.
+	 */
+	private async _registerSessionForImport(session: URI): Promise<void> {
+		if (await this._sessionRegistry.get(session)) {
+			return;
+		}
+		const provider = this._providerService.getProviderForSession(session);
+		const discovered = await provider?.discoverChat?.(session);
+		if (provider && discovered) {
+			await this._migrateAndRegisterDiscoveredChats(provider, [discovered]);
 		}
 	}
 

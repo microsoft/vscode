@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../base/common/uri.js';
-import { IWindowOpenable } from '../../window/common/window.js';
+import { ChatSessionToOpen, IWindowOpenable } from '../../window/common/window.js';
 
 export interface IProtocolUrl {
 
@@ -72,4 +72,13 @@ export interface IInitialProtocolUrls {
 	 * windows to open.
 	 */
 	readonly openables: IWindowOpenable[];
+
+	/**
+	 * The chat session to open in the window that opens for
+	 * the single entry of {@link openables}, as requested by
+	 * the `session` or `copilotCliSession` query parameter.
+	 * Only set when exactly one openable was requested so that
+	 * the session never goes to an ambiguous window.
+	 */
+	readonly chatSessionToOpen?: ChatSessionToOpen;
 }

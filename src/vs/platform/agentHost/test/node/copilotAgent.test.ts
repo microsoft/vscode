@@ -719,6 +719,7 @@ interface ITestCopilotClient extends Pick<CopilotClient, 'start' | 'stop' | 'lis
 		readonly sessions: {
 			readonly fork: CopilotClient['rpc']['sessions']['fork'];
 			readonly list: CopilotClient['rpc']['sessions']['list'];
+			readonly checkInUse: CopilotClient['rpc']['sessions']['checkInUse'];
 		};
 		readonly models: { readonly list: CopilotModelsList };
 		readonly managedSettings: Pick<CopilotClient['rpc']['managedSettings'], 'resolve'>;
@@ -841,6 +842,10 @@ class TestCopilotClient implements ITestCopilotClient {
 					}))
 				};
 			},
+			checkInUse: async params => {
+				this.checkInUseRequests.push(params.sessionIds);
+				return { inUse: params.sessionIds.filter(sessionId => this.inUseSessionIds.has(sessionId)) };
+			},
 		},
 		models: {
 			list: async params => {
@@ -894,6 +899,9 @@ class TestCopilotClient implements ITestCopilotClient {
 	sessionListGate: Promise<void> | undefined;
 	readonly sessionListRequests: Parameters<CopilotClient['rpc']['sessions']['list']>[0][] = [];
 	sessionListError: Error | undefined;
+	/** Sessions another process holds, as reported by `sessions.checkInUse`. */
+	readonly inUseSessionIds = new Set<string>();
+	readonly checkInUseRequests: string[][] = [];
 	readonly modelListRequests: Parameters<CopilotModelsList>[0][] = [];
 	readonly pluginInstallRequests: Parameters<CopilotPluginsInstall>[0][] = [];
 	readonly pluginUninstallRequests: Parameters<CopilotPluginsUninstall>[0][] = [];
@@ -1045,6 +1053,8 @@ class RecordingTelemetryService extends NullTelemetryServiceShape {
 interface IFakeAgentSession {
 	send: (prompt: string, attachments?: unknown, turnId?: string, announcement?: string) => Promise<void>;
 	getMessages: () => Promise<readonly Turn[]>;
+	adoptRuntimeModes?: () => Promise<void>;
+	readRuntimeSelection?: () => Promise<{ readonly model: { readonly modelId?: string; readonly reasoningEffort?: string; readonly contextTier?: string; readonly autoTier?: string }; readonly agentName: string | undefined }>;
 	dispose: () => void;
 }
 
@@ -1437,6 +1447,8 @@ class TestableCopilotAgent extends CopilotAgent {
 		const stub = {
 			send: fake.send,
 			getMessages: fake.getMessages,
+			adoptRuntimeModes: async () => fake.adoptRuntimeModes?.(),
+			readRuntimeSelection: async () => fake.readRuntimeSelection?.() ?? { model: {}, agentName: undefined },
 			appliedSnapshot: undefined,
 			extensionLaunchDirectories: [],
 			setExtensionLaunchAdmission: (admission: IDisposable) => { extensionLaunchAdmission = admission; },
@@ -15432,6 +15444,32 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('discovers a session that an explicit import names without publishing it', async () => {
+			const context = await createLiveDiscoveryAgent([
+				sdkSession('cli', '/workspace', { clientName: 'github/cli', modifiedTime: new Date() }),
+				sdkSession('other-client', '/workspace', { clientName: 'other/client', modifiedTime: new Date() }),
+			]);
+			try {
+				const discover = async (sessionId: string) => {
+					const chat = await context.agent.discoverChat(AgentSession.uri('copilotcli', sessionId));
+					return chat && { session: chat.session.toString(), external: chat.external };
+				};
+				assert.deepStrictEqual({
+					cli: await discover('cli'),
+					otherClient: await discover('other-client'),
+					missing: await discover('missing'),
+					published: context.published.length,
+				}, {
+					cli: { session: AgentSession.uri('copilotcli', 'cli').toString(), external: true },
+					otherClient: undefined,
+					missing: undefined,
+					published: 0,
+				});
+			} finally {
+				await context.dispose();
+			}
+		});
+
 		test('ineligible history with incomplete metadata does not repeatedly scan the SDK catalog', async () => {
 			const sessions = Array.from({ length: 5_000 }, (_, index) => sdkSession(`own-${index}`, '/workspace', {
 				clientName: 'vscode-agent-host', modifiedTime: new Date(),
@@ -26177,6 +26215,79 @@ suite('CopilotAgent', () => {
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
+		function createImportedChat(inUse: boolean, runtimeSelection?: Awaited<ReturnType<NonNullable<IFakeAgentSession['readRuntimeSelection']>>>) {
+			const sessionId = 'cli-import';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const chat = defaultChatUri(session);
+			const client = new TestCopilotClient([sdkSession(sessionId, '/workspace', { clientName: 'github/cli', modifiedTime: new Date() })]);
+			if (inUse) {
+				client.inUseSessionIds.add(sessionId);
+			}
+			const agent = createTestAgent(disposables, { copilotClient: client }) as TestableCopilotAgent;
+			const adoptions: string[] = [];
+			agent.registerFakeSession(sessionId, {
+				send: async () => { }, getMessages: async () => [], dispose: () => { },
+				adoptRuntimeModes: async () => { adoptions.push(sessionId); },
+				readRuntimeSelection: async () => runtimeSelection ?? { model: {}, agentName: undefined },
+			});
+			return { agent, client, chat, context: exactChatContext(session, chat, session), adoptions };
+		}
+
+		test('importing a chat resumes it, adopts the modes its runtime restored and returns the selection it continues with', async () => {
+			const { agent, client, chat, context, adoptions } = createImportedChat(false, {
+				model: { modelId: 'claude-sonnet-5', reasoningEffort: 'high', contextTier: 'long_context' },
+				agentName: 'vscode-ask',
+			});
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.materializeChat(chat, context, undefined);
+				const imported = await agent.importChat(chat, context);
+				assert.deepStrictEqual({ checkInUse: client.checkInUseRequests, resumes: agent.resumeCalls, adoptions, imported }, {
+					checkInUse: [['cli-import']],
+					resumes: ['cli-import'],
+					adoptions: ['cli-import'],
+					// The model offers no context-size picker here, so the runtime's tier is left alone.
+					imported: {
+						model: { id: 'claude-sonnet-5', config: { thinkingLevel: 'high' } },
+						agent: { uri: 'copilot-builtin:/agents/ask.agent.md' },
+					},
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('importing a chat with a custom agent this host does not offer continues without one', async () => {
+			const { agent, chat, context } = createImportedChat(false, { model: { modelId: 'auto', autoTier: 'balance' }, agentName: 'cli-only-agent' });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.materializeChat(chat, context, undefined);
+				assert.deepStrictEqual(await agent.importChat(chat, context), {
+					model: { id: 'auto', config: { tier: 'balance' } },
+					agent: undefined,
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('importing a chat that another process is using fails before resuming it unless the client takes it over', async () => {
+			const { agent, client, chat, context, adoptions } = createImportedChat(true);
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.materializeChat(chat, context, undefined);
+				await assert.rejects(() => agent.importChat(chat, context), { code: AhpErrorCodes.Conflict });
+				const refused = { checkInUse: [...client.checkInUseRequests], resumes: [...agent.resumeCalls], adoptions: [...adoptions] };
+				await agent.importChat(chat, context, { takeOver: true });
+				assert.deepStrictEqual({ refused, takenOver: { resumes: agent.resumeCalls, adoptions } }, {
+					refused: { checkInUse: [['cli-import']], resumes: [], adoptions: [] },
+					takenOver: { resumes: ['cli-import'], adoptions: ['cli-import'] },
+				});
+			} finally {
 				await disposeAgent(agent);
 			}
 		});

@@ -53,10 +53,10 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoAppro
 import { getCopilotApprovalConfig, getCopilotApprovalPolicy } from './copilotApprovalPolicy.js';
 import { AGENT_HOST_COPILOT_CLIENT_NAME, CopilotManagedSettingsResolver, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
 import { getCopilotManagedAutoPreference, omitCopilotManagedModelDefaults, projectCopilotManagedModelConfiguration } from './copilotManagedModelConfiguration.js';
-import { buildCopilotBuiltinAgentsContainer, COPILOT_BUILTIN_AGENT_NAMES_BY_URI, CopilotBuiltinAgentsStore } from './copilotBuiltinAgents.js';
+import { buildCopilotBuiltinAgentsContainer, COPILOT_BUILTIN_AGENT_NAMES_BY_URI, COPILOT_BUILTIN_AGENTS, CopilotBuiltinAgentsStore, getCopilotBuiltinAgentUri } from './copilotBuiltinAgents.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
-import { AgentChatOperationContext, AgentSession, fixedChatOwnerRef, type IAgentChatOwnerRef, resolveSessionBackedStorage, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatSessionSettings, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent } from '../../common/agent.js';
+import { AgentChatOperationContext, AgentSession, fixedChatOwnerRef, type IAgentChatOwnerRef, resolveSessionBackedStorage, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatSessionSettings, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, type IAgentImportChatOptions, type IAgentImportedChat, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent } from '../../common/agent.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import { autoModeTiers, defaultAutoModeTier, getAutoModeTierDescription, getAutoModeTierLabel, getFusionAutoModeTierLabel } from '../../common/autoModeTiers.js';
 import { AUTO_MODEL_ID, isAutoModel } from './modelIdentifiers.js';
@@ -3869,12 +3869,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * leaving the SDK on its default tier.
 	 */
 	private _longContextWindowFor(modelId: string | undefined): number | undefined {
+		const windows = this._contextSizeWindows(modelId);
+		return windows ? Math.max(...windows) : undefined;
+	}
+
+	/** The token counts the model's "Context Size" picker offers, or `undefined` when it offers none. */
+	private _contextSizeWindows(modelId: string | undefined): readonly number[] | undefined {
 		if (!modelId) {
 			return undefined;
 		}
 		const windows = this._models.get().find(m => m.id === modelId)?.configSchema?.properties?.[ContextSizeConfigKey]?.enum;
 		const numericWindows = windows?.filter((w): w is number => typeof w === 'number');
-		return numericWindows && numericWindows.length > 0 ? Math.max(...numericWindows) : undefined;
+		return numericWindows && numericWindows.length > 0 ? numericWindows : undefined;
 	}
 
 	/**
@@ -3994,6 +4000,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 		}
 		return undefined;
+	}
+
+	/** The inverse of {@link _resolveAgentName}: the selection for an SDK-facing name, when this host offers that agent. */
+	private _resolveAgentSelection(snapshot: IActiveClientSnapshot | undefined, name: string): AgentSelection | undefined {
+		for (const plugin of snapshot?.plugins ?? []) {
+			const found = plugin.agents.find(a => a.name === name);
+			if (found) {
+				return { uri: found.uri.toString() };
+			}
+		}
+		const builtin = COPILOT_BUILTIN_AGENTS.find(agent => agent.name === name);
+		return builtin ? { uri: getCopilotBuiltinAgentUri(builtin).toString() } : undefined;
 	}
 
 	async listChatsToMigrate(): Promise<IAgentListedChat[] | undefined> {
@@ -4121,6 +4139,95 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._copilotChatDiscovery.start();
 	}
 
+	async discoverChat(session: URI): Promise<IAgentDiscoveredChat | undefined> {
+		if (this._shutdownPromise || this._store.isDisposed) {
+			return undefined;
+		}
+		const sessionId = AgentSession.id(session);
+		let discovered: IAgentDiscoveredChat | undefined;
+		await this._discoverCopilotChats({
+			id: 0,
+			sessionIds: new Set([sessionId]),
+			explicit: true,
+			isCurrent: () => true,
+			prepare: async () => true,
+			validate: async () => true,
+			waitForChange: () => { },
+			describe: () => 'explicit import',
+		}, chats => {
+			discovered ??= chats.find(chat => AgentSession.id(chat.session) === sessionId);
+			return [];
+		});
+		return discovered;
+	}
+
+	async importChat(chat: URI, operationContext: IAgentChatContext, options?: IAgentImportChatOptions): Promise<IAgentImportedChat | void> {
+		const context = this._resolveChatContext(chat, operationContext);
+		const sdkSessionId = context.sdkSessionId ?? context.sessionBackedId ?? context.ownerSessionId;
+		// The runtime records which processes hold a session; resuming one that another process
+		// holds would leave two writers on the same history. The record is best effort, so a
+		// client may take over a session whose holder no longer runs it.
+		const { inUse } = await (await this._ensureClient()).rpc.sessions.checkInUse({ sessionIds: [sdkSessionId] });
+		if (inUse.includes(sdkSessionId)) {
+			if (!options?.takeOver) {
+				throw new ProtocolError(AhpErrorCodes.Conflict, localize('copilotAgent.sessionInUse', "This session is still open in another Copilot CLI process. Exit the session there, then try again."));
+			}
+			this._logService.info(`[Copilot:${context.ownerSessionId}] Taking over session ${sdkSessionId}, which another process holds`);
+		}
+		// Resuming now, rather than on the first turn, lets clients show the selection
+		// and modes the chat continues with before anything is sent.
+		try {
+			return await this._queueChat(context.lifetimeId, context.sequencerKey, 'importChat', async () => {
+				const current = this._resolveChatContext(chat, operationContext);
+				const entry = current.target ?? await this._ensureResolvedChatSession(current);
+				if (!entry) {
+					return undefined;
+				}
+				await entry.adoptRuntimeModes();
+				const { model, agentName } = await entry.readRuntimeSelection();
+				return {
+					model: this._modelSelectionFromRuntime(model),
+					agent: agentName ? this._resolveAgentSelection(entry.appliedSnapshot, agentName) : undefined,
+				};
+			});
+		} catch (err) {
+			this._logService.warn(`[Copilot:${context.ownerSessionId}] Imported chat ${chat.toString()} keeps the host's selection and modes because it could not be resumed`, err);
+			return undefined;
+		}
+	}
+
+	/** The picker selection that keeps the model configuration the runtime runs with. */
+	private _modelSelectionFromRuntime(current: { readonly modelId?: string; readonly reasoningEffort?: string; readonly contextTier?: string; readonly autoTier?: string }): ModelSelection | undefined {
+		if (!current.modelId) {
+			return undefined;
+		}
+		const config: Record<string, string | number> = {};
+		if (isCopilotReasoningEffort(current.reasoningEffort)) {
+			config[ThinkingLevelConfigKey] = current.reasoningEffort;
+		}
+		const contextSize = this._contextSizeForTier(current.modelId, current.contextTier);
+		if (contextSize !== undefined) {
+			config[ContextSizeConfigKey] = contextSize;
+		}
+		if (isAutoModel(current.modelId) && current.autoTier) {
+			config[AutoTierConfigKey] = current.autoTier;
+		}
+		return Object.keys(config).length > 0 ? { id: current.modelId, config } : { id: current.modelId };
+	}
+
+	/**
+	 * The "Context Size" picker value that {@link getCopilotContextTier} maps back to `tier`: the
+	 * largest window for `long_context`, the smallest otherwise. `undefined` when the model offers
+	 * no such picker, which leaves the runtime's tier alone.
+	 */
+	private _contextSizeForTier(modelId: string, tier: string | undefined): number | undefined {
+		const windows = this._contextSizeWindows(modelId);
+		if (!tier || !windows) {
+			return undefined;
+		}
+		return tier === 'long_context' ? Math.max(...windows) : Math.min(...windows);
+	}
+
 	/** Publishes eligible chats and returns the candidates that no longer need readiness watching. */
 	private async _emitCopilotChats(scan: ICopilotChatDiscoveryScan): Promise<ReadonlySet<string> | undefined> {
 		const migrateLegacyAtStart = this._isMigrateLegacyCopilotCliEnabled();
@@ -4199,7 +4306,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private async _discoverCopilotChats(scan: ICopilotChatDiscoveryScan, publish: (chats: readonly IAgentDiscoveredChat[], clientNames: ReadonlyMap<string, string>) => readonly IAgentDiscoveredChat[]): Promise<ReadonlySet<string> | undefined> {
 		const resultMetrics = this._createDiscoveryResultMetrics();
 		const timer = StopWatch.create();
-		const catalog = await this._listSdkSessions('discoverable chats', async client => (await client.rpc.sessions.list({ source: 'local' })).sessions);
+		const catalog = await this._listSdkSessions(scan.explicit ? 'imported chat' : 'discoverable chats', async client => (await client.rpc.sessions.list({ source: 'local' })).sessions);
 		if (!catalog) {
 			return undefined;
 		}
@@ -4360,7 +4467,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 		}
 		this._logService.info(`[CopilotDiscovery] Scan ${scan.id} catalog: sdkSessions=${catalog.length}, candidates=${sessions.length}, listMs=${listMs}, classifyMs=${Math.round(timer.elapsed()) - listMs}, published=${published}, external=${external}, legacy=${discovered - external}, known=${known}, disabledLegacy=${suppressedAdoptable}, archivedLegacy=${suppressedArchived}, missingCwd=${withoutWorkingDirectory}, unsupportedClient=${unsupportedClientName}, stale=${outsideImportWindow}, failed=${failed}`);
-		this._recordFirstDiscoveryResult(resultMetrics, sessions.length, failed);
+		if (!scan.explicit) {
+			this._recordFirstDiscoveryResult(resultMetrics, sessions.length, failed);
+		}
 		return completed;
 	}
 
@@ -4410,10 +4519,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		});
 	}
 
-	private async _listSdkSessions<T extends { readonly sessionId: string }>(reason: 'chats to migrate' | 'discoverable chats' | 'prewarm session metadata', listSessions: (client: CopilotClient) => Promise<readonly T[]>): Promise<readonly T[] | undefined> {
+	private async _listSdkSessions<T extends { readonly sessionId: string }>(reason: 'chats to migrate' | 'discoverable chats' | 'imported chat' | 'prewarm session metadata', listSessions: (client: CopilotClient) => Promise<readonly T[]>): Promise<readonly T[] | undefined> {
 		this._startupPerformance.mark('providerContext', { provider: this.id, activationState: 'notRequired', sdkAvailability: 'available' });
-		const phase = reason === 'chats to migrate' ? 'sessionMigrationScan' : reason === 'discoverable chats' ? 'sessionDiscoveryScan' : 'sessionMetadataScan';
-		const timing = this._startupPerformance.start(phase, this.id);
+		const phase = reason === 'chats to migrate' ? 'sessionMigrationScan' : reason === 'discoverable chats' ? 'sessionDiscoveryScan' : reason === 'prewarm session metadata' ? 'sessionMetadataScan' : undefined;
+		const timing = phase && this._startupPerformance.start(phase, this.id);
 		this._logService.info(`[Copilot] Listing ${reason}...`);
 		try {
 			const listed = await this._retryAfterClosedConnection('listSessions', listSessions);
