@@ -114,6 +114,18 @@ suite('ChatClipboard', () => {
 			'This is **inherited** from the `FooBar` class. See [the docs](https://example.com/docs).');
 	});
 
+	test('excludes file changes UI and embedded styles from pasted markdown', () => {
+		const copied = sanitizeToHtml(
+			'<p>Updated <strong>configuration</strong> in <a href="" data-href="file:///repo/src/config.ts">config.ts</a>.</p>'
+			+ '<div class="checkpoint-file-changes-summary"><span>0 files changed</span><span>+0</span><span>-0</span>'
+			+ '<div class="chat-summary-list"><style>.monaco-list.list_id_109 { color: red; }</style></div></div>'
+			+ '<p>Ready for review.</p>');
+
+		assert.strictEqual(
+			convertHtmlToMarkdown(copied),
+			'Updated **configuration** in `config.ts`.\n\nReady for review.');
+	});
+
 	suite('toPortableMarkdown', () => {
 		test('reduces non-portable link targets to their label', () => {
 			assert.deepStrictEqual(

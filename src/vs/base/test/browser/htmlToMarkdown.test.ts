@@ -191,6 +191,12 @@ suite('htmlToMarkdown', () => {
 		assert.strictEqual(convertHtmlToMarkdown('<span class="x">hello</span>'), 'hello');
 	});
 
+	test('ignores non-content elements', () => {
+		assert.strictEqual(
+			convertHtmlToMarkdown('<p>before</p><style>.hidden { display: none; }</style><script>alert("no")</script><p>after</p>'),
+			'before\n\nafter');
+	});
+
 	test('handles nested inline elements', () => {
 		assert.strictEqual(
 			convertHtmlToMarkdown('<strong><em>bold italic</em></strong>'),
