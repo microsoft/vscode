@@ -6,6 +6,10 @@ set -uo pipefail
 
 ITERATIONS=${STRESS_ITERATIONS:-15}
 ARM=${STRESS_ARM:-unknown}
+# none: plain cold launch. gpu/renderer: SIGSTOP the first process of that type as soon as it
+# spawns, keep it stopped for FREEZE_SECONDS, then SIGCONT it, to simulate a transient stall.
+FREEZE_MODE=${STRESS_FREEZE_MODE:-none}
+FREEZE_SECONDS=${STRESS_FREEZE_SECONDS:-25}
 ROOT=$(pwd)
 OUT=$ROOT/.build/logs/stress
 mkdir -p "$OUT"
@@ -44,6 +48,25 @@ watch_unresponsive() {
 	done
 }
 
+# Freezes the first new process of the requested type for FREEZE_SECONDS.
+freeze_first() {
+	local type=$1 log=$2 deadline=$((SECONDS + 30)) pid=''
+	while [[ $SECONDS -lt $deadline ]]; do
+		pid=$(pgrep -n -f -- "--type=$type" || true)
+		if [[ -n "$pid" ]]; then
+			break
+		fi
+		sleep 0.02
+	done
+	if [[ -z "$pid" ]]; then
+		echo "freeze: no $type process appeared" >> "$log"
+		return
+	fi
+	kill -STOP "$pid" && echo "freeze: $(date -u +%T.%3N) stopped $type $pid for ${FREEZE_SECONDS}s" >> "$log"
+	sleep "$FREEZE_SECONDS"
+	kill -CONT "$pid" 2>/dev/null && echo "freeze: $(date -u +%T.%3N) resumed $type $pid" >> "$log"
+}
+
 passed=0; failed=0; unresponsive=0; recovered=0
 for i in $(seq 1 "$ITERATIONS"); do
 	echo "===== [$ARM] cold launch $i/$ITERATIONS ====="
@@ -59,6 +82,11 @@ for i in $(seq 1 "$ITERATIONS"); do
 	: > "$LOG"
 	watch_unresponsive "$LOG" "$LOGS/unresponsive-diagnostics.txt" &
 	WATCHER=$!
+	FREEZER=''
+	if [[ "$FREEZE_MODE" != none ]]; then
+		freeze_first "$FREEZE_MODE" "$LOGS/freeze.txt" &
+		FREEZER=$!
+	fi
 	START=$(date +%s)
 	./scripts/code.sh --folder-uri="$REMOTE_VSCODE/vscode-api-tests/testWorkspace" \
 		--extensionDevelopmentPath="$REMOTE_VSCODE/vscode-api-tests" \
@@ -70,6 +98,11 @@ for i in $(seq 1 "$ITERATIONS"); do
 	CODE=$?
 	touch "$LOG.done"
 	wait "$WATCHER" 2>/dev/null
+	if [[ -n "$FREEZER" ]]; then
+		kill "$FREEZER" 2>/dev/null; wait "$FREEZER" 2>/dev/null
+		pkill -CONT -f -- '--type=' 2>/dev/null || true
+		cat "$LOGS/freeze.txt" 2>/dev/null
+	fi
 	ELAPSED=$(( $(date +%s) - START ))
 	if grep -q 'unresponsive' "$LOG"; then
 		unresponsive=$((unresponsive + 1))
@@ -91,6 +124,6 @@ for i in $(seq 1 "$ITERATIONS"); do
 	rm -rf "$UDD" "$TESTRESOLVER_DATA_FOLDER"
 done
 
-echo "STRESS SUMMARY arm=$ARM iterations=$ITERATIONS passed=$passed failed=$failed unresponsive=$unresponsive recovered=$recovered"
-echo "::notice title=Stress summary::arm=$ARM iterations=$ITERATIONS passed=$passed failed=$failed unresponsive=$unresponsive recovered=$recovered"
+echo "STRESS SUMMARY arm=$ARM freeze=$FREEZE_MODE iterations=$ITERATIONS passed=$passed failed=$failed unresponsive=$unresponsive recovered=$recovered"
+echo "::notice title=Stress summary::arm=$ARM freeze=$FREEZE_MODE iterations=$ITERATIONS passed=$passed failed=$failed unresponsive=$unresponsive recovered=$recovered"
 [[ $failed -eq 0 ]]
