@@ -5,6 +5,7 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { getErrorMessage } from '../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { GlobalExtensionEnablementService } from '../../../../platform/extensionManagement/common/extensionEnablementService.js';
@@ -14,6 +15,7 @@ import { ExtensionType } from '../../../../platform/extensions/common/extensions
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IUserDataProfile, ProfileResourceType } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IUserDataProfileStorageService } from '../../../../platform/userDataProfile/common/userDataProfileStorageService.js';
@@ -105,6 +107,7 @@ export class ExtensionsResource implements IProfileResource {
 		@IUserDataProfileStorageService private readonly userDataProfileStorageService: IUserDataProfileStorageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 	}
 
@@ -171,6 +174,11 @@ export class ExtensionsResource implements IProfileResource {
 					}
 				}));
 				if (installExtensionInfos.length) {
+					const failedExtensions = new Set<string>();
+					const onDidFailInstallExtension = (extensionId: string, error: unknown): void => {
+						failedExtensions.add(extensionId);
+						this.logService.error(`Importing Profile (${profile.name}): Failed to install extension.`, extensionId, getErrorMessage(error));
+					};
 					if (token) {
 						await this.extensionManagementService.requestPublisherTrust(installExtensionInfos);
 						for (const installExtensionInfo of installExtensionInfos) {
@@ -178,10 +186,22 @@ export class ExtensionsResource implements IProfileResource {
 								return;
 							}
 							progress?.(localize('installingExtension', "Installing extension {0}...", installExtensionInfo.extension.displayName ?? installExtensionInfo.extension.identifier.id));
-							await this.extensionManagementService.installFromGallery(installExtensionInfo.extension, installExtensionInfo.options);
+							try {
+								await this.extensionManagementService.installFromGallery(installExtensionInfo.extension, installExtensionInfo.options);
+							} catch (error) {
+								onDidFailInstallExtension(installExtensionInfo.extension.identifier.id, error);
+							}
 						}
 					} else {
-						await this.extensionManagementService.installGalleryExtensions(installExtensionInfos);
+						const results = await this.extensionManagementService.installGalleryExtensions(installExtensionInfos);
+						for (const result of results) {
+							if (result.error) {
+								onDidFailInstallExtension(result.identifier.id, result.error);
+							}
+						}
+					}
+					if (failedExtensions.size) {
+						this.notificationService.warn(localize('failedInstallingProfileExtensions', "Some profile extensions could not be installed: {0}", [...failedExtensions].join(', ')));
 					}
 				}
 				this.logService.info(`Importing Profile (${profile.name}): Finished installing extensions.`);
