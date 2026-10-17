@@ -209,6 +209,26 @@ suite('Encoding', () => {
 		assert.strictEqual(mimes.encoding, 'windows1252');
 	});
 
+	test('autoGuessEncoding (GB18030)', async function () {
+		// GB18030 is a superset of GB2312. When jschardet detects GB2312,
+		// the result should be upgraded to GB18030 for safe decoding of
+		// GB18030-only characters (e.g., 🌟 U+1F31F).
+		const file = FileAccess.asFileUri('vs/workbench/services/textfile/test/node/encoding/fixtures/some.gb18030.txt').fsPath;
+		const buffer = await readExactlyByFile(file, 512 * 8);
+		const mimes = await encoding.detectEncodingFromBuffer(buffer, true);
+		assert.strictEqual(mimes.encoding, 'gb18030');
+	});
+
+	test('autoGuessEncoding (candidateGuessEncodings - GB18030)', async function () {
+		// When gb18030 is explicitly listed as a candidate encoding,
+		// the detection should return gb18030 (not gb2312) even when
+		// jschardet internally detects GB2312.
+		const file = FileAccess.asFileUri('vs/workbench/services/textfile/test/node/encoding/fixtures/some.gb18030.txt').fsPath;
+		const buffer = await readExactlyByFile(file, 512 * 8);
+		const mimes = await encoding.detectEncodingFromBuffer(buffer, true, ['gb18030']);
+		assert.strictEqual(mimes.encoding, 'gb18030');
+	});
+
 	test('autoGuessEncoding (candidateGuessEncodings - ShiftJIS)', async function () {
 		// This file is determined to be windows1252 unless candidateDetectEncoding is set.
 		const file = FileAccess.asFileUri('vs/workbench/services/textfile/test/node/encoding/fixtures/some.shiftjis.1.txt').fsPath;
