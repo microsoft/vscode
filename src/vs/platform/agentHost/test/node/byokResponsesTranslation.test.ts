@@ -5,12 +5,13 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import type { IByokLmChatRequest, IByokLmChatResult, IByokLmInputItem, IByokLmOutputItem, IByokLmTool } from '../../common/agentHostByokLm.js';
+import type { IByokLmChatRequest, IByokLmChatResult, IByokLmInputItem, IByokLmOutputItem, IByokLmStreamDeltaBody, IByokLmTool } from '../../common/agentHostByokLm.js';
 import {
 	BYOK_MAX_TOOLS,
 	bridgeResultToResponsesBody,
 	bridgeResultToResponsesSseFrames,
 	capBridgeTools,
+	createResponsesSseEmitter,
 	endsWithUserMessage,
 	hasVisibleBridgeOutput,
 	IResponsesRequest,
@@ -301,6 +302,169 @@ suite('byokResponsesTranslation', () => {
 				total_tokens: 15,
 			},
 		});
+	});
+
+	/** SSE frames as `{ event, data }` pairs. */
+	function parseFrames(frames: readonly string[]): { event: string; data: Record<string, unknown> }[] {
+		return frames.map(frame => {
+			const lines = frame.trim().split('\n');
+			return {
+				event: lines[0].slice('event: '.length),
+				data: JSON.parse(lines[1].slice('data: '.length)) as Record<string, unknown>,
+			};
+		});
+	}
+
+	/**
+	 * Frames with the fields that legitimately differ between two serializations
+	 * of the same result removed: minted ids, and sequence numbers, which shift
+	 * when output arrives in finer deltas. Id consistency *within* one
+	 * serialization is asserted separately.
+	 */
+	function stableFrames(events: readonly { event: string; data: Record<string, unknown> }[]): { event: string; data: unknown }[] {
+		const strip = (value: unknown): unknown => {
+			if (Array.isArray(value)) {
+				return value.map(strip);
+			}
+			if (value && typeof value === 'object') {
+				const result: Record<string, unknown> = {};
+				for (const [key, nested] of Object.entries(value)) {
+					if (key !== 'id' && key !== 'item_id' && key !== 'sequence_number') {
+						result[key] = strip(nested);
+					}
+				}
+				return result;
+			}
+			return value;
+		};
+		return events.map(event => ({ event: event.event, data: strip(event.data) }));
+	}
+
+	/** The items the incremental serializer advertised, keyed by output index. */
+	function itemIdsByIndex(events: readonly { event: string; data: Record<string, unknown> }[]): Record<string, string | undefined>[] {
+		const byIndex: Record<string, string | undefined>[] = [];
+		for (const event of events) {
+			if (event.event === 'response.output_item.added' || event.event === 'response.output_item.done') {
+				const index = String(event.data.output_index);
+				const id = (event.data.item as { id?: string }).id;
+				if (event.event === 'response.output_item.added') {
+					byIndex[Number(index)] = { added: id };
+				} else {
+					byIndex[Number(index)] = { ...byIndex[Number(index)], done: id };
+				}
+			}
+		}
+		return byIndex;
+	}
+
+	test('streams deltas into the frame sequence and output the buffered serializer produces', () => {
+		const result: IByokLmChatResult = {
+			responseId: 'resp_provider',
+			output: [
+				{ type: 'reasoning', id: 'rs_1', summary: ['first second', 'next part'], encryptedContent: 'encrypted' },
+				{ type: 'message', content: [{ type: 'text', text: 'hello' }] },
+				{ type: 'function_call', callId: 'call_1', name: 'getWeather', argumentsJson: '{"city":"NYC"}' },
+			],
+			usage: { inputTokens: 10, outputTokens: 5, reasoningTokens: 2 },
+		};
+		// Exactly the deltas the renderer handler emits for this result.
+		const deltas: IByokLmStreamDeltaBody[] = [
+			{ kind: 'reasoning', id: 'rs_1', delta: 'first', newSummaryPart: true, encryptedContent: 'encrypted' },
+			{ kind: 'reasoning', id: 'rs_1', delta: ' second', newSummaryPart: false },
+			{ kind: 'reasoning', id: 'rs_1', delta: 'next part', newSummaryPart: true },
+			{ kind: 'text', delta: 'hel' },
+			{ kind: 'text', delta: 'lo' },
+			{ kind: 'toolCall', callId: 'call_1', name: 'getWeather', isCustom: false, value: '{"city":"NYC"}' },
+		];
+
+		const emitter = createResponsesSseEmitter('gpt-5', 'resp_provider');
+		const streamed = parseFrames([
+			...emitter.begin(),
+			...deltas.flatMap(delta => emitter.push({ requestId: 'req', ...delta })),
+			...emitter.complete(result),
+		]);
+		const buffered = parseFrames(bridgeResultToResponsesSseFrames(result, 'gpt-5'));
+		const deltasRemoved = (events: typeof streamed) => events.filter(event => !event.event.endsWith('.delta'));
+
+		// The same settled frames in the same order; only how the text is split into
+		// deltas differs, and those deltas sum to the buffered text (`output_text.done`
+		// and `reasoning_summary_text.done` are compared below).
+		assert.deepStrictEqual(deltasRemoved(streamed).map(event => event.event), deltasRemoved(buffered).map(event => event.event));
+		assert.deepStrictEqual(streamed.map(event => event.data.sequence_number), streamed.map((_, index) => index));
+		// Every settled frame, and the completed output, agree with the buffered
+		// serializer apart from the fields that cannot match across serializations.
+		assert.deepStrictEqual(stableFrames(deltasRemoved(streamed)), stableFrames(deltasRemoved(buffered)));
+
+		// `response.created` and `response.completed` advertise the same id, and each
+		// item keeps the id it was added under through to the completed output.
+		assert.strictEqual((streamed[0].data.response as { id: string }).id, (streamed.at(-1)?.data.response as { id: string }).id);
+		const itemIds = itemIdsByIndex(streamed);
+		assert.deepStrictEqual(itemIds.filter(pair => pair.added !== pair.done), [], 'expected each item to keep the id it was added under');
+		assert.deepStrictEqual((streamed.at(-1)?.data.response as { output: { id: string }[] }).output.map(item => item.id), itemIds.map(pair => pair.added));
+	});
+
+	test('emits the first text frames without waiting for the response to complete', () => {
+		const emitter = createResponsesSseEmitter('gpt-5');
+		const first = parseFrames([...emitter.begin(), ...emitter.push({ requestId: 'req', kind: 'text', delta: 'hi' })]);
+
+		assert.deepStrictEqual(first.map(event => event.event), [
+			'response.created',
+			'response.in_progress',
+			'response.output_item.added',
+			'response.content_part.added',
+			'response.output_text.delta',
+		]);
+		assert.deepStrictEqual(first.at(-1)?.data.delta, 'hi');
+	});
+
+	test('replays output the bridge never streamed', () => {
+		const result: IByokLmChatResult = { responseId: 'resp_provider', output: [{ type: 'message', content: [{ type: 'text', text: 'buffered' }] }] };
+		const emitter = createResponsesSseEmitter('gpt-5', 'resp_provider');
+		const buffered = parseFrames(bridgeResultToResponsesSseFrames(result, 'gpt-5'));
+		const replay = parseFrames([...emitter.begin(), ...emitter.complete(result)]);
+
+		assert.deepStrictEqual(replay.map(event => event.event), buffered.map(event => event.event));
+		assert.deepStrictEqual(replay.map(event => event.data.sequence_number), replay.map((_, index) => index));
+		assert.deepStrictEqual(stableFrames(replay), stableFrames(buffered));
+	});
+
+	test('fails in-stream instead of completing after output was written', () => {
+		const emitter = createResponsesSseEmitter('gpt-5');
+		const frames = parseFrames([...emitter.begin(), ...emitter.push({ requestId: 'req', kind: 'text', delta: 'partial' }), ...emitter.fail('model exploded')]);
+
+		assert.deepStrictEqual({
+			eventTypes: frames.map(frame => frame.event),
+			last: frames.at(-1)?.event,
+			status: (frames.at(-1)?.data.response as { status: string }).status,
+			error: (frames.at(-1)?.data.response as { error: { message: string } }).error,
+		}, {
+			eventTypes: ['response.created', 'response.in_progress', 'response.output_item.added', 'response.content_part.added', 'response.output_text.delta', 'response.failed'],
+			last: 'response.failed',
+			status: 'failed',
+			error: { code: 'server_error', message: 'model exploded' },
+		});
+	});
+
+	test('updates reasoning encrypted state on each delta before closing the item', () => {
+		const emitter = createResponsesSseEmitter('gpt-5');
+		const frames = parseFrames([
+			...emitter.begin(),
+			...emitter.push({ requestId: 'req', kind: 'reasoning', id: 'rs_1', delta: 'first', newSummaryPart: true, encryptedContent: 'state-1' }),
+			...emitter.push({ requestId: 'req', kind: 'reasoning', id: 'rs_1', delta: ' second', newSummaryPart: false, encryptedContent: 'state-2' }),
+			...emitter.push({ requestId: 'req', kind: 'text', delta: 'hello' }),
+		]);
+		const reasoningDone = frames.find(f => f.event === 'response.output_item.done' && (f.data.item as { type?: string }).type === 'reasoning');
+		assert.ok(reasoningDone, 'expected reasoning item to be closed');
+		assert.strictEqual((reasoningDone.data.item as { encrypted_content?: string }).encrypted_content, 'state-2');
+	});
+
+	test('produces strictly increasing sequence numbers even when push is evaluated before begin', () => {
+		const emitter = createResponsesSseEmitter('gpt-5');
+		const pushed = emitter.push({ requestId: 'req', kind: 'text', delta: 'hi' });
+		const begun = emitter.begin();
+		const frames = parseFrames([...begun, ...pushed]);
+		const seqs = frames.map(f => f.data.sequence_number);
+		assert.deepStrictEqual(seqs, [0, 1, 2, 3, 4]);
 	});
 
 	test('encodes a completed non-streaming Responses body', () => {

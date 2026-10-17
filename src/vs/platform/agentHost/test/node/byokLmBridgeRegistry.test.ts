@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { IByokLmBridgeConnection, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { ByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
@@ -31,6 +31,7 @@ suite('ByokLmBridgeRegistry', () => {
 			connection: {
 				chat: async (): Promise<IByokLmChatResult> => ({ output: [] }),
 				onDidChangeModels: emitter.event,
+				onDidDelta: Event.None,
 			},
 			push: models => emitter.fire(models),
 		};

@@ -7,7 +7,7 @@ import assert from 'assert';
 import { CopilotClient, ToolSet, type CopilotSession, type ManagedSettingsPermissions, type PermissionRequest, type SessionConfig } from '@github/copilot-sdk';
 import { mkdtemp, readFile, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { join } from '../../../../../base/common/path.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -85,6 +85,7 @@ suite('Agent Host Provider Integration - Copilot managed permissions', function 
 			const models = store.add(new Emitter<IByokLmModelInfo[]>());
 			store.add(registry.register('client', {
 				onDidChangeModels: models.event,
+				onDidDelta: Event.None,
 				chat: async () => ({
 					responseId: 'managed-permissions-response',
 					output: [{ type: 'message', content: [{ type: 'text', text: 'ready' }] }],
