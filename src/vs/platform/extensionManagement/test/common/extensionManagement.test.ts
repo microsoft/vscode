@@ -14,7 +14,7 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { IUriIdentityService } from '../../../uriIdentity/common/uriIdentity.js';
 import { IUserDataProfilesService } from '../../../userDataProfile/common/userDataProfile.js';
 import { AbstractExtensionManagementService } from '../../common/abstractExtensionManagementService.js';
-import { EXTENSION_IDENTIFIER_PATTERN, EXTENSION_PUBLISHER_IDENTIFIER_PATTERN, ExtensionBlockingOrigin, ExtensionManagementError, ExtensionManagementErrorCode, IAllowedExtensionsService, IExtensionGalleryService, IGalleryExtension, IExtensionsControlManifest } from '../../common/extensionManagement.js';
+import { EXTENSION_IDENTIFIER_PATTERN, EXTENSION_PUBLISHER_IDENTIFIER_PATTERN, ExtensionBlockingOrigin, ExtensionBlockingScope, ExtensionManagementError, ExtensionManagementErrorCode, IAllowedExtensionsService, IExtensionBlockingInfo, IExtensionGalleryService, IGalleryExtension, IExtensionsControlManifest } from '../../common/extensionManagement.js';
 import { ExtensionKey, getExtensionBlockedMessage } from '../../common/extensionManagementUtil.js';
 import { TargetPlatform } from '../../../extensions/common/extensions.js';
 
@@ -75,7 +75,7 @@ suite('Extension Blocked Message', () => {
 	test('the summary names the organization or the marketplace, per origin', () => {
 		assert.deepStrictEqual(
 			[ExtensionBlockingOrigin.Policy, ExtensionBlockingOrigin.Service]
-				.map(origin => getExtensionBlockedMessage({ origin }).value),
+				.map(origin => getExtensionBlockedMessage({ origin, scope: ExtensionBlockingScope.Extension }).value),
 			[
 				'This extension is not permitted by your organization\'s policy.',
 				'This extension has been blocked by the Extension Marketplace and must not be used.'
@@ -85,7 +85,7 @@ suite('Extension Blocked Message', () => {
 	test('canInstall returns the blocking message', async () => {
 		const service = createExtensionManagementService();
 
-		const result = await service.canInstall(aGalleryExtension({ origin: ExtensionBlockingOrigin.Policy }));
+		const result = await service.canInstall(aGalleryExtension({ origin: ExtensionBlockingOrigin.Policy, scope: ExtensionBlockingScope.Extension }));
 
 		assert.strictEqual(result === true ? result : result.value, 'This extension is not permitted by your organization\'s policy.');
 	});
@@ -94,7 +94,7 @@ suite('Extension Blocked Message', () => {
 		const service = createExtensionManagementService();
 
 		await assert.rejects(
-			() => service.installFromGallery(aGalleryExtension({ origin: ExtensionBlockingOrigin.Policy })),
+			() => service.installFromGallery(aGalleryExtension({ origin: ExtensionBlockingOrigin.Policy, scope: ExtensionBlockingScope.Extension })),
 			error => error instanceof ExtensionManagementError
 				&& error.code === ExtensionManagementErrorCode.NotAllowed
 				&& error.message === 'This extension is not permitted by your organization\'s policy.'
@@ -142,7 +142,7 @@ suite('Extension Blocked Message', () => {
 		return service;
 	}
 
-	function aGalleryExtension(blockingInfo?: { origin: ExtensionBlockingOrigin }): IGalleryExtension {
+	function aGalleryExtension(blockingInfo?: IExtensionBlockingInfo): IGalleryExtension {
 		return Object.create({
 			type: 'gallery',
 			identifier: { id: 'publisher.extension', uuid: 'extension-uuid' },

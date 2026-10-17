@@ -26,10 +26,12 @@ import {
 	ExtensionManagementErrorCode,
 	MaliciousExtensionInfo,
 	shouldRequireRepositorySignatureFor,
-	IGalleryExtensionVersion
+	IGalleryExtensionVersion,
+	IExtensionBlockingInfo,
+	ExtensionBlockingScope
 } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, IResourceExtension } from '../../../services/extensionManagement/common/extensionManagement.js';
-import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, getGalleryExtensionId, findMatchingMaliciousEntry } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, getGalleryExtensionId, findMatchingMaliciousEntry, getExtensionBlockedMessage } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IHostService } from '../../../services/host/browser/host.js';
@@ -93,6 +95,10 @@ type ExtensionsLoadClassification = {
 	readonly count: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The number of extensions that are installed.' };
 };
 
+function getExtensionVersionKey(extension: { readonly identifier: { readonly id: string }; readonly version: string }): string {
+	return `${extension.identifier.id.toLowerCase()}@${extension.version}`;
+}
+
 export class Extension implements IExtension {
 
 	public enablementState: EnablementState = EnablementState.EnabledGlobally;
@@ -100,12 +106,14 @@ export class Extension implements IExtension {
 	private galleryResourcesCache = new Map<string, any>();
 
 	private _missingFromGallery: boolean | undefined;
+	private _installedBlockingInfo: IExtensionBlockingInfo | undefined;
+	private _local: ILocalExtension | undefined;
 
 	constructor(
 		private stateProvider: IExtensionStateProvider<ExtensionState>,
 		private runtimeStateProvider: IExtensionStateProvider<ExtensionRuntimeState | undefined>,
 		public readonly server: IExtensionManagementServer | undefined,
-		public local: ILocalExtension | undefined,
+		local: ILocalExtension | undefined,
 		private _gallery: IGalleryExtension | undefined,
 		private readonly resourceExtensionInfo: { resourceExtension: IResourceExtension; isWorkspaceScoped: boolean } | undefined,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
@@ -114,6 +122,24 @@ export class Extension implements IExtension {
 		@IFileService private readonly fileService: IFileService,
 		@IProductService private readonly productService: IProductService
 	) {
+		this._local = local;
+		if (local && _gallery && local.manifest.version === _gallery.version) {
+			this._installedBlockingInfo = _gallery.blockingInfo;
+		}
+	}
+
+	get local(): ILocalExtension | undefined {
+		return this._local;
+	}
+
+	set local(local: ILocalExtension | undefined) {
+		const versionChanged = this._local?.manifest.version !== local?.manifest.version;
+		this._local = local;
+		if (versionChanged) {
+			this._installedBlockingInfo = local && this._gallery && local.manifest.version === this._gallery.version ? this._gallery.blockingInfo : undefined;
+		} else if (local && this._gallery && local.manifest.version === this._gallery.version) {
+			this._installedBlockingInfo = this._gallery.blockingInfo;
+		}
 	}
 
 	get resourceExtension(): IResourceExtension | undefined {
@@ -139,6 +165,9 @@ export class Extension implements IExtension {
 
 	set gallery(gallery: IGalleryExtension | undefined) {
 		this._gallery = gallery;
+		if (gallery && this.local?.manifest.version === gallery.version) {
+			this._installedBlockingInfo = gallery.blockingInfo;
+		}
 		this.galleryResourcesCache.clear();
 	}
 
@@ -234,6 +263,22 @@ export class Extension implements IExtension {
 
 	get private(): boolean {
 		return this.gallery ? this.gallery.private : this.local ? this.local.private : false;
+	}
+
+	get blockingInfo(): IExtensionBlockingInfo | undefined {
+		return this.gallery?.blockingInfo;
+	}
+
+	get installedBlockingInfo(): IExtensionBlockingInfo | undefined {
+		return this._installedBlockingInfo;
+	}
+
+	setInstalledBlockingInfo(blockingInfo: IExtensionBlockingInfo | undefined): boolean {
+		if (this._installedBlockingInfo?.origin === blockingInfo?.origin && this._installedBlockingInfo?.scope === blockingInfo?.scope) {
+			return false;
+		}
+		this._installedBlockingInfo = blockingInfo;
+		return true;
 	}
 
 	get pinned(): boolean {
@@ -671,15 +716,32 @@ class Extensions extends Disposable {
 		return this.local;
 	}
 
-	async syncInstalledExtensionsWithGallery(galleryExtensions: IGalleryExtension[], productVersion: IProductVersion, flagExtensionsMissingFromGallery?: IExtensionInfo[]): Promise<void> {
+	async syncInstalledExtensionsWithGallery(
+		galleryExtensions: IGalleryExtension[],
+		productVersion: IProductVersion,
+		flagExtensionsMissingFromGallery?: IExtensionInfo[],
+		installedVersionBlockingInfo?: ReadonlyMap<string, IExtensionBlockingInfo | undefined>
+	): Promise<void> {
 		const extensions = await this.mapInstalledExtensionWithCompatibleGalleryExtension(galleryExtensions, productVersion);
 		for (const [extension, gallery] of extensions) {
 			// update metadata of the extension if it does not exist
 			if (extension.local && extension.local.type !== ExtensionType.System && !extension.local.identifier.uuid) {
 				extension.local = await this.updateMetadata(extension.local, gallery);
 			}
-			if (!extension.gallery || extension.gallery.version !== gallery.version || extension.gallery.properties.targetPlatform !== gallery.properties.targetPlatform) {
+			const installedVersionKey = getExtensionVersionKey(extension);
+			const installedBlockingInfoChanged = extension.version === gallery.version
+				? extension.setInstalledBlockingInfo(gallery.blockingInfo)
+				: installedVersionBlockingInfo?.has(installedVersionKey)
+					? extension.setInstalledBlockingInfo(installedVersionBlockingInfo.get(installedVersionKey))
+					: false;
+			if (!extension.gallery
+				|| extension.gallery.version !== gallery.version
+				|| extension.gallery.properties.targetPlatform !== gallery.properties.targetPlatform
+				|| extension.gallery.blockingInfo?.origin !== gallery.blockingInfo?.origin
+				|| extension.gallery.blockingInfo?.scope !== gallery.blockingInfo?.scope) {
 				extension.gallery = gallery;
+				this._onChange.fire({ extension });
+			} else if (installedBlockingInfoChanged) {
 				this._onChange.fire({ extension });
 			}
 		}
@@ -745,6 +807,10 @@ class Extensions extends Disposable {
 		const compatibleGalleryExtensionsToFetch: IExtensionInfo[] = [];
 		await Promise.allSettled(mappedExtensions.map(async ([extension, gallery]) => {
 			if (extension.local) {
+				if (gallery.blockingInfo?.scope === ExtensionBlockingScope.Extension) {
+					compatibleGalleryExtensions.push(gallery);
+					return;
+				}
 				if (await this.galleryService.isExtensionCompatible(gallery, extension.local.preRelease, targetPlatform, productVersion)) {
 					compatibleGalleryExtensions.push(gallery);
 				} else {
@@ -1463,14 +1529,14 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 		const extensionsControlManifest = await this.extensionManagementService.getExtensionsControlManifest();
 		const pager = await this.galleryService.query(options, token);
-		this.syncInstalledExtensionsWithGallery(pager.firstPage);
+		void this.syncInstalledExtensionsWithGallery(pager.firstPage);
 		return {
 			firstPage: pager.firstPage.map(gallery => this.fromGallery(gallery, extensionsControlManifest)),
 			total: pager.total,
 			pageSize: pager.pageSize,
 			getPage: async (pageIndex, token) => {
 				const page = await pager.getPage(pageIndex, token);
-				this.syncInstalledExtensionsWithGallery(page);
+				void this.syncInstalledExtensionsWithGallery(page);
 				return page.map(gallery => this.fromGallery(gallery, extensionsControlManifest));
 			}
 		};
@@ -1486,7 +1552,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		extensionInfos.forEach(e => e.preRelease = e.preRelease ?? this.extensionManagementService.preferPreReleases);
 		const extensionsControlManifest = await this.extensionManagementService.getExtensionsControlManifest();
 		const galleryExtensions = await this.galleryService.getExtensions(extensionInfos, arg1, arg2);
-		this.syncInstalledExtensionsWithGallery(galleryExtensions);
+		void this.syncInstalledExtensionsWithGallery(galleryExtensions);
 		return galleryExtensions.map(gallery => this.fromGallery(gallery, extensionsControlManifest));
 	}
 
@@ -1667,6 +1733,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (!extension) {
 			extension = this.instantiationService.createInstance(Extension, ext => this.getExtensionState(ext), ext => this.getRuntimeState(ext), undefined, undefined, gallery, undefined);
 			(<Extension>extension).setExtensionsControlManifest(extensionsControlManifest);
+		} else if (extension.version === gallery.version) {
+			extension.gallery = gallery;
 		}
 		return extension;
 	}
@@ -2009,6 +2077,12 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (this.installing.some(i => areSameExtensions(i.identifier, extension.identifier) && (!extension.server || i.server === extension.server))) {
 			return ExtensionState.Installing;
 		}
+		if (extension.server) {
+			const extensions = this.extensionsServers.find(extensions => extensions.server === extension.server);
+			if (extensions) {
+				return extensions.getExtensionState(extension);
+			}
+		}
 		if (this.remoteExtensions) {
 			const state = this.remoteExtensions.getExtensionState(extension);
 			if (state !== ExtensionState.Uninstalled) {
@@ -2080,8 +2154,37 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			this.logService.trace(`Checking updates for extensions`, infos.map(e => e.id).join(', '));
 			const galleryExtensions = await this.galleryService.getExtensions(infos, { targetPlatform, compatible: true, productVersion: this.getProductVersion() }, CancellationToken.None);
 			if (galleryExtensions.length) {
-				await this.syncInstalledExtensionsWithGallery(galleryExtensions, infos);
+				const installedVersionBlockingInfo = await this.getInstalledVersionBlockingInfo(galleryExtensions);
+				await this.syncInstalledExtensionsWithGallery(galleryExtensions, infos, installedVersionBlockingInfo);
 			}
+		}
+	}
+
+	private async getInstalledVersionBlockingInfo(galleryExtensions: IGalleryExtension[]): Promise<ReadonlyMap<string, IExtensionBlockingInfo | undefined>> {
+		const result = new Map<string, IExtensionBlockingInfo | undefined>();
+		const extensionInfos: IExtensionInfo[] = [];
+		for (const installed of this.local) {
+			const gallery = galleryExtensions.find(gallery => areSameExtensions(gallery.identifier, installed.identifier));
+			if (!gallery?.private
+				|| gallery.blockingInfo?.scope === ExtensionBlockingScope.Extension
+				|| gallery.version === installed.version) {
+				continue;
+			}
+			result.set(getExtensionVersionKey(installed), undefined);
+			extensionInfos.push({ ...installed.identifier, version: installed.version });
+		}
+		if (!extensionInfos.length) {
+			return result;
+		}
+		try {
+			const installedGalleryExtensions = await this.galleryService.getExtensions(extensionInfos, { includeBlockedVersions: true }, CancellationToken.None);
+			for (const installedGallery of installedGalleryExtensions) {
+				result.set(getExtensionVersionKey(installedGallery), installedGallery.blockingInfo);
+			}
+			return result;
+		} catch (error) {
+			this.logService.error('Error while refreshing installed extension blocking metadata.', getErrorMessage(error));
+			return new Map();
 		}
 	}
 
@@ -2192,7 +2295,11 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return pick?.data;
 	}
 
-	private async syncInstalledExtensionsWithGallery(gallery: IGalleryExtension[], flagExtensionsMissingFromGallery?: IExtensionInfo[]): Promise<void> {
+	private async syncInstalledExtensionsWithGallery(
+		gallery: IGalleryExtension[],
+		flagExtensionsMissingFromGallery?: IExtensionInfo[],
+		installedVersionBlockingInfo?: ReadonlyMap<string, IExtensionBlockingInfo | undefined>
+	): Promise<void> {
 		const extensions: Extensions[] = [];
 		if (this.localExtensions) {
 			extensions.push(this.localExtensions);
@@ -2206,7 +2313,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (!extensions.length) {
 			return;
 		}
-		await Promise.allSettled(extensions.map(extensions => extensions.syncInstalledExtensionsWithGallery(gallery, this.getProductVersion(), flagExtensionsMissingFromGallery)));
+		await Promise.allSettled(extensions.map(extensions => extensions.syncInstalledExtensionsWithGallery(gallery, this.getProductVersion(), flagExtensionsMissingFromGallery, installedVersionBlockingInfo)));
 		if (this.outdated.length) {
 			this.logService.info(`Auto updating outdated extensions.`, this.outdated.map(e => e.identifier.id).join(', '));
 			this.eventuallyAutoUpdateExtensions();
@@ -2335,6 +2442,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private shouldAutoUpdateExtension(extension: IExtension): boolean {
+		if (extension.blockingInfo) {
+			return false;
+		}
+
 		if (extension.deprecationInfo?.disallowInstall) {
 			return false;
 		}
@@ -2558,6 +2669,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 		if (extension.isMalicious) {
 			return new MarkdownString().appendText(nls.localize('malicious', "This extension is reported to be problematic."));
+		}
+
+		if (extension.blockingInfo) {
+			return getExtensionBlockedMessage(extension.blockingInfo);
 		}
 
 		if (extension.deprecationInfo?.disallowInstall) {
