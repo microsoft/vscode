@@ -508,6 +508,7 @@ suite('PromptFilesLocator', () => {
 						} as IPathService);
 						const queries: { root: string; pattern: string | undefined }[] = [];
 						instantiationService.stub(ISearchService, {
+							schemeHasFileSearchProvider: () => true,
 							async fileSearch(query: IFileQuery) {
 								queries.push({ root: query.folderQueries[0].folder.path, pattern: query.filePattern });
 								return { results: [], messages: [] };
@@ -521,6 +522,28 @@ suite('PromptFilesLocator', () => {
 						assert.deepStrictEqual(queries, location.includes('*') ? [{ root, pattern: '**/*.md' }] : []);
 					});
 				}
+			}
+
+			for (const type of [PromptsType.prompt, PromptsType.instructions]) {
+				testT(`${type}: default location in a bracketed workspace`, async () => {
+					const workspace = '/repos/[scripts]/[jobs]/wtp-jobs';
+					const folder = type === PromptsType.prompt ? 'prompts' : 'instructions';
+					const file = `${workspace}/.github/${folder}/example.${type}.md`;
+					setWorkspaceFolders([workspace]);
+					setLocations({});
+					await mockFiles(fileService, [{ path: file, contents: ['Example customization'] }]);
+					const queries: IFileQuery[] = [];
+					instantiationService.stub(ISearchService, {
+						schemeHasFileSearchProvider: () => true,
+						async fileSearch(query: IFileQuery) {
+							queries.push(query);
+							return { results: [], messages: [] };
+						}
+					});
+					const locator = instantiationService.createInstance(PromptFilesLocator);
+					const files = await locator.listFiles(type, PromptsStorage.local, CancellationToken.None);
+					assert.deepStrictEqual({ files: files.map(file => file.path), queries }, { files: [file], queries: [] });
+				});
 			}
 		});
 
