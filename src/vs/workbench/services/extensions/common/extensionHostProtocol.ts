@@ -76,6 +76,7 @@ export interface IEnvironment {
 	skipWorkspaceStorageLock?: boolean;
 	extensionLogLevel?: [string, LogLevel][];
 	isSessionsWindow?: boolean;
+	isCustomUserDataDir?: boolean;
 }
 
 export interface IStaticWorkspaceData {
