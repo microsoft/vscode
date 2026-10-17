@@ -28,6 +28,10 @@ The GitHub engine uses shared [types](common/types.ts), [queue](common/requestQu
 
 Shared schema parsers live in [client/schema.ts](common/client/schema.ts); domain clients compose them to validate API payloads. Strict [HTTP header readers](common/client/headers.ts) validate quota counters and Retry-After feedback. Shared [routing helpers](common/client/routing.ts) encode opaque identifiers, repository paths, and query parameters.
 
+Response contracts preserve omitted fields and explicit nulls rather than substituting empty values. Check both GitHub's [REST OpenAPI descriptions](https://github.com/github/rest-api-description) and [GraphQL schema](https://docs.github.com/en/graphql/overview/public-schema), and verify discrepancies against the service implementation: published descriptions can lag nullable auto-merge metadata, review-comment positioning, and Actions job metadata. [Compatibility regressions](test/common/apiCompatibility.test.ts) exercise the real response parsers; consumers must not reintroduce stricter requirements for optional display metadata.
+
+Git object IDs may be full lowercase SHA-1 or SHA-256 values (40 or 64 hexadecimal characters). Ref resolution and public raw-content confinement accept both while continuing to reject mutable refs, malformed IDs, and redirects outside the pinned repository revision. Identity checks, safe-integer bounds, response-size limits, and bounded pagination remain independent of optional response metadata.
+
 An in-flight operation owns its controller and shared deadline. `OperationWaiters` owns individual callers' waiting, cancellation and result delivery, not network execution. One caller can detach without cancelling peers; the operation owner decides what happens when its last waiter leaves. This also supports service-wide metadata initialization, which is not an HTTP request.
 
 ### Authorization clients

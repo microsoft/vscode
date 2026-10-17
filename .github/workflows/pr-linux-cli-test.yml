@@ -1,9 +1,6 @@
 on:
   workflow_call:
     inputs:
-      job_name:
-        type: string
-        required: true
       rustup_toolchain:
         type: string
         required: true
@@ -23,18 +20,26 @@ on:
         type: boolean
         required: false
         default: false
+      affected:
+        description: Whether the pull request can affect the crate; the job is skipped when false
+        type: boolean
+        required: false
+        default: true
 
 jobs:
   linux-cli-test:
-    name: ${{ inputs.job_name }}
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=linux-cli-test-${{ inputs.job_name }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    # GitHub does not evaluate expressions in the name of a skipped job, so this
+    # name must stay fixed for the required "Linux / CLI" check to report.
+    name: CLI
+    # Skip this job rather than the calling job: a skipped job still reports
+    # "<caller> / <job name>", which satisfies required status checks.
+    if: ${{ inputs.affected }}
+    runs-on: ubuntu-24.04
     env:
       RUSTUP_TOOLCHAIN: ${{ inputs.rustup_toolchain }}
     steps:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          lfs: true
 
       - name: Install Rust
         run: |

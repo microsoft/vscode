@@ -165,6 +165,7 @@ class TestActiveSession extends mock<IActiveSession>() {
 	override readonly closedChats: IObservable<readonly IChat[]>;
 	override readonly shouldShowChatTabs: IObservable<boolean>;
 	override readonly mainChat: IObservable<IChat>;
+	override readonly title = derived(reader => this.mainChat.read(reader).title.read(reader));
 	override readonly capabilities: IObservable<ISessionCapabilities> = constObservable({ supportsMultipleChats: true });
 	override readonly isCreated: IObservable<boolean>;
 	override readonly status = constObservable(SessionStatus.Completed);
@@ -198,6 +199,7 @@ class TestActiveSession extends mock<IActiveSession>() {
 }
 
 class TestSessionsService extends mock<ISessionsService>() {
+	override attachChat(): void { }
 	override readonly activeSession = observableValue<IActiveSession | undefined>(this, undefined);
 	openChatGate: Promise<void> | undefined;
 	openChatError: Error | undefined;
@@ -907,7 +909,7 @@ suite('Sessions - ChatGroupsView', () => {
 
 		const readGroups = () => Array.from(view.element.querySelectorAll<HTMLElement>('.chat-group-view')).map(group => ({
 			headerDisplay: group.querySelector<HTMLElement>('.session-header-bar')?.style.display,
-			headerTitle: group.querySelector<HTMLElement>('.chat-composite-bar-session-title-text')?.textContent,
+			headerTitle: group.querySelector<HTMLElement>('.chat-composite-bar-session-title-text .label-name')?.textContent,
 			tabBarDisplay: group.querySelector<HTMLElement>('.session-chat-tabs-bar')?.style.display,
 		}));
 		await configurationService.setUserConfiguration(SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode.Single);
@@ -1156,11 +1158,14 @@ suite('Sessions - ChatGroupsView', () => {
 			dataTransfer.setData(SessionsDataTransfers.SESSION, JSON.stringify({ sessionId: session.sessionId, resource: session.resource.toString() }));
 			const group = view.element.querySelector<HTMLElement>('.chat-group-view');
 			assert.ok(group);
-			group.dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer }));
+			const bounds = group.getBoundingClientRect();
+			const clientX = bounds.left + 1;
+			const clientY = bounds.top + bounds.height / 2;
+			group.dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer, clientX, clientY }));
 			const chatOverlay = view.element.querySelector<HTMLElement>('#monaco-workbench-chat-group-drop-overlay');
 			const sessionOverlay = container.querySelector('#monaco-workbench-session-drop-overlay');
-			chatOverlay?.dispatchEvent(new DragEvent('dragover', { bubbles: true, dataTransfer }));
-			chatOverlay?.dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer }));
+			chatOverlay?.dispatchEvent(new DragEvent('dragover', { bubbles: true, dataTransfer, clientX, clientY }));
+			chatOverlay?.dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer, clientX, clientY }));
 			await timeout(0);
 
 			assert.deepStrictEqual({
@@ -1202,6 +1207,99 @@ suite('Sessions - ChatGroupsView', () => {
 			});
 		});
 	}
+
+	for (const mode of [SessionsChatTabsMode.Single, SessionsChatTabsMode.Multiple]) {
+		test(`split child panes show parent context and only multiple mode can merge them (${mode})`, async () => {
+			const { configurationService, view } = createHarness(disposables);
+			const main = createChat('main');
+			const child = createChat('child', SessionStatus.Completed, main.resource, ChatOriginKind.SideChat);
+			const session = new TestActiveSession([main, child]);
+			view.setSession(session, options);
+			await configurationService.setUserConfiguration(SESSIONS_CHAT_TABS_SETTING, mode);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				source: ConfigurationTarget.USER,
+				affectedKeys: new Set([SESSIONS_CHAT_TABS_SETTING]),
+				change: { keys: [SESSIONS_CHAT_TABS_SETTING], overrides: [] },
+				affectsConfiguration: key => key === SESSIONS_CHAT_TABS_SETTING,
+			});
+			await view.openChatInNewGroup(child.resource, main.resource);
+			const childGroup = view['_groups'].find(group => group.activeResourceId.get() === child.resource.toString())!;
+			const childLabel = mode === SessionsChatTabsMode.Single
+				? childGroup.view.element.querySelector<HTMLElement>('.session-header-bar .chat-composite-bar-session-title')!
+				: childGroup.view.element.querySelector<HTMLElement>('.chat-composite-bar-tab')!;
+			const split = {
+				title: childLabel.querySelector('.label-name')?.textContent,
+				parent: childLabel.querySelector('.label-description')?.textContent,
+				hasDot: childLabel.classList.contains('has-description'),
+			};
+			const parentGroup = view['_groups'].find(group => group.activeResourceId.get() === main.resource.toString())!;
+			await view['_onChatDrop'](parentGroup.id, 'center', { sessionId: session.sessionId, resource: child.resource.toString() });
+			assert.deepStrictEqual({
+				split,
+				groupsAfterMerge: view.groupCount.get(),
+				sharedTabDescriptions: [...view.element.querySelectorAll('.chat-composite-bar-tab')].map(tab => tab.querySelector('.label-description')?.textContent ?? ''),
+				sharedTabHasDot: !!view.element.querySelector('.chat-composite-bar-tab.has-description'),
+			}, {
+				split: { title: 'child', parent: 'main', hasDot: true },
+				groupsAfterMerge: mode === SessionsChatTabsMode.Single ? 2 : 1,
+				sharedTabDescriptions: mode === SessionsChatTabsMode.Single ? ['', 'main'] : ['', ''],
+				sharedTabHasDot: mode === SessionsChatTabsMode.Single,
+			});
+		});
+	}
+
+	test('dragging a sub-session header repositions only that chat through the group drop target', async () => {
+		const { configurationService, instantiationService, sessionsService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const child = createChat('child', SessionStatus.Completed, main.resource, ChatOriginKind.SideChat);
+		const session = new TestActiveSession([main, child]);
+		view.setSession(session, options);
+		await configurationService.setUserConfiguration(SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode.Single);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([SESSIONS_CHAT_TABS_SETTING]),
+			change: { keys: [SESSIONS_CHAT_TABS_SETTING], overrides: [] },
+			affectsConfiguration: key => key === SESSIONS_CHAT_TABS_SETTING,
+		});
+		await view.openChatInNewGroup(child.resource, main.resource);
+
+		const container = mainWindow.document.createElement('div');
+		disposables.add(toDisposable(() => container.remove()));
+		mainWindow.document.body.appendChild(container);
+		container.appendChild(view.element);
+		view.layout(1200, 600, 0, 0);
+		disposables.add(instantiationService.createInstance(SessionDropTarget, container, {
+			findTargetView: element => container.contains(element) ? { sessionId: session.sessionId, element: container } : undefined,
+		}));
+		const groups = view['_groups'];
+		const childHeader = groups[1].view.element.querySelector<HTMLElement>('.session-header-bar')!;
+		const dataTransfer = new DataTransfer();
+		const headerBounds = childHeader.getBoundingClientRect();
+		childHeader.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: headerBounds.left + 20, clientY: headerBounds.top + 16 }));
+		childHeader.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer }));
+		groups[0].view.element.dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer }));
+		const overlay = view.element.querySelector<HTMLElement>('#monaco-workbench-chat-group-drop-overlay');
+		assert.ok(overlay);
+		const sessionOverlayShown = !!container.querySelector('#monaco-workbench-session-drop-overlay');
+		overlay.dispatchEvent(new DragEvent('dragover', { bubbles: true, dataTransfer }));
+		overlay.dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer }));
+		childHeader.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer }));
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			sessionOverlayShown,
+			groups: view['_groups'].map(group => group.activeResourceId.get()),
+			parent: child.origin?.parentChat?.toString(),
+			activeChat: session.activeChat.get().resource.toString(),
+			closedSessions: sessionsService.closedSessions,
+		}, {
+			sessionOverlayShown: false,
+			groups: [child.resource.toString(), main.resource.toString()],
+			parent: main.resource.toString(),
+			activeChat: child.resource.toString(),
+			closedSessions: [],
+		});
+	});
 
 	test('keeps a pinned chat visible while reusing an unpinned group', async () => {
 		const { sessionsService, view } = createHarness(disposables);
@@ -2018,7 +2116,7 @@ suite('Sessions - ChatGroupsView', () => {
 		});
 	});
 
-	test('shows session actions in a single tab row and hides them for split groups', () => {
+	test('keeps session actions available in every tab row replacing the shared header', () => {
 		const { instantiationService, view } = createHarness(disposables);
 		const main = createChat('main');
 		const secondary = createChat('secondary');
@@ -2048,10 +2146,31 @@ suite('Sessions - ChatGroupsView', () => {
 			singleGroupHidden: false,
 			singleGroupHeaderShowsChat: false,
 			singleGroupToolbarShowsSession: true,
-			splitGroupsHidden: [true, true],
+			splitGroupsHidden: [false, false],
 			splitGroupHeaderShowsChat: [false, false],
-			splitGroupToolbarShowsSession: [false, false],
+			splitGroupToolbarShowsSession: [true, true],
 		});
+	});
+
+	test('a child sharing its parent tab strip stays title-only when another child has a split pane', async () => {
+		const { view } = createHarness(disposables);
+		const main = createChat('main');
+		const sharedChild = createChat('shared-child', SessionStatus.Completed, main.resource, ChatOriginKind.SideChat);
+		const splitChild = createChat('split-child', SessionStatus.Completed, main.resource, ChatOriginKind.SideChat);
+		const session = new TestActiveSession([main, sharedChild, splitChild]);
+		view.setSession(session, options);
+		await view.openChatInNewGroup(splitChild.resource, main.resource);
+		const descriptions = view['_groups'].map(group => [...group.view.element.querySelectorAll('.chat-composite-bar-tab')].map(tab => ({
+			title: tab.querySelector('.label-name')?.textContent,
+			parent: tab.querySelector('.label-description')?.textContent ?? '',
+			dot: tab.classList.contains('has-description'),
+		})));
+		assert.deepStrictEqual(descriptions, [[
+			{ title: 'main', parent: '', dot: false },
+			{ title: 'shared-child', parent: '', dot: false },
+		], [
+			{ title: 'split-child', parent: 'main', dot: true },
+		]]);
 	});
 
 	test('hides session actions when tabs do not replace the header', () => {

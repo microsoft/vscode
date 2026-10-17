@@ -6,6 +6,7 @@
 import './media/chatCompositeBar.css';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
+import { isEqual } from '../../../base/common/resources.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { $, addDisposableGenericMouseDownListener, addDisposableGenericMouseUpListener, addDisposableListener, addStandardDisposableListener, DisposableResizeObserver, EventHelper, EventType, getWindow, isHTMLElement, reset } from '../../../base/browser/dom.js';
 import { applyDragImage } from '../../../base/browser/ui/dnd/dnd.js';
@@ -16,6 +17,7 @@ import { isLinux } from '../../../base/common/platform.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { Action, Separator } from '../../../base/common/actions.js';
 import { InputBox } from '../../../base/browser/ui/inputbox/inputBox.js';
+import { IconLabel } from '../../../base/browser/ui/iconLabel/iconLabel.js';
 import { defaultInputBoxStyles } from '../../../platform/theme/browser/defaultStyles.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
@@ -30,9 +32,8 @@ import { onUnexpectedError } from '../../../base/common/errors.js';
 import { localize } from '../../../nls.js';
 import { ChatInteractivity, getChatCapabilities, IChat, SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
-import { clearChatReferenceDragData, fillChatReferenceDragData, fillSessionChatDragData } from '../dnd.js';
+import { clearChatReferenceDragData, fillChatReferenceDragData, fillSessionChatDragData, isSessionDragFromPaneEdge } from '../dnd.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
-import { getDefaultHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { applySessionBarThemeColors } from './sessionBarStyles.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { isAgentHostProvider } from '../../common/agentHostSessionsProvider.js';
@@ -45,7 +46,7 @@ import { clearConnectedTabClipping, updateConnectedTabClipping } from '../../../
 import { CONNECTED_EDITOR_TABS_SELECTOR } from '../../../workbench/browser/parts/editor/editor.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording } from '../../../platform/chat/common/sessionArchiveActions.js';
-import { getSessionToolbarSecondaryActionsPosition } from './sessionHeaderBar.js';
+import { getSessionToolbarSecondaryActionsPosition, getSessionChatAncestors } from './sessionHeaderBar.js';
 
 interface IChatTab {
 	readonly chat: IChat;
@@ -82,8 +83,10 @@ export interface IChatCompositeBarDelegate {
 	/** Whether the tab strip should be shown. */
 	readonly visible: IObservable<boolean>;
 
-	/** Whether this single group's tab row replaces the session header and shows its actions. */
+	/** Whether this group's tab row replaces the session header and shows its actions. */
 	readonly showSessionActions: IObservable<boolean>;
+	/** Whether the group has its own pane, separate from the parent's other chats. */
+	readonly showParentContext?: IObservable<boolean>;
 
 	/** Activate (show + focus) the given chat within this group. */
 	openChat(resource: URI): void;
@@ -370,12 +373,21 @@ export class ChatCompositeBar extends Disposable {
 		tab.appendChild($('.tab-connected-edge', { 'aria-hidden': true }));
 
 		const labelEl = $('.chat-composite-bar-tab-label.modern-ui-editor-tab-label');
+		const labelWidget = this._tabDisposables.add(new IconLabel(labelEl));
+		let titlePath = '';
 		this._tabDisposables.add(autorun(reader => {
 			const title = chat.title.read(reader);
 			const status = chat.status.read(reader);
 			const isRead = chat.isRead.read(reader);
-			labelEl.textContent = title;
-			const label = localize('chatTabAriaLabel', "{0}, {1}", title, getSessionConversationStatusAriaLabel(status));
+			const ancestors = session ? getSessionChatAncestors(session, chat, reader) : [];
+			const parentResource = chat.origin?.parentChat ?? session?.mainChat.read(reader).resource;
+			const sharesParent = parentResource && delegate?.chats.read(reader).some(candidate => isEqual(candidate.resource, parentResource));
+			const showParentContext = !!session?.scopedChatResource || (!sharesParent && delegate?.showParentContext?.read(reader));
+			const description = showParentContext ? ancestors.join(' / ') : '';
+			labelWidget.setLabel(title, description);
+			tab.classList.toggle('has-description', description.length > 0);
+			titlePath = [...ancestors, title].join(' / ');
+			const label = localize('chatTabAriaLabel', "{0}, {1}", titlePath, getSessionConversationStatusAriaLabel(status));
 			tab.setAttribute('aria-label', isRead ? label : localize('chatTabUnreadAriaLabel', "{0}, unread", label));
 		}));
 
@@ -396,11 +408,7 @@ export class ChatCompositeBar extends Disposable {
 		tab.appendChild(inputContainer);
 
 		// Delayed hover showing the full chat title (useful when the title is truncated)
-		this._tabDisposables.add(this._hoverService.setupManagedHover(
-			getDefaultHoverDelegate('element'),
-			tab,
-			() => chat.title.get(),
-		));
+		this._tabDisposables.add(this._hoverService.setupDelayedHover(tab, () => ({ content: titlePath })));
 		this._tabDisposables.add(addDisposableListener(tab, EventType.MOUSE_ENTER, () => {
 			this._connectedTabOverflowEdge.classList.toggle('connected-tab-hovered', tab.classList.contains('active'));
 		}));
@@ -531,8 +539,12 @@ export class ChatCompositeBar extends Disposable {
 		// A tab drag carries two payloads: a group-move payload (to move/split the
 		// chat between grid groups) and a chat-reference payload (to drop into an
 		// agent-host chat input as an inline `#chat:` reference).
+		let dragFromPaneEdge = false;
+		this._tabDisposables.add(addDisposableGenericMouseDownListener(tab, (event: MouseEvent) => {
+			dragFromPaneEdge = isSessionDragFromPaneEdge(tab, event);
+		}, true));
 		this._tabDisposables.add(addDisposableListener(tab, EventType.DRAG_START, (e: DragEvent) => {
-			if (!delegate || !e.dataTransfer) {
+			if (!delegate || !e.dataTransfer || dragFromPaneEdge) {
 				e.preventDefault();
 				return;
 			}
@@ -554,7 +566,7 @@ export class ChatCompositeBar extends Disposable {
 			// singleton) lets the chat be moved between groups / split out. It must not
 			// use the singleton because the chat-reference payload below also uses it,
 			// and the singleton holds only one payload at a time.
-			fillSessionChatDragData(e, delegate.session.sessionId, chat.resource);
+			fillSessionChatDragData(e, delegate.session.sessionId, chat.resource, !!delegate.session.scopedChatResource);
 
 			// Chat-reference payload: requires the opaque backend chat URI, which
 			// only the owning agent-host provider knows. When it is unavailable
