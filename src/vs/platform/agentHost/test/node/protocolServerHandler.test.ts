@@ -3,57 +3,72 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { AgentChatMoveRefusal, AgentChatMoveRefusedError, ChatMoveConfigKey, type AgentChatMoveDestination } from '../../common/agentHostChatMove.js';
+import { ChatMoveDestinationKind } from '../../common/state/protocol/channels-chat/commands.js';
 import assert from 'assert';
 import sinon from 'sinon';
 import { generateKeyPairSync, sign, type JsonWebKey } from 'crypto';
 import { EventEmitter } from 'events';
 import sodium from 'libsodium-wrappers';
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'fs/promises';
-import { dirname, join } from '../../../../base/common/path.js';
+import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'fs/promises';
+import { dirname, join, parse } from '../../../../base/common/path.js';
 import { NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { supportsAgentHostTiming } from '../../common/meta/agentHostTimingMeta.js';
 import { supportsAgentHostSessionImport } from '../../common/meta/agentHostSessionImportMeta.js';
+import { readAgentHostAhpLogDirectory } from '../../common/meta/agentHostDebugLogsMeta.js';
+import { supportsAgentHostSessionMove } from '../../common/meta/agentHostSessionMoveMeta.js';
 import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { readSessionInitiator, withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
 import { readCodexSessionModel, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
 import { type IAgentHostFirstResponseDiagnostic } from '../../common/otel/agentHostTiming.js';
-import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
+import { vBoolean, vNumber, vObj, vOptionalProp, vString } from '../../../../base/common/validation.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { mock } from '../../../../base/test/common/mock.js';
+import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { FileType } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
+import { AgentPolicyError, type IAgent, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
 import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
+import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from '../../common/meta/agentHostSavedChatMeta.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult, ResourceType } from '../../common/state/protocol/commands.js';
 import type { AutomationCapabilities, Implementation } from '../../common/state/protocol/common/commands.js';
+import type { InvokeChangesetOperationParams } from '../../common/state/protocol/channels-changeset/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../common/state/protocol/channels-automation/commands.js';
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type IRootConfigChangedAction, type ProgressParams, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, AHP_AUTH_REQUIRED, type AhpNotification, type InitializeResult, type ProtocolMessage, type JsonRpcResponse, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot, type SubscribeResult } from '../../common/state/sessionProtocol.js';
-import { ROOT_STATE_URI, AUTOMATION_CATALOG_URI, ChatInteractivity, ChatOriginKind, MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, readSessionExternal, readSessionWorkspaceless, withSessionExternal, withSessionWorkspaceless, type AgentInfo, type ChangesetState, type ChatState, type RootState, type SessionState, type SessionSummary } from '../../common/state/sessionState.js';
-import { ChatInputResponseKind, SessionInputRequestKind, TerminalClaimKind } from '../../common/state/protocol/state.js';
+import { ROOT_STATE_URI, AUTOMATION_CATALOG_URI, ChatInteractivity, ChatOriginKind, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, readSessionExternal, readSessionWorkspaceless, withSessionExternal, withSessionWorkspaceless, type AgentInfo, type ChangesetState, type ChatState, type Message, type RootState, type SessionState, type SessionSummary, type Turn } from '../../common/state/sessionState.js';
+import { ChatInputResponseKind, SessionInputRequestKind, TerminalClaimKind, type AutomationEntry, type JsonPrimitive } from '../../common/state/protocol/state.js';
 import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanReview.js';
 import type { SessionAddedParams, SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
-import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
+import { ProtocolServerHandler, type IProtocolServerConfig, type IProtocolServerExtension } from '../../node/protocolServerHandler.js';
 import { MissionControlEnvironment } from '../../node/missionControl/missionControlEnvironment.js';
 import { MissionControlAuthentication, MissionControlSealing, sealMissionControlCredential } from '../../node/missionControl/missionControlAuthentication.js';
 import { MissionControlProjects } from '../../node/missionControl/missionControlProjects.js';
+import { MissionControlCopilotExtension } from '../../node/missionControl/missionControlCopilotExtension.js';
+import { missionControlSessionConfigAdapter } from '../../node/missionControl/missionControlSessionConfig.js';
+import { toMissionControlSessionList } from '../../node/missionControl/missionControlSessionList.js';
+import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
+import { AgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
+import type { IAgentHostAuthenticationScope, IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 import type { IMissionControlSocket } from '../../node/missionControl/missionControlProtocolServer.js';
 import { CompositeProtocolServer } from '../../node/compositeProtocolServer.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { AgentHostFileSystemProvider, agentHostUri, type IRemoteFilesystemConnection } from '../../common/agentHostFileSystemProvider.js';
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo, AgentHostClientType } from '../../common/agentHostClientInfo.js';
+import type { IAgentHostClientConnectionEvent } from '../../node/agentHostTelemetryReporter.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { iterateOtlpLogRecords, OtlpLogEmitter } from '../../common/otlp/otlpLogEmitter.js';
 import { MessagePortProtocolServer } from '../../node/messagePortProtocolServer.js';
@@ -67,8 +82,10 @@ import { buildPendingEditContentUri } from '../../common/pendingEditContentUri.j
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { MockDevContainerService } from '../common/mockDevContainerService.js';
 import { McpAuthRequiredReason } from '../../common/state/protocol/channels-session/state.js';
-import { AgentHostSessionUrisCapabilityMetaKey, supportsAgentHostSessionUris } from '../../common/meta/agentHostSessionUrisMeta.js';
+import { AgentHostChatUrisCapabilityMetaKey, AgentHostSessionUrisCapabilityMetaKey, supportsAgentHostSessionUris } from '../../common/meta/agentHostSessionUrisMeta.js';
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
+import { AgentHostChatOwnershipService, IAgentHostChatOwnershipService, type IChatOwnerResolution } from '../../node/agentHostChatOwnershipService.js';
+import { EmptyOwnershipDatabase, createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 // ---- Mock helpers -----------------------------------------------------------
 
@@ -132,9 +149,16 @@ class MockProtocolServer implements IProtocolServer {
 
 class CountingLogService extends NullLogService {
 	errorCount = 0;
+	readonly errors: string[] = [];
+	readonly infos: string[] = [];
 
-	override error(_message: string, ..._args: unknown[]): void {
+	override error(message: string | Error, ..._args: unknown[]): void {
 		this.errorCount++;
+		this.errors.push(String(message));
+	}
+
+	override info(message: string, ..._args: unknown[]): void {
+		this.infos.push(message);
 	}
 }
 
@@ -181,6 +205,18 @@ class TestTelemetryService implements ITelemetryService {
 	publicLogError2(): void { }
 	setExperimentProperty(): void { }
 	setCommonProperty(): void { }
+}
+
+/** Resolves chat owners from the live registry, then from owners a test records for chats that are not registered. */
+class TestHandlerChatOwnership extends AgentHostChatOwnershipService {
+	constructor(stateManager: AgentHostStateManager, private readonly _coldOwners: ReadonlyMap<string, string>) {
+		super(stateManager, new EmptyOwnershipDatabase());
+	}
+
+	override async resolveChatOwner(chat: string): Promise<IChatOwnerResolution | undefined> {
+		const owner = this.getChatOwner(chat) ?? this._coldOwners.get(chat);
+		return owner === undefined ? undefined : { owner, spawnedBy: undefined };
+	}
 }
 
 class MockAgentService implements IAgentService {
@@ -258,6 +294,7 @@ class MockAgentService implements IAgentService {
 			modifiedAt: new Date().toISOString(),
 			project: { uri: 'file:///created-project', displayName: 'Created Project' },
 			workingDirectories: config?.workingDirectories?.[0] ? [config.workingDirectories?.[0].toString()] : undefined,
+			defaultChat: buildDefaultChatUri(session.toString()),
 		});
 		return session;
 	}
@@ -281,12 +318,31 @@ class MockAgentService implements IAgentService {
 	readonly disposedChats: { session: string; chat: string }[] = [];
 	async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void> {
 		this.createdChats.push({ session: session.toString(), chat: chat.toString(), ...(options ? { options } : {}) });
-		this._stateManager.addChat(session.toString(), chat.toString());
+		this._stateManager.addChat(session.toString(), chat.toString(), creationTimeChatStorageResource(session.toString(), chat.toString(), buildDefaultChatUri(session.toString())));
 	}
 	async disposeChat(session: URI, chat: URI): Promise<void> {
 		this.disposedChats.push({ session: session.toString(), chat: chat.toString() });
 		this._stateManager.removeChat(session.toString(), chat.toString());
 	}
+	readonly movedChats: { session: string; chat: string; destination: AgentChatMoveDestination }[] = [];
+	moveChatResult: URI | Error | undefined;
+	async moveChat(session: URI, chat: URI, destination: AgentChatMoveDestination): Promise<URI> {
+		this.movedChats.push({ session: session.toString(), chat: chat.toString(), destination });
+		if (this.moveChatResult instanceof Error) {
+			throw this.moveChatResult;
+		}
+		return this.moveChatResult ?? session;
+	}
+	readonly movedSessions: { session: string; destination: string; after: string | undefined }[] = [];
+	async moveSession(session: URI, destination: URI, after: URI | undefined): Promise<URI> {
+		this.movedSessions.push({ session: session.toString(), destination: destination.toString(), after: after?.toString() });
+		if (this.moveChatResult instanceof Error) {
+			throw this.moveChatResult;
+		}
+		return destination;
+	}
+	/** Owners of chats that are not registered, as the cold owner lookup would find them. */
+	readonly chatOwners = new Map<string, string>();
 	async getSessionCount(): Promise<number> {
 		return this.listedSessions.length;
 	}
@@ -343,10 +399,11 @@ class MockAgentService implements IAgentService {
 	async reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void> {
 		this.reconcileDetachedWorktreesCalls.push({ scope, activeHandles });
 	}
-	async collectDebugLogs(session: URI | undefined, kind: 'archive' | 'directory', chat?: URI) {
+	async collectDebugLogs(session: URI | undefined, kind: 'archive' | 'directory', chat?: URI, _progressToken?: string) {
 		this.collectDebugLogsCalls.push({ session: session?.toString(), chat: chat?.toString(), kind });
 		return { kind, resource: URI.file('/tmp/agent-host-debug.zip'), providerLogsIncluded: true, size: 1024, uncompressedSize: 2048, entries: [{ path: 'agenthost.log', size: 2048 }] };
 	}
+	async cancelDebugLogs(_progressToken: string): Promise<void> { }
 	async authenticate(_params: AuthenticateParams): Promise<AuthenticateResult> { return { authenticated: true }; }
 	async resourceWrite(_params: ResourceWriteParams): Promise<ResourceWriteResult> { return {}; }
 	async resourceList(uri: URI): Promise<ResourceListResult> {
@@ -393,7 +450,7 @@ class MockAgentService implements IAgentService {
 		this.createTerminalClientTypes.push(clientType);
 	}
 	async disposeTerminal(): Promise<void> { }
-	async invokeChangesetOperation(): Promise<{}> { return {}; }
+	async invokeChangesetOperation(_params: InvokeChangesetOperationParams, _credentials?: IAgentHostCredentialSource): Promise<{}> { return {}; }
 	async handleMcpRequest(_channel: string, _method: string, _params: Record<string, unknown> | undefined): Promise<unknown> { throw new Error('Method not found'); }
 
 	dispose(): void {
@@ -464,9 +521,10 @@ suite('ProtocolServerHandler', () => {
 	const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' }).toString();
 	const defaultChatUri = buildDefaultChatUri(sessionUri);
 
-	function makeSessionSummary(resource?: string): SessionSummary {
+	function makeSessionSummary(resource?: string): SessionSummary & { readonly defaultChat: string } {
 		return {
 			resource: resource ?? sessionUri,
+			defaultChat: buildDefaultChatUri(resource ?? sessionUri),
 			provider: 'copilot',
 			title: 'Test',
 			status: SessionStatus.Idle,
@@ -474,6 +532,31 @@ suite('ProtocolServerHandler', () => {
 			modifiedAt: new Date().toISOString(),
 			project: { uri: 'file:///test-project', displayName: 'Test Project' },
 		};
+	}
+
+	function startPendingClientToolCall(chat: string, clientId: string): void {
+		stateManager.dispatchServerAction(chat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'run it', origin: { kind: MessageKind.User } },
+		});
+		stateManager.dispatchServerAction(chat, {
+			type: ActionType.ChatToolCallStart,
+			turnId: 'turn-1',
+			toolCallId: 'tool-1',
+			toolName: 'runTask',
+			displayName: 'Run Task',
+			contributor: { kind: ToolCallContributorKind.Client, clientId },
+		});
+		stateManager.dispatchServerAction(chat, {
+			type: ActionType.ChatToolCallReady,
+			turnId: 'turn-1',
+			toolCallId: 'tool-1',
+			invocationMessage: 'Run Task',
+			toolInput: '{}',
+			confirmed: ToolCallConfirmationReason.NotNeeded,
+		});
 	}
 
 	function connectClient(clientId: string, initialSubscriptions?: readonly string[], clientInfo?: Implementation, meta?: Record<string, unknown>, transportKind = AgentHostTransportKind.Unknown): MockProtocolTransport {
@@ -516,6 +599,7 @@ suite('ProtocolServerHandler', () => {
 			clientConnections,
 			devContainerService = disposables.add(new MockDevContainerService()),
 			NullAgentHostOTelService,
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 		));
 	});
 
@@ -543,13 +627,82 @@ suite('ProtocolServerHandler', () => {
 			meta: {
 				'vscode.agentHost': true,
 				'vscode.ahpSessionUris': true,
+				'vscode.ahpChatUris': true,
 				'vscode.detachedWorktrees': true,
 				'vscode.autonomousAutomations': true,
+				'vscode.debugLogsCancellation': true,
 				'vscode.getAgentHostSessionStateFile.chat': true,
 				'vscode.removeSessionArtifact': true,
 				'vscode.importSession': true,
 				'vscode.devContainers': true,
+				// Offered whether or not moving chats is enabled, so enabling it needs no reconnect.
+				'vscode.sessionMove': true,
 			},
+		});
+	});
+
+	test('mixed pending messages survive snapshots, live actions and reconnect replay', async () => {
+		stateManager.createSession(makeSessionSummary());
+		for (const id of ['a', 'b']) {
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatPendingMessageSet,
+				kind: PendingMessageKind.Steering, id, message: { text: id, origin: { kind: MessageKind.User } },
+			});
+		}
+		const transport = new MockProtocolTransport();
+		server.simulateConnection(transport);
+		const initialized = waitForResponse(transport, 1);
+		transport.simulateMessage(request(1, 'initialize', {
+			protocolVersions: [PROTOCOL_VERSION],
+			clientId: 'steering-client',
+			initialSubscriptions: [defaultChatUri],
+		}));
+		const response = await initialized;
+		assert.ok(hasKey(response, { result: true }));
+		const result = response.result as InitializeResult;
+		const initialState = result.snapshots.find(snapshot => snapshot.resource === defaultChatUri)?.state as ChatState;
+		const cursor = stateManager.serverSeq;
+		stateManager.dispatchServerAction(defaultChatUri, { type: ActionType.ChatPendingMessageRemoved, kind: PendingMessageKind.Steering, id: 'a' });
+		const live = findNotifications(transport.sent, 'action')
+			.map(notification => notification.params as ActionEnvelope)
+			.filter(envelope => envelope.action.type === ActionType.ChatPendingMessageRemoved);
+		transport.simulateClose();
+
+		const reconnected = new MockProtocolTransport();
+		server.simulateConnection(reconnected);
+		const replayed = waitForResponse(reconnected, 2);
+		reconnected.simulateMessage(request(2, 'reconnect', {
+			clientId: 'steering-client', lastSeenServerSeq: cursor, subscriptions: [defaultChatUri],
+		}));
+		const replayResponse = await replayed;
+		assert.ok(hasKey(replayResponse, { result: true }));
+		const replay = replayResponse.result as ReconnectResult;
+		assert.ok(replay.type === 'replay');
+		reconnected.simulateClose();
+
+		const snapshotTransport = new MockProtocolTransport();
+		server.simulateConnection(snapshotTransport);
+		const snapshotted = waitForResponse(snapshotTransport, 3);
+		snapshotTransport.simulateMessage(request(3, 'reconnect', {
+			clientId: 'steering-client', lastSeenServerSeq: -1, subscriptions: [defaultChatUri],
+		}));
+		const snapshotResponse = await snapshotted;
+		assert.ok(hasKey(snapshotResponse, { result: true }));
+		const snapshotResult = snapshotResponse.result as ReconnectResult;
+		assert.ok(snapshotResult.type === 'snapshot');
+		const restored = snapshotResult.snapshots.find(snapshot => snapshot.resource === defaultChatUri)?.state as ChatState;
+		assert.deepStrictEqual({
+			initial: initialState.queuedMessages?.map(message => message.id),
+			live: live.map(envelope => envelope.action.type),
+			replay: replay.actions.map(envelope => envelope.action.type),
+			restored: restored.queuedMessages?.map(message => message.id),
+			authoritative: stateManager.getChatState(defaultChatUri)?.queuedMessages?.map(message => message.id),
+		}, {
+			initial: ['a', 'b'],
+			live: [ActionType.ChatPendingMessageRemoved],
+			replay: [ActionType.ChatPendingMessageRemoved],
+			restored: ['b'],
+			authoritative: ['b'],
 		});
 	});
 
@@ -720,6 +873,36 @@ suite('ProtocolServerHandler', () => {
 			create: {},
 			runCancellation: {},
 		});
+	});
+
+	test('reports MC transport identity independently of optional client names and claimed routes', () => {
+		const identities: (Implementation | undefined)[] = [
+			editorWindowAgentHostClientInfo, agentsWindowAgentHostClientInfo, { name: 'github-mobile-ios', version: '1.0.0' }, undefined,
+		];
+		const results = identities.map((clientInfo, index) => {
+			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, undefined, undefined, AgentHostClientConnectionKind.MissionControl));
+			server.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', {
+				protocolVersions: [PROTOCOL_VERSION], clientId: `mc-client-${index}`, clientInfo,
+				_meta: { 'vscode.clientConnectionKind': AgentHostClientConnectionKind.Local },
+			}));
+			const event = telemetryService.events.filter(event => event.eventName === 'agentHost.clientConnection').at(-1);
+			assert.ok(event);
+			const data = event.data as IAgentHostClientConnectionEvent;
+			const result = {
+				action: data.action, connectionKind: data.connectionKind, clientType: data.clientType,
+				name: data.clientImplementationName, version: data.clientImplementationVersion,
+				connectedClientCount: data.connectedClientCount,
+			};
+			transport.simulateClose();
+			return result;
+		});
+		assert.deepStrictEqual(results, [
+			{ action: 'connected', connectionKind: AgentHostClientConnectionKind.MissionControl, clientType: AgentHostClientType.EditorWindow, name: 'vscode-editor-window', version: undefined, connectedClientCount: 1 },
+			{ action: 'connected', connectionKind: AgentHostClientConnectionKind.MissionControl, clientType: AgentHostClientType.AgentsWindow, name: 'vscode-agents-window', version: undefined, connectedClientCount: 1 },
+			{ action: 'connected', connectionKind: AgentHostClientConnectionKind.MissionControl, clientType: AgentHostClientType.Unknown, name: 'github-mobile-ios', version: '1.0.0', connectedClientCount: 1 },
+			{ action: 'connected', connectionKind: AgentHostClientConnectionKind.MissionControl, clientType: AgentHostClientType.Unknown, name: undefined, version: undefined, connectedClientCount: 1 },
+		]);
 	});
 
 	test('applies telemetry disablement before reporting the client connection', () => {
@@ -909,6 +1092,23 @@ suite('ProtocolServerHandler', () => {
 		transport.dispose();
 	});
 
+	for (const method of ['resolveSessionConfig', 'createSession'] as const) {
+		test(`${method} preserves retryable policy errors across JSON-RPC`, async () => {
+			const failed = sinon.stub(agentService, method).rejects(new AgentPolicyError('Policy resolution timed out'));
+			disposables.add(toDisposable(() => failed.restore()));
+			const transport = connectClient('policy-client');
+			const response = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, method, { channel: method === 'createSession' ? sessionUri : ROOT_STATE_URI, provider: 'copilotcli' }));
+			const result = await response;
+			assert.ok(hasKey(result, { error: true }));
+			assert.deepStrictEqual(JSON.parse(JSON.stringify(result.error)), {
+				code: JSON_RPC_INTERNAL_ERROR,
+				message: 'Policy resolution timed out',
+				data: { _meta: { 'vscode.policyResolutionFailed': true } },
+			});
+		});
+	}
+
 	test('handshake with initialSubscriptions returns snapshots', () => {
 		stateManager.createSession(makeSessionSummary());
 
@@ -1077,6 +1277,82 @@ suite('ProtocolServerHandler', () => {
 		assert.strictEqual(action?.channel, AUTOMATION_CATALOG_URI);
 	});
 
+	for (const clientInfo of [editorWindowAgentHostClientInfo, agentsWindowAgentHostClientInfo, { name: 'mobile-client' }, undefined]) {
+		test(`automation model options are adapted at the boundary for ${clientInfo?.name ?? 'unmarked peer'}`, async () => {
+			const config = { reasoningEffort: 'high', autoTier: 'intelligence' };
+			const entries: AutomationEntry[] = ['copilotcli', 'claude', undefined].map((provider, index) => ({
+				resource: `ahp-automation:/${index}`,
+				definition: {
+					title: 'Shared automation',
+					message: { text: 'Run', origin: { kind: MessageKind.Automation }, model: { id: 'model', config } },
+					session: { provider, model: { id: 'model', config } },
+					enabled: true,
+					triggers: [],
+				},
+				runs: [],
+				operations: [],
+				createdAt: '2026-10-01T00:00:00.000Z',
+				modifiedAt: '2026-10-01T00:00:00.000Z',
+			}));
+			stateManager.setAutomationCatalogState({ entries });
+			const transport = disposables.add(new MockProtocolTransport());
+			server.simulateConnection(transport);
+			const initialized = waitForResponse(transport, 1);
+			transport.simulateMessage(request(1, 'initialize', {
+				clientId: 'automation-alias-client', protocolVersions: [PROTOCOL_VERSION],
+				initialSubscriptions: [ROOT_STATE_URI, AUTOMATION_CATALOG_URI], clientInfo,
+			}));
+			const initialResponse = await initialized;
+			assert.ok(hasKey(initialResponse, { result: true }));
+			const readEntries = (snapshot: IStateSnapshot | undefined) => {
+				assert.ok(snapshot && hasKey(snapshot.state, { entries: true }));
+				return snapshot.state.entries;
+			};
+			const initial = readEntries((initialResponse.result as InitializeResult).snapshots.find(snapshot => snapshot.resource === AUTOMATION_CATALOG_URI));
+			transport.sent.length = 0;
+			for (const automation of entries) {
+				stateManager.dispatchServerAction(AUTOMATION_CATALOG_URI, { type: ActionType.AutomationSet, automation });
+			}
+			const readActions = (actions: readonly ActionEnvelope[]) => actions.flatMap(envelope => envelope.action.type === ActionType.AutomationSet ? [envelope.action.automation] : []);
+			const live = readActions(findNotifications(transport.sent, 'action').map(notification => notification.params as ActionEnvelope));
+			const cursor = stateManager.serverSeq;
+			transport.simulateClose();
+			for (const automation of entries) {
+				stateManager.dispatchServerAction(AUTOMATION_CATALOG_URI, { type: ActionType.AutomationSet, automation });
+			}
+			const replayTransport = disposables.add(new MockProtocolTransport());
+			server.simulateConnection(replayTransport);
+			const replayed = waitForResponse(replayTransport, 2);
+			replayTransport.simulateMessage(request(2, 'reconnect', {
+				clientId: 'automation-alias-client', lastSeenServerSeq: cursor, subscriptions: [ROOT_STATE_URI, AUTOMATION_CATALOG_URI],
+			}));
+			const replayResponse = await replayed;
+			assert.ok(hasKey(replayResponse, { result: true }));
+			const replay = replayResponse.result as ReconnectResult;
+			assert.ok(replay.type === 'replay');
+			const subscribed = waitForResponse(replayTransport, 3);
+			replayTransport.simulateMessage(request(3, 'subscribe', { channel: AUTOMATION_CATALOG_URI }));
+			const subscription = await subscribed;
+			assert.ok(hasKey(subscription, { result: true }));
+			const vscode = clientInfo?.name === editorWindowAgentHostClientInfo.name || clientInfo?.name === agentsWindowAgentHostClientInfo.name;
+			const expected = entries.map(entry => !vscode || entry.definition.session.provider !== 'copilotcli' ? entry : {
+				...entry,
+				definition: {
+					...entry.definition,
+					message: { ...entry.definition.message, model: { id: 'model', config: { thinkingLevel: 'high', tier: 'intelligence' } } },
+					session: { ...entry.definition.session, model: { id: 'model', config: { thinkingLevel: 'high', tier: 'intelligence' } } },
+				},
+			});
+			assert.deepStrictEqual({
+				initial, live, replay: readActions(replay.actions),
+				subscribed: readEntries((subscription.result as SubscribeResult).snapshot),
+				authoritative: stateManager.getAutomationCatalogState()?.entries,
+			}, {
+				initial: expected, live: expected, replay: expected, subscribed: expected, authoritative: entries,
+			});
+		});
+	}
+
 	test('automation catalogue subscription rejects an inactive client before adding it', async () => {
 		stateManager.setAutomationCatalogState({ entries: [] });
 		let subscriberAdded = false;
@@ -1173,10 +1449,27 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
+	test('TCP connections remain unadvertised and unsupported after protocol sync', async () => {
+		const transport = connectClient('client-tcp');
+		const initialize = findResponse(transport.sent, 1);
+		assert.ok(initialize && hasKey(initialize, { result: true }));
+		const result = initialize.result as InitializeResult;
+		const response = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'createTcpConnection', { channel: 'ahp-tcp:/test', host: 'localhost', port: 8080 }));
+		assert.deepStrictEqual({
+			capability: result.tcpConnections,
+			response: await response,
+		}, {
+			capability: undefined,
+			response: { jsonrpc: '2.0', id: 2, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: createTcpConnection' } },
+		});
+	});
+
 	test('collects Agent Host debug logs through the extension request', async () => {
 		const transport = connectClient('client-debug-logs');
 		transport.sent.length = 0;
 		const responsePromise = waitForResponse(transport, 12);
+		agentService.chatOwners.set(buildChatUri('copilotcli:/session-1', 'peer-1'), 'copilotcli:/session-1');
 
 		transport.simulateMessage(request(12, 'vscode/collectAgentHostDebugLogs', {
 			session: 'copilotcli:/session-1',
@@ -1197,11 +1490,40 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
+	test('only the originating client can cancel a pending debug-log collection', async () => {
+		const owner = connectClient('debug-log-owner');
+		const other = connectClient('debug-log-other');
+		const finished = new DeferredPromise<Awaited<ReturnType<typeof agentService.collectDebugLogs>>>();
+		const cancelled: string[] = [];
+		const collect = sinon.stub(agentService, 'collectDebugLogs').returns(finished.p);
+		sinon.stub(agentService, 'cancelDebugLogs').callsFake(async progressToken => { cancelled.push(progressToken); });
+		const collectionResponse = waitForResponse(owner, 80);
+		owner.simulateMessage(request(80, 'vscode/collectAgentHostDebugLogs', { kind: 'archive', progressToken: 'export-progress' }));
+
+		const denied = waitForResponse(other, 81);
+		other.simulateMessage(request(81, 'vscode/cancelAgentHostDebugLogs', { progressToken: 'export-progress' }));
+		const allowed = waitForResponse(owner, 82);
+		owner.simulateMessage(request(82, 'vscode/cancelAgentHostDebugLogs', { progressToken: 'export-progress' }));
+		assert.deepStrictEqual({
+			denied: await denied,
+			allowed: await allowed,
+			cancelled,
+			progressToken: collect.firstCall.args[3],
+		}, {
+			denied: { jsonrpc: '2.0', id: 81, error: { code: JsonRpcErrorCodes.InvalidParams, message: 'Unknown debug-log collection' } },
+			allowed: { jsonrpc: '2.0', id: 82, result: null },
+			cancelled: ['export-progress'],
+			progressToken: 'export-progress',
+		});
+		finished.complete({ kind: 'archive', resource: URI.file('/tmp/logs.zip'), providerLogsIncluded: true, size: 10, uncompressedSize: 10, entries: [] });
+		await collectionResponse;
+	});
 	test('gets an Agent Host session state file through the extension request', async () => {
 		const transport = connectClient('client-session-state-file');
 		transport.sent.length = 0;
 		const responsePromise = waitForResponse(transport, 17);
 		const chat = buildChatUri('copilotcli:/session-1', 'peer-1');
+		agentService.chatOwners.set(chat, 'copilotcli:/session-1');
 
 		transport.simulateMessage(request(17, 'vscode/getAgentHostSessionStateFile', {
 			session: 'copilotcli:/session-1',
@@ -1221,6 +1543,29 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
+	test('advertises host wire-log resources without enabling host-management methods', async () => {
+		const localServer = disposables.add(new MockProtocolServer());
+		const directory = URI.file('/logs/mission-control/ahp');
+		disposables.add(new ProtocolServerHandler(
+			agentService, stateManager, localServer, { allowExtensionMethods: false, relayRoots: ['/workspace'], ahpLogDirectory: directory },
+			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
+		));
+		const transport = disposables.add(new MockProtocolTransport());
+		localServer.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'wire-client' }));
+		const initialize = findResponse(transport.sent, 1);
+		assert.ok(initialize && hasKey(initialize, { result: true }));
+		const rejected = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'vscode/collectAgentHostDebugLogs', { kind: 'archive' }));
+		const response = await rejected;
+		assert.deepStrictEqual({
+			directory: readAgentHostAhpLogDirectory(initialize.result as InitializeResult)?.toString(),
+			error: hasKey(response, { error: true }) ? response.error.code : undefined,
+		}, { directory: directory.toString(), error: JsonRpcErrorCodes.MethodNotFound });
+	});
+
 	test('first-response diagnostics are opt-in, validated and content-free on the extension bridge', async () => {
 		const calls: IAgentHostFirstResponseDiagnostic[] = [];
 		const localServer = disposables.add(new MockProtocolServer());
@@ -1229,6 +1574,7 @@ suite('ProtocolServerHandler', () => {
 			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
 			managedSettingsService, clientConnections, devContainerService,
 			{ ...NullAgentHostOTelService, diagnosticsEnabled: true, emitFirstResponse: diagnostic => calls.push(diagnostic) },
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 		));
 		const transport = new MockProtocolTransport();
 		localServer.simulateConnection(transport);
@@ -1281,6 +1627,7 @@ suite('ProtocolServerHandler', () => {
 				...NullAgentHostOTelService, diagnosticsEnabled: true,
 				emitUserInteraction: timing => calls.push(timing), flush: async () => { flushed++; }
 			},
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 		));
 		const transport = new MockProtocolTransport();
 		localServer.simulateConnection(transport);
@@ -1299,6 +1646,185 @@ suite('ProtocolServerHandler', () => {
 		assert.ok(hasKey(await invalid, { error: true }));
 		assert.strictEqual(calls.length, 1);
 	});
+
+	for (const peer of [buildChatUri('ahp-session:/saved', 'peer'), 'ahp-chat:/saved-peer', `${buildDefaultChatUri('ahp-session:/saved')}?generation%3Drestored`]) {
+		test(`advertises and routes saved chat reads with exact URI identity ${peer}`, async () => {
+			const calls: string[][] = [];
+			const service: IAgentService = agentService;
+			service.readSavedChat = async (session, chat) => {
+				calls.push([session.toString(), chat?.toString() ?? 'default']);
+				return { session, chat: chat ?? URI.parse(buildDefaultChatUri(session)), provider: 'claude', identity: 'saved-identity', availability: { kind: 'available' }, title: 'Saved chat', turns: [], workspace: { kind: 'folder', workingDirectories: [URI.file('/saved')] } };
+			};
+			const transport = connectClient('saved-chat');
+			const initialized = findResponse(transport.sent, 1);
+			assert.ok(initialized && hasKey(initialized, { result: true }));
+			const pending = waitForResponse(transport, 20);
+			transport.simulateMessage(request(20, 'vscode/readSavedChat', { session: 'ahp-session:/saved', chat: peer }));
+			assert.deepStrictEqual({
+				supported: supportsAgentHostSavedChat(initialized.result as InitializeResult),
+				oldHost: supportsAgentHostSavedChat({ ...(initialized.result as InitializeResult), _meta: {} }),
+				response: await pending,
+				calls,
+				created: agentService.createSessionConfigs,
+				actions: agentService.handledActions,
+			}, {
+				supported: true, oldHost: false,
+				response: { jsonrpc: '2.0', id: 20, result: { session: 'ahp-session:/saved', chat: peer, provider: 'claude', identity: 'saved-identity', availability: { kind: 'available' }, title: 'Saved chat', turns: [], workspace: { kind: 'folder', workingDirectories: [URI.file('/saved').toString()] } } },
+				calls: [['ahp-session:/saved', peer]], created: [], actions: [],
+			});
+		});
+	}
+
+	test('rejects invalid saved chat requests before reading storage', async () => {
+		const service: IAgentService = agentService;
+		service.readSavedChat = async () => { assert.fail('Invalid identity reached saved storage'); };
+		const transport = connectClient('saved-chat-invalid');
+		for (const [index, params] of [
+			undefined, {}, { session: 'plain-text' }, { session: 'ahp-session://remote/saved' },
+			{ session: 'ahp-session:/saved', chat: 1 }, { session: 'ahp-session:/saved', chat: 'invalid' },
+			{ session: 'ahp-session:/saved', chat: 'file:///saved' },
+			{ session: 'ahp-session:/saved', chat: `${buildDefaultChatUri('ahp-session:/saved')}#fragment` },
+		].entries()) {
+			const pending = waitForResponse(transport, 20 + index);
+			transport.simulateMessage(request(20 + index, 'vscode/readSavedChat', params));
+			const response = await pending;
+			assert.ok(hasKey(response, { error: true }) && response.error?.code === JsonRpcErrorCodes.InvalidParams);
+		}
+	});
+
+	test('local data-plane saved chat reads work with host-control extensions disabled', async () => {
+		const calls: string[] = [];
+		const service: IAgentService = agentService;
+		service.readSavedChat = async session => {
+			calls.push(session.toString());
+			return { session, chat: URI.parse(buildDefaultChatUri(session)), provider: 'claude', identity: 'saved-identity', availability: { kind: 'available' }, title: 'Saved history', turns: [], workspace: { kind: 'none' } };
+		};
+		const localServer = disposables.add(new MockProtocolServer());
+		disposables.add(new ProtocolServerHandler(
+			agentService, stateManager, localServer,
+			{ hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess, allowExtensionMethods: false },
+			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
+		));
+		const transport = new MockProtocolTransport(AgentHostTransportKind.MessagePort);
+		localServer.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'saved-local-data-plane' }));
+		const initialized = findResponse(transport.sent, 1);
+		assert.ok(initialized && hasKey(initialized, { result: true }));
+		const historyResponse = waitForResponse(transport, 20);
+		transport.simulateMessage(request(20, 'vscode/readSavedChat', { session: 'ahp-session:/saved' }));
+		const shutdownResponse = waitForResponse(transport, 21);
+		transport.simulateMessage(request(21, 'shutdown'));
+		assert.deepStrictEqual({
+			supported: supportsAgentHostSavedChat(initialized.result as InitializeResult),
+			history: await historyResponse,
+			shutdown: await shutdownResponse,
+			calls,
+			shutdownCalls: agentService.shutdownCalls,
+		}, {
+			supported: true,
+			history: { jsonrpc: '2.0', id: 20, result: { session: 'ahp-session:/saved', chat: buildDefaultChatUri('ahp-session:/saved'), provider: 'claude', identity: 'saved-identity', availability: { kind: 'available' }, title: 'Saved history', turns: [], workspace: { kind: 'none' } } },
+			shutdown: { jsonrpc: '2.0', id: 21, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: shutdown' } },
+			calls: ['ahp-session:/saved'],
+			shutdownCalls: 0,
+		});
+	});
+
+	for (const mode of ['unsupported', 'relay'] as const) {
+		test(`does not expose saved chat history to ${mode} clients`, async () => {
+			const service: IAgentService = agentService;
+			if (mode !== 'unsupported') {
+				service.readSavedChat = async () => { assert.fail('Blocked client reached saved storage'); };
+			}
+			const localServer = disposables.add(new MockProtocolServer());
+			disposables.add(new ProtocolServerHandler(
+				agentService, stateManager, localServer, { allowExtensionMethods: mode === 'relay' },
+				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+				new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
+			));
+			const transport = new MockProtocolTransport(AgentHostTransportKind.Unknown, mode === 'relay' ? `saved-${mode}` : undefined);
+			localServer.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: `saved-${mode}` }));
+			const initialized = findResponse(transport.sent, 1);
+			assert.ok(initialized && hasKey(initialized, { result: true }));
+			const pending = waitForResponse(transport, 20);
+			transport.simulateMessage(request(20, 'vscode/readSavedChat', { session: 'ahp-session:/saved' }));
+			assert.deepStrictEqual({ supported: supportsAgentHostSavedChat(initialized.result as InitializeResult), response: await pending }, {
+				supported: false,
+				response: { jsonrpc: '2.0', id: 20, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: vscode/readSavedChat' } },
+			});
+		});
+	}
+
+	test('advertises and routes exact saved chat completion without creating or dispatching', async () => {
+		const calls: string[][] = [];
+		const service: IAgentService = agentService;
+		service.completeSavedChatContinuation = async request => {
+			calls.push([request.session.toString(), request.chat.toString(), request.identity, request.destination.toString()]);
+			return { archived: true };
+		};
+		const transport = connectClient('saved-completion');
+		const initialized = findResponse(transport.sent, 1);
+		assert.ok(initialized && hasKey(initialized, { result: true }));
+		const initialization = vObj({ protocolVersion: vString(), serverSeq: vNumber(), _meta: vObj({ 'vscode.completeSavedChatContinuation': vBoolean() }) }).validate(initialized.result);
+		assert.ok(!initialization.error);
+		const pending = waitForResponse(transport, 20);
+		transport.simulateMessage(request(20, 'vscode/completeSavedChatContinuation', { session: 'ahp-session:/saved', chat: 'ahp-chat:/exact-peer', identity: 'read-identity', destination: 'ahp-session:/copilot' }));
+		assert.deepStrictEqual({
+			supported: supportsAgentHostSavedChatContinuation({ ...initialization.content, snapshots: [] }),
+			oldHost: supportsAgentHostSavedChatContinuation({ ...initialization.content, snapshots: [], _meta: {} }),
+			response: await pending, calls, created: agentService.createSessionConfigs, actions: agentService.handledActions,
+		}, {
+			supported: true, oldHost: false, response: { jsonrpc: '2.0', id: 20, result: { archived: true } },
+			calls: [['ahp-session:/saved', 'ahp-chat:/exact-peer', 'read-identity', 'ahp-session:/copilot']], created: [], actions: [],
+		});
+	});
+
+	test('rejects invalid saved completion identities before changing storage', async () => {
+		const service: IAgentService = agentService;
+		service.completeSavedChatContinuation = async () => { assert.fail('Invalid completion reached storage'); };
+		const transport = connectClient('invalid-completion');
+		const valid = { session: 'ahp-session:/saved', chat: 'ahp-chat:/exact', identity: 'read-identity', destination: 'ahp-session:/copilot' };
+		for (const [index, params] of [
+			{}, { ...valid, identity: '' }, { ...valid, chat: 'file:///saved' },
+			{ ...valid, chat: 'ahp-chat:/exact#fragment' }, { ...valid, destination: 'ahp-session://remote/copy' },
+		].entries()) {
+			const pending = waitForResponse(transport, 20 + index);
+			transport.simulateMessage(request(20 + index, 'vscode/completeSavedChatContinuation', params));
+			const response = await pending;
+			assert.ok(hasKey(response, { error: true }) && response.error?.code === JsonRpcErrorCodes.InvalidParams);
+		}
+	});
+
+	for (const relay of [false, true]) {
+		test(`saved completion capability is absent for ${relay ? 'relay' : 'unsupported'} connections`, async () => {
+			const service: IAgentService = agentService;
+			if (relay) {
+				service.completeSavedChatContinuation = async () => { assert.fail('Relay completion reached storage'); };
+			}
+			const server = disposables.add(new MockProtocolServer());
+			disposables.add(new ProtocolServerHandler(
+				agentService, stateManager, server, { allowExtensionMethods: false },
+				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+				new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
+			));
+			const transport = new MockProtocolTransport(AgentHostTransportKind.Unknown, relay ? 'completion-relay' : undefined);
+			server.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: relay ? 'completion-relay' : 'completion-client' }));
+			const initialized = findResponse(transport.sent, 1);
+			assert.ok(initialized && hasKey(initialized, { result: true }));
+			const initialization = vObj({ protocolVersion: vString(), serverSeq: vNumber(), _meta: vObj({ 'vscode.completeSavedChatContinuation': vOptionalProp(vBoolean()) }) }).validate(initialized.result);
+			assert.ok(!initialization.error);
+			const pending = waitForResponse(transport, 20);
+			transport.simulateMessage(request(20, 'vscode/completeSavedChatContinuation', { session: 'ahp-session:/saved', chat: 'ahp-chat:/exact', identity: 'read', destination: 'ahp-session:/copy' }));
+			assert.deepStrictEqual({ supported: supportsAgentHostSavedChatContinuation({ ...initialization.content, snapshots: [] }), response: await pending }, {
+				supported: false, response: { jsonrpc: '2.0', id: 20, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: vscode/completeSavedChatContinuation' } },
+			});
+		});
+	}
 
 	test('advertises and routes external session import', async () => {
 		const transport = connectClient('client-import');
@@ -1696,6 +2222,7 @@ suite('ProtocolServerHandler', () => {
 			clientConnections,
 			localDisposables.add(new MockDevContainerService()),
 			NullAgentHostOTelService,
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 		));
 		const transport = new MockProtocolTransport();
 		localServer.simulateConnection(transport);
@@ -1742,7 +2269,7 @@ suite('ProtocolServerHandler', () => {
 			agentService, stateManager, relay,
 			{ allowExtensionMethods: false, relayRoots: [process.cwd()] },
 			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 		));
 		const root = URI.file(process.cwd()).toString();
 		const connect = (lane: string, claimed: string, passive: boolean) => {
@@ -1794,7 +2321,7 @@ suite('ProtocolServerHandler', () => {
 				agentService, stateManager, relay,
 				{ allowExtensionMethods: false, relayRoots: [workspace] },
 				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 			));
 			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'listing-lane', false));
 			relay.simulateConnection(transport);
@@ -1880,7 +2407,7 @@ suite('ProtocolServerHandler', () => {
 					agentService, stateManager, relay,
 					{ allowExtensionMethods: false, relayRootMeta: relay.rootMeta, defaultDirectory: URI.file(roots[0]).toString() },
 					disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-					managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+					managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 				);
 				return relayHandler;
 			},
@@ -1988,24 +2515,21 @@ suite('ProtocolServerHandler', () => {
 				locallyListed: ['copilot:/local-session', 'copilot:/fake-wps-session'],
 				localReceivedRemoteToolCall: true,
 			});
-			deliver(toHost, request(9, 'reconnect', { clientId: 'client-a', lastSeenServerSeq: stateManager.serverSeq, subscriptions: [nativeChat] }), 10);
+			deliver(toHost, request(9, 'reconnect', { clientId: 'client-a', lastSeenServerSeq: stateManager.serverSeq, subscriptions: [ROOT_STATE_URI, nativeChat] }), 10);
 			await relayHandler?.whenIdle();
 			const reconnect = publishes.find(publish => publish.data.data.id === 9)?.data.data as JsonRpcResponse;
-			assert.strictEqual(hasKey(reconnect, { error: true }) ? reconnect.error.code : undefined, AhpErrorCodes.NotFound);
-			deliver(toHost, request(10, 'initialize', { clientId: 'client-a', protocolVersions: [PROTOCOL_VERSION], initialSubscriptions: [ROOT_STATE_URI, nativeChat] }), 11);
-			await relayHandler?.whenIdle();
-			const fresh = publishes.find(publish => publish.data.data.id === 10)?.data.data as JsonRpcResponse;
-			assert.deepStrictEqual(hasKey(fresh, { result: true }) ? (fresh.result as InitializeResult).snapshots?.map(snapshot => snapshot.resource) : undefined, [ROOT_STATE_URI]);
-			const failedGeneration = publishes.find(publish => publish.data.data.id === 9)?.data.generation;
-			const initializedGeneration = publishes.find(publish => publish.data.data.id === 10)?.data.generation;
+			const result = hasKey(reconnect, { result: true }) ? reconnect.result as ReconnectResult : undefined;
+			assert.deepStrictEqual(result?.type === 'replay' ? { type: result.type, actions: result.actions, missing: result.missing } : result, {
+				type: 'replay', actions: [], missing: [nativeChat],
+			});
+			const reconnectedGeneration = publishes.find(publish => publish.data.data.id === 9)?.data.generation;
 			assert.strictEqual(closures.length, 1);
-			assert.notStrictEqual(closures[0], failedGeneration);
-			assert.strictEqual(failedGeneration, initializedGeneration);
-			deliver(toHost, request(11, 'authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: `copilot-sealed.v1.${encryptionKey.keyId}.${Buffer.from(box).toString('base64url')}` }), 12);
+			assert.notStrictEqual(closures[0], reconnectedGeneration);
+			deliver(toHost, request(10, 'authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: `copilot-sealed.v1.${encryptionKey.keyId}.${Buffer.from(box).toString('base64url')}` }), 11);
 			await relayHandler?.whenIdle();
-			deliver(toHost, request(12, 'subscribe', { channel: nativeChat }), 13);
+			deliver(toHost, request(11, 'subscribe', { channel: nativeChat }), 12);
 			await relayHandler?.whenIdle();
-			const recovered = publishes.find(publish => publish.data.data.id === 12)?.data.data as JsonRpcResponse;
+			const recovered = publishes.find(publish => publish.data.data.id === 11)?.data.data as JsonRpcResponse;
 			assert.strictEqual(hasKey(recovered, { result: true }) ? (recovered.result as SubscribeResult).snapshot?.resource : undefined, nativeChat);
 		} finally {
 			registration.dispose();
@@ -2411,14 +2935,14 @@ suite('ProtocolServerHandler', () => {
 		transport.relayAuthenticated = false;
 		server.simulateConnection(transport);
 		transport.simulateMessage(request(1, 'initialize', { clientId: 'relay-client', protocolVersions: [PROTOCOL_VERSION] }));
-		for (const [index, method] of ['listSessions', 'createSession', 'resourceRead', 'resourceWrite', 'createTerminal', 'subscribe', 'unsubscribe', 'dispatchAction'].entries()) {
+		for (const [index, method] of ['listChats', 'createSession', 'resourceRead', 'resourceWrite', 'createTerminal', 'subscribe', 'dispatchAction'].entries()) {
 			transport.simulateMessage(request(index + 2, method, { channel: sessionUri, clientSeq: 1, action: { type: ActionType.SessionTitleChanged, title: 'Must not change' } }));
 		}
 		transport.simulateMessage(notification('dispatchAction', { channel: sessionUri, clientSeq: 2, action: { type: ActionType.SessionTitleChanged, title: 'Must not change' } }));
 		await handler.whenIdle();
 		const denied = transport.sent.filter(isJsonRpcResponse).filter(message => message.id !== 1).map(message => hasKey(message, { error: true }) ? message.error : undefined);
 		assert.deepStrictEqual({ denied, dispatched: agentService.handledActions, created: agentService.createSessionConfigs.length }, {
-			denied: Array(8).fill({
+			denied: Array(7).fill({
 				code: AHP_AUTH_REQUIRED,
 				message: 'Relay identity authentication is required',
 				data: { resources: [{ resource: 'https://api.github.com', required: true }] },
@@ -2430,6 +2954,466 @@ suite('ProtocolServerHandler', () => {
 		assert.strictEqual(stateManager.getSessionState(sessionUri)?.title, 'Authorized');
 	});
 
+	suite('unauthenticated discovery requests', () => {
+		for (const passive of [false, true]) {
+			test(`${passive ? 'passive' : 'active'} relay admits the Copilot Host discovery allowlist through filesystem authorization`, async () => {
+				const relay = disposables.add(new MockProtocolServer());
+				const project = { id: 'project', name: 'Project', path: process.cwd() };
+				const extension: IProtocolServerExtension = {
+					rootMeta: {}, rootConfig: { schema: { type: 'object', properties: {} }, values: {} },
+					onDidEmitAction: Event.None, initialize: async () => { },
+					requests: new Map([['extensions/listProjects', {
+						readOnly: true,
+						handle: async (_params, checkAuthorization) => {
+							checkAuthorization();
+							return { projects: [project] };
+						},
+					}]]),
+				};
+				const scopedHandler = disposables.add(new ProtocolServerHandler(
+					agentService, stateManager, relay,
+					{ allowExtensionMethods: false, extension, relayResourceRoots: () => [process.cwd()] },
+					disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+					managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
+				));
+				const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'discovery-client', passive));
+				transport.relayAuthenticated = false;
+				relay.simulateConnection(transport);
+				transport.simulateMessage(request(0, 'ping', { channel: ROOT_STATE_URI }));
+				transport.simulateMessage(request(1, 'initialize', { clientId: 'discovery-client', protocolVersions: [PROTOCOL_VERSION] }));
+				const cases = [
+					{ method: 'listSessions', params: { channel: ROOT_STATE_URI }, result: { items: [] } },
+					{ method: 'resolveSessionConfig', params: { channel: ROOT_STATE_URI, provider: 'copilotcli' }, result: { schema: { type: 'object', properties: {} }, values: {} } },
+					{ method: 'sessionConfigCompletions', params: { channel: ROOT_STATE_URI, provider: 'copilotcli', property: 'model' }, result: { items: [] } },
+					{ method: 'extensions/listProjects', params: {}, result: { projects: [project] } },
+					{ method: 'subscribe', params: { channel: ROOT_STATE_URI }, result: { snapshot: { resource: ROOT_STATE_URI, fromSeq: stateManager.serverSeq, state: { agents: [], _meta: {} } } } },
+					{ method: 'unsubscribe', params: { channel: ROOT_STATE_URI }, result: null },
+				];
+				for (const [index, item] of cases.entries()) {
+					transport.simulateMessage(request(index + 2, item.method, item.params));
+					await scopedHandler.whenIdle();
+				}
+				assert.deepStrictEqual({
+					ping: findResponse(transport.sent, 0),
+					responses: cases.map((_, index) => findResponse(transport.sent, index + 2)),
+					unsubscribes: agentService.unsubscribeCalls,
+					authenticated: transport.relayAuthenticated,
+				}, {
+					ping: { jsonrpc: '2.0', id: 0, result: null },
+					responses: cases.map((item, index) => ({ jsonrpc: '2.0', id: index + 2, result: item.result })),
+					unsubscribes: [{ resource: URI.parse(ROOT_STATE_URI).toString(), clientId: 'discovery-client' }],
+					authenticated: false,
+				});
+			});
+		}
+
+		test('read-only content, mutations, unknown methods, and non-root subscriptions stay authenticated', async () => {
+			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'discovery-client', false));
+			transport.relayAuthenticated = false;
+			server.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', { clientId: 'discovery-client', protocolVersions: [PROTOCOL_VERSION] }));
+			const cases = [
+				...['listChats', 'listModels', 'listAgents', 'fetchTurns', 'resourceList', 'resourceRead', 'resourceWrite', 'completions',
+					'createSession', 'createChat', 'createTerminal', 'extensions/addProject', 'extensions/removeProject', 'extensions/cloneProject',
+					'extensions/getPlan', 'unknown', '__proto__'].map(method => ({ method, params: { channel: sessionUri } })),
+				...[sessionUri, defaultChatUri, AUTOMATION_CATALOG_URI, 'ahp-terminal:/private', 'ahp-otlp://logs/info', 'ahp-resource-watch:/private']
+					.map(channel => ({ method: 'subscribe', params: { channel } })),
+				{ method: 'subscribe', params: {} },
+			];
+			for (const [index, item] of cases.entries()) {
+				transport.simulateMessage(request(index + 2, item.method, item.params));
+			}
+			await handler.whenIdle();
+			assert.deepStrictEqual({
+				errors: cases.map((_, index) => {
+					const response = findResponse(transport.sent, index + 2);
+					return response && hasKey(response, { error: true }) ? response.error.code : undefined;
+				}),
+				subscriptions: agentService.subscribeCalls,
+				mutations: agentService.createSessionConfigs,
+			}, { errors: cases.map(() => AHP_AUTH_REQUIRED), subscriptions: [], mutations: [] });
+		});
+
+		for (const method of ['resolveSessionConfig', 'sessionConfigCompletions']) {
+			test(`unauthenticated ${method} probes only read-only granted working directories`, async () => {
+				const path = await mkdtemp(join(process.cwd(), '.build', 'mission-control-config-grants-'));
+				try {
+					const workspace = join(path, 'workspace');
+					const outside = join(path, 'outside');
+					await Promise.all([mkdir(workspace), mkdir(outside)]);
+					await symlink(outside, join(workspace, 'escape'), 'dir');
+					const relay = disposables.add(new MockProtocolServer());
+					const scopedHandler = disposables.add(new ProtocolServerHandler(
+						agentService, stateManager, relay, { allowExtensionMethods: false, relayResourceRoots: readOnly => readOnly ? [workspace] : [] },
+						disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+						managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
+					));
+					const calls: (string | undefined)[] = [];
+					const resolve = sinon.stub(agentService, 'resolveSessionConfig').callsFake(async params => {
+						calls.push(params.workingDirectory?.toString());
+						return { schema: { type: 'object', properties: {} }, values: {} };
+					});
+					const complete = sinon.stub(agentService, 'sessionConfigCompletions').callsFake(async params => {
+						calls.push(params.workingDirectory?.toString());
+						return { items: [] };
+					});
+					disposables.add(toDisposable(() => { resolve.restore(); complete.restore(); }));
+					const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'config-client', false));
+					transport.relayAuthenticated = false;
+					relay.simulateConnection(transport);
+					transport.simulateMessage(request(1, 'initialize', { clientId: 'config-client', protocolVersions: [PROTOCOL_VERSION] }));
+					const directories = [undefined, URI.file(workspace).toString(), URI.file(outside).toString(), URI.file(join(workspace, 'escape')).toString(), 'https://example.com/private', null];
+					for (const [index, workingDirectory] of directories.entries()) {
+						transport.simulateMessage(request(index + 2, method, { channel: ROOT_STATE_URI, provider: 'copilotcli', property: 'branch', workingDirectory }));
+						await scopedHandler.whenIdle();
+					}
+					assert.deepStrictEqual({
+						errors: directories.map((_, index) => {
+							const response = findResponse(transport.sent, index + 2);
+							return response && hasKey(response, { error: true }) ? response.error.code : undefined;
+						}),
+						calls,
+					}, {
+						errors: [undefined, undefined, ...Array(4).fill(AhpErrorCodes.PermissionDenied)],
+						calls: [undefined, URI.file(workspace).toString()],
+					});
+				} finally {
+					await rm(path, { recursive: true });
+				}
+			});
+		}
+
+		test('a root subscription projects the response when authentication lapses during restoration', async () => {
+			stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { secret: 'private-root-content' } });
+			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'discovery-client', false));
+			transport.relayAuthenticated = true;
+			const started = new DeferredPromise<void>();
+			const barrier = new DeferredPromise<void>();
+			agentService.subscribe = async (resource, _clientId, isActive) => {
+				void started.complete();
+				await barrier.p;
+				assert.strictEqual(isActive?.(), true);
+				const snapshot = stateManager.getSnapshot(resource.toString());
+				assert.ok(snapshot);
+				return snapshot;
+			};
+			server.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', { clientId: 'discovery-client', protocolVersions: [PROTOCOL_VERSION] }));
+			transport.simulateMessage(request(2, 'subscribe', { channel: ROOT_STATE_URI }));
+			await started.p;
+			transport.relayAuthenticated = false;
+			await barrier.complete();
+			await handler.whenIdle();
+			assert.deepStrictEqual(findResponse(transport.sent, 2), {
+				jsonrpc: '2.0', id: 2, result: { snapshot: { resource: ROOT_STATE_URI, fromSeq: stateManager.serverSeq, state: { agents: [], _meta: {} } } },
+			});
+		});
+
+		test('root discovery continues after expiry without exposing terminal or host configuration updates', async () => {
+			const expired = disposables.add(new Emitter<void>());
+			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'discovery-client', false));
+			transport.relayAuthenticated = true;
+			transport.onDidRelayAuthenticationExpire = expired.event;
+			server.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', { clientId: 'discovery-client', protocolVersions: [PROTOCOL_VERSION], initialSubscriptions: [ROOT_STATE_URI] }));
+			transport.relayAuthenticated = false;
+			expired.fire();
+			transport.sent.length = 0;
+			const agent: AgentInfo = { provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], customizations: [] };
+			const { customizations, ...discoveryAgent } = agent;
+			stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { secret: 'private-root-content' } });
+			stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootTerminalsChanged, terminals: [] });
+			stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootAgentsChanged, agents: [agent] });
+			transport.simulateMessage(request(2, 'unsubscribe', { channel: ROOT_STATE_URI }));
+			await handler.whenIdle();
+			stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootAgentsChanged, agents: [] });
+			assert.deepStrictEqual({
+				actions: findNotifications(transport.sent, 'action').map(message => (message.params as ActionEnvelope).action),
+				response: findResponse(transport.sent, 2),
+			}, {
+				actions: [{ type: ActionType.RootAgentsChanged, agents: [{ ...discoveryAgent, protectedResources: undefined, capabilities: undefined }] }],
+				response: { jsonrpc: '2.0', id: 2, result: null },
+			});
+		});
+
+		for (const replay of [false, true]) {
+			test(`reconnect ${replay ? 'replay' : 'snapshots'} reports protected subscriptions lost when authentication expires before delivery`, async () => {
+				stateManager.createSession(makeSessionSummary());
+				const original = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'discovery-client', false));
+				original.relayAuthenticated = true;
+				server.simulateConnection(original);
+				original.simulateMessage(request(1, 'initialize', { clientId: 'discovery-client', protocolVersions: [PROTOCOL_VERSION], initialSubscriptions: [ROOT_STATE_URI, sessionUri, defaultChatUri] }));
+				const lastSeen = stateManager.serverSeq;
+				original.simulateClose();
+				const expired = disposables.add(new Emitter<void>());
+				const transport = disposables.add(new class extends MockProtocolTransport {
+					get relayHandshakeMeta() {
+						this.relayAuthenticated = false;
+						expired.fire();
+						return {};
+					}
+				}(AgentHostTransportKind.WebSocket, 'discovery-client', false));
+				transport.relayAuthenticated = true;
+				transport.onDidRelayAuthenticationExpire = expired.event;
+				server.simulateConnection(transport);
+				const missingChannel = 'copilot:/missing';
+				transport.simulateMessage(request(2, 'reconnect', {
+					clientId: 'discovery-client', lastSeenServerSeq: replay ? lastSeen : -1,
+					subscriptions: [ROOT_STATE_URI, sessionUri, defaultChatUri, missingChannel, sessionUri],
+				}));
+				await handler.whenIdle();
+				const response = findResponse(transport.sent, 2);
+				const result = response && hasKey(response, { result: true }) ? response.result as ReconnectResult : undefined;
+				assert.deepStrictEqual(result, replay
+					? { type: 'replay', actions: [], missing: [missingChannel, sessionUri, defaultChatUri], _meta: {} }
+					: { type: 'snapshot', snapshots: [{ resource: ROOT_STATE_URI, fromSeq: stateManager.serverSeq, state: { agents: [], _meta: {} } }], _meta: {} });
+				transport.relayAuthenticated = true;
+				transport.simulateMessage(request(3, 'subscribe', { channel: defaultChatUri }));
+				await handler.whenIdle();
+				assert.deepStrictEqual(findResponse(transport.sent, 3), {
+					jsonrpc: '2.0', id: 3, result: { snapshot: stateManager.getSnapshot(defaultChatUri) },
+				});
+			});
+
+			test(`unauthenticated reconnect admits ${replay ? 'replay' : 'snapshots'} only for root discovery and retains claimed participation until authentication`, async () => {
+				stateManager.createSession(makeSessionSummary());
+				const original = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'discovery-client', false));
+				original.relayAuthenticated = true;
+				server.simulateConnection(original);
+				original.simulateMessage(request(1, 'initialize', { clientId: 'discovery-client', protocolVersions: [PROTOCOL_VERSION], initialSubscriptions: [ROOT_STATE_URI, sessionUri] }));
+				stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionActiveClientSet, activeClient: { clientId: 'discovery-client', tools: [] } });
+				const lastSeen = stateManager.serverSeq;
+				original.simulateClose();
+				stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { secret: 'private-root-content' } });
+				stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Private session state' });
+				const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'discovery-client', false));
+				transport.relayAuthenticated = false;
+				server.simulateConnection(transport);
+				transport.simulateMessage(request(2, 'reconnect', {
+					clientId: 'discovery-client', lastSeenServerSeq: replay ? lastSeen : -1, subscriptions: [ROOT_STATE_URI, sessionUri],
+				}));
+				await handler.whenIdle();
+				assert.deepStrictEqual({
+					response: findResponse(transport.sent, 2),
+					activeClients: stateManager.getSessionState(sessionUri)?.activeClients.map(client => client.clientId),
+				}, {
+					response: {
+						jsonrpc: '2.0', id: 2, result: replay
+							? { type: 'replay', actions: [], missing: [sessionUri] }
+							: { type: 'snapshot', snapshots: [{ resource: ROOT_STATE_URI, fromSeq: stateManager.serverSeq, state: { agents: [], _meta: {} } }] }
+					},
+					activeClients: ['discovery-client'],
+				});
+				transport.simulateMessage(request(3, 'unsubscribe', { channel: sessionUri }));
+				await handler.whenIdle();
+				assert.deepStrictEqual({
+					response: findResponse(transport.sent, 3),
+					activeClients: stateManager.getSessionState(sessionUri)?.activeClients,
+				}, { response: { jsonrpc: '2.0', id: 3, result: null }, activeClients: [] });
+			});
+		}
+	});
+
+	suite('unauthenticated session listing', () => {
+		const basicSummary: SessionSummary = {
+			resource: sessionUri,
+			provider: 'copilot',
+			title: 'Session Summary',
+			status: SessionStatus.Idle,
+			activity: undefined,
+			createdAt: new Date(1000).toISOString(),
+			modifiedAt: new Date(2000).toISOString(),
+			project: { uri: 'file:///workspace/project', displayName: 'Project' },
+			workingDirectories: ['file:///workspace/project'],
+			changes: undefined,
+		};
+		const fullSummary: SessionSummary = {
+			...basicSummary,
+			chats: [{ resource: defaultChatUri, title: 'Private Chat', origin: undefined }],
+			defaultChat: defaultChatUri,
+			_meta: { 'test.content': 'private-session-content' },
+		};
+
+		function seedSession(): void {
+			agentService.listedSessions.push({
+				session: URI.parse(sessionUri),
+				startTime: 1000,
+				modifiedTime: 2000,
+				summary: basicSummary.title,
+				project: { uri: URI.file('/workspace/project'), displayName: 'Project' },
+				workingDirectories: [URI.file('/workspace/project')],
+				chats: [{ chat: URI.parse(defaultChatUri), kind: 'default', summary: 'Private Chat' }],
+				_meta: fullSummary._meta,
+			});
+		}
+
+		test('live catalogue notifications use the same detail redaction as listings and suppress detail-only changes', () => {
+			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'listing-client', false));
+			transport.relayAuthenticated = false;
+			server.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', { clientId: 'listing-client', protocolVersions: [PROTOCOL_VERSION] }));
+			const local = disposables.add(connectClient('local-listing-client'));
+			stateManager.createSession({ ...fullSummary, defaultChat: defaultChatUri });
+			const localAdded = findNotifications(local.sent, 'root/sessionAdded')[0].params as SessionAddedParams;
+			const { _meta, chats, defaultChat, ...basic } = localAdded.summary;
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionMetaChanged, _meta: { 'test.content': 'private-update' } });
+			stateManager.prepareSessionSummariesForListing([fullSummary]);
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Renamed Session' });
+			stateManager.prepareSessionSummariesForListing([fullSummary]);
+			stateManager.setSessionSummaryPublished(sessionUri, false);
+			assert.deepStrictEqual({
+				added: findNotifications(transport.sent, 'root/sessionAdded').map(message => message.params),
+				changed: findNotifications(transport.sent, 'root/sessionSummaryChanged').map(message => (message.params as SessionSummaryChangedParams).changes),
+				removed: findNotifications(transport.sent, 'root/sessionRemoved').map(message => message.params),
+				localMeta: localAdded.summary._meta,
+			}, {
+				added: [{ ...localAdded, summary: basic }],
+				changed: [{ title: 'Renamed Session' }],
+				removed: [{ channel: ROOT_STATE_URI, session: sessionUri }],
+				localMeta: fullSummary._meta,
+			});
+		});
+
+		for (const passive of [false, true]) {
+			test(`${passive ? 'passive' : 'active'} relay lists basic summaries before authentication and after expiry without changing local or authenticated listings`, async () => {
+				seedSession();
+				const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'listing-client', passive));
+				transport.relayAuthenticated = false;
+				server.simulateConnection(transport);
+				transport.simulateMessage(request(1, 'initialize', { clientId: 'listing-client', protocolVersions: [PROTOCOL_VERSION] }));
+				transport.simulateMessage(request(2, 'listSessions', { channel: ROOT_STATE_URI }));
+				await handler.whenIdle();
+				transport.relayAuthenticated = true;
+				transport.simulateMessage(request(3, 'listSessions', { channel: ROOT_STATE_URI }));
+				await handler.whenIdle();
+				transport.relayAuthenticated = false;
+				transport.simulateMessage(request(4, 'listSessions', { channel: ROOT_STATE_URI }));
+				await handler.whenIdle();
+				const local = disposables.add(connectClient('local-listing-client', undefined, undefined, undefined, AgentHostTransportKind.MessagePort));
+				const direct = disposables.add(connectClient('direct-listing-client', undefined, undefined, undefined, AgentHostTransportKind.WebSocket));
+				local.simulateMessage(request(2, 'listSessions', { channel: ROOT_STATE_URI }));
+				direct.simulateMessage(request(2, 'listSessions', { channel: ROOT_STATE_URI }));
+				await handler.whenIdle();
+				assert.deepStrictEqual({
+					before: findResponse(transport.sent, 2),
+					authenticated: findResponse(transport.sent, 3),
+					expired: findResponse(transport.sent, 4),
+					local: findResponse(local.sent, 2),
+					direct: findResponse(direct.sent, 2),
+				}, {
+					before: { jsonrpc: '2.0', id: 2, result: { items: [basicSummary] } },
+					authenticated: { jsonrpc: '2.0', id: 3, result: { items: [fullSummary] } },
+					expired: { jsonrpc: '2.0', id: 4, result: { items: [basicSummary] } },
+					local: { jsonrpc: '2.0', id: 2, result: { items: [fullSummary] } },
+					direct: { jsonrpc: '2.0', id: 2, result: { items: [fullSummary] } },
+				});
+			});
+		}
+
+		test('relay listing withholds details when authentication expires while the provider is listing', async () => {
+			seedSession();
+			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'listing-client', false));
+			transport.relayAuthenticated = true;
+			const started = new DeferredPromise<void>();
+			const barrier = new DeferredPromise<IAgentSessionMetadata[]>();
+			agentService.listSessions = async () => {
+				await started.complete();
+				return barrier.p;
+			};
+			server.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', { clientId: 'listing-client', protocolVersions: [PROTOCOL_VERSION] }));
+			transport.simulateMessage(request(2, 'listSessions', { channel: ROOT_STATE_URI }));
+			await started.p;
+			transport.relayAuthenticated = false;
+			await barrier.complete(agentService.listedSessions);
+			await handler.whenIdle();
+			assert.deepStrictEqual(findResponse(transport.sent, 2), {
+				jsonrpc: '2.0', id: 2, result: { items: [basicSummary] },
+			});
+		});
+
+		test('relay listing reports provider failures rather than an empty discovery result', async () => {
+			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'listing-client', false));
+			transport.relayAuthenticated = false;
+			agentService.listSessions = async () => { throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, 'Session store unavailable'); };
+			server.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', { clientId: 'listing-client', protocolVersions: [PROTOCOL_VERSION] }));
+			transport.simulateMessage(request(2, 'listSessions', { channel: ROOT_STATE_URI }));
+			await handler.whenIdle();
+			assert.deepStrictEqual(findResponse(transport.sent, 2), {
+				jsonrpc: '2.0', id: 2, error: { code: JSON_RPC_INTERNAL_ERROR, message: 'Session store unavailable' },
+			});
+		});
+	});
+
+	test('relay authorization logging identifies an unauthenticated admission without exposing request data', async () => {
+		const warnings = sinon.spy(logService, 'warn');
+		disposables.add(toDisposable(() => warnings.restore()));
+		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'relay-client', false));
+		transport.relayAuthenticated = false;
+		server.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', { clientId: 'relay-client', protocolVersions: [PROTOCOL_VERSION] }));
+		transport.simulateMessage(request(2, 'listChats', { token: 'private-token', channel: 'private-session' }));
+		await handler.whenIdle();
+		assert.deepStrictEqual({
+			warnings: warnings.getCalls().map(call => call.args),
+			response: findResponse(transport.sent, 2),
+		}, {
+			warnings: [['[ProtocolServer] Relay authorization rejected: clientId=relay-client phase=admission reason=identityUnauthenticated identityAuthenticated=false']],
+			response: {
+				jsonrpc: '2.0', id: 2, error: {
+					code: AHP_AUTH_REQUIRED, message: 'Relay identity authentication is required',
+					data: { resources: [{ resource: 'https://api.github.com', required: true }] },
+				},
+			},
+		});
+	});
+
+	for (const reauthenticated of [false, true]) {
+		test(`relay authorization logging distinguishes invalidated work when identity is ${reauthenticated ? 'authenticated again' : 'unauthenticated'}`, async () => {
+			await MissionControlSealing.ready();
+			const resource = 'https://api.github.com';
+			const sealing = disposables.add(new MissionControlSealing());
+			const auth = disposables.add(new MissionControlAuthentication(sealing, '123', resource, async () => Response.json({ id: 123, type: 'User' }), false));
+			const key = sealing.advertisedKeys.find(key => key.use === 'auth-token')!;
+			const token = await sealMissionControlCredential({ resource, token: 'private-owner-token', key: { ...key, use: 'auth-token' } });
+			await auth.authenticate({ resource, token });
+			const warnings = sinon.spy(logService, 'warn');
+			disposables.add(toDisposable(() => warnings.restore()));
+			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'relay-client', false));
+			Object.defineProperty(transport, 'relayAuthenticated', { get: () => auth.authenticated });
+			transport.relayCaptureAuthorization = () => auth.captureAuthorization();
+			server.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', { clientId: 'relay-client', protocolVersions: [PROTOCOL_VERSION] }));
+			const started = new DeferredPromise<void>();
+			const barrier = new DeferredPromise<ResourceReadResult>();
+			agentService.resourceRead = async () => {
+				await started.complete();
+				return barrier.p;
+			};
+			transport.simulateMessage(request(2, 'resourceRead', { uri: 'file:///test.txt' }));
+			await started.p;
+			auth.beginHandshake();
+			if (reauthenticated) {
+				await auth.authenticate({ resource, token });
+			}
+			await barrier.complete({ data: 'private-content', encoding: ContentEncoding.Utf8 });
+			await handler.whenIdle();
+			assert.deepStrictEqual({
+				warnings: warnings.getCalls().map(call => call.args),
+				response: findResponse(transport.sent, 2),
+			}, {
+				warnings: [[`[ProtocolServer] Relay authorization rejected: clientId=relay-client phase=recheck reason=${reauthenticated ? 'authorizationInvalidated' : 'identityUnauthenticated'} identityAuthenticated=${reauthenticated}`]],
+				response: {
+					jsonrpc: '2.0', id: 2, error: {
+						code: AHP_AUTH_REQUIRED, message: 'Relay identity authentication is required',
+						data: { resources: [{ resource, required: true }] },
+					},
+				},
+			});
+		});
+	}
+
 	test('relay identity errors advertise the owning authority without requiring a Copilot provider', async () => {
 		stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootAgentsChanged, agents: [] });
 		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'enterprise-relay', true));
@@ -2437,7 +3421,7 @@ suite('ProtocolServerHandler', () => {
 		transport.relayAuthenticationResource = 'https://api.enterprise.example';
 		server.simulateConnection(transport);
 		transport.simulateMessage(request(1, 'initialize', { clientId: 'enterprise-relay', protocolVersions: [PROTOCOL_VERSION] }));
-		transport.simulateMessage(request(2, 'listSessions', {}));
+		transport.simulateMessage(request(2, 'listChats', { channel: sessionUri }));
 		await handler.whenIdle();
 		assert.deepStrictEqual(findResponse(transport.sent, 2), {
 			jsonrpc: '2.0', id: 2, error: {
@@ -2477,16 +3461,234 @@ suite('ProtocolServerHandler', () => {
 			after: findResponse(transport.sent, 4),
 			forwarded,
 		}, {
-			before: {
-				jsonrpc: '2.0', id: 2, error: {
-					code: AHP_AUTH_REQUIRED,
-					message: 'Relay identity authentication is required',
-					data: { resources: [{ resource: transport.relayAuthenticationResource, required: true }] },
-				}
-			},
+			before: { jsonrpc: '2.0', id: 2, result: { items: [] } },
 			authentication: { jsonrpc: '2.0', id: 3, result: {} },
 			after: { jsonrpc: '2.0', id: 4, result: { items: [] } },
 			forwarded: [{ resource: transport.relayAuthenticationResource, token: 'verified-owner-token' }],
+		});
+	});
+
+	suite('scoped relay credentials', () => {
+		const resource = 'https://api.github.com';
+
+		async function fixture(extension?: IProtocolServerExtension) {
+			const authentication = disposables.add(new AgentHostAuthenticationService(new NullLogService()));
+			const providerTokens: string[] = [];
+			const handledTokens: string[] = [];
+			const changedTokens: (string | undefined)[] = [];
+			const authentications: { params: AuthenticateParams; scope: IAgentHostAuthenticationScope | undefined }[] = [];
+			const provider = new class extends mock<IAgent>() {
+				override getProtectedResources() { return [{ resource }]; }
+				override async authenticate(_resource: string, token: string) {
+					providerTokens.push(token);
+					return true;
+				}
+				override async handleAuthenticationToken(params: AuthenticateParams) {
+					handledTokens.push(params.token);
+					return true;
+				}
+			}();
+			disposables.add(authentication.onDidChangeAuthToken(event => changedTokens.push(event.token)));
+			await authentication.authenticate({ resource, token: 'desktop-token' }, [provider]);
+			agentService.authenticate = async (params, scope?: IAgentHostAuthenticationScope) => {
+				authentications.push({ params, scope });
+				return authentication.authenticate(params, [provider], scope);
+			};
+			const relay = disposables.add(new MockProtocolServer());
+			const scopedHandler = disposables.add(new ProtocolServerHandler(
+				agentService, stateManager, relay, { scopedRelayCredentials: true, allowExtensionMethods: false, extension },
+				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
+			));
+			const connect = (clientId: string, passive = false, owner = '123') => {
+				const transport = disposables.add(new class extends MockProtocolTransport {
+					override get relayAuthentication(): IProtocolTransport['relayAuthentication'] {
+						return { resource, owner, authenticated: this.relayAuthenticated === true };
+					}
+				}(AgentHostTransportKind.WebSocket, clientId, passive));
+				transport.relayAuthenticated = false;
+				transport.relayAuthenticate = async params => {
+					if (params.resource === resource) {
+						transport.relayAuthenticated = true;
+					}
+					return params;
+				};
+				relay.simulateConnection(transport);
+				transport.simulateMessage(request(1, 'initialize', { clientId, protocolVersions: [PROTOCOL_VERSION] }));
+				return transport;
+			};
+			const authenticate = async (transport: MockProtocolTransport, token: string, scopes?: readonly string[]) => {
+				transport.simulateMessage(request(2, 'authenticate', { resource, token, ...(scopes ? { scopes } : {}) }));
+				await scopedHandler.whenIdle();
+				assert.deepStrictEqual(findResponse(transport.sent, 2), { jsonrpc: '2.0', id: 2, result: {} });
+				const scope = authentications.at(-1)?.scope;
+				assert.ok(scope);
+				return scope;
+			};
+			return { authentication, provider, providerTokens, handledTokens, changedTokens, authentications, scopedHandler, connect, authenticate };
+		}
+
+		test('same-owner lanes retain separate client credentials without changing desktop providers, storage or replay', async () => {
+			const f = await fixture();
+			const broad = await f.authenticate(f.connect('broad-client'), 'broad-token', ['read:user', 'repo']);
+			const narrow = await f.authenticate(f.connect('narrow-client'), 'narrow-token', ['read:user']);
+			await f.authentication.replay(f.provider);
+			assert.deepStrictEqual({
+				distinctSources: broad !== narrow,
+				principals: [broad.principal, narrow.principal],
+				broad: f.authentication.getAuthToken({ resource, scopes: ['repo'] }, broad),
+				narrow: f.authentication.getAuthToken({ resource, scopes: ['read:user'] }, narrow),
+				narrowRepository: f.authentication.getAuthToken({ resource, scopes: ['repo'] }, narrow),
+				desktop: f.authentication.getAuthToken({ resource }),
+				providerTokens: f.providerTokens,
+				handledTokens: f.handledTokens,
+				changedTokens: f.changedTokens,
+			}, {
+				distinctSources: true,
+				principals: [{ apiOrigin: resource, userId: '123' }, { apiOrigin: resource, userId: '123' }],
+				broad: 'broad-token', narrow: 'narrow-token', narrowRepository: 'narrow-token', desktop: 'desktop-token',
+				providerTokens: ['desktop-token', 'desktop-token'],
+				handledTokens: ['desktop-token', 'desktop-token'],
+				changedTokens: ['desktop-token'],
+			});
+		});
+
+		test('forwards the exact connection source to session creation, dispatch, changesets and listener extensions', async () => {
+			const extensionSources: (IAgentHostCredentialSource | undefined)[] = [];
+			const extension: IProtocolServerExtension = {
+				rootMeta: {},
+				rootConfig: { schema: { type: 'object', properties: {} }, values: {} },
+				onDidEmitAction: Event.None,
+				initialize: async () => { },
+				requests: new Map([['example/scoped', {
+					readOnly: false,
+					handle: async (_params, checkAuthorization, source) => {
+						checkAuthorization();
+						extensionSources.push(source);
+						return null;
+					},
+				}]]),
+			};
+			const f = await fixture(extension);
+			const dispatchedSources: (IAgentHostCredentialSource | undefined)[] = [];
+			const changesetSources: (IAgentHostCredentialSource | undefined)[] = [];
+			const dispatch: IAgentService['dispatchAction'] = async (_channel, _action, _clientId, _clientSeq, _context, source) => {
+				dispatchedSources.push(source);
+			};
+			const invokeChangeset: IAgentService['invokeChangesetOperation'] = async (_params, source) => {
+				changesetSources.push(source);
+				return {};
+			};
+			agentService.dispatchAction = dispatch;
+			agentService.invokeChangesetOperation = invokeChangeset;
+			const sources: IAgentHostCredentialSource[] = [];
+			const transports: MockProtocolTransport[] = [];
+			for (const clientId of ['client-a', 'client-b']) {
+				const transport = f.connect(clientId);
+				transports.push(transport);
+				sources.push(await f.authenticate(transport, `${clientId}-token`));
+				const channel = URI.from({ scheme: 'copilot', path: `/${clientId}` }).toString();
+				transport.simulateMessage(request(3, 'createSession', {
+					provider: 'copilot', channel, credentials: { token: 'forged-token' },
+					_meta: { credentialSource: 'forged-source' },
+				}));
+				await f.scopedHandler.whenIdle();
+				transport.simulateMessage(notification('dispatchAction', {
+					channel, clientSeq: 1, credentials: { token: 'forged-token' },
+					action: { type: ActionType.SessionTitleChanged, title: 'Scoped title' },
+				}));
+				transport.simulateMessage(request(4, 'invokeChangesetOperation', { channel, operationId: 'test', credentials: { token: 'forged-token' } }));
+				transport.simulateMessage(request(5, 'example/scoped', { credentials: { token: 'forged-token' } }));
+				await f.scopedHandler.whenIdle();
+			}
+			assert.deepStrictEqual({
+				created: agentService.createSessionConfigs.map((config, index) => config?.credentials === sources[index]),
+				dispatched: dispatchedSources.map((source, index) => source === sources[index]),
+				changesets: changesetSources.map((source, index) => source === sources[index]),
+				extensions: extensionSources.map((source, index) => source === sources[index]),
+				responses: transports.map(transport => [3, 4, 5].map(id => {
+					const response = findResponse(transport.sent, id);
+					return response && hasKey(response, { result: true });
+				})),
+				tokenPublished: transports.some(transport => JSON.stringify(transport.sent).includes('-token')),
+			}, {
+				created: [true, true], dispatched: [true, true], changesets: [true, true], extensions: [true, true],
+				responses: [[true, true, true], [true, true, true]], tokenPublished: false,
+			});
+		});
+
+		test('disconnect closes only its own source and a fresh initialization of the same client ID gets a fresh source', async () => {
+			const f = await fixture();
+			const previous = f.connect('reconnecting-client');
+			const previousSource = await f.authenticate(previous, 'previous-token');
+			const otherSource = await f.authenticate(f.connect('other-client'), 'other-token');
+			previous.simulateClose();
+			assert.throws(() => previousSource.getCredential({ resource }), { code: AHP_AUTH_REQUIRED });
+			const reconnected = f.connect('reconnecting-client');
+			reconnected.simulateMessage(request(3, 'createSession', { provider: 'copilot', channel: sessionUri }));
+			await f.scopedHandler.whenIdle();
+			const before = findResponse(reconnected.sent, 3);
+			const freshSource = await f.authenticate(reconnected, 'fresh-token');
+			previous.simulateClose();
+			assert.deepStrictEqual({
+				freshSource: freshSource !== previousSource && freshSource !== otherSource,
+				before: before && hasKey(before, { error: true }) ? before.error.code : undefined,
+				fresh: freshSource.getCredential({ resource })?.token,
+				other: otherSource.getCredential({ resource })?.token,
+				desktop: f.authentication.getAuthToken({ resource }),
+			}, { freshSource: true, before: AHP_AUTH_REQUIRED, fresh: 'fresh-token', other: 'other-token', desktop: 'desktop-token' });
+		});
+
+		test('unauthenticated requests require identity and passive authentication captures only its own identity without updating providers', async () => {
+			const f = await fixture();
+			const active = f.connect('unauthenticated-client');
+			active.simulateMessage(request(3, 'listSessions', {}));
+			active.simulateMessage(request(4, 'createSession', { provider: 'copilot', channel: sessionUri }));
+			const passive = f.connect('passive-client', true);
+			passive.simulateMessage(request(2, 'authenticate', { resource, token: 'passive-token' }));
+			await f.scopedHandler.whenIdle();
+			passive.simulateMessage(request(3, 'listSessions', {}));
+			passive.simulateMessage(request(4, 'createSession', { provider: 'copilot', channel: sessionUri }));
+			passive.simulateMessage(request(5, 'authenticate', { resource: 'https://mcp.test', token: 'mcp-token' }));
+			await f.scopedHandler.whenIdle();
+			const responseCode = (transport: MockProtocolTransport, id: number) => {
+				const response = findResponse(transport.sent, id);
+				return response && hasKey(response, { error: true }) ? response.error.code : undefined;
+			};
+			assert.deepStrictEqual({
+				active: [responseCode(active, 3), responseCode(active, 4)],
+				passiveAuthentication: findResponse(passive.sent, 2),
+				passiveList: findResponse(passive.sent, 3),
+				passiveMutation: responseCode(passive, 4),
+				authentications: f.authentications.map(authentication => f.authentication.getAuthToken({ resource }, authentication.scope)),
+				passiveMcp: responseCode(passive, 5),
+				created: agentService.createSessionConfigs,
+				desktop: f.authentication.getAuthToken({ resource }),
+				providerTokens: f.providerTokens,
+				changedTokens: f.changedTokens,
+			}, {
+				active: [undefined, AHP_AUTH_REQUIRED],
+				passiveAuthentication: { jsonrpc: '2.0', id: 2, result: {} },
+				passiveList: { jsonrpc: '2.0', id: 3, result: { items: [] } },
+				passiveMutation: JsonRpcErrorCodes.InvalidRequest,
+				authentications: ['passive-token'], passiveMcp: AhpErrorCodes.PermissionDenied,
+				created: [], desktop: 'desktop-token', providerTokens: ['desktop-token'], changedTokens: ['desktop-token'],
+			});
+		});
+
+		test('wire credential metadata cannot supply a missing host-owned relay principal', async () => {
+			const f = await fixture();
+			const transport = f.connect('missing-owner', false, '');
+			transport.simulateMessage(request(2, 'authenticate', {
+				resource, token: 'remote-token', owner: '123', credentials: { principal: { apiOrigin: resource, userId: '123' } },
+			}));
+			await f.scopedHandler.whenIdle();
+			const response = findResponse(transport.sent, 2);
+			assert.deepStrictEqual({
+				code: response && hasKey(response, { error: true }) ? response.error.code : undefined,
+				authentications: f.authentications,
+				desktop: f.authentication.getAuthToken({ resource }),
+			}, { code: AHP_AUTH_REQUIRED, authentications: [], desktop: 'desktop-token' });
 		});
 	});
 
@@ -2513,12 +3715,12 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
-	test('relay authentication forwards a delegated credential internally without publishing it to clients', async () => {
+	test('relay authentication forwards an opened client credential internally without publishing it to clients', async () => {
 		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'relay-client', false));
 		transport.relayAuthenticated = false;
 		transport.relayAuthenticate = async params => {
 			transport.relayAuthenticated = true;
-			return { resource: params.resource, token: 'desktop-credential' };
+			return { resource: params.resource, token: 'mobile-credential', scopes: params.scopes };
 		};
 		const installed: AuthenticateParams[] = [];
 		agentService.authenticate = async params => {
@@ -2534,15 +3736,59 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual({
 			installed,
 			response: findResponse(transport.sent, 2),
-			credentialPublished: JSON.stringify(transport.sent).includes('desktop-credential'),
+			credentialPublished: JSON.stringify(transport.sent).includes('mobile-credential'),
 		}, {
-			installed: [{ resource: 'https://api.github.com', token: 'desktop-credential' }],
+			installed: [{ resource: 'https://api.github.com', token: 'mobile-credential', scopes: ['mobile-only'] }],
 			response: { jsonrpc: '2.0', id: 2, result: {} },
 			credentialPublished: false,
 		});
 	});
 
 	for (const passive of [false, true]) {
+		test(`same-owner credential renewal preserves pending ${passive ? 'passive' : 'active'} relay session and chat subscriptions`, async () => {
+			await MissionControlSealing.ready();
+			const resource = 'https://api.github.com';
+			const sealing = disposables.add(new MissionControlSealing());
+			const auth = disposables.add(new MissionControlAuthentication(sealing, '123', resource, async () => Response.json({ id: 123, type: 'User' }), false));
+			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'renewing-client', passive));
+			Object.defineProperty(transport, 'relayAuthenticated', { get: () => auth.authenticated });
+			transport.relayAuthenticate = params => auth.authenticate(params);
+			transport.relayCaptureAuthorization = () => auth.captureAuthorization();
+			transport.onDidRelayAuthenticationExpire = auth.onDidExpire;
+			server.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', { clientId: 'renewing-client', protocolVersions: [PROTOCOL_VERSION] }));
+			stateManager.createSession(makeSessionSummary());
+			const key = sealing.advertisedKeys.find(key => key.use === 'auth-token')!;
+			const authenticate = async (id: number, target: string) => {
+				const token = await sealMissionControlCredential({ resource: target, token: `owner-token-${id}`, key: { ...key, use: 'auth-token' } });
+				const response = waitForResponse(transport, id);
+				transport.simulateMessage(request(id, 'authenticate', { resource: target, token }));
+				return response;
+			};
+			const initial = await authenticate(2, resource);
+			const barrier = agentService.subscribeBarrier = new DeferredPromise<void>();
+			const channels = [sessionUri, defaultChatUri];
+			for (const [index, channel] of channels.entries()) {
+				transport.simulateMessage(request(index + 3, 'subscribe', { channel }));
+			}
+			const renewed = await authenticate(5, resource);
+			const repository = await authenticate(6, `${resource}/repos`);
+			const pending = channels.map((_, index) => findResponse(transport.sent, index + 3));
+			await barrier.complete();
+			await handler.whenIdle();
+			assert.deepStrictEqual({
+				authentication: [initial, renewed, repository],
+				pending,
+				subscriptions: channels.map((_, index) => findResponse(transport.sent, index + 3)),
+			}, {
+				authentication: [2, 5, 6].map(id => ({ jsonrpc: '2.0', id, result: {} })),
+				pending: [undefined, undefined],
+				subscriptions: channels.map((channel, index) => ({
+					jsonrpc: '2.0', id: index + 3, result: { snapshot: stateManager.getSnapshot(channel) },
+				})),
+			});
+		});
+
 		test(`GitHub deadline ends ${passive ? 'passive' : 'active'} relay observation and requires fresh subscriptions after reauthentication`, async () => {
 			await MissionControlSealing.ready();
 			const clock = sinon.useFakeTimers({ now: Date.parse('2030-01-01T00:00:00Z'), toFake: ['Date', 'setTimeout', 'clearTimeout'] });
@@ -2594,11 +3840,11 @@ suite('ProtocolServerHandler', () => {
 			clock.tick(1);
 			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Hidden after lapse' });
 			agentService.emitMcpNotification({ channel: 'mcp://copilot/session/server', method: 'notifications/tools/list_changed' });
-			transport.simulateMessage(request(4, 'listSessions', {}));
+			transport.simulateMessage(request(4, 'listChats', { channel: sessionUri }));
 			await handler.whenIdle();
 			const expiredPart = stateManager.getSessionState(defaultChatUri)?.activeTurn?.responseParts[0];
 			assert.deepStrictEqual({
-				notifications: transport.sent.filter(isJsonRpcNotification),
+				protectedNotifications: transport.sent.filter(isJsonRpcNotification).filter(message => message.method !== 'root/sessionSummaryChanged'),
 				denied: findResponse(transport.sent, 4),
 				activeClients: stateManager.getSessionState(sessionUri)?.activeClients,
 				tool: expiredPart?.kind === ResponsePartKind.ToolCall ? {
@@ -2607,7 +3853,7 @@ suite('ProtocolServerHandler', () => {
 					error: expiredPart.toolCall.status === ToolCallStatus.Completed ? expiredPart.toolCall.error?.message : undefined,
 				} : undefined,
 			}, {
-				notifications: [],
+				protectedNotifications: [],
 				denied: {
 					jsonrpc: '2.0', id: 4, error: {
 						code: AHP_AUTH_REQUIRED, message: 'Relay identity authentication is required',
@@ -2624,12 +3870,12 @@ suite('ProtocolServerHandler', () => {
 			await authenticate(5);
 			transport.sent.length = 0;
 			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Still unsubscribed' });
-			assert.deepStrictEqual(transport.sent, []);
+			assert.deepStrictEqual(findNotifications(transport.sent, 'action'), []);
 			transport.simulateMessage(request(6, 'subscribe', { channel: sessionUri }));
 			await handler.whenIdle();
 			transport.sent.length = 0;
 			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Visible after resubscribe' });
-			assert.strictEqual(transport.sent.filter(isJsonRpcNotification).length, 1);
+			assert.strictEqual(findNotifications(transport.sent, 'action').length, 1);
 		});
 	}
 
@@ -2682,7 +3928,7 @@ suite('ProtocolServerHandler', () => {
 		}
 	}
 
-	for (const method of ['listSessions', 'resourceRead', 'mcp/test', 'authenticate']) {
+	for (const method of ['resourceRead', 'mcp/test', 'authenticate']) {
 		test(`relay ${method} completion cannot disclose success after authorization lapses`, async () => {
 			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'expiring-client', false));
 			transport.relayAuthenticated = true;
@@ -2692,9 +3938,7 @@ suite('ProtocolServerHandler', () => {
 				void started.complete();
 				return pending.p;
 			};
-			if (method === 'listSessions') {
-				agentService.listSessions = async () => { await wait(); return []; };
-			} else if (method === 'resourceRead') {
+			if (method === 'resourceRead') {
 				agentService.resourceRead = async () => { await wait(); return { data: 'private-content', encoding: ContentEncoding.Utf8 }; };
 			} else if (method === 'authenticate') {
 				transport.relayAuthenticate = async params => params;
@@ -2728,7 +3972,7 @@ suite('ProtocolServerHandler', () => {
 						return [process.cwd()];
 					}
 				},
-				fileSystemProvider, logService, telemetryService, managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+				fileSystemProvider, logService, telemetryService, managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 			));
 			let reads = 0;
 			agentService.resourceRead = async () => { reads++; return { data: 'protected', encoding: ContentEncoding.Utf8 }; };
@@ -2764,27 +4008,296 @@ suite('ProtocolServerHandler', () => {
 		await rejected;
 	});
 
-	test('relay root-config and managed-permission changes cannot affect local host state', async () => {
+	test('authenticated relay clients can edit host configuration without changing managed permissions', async () => {
 		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'relay-client', false));
 		transport.relayAuthenticated = true;
 		server.simulateConnection(transport);
 		transport.simulateMessage(request(1, 'initialize', { clientId: 'relay-client', protocolVersions: [PROTOCOL_VERSION], initialSubscriptions: [ROOT_STATE_URI] }));
 		transport.sent.length = 0;
-		const action = { type: ActionType.RootConfigChanged, config: { githubEnterpriseUri: 'https://attacker.test', customizations: ['file:///malicious'] } };
+		const action: IRootConfigChangedAction = { type: ActionType.RootConfigChanged, config: { telemetryLevel: 'off' } };
+		const replacement: IRootConfigChangedAction = { type: ActionType.RootConfigChanged, config: { terminalAutoApproveEnabled: false }, replace: true };
 		transport.simulateMessage(request(2, 'dispatchAction', { channel: ROOT_STATE_URI, clientSeq: 1, action }));
-		transport.simulateMessage(notification('dispatchAction', { channel: ROOT_STATE_URI, clientSeq: 2, action }));
+		transport.simulateMessage(notification('dispatchAction', { channel: ROOT_STATE_URI, clientSeq: 2, action: replacement }));
 		transport.simulateMessage(notification('setClientManagedSettingsPermissions', { permissions: { allow: ['Shell'] } }));
 		await handler.whenIdle();
 		assert.deepStrictEqual({
 			rejections: findNotifications(transport.sent, 'action').map(message => (message.params as ActionEnvelope).rejectionReason),
 			dispatched: agentService.handledActions,
+			values: stateManager.rootState.config?.values,
 			permissions: managedSettingsService.permissions,
 		}, {
-			rejections: ['Relay clients cannot change host configuration', 'Relay clients cannot change host configuration'],
-			dispatched: [],
+			rejections: [undefined, undefined],
+			dispatched: [action, replacement],
+			values: replacement.config,
 			permissions: {},
 		});
 	});
+
+	for (const replace of [false, true]) {
+		test(`relay root settings ${replace ? 'replacements' : 'patches'} cannot override read-only policy values`, async () => {
+			stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { autoApprovePolicyRestricted: true } });
+			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'policy-config-client', false));
+			transport.relayAuthenticated = true;
+			server.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', { clientId: 'policy-config-client', protocolVersions: [PROTOCOL_VERSION], initialSubscriptions: [ROOT_STATE_URI] }));
+			transport.sent.length = 0;
+			transport.simulateMessage(notification('dispatchAction', {
+				channel: ROOT_STATE_URI, clientSeq: 1,
+				action: { type: ActionType.RootConfigChanged, config: { autoApprovePolicyRestricted: false }, replace },
+			}));
+			await handler.whenIdle();
+			const rejection = findNotifications(transport.sent, 'action').map(message => (message.params as ActionEnvelope).rejectionReason);
+			transport.simulateMessage(notification('dispatchAction', {
+				channel: ROOT_STATE_URI, clientSeq: 2,
+				action: { type: ActionType.RootConfigChanged, config: { terminalAutoApproveEnabled: false }, replace },
+			}));
+			await handler.whenIdle();
+			assert.deepStrictEqual({
+				rejection,
+				allowedActions: agentService.handledActions.length,
+				restricted: stateManager.rootState.config?.values.autoApprovePolicyRestricted,
+				edited: stateManager.rootState.config?.values.terminalAutoApproveEnabled,
+			}, {
+				rejection: ['Host configuration property is read-only: autoApprovePolicyRestricted'],
+				allowedActions: 1, restricted: true, edited: false,
+			});
+		});
+	}
+
+	for (const authenticated of [undefined, false, true]) {
+		test(`${authenticated === undefined ? 'unverified' : authenticated ? 'passive' : 'unauthenticated'} relay clients cannot edit host configuration`, async () => {
+			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'restricted-config-client', authenticated === true));
+			transport.relayAuthenticated = authenticated;
+			server.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', { clientId: 'restricted-config-client', protocolVersions: [PROTOCOL_VERSION], initialSubscriptions: [ROOT_STATE_URI] }));
+			const config = stateManager.rootState.config;
+			const initial = findResponse(transport.sent, 1);
+			transport.simulateMessage(notification('dispatchAction', {
+				channel: ROOT_STATE_URI, clientSeq: 1,
+				action: { type: ActionType.RootConfigChanged, config: { telemetryLevel: 'off' }, replace: true },
+			}));
+			await handler.whenIdle();
+			const configUnchanged = stateManager.rootState.config === config;
+			transport.sent.length = 0;
+			stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { telemetryLevel: 'off' } });
+			assert.deepStrictEqual({
+				dispatched: agentService.handledActions,
+				configUnchanged,
+				initialConfig: initial && hasKey(initial, { result: true }) ? ((initial.result as InitializeResult).snapshots[0]?.state as RootState).config : undefined,
+				hostUpdates: findNotifications(transport.sent, 'action').length,
+			}, {
+				dispatched: [], configUnchanged: true,
+				initialConfig: authenticated === true ? config : undefined,
+				hostUpdates: authenticated === true ? 1 : 0,
+			});
+		});
+	}
+
+	for (const scenario of [
+		{ name: 'older editor', clientInfo: { ...editorWindowAgentHostClientInfo, version: '1.142.0' }, vscode: true },
+		{ name: 'Agents window', clientInfo: agentsWindowAgentHostClientInfo, vscode: true },
+		{ name: 'current editor', clientInfo: { ...editorWindowAgentHostClientInfo, version: '1.143.0' }, vscode: true },
+		{ name: 'mobile', clientInfo: { name: 'mobile-client' }, vscode: false },
+		{ name: 'unmarked peer', clientInfo: undefined, vscode: false },
+	]) {
+		test(`model option aliases preserve ${scenario.name} compatibility across snapshots, updates and reconnect`, async () => {
+			const effort = { type: 'string' as const, title: 'Effort Level', enum: ['low', 'medium', 'high'] };
+			const tier = { type: 'string' as const, title: 'Optimize for', enum: ['efficiency', 'balance', 'intelligence'] };
+			const agents: AgentInfo[] = [{
+				provider: 'copilotcli', displayName: 'Copilot', description: 'Copilot',
+				models: [{
+					id: 'model', name: 'Model', provider: 'copilotcli',
+					configSchema: {
+						type: 'object', properties: {
+							thinkingLevel: { ...effort, default: 'medium' }, reasoningEffort: effort,
+							tier: { ...tier, default: 'balance' }, autoTier: tier,
+						}
+					},
+				}, {
+					id: 'canonical-only', name: 'Canonical Only', provider: 'copilotcli',
+					configSchema: { type: 'object', properties: { reasoningEffort: effort } },
+				}],
+			}, {
+				provider: 'codex', displayName: 'Codex', description: 'Codex',
+				models: [{
+					id: 'codex', name: 'Codex', provider: 'codex',
+					configSchema: { type: 'object', properties: { thinkingLevel: effort, reasoningEffort: effort } },
+				}],
+			}];
+			stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootAgentsChanged, agents });
+			const expected = scenario.vscode ? [{
+				...agents[0], models: [{
+					...agents[0].models[0], configSchema: {
+						type: 'object', properties: {
+							thinkingLevel: { ...effort, default: 'medium' }, tier: { ...tier, default: 'balance' },
+						}
+					},
+				}, ...agents[0].models.slice(1)],
+			}, ...agents.slice(1)] : agents;
+			const connect = () => {
+				const transport = disposables.add(new MockProtocolTransport());
+				server.simulateConnection(transport);
+				return transport;
+			};
+			const transport = connect();
+			const initialized = waitForResponse(transport, 1);
+			transport.simulateMessage(request(1, 'initialize', {
+				clientId: 'model-alias-client', protocolVersions: [PROTOCOL_VERSION], initialSubscriptions: [ROOT_STATE_URI],
+				clientInfo: scenario.clientInfo,
+			}));
+			const response = await initialized;
+			assert.ok(hasKey(response, { result: true }));
+			const initial = (response.result as InitializeResult).snapshots.find(snapshot => snapshot.resource === ROOT_STATE_URI);
+			const snapshotAgents = (snapshot: IStateSnapshot | undefined) => {
+				assert.ok(snapshot && hasKey(snapshot.state, { agents: true }));
+				return snapshot.state.agents;
+			};
+			const subscribed = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'subscribe', { channel: ROOT_STATE_URI }));
+			const subscription = await subscribed;
+			assert.ok(hasKey(subscription, { result: true }));
+			const liveStart = transport.sent.length;
+			stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootAgentsChanged, agents });
+			const live = findNotifications(transport.sent.slice(liveStart), 'action').map(notification => notification.params as ActionEnvelope)
+				.find(envelope => envelope.action.type === ActionType.RootAgentsChanged);
+			assert.ok(live?.action.type === ActionType.RootAgentsChanged);
+			const cursor = stateManager.serverSeq;
+			transport.simulateClose();
+			stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootAgentsChanged, agents });
+			const replayTransport = connect();
+			const replayed = waitForResponse(replayTransport, 3);
+			replayTransport.simulateMessage(request(3, 'reconnect', {
+				clientId: 'model-alias-client', lastSeenServerSeq: cursor, subscriptions: [ROOT_STATE_URI],
+			}));
+			const replayResponse = await replayed;
+			assert.ok(hasKey(replayResponse, { result: true }));
+			const replay = replayResponse.result as ReconnectResult;
+			assert.ok(replay.type === 'replay');
+			const replayAction = replay.actions.find(envelope => envelope.action.type === ActionType.RootAgentsChanged);
+			assert.ok(replayAction?.action.type === ActionType.RootAgentsChanged);
+			replayTransport.simulateClose();
+			const snapshotTransport = connect();
+			const reconnected = waitForResponse(snapshotTransport, 4);
+			snapshotTransport.simulateMessage(request(4, 'reconnect', {
+				clientId: 'model-alias-client', lastSeenServerSeq: -1, subscriptions: [ROOT_STATE_URI],
+			}));
+			const reconnectResponse = await reconnected;
+			assert.ok(hasKey(reconnectResponse, { result: true }));
+			const reconnect = reconnectResponse.result as ReconnectResult;
+			assert.ok(reconnect.type === 'snapshot');
+			assert.deepStrictEqual({
+				initial: snapshotAgents(initial),
+				subscribed: snapshotAgents((subscription.result as SubscribeResult).snapshot),
+				live: live.action.agents,
+				replay: replayAction.action.agents,
+				reconnect: snapshotAgents(reconnect.snapshots.find(snapshot => snapshot.resource === ROOT_STATE_URI)),
+				authoritative: stateManager.rootState.agents,
+			}, {
+				initial: expected, subscribed: expected, live: expected, replay: expected, reconnect: expected, authoritative: agents,
+			});
+		});
+	}
+
+	for (const scenario of [
+		{ name: 'older editor', clientInfo: { ...editorWindowAgentHostClientInfo, version: '1.142.0' }, vscode: true },
+		{ name: 'current editor', clientInfo: { ...editorWindowAgentHostClientInfo, version: '1.143.0' }, vscode: true },
+		{ name: 'mobile', clientInfo: { name: 'mobile-client' }, vscode: false },
+	]) {
+		const selections: { id: string; config: Record<string, JsonPrimitive>; legacy: Record<string, JsonPrimitive> }[] = [
+			{ id: 'model', config: { reasoningEffort: 'high' }, legacy: { thinkingLevel: 'high' } },
+			{ id: 'auto', config: { autoTier: 'intelligence' }, legacy: { tier: 'intelligence' } },
+		];
+		for (const selection of selections) {
+			test(`${scenario.name} preserves shared ${selection.id} options through snapshots, updates and replay`, async () => {
+				const summary = { ...makeSessionSummary(), provider: 'copilotcli' };
+				const chat = summary.defaultChat;
+				const message: Message = { text: 'Shared draft', origin: { kind: MessageKind.User }, model: { id: selection.id, config: selection.config } };
+				const history: Turn = { id: 'history', message, responseParts: [], state: TurnState.Complete, usage: undefined };
+				stateManager.restoreSession(summary, [history], creationTimeChatStorageResource, { draft: message });
+				const actions: ChatAction[] = [
+					{ type: ActionType.ChatTurnStarted, turnId: 'active', message, startedAt: summary.createdAt },
+					{ type: ActionType.ChatDraftChanged, draft: message },
+					{ type: ActionType.ChatPendingMessageSet, id: 'queued', kind: PendingMessageKind.Queued, message },
+					{ type: ActionType.ChatPendingMessageSet, id: 'steering', kind: PendingMessageKind.Steering, message },
+					{ type: ActionType.ChatTurnsLoaded, turns: [{ ...history, id: 'older-history' }] },
+				];
+				for (const action of actions) {
+					stateManager.dispatchServerAction(chat, action);
+				}
+				const transport = disposables.add(new MockProtocolTransport());
+				server.simulateConnection(transport);
+				const initialized = waitForResponse(transport, 1);
+				transport.simulateMessage(request(1, 'initialize', {
+					clientId: 'model-selection-client', protocolVersions: [PROTOCOL_VERSION], initialSubscriptions: [ROOT_STATE_URI, chat],
+					clientInfo: scenario.clientInfo,
+				}));
+				const response = await initialized;
+				assert.ok(hasKey(response, { result: true }));
+				const snapshotConfigs = (snapshot: IStateSnapshot | undefined) => {
+					assert.ok(snapshot && hasKey(snapshot.state, { turns: true }));
+					const state = snapshot.state;
+					return [
+						...state.turns.map(turn => turn.message.model?.config),
+						state.activeTurn?.message.model?.config,
+						state.draft?.model?.config,
+						state.steeringMessage?.message.model?.config,
+						...state.queuedMessages?.map(pending => pending.message.model?.config) ?? [],
+					];
+				};
+				const actionConfigs = (envelopes: readonly ActionEnvelope[]) => envelopes.flatMap(envelope => {
+					const action = envelope.action;
+					switch (action.type) {
+						case ActionType.ChatTurnStarted:
+						case ActionType.ChatPendingMessageSet: return [action.message.model?.config];
+						case ActionType.ChatDraftChanged: return [action.draft?.model?.config];
+						case ActionType.ChatTurnsLoaded: return action.turns.map(turn => turn.message.model?.config);
+						default: return [];
+					}
+				});
+				const initial = (response.result as InitializeResult).snapshots.find(snapshot => snapshot.resource === chat);
+				transport.sent.length = 0;
+				for (const action of actions) {
+					stateManager.dispatchServerAction(chat, action);
+				}
+				const live = actionConfigs(findNotifications(transport.sent, 'action').map(notification => notification.params as ActionEnvelope));
+				const cursor = stateManager.serverSeq;
+				transport.simulateClose();
+				for (const action of actions) {
+					stateManager.dispatchServerAction(chat, action);
+				}
+				const replayTransport = disposables.add(new MockProtocolTransport());
+				server.simulateConnection(replayTransport);
+				const replayed = waitForResponse(replayTransport, 2);
+				replayTransport.simulateMessage(request(2, 'reconnect', {
+					clientId: 'model-selection-client', lastSeenServerSeq: cursor, subscriptions: [ROOT_STATE_URI, chat],
+				}));
+				const replayResponse = await replayed;
+				assert.ok(hasKey(replayResponse, { result: true }));
+				const replay = replayResponse.result as ReconnectResult;
+				assert.ok(replay.type === 'replay');
+				const subscribed = waitForResponse(replayTransport, 3);
+				replayTransport.simulateMessage(request(3, 'subscribe', { channel: chat }));
+				const subscription = await subscribed;
+				assert.ok(hasKey(subscription, { result: true }));
+				const restored = (subscription.result as SubscribeResult).snapshot;
+				const expected = scenario.vscode ? selection.legacy : selection.config;
+				assert.deepStrictEqual({
+					initial: snapshotConfigs(initial),
+					live,
+					replayed: actionConfigs(replay.actions),
+					restored: snapshotConfigs(restored),
+					authoritative: snapshotConfigs(stateManager.getSnapshot(chat)),
+				}, {
+					// Snapshots include both mixed-queue entries and the legacy steering mirror.
+					initial: Array.from({ length: 7 }, () => expected),
+					live: Array.from({ length: 5 }, () => expected),
+					replayed: Array.from({ length: 5 }, () => expected),
+					restored: Array.from({ length: 7 }, () => expected),
+					authoritative: Array.from({ length: 7 }, () => selection.config),
+				});
+			});
+		}
+	}
 
 	for (const initiallyAuthenticated of [false, true]) {
 		test(`Mission Control model advertisements hide other agents in snapshots, live updates and replay (initially authenticated: ${initiallyAuthenticated})`, async () => {
@@ -2810,7 +4323,7 @@ suite('ProtocolServerHandler', () => {
 				agentService, stateManager, relay,
 				{ allowExtensionMethods: false, advertisedModelProviders: ['copilotcli'] },
 				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 			));
 			const connectRelay = () => {
 				const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'model-relay', false, AgentHostClientConnectionKind.WebPubSub));
@@ -2922,7 +4435,7 @@ suite('ProtocolServerHandler', () => {
 		});
 	}
 
-	test('pre-authentication root snapshots omit host configuration and MCP notifications', async () => {
+	test('relay root configuration is available only after authentication', async () => {
 		stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { mcpServers: { private: { env: { SECRET: 'test-private-secret' } } } } });
 		const unauthenticated = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'guest-lane', false));
 		unauthenticated.relayAuthenticated = false;
@@ -2947,13 +4460,303 @@ suite('ProtocolServerHandler', () => {
 			localReceivesHostSecretUpdate: JSON.stringify(authenticated.sent).includes('test-updated-secret'),
 			relayReceivesOtherClientRejection: JSON.stringify(unauthenticated.sent).includes('local-rejected-secret'),
 		}, {
-			initialContainsSecret: false, initialConfig: false, guestMcp: false, authorizedMcp: true, authorizedRootContainsSecret: false,
-			relayReceivesHostSecretUpdate: false, localReceivesHostSecretUpdate: true,
+			initialContainsSecret: false, initialConfig: false, guestMcp: false, authorizedMcp: true, authorizedRootContainsSecret: true,
+			relayReceivesHostSecretUpdate: true, localReceivesHostSecretUpdate: true,
 			relayReceivesOtherClientRejection: false,
 		});
 	});
 
-	test('MC Copilot extensions expose only owned project configuration and enforce authentication and passive access', async () => {
+	suite('listener extensions', () => {
+		function createExtensionHandler(extension: IProtocolServerExtension, config: IProtocolServerConfig = {}) {
+			const relay = disposables.add(new MockProtocolServer());
+			const scopedHandler = disposables.add(new ProtocolServerHandler(
+				agentService, stateManager, relay, { ...config, allowExtensionMethods: false, extension },
+				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
+			));
+			const connect = (clientId: string, passive: boolean) => {
+				const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, clientId, passive));
+				transport.relayAuthenticated = false;
+				transport.relayAuthenticate = async params => { transport.relayAuthenticated = true; return params; };
+				relay.simulateConnection(transport);
+				transport.simulateMessage(request(1, 'initialize', { clientId, protocolVersions: [PROTOCOL_VERSION], initialSubscriptions: [ROOT_STATE_URI] }));
+				return transport;
+			};
+			return { relay, scopedHandler, connect };
+		}
+
+		test('uses contribution-defined methods, capabilities and passive permissions', async () => {
+			let initializations = 0;
+			const calls: string[] = [];
+			const extension: IProtocolServerExtension = {
+				rootMeta: { 'example.catalogue': { available: true } },
+				rootConfig: { schema: { type: 'object', properties: {} }, values: { example: { entries: ['public-entry'] } } },
+				onDidEmitAction: Event.None,
+				initialize: async () => { initializations++; },
+				requests: new Map([
+					['example/list', { readOnly: true, handle: async () => { calls.push('list'); return ['public-entry']; } }],
+					['example/write', { readOnly: false, handle: async () => { calls.push('write'); return null; } }],
+					['example/readSession', { readOnly: true, requiresChannel: true, handle: async () => { calls.push('session'); return 'session-result'; } }],
+				]),
+			};
+			stateManager.createSession(makeSessionSummary());
+			const { relay, scopedHandler, connect } = createExtensionHandler(extension);
+			const active = connect('extension-active', false);
+			active.simulateMessage(request(2, 'example/list', {}));
+			active.simulateMessage(request(3, 'authenticate', { resource: 'https://api.github.com', token: 'test-token' }));
+			await scopedHandler.whenIdle();
+			active.simulateMessage(request(4, 'subscribe', { channel: ROOT_STATE_URI }));
+			active.simulateMessage(request(5, 'example/write', {}));
+			active.simulateMessage(request(6, 'example/unknown', {}));
+			const passive = connect('extension-passive', true);
+			passive.simulateMessage(request(2, 'authenticate', { resource: 'https://api.github.com', token: 'test-token' }));
+			await scopedHandler.whenIdle();
+			passive.simulateMessage(request(3, 'example/list', {}));
+			passive.simulateMessage(request(4, 'example/write', {}));
+			passive.simulateMessage(request(5, 'example/readSession', {}));
+			passive.simulateMessage(request(6, 'example/readSession', { channel: sessionUri }));
+			const local = disposables.add(new MockProtocolTransport());
+			relay.simulateConnection(local);
+			local.simulateMessage(request(1, 'initialize', { clientId: 'extension-local', protocolVersions: [PROTOCOL_VERSION] }));
+			local.simulateMessage(request(2, 'example/list', {}));
+			await scopedHandler.whenIdle();
+			const response = (transport: MockProtocolTransport, id: number) => {
+				const message = findResponse(transport.sent, id);
+				return message && hasKey(message, { error: true }) ? message.error.code : message && hasKey(message, { result: true }) ? message.result : undefined;
+			};
+			const preauth = response(active, 1) as InitializeResult;
+			const subscribed = response(active, 4) as SubscribeResult;
+			assert.deepStrictEqual({
+				initializations, calls,
+				preauth: preauth.snapshots?.find(snapshot => snapshot.resource === ROOT_STATE_URI)?.state,
+				rootConfig: (subscribed.snapshot?.state as RootState).config,
+				responses: [response(active, 2), response(active, 5), response(active, 6), ...[3, 4, 5, 6].map(id => response(passive, id)), response(local, 2)],
+			}, {
+				initializations: 2, calls: ['write', 'list', 'session'],
+				preauth: { agents: [], _meta: extension.rootMeta },
+				rootConfig: { ...stateManager.rootState.config, values: { ...stateManager.rootState.config?.values, ...extension.rootConfig.values } },
+				responses: [AHP_AUTH_REQUIRED, null, JsonRpcErrorCodes.MethodNotFound, ['public-entry'], JsonRpcErrorCodes.InvalidRequest, JsonRpcErrorCodes.InvalidParams, 'session-result', JsonRpcErrorCodes.MethodNotFound],
+			});
+		});
+
+		test('host settings preserve the catalogue through edits, replacement and reconnect', async () => {
+			let catalogue = { copilot: { projects: ['initial-project'] } };
+			const changes = disposables.add(new Emitter<ActionEnvelope>());
+			const extension: IProtocolServerExtension = {
+				rootMeta: {},
+				get rootConfig() { return { schema: { type: 'object' as const, properties: {} }, values: catalogue }; },
+				onDidEmitAction: changes.event,
+				initialize: async () => { },
+				requests: new Map(),
+			};
+			const { relay, scopedHandler, connect } = createExtensionHandler(extension);
+			const initialConfig = stateManager.rootState.config;
+			const active = connect('settings-client', false);
+			active.relayAuthenticated = true;
+			active.simulateMessage(request(2, 'subscribe', { channel: ROOT_STATE_URI }));
+			await scopedHandler.whenIdle();
+			const subscribed = findResponse(active.sent, 2);
+			const subscribedConfig = subscribed && hasKey(subscribed, { result: true }) ? ((subscribed.result as SubscribeResult).snapshot?.state as RootState).config : undefined;
+			active.sent.length = 0;
+			const patch: IRootConfigChangedAction = { type: ActionType.RootConfigChanged, config: { telemetryLevel: 'off' } };
+			const replacement: IRootConfigChangedAction = { type: ActionType.RootConfigChanged, config: { terminalAutoApproveEnabled: false }, replace: true };
+			active.simulateMessage(request(3, 'dispatchAction', { channel: ROOT_STATE_URI, clientSeq: 1, action: patch }));
+			await scopedHandler.whenIdle();
+			active.simulateMessage(request(4, 'dispatchAction', { channel: ROOT_STATE_URI, clientSeq: 2, action: replacement }));
+			await scopedHandler.whenIdle();
+			const nativeValues = stateManager.rootState.config?.values;
+			const lastSeen = stateManager.serverSeq;
+			active.simulateClose();
+
+			const hostChange: IRootConfigChangedAction = { type: ActionType.RootConfigChanged, config: { telemetryLevel: 'error' } };
+			stateManager.dispatchServerAction(ROOT_STATE_URI, hostChange);
+			const replayedValues = { ...replacement.config, ...hostChange.config };
+			const initialCatalogue = catalogue;
+			catalogue = { copilot: { projects: ['updated-project'] } };
+			changes.fire(stateManager.createServerActionEnvelope(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: catalogue }));
+
+			const reconnected = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'settings-client', false));
+			reconnected.relayAuthenticated = true;
+			relay.simulateConnection(reconnected);
+			reconnected.simulateMessage(request(5, 'reconnect', { clientId: 'settings-client', lastSeenServerSeq: lastSeen, subscriptions: [ROOT_STATE_URI] }));
+			await scopedHandler.whenIdle();
+			const response = findResponse(reconnected.sent, 5);
+			const replay = response && hasKey(response, { result: true }) ? response.result as ReconnectResult : undefined;
+			reconnected.simulateClose();
+			const restored = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'settings-client', false));
+			restored.relayAuthenticated = true;
+			relay.simulateConnection(restored);
+			restored.simulateMessage(request(6, 'reconnect', { clientId: 'settings-client', lastSeenServerSeq: -1, subscriptions: [ROOT_STATE_URI] }));
+			await scopedHandler.whenIdle();
+			const snapshotResponse = findResponse(restored.sent, 6);
+			const snapshots = snapshotResponse && hasKey(snapshotResponse, { result: true }) ? snapshotResponse.result as ReconnectResult : undefined;
+			assert.deepStrictEqual({
+				subscribedConfig,
+				live: findNotifications(active.sent, 'action').map(message => (message.params as ActionEnvelope).action),
+				nativeValues,
+				replay: replay?.type === 'replay' ? replay.actions.map(envelope => envelope.action) : replay?.type,
+				reconnectedConfig: snapshots?.type === 'snapshot' ? (snapshots.snapshots.find(snapshot => snapshot.resource === ROOT_STATE_URI)?.state as RootState).config : undefined,
+				nativeConfig: stateManager.rootState.config,
+			}, {
+				subscribedConfig: { ...initialConfig, values: { ...initialConfig?.values, ...initialCatalogue } },
+				live: [
+					{ ...patch, config: { ...initialConfig?.values, ...patch.config, ...initialCatalogue }, replace: true },
+					{ ...replacement, config: { ...replacement.config, ...initialCatalogue } },
+				],
+				nativeValues: replacement.config,
+				replay: [
+					{ ...hostChange, config: { ...replayedValues, ...initialCatalogue }, replace: true },
+					{ type: ActionType.RootConfigChanged, config: { ...replayedValues, ...catalogue }, replace: true },
+				],
+				reconnectedConfig: { ...initialConfig, values: { ...replayedValues, ...catalogue } },
+				nativeConfig: { ...initialConfig, values: replayedValues },
+			});
+		});
+
+		for (const replace of [false, true]) {
+			test(`advertised root values exclude listener-owned fields from native ${replace ? 'replacement' : 'patch'} persistence`, async () => {
+				const catalogue = { copilot: { projects: ['owned-project'] } };
+				const extension: IProtocolServerExtension = {
+					rootMeta: {},
+					rootConfig: { schema: { type: 'object', properties: {} }, values: catalogue },
+					onDidEmitAction: Event.None,
+					initialize: async () => { },
+					requests: new Map(),
+				};
+				stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { copilot: { endpoint: 'native-endpoint' } } });
+				const { scopedHandler, connect } = createExtensionHandler(extension);
+				const active = connect('round-trip-client', false);
+				active.relayAuthenticated = true;
+				active.simulateMessage(request(2, 'subscribe', { channel: ROOT_STATE_URI }));
+				await scopedHandler.whenIdle();
+				const subscribed = findResponse(active.sent, 2);
+				assert.ok(subscribed && hasKey(subscribed, { result: true }));
+				const advertised = ((subscribed.result as SubscribeResult).snapshot?.state as RootState).config;
+				assert.ok(advertised);
+				const local = connectClient('local-config-observer', [ROOT_STATE_URI]);
+				local.sent.length = 0;
+				active.sent.length = 0;
+				const values = { ...advertised.values, telemetryLevel: 'off', copilot: { ...catalogue.copilot, endpoint: 'edited-endpoint' } };
+				active.simulateMessage(request(3, 'dispatchAction', { channel: ROOT_STATE_URI, clientSeq: 1, action: { type: ActionType.RootConfigChanged, config: values, replace } }));
+				await scopedHandler.whenIdle();
+				const nativeValues = { ...values, copilot: { endpoint: 'edited-endpoint' } };
+				assert.deepStrictEqual({
+					dispatched: agentService.handledActions,
+					nativeValues: stateManager.rootState.config?.values,
+					localActions: findNotifications(local.sent, 'action').map(message => (message.params as ActionEnvelope).action),
+					relayActions: findNotifications(active.sent, 'action').map(message => (message.params as ActionEnvelope).action),
+				}, {
+					dispatched: [{ type: ActionType.RootConfigChanged, config: nativeValues, replace }],
+					nativeValues,
+					localActions: [{ type: ActionType.RootConfigChanged, config: nativeValues, replace }],
+					relayActions: [{ type: ActionType.RootConfigChanged, config: values, replace: true }],
+				});
+			});
+		}
+
+		test('rechecks authorization after awaited extension work and surfaces initialization failures', async () => {
+			const pending = new DeferredPromise<string>();
+			const extension: IProtocolServerExtension = {
+				rootMeta: {}, rootConfig: { schema: { type: 'object', properties: {} }, values: {} }, onDidEmitAction: Event.None,
+				initialize: async () => { throw new Error('Catalogue unavailable'); },
+				requests: new Map([['example/delayed', { readOnly: true, handle: () => pending.p }]]),
+			};
+			const { scopedHandler, connect } = createExtensionHandler(extension);
+			const transport = connect('extension-expiry', false);
+			transport.simulateMessage(request(2, 'authenticate', { resource: 'https://api.github.com', token: 'test-token' }));
+			await scopedHandler.whenIdle();
+			transport.simulateMessage(request(3, 'example/delayed', {}));
+			transport.relayAuthenticated = false;
+			await pending.complete('private-result');
+			await scopedHandler.whenIdle();
+			assert.deepStrictEqual({
+				errors: [2, 3].map(id => {
+					const response = findResponse(transport.sent, id);
+					return response && hasKey(response, { error: true }) ? response.error.code : undefined;
+				}),
+				leakedResult: JSON.stringify(transport.sent).includes('private-result'),
+			}, { errors: [JSON_RPC_INTERNAL_ERROR, AHP_AUTH_REQUIRED], leakedResult: false });
+		});
+
+		test('extension metadata cannot grant passive access to colliding built-in methods', async () => {
+			const calls: string[] = [];
+			const methods = ['createSession', 'createTerminal', 'disposeSession'];
+			const extension: IProtocolServerExtension = {
+				rootMeta: {}, rootConfig: { schema: { type: 'object', properties: {} }, values: {} },
+				onDidEmitAction: Event.None, initialize: async () => { },
+				requests: new Map(methods.map(method => [method, { readOnly: true, handle: async () => { calls.push(method); return null; } }])),
+			};
+			const { scopedHandler, connect } = createExtensionHandler(extension);
+			const passive = connect('extension-collision', true);
+			passive.relayAuthenticated = true;
+			for (const [index, method] of methods.entries()) {
+				passive.simulateMessage(request(index + 2, method, { channel: 'copilot:/passive-session' }));
+			}
+			await scopedHandler.whenIdle();
+			assert.deepStrictEqual({
+				errors: methods.map((_method, index) => {
+					const response = findResponse(passive.sent, index + 2);
+					return response && hasKey(response, { error: true }) ? response.error.code : undefined;
+				}),
+				calls,
+				created: agentService.createSessionConfigs,
+				shutdownCalls: agentService.shutdownCalls,
+			}, { errors: methods.map(() => JsonRpcErrorCodes.InvalidRequest), calls: [], created: [], shutdownCalls: 0 });
+		});
+
+		test('keeps projected contribution actions listener-owned in live broadcasts and reconnect replay', async () => {
+			const changes = disposables.add(new Emitter<ActionEnvelope>());
+			const extension: IProtocolServerExtension = {
+				rootMeta: {}, rootConfig: { schema: { type: 'object', properties: {} }, values: {} },
+				onDidEmitAction: changes.event, initialize: async () => { }, requests: new Map(),
+			};
+			stateManager.createSession(makeSessionSummary());
+			stateManager.setSessionConfig(sessionUri, { schema: platformSessionSchema.toProtocol(), values: { autoApprove: 'default' } });
+			const { relay, scopedHandler, connect } = createExtensionHandler(extension, {
+				sessionConfigAdapter: missionControlSessionConfigAdapter, advertisedModelProviders: ['copilotcli'],
+			});
+			const transport = connect('extension-projection', false);
+			transport.relayAuthenticated = true;
+			transport.simulateMessage(request(2, 'subscribe', { channel: sessionUri }));
+			const local = disposables.add(new MockProtocolTransport());
+			relay.simulateConnection(local);
+			local.simulateMessage(request(1, 'initialize', { clientId: 'extension-native', protocolVersions: [PROTOCOL_VERSION], initialSubscriptions: [ROOT_STATE_URI, sessionUri] }));
+			await scopedHandler.whenIdle();
+			transport.sent.length = 0;
+			local.sent.length = 0;
+			const agents: AgentInfo[] = ['copilotcli', 'other'].map(provider => ({
+				provider, displayName: provider, description: provider, models: [{ provider, id: 'model', name: 'Model' }],
+			}));
+			const emit = () => {
+				changes.fire(stateManager.createServerActionEnvelope(sessionUri, { type: ActionType.SessionConfigChanged, config: { autoApprove: 'assisted' } }));
+				changes.fire(stateManager.createServerActionEnvelope(ROOT_STATE_URI, { type: ActionType.RootAgentsChanged, agents }));
+			};
+			emit();
+			const live = findNotifications(transport.sent, 'action').map(message => (message.params as ActionEnvelope).action);
+			transport.simulateClose();
+			const lastSeen = stateManager.serverSeq;
+			emit();
+			const reconnected = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'extension-projection', false));
+			reconnected.relayAuthenticated = true;
+			relay.simulateConnection(reconnected);
+			reconnected.simulateMessage(request(3, 'reconnect', { clientId: 'extension-projection', lastSeenServerSeq: lastSeen, subscriptions: [ROOT_STATE_URI, sessionUri] }));
+			await scopedHandler.whenIdle();
+			const response = findResponse(reconnected.sent, 3);
+			const replay = response && hasKey(response, { result: true }) ? response.result as ReconnectResult : undefined;
+			const projected = [
+				{ type: ActionType.SessionConfigChanged, config: { approvalMode: 'assisted' } },
+				{ type: ActionType.RootAgentsChanged, agents: [agents[0], { ...agents[1], models: [] }] },
+			];
+			assert.deepStrictEqual({
+				live,
+				replay: replay?.type === 'replay' ? replay.actions.map(envelope => envelope.action) : replay?.type,
+				localActions: findNotifications(local.sent, 'action'),
+				nativeConfig: stateManager.getSessionState(sessionUri)?.config?.values,
+			}, { live: projected, replay: projected, localActions: [], nativeConfig: { autoApprove: 'default' } });
+		});
+	});
+
+	test('MC Copilot extensions expose host settings alongside owned projects and enforce authentication and passive access', async () => {
 		const calls: string[] = [];
 		const project = { id: 'opaque-project-id', name: 'repo', path: '/home/testuser/owner/repo', origin: 'cloned', git: true, status: 'cloning' };
 		const action: IRootConfigChangedAction = { type: ActionType.RootConfigChanged, config: { copilot: { projects: [project] } } };
@@ -2969,16 +4772,28 @@ suite('ProtocolServerHandler', () => {
 				return undefined;
 			}
 		}();
+		const instantiation = disposables.add(new TestInstantiationService());
+		const provider = new class extends mock<IAgent>() {
+			override async getSessionPlan() {
+				calls.push('extensions/getPlan');
+				return { plan: { exists: false, content: null, path: null }, todos: [], dependencies: [] };
+			}
+		}();
+		instantiation.stub(IAgentHostProviderService, new class extends mock<IAgentHostProviderService>() {
+			override getProviderForSession() { return provider; }
+		}());
+		instantiation.stub(IAgentHostStateManager, stateManager);
+		instantiation.stub(IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager));
+		const extension = instantiation.createInstance(MissionControlCopilotExtension, projects);
 		stateManager.createSession(makeSessionSummary());
 		const relay = disposables.add(new MockProtocolServer());
 		const scopedHandler = disposables.add(new ProtocolServerHandler(
 			agentService, stateManager, relay,
 			{
-				allowExtensionMethods: false, copilotProjects: projects,
-				copilotSessionRequest: async method => { calls.push(method); return { plan: { exists: false, content: null, path: null }, todos: [], dependencies: [] }; },
+				allowExtensionMethods: false, extension,
 			},
 			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 		));
 		const active = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'mc-active', false));
 		active.relayAuthenticated = false;
@@ -3007,6 +4822,9 @@ suite('ProtocolServerHandler', () => {
 		stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { copilot: { token: 'host-secret' }, private: 'host-secret' } });
 		local.sent.length = 0;
 		const hostConfig = stateManager.rootState.config;
+		const projectedAction: IRootConfigChangedAction = {
+			...action, config: { ...hostConfig?.values, copilot: { token: 'host-secret', projects: [project] } }, replace: true,
+		};
 		projectChanges.fire(stateManager.createServerActionEnvelope(ROOT_STATE_URI, action));
 		active.simulateClose();
 		const reconnected = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'mc-active', false));
@@ -3043,19 +4861,32 @@ suite('ProtocolServerHandler', () => {
 		}, {
 			preauthCatalogue: false, preauthCapability: true, denied: AHP_AUTH_REQUIRED, authenticatedCatalogue: true,
 			calls: ['extensions/cloneProject', 'extensions/listProjects', 'extensions/getPlan'],
-			passiveDenied: Array(5).fill(JsonRpcErrorCodes.InvalidRequest), actions: [action], secret: false,
-			reconnectedCatalogue: true, reconnectedSecret: false,
-			hostConfigPreserved: true, localProjectActions: 0, replay: [readyAction],
+			passiveDenied: Array(5).fill(JsonRpcErrorCodes.InvalidRequest), actions: [projectedAction, projectedAction], secret: true,
+			reconnectedCatalogue: true, reconnectedSecret: true,
+			hostConfigPreserved: true, localProjectActions: 0,
+			replay: [{ ...readyAction, config: { ...hostConfig?.values, copilot: { token: 'host-secret', projects: [{ ...project, status: 'ready' }] } }, replace: true }],
 		});
 	});
 
 	suite('Mission Control session configuration', () => {
+		function sessionSchema() {
+			const schema = platformSessionSchema.toProtocol();
+			return {
+				...schema,
+				properties: {
+					...schema.properties,
+					isolation: { type: 'string' as const, title: 'Isolation', enum: ['folder', 'worktree'], default: 'worktree', sessionMutable: false },
+					branch: { type: 'string' as const, title: 'Branch', enum: ['main'], default: 'main', enumDynamic: true, sessionMutable: false },
+				},
+			};
+		}
+
 		function createRelay() {
 			const relay = disposables.add(new MockProtocolServer());
 			const scopedHandler = disposables.add(new ProtocolServerHandler(
-				agentService, stateManager, relay, { copilotSessionConfig: true },
+				agentService, stateManager, relay, { sessionConfigAdapter: missionControlSessionConfigAdapter },
 				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 			));
 			const connect = () => {
 				const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'mc-config', false));
@@ -3076,24 +4907,29 @@ suite('ProtocolServerHandler', () => {
 
 		setup(() => {
 			stateManager.createSession(makeSessionSummary());
-			stateManager.setSessionConfig(sessionUri, { schema: platformSessionSchema.toProtocol(), values: { autoApprove: 'default', mode: 'plan' } });
+			stateManager.setSessionConfig(sessionUri, { schema: sessionSchema(), values: { autoApprove: 'default', mode: 'plan', isolation: 'worktree', branch: 'main' } });
 		});
 
 		test('resolves the complete Copilot Host axes and translates creation and completion inputs', async () => {
 			const configs: (Record<string, unknown> | undefined)[] = [];
 			const resolve = sinon.stub(agentService, 'resolveSessionConfig').callsFake(async params => {
 				configs.push(params.config);
-				return { schema: platformSessionSchema.toProtocol(), values: { autoApprove: 'default', mode: 'interactive', ...params.config } };
+				return { schema: sessionSchema(), values: { autoApprove: 'default', mode: 'interactive', ...params.config } };
 			});
 			const completions = sinon.stub(agentService, 'sessionConfigCompletions').resolves({ items: [] });
 			disposables.add(toDisposable(() => { resolve.restore(); completions.restore(); }));
 			const { scopedHandler, transport } = createRelay();
 			const native = connectClient('native-config');
-			const config = { approvalMode: 'assisted', mode: 'plan' };
+			const config = { approvalMode: 'assisted', mode: 'plan', target: 'workspace', baseBranch: 'release/mobile' };
+			const nativeConfig = { autoApprove: 'assisted', mode: 'plan', isolation: 'folder', branch: 'release/mobile' };
+			const localConfig = { autoApprove: 'default', mode: 'plan', isolation: 'worktree', branch: 'main' };
 			transport.simulateMessage(request(2, 'resolveSessionConfig', { provider: 'copilotcli', config }));
 			transport.simulateMessage(request(3, 'createSession', { channel: 'copilot:/mc-config-created', provider: 'copilotcli', config }));
 			transport.simulateMessage(request(4, 'sessionConfigCompletions', { provider: 'copilotcli', config, property: 'approvalMode' }));
-			native.simulateMessage(request(2, 'resolveSessionConfig', { provider: 'copilotcli', config: { autoApprove: 'default', mode: 'plan' } }));
+			transport.simulateMessage(request(5, 'sessionConfigCompletions', { provider: 'copilotcli', config, property: 'baseBranch', query: 'release' }));
+			transport.simulateMessage(request(6, 'createSession', { channel: 'copilot:/mc-worktree-created', provider: 'copilotcli', config: { target: 'worktree', baseBranch: 'release/isolated' } }));
+			transport.simulateMessage(request(7, 'createSession', { channel: 'copilot:/mc-legacy-created', provider: 'copilotcli', config: { isolation: 'folder', branch: 'main' } }));
+			native.simulateMessage(request(2, 'resolveSessionConfig', { provider: 'copilotcli', config: localConfig }));
 			await Promise.all([scopedHandler.whenIdle(), handler.whenIdle()]);
 			const wire = result<ResolveSessionConfigResult>(transport, 2);
 			const local = result<ResolveSessionConfigResult>(native, 2);
@@ -3104,19 +4940,27 @@ suite('ProtocolServerHandler', () => {
 				mode: wire.schema.properties.mode,
 				values: wire.values,
 				nativeKey: wire.schema.properties.autoApprove,
+				target: wire.schema.properties.target,
+				baseBranch: wire.schema.properties.baseBranch,
+				nativeWorkspaceKeys: [wire.schema.properties.isolation, wire.schema.properties.branch],
 				received: configs,
-				created: agentService.createSessionConfigs.at(-1)?.config,
+				created: agentService.createSessionConfigs.map(session => session?.config),
 				completion: completions.firstCall.args[0],
+				branchCompletion: completions.secondCall.args[0],
 				localValues: local.values,
 				localSchema: local.schema,
 			}, {
 				approvalEnum: ['manual', 'assisted', 'allow-all'], approvalDefault: 'manual', mutable: true,
 				mode: platformSessionSchema.definition.mode.protocol,
 				values: config, nativeKey: undefined,
-				received: [{ autoApprove: 'assisted', mode: 'plan' }, { autoApprove: 'default', mode: 'plan' }],
-				created: { autoApprove: 'assisted', mode: 'plan' },
-				completion: { provider: 'copilotcli', workingDirectory: undefined, config: { autoApprove: 'assisted', mode: 'plan' }, property: 'autoApprove', query: undefined },
-				localValues: { autoApprove: 'default', mode: 'plan' }, localSchema: platformSessionSchema.toProtocol(),
+				target: { ...sessionSchema().properties.isolation, enum: ['workspace', 'worktree'] },
+				baseBranch: sessionSchema().properties.branch,
+				nativeWorkspaceKeys: [undefined, undefined],
+				received: [nativeConfig, localConfig],
+				created: [nativeConfig, { isolation: 'worktree', branch: 'release/isolated' }, { isolation: 'folder', branch: 'main' }],
+				completion: { provider: 'copilotcli', workingDirectory: undefined, config: nativeConfig, property: 'autoApprove', query: undefined },
+				branchCompletion: { provider: 'copilotcli', workingDirectory: undefined, config: nativeConfig, property: 'branch', query: 'release' },
+				localValues: localConfig, localSchema: sessionSchema(),
 			});
 		});
 
@@ -3136,7 +4980,7 @@ suite('ProtocolServerHandler', () => {
 			const localChanges = findNotifications(local.sent, 'action').map(message => (message.params as ActionEnvelope).action);
 			transport.simulateClose();
 			const lastSeen = stateManager.serverSeq;
-			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionConfigChanged, config: { autoApprove: 'assisted', mode: 'plan' } });
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionConfigChanged, config: { autoApprove: 'assisted', mode: 'plan', branch: 'release/mobile' } });
 			const replayTransport = connect();
 			replayTransport.simulateMessage(request(4, 'reconnect', { clientId: 'mc-config', lastSeenServerSeq: lastSeen, subscriptions: [sessionUri] }));
 			await scopedHandler.whenIdle();
@@ -3152,20 +4996,49 @@ suite('ProtocolServerHandler', () => {
 				subscribe: subscribed.config?.values,
 				approvalEnum: subscribed.config?.schema.properties.approvalMode.enum,
 				modeEnum: subscribed.config?.schema.properties.mode.enum,
+				targetEnum: subscribed.config?.schema.properties.target.enum,
+				baseBranch: subscribed.config?.schema.properties.baseBranch,
 				changes, localChanges,
 				replay: replay.type === 'replay' ? replay.actions.map(envelope => envelope.action) : replay.type,
 				refreshed: refreshedState?.config?.values,
 				nativeState: stateManager.getSessionState(sessionUri)?.config?.values,
 			}, {
-				initial: { approvalMode: 'manual', mode: 'plan' },
-				subscribe: { approvalMode: 'manual', mode: 'plan' },
+				initial: { approvalMode: 'manual', mode: 'plan', target: 'worktree', baseBranch: 'main' },
+				subscribe: { approvalMode: 'manual', mode: 'plan', target: 'worktree', baseBranch: 'main' },
 				approvalEnum: ['manual', 'assisted', 'allow-all'],
 				modeEnum: ['interactive', 'plan', 'autopilot'],
+				targetEnum: ['workspace', 'worktree'],
+				baseBranch: sessionSchema().properties.branch,
 				changes: [{ type: ActionType.SessionConfigChanged, config: { approvalMode: 'allow-all', mode: 'autopilot' } }],
 				localChanges: [{ type: ActionType.SessionConfigChanged, config: { autoApprove: 'autoApprove', mode: 'autopilot' } }],
-				replay: [{ type: ActionType.SessionConfigChanged, config: { approvalMode: 'assisted', mode: 'plan' } }],
-				refreshed: { approvalMode: 'assisted', mode: 'plan' },
-				nativeState: { autoApprove: 'assisted', mode: 'plan' },
+				replay: [{ type: ActionType.SessionConfigChanged, config: { approvalMode: 'assisted', mode: 'plan', baseBranch: 'release/mobile' } }],
+				refreshed: { approvalMode: 'assisted', mode: 'plan', target: 'worktree', baseBranch: 'release/mobile' },
+				nativeState: { autoApprove: 'assisted', mode: 'plan', isolation: 'worktree', branch: 'release/mobile' },
+			});
+		});
+
+		test('translates a chat\'s own values in its snapshot and its config changes', async () => {
+			stateManager.dispatchServerAction(defaultChatUri, { type: ActionType.ChatConfigChanged, config: { autoApprove: 'assisted' } });
+			const { scopedHandler, transport } = createRelay();
+			const local = connectClient('native-chat-observer', [defaultChatUri]);
+			transport.simulateMessage(request(2, 'subscribe', { channel: defaultChatUri }));
+			await Promise.all([scopedHandler.whenIdle(), handler.whenIdle()]);
+			const subscribed = result<SubscribeResult>(transport, 2).snapshot?.state as ChatState;
+			local.sent.length = 0;
+			transport.sent.length = 0;
+			transport.simulateMessage(request(3, 'dispatchAction', { channel: defaultChatUri, clientSeq: 1, action: { type: ActionType.ChatConfigChanged, config: { approvalMode: 'allow-all' } } }));
+			await scopedHandler.whenIdle();
+
+			assert.deepStrictEqual({
+				subscribed: subscribed.config?.values,
+				changes: findNotifications(transport.sent, 'action').map(message => (message.params as ActionEnvelope).action),
+				localChanges: findNotifications(local.sent, 'action').map(message => (message.params as ActionEnvelope).action),
+				nativeState: stateManager.getChatConfig(defaultChatUri)?.values,
+			}, {
+				subscribed: { approvalMode: 'assisted' },
+				changes: [{ type: ActionType.ChatConfigChanged, config: { approvalMode: 'allow-all' } }],
+				localChanges: [{ type: ActionType.ChatConfigChanged, config: { autoApprove: 'autoApprove' } }],
+				nativeState: { autoApprove: 'autoApprove' },
 			});
 		});
 
@@ -3188,7 +5061,100 @@ suite('ProtocolServerHandler', () => {
 			}, {
 				errors: [JsonRpcErrorCodes.InvalidParams, JsonRpcErrorCodes.InvalidParams],
 				rejections: [{ reason: 'approvalMode and autoApprove must select the same approval behavior', config: { approvalMode: 'manual', autoApprove: 'autoApprove' } }],
-				created: [], dispatched: [], values: { autoApprove: 'default', mode: 'plan' },
+				created: [], dispatched: [], values: { autoApprove: 'default', mode: 'plan', isolation: 'worktree', branch: 'main' },
+			});
+		});
+
+		test('projects approval reports in resolution, snapshots, live updates and replay without changing native clients', async () => {
+			const schema = sessionSchema();
+			const nativeValues = { autoApprove: 'assisted', effectiveApprovalMode: 'default', availableApprovalModes: ['default', 'assisted', 'autoApprove'] };
+			const wireValues = { approvalMode: 'assisted', effectiveApprovalMode: 'manual', availableApprovalModes: ['manual', 'assisted', 'allow-all'] };
+			const config: ResolveSessionConfigResult = {
+				schema: {
+					...schema,
+					properties: {
+						...schema.properties,
+						effectiveApprovalMode: { type: 'string', title: 'Effective approvals', readOnly: true },
+						availableApprovalModes: { type: 'array', title: 'Available approvals', readOnly: true },
+					},
+				},
+				values: nativeValues,
+			};
+			stateManager.setSessionConfig(sessionUri, config);
+			const resolve = sinon.stub(agentService, 'resolveSessionConfig').resolves(config);
+			disposables.add(toDisposable(() => resolve.restore()));
+			const { scopedHandler, transport, connect } = createRelay();
+			const local = connectClient('native-approval-reports', [sessionUri]);
+			transport.simulateMessage(request(2, 'resolveSessionConfig', { provider: 'copilotcli' }));
+			transport.simulateMessage(request(3, 'subscribe', { channel: sessionUri }));
+			await Promise.all([scopedHandler.whenIdle(), handler.whenIdle()]);
+			const initial = result<InitializeResult>(transport, 1).snapshots?.find(snapshot => snapshot.resource === sessionUri)?.state as SessionState;
+			const subscribed = result<SubscribeResult>(transport, 3).snapshot?.state as SessionState;
+			const localInitial = result<InitializeResult>(local, 1).snapshots?.find(snapshot => snapshot.resource === sessionUri)?.state as SessionState;
+			const resolved = result<ResolveSessionConfigResult>(transport, 2);
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionConfigChanged, config: nativeValues });
+			transport.sent.length = 0;
+			local.sent.length = 0;
+			const reports = { effectiveApprovalMode: 'autoApprove', availableApprovalModes: ['default', 'autoApprove'] };
+			const wireReports = { effectiveApprovalMode: 'allow-all', availableApprovalModes: ['manual', 'allow-all'] };
+			const action = { type: ActionType.SessionConfigChanged as const, config: reports };
+			const lastSeen = stateManager.serverSeq;
+			stateManager.dispatchServerAction(sessionUri, action);
+			const changes = findNotifications(transport.sent, 'action').map(message => (message.params as ActionEnvelope).action);
+			const localChanges = findNotifications(local.sent, 'action').map(message => (message.params as ActionEnvelope).action);
+			transport.simulateClose();
+			const replayTransport = connect();
+			replayTransport.simulateMessage(request(4, 'reconnect', { clientId: 'mc-config', lastSeenServerSeq: lastSeen, subscriptions: [sessionUri] }));
+			await scopedHandler.whenIdle();
+			const replay = result<ReconnectResult>(replayTransport, 4);
+			replayTransport.simulateClose();
+			const snapshotTransport = connect();
+			snapshotTransport.simulateMessage(request(5, 'reconnect', { clientId: 'mc-config', lastSeenServerSeq: -1, subscriptions: [sessionUri] }));
+			await scopedHandler.whenIdle();
+			const refreshed = result<ReconnectResult>(snapshotTransport, 5);
+			const refreshedState = refreshed.type === 'snapshot' ? refreshed.snapshots.find(snapshot => snapshot.resource === sessionUri)?.state as SessionState : undefined;
+			const wireAction = { ...action, config: wireReports };
+			assert.deepStrictEqual({
+				resolved: resolved.values,
+				initial: initial.config?.values,
+				subscribed: subscribed.config?.values,
+				localInitial: localInitial.config?.values,
+				changes, localChanges,
+				replay: replay.type === 'replay' ? replay.actions.map(envelope => envelope.action) : replay.type,
+				refreshed: refreshedState?.config?.values,
+				nativeState: stateManager.getSessionState(sessionUri)?.config?.values,
+			}, {
+				resolved: wireValues,
+				initial: wireValues, subscribed: wireValues, localInitial: nativeValues,
+				changes: [wireAction], localChanges: [action],
+				replay: [wireAction],
+				refreshed: { ...wireValues, ...wireReports },
+				nativeState: { ...nativeValues, ...reports },
+			});
+		});
+
+		test('rejects invalid workspace preferences at resolution, creation, completions and dispatch', async () => {
+			const { scopedHandler, transport } = createRelay();
+			transport.simulateMessage(request(2, 'resolveSessionConfig', { config: { target: 'folder' } }));
+			transport.simulateMessage(request(3, 'createSession', { channel: 'copilot:/invalid-workspace-config', config: { baseBranch: true } }));
+			transport.simulateMessage(request(4, 'sessionConfigCompletions', { property: 'baseBranch', config: { baseBranch: 'main', branch: 'release' } }));
+			const config = { target: 'workspace', isolation: 'worktree' };
+			transport.simulateMessage(request(5, 'dispatchAction', { channel: sessionUri, clientSeq: 1, action: { type: ActionType.SessionConfigChanged, config } }));
+			await scopedHandler.whenIdle();
+			const rejections = findNotifications(transport.sent, 'action').map(message => message.params as ActionEnvelope);
+			assert.deepStrictEqual({
+				errors: [2, 3, 4].map(id => {
+					const response = findResponse(transport.sent, id);
+					return response && hasKey(response, { error: true }) ? response.error.code : undefined;
+				}),
+				rejections: rejections.map(envelope => ({ reason: envelope.rejectionReason, config: envelope.action.type === ActionType.SessionConfigChanged ? envelope.action.config : undefined })),
+				created: agentService.createSessionConfigs,
+				dispatched: agentService.handledActions,
+				values: stateManager.getSessionState(sessionUri)?.config?.values,
+			}, {
+				errors: Array(3).fill(JsonRpcErrorCodes.InvalidParams),
+				rejections: [{ reason: 'target and isolation must select the same workspace isolation', config }],
+				created: [], dispatched: [], values: { autoApprove: 'default', mode: 'plan', isolation: 'worktree', branch: 'main' },
 			});
 		});
 	});
@@ -3232,7 +5198,7 @@ suite('ProtocolServerHandler', () => {
 			const scopedHandler = disposables.add(new ProtocolServerHandler(
 				agentService, stateManager, relay, { allowExtensionMethods: false, relayResourceRoots: () => [workspace] },
 				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 			));
 			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'case-plan-lane', false));
 			transport.relayAuthenticated = true;
@@ -3266,7 +5232,7 @@ suite('ProtocolServerHandler', () => {
 			await Promise.all([writeFile(plan.fsPath, '# Full plan'), writeFile(privateFile.fsPath, 'private'), writeFile(otherPlan.fsPath, 'unrelated')]);
 			stateManager.createSession({ ...makeSessionSummary(), workingDirectories: [URI.file(workspace).toString()] });
 			const chat = buildChatUri(sessionUri, 'opaque-peer');
-			stateManager.addChat(sessionUri, chat);
+			stateManager.addChat(sessionUri, chat, creationTimeChatStorageResource(sessionUri, chat, buildDefaultChatUri(sessionUri)));
 			agentService.getSessionPlanFile = (session, resource) => session.toString() === sessionUri && resource.toString() === chat ? plan : undefined;
 			agentService.resourceRead = async uri => ({ data: await readFile(uri.fsPath, 'utf8'), encoding: ContentEncoding.Utf8 });
 			agentService.resourceResolve = async params => ({ uri: params.uri, type: ResourceType.File });
@@ -3278,7 +5244,7 @@ suite('ProtocolServerHandler', () => {
 			const scopedHandler = disposables.add(new ProtocolServerHandler(
 				agentService, stateManager, relay, { allowExtensionMethods: false, relayResourceRoots: () => [workspace] },
 				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 			));
 			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'plan-lane', false));
 			transport.relayAuthenticated = true;
@@ -3390,7 +5356,7 @@ suite('ProtocolServerHandler', () => {
 			agentService, stateManager, relay,
 			{ allowExtensionMethods: false, relayResourceRoots: () => [] },
 			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 		));
 		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'mcp-lane', false));
 		transport.relayAuthenticated = true;
@@ -3446,7 +5412,7 @@ suite('ProtocolServerHandler', () => {
 			agentService, stateManager, relay,
 			{ allowExtensionMethods: false, relayResourceRoots: () => [] },
 			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 		));
 		let mcpCalls = 0;
 		let fileReads = 0;
@@ -3475,6 +5441,101 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual({ errors, mcpCalls, fileReads }, { errors: cases.map(item => item.error), mcpCalls: 0, fileReads: 0 });
 	});
 
+	test('MC session creation uses the granted default directory without overriding explicit directories', async () => {
+		const directory = await mkdtemp(join(process.cwd(), '.build', 'mission-control-default-directory-'));
+		try {
+			const workspace = join(directory, 'workspace');
+			const explicit = join(directory, 'explicit');
+			const outside = join(directory, 'outside');
+			await Promise.all([mkdir(workspace), mkdir(explicit), mkdir(outside)]);
+			const escape = join(workspace, 'escape');
+			await symlink(outside, escape, process.platform === 'win32' ? 'junction' : 'dir');
+			const workspaceUri = URI.file(workspace).toString();
+			const explicitUri = URI.file(explicit).toString();
+			const outsideUri = URI.file(outside).toString();
+			const cases: { name: string; defaultDirectory?: string; workingDirectories?: string[]; allowed: boolean; relay?: boolean; passive?: boolean }[] = [
+				{ name: 'omitted', defaultDirectory: workspaceUri, allowed: true },
+				{ name: 'empty', defaultDirectory: workspaceUri, workingDirectories: [], allowed: true },
+				{ name: 'explicit', defaultDirectory: workspaceUri, workingDirectories: [explicitUri], allowed: true },
+				{ name: 'explicit-denied', defaultDirectory: workspaceUri, workingDirectories: [outsideUri], allowed: false },
+				{ name: 'default-denied', defaultDirectory: outsideUri, allowed: false },
+				{ name: 'default-symlink', defaultDirectory: URI.file(escape).toString(), allowed: false },
+				{ name: 'no-default', allowed: false },
+				{ name: 'passive', defaultDirectory: workspaceUri, passive: true, allowed: false },
+				{ name: 'non-relay', defaultDirectory: workspaceUri, relay: false, allowed: true },
+			];
+			const results = [];
+			for (const item of cases) {
+				const relay = disposables.add(new MockProtocolServer());
+				const scopedHandler = disposables.add(new ProtocolServerHandler(
+					agentService, stateManager, relay,
+					{ allowExtensionMethods: false, relayRootMeta: {}, relayResourceRoots: () => [workspace, explicit], defaultDirectory: item.defaultDirectory },
+					disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+					managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
+				));
+				const clientId = `default-directory-${item.name}`;
+				const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, item.relay === false ? undefined : clientId, item.passive ?? false));
+				transport.relayAuthenticated = true;
+				relay.simulateConnection(transport);
+				transport.simulateMessage(request(1, 'initialize', { clientId, protocolVersions: [PROTOCOL_VERSION] }));
+				const createdBefore = agentService.createSessionConfigs.length;
+				transport.simulateMessage(request(2, 'createSession', {
+					channel: `copilot:/${item.name}`, provider: 'copilot', workingDirectories: item.workingDirectories,
+				}));
+				await scopedHandler.whenIdle();
+				const response = findResponse(transport.sent, 2);
+				const created = agentService.createSessionConfigs.length > createdBefore ? agentService.createSessionConfigs.at(-1) : undefined;
+				results.push({
+					name: item.name,
+					allowed: !!response && hasKey(response, { result: true }),
+					error: response && hasKey(response, { error: true }) ? response.error.code : undefined,
+					directories: created?.workingDirectories?.map(uri => uri.toString()),
+				});
+			}
+			assert.deepStrictEqual(results, cases.map(item => ({
+				name: item.name,
+				allowed: item.allowed,
+				error: item.allowed ? undefined : item.passive ? JsonRpcErrorCodes.InvalidRequest : AhpErrorCodes.PermissionDenied,
+				directories: item.allowed && item.relay !== false ? item.workingDirectories?.length ? item.workingDirectories : [workspaceUri] : undefined,
+			})));
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('relay content of a chat stored in another session\'s database follows the chat\'s current owner (Block 4)', async () => {
+		const target = URI.from({ scheme: 'copilot', path: '/move-target' }).toString();
+		stateManager.createSession(makeSessionSummary(target));
+		// A chat recorded as storing in a session that ended (a moved single-chat session's default chat).
+		const endedStorage = 'copilot:/ended-session';
+		const moved = buildChatUri(target, 'moved');
+		stateManager.addChat(target, moved, endedStorage);
+		const relay = disposables.add(new MockProtocolServer());
+		const scopedHandler = disposables.add(new ProtocolServerHandler(
+			agentService, stateManager, relay,
+			{ allowExtensionMethods: false, relayResourceRoots: () => [] },
+			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
+		));
+		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'storage-lane', false));
+		transport.relayAuthenticated = true;
+		relay.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', { clientId: 'storage-lane', protocolVersions: [PROTOCOL_VERSION] }));
+		agentService.resourceRead = async uri => ({ data: uri.toString(), encoding: ContentEncoding.Utf8 });
+		const cases = [
+			{ id: 2, uri: buildSessionDbUri(endedStorage, 'tool-call', '/file', 'before') },
+			{ id: 3, uri: buildSessionDbUri('copilot:/never-recorded', 'tool-call', '/file', 'before') },
+		];
+		for (const item of cases) {
+			transport.simulateMessage(request(item.id, 'resourceRead', { uri: item.uri }));
+		}
+		await scopedHandler.whenIdle();
+		assert.deepStrictEqual(cases.map(item => {
+			const response = findResponse(transport.sent, item.id);
+			return !!response && hasKey(response, { result: true });
+		}), [true, false]);
+	});
+
 	test('MC filesystem grants cover workspace reads and writes without exposing private host files', async () => {
 		const path = await mkdtemp(join(process.cwd(), '.build', 'mission-control-resource-grants-'));
 		try {
@@ -3492,7 +5553,7 @@ suite('ProtocolServerHandler', () => {
 				agentService, stateManager, relay,
 				{ allowExtensionMethods: false, relayResourceRoots: readOnly => readOnly ? [workspace, content] : [workspace] },
 				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 			));
 			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'scoped-lane', false));
 			transport.relayAuthenticated = true;
@@ -3527,8 +5588,8 @@ suite('ProtocolServerHandler', () => {
 				await previews.mkdir(URI.parse(uri).with({ path: dirname(URI.parse(uri).path) }));
 				await previews.writeFile(URI.parse(uri), VSBuffer.fromString(data).buffer, { create: true, overwrite: true, unlock: false, atomic: false });
 			}
-			stateManager.addChat(sessionUri, peerChat);
-			stateManager.addChat(sessionUri, workerChat, { origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(sessionUri), toolCallId: 'spawn-tool' } });
+			stateManager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat, buildDefaultChatUri(sessionUri)));
+			stateManager.addChat(sessionUri, workerChat, creationTimeChatStorageResource(sessionUri, workerChat, buildDefaultChatUri(sessionUri)), { origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(sessionUri), toolCallId: 'spawn-tool' } });
 			for (const [chat, tool, uri] of [[buildDefaultChatUri(sessionUri), 'tool-call', pendingContent], [peerChat, 'peer-tool', peerContent], [workerChat, 'worker-tool', workerContent]]) {
 				stateManager.dispatchServerAction(chat, {
 					type: ActionType.ChatTurnStarted, turnId: 'preview-turn', startedAt: '2026-09-30T19:00:00.000Z',
@@ -3633,6 +5694,90 @@ suite('ProtocolServerHandler', () => {
 		}
 	});
 
+	test('MC filesystem-root grants allow files outside home while preserving identity, passive and content checks', async () => {
+		const directory = await mkdtemp(join(process.cwd(), '.build', 'mission-control-machine-access-'));
+		try {
+			const home = join(directory, 'home');
+			const outsideHome = join(directory, 'another-location');
+			await Promise.all([mkdir(home), mkdir(outsideHome)]);
+			const file = URI.file(join(outsideHome, 'file.txt'));
+			await writeFile(file.fsPath, 'test data');
+			const root = parse(directory).root;
+			const relay = disposables.add(new MockProtocolServer());
+			const scopedHandler = disposables.add(new ProtocolServerHandler(
+				agentService, stateManager, relay,
+				{ allowExtensionMethods: false, relayRootMeta: {}, relayResourceRoots: () => [root], defaultDirectory: URI.file(home).toString() },
+				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
+			));
+			const reads: string[] = [];
+			const writes: string[] = [];
+			agentService.resourceList = async uri => ({
+				entries: (await readdir(uri.fsPath, { withFileTypes: true }))
+					.map(entry => ({ name: entry.name, type: entry.isDirectory() ? ResourceType.Directory : ResourceType.File })),
+			});
+			agentService.resourceRead = async uri => {
+				reads.push(uri.path);
+				return { data: await readFile(uri.fsPath, 'utf8'), encoding: ContentEncoding.Utf8 };
+			};
+			agentService.resourceWrite = async params => {
+				const uri = URI.parse(params.uri);
+				writes.push(uri.path);
+				await writeFile(uri.fsPath, params.data);
+				return {};
+			};
+			const active = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'machine-active', false));
+			active.relayAuthenticated = true;
+			relay.simulateConnection(active);
+			active.simulateMessage(request(1, 'initialize', { clientId: 'machine-active', protocolVersions: [PROTOCOL_VERSION] }));
+			active.simulateMessage(request(2, 'resourceRead', { uri: file.toString() }));
+			active.simulateMessage(request(3, 'resourceWrite', { uri: file.toString(), data: 'updated', encoding: ContentEncoding.Utf8 }));
+			active.simulateMessage(request(4, 'resourceRead', { uri: 'ui://unpublished/app' }));
+			active.simulateMessage(request(7, 'resourceList', { uri: URI.file(outsideHome).toString() }));
+			const passive = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'machine-passive', true));
+			passive.relayAuthenticated = true;
+			relay.simulateConnection(passive);
+			passive.simulateMessage(request(1, 'initialize', { clientId: 'machine-passive', protocolVersions: [PROTOCOL_VERSION] }));
+			passive.simulateMessage(request(2, 'resourceWrite', { uri: file.toString(), data: 'updated', encoding: ContentEncoding.Utf8 }));
+			const unauthenticated = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'machine-unauthenticated', false));
+			unauthenticated.relayAuthenticated = false;
+			relay.simulateConnection(unauthenticated);
+			unauthenticated.simulateMessage(request(1, 'initialize', { clientId: 'machine-unauthenticated', protocolVersions: [PROTOCOL_VERSION] }));
+			unauthenticated.simulateMessage(request(2, 'resourceRead', { uri: file.toString() }));
+			await scopedHandler.whenIdle();
+			const initialization = findResponse(active.sent, 1);
+			const result = initialization && hasKey(initialization, { result: true }) ? initialization.result as InitializeResult : undefined;
+			const listing = findResponse(active.sent, 7);
+			active.simulateClose();
+			const recovered = disposables.add(new class extends MockProtocolTransport {
+				readonly relayHandshakeMeta = { 'copilot.keepAliveTimeoutMs': 900_000 };
+			}(AgentHostTransportKind.WebSocket, 'machine-active', false));
+			recovered.relayAuthenticated = true;
+			relay.simulateConnection(recovered);
+			recovered.simulateMessage(request(5, 'reconnect', { clientId: 'machine-active', lastSeenServerSeq: stateManager.serverSeq, subscriptions: [] }));
+			await scopedHandler.whenIdle();
+			recovered.simulateMessage(request(6, 'resourceRead', { uri: file.toString() }));
+			await scopedHandler.whenIdle();
+			const errorCode = (transport: MockProtocolTransport, id: number) => {
+				const response = findResponse(transport.sent, id);
+				return response && hasKey(response, { error: true }) ? response.error.code : undefined;
+			};
+			assert.deepStrictEqual({
+				reads, writes, defaultDirectory: result?.defaultDirectory,
+				fileContent: await readFile(file.fsPath, 'utf8'),
+				directoryEntries: listing && hasKey(listing, { result: true }) ? listing.result : undefined,
+				contentError: errorCode(active, 4), passiveError: errorCode(passive, 2), identityError: errorCode(unauthenticated, 2),
+			}, {
+				reads: [URI.parse(file.toString()).path, URI.parse(file.toString()).path], writes: [URI.parse(file.toString()).path], defaultDirectory: URI.file(home).toString(),
+				fileContent: 'updated',
+				directoryEntries: { entries: [{ name: 'file.txt', type: 'file' }] },
+				contentError: AhpErrorCodes.PermissionDenied, passiveError: JsonRpcErrorCodes.InvalidRequest, identityError: AHP_AUTH_REQUIRED,
+			});
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
 	test('unauthenticated relay handshake omits session snapshots without rejecting fresh initialization', () => {
 		stateManager.createSession(makeSessionSummary());
 		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'relay-client', false));
@@ -3649,7 +5794,7 @@ suite('ProtocolServerHandler', () => {
 		disposables.add(new ProtocolServerHandler(
 			agentService, stateManager, relay, { allowExtensionMethods: false },
 			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 		));
 		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'local-client', false));
 		relay.simulateConnection(transport);
@@ -4025,7 +6170,7 @@ suite('ProtocolServerHandler', () => {
 					agentService, stateManager, relay,
 					{ relayResourceRoots: () => [process.cwd()] },
 					disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-					managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+					managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 				));
 				const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'ordered-relay', false));
 				transport.relayAuthenticated = true;
@@ -4060,7 +6205,7 @@ suite('ProtocolServerHandler', () => {
 			agentService, stateManager, relay,
 			{ relayResourceRoots: () => [process.cwd()] },
 			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 		));
 		const connect = (clientId: string) => {
 			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, clientId, false));
@@ -4324,6 +6469,402 @@ suite('ProtocolServerHandler', () => {
 		]);
 	});
 
+	function connectMissionControlListClient(clientId: string, clientInfo?: Implementation): MockProtocolTransport {
+		const relay = disposables.add(new MockProtocolServer());
+		disposables.add(new ProtocolServerHandler(
+			agentService, stateManager, relay,
+			{ sessionListAdapter: toMissionControlSessionList },
+			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
+		));
+		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, clientId, false));
+		relay.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', { clientId, clientInfo, protocolVersions: [PROTOCOL_VERSION] }));
+		return transport;
+	}
+
+	test('listSessions retains all archived sessions on listeners without a session-list adapter', async () => {
+		for (let index = 0; index < 150; index++) {
+			agentService.listedSessions.push({
+				session: URI.parse(`copilot:/archived-${index}`),
+				startTime: 0,
+				modifiedTime: index,
+				status: SessionStatus.Idle | SessionStatus.IsArchived,
+			});
+		}
+		const listed = [];
+		for (const connectionKind of [AgentHostClientConnectionKind.Local, AgentHostClientConnectionKind.SSH, AgentHostClientConnectionKind.DevTunnel]) {
+			const transport = connectClient(`client-${connectionKind}`, undefined, undefined, {
+				'vscode.clientConnectionKind': connectionKind,
+			}, connectionKind === AgentHostClientConnectionKind.Local ? AgentHostTransportKind.MessagePort : AgentHostTransportKind.WebSocket);
+			const responsePromise = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'listSessions'));
+			const response = await responsePromise;
+			listed.push(hasKey(response, { result: true }) ? (response.result as ListSessionsResult).items.map(item => item.resource) : undefined);
+		}
+		const missionControl = connectMissionControlListClient('limited-list');
+		const responsePromise = waitForResponse(missionControl, 2);
+		missionControl.simulateMessage(request(2, 'listSessions'));
+		const response = await responsePromise;
+		const limited = hasKey(response, { result: true }) ? (response.result as ListSessionsResult).items.map(item => item.resource) : undefined;
+		assert.deepStrictEqual({ listed, limited }, {
+			listed: Array.from({ length: 3 }, () => agentService.listedSessions.map(item => item.session.toString())),
+			limited: agentService.listedSessions.slice(50).map(item => item.session.toString()),
+		});
+	});
+
+	for (const archivedCount of [0, 99, 100, 101, 150]) {
+		test(`Mission Control listSessions retains all non-archived sessions and the most recent 100 of ${archivedCount} archived sessions`, async () => {
+			const active = Array.from({ length: 125 }, (_, index): IAgentSessionMetadata => ({
+				session: URI.parse(`copilot:/active-${index}`),
+				startTime: 0,
+				modifiedTime: 0,
+				...(index % 2 === 0 ? { status: SessionStatus.InProgress | SessionStatus.IsRead } : {}),
+			}));
+			const archived = Array.from({ length: archivedCount }, (_, index): IAgentSessionMetadata => ({
+				session: URI.parse(`${index % 2 === 0 ? 'copilot' : 'codex'}:/archived-${index}`),
+				startTime: archivedCount - index,
+				modifiedTime: index,
+				status: SessionStatus.Idle | SessionStatus.IsArchived | SessionStatus.IsRead,
+			}));
+			agentService.listedSessions.push(...active.slice(0, 50), ...archived, ...active.slice(50));
+			const transport = connectMissionControlListClient('client-list-archives');
+			const responsePromise = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'listSessions'));
+			const response = await responsePromise;
+			const result = hasKey(response, { result: true }) ? response.result as ListSessionsResult : undefined;
+			assert.deepStrictEqual({
+				resources: result?.items.map(item => item.resource),
+				storedCount: agentService.listedSessions.length,
+			}, {
+				resources: [
+					...active.slice(0, 50),
+					...archived.slice(Math.max(0, archivedCount - 100)),
+					...active.slice(50),
+				].map(item => item.session.toString()),
+				storedCount: active.length + archivedCount,
+			});
+		});
+	}
+
+	test('Mission Control listSessions applies the archive limit to current status and modification time', async () => {
+		for (let index = 0; index < 102; index++) {
+			agentService.listedSessions.push({
+				session: URI.parse(`copilot:/archived-${index}`),
+				startTime: 0,
+				modifiedTime: index,
+				status: SessionStatus.Idle | SessionStatus.IsArchived,
+			});
+		}
+		for (const [index, status, modifiedTime] of [
+			[0, SessionStatus.Idle | SessionStatus.IsArchived, 2000],
+			[101, SessionStatus.Idle, 101],
+		] as const) {
+			stateManager.restoreSession({
+				...makeSessionSummary(`copilot:/archived-${index}`),
+				status,
+				createdAt: new Date(0).toISOString(),
+				modifiedAt: new Date(modifiedTime).toISOString(),
+			}, [], creationTimeChatStorageResource);
+		}
+		const transport = connectMissionControlListClient('client-list-live-archives');
+		const responsePromise = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'listSessions'));
+		const response = await responsePromise;
+		const result = hasKey(response, { result: true }) ? response.result as ListSessionsResult : undefined;
+		assert.deepStrictEqual(result?.items.map(item => item.resource), [
+			'copilot:/archived-0',
+			...Array.from({ length: 100 }, (_, index) => `copilot:/archived-${index + 2}`),
+		]);
+	});
+
+	test('Mission Control listSessions does not prevent subscribing to older archived sessions', async () => {
+		const resource = 'copilot:/archived-0';
+		stateManager.restoreSession({
+			...makeSessionSummary(resource),
+			status: SessionStatus.Idle | SessionStatus.IsArchived,
+			createdAt: new Date(0).toISOString(),
+			modifiedAt: new Date(0).toISOString(),
+		}, [], creationTimeChatStorageResource);
+		for (let index = 0; index < 101; index++) {
+			agentService.listedSessions.push({
+				session: URI.parse(`copilot:/archived-${index}`),
+				startTime: 0,
+				modifiedTime: index,
+				status: SessionStatus.Idle | SessionStatus.IsArchived,
+			});
+		}
+		const transport = connectMissionControlListClient('client-list-old-archive');
+		const listing = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'listSessions'));
+		const listResponse = await listing;
+		const result = hasKey(listResponse, { result: true }) ? listResponse.result as ListSessionsResult : undefined;
+		const subscription = waitForResponse(transport, 3);
+		transport.simulateMessage(request(3, 'subscribe', { channel: resource }));
+		const subscribeResponse = await subscription;
+		const snapshot = hasKey(subscribeResponse, { result: true }) ? (subscribeResponse.result as SubscribeResult).snapshot : undefined;
+		assert.deepStrictEqual({
+			listed: result?.items.some(item => item.resource === resource),
+			subscribed: snapshot?.resource,
+		}, {
+			listed: false,
+			subscribed: resource,
+		});
+	});
+
+	test('Mission Control listSessions applies the archive limit after legacy-client visibility filtering', async () => {
+		for (const scheme of ['copilot', 'ahp-session']) {
+			for (let index = 0; index < 101; index++) {
+				agentService.listedSessions.push({
+					session: URI.parse(`${scheme}:/archived-${index}`),
+					provider: 'copilot',
+					startTime: 0,
+					modifiedTime: index + (scheme === 'ahp-session' ? 1000 : 0),
+					status: SessionStatus.Idle | SessionStatus.IsArchived,
+				});
+			}
+		}
+		const transport = connectMissionControlListClient('legacy-list-archives', editorWindowAgentHostClientInfo);
+		const responsePromise = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'listSessions'));
+		const response = await responsePromise;
+		const result = hasKey(response, { result: true }) ? response.result as ListSessionsResult : undefined;
+		assert.deepStrictEqual(result?.items.map(item => item.resource), Array.from({ length: 100 }, (_, index) => `copilot:/archived-${index + 1}`));
+	});
+
+	test('Mission Control listSessions applies the archive limit after current directory grants', async () => {
+		const path = await mkdtemp(join(process.cwd(), '.build', 'relay-archived-sessions-'));
+		try {
+			const workspace = join(path, 'workspace');
+			const outside = join(path, 'outside');
+			await Promise.all([mkdir(workspace), mkdir(outside)]);
+			const relay = disposables.add(new MockProtocolServer());
+			const scopedHandler = disposables.add(new ProtocolServerHandler(
+				agentService, stateManager, relay,
+				{ allowExtensionMethods: false, relayRoots: [workspace], sessionListAdapter: toMissionControlSessionList },
+				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
+			));
+			for (let index = 0; index < 101; index++) {
+				agentService.listedSessions.push({
+					session: URI.parse(`copilot:/archived-${index}`),
+					startTime: 0,
+					modifiedTime: index,
+					status: SessionStatus.Idle | SessionStatus.IsArchived,
+					workingDirectories: [URI.file(workspace)],
+				});
+			}
+			agentService.listedSessions.push({
+				session: URI.parse('copilot:/outside'),
+				startTime: 0,
+				modifiedTime: 2000,
+				status: SessionStatus.Idle | SessionStatus.IsArchived,
+				workingDirectories: [URI.file(workspace)],
+			});
+			stateManager.restoreSession({
+				...makeSessionSummary('copilot:/outside'),
+				status: SessionStatus.Idle | SessionStatus.IsArchived,
+				modifiedAt: new Date(2000).toISOString(),
+				workingDirectories: [URI.file(outside).toString()],
+			}, [], creationTimeChatStorageResource);
+			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'archive-listing-lane', false));
+			relay.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', { clientId: 'archive-listing-lane', protocolVersions: [PROTOCOL_VERSION] }));
+			transport.simulateMessage(request(2, 'listSessions'));
+			await scopedHandler.whenIdle();
+			const response = findResponse(transport.sent, 2);
+			const result = response && hasKey(response, { result: true }) ? response.result as ListSessionsResult : undefined;
+			assert.deepStrictEqual(result?.items.map(item => item.resource), Array.from({ length: 100 }, (_, index) => `copilot:/archived-${index + 1}`));
+		} finally {
+			await rm(path, { recursive: true });
+		}
+	});
+
+	test('clients without chat URI support see a chat only in the session it was created in (Block 4)', async () => {
+		const a = 'ahp-session:/move-a';
+		const b = 'ahp-session:/move-b';
+		const promoted = 'ahp-session:/promoted';
+		for (const resource of [a, b]) {
+			stateManager.restoreSession(makeSessionSummary(resource), [], creationTimeChatStorageResource);
+			agentService.listedSessions.push({ session: URI.parse(resource), provider: 'copilot', startTime: 1000, modifiedTime: 2000 });
+		}
+		const moved = buildChatUri(a, 'moved');
+		const promotedChat = buildChatUri(a, 'promoted');
+		stateManager.addChat(a, moved, moved);
+		stateManager.addChat(a, promotedChat, promotedChat);
+		const sessionsMeta = { [AgentHostSessionUrisCapabilityMetaKey]: true };
+		const clients = [
+			connectClient('legacy', ['ahp-root://', a, b], editorWindowAgentHostClientInfo, sessionsMeta),
+			connectClient('modern', ['ahp-root://', a, b], editorWindowAgentHostClientInfo, { ...sessionsMeta, [AgentHostChatUrisCapabilityMetaKey]: true }),
+		];
+		for (const client of clients) {
+			client.sent.length = 0;
+		}
+
+		stateManager.transferChats(a, b, [moved], undefined);
+		stateManager.promoteChats(a, { ...makeSessionSummary(promoted), defaultChat: promotedChat }, undefined, [promotedChat]);
+		agentService.listedSessions.push({ session: URI.parse(promoted), provider: 'copilot', startTime: 1000, modifiedTime: 2000 });
+
+		const results = [];
+		for (const client of clients) {
+			const actions = client.sent.filter(isJsonRpcNotification).filter(message => message.method === 'action').map(message => {
+				const { channel, action } = message.params as { channel: string; action: { type: string; chat?: string; chats?: string[]; summary?: { resource: string } } };
+				return `${action.type} ${channel} ${action.chat ?? action.summary?.resource ?? action.chats?.join(',')}`;
+			}).filter(entry => entry.startsWith('session/chat'));
+			const added = client.sent.filter(isJsonRpcNotification).filter(message => message.method === 'root/sessionAdded').length;
+			const listing = waitForResponse(client, 2);
+			client.simulateMessage(request(2, 'listSessions', { channel: 'ahp-root://' }));
+			const listed = await listing;
+			assert.ok(isJsonRpcResponse(listed) && hasKey(listed, { result: true }));
+			results.push({ actions, added, listed: (listed.result as ListSessionsResult).items.map(item => item.resource).sort() });
+		}
+
+		assert.deepStrictEqual(results, [{
+			// The moved chat leaves A for such a client and never appears in B; the promoted session isn't announced.
+			actions: [
+				// The target's default chat keeps its title once it shares the session with another chat.
+				`session/chatUpdated ${b} ${buildDefaultChatUri(b)}`,
+				`session/chatRemoved ${a} ${moved}`,
+				`session/chatsReordered ${b} ${buildDefaultChatUri(b)}`,
+				`session/chatRemoved ${a} ${promotedChat}`,
+			],
+			added: 0,
+			listed: [a, b].sort(),
+		}, {
+			actions: [
+				`session/chatUpdated ${b} ${buildDefaultChatUri(b)}`,
+				`session/chatRemoved ${a} ${moved}`,
+				`session/chatAdded ${b} ${moved}`,
+				`session/chatsReordered ${b} ${moved},${buildDefaultChatUri(b)}`,
+				`session/chatRemoved ${a} ${promotedChat}`,
+			],
+			added: 1,
+			listed: [a, b, promoted].sort(),
+		}]);
+	});
+
+	test('clients without chat URI support see no session while the origins of moved chats are unknown (Block 4)', async () => {
+		const a = 'ahp-session:/unknown-origins';
+		stateManager.restoreSession(makeSessionSummary(a), [], creationTimeChatStorageResource);
+		agentService.listedSessions.push({ session: URI.parse(a), provider: 'copilot', startTime: 1000, modifiedTime: 2000 });
+		const sessionsMeta = { [AgentHostSessionUrisCapabilityMetaKey]: true };
+		const clients = [
+			connectClient('legacy', ['ahp-root://'], editorWindowAgentHostClientInfo, sessionsMeta),
+			connectClient('modern', ['ahp-root://'], editorWindowAgentHostClientInfo, { ...sessionsMeta, [AgentHostChatUrisCapabilityMetaKey]: true }),
+		];
+		let requestId = 1;
+		const list = async () => {
+			const listed: string[][] = [];
+			for (const client of clients) {
+				const id = ++requestId;
+				const listing = waitForResponse(client, id);
+				client.simulateMessage(request(id, 'listSessions', { channel: 'ahp-root://' }));
+				const response = await listing;
+				assert.ok(isJsonRpcResponse(response) && hasKey(response, { result: true }));
+				listed.push((response.result as ListSessionsResult).items.map(item => item.resource));
+			}
+			return listed;
+		};
+
+		stateManager.setMovedChatOriginsKnown(false);
+		const unknown = await list();
+		stateManager.setMovedChatOriginsKnown(true);
+
+		assert.deepStrictEqual({ unknown, known: await list() }, {
+			unknown: [[], [a]],
+			known: [[a], [a]],
+		});
+	});
+
+	test('while the origins of moved chats load, only clients without chat URI support wait for them to list sessions (Block 4)', async () => {
+		const a = 'ahp-session:/loading-origins';
+		stateManager.restoreSession(makeSessionSummary(a), [], creationTimeChatStorageResource);
+		agentService.listedSessions.push({ session: URI.parse(a), provider: 'copilot', startTime: 1000, modifiedTime: 2000 });
+		const sessionsMeta = { [AgentHostSessionUrisCapabilityMetaKey]: true };
+		const legacy = connectClient('legacy', ['ahp-root://'], editorWindowAgentHostClientInfo, sessionsMeta);
+		const modern = connectClient('modern', ['ahp-root://'], editorWindowAgentHostClientInfo, { ...sessionsMeta, [AgentHostChatUrisCapabilityMetaKey]: true });
+		const items = (response: ProtocolMessage) => {
+			assert.ok(isJsonRpcResponse(response) && hasKey(response, { result: true }));
+			return (response.result as ListSessionsResult).items.map(item => item.resource);
+		};
+		stateManager.beginMovedChatOriginsLoad();
+
+		const legacyListing = waitForResponse(legacy, 101);
+		legacy.simulateMessage(request(101, 'listSessions', { channel: 'ahp-root://' }));
+		const modernListing = waitForResponse(modern, 102);
+		modern.simulateMessage(request(102, 'listSessions', { channel: 'ahp-root://' }));
+		const modernItems = items(await modernListing);
+		const legacyAnsweredWhileLoading = await raceTimeout(legacyListing.then(() => true), 50);
+		stateManager.setMovedChatOriginsKnown(true);
+
+		assert.deepStrictEqual({ modernItems, legacyAnsweredWhileLoading, legacyItems: items(await legacyListing) }, {
+			modernItems: [a],
+			legacyAnsweredWhileLoading: undefined,
+			legacyItems: [a],
+		});
+	});
+
+	test('clients without chat URI support do not see opaque defaults or opaque chats', async () => {
+		const opaqueDefaultChat = 'ahp-chat:/11111111-1111-4111-8111-111111111111';
+		const opaquePeer = 'ahp-chat:/22222222-2222-4222-8222-222222222222';
+		const laterOpaquePeer = 'ahp-chat:/33333333-3333-4333-8333-333333333333';
+		const opaqueSession = 'ahp-session:/opaque-default';
+		const shapedSession = 'ahp-session:/shaped-default';
+		stateManager.restoreSession({ ...makeSessionSummary(opaqueSession), defaultChat: opaqueDefaultChat }, [], creationTimeChatStorageResource);
+		stateManager.restoreSession(makeSessionSummary(shapedSession), [], creationTimeChatStorageResource);
+		stateManager.addChat(opaqueSession, opaquePeer, opaquePeer);
+		stateManager.addChat(shapedSession, opaquePeer, opaquePeer);
+		for (const resource of [opaqueSession, shapedSession]) {
+			agentService.listedSessions.push({ session: URI.parse(resource), provider: 'copilot', startTime: 1000, modifiedTime: 2000 });
+		}
+		const shapedDefaultChat = buildDefaultChatUri(shapedSession);
+		const sessionsMeta = { [AgentHostSessionUrisCapabilityMetaKey]: true };
+		const results: { clientId: string; initialChats: unknown[]; items: unknown[]; opaqueChatSubscribeFailed: boolean; actions: unknown[] }[] = [];
+		const clients: ReturnType<typeof connectClient>[] = [];
+		for (const [clientId, clientInfo, meta] of [
+			['legacy', editorWindowAgentHostClientInfo, sessionsMeta],
+			['modern', editorWindowAgentHostClientInfo, { ...sessionsMeta, [AgentHostChatUrisCapabilityMetaKey]: true }],
+			['unmarked', undefined, undefined],
+		] as const) {
+			const client = connectClient(clientId, ['ahp-root://', opaqueSession, shapedSession], clientInfo, meta);
+			const initialized = findResponse(client.sent, 1);
+			assert.ok(initialized && isJsonRpcResponse(initialized) && hasKey(initialized, { result: true }));
+			const snapshots = (initialized.result as InitializeResult).snapshots;
+			const initialChats = snapshots.map(snapshot => hasKey(snapshot.state, { chats: true }) ? [snapshot.resource, (snapshot.state.chats as { resource: string }[]).map(chat => chat.resource)] : snapshot.resource);
+
+			const listing = waitForResponse(client, 2);
+			client.simulateMessage(request(2, 'listSessions', { channel: 'ahp-root://' }));
+			const listed = await listing;
+			assert.ok(isJsonRpcResponse(listed) && hasKey(listed, { result: true }));
+			const items = (listed.result as ListSessionsResult).items.map(item => [item.resource, item.chats?.map(chat => chat.resource)]);
+
+			const subscribing = waitForResponse(client, 3);
+			client.simulateMessage(request(3, 'subscribe', { channel: opaquePeer }));
+			const subscribed = await subscribing;
+			results.push({ clientId, initialChats, items, opaqueChatSubscribeFailed: hasKey(subscribed, { error: true }), actions: [] as unknown[] });
+			clients.push(client);
+		}
+		for (const client of clients) {
+			client.sent.length = 0;
+		}
+		stateManager.addChat(shapedSession, laterOpaquePeer, laterOpaquePeer);
+		stateManager.dispatchServerAction(shapedSession, { type: ActionType.SessionChatsReordered, chats: [laterOpaquePeer, opaquePeer, shapedDefaultChat] });
+		clients.forEach((client, index) => {
+			results[index].actions = client.sent.filter(isJsonRpcNotification).filter(message => message.method === 'action').map(message => {
+				const action = (message.params as { action: { type: string; chats?: string[]; summary?: { resource: string } } }).action;
+				return [action.type, action.summary?.resource ?? action.chats];
+			});
+		});
+		assert.deepStrictEqual(results.map(r => ({ ...r, opaqueChatSubscribeFailed: undefined })).map(r => [r.clientId, r.initialChats, r.items, r.actions]), [
+			['legacy', ['ahp-root://', [shapedSession, [shapedDefaultChat]]], [[shapedSession, [shapedDefaultChat]]], [[ActionType.SessionChatsReordered, [shapedDefaultChat]]]],
+			...['modern', 'unmarked'].map(clientId => [clientId,
+				['ahp-root://', [opaqueSession, [opaqueDefaultChat, opaquePeer]], [shapedSession, [shapedDefaultChat, opaquePeer]]],
+				[[opaqueSession, [opaqueDefaultChat, opaquePeer]], [shapedSession, [shapedDefaultChat, opaquePeer]]],
+				[[ActionType.SessionChatAdded, laterOpaquePeer], [ActionType.SessionChatsReordered, [laterOpaquePeer, opaquePeer, shapedDefaultChat]]]]),
+		]);
+		assert.deepStrictEqual(results.map(r => r.opaqueChatSubscribeFailed), [true, false, false]);
+	});
+
 	test('listSessions includes project metadata', async () => {
 		agentService.listedSessions.push({
 			session: URI.parse(sessionUri),
@@ -4390,7 +6931,7 @@ suite('ProtocolServerHandler', () => {
 				_meta: { live: 'current' },
 			};
 			const startedAt = new Date(Date.parse(summary.modifiedAt) + 1000).toISOString();
-			stateManager.restoreSession(summary, []);
+			stateManager.restoreSession(summary, [], creationTimeChatStorageResource);
 			agentService.listedSessions.push({
 				session: URI.parse(summary.resource),
 				startTime: Date.parse(summary.createdAt),
@@ -4442,7 +6983,7 @@ suite('ProtocolServerHandler', () => {
 	test('repeated listSessions flushes a pending status before returning the new baseline', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const summary = makeSessionSummary();
-			stateManager.restoreSession(summary, []);
+			stateManager.restoreSession(summary, [], creationTimeChatStorageResource);
 			const listedSession: IAgentSessionMetadata = {
 				session: URI.parse(summary.resource),
 				startTime: Date.parse(summary.createdAt),
@@ -4493,7 +7034,7 @@ suite('ProtocolServerHandler', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const summary = makeSessionSummary();
 			const startedAt = new Date(Date.parse(summary.modifiedAt) + 1000).toISOString();
-			stateManager.restoreSession(summary, []);
+			stateManager.restoreSession(summary, [], creationTimeChatStorageResource);
 			agentService.listedSessions.push({
 				session: URI.parse(summary.resource),
 				startTime: Date.parse(summary.createdAt),
@@ -4912,6 +7453,58 @@ suite('ProtocolServerHandler', () => {
 			});
 		});
 
+		test('createChat accepts any ahp-chat URI in an opaque session and rejects opaque or foreign URIs otherwise', async () => {
+			const opaqueSession = 'copilot:/opaque-session';
+			const opaqueDefault = 'ahp-chat:/11111111-1111-4111-8111-111111111111';
+			stateManager.createSession({ ...makeSessionSummary(opaqueSession), defaultChat: opaqueDefault });
+			stateManager.createSession(makeSessionSummary());
+			const transport = connectClient('client-cc');
+			const outcomes: unknown[] = [];
+			let id = 2;
+			for (const [channel, chat] of [
+				[opaqueSession, 'ahp-chat:/x/y'],
+				[opaqueSession, buildChatUri(opaqueSession, 'shaped-peer')],
+				[sessionUri, 'ahp-chat:/22222222-2222-4222-8222-222222222222'],
+				[sessionUri, 'file:///not-a-chat'],
+			]) {
+				const responsePromise = waitForResponse(transport, id);
+				transport.simulateMessage(request(id++, 'createChat', { channel, chat }));
+				const resp = await responsePromise as { error?: { code: number } };
+				outcomes.push(resp.error?.code);
+			}
+			assert.deepStrictEqual({
+				outcomes,
+				created: agentService.createdChats.map(created => created.chat),
+			}, {
+				outcomes: [undefined, undefined, JsonRpcErrorCodes.InvalidParams, JsonRpcErrorCodes.InvalidParams],
+				created: ['ahp-chat:/x/y', buildChatUri(opaqueSession, 'shaped-peer')],
+			});
+		});
+
+		test('createChat rejects a chat whose client chat id collides with an existing chat', async () => {
+			const session = 'copilot:/collision-session';
+			const defaultUuid = '33333333-3333-4333-8333-333333333333';
+			stateManager.createSession({ ...makeSessionSummary(session), defaultChat: `ahp-chat:/${defaultUuid}` });
+			const transport = connectClient('client-cc');
+			const lookalike = buildChatUri(session, defaultUuid);
+			const normal = 'ahp-chat:/44444444-4444-4444-8444-444444444444';
+			const outcomes: unknown[] = [];
+			let id = 2;
+			for (const chat of [lookalike, normal]) {
+				const responsePromise = waitForResponse(transport, id);
+				transport.simulateMessage(request(id++, 'createChat', { channel: session, chat }));
+				const resp = await responsePromise as { error?: { code: number } };
+				outcomes.push(resp.error?.code);
+			}
+			assert.deepStrictEqual({
+				outcomes,
+				created: agentService.createdChats.map(created => created.chat),
+			}, {
+				outcomes: [JsonRpcErrorCodes.InvalidParams, undefined],
+				created: [normal],
+			});
+		});
+
 		test('createChat rejects a source without kind', async () => {
 			stateManager.createSession(makeSessionSummary());
 			const transport = connectClient('client-cc');
@@ -5021,7 +7614,7 @@ suite('ProtocolServerHandler', () => {
 
 		test('disposeChat forwards to the agent service and shrinks the catalog', async () => {
 			stateManager.createSession(makeSessionSummary());
-			stateManager.addChat(sessionUri, peerChat);
+			stateManager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat, buildDefaultChatUri(sessionUri)));
 			const transport = connectClient('client-cc');
 			transport.sent.length = 0;
 			const responsePromise = waitForResponse(transport, 2);
@@ -5037,6 +7630,148 @@ suite('ProtocolServerHandler', () => {
 				result: null,
 				disposed: [{ session: sessionUri, chat: peerChat }],
 				inCatalog: false,
+			});
+		});
+
+		suite('moveSession (VS Code-internal, Block 4)', () => {
+			const targetUri = URI.from({ scheme: 'copilot', path: '/move-target' }).toString();
+			let clients = 0;
+
+			function initialized(transport: MockProtocolTransport): InitializeResult {
+				const response = findResponse(transport.sent, 1);
+				assert.ok(response && hasKey(response, { result: true }));
+				return response.result as InitializeResult;
+			}
+
+			async function send(transport: MockProtocolTransport, params: unknown): Promise<unknown> {
+				const response = waitForResponse(transport, 30);
+				transport.simulateMessage(request(30, 'vscode/moveSession', params));
+				return response;
+			}
+
+			setup(() => {
+				stateManager.createSession(makeSessionSummary());
+				stateManager.createSession(makeSessionSummary(targetUri));
+			});
+
+			test('is offered and routed whether or not moving chats is enabled, so enabling it needs no reconnect', async () => {
+				// Connected while moving chats is off, as a client whose root config mirror arrives after it initialized.
+				const transport = connectClient(`client-session-move-${clients++}`);
+				const offered = supportsAgentHostSessionMove(initialized(transport));
+				agentService.moveChatResult = new AgentChatMoveRefusedError(AgentChatMoveRefusal.Disabled, 'Moving chats is not enabled.');
+				const disabled = await send(transport, { session: sessionUri, destination: targetUri, after: null }) as { error?: { code: number; data?: unknown } };
+				stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { [ChatMoveConfigKey.Enabled]: true } });
+				agentService.moveChatResult = undefined;
+				const placed = buildDefaultChatUri(targetUri);
+
+				assert.deepStrictEqual({
+					offered,
+					disabled: { code: disabled.error?.code, data: disabled.error?.data },
+					first: await send(transport, { session: sessionUri, destination: targetUri, after: null }),
+					anchored: await send(transport, { session: sessionUri, destination: targetUri, after: placed }),
+					moved: agentService.movedSessions,
+				}, {
+					offered: true,
+					// The host refuses a move while moving chats is off.
+					disabled: { code: JsonRpcErrorCodes.InvalidParams, data: { reason: AgentChatMoveRefusal.Disabled } },
+					first: { jsonrpc: '2.0', id: 30, result: { session: targetUri } },
+					anchored: { jsonrpc: '2.0', id: 30, result: { session: targetUri } },
+					moved: [
+						{ session: sessionUri, destination: targetUri, after: undefined },
+						{ session: sessionUri, destination: targetUri, after: undefined },
+						{ session: sessionUri, destination: targetUri, after: placed },
+					],
+				});
+			});
+
+			test('rejects params missing `after` or malformed, and maps a refusal to its reason', async () => {
+				stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { [ChatMoveConfigKey.Enabled]: true } });
+				const transport = connectClient(`client-session-move-${clients++}`);
+				const codes = [];
+				for (const params of [{ session: sessionUri, destination: targetUri }, { session: sessionUri, destination: targetUri, after: 1 }, { session: sessionUri, after: null }]) {
+					const response = await send(transport, params) as { error?: { code: number } };
+					codes.push(response.error?.code);
+				}
+				agentService.moveChatResult = new AgentChatMoveRefusedError(AgentChatMoveRefusal.NotSingleChat, 'Session has other chats.');
+				const errorsBefore = logService.errors.length;
+				const refused = await send(transport, { session: sessionUri, destination: targetUri, after: null }) as { error?: { code: number; data?: unknown } };
+
+				assert.deepStrictEqual({ codes, refused: { code: refused.error?.code, data: refused.error?.data }, moved: agentService.movedSessions.length, refusalLogs: { errors: logService.errors.slice(errorsBefore), infos: logService.infos.filter(message => message.includes('refused')) } }, {
+					codes: [JsonRpcErrorCodes.InvalidParams, JsonRpcErrorCodes.InvalidParams, JsonRpcErrorCodes.InvalidParams],
+					refused: { code: JsonRpcErrorCodes.InvalidParams, data: { reason: AgentChatMoveRefusal.NotSingleChat } },
+					moved: 1,
+					// An expected refusal is not an error.
+					refusalLogs: { errors: [], infos: [`[ProtocolServer] Extension request 'vscode/moveSession' failed: refused (${AgentChatMoveRefusal.NotSingleChat}): Session has other chats.`] },
+				});
+			});
+		});
+
+		suite('moveChat', () => {
+			const targetUri = URI.from({ scheme: 'copilot', path: '/target-session' }).toString();
+			const anchorChat = buildChatUri(targetUri, 'anchor');
+
+			let clients = 0;
+			async function move(params: object): Promise<{ result?: { session: string }; error?: { code: number; message: string; data?: unknown } }> {
+				const transport = connectClient(`client-mv-${clients++}`);
+				transport.sent.length = 0;
+				const responsePromise = waitForResponse(transport, 2);
+				transport.simulateMessage(request(2, 'moveChat', params));
+				return await responsePromise as { result?: { session: string }; error?: { code: number; message: string; data?: unknown } };
+			}
+
+			setup(() => {
+				stateManager.createSession(makeSessionSummary());
+				stateManager.createSession(makeSessionSummary(targetUri));
+				stateManager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat, buildDefaultChatUri(sessionUri)));
+			});
+
+			test('forwards a session destination with its anchor and returns the new owner', async () => {
+				agentService.moveChatResult = URI.parse(targetUri);
+				const resp = await move({ channel: peerChat, destination: { kind: ChatMoveDestinationKind.Session, session: targetUri, after: anchorChat } });
+
+				assert.deepStrictEqual({ result: resp.result, moved: agentService.movedChats }, {
+					result: { session: targetUri },
+					moved: [{ session: sessionUri, chat: peerChat, destination: { kind: 'session', session: URI.parse(targetUri), after: URI.parse(anchorChat) } }],
+				});
+			});
+
+			test('forwards a new-session destination', async () => {
+				const resp = await move({ channel: peerChat, destination: { kind: ChatMoveDestinationKind.NewSession } });
+
+				assert.deepStrictEqual({ result: resp.result, moved: agentService.movedChats }, {
+					result: { session: sessionUri },
+					moved: [{ session: sessionUri, chat: peerChat, destination: { kind: 'newSession' } }],
+				});
+			});
+
+			test('maps a refusal to InvalidParams with its reason and logs it at info, not as an error (B4-4)', async () => {
+				agentService.moveChatResult = new AgentChatMoveRefusedError(AgentChatMoveRefusal.NotMovable, 'The chat cannot be moved');
+				const resp = await move({ channel: peerChat, destination: { kind: ChatMoveDestinationKind.Session, session: targetUri } });
+
+				const refusedLogs = { errors: [...logService.errors], infos: logService.infos.filter(message => message.includes('refused')) };
+				agentService.moveChatResult = new Error('unexpected');
+				await move({ channel: peerChat, destination: { kind: ChatMoveDestinationKind.Session, session: targetUri } });
+
+				assert.deepStrictEqual({ error: resp.error, refusedLogs, unexpected: logService.errors }, {
+					error: { code: JsonRpcErrorCodes.InvalidParams, message: 'The chat cannot be moved', data: { reason: AgentChatMoveRefusal.NotMovable } },
+					// An expected refusal is logged at info without a stack; an unexpected failure stays an error.
+					refusedLogs: { errors: [], infos: [`[ProtocolServer] Request 'moveChat' id=2 failed: refused (${AgentChatMoveRefusal.NotMovable}): The chat cannot be moved`] },
+					unexpected: [`[ProtocolServer] Request 'moveChat' id=2 failed`],
+				});
+			});
+
+			test('rejects malformed destinations and unknown chats without forwarding', async () => {
+				const responses = [
+					await move({ channel: peerChat, destination: { kind: 'elsewhere' } }),
+					await move({ channel: peerChat, destination: { kind: ChatMoveDestinationKind.Session } }),
+					await move({ channel: buildChatUri('copilot:/missing', 'peer-9'), destination: { kind: ChatMoveDestinationKind.NewSession } }),
+					await move({ channel: sessionUri, destination: { kind: ChatMoveDestinationKind.NewSession } }),
+				];
+
+				assert.deepStrictEqual({ codes: responses.map(r => r.error?.code), moved: agentService.movedChats }, {
+					codes: [JsonRpcErrorCodes.InvalidParams, JsonRpcErrorCodes.InvalidParams, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes.InvalidParams],
+					moved: [],
+				});
 			});
 		});
 	});
@@ -5498,6 +8233,7 @@ suite('ProtocolServerHandler', () => {
 				tracker,
 				localDisposables.add(new MockDevContainerService()),
 				NullAgentHostOTelService,
+				new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 			)));
 		}
 
@@ -5545,6 +8281,7 @@ suite('ProtocolServerHandler', () => {
 				tracker,
 				localDisposables.add(new MockDevContainerService()),
 				NullAgentHostOTelService,
+				new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 			));
 			const transport = new MockProtocolTransport();
 			listener.simulateConnection(transport);
@@ -5595,6 +8332,7 @@ suite('ProtocolServerHandler', () => {
 			clientConnections,
 			localDisposables.add(new MockDevContainerService()),
 			NullAgentHostOTelService,
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 		));
 		const counts: number[] = [];
 		localDisposables.add(localHandler.onDidChangeConnectionCount(count => counts.push(count)));
@@ -5646,6 +8384,7 @@ suite('ProtocolServerHandler', () => {
 			clientConnections,
 			localDisposables.add(new MockDevContainerService()),
 			NullAgentHostOTelService,
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 		));
 		const countEvents: number[] = [];
 		localDisposables.add(localHandler.onDidChangeConnectionCount(count => countEvents.push(count)));
@@ -5689,6 +8428,7 @@ suite('ProtocolServerHandler', () => {
 			clientConnections,
 			localDisposables.add(new MockDevContainerService()),
 			NullAgentHostOTelService,
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 		));
 		const countEvents: number[] = [];
 		localDisposables.add(localHandler.onDidChangeConnectionCount(count => countEvents.push(count)));
@@ -5740,6 +8480,7 @@ suite('ProtocolServerHandler', () => {
 			clientConnections,
 			localDisposables.add(new MockDevContainerService()),
 			NullAgentHostOTelService,
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 		));
 		const counts: number[] = [];
 		localDisposables.add(localHandler.onDidChangeConnectionCount(count => counts.push(count)));
@@ -5909,7 +8650,7 @@ suite('ProtocolServerHandler', () => {
 			subscribeCalls.push(resource.toString());
 			let snapshot = stateManager.getSnapshot(resource.toString());
 			if (!snapshot) {
-				stateManager.restoreSession(makeSessionSummary(), []);
+				stateManager.restoreSession(makeSessionSummary(), [], creationTimeChatStorageResource);
 				snapshot = stateManager.getSnapshot(resource.toString())!;
 			}
 			return snapshot;
@@ -5959,7 +8700,7 @@ suite('ProtocolServerHandler', () => {
 		// restarted host restored its sessions while answering the reconnect.
 		agentService.subscribe = async (resource, _clientId) => {
 			if (!stateManager.getSnapshot(resource.toString())) {
-				stateManager.restoreSession(makeSessionSummary(), []);
+				stateManager.restoreSession(makeSessionSummary(), [], creationTimeChatStorageResource);
 				stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 			}
 			return stateManager.getSnapshot(resource.toString())!;
@@ -6005,7 +8746,7 @@ suite('ProtocolServerHandler', () => {
 				throw new Error('No agent for session: ' + deadTerminal);
 			}
 			if (!stateManager.getSnapshot(resource.toString())) {
-				stateManager.restoreSession(makeSessionSummary(), []);
+				stateManager.restoreSession(makeSessionSummary(), [], creationTimeChatStorageResource);
 			}
 			return stateManager.getSnapshot(resource.toString())!;
 		};
@@ -6737,6 +9478,125 @@ suite('ProtocolServerHandler', () => {
 		transport.simulateClose();
 	});
 
+	const retainedSubscriptionCases: readonly {
+		readonly name: string;
+		readonly subscriptions: (peerChat: string, siblingChat: string) => readonly string[];
+		readonly unsubscribe: (peerChat: string) => string;
+	}[] = [
+			{
+				name: 'parent session subscription',
+				subscriptions: peerChat => [sessionUri, peerChat],
+				unsubscribe: (peerChat: string) => peerChat,
+			},
+			{
+				name: 'sibling nested session subscription',
+				subscriptions: (peerChat, siblingChat) => [peerChat, siblingChat],
+				unsubscribe: (peerChat: string) => peerChat,
+			},
+			{
+				name: 'nested session subscription',
+				subscriptions: peerChat => [sessionUri, peerChat],
+				unsubscribe: () => sessionUri,
+			},
+		];
+	for (const { name, subscriptions, unsubscribe } of retainedSubscriptionCases) {
+		test(`unsubscribe retains active client and pending tool calls with a remaining ${name}`, async () => {
+			const peerChat = buildChatUri(sessionUri, 'peer');
+			const siblingChat = buildChatUri(sessionUri, 'sibling');
+			stateManager.createSession(makeSessionSummary());
+			stateManager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat, buildDefaultChatUri(sessionUri)));
+			stateManager.addChat(sessionUri, siblingChat, creationTimeChatStorageResource(sessionUri, siblingChat, buildDefaultChatUri(sessionUri)));
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: {
+					clientId: 'client-tools',
+					tools: [{ name: 'runTask', description: 'Runs a task' }]
+				},
+			});
+			startPendingClientToolCall(peerChat, 'client-tools');
+
+			const transport = connectClient('client-tools', subscriptions(peerChat, siblingChat));
+			await handler.whenIdle();
+			transport.simulateMessage(notification('unsubscribe', { channel: unsubscribe(peerChat) }));
+
+			const part = stateManager.getSessionState(peerChat)?.activeTurn?.responseParts[0];
+			assert.deepStrictEqual({
+				activeClients: stateManager.getSessionState(sessionUri)?.activeClients.map(client => client.clientId),
+				toolCallStatus: part?.kind === ResponsePartKind.ToolCall ? part.toolCall.status : undefined,
+			}, {
+				activeClients: ['client-tools'],
+				toolCallStatus: ToolCallStatus.Running,
+			});
+
+			transport.simulateClose();
+		});
+	}
+
+	test('unsubscribe from the last nested session removes the active client and fails owned tool calls', async () => {
+		const peerChat = buildChatUri(sessionUri, 'peer');
+		stateManager.createSession(makeSessionSummary());
+		stateManager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat, buildDefaultChatUri(sessionUri)));
+		stateManager.dispatchServerAction(sessionUri, {
+			type: ActionType.SessionActiveClientSet,
+			activeClient: {
+				clientId: 'client-tools',
+				tools: [{ name: 'runTask', description: 'Runs a task' }]
+			},
+		});
+		startPendingClientToolCall(peerChat, 'client-tools');
+
+		const transport = connectClient('client-tools', [peerChat]);
+		await handler.whenIdle();
+		transport.simulateMessage(notification('unsubscribe', { channel: peerChat }));
+
+		const part = stateManager.getSessionState(peerChat)?.activeTurn?.responseParts[0];
+		assert.deepStrictEqual({
+			activeClients: stateManager.getSessionState(sessionUri)?.activeClients,
+			toolCall: part?.kind === ResponsePartKind.ToolCall ? {
+				status: part.toolCall.status,
+				success: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.success : undefined,
+				error: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.error?.message : undefined,
+			} : undefined,
+		}, {
+			activeClients: [],
+			toolCall: {
+				status: ToolCallStatus.Completed,
+				success: false,
+				error: 'Client client-tools disconnected before completing Run Task',
+			},
+		});
+
+		transport.simulateClose();
+	});
+
+	test('malformed nested session subscription does not interrupt active-client reconciliation', async () => {
+		const malformedChat = 'ahp-chat://malformed';
+		stateManager.createSession(makeSessionSummary());
+		stateManager.dispatchServerAction(sessionUri, {
+			type: ActionType.SessionActiveClientSet,
+			activeClient: {
+				clientId: 'client-tools',
+				tools: [{ name: 'runTask', description: 'Runs a task' }]
+			},
+		});
+		startPendingClientToolCall(defaultChatUri, 'client-tools');
+
+		const transport = connectClient('client-tools', [sessionUri, malformedChat]);
+		await handler.whenIdle();
+		transport.simulateMessage(notification('unsubscribe', { channel: sessionUri }));
+
+		const part = stateManager.getSessionState(defaultChatUri)?.activeTurn?.responseParts[0];
+		assert.deepStrictEqual({
+			activeClients: stateManager.getSessionState(sessionUri)?.activeClients,
+			toolCallStatus: part?.kind === ResponsePartKind.ToolCall ? part.toolCall.status : undefined,
+		}, {
+			activeClients: [],
+			toolCallStatus: ToolCallStatus.Completed,
+		});
+
+		transport.simulateClose();
+	});
+
 	test('reconnect without resubscription removes the active client and fails its owned tool calls', async () => {
 		stateManager.createSession(makeSessionSummary());
 		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
@@ -7009,6 +9869,7 @@ suite('ProtocolServerHandler', () => {
 			clientConnections,
 			localDisposables.add(new MockDevContainerService()),
 			NullAgentHostOTelService,
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 		));
 		const secondTransport = new MockProtocolTransport();
 		secondServer.simulateConnection(secondTransport);
@@ -7150,6 +10011,7 @@ suite('ProtocolServerHandler', () => {
 			clientConnections,
 			localDisposables.add(new MockDevContainerService()),
 			NullAgentHostOTelService,
+			new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 		));
 		const counts: number[] = [];
 		localDisposables.add(combinedHandler.onDidChangeConnectionCount(count => counts.push(count)));
@@ -7291,6 +10153,7 @@ suite('ProtocolServerHandler', () => {
 				clientConnections,
 				localDisposables.add(new MockDevContainerService()),
 				NullAgentHostOTelService,
+				new TestHandlerChatOwnership(otlpStateManager, otlpAgentService.chatOwners),
 			));
 		});
 
@@ -7465,6 +10328,7 @@ suite('ProtocolServerHandler', () => {
 				clientConnections,
 				localDisposables.add(new MockDevContainerService()),
 				NullAgentHostOTelService,
+				new TestHandlerChatOwnership(dlStateManager, dlAgentService.chatOwners),
 			));
 		});
 

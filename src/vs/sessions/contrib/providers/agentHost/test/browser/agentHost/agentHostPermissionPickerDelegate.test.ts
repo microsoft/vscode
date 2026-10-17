@@ -89,6 +89,8 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 	readonly sessionConfigs = new Map<string, ResolveSessionConfigResult>();
 	readonly sandboxPolicies = new Map<string, ISessionSandboxPolicy>();
 	readonly sandboxStates = new Map<string, boolean>();
+	readonly sandboxChangeErrors = new Set<string>();
+	readonly sandboxRejectedSelections = new Set<string>();
 	readonly devContainerDrafts = new Set<string>();
 	readonly pendingDevContainerDrafts = new Set<string>();
 	devContainerSandboxSupported: boolean | undefined;
@@ -109,6 +111,12 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 	getSessionSandboxEnabled(sessionId: string): boolean | undefined {
 		return this.sandboxStates.get(sessionId);
 	}
+	hasSessionSandboxChangeError(sessionId: string): boolean {
+		return this.sandboxChangeErrors.has(sessionId);
+	}
+	hasSessionSandboxRejectedSelection(sessionId: string): boolean {
+		return this.sandboxRejectedSelections.has(sessionId);
+	}
 	getDevContainerSandboxSupported(): boolean | undefined {
 		return this.devContainerSandboxSupported;
 	}
@@ -124,7 +132,7 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 	isSessionConfigResolving(_sessionId: string) {
 		return this.resolving;
 	}
-	async setSessionConfigValue(sessionId: string, property: string, value: string): Promise<void> {
+	async setSessionConfigValue(sessionId: string, _chat: URI, property: string, value: string): Promise<void> {
 		this.setCalls.push([sessionId, property, value]);
 		const config = this.sessionConfigs.get(sessionId);
 		if (config) {
@@ -245,7 +253,8 @@ function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSessio
 }
 
 function makeActiveSession(sessionType = 'copilotcli'): IActiveSession {
-	return { providerId: PROVIDER_ID, sessionId: SESSION_ID, sessionType, resource: URI.from({ scheme: `agent-host-${sessionType}`, path: '/s1' }) } as IActiveSession;
+	const resource = URI.from({ scheme: `agent-host-${sessionType}`, path: '/s1' });
+	return { providerId: PROVIDER_ID, sessionId: SESSION_ID, sessionType, resource, activeChat: constObservable({ resource }) } as unknown as IActiveSession;
 }
 
 suite('AgentHostPermissionPickerDelegate', () => {
@@ -418,6 +427,24 @@ suite('AgentHostPermissionPickerDelegate', () => {
 			requested: true, before: { checked: true, disabled: false },
 			unsupported: { checked: false, disabled: true }, supported: false,
 			writes: [[SESSION_ID, SessionConfigKey.SandboxEnabled, 'off']],
+		});
+
+		test('publishes sandbox apply failures to the permission picker', () => {
+			const { delegate, provider } = setup(store, makeActiveSession(), 'default');
+			provider.config!.values[SessionConfigKey.SandboxEnabled] = 'off';
+			provider.sandboxStates.set(SESSION_ID, true);
+			provider.fireChange();
+			const beforeFailure = delegate.sandboxApplyFailed.get();
+			provider.sandboxChangeErrors.add(SESSION_ID);
+			provider.sandboxRejectedSelections.add(SESSION_ID);
+			provider.fireChange();
+			assert.deepStrictEqual({
+				beforeFailure,
+				afterFailure: delegate.sandboxApplyFailed.get(),
+				rejectedSelection: delegate.sandboxSelectionRejected.get(),
+				confirmed: delegate.sandboxConfirmedEnabled.get(),
+				requested: delegate.sandboxEnabled.get(),
+			}, { beforeFailure: false, afterFailure: true, rejectedSelection: true, confirmed: true, requested: false });
 		});
 	});
 
@@ -686,7 +713,7 @@ suite('AgentHostPermissionPickerDelegate', () => {
 			localManagedSandboxEnforced.set(false, undefined);
 			assert.deepStrictEqual({ required, bypassAllowed, bypassDenied, removed: read(), writes: provider.setCalls }, {
 				required: { checked: !isWeb, disabled: !isWeb },
-				bypassAllowed: { checked: !isWeb, disabled: !isWeb },
+				bypassAllowed: { checked: false, disabled: false },
 				bypassDenied: { checked: !isWeb, disabled: !isWeb },
 				removed: { checked: false, disabled: false },
 				writes: [],
@@ -719,7 +746,7 @@ suite('AgentHostPermissionPickerDelegate', () => {
 		}, { pending: !isWeb, enabled: false, allowBypass: true });
 	});
 
-	test('managed sandbox can be re-enabled only after a host-confirmed opt-out', async () => {
+	test('managed sandbox remains editable when the host allows bypass', async () => {
 		const { delegate, provider } = setup(store, makeActiveSession(), 'default');
 		provider.config!.values[SessionConfigKey.SandboxEnabled] = 'off';
 		provider.sandboxPolicies.set(SESSION_ID, { enabled: true, allowBypass: true });
@@ -738,9 +765,9 @@ suite('AgentHostPermissionPickerDelegate', () => {
 		provider.sandboxStates.set(SESSION_ID, true);
 		provider.fireChange();
 		assert.deepStrictEqual({ required, optedOut, reenabled: read(), writes: provider.setCalls }, {
-			required: { checked: true, disabled: true },
+			required: { checked: false, disabled: false },
 			optedOut: { checked: false, disabled: false },
-			reenabled: { checked: true, disabled: true },
+			reenabled: { checked: true, disabled: false },
 			writes: [[SESSION_ID, SessionConfigKey.SandboxEnabled, 'on']],
 		});
 	});

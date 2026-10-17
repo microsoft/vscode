@@ -86,6 +86,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		readonly progressListeners: Set<(progress: IWorktreeMeasurementProgress) => void>;
 		readonly getProgress: () => IWorktreeMeasurementProgress | undefined;
 	} | undefined;
+	private _foregroundMeasurement: Promise<void> | undefined;
 	private _refreshPromise: Promise<void> | undefined;
 	private _activated = false;
 	private _dismissed = false;
@@ -118,7 +119,6 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		}));
 		this._register(this.sessionsManagementService.onDidArchiveSession(() => {
 			this._lastScanAt = 0;
-			this._lastMeasurementAt = 0;
 		}));
 		const refreshScheduler = this._register(new RunOnceScheduler(() => {
 			if (this._activated) {
@@ -200,15 +200,21 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		const limiter = new Limiter<IMeasuredSessionWorktree>(2);
 		return Promise.all(worktreeSessions.map(session => limiter.queue(async () => {
 			const worktreeCount = this._countWorktrees(session);
+			const cancellation = new CancellationTokenSource();
 			let sizeBytes: number | undefined;
 			try {
 				sizeBytes = await raceTimeout(
-					getDiskUsage.call(this.sessionsManagementService, session),
+					getDiskUsage.call(this.sessionsManagementService, session, cancellation.token),
 					WORKTREE_MEASUREMENT_TIMEOUT_MS,
-					() => this.logService.warn(`[SessionWorktreeCleanupService] Timed out measuring worktree for session ${session.sessionId}`),
+					() => {
+						cancellation.cancel();
+						this.logService.warn(`[SessionWorktreeCleanupService] Timed out measuring worktree for session ${session.sessionId}`);
+					},
 				);
 			} catch (error) {
 				this.logService.warn(`[SessionWorktreeCleanupService] Failed to measure worktree for session ${session.sessionId}`, error);
+			} finally {
+				cancellation.dispose();
 			}
 			scannedWorktrees += worktreeCount;
 			onProgress({ scannedWorktrees, totalWorktrees });
@@ -380,21 +386,37 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		) {
 			return this._getWorktrees(minimumAgeDays);
 		}
-		const cancellation = new CancellationTokenSource();
-		try {
-			return await this.progressService.withProgress({
+
+		if (!this._foregroundMeasurement) {
+			const cancellation = new CancellationTokenSource();
+			const foregroundMeasurement = this.progressService.withProgress({
 				location: ProgressLocation.Notification,
 				title: localize('worktreeCleanup.measuringProgress', "Measuring agent session worktrees..."),
 				delay: 300,
 				cancellable: true,
-			}, progress => this._getWorktrees(minimumAgeDays, cancellation.token, measurementProgress => {
-				progress.report({
-					message: localize('worktreeCleanup.measuringProgressCount', "Scanned {0} of {1} worktrees", measurementProgress.scannedWorktrees, measurementProgress.totalWorktrees),
+			}, async progress => {
+				await this._getMeasuredWorktrees(minimumAgeDays, cancellation.token, measurementProgress => {
+					progress.report({
+						message: localize('worktreeCleanup.measuringProgressCount', "Scanned {0} of {1} worktrees", measurementProgress.scannedWorktrees, measurementProgress.totalWorktrees),
+					});
 				});
-			}), () => cancellation.cancel());
-		} finally {
-			cancellation.dispose();
+			}, () => cancellation.cancel()).finally(() => cancellation.dispose());
+			this._foregroundMeasurement = foregroundMeasurement;
+			foregroundMeasurement.then(
+				() => {
+					if (this._foregroundMeasurement === foregroundMeasurement) {
+						this._foregroundMeasurement = undefined;
+					}
+				},
+				() => {
+					if (this._foregroundMeasurement === foregroundMeasurement) {
+						this._foregroundMeasurement = undefined;
+					}
+				},
+			);
 		}
+		await this._foregroundMeasurement;
+		return this._getWorktrees(minimumAgeDays);
 	}
 
 	/**
@@ -446,7 +468,6 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 			: localize('worktreeCleanup.archived.many', "Started cleanup for {0} worktrees.", worktreeCount);
 		status(message);
 		this._lastScanAt = 0;
-		this._lastMeasurementAt = 0;
 		return true;
 	}
 

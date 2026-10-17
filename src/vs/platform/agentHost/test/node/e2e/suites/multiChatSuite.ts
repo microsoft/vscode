@@ -11,13 +11,10 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ActionType, type ChatErrorAction, type ChatToolCallReadyAction } from '../../../../common/state/sessionActions.js';
 import { ChatSourceKind, CompletionItemKind, type CompletionsResult, type ListSessionsResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import {
-	buildChatUri,
-	buildDefaultChatUri,
 	ChatOriginKind,
 	isAhpChatChannel,
 	MessageAttachmentKind,
 	MessageKind,
-	parseRequiredSessionUriFromChatUri,
 	ResponsePartKind,
 	ROOT_STATE_URI,
 	SessionStatus,
@@ -29,9 +26,11 @@ import {
 } from '../../../../common/state/sessionState.js';
 import { createRealSession } from '../harness/agentHostE2ETestHarness.js';
 import { summarizeAnthropicRequest, summarizeResponsesRequest } from '../harness/capiWireCodec.js';
-import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { getActionEnvelope, isActionNotification, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
+import { getAgentHostTestProfile, type AgentHostTestProfile } from '../../agentHostTestProfile.js';
 import { conformanceTest, providerHostOnlyTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
+import { newTestChatUri } from '../../hostDefaultChats.js';
 
 const RECORDING = process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1';
 
@@ -47,6 +46,9 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		return `Run exactly this shell command, with no modifications: \`${shellCommand}\`. ${shellFollowup}`;
 	}
 
+	/** The session each chat this suite created or observed belongs to; chat URIs do not encode their owner. */
+	const chatOwners = new Map<string, string>();
+
 	async function createSession(prefix: string): Promise<{ sessionUri: string; defaultChatUri: string; workspace: string }> {
 		const workspace = createTestDirectory(join(tmpdir(), `ahp-multichat-${prefix}-`));
 		tempDirs.push(workspace);
@@ -57,16 +59,19 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 			createdSessions,
 			URI.file(workspace),
 		);
-		return { sessionUri, defaultChatUri: buildDefaultChatUri(sessionUri), workspace };
+		const defaultChatUri = defaultChatChannel(sessionUri);
+		chatOwners.set(defaultChatUri, sessionUri);
+		return { sessionUri, defaultChatUri, workspace };
 	}
 
 	async function createPeer(sessionUri: string, id: string, source?: { chat: string; turnId: string; kind: ChatSourceKind; selection?: { text: string; responsePartId?: string } }): Promise<string> {
-		const chat = buildChatUri(sessionUri, id);
+		const chat = newTestChatUri();
 		await context.client.call('createChat', {
 			channel: sessionUri,
 			chat,
 			...(source ? { source } : {}),
 		}, 30_000);
+		chatOwners.set(chat, sessionUri);
 		return chat;
 	}
 
@@ -104,7 +109,8 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 			action: { type: ActionType.SessionTitleChanged, title },
 		});
 		if (isAhpChatChannel(channel)) {
-			const session = parseRequiredSessionUriFromChatUri(channel);
+			const session = chatOwners.get(channel);
+			assert.ok(session, `No owner recorded for ${channel}`);
 			await context.client.waitForNotification(n => {
 				if (!isActionNotification(n, 'session/chatUpdated') || getActionEnvelope(n).channel !== session) {
 					return false;
@@ -120,19 +126,19 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		}
 	}
 
-	function providerTest(title: string, run: Mocha.AsyncFunc, enabled = config.supportsMultipleChats): void {
+	function providerTest(title: string, run: Mocha.AsyncFunc, enabled = config.supportsMultipleChats, profile: AgentHostTestProfile = 'pr'): void {
 		if (context.tier !== 'parity') {
 			return;
 		}
 		const providerReplayEnabled = config.supportsMultipleChats && (config.supportsMultipleChatsE2E !== false || RECORDING);
-		(enabled && providerReplayEnabled ? test : test.skip)(title, function () {
+		(enabled && providerReplayEnabled && (profile === 'pr' || getAgentHostTestProfile() === 'full') ? test : test.skip)(title, function () {
 			this.timeout(180_000);
 			return run.call(this);
 		});
 	}
 
-	function peerFileOperationTest(title: string, run: Mocha.AsyncFunc): void {
-		providerTest(title, run, config.fileOperationStrategy === 'fileTools' || context.portableShellToolReplayEnabled);
+	function peerFileOperationTest(title: string, run: Mocha.AsyncFunc, profile: AgentHostTestProfile = 'pr'): void {
+		providerTest(title, run, config.fileOperationStrategy === 'fileTools' || context.portableShellToolReplayEnabled, profile);
 	}
 
 	function assertPeerFileReadResult(turnId: string, expected: RegExp): void {
@@ -733,7 +739,7 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 
 		assert.match(response, /PEER_NESTED_READ/);
 		assertPeerFileReadResult('peer-read-nested', /PEER_NESTED_READ/);
-	});
+	}, 'full');
 
 	peerFileOperationTest('peer chat creates a file in the parent workspace', async function () {
 		const { sessionUri, workspace } = await createSession('create-file');
@@ -783,7 +789,7 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		await driveTurn(peer, 'peer-nested-create', `Run exactly this shell command, with no modifications: \`${peerNestedCommand}\`. Then reply with exactly "created".`, 1);
 
 		assert.strictEqual(readFileSync(file, 'utf8'), 'PEER_NESTED');
-	}, context.portableShellToolReplayEnabled);
+	}, context.portableShellToolReplayEnabled, 'full');
 
 	peerFileOperationTest('peer chat handles a missing workspace file without an error', async function () {
 		const { sessionUri, workspace } = await createSession('missing-file');
@@ -950,10 +956,11 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		await context.client.call<SubscribeResult>('subscribe', { channel: peer });
 		await driveTurn(peer, 'peer-old-context', 'Remember the code word OLD_PEER. Reply exactly "ready".', 1);
 		await context.client.call('disposeChat', { channel: peer }, 30_000);
-		await createPeer(sessionUri, 'peer');
-		await context.client.call<SubscribeResult>('subscribe', { channel: peer });
+		// Disposed identities are tombstoned; recreation must use a fresh peer URI.
+		const replacement = await createPeer(sessionUri, 'replacement');
+		await context.client.call<SubscribeResult>('subscribe', { channel: replacement });
 
-		await driveTurn(peer, 'peer-new-context', 'Reply exactly "new".', 10);
+		await driveTurn(replacement, 'peer-new-context', 'Reply exactly "new".', 10);
 		const messages = observedModelMessages(context.observedModelRequestBodies.at(-1) ?? '');
 
 		assert.strictEqual(messages.some(message => message.content.includes('OLD_PEER')), false);

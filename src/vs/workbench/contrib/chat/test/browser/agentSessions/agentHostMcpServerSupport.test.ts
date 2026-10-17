@@ -52,13 +52,9 @@ suite('agentHostMcpServerSupport', () => {
 
 	test('describes property removals as requiring confirmation', () => {
 		assert.deepStrictEqual({
-			gallery: getMcpCompatibilityDetail(AgentHostMcpSupportReason.GalleryMetadataNotPortable),
-			version: getMcpCompatibilityDetail(AgentHostMcpSupportReason.ServerVersionNotPortable),
 			dev: getMcpCompatibilityDetail(AgentHostMcpSupportReason.DevelopmentModeIgnored),
 			sandbox: getMcpCompatibilityDetail(AgentHostMcpSupportReason.SandboxConfigurationIgnored),
 		}, {
-			gallery: 'Gallery metadata isn\'t supported. Migrating removes it and stops registry updates.',
-			version: 'Version metadata isn\'t supported. Migrating removes it; version pins are kept.',
 			dev: 'Development mode isn\'t supported. Migrating removes dev.',
 			sandbox: 'Per-server sandboxing isn\'t supported. Migrating removes sandboxEnabled.',
 		});
@@ -470,7 +466,7 @@ suite('agentHostMcpServerSupport', () => {
 		});
 	});
 
-	test('reports SSE transport and gallery or version metadata as partially supported', async () => {
+	test('reports SSE transport as partially supported and gallery or version metadata as supported', async () => {
 		const result = await assess([
 			makeMcpServer({
 				id: 'mcp.config.ws0.sse',
@@ -506,6 +502,14 @@ suite('agentHostMcpServerSupport', () => {
 				version: '1.0.0',
 				collectionOrigin: URI.file('/workspace/.vscode/mcp.json'),
 			}),
+			makeMcpServer({
+				id: 'mcp.config.ws0.gallery-disabled-version',
+				collectionId: 'mcp.config.ws0',
+				provenance: McpCollectionProvenance.WorkspaceFolderConfiguration,
+				gallery: false,
+				version: '1.0.0',
+				collectionOrigin: URI.file('/workspace/.vscode/mcp.json'),
+			}),
 		], [URI.file('/workspace')]);
 
 		assert.deepStrictEqual(result.servers.map(server => server.compatibility), [
@@ -513,21 +517,10 @@ suite('agentHostMcpServerSupport', () => {
 				kind: 'partiallySupported',
 				reasons: [AgentHostMcpSupportReason.SseTransportNotPortable],
 			},
-			{
-				kind: 'partiallySupported',
-				reasons: [AgentHostMcpSupportReason.GalleryMetadataNotPortable],
-			},
-			{
-				kind: 'partiallySupported',
-				reasons: [AgentHostMcpSupportReason.ServerVersionNotPortable],
-			},
-			{
-				kind: 'partiallySupported',
-				reasons: [
-					AgentHostMcpSupportReason.GalleryMetadataNotPortable,
-					AgentHostMcpSupportReason.ServerVersionNotPortable,
-				],
-			},
+			{ kind: 'supported' },
+			{ kind: 'supported' },
+			{ kind: 'supported' },
+			{ kind: 'supported' },
 		]);
 	});
 
@@ -629,7 +622,7 @@ suite('agentHostMcpServerSupport', () => {
 		});
 	});
 
-	test('reports gallery and version metadata for installed-only servers', async () => {
+	test('reports gallery and version metadata as supported for installed-only servers', async () => {
 		const configPath: IMcpConfigPath = {
 			id: 'usrlocal',
 			key: 'userLocalValue',
@@ -654,21 +647,17 @@ suite('agentHostMcpServerSupport', () => {
 				installed('gallery', { type: McpServerType.LOCAL, command: 'server', gallery: true }),
 				installed('version', { type: McpServerType.LOCAL, command: 'server', version: '1.0.0' }),
 				installed('gallery-version', { type: McpServerType.LOCAL, command: 'server', gallery: 'https://registry.example', version: '1.0.0' }),
+				installed('gallery-disabled', { type: McpServerType.LOCAL, command: 'server', gallery: false }),
 			],
 			makeConfigurationResolverService(),
 			[],
 		);
 
 		assert.deepStrictEqual(result.servers.map(server => server.compatibility), [
-			{ kind: 'partiallySupported', reasons: [AgentHostMcpSupportReason.GalleryMetadataNotPortable] },
-			{ kind: 'partiallySupported', reasons: [AgentHostMcpSupportReason.ServerVersionNotPortable] },
-			{
-				kind: 'partiallySupported',
-				reasons: [
-					AgentHostMcpSupportReason.GalleryMetadataNotPortable,
-					AgentHostMcpSupportReason.ServerVersionNotPortable,
-				],
-			},
+			{ kind: 'supported' },
+			{ kind: 'supported' },
+			{ kind: 'supported' },
+			{ kind: 'supported' },
 		]);
 	});
 

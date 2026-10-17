@@ -11,7 +11,7 @@ import { AGENT_HOST_SESSION_LINK_SCHEME } from '../../common/openSessionLink.js'
 import { ArtifactServerToolName, LEGACY_ARTIFACT_SERVER_TOOL_NAMES } from '../../common/serverToolNames.js';
 import { parseSessionArtifactInputs, SessionArtifactCollection } from '../../common/sessionArtifactCollection.js';
 import { SESSION_ARTIFACT_TYPES, SessionArtifactType, type ISessionArtifact } from '../../common/sessionArtifacts.js';
-import { parseRequiredSessionUriFromChatUri, type ToolDefinition } from '../../common/state/sessionState.js';
+import { type ToolDefinition } from '../../common/state/sessionState.js';
 import type { IServerToolDisplay, IServerToolGroup } from './agentServerToolHost.js';
 import { SessionArtifacts } from './sessionArtifacts.js';
 
@@ -188,7 +188,7 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 				throw new Error(`${toolName} is unavailable in this host.`);
 			}
 
-			const artifacts = new SessionArtifacts(stateManager, parseRequiredSessionUriFromChatUri(context.chatUri), context.chatUri, accessor.persist);
+			const artifacts = new SessionArtifacts(stateManager, context.sessionUri, context.chatUri, accessor.persist);
 			switch (toolName) {
 				case ArtifactServerToolName.AddArtifactOrReference: {
 					const inputs = parseSessionArtifactInputs(rawArgs, ArtifactServerToolName.AddArtifactOrReference);

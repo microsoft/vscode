@@ -20,7 +20,11 @@ with modes `session-shared` (default), `chat-shared`, and `chat`. Both enabled m
 keep ordinary editors and the selected bottom-panel view owned by
 the focused chat. `chat-shared` keeps Editor/Details composition and bottom-panel
 visibility shared across all existing workspace chats in the window;
-`chat` also scopes that visibility to the focused chat. The mode changes
+`chat` also scopes that visibility to the focused chat while only one chat
+surface is shown. With multiple simultaneously shown chat surfaces, whether
+they are split within one session or belong to several sessions, side-pane and
+bottom-panel visibility stay window-global so focus
+changes do not move the layout. The mode changes
 only after manual reload, without a reload notification. There is no boolean
 compatibility for this unreleased setting. The concrete workbench
 selection remains fixed at startup. If a desktop window enters a runtime phone
@@ -71,6 +75,8 @@ The desktop Panel supports two profile-scoped alignments. The default justified 
 
 Each visible session has one Sessions-owned view. The view presents the active chat for that session and scopes commands, menus, and context keys to the represented session.
 
+A child chat may also occupy a standalone leaf in the outer grid. The view service owns this placement through a chat-scoped `IActiveSession` with unchanged session identity and provider ownership; the parent view excludes that chat while its standalone leaf is present. These leaves remain usable without a visible parent pane: closing the parent pane preserves its standalone children, and opening or focusing a standalone child does not reopen the parent. Focus selects the represented chat, and closing or reattaching its pane does not close the owning session. Provider removal still removes all leaves belonging to that session. Outer-grid persistence binds these leaves by both session resource and chat resource and supports layouts containing only child leaves.
+
 Chat-tab presentation is a property of the session view, not of the action that opened a chat. The view observes its configuration directly and consistently applies either tabbed or session-view presentation to every chat, including restored chats and chats opened through navigation or external entry points.
 
 In the side-by-side single-chat presentation, pinning a chat header keeps that chat visible while new chats reuse an unpinned group. If every visible group is pinned, opening another chat creates a group; chat pins persist with the chat-grid layout.
@@ -102,8 +108,10 @@ The main Editor supports exactly one editor group. Its shared multiple-group cap
 
 With experimental desktop ownership active, this singleton Editor, Details, and
 bottom Panel project the focused chat's ordinary working set, active editor,
-composition, panel visibility, and selected panel view. Multiple visible
-sessions or chat groups do not create additional editor/detail/panel owners.
+composition, panel visibility, and selected panel view. When multiple chat
+surfaces are shown, the focused chat still owns content and remembered visibility, but
+current side-pane and bottom-panel visibility remain window-global. Multiple
+visible sessions or chat groups do not create additional editor/detail/panel owners.
 Sidebar visibility and all geometry remain window-owned. Managed tabs remain
 lifecycle-owned and do not reveal hidden panes during restoration. Transient
 Quick Chat side-pane behavior is unchanged.

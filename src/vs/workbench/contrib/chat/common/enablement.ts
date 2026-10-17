@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, IReader, ITransaction, transaction } from '../../../../base/common/observable.js';
+import { IObservable, IReader, ITransaction, observableValue, transaction } from '../../../../base/common/observable.js';
 import { ObservableMemento, observableMemento } from '../../../../platform/observable/common/observableMemento.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
@@ -27,6 +27,7 @@ export interface IEnablementModel {
 	readEnabled(key: string, reader?: IReader): ContributionEnablementState;
 	readProfileEnabled(key: string, reader?: IReader): boolean;
 	setEnabled(key: string, state: ContributionEnablementState, tx?: ITransaction): void;
+	setDefaultEnabled?(key: string, enabled: boolean, tx?: ITransaction): void;
 	remove(key: string): void;
 }
 
@@ -53,6 +54,7 @@ function mapFromStorage(value: string): EnablementMap {
 export class EnablementModel extends Disposable implements IEnablementModel {
 	private readonly _profileState: ObservableMemento<EnablementMap>;
 	private readonly _workspaceState: ObservableMemento<EnablementMap>;
+	private readonly _defaultState = observableValue<EnablementMap>(this, new Map());
 
 	constructor(
 		storageKey: string,
@@ -81,7 +83,7 @@ export class EnablementModel extends Disposable implements IEnablementModel {
 	}
 
 	readProfileEnabled(key: string, reader?: IReader): boolean {
-		return this._profileState.read(reader).get(key) ?? true;
+		return this._profileState.read(reader).get(key) ?? this._defaultState.read(reader).get(key) ?? true;
 	}
 
 	readEnabledWithWorkspaceKey(profileKey: string, workspaceKey: string | undefined, reader?: IReader): ContributionEnablementState {
@@ -99,7 +101,9 @@ export class EnablementModel extends Disposable implements IEnablementModel {
 				: ContributionEnablementState.DisabledProfile;
 		}
 
-		return ContributionEnablementState.EnabledProfile;
+		return (this._defaultState.read(reader).get(profileKey) ?? true)
+			? ContributionEnablementState.EnabledProfile
+			: ContributionEnablementState.DisabledProfile;
 	}
 
 	setEnabled(key: string, state: ContributionEnablementState, tx?: ITransaction): void {
@@ -107,19 +111,17 @@ export class EnablementModel extends Disposable implements IEnablementModel {
 	}
 
 	setEnabledWithWorkspaceKey(profileKey: string, workspaceKey: string | undefined, state: ContributionEnablementState, tx?: ITransaction): void {
+		const defaultEnabled = this._defaultState.get().get(profileKey) ?? true;
 		switch (state) {
 			case ContributionEnablementState.EnabledProfile: {
-				// Enabled-profile is the default: remove key from profile state,
-				// and also remove any workspace override.
-				this._deleteFromMap(this._profileState, profileKey, tx);
+				this._setOrDeleteFromMap(this._profileState, profileKey, true, defaultEnabled, tx);
 				if (workspaceKey !== undefined) {
 					this._deleteFromMap(this._workspaceState, workspaceKey, tx);
 				}
 				break;
 			}
 			case ContributionEnablementState.DisabledProfile: {
-				// Store disabled in profile, remove workspace override.
-				this._setInMap(this._profileState, profileKey, false, tx);
+				this._setOrDeleteFromMap(this._profileState, profileKey, false, defaultEnabled, tx);
 				if (workspaceKey !== undefined) {
 					this._deleteFromMap(this._workspaceState, workspaceKey, tx);
 				}
@@ -145,12 +147,25 @@ export class EnablementModel extends Disposable implements IEnablementModel {
 
 	}
 
+	setDefaultEnabled(key: string, enabled: boolean, tx?: ITransaction): void {
+		this._setOrDeleteFromMap(this._defaultState, key, enabled, true, tx);
+	}
+
 	remove(key: string): void {
 		this._deleteFromMap(this._profileState, key);
 		this._deleteFromMap(this._workspaceState, key);
+		this._deleteFromMap(this._defaultState, key);
 	}
 
-	private _setInMap(memento: ObservableMemento<EnablementMap>, key: string, value: boolean, tx?: ITransaction): void {
+	private _setOrDeleteFromMap(memento: { get(): EnablementMap; set(value: EnablementMap, tx?: ITransaction): void }, key: string, value: boolean, defaultValue: boolean, tx?: ITransaction): void {
+		if (value === defaultValue) {
+			this._deleteFromMap(memento, key, tx);
+		} else {
+			this._setInMap(memento, key, value, tx);
+		}
+	}
+
+	private _setInMap(memento: { get(): EnablementMap; set(value: EnablementMap, tx?: ITransaction): void }, key: string, value: boolean, tx?: ITransaction): void {
 		const current = memento.get();
 		if (current.get(key) === value) {
 			return;
@@ -160,7 +175,7 @@ export class EnablementModel extends Disposable implements IEnablementModel {
 		memento.set(next, tx);
 	}
 
-	private _deleteFromMap(memento: ObservableMemento<EnablementMap>, key: string, tx?: ITransaction): void {
+	private _deleteFromMap(memento: { get(): EnablementMap; set(value: EnablementMap, tx?: ITransaction): void }, key: string, tx?: ITransaction): void {
 		const current = memento.get();
 		if (!current.has(key)) {
 			return;
@@ -228,6 +243,10 @@ export class CollisionEnablementModel implements IEnablementModel {
 		} else {
 			transaction(innerTx => updateGroup(innerTx));
 		}
+	}
+
+	setDefaultEnabled(key: string, enabled: boolean, tx?: ITransaction): void {
+		this._base.setDefaultEnabled?.(key, enabled, tx);
 	}
 
 	remove(key: string): void {

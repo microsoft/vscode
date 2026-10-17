@@ -3,25 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AssistantMessageToolRequest, Attachment, BinaryAssetData, SessionEvent, SessionEventPayload, ToolExecutionCompleteContent, ToolExecutionCompleteContentShellExit, ToolExecutionCompleteData, ToolExecutionCompleteResult } from '@github/copilot-sdk';
-import { decodeBase64 } from '../../../../base/common/buffer.js';
+import type { AssistantMessageToolRequest, Attachment, BinaryAssetData, SessionEvent, SessionEventPayload, ToolExecutionCompleteContent, ToolExecutionCompleteContentResource, ToolExecutionCompleteContentShellExit, ToolExecutionCompleteData, ToolExecutionCompleteResult } from '@github/copilot-sdk';
+import { decodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { basename, isAbsolute, join } from '../../../../base/common/path.js';
+import { basename as resourceBasename } from '../../../../base/common/resources.js';
 import { hasKey, isString } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID } from '../../common/agent.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { getToolCallDurationMs, readToolCallMeta, toToolCallMeta, type IToolCallUiMeta, type ToolKind } from '../../common/meta/agentToolCallMeta.js';
-import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
-import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/protocol/state.js';
-import { createErrorResponsePart, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, parseChatUri, type AgentSelection, type ErrorInfo, type Message, type ModelSelection, type ResponsePart, type StringOrMarkdown, type TerminalCommandResult, type ToolCallCompletedState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { IFileEditRecord, ISessionDatabase, IToolResultResource, MAX_TOOL_RESULT_RESOURCE_BYTES } from '../../common/sessionDataService.js';
+import { MessageAttachmentKind, type ContentRef, type MessageAttachment } from '../../common/state/protocol/state.js';
+import { createErrorResponsePart, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type AgentSelection, type ErrorInfo, type Message, type ModelSelection, type ResponsePart, type StringOrMarkdown, type TerminalCommandResult, type ToolCallCompletedState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { CopilotToolName, getInvocationMessage, getPastTenseMessage, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall, type ToolAgentNameResolver } from './copilotToolDisplay.js';
 import { imageGenerationToolMetaKey } from '../../common/meta/agentImageGenerationMeta.js';
+import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { buildSessionDbUri } from '../../common/sessionDbUri.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
 import { buildCopilotSystemNotification, getCopilotSubagentDisplayNames } from './copilotSystemNotification.js';
-import { COPILOT_FUSION_PHASE_AGENT_NAME, formatFusionReviewContent, getFusionPhaseToolCallId, isCopilotFusionEvent, isProvisionalFusionConversationEvent } from './copilotFusionProgress.js';
+import { COPILOT_FUSION_PHASE_AGENT_NAME, formatFusionReviewContent, getFusionPhaseToolCallId, isCopilotFusionEvent, getFusionPhasePresentation, isProvisionalFusionConversationEvent } from './copilotFusionProgress.js';
 import { FusionReplayState } from './copilotFusionReplay.js';
 import { isSyntheticUserMessage } from './copilotFusionEventIdentity.js';
 import { CopilotFusionMessageChunks } from './copilotFusionMessageChunks.js';
@@ -30,6 +32,10 @@ import { buildMcpChannel, buildMcpTopLevelCustomizationId } from '../shared/mcpC
 import { readSimpleAttachmentDisplayKindFromMimeType } from './copilotAttachmentUtils.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { agentModelConfigurationMetaKey, IAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
+import { buildMcpResourceUri, buildToolResultResourceUri } from '../../common/mcpResourceUri.js';
+import { ILogService } from '../../../log/common/log.js';
+import { LOCAL_MODEL_META_KEY } from '../../common/localModel.js';
+import { createLocalModelTurnExecutionMeta } from '../../common/meta/agentUsageMeta.js';
 
 function tryStringify(value: unknown): string | undefined {
 	try {
@@ -37,6 +43,19 @@ function tryStringify(value: unknown): string | undefined {
 	} catch {
 		return undefined;
 	}
+}
+
+type AutoModeResolvedData = Extract<SessionEvent, { type: 'session.auto_mode_resolved' }>['data'];
+
+/**
+ * The usage `_meta` a restored Auto decision carries. An on-device pick also carries `vscode.localModel` as `unknown`,
+ * since the SDK history doesn't record whether the local model or the fallback answered; persisted usage overrides it.
+ */
+function autoModeResolvedMeta(autoModeResolved: AutoModeResolvedData): Record<string, unknown> {
+	return {
+		autoModeResolved,
+		...(/-local$/i.test(autoModeResolved.chosenModel) ? createLocalModelTurnExecutionMeta({ execution: 'unknown' }) : {}),
+	};
 }
 
 function resolveToolDisplayPath(path: string, workingDirectory: URI | undefined): string {
@@ -125,21 +144,74 @@ export function getSdkToolResultContent(toolName: string, result: ToolExecutionC
 	};
 }
 
-export function appendSdkToolResultContent(content: ToolResultContent[], sdkContents: readonly SdkToolExecutionCompleteContent[] | undefined, terminal?: { storage: URI | string; session: URI | string; chat: URI | string; toolCallId: string; title: string }, binaries?: ToolExecutionCompleteResult['binaryResultsForLlm'], assets?: ReadonlyMap<string, BinaryAssetData>): ISdkShellExit | undefined {
+/** Stores MCP resource metadata and bounded embedded content before publishing references. */
+export async function persistSdkToolResultResources(sdkContents: readonly SdkToolExecutionCompleteContent[], sessionUri: string, turnId: string, toolCallId: string, database: ISessionDatabase, logService: ILogService): Promise<ReadonlyMap<ToolExecutionCompleteContentResource, ContentRef>> {
+	const resources = new Map<ToolExecutionCompleteContentResource, ContentRef>();
+	const rows: (IToolResultResource & { content?: Uint8Array })[] = [];
+	for (const [ordinal, block] of sdkContents.entries()) {
+		if (block.type !== 'resource' && block.type !== 'resource_link') {
+			continue;
+		}
+		try {
+			if (block.type === 'resource_link') {
+				rows.push({ ordinal, kind: 'link', name: block.name || resourceBasename(URI.parse(block.uri)) || 'resource', mimeType: block.mimeType, uri: block.uri, size: block.size });
+				continue;
+			}
+			const isText = hasKey(block.resource, { text: true });
+			if (hasKey(block.resource, { blob: true }) && block.resource.blob.length > Math.ceil(MAX_TOOL_RESULT_RESOURCE_BYTES / 3) * 4) {
+				continue;
+			}
+			const bytes = hasKey(block.resource, { text: true }) ? VSBuffer.fromString(block.resource.text) : decodeBase64(block.resource.blob);
+			if (bytes.byteLength > MAX_TOOL_RESULT_RESOURCE_BYTES) {
+				continue;
+			}
+			const contentType = block.resource.mimeType ?? (isText ? 'text/plain' : 'application/octet-stream');
+			const name = resourceBasename(URI.parse(block.resource.uri)) || 'resource';
+			rows.push({ ordinal, kind: 'embedded', name, mimeType: contentType, uri: block.resource.uri, size: bytes.byteLength, content: bytes.buffer });
+			resources.set(block, { uri: buildToolResultResourceUri(sessionUri, toolCallId, ordinal, name), contentType, sizeHint: bytes.byteLength });
+		} catch (error) {
+			logService.warn(`Failed to persist MCP tool resource for ${toolCallId}`, error);
+		}
+	}
+	try {
+		await database.storeToolResultResources(turnId, toolCallId, rows);
+	} catch (error) {
+		logService.warn(`Failed to persist MCP tool resources for ${toolCallId}`, error);
+		resources.clear();
+	}
+	return resources;
+}
+
+/** Appends SDK result blocks, using persisted embedded resources and host-routable MCP links when available. */
+export function appendSdkToolResultContent(content: ToolResultContent[], sdkContents: readonly SdkToolExecutionCompleteContent[] | undefined, terminal?: { storage: URI | string; session: URI | string; chat: URI | string; toolCallId: string; title: string }, binaries?: ToolExecutionCompleteResult['binaryResultsForLlm'], assets?: ReadonlyMap<string, BinaryAssetData>, resources?: { embedded?: ReadonlyMap<ToolExecutionCompleteContentResource, ContentRef>; mcpChannel?: string }): ISdkShellExit | undefined {
 	let shellExit: ISdkShellExit | undefined;
 	for (const sdkContent of sdkContents ?? []) {
 		switch (sdkContent.type) {
 			case 'text':
 				content.push({ type: ToolResultContentType.Text, text: sdkContent.text });
 				break;
-			case 'resource':
-				if (hasKey(sdkContent.resource, { text: true })) {
+			case 'resource': {
+				const embedded = resources?.embedded?.get(sdkContent);
+				if (embedded) {
+					content.push({ type: ToolResultContentType.Resource, ...embedded });
+				} else if (hasKey(sdkContent.resource, { text: true })) {
 					content.push({ type: ToolResultContentType.Text, text: sdkContent.resource.text });
 				} else {
 					content.push({
 						type: ToolResultContentType.EmbeddedResource,
 						data: sdkContent.resource.blob,
 						contentType: sdkContent.resource.mimeType ?? 'application/octet-stream',
+					});
+				}
+				break;
+			}
+			case 'resource_link':
+				if (resources?.mcpChannel) {
+					content.push({
+						type: ToolResultContentType.Resource,
+						uri: buildMcpResourceUri(resources.mcpChannel, sdkContent.uri, sdkContent.name),
+						contentType: sdkContent.mimeType,
+						sizeHint: sdkContent.size,
 					});
 				}
 				break;
@@ -180,6 +252,11 @@ export function appendSdkToolResultContent(content: ToolResultContent[], sdkCont
 		}
 	}
 	const structuredPayloads = new Set(content.flatMap(block => block.type === ToolResultContentType.EmbeddedResource ? [block.data] : []));
+	for (const block of sdkContents ?? []) {
+		if (block.type === 'resource' && hasKey(block.resource, { blob: true })) {
+			structuredPayloads.add(block.resource.blob);
+		}
+	}
 	for (const binary of binaries ?? []) {
 		const asset = hasKey(binary, { assetId: true }) ? assets?.get(binary.assetId) : undefined;
 		const data = hasKey(binary, { data: true }) ? binary.data : asset?.data;
@@ -204,7 +281,7 @@ export function getSdkToolResultText(result: ToolExecutionCompleteResult | undef
 		return block.type === 'resource' && hasKey(block.resource, { text: true }) ? [block.resource.text] : [];
 	}) ?? [];
 	const normalizedText = displayText?.trim();
-	if (normalizedText && (structuredText.some(text => text.trim() === normalizedText) || structuredText.join('\n\n').trim() === normalizedText)) {
+	if (normalizedText && (structuredText.some(text => text.trim() === normalizedText) || structuredText.join('\n\n').trim() === normalizedText || structuredText.join('').trim() === normalizedText)) {
 		return undefined;
 	}
 	return displayText;
@@ -257,6 +334,7 @@ interface ITurnBuilder {
 	waitingStartedAt: string | undefined;
 	waitingDuration: number;
 	readonly responseParts: ResponsePart[];
+	imageGenerationSdkTurnId?: string;
 	usage: UsageInfo | undefined;
 	/** Tool starts seen but not yet completed in this turn, keyed by toolCallId. */
 	readonly pendingTools: Map<string, IToolStartInfo>;
@@ -389,12 +467,9 @@ export async function mapSessionEvents(
 	db: ISessionDatabase | undefined,
 	events: readonly SessionEvent[],
 	routingChatUri: URI,
+	routingSession: URI,
 	options: IMapSessionEventsOptions | undefined = undefined,
 ): Promise<{ turns: Turn[]; subagentTurnsByToolCallId: ReadonlyMap<string, Turn[]> }> {
-	const routingChat = parseChatUri(routingChatUri);
-	if (!routingChat) {
-		throw new Error(`Malformed AHP chat URI: ${routingChatUri.toString()}`);
-	}
 	const workingDirectory = options?.workingDirectory;
 	let currentModel = options?.model;
 	let currentAgent = options?.agent;
@@ -431,7 +506,7 @@ export async function mapSessionEvents(
 		return toolCallId && fusionPhaseToolCallIds.has(toolCallId) ? toolCallId : undefined;
 	};
 	for (const event of events) {
-		if ((event.type === 'assistant.fusion_phase_completed' || event.type === 'assistant.fusion_phase_failed') && !event.agentId) {
+		if ((event.type === 'assistant.fusion_phase_completed' || event.type === 'assistant.fusion_phase_failed') && !event.agentId && getFusionPhasePresentation(event.data.phaseKind) === 'childChat') {
 			fusionPhaseToolCallIds.add(getFusionPhaseToolCallId(event.data.fusionId, event.data.phaseId));
 		}
 	}
@@ -523,8 +598,16 @@ export async function mapSessionEvents(
 		}
 	}
 
+	let storedResources: Map<string, IToolResultResource[]> | undefined;
+	if (db && completionsByCallId.size > 0) {
+		try {
+			storedResources = await db.getToolResultResources([...completionsByCallId.keys()]);
+		} catch {
+			// Older databases may not have tool result resources.
+		}
+	}
+
 	const sessionUriStr = session.toString();
-	const routingSession = URI.parse(routingChat.session);
 	const providerId = AgentSession.provider(routingSession) ?? COPILOT_CLI_AGENT_PROVIDER_ID;
 	const rawSessionId = AgentSession.id(routingSession);
 	const turns: Turn[] = [];
@@ -533,6 +616,7 @@ export async function mapSessionEvents(
 	// the most recent turn per subagent is built (subagents currently emit
 	// at most one turn per invocation).
 	const subagentBuilders = new Map<string, ITurnBuilder>();
+	const subagentSeedTurnIds = new Map<string, string>();
 	const subagentTurnStates = new Map<string, TurnState>();
 	const terminatedSubagentTurns = new Set<string>();
 	const subagentTurns = new Map<string, Turn[]>();
@@ -608,7 +692,10 @@ export async function mapSessionEvents(
 		let builder = subagentBuilders.get(parentToolCallId);
 		if (!builder) {
 			const model = subagentModels.get(parentToolCallId);
-			builder = newTurnBuilder(generateUuid(), '', { startedAt: currentEventTimestamp, model: model ? { id: model } : undefined });
+			builder = newTurnBuilder(generateUuid(), '', { origin: MessageKind.Tool, startedAt: currentEventTimestamp, model: model ? { id: model } : undefined });
+			if (!subagentSeedTurnIds.has(parentToolCallId)) {
+				subagentSeedTurnIds.set(parentToolCallId, builder.id);
+			}
 			const configuration = subagentConfigurations.get(parentToolCallId);
 			if (configuration) {
 				builder.usage = { _meta: { [agentModelConfigurationMetaKey]: configuration } };
@@ -620,7 +707,7 @@ export async function mapSessionEvents(
 		}
 		const autoModeResolved = pendingSubagentAutoModeResolved.get(parentToolCallId);
 		if (autoModeResolved) {
-			builder.usage = { ...builder.usage, model: autoModeResolved.chosenModel, _meta: { ...builder.usage?._meta, autoModeResolved } };
+			builder.usage = { ...builder.usage, model: autoModeResolved.chosenModel, _meta: { ...builder.usage?._meta, ...autoModeResolvedMeta(autoModeResolved) } };
 			pendingSubagentAutoModeResolved.delete(parentToolCallId);
 		}
 		touch(builder);
@@ -681,6 +768,14 @@ export async function mapSessionEvents(
 				break;
 			case 'assistant.turn_end':
 				if (!e.agentId) {
+					if (parentBuilder?.imageGenerationSdkTurnId !== undefined && parentBuilder.imageGenerationSdkTurnId === e.data.turnId) {
+						parentBuilder.imageGenerationSdkTurnId = undefined;
+						parentBuilder.responseParts.push({
+							kind: ResponsePartKind.SystemNotification,
+							content: '',
+							_meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.ResponseRoundEnded }),
+						});
+					}
 					rootAssistantTurnActive = false;
 					rootRequestActive = parentTurnState !== TurnState.Complete
 						&& parentTurnState !== TurnState.Error
@@ -705,6 +800,7 @@ export async function mapSessionEvents(
 						if (builder?.usage) {
 							const metadata = { ...builder.usage._meta };
 							delete metadata.autoModeResolved;
+							delete metadata[LOCAL_MODEL_META_KEY];
 							builder.usage = { ...builder.usage, model: e.data.newModel, _meta: metadata };
 						}
 					}
@@ -750,6 +846,7 @@ export async function mapSessionEvents(
 					builder.message = {
 						...builder.message,
 						text: content,
+						origin: { kind: subagentSeedTurnIds.get(parentToolCallId) === builder.id ? MessageKind.Tool : MessageKind.User },
 						...(attachments?.length ? { attachments } : {}),
 					};
 				} else {
@@ -767,7 +864,7 @@ export async function mapSessionEvents(
 					if (pendingAutoModeResolved) {
 						parentBuilder.usage = {
 							model: pendingAutoModeResolved.chosenModel,
-							_meta: { autoModeResolved: pendingAutoModeResolved },
+							_meta: autoModeResolvedMeta(pendingAutoModeResolved),
 						};
 						pendingAutoModeResolved = undefined;
 					}
@@ -819,6 +916,9 @@ export async function mapSessionEvents(
 					parentTurnState = hasToolRequests ? TurnState.Cancelled : TurnState.Complete;
 				}
 				if (d.toolRequests?.length) {
+					if (!parentToolCallId && d.turnId && d.toolRequests.some(request => request.name === CopilotToolName.ImageGeneration)) {
+						builder.imageGenerationSdkTurnId = d.turnId;
+					}
 					appendFallbackToolRequests(builder, d.toolRequests, parentToolCallId);
 				}
 				break;
@@ -896,17 +996,25 @@ export async function mapSessionEvents(
 					continue;
 				}
 				toolInfoByCallId.delete(d.toolCallId);
-				const parentToolCallId = resolveParentToolCallId(e.agentId, d.parentToolCallId) ?? resolveFusionPhaseToolCallId(e.agentId, d.fusion);
+				const subagentParentToolCallId = resolveParentToolCallId(e.agentId, d.parentToolCallId);
+				const parentToolCallId = subagentParentToolCallId ?? resolveFusionPhaseToolCallId(e.agentId, d.fusion);
 				if ((!parentToolCallId && parentTurnTerminated && parentTurnState === TurnState.Error)
 					|| (parentToolCallId && terminatedSubagentTurns.has(parentToolCallId) && subagentTurnStates.get(parentToolCallId) === TurnState.Error)) {
 					break;
 				}
 				if (isTaskCompleteTool(info.toolName)) {
-					const builder = targetBuilderFor(parentToolCallId);
+					const summary = getTaskCompleteMarkdown(info.parameters, d.error?.message ?? d.result?.content);
+					const phaseBuilder = parentToolCallId !== subagentParentToolCallId ? targetBuilderFor(parentToolCallId) : undefined;
+					if (summary && phaseBuilder) {
+						phaseBuilder.responseParts.push({ kind: ResponsePartKind.Markdown, id: generateUuid(), content: summary });
+					}
+					if (!subagentParentToolCallId && parentTurnTerminated && parentTurnState === TurnState.Error) {
+						continue;
+					}
+					const builder = targetBuilderFor(subagentParentToolCallId);
 					if (!builder) {
 						continue;
 					}
-					const summary = getTaskCompleteMarkdown(info.parameters, d.error?.message ?? d.result?.content);
 					if (summary) {
 						builder.responseParts.push({
 							kind: ResponsePartKind.Markdown,
@@ -914,7 +1022,7 @@ export async function mapSessionEvents(
 							content: summary,
 						});
 					}
-					if (!parentToolCallId && d.success && builder === parentBuilder && !parentTurnTerminated) {
+					if (!subagentParentToolCallId && d.success && builder === parentBuilder && !parentTurnTerminated) {
 						parentTurnState = TurnState.Complete;
 						rootRequestActive = false;
 					}
@@ -925,7 +1033,7 @@ export async function mapSessionEvents(
 					// No active turn to attach this completion to.
 					continue;
 				}
-				const completedPart = makeCompletedToolCallPart(d, info, sessionUriStr, routingSession, providerId, rawSessionId, routingChatUri, storedEdits, subagentInfoByToolCallId.get(d.toolCallId), workingDirectory, resolveAgentName, binaryAssets, readEventTimestamp(e));
+				const completedPart = makeCompletedToolCallPart(d, info, sessionUriStr, routingSession, providerId, rawSessionId, routingChatUri, storedEdits, storedResources, subagentInfoByToolCallId.get(d.toolCallId), workingDirectory, resolveAgentName, binaryAssets, readEventTimestamp(e));
 				builder.responseParts.push(completedPart);
 				// When a parent tool call that spawned a subagent completes,
 				// flush the subagent's accumulated turn.
@@ -1035,6 +1143,7 @@ export async function mapSessionEvents(
 				rawSessionId,
 				routingChatUri,
 				storedEdits,
+				storedResources,
 				subagentInfoByToolCallId.get(request.toolCallId),
 				workingDirectory,
 				resolveAgentName,
@@ -1168,20 +1277,36 @@ function makeCompletedToolCallPart(
 	rawSessionId: string,
 	chatURI: URI,
 	storedEdits: Map<string, IFileEditRecord[]> | undefined,
+	storedResources: Map<string, IToolResultResource[]> | undefined,
 	subagent: ISubagentInfo | undefined,
 	workingDirectory: URI | undefined,
 	resolveAgentName: ToolAgentNameResolver,
 	binaryAssets: ReadonlyMap<string, BinaryAssetData>,
 	completedAt?: string,
 ): ResponsePart {
-	const imageGeneration = info.toolName === CopilotToolName.ImageGeneration ? getSdkImageGenerationMetadata(d.result) : undefined;
+	const rawCompletion: typeof d & { toolUsage?: unknown } = d;
+	const imageGeneration = info.toolName === CopilotToolName.ImageGeneration ? getSdkImageGenerationMetadata(d.result, rawCompletion.toolUsage) : undefined;
 	const toolOutput = d.error?.message ?? d.result?.content;
 	const displayOutput = d.error?.message ?? getSdkToolResultText(d.result);
+	const mcpServerName = info.mcpServerName ?? readStringProperty(d, 'mcpServerName');
+	const mcpChannel = mcpServerName ? buildMcpChannel(chatURI, mcpServerName, providerId) : undefined;
 	const content: ToolResultContent[] = [];
 	if (displayOutput !== undefined) {
 		content.push({ type: ToolResultContentType.Text, text: displayOutput });
 	}
 	const resultContent = getSdkToolResultContent(info.toolName, d.result);
+	const toolResources = storedResources?.get(d.toolCallId) ?? [];
+	const embedded = new Map<ToolExecutionCompleteContentResource, ContentRef>();
+	for (const resource of toolResources) {
+		const block = resultContent?.contents?.[resource.ordinal];
+		if (resource.kind === 'embedded' && block?.type === 'resource') {
+			embedded.set(block, {
+				uri: buildToolResultResourceUri(sessionUriStr, d.toolCallId, resource.ordinal, resource.name),
+				contentType: resource.mimeType,
+				sizeHint: resource.size,
+			});
+		}
+	}
 	appendSdkToolResultContent(
 		content,
 		resultContent?.contents,
@@ -1194,7 +1319,23 @@ function makeCompletedToolCallPart(
 		} : undefined,
 		resultContent?.binaryResultsForLlm,
 		binaryAssets,
+		{ embedded, mcpChannel },
 	);
+
+	if (!resultContent?.contents?.length) {
+		for (const resource of toolResources) {
+			if (resource.kind === 'embedded' || mcpChannel) {
+				content.push({
+					type: ToolResultContentType.Resource,
+					uri: resource.kind === 'embedded'
+						? buildToolResultResourceUri(sessionUriStr, d.toolCallId, resource.ordinal, resource.name)
+						: buildMcpResourceUri(mcpChannel!, resource.uri, resource.name),
+					contentType: resource.mimeType,
+					sizeHint: resource.size,
+				});
+			}
+		}
+	}
 
 	// Restore file edit content references from the database.
 	const edits = storedEdits?.get(d.toolCallId);
@@ -1233,13 +1374,12 @@ function makeCompletedToolCallPart(
 		});
 	}
 
-	const mcpServerName = info.mcpServerName ?? readStringProperty(d, 'mcpServerName');
 	const mcpToolName = info.mcpToolName ?? readStringProperty(d, 'mcpToolName');
 	const mcpUiResourceUri = info.mcpUiResourceUri ?? readMcpUiResourceUri(d);
 	const mcpUi: IToolCallUiMeta | undefined = mcpUiResourceUri
 		? {
 			resourceUri: mcpUiResourceUri,
-			...(mcpServerName ? { channel: buildMcpChannel(chatURI, mcpServerName, providerId) } : {}),
+			...(mcpChannel ? { channel: mcpChannel } : {}),
 		}
 		: undefined;
 

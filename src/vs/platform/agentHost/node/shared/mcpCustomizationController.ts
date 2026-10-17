@@ -13,7 +13,7 @@ import { isCustomizationEnabled } from '../../common/customizationEnablement.js'
 import { McpServerSource, readMcpServerDisplayName, withMcpServerControllingSettingMeta, withMcpServerDisplayNameMeta, withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../common/meta/mcpCustomizationMeta.js';
 import { CustomizationLoadStatus, CustomizationType, McpServerStatus, type AhpMcpUiHostCapabilities, type Customization, type CustomizationEnablement, type McpServerCustomization, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
 import { DEFAULT_MCP_APP, DEFAULT_MCP_APP_CAPABILITIES } from '../../common/state/protocol/mcpAppDefaults.js';
-import { parseChatUri } from '../../common/state/sessionState.js';
+import { isAhpChatChannel } from '../../common/state/sessionState.js';
 import type { SessionAction } from '../../common/state/sessionActions.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
 
@@ -127,6 +127,8 @@ export interface IMcpCustomizationControllerOptions {
 	readonly provider?: string;
 	/** Concrete chat URI used for MCP App routing. */
 	readonly chatUri: URI;
+	/** The session that owns {@link chatUri}. */
+	readonly sessionUri: URI;
 	/** Emits a {@link SessionAction} into the session's action stream. */
 	readonly emit: (action: SessionAction) => void;
 	/** Returns durable plugin source URIs for plugin-provided MCP servers. */
@@ -168,7 +170,7 @@ export function buildMcpTopLevelCustomizationId(providerId: string, sessionId: s
 	return `mcp-top-level:${providerId}:${sessionId}:${serverName}`;
 }
 
-export function buildMcpChannel(chatUri: URI, serverName: string, providerId = getMcpChannelProviderId(chatUri)): string {
+export function buildMcpChannel(chatUri: URI, serverName: string, providerId: string): string {
 	return `mcp://${providerId}/${encodeURIComponent(chatUri.toString())}/${encodeURIComponent(serverName)}`;
 }
 
@@ -219,15 +221,11 @@ export class McpCustomizationController extends Disposable {
 	) {
 		super();
 		this._chatUri = this._options.chatUri;
-		const chat = parseChatUri(this._chatUri);
-		if (!chat) {
-			throw new Error(`Malformed AHP chat URI: ${this._chatUri.toString()}`);
-		}
-		this._sessionUri = URI.parse(chat.session);
-		this._providerId = this._options.provider ?? this._stateManager.getSessionSummary(chat.session)?.provider ?? AgentSession.provider(this._sessionUri) ?? '';
+		this._sessionUri = this._options.sessionUri;
+		this._providerId = this._options.provider ?? this._stateManager.getSessionSummary(this._sessionUri.toString())?.provider ?? AgentSession.provider(this._sessionUri) ?? '';
 		this._sessionId = AgentSession.id(this._sessionUri);
 		if (!this._providerId || !this._sessionId) {
-			throw new Error(`Malformed Agent Host session URI: ${chat.session}`);
+			throw new Error(`Malformed Agent Host session URI: ${this._sessionUri.toString()}`);
 		}
 		this.runtimeStates = derived(this, reader => {
 			const out = new Map<string, IMcpServerRuntimeState>();
@@ -686,18 +684,6 @@ export interface IMcpChannelRoute {
 	readonly serverName: string;
 }
 
-function getMcpChannelProviderId(chatUri: URI): string {
-	const chat = parseChatUri(chatUri);
-	if (!chat) {
-		throw new Error(`Malformed AHP chat URI: ${chatUri.toString()}`);
-	}
-	const providerId = AgentSession.provider(chat.session);
-	if (!providerId) {
-		throw new Error(`Malformed Agent Host session URI: ${chat.session}`);
-	}
-	return providerId;
-}
-
 /**
  * Decodes a channel URI string into a {@link IMcpChannelRoute}, or
  * returns `undefined` when the URI is not an `mcp://` channel or the
@@ -727,20 +713,8 @@ export function parseMcpChannelUri(uri: string): IMcpChannelRoute | undefined {
 	} catch {
 		return undefined;
 	}
-	if (!providerId || !serverName) {
-		return undefined;
-	}
-	const parsedChat = parseChatUri(chatUri);
-	if (parsedChat && URI.parse(parsedChat.session).scheme === 'ahp-session') {
-		return { providerId, chatUri, serverName };
-	}
-	let routedProviderId: string;
-	try {
-		routedProviderId = getMcpChannelProviderId(chatUri);
-	} catch {
-		return undefined;
-	}
-	if (routedProviderId !== providerId) {
+	// The routed provider rejects a chat it does not host.
+	if (!providerId || !serverName || !isAhpChatChannel(chatUri.toString())) {
 		return undefined;
 	}
 	return { providerId, chatUri, serverName };

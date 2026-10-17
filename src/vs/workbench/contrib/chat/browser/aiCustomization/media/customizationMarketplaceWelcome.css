@@ -20,20 +20,15 @@
 		text-align: center;
 		margin: var(--vscode-spacing-size200) auto;
 
-		.customizations-marketplace-welcome-icon {
-			.codicon {
-				font-size: 48px;
-			}
-		}
-
 		.customizations-marketplace-welcome-title {
-			font-size: var(--vscode-fontSize-heading1);
+			font-size: var(--vscode-fontSize-heading3);
 			margin: var(--vscode-spacing-size40) 0 0;
 			font-weight: var(--vscode-fontWeight-semiBold);
 			line-height: normal;
 		}
 
 		.customizations-marketplace-welcome-description {
+			font-size: var(--vscode-fontSize-body1);
 			max-width: 350px;
 			padding: 0 var(--vscode-spacing-size200);
 			margin-top: var(--vscode-spacing-size160);

@@ -272,6 +272,40 @@ suite('HoverService', () => {
 			hover.dispose();
 		});
 
+		test('should position the hover next to the part of the target visible within the clipping element', () => {
+			const layoutHoverX = (clippingRect?: DOMRect) => {
+				const target = createTarget();
+				target.getBoundingClientRect = () => new DOMRect(0, 100, 300, 22);
+				let clippingElement: HTMLElement | undefined;
+				if (clippingRect) {
+					clippingElement = createTarget();
+					clippingElement.getBoundingClientRect = () => clippingRect;
+				}
+
+				const hover = showHover('Clipped target', target, {
+					position: { hoverPosition: HoverPosition.RIGHT, clippingElement },
+					appearance: { showPointer: true }
+				});
+				const hoverWidget = asHoverWidget(hover);
+				Object.defineProperty(hoverWidget.domNode, 'clientWidth', { configurable: true, value: 200 });
+				hoverWidget.layout();
+				const x = hoverWidget.x;
+				hover.dispose();
+				return x;
+			};
+
+			// The hover sits 3px (the pointer size) to the right of the target's right edge
+			assert.deepStrictEqual({
+				withoutClippingElement: layoutHoverX(),
+				partiallyVisible: layoutHoverX(new DOMRect(0, 0, 200, 400)),
+				notVisible: layoutHoverX(new DOMRect(400, 0, 200, 400)),
+			}, {
+				withoutClippingElement: 303,
+				partiallyVisible: 203,
+				notVisible: 303,
+			});
+		});
+
 		test('should size the hover pointer as a border box so its centre matches the pointer size', () => {
 			const target = createTarget();
 			const hover = showHover('Pointer geometry', target, {

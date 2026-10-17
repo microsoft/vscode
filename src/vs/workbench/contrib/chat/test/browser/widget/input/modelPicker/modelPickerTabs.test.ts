@@ -4,7 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Codicon } from '../../../../../../../../base/common/codicons.js';
 import { IStringDictionary } from '../../../../../../../../base/common/collections.js';
+import { ThemeIcon } from '../../../../../../../../base/common/themables.js';
+import { URI } from '../../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
 import { IModelConfigurationAccess, getModelConfigDescription, getModelConfigProperty, getModelConfigSummary, isExtendedContext, MODEL_CONFIG_GROUP_CONTEXT } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { getModelBadge } from '../../../../../browser/widget/input/modelPicker/modelPickerBadges.js';
@@ -12,7 +15,7 @@ import { latestOfEachLine, parseModelLine } from '../../../../../browser/widget/
 import { buildSpeedVariants, collapseSpeedVariants } from '../../../../../browser/widget/input/modelPicker/modelPickerVariants.js';
 import { buildModelPickerDestinations, buildModelPickerSections, hasPromotedModels, IModelPickerProviderPlaceholder } from '../../../../../browser/widget/input/modelPicker/modelPickerTabs.js';
 import { getProviderGroupKey } from '../../../../../browser/widget/input/modelPicker/modelPickerItemPrimitives.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry } from '../../../../../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, LanguageModelProviderIcon } from '../../../../../common/languageModels.js';
 
 interface IFixtureModelOptions {
 	readonly vendor?: string;
@@ -138,6 +141,36 @@ suite('Model picker destinations', () => {
 		);
 	});
 
+	test('a provider that declares an icon shows it, and the rest are recognised by name', () => {
+		const image = { light: URI.file('/openrouter-light.svg'), dark: URI.file('/openrouter-dark.svg') };
+		const serviceWithIcons = {
+			getVendors: () => [
+				{ vendor: 'copilot', displayName: 'GitHub Copilot', isDefault: true },
+				{ vendor: 'openrouter', displayName: 'OpenRouter', isDefault: false, icon: image },
+				{ vendor: 'ollama', displayName: 'Ollama', isDefault: false, icon: Codicon.vm },
+				{ vendor: 'openai', displayName: 'OpenAI', isDefault: false },
+			],
+			getLanguageModelGroups: () => [],
+		} as unknown as ILanguageModelsService;
+		const routed = createModel('nova-micro', 'Nova Micro', { vendor: 'openrouter', isBYOK: true });
+		// An agent host relays the provider under its own vendor, naming it only by its group.
+		const relayed = createModel('nova-pro', 'Nova Pro', { vendor: 'agent-host-copilotcli', isBYOK: true, modelGroupId: 'openrouter' });
+		const signingIn: IModelPickerProviderPlaceholder = { vendor: 'ollama', label: 'Ollama', message: 'Start Ollama to use its models.' };
+		const describeIcon = (icon: LanguageModelProviderIcon) => ThemeIcon.isThemeIcon(icon) ? icon.id : { light: icon.light.path, dark: icon.dark.path };
+
+		assert.deepStrictEqual(
+			buildModelPickerDestinations([gpt, routed, relayed, mistral], serviceWithIcons, [signingIn])
+				.map(destination => ({ label: destination.label, icon: describeIcon(destination.icon) })),
+			[
+				{ label: 'GitHub Copilot', icon: 'chat-model-provider-copilot' },
+				{ label: 'Ollama', icon: 'vm' },
+				{ label: 'OpenAI', icon: 'chat-model-provider-openai' },
+				{ label: 'OpenRouter', icon: { light: '/openrouter-light.svg', dark: '/openrouter-dark.svg' } },
+				{ label: 'OpenRouter', icon: { light: '/openrouter-light.svg', dark: '/openrouter-dark.svg' } },
+			],
+		);
+	});
+
 	test('a plan that grants only Auto still opens on the built-in destination', () => {
 		// Auto has its own row rather than a place in the list, so without this the
 		// picker would have no destination at all and open on nothing.
@@ -148,7 +181,7 @@ suite('Model picker destinations', () => {
 	});
 
 	test('a model with its own row, such as HydraFusion, is left out of every destination', () => {
-		const hydraFusion = createModel('hydrafusion', 'HydraFusion', { vendor: 'agent-host-copilotcli', isBYOK: true, modelGroupId: 'copilot' });
+		const hydraFusion = createModel('hydrafusion', 'HydraFusion', { vendor: 'agent-host-copilotcli', isBYOK: true, modelGroupId: 'copilotcli' });
 		const hasOwnRow = (model: ILanguageModelChatMetadataAndIdentifier) => model === auto || model === hydraFusion;
 		const summarizeWithOwnRows = (models: readonly ILanguageModelChatMetadataAndIdentifier[]) =>
 			buildModelPickerDestinations(models, service, [], hasOwnRow).map(destination => ({ id: destination.id, models: destination.models.map(model => model.metadata.name) }));
@@ -770,8 +803,30 @@ suite('Model picker destinations', () => {
 			providerDefault: schema.properties?.reasoningEffort.default,
 		}, {
 			summary: 'Extra high · 264K',
-			description: 'Thinking Effort: Extra high, Context: 264K',
+			description: 'Effort Level: Extra high, Context: 264K',
 			providerDefault: 'medium',
+		});
+
+	});
+
+	test('read-only option descriptions identify the managed value for screen readers', () => {
+		const model = createConfigurableModel();
+		const schema = model.metadata.configurationSchema!;
+		const access: IModelConfigurationAccess = {
+			...createConfigurationAccess(),
+			getModelConfigurationSchema: () => ({
+				properties: {
+					...schema.properties,
+					reasoningEffort: { ...schema.properties!.reasoningEffort, default: 'xhigh', readOnly: true },
+				},
+			}),
+		};
+		assert.deepStrictEqual({
+			summary: getModelConfigSummary(model, access),
+			description: getModelConfigDescription(model, access),
+		}, {
+			summary: 'Extra high · 264K',
+			description: 'Effort Level: Extra high, managed by the agent host, Context: 264K',
 		});
 	});
 
@@ -794,7 +849,7 @@ suite('Model picker destinations', () => {
 			unresolved: getModelConfigSummary(unresolved, createConfigurationAccess()),
 			stale: getModelConfigSummary(model, createConfigurationAccess({ reasoningEffort: 'removed', contextSize: NaN })),
 			auto: getModelConfigSummary(createModel('auto', 'Auto'), createConfigurationAccess()),
-			hydra: getModelConfigSummary(createModel('hydrafusion', 'HydraFusion'), createConfigurationAccess()),
+			hydra: getModelConfigSummary(createModel('hydrafusion', 'HydraFusion', { modelGroupId: 'copilotcli' }), createConfigurationAccess()),
 			missing: getModelConfigSummary(undefined, createConfigurationAccess()),
 		}, { unresolved: undefined, stale: undefined, auto: undefined, hydra: undefined, missing: undefined });
 	});
