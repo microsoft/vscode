@@ -86,6 +86,88 @@ suite('DiffEditorWidget2', () => {
 		});
 	}
 
+	suite('word wrap', () => {
+		function createDiffEditor(width: number, wordWrap: 'on' | 'off' = 'on') {
+			const services = new ServiceCollection();
+			services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
+			services.set(IEditorProgressService, new class extends mock<IEditorProgressService>() {
+				override show() { return emptyProgressRunner; }
+			}());
+			services.set(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
+			const instantiationService = createCodeEditorServices(disposables, services);
+			const container = document.createElement('div');
+			container.style.width = `${width}px`;
+			document.body.appendChild(container);
+			disposables.add(toDisposable(() => container.remove()));
+			const widget = disposables.add(instantiationService.createInstance(DiffEditorWidget, container, {
+				renderGutterMenu: false,
+				wordWrap,
+				useInlineViewWhenSpaceIsLimited: true,
+				renderSideBySideInlineBreakpoint: 900,
+			}, {
+				originalEditor: { contributions: [] },
+				modifiedEditor: { contributions: [] },
+			}));
+			const lines = Array.from({ length: 10 }, (_, i) => `const value${i} = '${'x'.repeat(300)}';`);
+			const original = disposables.add(instantiateTextModel(instantiationService, lines.join('\n')));
+			lines[5] = 'const value5 = 5;';
+			const modified = disposables.add(instantiateTextModel(instantiationService, lines.join('\n')));
+			const model = disposables.add(RefCounted.create(widget.createViewModel({ original, modified })));
+			widget.setDiffModel(model);
+			return widget;
+		}
+
+		function isOriginalEditorWrapping(widget: DiffEditorWidget): boolean {
+			return widget.getOriginalEditor().getLayoutInfo().isViewportWrapping;
+		}
+
+		test('original editor wraps again after the diff editor was rendered inline', () => {
+			const widget = createDiffEditor(0);
+			try {
+				const initiallyInline = !widget.renderSideBySide;
+				widget.layout(new Dimension(1200, 500));
+				const sideBySide = isOriginalEditorWrapping(widget);
+				widget.layout(new Dimension(800, 500));
+				const inline = isOriginalEditorWrapping(widget);
+				widget.layout(new Dimension(1200, 500));
+
+				assert.deepStrictEqual({
+					initiallyInline,
+					sideBySide,
+					inline,
+					sideBySideAgain: isOriginalEditorWrapping(widget),
+				}, {
+					initiallyInline: true,
+					sideBySide: true,
+					inline: false,
+					sideBySideAgain: true,
+				});
+			} finally {
+				widget.setDiffModel(null);
+			}
+		});
+
+		test('word wrap override of the original editor is restored after the diff editor was rendered inline', () => {
+			const widget = createDiffEditor(1200, 'off');
+			try {
+				widget.layout(new Dimension(1200, 500));
+				widget.getOriginalEditor().updateOptions({ wordWrapOverride2: 'on' });
+				widget.layout(new Dimension(800, 500));
+				widget.layout(new Dimension(1200, 500));
+
+				assert.deepStrictEqual({
+					wordWrapOverride2: widget.getOriginalEditor().getRawOptions().wordWrapOverride2,
+					isWrapping: isOriginalEditorWrapping(widget),
+				}, {
+					wordWrapOverride2: 'on',
+					isWrapping: true,
+				});
+			} finally {
+				widget.setDiffModel(null);
+			}
+		});
+	});
+
 	suite('width based layout', () => {
 		test('commits temporary inline when smoothly enlarging from automatic inline', () => {
 			const options = new DiffEditorOptions({
