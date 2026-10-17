@@ -31,6 +31,7 @@ import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/
 import { IMenuService, isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
+import { AutomationDisableConditionKind } from '../../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -1896,6 +1897,36 @@ suite('Automation dialog creation', () => {
 				kind: editing ? 'update' : 'create',
 				...(editing ? { id: existing.id } : {}),
 				value: { name: existing.name, prompt: existing.prompt, target: existing.target, schedule: existing.schedule, enabled: existing.enabled },
+			});
+		});
+	}
+
+	for (const editing of [false, true]) {
+		test(`preserves agent-configured end dates without exposing a field when ${editing ? 'editing' : 'duplicating'}`, async () => {
+			const existing: IAutomationDescriptor = {
+				id: 'dated', name: 'Nightly review', prompt: 'Review changes',
+				target: { kind: 'quickChat', providerId: 'host', sessionTypeId: 'copilotcli' },
+				schedule: { interval: 'hourly', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1 },
+				enabled: true, createdAt: '', updatedAt: '',
+				disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate, date: '2099-01-01T08:00:00Z' }],
+			};
+			const dialog = openDialog(editing ? { existing } : { initialValues: existing });
+			const hasEndDateInput = !!dialog.container.querySelector('input[type="datetime-local"]');
+			dialog.setName('Updated review');
+			dialog.saveButton.click();
+			const result = await dialog.result;
+			assert.deepStrictEqual({
+				hasEndDateInput,
+				kind: result?.kind,
+				enabled: result?.value.enabled,
+				disableConditions: result?.value.disableConditions,
+				name: result?.value.name,
+			}, {
+				hasEndDateInput: false,
+				kind: editing ? 'update' : 'create',
+				enabled: true,
+				disableConditions: editing ? undefined : existing.disableConditions,
+				name: 'Updated review',
 			});
 		});
 	}
