@@ -1857,15 +1857,22 @@ suite('Sessions - Chat View', () => {
 	test('updates chat visibility before making the archive nudge eligible for exposure', () => {
 		const isVisible = observableValue(disposables, false);
 		const forwarded: boolean[] = [];
+		const suggestionStates: [boolean, boolean][] = [];
 		const view: ChatView = Object.assign(Object.create(ChatView.prototype), {
+			_isActive: true,
 			_isVisibleObs: isVisible,
 			_widget: { setVisible: () => forwarded.push(isVisible.get()) },
+			_nextUserMessageSuggestionController: { setViewState: (active: boolean, visible: boolean) => suggestionStates.push([active, visible]) },
 		});
 
 		view.setVisible(true);
 		view.setVisible(false);
 
-		assert.deepStrictEqual({ forwarded, isVisible: isVisible.get() }, { forwarded: [false, true], isVisible: false });
+		assert.deepStrictEqual({ forwarded, isVisible: isVisible.get(), suggestionStates }, {
+			forwarded: [false, true],
+			isVisible: false,
+			suggestionStates: [[true, true], [true, false]],
+		});
 	});
 
 	test('forwards new chat visibility to the aquarium host', () => {

@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getWindow } from '../../../../../base/browser/dom.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { KeyCodeChord } from '../../../../../base/common/keybindings.js';
+import { OS } from '../../../../../base/common/platform.js';
 import { assert } from '../../../../../base/common/assert.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { constObservable } from '../../../../../base/common/observable.js';
@@ -11,10 +14,19 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { AgentChatInputState } from '../../../../../platform/agentHost/common/meta/agentHostChatInputState.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { AgentHostChatInputState, RETRY_CHAT_PREPARATION_COMMAND } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostChatInputState.js';
 import { IChatInputNotification, IChatInputNotificationService } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationService.js';
 import { SessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { renderChatInput } from '../../../../../workbench/test/browser/componentFixtures/chat/renderChatInput.js';
+import { ChatInputFixtureOptions, renderChatInput } from '../../../../../workbench/test/browser/componentFixtures/chat/renderChatInput.js';
+import { FixtureMenuService } from '../../../../../workbench/test/browser/componentFixtures/chat/chatFixtureUtils.js';
+import { IActionViewItemFactory, IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
+import { IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { USLayoutResolvedKeybinding } from '../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
+import { ACCEPT_NEXT_USER_MESSAGE_SUGGESTION_COMMAND_ID } from '../../browser/nextUserMessageSuggestion.js';
+import { NextUserMessageSuggestionActionViewItem } from '../../browser/nextUserMessageSuggestionActionViewItem.js';
 import { shortNameModels } from '../../../../../workbench/test/browser/componentFixtures/chat/chatInput.fixture.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
@@ -26,6 +38,46 @@ import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbenc
 // layout path accounts for is available without a layering violation.
 import '../../browser/media/chatView.css';
 import '../../browser/media/chatInput.css';
+
+const nextStepSuggestion = 'Run the targeted chat input tests';
+const longNextStepSuggestion = 'Review the implementation for accessibility, run the targeted tests, and summarize any remaining risks before opening a pull request';
+
+async function renderNextStepSuggestion(context: ComponentFixtureContext, options: ChatInputFixtureOptions = {}, acceptKey = KeyCode.RightArrow): Promise<void> {
+	await renderChatInput(sessionsWindowContext(context), {
+		isSessionsWindow: true,
+		nextStepSuggestion,
+		...options,
+		additionalServices: registration => {
+			class SuggestionMenuService extends FixtureMenuService {
+				constructor(
+					@IContextKeyService contextKeyService: IContextKeyService,
+					@ICommandService commandService: ICommandService,
+				) {
+					super(contextKeyService, commandService);
+					if (!options.value && !options.showAcceptedNextStepSuggestion) {
+						this.addItem(MenuId.ChatExecute, { command: { id: ACCEPT_NEXT_USER_MESSAGE_SUGGESTION_COMMAND_ID, title: 'Insert Suggestion' }, group: 'navigation', order: 0 });
+					}
+				}
+			}
+			registration.define(IMenuService, SuggestionMenuService);
+			registration.defineInstance(IKeybindingService, new class extends MockKeybindingService {
+				override lookupKeybinding(id: string) {
+					return id === ACCEPT_NEXT_USER_MESSAGE_SUGGESTION_COMMAND_ID
+						? new USLayoutResolvedKeybinding([new KeyCodeChord(false, false, false, false, acceptKey)], OS)
+						: undefined;
+				}
+			}());
+			registration.defineInstance(IActionViewItemService, new class extends mock<IActionViewItemService>() {
+				override readonly onDidChange = Event.None;
+				override lookUp(menu: MenuId, commandId: string | MenuId): IActionViewItemFactory | undefined {
+					return menu === MenuId.ChatExecute && commandId === ACCEPT_NEXT_USER_MESSAGE_SUGGESTION_COMMAND_ID
+						? (action, itemOptions, service) => action instanceof MenuItemAction ? service.createInstance(NextUserMessageSuggestionActionViewItem, action, { ...itemOptions, keybindingNotRenderedWithLabel: true }) : undefined
+						: undefined;
+				}
+			}());
+		},
+	});
+}
 
 /**
  * Wraps the fixture context in `.agent-sessions-workbench > .part.sessionspart`, returning the sessions part as the input container by default.
@@ -271,5 +323,58 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/input/' }, {
 			width: 600,
 			resizeWidths: [...responsiveResizeCycles, 260],
 		})
+	}),
+	NextStepSuggestionAtRest: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The empty Agents chat input quietly shows “Run the targeted chat input tests” as inline ghost text. The input does not have its focused border treatment.'],
+		render: context => renderNextStepSuggestion(context, {
+			isSessionsWindow: true,
+			nextStepSuggestion,
+		})
+	}),
+	NextStepSuggestionFocused: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast'],
+		expectedVisualDescriptions: ['The focused Agents chat input shows “Run the targeted chat input tests” as ghost text and a compact Right Arrow keycap in the bottom toolbar. No visible Insert Suggestion label or floating toolbar competes with the text.'],
+		render: context => renderNextStepSuggestion(context, {
+			isSessionsWindow: true,
+			nextStepSuggestion,
+			focusInput: true,
+		})
+	}),
+	NextStepSuggestionHiddenAfterTyping: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The focused Agents chat input contains the user-authored text “Could you”. No next-step ghost text competes with the user’s typing.'],
+		render: context => renderNextStepSuggestion(context, {
+			isSessionsWindow: true,
+			nextStepSuggestion,
+			focusInput: true,
+			value: 'Could you',
+		})
+	}),
+	NextStepSuggestionLong: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast'],
+		expectedVisualDescriptions: ['A long next-step suggestion wraps inside the narrow Agents chat input without clipping, overlapping the toolbars, or escaping the input surface.'],
+		render: context => renderNextStepSuggestion(context, {
+			isSessionsWindow: true,
+			nextStepSuggestion: longNextStepSuggestion,
+			focusInput: true,
+			width: 420,
+		})
+	}),
+	NextStepSuggestionAccepted: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The next-step suggestion is now ordinary editable input text in the focused composer.'],
+		render: context => renderNextStepSuggestion(context, {
+			isSessionsWindow: true,
+			nextStepSuggestion,
+			showAcceptedNextStepSuggestion: true,
+		})
+	}),
+	NextStepSuggestionRemapped: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The suggestion action shows an F6 keycap instead of a hardcoded arrow when the acceptance shortcut is remapped.'],
+		render: context => renderNextStepSuggestion(context, { focusInput: true }, KeyCode.F6),
 	}),
 });

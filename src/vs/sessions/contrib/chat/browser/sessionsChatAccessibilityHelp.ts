@@ -41,6 +41,7 @@ import { IChatEntitlementService } from '../../../../workbench/services/chat/com
 import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from './responseSelectionSideChatController.js';
 import { areDevContainerSamplesEnabled } from '../../../common/devContainerAgentHostService.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { ACCEPT_NEXT_USER_MESSAGE_SUGGESTION_COMMAND_ID } from './nextUserMessageSuggestion.js';
 export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 120;
 	readonly name = 'sessionsChat';
@@ -91,6 +92,7 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 			}
 		}
 		content.push(getModePickerAccessibilityHelp());
+		content.push(localize('sessionsChat.nextUserMessageSuggestion', "When a suggested next message is available, press {0} in the empty input or use Tab to reach Insert Suggestion in the input toolbar. The button shows its keyboard shortcut. This inserts editable text without sending it. Typing or pressing {1} dismisses the suggestion. You can also inspect and accept it in the Accessible View{2}.", `<keybinding:${ACCEPT_NEXT_USER_MESSAGE_SUGGESTION_COMMAND_ID}>`, '<keybinding:editor.action.inlineSuggest.hide>', '<keybinding:editor.action.accessibleView>'));
 		content.push(localize('sessionsChat.closePane', "When multiple session panes are visible, move focus to a pane header and activate Close to remove that pane from the grid. Closing a pane keeps the session and its worktree available in the Sessions list."));
 		const useExperimentalComposerLayout = configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING)
 			&& configurationService.getValue<boolean>(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING);

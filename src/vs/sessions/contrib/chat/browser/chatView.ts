@@ -79,6 +79,7 @@ import { ISessionComparison, ISessionComparisonService, SessionComparisonPartici
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../common/layoutConstants.js';
 import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
+import { NextUserMessageSuggestionController } from './nextUserMessageSuggestion.js';
 
 const SESSION_CHAT_RESPONSE_INTERNAL_HORIZONTAL_PADDING = 12;
 // 14px icon + 6px padding + 4px gap + breathing room. The percentage label expands over the editor on hover.
@@ -259,6 +260,7 @@ export class ChatView extends AbstractChatView {
 
 	/** Keeps selected transcript text stable and offers supported selection actions. */
 	private readonly _selectionSideChatController: ResponseSelectionSideChatController;
+	private readonly _nextUserMessageSuggestionController: NextUserMessageSuggestionController;
 
 	/** Reference to the loaded chat model; disposing releases the model. */
 	private readonly _modelRef = this._register(new MutableDisposable<IChatModelReference>());
@@ -456,6 +458,7 @@ export class ChatView extends AbstractChatView {
 		this._setupInitialTranscriptContext(chatModel);
 
 		this._selectionSideChatController = this._register(scopedInstantiationService.createInstance(ResponseSelectionSideChatController, this._widget, isResponseSelectionSupported()));
+		this._nextUserMessageSuggestionController = this._register(scopedInstantiationService.createInstance(NextUserMessageSuggestionController, this._widget));
 
 		// Mount the session banners directly above the chat input.
 		this._banners = this._register(instantiationService.createInstance(SessionInputBanners));
@@ -1179,6 +1182,7 @@ export class ChatView extends AbstractChatView {
 		}
 		this._isActive = active;
 		this._isActiveObs.set(active, undefined);
+		this._nextUserMessageSuggestionController.setViewState(active, this._isVisible !== false);
 		this._banners.setActive(active);
 		this._widget.setStyles(this._buildStyles(active));
 	}
@@ -1190,6 +1194,7 @@ export class ChatView extends AbstractChatView {
 		this._isVisible = visible;
 		this._widget.setVisible(visible);
 		this._isVisibleObs.set(visible, undefined);
+		this._nextUserMessageSuggestionController.setViewState(this._isActive, visible);
 	}
 }
 
