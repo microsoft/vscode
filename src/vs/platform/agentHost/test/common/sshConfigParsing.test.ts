@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { parseSSHConfigHostEntries, parseSSHGOutput } from '../../common/sshConfigParsing.js';
+import { parseSSHConfigHostEntries, parseSSHGOutput, stripSSHComment, tokenizeSSHPathList } from '../../common/sshConfigParsing.js';
 
 suite('SSH Config Parsing', () => {
 
@@ -106,6 +106,71 @@ suite('SSH Config Parsing', () => {
 			assert.deepStrictEqual(parseSSHConfigHostEntries(config), ['lower', 'upper', 'mixed']);
 		});
 
+		test('keeps quoted host names with spaces as one entry', () => {
+			const config = 'Host "Dev Instance (EU)"';
+			assert.deepStrictEqual(parseSSHConfigHostEntries(config), ['Dev Instance (EU)']);
+		});
+
+		test('mixes plain and quoted host names', () => {
+			const config = 'Host plain "With Space" other';
+			assert.deepStrictEqual(parseSSHConfigHostEntries(config), ['plain', 'With Space', 'other']);
+		});
+
+		test('still filters quoted wildcards', () => {
+			const config = 'Host "foo*"';
+			assert.deepStrictEqual(parseSSHConfigHostEntries(config), []);
+		});
+
+		test('keeps # inside quoted host names', () => {
+			const config = 'Host "Dev # Instance"';
+			assert.deepStrictEqual(parseSSHConfigHostEntries(config), ['Dev # Instance']);
+		});
+
+		test('strips inline comments after quoted host names', () => {
+			const config = 'Host "Dev # Instance" # my server';
+			assert.deepStrictEqual(parseSSHConfigHostEntries(config), ['Dev # Instance']);
+		});
+
+		test('unescapes quotes in quoted host names', () => {
+			const config = 'Host "foo\\"bar"';
+			assert.deepStrictEqual(parseSSHConfigHostEntries(config), ['foo"bar']);
+		});
+
+		test('unescapes backslashes in quoted host names', () => {
+			const config = 'Host "a\\\\b"';
+			assert.deepStrictEqual(parseSSHConfigHostEntries(config), ['a\\b']);
+		});
+
+		test('keeps escaped spaces in host names together', () => {
+			const config = 'Host foo\\ bar baz';
+			assert.deepStrictEqual(parseSSHConfigHostEntries(config), ['foo bar', 'baz']);
+		});
+
+		test('supports single-quoted host names', () => {
+			const config = 'Host \'Dev Instance (EU)\'';
+			assert.deepStrictEqual(parseSSHConfigHostEntries(config), ['Dev Instance (EU)']);
+		});
+
+		test('mixes single, double, and unquoted host names', () => {
+			const config = 'Host "double" \'single\' plain';
+			assert.deepStrictEqual(parseSSHConfigHostEntries(config), ['double', 'single', 'plain']);
+		});
+
+		test('unescapes escaped quotes in single-quoted host names', () => {
+			const config = 'Host \'it\\\'s\'';
+			assert.deepStrictEqual(parseSSHConfigHostEntries(config), ['it\'s']);
+		});
+
+		test('keeps # inside single-quoted host names', () => {
+			const config = 'Host \'Dev # Instance\'';
+			assert.deepStrictEqual(parseSSHConfigHostEntries(config), ['Dev # Instance']);
+		});
+
+		test('recovers unterminated quotes leniently', () => {
+			assert.deepStrictEqual(parseSSHConfigHostEntries('Host "Dev'), ['Dev']);
+			assert.deepStrictEqual(parseSSHConfigHostEntries('Host \'Dev'), ['Dev']);
+		});
+
 		test('ignores non-Host directives', () => {
 			const config = [
 				'Host myserver',
@@ -117,6 +182,46 @@ suite('SSH Config Parsing', () => {
 			].join('\n');
 
 			assert.deepStrictEqual(parseSSHConfigHostEntries(config), ['myserver']);
+		});
+	});
+
+	suite('stripSSHComment', () => {
+
+		test('strips plain inline comments', () => {
+			assert.strictEqual(stripSSHComment('myserver # my favorite server'), 'myserver');
+		});
+
+		test('keeps # inside double quotes', () => {
+			assert.strictEqual(stripSSHComment('"Dev # Instance"'), '"Dev # Instance"');
+		});
+
+		test('strips comments after closing quotes', () => {
+			assert.strictEqual(stripSSHComment('"Dev # Instance" # my server'), '"Dev # Instance"');
+		});
+
+		test('ignores escaped quotes', () => {
+			assert.strictEqual(stripSSHComment('"a\\" # x" # c'), '"a\\" # x"');
+		});
+
+		test('keeps # inside single quotes', () => {
+			assert.strictEqual(stripSSHComment('\'Dev # Instance\''), '\'Dev # Instance\'');
+		});
+	});
+
+	suite('tokenizeSSHPathList', () => {
+
+		test('keeps quoted include paths with spaces together', () => {
+			// `_parseSSHConfigHosts` feeds Include values through this helper;
+			// it has no direct unit-test seam (private + filesystem I/O).
+			assert.deepStrictEqual(
+				tokenizeSSHPathList('"~/My Configs/*.conf" other.conf').map(token => token.path),
+				['~/My Configs/*.conf', 'other.conf']);
+		});
+
+		test('keeps single-quoted include paths with spaces together', () => {
+			assert.deepStrictEqual(
+				tokenizeSSHPathList('\'~/My Configs/*.conf\' other.conf').map(token => token.path),
+				['~/My Configs/*.conf', 'other.conf']);
 		});
 	});
 
