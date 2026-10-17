@@ -332,6 +332,10 @@ export class InlineEditsView extends Disposable {
 		}
 
 		const inlineEdit = model.inlineEdit;
+		if (!inlineEdit.originalText.isValid()) {
+			return undefined;
+		}
+
 		let diff: DetailedLineRangeMapping[];
 		let mappings: RangeMapping[];
 
