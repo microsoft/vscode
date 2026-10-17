@@ -19,8 +19,8 @@ export const NotebookMultiDiffEditorScheme = 'multi-cell-notebook-diff-editor';
 export class NotebookMultiDiffEditorInput extends NotebookDiffEditorInput {
 	static override readonly ID: string = 'workbench.input.multiDiffNotebookInput';
 	static override create(instantiationService: IInstantiationService, resource: URI, name: string | undefined, description: string | undefined, originalResource: URI, viewType: string) {
-		const original = NotebookEditorInput.getOrCreate(instantiationService, originalResource, undefined, viewType);
-		const modified = NotebookEditorInput.getOrCreate(instantiationService, resource, undefined, viewType);
+		const original = instantiationService.createInstance(NotebookEditorInput, originalResource, undefined, viewType, {});
+		const modified = instantiationService.createInstance(NotebookEditorInput, resource, undefined, viewType, {});
 		return instantiationService.createInstance(NotebookMultiDiffEditorInput, name, description, original, modified, viewType);
 	}
 }
