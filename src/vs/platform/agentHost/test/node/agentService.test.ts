@@ -28,7 +28,7 @@ import { extUriBiasedIgnorePathCase, isEqual, joinPath } from '../../../../base/
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
+import { realTimeApi, runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
@@ -37586,34 +37586,35 @@ suite('AgentService (node dispatcher)', () => {
 
 	suite('empty-session GC', () => {
 
+		/**
+		 * Disposal reads the orchestrator database, which is real I/O, so poll
+		 * on real time even when called within `runWithFakedTimers`.
+		 */
 		async function waitForGcDisposal(expectedCount: number): Promise<void> {
 			for (let attempt = 0; attempt < 100; attempt++) {
 				if (copilotAgent.disposeSessionCalls.length === expectedCount) {
 					return;
 				}
-				await timeout(0);
+				await new Promise<void>(resolve => realTimeApi.setTimeout(resolve, 0));
 			}
 			assert.fail(`Expected ${expectedCount} GC disposal call(s), got ${copilotAgent.disposeSessionCalls.length}`);
 		}
 
-		test('annotations subscribers still protect an unused draft from destructive GC', async () => {
-			const { session, beforeUnsubscribe } = await runWithFakedTimers({ useFakeTimers: true }, async () => {
-				registerTestAgentProvider(service, copilotAgent);
-				const session = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
-				const annotations = URI.parse(buildAnnotationsUri(session.toString()));
-				service.addSubscriber(session, 'session-client');
-				await service.subscribe(annotations, 'annotations-client');
-				service.unsubscribe(session, 'session-client');
-				await timeout(30_000);
-				const beforeUnsubscribe = {
-					resident: !!getStateManager(service).getSessionState(session.toString()),
-					disposals: copilotAgent.disposeSessionCalls.length,
-				};
+		test('annotations subscribers still protect an unused draft from destructive GC', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			registerTestAgentProvider(service, copilotAgent);
+			const session = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const annotations = URI.parse(buildAnnotationsUri(session.toString()));
+			service.addSubscriber(session, 'session-client');
+			await service.subscribe(annotations, 'annotations-client');
+			service.unsubscribe(session, 'session-client');
+			await timeout(30_000);
+			const beforeUnsubscribe = {
+				resident: !!getStateManager(service).getSessionState(session.toString()),
+				disposals: copilotAgent.disposeSessionCalls.length,
+			};
 
-				service.unsubscribe(annotations, 'annotations-client');
-				await timeout(30_000);
-				return { session, beforeUnsubscribe };
-			});
+			service.unsubscribe(annotations, 'annotations-client');
+			await timeout(30_000);
 			await waitForGcDisposal(1);
 
 			assert.deepStrictEqual({
@@ -37623,23 +37624,20 @@ suite('AgentService (node dispatcher)', () => {
 				beforeUnsubscribe: { resident: true, disposals: 0 },
 				disposals: [session.toString()],
 			});
-		});
+		}));
 
-		test('a default-chat subscriber pins an empty session after the root unsubscribes', async () => {
-			const { session, residentForChat } = await runWithFakedTimers({ useFakeTimers: true }, async () => {
-				registerTestAgentProvider(service, copilotAgent);
-				const session = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
-				const chat = URI.parse(buildDefaultChatUri(session));
-				service.addSubscriber(session, 'session-client');
-				service.addSubscriber(chat, 'chat-client');
+		test('a default-chat subscriber pins an empty session after the root unsubscribes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			registerTestAgentProvider(service, copilotAgent);
+			const session = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const chat = URI.parse(buildDefaultChatUri(session));
+			service.addSubscriber(session, 'session-client');
+			service.addSubscriber(chat, 'chat-client');
 
-				service.unsubscribe(session, 'session-client');
-				await new Promise(resolve => setTimeout(resolve, 30_000));
-				const residentForChat = getStateManager(service).getSessionState(session.toString()) !== undefined;
-				service.unsubscribe(chat, 'chat-client');
-				await new Promise(resolve => setTimeout(resolve, 30_000));
-				return { session, residentForChat };
-			});
+			service.unsubscribe(session, 'session-client');
+			await new Promise(resolve => setTimeout(resolve, 30_000));
+			const residentForChat = getStateManager(service).getSessionState(session.toString()) !== undefined;
+			service.unsubscribe(chat, 'chat-client');
+			await new Promise(resolve => setTimeout(resolve, 30_000));
 			await waitForGcDisposal(1);
 
 			assert.deepStrictEqual({
@@ -37649,30 +37647,27 @@ suite('AgentService (node dispatcher)', () => {
 				residentForChat: true,
 				disposals: [session.toString()],
 			});
-		});
+		}));
 
-		test('an empty unsubscribed session is disposed after the grace period', async () => {
-			const sessionResource = await runWithFakedTimers({ useFakeTimers: true }, async () => {
-				registerTestAgentProvider(service, copilotAgent);
-				const sessionResource = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
-				service.addSubscriber(sessionResource, 'client-1');
+		test('an empty unsubscribed session is disposed after the grace period', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			registerTestAgentProvider(service, copilotAgent);
+			const sessionResource = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
+			service.addSubscriber(sessionResource, 'client-1');
 
-				service.unsubscribe(sessionResource, 'client-1');
+			service.unsubscribe(sessionResource, 'client-1');
 
-				// Before the grace period, dispose has not been called.
-				assert.strictEqual(copilotAgent.disposeSessionCalls.length, 0, 'no GC before grace expires');
+			// Before the grace period, dispose has not been called.
+			assert.strictEqual(copilotAgent.disposeSessionCalls.length, 0, 'no GC before grace expires');
 
-				// After the grace period, the session is disposed entirely.
-				await new Promise(resolve => setTimeout(resolve, 30_000));
-				return sessionResource;
-			});
+			// After the grace period, the session is disposed entirely.
+			await new Promise(resolve => setTimeout(resolve, 30_000));
 			await waitForGcDisposal(1);
 			assert.deepStrictEqual(
 				copilotAgent.disposeSessionCalls.map(u => u.toString()),
 				[sessionResource.toString()],
 				'GC fired after grace period',
 			);
-		});
+		}));
 
 		test('a session with at least one turn is not GC-disposed', () => {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -37713,59 +37708,51 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('unsubscribing the last chat arms GC for the owner recorded at subscribe time, even after the chat left the registry', async () => {
-			const owner = await runWithFakedTimers({ useFakeTimers: true }, async () => {
-				registerTestAgentProvider(service, copilotAgent);
-				const owner = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
-				const named = AgentSession.uri('copilot', 'named-by-uri');
-				const chat = URI.parse(buildChatUri(named, 'moved'));
-				getStateManager(service).addChat(owner.toString(), chat.toString(), creationTimeChatStorageResource(owner.toString(), chat.toString(), buildDefaultChatUri(owner.toString())));
-				service.addSubscriber(chat, 'client-1');
-				getStateManager(service).removeChat(owner.toString(), chat.toString());
+		test('unsubscribing the last chat arms GC for the owner recorded at subscribe time, even after the chat left the registry', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			registerTestAgentProvider(service, copilotAgent);
+			const owner = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const named = AgentSession.uri('copilot', 'named-by-uri');
+			const chat = URI.parse(buildChatUri(named, 'moved'));
+			getStateManager(service).addChat(owner.toString(), chat.toString(), creationTimeChatStorageResource(owner.toString(), chat.toString(), buildDefaultChatUri(owner.toString())));
+			service.addSubscriber(chat, 'client-1');
+			getStateManager(service).removeChat(owner.toString(), chat.toString());
 
-				service.unsubscribe(chat, 'client-1');
-				await new Promise(resolve => setTimeout(resolve, 30_000));
-				return owner;
-			});
+			service.unsubscribe(chat, 'client-1');
+			await new Promise(resolve => setTimeout(resolve, 30_000));
 			await waitForGcDisposal(1);
 			assert.deepStrictEqual(copilotAgent.disposeSessionCalls.map(u => u.toString()), [owner.toString()]);
-		});
+		}));
 
-		test('a chat subscribed before it registers gets its owner when it registers, so its last unsubscribe arms the owner\'s GC', async () => {
-			const owner = await runWithFakedTimers({ useFakeTimers: true }, async () => {
-				registerTestAgentProvider(service, copilotAgent);
-				const owner = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
-				const chat = URI.parse(buildChatUri(AgentSession.uri('copilot', 'named-by-uri'), 'early'));
-				service.addSubscriber(chat, 'client-1');
-				getStateManager(service).addChat(owner.toString(), chat.toString(), creationTimeChatStorageResource(owner.toString(), chat.toString(), buildDefaultChatUri(owner.toString())));
+		test('a chat subscribed before it registers gets its owner when it registers, so its last unsubscribe arms the owner\'s GC', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			registerTestAgentProvider(service, copilotAgent);
+			const owner = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const chat = URI.parse(buildChatUri(AgentSession.uri('copilot', 'named-by-uri'), 'early'));
+			service.addSubscriber(chat, 'client-1');
+			getStateManager(service).addChat(owner.toString(), chat.toString(), creationTimeChatStorageResource(owner.toString(), chat.toString(), buildDefaultChatUri(owner.toString())));
 
-				service.unsubscribe(chat, 'client-1');
-				await new Promise(resolve => setTimeout(resolve, 30_000));
-				return owner;
-			});
+			service.unsubscribe(chat, 'client-1');
+			await new Promise(resolve => setTimeout(resolve, 30_000));
 			await waitForGcDisposal(1);
 			assert.deepStrictEqual(copilotAgent.disposeSessionCalls.map(u => u.toString()), [owner.toString()]);
-		});
+		}));
 
-		test('GC is rearmed after a resubscribe-then-unsubscribe cycle', async () => {
-			await runWithFakedTimers({ useFakeTimers: true }, async () => {
-				registerTestAgentProvider(service, copilotAgent);
-				const sessionResource = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
-				service.addSubscriber(sessionResource, 'client-1');
+		test('GC is rearmed after a resubscribe-then-unsubscribe cycle', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			registerTestAgentProvider(service, copilotAgent);
+			const sessionResource = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
+			service.addSubscriber(sessionResource, 'client-1');
 
-				service.unsubscribe(sessionResource, 'client-1');
-				await new Promise(resolve => setTimeout(resolve, 5_000));
-				service.addSubscriber(sessionResource, 'client-1');
-				service.unsubscribe(sessionResource, 'client-1');
+			service.unsubscribe(sessionResource, 'client-1');
+			await new Promise(resolve => setTimeout(resolve, 5_000));
+			service.addSubscriber(sessionResource, 'client-1');
+			service.unsubscribe(sessionResource, 'client-1');
 
-				// Old timer was cancelled; a fresh 30s timer is now armed.
-				await new Promise(resolve => setTimeout(resolve, 29_000));
-				assert.strictEqual(copilotAgent.disposeSessionCalls.length, 0, 'rearmed timer not yet fired');
-				await new Promise(resolve => setTimeout(resolve, 2_000));
-			});
+			// Old timer was cancelled; a fresh 30s timer is now armed.
+			await new Promise(resolve => setTimeout(resolve, 29_000));
+			assert.strictEqual(copilotAgent.disposeSessionCalls.length, 0, 'rearmed timer not yet fired');
+			await new Promise(resolve => setTimeout(resolve, 2_000));
 			await waitForGcDisposal(1);
 			assert.strictEqual(copilotAgent.disposeSessionCalls.length, 1, 'rearmed timer fires after fresh 30s');
-		});
+		}));
 
 		test('createSession on the same URI cancels a pending GC', () => {
 			// Models the reconnect path: client subscribes to a session,
