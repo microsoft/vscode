@@ -27,6 +27,14 @@ import { OpenRecentAction } from '../../../browser/actions/windowActions.js';
 import { isICommandActionToggleInfo } from '../../../../platform/action/common/action.js';
 import { getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 
+// Chorded keybindings cannot be shown as a native macOS menu accelerator and
+// fall back to an ugly `[label]` suffix appended to the menu item's title.
+// For these commands we'd rather show no keybinding hint at all in the menu
+// (the shortcut still works) than that fallback.
+const nonNativeMacMenuKeybindingBlocklist = new Set<string>([
+	'workbench.action.files.openFolder'
+]);
+
 export class NativeMenubarControl extends MenubarControl {
 
 	constructor(
@@ -153,7 +161,10 @@ export class NativeMenubarControl extends MenubarControl {
 						menubarMenuItem.enabled = false;
 					}
 
-					keybindings[menuItem.id] = this.getMenubarKeybinding(menuItem.id);
+					const keybinding = this.getMenubarKeybinding(menuItem.id);
+					if (!isMacintosh || !nonNativeMacMenuKeybindingBlocklist.has(menuItem.id) || keybinding?.isNative !== false) {
+						keybindings[menuItem.id] = keybinding;
+					}
 					menuToPopulate.items.push(menubarMenuItem);
 				}
 			}
