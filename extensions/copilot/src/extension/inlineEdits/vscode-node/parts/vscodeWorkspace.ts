@@ -499,7 +499,16 @@ class VSCodeObservableTextDocument extends AbstractVSCodeObservableDocument impl
 		}
 	}
 	toOffsetRange(textDocument: TextDocument, range: Range): OffsetRange | undefined {
-		return new OffsetRange(textDocument.offsetAt(range.start), textDocument.offsetAt(range.end));
+		if (textDocument !== this.textDocument || !range || !range.start || !range.end) {
+			return undefined;
+		}
+		try {
+			const start = textDocument.offsetAt(range.start);
+			const end = textDocument.offsetAt(range.end);
+			return OffsetRange.tryCreate(start, end);
+		} catch {
+			return undefined;
+		}
 	}
 
 	fromRange(textDocument: TextDocument, range: Range): Range | undefined;
@@ -587,12 +596,19 @@ class VSCodeObservableNotebookDocument extends AbstractVSCodeObservableDocument 
 	}
 
 	toOffsetRange(textDocument: TextDocument, range: Range): OffsetRange | undefined {
-		const cell = this.altNotebook.getCell(textDocument);
-		if (!cell) {
+		if (!range || !range.start || !range.end) {
 			return undefined;
 		}
-		const offsetRanges = this.altNotebook.toAltOffsetRange(cell, [range]);
-		return offsetRanges.length ? offsetRanges[0] : undefined;
+		try {
+			const cell = this.altNotebook.getCell(textDocument);
+			if (!cell) {
+				return undefined;
+			}
+			const offsetRanges = this.altNotebook.toAltOffsetRange(cell, [range]);
+			return offsetRanges.length ? offsetRanges[0] : undefined;
+		} catch {
+			return undefined;
+		}
 	}
 
 	toRange(textDocument: TextDocument, range: Range): Range | undefined {
@@ -671,7 +687,12 @@ function toDiagnosticData(diagnostic: Diagnostic, uri: URI, translateRange: (ran
 		return undefined;
 	}
 
-	const range = translateRange(diagnostic.range);
+	let range: OffsetRange | undefined;
+	try {
+		range = translateRange(diagnostic.range);
+	} catch {
+		return undefined;
+	}
 	if (!range) {
 		return undefined;
 	}
