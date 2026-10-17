@@ -410,13 +410,19 @@ export const AgentHostOTelEnvVars = Object.freeze({
 	ExporterType: 'COPILOT_OTEL_EXPORTER_TYPE',
 	OtlpEndpoint: 'OTEL_EXPORTER_OTLP_ENDPOINT',
 	OtlpEndpointAlt: 'COPILOT_OTEL_ENDPOINT',
+	OtlpTracesEndpoint: 'OTEL_EXPORTER_OTLP_TRACES_ENDPOINT',
+	OtlpMetricsEndpoint: 'OTEL_EXPORTER_OTLP_METRICS_ENDPOINT',
 	OtlpProtocol: 'OTEL_EXPORTER_OTLP_PROTOCOL',
+	OtlpProtocolAlt: 'COPILOT_OTEL_PROTOCOL',
 	OtlpTracesProtocol: 'OTEL_EXPORTER_OTLP_TRACES_PROTOCOL',
 	OtlpMetricsProtocol: 'OTEL_EXPORTER_OTLP_METRICS_PROTOCOL',
 	OtlpHeaders: 'OTEL_EXPORTER_OTLP_HEADERS',
+	OtlpTracesHeaders: 'OTEL_EXPORTER_OTLP_TRACES_HEADERS',
+	OtlpMetricsHeaders: 'OTEL_EXPORTER_OTLP_METRICS_HEADERS',
 	CaptureContent: 'OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT',
 	CaptureIdentity: 'COPILOT_OTEL_CAPTURE_IDENTITY',
 	FilePath: 'COPILOT_OTEL_FILE_EXPORTER_PATH',
+	FilePathIsManaged: 'VSCODE_AGENT_HOST_OTEL_FILE_PATH_IS_MANAGED',
 	SourceName: 'COPILOT_OTEL_SOURCE_NAME',
 	ServiceName: 'OTEL_SERVICE_NAME',
 	ResourceAttributes: 'OTEL_RESOURCE_ATTRIBUTES',
@@ -621,31 +627,48 @@ export function buildAgentHostOTelEnv(
 		setIfMissing(AgentHostOTelEnvVars.DbSpanExporterEnabled, 'true');
 	}
 
-	if (policySettings.enabled !== undefined) {
-		setPolicy(AgentHostOTelEnvVars.Enabled, policySettings.enabled ? 'true' : 'false');
-		if (!policySettings.enabled) {
-			setPolicy(AgentHostOTelEnvVars.OtlpEndpoint, '');
-			setPolicy(AgentHostOTelEnvVars.OtlpEndpointAlt, '');
+	const clearCollectorDestination = (): void => {
+		setPolicy(AgentHostOTelEnvVars.OtlpEndpoint, '');
+		setPolicy(AgentHostOTelEnvVars.OtlpEndpointAlt, '');
+		setPolicy(AgentHostOTelEnvVars.OtlpTracesEndpoint, '');
+		setPolicy(AgentHostOTelEnvVars.OtlpMetricsEndpoint, '');
+		setPolicy(AgentHostOTelEnvVars.OtlpProtocol, '');
+		setPolicy(AgentHostOTelEnvVars.OtlpProtocolAlt, '');
+		setPolicy(AgentHostOTelEnvVars.OtlpTracesProtocol, '');
+		setPolicy(AgentHostOTelEnvVars.OtlpMetricsProtocol, '');
+		setPolicy(AgentHostOTelEnvVars.OtlpHeaders, '');
+		setPolicy(AgentHostOTelEnvVars.OtlpTracesHeaders, '');
+		setPolicy(AgentHostOTelEnvVars.OtlpMetricsHeaders, '');
+	};
+	const hasManagedFilePath = policySettings.outfile !== undefined && (policySettings.outfile !== '' || policySettings.exporterType === 'file');
+	if (policySettings.enabled === false) {
+		setPolicy(AgentHostOTelEnvVars.Enabled, 'false');
+		clearCollectorDestination();
+		setPolicy(AgentHostOTelEnvVars.FilePath, '');
+		setPolicy(AgentHostOTelEnvVars.DbSpanExporterEnabled, '');
+	} else if (hasManagedFilePath) {
+		setPolicy(AgentHostOTelEnvVars.Enabled, 'true');
+		setPolicy(AgentHostOTelEnvVars.ExporterType, 'file');
+		setPolicy(AgentHostOTelEnvVars.FilePath, policySettings.outfile);
+		clearCollectorDestination();
+	} else {
+		setPolicy(AgentHostOTelEnvVars.FilePath, policySettings.outfile);
+		if (policySettings.enabled !== undefined) {
+			setPolicy(AgentHostOTelEnvVars.Enabled, policySettings.enabled ? 'true' : 'false');
+		}
+		if (policySettings.exporterType !== undefined) {
+			setPolicy(AgentHostOTelEnvVars.ExporterType, policySettings.exporterType);
 			setPolicy(AgentHostOTelEnvVars.FilePath, '');
 		}
-	}
-	if (policySettings.exporterType !== undefined) {
-		setPolicy(AgentHostOTelEnvVars.ExporterType, policySettings.exporterType);
-		setPolicy(AgentHostOTelEnvVars.FilePath, '');
-	}
-	if (policySettings.otlpProtocol !== undefined && policySettings.otlpProtocol !== '') {
-		// Mirror the CLI: thread the managed protocol into the generic AND per-signal protocol
-		// env vars so it wins over any user-provided OTEL_EXPORTER_OTLP_{,TRACES_,METRICS_}PROTOCOL.
-		setPolicy(AgentHostOTelEnvVars.OtlpProtocol, policySettings.otlpProtocol);
-		setPolicy(AgentHostOTelEnvVars.OtlpTracesProtocol, policySettings.otlpProtocol);
-		setPolicy(AgentHostOTelEnvVars.OtlpMetricsProtocol, policySettings.otlpProtocol);
-	}
-	if (policySettings.otlpEndpoint !== undefined) {
-		setPolicy(AgentHostOTelEnvVars.OtlpEndpoint, policySettings.otlpEndpoint);
-		setPolicy(AgentHostOTelEnvVars.FilePath, '');
-	}
-	if (policySettings.outfile !== undefined) {
-		setPolicy(AgentHostOTelEnvVars.FilePath, policySettings.outfile);
+		if (policySettings.otlpProtocol !== undefined && policySettings.otlpProtocol !== '') {
+			setPolicy(AgentHostOTelEnvVars.OtlpProtocol, policySettings.otlpProtocol);
+			setPolicy(AgentHostOTelEnvVars.OtlpTracesProtocol, policySettings.otlpProtocol);
+			setPolicy(AgentHostOTelEnvVars.OtlpMetricsProtocol, policySettings.otlpProtocol);
+		}
+		if (policySettings.otlpEndpoint !== undefined) {
+			setPolicy(AgentHostOTelEnvVars.OtlpEndpoint, policySettings.otlpEndpoint);
+			setPolicy(AgentHostOTelEnvVars.FilePath, '');
+		}
 	}
 	if (policySettings.captureContent !== undefined) {
 		setPolicy(AgentHostOTelEnvVars.CaptureContent, policySettings.captureContent ? 'true' : 'false');
@@ -659,6 +682,11 @@ export function buildAgentHostOTelEnv(
 	const policyResourceAttributes = serializeResourceAttributes(policySettings.resourceAttributes);
 	if (policyResourceAttributes !== undefined) {
 		setPolicy(AgentHostOTelEnvVars.ResourceAttributes, policyResourceAttributes);
+	}
+	if (hasManagedFilePath && policySettings.enabled !== false) {
+		setPolicy(AgentHostOTelEnvVars.FilePathIsManaged, 'true');
+	} else if (inheritedEnv[AgentHostOTelEnvVars.FilePathIsManaged] !== undefined) {
+		setPolicy(AgentHostOTelEnvVars.FilePathIsManaged, 'false');
 	}
 	return out;
 }
