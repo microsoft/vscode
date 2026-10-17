@@ -982,8 +982,6 @@ export default defineConfig(
 					'exclude': [
 						'src/vs/base/test/common/virtualScheduling/virtualScheduling.test.ts',
 						'src/vs/platform/agentHost/test/electron-browser/agentHostProtocolClient.test.ts',
-						'src/vs/platform/agentHost/test/node/agentHostToolCallTelemetry.test.ts',
-						'src/vs/platform/agentHost/test/node/agentHostTurnHangTelemetry.test.ts',
 						'src/vs/platform/agentHost/test/node/agentService.test.ts',
 						'src/vs/workbench/contrib/chat/test/browser/attachments/chatImageReveal.test.ts',
 					]
