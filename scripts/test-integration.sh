@@ -10,6 +10,26 @@ fi
 
 cd "$ROOT"
 
+# Names the suite that is running, so that a failure that stops the script
+# (set -e) reports which suite failed and with which exit code.
+CURRENT_SUITE=""
+start_suite() {
+	CURRENT_SUITE="$1"
+	echo
+	echo "### $1"
+	echo
+}
+report_failed_suite() {
+	local status=$?
+	if [[ $status -ne 0 && -n "$CURRENT_SUITE" ]]; then
+		echo "Integration tests failed in '$CURRENT_SUITE' with exit code $status." >&2
+		if [[ "$GITHUB_ACTIONS" == "true" ]]; then
+			echo "::error title=Integration tests failed::'$CURRENT_SUITE' exited with code $status"
+		fi
+	fi
+}
+trap report_failed_suite EXIT
+
 # Parse arguments
 EXTRA_ARGS=()
 BUILD_ARGS=()
@@ -176,15 +196,15 @@ fi
 # Unit tests
 
 if [[ -z "$SUITE_FILTER" ]]; then
-	echo
-	echo "### node.js integration tests"
-	echo
+	start_suite "node.js integration tests"
 	node --input-type=module -e "import { getAgentHostTestProfile } from './src/vs/platform/agentHost/test/node/agentHostTestProfile.ts'; console.log('Agent Host test profile:', getAgentHostTestProfile(), '(' + (process.env.AGENT_HOST_TEST_PROFILE_REASON ?? 'default') + ')');"
 	if [[ -z "$RUN_GLOB" && -z "$RUN_FILE" ]]; then
 		if [[ "$VSCODE_SKIP_AGENT_HOST_E2E" == "1" ]]; then
 			echo "Skipping Agent Host E2E tests because no relevant files changed."
 		else
+			CURRENT_SUITE="Agent Host E2E"
 			node ./test/integration/agentHost/runner.ts "${EXTRA_ARGS[@]}"
+			CURRENT_SUITE="node.js integration tests"
 		fi
 		VSCODE_SKIP_PRELAUNCH=1 ./scripts/test.sh --runGlob "**/*.integrationTest.js" --excludeRunGlob "$AGENT_HOST_E2E_GLOB" "${EXTRA_ARGS[@]}"
 	else
@@ -219,113 +239,85 @@ else
 fi
 
 if should_run_suite api-folder; then
-echo
-echo "### API tests (folder)"
-echo
+start_suite "API tests (folder)"
 "$INTEGRATION_TEST_ELECTRON_PATH" $ROOT/extensions/vscode-api-tests/testWorkspace --enable-proposed-api=vscode.vscode-api-tests --extensionDevelopmentPath=$ROOT/extensions/vscode-api-tests --extensionTestsPath=$ROOT/extensions/vscode-api-tests/out/singlefolder-tests $API_TESTS_EXTRA_ARGS
 kill_app
 fi
 
 if should_run_suite api-workspace; then
-echo
-echo "### API tests (workspace)"
-echo
+start_suite "API tests (workspace)"
 "$INTEGRATION_TEST_ELECTRON_PATH" $ROOT/extensions/vscode-api-tests/testworkspace.code-workspace --enable-proposed-api=vscode.vscode-api-tests --extensionDevelopmentPath=$ROOT/extensions/vscode-api-tests --extensionTestsPath=$ROOT/extensions/vscode-api-tests/out/workspace-tests $API_TESTS_EXTRA_ARGS
 kill_app
 fi
 
 if should_run_suite colorize; then
-echo
-echo "### Colorize tests"
-echo
+start_suite "Colorize tests"
 npm run test-extension -- -l vscode-colorize-tests "${GREP_ARGS[@]}"
 kill_app
 fi
 
 if should_run_suite terminal-suggest; then
-echo
-echo "### Terminal Suggest tests"
-echo
+start_suite "Terminal Suggest tests"
 npm run test-extension -- -l terminal-suggest --enable-proposed-api=vscode.vscode-api-tests "${GREP_ARGS[@]}"
 kill_app
 fi
 
 if should_run_suite typescript; then
-echo
-echo "### TypeScript tests"
-echo
+start_suite "TypeScript tests"
 "$INTEGRATION_TEST_ELECTRON_PATH" $ROOT/extensions/typescript-language-features/test-workspace --extensionDevelopmentPath=$ROOT/extensions/typescript-language-features --extensionTestsPath=$ROOT/extensions/typescript-language-features/out/test/unit $API_TESTS_EXTRA_ARGS
 kill_app
 fi
 
 if should_run_suite markdown; then
-echo
-echo "### Markdown tests"
-echo
+start_suite "Markdown tests"
 npm run test-extension -- -l markdown-language-features "${GREP_ARGS[@]}"
 kill_app
 fi
 
 if should_run_suite emmet; then
-echo
-echo "### Emmet tests"
-echo
+start_suite "Emmet tests"
 "$INTEGRATION_TEST_ELECTRON_PATH" $ROOT/extensions/emmet/test-workspace --extensionDevelopmentPath=$ROOT/extensions/emmet --extensionTestsPath=$ROOT/extensions/emmet/out/test $API_TESTS_EXTRA_ARGS
 kill_app
 fi
 
 if should_run_suite git; then
-echo
-echo "### Git tests"
-echo
+start_suite "Git tests"
 "$INTEGRATION_TEST_ELECTRON_PATH" $(mktemp -d 2>/dev/null) --extensionDevelopmentPath=$ROOT/extensions/git --extensionTestsPath=$ROOT/extensions/git/out/test $API_TESTS_EXTRA_ARGS
 kill_app
 fi
 
 if should_run_suite git-base; then
-echo
-echo "### Git Base tests"
-echo
+start_suite "Git Base tests"
 npm run test-extension -- -l git-base "${GREP_ARGS[@]}"
 kill_app
 fi
 
 if should_run_suite ipynb; then
-echo
-echo "### Ipynb tests"
-echo
+start_suite "Ipynb tests"
 npm run test-extension -- -l ipynb "${GREP_ARGS[@]}"
 kill_app
 fi
 
 if should_run_suite notebook-renderers; then
-echo
-echo "### Notebook Output tests"
-echo
+start_suite "Notebook Output tests"
 npm run test-extension -- -l notebook-renderers "${GREP_ARGS[@]}"
 kill_app
 fi
 
 if should_run_suite configuration-editing; then
-echo
-echo "### Configuration editing tests"
-echo
+start_suite "Configuration editing tests"
 npm run test-extension -- -l configuration-editing "${GREP_ARGS[@]}"
 kill_app
 fi
 
 if should_run_suite github-authentication; then
-echo
-echo "### GitHub Authentication tests"
-echo
+start_suite "GitHub Authentication tests"
 npm run test-extension -- -l github-authentication "${GREP_ARGS[@]}"
 kill_app
 fi
 
 if should_run_suite copilot; then
-echo
-echo "### Copilot tests"
-echo
+start_suite "Copilot tests"
 npm run test-extension -- -l copilot "${GREP_ARGS[@]}"
 kill_app
 fi
@@ -333,23 +325,17 @@ fi
 # Tests standalone (CommonJS)
 
 if should_run_suite css; then
-echo
-echo "### CSS tests"
-echo
+start_suite "CSS tests"
 cd "$ROOT/extensions/css-language-features/server" && "$ROOT/scripts/node-electron.sh" test/index.js
 fi
 
 if should_run_suite html; then
-echo
-echo "### HTML tests"
-echo
+start_suite "HTML tests"
 cd "$ROOT/extensions/html-language-features/server" && "$ROOT/scripts/node-electron.sh" test/index.js
 fi
 
 if should_run_suite json; then
-echo
-echo "### JSON tests"
-echo
+start_suite "JSON tests"
 "$ROOT/scripts/node-electron.sh" "$ROOT/extensions/json-language-features/client/out/test/index.js" "${BUILD_ARGS[@]}"
 fi
 
