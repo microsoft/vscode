@@ -374,7 +374,7 @@ export class MissionControlSdkEventSource extends Disposable {
 			return;
 		}
 		await this._registerSession(source.session);
-		if (!this._isEnabled() || this._store.isDisposed) {
+		if (!this._isEnabled() || this._store.isDisposed || source.retired) {
 			return;
 		}
 		await this._reserve(source);
