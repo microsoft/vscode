@@ -6,16 +6,76 @@
 import * as dom from '../../../../../../base/browser/dom.js';
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 
-import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
+import { INewScrollDimensions, INewScrollPosition, ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
+
+/** A wrapped table whose scrollbar is re-measured from the table container's layout. */
+interface ITableScrollable {
+	readonly container: HTMLElement;
+	readonly scrollable: DomScrollableElement;
+	/** The batch this table is waiting in, if any. */
+	pending: Set<ITableScrollable> | undefined;
+	disposed: boolean;
+}
+
+/**
+ * Tables waiting to be re-measured at the next animation frame, per window. All of them are measured before any
+ * scrollbar is updated, because scanning them one by one forces a synchronous layout of the transcript per table.
+ */
+const pendingTableScans = new WeakMap<Window, Set<ITableScrollable>>();
+
+function scheduleTableScan(table: ITableScrollable): void {
+	if (table.pending || table.disposed) {
+		return;
+	}
+	const targetWindow = dom.getWindow(table.container);
+	let pending = pendingTableScans.get(targetWindow);
+	if (!pending) {
+		const tables = pending = new Set<ITableScrollable>();
+		pendingTableScans.set(targetWindow, tables);
+		let measurements: ITableMeasurement[] = [];
+		dom.measure(targetWindow, () => {
+			pendingTableScans.delete(targetWindow);
+			measurements = Array.from(tables, measureTable);
+		});
+		dom.modify(targetWindow, () => {
+			for (const { table, dimensions, position } of measurements) {
+				if (!table.disposed) {
+					table.scrollable.setScrollDimensions(dimensions);
+					table.scrollable.setScrollPosition(position);
+				}
+			}
+		});
+	}
+	pending.add(table);
+	table.pending = pending;
+}
+
+interface ITableMeasurement {
+	readonly table: ITableScrollable;
+	readonly dimensions: INewScrollDimensions;
+	readonly position: INewScrollPosition;
+}
+
+/** Performs the layout reads of {@link DomScrollableElement.scanDomNode} without updating the scrollbar. */
+function measureTable(table: ITableScrollable): ITableMeasurement {
+	table.pending = undefined;
+	const { container } = table;
+	return {
+		table,
+		dimensions: { width: container.clientWidth, scrollWidth: container.scrollWidth, height: container.clientHeight, scrollHeight: container.scrollHeight },
+		position: { scrollLeft: container.scrollLeft, scrollTop: container.scrollTop },
+	};
+}
 
 /**
  * Finds all tables in `domNode` and wraps each in a {@link DomScrollableElement}
  * so they scroll horizontally with the custom VS Code scrollbar instead of the
  * native one. Each wrapped table is pushed onto `orderedDisposablesList` and a
- * `scanDomNode` callback is registered on `layoutParticipants` so the scrollbar
- * re-measures whenever the container is resized.
+ * callback is registered on `layoutParticipants` so the scrollbar re-measures
+ * whenever the container is resized. Measuring is batched with all other tables
+ * in the window at the next animation frame, so it never forces a layout per table.
  *
  * Each column's `min-width` is also set to the maximum character count across
  * all cells in that column (in `ch` units), preventing short-content columns
@@ -48,8 +108,14 @@ export function wrapTablesWithScrollable(domNode: HTMLElement, layoutParticipant
 		scrollNode.classList.add('rendered-markdown-table-scroll-wrapper');
 		parent?.insertBefore(scrollNode, nextSibling);
 
-		layoutParticipants.value.add(() => { scrollable.scanDomNode(); });
-		scrollable.scanDomNode();
+		const tableScrollable: ITableScrollable = { container: tableContainer, scrollable, pending: undefined, disposed: false };
+		store.add(toDisposable(() => {
+			tableScrollable.disposed = true;
+			tableScrollable.pending?.delete(tableScrollable);
+			tableScrollable.pending = undefined;
+		}));
+		layoutParticipants.value.add(() => scheduleTableScan(tableScrollable));
+		scheduleTableScan(tableScrollable);
 	}
 	return store;
 }
