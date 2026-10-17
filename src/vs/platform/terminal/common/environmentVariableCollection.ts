@@ -86,12 +86,16 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 				// Default: true
 				if (mutator.options?.applyAtProcessCreation ?? true) {
 					switch (mutator.type) {
-						case EnvironmentVariableMutatorType.Append:
-							env[actualVariable] = (env[actualVariable] || '') + value;
+						case EnvironmentVariableMutatorType.Append: {
+							const existing = env[actualVariable] || '';
+							env[actualVariable] = existing.replace(/[\r\n]+$/, '') + value;
 							break;
-						case EnvironmentVariableMutatorType.Prepend:
-							env[actualVariable] = value + (env[actualVariable] || '');
+						}
+						case EnvironmentVariableMutatorType.Prepend: {
+							const existing = env[actualVariable] || '';
+							env[actualVariable] = value + existing.replace(/^[\r\n]+/, '');
 							break;
+						}
 						case EnvironmentVariableMutatorType.Replace:
 							env[actualVariable] = value;
 							break;
