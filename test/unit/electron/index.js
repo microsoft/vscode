@@ -25,6 +25,7 @@ const url = require('url');
 const net = require('net');
 const createStatsCollector = require('mocha/lib/stats-collector');
 const { applyReporter, importMochaReporter } = require('../reporter');
+const { getWorkerCount, removeArgument, runInWorkers } = require('../parallel.ts');
 
 const minimist = require('minimist');
 
@@ -59,11 +60,14 @@ protocol.registerSchemesAsPrivileged([
  * coveragePath: string;
  * coverageFormats: string | string[];
  * 'per-test-coverage': boolean;
+ * workers: string;
+ * worker: string;
+ * workerDir: string;
  * help: boolean;
  * }}
  */
 const args = minimist(process.argv.slice(2), {
-	string: ['grep', 'run', 'runGlob', 'excludeRunGlob', 'reporter', 'reporter-options', 'waitServer', 'timeout', 'crash-reporter-directory', 'tfs', 'coveragePath', 'coverageFormats', 'testSplit'],
+	string: ['grep', 'run', 'runGlob', 'excludeRunGlob', 'reporter', 'reporter-options', 'waitServer', 'timeout', 'crash-reporter-directory', 'tfs', 'coveragePath', 'coverageFormats', 'testSplit', 'workers', 'worker', 'workerDir'],
 	boolean: ['build', 'coverage', 'help', 'dev', 'per-test-coverage'],
 	alias: {
 		'grep': ['g', 'f'],
@@ -91,6 +95,7 @@ Options:
 --runGlob, --glob, --runGrep <file_pattern> only run tests matching <file_pattern>
 --excludeRunGlob <file_pattern> exclude tests matching <file_pattern> from --runGlob
 --testSplit <i>/<n>           split tests into <n> parts and run the <i>th part
+--workers [<count>]           run test files in <count> parallel processes (default: one per CPU, memory permitting)
 --build                       run with build output (out-build)
 --coverage                    generate coverage report
 --per-test-coverage           generate a per-test V8 coverage report, only valid with the full-json-stream reporter
@@ -111,6 +116,22 @@ if (bareFiles.length > 0) {
 	const existing = !args.run ? [] : Array.isArray(args.run) ? args.run : [args.run];
 	args.run = [...existing, ...bareFiles];
 	args._ = (args._ || []).filter(a => !bareFiles.includes(a));
+}
+
+const workerCount = getWorkerCount(args.workers);
+const runInParallel = workerCount > 1 && !args.grep && !args.dev && !args.waitServer && !args.testSplit && !args.coverage && !args['per-test-coverage'];
+if (runInParallel) {
+	// This process only coordinates the workers, each of which is a separate instance of this script
+	app.disableHardwareAcceleration();
+	runInWorkers({
+		name: 'Electron unit tests',
+		count: workerCount,
+		command: process.execPath,
+		args: [__filename, ...removeArgument(process.argv.slice(2), 'workers')],
+	}).then(exitCode => app.exit(exitCode), error => {
+		console.error(error);
+		app.exit(1);
+	});
 }
 
 let crashReporterDirectory = args['crash-reporter-directory'];
@@ -249,6 +270,10 @@ class IPCRunner extends events.EventEmitter {
 }
 
 app.on('ready', async () => {
+	if (runInParallel) {
+		return;
+	}
+
 	session.defaultSession.setSpellCheckerLanguages([]);
 	session.defaultSession.setSpellCheckerEnabled(false);
 	const outDir = args.build ? 'out-build' : 'out';
@@ -483,12 +508,13 @@ app.on('ready', async () => {
 
 	if (args.tfs) {
 		const testResultsRoot = process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || process.env.GITHUB_WORKSPACE;
+		const workerSuffix = args.worker ? `-worker${args.worker}` : '';
 		reporters.push(
 			new mocha.reporters.Spec(runner),
 			new MochaJUnitReporter(runner, {
 				reporterOptions: {
-					testsuitesTitle: `${args.tfs} ${process.platform}`,
-					mochaFile: testResultsRoot ? path.join(testResultsRoot, `test-results/${process.platform}-${process.arch}-${args.tfs.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`) : undefined
+					testsuitesTitle: `${args.tfs} ${process.platform}${args.worker ? ` (worker ${args.worker})` : ''}`,
+					mochaFile: testResultsRoot ? path.join(testResultsRoot, `test-results/${process.platform}-${process.arch}-${args.tfs.toLowerCase().replace(/[^\w]/g, '-')}${workerSuffix}-results.xml`) : undefined
 				}
 			}),
 		);
