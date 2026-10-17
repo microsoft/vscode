@@ -5296,7 +5296,7 @@
             },
             "jdkVersion": {
               "default": "11",
-              "description": "Select or enter a JDK version to install. (compatability chart for concurnas can be found here https://concurnas.com/download.html)",
+              "description": "Select or enter a JDK version to install. (compatibility chart for concurnas can be found here https://concurnas.com/download.html)",
               "proposals": [
                 "11",
                 "8"
@@ -21859,7 +21859,7 @@
                 "https://netfree.link/cacert/isp/018/ca.crt",
                 "https://netfree.link/cacert/isp/018/ca.crt,https://netfree.link/cacert/isp/019/ca.crt"
               ],
-              "description": "Remote location *(or comma seperated locations)* of the certificate in PEM format to be added"
+              "description": "Remote location *(or comma separated locations)* of the certificate in PEM format to be added"
             },
             "bundle": {
               "type": "boolean",
