@@ -751,9 +751,15 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer<IExtensionsVi
 		return 400;
 	}
 
-	search(value: string): void {
-		if (this.searchBox && this.searchBox.getValue() !== value) {
+	search(value: string, refresh?: boolean): void {
+		if (!this.searchBox) {
+			return;
+		}
+		if (this.searchBox.getValue() !== value) {
 			this.searchBox.setValue(value);
+		} else if (refresh) {
+			// The same query is already active, e.g. the notification "Show" link was clicked again — re-run it so the results reflect the current extensions (#321178)
+			this.doSearch(true);
 		}
 	}
 
@@ -799,11 +805,11 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer<IExtensionsVi
 						'role': 'button',
 						'aria-label': `${messagePlainText}. ${localize('click show', "Click to Show")}`
 					}, localize('show', "Show")));
-				this.notificationDisposables.value.add(addDisposableListener(showAction, EventType.CLICK, () => this.search(query ?? '')));
+				this.notificationDisposables.value.add(addDisposableListener(showAction, EventType.CLICK, () => this.search(query ?? '', true)));
 				this.notificationDisposables.value.add(addDisposableListener(showAction, EventType.KEY_DOWN, (e: KeyboardEvent) => {
 					const standardKeyboardEvent = new StandardKeyboardEvent(e);
 					if (standardKeyboardEvent.keyCode === KeyCode.Enter || standardKeyboardEvent.keyCode === KeyCode.Space) {
-						this.search(query ?? '');
+						this.search(query ?? '', true);
 					}
 					standardKeyboardEvent.stopPropagation();
 				}));
@@ -918,7 +924,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer<IExtensionsVi
 
 		this.renderNotificaiton();
 
-		return this.showExtensionsViews(this.panes);
+		return this.showExtensionsViews(this.panes, refresh);
 	}
 
 	protected override onDidAddViewDescriptors(added: IAddedViewDescriptorRef[]): ViewPane[] {
@@ -927,10 +933,10 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer<IExtensionsVi
 		return addedViews;
 	}
 
-	private async showExtensionsViews(views: ViewPane[]): Promise<void> {
+	private async showExtensionsViews(views: ViewPane[], refresh?: boolean): Promise<void> {
 		await this.progress(Promise.all(views.map(async view => {
 			if (view instanceof AbstractExtensionsListView) {
-				const model = await view.show(this.normalizedQuery());
+				const model = await view.show(this.normalizedQuery(), refresh);
 				this.alertSearchResult(model.length, view.id);
 			}
 		})));
