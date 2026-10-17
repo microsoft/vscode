@@ -7972,8 +7972,8 @@ suite('CopilotAgent', () => {
 
 				assert.deepStrictEqual(uris.includes(scratchInstructions.toString()), false);
 			} finally {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				await disposeAgent(agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 			}
 		}).timeout(30_000);
 
