@@ -853,6 +853,33 @@ suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {
 		assert.deepStrictEqual(result?.map(diff => URI.parse(diff.after?.uri ?? diff.before!.uri).path.split('/').pop()), ['fresh.txt']);
 	});
 
+	(hasGit ? test : test.skip)('does not write temp-index blobs into the repository object store', async () => {
+		const fs = await import('fs/promises');
+		const { dir, run } = initRepo();
+		await fs.writeFile(join(dir, 'tracked.txt'), 'tracked\n');
+		run('add', '.');
+		run('commit', '-q', '-m', 'init');
+
+		await fs.writeFile(join(dir, 'tracked.txt'), 'tracked\nchanged\n');
+		await fs.writeFile(join(dir, 'fresh.txt'), 'fresh\n');
+
+		const result = await svc!.computeSessionFileDiffs(URI.file(dir), { sessionUri: 'copilot:/s' });
+
+		// A timed-out `git add` leaves `tmp_obj_*` files next to the objects it
+		// was writing, so staged blobs must not land in the user's `.git/objects`.
+		const isStored = (file: string) => {
+			const blob = run('hash-object', file).toString().trim();
+			return cp.spawnSync('git', ['cat-file', '-e', blob], { cwd: dir }).status === 0;
+		};
+		assert.deepStrictEqual({
+			diffs: result?.map(diff => URI.parse(diff.after!.uri).path.split('/').pop()).sort(),
+			stored: { modified: isStored('tracked.txt'), untracked: isStored('fresh.txt') },
+		}, {
+			diffs: ['fresh.txt', 'tracked.txt'],
+			stored: { modified: false, untracked: false },
+		});
+	});
+
 	(hasGit && !isWindows ? test : test.skip)('returns undefined when temp-index staging fails', async () => {
 		const fs = await import('fs/promises');
 		const { dir } = initRepo();

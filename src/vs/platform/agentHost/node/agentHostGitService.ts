@@ -766,6 +766,18 @@ export class AgentHostGitService implements IAgentHostGitService {
 		// the extension's `buildTempIndexEnv` does for the same reason.
 		env.COMMAND_HOOK_LOCK = '1';
 		try {
+			// `git add` writes a blob for every staged path. Send those writes to
+			// a scratch object directory inside `tempDir` (reading existing objects
+			// through the repository's store as an alternate) so that neither the
+			// blobs nor the `tmp_obj_*` files left by a timed-out `git add` end up
+			// in the user's `.git/objects`.
+			const objectsPath = (await this._runGit(repositoryRoot, ['rev-parse', '--git-path', 'objects']))?.trim();
+			if (objectsPath) {
+				const objectDir = URI.joinPath(tempDir, 'objects');
+				await this._fileService.createFolder(objectDir);
+				env.GIT_OBJECT_DIRECTORY = objectDir.fsPath;
+				env.GIT_ALTERNATE_OBJECT_DIRECTORIES = path.isAbsolute(objectsPath) ? objectsPath : path.join(repositoryRoot.fsPath, objectsPath);
+			}
 			const seeded = await this._runGit(repositoryRoot, ['read-tree', 'HEAD'], { env });
 			if (seeded === undefined) {
 				// Empty repo (no HEAD yet) - `read-tree` of the empty tree always succeeds.
