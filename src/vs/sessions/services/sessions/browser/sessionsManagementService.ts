@@ -1394,7 +1394,25 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	async markAllRead(sessions: readonly ISession[]): Promise<void> {
-		await Promise.all(sessions.map(session => this.setSessionReadState(session, true)));
+		// Hand each provider its sessions in one call so it can publish a single
+		// change instead of one per session, which listeners answer with a full refresh.
+		const byProvider = new Map<ISessionsProvider, string[]>();
+		for (const session of sessions) {
+			this._explicitlyMarkedUnreadMainChats.delete(session.resource);
+			const provider = this._getProvider(session);
+			if (!provider) {
+				continue;
+			}
+			const sessionIds = byProvider.get(provider);
+			if (sessionIds) {
+				sessionIds.push(session.sessionId);
+			} else {
+				byProvider.set(provider, [session.sessionId]);
+			}
+		}
+		await Promise.all(Array.from(byProvider, ([provider, sessionIds]) => provider.setSessionsReadState
+			? provider.setSessionsReadState(sessionIds, true)
+			: Promise.all(sessionIds.map(sessionId => provider.setSessionReadState(sessionId, true)))));
 	}
 
 	async deleteSession(session: ISession): Promise<void> {

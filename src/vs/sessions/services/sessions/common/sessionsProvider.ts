@@ -565,6 +565,14 @@ export interface ISessionsProvider {
 	setSessionReadState(sessionId: string, isRead: boolean): Promise<void>;
 
 	/**
+	 * Set the read/unread state of multiple sessions in one provider operation.
+	 * Providers may use this to publish one {@link onDidChangeSessions} event for
+	 * the whole batch instead of one per session. Providers without it receive a
+	 * {@link setSessionReadState} call per session.
+	 */
+	setSessionsReadState?(sessionIds: readonly string[], isRead: boolean): Promise<void>;
+
+	/**
 	 * Set the read/unread state of a chat independently of its owning session.
 	 * Providers without independently readable chats leave this capability undefined.
 	 * Returns `false` when the transition was not accepted and may be retried.
