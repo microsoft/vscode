@@ -584,6 +584,36 @@ suite('SessionTypePicker', () => {
 		assert.deepStrictEqual(picker.selectedPick, { providerId: 'copilot', sessionTypeId: 'copilotcli' });
 	});
 
+	test('retains a committed backend label and model target without offering it for new sessions', () => {
+		const cloud = sessionType('cloud', 'cloud', 'Cloud');
+		const backend = sessionType('agenthost-environment', 'copilot', 'GitHub Copilot', 'remote-environment-copilot');
+		management.setQuickChatSessionTypes([cloud]);
+		const picker = createPicker(disposables, session, management, storage, undefined, undefined, [], {
+			providers: [upcastPartial<ISessionsProvider>({
+				id: backend.providerId, sessionTypes: [backend.sessionType],
+			})],
+		});
+		session.set(upcastPartial<ISession>({
+			providerId: backend.providerId,
+			sessionType: backend.sessionType.id,
+			status: constObservable(SessionStatus.Completed),
+			isQuickChat: constObservable(true),
+		}), undefined);
+		const container = document.createElement('div');
+		picker.render(container);
+		assert.deepStrictEqual({
+			offered: picker.offeredSessionTypeIds,
+			selected: picker.selectedPick,
+			modelTarget: picker.modelTargetChatSessionType.get(),
+			label: container.querySelector('.sessions-chat-dropdown-label')?.textContent,
+		}, {
+			offered: ['cloud'],
+			selected: { providerId: backend.providerId, sessionTypeId: backend.sessionType.id },
+			modelTarget: 'remote-environment-copilot',
+			label: 'GitHub Copilot',
+		});
+	});
+
 	test('a stored pick for a hidden harness does not survive into an offering picker', () => {
 		management.setSessionTypes([
 			sessionType('local-agent-host', 'copilotcli', 'Copilot'),

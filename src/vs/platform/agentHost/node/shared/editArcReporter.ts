@@ -20,7 +20,7 @@ import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTel
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { AgentHostEditTelemetryEnabledConfigKey, platformRootSchema } from '../../common/agentHostSchema.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
-import { isSubagentChatUri, isSubagentSession } from '../../common/state/sessionState.js';
+import { isSubagentSession } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostTelemetryService, isAgentHostTelemetryService } from '../agentHostTelemetryService.js';
 import { toInitiatorTelemetry, type IAgentHostEventClassification, type IAgentHostEventTelemetry } from '../agentHostTelemetryReporter.js';
@@ -35,6 +35,8 @@ export interface IEditArcReporterLaunchParams {
 	readonly sessionUri: string;
 	/** The session that owns the edit's chat. */
 	readonly ownerSessionUri: string;
+	/** Whether the edit was made by a subagent chat, as known by the provider that ran it. */
+	readonly isSubagent: boolean;
 	readonly turnId: string;
 	readonly toolCallId: string;
 	readonly filePath: string;
@@ -337,7 +339,7 @@ class EditArcReporter extends Disposable {
 			uniqueEditId: this._uniqueEditId,
 			provider,
 			agentSessionId: AgentSession.id(sessionUri),
-			isSubagentSession: isSubagentChatUri(this._params.sessionUri) || isSubagentSession(sessionUri) ? 'true' : 'false',
+			isSubagentSession: this._params.isSubagent || isSubagentSession(sessionUri) ? 'true' : 'false',
 			didBranchChange: await this._initialBranch === await this._getCurrentBranchName() ? 0 : 1,
 			timeDelayMs,
 			originalCharCount: this._tracker.getOriginalCharacterCount(),

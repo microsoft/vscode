@@ -15,7 +15,6 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IChatWidget, IChatWidgetService } from '../../chat.js';
 import { ChatMode, IChatMode, IChatModes } from '../../../common/chatModes.js';
-import { ChatModeKind } from '../../../common/constants.js';
 import type { IChatModeChangeEvent } from '../../widget/input/chatInputPart.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 
@@ -149,7 +148,7 @@ export class AgentHostModeSynchronizer extends Disposable implements IWorkbenchC
 	}
 
 	private _agentUriFromMode(mode: IChatMode): string | undefined {
-		if (mode.kind !== ChatModeKind.Agent || mode.id === ChatMode.Agent.id || mode.isBuiltin) {
+		if (mode.id === ChatMode.Agent.id || mode.isBuiltin) {
 			return undefined;
 		}
 

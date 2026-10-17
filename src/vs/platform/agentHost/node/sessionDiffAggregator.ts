@@ -31,7 +31,9 @@ function createSessionFileDiff(beforeSessionUri: string, afterSessionUri: string
 				content: { uri: buildSessionDbUri(afterSessionUri, identity.lastToolCallId, identity.lastFilePath, 'after') },
 			},
 		} : {}),
-		diff: { added, removed },
+		// A created file has no lines before and a deleted one none after, as the file-edit tracker and Git count them;
+		// a line diff against empty content would count its single empty line.
+		diff: { added: hasAfter ? added : 0, removed: hasBefore ? removed : 0 },
 	};
 }
 
@@ -411,7 +413,7 @@ export async function computeUnionedDiffs(
  * honors the platform's path-casing bias (case-insensitive on Windows/macOS,
  * case-sensitive elsewhere) rather than doing a naive string prefix compare.
  */
-function isPathWithinFolderScope(filePath: string, folderRoots: readonly URI[]): boolean {
+export function isPathWithinFolderScope(filePath: string, folderRoots: readonly URI[]): boolean {
 	const fileUri = URI.file(filePath);
 	return folderRoots.some(root => extUriBiasedIgnorePathCase.isEqualOrParent(fileUri, root));
 }

@@ -81,10 +81,11 @@ export class NewChatInSessionsWindowAction extends Action2 {
 			}
 		};
 		if (options?.noWorkspace) {
-			sessionsService.openQuickChat(activeSession ? {
+			const target = activeSession ? {
 				providerId: activeSession.providerId,
 				sessionTypeId: activeSession.sessionType,
-			} : undefined, true);
+			} : undefined;
+			sessionsService.openQuickChat(target && sessionsManagementService.isQuickChatTargetAvailable(target) ? target : undefined, true);
 			sendPrompt();
 			return;
 		}

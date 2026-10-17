@@ -22,7 +22,7 @@ suite('WebPubSub - parseGroupName', () => {
 	});
 
 	test('parses per-environment lanes', () => {
-		for (const lane of ['root', 'events', 'lifecycle', 'control', 'ingest-ack'] as const) {
+		for (const lane of ['root', 'events', 'lifecycle', 'control', 'ingest-ack', 'clients'] as const) {
 			const parsed = parseGroupName(`user.u1.env.e1.${lane}`);
 			assert.deepStrictEqual(parsed, { scope: 'env', lane, uid: 'u1', eid: 'e1' });
 		}

@@ -290,7 +290,7 @@ suite('RemoteSessionService', () => {
 				query: 'Run tests',
 				title: undefined,
 				background: true,
-				metadata: toRemoteSessionMessageMetadata({ session: source.resource.toString(), chat: sourceChat.resource.toString() }, undefined),
+				metadata: toRemoteSessionMessageMetadata(source.resource.toString(), buildChatUri(URI.parse('copilot:/source'), 'origin-chat')),
 			},
 		});
 	});

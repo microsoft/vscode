@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { Event } from '../../../../../../base/common/event.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -23,7 +24,8 @@ import { AICustomizationManagementCommands, AICustomizationManagementSection } f
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ICustomizationHarnessService, ICustomizationMarketplaceManagementProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginRepositoryService } from '../../../common/plugins/agentPluginRepositoryService.js';
-import { parseMarketplaceReference } from '../../../common/plugins/pluginMarketplaceService.js';
+import { IPluginMarketplaceService, parseMarketplaceReference } from '../../../common/plugins/pluginMarketplaceService.js';
+import { isMarketplaceReferenceAllowed, StrictKnownMarketplaces } from '../../../common/plugins/strictKnownMarketplaces.js';
 
 suite('ManagePluginMarketplacesAction', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -87,6 +89,13 @@ suite('ManagePluginMarketplacesAction', () => {
 	function createFixture(configurationValues: Record<string, unknown>, githubFeedAvailable = false, marketplaceManagementProvider?: ICustomizationMarketplaceManagementProvider) {
 		const instantiationService = workbenchInstantiationService({}, store);
 		const configurationService = new UpdatingConfigurationService(configurationValues);
+		const marketplacePolicy: { allowlist?: StrictKnownMarketplaces } = {};
+		instantiationService.stub(IPluginMarketplaceService, new class extends mock<IPluginMarketplaceService>() {
+			override isStrictMarketplacePolicyActive() { return marketplacePolicy.allowlist !== undefined; }
+			override isMarketplaceTrusted(reference: Parameters<IPluginMarketplaceService['isMarketplaceTrusted']>[0]) {
+				return isMarketplaceReferenceAllowed(marketplacePolicy.allowlist, reference);
+			}
+		}());
 		const quickInputService = new TestQuickInputService();
 		const notifications: INotification[] = [];
 		const commands: { id: string; args: unknown[] }[] = [];
@@ -100,6 +109,8 @@ suite('ManagePluginMarketplacesAction', () => {
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IQuickInputService, quickInputService);
 		instantiationService.stub(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
+			override readonly activeSessionResource = observableValue<URI>(this, URI.parse('local:/session'));
+			override getDescriptorForSession() { return harness; }
 			override getActiveDescriptor() { return harness; }
 		}());
 		instantiationService.stub(IAgentPluginRepositoryService, new class extends mock<IAgentPluginRepositoryService>() {
@@ -125,14 +136,13 @@ suite('ManagePluginMarketplacesAction', () => {
 				return new class extends mock<INotificationHandle>() { };
 			}
 		}());
-		return { instantiationService, configurationService, quickInputService, notifications, commands };
+		return { instantiationService, configurationService, quickInputService, notifications, commands, marketplacePolicy };
 	}
 
 	test('adds a marketplace from the management quick pick', async () => {
 		const fixture = createFixture({
 			[ChatConfiguration.PluginMarketplaces]: ['github/awesome-copilot#marketplace'],
 			[ChatConfiguration.ExtraMarketplaces]: {},
-			[ChatConfiguration.StrictMarketplaces]: null,
 		});
 		fixture.quickInputService.pickIds.push('addMarketplace');
 		fixture.quickInputService.inputValue = 'microsoft/vscode-marketplace';
@@ -171,7 +181,6 @@ suite('ManagePluginMarketplacesAction', () => {
 		const fixture = createFixture({
 			[ChatConfiguration.PluginMarketplaces]: [],
 			[ChatConfiguration.ExtraMarketplaces]: {},
-			[ChatConfiguration.StrictMarketplaces]: null,
 		});
 		fixture.quickInputService.pickIds.push('addMarketplace');
 		fixture.quickInputService.inputValue = 'https://example.com/team/plugins.git#stable';
@@ -204,7 +213,7 @@ suite('ManagePluginMarketplacesAction', () => {
 			}],
 			add: async () => { throw new Error('Unexpected add'); },
 			queryMarketplace: async () => ({ items: [], total: 0 }),
-			remove: async (name, force) => {
+			remove: async (_session, name, force) => {
 				removeCalls.push({ name, force });
 				return force ? { removed: true } : { removed: false, dependentPlugins: ['sample-plugin'] };
 			},
@@ -213,7 +222,6 @@ suite('ManagePluginMarketplacesAction', () => {
 		const fixture = createFixture({
 			[ChatConfiguration.PluginMarketplaces]: ['local/ignored-marketplace'],
 			[ChatConfiguration.ExtraMarketplaces]: {},
-			[ChatConfiguration.StrictMarketplaces]: null,
 		}, false, provider);
 		fixture.quickInputService.pickIds.push('VS Code Marketplace', 'removeMarketplace', undefined);
 
@@ -267,7 +275,7 @@ suite('ManagePluginMarketplacesAction', () => {
 			}],
 			add: async () => { throw new Error('Unexpected add'); },
 			queryMarketplace: async () => ({ items: [], total: 0 }),
-			remove: async name => {
+			remove: async (_session, name) => {
 				removeCalls.push(name);
 				return { removed: true };
 			},
@@ -276,7 +284,6 @@ suite('ManagePluginMarketplacesAction', () => {
 		const fixture = createFixture({
 			[ChatConfiguration.PluginMarketplaces]: [],
 			[ChatConfiguration.ExtraMarketplaces]: {},
-			[ChatConfiguration.StrictMarketplaces]: null,
 		}, false, provider);
 		fixture.quickInputService.buttonItemIds.push('removable-marketplace');
 
@@ -304,7 +311,7 @@ suite('ManagePluginMarketplacesAction', () => {
 		const provider: ICustomizationMarketplaceManagementProvider = {
 			onDidChange: Event.None,
 			list: async () => [],
-			add: async source => {
+			add: async (_session, source) => {
 				addCalls.push(source);
 				return { name: 'provider-marketplace', source, isDefault: false, managed: false, available: true };
 			},
@@ -315,7 +322,6 @@ suite('ManagePluginMarketplacesAction', () => {
 		const fixture = createFixture({
 			[ChatConfiguration.PluginMarketplaces]: ['local/ignored-marketplace'],
 			[ChatConfiguration.ExtraMarketplaces]: {},
-			[ChatConfiguration.StrictMarketplaces]: null,
 		}, false, provider);
 		fixture.quickInputService.pickIds.push('addMarketplace', undefined);
 		fixture.quickInputService.inputValue = 'provider/marketplace';
@@ -337,7 +343,6 @@ suite('ManagePluginMarketplacesAction', () => {
 		const fixture = createFixture({
 			[ChatConfiguration.PluginMarketplaces]: [otherMarketplace.rawValue, marketplace.rawValue],
 			[ChatConfiguration.ExtraMarketplaces]: {},
-			[ChatConfiguration.StrictMarketplaces]: null,
 		});
 		fixture.quickInputService.pickIds.push(marketplace.canonicalId, 'showPlugins');
 
@@ -366,7 +371,6 @@ suite('ManagePluginMarketplacesAction', () => {
 		const fixture = createFixture({
 			[ChatConfiguration.PluginMarketplaces]: [marketplace.rawValue],
 			[ChatConfiguration.ExtraMarketplaces]: {},
-			[ChatConfiguration.StrictMarketplaces]: null,
 			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
 		}, true);
 		fixture.quickInputService.pickIds.push(marketplace.canonicalId, 'showPlugins');
@@ -387,9 +391,9 @@ suite('ManagePluginMarketplacesAction', () => {
 		const fixture = createFixture({
 			[ChatConfiguration.PluginMarketplaces]: [marketplace.rawValue],
 			[ChatConfiguration.ExtraMarketplaces]: {},
-			[ChatConfiguration.StrictMarketplaces]: [{ source: 'github', repo: 'github/awesome-copilot', ref: 'marketplace' }],
 			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
 		}, true);
+		fixture.marketplacePolicy.allowlist = [{ source: 'github', repo: 'github/awesome-copilot', ref: 'marketplace' }];
 		fixture.quickInputService.pickIds.push(marketplace.canonicalId, 'showPlugins');
 
 		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
@@ -408,7 +412,6 @@ suite('ManagePluginMarketplacesAction', () => {
 		const fixture = createFixture({
 			[ChatConfiguration.PluginMarketplaces]: [marketplace.rawValue],
 			[ChatConfiguration.ExtraMarketplaces]: {},
-			[ChatConfiguration.StrictMarketplaces]: null,
 			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
 		});
 		fixture.quickInputService.pickIds.push(marketplace.canonicalId, 'showPlugins');
@@ -432,8 +435,8 @@ suite('ManagePluginMarketplacesAction', () => {
 			[ChatConfiguration.ExtraMarketplaces]: {
 				'vscode-team-kit': managedMarketplace.rawValue,
 			},
-			[ChatConfiguration.StrictMarketplaces]: [{ source: 'github', repo: managedMarketplace.rawValue }],
 		});
+		fixture.marketplacePolicy.allowlist = [{ source: 'github', repo: managedMarketplace.rawValue }];
 
 		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
 
@@ -473,8 +476,8 @@ suite('ManagePluginMarketplacesAction', () => {
 			[ChatConfiguration.ExtraMarketplaces]: {
 				'vscode-team-kit': managedMarketplace.rawValue,
 			},
-			[ChatConfiguration.StrictMarketplaces]: [{ source: 'github', repo: 'approved/catalog' }],
 		});
+		fixture.marketplacePolicy.allowlist = [{ source: 'github', repo: 'approved/catalog' }];
 
 		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
 
@@ -498,12 +501,31 @@ suite('ManagePluginMarketplacesAction', () => {
 		);
 	});
 
+	for (const managedLockdown of [false, true]) {
+		test(`stale user lockdown does not label a marketplace as organization-disabled (managed lockdown: ${managedLockdown})`, async () => {
+			const fixture = createFixture({
+				[ChatConfiguration.PluginMarketplaces]: [],
+				[ChatConfiguration.ExtraMarketplaces]: { enterprise: 'enterprise/catalog' },
+				'chat.plugins.strictMarketplaces': [],
+			});
+			fixture.marketplacePolicy.allowlist = managedLockdown ? [] : undefined;
+			await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
+			assert.deepStrictEqual(fixture.quickInputService.picks[0]
+				.filter((pick): pick is IQuickPickItem => pick.type !== 'separator' && pick.id !== 'addMarketplace')
+				.map(pick => ({ description: pick.description, disabled: pick.disabled, pickable: pick.pickable })), [{
+					description: managedLockdown ? 'Managed by Organization, Disabled by Organization' : 'Managed by Organization',
+					disabled: managedLockdown,
+					pickable: !managedLockdown,
+				}]);
+		});
+	}
+
 	test('stores local marketplaces outside strict policy without treating them as runtime managed', async () => {
 		const fixture = createFixture({
 			[ChatConfiguration.PluginMarketplaces]: [],
 			[ChatConfiguration.ExtraMarketplaces]: {},
-			[ChatConfiguration.StrictMarketplaces]: [{ source: 'github', repo: 'approved/catalog' }],
 		});
+		fixture.marketplacePolicy.allowlist = [{ source: 'github', repo: 'approved/catalog' }];
 		fixture.quickInputService.pickIds.push('addMarketplace');
 		fixture.quickInputService.inputValue = 'blocked/catalog';
 

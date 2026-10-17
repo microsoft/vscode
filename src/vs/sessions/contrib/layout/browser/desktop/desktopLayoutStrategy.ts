@@ -68,4 +68,13 @@ export abstract class DesktopLayoutStrategy extends Disposable {
 			: this._ctx.multipleSessionsVisibleObs;
 		return reader ? observable.read(reader) : observable.get();
 	}
+
+	/**
+	 * Whether a chat of another session is shown alongside the active one. Chats of the same
+	 * session share its main editor part, and mounted sessions whose chats are not shown (e.g.
+	 * while a chat is maximized) do not count.
+	 */
+	protected _otherSessionShown(): boolean {
+		return this._ctx.multipleSessionsVisibleObs.get() && this._multipleLayoutOwnersVisible();
+	}
 }

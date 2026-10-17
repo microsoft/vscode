@@ -2699,6 +2699,11 @@ export class TimelineItem implements vscode.TimelineItem {
 	constructor(public label: string, public timestamp: number) { }
 }
 
+export enum TimelineTriggerKind {
+	Invoke = 1,
+	Automatic = 2
+}
+
 //#endregion Timeline
 
 //#region ExtensionContext

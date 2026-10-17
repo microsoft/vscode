@@ -16,12 +16,29 @@ import { IChat } from '../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostEntryType } from '../../../platform/agentHost/common/remoteAgentHostService.js';
 import { Codicon } from '../../../base/common/codicons.js';
-import { agentHostAuthority, toAgentHostUri } from '../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostAuthority, agentHostLabelFormatter, toAgentHostUri } from '../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentHostSessionsProvider } from '../../common/agentHostSessionsProvider.js';
 import { ISessionsProvider } from '../../services/sessions/common/sessionsProvider.js';
+import { LabelService } from '../../../workbench/services/label/common/labelService.js';
+import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
+import { OperatingSystem } from '../../../base/common/platform.js';
+import { splitRecentLabel } from '../../../base/common/labels.js';
+import { ILabelService } from '../../../platform/label/common/label.js';
+import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
 
 suite('VS Code Actions', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	let instantiationService: TestInstantiationService;
+	let labelService: LabelService;
+
+	setup(() => {
+		instantiationService = workbenchInstantiationService(undefined, disposables);
+		labelService = disposables.add(instantiationService.createInstance(LabelService));
+		instantiationService.stub(ILabelService, labelService);
+		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() { }());
+		instantiationService.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() { }());
+	});
 
 	test('shows return action only when there is no other main window', () => {
 		const currentWindow = createWindow(1);
@@ -72,11 +89,11 @@ suite('VS Code Actions', () => {
 	});
 
 	test('opens every active chat workspace folder in one editor window', async () => {
-		const calls: { folders?: string[]; forceNewWindow?: boolean; chatSessionToOpen?: string }[] = [];
+		const calls: { folders?: { uri: string; label: string | undefined }[]; forceNewWindow?: boolean; chatSessionToOpen?: string }[] = [];
 		const nativeHostService = new class extends mock<INativeHostService>() {
 			override async openWindow(toOpen?: IOpenEmptyWindowOptions | IWindowOpenable[], options?: IOpenWindowOptions): Promise<void> {
 				calls.push({
-					folders: Array.isArray(toOpen) ? toOpen.filter(isFolderToOpen).map(openable => openable.folderUri.toString()) : undefined,
+					folders: Array.isArray(toOpen) ? toOpen.filter(isFolderToOpen).map(openable => ({ uri: openable.folderUri.toString(), label: openable.label })) : undefined,
 					forceNewWindow: options?.forceNewWindow,
 					chatSessionToOpen: options?.chatSessionToOpen?.toString(),
 				});
@@ -84,15 +101,11 @@ suite('VS Code Actions', () => {
 		}();
 		const session = createSession('multi-folder', true, [URI.file('/repo-b'), URI.file('/repo-c')]);
 
-		await openSessionInVSCode(
-			nativeHostService,
-			session,
-			new class extends mock<ISessionsProvidersService>() { }(),
-			new class extends mock<IRemoteAgentHostService>() { }(),
-		);
+		instantiationService.stub(INativeHostService, nativeHostService);
+		await instantiationService.invokeFunction(openSessionInVSCode, session);
 
 		assert.deepStrictEqual(calls, [{
-			folders: ['file:///repo-b', 'file:///repo-c'],
+			folders: [{ uri: 'file:///repo-b', label: undefined }, { uri: 'file:///repo-c', label: undefined }],
 			forceNewWindow: true,
 			chatSessionToOpen: 'test:/multi-folder',
 		}]);
@@ -106,12 +119,8 @@ suite('VS Code Actions', () => {
 			}
 		}();
 
-		await openSessionInVSCode(
-			nativeHostService,
-			createSession('no-workspace', true),
-			new class extends mock<ISessionsProvidersService>() { }(),
-			new class extends mock<IRemoteAgentHostService>() { }(),
-		);
+		instantiationService.stub(INativeHostService, nativeHostService);
+		await instantiationService.invokeFunction(openSessionInVSCode, createSession('no-workspace', true));
 
 		assert.deepStrictEqual(calls, [{ empty: true }]);
 	});
@@ -124,21 +133,19 @@ suite('VS Code Actions', () => {
 			const calls: { toOpen?: IOpenEmptyWindowOptions | IWindowOpenable[]; options?: IOpenWindowOptions }[] = [];
 			const session = createSession('unsupported', true, folders);
 			const provider: ISessionsProvider = upcastPartial<IAgentHostSessionsProvider>({ id: 'agenthost-test', remoteAddress: 'cloudsandbox:environment' });
-			await openSessionInVSCode(
-				new class extends mock<INativeHostService>() {
-					override async openWindow(toOpen?: IOpenEmptyWindowOptions | IWindowOpenable[], options?: IOpenWindowOptions): Promise<void> {
-						calls.push({ toOpen, options });
-					}
-				}(),
-				session,
-				upcastPartial<ISessionsProvidersService>({ getProvider: <T extends ISessionsProvider>() => provider as T }),
-				upcastPartial<IRemoteAgentHostService>({
-					getEntryByAddress: () => ({
-						name: 'Windows dev box',
-						connection: { type: RemoteAgentHostEntryType.CloudSandbox, address: 'cloudsandbox:environment', environmentId: 'environment', environmentKind: 'user-local' },
-					}),
+			instantiationService.stub(INativeHostService, new class extends mock<INativeHostService>() {
+				override async openWindow(toOpen?: IOpenEmptyWindowOptions | IWindowOpenable[], options?: IOpenWindowOptions): Promise<void> {
+					calls.push({ toOpen, options });
+				}
+			}());
+			instantiationService.stub(ISessionsProvidersService, { getProvider: <T extends ISessionsProvider>() => provider as T });
+			instantiationService.stub(IRemoteAgentHostService, {
+				getEntryByAddress: () => ({
+					name: 'Windows dev box',
+					connection: { type: RemoteAgentHostEntryType.CloudSandbox, address: 'cloudsandbox:environment', environmentId: 'environment', environmentKind: 'user-local' },
 				}),
-			);
+			});
+			await instantiationService.invokeFunction(openSessionInVSCode, session);
 			assert.deepStrictEqual({
 				calls,
 				session: session.resource.toString(),
@@ -158,57 +165,93 @@ suite('VS Code Actions', () => {
 		{ type: RemoteAgentHostEntryType.DevContainer, address: 'devcontainer:host', hostPath: '/source/project' },
 	] satisfies IRemoteAgentHostEntry['connection'][]) {
 		test(`preserves supported ${connection.type} workspace and chat handoff`, async () => {
-			const calls: { folders?: URI[]; options?: IOpenWindowOptions }[] = [];
+			const calls: { folders?: { uri: URI; label: string | undefined }[]; options?: IOpenWindowOptions }[] = [];
 			const folder = toAgentHostUri(URI.file('/remote/project'), agentHostAuthority('test:host'));
 			const entry: IRemoteAgentHostEntry = { name: 'Remote host', connection };
 			const provider: ISessionsProvider = upcastPartial<IAgentHostSessionsProvider>({ id: 'agenthost-test', remoteAddress: 'test:host' });
-			await openSessionInVSCode(
-				new class extends mock<INativeHostService>() {
-					override async openWindow(toOpen?: IOpenEmptyWindowOptions | IWindowOpenable[], options?: IOpenWindowOptions): Promise<void> {
-						calls.push({ folders: Array.isArray(toOpen) ? toOpen.filter(isFolderToOpen).map(openable => openable.folderUri) : undefined, options });
-					}
-				}(),
-				createSession('remote', true, [folder]),
-				upcastPartial<ISessionsProvidersService>({
-					getProvider: <T extends ISessionsProvider>() => provider as T,
-				}),
-				upcastPartial<IRemoteAgentHostService>({ getEntryByAddress: () => entry }),
-			);
+			const formatter = agentHostLabelFormatter(folder.authority, OperatingSystem.Linux);
+			disposables.add(labelService.registerFormatter({
+				...formatter,
+				formatting: { ...formatter.formatting, workspaceSuffix: entry.name },
+			}));
+			instantiationService.stub(INativeHostService, new class extends mock<INativeHostService>() {
+				override async openWindow(toOpen?: IOpenEmptyWindowOptions | IWindowOpenable[], options?: IOpenWindowOptions): Promise<void> {
+					calls.push({ folders: Array.isArray(toOpen) ? toOpen.filter(isFolderToOpen).map(openable => ({ uri: openable.folderUri, label: openable.label })) : undefined, options });
+				}
+			}());
+			instantiationService.stub(ISessionsProvidersService, { getProvider: <T extends ISessionsProvider>() => provider as T });
+			instantiationService.stub(IRemoteAgentHostService, { getEntryByAddress: () => entry });
+			await instantiationService.invokeFunction(openSessionInVSCode, createSession('remote', true, [folder]));
 			assert.deepStrictEqual({
-				folders: calls[0].folders?.map(folder => ({ scheme: folder.scheme, path: folder.path })),
+				folders: calls[0].folders?.map(folder => ({ scheme: folder.uri.scheme, path: folder.uri.path, label: folder.label, title: folder.label && splitRecentLabel(folder.label).name })),
 				options: calls[0].options,
 			}, {
-				folders: [{ scheme: 'vscode-remote', path: '/remote/project' }],
+				folders: [{ scheme: 'vscode-remote', path: '/remote/project', label: '/remote/project [Remote host]', title: 'project [Remote host]' }],
 				options: { forceNewWindow: true, chatSessionToOpen: URI.from({ scheme: 'test', path: '/remote' }) },
 			});
 		});
 	}
 
+	test('preserves Windows remote labels for every folder opened through a tunnel', async () => {
+		const calls: { uri: URI; label: string | undefined; title: string | undefined }[][] = [];
+		const authority = agentHostAuthority('test:host');
+		const folders = ['/c:/remote/project', '/d:/other/repository'].map(path => toAgentHostUri(URI.from({ scheme: 'file', path }), authority));
+		const formatter = agentHostLabelFormatter(authority, OperatingSystem.Windows);
+		disposables.add(labelService.registerFormatter({
+			...formatter,
+			formatting: { ...formatter.formatting, workspaceSuffix: 'Windows dev box' },
+		}));
+		const provider: ISessionsProvider = upcastPartial<IAgentHostSessionsProvider>({ id: 'agenthost-test', remoteAddress: 'test:host' });
+		instantiationService.stub(INativeHostService, new class extends mock<INativeHostService>() {
+			override async openWindow(toOpen?: IOpenEmptyWindowOptions | IWindowOpenable[]): Promise<void> {
+				calls.push(Array.isArray(toOpen) ? toOpen.filter(isFolderToOpen).map(openable => ({
+					uri: openable.folderUri,
+					label: openable.label,
+					title: openable.label && splitRecentLabel(openable.label).name,
+				})) : []);
+			}
+		}());
+		instantiationService.stub(ISessionsProvidersService, { getProvider: <T extends ISessionsProvider>() => provider as T });
+		instantiationService.stub(IRemoteAgentHostService, {
+			getEntryByAddress: () => ({ name: 'Windows dev box', connection: { type: RemoteAgentHostEntryType.Tunnel, tunnelId: 'host', clusterId: 'region', label: 'my-tunnel' } }),
+		});
+		await instantiationService.invokeFunction(openSessionInVSCode, createSession('remote', true, folders));
+
+		assert.deepStrictEqual(calls, [[{
+			uri: URI.from({ scheme: 'vscode-remote', authority: 'tunnel+my-tunnel', path: '/c:/remote/project' }),
+			label: 'C:\\remote\\project [Windows dev box]',
+			title: 'project [Windows dev box]',
+		}, {
+			uri: URI.from({ scheme: 'vscode-remote', authority: 'tunnel+my-tunnel', path: '/d:/other/repository' }),
+			label: 'D:\\other\\repository [Windows dev box]',
+			title: 'repository [Windows dev box]',
+		}]]);
+	});
+
 	test('propagates a failure to open the fallback Editor window', async () => {
 		const error = new Error('Editor window could not be opened');
-		await assert.rejects(openSessionInVSCode(
-			new class extends mock<INativeHostService>() {
-				override async openWindow(): Promise<void> { throw error; }
-			}(),
+		instantiationService.stub(INativeHostService, new class extends mock<INativeHostService>() {
+			override async openWindow(): Promise<void> { throw error; }
+		}());
+		instantiationService.stub(ISessionsProvidersService, { getProvider: () => undefined });
+		await assert.rejects(instantiationService.invokeFunction(
+			openSessionInVSCode,
 			createSession('unsupported', true, [toAgentHostUri(URI.file('/remote/project'), agentHostAuthority('ws:host'))]),
-			upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }),
-			new class extends mock<IRemoteAgentHostService>() { }(),
 		), error);
 	});
 
 	test('does not replace an unexpected supported handoff failure with an empty window', async () => {
 		const calls: string[] = [];
 		const error = new Error('Remote resolver failed');
-		await assert.rejects(openSessionInVSCode(
-			new class extends mock<INativeHostService>() {
-				override async openWindow(toOpen?: IOpenEmptyWindowOptions | IWindowOpenable[]): Promise<void> {
-					calls.push(Array.isArray(toOpen) ? 'workspace' : 'empty');
-					throw error;
-				}
-			}(),
+		instantiationService.stub(INativeHostService, new class extends mock<INativeHostService>() {
+			override async openWindow(toOpen?: IOpenEmptyWindowOptions | IWindowOpenable[]): Promise<void> {
+				calls.push(Array.isArray(toOpen) ? 'workspace' : 'empty');
+				throw error;
+			}
+		}());
+		await assert.rejects(instantiationService.invokeFunction(
+			openSessionInVSCode,
 			createSession('supported', true, [URI.file('/local/project')]),
-			new class extends mock<ISessionsProvidersService>() { }(),
-			new class extends mock<IRemoteAgentHostService>() { }(),
 		), error);
 		assert.deepStrictEqual(calls, ['workspace']);
 	});

@@ -266,15 +266,6 @@ export const toolCategories: Record<ToolName, ToolCategory> = {
 	[ToolName.SessionStoreSql]: ToolCategory.Core,
 } as const;
 
-
-
-/**
- * Get the category for a tool, checking both ToolName enum and external tools.
- */
-export function getToolCategory(toolName: string): ToolCategory | undefined {
-	return toolCategories.hasOwnProperty(toolName) ? toolCategories[toolName as ToolName] : undefined;
-}
-
 /**
  * Get all tools for a specific category.
  */

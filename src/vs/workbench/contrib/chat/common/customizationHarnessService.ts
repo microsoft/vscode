@@ -27,6 +27,7 @@ import { CustomizationEnablementKind } from '../../../../platform/agentHost/comm
 import type { IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationResult, McpServerCustomizationMigration } from './promptSyntax/service/customizationMigrationService.js';
 import type { ICustomizationMarketplaceInstallProvider } from './customizationMarketplaceInstallService.js';
 import type { ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import type { IMcpServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 
 
 export const ICustomizationHarnessService = createDecorator<ICustomizationHarnessService>('customizationHarnessService');
@@ -129,11 +130,15 @@ export interface ICustomizationMarketplaceRefreshResult {
 
 export interface ICustomizationMarketplaceManagementProvider {
 	readonly onDidChange: Event<void>;
-	list(): Promise<readonly ICustomizationMarketplaceInfo[]>;
-	add(source: string): Promise<ICustomizationMarketplaceInfo>;
-	queryMarketplace(marketplace: ICustomizationMarketplaceInfo, options: ICustomizationMarketplaceSourceQuery, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage>;
-	remove(name: string, force?: boolean): Promise<ICustomizationMarketplaceRemoveResult>;
-	refresh(name?: string): Promise<readonly ICustomizationMarketplaceRefreshResult[]>;
+	list(sessionResource: URI): Promise<readonly ICustomizationMarketplaceInfo[]>;
+	add(sessionResource: URI, source: string): Promise<ICustomizationMarketplaceInfo>;
+	queryMarketplace(sessionResource: URI, marketplace: ICustomizationMarketplaceInfo, options: ICustomizationMarketplaceSourceQuery, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage>;
+	remove(sessionResource: URI, name: string, force?: boolean): Promise<ICustomizationMarketplaceRemoveResult>;
+	refresh(sessionResource: URI, name?: string): Promise<readonly ICustomizationMarketplaceRefreshResult[]>;
+}
+
+export interface ICustomizationMcpConfigurationProvider {
+	addGlobal(name: string, config: IMcpServerConfiguration): Promise<void>;
 }
 
 /**
@@ -213,6 +218,8 @@ export interface IHarnessDescriptor {
 	 * Supplies harness-specific MCP server migration behavior.
 	 */
 	readonly mcpServerMigrationProvider?: ICustomizationMcpServerMigrationProvider;
+	/** Provisionally routes harness-owned global MCP configuration. */
+	readonly mcpConfigurationProvider?: ICustomizationMcpConfigurationProvider;
 	/** Supplies authoritative installation inventory and mutations for this harness. */
 	readonly marketplaceInstallProvider?: ICustomizationMarketplaceInstallProvider;
 	/** Supplies a harness-native replacement for the public customization catalog. */

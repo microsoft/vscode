@@ -16,6 +16,8 @@ import { mockObject, upcastPartial } from '../../../../../../base/test/common/mo
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
+import { AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentEnabledSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -26,6 +28,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ILinkDescriptor, ILinkOptions, Link } from '../../../../../../platform/opener/browser/link.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, NullManagedSettingsService, requiresCopilotAgentHost } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { SaveReason } from '../../../../../common/editor.js';
 import { IEditorService, ISaveAllEditorsOptions, ISaveEditorsResult } from '../../../../../services/editor/common/editorService.js';
@@ -41,15 +44,17 @@ import { IChatListItemTemplate } from '../../../browser/widget/chatListRenderer.
 import { ChatViewPaneTarget, IChatAcceptInputOptions, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions } from '../../../browser/chat.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { ChatRequestVariableSet } from '../../../common/attachments/chatVariableEntries.js';
+import { ChatOpenDiagnosticsService } from '../../../common/chatOpenDiagnosticsService.js';
 import { clearChatMarks } from '../../../common/chatPerf.js';
 import { CloudSandboxSessionTrace } from '../../../common/cloudSandboxSessionTrace.js';
 import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatSendRequestData, IChatSendRequestOptions, IChatService } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { IChatMode } from '../../../common/chatModes.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
-import { ChatResponseModelChangeReason, IChatModel, IChatRequestModel, IChatRequestNeedsInputInfo, IChatResponseModel } from '../../../common/model/chatModel.js';
+import { ChatResponseModelChangeReason, IChatChangeEvent, IChatModel, IChatRequestModel, IChatRequestNeedsInputInfo, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { computeChatModelIsIdle } from '../../../common/model/chatModelIdle.js';
 import { ChatViewModel, IChatRequestViewModel } from '../../../common/model/chatViewModel.js';
+import { IIntendedModelSelection, ModelSelectionReason } from '../../../common/modelSelection.js';
 import { ChatRequestAgentPart, ChatRequestSlashCommandPart, ChatRequestTextPart, IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
 import { IChatAgentData, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { IChatVariablesService, IDynamicVariable } from '../../../common/attachments/chatVariables.js';
@@ -64,8 +69,8 @@ import { ChatReadOnlyBanner } from '../../../browser/widget/chatReadOnlyBanner.j
 import { IChatViewWelcomeContent } from '../../../browser/viewsWelcome/chatViewWelcomeController.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { createChatUserInteractionTestHarness } from '../chatUserInteractionTestUtils.js';
-import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
-import { IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
+import { getChatSessionType, LocalChatSessionUri } from '../../../common/model/chatUri.js';
+import { IChatSessionsService, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../common/chatSessionsService.js';
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 
 suite('ChatWidget', () => {
@@ -116,6 +121,7 @@ suite('ChatWidget', () => {
 			_pendingFirstRenderSessionResource: resource,
 			_onWillMaybeChangeHeight: store.add(new Emitter<void>()),
 			logService,
+			chatOpenDiagnosticsService: store.add(new ChatOpenDiagnosticsService(new NullLogService())),
 			listWidget: { setVisibleChangeCount: () => { }, refresh: () => { } },
 			renderWelcomeViewContentIfNeeded: () => { },
 			renderFollowups: () => { },
@@ -1318,6 +1324,45 @@ suite('ChatWidget', () => {
 		});
 	});
 
+	function createRerenderWidget() {
+		const domNode = mainWindow.document.createElement('div');
+		let rerenders = 0;
+		const discardingSlot = { set value(disposable: IDisposable | undefined) { disposable?.dispose(); } };
+		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
+			_readOnly: false,
+			_draftOnly: observableValue('draftOnly', false),
+			_visible: observableValue('visible', true),
+			visibleChangeCount: 0,
+			viewOptions: { renderStyle: 'minimal' },
+			_readOnlyContextKey: { set: () => { } },
+			chatSuggestNextWidget: { hide: () => { }, height: 0 },
+			hasInputFocus: () => false,
+			setInputVisible: () => { },
+			renderChatSuggestNextWidget: () => { },
+			bodyDimension: { width: 100, height: 100 },
+			_inputVisible: true,
+			inputPartDisposable: { value: { height: observableValue('inputHeight', 10), element: { offsetHeight: 10 }, setVisible: () => { } } },
+			listContainer: mainWindow.document.createElement('div'),
+			welcomeMessageContainer: mainWindow.document.createElement('div'),
+			visibilityTimeoutDisposable: discardingSlot,
+			visibilityAnimationFrameDisposable: discardingSlot,
+			_onDidChangeHeight: { fire: () => { } },
+			_onDidShow: { fire: () => { } },
+			_onDidHide: { fire: () => { } },
+			listWidget: {
+				domNode,
+				isScrolledToBottom: false,
+				isAutoScrollHeld: false,
+				lastItem: undefined,
+				updateRendererOptions: () => { },
+				setVisible: () => { },
+				layout: () => { },
+				rerender: () => rerenders++,
+			},
+		});
+		return { widget, domNode, rerenders: () => rerenders };
+	}
+
 	test('passes read-only transitions to the renderer independently of request editing', () => {
 		const rendererOptions: IChatListItemRendererOptions[] = [];
 		const inputVisibility: boolean[] = [];
@@ -1333,6 +1378,7 @@ suite('ChatWidget', () => {
 			renderChatSuggestNextWidget: () => { },
 			listWidget: {
 				updateRendererOptions: (options: IChatListItemRendererOptions) => rendererOptions.push(options),
+				domNode: { isConnected: true, offsetHeight: 100 },
 				rerender: () => rerenders++,
 			},
 		});
@@ -1346,6 +1392,45 @@ suite('ChatWidget', () => {
 			rerenders: 3,
 			inputVisibility: [false, true, true],
 		});
+	});
+
+	test('applies read-only to rendered rows on the first layout after the list is attached', () => {
+		const { widget, domNode, rerenders } = createRerenderWidget();
+		domNode.style.height = '50px';
+
+		widget.setReadOnly(true);
+		widget.layoutForInputHeight(100, 100);
+		const whileDetached = rerenders();
+		mainWindow.document.body.appendChild(domNode);
+		try {
+			widget.layoutForInputHeight(100, 100);
+			widget.layoutForInputHeight(100, 100);
+		} finally {
+			domNode.remove();
+		}
+
+		assert.deepStrictEqual({ whileDetached, afterAttachedLayouts: rerenders() }, { whileDetached: 0, afterAttachedLayouts: 1 });
+	});
+
+	test('does not rerender a connected list that measures 0px when shown again until it is laid out', () => {
+		const { widget, domNode, rerenders } = createRerenderWidget();
+		domNode.style.display = 'none';
+		mainWindow.document.body.appendChild(domNode);
+		try {
+			widget.setReadOnly(true);
+			widget.setVisible(false);
+			widget.setVisible(true);
+			const whileHidden = rerenders();
+
+			domNode.style.display = '';
+			domNode.style.height = '50px';
+			widget.layoutForInputHeight(100, 100);
+			widget.layoutForInputHeight(100, 100);
+
+			assert.deepStrictEqual({ whileHidden, afterLayouts: rerenders() }, { whileHidden: 0, afterLayouts: 1 });
+		} finally {
+			domNode.remove();
+		}
 	});
 
 	test('policy read-only banner follows history switches and does not relabel other read-only states', () => {
@@ -1378,7 +1463,7 @@ suite('ChatWidget', () => {
 		});
 		const selected = observableValue('selected', local);
 		const widget: {
-			observeLocalSessionArchived(model: IChatModel): IObservable<boolean>;
+			observeSessionArchived(model: IChatModel): IObservable<boolean>;
 			updateReadOnlyState(model: IChatModel, archived: boolean, reader: IReader): void;
 			_viewModel: { sessionResource: URI; model: IChatModel };
 		} = Object.assign(Object.create(ChatWidget.prototype), {
@@ -1396,7 +1481,7 @@ suite('ChatWidget', () => {
 		store.add(autorun(reader => {
 			const model = selected.read(reader);
 			widget._viewModel = { sessionResource: model.sessionResource, model };
-			const archived = widget.observeLocalSessionArchived(model);
+			const archived = widget.observeSessionArchived(model);
 			reader.store.add(autorun(reader => widget.updateReadOnlyState(model, archived.read(reader), reader)));
 		}));
 		const snapshot = () => ({
@@ -1465,7 +1550,7 @@ suite('ChatWidget', () => {
 		});
 	});
 
-	function createAutomaticMigrationFixture(options: { location?: ChatAgentLocation; resource?: URI; hasRequests?: boolean } = {}) {
+	function createAutomaticMigrationFixture(options: { location?: ChatAgentLocation; resource?: URI; hasRequests?: boolean; isSessionsWindow?: boolean; providerDisabled?: boolean } = {}) {
 		const instantiation = store.add(new TestInstantiationService());
 		instantiation.stub(IHoverService, NullHoverService);
 		instantiation.stub(IOpenerService, { open: async () => true });
@@ -1474,23 +1559,123 @@ suite('ChatWidget', () => {
 		const policy = observableValue('policy', false);
 		const archived = observableValue('archived', false);
 		const requestInProgress = observableValue('requestInProgress', false);
+		const readOnly = observableValue('readOnly', true);
+		const modelChanges = store.add(new Emitter<IChatChangeEvent>());
+		let providerDisabled = options.providerDisabled ?? true;
+		const configurationService = new class extends TestConfigurationService {
+			override inspect<T>(key: string) {
+				const value = super.inspect<T>(key);
+				return { ...value, policyValue: providerDisabled && (key === AgentHostClaudeAgentEnabledSettingId || key === AgentHostCodexAgentEnabledSettingId) ? value.value : undefined };
+			}
+		}({ [AgentHostClaudeAgentEnabledSettingId]: false, [AgentHostCodexAgentEnabledSettingId]: false });
+		store.add(configurationService.onDidChangeConfigurationEmitter);
 		let hasRequests = options.hasRequests ?? true;
 		const model = upcastPartial<IChatModel>({
 			sessionResource: options.resource ?? LocalChatSessionUri.forSession('automatic-migration'),
 			initialLocation: options.location ?? ChatAgentLocation.Chat,
 			get hasRequests() { return hasRequests; },
 			requestInProgress,
+			isReadOnly: readOnly,
+			onDidChange: modelChanges.event,
 		});
 		const errors: string[] = [];
-		const widget: { autoMigrateLocalSession(model: IChatModel, archived: IObservable<boolean>): IDisposable } = Object.assign(Object.create(ChatWidget.prototype), {
-			_visible: visible, policyRequiresAgentHost: policy, readOnlyBanner: banner,
+		const automaticCalls: { resource: string; trigger: string }[] = [];
+		let automaticRun = async () => { };
+		const widget: { autoMigratePolicySession(model: IChatModel, archived: IObservable<boolean>): IDisposable } = Object.assign(Object.create(ChatWidget.prototype), {
+			_visible: visible, policyRequiresAgentHost: policy, readOnlyBanner: options.isSessionsWindow ? undefined : banner,
 			_viewModel: { model },
+			viewOptions: { isSessionsWindow: options.isSessionsWindow },
+			configurationService,
+			policyContinuationService: { continueInCopilot: async (resource: URI, trigger: string) => { automaticCalls.push({ resource: resource.toString(), trigger }); await automaticRun(); } },
 			logService: { error: (message: string) => errors.push(message) },
 			setReadOnly: () => banner.setMessage(),
 		});
-		const observation = store.add(widget.autoMigrateLocalSession(model, archived));
-		return { banner, visible, policy, archived, requestInProgress, errors, observation, setHasRequests: (value: boolean) => { hasRequests = value; } };
+		const observation = store.add(widget.autoMigratePolicySession(model, archived));
+		return {
+			banner, visible, policy, archived, requestInProgress, readOnly, errors, observation, automaticCalls,
+			setHasRequests: (value: boolean) => { hasRequests = value; modelChanges.fire({ kind: 'initialize' }); },
+			setAutomaticRun: (run: () => Promise<void>) => { automaticRun = run; },
+			setProviderDisabled: (value: boolean) => { providerDisabled = value; configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: () => true })); },
+			moveAway: () => Object.assign(widget, { _viewModel: undefined }),
+		};
 	}
+
+	for (const provider of ['claude', 'codex'] as const) {
+		test(`automatically migrates displayed policy-disabled ${provider} history after the active request settles`, async () => {
+			const fixture = createAutomaticMigrationFixture({ resource: URI.from({ scheme: `agent-host-${provider}`, path: '/policy-disabled' }) });
+			fixture.banner.setAction({ label: 'Continue in Copilot', run: async () => { } });
+			fixture.policy.set(true, undefined);
+			fixture.requestInProgress.set(true, undefined);
+			fixture.visible.set(true, undefined);
+			await timeout(0);
+			const activeCalls = fixture.automaticCalls.length;
+			fixture.requestInProgress.set(false, undefined);
+			await timeout(0);
+			fixture.visible.set(false, undefined);
+			fixture.visible.set(true, undefined);
+			await timeout(0);
+			assert.deepStrictEqual({ activeCalls, calls: fixture.automaticCalls }, { activeCalls: 0, calls: [{ resource: `agent-host-${provider}:/policy-disabled`, trigger: 'automatic' }] });
+		});
+	}
+
+	for (const isSessionsWindow of [false, true]) {
+		test(`starts automatic recovery when provider policy and history arrive in the ${isSessionsWindow ? 'Agents' : 'Editor'} window`, async () => {
+			const fixture = createAutomaticMigrationFixture({ resource: URI.parse('agent-host-claude:/hot-policy'), hasRequests: false, providerDisabled: false, isSessionsWindow });
+			fixture.banner.setAction({ label: 'Continue in Copilot', run: async () => { } });
+			fixture.visible.set(true, undefined);
+			fixture.policy.set(true, undefined);
+			fixture.setHasRequests(true);
+			await timeout(0);
+			const beforeProviderPolicy = fixture.automaticCalls.length;
+			fixture.setProviderDisabled(true);
+			await timeout(0);
+			assert.deepStrictEqual({ beforeProviderPolicy, calls: fixture.automaticCalls }, {
+				beforeProviderPolicy: 0, calls: [{ resource: 'agent-host-claude:/hot-policy', trigger: 'automatic' }],
+			});
+		});
+	}
+
+	for (const scenario of ['hidden', 'busy', 'unmanaged', 'provider-available', 'writable', 'history-not-ready', 'archived'] as const) {
+		test(`waits while the policy-disabled source is ${scenario}`, async () => {
+			const fixture = createAutomaticMigrationFixture({ resource: URI.parse('agent-host-codex:/waiting'), hasRequests: scenario !== 'history-not-ready', providerDisabled: scenario !== 'provider-available' });
+			fixture.banner.setAction({ label: 'Continue in Copilot', run: async () => { } });
+			fixture.archived.set(scenario === 'archived', undefined);
+			fixture.readOnly.set(scenario !== 'writable', undefined);
+			fixture.requestInProgress.set(scenario === 'busy', undefined);
+			fixture.policy.set(scenario !== 'unmanaged', undefined);
+			fixture.visible.set(scenario !== 'hidden', undefined);
+			await timeout(0);
+			const deferred = fixture.automaticCalls.length;
+			fixture.archived.set(false, undefined);
+			fixture.readOnly.set(true, undefined);
+			fixture.requestInProgress.set(false, undefined);
+			fixture.policy.set(true, undefined);
+			fixture.visible.set(true, undefined);
+			fixture.setProviderDisabled(true);
+			fixture.setHasRequests(true);
+			await timeout(0);
+			assert.deepStrictEqual({ deferred, calls: fixture.automaticCalls }, { deferred: 0, calls: [{ resource: 'agent-host-codex:/waiting', trigger: 'automatic' }] });
+		});
+	}
+
+	test('a failed Agent Host automatic continuation retains the manual banner action', async () => {
+		const fixture = createAutomaticMigrationFixture({ resource: URI.parse('agent-host-claude:/failure') });
+		let manualCalls = 0;
+		fixture.banner.setAction({ label: 'Continue in Copilot', run: async () => { manualCalls++; } });
+		fixture.setAutomaticRun(async () => { throw new Error('Import failed'); });
+		fixture.policy.set(true, undefined);
+		fixture.visible.set(true, undefined);
+		await timeout(0);
+		fixture.visible.set(false, undefined);
+		fixture.visible.set(true, undefined);
+		await timeout(0);
+		const link = fixture.banner.domNode.querySelector('a')!;
+		link.click();
+		await timeout(0);
+		assert.deepStrictEqual({ automaticCalls: fixture.automaticCalls.length, manualCalls, message: fixture.banner.domNode.querySelector('.chat-readonly-banner-text')?.textContent, disabled: link.getAttribute('aria-disabled') }, {
+			automaticCalls: 1, manualCalls: 1, message: 'Couldn\'t move this chat to Copilot. Use Continue in Copilot to try again.', disabled: 'false',
+		});
+	});
 
 	for (const policyDuringRequest of [false, true]) {
 		test(`automatically migrates a chat that started empty when policy arrives ${policyDuringRequest ? 'during' : 'after'} its request`, async () => {
@@ -1543,6 +1728,27 @@ suite('ChatWidget', () => {
 		});
 	});
 
+	test('temporary Local prohibition triggers the existing automatic migration without managed permissions', async () => {
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		let allowLocal = true;
+		const managedSettings = new class extends NullManagedSettingsService {
+			override getManagedSettingValue(key: string) { return key === COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY ? allowLocal : undefined; }
+			override getManagedSettings() { return { [COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY]: allowLocal }; }
+		}();
+		const fixture = createAutomaticMigrationFixture();
+		let calls = 0;
+		fixture.banner.setAction({ label: 'Move to Copilot', run: async () => { calls++; } });
+		fixture.visible.set(true, undefined);
+		fixture.policy.set(requiresCopilotAgentHost(managedSettings, configuration), undefined);
+		await timeout(0);
+		const before = calls;
+		allowLocal = false;
+		fixture.policy.set(requiresCopilotAgentHost(managedSettings, configuration), undefined);
+		await timeout(0);
+		assert.deepStrictEqual({ before, after: calls, errors: fixture.errors }, { before: 0, after: 1, errors: [] });
+	});
+
 	for (const scenario of ['inline', 'terminal', 'empty', 'copilot', 'archived', 'unmanaged'] as const) {
 		test(`does not automatically migrate ${scenario} chats`, async () => {
 			const fixture = createAutomaticMigrationFixture({
@@ -1560,7 +1766,7 @@ suite('ChatWidget', () => {
 		});
 	}
 
-	for (const scenario of ['hidden', 'disposed', 'policy-removed', 'archived'] as const) {
+	for (const scenario of ['hidden', 'disposed', 'policy-removed', 'archived', 'moved'] as const) {
 		test(`cancels scheduled automatic migration when ${scenario}`, async () => {
 			const fixture = createAutomaticMigrationFixture();
 			let calls = 0;
@@ -1573,6 +1779,8 @@ suite('ChatWidget', () => {
 				fixture.observation.dispose();
 			} else if (scenario === 'policy-removed') {
 				fixture.policy.set(false, undefined);
+			} else if (scenario === 'moved') {
+				fixture.moveAway();
 			} else {
 				fixture.archived.set(true, undefined);
 			}
@@ -1872,12 +2080,134 @@ suite('ChatWidget - acceptInput submission', () => {
 			chatAccessibilityService: { value: { acceptRequest: () => { }, acceptResponse: () => { } } },
 			logService: { value: { debug: () => { } } },
 			telemetryService: { value: NullTelemetryService },
-			listWidget: { value: { setScrollLock: () => { } } },
+			listWidget: { value: { domNode: dom.$('div'), setScrollLock: () => { }, updateRendererOptions: () => { }, rerender: () => { } } },
 			updateChatViewVisibility: { value: () => { } },
 		});
 		const options: IChatAcceptInputOptions = { preserveInput: true };
 		return { widget, viewOptions, options, original, input, editorService, chatService, chatWidgetService, chatSessionsService, parser, parts, policyRequiresAgentHost, contextKeyService, attachments, contribs, response, sent };
 	}
+
+	function createSessionBindingFixture() {
+		const fixture = createSubmissionWidget();
+		const availabilityChanged = store.add(new Emitter<void>());
+		const contributions = new Map<string, ResolvedChatSessionsExtensionPoint>();
+		fixture.chatSessionsService.onDidChangeAvailability.callsFake(listener => availabilityChanged.event(listener));
+		fixture.chatSessionsService.getChatSessionContribution.callsFake(sessionType => contributions.get(sessionType));
+		Object.defineProperties(fixture.widget, {
+			_lockedToCodingAgentContextKey: { value: ChatContextKeys.lockedToCodingAgent.bindTo(fixture.contextKeyService) },
+			_lockedCodingAgentIdContextKey: { value: ChatContextKeys.lockedCodingAgentId.bindTo(fixture.contextKeyService) },
+			_chatIsAgentHostSessionContextKey: { value: ChatContextKeys.chatIsAgentHostSession.bindTo(fixture.contextKeyService) },
+			_chatAgentHostProviderIdContextKey: { value: ChatContextKeys.chatAgentHostProviderId.bindTo(fixture.contextKeyService) },
+			_agentSupportsAttachmentsContextKey: { value: fixture.contextKeyService.createKey('test.agentSupportsAttachments', false) },
+			_chatSessionSupportsForkContextKey: { value: fixture.contextKeyService.createKey('test.sessionSupportsFork', false) },
+			_chatSessionSupportsRenameContextKey: { value: fixture.contextKeyService.createKey('test.sessionSupportsRename', false) },
+			chatAgentService: { value: mockObject<IChatAgentService>()() },
+			_updateAgentHostWorkingDirectoryContextKeys: { value: () => { } },
+			_updateFolderPickerDecision: { value: () => { } },
+			renderWelcomeViewContentIfNeeded: { value: () => { } },
+		});
+		const registerContribution = (sessionType: string) => {
+			contributions.set(sessionType, {
+				type: sessionType, name: sessionType, displayName: 'Remote Agent', description: '', icon: undefined, agentHostProviderId: 'copilot',
+			});
+			availabilityChanged.fire();
+		};
+		const bindSession = (model: IChatModel) => {
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Exercise the private binding without exposing a test-only API.
+			return store.add(fixture.widget['bindSessionCapabilities'](model));
+		};
+		return { ...fixture, availabilityChanged, contributions, registerContribution, bindSession };
+	}
+
+	for (const pickerMatchesSession of [true, false]) {
+		test(`binds a history session to its late live contribution with ${pickerMatchesSession ? 'matching' : 'stale'} model selection`, async () => {
+			const fixture = createSessionBindingFixture();
+			const sessionType = getChatSessionType(fixture.original.model.sessionResource);
+			const selectedModel = `${sessionType}:${pickerMatchesSession ? 'auto' : 'other-model'}`;
+			const intendedModel: IIntendedModelSelection = {
+				modelId: `${sessionType}:auto`, reason: ModelSelectionReason.RestoredChoice, configuration: { reasoningEffort: 'high' },
+			};
+			Object.defineProperty(fixture.original.model.inputModel, 'intendedModel', { value: intendedModel });
+			Object.defineProperty(fixture.input, 'currentLanguageModel', { value: selectedModel });
+			fixture.input.getModelConfiguration.returns(intendedModel.configuration);
+			fixture.original.isInputBlocked.set(true, undefined);
+			fixture.bindSession(fixture.original.model);
+			const initialAgent = fixture.widget.lockedAgentId;
+
+			fixture.registerContribution(sessionType);
+			const boundBeforeLive = fixture.widget.lockedAgentId;
+			await fixture.widget.acceptInput('follow up', fixture.options);
+			const sendsBeforeLive = fixture.chatService.sendRequest.callCount;
+			fixture.original.isInputBlocked.set(false, undefined);
+			await fixture.widget.acceptInput('follow up', fixture.options);
+			const [resource, message, options] = fixture.chatService.sendRequest.firstCall.args;
+
+			assert.deepStrictEqual({
+				initialAgent, boundBeforeLive, sendsBeforeLive,
+				sameModel: fixture.widget.viewModel === fixture.original.viewModel,
+				sameSelection: fixture.original.model.inputModel.intendedModel === intendedModel,
+				resource: resource.toString(), message,
+				agent: options.agentIdSilent, model: options.userSelectedModelId, configuration: options.userSelectedModelConfiguration,
+			}, {
+				initialAgent: undefined, boundBeforeLive: sessionType, sendsBeforeLive: 0,
+				sameModel: true, sameSelection: true,
+				resource: fixture.original.model.sessionResource.toString(), message: 'follow up',
+				agent: sessionType, model: pickerMatchesSession ? selectedModel : undefined, configuration: pickerMatchesSession ? intendedModel.configuration : undefined,
+			});
+		});
+	}
+
+	test('binds an already available session contribution and retains its routing while unavailable', () => {
+		const fixture = createSessionBindingFixture();
+		const sessionType = getChatSessionType(fixture.original.model.sessionResource);
+		fixture.registerContribution(sessionType);
+		fixture.bindSession(fixture.original.model);
+		const initialAgent = fixture.widget.lockedAgentId;
+
+		fixture.contributions.delete(sessionType);
+		fixture.availabilityChanged.fire();
+		const disconnectedAgent = fixture.widget.lockedAgentId;
+		fixture.registerContribution(sessionType);
+
+		assert.deepStrictEqual({ initialAgent, disconnectedAgent, reconnectedAgent: fixture.widget.lockedAgentId }, {
+			initialAgent: sessionType, disconnectedAgent: sessionType, reconnectedAgent: sessionType,
+		});
+	});
+
+	test('disposes the old session binding before following another conversation', () => {
+		const fixture = createSessionBindingFixture();
+		const oldBinding = fixture.bindSession(fixture.original.model);
+		oldBinding.dispose();
+		const next = createSession(URI.parse('another-agent:/existing-b'));
+		Object.defineProperty(fixture.widget, '_viewModel', { value: next.viewModel });
+		const nextBinding = fixture.bindSession(next.model);
+		fixture.registerContribution(getChatSessionType(fixture.original.model.sessionResource));
+		const agentAfterOldRegistration = fixture.widget.lockedAgentId;
+		fixture.registerContribution(getChatSessionType(next.model.sessionResource));
+		const currentAgent = fixture.widget.lockedAgentId;
+		nextBinding.dispose();
+
+		assert.deepStrictEqual({ agentAfterOldRegistration, currentAgent, listening: fixture.availabilityChanged.hasListeners() }, {
+			agentAfterOldRegistration: undefined, currentAgent: 'another-agent', listening: false,
+		});
+	});
+
+	test('late contributions do not lock local conversations or replace an explicit agent', () => {
+		const local = createSessionBindingFixture();
+		const localSession = createSession(LocalChatSessionUri.getNewSessionUri());
+		Object.defineProperty(local.widget, '_viewModel', { value: localSession.viewModel });
+		local.bindSession(localSession.model);
+		local.registerContribution(getChatSessionType(localSession.model.sessionResource));
+
+		const explicit = createSessionBindingFixture();
+		explicit.widget.lockToCodingAgent('explicit', 'Explicit Agent', 'explicit');
+		explicit.bindSession(explicit.original.model);
+		explicit.registerContribution(getChatSessionType(explicit.original.model.sessionResource));
+
+		assert.deepStrictEqual({ local: local.widget.lockedAgentId, explicit: explicit.widget.lockedAgentId }, {
+			local: undefined, explicit: 'explicit',
+		});
+	});
 
 	function addParticipant(fixture: ReturnType<typeof createSubmissionWidget>, isCore = false) {
 		const participant = upcastPartial<IChatAgentData>({ id: 'test.participant', name: 'participant', modes: [ChatModeKind.Ask], isCore });
