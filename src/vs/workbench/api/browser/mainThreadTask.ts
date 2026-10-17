@@ -611,7 +611,7 @@ export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 		if (TaskHandleDTO.is(value)) {
 			const workspace = this.getWorkspace(value.workspaceFolder);
 			if (workspace) {
-				const task = await this._taskService.getTask(workspace, value.id, true);
+				const task = await this._taskService.getTask(workspace, value.id, true, value.type);
 				if (task) {
 					return {
 						id: task._id,
@@ -638,7 +638,7 @@ export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 			if (TaskHandleDTO.is(value)) {
 				const workspace = this.getWorkspace(value.workspaceFolder);
 				if (workspace) {
-					this._taskService.getTask(workspace, value.id, true).then((task: Task | undefined) => {
+					this._taskService.getTask(workspace, value.id, true, value.type).then((task: Task | undefined) => {
 						if (!task) {
 							reject(new Error('Task not found'));
 						} else {
