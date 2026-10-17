@@ -34650,8 +34650,8 @@ suite('AgentService (node dispatcher)', () => {
 					await fileService.writeFile(joinPath(base.getSessionDataDir(session), SESSION_ATTACHMENTS_DIRNAME, 'earlier', 'note.txt'), VSBuffer.fromString('note'));
 					await fileService.writeFile(joinPath(base.getSessionDataDir(session), 'other.txt'), VSBuffer.fromString('other'));
 				};
-				// A restart stops the running service first: it would otherwise keep reacting to the shared provider and
-				// synchronize the sessions the restarted service restores, outside of that service's synchronization queue.
+				// A restart stops the running service first, as a host restart does: a service left running shares the provider
+				// and the session storage with the restarted one, and can synchronize the same sessions concurrently with it.
 				const stop = async (service: AgentService) => {
 					await service.whenCatalogReconciliationIdle();
 					await getTestSessionStateStore(service).whenIdle(undefined);
@@ -34939,8 +34939,6 @@ suite('AgentService (node dispatcher)', () => {
 			test('a restart restores the order a move or a reorder recorded, also with a chat before the default chat', async () => {
 				const { createService, stop } = createDeletingServices();
 				let live = createService();
-				// Sessions are created once the provider's initial import ran, as after a client's first listing.
-				await live.listSessions();
 				const source = await live.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 				const target = await live.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 				const moved = URI.parse(buildChatUri(source, 'moved-first'));
@@ -35038,7 +35036,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 
 			test('a deleted session keeps its attachments while a chat that moved out of it lives, also across a restart', async () => {
-				const { createService, contentsOf, seed } = createDeletingServices();
+				const { createService, stop, contentsOf, seed } = createDeletingServices();
 				const first = createService();
 				const source = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 				const target = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
