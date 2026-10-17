@@ -197,7 +197,12 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 			const isMouseOnContentHoverWidget = this._isMouseOnContentHoverWidget(mouseEvent);
 			const isMouseOnHoverWithColorPicker = isColorPickerVisible && isMouseOnContentHoverWidget;
 			const isMaybeChoosingColor = isColorPickerVisible && this._isMouseDown;
-			return isMouseOnHoverWithColorPicker || isMaybeChoosingColor;
+			// Keep the hover open while the mouse is over the decorator that opened the visible picker
+			const pickerRange = contentWidget.colorPickerRange;
+			const targetRange = mouseEvent.target.range;
+			const isMouseOnColorDecorator = isColorPickerVisible && isOnColorDecorator(mouseEvent)
+				&& !!pickerRange && !!targetRange && Range.areIntersecting(pickerRange, targetRange);
+			return isMouseOnHoverWithColorPicker || isMaybeChoosingColor || isMouseOnColorDecorator;
 		};
 		// TODO@aiday-mar verify if the following is necessary code
 		const isTextSelectedWithinContentHoverWidget = (mouseEvent: IEditorMouseEvent, sticky: boolean): boolean => {
