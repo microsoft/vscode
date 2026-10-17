@@ -322,7 +322,26 @@ export class ModelPickerWidget extends Disposable {
 				?? models.find(model => !isHydraFusionModel(model) || isUserProvidedModel(model, this._languageModelsService))
 				?? model;
 		}
-		return this._normalizeFusionHigh(model, models);
+		return this._normalizeHydraFusionTier(model, models) ?? this._normalizeFusionHigh(model, models);
+	}
+
+	/**
+	 * Shows a chat on a HydraFusion model as Fusion with that tier. Presented for this chat only: the
+	 * chat may be on the model just because it was the first available, so it must not become a preference.
+	 */
+	private _normalizeHydraFusionTier(model: ILanguageModelChatMetadataAndIdentifier, models: readonly ILanguageModelChatMetadataAndIdentifier[]): ILanguageModelChatMetadataAndIdentifier | undefined {
+		const scopedConfiguration = this._delegate.modelConfiguration;
+		if (!isHydraFusionModel(model) || !scopedConfiguration?.presentModelConfiguration || isHydraFusionUpgradeOnly(this._entitlementService.entitlement)) {
+			return undefined;
+		}
+		const fusion = models.find(candidate => candidate.metadata.autoModelFusion && !isUserProvidedModel(candidate, this._languageModelsService));
+		const tier = fusion && getModelConfigProperty(fusion, scopedConfiguration, MODEL_CONFIG_GROUP_EFFORT);
+		const index = tier ? tier.schema.enum?.indexOf(model.metadata.id) ?? -1 : -1;
+		if (!fusion || !tier || index < 0 || tier.schema.enumItemDisabled?.[index] || tier.schema.readOnly) {
+			return undefined;
+		}
+		scopedConfiguration.presentModelConfiguration(fusion.identifier, { [tier.key]: model.metadata.id });
+		return fusion;
 	}
 
 	/** Fusion's High is HydraFusion when it routes there and its own tier otherwise, so a chat on the other moves. */

@@ -81,7 +81,7 @@ suite('ModelPickerTelemetry', () => {
 		},
 	});
 
-	function createPicker(selectedModel = model, beforeSave?: (id: string) => Promise<void>, models = [autoModel, model, fastModel, otherModel, thirdPartyModel], entitlement = ChatEntitlement.Pro, supportsProgrammaticSelection = true, showAutoModel = true, controlManifest: IModelsControlManifest = { free: {}, paid: {} }) {
+	function createPicker(selectedModel = model, beforeSave?: (id: string) => Promise<void>, models = [autoModel, model, fastModel, otherModel, thirdPartyModel], entitlement = ChatEntitlement.Pro, supportsProgrammaticSelection = true, showAutoModel = true, controlManifest: IModelsControlManifest = { free: {}, paid: {} }, presentsConfiguration = true) {
 		const instantiationService = store.add(new TestInstantiationService());
 		const events: { name: string; data: unknown }[] = [];
 		const pickerEvents: { name: string; data: unknown }[] = [];
@@ -105,9 +105,11 @@ suite('ModelPickerTelemetry', () => {
 				await beforeSave?.(id);
 				configurations.set(id, { ...configurations.get(id), ...values });
 			},
-			presentModelConfiguration: (id, values) => {
-				configurations.set(id, { ...configurations.get(id), ...values });
-			},
+			...(presentsConfiguration ? {
+				presentModelConfiguration: (id: string, values: IStringDictionary<unknown>) => {
+					configurations.set(id, { ...configurations.get(id), ...values });
+				},
+			} : {}),
 			getModelConfigurationActions: () => [],
 		};
 		const container = dom.append(mainWindow.document.body, dom.$('.monaco-reduce-motion'));
@@ -534,6 +536,40 @@ suite('ModelPickerTelemetry', () => {
 			savedConfigurations: [],
 			delegateSelections: [],
 			programmaticDelegateSelections: [fusion.identifier],
+		});
+	});
+
+	test('a chat on a HydraFusion model moves to Fusion\'s matching provider tier, unless that tier is unavailable', async () => {
+		const max = createModel('hydrafusion-max', { name: 'HydraFusion Max', modelGroup: { id: 'copilotcli' } });
+		const open = async (disabled: boolean) => {
+			const fusion = {
+				...autoModel,
+				metadata: {
+					...autoModel.metadata, name: 'Fusion', autoModelFusion: { balanceUsesHydraFusion: true },
+					configurationSchema: {
+						properties: {
+							tier: {
+								type: 'string' as const, group: 'navigation', title: 'Effort Level',
+								enum: ['balance', 'hydrafusion', 'hydrafusion-max'], enumItemLabels: ['Standard', 'High', 'Max'],
+								enumItemDisabled: [false, false, disabled], default: 'balance',
+							},
+						},
+					},
+				},
+			};
+			const result = createPicker(max, undefined, [fusion, max, model], undefined, undefined, undefined, undefined, presentsConfiguration);
+			await timeout(0);
+			return { selected: result.picker.selectedModel?.identifier, tier: result.configurations.get(fusion.identifier)?.tier, savedConfigurations: result.savedConfigurations };
+		};
+		let presentsConfiguration = true;
+		const available = await open(false);
+		const unavailable = await open(true);
+		presentsConfiguration = false;
+		const withoutChatConfiguration = await open(false);
+		assert.deepStrictEqual({ available, unavailable, withoutChatConfiguration }, {
+			available: { selected: autoModel.identifier, tier: 'hydrafusion-max', savedConfigurations: [] },
+			unavailable: { selected: max.identifier, tier: undefined, savedConfigurations: [] },
+			withoutChatConfiguration: { selected: max.identifier, tier: undefined, savedConfigurations: [] },
 		});
 	});
 

@@ -46,7 +46,7 @@ import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, createChatSt
 import { AgentHostTransportFailureReason, NonReconnectableTransportError, type IClientTransport, type IProtocolTransport, type ITransportCloseDetails } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../defaultAccount/common/defaultAccount.js';
-import { AgentHostFusionEnabledSettingId, CopilotCliConfigKey } from '../../common/copilotCliConfig.js';
+import { AgentHostDynamicAutoTiersEnabledSettingId, AgentHostFusionEnabledSettingId, CopilotCliConfigKey } from '../../common/copilotCliConfig.js';
 import { fusionConfigurationProperties } from '../../common/fusionConfiguration.js';
 import { ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
@@ -182,6 +182,19 @@ function getFusionUpdates(messages: readonly ProtocolTransportMessage[]): Record
 		const config = params?.action?.config;
 		return params?.action?.type === ActionType.RootConfigChanged && config && Object.hasOwn(config, CopilotCliConfigKey.Fusion)
 			? [{ fusion: config[CopilotCliConfigKey.Fusion], ensemble: config.ensemble }]
+			: [];
+	});
+}
+
+function getDynamicAutoTiersUpdates(messages: readonly ProtocolTransportMessage[]): RootConfigValue[] {
+	return messages.flatMap(message => {
+		if (!hasKey(message, { method: true }) || message.method !== 'dispatchAction') {
+			return [];
+		}
+		const params = (message as JsonRpcNotification).params as ITestRootConfigNotificationParams | undefined;
+		const config = params?.action?.config;
+		return params?.action?.type === ActionType.RootConfigChanged && config && Object.hasOwn(config, CopilotCliConfigKey.DynamicAutoTiers)
+			? [config[CopilotCliConfigKey.DynamicAutoTiers]]
 			: [];
 	});
 }
@@ -2255,6 +2268,29 @@ suite('AgentHostProtocolClient', () => {
 		});
 	});
 
+	test('forwards Dynamic Auto Tiers to a tunnel only while the account allows preview features', async () => {
+		const configurationService = new TestConfigurationService({ [AgentHostDynamicAutoTiersEnabledSettingId]: true });
+		const { client, transport } = createClientForIdentity('tunnel:host', undefined, undefined, undefined, undefined, configurationService);
+
+		await connectClient(client, transport);
+		setAccountPolicyData({ chat_preview_features_enabled: false });
+		setAccountPolicyData({});
+		await configurationService.setUserConfiguration(AgentHostDynamicAutoTiersEnabledSettingId, false);
+		fireConfigurationChange(configurationService, AgentHostDynamicAutoTiersEnabledSettingId);
+		fireConfigurationChange(configurationService, AgentHostDynamicAutoTiersEnabledSettingId, ConfigurationTarget.WORKSPACE);
+
+		assert.deepStrictEqual(getDynamicAutoTiersUpdates(transport.sentMessages), [true, false, true, false]);
+	});
+
+	test('does not forward ungated Dynamic Auto Tiers during initial connection', async () => {
+		setAccountPolicyData({ chat_preview_features_enabled: false });
+		const configurationService = new TestConfigurationService({ [AgentHostDynamicAutoTiersEnabledSettingId]: true });
+		const { client, transport } = createClient(undefined, undefined, undefined, undefined, configurationService);
+		await connectClient(client, transport);
+
+		assert.deepStrictEqual(getDynamicAutoTiersUpdates(transport.sentMessages), [false]);
+	});
+
 	test('ignores configuration changes from layers excluded by global mirroring', async () => {
 		const configurationService = new TestConfigurationService({ [SYNC_SETTING_A]: true });
 		const { client, transport } = createClient(disposables.add(new TestProtocolTransport()), createPermissionService(), undefined, new NullLogService(), configurationService);
@@ -2267,6 +2303,8 @@ suite('AgentHostProtocolClient', () => {
 		fireConfigurationChange(configurationService, AgentHostFusionEnabledSettingId, ConfigurationTarget.WORKSPACE);
 		fireConfigurationChange(configurationService, AgentHostFusionEnabledSettingId, ConfigurationTarget.WORKSPACE_FOLDER);
 		fireConfigurationChange(configurationService, AgentHostFusionEnabledSettingId, ConfigurationTarget.MEMORY);
+		fireConfigurationChange(configurationService, AgentHostDynamicAutoTiersEnabledSettingId, ConfigurationTarget.WORKSPACE);
+		fireConfigurationChange(configurationService, AgentHostDynamicAutoTiersEnabledSettingId, ConfigurationTarget.MEMORY);
 
 		assert.deepStrictEqual(transport.sentMessages, []);
 	});
@@ -3804,6 +3842,8 @@ suite('AgentHostProtocolClient', () => {
 				fireConfigurationChange(configurationService, SYNC_SETTING_A);
 				await configurationService.setUserConfiguration(AgentHostFusionEnabledSettingId, true);
 				fireConfigurationChange(configurationService, AgentHostFusionEnabledSettingId);
+				await configurationService.setUserConfiguration(AgentHostDynamicAutoTiersEnabledSettingId, true);
+				fireConfigurationChange(configurationService, AgentHostDynamicAutoTiersEnabledSettingId);
 				setAccountPolicyData({ chat_preview_features_enabled: false });
 				setAccountPolicyData({});
 				await configurationService.setUserConfiguration(TELEMETRY_SETTING_ID, TelemetryConfiguration.OFF);
@@ -4071,6 +4111,33 @@ suite('AgentHostProtocolClient', () => {
 					{ fusion: true, ensemble: true },
 				],
 				configuredValue: true,
+			});
+		});
+
+		test('re-forwards gated Dynamic Auto Tiers to a remote after reconnect', async () => {
+			const { client, transports, configurationService } = createFactoryClient();
+			await configurationService.setUserConfiguration(AgentHostDynamicAutoTiersEnabledSettingId, true);
+			await completeHandshake(transports[0], client.connect());
+
+			const { transport, request } = await beginRecovery(client, transports);
+			setAccountPolicyData({ chat_preview_features_enabled: false });
+			const whileDisconnected = getDynamicAutoTiersUpdates(transport.sentMessages);
+			const reconnected = Event.toPromise(Event.filter(client.onDidChangeConnectionState, state => state === AgentHostClientState.Connected));
+			transport.fireMessage({
+				jsonrpc: '2.0', id: request.id,
+				result: { type: ReconnectResultType.Replay, actions: [], missing: [] },
+			});
+			await reconnected;
+			setAccountPolicyData(null);
+
+			assert.deepStrictEqual({
+				initialConnection: getDynamicAutoTiersUpdates(transports[0].sentMessages),
+				whileDisconnected,
+				reconnected: getDynamicAutoTiersUpdates(transport.sentMessages),
+			}, {
+				initialConnection: [true],
+				whileDisconnected: [],
+				reconnected: [false, true],
 			});
 		});
 
