@@ -172,29 +172,20 @@ export interface IPluginAgentsForSdk {
 /**
  * Builds the SDK's `customAgents` config for a session.
  *
- * Agents contributed by plugins materialized into an on-disk (file-scheme)
- * directory are normally left out of `customAgents` and discovered by the SDK
- * through `pluginDirectories` instead, to avoid duplicates. However, the SDK
- * validates the session-start `agent:` option against `customAgents` *by name
- * only* — it does NOT consult `pluginDirectories`. So a selected plugin or
- * extension agent (e.g. one chosen in the agent picker) would otherwise fail
- * with "Custom agent '<name>' not found". This forces the resolved selection
- * into `customAgents` so it can be activated, while every other file-dir agent
- * continues to load via `pluginDirectories`.
+ * The SDK treats an explicit `customAgents` list as the complete session agent
+ * catalog, so plugin agents must be included even when their directory is also
+ * passed through `pluginDirectories`.
  */
 export async function toSdkSessionCustomAgents(
 	plugins: readonly IPluginAgentsForSdk[],
-	resolvedAgentName: string | undefined,
 	fileService: IFileService,
 ): Promise<CustomAgentConfig[]> {
-	const pluginsWithoutDirs = plugins.filter(p => !p.pluginDir || p.pluginDir.scheme !== Schemas.file);
-	const customAgents = await toSdkCustomAgents(pluginsWithoutDirs.flatMap(p => p.agents), fileService);
-	if (resolvedAgentName && !customAgents.some(agent => agent.name === resolvedAgentName)) {
-		const selectedAgents = plugins.flatMap(p => p.agents).filter(agent => agent.name === resolvedAgentName);
-		for (const config of await toSdkCustomAgents(selectedAgents, fileService)) {
-			if (!customAgents.some(agent => agent.name === config.name)) {
-				customAgents.push(config);
-			}
+	const customAgents: CustomAgentConfig[] = [];
+	const seenNames = new Set<string>();
+	for (const config of await toSdkCustomAgents(plugins.flatMap(plugin => plugin.agents), fileService)) {
+		if (!seenNames.has(config.name)) {
+			customAgents.push(config);
+			seenNames.add(config.name);
 		}
 	}
 	return customAgents;

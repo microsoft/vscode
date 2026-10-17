@@ -16,12 +16,12 @@ import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ActionType, SessionCustomizationsChangedAction } from '../../../common/state/sessionActions.js';
-import { customizationId, CustomizationType, ISessionWithDefaultChat, type ClientPluginCustomization, type DirectoryCustomization, type PluginCustomization, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
+import { customizationId, CustomizationType, ISessionWithDefaultChat, MessageKind, ResponsePartKind, ToolResultContentType, type ClientPluginCustomization, type DirectoryCustomization, type PluginCustomization, type ToolResultContent, type ToolResultSubagentContent, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { type AhpNotification, type DisposeSessionParams } from '../../../common/state/sessionProtocol.js';
 import type { SessionRemovedParams } from '../../../common/state/protocol/notifications.js';
 import { createProviderSession, dispatchTurn, type IAgentHostProviderTestConfig } from '../providerIntegrationTestHelpers.js';
 import { createIsolatedProviderEnvironment } from '../providerTestEnvironment.js';
-import { fetchSessionWithChat, getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification, IServerHandle, startRealServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
+import { defaultChatChannel, fetchSessionWithChat, getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification, IServerHandle, startRealServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
 import { COPILOT_BUILTIN_AGENTS_SCHEME } from '../../../node/copilot/copilotBuiltinAgents.js';
 import { createCopilotCliEnvironment } from '../../../node/copilot/copilotCliEnvironment.js';
 
@@ -151,7 +151,38 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 	suiteSetup(async function () {
 		this.timeout(SETUP_TIMEOUT_MS);
 		userHomeDir = await realpath(await mkdtemp(`${tmpdir()}/ahp-customizations-home-mock-`));
-		server = await startRealServer({ mockLlm: true, homeDir: userHomeDir });
+		server = await startRealServer({
+			mockLlm: true,
+			homeDir: userHomeDir,
+			mockScenarios: [{
+				id: 'copilot-plugin-sibling-delegation',
+				definition: {
+					type: 'multi-turn',
+					turns: [
+						{
+							kind: 'tool-calls',
+							toolCalls: [{
+								toolNamePattern: /^task$/,
+								arguments: {
+									agent_type: 'file-plugin-sibling',
+									name: 'Plugin sibling check',
+									description: 'Verify sibling agent delegation',
+									prompt: '[scenario:copilot-plugin-sibling-child] Reply with exactly PLUGIN_SIBLING_OK.',
+									mode: 'async',
+								},
+							}],
+						},
+						{ kind: 'content', chunks: [{ content: 'PLUGIN_PARENT_DONE', delayMs: 0 }] },
+					],
+				},
+			}, {
+				id: 'copilot-plugin-sibling-child',
+				definition: {
+					type: 'multi-turn',
+					turns: [{ kind: 'content', chunks: [{ content: 'PLUGIN_SIBLING_OK', delayMs: 0 }] }],
+				},
+			}],
+		});
 		tempDirs.push(userHomeDir);
 	});
 
@@ -216,6 +247,16 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 	test('workspace with plugin', async function () {
 		this.timeout(TEST_TIMEOUT_MS);
 		await runWorkspaceAndPluginCustomizationsTest();
+	});
+
+	test('bundled runtime lists plugin agents with custom agents omitted, empty, and populated', async function () {
+		this.timeout(TEST_TIMEOUT_MS);
+		await runBundledPluginAgentCatalogVariantsTest();
+	});
+
+	test('selected file-plugin parent delegates to its sibling agent', async function () {
+		this.timeout(TEST_TIMEOUT_MS);
+		await runFilePluginSiblingDelegationTest();
 	});
 
 	test('SDK-installed plugin reaches the client as a plugin customization', async function () {
@@ -582,6 +623,194 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 		].sort((a, b) => a.uri.localeCompare(b.uri));
 
 		assert.deepStrictEqual(mappedCustomizations, expectedCustomizations);
+	}
+
+	async function runBundledPluginAgentCatalogVariantsTest(): Promise<void> {
+		const workspaceDir = await createWorkspace('ahp-plugin-agent-catalog-');
+		const sdkHome = await mkdtemp(`${tmpdir()}/ahp-plugin-agent-catalog-home-`);
+		tempDirs.push(sdkHome);
+		const pluginDir = join(workspaceDir, 'file-plugin');
+		const agentsDir = join(pluginDir, 'agents');
+		await Promise.all([
+			mkdir(join(pluginDir, '.plugin'), { recursive: true }),
+			mkdir(agentsDir, { recursive: true }),
+		]);
+		await Promise.all([
+			writeFile(join(pluginDir, '.plugin', 'plugin.json'), JSON.stringify({ name: 'File Plugin' })),
+			writeFile(join(agentsDir, 'parent.agent.md'), [
+				'---',
+				'name: file-plugin-parent',
+				'description: Parent agent',
+				'---',
+				'You are the plugin parent.',
+			].join('\n')),
+			writeFile(join(agentsDir, 'sibling.agent.md'), [
+				'---',
+				'name: file-plugin-sibling',
+				'description: Sibling agent',
+				'---',
+				'You are the plugin sibling.',
+			].join('\n')),
+		]);
+
+		const sdkClient = new CopilotClient({
+			baseDirectory: sdkHome,
+			useLoggedInUser: false,
+			logLevel: 'error',
+			env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(sdkHome)),
+		});
+		const variants: { name: string; customAgents?: { name: string; prompt: string }[] }[] = [
+			{ name: 'omitted' },
+			{ name: 'empty', customAgents: [] },
+			{
+				name: 'populated',
+				customAgents: [
+					{ name: 'file-plugin-parent', prompt: 'You are the plugin parent.' },
+					{ name: 'file-plugin-sibling', prompt: 'You are the plugin sibling.' },
+				],
+			},
+		];
+		try {
+			await sdkClient.start();
+			for (const variant of variants) {
+				const session = await sdkClient.createSession({
+					workingDirectory: workspaceDir,
+					pluginDirectories: [pluginDir],
+					enableConfigDiscovery: true,
+					availableTools: [],
+					...(variant.customAgents !== undefined ? { customAgents: variant.customAgents } : {}),
+				});
+				try {
+					const { agents } = await session.rpc.agent.reload();
+					assert.deepStrictEqual(
+						[...new Set(agents.map(agent => agent.displayName ?? agent.name).filter(name => name.startsWith('file-plugin-')))].sort(),
+						['file-plugin-parent', 'file-plugin-sibling'],
+						`${variant.name} customAgents configuration must retain plugin agent discovery: ${JSON.stringify(agents.map(agent => ({ name: agent.name, displayName: agent.displayName })))}`,
+					);
+				} finally {
+					await session.disconnect();
+				}
+			}
+		} finally {
+			await sdkClient.stop();
+		}
+	}
+
+	async function runFilePluginSiblingDelegationTest(): Promise<void> {
+		const workspaceDir = await createWorkspace('ahp-file-plugin-subagent-');
+		const pluginDir = join(workspaceDir, '.github', 'copilot', 'plugins', 'file-plugin');
+		const agentsDir = join(pluginDir, 'agents');
+		const parentAgentFile = join(agentsDir, 'parent.agent.md');
+		const siblingAgentFile = join(agentsDir, 'sibling.agent.md');
+		const pluginUri = URI.file(pluginDir).toString();
+		await Promise.all([
+			mkdir(join(pluginDir, '.plugin'), { recursive: true }),
+			mkdir(agentsDir, { recursive: true }),
+		]);
+		await Promise.all([
+			writeFile(join(pluginDir, '.plugin', 'plugin.json'), JSON.stringify({ name: 'File Plugin' })),
+			writeFile(parentAgentFile, [
+				'---',
+				'name: file-plugin-parent',
+				'description: Parent agent',
+				'---',
+				'Delegate the requested work to the plugin sibling.',
+			].join('\n')),
+			writeFile(siblingAgentFile, [
+				'---',
+				'name: file-plugin-sibling',
+				'description: Sibling agent',
+				'tools:',
+				'  - view',
+				'---',
+				'Reply with exactly PLUGIN_SIBLING_OK.',
+			].join('\n')),
+		]);
+
+		const clientId = 'real-sdk-file-plugin-subagent-client-mock';
+		const sessionUri = await createProviderSession(client, COPILOT_CONFIG, clientId, createdSessions, URI.file(workspaceDir));
+		client.dispatch({
+			channel: sessionUri,
+			clientSeq: 1,
+			action: {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: {
+					clientId,
+					tools: [],
+					customizations: [{
+						type: CustomizationType.Plugin,
+						id: customizationId(pluginUri),
+						uri: pluginUri as ProtocolURI,
+						name: 'File Plugin',
+						nonce: '1',
+					}],
+				},
+			},
+		});
+		await client.waitForNotification(n =>
+			isActionNotification(n, ActionType.SessionActiveClientSet) && getActionEnvelope(n).channel === sessionUri,
+			NOTIFICATION_TIMEOUT_MS,
+		);
+		await waitForPluginCustomizationUpdate(sessionUri, pluginUri);
+
+		const parentChat = defaultChatChannel(sessionUri);
+		const requestOffset = server.mockLlm?.getRequests?.().length ?? 0;
+		client.clearReceived();
+		client.dispatch({
+			channel: parentChat,
+			clientSeq: 2,
+			action: {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-file-plugin-subagent',
+				startedAt: new Date().toISOString(),
+				message: {
+					text: '[scenario:copilot-plugin-sibling-delegation] Delegate to file-plugin-sibling.',
+					origin: { kind: MessageKind.User },
+					agent: { uri: URI.file(parentAgentFile).toString() },
+				},
+			},
+		});
+		try {
+			await client.waitForNotification(n =>
+				isActionNotification(n, 'chat/turnComplete')
+				&& getActionEnvelope(n).channel === parentChat
+				&& (getActionEnvelope(n).action as { turnId?: string }).turnId === 'turn-file-plugin-subagent',
+				NOTIFICATION_TIMEOUT_MS,
+			);
+		} catch (error) {
+			throw new Error(`Plugin sibling delegation timed out: ${server.mockLlm?.logMessages.slice(-20).join('\n')}`, { cause: error });
+		}
+
+		const requests = (server.mockLlm?.getRequests?.() ?? []) as readonly {
+			path: string;
+			body: {
+				tools?: readonly {
+					name: string;
+					input_schema?: { properties?: { agent_type?: { enum?: readonly string[] } } };
+					parameters?: { properties?: { agent_type?: { enum?: readonly string[] } } };
+					function?: { parameters?: { properties?: { agent_type?: { enum?: readonly string[] } } } };
+				}[];
+			};
+		}[];
+		const parentRequest = requests.slice(requestOffset).find(request => request.body.tools?.some(tool => tool.name === 'task'));
+		const taskTool = parentRequest?.body.tools?.find(tool => tool.name === 'task');
+		const agentTypeNames = taskTool?.input_schema?.properties?.agent_type?.enum
+			?? taskTool?.parameters?.properties?.agent_type?.enum
+			?? taskTool?.function?.parameters?.properties?.agent_type?.enum;
+		assert.ok(agentTypeNames?.includes('file-plugin-sibling'), 'the task tool must enumerate the plugin sibling');
+
+		const subagent = client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallContentChanged'))
+			.filter(n => getActionEnvelope(n).channel === parentChat)
+			.flatMap(n => (getActionEnvelope(n).action as { content: readonly ToolResultContent[] }).content)
+			.find((content): content is ToolResultSubagentContent => content.type === ToolResultContentType.Subagent);
+		assert.ok(subagent, `the parent task call must expose its delegated sibling chat: ${server.mockLlm?.logMessages.slice(-20).join('\n')}`);
+		assert.strictEqual(subagent.agentName, 'file-plugin-sibling');
+
+		const parent = await fetchSessionWithChat(client, sessionUri);
+		assert.deepStrictEqual(parent.turns.at(-1)?.responseParts
+				.filter(part => part.kind === ResponsePartKind.Markdown)
+				.map(part => part.content)
+				.join(''), 'PLUGIN_PARENT_DONE');
 	}
 
 	async function runSyncedBundlePluginCustomizationsTest(): Promise<void> {

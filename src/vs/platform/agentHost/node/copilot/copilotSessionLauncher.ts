@@ -1210,16 +1210,14 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			}
 			shellToolsPromise = createShellTools(plan.shellManager, runtime.chatUri, this._terminalManager, this._logService, request => runtime.requestUnsandboxedCommandConfirmation(request));
 		}
-		// Rely on the SDK to discover most agents/skills/etc. from `pluginDirectories`
-		// instead of feeding them explicitly, to avoid duplicates. Custom agents are the
-		// exception: the SDK validates the session-start `agent:` against `customAgents`
-		// by name, so the selected agent is force-included (see `toSdkSessionCustomAgents`).
+		// The SDK treats `customAgents` as the complete agent catalog, so project all
+		// plugin agents explicitly even though their directories are also supplied below.
 		// Hooks without an on-disk plugin directory are projected explicitly below.
 		const pluginsWithoutDirs = plugins.filter(p => !p.pluginDir || p.pluginDir.scheme !== Schemas.file);
 		// An ephemeral session skips the explicit enumeration (and its file I/O). The SDK can
 		// still discover agents from `pluginDirectories`; suppressing that too would also drop
 		// skills and instructions, so it is left alone.
-		const customAgentsPromise = plan.isEphemeral ? Promise.resolve([]) : toSdkSessionCustomAgents(plugins, plan.resolvedAgentName, this._fileService);
+		const customAgentsPromise = plan.isEphemeral ? Promise.resolve([]) : toSdkSessionCustomAgents(plugins, this._fileService);
 		const byokPromise = this.resolveByokSessionConfig(plan.sessionId);
 		// These are independent, so resolve them concurrently rather than paying each in turn.
 		const [externalByok, shellTools, pluginCustomAgents] = await Promise.all([byokPromise, shellToolsPromise, customAgentsPromise]);
