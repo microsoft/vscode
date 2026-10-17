@@ -671,7 +671,7 @@ suite('MultiDiffEditorWidget', () => {
 		}
 	});
 
-	test('preserves expanded height when a collapsed template is recycled', async () => {
+	test('preserves expanded height when a collapsed template is recycled', () => runWithFakedTimers({}, async () => {
 		const services = new ServiceCollection();
 		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
 		services.set(IActionViewItemService, new NullActionViewItemService());
@@ -717,13 +717,8 @@ suite('MultiDiffEditorWidget', () => {
 			{ variant: 'noCardsNonCompact' },
 		);
 		widget.layout(new Dimension(800, 200));
-		// The diffs never resolve, so each item waits for its 1s initial-diff fallback. Creating the view model
-		// schedules those timers, so it must happen inside virtual time; the view model is returned for the real-time rest.
-		const viewModel = await runWithFakedTimers({}, async () => {
-			const created = widget.createViewModel(model);
-			await waitForState(created.items, items => items.length === documentItems.length);
-			return created;
-		});
+		const viewModel = widget.createViewModel(model);
+		await waitForState(viewModel.items, items => items.length === documentItems.length);
 		viewModel.items.get()[0].lastTemplateData.set({ expandedContentHeight: 2000, selections: undefined }, undefined);
 		widget.setViewModel(viewModel);
 		widget.reveal({ original: originalUris[0], modified: modifiedUris[0] }, { highlight: false });
@@ -765,7 +760,7 @@ suite('MultiDiffEditorWidget', () => {
 				documentItem.dispose();
 			}
 		}
-	});
+	}));
 });
 
 class PendingDiffProviderFactoryService implements IDiffProviderFactoryService {
