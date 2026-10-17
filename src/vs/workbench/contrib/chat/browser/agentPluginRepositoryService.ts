@@ -50,7 +50,7 @@ type IStoredMarketplaceIndex = Dto<Record<string, IMarketplaceIndexEntry>>;
 export class AgentPluginRepositoryService implements IAgentPluginRepositoryService {
 	declare readonly _serviceBrand: undefined;
 	agentPluginsHome: URI;
-	private readonly _cacheRoot: URI;
+	private _cacheRoot: URI;
 	private readonly _legacyCacheRoot: URI;
 	private readonly _marketplaceIndex = new Lazy<Map<string, IMarketplaceIndexEntry>>(() => this._loadMarketplaceIndex());
 	private readonly _pluginSources: ReadonlyMap<PluginSourceKind, IPluginSource>;
@@ -81,8 +81,12 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 			? legacyCacheRoot
 			: this.agentPluginsHome;
 		this._cacheRoot = this.agentPluginsHome;
-		this._migrationDone = this._resolveRemoteHome(environmentService).then(() => this._migrateDirectory(oldCacheRoot));
-
+		this._migrationDone = this._resolveRemoteHome(environmentService).then(() => {
+			if (!environmentService.remoteAuthority && !isEqual(oldCacheRoot, this.agentPluginsHome)) {
+				return this._migrateDirectory(oldCacheRoot);
+			}
+			return Promise.resolve();
+		});
 
 		// Build per-kind source repository map via instantiation service so
 		// each repository can inject its own dependencies.
@@ -94,10 +98,14 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 			[PluginSourceKind.Pip, instantiationService.createInstance(PipPluginSource)],
 		]);
 	}
+	get whenReady(): Promise<void> {
+		return this._migrationDone;
+	}
 	private async _resolveRemoteHome(environmentService: IWorkbenchEnvironmentService): Promise<void> {
 		if (environmentService.remoteAuthority) {
 			const remoteUserHome = await this._pathService.userHome();
 			this.agentPluginsHome = joinPath(remoteUserHome, this._productService.dataFolderName, 'agent-plugins');
+			this._cacheRoot = this.agentPluginsHome;
 		}
 	}
 	getPluginSource(kind: PluginSourceKind): IPluginSource {
