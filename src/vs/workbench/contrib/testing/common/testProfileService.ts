@@ -97,6 +97,14 @@ const sorter = (a: ITestRunProfile, b: ITestRunProfile) => {
 	return a.label.localeCompare(b.label);
 };
 
+const preferredProfileSorter = (a: ITestRunProfile, b: ITestRunProfile) => {
+	if (a.isDefault !== b.isDefault) {
+		return a.isDefault ? -1 : 1;
+	}
+
+	return (b.priority ?? 0) - (a.priority ?? 0) || a.label.localeCompare(b.label);
+};
+
 interface IExtendedTestRunProfile extends ITestRunProfile {
 	wasInitiallyDefault: boolean;
 }
@@ -308,7 +316,14 @@ export class TestProfileService extends Disposable implements ITestProfileServic
 	}
 
 	getDefaultProfileForTest(group: TestRunProfileBitset, test: InternalTestItem): ITestRunProfile | undefined {
-		return this.getControllerProfiles(test.controllerId).find(p => (p.group & group) !== 0 && canUseProfileWithTest(p, test));
+		let preferred: ITestRunProfile | undefined;
+		for (const profile of this.getControllerProfiles(test.controllerId)) {
+			if ((profile.group & group) !== 0 && canUseProfileWithTest(profile, test) && (!preferred || preferredProfileSorter(profile, preferred) < 0)) {
+				preferred = profile;
+			}
+		}
+
+		return preferred;
 	}
 
 	private refreshContextKeys() {
