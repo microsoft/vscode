@@ -5,7 +5,7 @@
 
 import { IMarkerService, IMarkerData, type IMarker } from '../../../platform/markers/common/markers.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
-import { MainThreadDiagnosticsShape, MainContext, ExtHostDiagnosticsShape, ExtHostContext } from '../common/extHost.protocol.js';
+import { MainThreadDiagnosticsShape, MainContext, ExtHostDiagnosticsShape, ExtHostContext, IMarkerChange } from '../common/extHost.protocol.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
@@ -66,9 +66,9 @@ export class MainThreadDiagnostics implements MainThreadDiagnosticsShape {
 		}
 	}
 
-	$changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): void {
+	$changeMany(owner: string, entries: IMarkerChange[]): void {
 		for (const entry of entries) {
-			const [uri, markers] = entry;
+			const [uri, markers, isTruncated] = entry;
 			if (markers) {
 				for (const marker of markers) {
 					if (marker.relatedInformation) {
@@ -84,7 +84,7 @@ export class MainThreadDiagnostics implements MainThreadDiagnosticsShape {
 					}
 				}
 			}
-			this._markerService.changeOne(owner, this._uriIdentService.asCanonicalUri(URI.revive(uri)), markers);
+			this._markerService.changeOne(owner, this._uriIdentService.asCanonicalUri(URI.revive(uri)), markers ?? [], { isTruncated });
 		}
 		this._activeOwners.add(owner);
 	}
