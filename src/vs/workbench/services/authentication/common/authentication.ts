@@ -354,9 +354,9 @@ export interface IAuthenticationExtensionsService {
 	 * @param scopes
 	 */
 	removeSessionPreference(providerId: string, extensionId: string, scopes: string[]): void;
-	selectSession(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, possibleSessions: readonly AuthenticationSession[], options?: IAuthenticationProviderSessionOptions): Promise<AuthenticationSession>;
-	requestSessionAccess(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, possibleSessions: readonly AuthenticationSession[], options?: IAuthenticationProviderSessionOptions): void;
-	requestNewSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, extensionId: string, extensionName: string, options?: IAuthenticationProviderSessionOptions): Promise<void>;
+	selectSession(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, possibleSessions: readonly AuthenticationSession[], options?: IAuthenticationProviderSessionOptions, accountsMenuLabel?: string): Promise<AuthenticationSession>;
+	requestSessionAccess(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, possibleSessions: readonly AuthenticationSession[], options?: IAuthenticationProviderSessionOptions, accountsMenuLabel?: string): void;
+	requestNewSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, extensionId: string, extensionName: string, options?: IAuthenticationProviderSessionOptions, accountsMenuLabel?: string): Promise<void>;
 	updateNewSessionRequests(providerId: string, addedSessions: readonly AuthenticationSession[]): Promise<void>;
 }
 

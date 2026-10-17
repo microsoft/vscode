@@ -47,7 +47,8 @@ export function reviveAuthenticationSession(session: Dto<AuthenticationSession>)
 
 function prepareSessionRequest(options: AuthenticationGetSessionOptions) {
 	// Workbench-only options must never be settable by an extension.
-	const { clearSessionPreference, createIfNone, forceNewSession, silent, ...requestOptions } = withoutWorkbenchOnlySessionOptions(options);
+	// accountsMenuLabel is extension-facing menu text and must not reach the provider or the session request key.
+	const { clearSessionPreference, createIfNone, forceNewSession, silent, accountsMenuLabel, ...requestOptions } = withoutWorkbenchOnlySessionOptions(options);
 	if (forceNewSession && createIfNone) {
 		throw new Error('Invalid combination of options. Please remove one of the following: forceNewSession, createIfNone');
 	}
@@ -62,7 +63,7 @@ function prepareSessionRequest(options: AuthenticationGetSessionOptions) {
 		account: requestOptions.account && { ...requestOptions.account, icon: URI.revive(requestOptions.account.icon) },
 		authorizationServer: URI.revive(requestOptions.authorizationServer)
 	};
-	return { clearSessionPreference, createIfNone, forceNewSession, silent, providerOptions };
+	return { clearSessionPreference, createIfNone, forceNewSession, silent, accountsMenuLabel, providerOptions };
 }
 
 class MainThreadAuthenticationProvider extends Disposable implements IAuthenticationProvider {
@@ -448,7 +449,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	}
 
 	private async doGetSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined> {
-		const { clearSessionPreference, createIfNone, forceNewSession, silent, providerOptions } = prepareSessionRequest(options);
+		const { clearSessionPreference, createIfNone, forceNewSession, silent, accountsMenuLabel, providerOptions } = prepareSessionRequest(options);
 		const sessions = await this.authenticationService.getSessions(providerId, scopeListOrRequest, {
 			...providerOptions,
 			// The default request is passive too; only the interactive options permit provider UI.
@@ -543,8 +544,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			// If there is a potential session, but the extension doesn't have access to it, use the "grant access" flow,
 			// otherwise request a new one.
 			sessions.length
-				? this.authenticationExtensionsService.requestSessionAccess(providerId, extensionId, extensionName, scopeListOrRequest, sessions, providerOptions)
-				: await this.authenticationExtensionsService.requestNewSession(providerId, scopeListOrRequest, extensionId, extensionName, providerOptions);
+				? this.authenticationExtensionsService.requestSessionAccess(providerId, extensionId, extensionName, scopeListOrRequest, sessions, providerOptions, accountsMenuLabel)
+				: await this.authenticationExtensionsService.requestNewSession(providerId, scopeListOrRequest, extensionId, extensionName, providerOptions, accountsMenuLabel);
 		}
 		return undefined;
 	}
