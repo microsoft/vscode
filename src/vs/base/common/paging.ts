@@ -43,6 +43,13 @@ interface IPage<T> {
 	elements: T[];
 }
 
+export function validatePage<T>(pager: IPager<T>, pageIndex: number, elements: T[]): void {
+	const expected = Math.min(pager.pageSize, pager.total - pageIndex * pager.pageSize);
+	if (elements.length !== expected) {
+		throw new Error(`Page ${pageIndex} contains ${elements.length} elements, expected ${expected} from the pager's total and page size`);
+	}
+}
+
 function createPage<T>(elements?: T[]): IPage<T> {
 	return {
 		isResolved: !!elements,
@@ -85,6 +92,7 @@ export class PagedModel<T> implements IPagedModel<T> {
 
 	constructor(arg: IPager<T> | T[]) {
 		this.pager = Array.isArray(arg) ? singlePagePager<T>(arg) : arg;
+		validatePage(this.pager, 0, this.pager.firstPage);
 
 		const totalPages = Math.ceil(this.pager.total / this.pager.pageSize);
 
@@ -126,11 +134,12 @@ export class PagedModel<T> implements IPagedModel<T> {
 			page.cts = new CancellationTokenSource();
 			page.promise = this.pager.getPage(pageIndex, page.cts.token)
 				.then(elements => {
+					validatePage(this.pager, pageIndex, elements);
 					page.elements = elements;
 					page.isResolved = true;
 					page.promise = null;
 					page.cts = null;
-				}, err => {
+				}).catch(err => {
 					page.isResolved = false;
 					page.promise = null;
 					page.cts = null;
