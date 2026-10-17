@@ -971,6 +971,34 @@ suite('ExtensionsActions', () => {
 			});
 	});
 
+	test('Test DisableGloballyAction and DisableForWorkspaceAction when extension is enabled for workspace (regression test for #244138)', () => {
+		const local = aLocalExtension('a');
+		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.EnabledWorkspace)
+			.then(() => {
+				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+				instantiationService.stub(IExtensionService, {
+					extensions: [toExtensionDescription(local)],
+					onDidChangeExtensions: Event.None,
+					whenInstalledExtensionsRegistered: () => Promise.resolve(true)
+				});
+
+				return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
+					.then(extensions => {
+						const disableGloballyAction: ExtensionsActions.DisableGloballyAction = disposables.add(instantiationService.createInstance(ExtensionsActions.DisableGloballyAction));
+						const disableForWorkspaceAction: ExtensionsActions.DisableForWorkspaceAction = disposables.add(instantiationService.createInstance(ExtensionsActions.DisableForWorkspaceAction));
+
+						disableGloballyAction.extension = extensions[0];
+						disableForWorkspaceAction.extension = extensions[0];
+
+						// Global disable should NOT be offered when extension is workspace-enabled
+						assert.ok(!disableGloballyAction.enabled, 'DisableGloballyAction should be disabled when extension is EnabledWorkspace');
+
+						// Workspace disable should remain available
+						assert.ok(disableForWorkspaceAction.enabled, 'DisableForWorkspaceAction should be enabled when extension is EnabledWorkspace');
+					});
+			});
+	});
+
 });
 
 suite('ExtensionRuntimeStateAction', () => {
