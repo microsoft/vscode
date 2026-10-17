@@ -35,3 +35,38 @@
 .monaco-workbench .outline-pane.message .outline-tree {
 	display: none;
 }
+
+.outline-drag-image {
+	position: fixed;
+	top: -10000px;
+	left: -10000px;
+	display: flex;
+	align-items: center;
+	box-sizing: border-box;
+	padding: 0 8px;
+	background: var(--vscode-list-hoverBackground);
+	color: var(--vscode-list-hoverForeground, var(--vscode-foreground));
+	border: 1px solid var(--vscode-contrastBorder, var(--vscode-foreground));
+	border-radius: 2px;
+	overflow: hidden;
+	pointer-events: none;
+	font-size: 13px;
+	opacity: 1;
+}
+
+.outline-drag-image .outline-drag-image-icon {
+	flex: 0 0 16px;
+	width: 16px;
+	height: 16px;
+	margin-right: 6px;
+}
+
+.outline-drag-image .outline-drag-image-label {
+	display: block;
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: inherit;
+}
