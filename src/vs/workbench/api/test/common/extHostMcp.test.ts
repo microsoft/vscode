@@ -5,17 +5,25 @@
 
 import * as assert from 'assert';
 import * as sinon from 'sinon';
+import type * as vscode from 'vscode';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { LogLevel, NullLogService } from '../../../../platform/log/common/log.js';
 import { MainThreadMcpShape } from '../../common/extHost.protocol.js';
-import { createAuthMetadata, CommonRequestInit, CommonResponse, IAuthMetadata, McpHTTPHandle } from '../../common/extHostMcp.js';
+import { createAuthMetadata, CommonRequestInit, CommonResponse, ExtHostMcpService, IAuthMetadata, McpHTTPHandle } from '../../common/extHostMcp.js';
+import { IExtHostInitDataService } from '../../common/extHostInitDataService.js';
+import { McpStdioServerDefinition } from '../../common/extHostTypes.js';
+import { IExtHostVariableResolverProvider } from '../../common/extHostVariableResolverService.js';
+import { IExtHostWorkspace } from '../../common/extHostWorkspace.js';
+import { SingleProxyRPCProtocol } from './testRPCProtocol.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { McpConnectionState, McpServerTransportHTTP, McpServerTransportType } from '../../../contrib/mcp/common/mcpTypes.js';
+import { extensionPrefixedIdentifier, McpConnectionState, McpServerTransportHTTP, McpServerTransportType } from '../../../contrib/mcp/common/mcpTypes.js';
 import { MCP } from '../../../contrib/mcp/common/modelContextProtocol.js';
+import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
 
 // Test constants to avoid magic strings
 const TEST_MCP_URL = 'https://example.com/mcp';
@@ -109,6 +117,111 @@ async function createTestAuthMetadata(options: {
 
 suite('ExtHostMcp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('provider disposal', () => {
+		const extension = { ...nullExtensionDescription, contributes: { mcpServerDefinitionProviders: [{ id: 'test', label: 'Test MCP' }] } };
+		const collectionId = extensionPrefixedIdentifier(extension.identifier, 'test');
+
+		function createHost(onUpsert?: (labels: string[]) => void) {
+			const operations: { kind: 'upsert' | 'delete'; labels?: string[] }[] = [];
+			const proxy: Partial<MainThreadMcpShape> = {
+				$upsertMcpCollection: (_collection, servers) => {
+					const labels = servers.map(server => server.label);
+					operations.push({ kind: 'upsert', labels });
+					onUpsert?.(labels);
+				},
+				$deleteMcpCollection: () => { operations.push({ kind: 'delete' }); },
+			};
+			const host = store.add(new ExtHostMcpService(
+				SingleProxyRPCProtocol(proxy),
+				new NullLogService(),
+				new class extends mock<IExtHostInitDataService>() {
+					override remote = { isRemote: false, authority: undefined, connectionData: null };
+				},
+				new class extends mock<IExtHostWorkspace>() { },
+				new class extends mock<IExtHostVariableResolverProvider>() { },
+			));
+			return { host, operations };
+		}
+
+		test('does not invoke a provider disposed before its initial update', async () => {
+			const { host, operations } = createHost();
+			let calls = 0;
+			const registration = store.add(host.registerMcpConfigurationProvider(extension, 'test', {
+				provideMcpServerDefinitions: () => {
+					calls++;
+					return [new McpStdioServerDefinition('obsolete', 'node', [])];
+				},
+			}));
+			registration.dispose();
+			await host.$waitForInitialCollectionProviders();
+
+			assert.deepStrictEqual({ calls, operations, launch: await host.$resolveMcpLaunch(collectionId, 'obsolete') }, {
+				calls: 0, operations: [{ kind: 'delete' }], launch: undefined,
+			});
+		});
+
+		test('does not restore a disposed provider when pending discovery completes', async () => {
+			const { host, operations } = createHost();
+			const started = new DeferredPromise<void>();
+			const result = new DeferredPromise<vscode.McpServerDefinition[]>();
+			const registration = store.add(host.registerMcpConfigurationProvider(extension, 'test', {
+				provideMcpServerDefinitions: () => { void started.complete(); return result.p; },
+			}));
+			await started.p;
+			registration.dispose();
+			await result.complete([new McpStdioServerDefinition('obsolete', 'node', [])]);
+			await host.$waitForInitialCollectionProviders();
+
+			assert.deepStrictEqual({ operations, launch: await host.$resolveMcpLaunch(collectionId, 'obsolete') }, {
+				operations: [{ kind: 'delete' }], launch: undefined,
+			});
+		});
+
+		test('a disposed provider cannot overwrite a replacement collection', async () => {
+			const published = new DeferredPromise<void>();
+			const { host, operations } = createHost(() => { void published.complete(); });
+			const started = new DeferredPromise<void>();
+			const result = new DeferredPromise<vscode.McpServerDefinition[]>();
+			const registration = store.add(host.registerMcpConfigurationProvider(extension, 'test', {
+				provideMcpServerDefinitions: () => { void started.complete(); return result.p; },
+			}));
+			await started.p;
+			registration.dispose();
+			store.add(host.registerMcpConfigurationProvider(extension, 'test', {
+				provideMcpServerDefinitions: () => [new McpStdioServerDefinition('current', 'node', [])],
+			}));
+			await published.p;
+			await result.complete([new McpStdioServerDefinition('obsolete', 'node', [])]);
+			await host.$waitForInitialCollectionProviders();
+
+			assert.deepStrictEqual({ operations, obsolete: await host.$resolveMcpLaunch(collectionId, 'obsolete'), current: !!await host.$resolveMcpLaunch(collectionId, 'current') }, {
+				operations: [{ kind: 'delete' }, { kind: 'upsert', labels: ['current'] }], obsolete: undefined, current: true,
+			});
+		});
+
+		test('live providers still publish, refresh and remove their collections', async () => {
+			const updated = new DeferredPromise<void>();
+			const { host, operations } = createHost(labels => { if (labels[0] === 'updated') { void updated.complete(); } });
+			const changes = store.add(new Emitter<void>());
+			let label = 'initial';
+			const registration = store.add(host.registerMcpConfigurationProvider(extension, 'test', {
+				onDidChangeMcpServerDefinitions: changes.event,
+				provideMcpServerDefinitions: () => [new McpStdioServerDefinition(label, 'node', [])],
+			}));
+			await host.$waitForInitialCollectionProviders();
+			label = 'updated';
+			changes.fire();
+			await updated.p;
+			const before = !!await host.$resolveMcpLaunch(collectionId, 'updated');
+			registration.dispose();
+			changes.fire();
+
+			assert.deepStrictEqual({ operations, before, after: await host.$resolveMcpLaunch(collectionId, 'updated') }, {
+				operations: [{ kind: 'upsert', labels: ['initial'] }, { kind: 'upsert', labels: ['updated'] }, { kind: 'delete' }], before: true, after: undefined,
+			});
+		});
+	});
 
 	suite('McpHTTPHandle stream cleanup', () => {
 		teardown(() => sinon.restore());
