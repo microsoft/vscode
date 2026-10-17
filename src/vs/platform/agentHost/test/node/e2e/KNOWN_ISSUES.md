@@ -96,19 +96,22 @@ The new `regression coverage:` history and fork scenarios exercise cold resume, 
 
 ### Codex Linux startup races in shared empty workspaces
 
-Starting two Codex chats in the same empty workspace can fail before the first prompt runs. With Codex 0.153.0 on Linux, initialization intermittently fails on a protected metadata directory that is missing by the time bubblewrap mounts it. This also reproduces with concurrent `thread/start` calls directly to the bundled app-server, without Agent Host.
+Starting two Codex chats in the same empty workspace can fail before the first prompt runs. With Codex 0.153.0 through at least 0.162.0 on Linux, initialization intermittently fails on a protected metadata directory that is missing by the time bubblewrap mounts it. This also reproduces with concurrent `thread/start` calls directly to the bundled app-server, without Agent Host.
 
-- Affected coverage: the shared-workspace scenarios in [serverToolsSuite.ts](./suites/serverToolsSuite.ts), including `server tool: list_sessions status filter combines active and archived sessions`.
+- Affected coverage: every suite that starts several Codex chats in one workspace: the shared-workspace scenarios in [serverToolsSuite.ts](./suites/serverToolsSuite.ts) (including `server tool: list_sessions status filter combines active and archived sessions`), the sibling chats in [sessionPersistenceSuite.ts](./suites/sessionPersistenceSuite.ts), and every provider scenario in [chatMoveSuite.ts](./suites/chatMoveSuite.ts) (two sessions sharing a folder, or a session and its peer).
 - Observed: `CodexMaterializeFailed` with `bwrap: Can't find source path <workspace>/.agents: No such file or directory` while loading workspace instructions.
-- Fixture mitigation: create `.git`, `.agents`, and `.codex` in the disposable workspace before starting any Codex chat on Linux. The directories then belong to the fixture and survive sandbox cleanup. All scenarios, assertions, replay checks, and provider permissions remain enabled and unchanged.
-- Runtime status: the bundled Codex defect remains; this only stabilizes test setup. After an SDK update, remove the setup workaround and repeatedly run the shared-workspace scenarios before considering the gap closed.
+- Mechanism: a thread creation reads AGENTS.md through the bubblewrap filesystem helper, because our permission profile lacks full-disk read access, and a helper failure fails the thread. Each helper mounts a temporary placeholder at a missing `.git`, `.agents`, or `.codex` of the workspace root and removes it on exit. Another helper set up meanwhile sees the placeholder, binds it as a readable root (`.agents` is a `read` entry of our profile), and fails once it is removed ([`bwrap.rs`](https://github.com/openai/codex/blob/rust-v0.162.0/codex-rs/linux-sandbox/src/bwrap.rs), readable roots are bound when they exist, without the transient-target check writable roots get).
+- Fixture mitigation: `ownCodexProtectedDirectories` in [testDirectories.ts](./harness/testDirectories.ts) creates `.git`, `.agents`, and `.codex` in the disposable workspace before starting any Codex chat on Linux. The directories then belong to the fixture and survive sandbox cleanup. All scenarios, assertions, replay checks, and provider permissions remain enabled and unchanged. A suite that starts several Codex chats in one workspace must call it.
+- Runtime status: the bundled Codex defect remains; this only stabilizes test setup. After an SDK update, make `ownCodexProtectedDirectories` a no-op and repeatedly run the affected scenarios before considering the gap closed.
 - Platform scope: the [0.153.0 Linux sandbox entry point](https://github.com/openai/codex/blob/rust-v0.153.0/codex-rs/linux-sandbox/src/lib.rs) compiles bubblewrap and its temporary-mount cleanup only on Linux. [Sandbox selection](https://github.com/openai/codex/blob/rust-v0.153.0/codex-rs/sandboxing/src/manager.rs) routes native macOS to Seatbelt and native Windows to its Windows sandbox; neither uses this cleanup path. Linux execution environments, including remote Linux and WSL2, remain affected regardless of the client's OS. This does not rule out unrelated startup races on other platforms.
-- Reproduce: remove the protected-directory setup in [serverToolsSuite.ts](./suites/serverToolsSuite.ts), then repeatedly run on Linux:
+- Reproduce: make `ownCodexProtectedDirectories` in [testDirectories.ts](./harness/testDirectories.ts) a no-op, then repeatedly run on Linux:
 
   ```bash
   ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
-    --grep "server tool: list_sessions.*archived"
+    --grep "server tool: list_sessions.*archived|keeps its provider conversation|keeps its chat's provider conversation"
   ```
+
+- Host mitigation: on Linux, `CodexAgent` runs `thread/start`, `thread/resume`, and `thread/fork` one at a time per workspace root ([codexThreadCreationSequencer.ts](../../../node/codex/codexThreadCreationSequencer.ts)), so chats starting together in one workspace no longer fail their first message. Sandboxed shell commands that two chats run at the same moment in one workspace can still race, and so can several Agent Host processes sharing a workspace; that remains upstream. No upstream Codex issue tracks it yet. The defect: in [`bwrap.rs`](https://github.com/openai/codex/blob/rust-v0.162.0/codex-rs/linux-sandbox/src/bwrap.rs), readable roots are bound whenever they exist, with no check for another setup's transient mount targets (writable roots have one); it is unchanged on Codex `main`.
 
 ### Codex context snapshot flake
 

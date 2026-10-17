@@ -5,7 +5,7 @@
 
 import { equals } from '../../../../base/common/objects.js';
 import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
-import type { CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
+import { DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
 
 export class CopilotAgentStartupConfig {
 	constructor(
@@ -29,6 +29,8 @@ export class CopilotAgentStartupConfig {
 		readonly legacyApprovalRestricted = false,
 		/** `chat.copilot.localModel.enabled`: the request handler can only be installed when the client starts. */
 		readonly localModel = false,
+		readonly executionSubagent = false,
+		readonly executionSubagentModel = DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL,
 	) { }
 
 	equals(other: CopilotAgentStartupConfig): boolean {

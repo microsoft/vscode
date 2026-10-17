@@ -16,7 +16,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { basename, isAbsolute, dirname as nodeDirname } from '../../../../base/common/path.js';
 import { FileChangesEvent, FileChangeType, FileOperationResult, IFileService, IFileStat, IFileStatWithMetadata, toFileOperationResult } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
-import { detectPluginFormat, parsePlugin, parseSkillFile, readPluginManifest, toSkillInvocationFlags } from '../../../agentPlugins/common/pluginParsers.js';
+import { detectPluginFormat, hasPluginManifest, parsePlugin, parseSkillFile, readPluginManifest, toSkillInvocationFlags } from '../../../agentPlugins/common/pluginParsers.js';
 import { AgentCustomization, ChildCustomization, CustomizationLoadStatus, CustomizationType, DirectoryCustomization, HookCustomization, PluginCustomization, RuleCustomization, SkillCustomization, customizationId } from '../../common/state/sessionState.js';
 import { ChildCustomizationType } from '../../common/state/protocol/state.js';
 import { toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
@@ -769,11 +769,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 		let current = uriDirname(file);
 		while (true) {
 			throwIfCancelled(token);
-			if (
-				await this._fileService.exists(joinPath(current, '.plugin', 'plugin.json'))
-				|| await this._fileService.exists(joinPath(current, '.claude-plugin', 'plugin.json'))
-				|| await this._fileService.exists(joinPath(current, 'plugin.json'))
-			) {
+			if (await hasPluginManifest(current, this._fileService)) {
 				return current;
 			}
 			const parent = uriDirname(current);

@@ -12,6 +12,7 @@ import { DisposableStore, DisposableTracker, IDisposable, IReference, MutableDis
 import { URI } from '../../../../base/common/uri.js';
 import { $, ModifierKeyEmitter } from '../../../../base/browser/dom.js';
 import { getBaseLayerHoverDelegate, setBaseLayerHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate2.js';
+import { disableScrollbarRevealOnScroll } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 // eslint-disable-next-line local/code-import-patterns
 import '../../../../../../build/vite/style.css';
 import '../../../browser/media/style.css';
@@ -1164,6 +1165,11 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 
 			// Replace Math.random with a seeded PRNG so fixtures render deterministically.
 			disposableStore.add(pushRandomOverwrite(42));
+
+			// Auto-hiding scrollbars would otherwise flash on layout changes and race the screenshot.
+			if (context.host.kind === 'headless') {
+				context.addDisposable(disableScrollbarRevealOnScroll());
+			}
 
 			// Do not enable virtual time in explorer ui, as multiple fixtures are rendered in parallel.
 			const virtualTimeEnabled = (options.virtualTime?.enabled ?? true) && context.host.kind !== 'explorer-ui';

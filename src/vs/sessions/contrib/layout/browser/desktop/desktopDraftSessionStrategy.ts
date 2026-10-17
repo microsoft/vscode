@@ -465,7 +465,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 				const isQuickChat = session?.isQuickChat?.get() ?? false;
 				if (
 					(!this._getActiveNewSessionKey() && !isQuickChat) ||
-					this._multipleLayoutOwnersVisible() ||
+					this._otherSessionShown() ||
 					this._ctx.isRestoringSessionLayout ||
 					this._layoutService.isEditorPartAutoVisibilitySuppressed() ||
 					!isMainPartEmpty(this._editorGroupsService)

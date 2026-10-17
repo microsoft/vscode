@@ -39,6 +39,8 @@ import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../../services/sessions/comm
 import { IWorkbenchGitHubService } from '../../../../../../workbench/services/github/common/githubService.js';
 import { GitHubCloudAutomationStore } from '../../browser/githubCloudAutomationStore.js';
 import { RepositoryRef } from '../../../../../../platform/github/common/client/types.js';
+import { ApiRequestOptions } from '../../../../../../platform/github/common/client/request.js';
+import { RequestPriority } from '../../../../../../platform/github/common/types.js';
 import { PaginationLimitError } from '../../../../../../platform/github/common/client/pagination.js';
 
 const account: IDefaultAccount = { accountName: 'octocat', sessionId: 'auth-1', enterprise: false, authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false } };
@@ -54,6 +56,7 @@ const createValue = { name: definition.name, prompt: definition.prompt, descript
 const reconciliationMessage = 'The automation request may have been accepted. Refresh automations before submitting again.';
 
 class TestApi extends mock<IAutomationsClient>() {
+	readonly priorities: { method: string; priority: RequestPriority | undefined }[] = [];
 	readonly calls: { method: string; account: string; repository: typeof repository; token: AbortSignal }[] = [];
 	readonly visibility = new Map<string, boolean | Error | Promise<boolean>>();
 	readonly definitions = new Map<string, readonly AutomationDetail[] | Error | Promise<readonly AutomationDetail[]>>();
@@ -94,7 +97,9 @@ class TestApi extends mock<IAutomationsClient>() {
 	}
 
 	override async listRuns(_id: string, _signal: AbortSignal, options?: TaskListOptions): Promise<PaginatedResponse<ListTasksResponse>> {
-		assert.deepStrictEqual(options, { query: { per_page: 50, page: 1, sort: 'created_at', direction: 'desc', is_archived: false } });
+		const { priority, ...requestOptions } = options ?? {};
+		this.priorities.push({ method: 'history', priority });
+		assert.deepStrictEqual(requestOptions, { query: { per_page: 50, page: 1, sort: 'created_at', direction: 'desc', is_archived: false } });
 		const error = this.historyErrors.get(_id);
 		if (error) {
 			throw error;
@@ -102,7 +107,8 @@ class TestApi extends mock<IAutomationsClient>() {
 		return { data: { tasks: this.tasks } };
 	}
 
-	async getTask(): Promise<Task> {
+	async getTask(options?: ApiRequestOptions): Promise<Task> {
+		this.priorities.push({ method: 'task', priority: options?.priority });
 		this.maxActiveDetails = Math.max(this.maxActiveDetails, ++this.activeDetails);
 		await this.detailStarted.complete();
 		try {
@@ -112,7 +118,8 @@ class TestApi extends mock<IAutomationsClient>() {
 		}
 	}
 
-	async isPrivateRepository(ref: GitHubRepositoryRef, token: AbortSignal): Promise<boolean> {
+	async isPrivateRepository(ref: GitHubRepositoryRef, token: AbortSignal, options?: ApiRequestOptions): Promise<boolean> {
+		this.priorities.push({ method: 'visibility', priority: options?.priority });
 		assert.strictEqual(ref.host, 'api.github.com');
 		this.calls.push({ method: 'visibility', account: ref.accountId, repository: { owner: ref.owner, name: ref.repo }, token });
 		const result = this.visibility.get(ref.repo) ?? true;
@@ -124,7 +131,9 @@ class TestApi extends mock<IAutomationsClient>() {
 	}
 
 	override async list(ref: RepositoryRef, token: AbortSignal, options?: ListAutomationsOptions): Promise<PaginatedResponse<ListRepoAutomationsResponse>> {
-		assert.deepStrictEqual(options, { query: { ownership: 'user', page: 1, per_page: 100 }, maxPages: 10 });
+		const { priority, ...requestOptions } = options ?? {};
+		this.priorities.push({ method: 'list', priority });
+		assert.deepStrictEqual(requestOptions, { query: { ownership: 'user', page: 1, per_page: 100 }, maxPages: 10 });
 		this.calls.push({ method: 'list', account: this.accountName, repository: ref, token });
 		const result = this.definitions.get(ref.name) ?? [definition];
 		await this.listStarted.complete();
@@ -135,7 +144,8 @@ class TestApi extends mock<IAutomationsClient>() {
 		return { data: { automations, total_count: automations.length } };
 	}
 
-	override async get(ref: RepositoryRef, id: string, signal: AbortSignal): Promise<AutomationDetail> {
+	override async get(ref: RepositoryRef, id: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<AutomationDetail> {
+		this.priorities.push({ method: 'get', priority: options?.priority });
 		this.detailCalls.push({ id, signal });
 		if (this.detailResult) {
 			return this.detailResult(id, signal);
@@ -189,13 +199,13 @@ suite('GitHubCloudAutomationStore', () => {
 					override readonly authorization = { providerId: 'github', sessionId: selected.sessionId, scopes: ['repo'] };
 					override readonly automations = api;
 					override readonly repositories = new class extends mock<IRepositoriesClient>() {
-						override async get(ref: RepositoryRef, signal: AbortSignal) {
-							const isPrivate = await api.isPrivateRepository({ host: 'api.github.com', accountId: selected.accountName, owner: ref.owner, repo: ref.name }, signal);
+						override async get(ref: RepositoryRef, signal: AbortSignal, options?: ApiRequestOptions) {
+							const isPrivate = await api.isPrivateRepository({ host: 'api.github.com', accountId: selected.accountName, owner: ref.owner, repo: ref.name }, signal, options);
 							return new class extends mock<Repository>() { override readonly private = isPrivate; }();
 						}
 					}();
 					override readonly tasks = new class extends mock<ITasksClient>() {
-						override get(): Promise<Task> { return api.getTask(); }
+						override get(_id: string, _signal: AbortSignal, options?: ApiRequestOptions): Promise<Task> { return api.getTask(options); }
 						override async abort(): Promise<void> { api.mutations.push('stop'); }
 					}();
 					override dispose(): void { release.dispose(); }
@@ -223,6 +233,26 @@ suite('GitHubCloudAutomationStore', () => {
 			calls: [], entries: [], state: 'loading',
 		});
 	}));
+
+	for (const background of [false, true]) {
+		test(`catalogue and history preserve the requested priority (background=${background})`, async () => {
+			const { store, api, recents } = setup();
+			recents.workspaces = [recentWorkspace(workspace)];
+			api.definitions.set(repository.name, [definition]);
+			api.tasks = [{ id: 'task-1', automation_id: definition.id, state: 'in_progress', created_at: definition.created_at, remote_steerable: false }];
+			api.taskDetail = api.tasks[0];
+			const options = background ? { background: true } : undefined;
+			await store.refresh(options);
+			await store.refreshHistory(options);
+			assert.deepStrictEqual(api.priorities, ['visibility', 'list', 'get', 'history', 'task'].map(method => ({
+				method, priority: background ? 'background' : undefined,
+			})));
+
+			api.priorities.length = 0;
+			await store.create(workspace, createValue);
+			assert.deepStrictEqual(api.priorities, [{ method: 'visibility', priority: undefined }]);
+		});
+	}
 
 	test('checks only the requested folder and resolves a canonical repository without discovery', async () => {
 		const { store, api } = setup(() => workspace);

@@ -235,4 +235,4 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/a867ed66fc28256d67e6be33b41650ee2d79aaf227678110a7f12f49515761fa)
 
 #### workbench/statusBar/statusBar/DefaultDensity/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/f9131d58b7b5f051a5ed88c7f2bebbdedda45a5144a441fe73e87bcbdafeef2e)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/639b8b55cefdbc02293aa77ff864200cb8441af7754089940260c75331df84fc)

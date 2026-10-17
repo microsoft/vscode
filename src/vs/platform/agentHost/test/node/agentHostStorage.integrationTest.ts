@@ -38,7 +38,10 @@ exec "$@"`,
 for argument in "$@"; do
 if [ "$argument" = -- ]; then printf 'No process specification given\\n' >&2; exit 1; fi
 done
-printf 'test-user 12345 .c..m provider-child\\n' >&2`,
+printf 'test-user 12345 .c..m provider-child\\n' >&2
+printf ' 12345\\n'`,
+			ps: `printf '12345 4205 12345 241 provider-child --serve\\n'`,
+			find: `printf '  /proc/12345/fd/7 -> held-file\\n'`,
 		};
 		for (const [name, script] of Object.entries(scripts)) {
 			writeFileSync(join(directory, name), '#!/bin/sh\n' + script + '\n', { mode: 0o755 });
@@ -104,13 +107,26 @@ printf 'test-user 12345 .c..m provider-child\\n' >&2`,
 			errorReported: result.stderr.includes('Failed to unmount'),
 			directoryRetained: existsSync(result.mountDirectory),
 			holdersReported: result.stderr.includes('test-user 12345 .c..m provider-child'),
+			holderDetails: result.stderr.split('\n').filter(line => line.includes('12345') && !line.includes('.c..m')),
 			diagnosticCalls: result.calls.slice(2),
 		}, {
 			status: 1,
 			errorReported: true,
 			directoryRetained: true,
 			holdersReported: true,
-			diagnosticCalls: [`timeout --signal=KILL 10s fuser -vm ${result.mountDirectory}`, `budget --signal=KILL 10s fuser -vm ${result.mountDirectory}`],
+			// Each holder's parent, process group, age, command line, and the paths it holds on the mount.
+			holderDetails: [
+				'Agent Host tmpfs holder 12345 (PID, parent PID, process group, age in seconds, command line):',
+				'12345 4205 12345 241 provider-child --serve',
+				'  /proc/12345/fd/7 -> held-file',
+			],
+			// One holder probe, then the holder's details, each within the same budget.
+			diagnosticCalls: [
+				`timeout --signal=KILL 10s fuser -vm ${result.mountDirectory}`,
+				`budget --signal=KILL 10s fuser -vm ${result.mountDirectory}`,
+				'budget --signal=KILL 10s ps -o pid=,ppid=,pgid=,etimes=,args= -p 12345',
+				...['timeout', 'budget'].map(log => `${log} --signal=KILL 10s find /proc/12345/cwd /proc/12345/root /proc/12345/fd -maxdepth 1 -lname ${result.mountDirectory}* -printf   %p -> %l\\n`),
+			],
 		});
 	});
 
