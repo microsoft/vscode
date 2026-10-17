@@ -9675,6 +9675,19 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('creates a session whose chat catalog a concurrent synchronization recorded while it was being registered', async () => {
+			const orchestratorDatabase = new AgentHostDatabase(':memory:');
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, orchestratorDatabase));
+			registerTestAgentProvider(svc, disposables.add(new MockAgent('copilot')));
+			await svc.listSessions();
+			// As when the sessions_v2 migration records the session's verified source after the registration checked for one.
+			stub(orchestratorDatabase, 'registerChatCatalogV2').resolves({ status: 'conflict' });
+
+			const session = await svc.createSession({ legacyChatUris: true, provider: 'copilot' });
+
+			assert.deepStrictEqual((await svc.getRegisteredSessions()).map(resource => resource.toString()), [session.toString()]);
+		});
+
 		test('returns an already-published session when initial catalog persistence fails and schedules repair', async () => {
 			class FailingInitialCatalogDatabase extends TestSessionDatabase {
 				failCatalogWrite = true;
