@@ -55,6 +55,23 @@ suite('CloudSandboxConnectionCustomization authentication', () => {
 		});
 	});
 
+	test('user-local MCP renewal stays on the trusted workbench sealing path', async () => {
+		const requests: string[] = [];
+		const service = new class extends mock<ICloudSandboxAgentHostService>() { }();
+		const customization = createCloudSandboxConnectionCustomization(cloudSandboxAddress('env-1'), service, true, async request => {
+			requests.push(request.resource);
+			return { ...request, token: 'copilot-sealed.v1.mcp.fresh' };
+		});
+		assert.ok(customization?.authenticate);
+		const request = { resource: 'https://mcp.example.test', scopes: ['mcp'], token: 'test-mcp-token' };
+		const result = await customization.authenticate(request, AuthRequiredReason.Expired);
+		assert.deepStrictEqual({ result, requests, renewal: customization.renewAuthentication }, {
+			result: { ...request, token: 'copilot-sealed.v1.mcp.fresh' },
+			requests: ['https://mcp.example.test'],
+			renewal: undefined,
+		});
+	});
+
 	for (const token of ['plaintext', 'copilot-sealed.v1.key.challenged']) {
 		test(`renews an expired challenge instead of forwarding ${token}`, async () => {
 			const fixture = createFixture();

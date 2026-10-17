@@ -586,7 +586,8 @@ suite('Agent Host test server cleanup', () => {
 		});
 		try {
 			assert.ok(await raceTimeout(once(server.stdout, 'data'), 5_000), 'Server did not start');
-			await stopServer({ process: server, port: 0 }, async () => [], 1_000, {
+			// The server ignores stdin EOF, so the graceful window always expires; only the taskkill/exit race matters here.
+			await stopServer({ process: server, port: 0 }, async () => [], 10, {
 				killTree: async () => {
 					server.kill();
 					throw new Error('taskkill failed after the server exited');
@@ -613,7 +614,9 @@ suite('Agent Host test server cleanup', () => {
 		});
 		try {
 			assert.ok(await raceTimeout(once(server.stdout, 'data'), 5_000), 'Server did not start');
-			const error = await stopServer({ process: server, port: 0 }, async () => [], 1_000, {
+			// The server ignores stdin EOF and survives the failed taskkill, so both bounded exit waits
+			// must expire; run them in virtual time.
+			const error = await runWithFakedTimers({}, () => stopServer({ process: server, port: 0 }, async () => [], 1_000, {
 				killTree: async () => {
 					throw new Error('taskkill failed while server was running');
 				},
@@ -622,7 +625,7 @@ suite('Agent Host test server cleanup', () => {
 			}).then(
 				() => undefined,
 				(error: Error) => error,
-			);
+			));
 			assert.deepStrictEqual(error?.message, 'taskkill failed while server was running');
 		} finally {
 			await killServer({ process: server, port: 0 });

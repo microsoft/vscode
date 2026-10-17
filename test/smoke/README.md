@@ -56,6 +56,7 @@ xattr -d com.apple.quarantine <path to server with web folder zip>
 
 - `--verbose` logs all the low level driver calls made to Code;
 - `-f PATTERN` (alias `-g PATTERN`) filters the tests to be run. You can also use pretty much any mocha argument;
+- `--shard INDEX/TOTAL` runs only one part of the suites, for example `--shard 1/2`. CI uses this to split the Electron smoke tests across jobs;
 - `--headless` will run playwright in headless mode when `--web` is used.
 
 **Note**: you can enable verbose logging of playwright library by setting a `DEBUG` environment variable before running the tests (<https://playwright.dev/docs/debug#verbose-api-logs>), for example to `pw:browser`.
@@ -68,6 +69,20 @@ npm run watch
 ```
 
 ## Troubleshooting
+
+### Agents Window through a macOS PAC proxy
+
+After compiling the smoke tests, run the isolated macOS proxy fixture against a packaged build:
+
+```bash
+bash test/smoke/scripts/run-agents-window-network-proxy.sh --kerberos --build "/path/to/Visual Studio Code - Insiders.app"
+```
+
+Omit `--kerberos` for an unauthenticated proxy. The fixture requires Squid (`brew install squid`) and permission to configure the system PAC URL and packet filter; it restores both during cleanup.
+
+Proxy runs disable worktree isolation. The mandatory Copilot test sends a fresh UUID in its prompt, waits for the actual `/responses` model request containing that marker, and verifies that no worktree was created. Kerberos mode supplies the Copilot runtime's existing `COPILOT_PROXY_KERBEROS_SPN` option for the fixture's `HTTP/localhost` service and requires authentication for all proxy traffic, with no unauthenticated mock-server exception. Setup verifies that an unauthenticated model request receives HTTP 407. Post-run validation excludes the setup curl probe and additionally requires an authenticated tunnel to the mock host in Squid's access log.
+
+Kerberos mode serves the mock API over HTTPS so the runtime exercises proxy CONNECT before TLS, matching production CAPI transport. The fixture generates a one-day test CA and server certificate, passes the CA through `NODE_EXTRA_CA_CERTS` and `SSL_CERT_FILE`, and removes the certificate material during cleanup. The Agent Host includes Node's process-supplied extra certificates alongside system certificates in the proxy-agent certificate callback, so Node-side model discovery uses the same CA without modifying the macOS trust store. TLS verification remains enabled. The unauthenticated proxy fixture continues to use HTTP.
 
 ### Dev Container sessions over SSH, Tunnels, and WSL
 
@@ -83,7 +98,7 @@ Run the local and SSH Dev Container cases:
 npm run smoketest -- --tracing -g 'Agents Window \((SSH )?Dev Container AgentHost\)'
 ```
 
-The Tunnel suite uses a real private, agent-host-only Dev Tunnel. It is opt-in because ordinary PR smoke jobs do not have account credentials. Supply a GitHub user token authorized to create, connect to, and delete Dev Tunnels, plus a compatible tunnel CLI if it cannot be discovered:
+The Tunnel suite uses a real private Dev Tunnel with remote editor access and agent-host support. The fixture provisions and verifies exactly the editor control port 31545 and agent-host port 31546, then starts the normal `tunnel` command. It is opt-in because ordinary PR smoke jobs do not have account credentials. Supply a GitHub user token authorized to create, connect to, and delete Dev Tunnels, plus a compatible tunnel CLI if it cannot be discovered:
 
 ```bash
 export VSCODE_SMOKE_TEST_TUNNEL_TOKEN="$(gh auth token)"

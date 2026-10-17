@@ -9,9 +9,13 @@ import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
 import { readAgentModelNoticesMeta } from '../../../../../../platform/agentHost/common/agentModelNotices.js';
-import { COPILOT_HYDRA_FUSION_MODEL_ID } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { isCopilotHydraFusionModelId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../../../platform/agentHost/common/agent.js';
+import { LOCAL_MODEL_SENTINEL_PROVIDER_NAME } from '../../../../../../platform/agentHost/common/localModel.js';
+import { readLocalModelRowMeta } from '../../../../../../platform/agentHost/common/meta/localModelStatus.js';
 import { ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { readAgentModelPricingMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
+import { readAgentModelFusionMeta, readAgentModelPricingMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
+import { readAgentManagedModelDefaults, readAgentModelConfigurationDefaults } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { readAgentModelGroupId, readAgentModelSourceId } from '../../../../../../platform/agentHost/common/agentModelSource.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../../../../../platform/agentHost/common/reasoningEffort.js';
@@ -105,6 +109,8 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				const multiplierNumeric = pricing.multiplierNumeric;
 				// "Auto" advertises the auto-mode discount (detail) + description (tooltip). microsoft/vscode#321778, #321659.
 				const isAuto = m.id === AUTO_RAW_MODEL_ID;
+				const fusion = isAuto ? readAgentModelFusionMeta(m) : undefined;
+				const configurationDefaultKeys = readAgentModelConfigurationDefaults(m);
 				const notices = isAuto ? undefined : readAgentModelNoticesMeta(m);
 				const discountPercent = pricing.discountPercent;
 				// Guard against a non-finite or out-of-range value from the open `_meta` bag so we never render
@@ -134,6 +140,8 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 						family: m.id,
 						...(tooltip !== undefined && { tooltip }),
 						...(detail !== undefined && { detail }),
+						...(isAuto && hasDiscount && { autoModelDiscountPercent: discountPercent }),
+						...(fusion && { autoModelFusion: fusion }),
 						maxInputTokens,
 						maxOutputTokens,
 						maxContextWindowTokens: m.maxContextWindow ?? known?.maxContextWindowTokens,
@@ -168,6 +176,8 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 							agentMode: true,
 						},
 						configurationSchema: this._toLanguageModelConfigurationSchema(m.configSchema),
+						...(configurationDefaultKeys !== undefined ? { configurationDefaultKeys } : {}),
+						managedModelDefaults: readAgentManagedModelDefaults(m),
 					},
 				};
 			});
@@ -181,13 +191,14 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 		if (model.id === AUTO_RAW_MODEL_ID) {
 			return {
 				detail: discountPercent !== undefined ? localize('agentHost.auto.discount', "{0}% discount", discountPercent) : undefined,
-				description: ILanguageModelChatMetadata.getAutoModelDescription(discountPercent),
+				// The discount is carried by `autoModelDiscountPercent` and described by the picker.
+				description: ILanguageModelChatMetadata.getAutoModelDescription(!!readAgentModelFusionMeta(model)),
 			};
 		}
-		if (model.id === COPILOT_HYDRA_FUSION_MODEL_ID) {
+		if (model.provider === COPILOT_CLI_AGENT_PROVIDER_ID && isCopilotHydraFusionModelId(model.id)) {
 			return {
 				detail: localize('agentHost.hydraFusion.researchPreview', "Research preview"),
-				description: localize('agentHost.hydraFusion.description', "HydraFusion routes the first eligible turn and may use multiple models. Premium usage varies with the selected route."),
+				description: localize('agentHost.hydraFusion.routingDescription', "{0} routes the first eligible turn and may use multiple models.", model.name),
 			};
 		}
 		return {};
@@ -332,7 +343,11 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	private _modelGroupFor(model: SessionModelInfo): ILanguageModelChatMetadata['modelGroup'] {
 		const explicitGroupId = readAgentModelGroupId(model);
 		const slash = model.id.indexOf('/');
-		const groupVendorId = explicitGroupId ?? (slash > 0 ? model.id.slice(0, slash) : model.provider);
+		// An on-device model's direct row is the harness's own model; its id's
+		// `vscode-on-device/` prefix names the sentinel provider that serves it,
+		// not a vendor the user added.
+		const isLocalModelRow = !!readLocalModelRowMeta(model) || model.id.startsWith(`${LOCAL_MODEL_SENTINEL_PROVIDER_NAME}/`);
+		const groupVendorId = explicitGroupId ?? (slash > 0 && !isLocalModelRow ? model.id.slice(0, slash) : model.provider);
 		if (!groupVendorId) {
 			return undefined;
 		}

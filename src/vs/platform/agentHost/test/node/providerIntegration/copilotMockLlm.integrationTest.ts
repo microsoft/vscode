@@ -19,14 +19,14 @@ import { AgentHostCanvasesEnabledConfigKey } from '../../../common/agentHostSche
 import { hasKey } from '../../../../../base/common/types.js';
 import { ActionType, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatTurnStartedAction } from '../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
-import { buildDefaultChatUri, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, ToolCallContributorKind, ToolResultContentType, type ISessionWithDefaultChat, type RootState, type ToolDefinition } from '../../../common/state/sessionState.js';
+import { MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, ToolCallContributorKind, ToolResultContentType, type ISessionWithDefaultChat, type RootState, type ToolDefinition } from '../../../common/state/sessionState.js';
 import { ToolCallConfirmationReason } from '../../../common/state/protocol/channels-chat/state.js';
 import type { CanvasState } from '../../../common/state/protocol/channels-canvas/state.js';
 import type { SubscribeResult } from '../../../common/state/protocol/common/commands.js';
 import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { AgentHostSessionReleaseRetryMsEnvVar, AgentHostSessionResidencyLimitEnvVar } from '../../../common/agentService.js';
 import { createProviderSession, dispatchTurn, type IAgentHostProviderTestConfig } from '../providerIntegrationTestHelpers.js';
-import { fetchSessionWithChat, getActionEnvelope, isActionNotification, IServerHandle, startRealServer, stopServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
+import { fetchSessionWithChat, getActionEnvelope, isActionNotification, IServerHandle, startRealServer, stopServer, TestProtocolClient, defaultChatChannel } from '../serverIntegrationTestHelpers.js';
 
 const COPILOT_CONFIG: IAgentHostProviderTestConfig = {
 	provider: 'copilotcli',
@@ -175,7 +175,9 @@ suite('Agent Host Provider Integration — Copilot with Mock LLM', function () {
 		const extensionDir = join(workspaceDir, '.github', 'extensions', 'proof-canvas');
 		await mkdir(extensionDir, { recursive: true });
 		await writeFile(join(extensionDir, 'extension.mjs'), `
+import { writeFileSync } from 'node:fs';
 import { createCanvas, joinSession } from '@github/copilot-sdk/extension';
+writeFileSync(new URL('./observed-environment.json', import.meta.url), JSON.stringify({ copilotHome: process.env.COPILOT_HOME ?? null }));
 let session;
 let requestedAgent = false;
 session = await joinSession({
@@ -290,6 +292,7 @@ session = await joinSession({
 				openCanvasSucceeded: openCanvasComplete.result.success,
 				canvas: { instanceId: canvas.instanceId, url: canvas.url },
 				referencesContainOnlyResource: canvasAction.canvases?.every(reference => Object.keys(reference).length === 1),
+				extensionEnvironment: JSON.parse(await readFile(join(extensionDir, 'observed-environment.json'), 'utf8')),
 				providerTurn: {
 					message: providerTurnStarted.message,
 					response: providerResponse.part.kind === ResponsePartKind.Markdown ? providerResponse.part.content : undefined,
@@ -298,6 +301,7 @@ session = await joinSession({
 				openCanvasSucceeded: true,
 				canvas: { instanceId: 'proof-instance', url: 'http://127.0.0.1:43119/proof-instance' },
 				referencesContainOnlyResource: true,
+				extensionEnvironment: { copilotHome: URI.joinPath(URI.file(suiteHome), '.copilot').fsPath },
 				providerTurn: {
 					message: {
 						text: `[scenario:${CANVAS_EXTENSION_TURN_SCENARIO_ID}] Report that the canvas request completed.`,
@@ -320,7 +324,7 @@ session = await joinSession({
 		const workspaceDir = await mkdtemp(`${tmpdir()}/test-mock-steering-owner`);
 		tempDirs.push(workspaceDir);
 		const sessionUri = await createProviderSession(client, COPILOT_CONFIG, originalClientId, createdSessions, URI.file(workspaceDir));
-		const chatUri = buildDefaultChatUri(sessionUri);
+		const chatUri = defaultChatChannel(sessionUri);
 		const steeringClient = new TestProtocolClient(server.port);
 		const tools: ToolDefinition[] = [{
 			name: 'route_probe',
@@ -589,7 +593,7 @@ suite('Agent Host Provider Integration — Copilot Idle Release', function () {
 			inProgress: false,
 		});
 
-		for (const channel of [buildDefaultChatUri(sessionUri), sessionUri]) {
+		for (const channel of [defaultChatChannel(sessionUri), sessionUri]) {
 			client.notify('unsubscribe', { channel });
 		}
 		await timeout(RELEASE_RETRY_MS + 1000);
@@ -630,7 +634,7 @@ suite('Agent Host Provider Integration — Copilot Idle Release', function () {
 
 		// Drop every subscriber. The zero-capacity server drops cached protocol
 		// state and releases the live SDK session while preserving its event log.
-		for (const channel of [buildDefaultChatUri(sessionUri), sessionUri]) {
+		for (const channel of [defaultChatChannel(sessionUri), sessionUri]) {
 			client.notify('unsubscribe', { channel });
 		}
 		await timeout(RELEASE_RETRY_MS + 2000);

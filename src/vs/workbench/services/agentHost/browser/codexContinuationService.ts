@@ -222,8 +222,13 @@ export class CodexContinuationService extends Disposable implements ICodexContin
 			sessions = sessions.map(session => session.session.toString() === expected.session.session.toString() && session.model?.id === expected.target.id
 				? { ...session, model: { id: expected.source.id } } : session);
 		}
-		const candidates = getCodexContinuationCandidates(sessions, models, activeSession ?? this._activeSession).filter(candidate =>
-			this._selectableModels.some(model => model.id === candidate.target.id && model.vendor === this._connections.getSessionResource(candidate.session.session)?.scheme));
+		const candidates = getCodexContinuationCandidates(sessions, models, activeSession ?? this._activeSession).filter(candidate => {
+			if (candidate.session.provider) {
+				this._connections.registerSessionResource(candidate.session.session, undefined, candidate.session.provider);
+			}
+			const resource = this._connections.getSessionResource(candidate.session.session);
+			return this._selectableModels.some(model => model.id === candidate.target.id && model.vendor === resource?.scheme);
+		});
 		return expected ? candidates.find(candidate => candidate.session.session.toString() === expected.session.session.toString()
 			&& candidate.source.id === expected.source.id && candidate.target.id === expected.target.id) : candidates[0];
 	}

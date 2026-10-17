@@ -160,7 +160,55 @@ suite('WSL Remote Agent Host Service', () => {
 		);
 	});
 
-	for (const event of ['exit', 'error'] as const) {
+	for (const exitTiming of ['before session creation', 'during relay acquisition', 'after relay acquisition'] as const) {
+		test(`keeps the detached host session when the launcher exits successfully ${exitTiming}`, async () => {
+			const service = disposables.add(createService());
+			const closed: string[] = [];
+			const relayClosed: string[] = [];
+			disposables.add(service.onDidCloseConnection(id => closed.push(id)));
+			disposables.add(service.onDidRelayClose(id => relayClosed.push(id)));
+			const pendingSocket = exitTiming === 'during relay acquisition' ? service.deferNextWebSocket() : undefined;
+			const first = service.connect({ distro: 'Ubuntu', name: 'Ubuntu' });
+			service.resolvePlatform();
+			await Promise.resolve();
+			const child = service.children[0];
+			child.emitStdout('ws://127.0.0.1:3000?tkn=token\n');
+			if (exitTiming === 'during relay acquisition') {
+				await timeout(0);
+			} else if (exitTiming === 'after relay acquisition') {
+				await first;
+			}
+
+			child.exitCode = 0;
+			child.emit('exit', 0, null);
+			pendingSocket?.complete(new MockWebSocket());
+			const firstResult = await first;
+			assert.deepStrictEqual({ closed, relayClosed }, { closed: [], relayClosed: [] });
+
+			const other = await service.connect({ distro: 'Ubuntu', name: 'Ubuntu' });
+			const renewed = await service.reconnect('Ubuntu', 'Ubuntu', undefined, false, firstResult.connectionId);
+			await service.releaseRelay(other.connectionId);
+			await service.releaseRelay(renewed.connectionId);
+
+			assert.deepStrictEqual({
+				spawnCount: service.children.length,
+				killCalls: child.killCalls,
+				urls: service.webSocketUrls,
+				socketCloseCalls: service.webSockets.map(ws => ws.closeCalls),
+				closed,
+				relayClosed,
+			}, {
+				spawnCount: 1,
+				killCalls: 0,
+				urls: Array(3).fill('ws://127.0.0.1:3000?tkn=token'),
+				socketCloseCalls: [1, 1, 1],
+				closed: [other.connectionId, renewed.connectionId],
+				relayClosed: [other.connectionId, renewed.connectionId],
+			});
+		});
+	}
+
+	for (const event of ['exit', 'signal', 'error'] as const) {
 		test(`child ${event} after ready closes all leases and the next connect bootstraps a fresh session`, async () => {
 			const service = disposables.add(createService());
 			const first = service.connect({ distro: 'Ubuntu', name: 'Ubuntu' });
@@ -181,6 +229,9 @@ suite('WSL Remote Agent Host Service', () => {
 			if (event === 'exit') {
 				child.exitCode = 1;
 				child.emit('exit', 1, null);
+			} else if (event === 'signal') {
+				child.signalCode = 'SIGTERM';
+				child.emit('exit', null, 'SIGTERM');
 			} else {
 				child.emit('error', new Error('agent host died'));
 			}
@@ -291,7 +342,30 @@ suite('WSL Remote Agent Host Service', () => {
 		});
 	});
 
-	test('rejects a child exit immediately after printing the ready URL', async () => {
+	for (const exitCode of [0, 1]) {
+		test(`rejects a launcher exit with code ${exitCode} before printing the ready URL`, async () => {
+			const service = disposables.add(createService());
+			const connect = service.connect({ distro: 'Ubuntu', name: 'Ubuntu' });
+			const rejected = assert.rejects(connect, /exited/);
+			service.resolvePlatform();
+			await Promise.resolve();
+			const child = service.children[0];
+			child.emitStdout('Preparing agent host\n');
+			child.exitCode = exitCode;
+			child.emit('exit', exitCode, null);
+			await rejected;
+
+			assert.deepStrictEqual({
+				socketCount: service.webSockets.length,
+				childListeners: [child.listenerCount('exit'), child.listenerCount('error')],
+			}, {
+				socketCount: 0,
+				childListeners: [0, 0],
+			});
+		});
+	}
+
+	test('rejects a failed launcher exit immediately after printing the ready URL', async () => {
 		const service = disposables.add(createService());
 		const first = service.connect({ distro: 'Ubuntu', name: 'Ubuntu' });
 		const rejected = assert.rejects(first, /exited/);

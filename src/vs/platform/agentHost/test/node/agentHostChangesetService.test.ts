@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
+import { constObservable } from '../../../../base/common/observable.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -18,26 +19,31 @@ import { buildBranchChangesetUri, buildDefaultChangesetCatalog, buildSessionChan
 import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../common/meta/agentWorkspaceContinuationMeta.js';
 import { ActionEnvelope, ActionType } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, FileEditKind, MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, withMessageRequestHiddenFromTranscript, withSessionGitState, type Changeset, type ISessionFileDiff, type ISessionGitState } from '../../common/state/sessionState.js';
+import { ChangesetStatus, FileEditKind, MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, withMessageRequestHiddenFromTranscript, withSessionGitState, type ISessionFileDiff, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
+import { createFileEditDiscardRecord, readFileEditRevertSteps, spanFileEditRevertSteps } from '../../node/fileEditDiscard.js';
 import { NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
-import { CHANGES_SUMMARY_METADATA_KEYS, getChatChangesSummaryMetadataKey, getScopedBranchChangesetMetadataKey, META_CHANGES_SUMMARY, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS } from '../../common/agentHostChangesetService.js';
+import { CHANGES_SUMMARY_METADATA_KEYS, getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY } from '../../common/agentHostChangesetService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { IAgentHostChangesetSubscriptionService } from '../../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostChangesetOperationService } from '../../common/agentHostChangesetOperationService.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { NULL_CHECKPOINT_SERVICE, type IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostReviewService, NULL_REVIEW_SERVICE } from '../../common/agentHostReviewService.js';
-import { IAgentHostGitService } from '../../common/agentHostGitService.js';
+import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { AgentConfigurationService, getEffectiveWorkingDirectories } from '../../node/agentConfigurationService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, encodeString, TestDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
+import { IAgentHostSessionStateStore, SessionStateMirrorFlush, sessionStatePatch } from '../../common/agentHostSessionStateStore.js';
+import { createLegacyChatMetadataPersistence, createTestSessionStateStore } from './chatMetadataTestHelpers.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 type WithoutLast<T extends readonly unknown[]> = T extends [...infer Head, unknown] ? Head : never;
-type WithoutLastTwo<T extends readonly unknown[]> = WithoutLast<WithoutLast<T>>;
+type WithoutLastThree<T extends readonly unknown[]> = WithoutLast<WithoutLast<WithoutLast<T>>>;
 
 const testGitStates = new Map<string, ISessionGitState>();
 const TEST_GIT_STATE_SERVICE: IAgentHostGitStateService = {
@@ -54,9 +60,37 @@ const TEST_GIT_STATE_SERVICE: IAgentHostGitStateService = {
 	attachSessionGitHubPullRequest: async () => { },
 };
 
+const settleServices = new Set<TestAgentHostChangesetService>();
+
+/** Reads a metadata value after in-flight central-store writes have mirrored into the session database. */
+async function settledMetadata(db: { getMetadata(key: string): Promise<string | undefined> }, key: string): Promise<string | undefined> {
+	await Promise.all([...settleServices].map(service => service.whenSummaryPersisted()));
+	return db.getMetadata(key);
+}
+
 class TestAgentHostChangesetService extends AgentHostChangesetService {
-	constructor(...args: WithoutLastTwo<ConstructorParameters<typeof AgentHostChangesetService>>) {
-		super(...args, TEST_GIT_STATE_SERVICE, new NullAgentHostWorktreeIsolation());
+	/** Resolves once every summary write issued so far has reached the session database. */
+	async whenSummaryPersisted(): Promise<void> {
+		await this.whenSummaryCommitted();
+		await this.stateStore.whenIdle(undefined);
+	}
+
+	/** Resolves once every summary write has committed centrally, before the session database mirror is flushed. */
+	async whenSummaryCommitted(): Promise<void> {
+		await Promise.all([...this._pendingSummaryWrites]);
+	}
+
+	readonly stateStore: IAgentHostSessionStateStore;
+
+	constructor(...args: WithoutLast<WithoutLastThree<WithoutLast<ConstructorParameters<typeof AgentHostChangesetService>>>>) {
+		const mirrorStore = createTestSessionStateStore(new AgentHostDatabase(':memory:'), args[2]);
+		super(...args, TEST_GIT_STATE_SERVICE, new NullAgentHostWorktreeIsolation(), {
+			_serviceBrand: undefined, setRead: async () => { }, setArchived: async () => { },
+			...createLegacyChatMetadataPersistence(args[2]),
+		}, createTestChatOwnershipService(args[0]),
+			mirrorStore);
+		this.stateStore = mirrorStore;
+		settleServices.add(this);
 	}
 }
 
@@ -88,6 +122,8 @@ function createOperationService(): IAgentHostChangesetOperationService {
 		_serviceBrand: undefined,
 		registerContribution: () => toDisposable(() => { }),
 		updateOperations: () => { },
+		scheduleRelatedOperationsUpdate: () => { },
+		scheduleOwnerOperationsUpdate: () => { },
 		getOperations: () => undefined,
 		invokeChangesetOperation: async () => { throw new Error('not implemented'); },
 		dispose: () => { },
@@ -136,8 +172,9 @@ suite.skip('AgentHostChangesetService', () => {
 			modifiedAt: new Date().toISOString(),
 			project: { uri: 'file:///test-project', displayName: 'Test Project' },
 			workingDirectories: workingDirectory ? [workingDirectory] : undefined,
+			defaultChat: buildDefaultChatUri(sessionUri.toString()),
 		});
-		stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString()));
+		stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false));
 		stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady, });
 	}
 
@@ -349,6 +386,7 @@ suite.skip('AgentHostChangesetService', () => {
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
 				workingDirectories: ['file:///wd'],
+				defaultChat: buildDefaultChatUri(sessionUri.toString()),
 			});
 			await sessionDb.setMetadata('agentHost.diffBaseBranch', 'main');
 
@@ -428,6 +466,7 @@ suite.skip('AgentHostChangesetService', () => {
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
 				workingDirectories: ['file:///wd'],
+				defaultChat: buildDefaultChatUri(sessionStr),
 			});
 			localStateManager.setSessionMeta(sessionStr, withSessionGitState(undefined, { baseBranchName: 'main' }));
 
@@ -464,6 +503,7 @@ suite.skip('AgentHostChangesetService', () => {
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
 				workingDirectories: ['file:///wd'],
+				defaultChat: buildDefaultChatUri(sessionStr),
 			});
 			localStateManager.setSessionMeta(sessionStr, withSessionGitState(undefined, { baseBranchName: 'main' }));
 
@@ -496,6 +536,7 @@ suite.skip('AgentHostChangesetService', () => {
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
 				workingDirectories: ['file:///wd'],
+				defaultChat: buildDefaultChatUri(sessionUri.toString()),
 			});
 
 			const envelopes: ActionEnvelope[] = [];
@@ -557,6 +598,7 @@ suite.skip('AgentHostChangesetService', () => {
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
 				workingDirectories: ['file:///wd'],
+				defaultChat: buildDefaultChatUri(sessionStr),
 			});
 
 			await localChangesets.computeUncommittedChangeset(sessionStr);
@@ -631,6 +673,7 @@ suite.skip('AgentHostChangesetService', () => {
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
 				workingDirectories: ['file:///wd'],
+				defaultChat: buildDefaultChatUri(sessionStr),
 			});
 
 			await localChangesets.computeUncommittedChangeset(sessionStr);
@@ -685,8 +728,9 @@ suite.skip('AgentHostChangesetService', () => {
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
 				workingDirectories: workingDirectory ? [workingDirectory] : undefined,
+				defaultChat: buildDefaultChatUri(sessionStr),
 			});
-			localStateManager.setSessionChangesets(sessionStr, buildDefaultChangesetCatalog(sessionStr));
+			localStateManager.setSessionChangesets(sessionStr, buildDefaultChangesetCatalog(sessionStr, false));
 			return sessionStr;
 		}
 
@@ -741,128 +785,6 @@ suite.skip('AgentHostChangesetService', () => {
 			assert.deepStrictEqual(computes, []);
 		});
 
-	});
-
-	suite('restorePersistedStaticChangesets', () => {
-
-		const aDiff = { after: { uri: 'file:///wd/a.ts', content: { uri: 'file:///wd/a.ts' } }, diff: { added: 1, removed: 0 } };
-		const bDiff = { after: { uri: 'file:///wd/b.ts', content: { uri: 'file:///wd/b.ts' } }, diff: { added: 2, removed: 0 } };
-		const sessionStr = sessionUri.toString();
-
-		test('parsePersistedStaticChangesets parses without mutating state', () => {
-			setupSession();
-			changesetService.registerStaticChangesets(sessionStr);
-
-			const result = changesetService.parsePersistedStaticChangesets(sessionStr, {
-				sessionRaw: JSON.stringify([bDiff]),
-			});
-
-			assert.deepStrictEqual({
-				session: result.session?.map(d => d.after?.uri),
-				sessionState: stateManager.getChangesetState(buildSessionChangesetUri(sessionStr)),
-			}, {
-				session: ['file:///wd/b.ts'],
-				sessionState: { status: 'computing', files: [] },
-			});
-		});
-
-		test('applyPersistedStaticChangesets seeds parsed diffs', () => {
-			setupSession();
-			changesetService.registerStaticChangesets(sessionStr);
-			const parsed = changesetService.parsePersistedStaticChangesets(sessionStr, {
-				branchRaw: JSON.stringify([aDiff]),
-				sessionRaw: JSON.stringify([bDiff]),
-			});
-
-			changesetService.applyPersistedStaticChangesets(sessionStr, parsed);
-
-			const branch = stateManager.getChangesetState(buildBranchChangesetUri(buildFolderChangesetOwnerUri(sessionStr, getWorkingDirectoryScopeId(['file:///wd']))));
-			const session = stateManager.getChangesetState(buildSessionChangesetUri(sessionStr));
-			assert.deepStrictEqual({
-				branch: branch && { status: branch.status, files: branch.files.map(f => f.id) },
-				session: session && { status: session.status, files: session.files.map(f => f.id) },
-			}, {
-				branch: { status: 'ready', files: ['file:///wd/a.ts'] },
-				session: { status: 'ready', files: ['file:///wd/b.ts'] },
-			});
-		});
-
-		test('new sessionRaw beats legacyRaw when both are present', () => {
-			setupSession();
-
-			const result = changesetService.restorePersistedStaticChangesets(sessionStr, {
-				sessionRaw: JSON.stringify([aDiff]),
-				legacyRaw: JSON.stringify([bDiff]), // would lose
-			});
-
-			assert.deepStrictEqual(result.session?.map(d => d.after?.uri), ['file:///wd/a.ts'], 'new key wins over legacy');
-		});
-
-		test('legacyRaw still restores session state when sessionRaw is absent', () => {
-			setupSession();
-
-			const result = changesetService.restorePersistedStaticChangesets(sessionStr, {
-				legacyRaw: JSON.stringify([bDiff]),
-			});
-
-			assert.deepStrictEqual(result.session?.map(d => d.after?.uri), ['file:///wd/b.ts']);
-			const session = stateManager.getSnapshot(`${sessionStr}/changeset/session`);
-			assert.strictEqual((session?.state as { status: string }).status, 'ready');
-		});
-
-		test('malformed JSON logs and returns undefined for that slot', () => {
-			setupSession();
-			changesetService.registerStaticChangesets(sessionStr);
-
-			const result = changesetService.restorePersistedStaticChangesets(sessionStr, {
-				sessionRaw: '{ not valid json',
-			});
-
-			assert.strictEqual(result.session, undefined, 'malformed slot returns undefined');
-			// Session snapshot stayed in `computing` because malformed input
-			// was discarded — not seeded with garbage.
-			const session = stateManager.getSnapshot(`${sessionStr}/changeset/session`);
-			assert.strictEqual((session?.state as { status: string }).status, 'computing');
-		});
-
-		test('seedIfEmpty honoured: live state with files is not overwritten', () => {
-			setupSession();
-
-			// Seed live session state via restoreStaticChangeset to mimic
-			// a fresh refresh that landed before the persisted-overlay call.
-			changesetService.restoreStaticChangeset(sessionStr, 'session', [aDiff]);
-			const before = stateManager.getSnapshot(`${sessionStr}/changeset/session`);
-			assert.deepStrictEqual((before?.state as { files: Array<{ id: string }> }).files.map(f => f.id), ['file:///wd/a.ts']);
-
-			// Persisted blob points at a DIFFERENT file; without the guard it
-			// would clobber the live state.
-			changesetService.restorePersistedStaticChangesets(sessionStr, {
-				sessionRaw: JSON.stringify([bDiff]),
-			});
-
-			const after = stateManager.getSnapshot(`${sessionStr}/changeset/session`);
-			assert.deepStrictEqual(
-				(after?.state as { files: Array<{ id: string }> }).files.map(f => f.id),
-				['file:///wd/a.ts'],
-				'live state must be preserved when persisted overlay tries to overwrite it',
-			);
-		});
-
-		test('with live session state, restored diffs publish ready + catalogue counts', () => {
-			setupSession();
-
-			changesetService.restorePersistedStaticChangesets(sessionStr, {
-				sessionRaw: JSON.stringify([aDiff, bDiff]),
-			});
-
-			const catalogue = stateManager.getSessionState(sessionStr)?.changesets;
-			const sessionEntry = catalogue?.find((c: Changeset) => c.uriTemplate === `${sessionStr}/changeset/session`);
-			assert.deepStrictEqual(sessionEntry, {
-				label: 'Branch Changes',
-				uriTemplate: `${sessionStr}/changeset/session`,
-				changeKind: 'session',
-			}, 'catalogue counts must reflect restored files');
-		});
 	});
 
 	suite('idle changeset LRU eviction', () => {
@@ -1098,6 +1020,7 @@ suite.skip('AgentHostChangesetService', () => {
 				createdAt: new Date().toISOString(),
 				modifiedAt: new Date().toISOString(),
 				workingDirectories: ['file:///wd'],
+				defaultChat: buildDefaultChatUri(sessionUri.toString()),
 			});
 
 			const envelopes: ActionEnvelope[] = [];
@@ -1135,7 +1058,7 @@ suite.skip('AgentHostChangesetService', () => {
 		function makeCheckpointService(pairs: Record<string, { parent: string; current: string } | undefined>, baselineRef?: string) {
 			return {
 				...NULL_CHECKPOINT_SERVICE,
-				getTurnCheckpointPair: async (_session: URI, turnId: string) => pairs[turnId],
+				getTurnCheckpointPair: async (_session: URI, _chat: URI | undefined, turnId: string) => pairs[turnId],
 				getBaselineCheckpointRef: async () => baselineRef,
 			};
 		}
@@ -1276,6 +1199,11 @@ suite.skip('AgentHostChangesetService', () => {
 	});
 });
 
+/** Keys that held diff blobs in older builds; nothing reads or writes them any more. */
+const LEGACY_BRANCH_BLOB_KEY = 'agentHost.changeset.branch';
+const LEGACY_SESSION_BLOB_KEY = 'agentHost.changeset.session';
+const LEGACY_DIFFS_BLOB_KEY = 'diffs';
+
 suite('AgentHostChangesetService - branch catalogue ownership', () => {
 
 	const disposables = new DisposableStore();
@@ -1332,14 +1260,15 @@ suite('AgentHostChangesetService - branch catalogue ownership', () => {
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
 			workingDirectories: ['file:///main'],
+			defaultChat: buildDefaultChatUri(session),
 		});
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
-		stateManager.addChat(session, peer, { workingDirectories: peerWorkingDirectories });
+		stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer, buildDefaultChatUri(session)), { workingDirectories: peerWorkingDirectories });
 		testGitStates.set(peer, { branchName: 'feature', baseBranchName: 'main' });
 		return {
 			branchChangeset,
 			computeCount: () => computeCount,
-			metadataKey: getScopedBranchChangesetMetadataKey(scopeId),
+			metadataKey: `${LEGACY_BRANCH_BLOB_KEY}.${scopeId}`,
 			peer,
 			service,
 			session,
@@ -1357,7 +1286,7 @@ suite('AgentHostChangesetService - branch catalogue ownership', () => {
 		assert.fail(`changeset ${changeset} never reached Ready`);
 	}
 
-	test('persists the same folder scope independently in each containing session database', async () => {
+	test('writes no folder-scoped branch blob into any session database', async () => {
 		const firstSessionDatabase = new TestSessionDatabase();
 		const secondSessionDatabase = new TestSessionDatabase();
 		const firstPeerDatabase = new TestSessionDatabase();
@@ -1376,21 +1305,19 @@ suite('AgentHostChangesetService - branch catalogue ownership', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual({
-			sameMetadataKey: first.metadataKey === second.metadataKey,
-			first: JSON.parse((await firstSessionDatabase.getMetadata(first.metadataKey))!)[0].after.uri,
-			second: JSON.parse((await secondSessionDatabase.getMetadata(second.metadataKey))!)[0].after.uri,
+			first: await firstSessionDatabase.getMetadata(first.metadataKey),
+			second: await secondSessionDatabase.getMetadata(second.metadataKey),
 			firstPeer: await firstPeerDatabase.getMetadata(first.metadataKey),
 			secondPeer: await secondPeerDatabase.getMetadata(second.metadataKey),
 		}, {
-			sameMetadataKey: true,
-			first: URI.file('/shared/first.ts').toString(),
-			second: URI.file('/shared/second.ts').toString(),
+			first: undefined,
+			second: undefined,
 			firstPeer: undefined,
 			secondPeer: undefined,
 		});
 	});
 
-	test('restores one folder-scoped cache for every peer chat sharing that folder', async () => {
+	test('never restores a persisted folder-scoped cache: peer chats sharing the folder compute once', async () => {
 		const sessionDatabase = new TestSessionDatabase();
 		const peerDatabase = new TestSessionDatabase();
 		const harness = createFolderCacheHarness('folder-cache-restore', sessionDatabase, peerDatabase, '/shared/recomputed.ts');
@@ -1399,10 +1326,12 @@ suite('AgentHostChangesetService - branch catalogue ownership', () => {
 			{ after: { uri: cachedUri, content: { uri: cachedUri } }, diff: { added: 2, removed: 1 } },
 		]));
 		const secondPeer = buildChatUri(harness.session, 'second-peer');
-		harness.stateManager.addChat(harness.session, secondPeer, { workingDirectories: ['file:///shared'] });
+		harness.stateManager.addChat(harness.session, secondPeer, creationTimeChatStorageResource(harness.session, secondPeer, buildDefaultChatUri(harness.session)), { workingDirectories: ['file:///shared'] });
 
 		harness.service.registerStaticChangesets(harness.peer);
 		harness.service.registerStaticChangesets(secondPeer);
+		harness.service.refreshBranchChangeset(harness.peer);
+		harness.service.refreshBranchChangeset(secondPeer);
 		await waitForBranchChangeset(harness.stateManager, harness.branchChangeset);
 
 		assert.deepStrictEqual({
@@ -1410,8 +1339,8 @@ suite('AgentHostChangesetService - branch catalogue ownership', () => {
 			files: harness.stateManager.getChangesetState(harness.branchChangeset)?.files.map(file => file.id),
 			peerDatabaseCache: await peerDatabase.getMetadata(harness.metadataKey),
 		}, {
-			computeCount: 0,
-			files: [cachedUri],
+			computeCount: 1,
+			files: [URI.file('/shared/recomputed.ts').toString()],
 			peerDatabaseCache: undefined,
 		});
 	});
@@ -1445,6 +1374,7 @@ suite('AgentHostChangesetService - branch catalogue ownership', () => {
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
 			workingDirectories: ['file:///shared', 'file:///other'],
+			defaultChat: buildDefaultChatUri(session),
 		});
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
 		stateManager.setSessionConfig(session, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'worktree' } });
@@ -1456,10 +1386,10 @@ suite('AgentHostChangesetService - branch catalogue ownership', () => {
 		const differentDirectory = buildChatUri(session, 'different-directory');
 		const sharedDifferentDirectory = buildChatUri(session, 'shared-different-directory');
 		const differentBase = buildChatUri(session, 'different-base');
-		stateManager.addChat(session, shared, { workingDirectories: ['file:///shared'] });
-		stateManager.addChat(session, differentDirectory, { workingDirectories: ['file:///other'] });
-		stateManager.addChat(session, sharedDifferentDirectory, { workingDirectories: ['file:///other'] });
-		stateManager.addChat(session, differentBase, { workingDirectories: ['file:///shared'] });
+		stateManager.addChat(session, shared, creationTimeChatStorageResource(session, shared, buildDefaultChatUri(session)), { workingDirectories: ['file:///shared'] });
+		stateManager.addChat(session, differentDirectory, creationTimeChatStorageResource(session, differentDirectory, buildDefaultChatUri(session)), { workingDirectories: ['file:///other'] });
+		stateManager.addChat(session, sharedDifferentDirectory, creationTimeChatStorageResource(session, sharedDifferentDirectory, buildDefaultChatUri(session)), { workingDirectories: ['file:///other'] });
+		stateManager.addChat(session, differentBase, creationTimeChatStorageResource(session, differentBase, buildDefaultChatUri(session)), { workingDirectories: ['file:///shared'] });
 		testGitStates.set(defaultChat, { branchName: 'feature', baseBranchName: 'main' });
 		testGitStates.set(shared, { branchName: 'feature', baseBranchName: 'main' });
 		testGitStates.set(differentDirectory, { branchName: 'feature', baseBranchName: 'main' });
@@ -1551,6 +1481,7 @@ suite('AgentHostChangesetService - materialization refresh', () => {
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
 			workingDirectories: [sourceDirectory],
+			defaultChat: buildDefaultChatUri(sessionStr),
 		}, { emitNotification: false });
 
 		const uncommittedChangeset = buildUncommittedChangesetUri(sessionStr);
@@ -1637,6 +1568,7 @@ suite('AgentHostChangesetService - turn changeset lifecycle', () => {
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
 			workingDirectories: ['file:///repo'],
+			defaultChat: buildDefaultChatUri(sessionStr),
 		});
 		const turnUri = buildTurnChangesetUri(sessionStr, 'turn-1');
 		const firstCompute = svc.computeTurnChangeset(sessionStr, 'turn-1');
@@ -1674,7 +1606,9 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 	const disposables = new DisposableStore();
 	const sessionStr = AgentSession.uri('mock', 'session-mr').toString();
 
-	teardown(() => {
+	teardown(async () => {
+		// The central store's file-backed reads settle after the test body returns.
+		await new Promise<void>(resolve => setTimeout(resolve, 10));
 		disposables.clear();
 		testGitStates.clear();
 	});
@@ -1689,7 +1623,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 	function makeCheckpoint(pairFor: (workingDirectory: string | undefined) => { parent: string; current: string } | undefined): IAgentHostCheckpointService {
 		return {
 			...NULL_CHECKPOINT_SERVICE,
-			getTurnCheckpointPair: async (_session: URI, _turnId: string, workingDirectory?: URI) => pairFor(workingDirectory?.toString()),
+			getTurnCheckpointPair: async (_session: URI, _chat: URI | undefined, _turnId: string, workingDirectory?: URI) => pairFor(workingDirectory?.toString()),
 		};
 	}
 
@@ -1705,6 +1639,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 	}
 
 	function build(options: {
+		session?: { resource: string; provider: string };
 		workingDirectories: string[];
 		git: IAgentHostGitService;
 		checkpoint: IAgentHostCheckpointService;
@@ -1714,8 +1649,10 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		review?: IAgentHostReviewService;
 		subscriptions?: string[];
 		isolation?: 'folder' | 'worktree';
-		peer?: { resource: string; db: TestSessionDatabase; turnId: string; workingDirectories?: readonly string[]; onDispose?: () => void; openError?: Error };
-	}): { svc: AgentHostChangesetService; stateManager: AgentHostStateManager; log: RecordingLogService } {
+		peer?: { resource: string; db: TestSessionDatabase; turnId: string; workingDirectories?: readonly string[]; onDispose?: () => void; openError?: Error; /** Recorded storage when it is not the creation-time one. */ storage?: string };
+		sessionOpenError?: Error;
+	}): { svc: TestAgentHostChangesetService; stateManager: AgentHostStateManager; log: RecordingLogService } {
+		const resource = options.session?.resource ?? sessionStr;
 		const log = options.log ?? new RecordingLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const db = options.db ?? new TestSessionDatabase();
@@ -1736,7 +1673,10 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			{
 				...sessionDataService,
 				openDatabase: resource => {
-					if (options.peer?.resource !== resource.toString()) {
+					if (!options.peer || (options.peer.storage ?? options.peer.resource) !== resource.toString()) {
+						if (options.sessionOpenError) {
+							throw options.sessionOpenError;
+						}
 						return sessionDataService.openDatabase(resource);
 					}
 					if (options.peer.openError) {
@@ -1761,22 +1701,23 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			options.telemetry ?? NullTelemetryService,
 		));
 		stateManager.createSession({
-			resource: sessionStr,
-			provider: 'mock',
+			resource,
+			provider: options.session?.provider ?? 'mock',
 			title: 'Test',
 			status: SessionStatus.Idle,
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
 			workingDirectories: options.workingDirectories,
+			defaultChat: buildDefaultChatUri(resource),
 		});
 		if (options.isolation) {
-			stateManager.setSessionConfig(sessionStr, {
+			stateManager.setSessionConfig(resource, {
 				schema: { type: 'object', properties: {} },
 				values: { [SessionConfigKey.Isolation]: options.isolation },
 			});
 		}
 		if (options.peer) {
-			stateManager.addChat(sessionStr, options.peer.resource, { workingDirectories: options.peer.workingDirectories });
+			stateManager.addChat(resource, options.peer.resource, options.peer.storage ?? creationTimeChatStorageResource(resource, options.peer.resource, buildDefaultChatUri(resource)), { workingDirectories: options.peer.workingDirectories });
 			stateManager.dispatchServerAction(options.peer.resource, {
 				type: ActionType.ChatTurnStarted,
 				turnId: options.peer.turnId,
@@ -1844,16 +1785,55 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		}
 	}
 
-	test('persisted diffs do not overwrite a completed empty changeset', () => {
-		const { svc, stateManager } = build({ workingDirectories: ['file:///repo'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE });
-		svc.restoreStaticChangeset(sessionStr, 'session', []);
-		svc.applyPersistedStaticChangesets(sessionStr, { session: [gitDiff('/repo/stale.ts')] });
+	for (const failure of ['unavailable', 'error', 'removedWorktree', 'databaseUnavailable'] as const) {
+		for (const stored of [false, true]) {
+			test(`a branch computation without a result or an earlier one ends in an error, not computing (${failure}, ${stored ? 'with' : 'without'} an older build's stored branch diffs)`, async () => {
+				// Stored branch diffs are not read back after a restart, so a computation without a result has nothing to restore.
+				// `removedWorktree` is an archived session: its worktree is gone, so its folder is no Git repository any more.
+				const db = new TestSessionDatabase();
+				if (stored) {
+					const diffs = JSON.stringify([gitDiff('/repo/stored.ts')]);
+					await db.setMetadataValues({
+						[LEGACY_BRANCH_BLOB_KEY]: diffs,
+						[`${LEGACY_BRANCH_BLOB_KEY}.${getWorkingDirectoryScopeId(['file:///repo'])}`]: diffs,
+						[LEGACY_DIFFS_BLOB_KEY]: diffs,
+					});
+				}
+				const git = createNoopGitService();
+				git.getRepositoryRoot = async workingDirectory => failure === 'removedWorktree' ? undefined : workingDirectory;
+				git.computeSessionFileDiffs = async () => {
+					if (failure === 'error') {
+						throw new Error('branch diff failed');
+					}
+					return failure === 'databaseUnavailable' ? [gitDiff('/repo/live.ts')] : undefined;
+				};
+				const { svc, stateManager } = build({
+					workingDirectories: ['file:///repo'], git, checkpoint: NULL_CHECKPOINT_SERVICE, db,
+					sessionOpenError: failure === 'databaseUnavailable' ? new Error('database unavailable') : undefined,
+				});
+				const changesetUri = buildBranchChangesetUri(buildFolderChangesetOwnerUri(sessionStr, getWorkingDirectoryScopeId(['file:///repo'])));
 
-		assert.deepStrictEqual(stateManager.getChangesetState(buildSessionChangesetUri(sessionStr)), {
-			status: ChangesetStatus.Ready,
-			files: [],
-		});
-	});
+				svc.refreshBranchChangeset(sessionStr);
+				const during = stateManager.getChangesetState(changesetUri)?.status;
+				for (let i = 0; i < 500 && stateManager.getChangesetState(changesetUri)?.status === ChangesetStatus.Computing; i++) {
+					await timeout(1);
+				}
+
+				const after = stateManager.getChangesetState(changesetUri);
+				assert.deepStrictEqual({ during, status: after?.status, error: after?.error, files: after?.files }, {
+					during: ChangesetStatus.Computing,
+					status: ChangesetStatus.Error,
+					error: {
+						errorType: 'computeFailed',
+						message: failure === 'removedWorktree' ? 'Branch changes are unavailable because the session\'s folder is not a Git repository or no longer exists.'
+							: failure === 'databaseUnavailable' ? 'database unavailable'
+								: 'Branch changes could not be computed.',
+					},
+					files: [],
+				});
+			});
+		}
+	}
 
 	test('a branch refresh without a replacement restores the prior error and cached files', async () => {
 		const { svc, stateManager } = build({ workingDirectories: ['file:///repo'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE });
@@ -1911,7 +1891,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		git.computeFileDiffsBetweenRefs = async () => [gitDiff('/repoB/terminal.txt')];
 		const checkpoint: IAgentHostCheckpointService = {
 			...NULL_CHECKPOINT_SERVICE,
-			getTurnCheckpointPair: async (_session, _turnId, root) => {
+			getTurnCheckpointPair: async (_session, _chat, _turnId, root) => {
 				roots.push(root?.toString());
 				return { parent: 'parent', current: 'current' };
 			},
@@ -1945,7 +1925,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		};
 		const checkpoint: IAgentHostCheckpointService = {
 			...NULL_CHECKPOINT_SERVICE,
-			getTurnCheckpointPair: async (_session, turnId, root) => {
+			getTurnCheckpointPair: async (_session, _chat, turnId, root) => {
 				checkpointCalls.push({ root: root?.toString(), turnId });
 				return { parent: `${root?.path}-${turnId}-parent`, current: `${root?.path}-${turnId}-current` };
 			},
@@ -2063,6 +2043,72 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		});
 	});
 
+	test('discarded turn edits drop the file from the turn and Session Changes', async () => {
+		const db = new TestSessionDatabase();
+		db.addEdit({ turnId: 'turn-1', toolCallId: 'tc1', filePath: '/repo/kept.txt', kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString('a'), afterContent: encodeString('a\nb') });
+		db.addEdit({ turnId: 'turn-1', toolCallId: 'tc2', filePath: '/repo/discarded.txt', kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString('c'), afterContent: encodeString('c\nd') });
+		const turnUri = buildTurnChangesetUri(sessionStr, 'turn-1');
+		const sessionChangeset = buildSessionChangesetUri(sessionStr);
+		const { svc, stateManager } = build({ workingDirectories: ['file:///repo'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE, db, subscriptions: [turnUri] });
+		await svc.computeTurnChangeset(sessionStr, 'turn-1', 'fileEditTracker');
+		const turnFilesBefore = stateManager.getChangesetState(turnUri)?.files.map(file => file.id).sort();
+
+		const tracked = svc.openTrackedTurnDatabase(sessionStr, 'turn-1')!;
+		const folderScope = tracked.folderScope?.map(folder => folder.toString());
+		const otherChatDatabases = tracked.otherChatDatabases.length;
+		try {
+			const records = (await tracked.db.getFileEditsByTurn('turn-1')).filter(record => record.filePath === '/repo/discarded.txt');
+			const steps = await readFileEditRevertSteps(tracked.db, records);
+			await tracked.db.storeFileEdits([createFileEditDiscardRecord('turn-1', '/repo/discarded.txt', spanFileEditRevertSteps(steps))]);
+		} finally {
+			tracked.dispose();
+		}
+		svc.onFileEditsDiscarded(sessionStr, ['turn-1']);
+		await waitForChangesetReady(stateManager, turnUri);
+		await waitForChangesetReady(stateManager, sessionChangeset);
+
+		assert.deepStrictEqual({
+			folderScope,
+			otherChatDatabases,
+			turnFilesBefore,
+			turnFiles: stateManager.getChangesetState(turnUri)?.files.map(file => file.id),
+			sessionFiles: stateManager.getChangesetState(sessionChangeset)?.files.map(file => file.id),
+		}, {
+			folderScope: [URI.file('/repo').toString()],
+			otherChatDatabases: 0,
+			turnFilesBefore: [URI.file('/repo/discarded.txt').toString(), URI.file('/repo/kept.txt').toString()],
+			turnFiles: [URI.file('/repo/kept.txt').toString()],
+			sessionFiles: [URI.file('/repo/kept.txt').toString()],
+		});
+	});
+
+	test('opens the other chats\' databases whose edits Session Changes combine with a turn\'s', () => {
+		const peer = buildChatUri(sessionStr, 'peer');
+		const db = new TestSessionDatabase();
+		const peerDb = new TestSessionDatabase();
+		let peerDisposals = 0;
+		const { svc } = build({
+			workingDirectories: ['file:///repoA'],
+			git: createNoopGitService(),
+			checkpoint: NULL_CHECKPOINT_SERVICE,
+			db,
+			// Stored somewhere else than its URI, as a moved chat is.
+			peer: { resource: peer, db: peerDb, turnId: 'peer-turn', workingDirectories: ['file:///repoB'], storage: 'copilot:/moved-in-storage', onDispose: () => { peerDisposals++; } },
+		});
+		const open = (owner: string, turnId: string) => {
+			const tracked = svc.openTrackedTurnDatabase(owner, turnId)!;
+			const describe = (candidate: unknown) => candidate === db ? 'session' : candidate === peerDb ? 'peer' : 'other';
+			const result = { db: describe(tracked.db), otherChatDatabases: tracked.otherChatDatabases.map(describe) };
+			tracked.dispose();
+			return { ...result, peerDisposals };
+		};
+
+		assert.deepStrictEqual({ defaultChatTurn: open(sessionStr, 'turn-1'), peerTurn: open(peer, 'peer-turn') }, {
+			defaultChatTurn: { db: 'session', otherChatDatabases: ['peer'], peerDisposals: 1 },
+			peerTurn: { db: 'peer', otherChatDatabases: ['session'], peerDisposals: 3 },
+		});
+	});
+
 	test('partitions git vs non-git folders so git-folder edits are not double-counted by the DB', async () => {
 		const db = new TestSessionDatabase();
 		// The DB edit tracker is path-based (no folder column) so it records
@@ -2140,7 +2186,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		};
 		const checkpoint: IAgentHostCheckpointService = {
 			...NULL_CHECKPOINT_SERVICE,
-			getTurnCheckpointPair: async (session, _turnId, workingDirectory) => {
+			getTurnCheckpointPair: async (session, _chat, _turnId, workingDirectory) => {
 				checkpointSessions.push(session.toString());
 				return { parent: `${workingDirectory?.path}~p`, current: `${workingDirectory?.path}~c` };
 			},
@@ -2222,6 +2268,70 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			diffBaseBranches: ['chat-main'],
 			reviewBaseBranches: ['chat-main'],
 		});
+	});
+
+	for (const isolation of ['folder', 'worktree'] as const) {
+		test(`${isolation} branch descriptions prefer the persisted base over stale Git state`, async () => {
+			const chat = buildDefaultChatUri(sessionStr);
+			const peer = buildChatUri(sessionStr, 'peer');
+			const branchUri = buildBranchChangesetUri(buildFolderChangesetOwnerUri(sessionStr, getWorkingDirectoryScopeId(['file:///repo'])));
+			const diffBases: (string | undefined)[] = [];
+			const git = createNoopGitService();
+			git.computeSessionFileDiffs = async (_directory, options) => {
+				diffBases.push(options.baseBranch);
+				return [];
+			};
+			const { svc, stateManager } = build({
+				workingDirectories: ['file:///repo'],
+				git,
+				checkpoint: NULL_CHECKPOINT_SERVICE,
+				isolation,
+				peer: { resource: peer, db: new TestSessionDatabase(), turnId: 'peer-turn' },
+			});
+			stateManager.setSessionMeta(sessionStr, withSessionGitState(undefined, {
+				branchName: 'feature',
+				baseBranchName: 'stale-base',
+				upstreamBranchName: 'origin/feature',
+			}));
+			stateManager.dispatchServerAction(sessionStr, { type: ActionType.SessionReady });
+			await svc.stateStore.writeMetadata(URI.parse(sessionStr), URI.parse(sessionStr), {
+				[META_DIFF_BASE_BRANCH]: 'origin/release',
+			}, SessionStateMirrorFlush.Immediate);
+
+			svc.refreshChangesetCatalog(chat);
+			svc.refreshChangesetCatalog(peer);
+			svc.refreshBranchChangeset(chat);
+			await waitForChangesetReady(stateManager, branchUri);
+
+			assert.deepStrictEqual({
+				descriptions: [chat, peer].map(resource => stateManager.getChatState(resource)?.changesets?.find(changeset => changeset.changeKind === 'branch')?.description),
+				diffBases,
+			}, {
+				descriptions: ['feature → origin/release', 'feature → origin/release'],
+				diffBases: ['release'],
+			});
+		});
+	}
+
+	test('peer branch descriptions use the base of the changeset owner folder', async () => {
+		const peer = buildChatUri(sessionStr, 'peer');
+		const { svc, stateManager } = build({
+			workingDirectories: ['file:///repo'],
+			git: createNoopGitService(),
+			checkpoint: NULL_CHECKPOINT_SERVICE,
+			peer: { resource: peer, db: new TestSessionDatabase(), turnId: 'peer-turn', workingDirectories: ['file:///peer'] },
+		});
+		testGitStates.set(peer, { branchName: 'peer-feature', baseBranchName: 'stale-base' });
+		stateManager.dispatchServerAction(sessionStr, { type: ActionType.SessionReady });
+		await svc.stateStore.write(URI.parse(sessionStr), sessionStatePatch({
+			chats: [{ chat: peer, isDefault: false, fields: { workingDirectories: ['file:///peer'] } }],
+		}), SessionStateMirrorFlush.Immediate);
+		await svc.stateStore.writeMetadata(URI.parse(sessionStr), URI.parse(sessionStr), { [META_DIFF_BASE_BRANCH]: 'origin/main' }, SessionStateMirrorFlush.Immediate);
+		await svc.stateStore.writeMetadata(URI.parse(sessionStr), URI.parse(peer), { [META_DIFF_BASE_BRANCH]: 'origin/peer-base' }, SessionStateMirrorFlush.Immediate);
+
+		svc.refreshChangesetCatalog(peer);
+
+		assert.strictEqual(stateManager.getChatState(peer)?.changesets?.find(changeset => changeset.changeKind === 'branch')?.description, 'peer-feature → origin/peer-base');
 	});
 
 	test('ready sessions publish session changes and chat catalogues using the chat Git state', () => {
@@ -2484,7 +2594,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		const checkpointCalls: Array<{ turnId: string; workingDirectory: string | undefined }> = [];
 		const checkpoint: IAgentHostCheckpointService = {
 			...NULL_CHECKPOINT_SERVICE,
-			getTurnCheckpointPair: async (_session: URI, turnId: string, workingDirectory?: URI) => {
+			getTurnCheckpointPair: async (_session: URI, _chat: URI | undefined, turnId: string, workingDirectory?: URI) => {
 				checkpointCalls.push({ turnId, workingDirectory: workingDirectory?.toString() });
 				return { parent: 'p', current: 'c' };
 			},
@@ -2539,7 +2649,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		const checkpoint: IAgentHostCheckpointService = {
 			...NULL_CHECKPOINT_SERVICE,
 			getBaselineCheckpoint: async () => 'baseline',
-			getTurnCheckpointPair: async (_session: URI, turnId: string) =>
+			getTurnCheckpointPair: async (_session: URI, _chat: URI | undefined, turnId: string) =>
 				turnId === 'continuation-turn' ? { parent: 'continuation~p', current: 'continuation~c' } : undefined,
 		};
 		const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], git, checkpoint });
@@ -2567,7 +2677,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: turn.id, duration: 1 });
 		}
 
-		svc.refreshSessionChangeset(sessionStr);
+		svc.refreshSessionChangeset(sessionStr, 'auto');
 		await waitForChangesetReady(stateManager, buildSessionChangesetUri(sessionStr));
 
 		assert.deepStrictEqual({
@@ -2603,7 +2713,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			const checkpoint: IAgentHostCheckpointService = {
 				...NULL_CHECKPOINT_SERVICE,
 				getBaselineCheckpoint: async () => 'baseline',
-				getTurnCheckpointPair: async (_session, turnId) => {
+				getTurnCheckpointPair: async (_session, _chat, turnId) => {
 					const current = checkpoints.get(turnId);
 					return current ? { parent: 'baseline', current } : undefined;
 				},
@@ -2611,7 +2721,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], git, checkpoint });
 			const mainChat = buildDefaultChatUri(sessionStr);
 			const peerChat = buildChatUri(sessionStr, 'peer-1');
-			stateManager.addChat(sessionStr, peerChat);
+			stateManager.addChat(sessionStr, peerChat, creationTimeChatStorageResource(sessionStr, peerChat, buildDefaultChatUri(sessionStr)));
 
 			for (const [chat, turnId, startedAt] of [
 				[mainChat, 'main-edit', '2026-09-05T10:00:00.000Z'],
@@ -2622,7 +2732,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			}
 
 			const changesetUri = buildSessionChangesetUri(sessionStr);
-			svc.refreshSessionChangeset(sessionStr);
+			svc.refreshSessionChangeset(sessionStr, 'auto');
 			await waitForChangesetReady(stateManager, changesetUri);
 
 			stateManager.dispatchServerAction(mainChat, {
@@ -2635,7 +2745,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				}, hidden),
 			});
 			stateManager.dispatchServerAction(mainChat, { type: ActionType.ChatTurnComplete, turnId: hidden ? 'notice' : 'repair', duration: 1000 });
-			svc.refreshSessionChangeset(sessionStr);
+			svc.refreshSessionChangeset(sessionStr, 'auto');
 			await waitForChangesetReady(stateManager, changesetUri);
 
 			assert.deepStrictEqual({
@@ -2701,7 +2811,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 					stateManager.setSessionSummaryChanges(sessionStr, oldSummary);
 
 					svc.refreshBranchChangeset(sessionStr);
-					svc.refreshSessionChangeset(sessionStr);
+					svc.refreshSessionChangeset(sessionStr, 'auto');
 					await Promise.all([branchStarted.p, sessionStarted.p]);
 					const branchFirst = selectedFirst === (isolation === 'worktree');
 					if (branchFirst) {
@@ -2722,7 +2832,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 					assert.deepStrictEqual({
 						afterFirst,
 						live: stateManager.getSessionSummary(sessionStr)?.changes,
-						persisted: JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!),
+						persisted: JSON.parse((await settledMetadata(db, META_CHANGES_SUMMARY))!),
 						branchFiles: stateManager.getChangesetState(branchChangeset(stateManager))?.files.map(file => file.id),
 						sessionFiles: stateManager.getChangesetState(sessionChangeset)?.files.map(file => file.id),
 					}, {
@@ -2746,26 +2856,29 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			stateManager.setSessionSummaryChanges(sessionStr, oldSummary);
 			svc.restoreStaticChangeset(sessionStr, 'session', [gitDiff('/wd/legacy.ts', 100, 20)]);
 
-			svc.refreshSessionChangeset(sessionStr);
+			svc.refreshSessionChangeset(sessionStr, 'auto');
 			await waitForChangesetReady(stateManager, sessionChangeset);
 			const live = stateManager.getSessionSummary(sessionStr)?.changes;
-			const persisted = await db.getMetadata(META_CHANGES_SUMMARY);
+			await svc.whenSummaryCommitted();
+			const mirroredBeforeFlush = JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!);
+			const persisted = await settledMetadata(db, META_CHANGES_SUMMARY);
 			stateManager.deleteSession(sessionStr);
 
 			assert.deepStrictEqual({
 				live,
-				listed: svc.computeListEntryChanges(sessionStr, { [META_CHANGES_SUMMARY]: persisted }),
-			}, { live: sessionSummary, listed: sessionSummary });
+				mirroredBeforeFlush,
+				listed: svc.computeListEntryChanges(sessionStr, { [META_CHANGES_SUMMARY]: persisted }, true),
+			}, { live: sessionSummary, mirroredBeforeFlush: oldSummary, listed: sessionSummary });
 		});
 
-		test('unopened sessions keep cached summary counts ahead of persisted session and branch diffs', async () => {
+		test('unopened sessions use the cached summary even when stale diff blobs exist', async () => {
 			const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE });
 			stateManager.deleteSession(sessionStr);
 			assert.deepStrictEqual(svc.computeListEntryChanges(sessionStr, {
 				[META_CHANGES_SUMMARY]: JSON.stringify(oldSummary),
-				[META_CHANGESET_SESSION]: JSON.stringify([gitDiff('/wd/session.ts', 3, 1)]),
-				[META_CHANGESET_BRANCH]: JSON.stringify([gitDiff('/wd/branch.ts', 40, 10)]),
-			}), oldSummary);
+				[LEGACY_SESSION_BLOB_KEY]: JSON.stringify([gitDiff('/wd/session.ts', 3, 1)]),
+				[LEGACY_BRANCH_BLOB_KEY]: JSON.stringify([gitDiff('/wd/branch.ts', 40, 10)]),
+			}, true), oldSummary);
 		});
 
 		test('idle eviction keeps cached summary counts ahead of ready Session Changes', async () => {
@@ -2780,8 +2893,8 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				keys: svc.getListMetadataKeys(sessionStr),
 				live: stateManager.getSessionSummary(sessionStr)?.changes,
 				status: stateManager.getChangesetState(sessionChangeset)?.status,
-				listed: svc.computeListEntryChanges(sessionStr, { [META_CHANGES_SUMMARY]: await db.getMetadata(META_CHANGES_SUMMARY) }),
-				persisted: JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!),
+				listed: svc.computeListEntryChanges(sessionStr, { [META_CHANGES_SUMMARY]: await settledMetadata(db, META_CHANGES_SUMMARY) }, true),
+				persisted: JSON.parse((await settledMetadata(db, META_CHANGES_SUMMARY))!),
 			}, {
 				keys: CHANGES_SUMMARY_METADATA_KEYS,
 				live: undefined,
@@ -2792,7 +2905,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		});
 
 		for (const empty of [false, true]) {
-			test(`ready Session Changes ${empty ? 'with no files ' : ''}supply a missing cached summary before persisted diffs`, async () => {
+			test(`ready Session Changes ${empty ? 'with no files ' : ''}supply a missing cached summary, never persisted diffs`, async () => {
 				const db = new TestSessionDatabase();
 				const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE, db });
 				svc.restoreStaticChangeset(sessionStr, 'session', empty ? [] : [gitDiff('/wd/session.ts', 3, 1)]);
@@ -2800,61 +2913,54 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				stateManager.removeSession(sessionStr);
 
 				const listed = svc.computeListEntryChanges(sessionStr, {
-					[META_CHANGESET_SESSION]: JSON.stringify([gitDiff('/wd/old-session.ts', 50, 10)]),
-					[META_CHANGESET_BRANCH]: JSON.stringify([gitDiff('/wd/branch.ts', 100, 20)]),
-				});
+					[LEGACY_SESSION_BLOB_KEY]: JSON.stringify([gitDiff('/wd/old-session.ts', 50, 10)]),
+					[LEGACY_BRANCH_BLOB_KEY]: JSON.stringify([gitDiff('/wd/branch.ts', 100, 20)]),
+				}, true);
 				const expected = empty ? { additions: 0, deletions: 0, files: 0 } : sessionSummary;
 				assert.deepStrictEqual({
 					listed,
-					persisted: JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!),
+					persisted: JSON.parse((await settledMetadata(db, META_CHANGES_SUMMARY))!),
 				}, { listed: expected, persisted: expected });
 			});
 		}
 
-		for (const key of [META_CHANGESET_SESSION, META_LEGACY_DIFFS]) {
-			for (const empty of [false, true]) {
-				test(`unopened sessions derive a summary from ${empty ? 'empty ' : ''}${key}, not branch diffs`, async () => {
-					const db = new TestSessionDatabase();
-					const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE, db });
-					stateManager.deleteSession(sessionStr);
-					const listed = svc.computeListEntryChanges(sessionStr, {
-						[META_CHANGESET_BRANCH]: JSON.stringify([gitDiff('/wd/branch.ts', 100, 20)]),
-						[META_LEGACY_DIFFS]: JSON.stringify([gitDiff('/wd/legacy.ts', 50, 10)]),
-						[key]: JSON.stringify(empty ? [] : [gitDiff('/wd/session.ts', 3, 1)]),
-					});
-					const expected = empty ? { additions: 0, deletions: 0, files: 0 } : sessionSummary;
+		for (const key of [LEGACY_SESSION_BLOB_KEY, LEGACY_DIFFS_BLOB_KEY, LEGACY_BRANCH_BLOB_KEY]) {
+			test(`unopened sessions never derive a summary from ${key}`, async () => {
+				const db = new TestSessionDatabase();
+				const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE, db });
+				stateManager.deleteSession(sessionStr);
+				const listed = svc.computeListEntryChanges(sessionStr, { [key]: JSON.stringify([gitDiff('/wd/session.ts', 3, 1)]) }, true);
 
-					assert.deepStrictEqual({
-						listed,
-						persisted: JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!),
-						sessionState: stateManager.getChangesetState(sessionChangeset),
-						branchState: stateManager.getChangesetState(branchChangeset(stateManager)),
-					}, {
-						listed: expected,
-						persisted: expected,
-						sessionState: undefined,
-						branchState: undefined,
-					});
+				assert.deepStrictEqual({
+					listed,
+					persisted: await settledMetadata(db, META_CHANGES_SUMMARY),
+					sessionState: stateManager.getChangesetState(sessionChangeset),
+					branchState: stateManager.getChangesetState(branchChangeset(stateManager)),
+				}, {
+					listed: undefined,
+					persisted: undefined,
+					sessionState: undefined,
+					branchState: undefined,
 				});
-			}
+			});
 		}
 
 		test('ready branch state and branch-only persisted diffs do not supply a missing summary', async () => {
 			const db = new TestSessionDatabase();
 			const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE, db });
 			stateManager.deleteSession(sessionStr);
-			const metadata = { [META_CHANGESET_BRANCH]: JSON.stringify([gitDiff('/wd/branch.ts', 100, 20)]) };
-			const cold = svc.computeListEntryChanges(sessionStr, metadata);
+			const metadata = { [LEGACY_BRANCH_BLOB_KEY]: JSON.stringify([gitDiff('/wd/branch.ts', 100, 20)]) };
+			const cold = svc.computeListEntryChanges(sessionStr, metadata, true);
 			svc.restoreStaticChangeset(sessionStr, 'branch', [gitDiff('/wd/branch.ts', 100, 20)]);
 
 			assert.deepStrictEqual({
 				cold,
-				warm: svc.computeListEntryChanges(sessionStr, metadata),
-				persisted: await db.getMetadata(META_CHANGES_SUMMARY),
+				warm: svc.computeListEntryChanges(sessionStr, metadata, true),
+				persisted: await settledMetadata(db, META_CHANGES_SUMMARY),
 			}, { cold: undefined, warm: undefined, persisted: undefined });
 		});
 
-		for (const source of ['cached', 'live', 'persisted', 'missing'] as const) {
+		for (const source of ['cached', 'live', 'missing'] as const) {
 			for (const empty of [false, true]) {
 				test(`unopened worktree summary uses ${source} branch counts (empty: ${empty})`, async () => {
 					const db = new TestSessionDatabase();
@@ -2868,19 +2974,19 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 					const metadata: Record<string, string | undefined> = {
 						configValues: JSON.stringify({ [SessionConfigKey.Isolation]: 'worktree' }),
 						[META_CHANGES_SUMMARY]: source === 'cached' ? JSON.stringify(oldSummary) : undefined,
-						[META_CHANGESET_BRANCH]: source === 'missing' ? undefined : JSON.stringify(source === 'live' ? [gitDiff('/wd/old.ts', 40, 10)] : branchDiffs),
-						[META_CHANGESET_SESSION]: JSON.stringify([gitDiff('/wd/session.ts', 3, 1)]),
-						[META_LEGACY_DIFFS]: JSON.stringify([gitDiff('/wd/legacy.ts', 50, 10)]),
+						[LEGACY_BRANCH_BLOB_KEY]: source === 'missing' ? undefined : JSON.stringify(source === 'live' ? [gitDiff('/wd/old.ts', 40, 10)] : branchDiffs),
+						[LEGACY_SESSION_BLOB_KEY]: JSON.stringify([gitDiff('/wd/session.ts', 3, 1)]),
+						[LEGACY_DIFFS_BLOB_KEY]: JSON.stringify([gitDiff('/wd/legacy.ts', 50, 10)]),
 					};
 					const keys = svc.getListMetadataKeys(sessionStr)!;
 					const listed = svc.computeListEntryChanges(sessionStr, {
 						...Object.fromEntries(Object.keys(keys).map(key => [key, metadata[key]])),
 						configValues: metadata.configValues,
-					});
+					}, true);
 					const expected = source === 'cached' ? oldSummary : source === 'missing' ? undefined : empty ? { additions: 0, deletions: 0, files: 0 } : branchSummary;
 					assert.deepStrictEqual({
 						listed,
-						persisted: await db.getMetadata(META_CHANGES_SUMMARY),
+						persisted: await settledMetadata(db, META_CHANGES_SUMMARY),
 						sessionRestored: !!stateManager.getSessionState(sessionStr),
 						changesetKeysIncludeConfig: Object.hasOwn(keys, 'configValues'),
 					}, {
@@ -2897,11 +3003,10 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			test(`malformed persisted isolation is logged (${configValues})`, () => {
 				const { svc, stateManager, log } = build({ workingDirectories: ['file:///wd'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE });
 				stateManager.deleteSession(sessionStr);
+				svc.restoreStaticChangeset(sessionStr, 'session', [gitDiff('/wd/session.ts', 3, 1)]);
 				const changes = svc.computeListEntryChanges(sessionStr, {
 					configValues,
-					[META_CHANGESET_SESSION]: JSON.stringify([gitDiff('/wd/session.ts', 3, 1)]),
-					[META_CHANGESET_BRANCH]: JSON.stringify([gitDiff('/wd/branch.ts', 100, 20)]),
-				});
+				}, true);
 				assert.deepStrictEqual({ changes, logged: log.warnings.some(warning => warning.includes('Failed to parse persisted isolation')) }, {
 					changes: sessionSummary, logged: true,
 				});
@@ -2918,12 +3023,12 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			svc.refreshBranchChangeset(sessionStr);
 			await waitForChangesetReady(stateManager, branchChangeset(stateManager));
 			const live = stateManager.getSessionSummary(sessionStr)?.changes;
-			const persisted = await db.getMetadata(META_CHANGES_SUMMARY);
+			const persisted = await settledMetadata(db, META_CHANGES_SUMMARY);
 			stateManager.deleteSession(sessionStr);
 			assert.deepStrictEqual({
 				live,
 				persisted: JSON.parse(persisted!),
-				listed: svc.computeListEntryChanges(sessionStr, { [META_CHANGES_SUMMARY]: persisted, configValues: '{"isolation":"worktree"}' }),
+				listed: svc.computeListEntryChanges(sessionStr, { [META_CHANGES_SUMMARY]: persisted, configValues: '{"isolation":"worktree"}' }, true),
 			}, {
 				live: { additions: 0, deletions: 0, files: 0 },
 				persisted: { additions: 0, deletions: 0, files: 0 },
@@ -2931,26 +3036,32 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			});
 		});
 
-		test('a main branch refresh persists both legacy and folder-scoped caches', async () => {
+		test('a worktree branch refresh writes no diff blob and still mirrors the summary', async () => {
 			const db = new TestSessionDatabase();
 			const git = createNoopGitService();
 			const diffs = [gitDiff('/wd/branch.ts', 3, 1)];
 			git.computeSessionFileDiffs = async () => diffs;
-			const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], git, checkpoint: NULL_CHECKPOINT_SERVICE, db });
+			const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], isolation: 'worktree', git, checkpoint: NULL_CHECKPOINT_SERVICE, db });
 
 			svc.refreshBranchChangeset(sessionStr);
 			await waitForChangesetReady(stateManager, branchChangeset(stateManager));
-			await timeout(0);
+			const summary = await settledMetadata(db, META_CHANGES_SUMMARY);
 
-			const scopedKey = getScopedBranchChangesetMetadataKey(getWorkingDirectoryScopeId(['file:///wd']));
+			const scopedKey = `${LEGACY_BRANCH_BLOB_KEY}.${getWorkingDirectoryScopeId(['file:///wd'])}`;
 			assert.deepStrictEqual({
-				branch: JSON.parse((await db.getMetadata(META_CHANGESET_BRANCH))!),
-				legacy: JSON.parse((await db.getMetadata(META_LEGACY_DIFFS))!),
-				scoped: JSON.parse((await db.getMetadata(scopedKey))!),
+				branch: await db.getMetadata(LEGACY_BRANCH_BLOB_KEY),
+				session: await db.getMetadata(LEGACY_SESSION_BLOB_KEY),
+				legacy: await db.getMetadata(LEGACY_DIFFS_BLOB_KEY),
+				scoped: await db.getMetadata(scopedKey),
+				summary: JSON.parse(summary!),
+				blobWrites: db.setMetadataCalls.map(call => call.key).filter(key => key.startsWith('agentHost.changeset') || key === LEGACY_DIFFS_BLOB_KEY),
 			}, {
-				branch: diffs,
-				legacy: diffs,
-				scoped: diffs,
+				branch: undefined,
+				session: undefined,
+				legacy: undefined,
+				scoped: undefined,
+				summary: { additions: 3, deletions: 1, files: 1 },
+				blobWrites: [],
 			});
 		});
 
@@ -2978,7 +3089,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 					await Promise.all([waitForChangesetReady(stateManager, branchChangeset(stateManager)), waitForChangesetReady(stateManager, sessionChangeset)]);
 					assert.deepStrictEqual({
 						live: stateManager.getSessionSummary(sessionStr)?.changes,
-						persisted: await db.getMetadata(META_CHANGES_SUMMARY),
+						persisted: await settledMetadata(db, META_CHANGES_SUMMARY),
 						branchFiles: stateManager.getChangesetState(branchChangeset(stateManager))?.files.map(file => file.id),
 					}, { live: cached, persisted: JSON.stringify(cached), branchFiles: [URI.file('/wd/old.ts').toString()] });
 				});
@@ -2997,7 +3108,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			await waitForChangesetReady(stateManager, sessionChangeset);
 			assert.deepStrictEqual({
 				live: stateManager.getSessionSummary(sessionStr)?.changes,
-				persisted: JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!),
+				persisted: JSON.parse((await settledMetadata(db, META_CHANGES_SUMMARY))!),
 			}, { live: { additions: 0, deletions: 0, files: 0 }, persisted: { additions: 0, deletions: 0, files: 0 } });
 		});
 
@@ -3039,7 +3150,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 					workingDirectories: ['file:///repoB'],
 				},
 			});
-			svc.refreshSessionChangeset(sessionStr);
+			svc.refreshSessionChangeset(sessionStr, 'auto');
 			await waitForChangesetReady(stateManager, sessionChangeset);
 
 			assert.deepStrictEqual({
@@ -3164,7 +3275,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 
 			assert.deepStrictEqual({
 				live: stateManager.getSessionSummary(sessionStr)?.changes,
-				persisted: JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!),
+				persisted: JSON.parse((await settledMetadata(db, META_CHANGES_SUMMARY))!),
 				peerFiles: stateManager.getChangesetState(branchChangeset(stateManager, peer))?.files.map(file => file.id),
 			}, {
 				live: oldSummary,
@@ -3267,7 +3378,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 						workingDirectories: ['file:///repoA', 'file:///repoA/sub', 'file:///repoB'], isolation, git, checkpoint: summaryCheckpoint(), db,
 					});
 					completeTurn(stateManager);
-					svc.refreshSessionChangeset(sessionStr);
+					svc.refreshSessionChangeset(sessionStr, 'auto');
 					await waitForChangesetReady(stateManager, sessionChangeset);
 					const beforeBranch = stateManager.getSessionSummary(sessionStr)?.changes;
 					const branchCallsBeforeRefresh = [...branchCalls];
@@ -3278,7 +3389,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 					assert.deepStrictEqual({
 						beforeBranch,
 						changes: stateManager.getSessionSummary(sessionStr)?.changes,
-						persisted: await db.getMetadata(META_CHANGES_SUMMARY),
+						persisted: await settledMetadata(db, META_CHANGES_SUMMARY),
 						sessionFiles: stateManager.getChangesetState(sessionChangeset)?.files.map(file => file.id),
 						branchCallsBeforeRefresh,
 						branchCalls,
@@ -3314,7 +3425,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			});
 			completeTurn(stateManager);
 
-			svc.refreshSessionChangeset(sessionStr);
+			svc.refreshSessionChangeset(sessionStr, 'auto');
 			await waitForChangesetReady(stateManager, sessionChangeset);
 
 			assert.deepStrictEqual({
@@ -3338,7 +3449,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			const checkpoint: IAgentHostCheckpointService = {
 				...NULL_CHECKPOINT_SERVICE,
 				getBaselineCheckpoint: async (_session, root) => `${root?.path}-baseline`,
-				getTurnCheckpointPair: async (_session, turnId, root) => {
+				getTurnCheckpointPair: async (_session, _chat, turnId, root) => {
 					turnCalls.push({ root: root?.path, turnId });
 					return { parent: `${root?.path}-turn-start`, current: `${root?.path}-latest` };
 				},
@@ -3347,7 +3458,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				workingDirectories: ['file:///repoA', 'file:///repoB'], git, checkpoint,
 				peer: { resource: buildChatUri(sessionStr, 'peer'), db: new TestSessionDatabase(), turnId: 'peer-turn' },
 			});
-			svc.refreshSessionChangeset(sessionStr);
+			svc.refreshSessionChangeset(sessionStr, 'auto');
 			await waitForChangesetReady(stateManager, sessionChangeset);
 			assert.deepStrictEqual({ calls, turnCalls, summary: stateManager.getSessionSummary(sessionStr)?.changes }, {
 				calls: [
@@ -3370,7 +3481,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			const checkpoint: IAgentHostCheckpointService = {
 				...NULL_CHECKPOINT_SERVICE,
 				getBaselineCheckpoint: async (_session, root) => `${root?.path}-baseline`,
-				getTurnCheckpointPair: async (_session, turnId, root) => {
+				getTurnCheckpointPair: async (_session, _chat, turnId, root) => {
 					if (root?.path === '/repoA' && turnId === 'turn-a') {
 						return { parent: 'a-start', current: 'a-latest' };
 					}
@@ -3403,7 +3514,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			});
 			stateManager.dispatchServerAction(peer, { type: ActionType.ChatTurnComplete, turnId: 'turn-b', duration: 1 });
 
-			svc.refreshSessionChangeset(sessionStr);
+			svc.refreshSessionChangeset(sessionStr, 'auto');
 			await waitForChangesetReady(stateManager, sessionChangeset);
 
 			assert.deepStrictEqual(calls.sort((a, b) => a.root.localeCompare(b.root)), [
@@ -3433,7 +3544,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				workingDirectories: ['file:///workspace', 'file:///workspace/repoA', 'file:///repoB'], git, checkpoint, db,
 				peer: { resource: buildChatUri(sessionStr, 'peer'), db: peerDb, turnId: 'peer-turn', onDispose: () => peerDisposed++ },
 			});
-			svc.refreshSessionChangeset(sessionStr);
+			svc.refreshSessionChangeset(sessionStr, 'auto');
 			await waitForChangesetReady(stateManager, sessionChangeset);
 			assert.deepStrictEqual({
 				files: stateManager.getChangesetState(sessionChangeset)?.files.map(file => file.id).sort(),
@@ -3484,9 +3595,8 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				const previous = [gitDiff('/repoA/cached.ts', 100, 20)];
 				svc.restoreStaticChangeset(sessionStr, 'session', previous);
 				stateManager.setSessionSummaryChanges(sessionStr, oldSummary);
-				await db.setMetadata(META_CHANGESET_SESSION, JSON.stringify(previous));
 				await db.setMetadata(META_CHANGES_SUMMARY, JSON.stringify(oldSummary));
-				svc.refreshSessionChangeset(sessionStr);
+				svc.refreshSessionChangeset(sessionStr, 'auto');
 				for (let i = 0; i < 500 && stateManager.getChangesetState(sessionChangeset)?.status !== ChangesetStatus.Error; i++) {
 					await timeout(1);
 				}
@@ -3494,11 +3604,10 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 					status: stateManager.getChangesetState(sessionChangeset)?.status,
 					files: stateManager.getChangesetState(sessionChangeset)?.files.map(file => file.edit),
 					summary: stateManager.getSessionSummary(sessionStr)?.changes,
-					persistedFiles: JSON.parse((await db.getMetadata(META_CHANGESET_SESSION))!),
-					persistedSummary: JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!),
+					persistedSummary: JSON.parse((await settledMetadata(db, META_CHANGES_SUMMARY))!),
 				}, {
 					status: ChangesetStatus.Error, files: previous, summary: oldSummary,
-					persistedFiles: previous, persistedSummary: oldSummary,
+					persistedSummary: oldSummary,
 				});
 			});
 		}
@@ -3522,7 +3631,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			const { svc, stateManager } = build({ workingDirectories, git, checkpoint: summaryCheckpoint() });
 			completeTurn(stateManager);
 			stateManager.setSessionSummaryChanges(sessionStr, oldSummary);
-			svc.refreshSessionChangeset(sessionStr);
+			svc.refreshSessionChangeset(sessionStr, 'auto');
 			for (let i = 0; i < 500 && stateManager.getChangesetState(sessionChangeset)?.status !== ChangesetStatus.Ready; i++) {
 				await timeout(1);
 				releases.shift()?.();
@@ -3554,9 +3663,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				completeTurn(stateManager);
 				svc.recomputeSubscribedChangesets(sessionStr);
 				await waitForChangesetReady(stateManager, selected);
-				assert.deepStrictEqual({ git: calls, tracked: db.getAllFileEditsCalls }, isolation === 'worktree'
-					? { git: 1, tracked: 0 }
-					: { git: 0, tracked: 1 });
+				assert.deepStrictEqual({ git: calls, tracked: db.getAllFileEditsCalls }, isolation === 'folder' ? { git: 0, tracked: 1 } : { git: 1, tracked: 0 });
 			});
 		}
 
@@ -3578,7 +3685,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				assert.deepStrictEqual({
 					status: stateManager.getChangesetState(sessionChangeset)?.status,
 					changes: stateManager.getSessionSummary(sessionStr)?.changes,
-					persisted: await db.getMetadata(META_CHANGES_SUMMARY),
+					persisted: await settledMetadata(db, META_CHANGES_SUMMARY),
 				}, { status: ChangesetStatus.Error, changes: cached, persisted: cached ? JSON.stringify(cached) : undefined });
 			});
 		}
@@ -3629,7 +3736,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				await waitForChangesetReady(stateManager, selected);
 				assert.deepStrictEqual({
 					changes: stateManager.getSessionSummary(sessionStr)?.changes,
-					persisted: JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!),
+					persisted: JSON.parse((await settledMetadata(db, META_CHANGES_SUMMARY))!),
 					files: stateManager.getChangesetState(selected)?.files.map(file => file.id),
 				}, { changes: oldSummary, persisted: oldSummary, files: [URI.file('/repoA/cached.ts').toString()] });
 			});
@@ -3663,7 +3770,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			await waitForChangesetReady(stateManager, originalBranchChangeset);
 			assert.deepStrictEqual({
 				changes: stateManager.getSessionSummary(sessionStr)?.changes,
-				persisted: JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!),
+				persisted: JSON.parse((await settledMetadata(db, META_CHANGES_SUMMARY))!),
 				files: stateManager.getChangesetState(originalBranchChangeset)?.files,
 				replacementState: stateManager.getChangesetState(branchChangeset(stateManager)),
 			}, { changes: oldSummary, persisted: oldSummary, files: [], replacementState: undefined });
@@ -3682,7 +3789,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				const db = new TestSessionDatabase();
 				const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], isolation: 'folder', git, checkpoint: summaryCheckpoint(), db });
 				completeTurn(stateManager);
-				svc.refreshSessionChangeset(sessionStr);
+				svc.refreshSessionChangeset(sessionStr, 'auto');
 				await started.p;
 				if (transition === 'restored') {
 					stateManager.setSessionConfig(sessionStr, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'worktree' } });
@@ -3698,7 +3805,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				await waitForChangesetReady(stateManager, sessionChangeset);
 				assert.deepStrictEqual({
 					live: stateManager.getSessionSummary(sessionStr)?.changes,
-					persisted: JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!),
+					persisted: JSON.parse((await settledMetadata(db, META_CHANGES_SUMMARY))!),
 					sessionFiles: stateManager.getChangesetState(sessionChangeset)?.files.map(file => file.id),
 				}, { live: branchSummary, persisted: branchSummary, sessionFiles: [URI.file('/wd/session.ts').toString()] });
 			});
@@ -3763,6 +3870,49 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 					{ additions: 2, deletions: 0, files: 1 },
 				],
 			});
+		});
+
+		test('reads a peer\'s tracked edits from its recorded storage, not from a database at its chat URI', async () => {
+			const db = new TestSessionDatabase();
+			const peerDb = new TestSessionDatabase();
+			addCreatedFile(db, 'turn-1', '/wd/main.ts', 'a');
+			addCreatedFile(peerDb, 'peer-turn', '/wd/peer.ts', 'a\nb');
+			// A chat stored somewhere else than its own URI, as a session's default chat moved under another session is.
+			const storage = 'copilot:/moved-in-storage';
+			const peerSessionChanges = buildSessionChangesetUri(peer);
+			const { svc, stateManager } = build({
+				workingDirectories: ['file:///wd'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE, db,
+				peer: { resource: peer, db: peerDb, turnId: 'peer-turn', storage },
+				subscriptions: [peerSessionChanges],
+			});
+
+			svc.onTurnComplete(peer, 'peer-turn');
+			await waitForChangesetReady(stateManager, peerSessionChanges);
+			await waitForChangesetReady(stateManager, buildSessionChangesetUri(sessionStr));
+
+			assert.deepStrictEqual({
+				peerFiles: stateManager.getChangesetState(peerSessionChanges)?.files.map(file => file.id),
+				sessionFiles: stateManager.getChangesetState(buildSessionChangesetUri(sessionStr))?.files.map(file => file.id).sort(),
+			}, {
+				peerFiles: [URI.file('/wd/peer.ts').toString()],
+				sessionFiles: [URI.file('/wd/main.ts').toString(), URI.file('/wd/peer.ts').toString()].sort(),
+			});
+		});
+
+		test('addresses tracked edits only through recorded storage, never a database at an unregistered chat\'s URI', () => {
+			const storage = 'copilot:/moved-in-storage';
+			const { svc } = build({
+				workingDirectories: ['file:///wd'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE, db: new TestSessionDatabase(),
+				peer: { resource: peer, db: new TestSessionDatabase(), turnId: 'peer-turn', storage },
+			});
+			const internals = svc as unknown as { _getTrackedDatabaseUri(owner: string): string };
+			const unregistered = buildChatUri(sessionStr, 'unregistered');
+
+			assert.deepStrictEqual({
+				peer: internals._getTrackedDatabaseUri(peer),
+				session: internals._getTrackedDatabaseUri(sessionStr),
+				unregistered: (() => { try { return internals._getTrackedDatabaseUri(unregistered); } catch { return 'rejected'; } })(),
+			}, { peer: storage, session: sessionStr, unregistered: 'rejected' });
 		});
 
 		test('an observed peer Session Changes computation publishes the peer aggregate', async () => {
@@ -4005,6 +4155,137 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			return event.data;
 		}
 
+		for (const provider of ['copilotcli', 'copilot', 'claude', 'codex', 'custom-provider']) {
+			for (const scheme of [provider, 'ahp-session', ...(provider === 'copilotcli' ? ['copilot'] : [])]) {
+				test(`changesetComputed preserves exact baseline provider per scope for ${provider}/${scheme}`, async () => {
+					const resource = AgentSession.uri(scheme, 'telemetry-session').toString();
+					const peer = buildChatUri(resource, 'peer');
+					const folder = buildFolderChangesetOwnerUri(resource, getWorkingDirectoryScopeId(['file:///repo']));
+					const telemetry = new CapturingTelemetryService();
+					const git = createNoopGitService();
+					git.getRepositoryRoot = async wd => wd;
+					git.computeFileDiffsBetweenRefs = async () => [gitDiff('/repo/a.ts')];
+					git.computeSessionFileDiffs = async () => [gitDiff('/repo/a.ts')];
+					const { svc } = build({
+						session: { resource, provider },
+						workingDirectories: ['file:///repo'],
+						git,
+						checkpoint: makeCheckpoint(root => ({ parent: `${root}~p`, current: `${root}~c` })),
+						telemetry,
+						peer: { resource: peer, db: new TestSessionDatabase(), turnId: 'peer-turn' },
+						subscriptions: [
+							buildBranchChangesetUri(folder),
+							buildSessionChangesetUri(resource),
+							buildUncommittedChangesetUri(resource),
+							buildTurnChangesetUri(resource, 'turn'),
+							buildTurnChangesetUri(peer, 'peer-turn'),
+						],
+					});
+
+					svc.onTurnComplete(resource, 'turn');
+					svc.onTurnComplete(peer, 'peer-turn');
+					for (const kind of ['branch', 'session', 'uncommitted', 'turn']) {
+						await waitForTelemetry(telemetry, 'agentHost.changesetComputed', data => data.kind === kind);
+					}
+					await waitForTelemetry(telemetry, 'agentHost.changesetComputed', data => data.turnId === 'peer-turn' && data.kind === 'turn');
+
+					const expectedProvider = scheme === 'ahp-session' ? provider : scheme;
+					assert.deepStrictEqual(
+						telemetry.events.map(event => ({ kind: event.data.kind, turnId: event.data.turnId, provider: event.data.provider })),
+						telemetry.events.map(event => ({
+							kind: event.data.kind,
+							turnId: event.data.turnId,
+							provider: event.data.kind === 'branch' ? 'ahp-folder-changeset'
+								: event.data.kind === 'turn' && event.data.turnId === 'peer-turn' ? 'ahp-chat'
+									: expectedProvider,
+						})),
+					);
+				});
+			}
+		}
+
+		test('suppressed non-repository recomputations do not report phantom compute telemetry', async () => {
+			const telemetry = new CapturingTelemetryService();
+			const git = createNoopGitService();
+			git.hasGitRoot = () => constObservable(false);
+			const { svc } = build({
+				workingDirectories: ['file:///non-repository'],
+				git,
+				checkpoint: NULL_CHECKPOINT_SERVICE,
+				telemetry,
+				subscriptions: [buildUncommittedChangesetUri(sessionStr)],
+			});
+			svc.onTurnComplete(sessionStr, 'first-turn');
+			await waitForTelemetry(telemetry, 'agentHost.changesetComputed', data => data.kind === 'uncommitted');
+
+			svc.onTurnComplete(sessionStr, 'second-turn');
+			await timeout(0);
+
+			assert.deepStrictEqual(
+				telemetry.events.filter(event => event.data.kind === 'uncommitted').map(event => ({ outcome: event.data.outcome, turnId: event.data.turnId })),
+				[{ outcome: 'gitUnavailable', turnId: 'first-turn' }],
+			);
+		});
+
+		test('changesetComputed retains the provider when a session is removed during computation', async () => {
+			const resource = 'ahp-session:/removed-session';
+			const started = new DeferredPromise<void>();
+			const result = new DeferredPromise<readonly ISessionFileDiff[]>();
+			const telemetry = new CapturingTelemetryService();
+			const git = createNoopGitService();
+			git.computeSessionFileDiffs = async () => {
+				started.complete();
+				return result.p;
+			};
+			const { svc, stateManager } = build({
+				session: { resource, provider: 'copilotcli' },
+				workingDirectories: ['file:///repo'],
+				git,
+				checkpoint: NULL_CHECKPOINT_SERVICE,
+				telemetry,
+				subscriptions: [buildUncommittedChangesetUri(resource)],
+			});
+
+			svc.onTurnComplete(resource, undefined);
+			await started.p;
+			stateManager.removeSession(resource);
+			result.complete([]);
+			const data = await waitForTelemetry(telemetry, 'agentHost.changesetComputed', data => data.kind === 'uncommitted');
+
+			assert.deepStrictEqual({ provider: data.provider, agentSessionId: data.agentSessionId }, {
+				provider: 'copilotcli',
+				agentSessionId: 'removed-session',
+			});
+		});
+
+		for (const scheme of ['copilotcli', 'ahp-session']) {
+			test(`changesetComputed retains ${scheme} provider while waiting in the compute queue`, async () => {
+				const resource = AgentSession.uri(scheme, 'queued-session').toString();
+				const telemetry = new CapturingTelemetryService();
+				const { svc, stateManager } = build({
+					session: { resource, provider: 'copilotcli' },
+					workingDirectories: ['file:///repo'],
+					git: createNoopGitService(),
+					checkpoint: NULL_CHECKPOINT_SERVICE,
+					telemetry,
+					subscriptions: [buildTurnChangesetUri(resource, 'turn')],
+				});
+
+				svc.onTurnComplete(resource, 'turn');
+				stateManager.removeSession(resource);
+				svc.refreshSessionChangeset(resource, 'fileEditTracker');
+				await waitForTelemetry(telemetry, 'agentHost.changesetComputed', data => data.kind === 'turn');
+				await waitForTelemetry(telemetry, 'agentHost.changesetComputed', data => data.kind === 'session');
+
+				assert.deepStrictEqual(
+					telemetry.events.filter(event => event.data.kind === 'turn' || event.data.kind === 'session')
+						.map(event => ({ kind: event.data.kind, provider: event.data.provider }))
+						.sort((a, b) => String(a.kind).localeCompare(String(b.kind))),
+					[{ kind: 'session', provider: 'copilotcli' }, { kind: 'turn', provider: 'copilotcli' }],
+				);
+			});
+		}
+
 		test('changesetComputed (turn) carries correlation and omits multi-root fields for a single-root turn', async () => {
 			const telemetry = new CapturingTelemetryService();
 			const git = createNoopGitService();
@@ -4046,7 +4327,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				hasFileCount: data.fileCount !== undefined,
 				hasMultiRootFields: data.uniqueGitFolderCount !== undefined || data.trackedEditFallbackFolderCount !== undefined,
 			}, {
-				provider: URI.parse(sessionStr).scheme,
+				provider: 'mock',
 				agentSessionId: AgentSession.id(sessionStr),
 				turnId: 'turn-1',
 				initiatorClientType: 'editor_window',

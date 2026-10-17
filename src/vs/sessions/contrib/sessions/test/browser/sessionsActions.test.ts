@@ -4,36 +4,50 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Direction } from '../../../../../base/browser/ui/grid/grid.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { decodeKeybinding } from '../../../../../base/common/keybindings.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import '../../../../../editor/contrib/wordOperations/browser/wordOperations.js';
 import { isICommandActionToggleInfo } from '../../../../../platform/action/common/action.js';
 import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ServiceIdentifier } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeybindingResolver, ResultKind } from '../../../../../platform/keybinding/common/keybindingResolver.js';
+import { ResolvedKeybindingItem } from '../../../../../platform/keybinding/common/resolvedKeybindingItem.js';
+import { USLayoutResolvedKeybinding } from '../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { IPaneCompositePartService } from '../../../../../workbench/services/panecomposite/browser/panecomposite.js';
 import { CloseEditorTabAction } from '../../../../../workbench/browser/parts/editor/editorActions.js';
+import { NAVIGATE_VIEW_COMMANDS } from '../../../../../workbench/browser/actions/navigationActions.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
 import { Menus } from '../../../../browser/menus.js';
 import { SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../../browser/sessionConversationGroups.js';
 import { SessionView } from '../../../../browser/parts/sessionView.js';
+import { createSessionsPartTestHarness, createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { type IOpenNewSessionOptions, type IOpenNewSessionResult, type IOpenSessionOptions, type IOpenSessionsOptions, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ChatOriginKind, IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ICreateNewSessionOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 
@@ -47,13 +61,16 @@ import { INewSessionComposerService, NewSessionComposerService } from '../../../
 import { ISessionSection, NEW_SESSION_FOR_WORKSPACE_ACTION_ID } from '../../browser/views/sessionsList.js';
 import { ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
 import { WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
-import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
-import { SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionIdContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
+import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, DETACH_CHAT_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { IsPhoneLayoutContext, MultipleSessionsVisibleContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatResourceContext, SessionIdContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionsFocusContext, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
+import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { resolveOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 
 suite('Sessions - Actions', () => {
 
@@ -236,6 +253,7 @@ suite('Sessions - Actions', () => {
 			'sessionsViewPane.openToTheSide',
 			MARK_SESSION_READ_COMMAND_ID,
 			MARK_SESSION_UNREAD_COMMAND_ID,
+			'sessionsViewPane.markAllNestedRead',
 			'sessionsViewPane.markAllRead',
 		]);
 		const actions = MenuRegistry.getMenuItems(Menus.SessionItemContextMenu)
@@ -253,6 +271,7 @@ suite('Sessions - Actions', () => {
 			{ id: 'sessionsViewPane.unpinSession', group: '0_pin', order: 0, when: 'sessionItem.isPinned && !sessionIsArchived' },
 			{ id: MARK_SESSION_READ_COMMAND_ID, group: '1_edit', order: 1.5, when: '!sessionIsArchived && !sessionIsRead' },
 			{ id: MARK_SESSION_UNREAD_COMMAND_ID, group: '1_edit', order: 1.5, when: 'sessionIsRead && !sessionIsArchived' },
+			{ id: 'sessionsViewPane.markAllNestedRead', group: '1_edit', order: 1.6, when: 'sessionItem.hasUnreadNestedSessions' },
 			{ id: 'sessionsViewPane.openToTheSide', group: '0_pin', order: 1, when: 'isSessionsWindow' },
 			{ id: 'sessionsViewPane.markAllRead', group: '0_read', order: 1, when: 'sessionsViewPane.grouping == \'date\'' },
 		]);
@@ -285,6 +304,65 @@ suite('Sessions - Actions', () => {
 			markedRead: sessions.map(session => session.mainChat.get().resource.toString()),
 			markedUnread: sessions.map(session => session.mainChat.get().resource.toString()),
 		});
+	});
+
+	test('parent session action marks unread nested sessions as read', async () => {
+		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+		const firstTestSession = createTestSession('First');
+		const secondTestSession = createTestSession('Second');
+		const unsupportedTestSession = createTestSession('Unsupported');
+		for (const testSession of [firstTestSession, secondTestSession]) {
+			testSession.capabilities.set({ ...testSession.capabilities.get(), supportsIndependentChatReadState: true }, undefined);
+		}
+		const first = firstTestSession.session;
+		const second = secondTestSession.session;
+		const unsupported = unsupportedTestSession.session;
+		const createChat = (session: ISession, id: string, isRead: boolean, interactivity = ChatInteractivity.Full): IChat => upcastPartial<IChat>({
+			resource: session.resource.with({ fragment: id }),
+			isArchived: constObservable(false),
+			isRead: constObservable(isRead),
+			interactivity: constObservable(interactivity),
+		});
+		const firstUnread = createChat(first, 'first-unread', false);
+		const firstRead = createChat(first, 'first-read', true);
+		const secondUnread = createChat(second, 'second-unread', false);
+		const hiddenUnread = createChat(second, 'hidden-unread', false, ChatInteractivity.Hidden);
+		const unsupportedUnread = createChat(unsupported, 'unsupported-unread', false);
+		const sessions: ISession[] = [{
+			...first,
+			chats: constObservable([first.mainChat.get(), firstUnread, firstRead]),
+		}, {
+			...second,
+			chats: constObservable([second.mainChat.get(), secondUnread, hiddenUnread]),
+		}, {
+			...unsupported,
+			chats: constObservable([unsupported.mainChat.get(), unsupportedUnread]),
+		}];
+		const markedRead: { session: string; chats: string[] }[] = [];
+		const pendingRead = new DeferredPromise<void>();
+		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override markChatsRead(session: ISession, chats: readonly IChat[]): Promise<void> {
+				markedRead.push({
+					session: session.sessionId,
+					chats: chats.map(chat => chat.resource.toString()),
+				});
+				return pendingRead.p;
+			}
+		});
+
+		const result = CommandsRegistry.getCommand('sessionsViewPane.markAllNestedRead')?.handler(instantiationService, sessions);
+
+		assert.deepStrictEqual({
+			markedRead,
+			result,
+		}, {
+			markedRead: [
+				{ session: first.sessionId, chats: [firstUnread.resource.toString()] },
+				{ session: second.sessionId, chats: [secondUnread.resource.toString()] },
+			],
+			result: undefined,
+		});
+		pendingRead.complete();
 	});
 
 	test('the main session context menu opens its main chat to the side', async () => {
@@ -683,7 +761,7 @@ suite('Sessions - Actions', () => {
 		]);
 	});
 
-	test('uses a compact close icon for tabs and a regular close icon for headers', () => {
+	test('uses the small close icon for headers and tabs', () => {
 		const chatTabClose = MenuRegistry.getMenuItems(Menus.SessionChatTab)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === CLOSE_CHAT_COMMAND_ID);
@@ -695,7 +773,6 @@ suite('Sessions - Actions', () => {
 			.find(item => item.command.id === CLOSE_SESSION_COMMAND_ID && item.group === 'navigation');
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const editorClose = disposables.add(instantiationService.createInstance(CloseEditorTabAction, CloseEditorTabAction.ID, CloseEditorTabAction.LABEL));
-
 		assert.deepStrictEqual({
 			chatTabIcon: chatTabClose?.command.icon,
 			chatHeaderIcon: chatHeaderClose?.command.icon,
@@ -705,11 +782,137 @@ suite('Sessions - Actions', () => {
 			editorClass: editorClose.class,
 		}, {
 			chatTabIcon: Codicon.closeSmall,
-			chatHeaderIcon: Codicon.close,
+			chatHeaderIcon: Codicon.closeSmall,
 			chatHeaderTooltip: 'Close Chat Group',
-			sessionHeaderIcon: Codicon.close,
+			sessionHeaderIcon: Codicon.closeSmall,
 			sessionHeaderTooltip: 'Close Session',
 			editorClass: 'codicon codicon-close-small',
+		});
+	});
+
+	test('the Detach Chat command is keyboard-discoverable and detaches the active child', async () => {
+		const { session } = createTestSession('detach-child');
+		const child: IChat = { ...session.mainChat.get(), resource: URI.parse('test-chat:/child') };
+		const active = upcastPartial<IActiveSession>({ ...session, activeChat: constObservable(child) });
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const calls: { session: IActiveSession; resource: string }[] = [];
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable(active);
+			override async detachChat(session: IActiveSession, resource: URI): Promise<void> { calls.push({ session, resource: resource.toString() }); }
+		});
+		const command = CommandsRegistry.getCommand(DETACH_CHAT_COMMAND_ID);
+		assert.ok(command);
+		await command.handler(instantiationService);
+		const palette = MenuRegistry.getMenuItems(MenuId.CommandPalette).filter(isIMenuItem).find(item => item.command.id === DETACH_CHAT_COMMAND_ID);
+		const context = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		IsSessionsWindowContext.bindTo(context).set(true);
+		SessionIsCreatedContext.bindTo(context).set(true);
+		const closable = SessionActiveChatIsClosableContext.bindTo(context);
+		closable.set(true);
+		const aiEnabled = ChatContextKeys.enabled.bindTo(context);
+		aiEnabled.set(true);
+		const enabledForChild = context.contextMatchesRules(palette?.when);
+		closable.set(false);
+		const enabledForMain = context.contextMatchesRules(palette?.when);
+		closable.set(true);
+		aiEnabled.set(false);
+		assert.deepStrictEqual({
+			palette: !!palette,
+			enabledForChild,
+			enabledForMain,
+			enabledWithAiDisabled: context.contextMatchesRules(palette?.when),
+			calls,
+		}, { palette: true, enabledForChild: true, enabledForMain: false, enabledWithAiDisabled: false, calls: [{ session: active, resource: child.resource.toString() }] });
+	});
+
+	test('positional focus commands follow visual pane order and work with only a standalone child', async () => {
+		const { part, container } = createSessionsPartTestHarness(disposables);
+		const parent = createTestActiveSession('parent', true, { chatCount: 2 });
+		const chat = parent.chats.get()[1];
+		const child: IActiveSession = {
+			...parent, scopedChatResource: chat.resource, activeChat: constObservable(chat), visibleChatTabs: constObservable([chat]),
+		};
+		const other = createTestActiveSession('other');
+		part.layout(1202, 802, 0, 0);
+		part.updateVisibleSessions([parent, other, child], parent, [
+			{ id: 'parent' }, { id: 'other' }, { id: 'child', placement: { reference: 'other', direction: Direction.Left } },
+		]);
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const selected: (string | undefined)[] = [];
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override setActive(session: IActiveSession | undefined): void {
+				selected.push(session?.scopedChatResource ? 'child' : session?.sessionId);
+			}
+		});
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
+			override getSessionAtPosition(index: number) { return part.getSessionAtPosition(index); }
+			override focusSession(session: IActiveSession | undefined): void { part.focusSession(session?.sessionId, session?.scopedChatResource); }
+		});
+		for (const position of [2, 9, 8]) {
+			await CommandsRegistry.getCommand(`sessions.focusSessionInGrid${position}`)!.handler(instantiationService);
+		}
+		part.updateVisibleSessions([child], child, [{ id: 'child' }]);
+		for (const position of [1, 9]) {
+			await CommandsRegistry.getCommand(`sessions.focusSessionInGrid${position}`)!.handler(instantiationService);
+		}
+		assert.deepStrictEqual({
+			selected,
+			panes: container.querySelectorAll('.session-view').length,
+			focused: part.getFocusedSessionView()?.getSession()?.scopedChatResource?.toString(),
+		}, { selected: ['child', 'other', 'child', 'child'], panes: 1, focused: chat.resource.toString() });
+	});
+
+	test('routes generic directional navigation commands only while the session grid is focused', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const configurationService = new TestConfigurationService();
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		const contextKeyService = disposables.add(new ContextKeyService(configurationService));
+		IsSessionsWindowContext.bindTo(contextKeyService).set(true);
+		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+		IsPhoneLayoutContext.bindTo(contextKeyService).set(false);
+		MultipleSessionsVisibleContext.bindTo(contextKeyService).set(true);
+		const sessionsFocus = SessionsFocusContext.bindTo(contextKeyService);
+		sessionsFocus.set(true);
+		instantiationService.stub(IContextKeyService, contextKeyService);
+
+		const routedCommands: string[] = [];
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+			override executeCommand<T>(commandId: string): Promise<T | undefined> {
+				routedCommands.push(commandId);
+				return Promise.resolve(undefined);
+			}
+		});
+
+		let editorFocusCount = 0;
+		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({
+			hasFocus: part => part === Parts.EDITOR_PART,
+		}));
+		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({
+			activeGroup: upcastPartial<IEditorGroup>({}),
+			findGroup: () => upcastPartial<IEditorGroup>({ focus: () => editorFocusCount++ }),
+		}));
+		instantiationService.stub(IPaneCompositePartService, new class extends mock<IPaneCompositePartService>() { });
+
+		for (const commandId of Object.values(NAVIGATE_VIEW_COMMANDS)) {
+			const command = CommandsRegistry.getCommand(commandId);
+			assert.ok(command);
+			await command.handler(instantiationService);
+		}
+
+		sessionsFocus.set(false);
+		await CommandsRegistry.getCommand(NAVIGATE_VIEW_COMMANDS.left)?.handler(instantiationService);
+
+		assert.deepStrictEqual({
+			routedCommands,
+			editorFocusCount,
+		}, {
+			routedCommands: [
+				'sessions.focusSessionLeft',
+				'sessions.focusSessionRight',
+				'sessions.focusSessionAbove',
+				'sessions.focusSessionBelow',
+			],
+			editorFocusCount: 1,
 		});
 	});
 
@@ -776,6 +979,63 @@ suite('Sessions - Actions', () => {
 				},
 			});
 		});
+	});
+
+	for (const os of [OperatingSystem.Windows, OperatingSystem.Macintosh, OperatingSystem.Linux]) {
+		test(`binds Alt+Left/Right to session navigation outside the editor area (${os})`, () => {
+			const bindings = KeybindingsRegistry.getDefaultKeybindingsForOS(os);
+			const navigationBindings = [
+				{ command: 'sessions.goBack', key: KeyCode.LeftArrow },
+				{ command: 'sessions.goForward', key: KeyCode.RightArrow },
+			].map(({ command, key }) => {
+				const hash = decodeKeybinding(KeyMod.Alt | key, os)?.getHashCode();
+				return bindings.filter(binding => binding.command === command && binding.keybinding?.getHashCode() === hash)
+					.map(binding => ({
+						command: binding.command,
+						when: binding.when?.serialize().split(' && ').sort(),
+					}));
+			});
+
+			const inputScope = os === OperatingSystem.Macintosh ? ['!inputFocus', '!textInputFocus'] : [];
+			assert.deepStrictEqual(navigationBindings, [
+				[{ command: 'sessions.goBack', when: ['!editorAreaFocus', ...inputScope, 'isSessionsWindow', 'sessionsCanGoBack'] }],
+				[{ command: 'sessions.goForward', when: ['!editorAreaFocus', ...inputScope, 'isSessionsWindow', 'sessionsCanGoForward'] }],
+			]);
+		});
+	}
+
+	test('macOS Alt-arrow aliases preserve word movement in composers and native inputs', () => {
+		const configuration = new TestConfigurationService();
+		disposables.add(configuration.onDidChangeConfigurationEmitter);
+		const contextKeyService = disposables.add(new ContextKeyService(configuration));
+		const bindings = KeybindingsRegistry.getDefaultKeybindingsForOS(OperatingSystem.Macintosh)
+			.filter(binding => binding.command !== null && ['sessions.goBack', 'sessions.goForward', 'cursorWordLeft', 'cursorWordEndRight'].includes(binding.command))
+			.flatMap(binding => binding.keybinding ? USLayoutResolvedKeybinding.resolveKeybinding(binding.keybinding, OperatingSystem.Macintosh)
+				.map(resolved => new ResolvedKeybindingItem(resolved, binding.command, binding.commandArgs, binding.when ?? undefined, true, null, false)) : []);
+		const resolver = new KeybindingResolver(bindings, [], () => { });
+		const resolved = [
+			{ inputFocus: false, textInputFocus: false, editorAreaFocus: false },
+			{ inputFocus: true, textInputFocus: true, editorAreaFocus: false },
+			{ inputFocus: false, textInputFocus: true, editorAreaFocus: false },
+			{ inputFocus: true, textInputFocus: false, editorAreaFocus: false },
+			{ inputFocus: true, textInputFocus: true, editorAreaFocus: true },
+		].map(focus => {
+			for (const [key, value] of Object.entries({ isSessionsWindow: true, sessionsCanGoBack: true, sessionsCanGoForward: true, ...focus })) {
+				contextKeyService.createKey(key, value).set(value);
+			}
+			return ['alt+LeftArrow', 'alt+RightArrow', 'ctrl+-'].map(chord => {
+				const result = resolver.resolve(contextKeyService.getContext(mainWindow.document.documentElement), [], chord);
+				return result.kind === ResultKind.KbFound ? result.commandId : undefined;
+			});
+		});
+
+		assert.deepStrictEqual(resolved, [
+			['sessions.goBack', 'sessions.goForward', 'sessions.goBack'],
+			['cursorWordLeft', 'cursorWordEndRight', 'sessions.goBack'],
+			['cursorWordLeft', 'cursorWordEndRight', 'sessions.goBack'],
+			[undefined, undefined, 'sessions.goBack'],
+			['cursorWordLeft', 'cursorWordEndRight', undefined],
+		]);
 	});
 
 	test('associates the close shortcut with the header close commands', () => {
@@ -1051,8 +1311,9 @@ suite('Sessions - Actions', () => {
 			sticky: constObservable(false),
 		});
 
+		const panes = observableValue<readonly IActiveSession[]>('panes', [activeSession]);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly visibleSessions = constObservable([activeSession]);
+			override readonly visibleSessionPanes = panes;
 		});
 
 		disposables.add(instantiationService.createInstance(SessionConversationActionsContribution));
@@ -1072,6 +1333,13 @@ suite('Sessions - Actions', () => {
 				.filter(item => contextKeyService.contextMatchesRules(item.when))
 				.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value);
 		};
+		const standalone = { ...activeSession, scopedChatResource: peerChat.resource, activeChat: constObservable(peerChat) };
+		panes.set([activeSession, standalone], undefined);
+		const sharedOwnerEntries = MenuRegistry.getMenuItems(Menus.SessionConversations).filter(isIMenuItem)
+			.filter(item => item.command.id.startsWith(`sessions.openChat.${session.sessionId}.`)).length;
+		panes.set([standalone], undefined);
+		const hiddenParentEntries = MenuRegistry.getMenuItems(Menus.SessionConversations).filter(isIMenuItem)
+			.filter(item => item.command.id.startsWith(`sessions.openChat.${session.sessionId}.`)).length;
 
 		assert.deepStrictEqual({
 			registered: registered.map(item => ({
@@ -1080,6 +1348,8 @@ suite('Sessions - Actions', () => {
 			})),
 			forMain: visibleTitles(mainChat),
 			forPeer: visibleTitles(peerChat),
+			sharedOwnerEntries,
+			hiddenParentEntries,
 		}, {
 			registered: [
 				{ title: 'Main side chat', group: SESSION_CONVERSATION_SIDE_CHATS_GROUP },
@@ -1087,6 +1357,8 @@ suite('Sessions - Actions', () => {
 			],
 			forMain: ['Main side chat'],
 			forPeer: ['Peer side chat'],
+			sharedOwnerEntries: 2,
+			hiddenParentEntries: 2,
 		});
 	});
 
@@ -1136,10 +1408,16 @@ suite('Sessions - Actions', () => {
 			const style = observableValue<NewSessionButtonStyle>('newButtonStyle', 'default');
 			const item = disposables.add(instantiationService.createInstance(NewSessionActionViewItem, action, source, style));
 			const container = document.createElement('div');
+			mainWindow.document.body.appendChild(container);
+			disposables.add(toDisposable(() => container.remove()));
 			item.render(container);
 
 			const button = container.querySelector<HTMLElement>('.agent-sessions-compact-new-button.monaco-button');
 			assert.ok(button);
+			const target = resolveOnboardingTarget(mainWindow, 'sessions.newSession.button');
+			assert.ok(target?.onDidActivate);
+			let activations = 0;
+			disposables.add(target.onDidActivate(() => activations++));
 			assert.deepStrictEqual({
 				buttonCount: container.querySelectorAll('.monaco-button').length,
 				dropdown: container.querySelector('.monaco-button-dropdown'),
@@ -1160,9 +1438,10 @@ suite('Sessions - Actions', () => {
 			button.click();
 			button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, altKey: true }));
 
-			assert.deepStrictEqual({ primaryRuns, commands: commandService.calls }, {
+			assert.deepStrictEqual({ primaryRuns, commands: commandService.calls, activations }, {
 				primaryRuns: 3,
 				commands: [{ commandId: NEW_SESSION_ACTION_ID, args: [{ toSide: true }] }],
+				activations: 4,
 			});
 
 			style.set('lightweightWithKeybindingBackground', undefined);
@@ -1177,6 +1456,72 @@ suite('Sessions - Actions', () => {
 			}, { lightweight: false, keybindingBackground: false });
 		});
 	}
+
+	test('New Session prefills a supplied prompt and only inherits available quick-chat targets', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(INewSessionComposerService, disposables.add(new NewSessionComposerService()));
+		const { session } = createTestSession('prompted');
+		const activeSession = upcastPartial<IActiveSession>(session);
+		const quickChat = upcastPartial<IActiveSession>({ ...session, sessionId: 'quick-chat' });
+		const currentSession = observableValue<IActiveSession | undefined>('activeSession', activeSession);
+		const quickChatRequests: { options: ICreateNewSessionOptions | undefined; preserveNavigation: boolean | undefined }[] = [];
+		let openNewSessionCalls = 0;
+		let accessorValid = true;
+		let targetAvailable = true;
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = currentSession;
+			override openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean): IActiveSession {
+				quickChatRequests.push({ options, preserveNavigation });
+				currentSession.set(quickChat, undefined);
+				accessorValid = false;
+				return quickChat;
+			}
+			override async openNewSession(): Promise<IOpenNewSessionResult> {
+				openNewSessionCalls++;
+				return { session: quickChat, trustDeclined: false };
+			}
+		});
+		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override isQuickChatTargetAvailable(): boolean { return targetAvailable; }
+		});
+		const queries: string[] = [];
+		const viewSessionIds: (string | undefined)[] = [];
+		instantiationService.stub(ISessionsPartService, upcastPartial<ISessionsPartService>({
+			getSessionView: sessionId => {
+				viewSessionIds.push(sessionId);
+				return upcastPartial<SessionView>({
+					prefillInput: query => queries.push(query),
+				});
+			},
+		}));
+
+		const command = CommandsRegistry.getCommand(NEW_SESSION_ACTION_ID);
+		assert.ok(command);
+		const invocationAccessor: ServicesAccessor = {
+			get: <T>(id: ServiceIdentifier<T>): T => {
+				if (!accessorValid) {
+					throw new Error('Service accessor used after asynchronous invocation');
+				}
+				return instantiationService.get(id);
+			},
+		};
+		for (const available of [true, false]) {
+			targetAvailable = available;
+			accessorValid = true;
+			currentSession.set(activeSession, undefined);
+			await command.handler(invocationAccessor, { prompt: 'Review this change', prefillPrompt: true, noWorkspace: true });
+		}
+
+		assert.deepStrictEqual({ quickChatRequests, openNewSessionCalls, viewSessionIds, queries }, {
+			quickChatRequests: [
+				{ options: { providerId: activeSession.providerId, sessionTypeId: activeSession.sessionType }, preserveNavigation: true },
+				{ options: undefined, preserveNavigation: true },
+			],
+			openNewSessionCalls: 0,
+			viewSessionIds: [quickChat.sessionId, quickChat.sessionId],
+			queries: ['Review this change', 'Review this change'],
+		});
+	});
 
 	for (const toSide of [undefined, true]) {
 		for (const scenario of [

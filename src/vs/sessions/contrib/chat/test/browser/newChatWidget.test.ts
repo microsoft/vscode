@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
+import { getBaseLayerHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate2.js';
+import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IAction, toAction } from '../../../../../base/common/actions.js';
 import { DeferredPromise, raceCancellationError, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
@@ -16,7 +19,7 @@ import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ISession, ISessionGitRepository, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../../services/sessions/common/session.js';
+import { IChat, ISession, ISessionGitRepository, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ICreateNewSessionOptions, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISendRequestOptions, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IOpenNewSessionOptions, IOpenNewSessionResult } from '../../../../services/sessions/browser/sessionsService.js';
@@ -31,7 +34,7 @@ import { SessionInputPickerVisibility } from '../../../../services/sessions/comm
 import { IChatRequestVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
-import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
+import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { IWorkspacePickerContextAction, IWorkspacePickerNoWorkspaceOption, WorkspacePicker } from '../../browser/sessionWorkspacePicker.js';
 import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
 import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
@@ -186,11 +189,14 @@ const getContextPickerActions = Reflect.get(NewChatWidget.prototype, '_getContex
 const send = Reflect.get(NewChatWidget.prototype, '_send') as (this: ISendHarness, query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean) => Promise<boolean>;
 const updateWelcomeMessage = Reflect.get(NewChatWidget.prototype, '_updateWelcomeMessage') as (container: HTMLElement, title: HTMLElement, visible: boolean, phrases: readonly string[], phraseIndex: number) => string | undefined;
 const getComparisonBranch = Reflect.get(NewChatWidget.prototype, '_getComparisonBranch') as (this: IGetComparisonBranchHarness, session?: ISession) => string | undefined;
+const getComparisonModelIds = Reflect.get(NewChatWidget.prototype, '_getComparisonModelIds') as (this: {
+	readonly _newChatInput: { getComparisonModels(): readonly ILanguageModelChatMetadataAndIdentifier[] };
+}) => Set<string>;
 const shouldShowComparisonAction = Reflect.get(NewChatWidget.prototype, '_shouldShowComparisonAction') as (this: IComparisonActionVisibilityHarness) => boolean;
 const announceWelcomeMessage = Reflect.get(NewChatWidget.prototype, '_announceWelcomeMessage') as (this: IWelcomeAnnouncementHarness, phrase: string | undefined, inputVisible: boolean) => void;
 const getWelcomeName = Reflect.get(NewChatWidget.prototype, '_getWelcomeName') as (this: { _getFirstName(name: string | undefined): string | undefined }, gitHubName: string | undefined, configuredName?: string) => string | undefined;
 const getFirstName = Reflect.get(NewChatWidget.prototype, '_getFirstName') as (name: string | undefined) => string | undefined;
-const takeNextWelcomePhraseIndex = Reflect.get(NewChatWidget, '_takeNextWelcomePhraseIndex') as () => number;
+const takeNextWelcomePhraseIndex = Reflect.get(NewChatWidget, '_takeNextWelcomePhraseIndex') as (storageService: IStorageService) => number;
 
 interface IWelcomeAnnouncementHarness {
 	_welcomePhraseAnnounced: boolean;
@@ -472,6 +478,8 @@ suite('NewChatWidget', () => {
 	});
 
 	test('workspace remains visible while repository and harness controls expand without being recreated', () => {
+		const setupManagedHover = sinon.spy(getBaseLayerHoverDelegate(), 'setupManagedHover');
+		disposables.add(toDisposable(() => setupManagedHover.restore()));
 		const container = document.createElement('div');
 		document.body.appendChild(container);
 		disposables.add(toDisposable(() => container.remove()));
@@ -541,6 +549,7 @@ suite('NewChatWidget', () => {
 		workspaceVisibility.push(pickerVisibility.visibility.get().workspace);
 		const details = harness._workspaceSessionOptionsHost!;
 		const toggle = container.querySelector<HTMLElement>('.new-chat-session-options-toggle')!;
+		assert.strictEqual(setupManagedHover.getCalls().find(call => call.args[1] === toggle)?.args[0], getDefaultHoverDelegate('mouse'));
 		const legacy = {
 			rowClass: harness._workspacePickerRow?.classList.contains('new-chat-session-options'),
 			detailsClass: details.classList.contains('legacy-session-options-details'),
@@ -1020,7 +1029,7 @@ suite('NewChatWidget', () => {
 				selections: [],
 			}
 			: {
-				labels: ['Local', 'Test Remote'],
+				labels: ['This Computer', 'Test Remote'],
 				icons: [Codicon.vm.id, Codicon.remote.id],
 				selections: [{ providerId: 'agenthost-remote-test' }],
 			});
@@ -1056,6 +1065,99 @@ suite('NewChatWidget', () => {
 			? [undefined, undefined, undefined]
 			: [undefined, 'Chat [Test Remote]', undefined]);
 	});
+
+	test('hides offline Mission Control hosts from Chat while preserving the active chat label', () => {
+		const visibility = observableValue('environmentVisibility', false);
+		const providers = [
+			upcastPartial<IAgentHostSessionsProvider>({
+				id: LOCAL_AGENT_HOST_PROVIDER_ID,
+				label: 'Local Agent Host',
+				supportsQuickChats: true,
+			}),
+			upcastPartial<IAgentHostSessionsProvider>({
+				id: 'agenthost-remote-test',
+				label: 'Test Remote',
+				supportsQuickChats: true,
+			}),
+			upcastPartial<IAgentHostSessionsProvider>({
+				id: 'agenthost-mission-control',
+				label: 'Old Environment',
+				supportsQuickChats: true,
+				isVisibleInEnvironmentPicker: visibility,
+			}),
+		];
+		const harness: INoWorkspaceOptionHarness = {
+			_useConsolidatedRemoteWorkspaces: constObservable(true),
+			_isWorkspacePickerQuickChat: constObservable(true),
+			_session: constObservable({ providerId: 'agenthost-mission-control' }),
+			sessionsProvidersService: { getProviders: () => providers },
+			sessionsManagementService: { isQuickChatTargetAvailable: () => true },
+			selectNoWorkspace: () => assert.fail('Existing quick chat must be preserved'),
+		};
+		const snapshot = () => {
+			const option = getNoWorkspaceOption.call(harness);
+			return {
+				hosts: option?.submenuActions?.map(action => action.label),
+				selectedLabel: option?.selectedLabel,
+				isSelected: option?.isSelected,
+			};
+		};
+		const states = [snapshot()];
+		visibility.set(true, undefined);
+		states.push(snapshot());
+		visibility.set(false, undefined);
+		states.push(snapshot());
+
+		const offline = { hosts: ['This Computer', 'Test Remote'], selectedLabel: 'Chat [Old Environment]', isSelected: true };
+		assert.deepStrictEqual(states, isWeb
+			? Array.from({ length: 3 }, () => ({ hosts: undefined, selectedLabel: undefined, isSelected: undefined }))
+			: [offline, { ...offline, hosts: ['This Computer', 'Test Remote', 'Old Environment'] }, offline]);
+	});
+
+	for (const hasLocalProvider of [false, true]) {
+		test(`rejects a stale Chat ${hasLocalProvider ? 'submenu action' : 'direct selection'} after a Mission Control host goes offline`, async () => {
+			const visibility = observableValue('environmentVisibility', true);
+			const environment = upcastPartial<IAgentHostSessionsProvider>({
+				id: 'agenthost-mission-control',
+				label: 'Old Environment',
+				supportsQuickChats: true,
+				isVisibleInEnvironmentPicker: visibility,
+			});
+			const providers = hasLocalProvider
+				? [upcastPartial<IAgentHostSessionsProvider>({
+					id: LOCAL_AGENT_HOST_PROVIDER_ID,
+					label: 'Local Agent Host',
+					supportsQuickChats: true,
+				}), environment]
+				: [environment];
+			const selections: Array<ICreateNewSessionOptions | undefined> = [];
+			const harness: INoWorkspaceOptionHarness = {
+				_useConsolidatedRemoteWorkspaces: constObservable(true),
+				_isWorkspacePickerQuickChat: constObservable(false),
+				_session: constObservable(undefined),
+				sessionsProvidersService: { getProviders: () => providers },
+				sessionsManagementService: { isQuickChatTargetAvailable: () => true },
+				selectNoWorkspace: options => selections.push(options),
+			};
+			const option = getNoWorkspaceOption.call(harness);
+			visibility.set(false, undefined);
+			if (hasLocalProvider) {
+				await option?.submenuActions?.[1].run();
+			} else {
+				option?.select();
+			}
+			const offlineOption = getNoWorkspaceOption.call(harness);
+			assert.deepStrictEqual({
+				selections,
+				chatAvailable: !!offlineOption,
+				hasSubmenu: !!offlineOption?.submenuActions,
+			}, {
+				selections: [],
+				chatAvailable: !isWeb && hasLocalProvider,
+				hasSubmenu: false,
+			});
+		});
+	}
 
 	test('reselecting Chat or its current host preserves the quick chat draft', async () => {
 		const selections: Array<ICreateNewSessionOptions | undefined> = [];
@@ -1135,7 +1237,7 @@ suite('NewChatWidget', () => {
 		});
 		await option?.submenuActions?.[1].run();
 
-		assert.deepStrictEqual(option?.submenuActions?.map(action => action.label), isWeb ? undefined : ['Local', 'Test Remote']);
+		assert.deepStrictEqual(option?.submenuActions?.map(action => action.label), isWeb ? undefined : ['This Computer', 'Test Remote']);
 	});
 
 	test('workspace-less chats do not inherit the previous picker workspace', () => {
@@ -1157,9 +1259,10 @@ suite('NewChatWidget', () => {
 		});
 	});
 
-	test('rotates welcome phrase indices across composers', () => {
+	test('rotates welcome phrase indices across composers and reloads', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
 		assert.deepStrictEqual(
-			Array.from({ length: 6 }, () => takeNextWelcomePhraseIndex()),
+			Array.from({ length: 6 }, () => takeNextWelcomePhraseIndex(storageService)),
 			[0, 1, 2, 3, 4, 5],
 		);
 	});
@@ -1198,7 +1301,7 @@ suite('NewChatWidget', () => {
 			],
 			hidden: { text: '', hidden: true },
 			wrapped: 'Two',
-			empty: { text: '', hidden: false },
+			empty: { text: '', hidden: true },
 		});
 	});
 
@@ -2235,6 +2338,28 @@ suite('NewChatWidget', () => {
 		});
 	});
 
+	test('retains comparison models from every harness during model refresh', () => {
+		const model = (identifier: string) => upcastPartial<ILanguageModelChatMetadataAndIdentifier>({
+			identifier,
+			metadata: upcastPartial<ILanguageModelChatMetadata>({ id: identifier, name: identifier }),
+		});
+		const harness = {
+			_newChatInput: {
+				getComparisonModels: () => [
+					model('copilot-model'),
+					model('claude-model'),
+					model('codex-model'),
+				],
+			},
+		};
+
+		assert.deepStrictEqual([...getComparisonModelIds.call(harness)], [
+			'copilot-model',
+			'claude-model',
+			'codex-model',
+		]);
+	});
+
 	for (const { runs, navigationFails, openInGrid } of [
 		{ runs: 2, navigationFails: false, openInGrid: true },
 		{ runs: 10, navigationFails: true, openInGrid: true },
@@ -2244,12 +2369,17 @@ suite('NewChatWidget', () => {
 			const resolving = observableValue('resolving', false);
 			const selection = disposables.add(new SessionComparisonModelSelection(derived(reader => !resolving.read(reader)), resolving));
 			selection.start();
-			selection.select('model');
-			selection.setCount(runs);
+			selection.select('claude-model');
+			for (let i = 1; i < runs; i++) {
+				selection.addVariant('claude-model', {
+					testAttempt: i,
+					...(i === 1 ? { serviceTier: 'priority' } : {}),
+				}, `Attempt ${i + 1}`);
+			}
 			selection.next();
-			selection.select('judge');
+			selection.select('codex-judge');
 			selection.next();
-			selection.select('synthesizer');
+			selection.select('copilot-synthesizer');
 			selection.finish();
 			const workspace = URI.file('/workspace');
 			const session = upcastPartial<IActiveSession>({
@@ -2278,15 +2408,63 @@ suite('NewChatWidget', () => {
 					},
 				},
 				_getComparisonBranch: () => 'feature',
+				_newChatInput: {
+					resolveComparisonModel: (id: string) => {
+						const sessionType = id.startsWith('claude') ? 'claude' : id.startsWith('codex') ? 'codex' : 'copilotcli';
+						return {
+							sessionType: {
+								id: sessionType,
+								label: sessionType === 'copilotcli' ? 'Copilot' : sessionType === 'claude' ? 'Claude' : 'Codex',
+								icon: Codicon.robot,
+								authRequirement: SessionTypeAuthRequirement.None,
+								supportsWorktreeConfiguration: true,
+							},
+							model: upcastPartial<ILanguageModelChatMetadataAndIdentifier>({
+								identifier: id,
+								metadata: upcastPartial<ILanguageModelChatMetadata>({
+									name: id,
+									configurationSchema: {
+										properties: {
+											thinkingLevel: { type: 'string', enum: ['medium'] },
+											contextSize: { type: 'number' },
+											testAttempt: { type: 'number' },
+											...(id.startsWith('copilot') ? { serviceTier: { type: 'string' as const, enum: ['priority'] } } : {}),
+										},
+									},
+								}),
+							}),
+						};
+					},
+				},
 				sessionsProvidersService: {
 					getProvider: () => upcastPartial<ISessionsProvider>({
 						getPermissionOptionForSession: () => ({ id: 'autoApprove', label: 'Allow all', description: '', comparisonModeId: 'autopilot', locked: permissionLocked }),
-						getModelsSnapshotForCreation: (_workspace, _type, id) => ({
-							models: [],
-							modelTarget: 'copilotcli',
-							desiredModelResolution: { kind: 'available', model: upcastPartial<ILanguageModelChatMetadataAndIdentifier>({ identifier: id!, metadata: upcastPartial<ILanguageModelChatMetadata>({ name: id! }) }) },
+						getComparisonPermissionOptionForSession: (_sessionId, sessionTypeId) => sessionTypeId === 'claude'
+							? { id: 'bypassPermissions', label: 'Bypass Permissions', description: '', locked: permissionLocked }
+							: sessionTypeId === 'codex'
+								? { id: 'full-access', label: 'Full Access', description: '', locked: permissionLocked }
+								: { id: 'autoApprove', label: 'Allow all', description: '', comparisonModeId: 'autopilot', locked: permissionLocked },
+						getSessionTypes: () => [
+							{ id: 'copilotcli', label: 'Copilot', icon: Codicon.copilot, authRequirement: SessionTypeAuthRequirement.GitHub, supportsWorktreeConfiguration: true },
+							{ id: 'claude', label: 'Claude', icon: Codicon.commentDiscussion, authRequirement: SessionTypeAuthRequirement.None, supportsWorktreeConfiguration: true },
+							{ id: 'codex', label: 'Codex', icon: Codicon.code, authRequirement: SessionTypeAuthRequirement.None, supportsWorktreeConfiguration: true },
+						],
+						getModelsSnapshotForCreation: (_workspace, type, id) => {
+							const expectedType = id?.startsWith('claude') ? 'claude' : id?.startsWith('codex') ? 'codex' : 'copilotcli';
+							return {
+								models: [],
+								modelTarget: type,
+								desiredModelResolution: type === expectedType
+									? { kind: 'available', model: upcastPartial<ILanguageModelChatMetadataAndIdentifier>({ identifier: id!, metadata: upcastPartial<ILanguageModelChatMetadata>({ name: id! }) }) }
+									: { kind: 'notRequested' },
+							};
+						},
+						getAutomationModelConfiguration: () => ({
+							getModelConfiguration: () => ({ thinkingLevel: 'medium', contextSize: 1_000_000, serviceTier: 'priority' }),
+							getModelConfigurationActions: () => [],
+							setModelConfiguration: async () => { },
+							onDidChange: Event.None,
 						}),
-						getAutomationModelConfiguration: () => ({ getModelConfiguration: () => ({ effort: 'high' }), getModelConfigurationActions: () => [], setModelConfiguration: async () => { }, onDidChange: Event.None }),
 					})
 				},
 				sessionsManagementService: {
@@ -2339,19 +2517,30 @@ suite('NewChatWidget', () => {
 			assert.strictEqual(errors.some(error => error.message === 'Navigation unavailable'), navigationFails);
 			assert.deepStrictEqual({
 				models: options.attempts.map(attempt => attempt.harness.modelId),
+				harnesses: options.attempts.map(attempt => attempt.harness.sessionTypeId),
 				uniqueIds: new Set(options.attempts.map(attempt => attempt.id)).size,
 				permissions: options.attempts.map(attempt => attempt.harness.permissionId),
 				modes: options.attempts.map(attempt => attempt.harness.modeId),
-				config: options.attempts[0].harness.modelConfiguration,
+				configurations: options.attempts.map(attempt => attempt.harness.modelConfiguration),
+				evaluatorConfigurations: [options.judgeHarness?.modelConfiguration, options.synthesisHarness?.modelConfiguration],
 				judge: options.judgeHarness?.modelId, synthesizer: options.synthesisHarness?.modelId,
+				evaluatorHarnesses: [options.judgeHarness?.sessionTypeId, options.synthesisHarness?.sessionTypeId],
 				evaluatorModes: [options.judgeHarness?.modeId, options.synthesisHarness?.modeId],
 				workspace: options.workspace.toString(), branch: options.branch, attachments: options.attachedContext,
 				enabled: selection.enabled.get(), navigation,
 			}, {
-				models: Array(runs).fill('model'), uniqueIds: runs, permissions: Array(runs).fill('autoApprove'),
-				modes: Array(runs).fill('autopilot'), config: { effort: 'high' },
-				evaluatorModes: ['autopilot', 'autopilot'],
-				judge: 'judge', synthesizer: 'synthesizer', workspace: workspace.toString(), branch: 'feature',
+				models: Array(runs).fill('claude-model'), harnesses: Array(runs).fill('claude'), uniqueIds: runs, permissions: Array(runs).fill('bypassPermissions'),
+				modes: Array(runs).fill(undefined),
+				configurations: [
+					{ thinkingLevel: 'medium', contextSize: 1_000_000 },
+					...Array.from({ length: runs - 1 }, (_, index) => ({ thinkingLevel: 'medium', contextSize: 1_000_000, testAttempt: index + 1 })),
+				],
+				evaluatorConfigurations: [
+					{ thinkingLevel: 'medium', contextSize: 1_000_000 },
+					{ thinkingLevel: 'medium', contextSize: 1_000_000, serviceTier: 'priority' },
+				],
+				evaluatorModes: [undefined, 'autopilot'],
+				judge: 'codex-judge', synthesizer: 'copilot-synthesizer', evaluatorHarnesses: ['codex', 'copilotcli'], workspace: workspace.toString(), branch: 'feature',
 				attachments: [attachment], enabled: false, navigation: !openInGrid ? ['discardDraft'] : navigationFails ? ['openGrid'] : ['openGrid', 'discardDraft'],
 			});
 		});
@@ -2371,6 +2560,7 @@ suite('NewChatWidget', () => {
 		});
 		const session = upcastPartial<ISession>({
 			sessionId: 'session',
+			mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/session') })),
 			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 			workspace: constObservable(workspace),
 		});
@@ -2420,6 +2610,7 @@ suite('NewChatWidget', () => {
 		});
 		const session = upcastPartial<ISession>({
 			sessionId: 'session',
+			mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/session') })),
 			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 			workspace: constObservable(draftWorkspace),
 		});
@@ -2472,6 +2663,7 @@ suite('NewChatWidget', () => {
 		});
 		const session = upcastPartial<ISession>({
 			sessionId: 'session',
+			mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/session') })),
 			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 			workspace: constObservable(draftWorkspace),
 		});
@@ -2523,6 +2715,7 @@ suite('NewChatWidget', () => {
 		});
 		const session = upcastPartial<ISession>({
 			sessionId: 'session',
+			mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/session') })),
 			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 			workspace: constObservable(sessionWorkspace),
 		});
@@ -2573,6 +2766,7 @@ suite('NewChatWidget', () => {
 		});
 		const session = upcastPartial<ISession>({
 			sessionId: 'session',
+			mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/session') })),
 			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 			workspace: constObservable(sessionWorkspace),
 		});
@@ -2610,6 +2804,7 @@ suite('NewChatWidget', () => {
 		});
 		const session = upcastPartial<ISession>({
 			sessionId: 'session',
+			mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/session') })),
 			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 			workspace: constObservable(workspace),
 		});
@@ -2648,6 +2843,7 @@ suite('NewChatWidget', () => {
 		});
 		const session = upcastPartial<ISession>({
 			sessionId: 'session',
+			mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/session') })),
 			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 			sessionType: 'copilotcli',
 			workspace: constObservable(workspace),
@@ -2668,6 +2864,13 @@ suite('NewChatWidget', () => {
 				getProvider: () => ({
 					id: LOCAL_AGENT_HOST_PROVIDER_ID,
 					getCreateSessionConfig: () => undefined,
+					getSessionConfig: () => upcastPartial({
+						schema: {
+							properties: {
+								isolation: { type: 'string', enum: ['folder', 'worktree'] },
+							},
+						},
+					}),
 					isSessionConfigResolving: () => constObservable(false),
 				}),
 			},
@@ -2689,6 +2892,7 @@ suite('NewChatWidget', () => {
 		});
 		const session = upcastPartial<ISession>({
 			sessionId: 'session',
+			mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/session') })),
 			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 			workspace: constObservable(workspace),
 		});
@@ -2706,7 +2910,7 @@ suite('NewChatWidget', () => {
 		assert.strictEqual(getComparisonBranch.call(harness), 'main');
 	});
 
-	test('uses the selected workspace base branch while draft repository metadata is unresolved', () => {
+	test('hides comparison action when draft does not advertise worktree isolation', () => {
 		const draftWorkspace = upcastPartial<ISessionWorkspace>({
 			folders: [{
 				root: URI.file('/workspace'),
@@ -2732,6 +2936,7 @@ suite('NewChatWidget', () => {
 		});
 		const session = upcastPartial<ISession>({
 			sessionId: 'session',
+			mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/session') })),
 			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 			sessionType: 'copilotcli',
 			workspace: constObservable(draftWorkspace),
@@ -2752,6 +2957,7 @@ suite('NewChatWidget', () => {
 				getProvider: () => ({
 					id: LOCAL_AGENT_HOST_PROVIDER_ID,
 					getCreateSessionConfig: () => undefined,
+					getSessionConfig: () => undefined,
 					isSessionConfigResolving: () => constObservable(false),
 				}),
 			},
@@ -2763,7 +2969,7 @@ suite('NewChatWidget', () => {
 			visible: shouldShowComparisonAction.call(harness),
 		}, {
 			branch: 'main',
-			visible: true,
+			visible: false,
 		});
 	});
 
@@ -2778,6 +2984,7 @@ suite('NewChatWidget', () => {
 		});
 		const session = upcastPartial<ISession>({
 			sessionId: 'session',
+			mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/session') })),
 			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 			workspace: constObservable(workspace),
 		});
@@ -2811,6 +3018,7 @@ suite('NewChatWidget', () => {
 		});
 		const session = upcastPartial<ISession>({
 			sessionId: 'session',
+			mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/session') })),
 			providerId: 'provisional',
 			workspace: constObservable(workspace),
 		});

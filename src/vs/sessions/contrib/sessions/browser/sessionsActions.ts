@@ -14,6 +14,7 @@ import { autorun, IObservable, IReader, observableSignalFromEvent, observableVal
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { hasKey } from '../../../../base/common/types.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuRegistry, MenuId, registerAction2, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
@@ -38,7 +39,7 @@ import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionFocusedChatIsRenameTargetContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext, IsNewChatSessionContext, IsQuickChatSessionContext, SessionsListPromoteNewChatActionContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionHeaderTargetsChatContext, SessionItemIsMultiSelectionContext, IsPhoneLayoutContext, SessionToolbarShowsSessionContext } from '../../../common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
-import { ARRANGE_SESSIONS_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SESSION_GRID_FOCUS_COMMANDS, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { ARRANGE_SESSIONS_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, DETACH_CHAT_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SESSION_GRID_FOCUS_COMMANDS, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getUntitledSessionTitle, IChat, isSideChatOf, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
@@ -59,6 +60,7 @@ import { asCssVariable } from '../../../../platform/theme/common/colorRegistry.j
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { IWorkbenchAssignmentService } from '../../../../workbench/services/assignment/common/assignmentService.js';
+import { registerViewNavigationCommand } from '../../../../workbench/browser/actions/navigationActions.js';
 import { agentsNewSessionButtonBackground, agentsNewSessionButtonBorder, agentsNewSessionButtonForeground, agentsNewSessionButtonHoverBackground } from '../../../common/theme.js';
 import { logSessionsInteraction, SessionsInteractionSource } from '../../../common/sessionsTelemetry.js';
 import { NEW_SESSION_ACTION_ID } from '../../chat/common/constants.js';
@@ -179,7 +181,7 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 				}
 			};
 
-			appendSessions(localize('sessionsPickerNeedsInput', "needs input"), sessionGroups.needsInput);
+			appendSessions(localize('sessionsPickerNeedsInput', "needs attention"), sessionGroups.needsInput);
 			appendSessions(localize('sessionsPickerUnread', "unread"), sessionGroups.unread);
 			appendSessions(localize('recentlyOpened', "recently opened"), sessionGroups.recent);
 			appendSessions(localize('otherSessions', "other sessions"), sessionGroups.other);
@@ -278,15 +280,19 @@ registerAction2(class GoBackAction extends Action2 {
 			tooltip: localize('sessionsGoBackTooltip', "Go Back One Session"),
 			category: SessionsCategories.Sessions,
 			precondition: CanGoBackContext,
-			keybinding: {
+			keybinding: [{
 				// Higher than `WorkbenchContrib` so the `Ctrl+Shift+Tab` secondary wins over the
 				// editor quick-open actions (which bind the same chord at `WorkbenchContrib`).
 				weight: KeybindingWeight.SessionsContrib,
 				win: { primary: KeyMod.Alt | KeyCode.LeftArrow, secondary: [KeyCode.BrowserBack, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab] },
 				mac: { primary: KeyMod.WinCtrl | KeyCode.Minus, secondary: [KeyCode.BrowserBack, KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab] },
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Minus, secondary: [KeyCode.BrowserBack, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab] },
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Minus, secondary: [KeyMod.Alt | KeyCode.LeftArrow, KeyCode.BrowserBack, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab] },
 				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated()),
-			},
+			}, {
+				weight: KeybindingWeight.SessionsContrib,
+				mac: { primary: KeyMod.Alt | KeyCode.LeftArrow },
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), InputFocusedContext.negate(), EditorContextKeys.textInputFocus.negate()),
+			}],
 			menu: [{
 				id: Menus.TitleBarCenterLeft,
 				group: 'navigation',
@@ -320,15 +326,19 @@ registerAction2(class GoForwardAction extends Action2 {
 			tooltip: localize('sessionsGoForwardTooltip', "Go Forward One Session"),
 			category: SessionsCategories.Sessions,
 			precondition: CanGoForwardContext,
-			keybinding: {
+			keybinding: [{
 				// Higher than `WorkbenchContrib` so the `Ctrl+Tab` secondary wins over the
 				// editor quick-open actions (which bind the same chord at `WorkbenchContrib`).
 				weight: KeybindingWeight.SessionsContrib,
 				win: { primary: KeyMod.Alt | KeyCode.RightArrow, secondary: [KeyCode.BrowserForward, KeyMod.CtrlCmd | KeyCode.Tab] },
 				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Minus, secondary: [KeyCode.BrowserForward, KeyMod.WinCtrl | KeyCode.Tab] },
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Minus, secondary: [KeyCode.BrowserForward, KeyMod.CtrlCmd | KeyCode.Tab] },
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Minus, secondary: [KeyMod.Alt | KeyCode.RightArrow, KeyCode.BrowserForward, KeyMod.CtrlCmd | KeyCode.Tab] },
 				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated()),
-			},
+			}, {
+				weight: KeybindingWeight.SessionsContrib,
+				mac: { primary: KeyMod.Alt | KeyCode.RightArrow },
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), InputFocusedContext.negate(), EditorContextKeys.textInputFocus.negate()),
+			}],
 			menu: [{
 				id: Menus.TitleBarCenterLeft,
 				group: 'navigation',
@@ -490,6 +500,26 @@ registerAction2(class MoveChatToNextGroupAction extends Action2 {
 	}
 });
 
+registerAction2(class DetachChatAction extends Action2 {
+	constructor() {
+		super({
+			id: DETACH_CHAT_COMMAND_ID,
+			title: localize2('detachChat', "Detach Chat into New Pane"),
+			f1: true,
+			category: SessionsCategories.Sessions,
+			precondition: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, SessionIsCreatedContext, SessionActiveChatIsClosableContext),
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const service = accessor.get(ISessionsService);
+		const session = service.activeSession.get();
+		if (session) {
+			await service.detachChat(session, session.activeChat.get().resource);
+		}
+	}
+});
+
 // -- Focus Nth Session in the Grid (Cmd/Ctrl+1..9) --
 // Mirrors VS Code's "Focus Editor Group N": Ctrl/Cmd+1..8 focus that grid slot
 // and Ctrl/Cmd+9 focuses the LAST slot. Does nothing when the slot doesn't exist.
@@ -518,13 +548,12 @@ for (let index = 0; index < 9; index++) {
 			const sessionsService = accessor.get(ISessionsService);
 			const sessionsPartService = accessor.get(ISessionsPartService);
 
-			const visible = sessionsService.visibleSessions.get();
-			const targetIndex = isLast ? visible.length - 1 : index;
-			if (targetIndex < 0 || targetIndex >= visible.length) {
+			const target = sessionsPartService.getSessionAtPosition(isLast ? -1 : index);
+			if (target === undefined) {
 				return;
 			}
 
-			const session = visible[targetIndex];
+			const session = target ?? undefined;
 			sessionsService.setActive(session);
 			sessionsPartService.focusSession(session);
 		}
@@ -928,7 +957,7 @@ MenuRegistry.appendMenuItem(Menus.SessionBarToolbar, {
 		id: CLOSE_CHAT_COMMAND_ID,
 		title: localize('closeChatGroup', "Close"),
 		tooltip: localize('closeChatGroupTooltip', "Close Chat Group"),
-		icon: Codicon.close,
+		icon: Codicon.closeSmall,
 	},
 	when: ContextKeyExpr.and(SessionHeaderShowsChatContext, SessionActiveChatIsClosableContext),
 	group: 'navigation',
@@ -1301,8 +1330,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 /**
  * Base class for the compact pill button rendered in the sessions UI (e.g. the "New" session/chat
- * buttons, the empty file editor's "Search Files" button). Subclasses provide the command id,
- * label and hover/aria text.
+ * buttons and the empty file editor actions). Subclasses provide the command id,
+ * label, optional icon and hover/aria text.
  */
 export abstract class CompactButtonActionViewItem extends BaseActionViewItem {
 
@@ -1320,6 +1349,11 @@ export abstract class CompactButtonActionViewItem extends BaseActionViewItem {
 
 	/** Visible pill label (e.g. "New", "New Chat"). */
 	protected abstract get label(): string;
+
+	/** Optional leading icon for the pill. */
+	protected get icon(): ThemeIcon | undefined {
+		return undefined;
+	}
 
 	/** Hover text; receives the resolved keybinding label, if any. */
 	protected abstract getHoverContent(keybindingLabel: string | undefined): string;
@@ -1366,7 +1400,9 @@ export abstract class CompactButtonActionViewItem extends BaseActionViewItem {
 		this.configureButton(button);
 		const onboardingTargetId = this.onboardingTargetId;
 		if (onboardingTargetId) {
-			this._register(markOnboardingTarget(button.element, onboardingTargetId));
+			this._register(markOnboardingTarget(button.element, onboardingTargetId, {
+				onDidActivate: Event.map(Event.filter(button.onDidClick, () => this.action.enabled), () => undefined),
+			}));
 		}
 		this._register(button.onDidClick(e => {
 			// Stop propagation so the parent <li> click handler doesn't run the action twice.
@@ -1379,6 +1415,13 @@ export abstract class CompactButtonActionViewItem extends BaseActionViewItem {
 		}));
 
 		const buttonLabel = $('span.new-session-button-label', undefined, this.label);
+		const icon = this.icon;
+		if (icon) {
+			const iconElement = $('span.new-session-button-icon');
+			iconElement.classList.add(...ThemeIcon.asClassNameArray(icon));
+			iconElement.setAttribute('aria-hidden', 'true');
+			buttonLabel.prepend(iconElement);
+		}
 		const keybindingHint = $('span.new-session-keybinding-hint');
 		const keybindingHintLabel = this.showKeybindingHint
 			? this._register(new KeybindingLabel(keybindingHint, OS, {
@@ -1648,8 +1691,10 @@ export class SessionConversationActionsContribution extends Disposable implement
 	) {
 		super();
 		this._register(autorun(reader => {
-			for (const session of this._sessionsService.visibleSessions.read(reader)) {
-				if (session) {
+			const owners = new Set<string>();
+			for (const session of this._sessionsService.visibleSessionPanes.read(reader)) {
+				if (session && !owners.has(session.sessionId)) {
+					owners.add(session.sessionId);
 					reader.store.add(this._registerSessionConversationActions(session, reader));
 				}
 			}
@@ -1927,7 +1972,7 @@ registerAction2(class CloseSessionAction extends Action2 {
 			id: CLOSE_SESSION_COMMAND_ID,
 			title: localize2('chatCompositeBar.close', "Close"),
 			tooltip: localize2('chatCompositeBar.closeTooltip', "Close Session"),
-			icon: Codicon.close,
+			icon: Codicon.closeSmall,
 			keybinding: {
 				weight: KeybindingWeight.SessionsContrib,
 				when: ContextKeyExpr.and(
@@ -2020,12 +2065,19 @@ registerAction2(class ArrangeSessionsAction extends Action2 {
 	}
 });
 
-for (const item of [
+const sessionGridActions = [
 	{ direction: Direction.Left, key: KeyCode.LeftArrow, focus: SESSION_GRID_FOCUS_COMMANDS.left, focusTitle: localize2('focusSessionLeft', "Focus Session to the Left"), move: 'sessions.moveSessionLeft', moveTitle: localize2('moveSessionLeft', "Move Session Left"), resize: 'sessions.narrowSession', resizeTitle: localize2('narrowSession', "Decrease Session Width") },
 	{ direction: Direction.Right, key: KeyCode.RightArrow, focus: SESSION_GRID_FOCUS_COMMANDS.right, focusTitle: localize2('focusSessionRight', "Focus Session to the Right"), move: 'sessions.moveSessionRight', moveTitle: localize2('moveSessionRight', "Move Session Right"), resize: 'sessions.widenSession', resizeTitle: localize2('widenSession', "Increase Session Width") },
 	{ direction: Direction.Up, key: KeyCode.UpArrow, focus: SESSION_GRID_FOCUS_COMMANDS.up, focusTitle: localize2('focusSessionAbove', "Focus Session Above"), move: 'sessions.moveSessionUp', moveTitle: localize2('moveSessionUp', "Move Session Above"), resize: 'sessions.shortenSession', resizeTitle: localize2('shortenSession', "Decrease Session Height") },
 	{ direction: Direction.Down, key: KeyCode.DownArrow, focus: SESSION_GRID_FOCUS_COMMANDS.down, focusTitle: localize2('focusSessionBelow', "Focus Session Below"), move: 'sessions.moveSessionDown', moveTitle: localize2('moveSessionDown', "Move Session Below"), resize: 'sessions.heightenSession', resizeTitle: localize2('heightenSession', "Increase Session Height") },
-]) {
+] as const;
+
+const sessionGridNavigationWhen = ContextKeyExpr.and(sessionGridWhen, SessionsFocusContext)!;
+for (const item of sessionGridActions) {
+	registerViewNavigationCommand(item.direction, item.focus, sessionGridNavigationWhen);
+}
+
+for (const item of sessionGridActions) {
 	for (const operation of ['focus', 'move', 'resize'] as const) {
 		registerAction2(class extends Action2 {
 			constructor() {

@@ -13,18 +13,20 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
-import { IActionWidgetService } from '../../../../../../../platform/actionWidget/browser/actionWidget.js';
-import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { IManagedSettingsService, NullManagedSettingsService } from '../../../../../../../platform/policy/common/copilotManagedSettings.js';
+import { IManagedSettingsService, ManagedSettingsData, NullManagedSettingsService } from '../../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { ChatInputPart } from '../../../../browser/widget/input/chatInputPart.js';
 import { extractSchemaDefaults } from '../../../../browser/widget/input/chatModelConfigurationLogic.js';
 import { ChatModelConfigurationStore } from '../../../../browser/widget/input/chatModelConfigurationStore.js';
-import { ModelPickerConfiguration } from '../../../../browser/widget/input/modelPicker/modelPickerConfiguration.js';
+import { renderModelConfigurationButton } from '../../../../browser/widget/input/modelPicker/modelPickerConfiguration.js';
 import { resolveContextWindowInputTokens } from '../../../../browser/widgetHosts/viewPane/chatContextUsageWidget.js';
 import { ILanguageModelChatMetadata, ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../../../common/languageModels.js';
 import { IChatModelInputState, IInputModel } from '../../../../common/model/chatModel.js';
 import { ChatModeKind } from '../../../../common/constants.js';
+import { IAgentHostConnectionsService } from '../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { modelConfigurationSourceKey } from '../../../../../../../platform/agentHost/common/agentModelConfiguration.js';
+import { inheritAutoTierConfiguration } from '../../../../../../../platform/agentHost/common/autoModeTiers.js';
 
 const schema: ILanguageModelConfigurationSchema = {
 	properties: {
@@ -54,6 +56,24 @@ function createStubService(global?: IStringDictionary<unknown>): ILanguageModels
 suite('ChatModelConfigurationStore', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('the production input delegate supplies the active chat and resolved owner to the picker', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IAgentHostConnectionsService, {
+			resolveSessionResourceIdentity: () => ({ connectionAuthority: 'local', backendSession: URI.parse('copilotcli:/owner') }),
+		});
+		const widget = { viewModel: { sessionResource: URI.parse('agent-host-copilotcli:/owner#peer-one') } };
+		const input: ChatInputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+			agentHostConnectionsService: instantiationService.get(IAgentHostConnectionsService),
+			_widget: widget,
+		});
+		const delegate = input['_createModelPickerDelegate']();
+		assert.deepStrictEqual([delegate.getChatSessionId?.(), delegate.getAgentSessionId?.()], ['agent-host-copilotcli:/owner#peer-one', 'owner']);
+		widget.viewModel.sessionResource = URI.parse('agent-host-copilotcli:/owner#peer-two');
+		assert.deepStrictEqual([delegate.getChatSessionId?.(), delegate.getAgentSessionId?.()], ['agent-host-copilotcli:/owner#peer-two', 'owner']);
+		widget.viewModel.sessionResource = URI.parse('agent-host-copilotcli:/untitled-draft');
+		assert.strictEqual(delegate.getAgentSessionId?.(), undefined);
+	});
+
 	function createStore(storage: InMemoryStorageService, service: ILanguageModelsService, isEmpty = () => true, managedSettings: IManagedSettingsService = new NullManagedSettingsService(), useAgentHostManagedDefault = false): ChatModelConfigurationStore {
 		return store.add(new ChatModelConfigurationStore(() => KEY, isEmpty, constObservable(useAgentHostManagedDefault), service, storage, managedSettings, new NullLogService()));
 	}
@@ -64,7 +84,7 @@ suite('ChatModelConfigurationStore', () => {
 		fireModelsChanged(): void;
 		setRegistered(registered: boolean): void;
 		setGlobal(value: IStringDictionary<unknown> | undefined): void;
-		setSchema(value: ILanguageModelConfigurationSchema): void;
+		setSchema(value: ILanguageModelConfigurationSchema, defaultKeys?: readonly string[], managedKeys?: readonly string[]): void;
 		setAutoModel(vendor?: string): void;
 	}
 
@@ -76,11 +96,13 @@ suite('ChatModelConfigurationStore', () => {
 		let registered = true;
 		let global: IStringDictionary<unknown> | undefined;
 		let configurationSchema = schema;
+		let configurationDefaultKeys: readonly string[] | undefined;
+		let managedKeys: readonly string[] | undefined;
 		let autoVendor: string | undefined;
 		const setConfigCalls: Array<{ modelId: string; values: IStringDictionary<unknown> }> = [];
 		const service = {
 			onDidChangeLanguageModels: emitter.event,
-			lookupLanguageModel: (_id: string) => registered ? ({ configurationSchema, ...(autoVendor ? { id: 'auto', vendor: autoVendor } : {}) } as ILanguageModelChatMetadata) : undefined,
+			lookupLanguageModel: (_id: string) => registered ? ({ configurationSchema, configurationDefaultKeys, managedModelDefaults: managedKeys ? { model: false, keys: managedKeys } : undefined, ...(autoVendor ? { id: 'auto', vendor: autoVendor } : {}) } as ILanguageModelChatMetadata) : undefined,
 			getModelConfiguration: (_id: string, includeDefaults = true) => includeDefaults && registered
 				? { ...extractSchemaDefaults(configurationSchema), ...global }
 				: global,
@@ -92,7 +114,7 @@ suite('ChatModelConfigurationStore', () => {
 			fireModelsChanged: () => emitter.fire('copilot'),
 			setRegistered: (value: boolean) => { registered = value; },
 			setGlobal: (value: IStringDictionary<unknown> | undefined) => { global = value; },
-			setSchema: value => { configurationSchema = value; },
+			setSchema: (value, defaultKeys, managed) => { configurationSchema = value; configurationDefaultKeys = defaultKeys; managedKeys = managed; },
 			setAutoModel: (vendor = 'copilot') => {
 				autoVendor = vendor;
 				configurationSchema = {
@@ -107,6 +129,303 @@ suite('ChatModelConfigurationStore', () => {
 			},
 		};
 	}
+
+	test('managed startup defaults override saved preferences only in untouched new chats', async () => {
+		const storage = store.add(new InMemoryStorageService());
+		const control = createControllableService();
+		control.setGlobal({ thinkingEffort: 'low' });
+		control.setSchema(schema, ['thinkingEffort'], ['thinkingEffort']);
+		const draft = createStore(storage, control.service);
+		const restored = createStore(storage, control.service, () => false);
+		restored.restoreModelConfiguration(MODEL, { thinkingEffort: 'low' }, false);
+		const initial = draft.getModelConfiguration(MODEL);
+		const restoredValue = restored.getModelConfiguration(MODEL);
+		await draft.setModelConfiguration(MODEL, { thinkingEffort: 'high' });
+		const edited = draft.getModelConfiguration(MODEL);
+		const nextDraft = createStore(storage, control.service);
+		const next = nextDraft.getModelConfiguration(MODEL);
+		control.setSchema(schema, ['thinkingEffort']);
+		control.fireModelsChanged();
+		assert.deepStrictEqual({ initial, restoredValue, edited, next, removed: nextDraft.getModelConfiguration(MODEL) }, {
+			initial: { thinkingEffort: 'medium', [modelConfigurationSourceKey('thinkingEffort')]: 'default' },
+			restoredValue: { thinkingEffort: 'low', [modelConfigurationSourceKey('thinkingEffort')]: 'explicit' },
+			edited: { thinkingEffort: 'high', [modelConfigurationSourceKey('thinkingEffort')]: 'explicit' },
+			next: { thinkingEffort: 'medium', [modelConfigurationSourceKey('thinkingEffort')]: 'default' },
+			removed: { thinkingEffort: 'high', [modelConfigurationSourceKey('thinkingEffort')]: 'explicit' },
+		});
+	});
+
+	test('inheriting an explicit Auto tier into an empty input does not claim it for the new chat', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const control = createControllableService();
+		control.setAutoModel('agent-host-copilotcli');
+		control.setSchema({ properties: { tier: { enum: ['efficiency', 'intelligence'], default: 'intelligence' } } }, ['tier'], ['tier']);
+		const editor = createStore(storage, control.service);
+		editor.restoreModelConfiguration(MODEL, inheritAutoTierConfiguration({
+			tier: 'efficiency', [modelConfigurationSourceKey('tier')]: 'explicit',
+		})!);
+		assert.deepStrictEqual(editor.getModelConfiguration(MODEL), {
+			tier: 'intelligence', [modelConfigurationSourceKey('tier')]: 'default',
+		});
+	});
+
+	test('a scoped model without managed defaults does not inherit root managed keys', () => {
+		const control = createControllableService();
+		control.setSchema(schema, ['thinkingEffort'], ['thinkingEffort']);
+		control.setGlobal({ thinkingEffort: 'low' });
+		const editor = createStore(store.add(new InMemoryStorageService()), control.service);
+		editor.setSessionModelConfiguration({
+			models: { [MODEL]: { defaults: { thinkingEffort: 'medium' }, readOnly: [] } },
+		});
+		assert.deepStrictEqual(editor.getModelConfiguration(MODEL), {
+			thinkingEffort: 'low', [modelConfigurationSourceKey('thinkingEffort')]: 'explicit',
+		});
+	});
+
+	test('restoration validates choices against the active chat schema rather than the root catalog', () => {
+		const control = createControllableService();
+		control.setSchema({ properties: { thinkingEffort: { enum: ['low', 'medium'], default: 'medium' } } }, ['thinkingEffort']);
+		const editor = createStore(store.add(new InMemoryStorageService()), control.service, () => false);
+		editor.setSessionModelConfiguration({
+			models: {
+				[MODEL]: {
+					defaults: { thinkingEffort: 'medium' }, readOnly: [],
+					choices: { thinkingEffort: { values: ['low', 'medium', 'high'] } },
+				}
+			},
+		});
+		editor.restoreModelConfiguration(MODEL, { thinkingEffort: 'high' }, false);
+		assert.deepStrictEqual(editor.getModelConfiguration(MODEL), {
+			thinkingEffort: 'high', [modelConfigurationSourceKey('thinkingEffort')]: 'explicit',
+		});
+	});
+
+	test('host defaults carry provenance without becoming persisted preferences', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const control = createControllableService();
+		control.setSchema(schema, ['thinkingEffort']);
+		const editor = createStore(storage, control.service);
+		assert.deepStrictEqual({
+			configuration: editor.getModelConfiguration(MODEL),
+			stored: storage.get(KEY, StorageScope.APPLICATION),
+		}, {
+			configuration: { thinkingEffort: 'medium', [modelConfigurationSourceKey('thinkingEffort')]: 'default' },
+			stored: undefined,
+		});
+	});
+
+	test('chat-scoped managed defaults outrank saved values without becoming locks or shared preferences', async () => {
+		const storage = store.add(new InMemoryStorageService());
+		const control = createControllableService();
+		control.setSchema(schema, ['thinkingEffort']);
+		control.setGlobal({ thinkingEffort: 'low' });
+		const draft = createStore(storage, control.service);
+		draft.setSessionModelConfiguration({
+			models: { [MODEL]: { defaults: { thinkingEffort: 'high' }, managedDefaults: ['thinkingEffort'], readOnly: [] } },
+		});
+		const initial = draft.getModelConfiguration(MODEL);
+		await draft.setModelConfiguration(MODEL, { thinkingEffort: 'low' });
+		const edited = draft.getModelConfiguration(MODEL);
+		draft.setSessionModelConfiguration(undefined);
+		assert.deepStrictEqual({ initial, edited, removed: draft.getModelConfiguration(MODEL) }, {
+			initial: { thinkingEffort: 'high', [modelConfigurationSourceKey('thinkingEffort')]: 'default' },
+			edited: { thinkingEffort: 'low', [modelConfigurationSourceKey('thinkingEffort')]: 'explicit' },
+			removed: { thinkingEffort: 'low', [modelConfigurationSourceKey('thinkingEffort')]: 'explicit' },
+		});
+	});
+
+	test('session policy and applied values stay scoped to the active chat', async () => {
+		const storage = store.add(new InMemoryStorageService());
+		const control = createControllableService();
+		control.setSchema(schema, ['thinkingEffort']);
+		const first = createStore(storage, control.service);
+		const second = createStore(storage, control.service);
+		await first.setModelConfiguration(MODEL, { thinkingEffort: 'low' });
+		const stored = storage.get(KEY, StorageScope.APPLICATION);
+		first.setSessionModelConfiguration({
+			models: { [MODEL]: { defaults: { thinkingEffort: 'high' }, readOnly: ['thinkingEffort'] } },
+			current: { id: MODEL, config: { thinkingEffort: 'high', [modelConfigurationSourceKey('thinkingEffort')]: 'managed' } },
+		});
+		const locked = first.getModelConfiguration(MODEL);
+		const untouched = second.getModelConfiguration(MODEL);
+		await assert.rejects(first.setModelConfiguration(MODEL, { thinkingEffort: 'low' }), /managed by the agent host/);
+		first.setSessionModelConfiguration(undefined);
+		assert.deepStrictEqual({
+			locked, untouched, restored: first.getModelConfiguration(MODEL), storedUnchanged: stored === storage.get(KEY, StorageScope.APPLICATION),
+		}, {
+			locked: { thinkingEffort: 'high', [modelConfigurationSourceKey('thinkingEffort')]: 'managed' },
+			untouched: { thinkingEffort: 'low', [modelConfigurationSourceKey('thinkingEffort')]: 'explicit' },
+			restored: { thinkingEffort: 'low', [modelConfigurationSourceKey('thinkingEffort')]: 'explicit' },
+			storedUnchanged: true,
+		});
+	});
+
+	test('session policy replaces root defaults and locks rather than merging policy sources in the client', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const control = createControllableService();
+		control.setSchema({ properties: { thinkingEffort: { enum: ['low', 'medium', 'high'], default: 'high', readOnly: true } } }, ['thinkingEffort']);
+		const editor = createStore(storage, control.service);
+		editor.setSessionModelConfiguration({ models: { [MODEL]: { defaults: { thinkingEffort: 'medium' }, readOnly: [] } } });
+		assert.deepStrictEqual({
+			value: editor.getModelConfiguration(MODEL),
+			readOnly: editor.getModelConfigurationSchema(MODEL)?.properties?.thinkingEffort.readOnly,
+			providerDefault: control.service.lookupLanguageModel(MODEL)?.configurationSchema?.properties?.thinkingEffort.default,
+		}, {
+			value: { thinkingEffort: 'medium', [modelConfigurationSourceKey('thinkingEffort')]: 'default' },
+			readOnly: false,
+			providerDefault: 'high',
+		});
+	});
+
+	test('an explicit choice equal to a host default survives reopen and later default changes', async () => {
+		const storage = store.add(new InMemoryStorageService());
+		const control = createControllableService();
+		control.setSchema(schema, ['thinkingEffort']);
+		const editor = createStore(storage, control.service);
+		await editor.setModelConfiguration(MODEL, { thinkingEffort: 'medium' });
+		control.setSchema({ properties: { thinkingEffort: { enum: ['low', 'medium', 'high'], default: 'high' } } }, ['thinkingEffort']);
+		control.fireModelsChanged();
+		const reopened = createStore(storage, control.service);
+		assert.deepStrictEqual([editor.getModelConfiguration(MODEL), reopened.getModelConfiguration(MODEL)], [
+			{ thinkingEffort: 'medium', [modelConfigurationSourceKey('thinkingEffort')]: 'explicit' },
+			{ thinkingEffort: 'medium', [modelConfigurationSourceKey('thinkingEffort')]: 'explicit' },
+		]);
+	});
+
+	for (const registered of [false, true]) {
+		for (const source of ['default', 'managed']) {
+			test(`restored host values stay with their chat, registered=${registered}, source=${source}`, async () => {
+				const storage = store.add(new InMemoryStorageService());
+				const control = createControllableService();
+				control.setSchema(schemaWithContextSize, ['thinkingEffort', 'contextSize']);
+				const editor = createStore(storage, control.service, () => false);
+				await editor.setModelConfiguration(MODEL, { thinkingEffort: 'low', contextSize: 200_000 });
+				const stored = storage.get(KEY, StorageScope.APPLICATION);
+				control.setRegistered(registered);
+				editor.restoreModelConfiguration(MODEL, {
+					thinkingEffort: 'medium', contextSize: 1_000_000,
+					[modelConfigurationSourceKey('thinkingEffort')]: source,
+					[modelConfigurationSourceKey('contextSize')]: source,
+				});
+				const restored = editor.getModelConfiguration(MODEL);
+				control.setRegistered(true);
+				control.fireModelsChanged();
+				const registeredValue = editor.getModelConfiguration(MODEL);
+				editor.setSessionModelConfiguration({
+					models: { [MODEL]: { defaults: { thinkingEffort: 'medium', contextSize: 200_000 }, readOnly: [] } },
+					current: { id: MODEL, config: { thinkingEffort: 'high', contextSize: 1_000_000, [modelConfigurationSourceKey('thinkingEffort')]: 'default' } },
+				});
+				const applied = editor.getModelConfiguration(MODEL);
+				const storageUnchanged = stored === storage.get(KEY, StorageScope.APPLICATION);
+				await editor.setModelConfiguration(MODEL, { thinkingEffort: 'low' });
+				const restoredValues = {
+					thinkingEffort: 'medium', contextSize: 1_000_000,
+					[modelConfigurationSourceKey('thinkingEffort')]: 'default',
+					[modelConfigurationSourceKey('contextSize')]: 'default',
+				};
+				assert.deepStrictEqual({
+					restored, registeredValue, applied, storageUnchanged,
+					selected: editor.getModelConfiguration(MODEL),
+				}, {
+					restored: restoredValues, registeredValue: restoredValues,
+					applied: { ...restoredValues, thinkingEffort: 'high' },
+					storageUnchanged: true,
+					selected: { ...restoredValues, thinkingEffort: 'low', [modelConfigurationSourceKey('thinkingEffort')]: 'explicit' },
+				});
+			});
+		}
+	}
+
+	for (const started of [false, true]) {
+		test(`standard read-only defaults apply without provenance metadata, started=${started}`, async () => {
+			const storage = store.add(new InMemoryStorageService());
+			const control = createControllableService();
+			const editor = createStore(storage, control.service, () => !started);
+			await editor.setModelConfiguration(MODEL, { thinkingEffort: 'low' });
+			const stored = storage.get(KEY, StorageScope.APPLICATION);
+			control.setSchema({ properties: { thinkingEffort: { ...schema.properties!.thinkingEffort, default: 'high', readOnly: true } } });
+			control.fireModelsChanged();
+			const locked = editor.getModelConfiguration(MODEL);
+			await assert.rejects(editor.setModelConfiguration(MODEL, { thinkingEffort: 'low' }), /managed by the agent host/);
+			control.setSchema(schema);
+			control.fireModelsChanged();
+			assert.deepStrictEqual({
+				locked, unlocked: editor.getModelConfiguration(MODEL)?.thinkingEffort,
+				storageUnchanged: stored === storage.get(KEY, StorageScope.APPLICATION),
+			}, {
+				locked: { thinkingEffort: 'high', [modelConfigurationSourceKey('thinkingEffort')]: 'managed' },
+				unlocked: 'low',
+				storageUnchanged: true,
+			});
+		});
+
+		test(`host locks override effective values without overwriting preferences, started=${started}`, async () => {
+			const storage = store.add(new InMemoryStorageService());
+			const control = createControllableService();
+			control.setSchema(schema, ['thinkingEffort']);
+			const editor = createStore(storage, control.service, () => !started);
+			await editor.setModelConfiguration(MODEL, { thinkingEffort: 'low' });
+			const stored = storage.get(KEY, StorageScope.APPLICATION);
+			control.setSchema({ properties: { thinkingEffort: { title: 'Effort', enum: ['low', 'medium', 'high'], default: 'high', readOnly: true } } }, ['thinkingEffort']);
+			control.fireModelsChanged();
+			const locked = editor.getModelConfiguration(MODEL);
+			await assert.rejects(editor.setModelConfiguration(MODEL, { thinkingEffort: 'low' }), /managed by the agent host/);
+			await assert.rejects(editor.setModelConfiguration(MODEL, { thinkingEffort: 'high' }), /managed by the agent host/);
+			control.setSchema(schema, ['thinkingEffort']);
+			control.fireModelsChanged();
+			assert.deepStrictEqual({
+				locked,
+				removed: editor.getModelConfiguration(MODEL),
+				storageUnchanged: stored === storage.get(KEY, StorageScope.APPLICATION),
+				writes: control.setConfigCalls,
+			}, {
+				locked: { thinkingEffort: 'high', [modelConfigurationSourceKey('thinkingEffort')]: 'managed' },
+				removed: { thinkingEffort: 'low', [modelConfigurationSourceKey('thinkingEffort')]: 'explicit' },
+				storageUnchanged: true,
+				writes: [{ modelId: MODEL, values: { thinkingEffort: 'low' } }],
+			});
+		});
+	}
+
+	test('restored implicit host defaults do not become choices before model registration', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const control = createControllableService();
+		control.setRegistered(false);
+		const editor = createStore(storage, control.service);
+		editor.restoreModelConfiguration(MODEL, { thinkingEffort: 'high', [modelConfigurationSourceKey('thinkingEffort')]: 'default' });
+		control.setSchema(schema, ['thinkingEffort']);
+		control.setRegistered(true);
+		control.fireModelsChanged();
+		assert.deepStrictEqual({
+			configuration: editor.getModelConfiguration(MODEL),
+			stored: storage.get(KEY, StorageScope.APPLICATION),
+		}, {
+			configuration: { thinkingEffort: 'medium', [modelConfigurationSourceKey('thinkingEffort')]: 'default' },
+			stored: undefined,
+		});
+
+	});
+
+	test('a no-longer-offered effort falls back in the picker without destroying the preference', async () => {
+		const storage = store.add(new InMemoryStorageService());
+		const control = createControllableService();
+		control.setSchema(schema, ['thinkingEffort']);
+		const editor = createStore(storage, control.service);
+		await editor.setModelConfiguration(MODEL, { thinkingEffort: 'high' });
+		const stored = storage.get(KEY, StorageScope.APPLICATION);
+		control.setSchema({ properties: { thinkingEffort: { enum: ['low', 'medium'], default: 'medium' } } }, ['thinkingEffort']);
+		control.fireModelsChanged();
+		const unavailable = editor.getModelConfiguration(MODEL);
+		control.setSchema(schema, ['thinkingEffort']);
+		control.fireModelsChanged();
+		assert.deepStrictEqual({
+			unavailable, restored: editor.getModelConfiguration(MODEL), storageUnchanged: stored === storage.get(KEY, StorageScope.APPLICATION),
+		}, {
+			unavailable: { thinkingEffort: 'medium', [modelConfigurationSourceKey('thinkingEffort')]: 'default' },
+			restored: { thinkingEffort: 'high', [modelConfigurationSourceKey('thinkingEffort')]: 'explicit' },
+			storageUnchanged: true,
+		});
+	});
 
 	test('non-default value round-trips through storage to a newly opened editor', () => {
 		const storage = store.add(new InMemoryStorageService());
@@ -291,6 +610,7 @@ suite('ChatModelConfigurationStore', () => {
 			let value: string | undefined;
 			const managed: IManagedSettingsService = {
 				_serviceBrand: undefined, onDidChangeManagedSettings: changed.event, getManagedSettingValue: () => value,
+				getManagedSettings: (): ManagedSettingsData => value === undefined ? {} : { autoTier: value },
 			};
 			const untouched = createStore(storage, control.service, () => true, managed, true);
 			const selected = createStore(storage, control.service, () => true, managed, true);
@@ -339,6 +659,7 @@ suite('ChatModelConfigurationStore', () => {
 			control.setAutoModel(vendor);
 			const managed: IManagedSettingsService = {
 				_serviceBrand: undefined, onDidChangeManagedSettings: Event.None, getManagedSettingValue: () => 'intelligence',
+				getManagedSettings: () => ({ autoTier: 'intelligence' }),
 			};
 			const editor = createStore(storage, control.service, () => true, managed, sameMachine);
 			assert.deepStrictEqual({
@@ -360,6 +681,7 @@ suite('ChatModelConfigurationStore', () => {
 		let value: string | boolean | undefined = '"intelligence"';
 		const managed: IManagedSettingsService = {
 			_serviceBrand: undefined, onDidChangeManagedSettings: changed.event, getManagedSettingValue: () => value,
+			getManagedSettings: (): ManagedSettingsData => value === undefined ? {} : { autoTier: value },
 		};
 		const errors: string[] = [];
 		const log = new class extends NullLogService {
@@ -391,6 +713,7 @@ suite('ChatModelConfigurationStore', () => {
 		let value: string | undefined = 'intelligence';
 		const managed: IManagedSettingsService = {
 			_serviceBrand: undefined, onDidChangeManagedSettings: changed.event, getManagedSettingValue: () => value,
+			getManagedSettings: (): ManagedSettingsData => value === undefined ? {} : { autoTier: value },
 		};
 		const makeEditor = () => store.add(new ChatModelConfigurationStore(() => KEY, () => true, scope, control.service, storage, managed, new NullLogService()));
 		const inherited = makeEditor();
@@ -455,12 +778,69 @@ suite('ChatModelConfigurationStore', () => {
 			control.setAutoModel();
 			const managed: IManagedSettingsService = {
 				_serviceBrand: undefined, onDidChangeManagedSettings: Event.None, getManagedSettingValue: () => 'intelligence',
+				getManagedSettings: () => ({ autoTier: 'intelligence' }),
 			};
 			const editor = createStore(storage, control.service, () => true, managed);
 			editor.restoreModelConfiguration(MODEL, { tier: 'unsupported', ...(tierSource ? { tierSource } : {}) }, false);
 			assert.deepStrictEqual(editor.getModelConfiguration(MODEL), { tier: 'intelligence', tierSource: 'managed' });
 		});
 	}
+
+	for (const initialManagedTier of [undefined, 'intelligence']) {
+		test(`started Auto keeps inherited provenance across refreshes (managed=${initialManagedTier !== undefined})`, () => {
+			const storage = store.add(new InMemoryStorageService());
+			const control = createControllableService();
+			control.setAutoModel();
+			let empty = true;
+			let value = initialManagedTier;
+			const changed = store.add(new Emitter<void>());
+			const managed: IManagedSettingsService = {
+				_serviceBrand: undefined, onDidChangeManagedSettings: changed.event,
+				getManagedSettingValue: () => value,
+				getManagedSettings: (): ManagedSettingsData => value === undefined ? {} : { autoTier: value },
+			};
+			const editor = createStore(storage, control.service, () => empty, managed);
+			const initial = editor.getModelConfiguration(MODEL);
+			empty = false;
+			control.fireModelsChanged();
+			const refreshed = editor.getModelConfiguration(MODEL);
+			value = 'efficiency';
+			changed.fire();
+			const draft = createStore(storage, control.service, () => true, managed);
+			draft.restoreModelConfiguration(MODEL, editor.getModelConfiguration(MODEL) ?? {});
+			const expected = { tier: initialManagedTier ?? 'balance', tierSource: initialManagedTier ? 'managed' : 'default' };
+			assert.deepStrictEqual({
+				initial, refreshed, started: editor.getModelConfiguration(MODEL), draft: draft.getModelConfiguration(MODEL),
+			}, {
+				initial: expected, refreshed: expected, started: expected, draft: { tier: 'efficiency', tierSource: 'managed' },
+			});
+		});
+	}
+
+	test('a presented Auto tier wins over a managed default without becoming a selection or preference', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const control = createControllableService();
+		control.setAutoModel();
+		const managed: IManagedSettingsService = {
+			_serviceBrand: undefined, onDidChangeManagedSettings: Event.None, getManagedSettingValue: () => 'balance',
+			getManagedSettings: () => ({ autoTier: 'balance' }),
+		};
+		const editor = createStore(storage, control.service, () => true, managed);
+		const selections: string[] = [];
+		store.add(editor.onDidSelectConfiguration(modelId => selections.push(modelId)));
+		editor.presentModelConfiguration(MODEL, { tier: 'intelligence' });
+		assert.deepStrictEqual({
+			presented: editor.getModelConfiguration(MODEL),
+			selections,
+			globalWrites: control.setConfigCalls,
+			newEditor: createStore(storage, control.service, () => true, managed).getModelConfiguration(MODEL),
+		}, {
+			presented: { tier: 'intelligence', tierSource: 'session' },
+			selections: [],
+			globalWrites: [],
+			newEditor: { tier: 'balance', tierSource: 'managed' },
+		});
+	});
 
 	for (const registered of [true, false]) {
 		test(`restoring a managed draft retains the real user preference when registered=${registered}`, () => {
@@ -473,6 +853,7 @@ suite('ChatModelConfigurationStore', () => {
 			let value: string | undefined = 'intelligence';
 			const managed: IManagedSettingsService = {
 				_serviceBrand: undefined, onDidChangeManagedSettings: changed.event, getManagedSettingValue: () => value,
+				getManagedSettings: (): ManagedSettingsData => value === undefined ? {} : { autoTier: value },
 			};
 			const editor = createStore(storage, control.service, () => true, managed);
 			editor.getModelConfiguration(MODEL);
@@ -500,6 +881,7 @@ suite('ChatModelConfigurationStore', () => {
 			let value: string | undefined = 'intelligence';
 			const managed: IManagedSettingsService = {
 				_serviceBrand: undefined, onDidChangeManagedSettings: changed.event, getManagedSettingValue: () => value,
+				getManagedSettings: (): ManagedSettingsData => value === undefined ? {} : { autoTier: value },
 			};
 			const editor = createStore(storage, control.service, () => true, managed);
 			editor.restoreModelConfiguration(MODEL, { tier: 'intelligence', tierSource });
@@ -528,20 +910,12 @@ suite('ChatModelConfigurationStore', () => {
 			control.setAutoModel(vendor);
 			const managed: IManagedSettingsService = {
 				_serviceBrand: undefined, onDidChangeManagedSettings: Event.None, getManagedSettingValue: () => policy,
+				getManagedSettings: (): ManagedSettingsData => policy === undefined ? {} : { autoTier: policy },
 			};
 			const configuration = createStore(storage, control.service, () => true, managed, true);
 			const selectedModel = { identifier: MODEL, metadata: control.service.lookupLanguageModel(MODEL)! };
 			const button = $('a');
-			const picker = new ModelPickerConfiguration({
-				getSelectedModel: () => selectedModel,
-				getConfigurationAccess: () => configuration,
-				getChatSessionId: () => undefined,
-				isDisabled: () => false,
-				shouldShowCacheBreakHint: () => false,
-				getCacheBreakLearnMoreLink: () => undefined,
-				dismissCacheBreakHint() { },
-			}, upcastPartial<IActionWidgetService>({}), NullTelemetryService, control.service);
-			store.add(configuration.onDidChange(() => picker.renderButton(button, false, false)));
+			store.add(configuration.onDidChange(() => renderModelConfigurationButton(button, selectedModel, configuration, false)));
 			const initial: IChatModelInputState = {
 				selectedModel, attachments: [], mode: { id: 'agent', kind: ChatModeKind.Agent },
 				inputText: '', selections: [], contrib: {},

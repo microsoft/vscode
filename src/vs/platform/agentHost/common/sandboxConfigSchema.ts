@@ -5,7 +5,7 @@
 
 import { localize } from '../../../nls.js';
 import { AgentNetworkDomainSettingId } from '../../networkFilter/common/settings.js';
-import { AgentSandboxEnabledValue, AgentSandboxSettingId, type IAgentSandboxFileSystemSetting, type IAgentSandboxUserConfiguredPaths } from '../../sandbox/common/settings.js';
+import { AgentSandboxEnabledValue, AgentSandboxSettingId, type IAgentSandboxMaskedCredentials, type IAgentSandboxFileSystemSetting, type IAgentSandboxUserConfiguredPaths } from '../../sandbox/common/settings.js';
 import { createSchema, schemaProperty } from './agentHostSchema.js';
 
 /**
@@ -34,7 +34,9 @@ export const enum AgentHostSandboxKey {
 	SandboxLspServers = 'sandboxLspServers',
 	AuthenticateGit = 'authenticateGit',
 	AuthenticateGh = 'authenticateGh',
+	MaskedCredentials = 'credentials',
 	AllowDevToolAccess = 'allowDevToolAccess',
+	AddCurrentWorkingDirectory = 'addCurrentWorkingDirectory',
 	UserConfiguredPaths = 'fileSystem.userConfiguredPaths',
 	LinuxFileSystem = 'fileSystem.linux',
 	MacFileSystem = 'fileSystem.mac',
@@ -54,7 +56,9 @@ export type ISandboxConfigValue = Partial<{
 	[AgentHostSandboxKey.SandboxLspServers]: boolean;
 	[AgentHostSandboxKey.AuthenticateGit]: boolean;
 	[AgentHostSandboxKey.AuthenticateGh]: boolean;
+	[AgentHostSandboxKey.MaskedCredentials]: IAgentSandboxMaskedCredentials;
 	[AgentHostSandboxKey.AllowDevToolAccess]: boolean;
+	[AgentHostSandboxKey.AddCurrentWorkingDirectory]: boolean;
 	[AgentHostSandboxKey.UserConfiguredPaths]: IAgentSandboxUserConfiguredPaths;
 	[AgentHostSandboxKey.LinuxFileSystem]: IAgentSandboxFileSystemSetting;
 	[AgentHostSandboxKey.MacFileSystem]: IAgentSandboxFileSystemSetting;
@@ -109,9 +113,24 @@ export const sandboxConfigSchema = createSchema({
 				type: 'boolean',
 				title: localize('agentHost.config.sandbox.authenticateGh.title', "Authenticate gh"),
 			},
+			[AgentHostSandboxKey.MaskedCredentials]: {
+				type: 'object',
+				title: localize('agentHost.config.sandbox.maskedEnvironmentVariables.title', "Masked environment variables"),
+				properties: {
+					envVars: {
+						type: 'object',
+						title: localize('agentHost.config.sandbox.credentials.envVars.title', "Environment Variables"),
+						description: localize('agentHost.config.sandbox.credentials.envVars.description', "Maps environment variable names to objects with an injectHosts array of HTTPS destinations. Credential entries are validated by the runtime."),
+					},
+				},
+			},
 			[AgentHostSandboxKey.AllowDevToolAccess]: {
 				type: 'boolean',
 				title: localize('agentHost.config.sandbox.allowDevToolAccess.title', "Allow Dev Tool Access"),
+			},
+			[AgentHostSandboxKey.AddCurrentWorkingDirectory]: {
+				type: 'boolean',
+				title: localize('agentHost.config.sandbox.addCurrentWorkingDirectory.title', "Add Current Working Directory"),
 			},
 			[AgentHostSandboxKey.LinuxFileSystem]: {
 				type: 'object',
@@ -180,11 +199,11 @@ export const sandboxSettingIdToAgentHostKey: Readonly<Record<string, AgentHostSa
 	[AgentSandboxSettingId.AgentSandboxLspServers]: AgentHostSandboxKey.SandboxLspServers,
 	[AgentSandboxSettingId.AgentSandboxAuthenticateGit]: AgentHostSandboxKey.AuthenticateGit,
 	[AgentSandboxSettingId.AgentSandboxAuthenticateGh]: AgentHostSandboxKey.AuthenticateGh,
+	[AgentSandboxSettingId.AgentSandboxMaskedEnvironmentVariables]: AgentHostSandboxKey.MaskedCredentials,
 	[AgentSandboxSettingId.AgentSandboxAllowDevToolAccess]: AgentHostSandboxKey.AllowDevToolAccess,
 	[AgentSandboxSettingId.AgentSandboxUserConfiguredPaths]: AgentHostSandboxKey.UserConfiguredPaths,
 	[AgentSandboxSettingId.AgentSandboxLinuxFileSystem]: AgentHostSandboxKey.LinuxFileSystem,
 	[AgentSandboxSettingId.AgentSandboxMacFileSystem]: AgentHostSandboxKey.MacFileSystem,
-	[AgentSandboxSettingId.AgentSandboxWindowsFileSystem]: AgentHostSandboxKey.WindowsFileSystem,
 	[AgentSandboxSettingId.AgentSandboxAdvancedRuntime]: AgentHostSandboxKey.AdvancedRuntime,
 	[AgentNetworkDomainSettingId.AllowedNetworkDomains]: AgentHostSandboxKey.AllowedNetworkDomains,
 	[AgentNetworkDomainSettingId.DeniedNetworkDomains]: AgentHostSandboxKey.DeniedNetworkDomains,
