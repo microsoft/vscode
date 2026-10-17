@@ -8,3 +8,4 @@ import { enableNodeCompileCache } from './vs/base/node/nodeCompileCache.js';
 enableNodeCompileCache('main');
 
 await import('./mainImpl.js');
+console.log("hi hahaha");
