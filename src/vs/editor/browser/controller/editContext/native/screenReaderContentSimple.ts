@@ -24,6 +24,15 @@ export class SimpleScreenReaderContent extends Disposable implements IScreenRead
 	private _accessibilityPageSize: number = 1;
 
 	private _state: ISimpleScreenReaderContentState | undefined;
+	// Track the last DOM selection handled, independently of the model/page snapshot.
+	// A second external caret request can return to the last rendered offset
+	// before another render; comparing only with _state would drop that request.
+	private _lastKnownSelection: {
+		anchorNode: Node | null;
+		anchorOffset: number;
+		focusNode: Node | null;
+		focusOffset: number;
+	} | undefined;
 	private _strategy: SimplePagedScreenReaderStrategy = new SimplePagedScreenReaderStrategy();
 
 	constructor(
@@ -66,8 +75,11 @@ export class SimpleScreenReaderContent extends Disposable implements IScreenRead
 			}
 			const data = this._getScreenReaderRange(this._state.selectionStart, this._state.selectionEnd);
 			if (!data) {
+				this._lastKnownSelection = undefined;
 				return;
 			}
+			// Register our own DOM write so its delayed selectionchange is ignored.
+			this._lastKnownSelection = data;
 			selection.setBaseAndExtent(
 				data.anchorNode,
 				data.anchorOffset,
@@ -76,6 +88,7 @@ export class SimpleScreenReaderContent extends Disposable implements IScreenRead
 			);
 		} else {
 			this._state = undefined;
+			this._lastKnownSelection = undefined;
 			this._domNode.domNode.textContent = '';
 		}
 	}
@@ -92,6 +105,8 @@ export class SimpleScreenReaderContent extends Disposable implements IScreenRead
 	}
 
 	public onFocusChange(newFocusValue: boolean): void {
+		// A prior control or window must not own the next editor selection.
+		this._lastKnownSelection = undefined;
 		if (newFocusValue) {
 			// Re-establish the DOM selection when returning from another control.
 			this._state = undefined;
@@ -119,8 +134,9 @@ export class SimpleScreenReaderContent extends Disposable implements IScreenRead
 		// When using a Braille display or NVDA for example, it is possible for users to reposition the
 		// system caret. This is reflected in Chrome as a `selectionchange` event and needs to be reflected within the editor.
 
-		// Compare the actual selection with our rendered state. Timing cannot
-		// distinguish our own writes from a nearby system-caret request.
+		// Compare the actual DOM selection with the last handled DOM selection.
+		// _state remains the page mapping for converting offsets into the editor;
+		// it can lag behind multiple external caret moves before the next render.
 		return addDisposableListener(this._domNode.domNode.ownerDocument, 'selectionchange', () => {
 			const isScreenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
 			if (!this._state || !isScreenReaderOptimized || !IME.enabled) {
@@ -141,7 +157,7 @@ export class SimpleScreenReaderContent extends Disposable implements IScreenRead
 			}
 			const range = selection.getRangeAt(0);
 
-			const expected = this._getScreenReaderRange(this._state.selectionStart, this._state.selectionEnd);
+			const expected = this._lastKnownSelection;
 			if (expected
 				&& selection.anchorNode === expected.anchorNode
 				&& selection.anchorOffset === expected.anchorOffset
@@ -149,7 +165,16 @@ export class SimpleScreenReaderContent extends Disposable implements IScreenRead
 				&& selection.focusOffset === expected.focusOffset) {
 				return;
 			}
-			this._viewController.setSelection(this._getEditorSelectionFromDomRange(this._context, this._state, selection.direction, range));
+			const editorSelection = this._getEditorSelectionFromDomRange(this._context, this._state, selection.direction, range);
+			// Advance ownership before calling the controller, which may render
+			// synchronously. Retain _state's page origin for subsequent conversions.
+			this._lastKnownSelection = {
+				anchorNode: selection.anchorNode,
+				anchorOffset: selection.anchorOffset,
+				focusNode: selection.focusNode,
+				focusOffset: selection.focusOffset,
+			};
+			this._viewController.setSelection(editorSelection);
 		});
 	}
 
