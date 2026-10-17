@@ -59,6 +59,7 @@ export const Menus = {
 	CustomViewAutomations: new MenuId('SessionsCustomViewAutomations'),
 	/** Context menu for the Automations sidebar shortcut. */
 	AutomationsContext: new MenuId('SessionsAutomationsContext'),
+	AutomationsViewSettings: new MenuId('SessionsAutomationsViewSettings'),
 	/** Context menu actions for an Automation definition card. */
 	AutomationCardContext: new MenuId('SessionsAutomationCardContext'),
 	/** Unified toolbar for all session-backed Automation history rows. Actions are conditionally shown via sessionItem.status context key. */

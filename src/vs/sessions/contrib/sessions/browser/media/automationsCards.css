@@ -69,6 +69,7 @@
 .automations-cards-state,
 .automations-cards-partial-state,
 .automations-templates,
+.automations-disabled-section,
 .automations-history-state,
 .automations-history {
 	width: 100%;
@@ -435,6 +436,14 @@
 .automations-cards-partial-state-icon {
 	flex-shrink: 0;
 	font-size: var(--vscode-codiconFontSize);
+}
+
+.automations-disabled-section {
+	margin-top: var(--vscode-spacing-size240);
+}
+
+.automations-disabled-section > .automations-cards-grid {
+	margin-top: var(--vscode-spacing-size120);
 }
 
 /* Starter templates */

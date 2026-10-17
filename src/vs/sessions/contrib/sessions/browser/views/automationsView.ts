@@ -20,6 +20,7 @@ import { autorun, constObservable, derived, IObservable, IReader, ISettableObser
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
+import { Event } from '../../../../../base/common/event.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -91,6 +92,9 @@ function canArchiveAutomationSession(session: ISession, reader?: IReader): boole
 		&& session.chats.read(reader).every(chat => terminal(chat.status.read(reader)));
 }
 export const SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY = 'sessions.automations.seenPluginTemplateIds';
+export const HIDE_DISABLED_AUTOMATIONS_STORAGE_KEY = 'sessions.automations.hideDisabled';
+export const DISABLED_AUTOMATIONS_EXPANDED_STORAGE_KEY = 'sessions.automations.disabledExpanded';
+const HideDisabledAutomationsContext = new RawContextKey<boolean>('sessionsAutomationsHideDisabled', false);
 const AutomationCardCanDeleteContext = new RawContextKey<boolean>('sessionsAutomationCardCanDelete', false);
 const AutomationCardCanUpdateContext = new RawContextKey<boolean>('sessionsAutomationCardCanUpdate', false);
 const AutomationCardHasExternalResourceContext = new RawContextKey<boolean>('sessionsAutomationCardHasExternalResource', false);
@@ -209,6 +213,7 @@ export class AutomationsCardsWidget extends Disposable {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
+		@IStorageService storageService: IStorageService,
 	) {
 		super();
 
@@ -238,7 +243,12 @@ export class AutomationsCardsWidget extends Disposable {
 		}));
 		this.historySection = this._register(instantiationService.createInstance(AutomationHistorySection, scrollContent, this.element, this.isMarkingAllRead));
 
+		const presentationChanged = observableSignalFromEvent(this, Event.filter(
+			storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this._store),
+			event => event.key === HIDE_DISABLED_AUTOMATIONS_STORAGE_KEY || event.key === DISABLED_AUTOMATIONS_EXPANDED_STORAGE_KEY,
+		));
 		this._register(autorun(reader => {
+			presentationChanged.read(reader);
 			const catalogueState = this.automationService.catalogueState.read(reader);
 			this.automationService.availableProviders.read(reader);
 			const unavailableProviders = this.automationService.unavailableProviders.read(reader);
@@ -318,6 +328,10 @@ class AutomationCardsSection extends Disposable {
 	private readonly unavailableContainer: HTMLElement;
 	private readonly errorContainer: HTMLElement;
 	private readonly templatesContainer: HTMLElement;
+	private readonly disabledSection: HTMLDetailsElement;
+	private readonly disabledSummary: HTMLElement;
+	private readonly disabledCount: HTMLElement;
+	private readonly disabledGrid: HTMLElement;
 	private readonly partialStateContainer: HTMLElement;
 	private readonly dropOverlay: HTMLElement;
 	private readonly partialErrorIcon: HTMLElement;
@@ -396,6 +410,25 @@ class AutomationCardsSection extends Disposable {
 		this.errorContainer = DOM.append(parent, $('.automations-cards-state.automations-cards-error'));
 		this.errorContainer.style.display = 'none';
 		this.errorCreateButton = this.renderErrorState();
+		this.disabledSection = DOM.append(parent, $<HTMLDetailsElement>('details.automations-disabled-section.automations-template-section'));
+		this.disabledSection.style.display = 'none';
+		this.disabledSection.open = this.storageService.getBoolean(DISABLED_AUTOMATIONS_EXPANDED_STORAGE_KEY, StorageScope.PROFILE, false);
+		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, DISABLED_AUTOMATIONS_EXPANDED_STORAGE_KEY, this._store)(() => {
+			this.disabledSection.open = this.storageService.getBoolean(DISABLED_AUTOMATIONS_EXPANDED_STORAGE_KEY, StorageScope.PROFILE, false);
+		}));
+		this.disabledSummary = DOM.append(this.disabledSection, $('summary.automations-template-section-summary'));
+		const disabledChevron = DOM.append(this.disabledSummary, $('span.automations-template-section-chevron', { 'aria-hidden': 'true' }));
+		disabledChevron.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRight));
+		const disabledTitle = DOM.append(this.disabledSummary, $('span.automations-template-section-title', { role: 'heading', 'aria-level': '3' }));
+		disabledTitle.id = `automations-disabled-${this.templateAriaId}`;
+		disabledTitle.textContent = localize('disabledAutomations', "Disabled Automations");
+		this.disabledCount = DOM.append(this.disabledSummary, $('span.automations-template-section-count'));
+		this.disabledGrid = DOM.append(this.disabledSection, $('.automations-cards-grid', { role: 'group', 'aria-labelledby': disabledTitle.id }));
+		this._register(DOM.addDisposableListener(this.disabledSection, 'toggle', () => {
+			if (this.disabledSection.open !== this.storageService.getBoolean(DISABLED_AUTOMATIONS_EXPANDED_STORAGE_KEY, StorageScope.PROFILE, false)) {
+				this.storageService.store(DISABLED_AUTOMATIONS_EXPANDED_STORAGE_KEY, this.disabledSection.open, StorageScope.PROFILE, StorageTarget.MACHINE);
+			}
+		}));
 		this.templatesContainer = DOM.append(parent, $('.automations-templates'));
 		this.templatesContainer.style.display = 'none';
 		this.dropOverlay = DOM.append(this.focusRoot, $('.automations-drop-overlay'));
@@ -480,8 +513,9 @@ class AutomationCardsSection extends Disposable {
 	render(automations: readonly IAutomationDescriptor[], catalogueState: AutomationCatalogueState, unavailableProviders: readonly IAutomationProviderDescriptor[], templates: readonly IAutomationTemplate[]): void {
 		const activeElement = DOM.getActiveElement();
 		const contentOwnedFocus = DOM.isHTMLElement(activeElement) && (
-			this.visibleContainer?.contains(activeElement) || this.templatesContainer.contains(activeElement)
+			this.visibleContainer?.contains(activeElement) || this.templatesContainer.contains(activeElement) || this.disabledSection.contains(activeElement)
 		);
+		const hideDisabled = this.storageService.getBoolean(HIDE_DISABLED_AUTOMATIONS_STORAGE_KEY, StorageScope.PROFILE, false);
 		const activeAutomationIds = new Set(automations.map(automation => automation.id));
 		for (const [automationId, card] of this.persistentCards) {
 			if (activeAutomationIds.has(automationId)) {
@@ -494,6 +528,7 @@ class AutomationCardsSection extends Disposable {
 		}
 
 		let index = 0;
+		let disabledIndex = 0;
 
 		for (const automation of automations) {
 			const prev = this.latestAutomations.get(automation.id);
@@ -507,12 +542,14 @@ class AutomationCardsSection extends Disposable {
 				this.updateCard(card, automation, prev);
 			}
 
-			const currentElement = this.container.children.item(index);
+			const destination = hideDisabled && !automation.enabled ? this.disabledGrid : this.container;
+			const currentElement = destination.children.item(destination === this.disabledGrid ? disabledIndex++ : index++);
 			if (currentElement !== card.element) {
-				this.container.insertBefore(card.element, currentElement);
+				destination.insertBefore(card.element, currentElement);
 			}
-			index++;
 		}
+		this.disabledCount.textContent = String(disabledIndex);
+		this.disabledSection.style.display = disabledIndex > 0 ? '' : 'none';
 
 		if (!this.builtInTemplatesUserToggled) {
 			const defaultExpanded = automations.length === 0;
@@ -560,7 +597,9 @@ class AutomationCardsSection extends Disposable {
 
 		// Move focus before hiding its previous container.
 		if (!this.focusPendingAutomation() && contentOwnedFocus && DOM.isHTMLElement(activeElement)) {
-			if (!nextContainer.contains(activeElement) && !(showTemplateSections && this.isVisibleTemplateElement(activeElement))) {
+			if (disabledIndex > 0 && this.disabledGrid.contains(activeElement) && !this.disabledSection.open) {
+				this.disabledSummary.focus();
+			} else if (!nextContainer.contains(activeElement) && !this.isVisibleDisabledElement(activeElement) && !(showTemplateSections && this.isVisibleTemplateElement(activeElement))) {
 				this.focusVisibleState(automations, catalogueState);
 			} else if (!DOM.isActiveElement(activeElement)) {
 				activeElement.focus();
@@ -579,6 +618,19 @@ class AutomationCardsSection extends Disposable {
 		const section = element.closest<HTMLDetailsElement>('details.automations-template-section');
 		const summary = element.closest<HTMLElement>('summary');
 		return !section || section.open || summary?.parentElement === section;
+	}
+
+	private isVisibleDisabledElement(element: HTMLElement): boolean {
+		return this.disabledSection.style.display !== 'none' && this.disabledSection.contains(element)
+			&& (this.disabledSection.open || this.disabledSummary.contains(element));
+	}
+
+	private focusCard(card: IAutomationCardEntry): void {
+		if (this.disabledGrid.contains(card.element) && !this.disabledSection.open) {
+			this.disabledSummary.focus();
+		} else {
+			card.main.focus();
+		}
 	}
 
 	private getEmptyStateContainer(catalogueState: AutomationCatalogueState): HTMLElement {
@@ -1156,13 +1208,18 @@ class AutomationCardsSection extends Disposable {
 			return false;
 		}
 		this.pendingFocusAutomationId = undefined;
-		card.main.focus();
+		this.focusCard(card);
 		return true;
 	}
 
 	private focusVisibleState(automations: readonly IAutomationDescriptor[], catalogueState: AutomationCatalogueState): void {
 		if (automations.length > 0) {
-			(this.persistentCards.get(automations[0].id)?.main ?? this.focusRoot).focus();
+			const card = automations.map(automation => this.persistentCards.get(automation.id)).find(card => card?.element.parentElement === this.container);
+			if (card) {
+				this.focusCard(card);
+			} else {
+				this.disabledSummary.focus();
+			}
 			return;
 		}
 		switch (catalogueState) {
@@ -1184,6 +1241,7 @@ class AutomationCardsSection extends Disposable {
 		if (!await this.ensureEnabled()) {
 			return;
 		}
+		const focusedElement = DOM.getActiveElement();
 		try {
 			const result = await this.automationDialogService.showAutomationDialog({
 				existing: automation,
@@ -1201,6 +1259,12 @@ class AutomationCardsSection extends Disposable {
 					}
 				},
 			});
+			// The dialog cannot restore focus to a card that moved into a collapsed section.
+			if (!this._store.isDisposed && this.focusRoot.isConnected && DOM.isHTMLElement(focusedElement)
+				&& this.disabledGrid.contains(focusedElement) && !this.disabledSection.open
+				&& DOM.getActiveElement() === DOM.getWindow(this.focusRoot).document.body) {
+				this.disabledSummary.focus();
+			}
 			if (!result || result.kind !== 'update') {
 				return;
 			}
@@ -2309,6 +2373,7 @@ export class AutomationsCustomViewContribution extends Disposable {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IAutomationService automationService: IAutomationService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IStorageService storageService: IStorageService,
 	) {
 		super();
 
@@ -2323,6 +2388,11 @@ export class AutomationsCustomViewContribution extends Disposable {
 		}));
 
 		const hasItemsContext = AutomationsHasItemsContext.bindTo(contextKeyService);
+		const hideDisabledContext = HideDisabledAutomationsContext.bindTo(contextKeyService);
+		const updateHideDisabled = () => hideDisabledContext.set(storageService.getBoolean(HIDE_DISABLED_AUTOMATIONS_STORAGE_KEY, StorageScope.PROFILE, false));
+		updateHideDisabled();
+		this._register(storageService.onDidChangeValue(StorageScope.PROFILE, HIDE_DISABLED_AUTOMATIONS_STORAGE_KEY, this._store)(updateHideDisabled));
+		this._register(toDisposable(() => hideDisabledContext.reset()));
 		this._register(autorun(reader => {
 			hasItemsContext.set(automationService.automations.read(reader).length > 0);
 		}));
@@ -2565,6 +2635,34 @@ registerAction2(class MarkAllAutomationRunsReadAction extends Action2 {
 			accessor.get(IAutomationService), accessor.get(ISessionsManagementService), accessor.get(IUriIdentityService),
 			accessor.get(IChatService).chatModels.get(), accessor.get(ILogService), accessor.get(IDialogService),
 		);
+	}
+});
+
+MenuRegistry.appendMenuItem(Menus.CustomViewAutomations, {
+	submenu: Menus.AutomationsViewSettings,
+	title: localize2('automationViewSettings', "Automation View Settings"),
+	icon: Codicon.gear,
+	group: 'navigation',
+	order: 4,
+	when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext),
+});
+
+registerAction2(class ToggleHideDisabledAutomationsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.automations.toggleHideDisabled',
+			title: localize2('hideDisabledAutomations', "Hide Disabled Automations"),
+			toggled: HideDisabledAutomationsContext,
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext),
+			menu: { id: Menus.AutomationsViewSettings },
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		const storageService = accessor.get(IStorageService);
+		storageService.store(HIDE_DISABLED_AUTOMATIONS_STORAGE_KEY,
+			!storageService.getBoolean(HIDE_DISABLED_AUTOMATIONS_STORAGE_KEY, StorageScope.PROFILE, false),
+			StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 });
 
