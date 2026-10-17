@@ -33,9 +33,20 @@
 	}
 	video.playsInline = true;
 	video.controls = true;
-	video.autoplay = settings.autoplay;
-	video.muted = settings.autoplay;
 	video.loop = settings.loop;
+
+	async function autoplay() {
+		try {
+			// Try to play with sound first
+			await video.play();
+		} catch (e) {
+			if (e instanceof DOMException && e.name === 'NotAllowedError') {
+				// Autoplay policy blocked unmuted playback, so fall back to playing on mute
+				video.muted = true;
+				video.play().catch(() => { /* noop */ });
+			}
+		}
+	}
 
 	function onLoaded() {
 		if (hasLoadedMedia) {
@@ -46,6 +57,10 @@
 		document.body.classList.remove('loading');
 		document.body.classList.add('ready');
 		document.body.append(video);
+
+		if (settings.autoplay) {
+			autoplay();
+		}
 	}
 
 	video.addEventListener('error', e => {
