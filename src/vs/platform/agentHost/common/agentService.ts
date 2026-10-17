@@ -38,7 +38,7 @@ import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomati
 import type { ActionEnvelope, ClientAutomationAction, ClientAutomationRunAction, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction, ClientChangesetAction } from './state/sessionActions.js';
 import type { ContentEncoding, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
 import { ComponentToState, StateComponents, type RootState } from './state/sessionState.js';
-import { type AgentCanvasDefinitionSnapshot, type AgentProvider, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, type AuthenticateParams, type AuthenticateResult, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentCustomizationInstallation, type IAgentCustomizationInstallationApplyResult, type IAgentCustomizationInstallationRequest, type IAgentCustomizationInstallationReview, type IAgentCustomizationMarketplaceSearchRequest, type IAgentCustomizationMarketplaceSearchResult, type IAgentExtensionInventory, type IAgentHostManagedSettingsSnapshot, type IAgentHostNetworkEndpoint, type IAgentManagedPluginRetryEntry, type IAgentModelInfo, type IAgentPluginInstallation, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type IMcpNotification } from './agent.js';
+import { type AgentCanvasDefinitionSnapshot, type AgentProvider, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, type AuthenticateParams, type AuthenticateResult, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentCustomizationInstallation, type IAgentCustomizationInstallationApplyResult, type IAgentCustomizationInstallationRequest, type IAgentCustomizationInstallationReview, type IAgentCustomizationMarketplaceSearchRequest, type IAgentCustomizationMarketplaceSearchResult, type IAgentExtensionInventory, type IAgentHostManagedSettingsSnapshot, type IAgentHostNetworkEndpoint, type IAgentManagedPluginRetryEntry, type IAgentModelInfo, type IAgentPluginInstallation, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type IMcpNotification, type IAgentImportChatOptions } from './agent.js';
 
 // ---- Provider-model re-exports (compatibility) ------------------------------
 // New provider code imports these from agent.ts.
@@ -1020,7 +1020,7 @@ export interface IAgentService {
 	deleteAutomation?(resource: string, deleteHistory: boolean, legacySessions?: readonly URI[], requestId?: string): Promise<readonly string[]>;
 	acknowledgeAutomationDeletion?(requestId: string): Promise<void>;
 	/** Permanently adopts an external session without sending a message. */
-	importSession?(session: URI): Promise<void>;
+	importSession?(session: URI, options?: IAgentImportSessionOptions): Promise<void>;
 	/** Removes a recorded artifact or reference, awaiting host metadata persistence. */
 	removeSessionArtifact?(session: URI, artifactId: string): Promise<void>;
 	/** Stops a chat's background work entry. Resolves false when it had already finished or is not tracked. */
@@ -1323,6 +1323,9 @@ export interface IAgentService {
 	onResourceWatchUnsubscribed(channel: string): boolean;
 }
 
+/** Options for {@link IAgentService.importSession}. */
+export type IAgentImportSessionOptions = IAgentImportChatOptions;
+
 /**
  * Consumer-facing connection to an agent host. Session handlers, terminal
  * contributions, and other features program against this interface.
@@ -1431,7 +1434,7 @@ export interface IAgentConnection {
 	deleteAutomation?(resource: string, deleteHistory: boolean, legacySessions?: readonly URI[], requestId?: string): Promise<readonly string[]>;
 	acknowledgeAutomationDeletion?(requestId: string): Promise<void>;
 	/** Requires the VS Code session import capability advertised by initialize. */
-	importSession?(session: URI): Promise<void>;
+	importSession?(session: URI, options?: IAgentImportSessionOptions): Promise<void>;
 	/**
 	 * Moves a session whose only chat is its default chat under `destination` (placed after `after`, `undefined`:
 	 * first) and resolves to `destination`. Rejects with `AgentHostSessionMoveUnsupportedError`, without a request,

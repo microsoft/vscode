@@ -3513,7 +3513,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message));
 		}
 		try {
-			return this._agentService.importSession(this._parseSessionUri(validated.content.session));
+			return this._agentService.importSession(this._parseSessionUri(validated.content.session), validated.content.takeOver ? { takeOver: true } : undefined);
 		} catch (error) {
 			return Promise.reject(error);
 		}

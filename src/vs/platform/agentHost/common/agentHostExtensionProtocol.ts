@@ -216,7 +216,7 @@ export const stopBackgroundWorkParamsValidator = vObj({
 	id: vString(),
 });
 
-export const importSessionParamsValidator = vObj({ session: vString() });
+export const importSessionParamsValidator = vObj({ session: vString(), takeOver: vOptionalProp(vBoolean()) });
 
 /** `workspace` has the shape of the `vscode.chatWorkspace` `createChat` `_meta` value. */
 export const setChatWorkspaceParamsValidator = vObj({ chat: vString(), workspace: chatWorkspaceValueValidator });

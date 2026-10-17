@@ -7,6 +7,7 @@ import { raceTimeout } from '../../../../base/common/async.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
+import Severity from '../../../../base/common/severity.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../platform/agentHost/common/agent.js';
@@ -17,6 +18,7 @@ import { supportsAgentHostSessionImport } from '../../../../platform/agentHost/c
 import type { InitializeResult } from '../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { AhpErrorCodes, ProtocolError } from '../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IManagedSettingsService, requiresCopilotAgentHost } from '../../../../platform/policy/common/copilotManagedSettings.js';
@@ -58,6 +60,7 @@ export class CopilotCliSessionLinkOpener {
 		@IManagedSettingsService private readonly managedSettingsService: IManagedSettingsService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IProgressService private readonly progressService: IProgressService,
+		@IDialogService private readonly dialogService: IDialogService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ILogService private readonly logService: ILogService,
 	) { }
@@ -126,7 +129,19 @@ export class CopilotCliSessionLinkOpener {
 		}
 		const backendSession = AgentSession.uri(COPILOT_CLI_AGENT_PROVIDER_ID, sessionId);
 		try {
-			await connection.importSession(backendSession);
+			try {
+				await connection.importSession(backendSession);
+			} catch (error) {
+				// Like the CLI, let the user take over a session another process holds: the record of that is best
+				// effort, and one left behind by a process that exited abnormally would otherwise block the session.
+				if (!(error instanceof ProtocolError && error.code === AhpErrorCodes.Conflict)) {
+					throw error;
+				}
+				if (!await this.confirmTakeOver()) {
+					return true;
+				}
+				await connection.importSession(backendSession, { takeOver: true });
+			}
 		} catch (error) {
 			// A session the harness can't take over, for example one created by another client, still opens through the provider.
 			if (legacyAvailable && error instanceof ProtocolError && error.code === AhpErrorCodes.SessionNotFound) {
@@ -139,6 +154,16 @@ export class CopilotCliSessionLinkOpener {
 		}
 		await this.chatWidgetService.openSession(this.agentHostConnectionsService.registerSessionResource(backendSession, undefined, COPILOT_CLI_AGENT_PROVIDER_ID), ChatViewPaneTarget);
 		return true;
+	}
+
+	private async confirmTakeOver(): Promise<boolean> {
+		const { confirmed } = await this.dialogService.confirm({
+			type: Severity.Warning,
+			message: localize('copilotCliSessionInUse', "This Copilot CLI session is open in another process"),
+			detail: localize('copilotCliSessionInUseDetail', "If the Copilot CLI is still running this session, exit it there first, or both will write to the same session. Open it here anyway if that process has exited or stopped responding."),
+			primaryButton: localize({ key: 'copilotCliSessionOpenAnyway', comment: ['&& denotes a mnemonic'] }, "&&Open Anyway"),
+		});
+		return confirmed;
 	}
 
 	/** Whether the connection's handshake advertises session import, waiting for a host that is still starting. */
