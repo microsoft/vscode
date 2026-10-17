@@ -807,8 +807,8 @@ namespace schema {
 		if (command.shortTitle && !isValidLocalizedString(command.shortTitle, collector, 'shortTitle')) {
 			return false;
 		}
-		if (command.enablement && typeof command.enablement !== 'string') {
-			collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'precondition'));
+		if (typeof command.enablement !== 'undefined' && typeof command.enablement !== 'string') {
+			collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'enablement'));
 			return false;
 		}
 		if (command.category && !isValidLocalizedString(command.category, collector, 'category')) {
