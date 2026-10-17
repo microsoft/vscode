@@ -9,6 +9,7 @@ import { Disposable, toDisposable } from '../../../../../../base/common/lifecycl
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { CustomizationMigrationCategoryId } from '../../../browser/aiCustomization/customizationMigrationCategories.js';
 import {
@@ -24,9 +25,16 @@ suite('CustomizationMigrationDashboard', () => {
 	function createDashboard(callbacks: Partial<ICustomizationMigrationDashboardCallbacks> = {}) {
 		const parent = DOM.append(document.body, DOM.$('div'));
 		const telemetryActions: string[] = [];
+		const opened: string[] = [];
 		const hoverContents = new Map<HTMLElement, string>();
 		store.add(toDisposable(() => parent.remove()));
 		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IOpenerService, new class extends mock<IOpenerService>() {
+			override async open(resource: Parameters<IOpenerService['open']>[0]) {
+				opened.push(resource.toString());
+				return true;
+			}
+		}());
 		instantiationService.stub(IHoverService, new class extends mock<IHoverService>() {
 			override setupDelayedHover(...args: Parameters<IHoverService['setupDelayedHover']>) {
 				const options = typeof args[1] === 'function' ? args[1]() : args[1];
@@ -50,7 +58,7 @@ suite('CustomizationMigrationDashboard', () => {
 			...callbacks,
 		}));
 		dashboard.layout(1000);
-		return { parent, dashboard, hoverContents, telemetryActions };
+		return { parent, dashboard, hoverContents, telemetryActions, opened };
 	}
 
 	function button(parent: HTMLElement, label: string): HTMLElement {
@@ -121,6 +129,57 @@ suite('CustomizationMigrationDashboard', () => {
 			hasIgnoredGroups: false,
 		};
 	}
+
+	test('guidance groups open documentation without selection, details, or migration actions', () => {
+		const actions: string[] = [];
+		const { parent, dashboard, opened } = createDashboard({
+			setItemSelected: () => actions.push('select'),
+			openCustomization: () => actions.push('open'),
+			migrateCategory: () => actions.push('migrate'),
+			ignoreCategory: id => actions.push(`ignore:${id}`),
+		});
+		const categories = [
+			{ id: CustomizationMigrationCategoryId.ChatParticipants, label: 'Chat Participants', learnMoreUrl: 'https://aka.ms/vscode-migrate-customizations/chat-participants' },
+			{ id: CustomizationMigrationCategoryId.ToolSets, label: 'Tool Sets', learnMoreUrl: 'https://aka.ms/vscode-migrate-customizations/tool-sets' },
+		].map(category => ({
+			...category, description: 'Automatic migration is unavailable.', count: 1, countLabel: '1 customization',
+			items: [{ id: category.id, label: category.label, scopeLabel: 'User', sourceLabel: 'Example Extension' }],
+		}));
+		dashboard.showOverview({
+			scopes: [{ storage: PromptsStorage.user, label: 'Your profile', count: 2, hasConfigurableDestinations: false, categories }],
+		});
+		dashboard.focus();
+		const links = [...parent.querySelectorAll<HTMLElement>('[role="link"]')];
+		const focusedLabel = DOM.getActiveElement()?.getAttribute('aria-label');
+		const nativeNavigationAllowed = links[0].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		links[1].dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		parent.querySelector<HTMLElement>('.migration-tree-item-label')?.click();
+		button(parent, 'Ignore Chat Participants (User)').click();
+		const guidanceRows = [...parent.querySelectorAll<HTMLElement>('.migration-tree-item')];
+		assert.deepStrictEqual({
+			urls: links.map(link => link.getAttribute('href')),
+			opened,
+			nativeNavigationAllowed,
+			focusedLabel,
+			actions,
+			checkboxesHidden: guidanceRows.every(row => row.querySelector('[role="checkbox"]')?.getAttribute('aria-hidden') === 'true'),
+			rowActionsHidden: guidanceRows.every(row => row.querySelector<HTMLElement>('.migration-tree-item-more')?.style.display === 'none'),
+			migrateActions: [...parent.querySelectorAll('[role="button"]')].filter(button => button.textContent?.startsWith('Migrate')).length,
+			guidanceDescription: parent.textContent?.includes('These customizations cannot be migrated automatically. Use Learn More for guidance on updating them.'),
+			complete: parent.textContent?.includes('No migrations are needed.'),
+		}, {
+			urls: categories.map(category => category.learnMoreUrl),
+			opened: categories.map(category => category.learnMoreUrl),
+			nativeNavigationAllowed: false,
+			focusedLabel: 'Learn how to migrate Chat Participants (User)',
+			actions: ['ignore:chatParticipants'],
+			checkboxesHidden: true,
+			rowActionsHidden: true,
+			migrateActions: 0,
+			guidanceDescription: true,
+			complete: false,
+		});
+	});
 
 	test('renders migration groups with destination paths and sends scoped actions', () => {
 		const actions: string[] = [];

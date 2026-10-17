@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CustomizationMigrationCategoryId } from '../../../../contrib/chat/browser/aiCustomization/customizationMigrationCategories.js';
+import { CustomizationMigrationCategoryId, customizationMigrationGuidance } from '../../../../contrib/chat/browser/aiCustomization/customizationMigrationCategories.js';
 import {
 	CustomizationMigrationDashboard,
 	ICustomizationMigrationDashboardOverview,
@@ -87,6 +87,18 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		labels: { kind: 'screenshot' },
 		render: ctx => renderDashboard(ctx, 360, 'overview'),
 	}),
+	MigrationsGuidance: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['MCP migration retains its checkbox and Migrate action. Chat Participants and Tool Sets have Learn More links and Ignore actions, with read-only rows showing extension or user source information and no checkboxes or row menus.'],
+		render: ctx => renderDashboard(ctx, 860, 'guidance'),
+	}),
+	MigrationsGuidanceOnly: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['A narrow migrations dashboard shows only Chat Participants and Tool Sets, with Learn More and Ignore actions and read-only rows. There is no Migrate with Agent action and no completed-state message.'],
+		render: ctx => renderDashboard(ctx, 360, 'guidanceOnly'),
+	}),
 	MigrationsTooltip: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['The prompt migration Migrate button shows its action tooltip.'],
@@ -134,7 +146,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 });
 
-async function renderDashboard(ctx: ComponentFixtureContext, width: number, state: 'overview' | 'tooltip' | 'partial' | 'disabled' | 'ignored' | 'loading' | 'error' | 'zero' | 'marketplaceError' | 'mcpWarnings'): Promise<void> {
+async function renderDashboard(ctx: ComponentFixtureContext, width: number, state: 'overview' | 'tooltip' | 'partial' | 'disabled' | 'ignored' | 'loading' | 'error' | 'zero' | 'marketplaceError' | 'mcpWarnings' | 'guidance' | 'guidanceOnly'): Promise<void> {
 	const { container, disposableStore, theme } = ctx;
 	const dashboardContainer = state === 'tooltip' ? DOM.append(container, DOM.$('.customization-migration-dashboard-fixture')) : container;
 	container.style.width = `${state === 'tooltip' ? width + 300 : width}px`;
@@ -168,6 +180,28 @@ async function renderDashboard(ctx: ComponentFixtureContext, width: number, stat
 		},
 	});
 	let model = overview();
+	if (state === 'guidance' || state === 'guidanceOnly') {
+		model = {
+			...model,
+			manualReviewItems: [],
+			scopes: model.scopes.map(scope => {
+				const categories = scope.storage === PromptsStorage.user
+					? customizationMigrationGuidance.map(category => ({
+						...category,
+						count: 1,
+						countLabel: '1 customization',
+						items: [{
+							id: category.id,
+							label: category.id === CustomizationMigrationCategoryId.ChatParticipants ? '@code-review' : 'review-tools',
+							scopeLabel: 'User',
+							sourceLabel: category.id === CustomizationMigrationCategoryId.ChatParticipants ? 'Code Review Extension' : '~/.config/Code/User/prompts/review.toolsets.jsonc',
+						}],
+					}))
+					: scope.categories.filter(category => state === 'guidance' && category.id === CustomizationMigrationCategoryId.McpServers);
+				return { ...scope, categories, count: categories.reduce((total, category) => total + category.count, 0), hasConfigurableDestinations: false };
+			}),
+		};
+	}
 	if (state === 'zero') {
 		model = { ...model, scopes: model.scopes.map(scope => ({ ...scope, count: 0, categories: [] })), manualReviewItems: [] };
 	} else if (state === 'partial') {

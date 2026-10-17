@@ -78,6 +78,7 @@ import { IAgentPluginRepositoryService } from '../../../../contrib/chat/common/p
 import { IAgentPluginService, IAgentPlugin } from '../../../../contrib/chat/common/plugins/agentPluginService.js';
 import { IPluginGitService } from '../../../../contrib/chat/common/plugins/pluginGitService.js';
 import { ILanguageModelToolsService, IToolData, IToolSet, ToolDataSource } from '../../../../contrib/chat/common/tools/languageModelToolsService.js';
+import { IChatAgentService } from '../../../../contrib/chat/common/participants/chatAgents.js';
 import { IAgentHostToolSetEnablementService, IToolEnablementState } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { IAgentHostActiveClientService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, IAgentHostMcpServerSupportSnapshot } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
@@ -493,6 +494,7 @@ function createMockHarnessService(sessionResource: URI, descriptors: readonly IH
 	const activeSessionResource = observableValue<URI>('activeSessionResource', sessionResource);
 	const activeHarness = derived(reader => getChatSessionType(activeSessionResource.read(reader)));
 	return new class extends mock<ICustomizationHarnessService>() {
+		override readonly onDidChangeCustomAgents = Event.None;
 		override readonly activeSessionResource = activeSessionResource;
 		override readonly activeHarness = activeHarness;
 		override readonly availableHarnesses = constObservable(descriptors);
@@ -1594,12 +1596,11 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			if (activeDescriptor) {
 				Object.assign(activeDescriptor, { mcpServerMigrationProvider: activeMcpServerMigrationProvider });
 			}
-			reg.defineInstance(ICustomizationMigrationService, new CustomizationMigrationService(
-				promptsService,
-				harnessService,
-				configurationService,
-				mcpService,
-			));
+			reg.define(ICustomizationMigrationService, CustomizationMigrationService);
+			reg.defineInstance(IChatAgentService, new class extends mock<IChatAgentService>() {
+				override readonly onDidChangeAgents = Event.None;
+				override getAgents() { return []; }
+			}());
 			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
 				override readonly isSessionsWindow = isSessionsWindow;
 				override readonly welcomePageFeatures = {

@@ -44,6 +44,7 @@ class CustomizationMigrationAccessibleView implements IAccessibleViewImplementat
 				localize('migrationHelpMcpChanges', "MCP servers that migrate with changes explain each property removal in their row. Review these warnings before confirming migration."),
 				localize('migrationHelpMcpDetails', "MCP servers that cannot migrate automatically appear in the Needs manual review group. Open a server to review its details; Edit Configuration opens its source file and selects the server's JSON configuration."),
 				localize('migrationHelpPluginMarketplaces', "Plugin marketplace migrations copy entries from chat.plugins.marketplaces to Copilot settings. The original VS Code setting remains so the Local agent keeps working."),
+				localize('migrationHelpGuidance', "Chat Participants and Tool Sets list read-only items without checkboxes or migration actions. Use Learn More to open migration documentation, or Ignore to hide the group. These items are not included in Migrate with Agent."),
 				localize('migrationHelpDiscoveryErrors', "If a migration type cannot be checked, its error appears without hiding other migrations. Use Retry to check that migration type again."),
 				localize('migrationHelpView', "Use {0} to read the migrations in the Accessible View.", '<keybinding:editor.action.accessibleView>'),
 			].join('\n\n') : content,

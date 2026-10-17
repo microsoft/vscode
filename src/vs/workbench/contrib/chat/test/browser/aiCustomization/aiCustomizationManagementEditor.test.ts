@@ -11,7 +11,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -32,7 +32,7 @@ import { IAICustomizationListItem } from '../../../browser/aiCustomization/aiCus
 import { AgentPluginItemKind, IAgentPluginItem } from '../../../browser/agentPluginEditor/agentPluginItems.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
-import { CustomizationMigration, CustomizationMigrationCandidate, CustomizationMigrationType, FileCustomizationMigrationFailureReason, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationExclusion, IPluginMarketplaceCustomizationMigrationCandidate, isFileCustomizationMigrationCandidate, McpServerCustomizationMigrationFailureReason, MigratableConfiguration } from '../../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigration, CustomizationMigrationCandidate, CustomizationMigrationType, FileCustomizationMigrationFailureReason, GuidanceCustomizationMigration, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationExclusion, IPluginMarketplaceCustomizationMigrationCandidate, isFileCustomizationMigrationCandidate, McpServerCustomizationMigrationFailureReason, MigratableConfiguration } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import type { ICustomizationMigrationTelemetryService } from '../../../common/promptSyntax/service/customizationMigrationTelemetryService.js';
 import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { IHeaderAttribute, PromptFileParser } from '../../../common/promptSyntax/promptFileParser.js';
@@ -213,6 +213,7 @@ suite('aiCustomizationManagementEditor', () => {
 		currentEditingSource: string | undefined;
 		currentEditingReadOnly: boolean;
 		customizationsByMigrationCategory: Map<CustomizationMigrationCategoryId, readonly CustomizationMigrationCandidate[]>;
+		guidanceMigrations: readonly GuidanceCustomizationMigration[];
 		pluginMarketplaceMigrationDiscoveryError: Error | undefined;
 		mcpServerMigrationExclusions: readonly IMcpServerCustomizationMigrationExclusion[];
 		customizationMigrationTargetFoldersByType: Map<PromptsType, readonly ICustomizationSourceFolder[]>;
@@ -295,7 +296,7 @@ suite('aiCustomizationManagementEditor', () => {
 		customizationMigrationTelemetryService: ICustomizationMigrationTelemetryService;
 		dialogService: Pick<IDialogService, 'confirm'>;
 		quickInputService: {
-			pick(items: readonly TestQuickPickItem[], options?: { activeItem?: TestQuickPickItem }): Promise<TestQuickPickResult | undefined>;
+			pick(items: readonly TestQuickPickItem[], options?: { activeItem?: TestQuickPickItem }): Promise<TestQuickPickResult | readonly TestQuickPickItem[] | undefined>;
 		};
 		notificationService: { error(message: string): void; info(message: string): void; warn(message: string): void };
 		fileDialogService: { showOpenDialog(): Promise<URI[]> };
@@ -353,6 +354,7 @@ suite('aiCustomizationManagementEditor', () => {
 		getMigrationCandidates(category: ICustomizationMigrationCategory, storage?: PromptsStorage): readonly CustomizationMigrationCandidate[];
 		getCustomizationMigrationDashboardOverview(): ICustomizationMigrationDashboardOverview;
 		ignoreMigrationCategory(id: CustomizationMigrationCategoryId, storage: PromptsStorage): Promise<void>;
+		restoreIgnoredMigrationCategories(): Promise<void>;
 		isMigrationCategoryIgnored(id: CustomizationMigrationCategoryId, storage: PromptsStorage): boolean;
 		configureCustomizationMigrationLocations(id: CustomizationMigrationCategoryId, storage: PromptsStorage): Promise<void>;
 		chooseCustomizationMigrationDestination(destination: ICustomizationMigrationDashboardDestination): Promise<void>;
@@ -412,6 +414,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.currentEditingSource = undefined;
 		editor.currentEditingReadOnly = false;
 		editor.customizationsByMigrationCategory = new Map();
+		editor.guidanceMigrations = [];
 		editor.pluginMarketplaceMigrationDiscoveryError = undefined;
 		editor.mcpServerMigrationExclusions = [];
 		editor.customizationMigrationTargetFoldersByType = new Map();
@@ -1496,6 +1499,61 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.editorPreviewDisposables.dispose();
 	});
 
+	test('guidance is read-only, accessible, and uses existing ignore and restore persistence', async () => {
+		const editor = createTestEditor(undefined, createConfigurationServiceStub({
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
+		}));
+		store.add(editor.editorPreviewDisposables);
+		editor.guidanceMigrations = [
+			{ type: CustomizationMigrationType.ChatParticipants, items: [{ id: 'review', name: '@review', sourceLabel: 'Review Extension' }] },
+			{ type: CustomizationMigrationType.ToolSets, items: [{ id: 'tools', name: 'reviewTools', sourceLabel: 'Review Extension' }] },
+		];
+		editor.dialogService = { confirm: async () => ({ confirmed: true }) };
+		editor.quickInputService = { pick: async items => items };
+		editor.setCustomizationsToMigrate(new Map(), new Map());
+		const initial = editor.getCustomizationMigrationDashboardOverview();
+		editor.viewMode = 'migration';
+		const dashboard = document.body.appendChild($('div'));
+		store.add(toDisposable(() => dashboard.remove()));
+		const focused = dashboard.appendChild($('button'));
+		editor.migrationDashboard = { element: dashboard };
+		focused.focus();
+		const accessibleContent = editor.getMigrationAccessibilityContent();
+		editor.migrationDashboard = undefined;
+		await editor.ignoreMigrationCategory(CustomizationMigrationCategoryId.ChatParticipants, PromptsStorage.user);
+		const ignored = editor.getCustomizationMigrationDashboardOverview();
+		await editor.restoreIgnoredMigrationCategories();
+		const restored = editor.getCustomizationMigrationDashboardOverview();
+		assert.deepStrictEqual({
+			groups: initial.scopes.flatMap(scope => scope.categories.map(category => ({
+				id: category.id, count: category.count, url: category.learnMoreUrl, destination: category.destinationLabel,
+			}))),
+			agentMigration: initial.supportsAgentMigration,
+			executableCandidates: [...editor.customizationsByMigrationCategory.values()].flat(),
+			selectionSize: editor.selectedCustomizationMigrationItems.size,
+			accessibleGuidance: accessibleContent?.includes('@review, source Review Extension. Documentation-only migration guidance.'),
+			accessibleLinks: accessibleContent?.includes('Learn More: https://aka.ms/vscode-migrate-customizations/tool-sets'),
+			ignoredGroups: ignored.scopes.flatMap(scope => scope.categories.map(category => category.id)),
+			hasIgnoredGroups: ignored.hasIgnoredGroups,
+			restored: restored.scopes.flatMap(scope => scope.categories.map(category => category.id)),
+			restoredIgnoredState: restored.hasIgnoredGroups,
+		}, {
+			groups: [
+				{ id: CustomizationMigrationCategoryId.ChatParticipants, count: 1, url: 'https://aka.ms/vscode-migrate-customizations/chat-participants', destination: undefined },
+				{ id: CustomizationMigrationCategoryId.ToolSets, count: 1, url: 'https://aka.ms/vscode-migrate-customizations/tool-sets', destination: undefined },
+			],
+			agentMigration: false,
+			executableCandidates: [],
+			selectionSize: 0,
+			accessibleGuidance: true,
+			accessibleLinks: true,
+			ignoredGroups: [CustomizationMigrationCategoryId.ToolSets],
+			hasIgnoredGroups: true,
+			restored: [CustomizationMigrationCategoryId.ChatParticipants, CustomizationMigrationCategoryId.ToolSets],
+			restoredIgnoredState: false,
+		});
+	});
+
 	test('preserves a plugin marketplace discovery error alongside valid migration categories', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
 			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
@@ -1975,6 +2033,9 @@ suite('aiCustomizationManagementEditor', () => {
 			editor.renderCustomizationMigrationDashboardState();
 		};
 		editor.customizationMigrationService.computeMigration = async (session, type, token = CancellationToken.None) => {
+			if (type === CustomizationMigrationType.ChatParticipants || type === CustomizationMigrationType.ToolSets) {
+				return { type, items: [] };
+			}
 			if (type !== CustomizationMigrationType.McpServers) {
 				return { type, files: [], candidates: [] };
 			}
@@ -2169,6 +2230,9 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.customizationMigrationService.computeMigration = async (_session, type, token = CancellationToken.None) => {
 			migrationTokens.push(token);
 			switch (type) {
+				case CustomizationMigrationType.ChatParticipants:
+				case CustomizationMigrationType.ToolSets:
+					return { type, items: [] };
 				case CustomizationMigrationType.UserData:
 					return { type, files: [candidate.uri], candidates: [candidate] };
 				case CustomizationMigrationType.McpServers:
@@ -2217,7 +2281,7 @@ suite('aiCustomizationManagementEditor', () => {
 			sameTokens: migrationTokens.every(token => folderTokens.includes(token)),
 			applied,
 		}, {
-			firstCancelled: true, migrationRequests: 6, folderRequests: 2, sameTokens: true, applied: [[candidate]],
+			firstCancelled: true, migrationRequests: 10, folderRequests: 2, sameTokens: true, applied: [[candidate]],
 		});
 	}));
 
