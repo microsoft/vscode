@@ -200,9 +200,9 @@ export class ConfigurationModel implements IConfigurationModel {
 			const overrideContentsForKey = overrideContents[key];
 
 			// If there are override contents for the key, clone and merge otherwise use base contents
-			if (overrideContentsForKey) {
+			if (overrideContentsForKey !== undefined) {
 				// Clone and merge only if base contents and override contents are of type object otherwise just override
-				if (typeof contentsForKey === 'object' && typeof overrideContentsForKey === 'object') {
+				if (types.isObject(contentsForKey) && types.isObject(overrideContentsForKey)) {
 					contentsForKey = objects.deepClone(contentsForKey);
 					this.mergeContents(contentsForKey as IStringDictionary<unknown>, overrideContentsForKey as IStringDictionary<unknown>);
 				} else {
