@@ -4,7 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import * as sinon from 'sinon';
+import { scheduleAtNextAnimationFrame } from '../../../../../../base/browser/dom.js';
+import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { mainWindow } from '../../../../../../base/browser/window.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { wrapTablesWithScrollable } from '../../../browser/widget/chatContentParts/chatMarkdownTableScrolling.js';
 
@@ -31,13 +36,27 @@ function buildContainer(tables: string[][][]): HTMLDivElement {
 	return container;
 }
 
+/** Resolves after the table scrollbars measured at the next animation frame have been updated. */
+function afterNextAnimationFrame(): Promise<void> {
+	return new Promise(resolve => scheduleAtNextAnimationFrame(mainWindow, resolve, -20000 /* after dom.modify */));
+}
+
 suite('wrapTablesWithScrollable', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	teardown(() => sinon.restore());
 
 	function wrap(container: HTMLDivElement): { layoutParticipants: Set<() => void> } {
 		const layoutParticipants = new Set<() => void>();
 		store.add(wrapTablesWithScrollable(container, new Lazy(() => layoutParticipants)));
 		return { layoutParticipants };
+	}
+
+	/** Attaches `container` to the document with a fixed width, so its tables have a real layout. */
+	function attach(container: HTMLDivElement, width: number): void {
+		container.style.width = `${width}px`;
+		mainWindow.document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
 	}
 
 	test('replaces each table with a scroll wrapper in the DOM', () => {
@@ -74,6 +93,65 @@ suite('wrapTablesWithScrollable', () => {
 		]);
 		const { layoutParticipants } = wrap(container);
 		assert.strictEqual(layoutParticipants.size, 2, 'one layout participant registered per table');
+	});
+
+	test('shows a horizontal scrollbar only for tables wider than their container', async () => {
+		const container = buildContainer([
+			[['Wide'], ['x'.repeat(200)]],
+			[['A', 'B'], ['c', 'd']],
+		]);
+		attach(container, 200);
+		wrap(container);
+		await afterNextAnimationFrame();
+
+		const sliderWidths = Array.from(container.querySelectorAll<HTMLElement>('.scrollbar.horizontal .slider'), slider => parseFloat(slider.style.width));
+		assert.deepStrictEqual(sliderWidths.map(width => width > 0 && width < 200 ? 'scrollable' : width === 200 ? 'fits' : `unmeasured (${width})`), ['scrollable', 'fits']);
+	});
+
+	test('re-measures all tables on resize without forcing a layout per table', async () => {
+		const container = buildContainer([
+			[['H1', 'H2'], ['a', 'bb']],
+			[['X', 'YY'], ['c', 'dd']],
+			[['P', 'QQ'], ['e', 'ff']],
+		]);
+		attach(container, 200);
+		const { layoutParticipants } = wrap(container);
+		await afterNextAnimationFrame();
+
+		// A layout read that follows a scrollbar update forces a synchronous layout.
+		const log: ('read' | 'write')[] = [];
+		for (const table of container.querySelectorAll('table')) {
+			const tableContainer = table.parentElement!;
+			for (const name of ['clientWidth', 'scrollWidth', 'clientHeight', 'scrollHeight', 'scrollLeft', 'scrollTop'] as const) {
+				const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, name)!;
+				Object.defineProperty(tableContainer, name, {
+					configurable: true,
+					get: () => {
+						log.push('read');
+						return descriptor.get!.call(tableContainer);
+					},
+					set: descriptor.set && (value => descriptor.set!.call(tableContainer, value)),
+				});
+			}
+		}
+		const setScrollDimensions = sinon.stub(DomScrollableElement.prototype, 'setScrollDimensions').callsFake(function (this: DomScrollableElement, dimensions) {
+			log.push('write');
+			setScrollDimensions.wrappedMethod.call(this, dimensions);
+		});
+
+		// Every markdown part runs its layout participants from its own resize observer.
+		for (const layout of layoutParticipants) {
+			layout();
+		}
+		await afterNextAnimationFrame();
+
+		assert.deepStrictEqual({
+			scrollbarUpdates: setScrollDimensions.callCount,
+			readsAfterFirstUpdate: log.slice(log.indexOf('write')).filter(entry => entry === 'read').length,
+		}, {
+			scrollbarUpdates: 3,
+			readsAfterFirstUpdate: 0,
+		});
 	});
 
 	test('sets column min-width capped at 3ch', () => {
