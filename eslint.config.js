@@ -984,7 +984,6 @@ export default defineConfig(
 						'src/vs/editor/contrib/codeAction/test/browser/codeActionModel.test.ts',
 						'src/vs/editor/contrib/parameterHints/test/browser/parameterHintsModel.test.ts',
 						'src/vs/platform/agentHost/test/electron-browser/agentHostProtocolClient.test.ts',
-						'src/vs/platform/agentHost/test/node/agentHostGitStateService.test.ts',
 						'src/vs/platform/agentHost/test/node/agentHostToolCallTelemetry.test.ts',
 						'src/vs/platform/agentHost/test/node/agentHostTurnHangTelemetry.test.ts',
 						'src/vs/platform/agentHost/test/node/agentService.test.ts',

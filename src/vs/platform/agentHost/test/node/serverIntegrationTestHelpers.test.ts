@@ -616,6 +616,7 @@ suite('Agent Host test server cleanup', () => {
 			assert.ok(await raceTimeout(once(server.stdout, 'data'), 5_000), 'Server did not start');
 			// The server ignores stdin EOF and survives the failed taskkill, so both bounded exit waits
 			// must expire; run them in virtual time.
+			// eslint-disable-next-line local/code-run-with-faked-timers-whole-test -- the server is a real process, so spawning and awaiting it must stay on real timers
 			const error = await runWithFakedTimers({}, () => stopServer({ process: server, port: 0 }, async () => [], 1_000, {
 				killTree: async () => {
 					throw new Error('taskkill failed while server was running');
