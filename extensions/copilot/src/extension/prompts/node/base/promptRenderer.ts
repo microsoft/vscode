@@ -16,6 +16,7 @@ import { ITokenizerProvider } from '../../../../platform/tokenizer/node/tokenize
 import { createServiceIdentifier } from '../../../../util/common/services';
 import { isLocation } from '../../../../util/common/types';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
+import { CancellationError } from '../../../../util/vs/base/common/errors';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from '../../../../util/vs/platform/instantiation/common/serviceCollection';
@@ -97,7 +98,14 @@ export class PromptRenderer<P extends BasePromptElementProps> extends BasePrompt
 	}
 
 	override createElement(element: QueueItem<PromptElementCtor<P, any>, P>, ...args: any[]) {
-		return this._instantiationService.createInstance(element.ctor, element.props, ...args);
+		try {
+			return this._instantiationService.createInstance(element.ctor, element.props, ...args);
+		} catch (e) {
+			if (e instanceof Error && e.message === 'InstantiationService has been disposed') {
+				throw new CancellationError();
+			}
+			throw e;
+		}
 	}
 
 	override async render(progress?: Progress<ChatResponsePart> | undefined, token?: CancellationToken | undefined, opts?: Partial<{ trace: boolean }>): Promise<RenderPromptResult> {
@@ -198,7 +206,14 @@ class PromptRendererForJSON<P extends BasePromptElementProps> extends BasePrompt
 	}
 
 	override createElement(element: QueueItem<PromptElementCtor<P, any>, P>, ...args: any[]) {
-		return this.instantiationService.createInstance(element.ctor, element.props, ...args);
+		try {
+			return this.instantiationService.createInstance(element.ctor, element.props, ...args);
+		} catch (e) {
+			if (e instanceof Error && e.message === 'InstantiationService has been disposed') {
+				throw new CancellationError();
+			}
+			throw e;
+		}
 	}
 }
 
