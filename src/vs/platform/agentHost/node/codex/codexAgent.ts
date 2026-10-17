@@ -21,7 +21,6 @@ import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { killTree } from '../../../../base/node/processes.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../log/common/log.js';
@@ -52,6 +51,7 @@ import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { CodexChatDiscovery } from './codexChatDiscovery.js';
 import { CodexChatHistory } from './codexChatHistory.js';
+import { killLinuxProcessTree } from './linuxProcessTree.js';
 import type { InitializeResponse } from './protocol/generated/InitializeResponse.js';
 import { applyMcpServerRuntimeStates, McpCustomizationController } from '../shared/mcpCustomizationController.js';
 import { buildCodexMcpReadResult, CodexMcpInventory, codexMcpListToInventory, codexMcpServersFromConfig, codexMcpToolsChanged, codexStartupErrorNeedsAuth, injectCodexMcpAuthTokens, inventoryToSdkServers, normalizeCodexMcpResourceUrl, toCodexMcpServerJson, translateCodexMcpStartupState, type ICodexMcpServerConfigJson } from './codexMcpServers.js';
@@ -320,20 +320,20 @@ function codexConfigArgs(args: readonly string[]): string[] {
  * cloned waits on an eventfd that never reports the launcher's death, and only
  * binds its own lifetime to that launcher later. Killing the app-server alone
  * can therefore strand that child forever, holding the workspace and any
- * inherited files open. The app-server is frozen first so it can neither exit
- * nor launch another helper, then the tree is killed depth-first while each
- * helper's parent chain is still intact.
+ * inherited files open, so the whole tree is frozen and then killed. This runs
+ * synchronously, before the client is disposed, so neither the app-server's
+ * own exit on stdin EOF nor the client's grace-period kill can interleave.
  */
 function killCodexAppServer(child: ChildProcessWithoutNullStreams): void {
-	const kill = () => {
-		try { child.kill('SIGKILL'); } catch { /* already dead */ }
-	};
 	if (process.platform === 'linux' && child.pid !== undefined && child.exitCode === null && child.signalCode === null) {
-		try { child.kill('SIGSTOP'); } catch { /* already dead */ }
-		void killTree(child.pid, true).catch(kill);
-	} else {
-		kill();
+		try {
+			killLinuxProcessTree(child.pid);
+			return;
+		} catch {
+			// The process table is unreadable; fall back to killing the app-server alone.
+		}
 	}
+	try { child.kill('SIGKILL'); } catch { /* already dead */ }
 }
 
 /**
@@ -2624,11 +2624,11 @@ export class CodexAgent extends Disposable implements IAgent {
 				readModelContextWindows: () => readCodexModelContextWindows(binaryPath, args, env),
 			};
 		} catch (err) {
-			client?.dispose();
-			proxyHandle.dispose();
 			if (child) {
 				killCodexAppServer(child);
 			}
+			client?.dispose();
+			proxyHandle.dispose();
 			if (sandboxTempDirectory) {
 				try { await fs.promises.rm(sandboxTempDirectory, { recursive: true, force: true }); } catch { /* best effort */ }
 			}
@@ -4293,9 +4293,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		this._disposedConnections.add(connection);
 		try { connection.subscriptions?.dispose(); } catch { /* ignore */ }
+		killCodexAppServer(connection.child);
 		try { connection.client.dispose(); } catch { /* ignore */ }
 		try { connection.proxyHandle.dispose(); } catch { /* ignore */ }
-		killCodexAppServer(connection.child);
 	}
 
 	// #endregion
