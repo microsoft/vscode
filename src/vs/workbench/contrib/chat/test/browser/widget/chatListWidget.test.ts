@@ -7,6 +7,8 @@ import assert from 'assert';
 import * as sinon from 'sinon';
 import { IContextMenuDelegate } from '../../../../../../base/browser/contextmenu.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
+import { ObjectTree } from '../../../../../../base/browser/ui/tree/objectTree.js';
+import { IObjectTreeElement } from '../../../../../../base/browser/ui/tree/tree.js';
 import { DeferredPromise, retry, timeout } from '../../../../../../base/common/async.js';
 import { decodeBase64 } from '../../../../../../base/common/buffer.js';
 import { Event } from '../../../../../../base/common/event.js';
@@ -635,6 +637,103 @@ suite('ChatListWidget', () => {
 			dataIdAfterAppend: firstDataId,
 			dataIdAfterRemove: firstDataId,
 			remainingRequestId: firstRequest.id,
+		});
+	});
+
+	suite('streaming into a long transcript', () => {
+		const message = (text: string) => ({
+			text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+		});
+		const countElements = (elements: Iterable<IObjectTreeElement<unknown>> | undefined): number => {
+			let count = 0;
+			for (const element of elements ?? []) {
+				count += 1 + countElements(element.children);
+			}
+			return count;
+		};
+
+		// Wires the widget the way ChatWidget does: one refresh per batch of view model changes.
+		async function createTranscript(priorTurns: number) {
+			const created = createWidget();
+			const { disposables, model, viewModel, widget } = created;
+			disposables.add(Event.runAndSubscribe(Event.accumulate(viewModel.onDidChange), events => widget.refresh(events)));
+			for (let index = 0; index < priorTurns; index++) {
+				const request = model.addRequest(message(`Turn ${index}`), { variables: [] }, 0);
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(`Answer ${index}`) });
+				request.response!.complete();
+			}
+			const request = model.addRequest(message('Stream a reply'), { variables: [] }, 0);
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Streamed reply.') });
+			widget.layout(300, 500);
+			await timeout(0);
+			widget.scrollToEnd();
+			await waitForStableLayout(widget);
+			return { ...created, request, setChildren: sinon.spy(ObjectTree.prototype, 'setChildren') };
+		}
+
+		async function streamParagraphs(priorTurns: number) {
+			const { disposables, model, container, widget, request, setChildren } = await createTranscript(priorTurns);
+			for (let index = 0; index < 5; index++) {
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(`\n\nStreamed paragraph ${index}.`) });
+				await timeout(0);
+			}
+			// Streamed words render progressively, so wait for the last paragraph before checking the scroll position.
+			const lastParagraphVisible = await retry(async () => assert.ok(container.textContent?.includes('Streamed paragraph 4.')), 100, 30).then(() => true, () => false);
+			await waitForStableLayout(widget);
+			const result = {
+				fullRefreshes: setChildren.getCalls().filter(call => call.args[0] === null).length,
+				diffedElements: setChildren.getCalls().reduce((sum, call) => sum + countElements(call.args[1]), 0),
+				lastParagraphVisible,
+				atBottom: widget.isScrolledToBottom,
+			};
+			setChildren.restore();
+			disposables.dispose();
+			return result;
+		}
+
+		test('diffs only the streaming response, however many turns precede it', async () => {
+			const short = await streamParagraphs(5);
+			const long = await streamParagraphs(100);
+			assert.deepStrictEqual({ short, long }, {
+				short: { fullRefreshes: 0, diffedElements: 5, lastParagraphVisible: true, atBottom: true },
+				long: { fullRefreshes: 0, diffedElements: 5, lastParagraphVisible: true, atBottom: true },
+			});
+		});
+
+		test('falls back to a full refresh when the request or the transcript changes', async () => {
+			const { model, viewModel, container, widget, request, setChildren } = await createTranscript(3);
+			const fullRefreshes = () => setChildren.getCalls().filter(call => call.args[0] === null).length;
+			const states: { fullRefreshes: number; requests: string[]; text: boolean }[] = [];
+			const record = async (text: string) => {
+				await timeout(0);
+				await waitForStableLayout(widget);
+				states.push({
+					fullRefreshes: fullRefreshes(),
+					requests: viewModel.getItems().filter(isRequestVM).map(item => item.messageText),
+					text: !!container.textContent?.includes(text),
+				});
+			};
+
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(' More text.') });
+			await record('More text.');
+			// Completing the response changes its request's identity.
+			request.response!.complete();
+			await record('More text.');
+			const next = model.addRequest(message('Follow-up'), { variables: [] }, 0);
+			await record('Follow-up');
+			model.acceptResponseProgress(next, { kind: 'markdownContent', content: new MarkdownString('Follow-up reply.') });
+			await record('Follow-up reply.');
+			// Undo removes the request while its reply streams.
+			model.removeRequest(next.id);
+			await record('More text.');
+
+			assert.deepStrictEqual(states, [
+				{ fullRefreshes: 0, requests: ['Turn 0', 'Turn 1', 'Turn 2', 'Stream a reply'], text: true },
+				{ fullRefreshes: 1, requests: ['Turn 0', 'Turn 1', 'Turn 2', 'Stream a reply'], text: true },
+				{ fullRefreshes: 2, requests: ['Turn 0', 'Turn 1', 'Turn 2', 'Stream a reply', 'Follow-up'], text: true },
+				{ fullRefreshes: 2, requests: ['Turn 0', 'Turn 1', 'Turn 2', 'Stream a reply', 'Follow-up'], text: true },
+				{ fullRefreshes: 3, requests: ['Turn 0', 'Turn 1', 'Turn 2', 'Stream a reply'], text: true },
+			]);
 		});
 	});
 
