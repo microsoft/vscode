@@ -88,3 +88,4 @@ This project may contain trademarks or logos for projects, products, or services
 Copyright (c) Microsoft Corporation. All rights reserved.
 
 Licensed under the [MIT](LICENSE.txt) license.
+<!-- [DO NOT MERGE] chat-lib skip validation: this change should run the chat-lib checks. -->
