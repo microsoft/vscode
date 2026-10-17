@@ -29,6 +29,7 @@ import { IDefaultAccountService } from '../../../../platform/defaultAccount/comm
 import { AssignmentContextFilter } from './assignmentContextFilter.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import product from '../../../../platform/product/common/product.js';
 import { experimentsEnabled } from '../../telemetry/common/workbenchTelemetryUtils.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { mapsStrictEqualIgnoreOrder } from '../../../../base/common/map.js';
@@ -618,7 +619,8 @@ registry.registerConfiguration({
 		'workbench.enableExperiments': {
 			'type': 'boolean',
 			'description': localize('workbench.enableExperiments', "Fetches experiments to run from a Microsoft online service."),
-			'default': true,
+			'default': false,
+			'included': product.enableTelemetry === true,
 			'scope': ConfigurationScope.APPLICATION,
 			'restricted': true,
 			'tags': ['usesOnlineServices']

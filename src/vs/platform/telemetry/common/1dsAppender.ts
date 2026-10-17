@@ -19,8 +19,10 @@ export interface IAppInsightsCore {
 	unload(isAsync: boolean, unloadComplete: (unloadState: ITelemetryUnloadState) => void): void;
 }
 
-const endpointUrl = 'https://mobile.events.data.microsoft.com/OneCollector/1.0';
-const endpointHealthUrl = 'https://mobile.events.data.microsoft.com/ping';
+// Microsoft OneCollector is not used. The appender stays so callers and tests
+// compile; a string instrumentation key is never posted to a collector.
+const endpointUrl = '';
+const endpointHealthUrl = '';
 
 /** Fills in the envelope fields every event needs, including the internal-only routing flag. */
 export function applyEnvelopeDefaults(envelope: ITelemetryItem, isInternalMachine: boolean | undefined): void {
@@ -117,6 +119,10 @@ export abstract class AbstractOneDataSystemAppender implements ITelemetryAppende
 		}
 
 		if (!this._asyncAiCore) {
+			if (!endpointUrl) {
+				this._aiCoreOrKey = undefined;
+				return;
+			}
 			this._asyncAiCore = getClient(this._aiCoreOrKey, this._isInternalTelemetry, this._xhrOverride);
 		}
 
@@ -159,6 +165,10 @@ export abstract class AbstractOneDataSystemAppender implements ITelemetryAppende
 						resolve(undefined);
 					});
 				});
+				// A cleared collector URL drops the string key without calling back.
+				if (!this._aiCoreOrKey) {
+					resolve(undefined);
+				}
 			});
 		}
 		return Promise.resolve(undefined);

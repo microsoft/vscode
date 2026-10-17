@@ -246,5 +246,10 @@
 		"GitHub.copilot-chat"
 	],
 	"sessionsWindowAllowedExtensions": [],
-	"voiceWsUrl": "wss://falcon-caas.mai.microsoft.com/voice-code/api/v1/realtime/voice"
+	"enableTelemetry": false,
+	"enabledTelemetryLevels": {
+		"error": false,
+		"usage": false
+	},
+	"removeTelemetryMachineId": true
 }

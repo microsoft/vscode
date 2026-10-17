@@ -41,6 +41,24 @@ suite('AIAdapter', () => {
 	});
 
 
+	test('string instrumentation keys are not delivered', async () => {
+		const originalFetch = globalThis.fetch;
+		let fetched = false;
+		globalThis.fetch = (async () => {
+			fetched = true;
+			throw new Error('collector disabled');
+		}) as typeof fetch;
+		try {
+			const stringAdapter = new OneDataSystemWebAppender(false, prefix, null, 'instrumentation-key');
+			stringAdapter.log('shouldNotSend');
+			await stringAdapter.flush();
+			assert.strictEqual(fetched, false);
+			assert.strictEqual(appInsightsMock.events.length, 0);
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
+
 	test('Simple event', () => {
 		adapter.log('testEvent');
 

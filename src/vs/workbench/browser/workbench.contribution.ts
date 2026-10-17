@@ -550,7 +550,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'boolean',
 				tags: ['experimental'],
 				'description': localize('enableNaturalLanguageSearch', "Controls whether the command palette should include similar commands. You must have an extension installed that provides Natural Language support."),
-				'default': true
+				'default': false
 			},
 			'workbench.quickOpen.closeOnFocusLost': {
 				'type': 'boolean',

@@ -6,22 +6,60 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
+import { IEnvironmentService } from '../../../environment/common/environment.js';
+import product from '../../../product/common/product.js';
+import { IProductService } from '../../../product/common/productService.js';
 import { TelemetryConfiguration, TelemetryLevel } from '../../common/telemetry.js';
-import { cleanData, cleanRemoteAuthority, getTelemetryLevel } from '../../common/telemetryUtils.js';
+import { cleanData, cleanRemoteAuthority, getTelemetryLevel, getTelemetryLevelFromConfiguration, supportsTelemetry } from '../../common/telemetryUtils.js';
 
 suite('TelemetryUtils', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('getTelemetryLevel fails closed for invalid configuration', () => {
+	test('product.json disables Microsoft telemetry endpoints', () => {
+		assert.strictEqual(product.enableTelemetry, false);
+		assert.deepStrictEqual(product.enabledTelemetryLevels, { error: false, usage: false });
+		assert.strictEqual(product.aiConfig, undefined);
+		assert.strictEqual(product.appCenter, undefined);
+		assert.strictEqual(product.tasConfig, undefined);
+		assert.strictEqual(product.updateUrl, undefined);
+		assert.strictEqual(product.voiceWsUrl, undefined);
+	});
+
+	test('getTelemetryLevel is none while product telemetry is disabled', () => {
+		const configurations = [
+			new TestConfigurationService(),
+			new TestConfigurationService({ 'telemetry.telemetryLevel': TelemetryConfiguration.ON }),
+			new TestConfigurationService({ 'telemetry.telemetryLevel': TelemetryConfiguration.ERROR }),
+			new TestConfigurationService({ 'telemetry.telemetryLevel': TelemetryConfiguration.CRASH }),
+			new TestConfigurationService({ 'telemetry.telemetryLevel': TelemetryConfiguration.OFF }),
+			new TestConfigurationService({ 'telemetry.telemetryLevel': 'invalid' }),
+			new class extends TestConfigurationService {
+				override getValue<T>(): T {
+					return null!;
+				}
+			}(),
+		];
+		for (const configuration of configurations) {
+			assert.strictEqual(getTelemetryLevel(configuration), TelemetryLevel.NONE);
+		}
+	});
+
+	test('supportsTelemetry stays off when product telemetry is disabled, including dev builds', () => {
+		const productService = { enableTelemetry: false } as IProductService;
+		assert.strictEqual(supportsTelemetry(productService, { isBuilt: true, disableTelemetry: false } as IEnvironmentService), false);
+		assert.strictEqual(supportsTelemetry(productService, { isBuilt: false, disableTelemetry: false } as IEnvironmentService), false);
+	});
+
+	test('getTelemetryLevelFromConfiguration fails closed for invalid configuration', () => {
 		assert.deepStrictEqual([
-			getTelemetryLevel(new TestConfigurationService()),
-			getTelemetryLevel(new TestConfigurationService({ 'telemetry.telemetryLevel': TelemetryConfiguration.ON })),
-			getTelemetryLevel(new TestConfigurationService({ 'telemetry.telemetryLevel': TelemetryConfiguration.ERROR })),
-			getTelemetryLevel(new TestConfigurationService({ 'telemetry.telemetryLevel': TelemetryConfiguration.CRASH })),
-			getTelemetryLevel(new TestConfigurationService({ 'telemetry.telemetryLevel': TelemetryConfiguration.OFF })),
-			getTelemetryLevel(new TestConfigurationService({ 'telemetry.telemetryLevel': 'invalid' })),
-			getTelemetryLevel(new class extends TestConfigurationService {
+			getTelemetryLevelFromConfiguration(new TestConfigurationService()),
+			getTelemetryLevelFromConfiguration(new TestConfigurationService({ 'telemetry.telemetryLevel': TelemetryConfiguration.ON })),
+			getTelemetryLevelFromConfiguration(new TestConfigurationService({ 'telemetry.telemetryLevel': TelemetryConfiguration.ERROR })),
+			getTelemetryLevelFromConfiguration(new TestConfigurationService({ 'telemetry.telemetryLevel': TelemetryConfiguration.CRASH })),
+			getTelemetryLevelFromConfiguration(new TestConfigurationService({ 'telemetry.telemetryLevel': TelemetryConfiguration.OFF })),
+			getTelemetryLevelFromConfiguration(new TestConfigurationService({ 'telemetry.telemetryLevel': 'invalid' })),
+			getTelemetryLevelFromConfiguration(new class extends TestConfigurationService {
 				override getValue<T>(): T {
 					return null!;
 				}

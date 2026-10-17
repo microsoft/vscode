@@ -28,7 +28,7 @@ configurationRegistry.registerConfiguration({
 		[EDIT_TELEMETRY_SETTING_ID]: {
 			markdownDescription: localize('telemetry.editStats.enabled', "Controls whether to enable telemetry for edit statistics (only sends statistics if general telemetry is enabled)."),
 			type: 'boolean',
-			default: true,
+			default: false,
 			tags: ['experimental'],
 			experiment: {
 				mode: 'auto'

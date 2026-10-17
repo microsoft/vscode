@@ -6,11 +6,9 @@
 import { Disposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import type { IRequestService } from '../../request/common/request.js';
 import type { ICommonProperties } from '../../telemetry/common/telemetry.js';
-import { OneDataSystemAppender } from '../../telemetry/node/1dsAppender.js';
+import { NullAppender } from '../../telemetry/common/telemetryUtils.js';
 import type { IAgentHostInternalTelemetryContext, IAgentHostInternalTelemetrySink, TelemetryMeasurements, TelemetryProps } from './agentHostRestrictedTelemetry.js';
 
-// Public instrumentation key shipped as internalLargeStorageAriaKey in extensions/copilot/package.json.
-const INTERNAL_LARGE_STORAGE_ARIA_KEY = 'ec712b3202c5462fb6877acae7f1f9d7-c19ad55e-3e3c-4f99-984b-827f6d95bd9e-6917';
 const INTERNAL_EVENT_PREFIX = 'GitHub.copilot-chat';
 const INTERNAL_EXTENSION_ID = 'GitHub.copilot-chat';
 
@@ -64,7 +62,7 @@ export class AgentHostInternalTelemetrySender extends Disposable implements IAge
 			this._appender.clear();
 			return;
 		}
-		const createAppender = this._options.createAppender ?? ((requestService, commonProperties) => new OneDataSystemAppender(requestService, true, INTERNAL_EVENT_PREFIX, commonProperties ?? null, INTERNAL_LARGE_STORAGE_ARIA_KEY));
+		const createAppender = this._options.createAppender ?? (() => NullAppender);
 		this._appender.value ??= new InternalTelemetryAppender(createAppender(this._options.requestService, getInternalCommonProperties(this._options.commonProperties, this._options.extensionVersion), INTERNAL_EVENT_PREFIX));
 	}
 
@@ -79,7 +77,7 @@ export class AgentHostInternalTelemetrySender extends Disposable implements IAge
 		if (!context.isInternal) {
 			return;
 		}
-		const createAppender = this._options.createAppender ?? ((requestService, commonProperties) => new OneDataSystemAppender(requestService, true, INTERNAL_EVENT_PREFIX, commonProperties ?? null, INTERNAL_LARGE_STORAGE_ARIA_KEY));
+		const createAppender = this._options.createAppender ?? (() => NullAppender);
 		this._appender.value ??= new InternalTelemetryAppender(createAppender(this._options.requestService, getInternalCommonProperties(this._options.commonProperties, this._options.extensionVersion), INTERNAL_EVENT_PREFIX));
 		this._appender.value.appender.log(eventName, {
 			...properties,

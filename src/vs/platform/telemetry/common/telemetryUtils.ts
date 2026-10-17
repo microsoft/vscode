@@ -10,6 +10,7 @@ import { localize } from '../../../nls.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { LoggerGroup } from '../../log/common/log.js';
+import product from '../../product/common/product.js';
 import { IProductService } from '../../product/common/productService.js';
 import { getRemoteName } from '../../remote/common/remoteHosts.js';
 import { verifyMicrosoftInternalDomain } from './commonProperties.js';
@@ -94,6 +95,10 @@ export interface URIDescriptor {
  * @returns false - telemetry is completely disabled, true - telemetry is logged locally, but may not be sent
  */
 export function supportsTelemetry(productService: IProductService, environmentService: IEnvironmentService): boolean {
+	// Explicit false covers dev builds. An unset flag still allows OSS logging-only mode below.
+	if (environmentService.disableTelemetry || productService.enableTelemetry === false) {
+		return false;
+	}
 	// If it's OSS and telemetry isn't disabled via the CLI we will allow it for logging only purposes
 	if (!environmentService.isBuilt && !environmentService.disableTelemetry) {
 		return true;
@@ -136,6 +141,16 @@ export function isLoggingOnly(productService: IProductService, environmentServic
  * @returns OFF, ERROR, ON
  */
 export function getTelemetryLevel(configurationService: IConfigurationService): TelemetryLevel {
+	if (product.enableTelemetry === false) {
+		return TelemetryLevel.NONE;
+	}
+	return getTelemetryLevelFromConfiguration(configurationService);
+}
+
+/**
+ * Maps telemetry settings to a level. Does not apply the product.json kill switch.
+ */
+export function getTelemetryLevelFromConfiguration(configurationService: IConfigurationService): TelemetryLevel {
 	const newConfig = configurationService.getValue<TelemetryConfiguration>(TELEMETRY_SETTING_ID);
 	const crashReporterConfig = configurationService.getValue<boolean | undefined>(TELEMETRY_CRASH_REPORTER_SETTING_ID);
 	const oldConfig = configurationService.getValue<boolean | undefined>(TELEMETRY_OLD_SETTING_ID);
