@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI, UriComponents } from '../../../base/common/uri.js';
-import { asPromise } from '../../../base/common/async.js';
 import { Event, Emitter } from '../../../base/common/event.js';
 
 import { MainContext, MainThreadTaskShape, ExtHostTaskShape } from './extHost.protocol.js';
@@ -595,10 +594,10 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 
 	protected abstract provideTasksInternal(validTypes: { [key: string]: boolean }, taskIdPromises: Promise<void>[], handler: HandlerData, value: vscode.Task[] | null | undefined): { tasks: tasks.ITaskDTO[]; extension: IExtensionDescription };
 
-	public $provideTasks(handle: number, validTypes: { [key: string]: boolean }): Promise<tasks.ITaskSetDTO> {
+	public async $provideTasks(handle: number, validTypes: { [key: string]: boolean }): Promise<tasks.ITaskSetDTO> {
 		const handler = this._handlers.get(handle);
 		if (!handler) {
-			return Promise.reject(new Error('no handler found'));
+			throw new Error('no handler found');
 		}
 
 		// Set up a list of task ID promises that we can wait on
@@ -610,17 +609,10 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 		// thread, which is too late for us because we need to save an map
 		// from an ID to the custom execution function. (Kind of a cart before the horse problem).
 		const taskIdPromises: Promise<void>[] = [];
-		const fetchPromise = asPromise(() => handler.provider.provideTasks(CancellationToken.None)).then(value => {
-			return this.provideTasksInternal(validTypes, taskIdPromises, handler, value);
-		});
-
-		return new Promise((resolve) => {
-			fetchPromise.then((result) => {
-				Promise.all(taskIdPromises).then(() => {
-					resolve(result);
-				});
-			});
-		});
+		const value = await handler.provider.provideTasks(CancellationToken.None);
+		const result = this.provideTasksInternal(validTypes, taskIdPromises, handler, value);
+		await Promise.all(taskIdPromises);
+		return result;
 	}
 
 	protected abstract resolveTaskInternal(resolvedTaskDTO: tasks.ITaskDTO): Promise<tasks.ITaskDTO | undefined>;
