@@ -281,7 +281,19 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 		return joinPath(this.appSettingsHome, 'agent-sessions.code-workspace');
 	}
 
-	get editSessionId(): string | undefined { return this.args['editSessionId']; }
+	private _editSessionId: string | undefined = undefined;
+	private _editSessionIdInitialized = false;
+	get editSessionId(): string | undefined {
+		if (!this._editSessionIdInitialized) {
+			this._editSessionId = this.args['editSessionId'];
+			this._editSessionIdInitialized = true;
+		}
+		return this._editSessionId;
+	}
+	set editSessionId(value: string | undefined) {
+		this._editSessionId = value;
+		this._editSessionIdInitialized = true;
+	}
 
 	get exportPolicyData(): string | undefined {
 		return this.args['export-policy-data'];
