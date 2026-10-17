@@ -52,10 +52,12 @@ export function readAgentModelAutoTiersMeta(model: IAgentModelInfo | SessionMode
 
 const VSCODE_AUTO_TIER_PROMOTIONS_META_KEY = 'vscode.chat.autoTierPromotions';
 
-/** A `/meta` `service_messages[]` promotion for Auto tiers. See github/copilot-api#39882. */
+/** An Auto tier promotion, grouped across the tiers it covers. See github/copilot-api#39882. */
 export interface IAgentModelAutoTierPromotion {
 	readonly id: string;
-	readonly message: string;
+	/** Absent when the service sent only a discount. */
+	readonly message?: string;
+	/** `0` announces the promotion without a discount. */
 	readonly discountPercent: number;
 	readonly tierIds: readonly string[];
 	readonly startsAt?: string;
@@ -63,38 +65,43 @@ export interface IAgentModelAutoTierPromotion {
 	readonly showBanner?: boolean;
 }
 
-/** Accepts snake_case and camelCase; ignores unknown kinds, target types, and malformed entries. */
-export function parseAutoTierPromotions(serviceMessages: unknown): IAgentModelAutoTierPromotion[] {
-	if (!Array.isArray(serviceMessages)) {
-		return [];
-	}
-	const promotions: IAgentModelAutoTierPromotion[] = [];
-	for (const raw of serviceMessages) {
-		if (!isObject(raw)) {
+/**
+ * The SDK's `AutoTierBillingPromo` (github/copilot-agent-runtime#27103). The runtime has already
+ * applied `/meta` `service_messages`: unknown kinds and targets and ended promotions are gone,
+ * and each tier carries at most one promotion, possibly one that has not started.
+ */
+export interface IAutoTierBillingPromo {
+	readonly id?: string;
+	readonly discountPercent?: number;
+	readonly startsAt?: string;
+	readonly endsAt?: string;
+	readonly message?: string;
+	readonly showBanner?: boolean;
+}
+
+/** Groups the tiers' `billing.promo` by promotion, so one promotion lists every tier it covers. */
+export function collectAutoTierPromotions(tiers: readonly { readonly id: string; readonly billing?: { readonly promo?: IAutoTierBillingPromo } }[]): IAgentModelAutoTierPromotion[] {
+	const byKey = new Map<string, { promo: IAutoTierBillingPromo; tierIds: string[] }>();
+	for (const tier of tiers) {
+		const promo = tier.billing?.promo;
+		if (!isObject(promo)) {
 			continue;
 		}
-		const entry = raw as Record<string, unknown>;
-		if (entry.kind !== 'promotion') {
-			continue;
-		}
-		const appliesTo = entry.appliesTo ?? entry.applies_to;
-		const tierIds = Array.isArray(appliesTo)
-			? appliesTo.flatMap(target => isObject(target) && (target as Record<string, unknown>).type === 'auto_tier' && typeof (target as Record<string, unknown>).id === 'string' && (target as Record<string, unknown>).id ? [(target as Record<string, unknown>).id as string] : [])
-			: [];
-		const promotion = toPromotion({
-			id: entry.id,
-			message: entry.message,
-			discountPercent: entry.discountPercent ?? entry.discount_percent,
-			tierIds: [...new Set(tierIds)],
-			startsAt: entry.startsAt ?? entry.starts_at ?? undefined,
-			endsAt: entry.endsAt ?? entry.ends_at ?? undefined,
-			showBanner: entry.showBanner ?? entry.show_banner ?? undefined,
-		});
-		if (promotion) {
-			promotions.push(promotion);
+		// `id` is optional in the SDK contract, so an unnamed promotion is keyed by its content.
+		const key = typeof promo.id === 'string' && promo.id ? promo.id : JSON.stringify([promo.message, promo.discountPercent, promo.startsAt, promo.endsAt]);
+		const group = byKey.get(key);
+		if (group) {
+			if (!group.tierIds.includes(tier.id)) {
+				group.tierIds.push(tier.id);
+			}
+		} else {
+			byKey.set(key, { promo, tierIds: [tier.id] });
 		}
 	}
-	return promotions;
+	return [...byKey].flatMap(([key, { promo, tierIds }]) => {
+		const promotion = toPromotion({ ...promo, id: key, discountPercent: promo.discountPercent ?? 0, tierIds });
+		return promotion ? [promotion] : [];
+	});
 }
 
 export function withAgentModelAutoTierPromotionsMeta(meta: Record<string, unknown> | undefined, promotions: readonly IAgentModelAutoTierPromotion[]): Record<string, unknown> | undefined {
@@ -114,15 +121,18 @@ export function readAgentModelAutoTierPromotionsMeta(model: IAgentModelInfo | Se
 
 function toPromotion(entry: Record<string, unknown>): IAgentModelAutoTierPromotion | undefined {
 	const { id, message, discountPercent, tierIds, startsAt, endsAt, showBanner } = entry;
-	if (typeof id !== 'string' || !id || typeof message !== 'string' || !message
+	if (typeof id !== 'string' || !id || (message !== undefined && typeof message !== 'string')
 		|| typeof discountPercent !== 'number' || !Number.isFinite(discountPercent) || discountPercent < 0 || discountPercent > 100
+		// Nothing to show without a message or a discount.
+		|| (!message && discountPercent === 0)
 		|| !Array.isArray(tierIds) || !tierIds.length || !tierIds.every(tier => typeof tier === 'string' && tier)
 		|| !isOptionalDate(startsAt) || !isOptionalDate(endsAt)
 		|| (showBanner !== undefined && typeof showBanner !== 'boolean')) {
 		return undefined;
 	}
 	return {
-		id, message, discountPercent, tierIds: tierIds as string[],
+		id, discountPercent, tierIds: tierIds as string[],
+		...(typeof message === 'string' && message ? { message } : {}),
 		...(typeof startsAt === 'string' ? { startsAt } : {}),
 		...(typeof endsAt === 'string' ? { endsAt } : {}),
 		...(typeof showBanner === 'boolean' ? { showBanner } : {}),

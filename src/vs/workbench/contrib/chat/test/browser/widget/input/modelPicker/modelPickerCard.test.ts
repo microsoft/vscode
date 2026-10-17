@@ -234,6 +234,12 @@ suite('ModelCard', () => {
 			});
 		});
 
+		test('a promotion without a message changes the discount without showing a banner', () => {
+			const { message: _, ...discountOnly } = promotion(iso(-day), iso(day), ['hydrafusion']);
+			const { card } = createCard({ tier: 'hydrafusion' }, { model: createFusionModel([discountOnly]) });
+			assert.deepStrictEqual(read(card), { discount: 'Models routed via Fusion Balance receive a 30% discount.', promotions: [] });
+		});
+
 		test('an upcoming promotion is announced with its start date without changing the discount, and an ended one is hidden', () => {
 			const upcoming = createCard({ tier: 'balance' }, { model: createFusionModel([promotion(iso(day), iso(2 * day))]) }).card;
 			const startsAt = new Date(Date.now() + day).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });

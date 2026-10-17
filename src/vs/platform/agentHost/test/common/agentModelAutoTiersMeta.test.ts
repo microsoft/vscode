@@ -5,25 +5,29 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { parseAutoTierPromotions } from '../../common/meta/agentModelMeta.js';
+import { collectAutoTierPromotions } from '../../common/meta/agentModelMeta.js';
 
 suite('agentModelAutoTiersMeta', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('reads tier promotions from service messages in either casing, ignoring what it does not understand', () => {
-		assert.deepStrictEqual(parseAutoTierPromotions([
-			{ id: 'camel', kind: 'promotion', appliesTo: [{ type: 'auto_tier', id: 'balance' }, { type: 'auto_tier', id: 'balance' }], message: 'Save', discountPercent: 20, startsAt: null, endsAt: '2026-11-27T00:00:00Z' },
-			{ id: 'message-only', kind: 'promotion', applies_to: [{ type: 'auto_tier', id: 'hydrafusion' }], message: 'New tier', discount_percent: 0 },
-			{ id: 'announcement', kind: 'announcement', applies_to: [{ type: 'auto_tier', id: 'balance' }], message: 'Hi', discount_percent: 0 },
-			{ id: 'model-only', kind: 'promotion', applies_to: [{ type: 'model', id: 'gpt-5' }], message: 'Sale', discount_percent: 10 },
-			{ id: 'too-much', kind: 'promotion', applies_to: [{ type: 'auto_tier', id: 'balance' }], message: 'Sale', discount_percent: 120 },
-			{ id: 'no-message', kind: 'promotion', applies_to: [{ type: 'auto_tier', id: 'balance' }], discount_percent: 10 },
-			'not an object',
+	test('groups the runtime\'s per-tier promotions by promotion, accepting the optional fields the SDK contract allows', () => {
+		const launch = { id: 'ensemble-launch', discountPercent: 30, startsAt: '2026-10-28T00:00:00Z', endsAt: '2026-11-27T00:00:00Z', message: '30% off', showBanner: true };
+		const discountOnly = { discountPercent: 10 };
+		assert.deepStrictEqual(collectAutoTierPromotions([
+			{ id: 'balance', billing: { promo: launch } },
+			{ id: 'hydrafusion', billing: { promo: launch } },
+			{ id: 'hydrafusion-max', billing: { promo: { id: 'max-preview', message: 'Max is coming' } } },
+			{ id: 'efficiency', billing: { promo: discountOnly } },
+			{ id: 'intelligence', billing: { promo: discountOnly } },
+			{ id: 'premium', billing: { promo: { id: 'empty' } } },
+			{ id: 'broken', billing: { promo: { id: 'bad-date', message: 'Sale', endsAt: 'soon' } } },
+			{ id: 'fast', billing: {} },
+			{ id: 'none' },
 		]), [
-			{ id: 'camel', message: 'Save', discountPercent: 20, tierIds: ['balance'], endsAt: '2026-11-27T00:00:00Z' },
-			{ id: 'message-only', message: 'New tier', discountPercent: 0, tierIds: ['hydrafusion'] },
+			{ id: 'ensemble-launch', message: '30% off', discountPercent: 30, tierIds: ['balance', 'hydrafusion'], startsAt: '2026-10-28T00:00:00Z', endsAt: '2026-11-27T00:00:00Z', showBanner: true },
+			{ id: 'max-preview', message: 'Max is coming', discountPercent: 0, tierIds: ['hydrafusion-max'] },
+			{ id: JSON.stringify([undefined, 10, undefined, undefined]), discountPercent: 10, tierIds: ['efficiency', 'intelligence'] },
 		]);
-		assert.deepStrictEqual(parseAutoTierPromotions(undefined), []);
 	});
 
 });

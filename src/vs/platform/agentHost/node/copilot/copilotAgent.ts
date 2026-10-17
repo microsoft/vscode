@@ -42,7 +42,7 @@ import { workspacelessChatsRoot, workspacelessScratchDir } from '../../common/wo
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import type { IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { IAgentHostReviewService } from '../../common/agentHostReviewService.js';
-import { createPricingMetaFromBilling, hasLongContextSurcharge, normalizeCAPIBilling, parseAutoTierPromotions, readAgentModelAutoTiersMeta, withAgentModelAutoTierPromotionsMeta, withAgentModelAutoTiersMeta, withAgentModelFusionMeta, type IAgentModelAutoTierPromotion, type ICAPIModelBilling } from '../../common/meta/agentModelMeta.js';
+import { createPricingMetaFromBilling, hasLongContextSurcharge, collectAutoTierPromotions, normalizeCAPIBilling, readAgentModelAutoTiersMeta, withAgentModelAutoTierPromotionsMeta, withAgentModelAutoTiersMeta, withAgentModelFusionMeta, type IAgentModelAutoTierPromotion, type IAutoTierBillingPromo, type ICAPIModelBilling } from '../../common/meta/agentModelMeta.js';
 import { agentModelConfigurationReportKey, createContextSizeConfigSchemaProperty } from '../../common/agentModelConfiguration.js';
 import { createAgentModelNoticesMeta } from '../../common/agentModelNotices.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
@@ -185,10 +185,9 @@ export function getPickerAutoTiers(metadata: CopilotAutoTierMetadata, hydraFusio
 	return metadata.tiers.filter(tier => isPickerAutoTierKind(tier, hydraFusionV2) && tier.id !== 'fast' && isInAutoTierPicker(tier));
 }
 
-/** Not typed by the SDK yet. */
+/** `/meta` `tier_picker_enabled`, which the SDK does not type yet (github/copilot-agent-runtime#27103). Absent means visible. */
 function isInAutoTierPicker(tier: CopilotAutoTierDescriptor): boolean {
-	const status = tier.status as { readonly tierPickerEnabled?: unknown; readonly tier_picker_enabled?: unknown };
-	return (status.tierPickerEnabled ?? status.tier_picker_enabled) !== false;
+	return (tier.status as { readonly pickerVisible?: boolean }).pickerVisible !== false;
 }
 
 /** Intelligence would be a second Balance beside the provider's HydraFusion tier. */
@@ -4487,11 +4486,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private async _listModels(gitHubToken: string): Promise<{ readonly models: IAgentModelInfo[]; readonly autoTierMetadata: CopilotAutoTierMetadata | undefined }> {
 		this._logService.info('[Copilot] Listing models...');
 		const client = await this._ensureClient();
-		const response = await client.rpc.models.list(this._getEnterpriseHost() ? {} : { gitHubToken });
-		const { models, auto } = response;
-		// Not typed by the SDK yet.
-		const serviceMessages = response as { readonly serviceMessages?: unknown; readonly service_messages?: unknown };
-		const promotions = auto ? parseAutoTierPromotions(serviceMessages.serviceMessages ?? serviceMessages.service_messages) : [];
+		const { models, auto } = await client.rpc.models.list(this._getEnterpriseHost() ? {} : { gitHubToken });
+		// `billing.promo` is not typed by the SDK yet (github/copilot-agent-runtime#27103).
+		const promotions = auto ? collectAutoTierPromotions(auto.tiers as readonly (CopilotAutoTierDescriptor & { readonly billing?: { readonly promo?: IAutoTierBillingPromo } })[]) : [];
 		// Empty SDK results can also mean discovery failed, so do not replace an already loaded catalog.
 		if (!models.length && this._capiModels.some(model => !this._fallbackAutoModels.has(model))) {
 			throw new Error('Model refresh returned an empty catalog; retaining the previous models');

@@ -706,11 +706,15 @@ export class ModelCard extends DisposableStore {
 				return promotion && !shown.has(promotion.id) && shown.add(promotion.id) ? [promotion] : [];
 			})
 			.sort((a, b) => Number(ILanguageModelChatMetadata.isAutoTierPromotionUpcoming(a, now)) - Number(ILanguageModelChatMetadata.isAutoTierPromotionUpcoming(b, now)));
-		for (const promotion of promotions) {
+		for (const { message, ...promotion } of promotions) {
+			// A discount-only promotion shows only in the discount line.
+			if (!message) {
+				continue;
+			}
 			const when = ILanguageModelChatMetadata.isAutoTierPromotionUpcoming(promotion, now)
 				? ILanguageModelChatMetadata.getPromoStartsAtLabel(promotion.startsAt)
 				: ILanguageModelChatMetadata.getPromoEndsAtLabel(promotion.endsAt);
-			const banner = createMessageBanner(when ? `${promotion.message} ${when}` : promotion.message, 'chat-model-hover-promo-text', Codicon.info, this._contentDisposables, this._options.openerService);
+			const banner = createMessageBanner(when ? `${message} ${when}` : message, 'chat-model-hover-promo-text', Codicon.info, this._contentDisposables, this._options.openerService);
 			banner.classList.add('chat-model-card-tier-promotion');
 			this.element.appendChild(banner);
 		}

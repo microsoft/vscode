@@ -92,7 +92,7 @@ import { IAgentHostGitService, type IAddWorktreeOptions, type IBranch, type IDef
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { IAgentHostOTelService, NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentHostCompletions, IAgentHostCompletions } from '../../node/agentHostCompletions.js';
-import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, getCopilotManagedSettingsDiagnostics, rebaseUnder, REFRESH_DEBOUNCE_MS, resolveCopilotOtlpMetricsEndpoint } from '../../node/copilot/copilotAgent.js';
+import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, getCopilotManagedSettingsDiagnostics, type CopilotAutoTierMetadata, rebaseUnder, REFRESH_DEBOUNCE_MS, resolveCopilotOtlpMetricsEndpoint } from '../../node/copilot/copilotAgent.js';
 import { buildCopilotBuiltinAgents, buildCopilotBuiltinAgentsContainer, COPILOT_BUILTIN_AGENTS, COPILOT_BUILTIN_AGENT_NAMES, getCopilotBuiltinAgentUri } from '../../node/copilot/copilotBuiltinAgents.js';
 import { ICopilotChatDiscoveryScan } from '../../node/copilot/copilotChatDiscovery.js';
 import { COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY, deferCopilotSdkExecution } from '../../node/copilot/copilotSessionExecutionMarker.js';
@@ -847,7 +847,7 @@ class TestCopilotClient implements ITestCopilotClient {
 				if (error) {
 					throw error;
 				}
-				return { models: models.map(toSdkModelInfo), ...(auto ? { auto } : {}), ...this.modelListExtraFields };
+				return { models: models.map(toSdkModelInfo), ...(auto ? { auto } : {}) };
 			}
 		},
 		plugins: {
@@ -908,7 +908,6 @@ class TestCopilotClient implements ITestCopilotClient {
 	/** Per-request gates and results, captured when each request starts. */
 	readonly modelListGates: Promise<void>[] = [];
 	readonly modelListResponses: ITestCopilotModelInfo[][] = [];
-	modelListExtraFields: Record<string, unknown> = {};
 	readonly modelListAutoResponses: (NonNullable<Awaited<ReturnType<CopilotModelsList>>['auto']> | null)[] = [];
 	readonly getSessionMetadataCalls: string[] = [];
 	readonly deletedSessionIds: string[] = [];
@@ -13260,27 +13259,24 @@ suite('CopilotAgent', () => {
 
 	test('presents the provider\'s tiers as Fusion\'s Lite, Balance, and Max, carrying the service\'s promotions for them', async () => {
 		const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
-		client.autoTierMetadata = {
-			defaultTier: 'balance',
-			tiers: [
-				{ id: 'balance', displayName: 'Balance', description: '', type: 'auto', status: { enabled: true } },
-				{ id: 'hydrafusion', displayName: 'High', description: '', type: 'fusion', status: { enabled: true } },
-				{ id: 'hydrafusion-max', displayName: 'Max', description: '', type: 'fusion', status: { enabled: false, message: 'Not eligible' } },
-			],
+		// The runtime attaches each `/meta` `service_messages` promotion to the tiers it targets (github/copilot-agent-runtime#27103).
+		const promo = {
+			id: 'ensemble-launch-2026',
+			discountPercent: 30,
+			startsAt: '2026-10-28T00:00:00Z',
+			endsAt: '2026-11-27T00:00:00Z',
+			message: 'Get 30% off Ensemble usage for 30 days starting October 28, 2026.',
+			showBanner: true,
 		};
-		client.modelListExtraFields = {
-			service_messages: [
-				{
-					id: 'ensemble-launch-2026', kind: 'promotion',
-					applies_to: [{ type: 'auto_tier', id: 'balance' }, { type: 'auto_tier', id: 'hydrafusion' }, { type: 'auto_tier', id: 'hydrafusion-max' }, { type: 'model', id: 'gpt-5' }],
-					message: 'Get 30% off Ensemble usage for 30 days starting October 28, 2026.',
-					discount_percent: 30, starts_at: '2026-10-28T00:00:00Z', ends_at: '2026-11-27T00:00:00Z', show_banner: true,
-				},
-				{ id: 'outage', kind: 'degradation', applies_to: [{ type: 'auto_tier', id: 'balance' }], message: 'Slow' },
-				{ id: 'no-tiers', kind: 'promotion', applies_to: [{ type: 'model', id: 'gpt-5' }], message: 'Model sale', discount_percent: 5 },
-				{ id: 'bad-date', kind: 'promotion', applies_to: [{ type: 'auto_tier', id: 'balance' }], message: 'Sale', discount_percent: 5, ends_at: 'soon' },
-			],
-		};
+		// Typed ahead of the SDK bump that adds `pickerVisible` and `billing`.
+		type FutureAutoTier = Omit<CopilotAutoTierMetadata['tiers'][number], 'status'> & { status: CopilotAutoTierMetadata['tiers'][number]['status'] & { pickerVisible?: boolean }; billing?: { promo?: typeof promo } };
+		const tiers: FutureAutoTier[] = [
+			{ id: 'balance', displayName: 'Balance', description: '', type: 'auto', status: { enabled: true, pickerVisible: true }, billing: { promo } },
+			{ id: 'hydrafusion', displayName: 'High', description: '', type: 'fusion', status: { enabled: true, pickerVisible: true }, billing: { promo } },
+			{ id: 'hydrafusion-max', displayName: 'Max', description: '', type: 'fusion', status: { enabled: false, pickerVisible: true, message: 'Not eligible' }, billing: { promo } },
+			{ id: 'fast', displayName: 'Fast', description: '', type: 'auto', status: { enabled: true, pickerVisible: false } },
+		];
+		client.autoTierMetadata = { defaultTier: 'balance', tiers };
 		const { agent } = createTestAgentContext(disposables, {
 			copilotClient: client,
 			rootConfig: { [CopilotCliConfigKey.Fusion]: true, [CopilotCliConfigKey.HydraFusion]: true, [CopilotCliConfigKey.HydraFusionV2]: true },
@@ -13325,7 +13321,7 @@ suite('CopilotAgent', () => {
 				{ id: 'intelligence', displayName: 'Intelligence', description: '', type: 'auto', status: { enabled: true } },
 				{ id: 'hydrafusion', displayName: 'High', description: '', type: 'fusion', status: { enabled: true } },
 				{ id: 'premium-v2', displayName: 'Premium', description: '', type: 'auto', status: { enabled: true } },
-				{ id: 'staged', displayName: 'Staged', description: '', type: 'auto', status: { enabled: true, tier_picker_enabled: false } as { enabled: boolean } },
+				{ id: 'staged', displayName: 'Staged', description: '', type: 'auto', status: { enabled: true, pickerVisible: false } as { enabled: boolean } },
 			],
 		};
 		const { agent } = createTestAgentContext(disposables, { copilotClient: client, rootConfig: { [CopilotCliConfigKey.Fusion]: true } });

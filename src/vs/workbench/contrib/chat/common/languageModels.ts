@@ -251,7 +251,7 @@ export interface ILanguageModelConfigurationSchema extends IJSONSchema {
 
 export interface IAutoModelTierPromotion {
 	readonly id: string;
-	readonly message: string;
+	readonly message?: string;
 	readonly discountPercent: number;
 	readonly tierIds: readonly string[];
 	readonly startsAt?: string;
