@@ -8,6 +8,7 @@ import { errorHandler, setUnexpectedErrorHandler } from '../../../../../../base/
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { McpServerStatus } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { CustomizationType, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, type Customization, type ResponsePart } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { SessionCustomizationKind } from '../../../../../services/sessions/common/session.js';
@@ -81,6 +82,24 @@ suite('Agent Host Session Customizations', () => {
 			{ id: 'skill-1', kind: SessionCustomizationKind.Skill },
 			{ id: 'hook-1', kind: SessionCustomizationKind.Hook },
 		]);
+	});
+
+	test('maps an opaque customization URI from a remote host', () => {
+		const id = 'mcp-top-level:copilotcli:session-1:github';
+		const index = new CustomizationIndex([{
+			id,
+			type: CustomizationType.McpServer,
+			uri: id,
+			name: 'github',
+			state: { kind: McpServerStatus.Stopped },
+		}], [], uri => toAgentHostUri(uri, 'remote-host'));
+
+		assert.deepStrictEqual(index.resolve({ kind: CustomizationRefKind.Mcp, value: id }), {
+			id,
+			kind: SessionCustomizationKind.McpServer,
+			name: 'github',
+			uri: toAgentHostUri(URI.parse(id), 'remote-host'),
+		});
 	});
 
 	test('de-duplicates a customization reached through different references', () => {

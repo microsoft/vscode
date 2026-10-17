@@ -16,6 +16,7 @@ import { ISharedProcessService } from '../../../ipc/electron-browser/services.js
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { InMemoryStorageService, IStorageService } from '../../../storage/common/storage.js';
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
+import { IDefaultAccountService } from '../../../defaultAccount/common/defaultAccount.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { IEnvironmentService } from '../../../environment/common/environment.js';
 import { ILabelService } from '../../../label/common/label.js';
@@ -243,6 +244,7 @@ suite('WSLRemoteAgentHostService (renderer)', () => {
 
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IDefaultAccountService, { policyData: null, onDidChangePolicyData: Event.None });
 		instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 		instantiationService.stub(IEnvironmentService, { logsHome: URI.file('/logs') } as Partial<IEnvironmentService>);
 		instantiationService.stub(ILabelService, {

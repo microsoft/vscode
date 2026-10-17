@@ -3,6 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+@property --modern-ui-tab-action-fit-padding {
+	syntax: '<length>';
+	inherits: true;
+	initial-value: 28px;
+}
+
 /*
  * Modern UI module: "Tabs".
  *

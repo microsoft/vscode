@@ -28,6 +28,10 @@ The GitHub engine uses shared [types](common/types.ts), [queue](common/requestQu
 
 Shared schema parsers live in [client/schema.ts](common/client/schema.ts); domain clients compose them to validate API payloads. Strict [HTTP header readers](common/client/headers.ts) validate quota counters and Retry-After feedback. Shared [routing helpers](common/client/routing.ts) encode opaque identifiers, repository paths, and query parameters.
 
+Response contracts preserve omitted fields and explicit nulls rather than substituting empty values. Check both GitHub's [REST OpenAPI descriptions](https://github.com/github/rest-api-description) and [GraphQL schema](https://docs.github.com/en/graphql/overview/public-schema), and verify discrepancies against the service implementation: published descriptions can lag nullable auto-merge metadata, review-comment positioning, and Actions job metadata. [Compatibility regressions](test/common/apiCompatibility.test.ts) exercise the real response parsers; consumers must not reintroduce stricter requirements for optional display metadata.
+
+Git object IDs may be full lowercase SHA-1 or SHA-256 values (40 or 64 hexadecimal characters). Ref resolution and public raw-content confinement accept both while continuing to reject mutable refs, malformed IDs, and redirects outside the pinned repository revision. Identity checks, safe-integer bounds, response-size limits, and bounded pagination remain independent of optional response metadata.
+
 An in-flight operation owns its controller and shared deadline. `OperationWaiters` owns individual callers' waiting, cancellation and result delivery, not network execution. One caller can detach without cancelling peers; the operation owner decides what happens when its last waiter leaves. This also supports service-wide metadata initialization, which is not an HTTP request.
 
 ### Authorization clients
@@ -90,13 +94,21 @@ Private caches and request sharing remain token/base-specific. Host-supplied acc
 
 ### Repository queries
 
-Authorized clients expose one-shot `getRepository`, `listRepositories` and `searchRepositories` operations in addition to repository subscriptions. They use the existing repository response mapping and governed REST transport, including authorization-scoped ETags and coalescing with subscribed reads. REST results retain server-provided HTTPS and SSH clone URLs when available; GraphQL-hydrated resources may omit them.
+Legacy authorized clients expose `listRepositories` and `searchRepositories` alongside repository subscriptions and merge-setting reads. They use the existing repository response mapping and governed REST transport, including authorization-scoped ETags and coalescing with subscribed reads. REST results retain server-provided HTTPS and SSH clone URLs when available; GraphQL-hydrated resources may omit them. One-shot repository metadata reads use the portable [repositories domain](common/core/repositories.ts), not a duplicate legacy getter.
 
 Discovery takes an account handle, not a synthetic repository or Agent Host/session context. Each call fetches one page (1–100 items, default 100) and returns an optional `nextPage` from the server's pagination signal. Callers own iteration, selection, sorting, query qualifiers and operation budgets; the service does not fetch organizations, scope a search to the current user, or automatically drain every page. Empty queries and invalid pagination fail with a validation error before credential resolution or network dispatch.
 
 Search also returns `totalCount`, `incompleteResults` and `limitReached`. The last field identifies searches exceeding GitHub's 1,000 retrievable results; pagination never advertises a page beyond that ceiling. A missing `nextPage` does not imply a complete search when either flag is set. Malformed completeness fields are errors, not empty successful results.
 
-These contracts cover metadata/discovery requirements of core repository presentations, the legacy Sessions repository picker, and the built-in GitHub remote-source provider without taking over their UI, account selection or git workflows. Those legacy renderer/extension consumers remain unmigrated; shared-process authenticated-client IPC and repository creation/fork/branch APIs are separate work.
+Core repository presentations use subscriptions; the [Cloud Sandbox repository picker](../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxRepositoryPicker.ts) uses the legacy discovery operations. Sessions GitHub fetchers already use the portable domains. The built-in GitHub remote-source provider remains independent.
+
+### Legacy resource and mutation surface
+
+The [legacy query contract](common/githubQueryService.ts) retains repository/issue/commit subscriptions, batched resource hydration, repository discovery, issue/PR title context, repository merge settings, and branch/SHA association. Repository subscriptions expose only their resource and disposal; issue subscriptions additionally support priority updates and refresh, and commit subscriptions support refresh. Cache clearing is private lifecycle behavior. Capability probes are cached by host, without a caller-supplied Enterprise version.
+
+[PR resources](common/githubPullRequestService.ts) contain core, top-level comments, submitted reviews, review threads, checks, and mergeability. Inline review comments remain nested in review threads; there is no standalone inline-comment or participants fragment. Shared polling, body-release lifetimes, capability fallbacks, authoritative refreshes, and head/generation checks remain unchanged.
+
+The [legacy mutation contract](common/githubPullRequestMutationService.ts) retains PR creation, draft/auto-merge changes, guarded reply-and-resolve, workflow diagnostics/reruns, and prepared merge/queue operations. Standalone comment creation, reply, resolution, and branch updating are not exposed. Reply publication checks, uncertain-outcome reconciliation, and merge authorization remain part of the compound operations rather than being replaced with raw endpoint calls.
 
 ### Agent Host repository and PR operations
 

@@ -68,7 +68,10 @@ itself so that adding `copilot` to `PATH` never depends on adding `code`, and
 the reverse.
 
 - The Windows installer ([`copilot.iss`](../build/win32/copilot.iss)) adds the
-  folder to `PATH`, and can install Copilot CLI with the setup commands.
+  folder to `PATH`, and can install Copilot CLI with the setup commands. The
+  folder also contains a POSIX `copilot` launcher, so that WSL, Git Bash, and
+  Cygwin shells get the command (see
+  [`copilot` in WSL, Git Bash, and Cygwin](#copilot-in-wsl-git-bash-and-cygwin)).
 - The Copilot extension computes the same path and adds the folder to the
   `PATH` of integrated terminals, unless `chat.copilotCliCommand.enabled` is
   off. It then removes `<globalStorageUri>/copilotCli`, where earlier versions
@@ -117,6 +120,18 @@ CLI's files, its `PATH` entry, its updates, its uninstallation, and its data.
 The shim installs Copilot CLI only when there is none, never updates it, and
 uninstalling VS Code never removes it or its data (`~/.copilot`).
 
+### macOS Shell Command installation
+
+On macOS, the Shell Command action in the Command Palette offers a localized Yes/No choice to also install GitHub Copilot CLI, with Yes initially active:
+
+- **Yes** starts the packaged shim's [interactive install-only mode](#install) in a visible local transient terminal, then continues the existing code-command installation without waiting for that terminal. Each Yes starts an independent terminal.
+- **No** keeps the existing code-command flow.
+- Dismissing the picker cancels both flows.
+
+Startup failures are shown explicitly but still continue the code-command installation; its success dialog confirms only that command, not Copilot CLI completion.
+
+The Copilot choice is offered only while the effective `chat.copilotCliCommand.enabled` setting allows it and Copilot is not hidden; otherwise the original code-only title and flow remain. The action does not create a VS Code-owned `/usr/local/bin/copilot` link. Copilot's installer owns PATH/profile changes; see [post-install behavior](./SHIM_POST_INSTALL.md#macos-workbench-install-only-flow).
+
 ### `copilot` on PATH on Windows
 
 Setup decides whether the shim folder is on `PATH` (the user `PATH` for the user
@@ -137,10 +152,7 @@ installer, the machine `PATH` for the system installer), in this order:
    page, including once for existing installs that predate the shim. The
    result is remembered like a choice.
 
-Background updates never download Copilot CLI; only Install now on the page or
-`/copilotcli=install` in the user installer does. VS Code has no commands or
-prompt of its own for this; the Copilot extension adds the shim to integrated
-terminals on every platform.
+Background updates never download Copilot CLI; only Install now on the page or `/copilotcli=install` in the user installer does. The Copilot extension continues to add the shim to integrated terminals on every platform.
 
 ### Publishing the shim on Windows
 
@@ -172,6 +184,48 @@ Uninstalling VS Code deletes `bin`, including the shim folder. A shim that a
 Copilot session is still running, and any `old_*` copies it holds, stay behind
 until they're deleted manually.
 
+### `copilot` in WSL, Git Bash, and Cygwin
+
+Windows builds also ship a POSIX `copilot` launcher,
+[`copilot.sh`](../resources/win32/bin/copilot.sh), next to `copilot.exe`, like
+`bin/code` next to `code.cmd`. Shells that use the Windows `PATH` find it
+through the shim folder's `PATH` entry. Windows shells ignore it, because they
+only run files with a `PATHEXT` extension, and the Windows shim never launches
+an extensionless `copilot`.
+
+- In WSL, detected through `WSL_DISTRO_NAME` or a Microsoft kernel release, the
+  launcher runs the Linux shim of the VS Code Server installed in the
+  distribution, as the `code` launcher uses the server for `code`. It prefers
+  the server for its own commit, in one of these layouts:
+  - Remote - WSL: `<server data>/bin/<commit>`;
+  - Remote - SSH: `<server data>/cli/servers/<Quality>-<commit>/server`; or
+  - the standalone code CLI, such as `code tunnel`:
+    `<cli data>/servers/<Quality>-<commit>/server`.
+
+  `<server data>` is `VSCODE_AGENT_FOLDER`, or else
+  `~/<serverDataFolderName>`. `<cli data>` is `VSCODE_CLI_DATA_DIR`, or else
+  `~/<dataFolderName>/cli`. Otherwise it runs the most recently built shim of
+  any installed server, including those in the `~/.vscode*` folders of other
+  qualities, because every shim version works the same way. It doesn't
+  download or install a server. Without one, it explains that opening a folder
+  from WSL in VS Code installs it, and exits with `127`.
+- Before running the shim, the launcher removes from `PATH` every folder whose
+  `copilot` is such a launcher, recognized by the `vscode-copilot-launcher`
+  marker in its first 512 bytes. It reads only those bytes, so a Copilot CLI
+  executable on `PATH` isn't read in full on every run. The shim's search for
+  Copilot CLI then finds neither this launcher nor that of another quality. A
+  shim started directly, such as by a Copilot terminal in a WSL window, can
+  still find a launcher on `PATH`. That launcher runs a shim with the cleaned
+  `PATH`, so this costs at most one extra hop.
+- In Git Bash and Cygwin, the launcher runs `copilot.exe` from its folder, which
+  is what those shells ran before.
+
+Setup publishes the launcher together with the shim. A shell reads the launcher
+only until it runs the shim, so setup replaces it in place. Setup removes it
+together with the shim when the `CopilotCliCommand` policy disables the
+command. As with `code`, WSL uses the Windows `PATH` from when the distribution
+started.
+
 ## Out of scope
 
 The implementation does not:
@@ -179,7 +233,8 @@ The implementation does not:
 - register a VS Code terminal profile.
 - replace `CopilotCLITerminalLinkProvider`.
 - modify the existing `cli/` Cargo package.
-- add the shim to `PATH` outside integrated terminals on macOS and Linux.
+- add the shim to `PATH` outside integrated terminals on macOS and Linux, apart
+  from WSL shells, which use the Windows `PATH`.
 - ship the shim in the web server builds (`vscode-server-*-web`).
 
 ## Normative language
@@ -881,9 +936,7 @@ quality, the `HKLM` value takes precedence over the `HKCU` value, as in VS Code.
 A disabled policy in any quality wins, because the shim of any installed quality
 can be the one on `PATH`; VS Code setup applies the same rule.
 
-On macOS and Linux the shim doesn't read the policy. It is reachable only from
-integrated terminals there, and the Copilot extension applies the policy
-through the setting.
+On macOS and Linux the shim doesn't read the policy. It is reachable from integrated terminals there, where the Copilot extension applies the policy through the setting; the macOS workbench Shell Command action also applies that effective setting before advertising or invoking its install-only shim route.
 
 `CopilotCliCommand` is the only local control over the shim and installation.
 It doesn't turn Copilot CLI itself on or off: that's a GitHub organization or
@@ -929,8 +982,9 @@ copilot --vscode-shim install --non-interactive --consent=installer
 ```
 
 `install` runs the Windows installation described under
-[Installation commands](#installation-commands). Other
-platforms report that it is unsupported.
+[Installation commands](#installation-commands), including its result-file status contract. On macOS x64/arm64 only, `copilot --vscode-shim install --interactive` is an install-only route for the workbench action after it has collected consent: it discovers an existing CLI first without executing, probing, updating, or reinstalling it; otherwise it uses the normal Homebrew-then-temporary-file official-script routes, rediscovery, and installer-owned prompts. It never launches the discovered CLI. Linux and macOS noninteractive setup semantics are unchanged, including their existing-CLI reporting; only macOS interactive mode gains this route.
+
+The macOS interactive install-only route exits `0` after finding a usable existing or newly installed CLI and reports its availability path on stderr; it exits `1` for discovery or installer failures, `127` when a missing CLI cannot be installed without an interactive terminal, and `130` for handled cancellation. These are not Windows setup result-file statuses. On macOS, the [workbench action](#macos-shell-command-installation) checks the effective Copilot CLI setting/policy before starting the shim; the native macOS shim does not read that policy or return a policy-denial exit code.
 
 `--non-interactive` requires `--consent=installer`, the consent that setup
 collected on its page or command line. In that mode the command:
@@ -1210,6 +1264,16 @@ fixtures.
   `vscode_`, so they remain outside the product release publisher.
 - Client and server builds contain the shim at `bin/copilot-shim/`, signed
   where the build is signed.
+- The rendered Windows launcher, run under `sh` and `bash`, must:
+  - prefer the server shim for its commit in each of the three layouts, and
+    otherwise use the newest shim of any quality;
+  - skip files that aren't executable, and honor `VSCODE_AGENT_FOLDER` and
+    `VSCODE_CLI_DATA_DIR`;
+  - remove launcher folders from `PATH` while preserving other entries,
+    including empty ones and a `copilot` that contains the marker only beyond
+    its first 512 bytes, and pass arguments through;
+  - explain a missing server; and
+  - run `copilot.exe` outside WSL.
 
 ## Acceptance criteria
 

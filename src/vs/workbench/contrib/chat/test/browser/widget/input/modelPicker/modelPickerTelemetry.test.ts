@@ -441,7 +441,7 @@ suite('ModelPickerTelemetry', () => {
 		result.hide();
 	});
 
-	test('the input shows a HydraFusion tier as Fusion with that tier, or as HydraFusion with its own tier, and opening on a Fusion that can route Balance reports its trigger', () => {
+	test('the input shows a HydraFusion tier as Fusion with that tier, or as HydraFusion with its own tier, and opening on a Fusion that can route High reports its trigger', () => {
 		const fusion = { ...autoModel, metadata: { ...autoModel.metadata, name: 'Fusion', autoModelFusion: { balanceUsesHydraFusion: true } } };
 		const hydraFusion = createModel('hydrafusion', { name: 'HydraFusion', modelGroup: { id: 'copilotcli' }, configurationSchema: undefined });
 		const max = createModel('hydrafusion-max', { name: 'HydraFusion Max', modelGroup: { id: 'copilotcli' }, configurationSchema: undefined });
@@ -486,12 +486,12 @@ suite('ModelPickerTelemetry', () => {
 		});
 	});
 
-	test('a chat moves between HydraFusion and Fusion\'s Balance as Fusion routes Balance', async () => {
+	test('a chat moves between HydraFusion and Fusion\'s High as Fusion routes High', async () => {
 		const hydraFusion = createModel('hydrafusion', { name: 'HydraFusion', modelGroup: { id: 'copilotcli' } });
-		const open = async (balanceUsesHydraFusion: boolean, selected: 'hydraFusion' | 'fusionBalance') => {
+		const open = async (balanceUsesHydraFusion: boolean, selected: 'hydraFusion' | 'fusionHigh') => {
 			const fusion = { ...autoModel, metadata: { ...autoModel.metadata, name: 'Fusion', autoModelFusion: { balanceUsesHydraFusion } } };
 			const result = createPicker(selected === 'hydraFusion' ? hydraFusion : model, undefined, [fusion, hydraFusion, model]);
-			if (selected === 'fusionBalance') {
+			if (selected === 'fusionHigh') {
 				result.configurations.set(fusion.identifier, { tier: 'intelligence' });
 				result.picker.setSelectedModel(fusion);
 			}
@@ -506,17 +506,17 @@ suite('ModelPickerTelemetry', () => {
 		assert.deepStrictEqual({
 			hydraFusionNotRouted: await open(false, 'hydraFusion'),
 			hydraFusionRouted: await open(true, 'hydraFusion'),
-			fusionBalanceRouted: await open(true, 'fusionBalance'),
-			fusionBalanceNotRouted: await open(false, 'fusionBalance'),
+			fusionHighRouted: await open(true, 'fusionHigh'),
+			fusionHighNotRouted: await open(false, 'fusionHigh'),
 		}, {
 			hydraFusionNotRouted: { selected: autoModel.identifier, tier: 'intelligence', triggers },
 			hydraFusionRouted: { selected: hydraFusion.identifier, tier: undefined, triggers },
-			fusionBalanceRouted: { selected: hydraFusion.identifier, tier: 'intelligence', triggers },
-			fusionBalanceNotRouted: { selected: autoModel.identifier, tier: 'intelligence', triggers },
+			fusionHighRouted: { selected: hydraFusion.identifier, tier: 'intelligence', triggers },
+			fusionHighNotRouted: { selected: autoModel.identifier, tier: 'intelligence', triggers },
 		});
 	});
 
-	test('showing HydraFusion as Fusion\'s Balance is not a selection', async () => {
+	test('showing HydraFusion as Fusion\'s High is not a selection', async () => {
 		const hydraFusion = createModel('hydrafusion', { name: 'HydraFusion', modelGroup: { id: 'copilotcli' } });
 		const fusion = { ...autoModel, metadata: { ...autoModel.metadata, name: 'Fusion', autoModelFusion: { balanceUsesHydraFusion: false } } };
 		const result = createPicker(hydraFusion, undefined, [fusion, hydraFusion, model]);

@@ -956,10 +956,11 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		await context.client.call<SubscribeResult>('subscribe', { channel: peer });
 		await driveTurn(peer, 'peer-old-context', 'Remember the code word OLD_PEER. Reply exactly "ready".', 1);
 		await context.client.call('disposeChat', { channel: peer }, 30_000);
-		await context.client.call('createChat', { channel: sessionUri, chat: peer }, 30_000);
-		await context.client.call<SubscribeResult>('subscribe', { channel: peer });
+		// Disposed identities are tombstoned; recreation must use a fresh peer URI.
+		const replacement = await createPeer(sessionUri, 'replacement');
+		await context.client.call<SubscribeResult>('subscribe', { channel: replacement });
 
-		await driveTurn(peer, 'peer-new-context', 'Reply exactly "new".', 10);
+		await driveTurn(replacement, 'peer-new-context', 'Reply exactly "new".', 10);
 		const messages = observedModelMessages(context.observedModelRequestBodies.at(-1) ?? '');
 
 		assert.strictEqual(messages.some(message => message.content.includes('OLD_PEER')), false);

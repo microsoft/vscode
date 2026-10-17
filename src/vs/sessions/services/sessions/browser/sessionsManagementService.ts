@@ -21,13 +21,13 @@ import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/con
 import { IChatWidgetHistoryService } from '../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { buildHostLocalEventsPath, dedupeMigratedCopilotCliSessions, getCopilotCliSessionRawId } from '../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
+import { ICopilotHomeService } from '../../../../workbench/services/environment/common/copilotHomeService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { getSessionReferenceResource } from './sessionReference.js';
 import { IChatDeletedEvent, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IDeferredNewSessionRequestOptions, IMarkSessionReadOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
 import { IChatMovedEvent, IDeleteChatOptions, IPreparedNewSession, ISessionChangeEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
-import { ChatModelSource, IChat, ISession, ISessionCanvasDefinition, ISessionWorkspace, ISideChatSelection, isActiveSessionStatus, SessionStatus, ISessionType } from '../common/session.js';
+import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionWorkspace, ISideChatSelection, isActiveSessionStatus, SessionStatus, ISessionType } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -107,7 +107,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		@IChatService private readonly chatService: IChatService,
 		@IChatWidgetHistoryService private readonly chatWidgetHistoryService: IChatWidgetHistoryService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IPathService private readonly pathService: IPathService,
+		@ICopilotHomeService private readonly copilotHomeService: ICopilotHomeService,
 		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -788,11 +788,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		const targets = referencedResources.length
 			? referencedResources
 			: (getCopilotCliSessionRawId(session.resource) ? [session.resource] : []);
-		const userHome = this.pathService.userHome({ preferLocal: true });
+		const copilotHome = this.copilotHomeService.home;
 		const getConnection = (authority: string) => this.remoteAgentHostService.connections.find(c => agentHostAuthority(c.address) === authority);
 		const eventPaths = Array.from(new Set(
 			targets
-				.map(resource => buildHostLocalEventsPath(resource, userHome, getConnection))
+				.map(resource => buildHostLocalEventsPath(resource, copilotHome, getConnection))
 				.filter((path): path is string => !!path)
 		));
 		if (eventPaths.length === 0) {
@@ -1469,6 +1469,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			throw new Error(localize('sessions.openCanvas.unsupported', "Opening canvases is not supported for this session."));
 		}
 		await provider.openCanvas(session.sessionId, chat.resource, canvas, instanceId);
+	}
+
+	async closeCanvas(session: ISession, chat: IChat, canvas: ISessionCanvas): Promise<void> {
+		const provider = this._getProvider(session);
+		if (!session.capabilities.get().supportsCanvases || !provider?.closeCanvas) {
+			throw new Error(localize('sessions.closeCanvas.unsupported', "Closing canvases is not supported for this session."));
+		}
+		await provider.closeCanvas(session.sessionId, chat.resource, canvas);
 	}
 
 	async removeSessionArtifact(session: ISession, artifactId: string): Promise<void> {

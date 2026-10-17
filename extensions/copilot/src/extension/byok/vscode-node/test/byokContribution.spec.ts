@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { describe, expect, test, vi } from 'vitest';
+import { speech } from 'vscode';
 import type { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
 import type { CopilotToken } from '../../../../platform/authentication/common/copilotToken';
 import type { IConfigurationService } from '../../../../platform/configuration/common/configurationService';
@@ -31,17 +32,23 @@ vi.mock('vscode', async importOriginal => ({
 		},
 	},
 	speech: {
-		registerVoiceLiveSessionProvider: (id: string) => {
+		registerVoiceLiveSessionProvider: vi.fn((id: string) => {
 			registeredVoiceProviders.add(id);
 			return { dispose: () => registeredVoiceProviders.delete(id) };
-		},
+		}),
 	},
 }));
 
 import { BYOKContrib } from '../byokContribution';
 
 describe('BYOKContrib', () => {
-	test('re-registers providers once a Copilot token arrives, without churning on token resets', () => {
+	test.each([true, false])('re-registers providers without churning on token resets (speech enabled: %s)', speechEnabled => {
+		const registrationError = new Error('Extension \'GitHub.copilot-chat\' CANNOT use API proposal: speech.');
+		if (!speechEnabled) {
+			vi.mocked(speech.registerVoiceLiveSessionProvider).mockImplementationOnce(() => {
+				throw registrationError;
+			});
+		}
 		const onDidAuthenticationChange = new Emitter<void>();
 		const onDidCopilotTokenChange = new Emitter<void>();
 		const authService = {
@@ -52,7 +59,8 @@ describe('BYOKContrib', () => {
 		};
 		const instantiationService = { createInstance: () => ({ updateKnownModels: () => { } }) } as unknown as IInstantiationService;
 		const fetcherService = { fetch: () => Promise.reject(new Error('offline')) } as unknown as IFetcherService;
-		const logService = { info: () => { }, warn: () => { } } as unknown as ILogService;
+		const logError = vi.fn();
+		const logService = { info: () => { }, warn: () => { }, error: logError } as unknown as ILogService;
 		const configurationService = { getNonExtensionConfig: () => undefined } as unknown as IConfigurationService;
 		const contrib = new BYOKContrib(fetcherService, logService, {} as IVSCodeExtensionContext, authService as unknown as IAuthenticationService, instantiationService, configurationService);
 
@@ -70,12 +78,16 @@ describe('BYOKContrib', () => {
 		states.push({ languageModelProviders: registeredProviders.size, voiceLiveProviders: registeredVoiceProviders.size });
 		onDidAuthenticationChange.dispose();
 		onDidCopilotTokenChange.dispose();
-		expect(states).toEqual([
-			{ languageModelProviders: 0, voiceLiveProviders: 1 },
-			{ languageModelProviders: 9, voiceLiveProviders: 1 },
-			{ languageModelProviders: 9, voiceLiveProviders: 1 },
-			{ languageModelProviders: 0, voiceLiveProviders: 1 },
-			{ languageModelProviders: 0, voiceLiveProviders: 0 },
-		]);
+		const voiceLiveProviders = speechEnabled ? 1 : 0;
+		expect({ states, errors: logError.mock.calls }).toEqual({
+			states: [
+				{ languageModelProviders: 0, voiceLiveProviders },
+				{ languageModelProviders: 9, voiceLiveProviders },
+				{ languageModelProviders: 9, voiceLiveProviders },
+				{ languageModelProviders: 0, voiceLiveProviders },
+				{ languageModelProviders: 0, voiceLiveProviders: 0 },
+			],
+			errors: speechEnabled ? [] : [[registrationError, 'BYOK: failed to register GPT-Live voice provider.']],
+		});
 	});
 });

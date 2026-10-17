@@ -18,35 +18,51 @@
 	min-height: 0;
 }
 
-/* Content stays centered on the chat's full width and only moves off center when the Session Toolbar
- * would otherwise cover it (see `--session-toolbar-content-inset`); the scroll viewport keeps the full width.
- * Row content is inset, including rows replicated by sticky scroll. */
+/* With the Session Activity Bar, content keeps an equal inset on both sides (`--session-activity-bar-content-inset`) so it
+ * stays centered and clear of the strip; the scroll viewport keeps the full width. Row content is inset,
+ * including rows replicated by sticky scroll. */
 .agent-sessions-workbench .chat-view-chat .interactive-list > .monaco-list > .monaco-scrollable-element > :is(.monaco-list-rows, .monaco-tree-sticky-container) > .monaco-list-row > .monaco-tl-row > .monaco-tl-contents {
 	box-sizing: border-box;
-	padding-right: var(--session-toolbar-content-inset, 0px);
+	padding: 0 var(--session-activity-bar-content-inset, 0px);
 }
 
+/* The new-session and new-chat composers keep the same even inset. */
+.chat-view-new > .sessions-chat-widget {
+	width: calc(100% - 2 * var(--session-activity-bar-content-inset, 0px));
+	margin: 0 auto;
+}
+
+/* The inset leaves the activity bar clear only beside the standard content padding, which the
+ * new-chat-in-session composer otherwise narrows. */
+.chat-view-new.has-session-activity-bar .new-chat-in-session .new-chat-widget-content {
+	padding-left: var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240)) !important;
+	padding-right: var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240)) !important;
+}
+
+/* Their existing auto margins center them. */
 .agent-sessions-workbench .part.sessionspart .chat-view-chat .interactive-session > .interactive-input-part,
 .agent-sessions-workbench .part.sessionspart .chat-view-chat .interactive-session > .chat-suggest-next-widget {
-	width: calc(100% - var(--session-toolbar-content-inset, 0px));
-	margin-left: max(0px, calc((100% - var(--session-toolbar-content-inset, 0px) - var(--session-view-centered-content-max-width, 950px)) / 2));
+	width: calc(100% - 2 * var(--session-activity-bar-content-inset, 0px));
+	margin-left: auto;
 	margin-right: auto;
 }
 
 .agent-sessions-workbench .part.sessionspart .chat-view-chat > .external-session-banner {
-	width: calc(100% - var(--session-toolbar-content-inset, 0px) - 2 * var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240)));
-	margin-left: max(var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240)), calc((100% - var(--session-toolbar-content-inset, 0px) - var(--session-view-centered-content-max-width, 950px)) / 2));
-	margin-right: auto;
+	width: calc(100% - 2 * var(--session-activity-bar-content-inset, 0px) - 2 * var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240)));
 }
 
-/* The ruler prompt timeline sits beside the Session Toolbar rather than beneath it, and its own reservation
- * already keeps the transcript clear of both. */
-.agent-sessions-workbench .part.sessionspart .chat-view-chat.has-session-toolbar .interactive-session.prompt-timeline-host.prompt-timeline-with-rail {
-	--prompt-timeline-scrollbar-gutter: calc(var(--session-toolbar-column-width, 0px) + var(--vscode-spacing-size40));
+/* The ruler prompt timeline shares the Session Activity Bar's column, so the content keeps the same even inset as without
+ * it; the activity bar sits above the rail where they overlap. The rail is offset so its resting marks (12px bars, 4px
+ * inside the rail's right edge) are centered on the strip, which is centered half the column's width plus its
+ * 12px scrollbar clearance from the edge. */
+.agent-sessions-workbench .part.sessionspart .chat-view-chat.has-session-activity-bar .interactive-session.prompt-timeline-host.prompt-timeline-with-rail {
+	--prompt-timeline-scrollbar-gutter: calc((var(--session-activity-bar-column-width, 0px) + var(--vscode-spacing-size120)) / 2 - var(--vscode-spacing-size40) - var(--vscode-spacing-size60));
 }
 
-.agent-sessions-workbench .part.sessionspart .chat-view-chat .interactive-session.prompt-timeline-with-rail > :is(.interactive-list, .chat-suggest-next-widget) {
-	--session-toolbar-content-inset: 0px;
+/* The column already sits beside the content's even inset, so the ruler's own right-side reservation is not needed. */
+.agent-sessions-workbench .part.sessionspart .chat-view-chat.has-session-activity-bar .prompt-timeline-host.prompt-timeline-with-rail.interactive-session .interactive-item-container,
+.agent-sessions-workbench .part.sessionspart .chat-view-chat.has-session-activity-bar .prompt-timeline-host.prompt-timeline-with-rail.interactive-session > .chat-suggest-next-widget {
+	padding-right: var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240));
 }
 
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows {
@@ -186,10 +202,10 @@
 }
 
 .agent-sessions-workbench .interactive-session .chat-scroll-down {
-	right: calc(var(--session-toolbar-content-inset, 0px) + max(
-		var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240)),
-		calc((100% - var(--session-toolbar-content-inset, 0px) - var(--session-view-centered-content-max-width, 950px)) / 2 + var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240)))
-	));
+	right: calc(max(
+		var(--session-activity-bar-content-inset, 0px),
+		calc((100% - var(--session-view-centered-content-max-width, 950px)) / 2)
+	) + var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240)));
 }
 
 .agent-sessions-workbench .interactive-session.chat-transcript-progress-active > .interactive-list,
@@ -200,8 +216,8 @@
 .agent-sessions-workbench .interactive-session > .interactive-list > .chat-transcript-context {
 	position: absolute;
 	top: var(--vscode-spacing-size320);
-	left: 0;
-	right: var(--session-toolbar-content-inset, 0px);
+	left: var(--session-activity-bar-content-inset, 0px);
+	right: var(--session-activity-bar-content-inset, 0px);
 	z-index: 1;
 	display: flex;
 	justify-content: flex-end;

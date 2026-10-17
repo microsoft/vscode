@@ -19,7 +19,7 @@ import { AgentHostPeerChatStore, CHAT_INHERITED_TURN_METADATA_KEY, CHAT_ORIGIN_M
 import { getChatChangesSummaryMetadataKey } from '../../common/agentHostChangesetService.js';
 import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
-import { createLiveChatOwnership } from './chatOwnershipTestUtils.js';
+import { createLiveChatOwnership, noOlderBuildCopyParticipant } from './chatOwnershipTestUtils.js';
 
 const session = URI.parse('agenthost:peer-store');
 const first = URI.parse(buildChatUri(session, 'first'));
@@ -98,7 +98,7 @@ suite('AgentHostPeerChatStore', () => {
 	});
 
 	function createStore(database: TestSessionDatabase, logService = new NullLogService()): AgentHostPeerChatStore {
-		const store = new AgentHostPeerChatStore(orchestrator, createSessionDataService(database), logService, createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(orchestrator, createSessionDataService(database)));
+		const store = new AgentHostPeerChatStore(orchestrator, createSessionDataService(database), logService, createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(orchestrator, createSessionDataService(database)), noOlderBuildCopyParticipant);
 		stores.push(store);
 		return store;
 	}
@@ -363,7 +363,7 @@ suite('AgentHostPeerChatStore', () => {
 				return database ? { object: database, dispose: () => { } } : undefined;
 			},
 		};
-		const store = new AgentHostPeerChatStore(orchestrator, service, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(orchestrator, service));
+		const store = new AgentHostPeerChatStore(orchestrator, service, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(orchestrator, service), noOlderBuildCopyParticipant);
 		stores.push(store);
 		return {
 			store,
@@ -383,7 +383,7 @@ suite('AgentHostPeerChatStore', () => {
 			},
 			tryOpenDatabase: async () => undefined,
 		};
-		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(orchestrator, unavailable));
+		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(orchestrator, unavailable), noOlderBuildCopyParticipant);
 
 		await migrationStore.replaceForMigration(session, [{ uri: first.toString(), providerData: 'provider-data', origin, inheritedTurnId: 'inherited' }]);
 		const catalog = await orchestrator.getSessionChatCatalog(session.toString());
@@ -451,7 +451,7 @@ suite('AgentHostPeerChatStore', () => {
 			},
 			tryOpenDatabase: async () => undefined,
 		};
-		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(orchestrator, unavailable));
+		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(orchestrator, unavailable), noOlderBuildCopyParticipant);
 		await migrationStore.replaceForMigration(session, [{ uri: first.toString() }]);
 		const imported = await orchestrator.getSessionChatCatalog(session.toString());
 		assert.ok(imported);
@@ -493,7 +493,7 @@ suite('AgentHostPeerChatStore', () => {
 			},
 			tryOpenDatabase: async () => undefined,
 		};
-		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(orchestrator, unavailable));
+		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(orchestrator, unavailable), noOlderBuildCopyParticipant);
 		await migrationStore.replaceForMigration(session, []);
 		const database = new TestSessionDatabase();
 		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([{ uri: first.toString() }]));
@@ -631,7 +631,7 @@ suite('AgentHostPeerChatStore', () => {
 		const removed = await orchestrator.removePrivateChatV2(other, tombstoned, registered.status === 'applied' ? registered.catalogRevision : -1);
 		const tombstonedOwner = (await orchestrator.findCentralChatOwners([tombstoned])).get(tombstoned);
 		const lookups = sinon.spy(orchestrator, 'findCentralChatOwners');
-		const store = new AgentHostPeerChatStore(orchestrator, createSessionDataService(database), new NullLogService(), createLiveChatOwnership(chat => chat === liveElsewhere ? other : undefined, () => undefined), createTestSessionStateStore(orchestrator, createSessionDataService(database)));
+		const store = new AgentHostPeerChatStore(orchestrator, createSessionDataService(database), new NullLogService(), createLiveChatOwnership(chat => chat === liveElsewhere ? other : undefined, () => undefined), createTestSessionStateStore(orchestrator, createSessionDataService(database)), noOlderBuildCopyParticipant);
 		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([recordedElsewhere, tombstoned, liveElsewhere, encodedElsewhere, first.toString()].map(uri => ({ uri }))));
 
 		assert.deepStrictEqual({
@@ -918,7 +918,7 @@ suite('AgentHostPeerChatStore', () => {
 		const recordedDefault = buildChatUri(session, 'primary');
 		const shapedPeer = URI.parse(buildDefaultChatUri(session));
 		const local = new TestSessionDatabase();
-		const store = new AgentHostPeerChatStore(orchestrator, createSessionDataService(local), new NullLogService(), createLiveChatOwnership(() => undefined, candidate => candidate === session.toString() ? recordedDefault : undefined), createTestSessionStateStore(orchestrator, createSessionDataService(local)));
+		const store = new AgentHostPeerChatStore(orchestrator, createSessionDataService(local), new NullLogService(), createLiveChatOwnership(() => undefined, candidate => candidate === session.toString() ? recordedDefault : undefined), createTestSessionStateStore(orchestrator, createSessionDataService(local)), noOlderBuildCopyParticipant);
 		await store.upsert(session, shapedPeer, 'peer-backing');
 		await store.setRead(session, shapedPeer, false);
 		const afterPeer = await local.getMetadata(AH_META_DEFAULT_CHAT_IS_READ_DB_KEY);
@@ -1131,9 +1131,22 @@ suite('AgentHostPeerChatStore', () => {
 		let statements = 0;
 		// Trigger bodies are traced as `-- TRIGGER` lines; they are not statements of their own, nor is the drain below.
 		const drainSql = 'SELECT 1 AS drain';
-		sqlite.on('trace', (sql: string) => statements += sql.startsWith('-- TRIGGER') || sql === drainSql ? 0 : 1);
-		// Traces of finished statements arrive before this one completes.
-		const drain = () => new Promise<void>((resolve, reject) => sqlite.get(drainSql, error => error ? reject(error) : resolve()));
+		let traceDrained: DeferredPromise<void>;
+		sqlite.on('trace', (sql: string) => {
+			if (sql === drainSql) {
+				traceDrained.complete();
+			} else if (!sql.startsWith('-- TRIGGER')) {
+				statements++;
+			}
+		});
+		const drain = async () => {
+			// Trace delivery and SQL completion use separate asynchronous callbacks.
+			traceDrained = new DeferredPromise<void>();
+			await Promise.all([
+				traceDrained.p,
+				new Promise<void>((resolve, reject) => sqlite.get(drainSql, error => error ? reject(error) : resolve())),
+			]);
+		};
 		const chats = Array.from({ length: 10 }, (_, index) => URI.parse(buildChatUri(session, `burst-${index}`)));
 		const publish = async (burst: () => Promise<void>) => {
 			await burst();
@@ -1196,15 +1209,30 @@ suite('AgentHostPeerChatStore', () => {
 		const { store, opened } = createPerResourceStore();
 		const sqlite = await (orchestrator as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
 		let statements = 0;
-		sqlite.on('trace', (sql: string) => statements += sql.startsWith('-- TRIGGER') ? 0 : 1);
+		const drainSql = 'SELECT 1 AS drain';
+		let traceDrained: DeferredPromise<void>;
+		sqlite.on('trace', (sql: string) => {
+			if (sql === drainSql) {
+				traceDrained.complete();
+			} else if (!sql.startsWith('-- TRIGGER')) {
+				statements++;
+			}
+		});
+		const drain = async () => {
+			// Trace delivery and SQL completion use separate asynchronous callbacks.
+			traceDrained = new DeferredPromise<void>();
+			await Promise.all([
+				traceDrained.p,
+				new Promise<void>((resolve, reject) => sqlite.get(drainSql, error => error ? reject(error) : resolve())),
+			]);
+		};
 		const measure = async (write: () => Promise<void>) => {
-			// Traces of finished statements arrive before this one completes.
-			await new Promise<void>((resolve, reject) => sqlite.get('SELECT 1', error => error ? reject(error) : resolve()));
+			await drain();
 			const before = { statements, opened: opened.length };
 			await write();
 			await store.whenIdle();
-			await new Promise<void>((resolve, reject) => sqlite.get('SELECT 1', error => error ? reject(error) : resolve()));
-			return { statements: statements - before.statements - 1, opened: opened.slice(before.opened) };
+			await drain();
+			return { statements: statements - before.statements, opened: opened.slice(before.opened) };
 		};
 		const firstWrite = await measure(() => store.setArchived(session, first, true));
 		const nextWrite = await measure(() => store.setArchived(session, first, false));

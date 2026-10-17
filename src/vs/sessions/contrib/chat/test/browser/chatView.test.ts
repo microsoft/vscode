@@ -9,11 +9,13 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { ObjectTree } from '../../../../../base/browser/ui/tree/objectTree.js';
 import { DeferredPromise, retry, timeout } from '../../../../../base/common/async.js';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
+import { Emitter, Event as VSCodeEvent } from '../../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { autorun, constObservable, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -36,7 +38,10 @@ import { ChatInputNoticeVariant, ChatInputNoticeWidget } from '../../../../../wo
 import { renderChatInputPickerSplit } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { isChatInputStackSlotShowing } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
 import { ChatOpenDiagnosticsService } from '../../../../../workbench/contrib/chat/common/chatOpenDiagnosticsService.js';
-import { IChatModelReference, ResponseModelState } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatModelReference, IChatService, ResponseModelState } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatServiceImpl.js';
+import { ChatSessionsService } from '../../../../../workbench/contrib/chat/browser/chatSessions/chatSessions.contribution.js';
+import { IChatSession } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ChatModel, ChatResponseModel, IChatModel, IChatModelInputState, IChatRequestModel, IInputModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatModelStore, IStartSessionProps } from '../../../../../workbench/contrib/chat/common/model/chatModelStore.js';
@@ -64,12 +69,17 @@ import '../../../../../workbench/browser/media/style.css';
 import '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/media/chatAgentMergeContent.css';
 import '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/media/chatRequestOrigin.css';
 import { AbstractChatView, ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
-import { ChatViewSessionToolbar } from '../../../../browser/parts/sessionToolbar.js';
+import { SessionView } from '../../../../browser/parts/sessionView.js';
+import { ChatViewSessionActivityBar } from '../../../../browser/parts/sessionActivityBar.js';
+import { IChatViewFactory } from '../../../../services/chatView/browser/chatViewFactory.js';
+import { createSessionViewTestServices, createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
 import '../../../../browser/parts/media/chatCompositeBar.css';
 import '../../../../browser/parts/media/chatGroupsView.css';
 import '../../../../browser/parts/media/sessionView.css';
 import '../../../../browser/parts/media/sessionsPart.css';
 import '../../browser/media/externalSessionBanner.css';
+import '../../browser/media/chatWidget.css';
+import '../../browser/media/newChatInSession.css';
 import '../../../../../workbench/contrib/chat/browser/promptTimeline/media/promptTimeline.css';
 
 suite('Sessions - Chat View', () => {
@@ -465,9 +475,9 @@ suite('Sessions - Chat View', () => {
 		let offsetReads = 0;
 		let bannerHeight = 35;
 		Object.defineProperty(widgetContainer, 'offsetTop', { get: () => { offsetReads++; return bannerHeight; } });
-		const view: { contentRightInset: number; _layoutChatWidget(): void } = Object.assign(Object.create(ChatView.prototype), {
+		const view: { contentInset: number; _layoutChatWidget(): void } = Object.assign(Object.create(ChatView.prototype), {
 			element,
-			contentRightInset: 0,
+			contentInset: 0,
 			_lastLayout: { width: 500, height: 400 },
 			_externalSessionBanner: { domNode: banner },
 			_widgetContainer: widgetContainer,
@@ -487,27 +497,30 @@ suite('Sessions - Chat View', () => {
 		banner.classList.add('hidden');
 		view._layoutChatWidget();
 		progressOffsets.push(progress.style.top);
-		view.contentRightInset = ChatViewSessionToolbar.RESERVED_WIDTH;
+		view.contentInset = ChatViewSessionActivityBar.RESERVED_WIDTH;
 		view._layoutChatWidget();
 		assert.deepStrictEqual({ hiddenReads, offsetReads, layouts, progressOffsets, viewportWidth: widgetContainer.style.width }, {
 			hiddenReads: 0, offsetReads: 2,
-			layouts: [[400, 500], [365, 500], [340, 500], [400, 500], [400, 462]],
+			// With the toolbar, embedded editors are laid out for the content between the insets on both sides.
+			layouts: [[400, 500], [365, 500], [340, 500], [400, 500], [400, 440]],
 			progressOffsets: ['0px', '35px', '60px', '0px'],
 			viewportWidth: '500px',
 		});
 	});
 
-	test('keeps chat content centered with the header, moving it aside only where the toolbar would cover it, and retains the outer scrollbar', async () => {
+	test('keeps chat content centered with even space on both sides when the toolbar is shown, and retains the outer scrollbar', async () => {
 		const root = dom.append(dom.getActiveDocument().body, dom.$('.monaco-workbench.agent-sessions-workbench'));
 		disposables.add(toDisposable(() => root.remove()));
 		root.style.setProperty('--vscode-spacing-size240', '24px');
+		root.style.setProperty('--vscode-spacing-size120', '12px');
 		root.style.setProperty('--vscode-spacing-size40', '4px');
+		root.style.setProperty('--vscode-spacing-size60', '6px');
 		root.style.setProperty('--session-view-centered-content-max-width', '950px');
 		const part = dom.append(root, dom.$('.part.sessionspart'));
 		const session = dom.append(part, dom.$('.session-view'));
 		const groups = dom.append(session, dom.$('.chat-groups-view.single-group'));
 		// The toolbar's host publishes its column for surfaces that sit beside it.
-		groups.style.setProperty('--session-toolbar-column-width', '50px');
+		groups.style.setProperty('--session-activity-bar-column-width', '42px');
 		const headerHost = dom.append(groups, dom.$('.chat-group-view-bar'));
 		const header = dom.append(dom.append(headerHost, dom.$('.chat-composite-bar.session-header-bar')), dom.$('.chat-composite-bar-header'));
 		const view = disposables.add(new class extends AbstractChatView {
@@ -520,7 +533,7 @@ suite('Sessions - Chat View', () => {
 		groups.appendChild(view.element);
 		const widget = dom.append(dom.append(view.element, dom.$('.chat-view-widget')), dom.$('.interactive-session'));
 		const listContainer = dom.append(widget, dom.$('.interactive-list'));
-		const tree = disposables.add(new ObjectTree<number>('session-toolbar-layout-test', listContainer, {
+		const tree = disposables.add(new ObjectTree<number>('session-activity-bar-layout-test', listContainer, {
 			getHeight: () => 80,
 			getTemplateId: () => 'message',
 		}, [{
@@ -534,13 +547,15 @@ suite('Sessions - Chat View', () => {
 		const suggestion = dom.append(widget, dom.$('.chat-suggest-next-widget'));
 		const banner = dom.append(view.element, dom.$('.external-session-banner'));
 		const rail = dom.append(widget, dom.$('.prompt-timeline-rail'));
+		// A resting ruler mark: a short bar at the right of the rail's marks lane.
+		const markBar = dom.append(dom.append(dom.append(rail, dom.$('.prompt-timeline-ruler-marks')), dom.$('button.prompt-timeline-ruler-mark')), dom.$('span.prompt-timeline-ruler-bar'));
 		await retry(async () => {
 			const targetWindow = dom.getWindow(root);
 			if (targetWindow.getComputedStyle(header).maxWidth !== '950px'
 				|| targetWindow.getComputedStyle(widget).maxWidth !== 'none'
 				|| targetWindow.getComputedStyle(banner).boxSizing !== 'border-box'
 				|| targetWindow.getComputedStyle(rail).position !== 'absolute'
-				|| !targetWindow.getComputedStyle(view.element).getPropertyValue('--session-toolbar-content-inset')) {
+				|| !targetWindow.getComputedStyle(view.element).getPropertyValue('--session-activity-bar-content-inset')) {
 				throw new Error('Session header and chat styles have not loaded');
 			}
 		}, 10, 100);
@@ -552,7 +567,7 @@ suite('Sessions - Chat View', () => {
 			part.style.width = `${width}px`;
 			headerHost.style.width = `${width}px`;
 			view.layout(width, 300, 0, 0, inset);
-			tree.layout(160, Math.min(split ? Infinity : 950, width - inset));
+			tree.layout(160, Math.min(split ? Infinity : 950, width - 2 * inset));
 			const origin = view.element.getBoundingClientRect();
 			const band = (element: HTMLElement) => {
 				const bounds = element.getBoundingClientRect();
@@ -568,39 +583,80 @@ suite('Sessions - Chat View', () => {
 				scrollbarRight: Math.round(scrollbar.getBoundingClientRect().right - origin.left),
 			};
 		};
-		// The ruler prompt timeline beside the transcript: its offset from the right edge and where response content ends.
+		// The ruler prompt timeline: where response content and the input sit, and the center of a resting mark.
 		const rulerSnapshot = (width: number, inset: number) => {
 			snapshot(width, inset);
 			widget.classList.add('prompt-timeline-host', 'prompt-timeline-with-rail');
 			const origin = view.element.getBoundingClientRect();
 			const response = listContainer.querySelector<HTMLElement>('.interactive-item-container')!;
 			const responseBounds = response.getBoundingClientRect();
+			const responseStyle = dom.getWindow(root).getComputedStyle(response);
+			const markBounds = markBar.getBoundingClientRect();
+			const inputBounds = input.getBoundingClientRect();
 			return {
-				railRightOffset: Math.round(origin.right - rail.getBoundingClientRect().right),
-				contentRight: Math.round(responseBounds.right - Number.parseFloat(dom.getWindow(root).getComputedStyle(response).paddingRight) - origin.left),
+				content: [Math.round(responseBounds.left + Number.parseFloat(responseStyle.paddingLeft) - origin.left), Math.round(responseBounds.right - Number.parseFloat(responseStyle.paddingRight) - origin.left)],
+				input: [Math.round(inputBounds.left - origin.left), Math.round(inputBounds.width)],
+				markCenter: Math.round(markBounds.left + markBounds.width / 2 - origin.left),
 			};
 		};
 
 		assert.deepStrictEqual({
-			narrow: snapshot(600, 38),
-			wide: snapshot(1200, 38),
-			split: snapshot(1200, 38, true),
-			// Just wide enough that the centered band would reach the strip.
-			nearlyWide: snapshot(1000, 38),
+			narrow: snapshot(600, 30),
+			wide: snapshot(1200, 30),
+			split: snapshot(1200, 30, true),
+			// Just wide enough that the full-width centered band would reach the strip.
+			nearlyWide: snapshot(1000, 30),
 			disabled: snapshot(600, 0),
 			wideDisabled: snapshot(1200, 0),
-			ruler: rulerSnapshot(600, 38),
+			ruler: rulerSnapshot(600, 30),
 			rulerDisabled: rulerSnapshot(600, 0),
 		}, {
-			narrow: { header: [0, 600], response: [0, 562], input: [0, 562], suggestion: [0, 562], banner: [24, 514], scrollbarRight: 600 },
+			narrow: { header: [0, 600], response: [30, 540], input: [30, 540], suggestion: [30, 540], banner: [54, 492], scrollbarRight: 600 },
 			wide: { header: [125, 950], response: [125, 950], input: [125, 950], suggestion: [125, 950], banner: [125, 950], scrollbarRight: 1200 },
-			split: { header: [0, 1200], response: [0, 1162], input: [0, 1162], suggestion: [0, 1162], banner: [106, 950], scrollbarRight: 1200 },
-			nearlyWide: { header: [25, 950], response: [12, 950], input: [12, 950], suggestion: [12, 950], banner: [24, 926], scrollbarRight: 1000 },
+			split: { header: [0, 1200], response: [30, 1140], input: [30, 1140], suggestion: [30, 1140], banner: [125, 950], scrollbarRight: 1200 },
+			nearlyWide: { header: [25, 950], response: [30, 940], input: [30, 940], suggestion: [30, 940], banner: [54, 892], scrollbarRight: 1000 },
 			disabled: { header: [0, 600], response: [0, 600], input: [0, 600], suggestion: [0, 600], banner: [24, 552], scrollbarRight: 600 },
 			wideDisabled: { header: [125, 950], response: [125, 950], input: [125, 950], suggestion: [125, 950], banner: [125, 950], scrollbarRight: 1200 },
-			// The rail clears the 50px toolbar column by 4px and reserves the transcript room itself.
-			ruler: { railRightOffset: 54, contentRight: 486 },
-			rulerDisabled: { railRightOffset: 10, contentRight: 530 },
+			// The ruler shares the toolbar's column: content keeps the same even band, and the resting marks are
+			// centered on the 30px strip 12px from the edge (center 27px from the edge).
+			ruler: { content: [54, 546], input: [30, 540], markCenter: 573 },
+			// Without the toolbar, the ruler keeps its own right-side reservation beside the scrollbar.
+			rulerDisabled: { content: [24, 530], input: [0, 600], markCenter: 580 },
+		});
+	});
+	test('keeps the new-chat-in-session composer clear of the activity bar', async () => {
+		const root = dom.append(dom.getActiveDocument().body, dom.$('.monaco-workbench.agent-sessions-workbench'));
+		disposables.add(toDisposable(() => root.remove()));
+		root.style.setProperty('--vscode-spacing-size240', '24px');
+		const part = dom.append(root, dom.$('.part.sessionspart'));
+		const view = disposables.add(new class extends AbstractChatView {
+			readonly kind = 'newChatInSession';
+			protected doLayout(): void { }
+			toJSON(): object { return {}; }
+			focus(): void { }
+		}());
+		view.element.classList.add('chat-view-new');
+		part.appendChild(view.element);
+		const content = dom.append(dom.append(view.element, dom.$('.sessions-chat-widget.new-chat-in-session')), dom.$('.new-chat-widget-content'));
+		const inputArea = dom.append(content, dom.$('.new-chat-input-area'));
+		await retry(async () => {
+			if (dom.getWindow(root).getComputedStyle(content).boxSizing !== 'border-box') {
+				throw new Error('New chat styles have not loaded');
+			}
+		}, 10, 100);
+
+		const inputBounds = (width: number, inset: number) => {
+			part.style.width = `${width}px`;
+			view.layout(width, 300, 0, 0, inset);
+			const origin = view.element.getBoundingClientRect();
+			const bounds = inputArea.getBoundingClientRect();
+			return [Math.round(bounds.left - origin.left), Math.round(bounds.right - origin.left)];
+		};
+
+		assert.deepStrictEqual({ activityBar: inputBounds(600, ChatViewSessionActivityBar.RESERVED_WIDTH), disabled: inputBounds(600, 0) }, {
+			// Ends 12px before the activity bar, which starts 42px from the right edge, like the chat transcript.
+			activityBar: [54, 546],
+			disabled: [10, 590],
 		});
 	});
 
@@ -1317,6 +1373,37 @@ suite('Sessions - Chat View', () => {
 		assert.deepStrictEqual(bindings, [emptiedDraft]);
 	});
 
+	for (const clearDraft of [false, true]) {
+		test(`preserves ${clearDraft ? 'a cleared' : 'an edited'} composer through repeated provider replacement and retry`, async () => {
+			const resource = URI.parse('remote-agent:/session');
+			const outgoing = createChatModel(resource);
+			outgoing.inputModel.setState(createInputState('old bound draft'));
+			const incoming = createChatModel(resource);
+			incoming.inputModel.setState(createInputState('old persisted draft'));
+			const { view, bindings, setInputState, fail, complete, loadFailure, focus } = createChatLoadView(resource);
+
+			view._loadChat(resource, undefined, { inputModelToPreserve: outgoing.inputModel });
+			const latestDraft: IChatModelInputState = clearDraft
+				? { ...createInputState(''), attachments: [], selections: [] }
+				: { ...createInputState('edited while the provider was loading'), attachments: [{ kind: 'file', id: 'new', name: 'new.ts', value: URI.file('/workspace/new.ts') }] };
+			const intendedModel = { modelId: 'remote-agent:model-b', reason: ModelSelectionReason.UserSelection, configuration: { reasoningEffort: 'high' } };
+			outgoing.inputModel.setIntendedModel(intendedModel);
+			setInputState(latestDraft);
+			view._retryUnresolvedChatLoad([resource.scheme]);
+			await fail(1, new Error('Replacement provider unavailable'));
+			const retry = loadFailure.get()?.status.action;
+			assert.ok(retry);
+			const retrying = retry.run();
+			await complete(2, incoming);
+			await retrying;
+			await complete(0, createChatModel(resource));
+
+			assert.deepStrictEqual({ bindings, intendedModel: incoming.inputModel.intendedModel, focus }, {
+				bindings: [latestDraft], intendedModel, focus: { active: true, restores: 1 },
+			});
+		});
+	}
+
 	test('preserves the composer draft without restoring stale permissions over the new model', async () => {
 		const resource = URI.parse('remote-agent:/session');
 		const outgoing = createChatModel(resource);
@@ -1372,7 +1459,7 @@ suite('Sessions - Chat View', () => {
 			bindings: [savedDraft], attempts: 0,
 		});
 	});
-	function createSwitchingView() {
+	function createSwitchingView(chatService?: Pick<IChatService, 'acquireOrLoadSession'>) {
 		const requests: DeferredPromise<IChatModelReference | undefined>[] = [];
 		const completions: Promise<void>[] = [];
 		const models = new Map<string, ChatModel>();
@@ -1385,8 +1472,12 @@ suite('Sessions - Chat View', () => {
 		const widgetVisibility = { visible: true };
 		const modelRef = disposables.add(new MutableDisposable<IChatModelReference>());
 		const loadCts = disposables.add(new MutableDisposable<CancellationTokenSource>());
+		const loadFailure = observableValue<{ resource: URI; status: IChatSessionHistoryStatus } | undefined>('loadFailure', undefined);
+		const loading = observableValue('loading', false);
 		const view: {
 			setChat(chat: IChat, historyKey?: string, session?: ISession, onInput?: () => void): void;
+			reopenChat(resource: URI): Promise<void>;
+			_retryUnresolvedChatLoad(addedSessionTypes: readonly string[]): void;
 			dispose(): void;
 		} = Object.assign(Object.create(ChatView.prototype), {
 			_store: disposables.add(new DisposableStore()),
@@ -1399,7 +1490,7 @@ suite('Sessions - Chat View', () => {
 			_loadedChatResource: observableValue<URI | undefined>('loaded', undefined),
 			_liveModelReady: observableValue('liveModelReady', true),
 			_modelReadOnly: observableValue('modelReadOnly', false),
-			_loadFailure: observableValue('loadFailure', undefined),
+			_loadFailure: loadFailure,
 			isInputBlocked: observableValue('inputBlocked', false),
 			_interactiveDisposable: disposables.add(new MutableDisposable()),
 			_chatPills: { setChat: () => { } },
@@ -1412,13 +1503,14 @@ suite('Sessions - Chat View', () => {
 			_openDiagnostics: disposables.add(new MutableDisposable()),
 			element: dom.$('div'),
 			configurationService: { getValue: () => undefined },
-			chatService: {
+			chatService: chatService ?? {
 				acquireOrLoadSession: () => {
 					const request = new DeferredPromise<IChatModelReference | undefined>();
 					requests.push(request);
 					return request.p;
 				},
 			},
+			sessionOpenTelemetryService: { modelBound: () => { }, modelUnbound: () => { }, modelBindFailed: () => { } },
 			logService: new NullLogService(),
 			chatOpenDiagnosticsService: disposables.add(new ChatOpenDiagnosticsService(new class extends NullLogService {
 				override info(message: string): void {
@@ -1429,7 +1521,7 @@ suite('Sessions - Chat View', () => {
 				get: (resource: URI) => viewStates.get(resource.toString()),
 				set: (resource: URI, state: { scroll: number }) => viewStates.set(resource.toString(), state),
 			},
-			_setLoading: () => { },
+			_setLoading: (value: boolean) => loading.set(value, undefined),
 			_updateWidgetLockState: () => { },
 			_layoutChatWidget: () => { },
 			showProgressWhile: (promise: Promise<void>) => completions.push(promise),
@@ -1479,12 +1571,169 @@ suite('Sessions - Chat View', () => {
 			await requests[index].error(error);
 			await completions[index];
 		};
-		return { view, createChat, complete, fail, compose, snapshot, historyKeys, disposedReferences, boundModels, openOutcomes, widgetVisibility };
+		return { view, createChat, complete, fail, compose, snapshot, historyKeys, disposedReferences, boundModels, openOutcomes, widgetVisibility, requests, completions, loadCts, loadFailure, loading, setInput: (input: string) => { widgetState.input = input; } };
+	}
+
+	/** Uses real content resolution and shared load coordination with in-memory models. */
+	function createProviderResolvingView() {
+		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+		const contentService = disposables.add(instantiationService.createInstance(ChatSessionsService));
+		const models = new ResourceMap<ChatModel>();
+		const acquireExistingSession = (resource: URI): IChatModelReference | undefined => {
+			const model = models.get(resource);
+			return model && { object: model, dispose: () => { } };
+		};
+		const chatService: Pick<IChatService, 'acquireOrLoadSession'> = Object.assign(Object.create(ChatService.prototype), {
+			_remoteSessionLoads: new ResourceMap(),
+			_abandonedRemoteSessionLoads: new ResourceMap<Promise<IChatModelReference | undefined>>(),
+			chatOpenDiagnosticsService: disposables.add(new ChatOpenDiagnosticsService(new NullLogService())),
+			logService: new NullLogService(),
+			getSession: (resource: URI) => models.get(resource),
+			acquireExistingSession,
+			loadRemoteSession: async (resource: URI, _location: ChatAgentLocation, token: CancellationToken): Promise<IChatModelReference | undefined> => {
+				await contentService.getOrCreateChatSession(resource, token);
+				models.set(resource, createChatModel(resource));
+				return acquireExistingSession(resource);
+			},
+		});
+		const harness = createSwitchingView(chatService);
+		disposables.add(contentService.onDidChangeContentProviderSchemes(({ added }) => harness.view._retryUnresolvedChatLoad(added)));
+		return { ...harness, contentService };
 	}
 
 	suite('switching chats on one view', () => {
 		const resourceA = URI.parse('remote-agent:/a');
 		const resourceB = URI.parse('remote-agent:/b');
+
+		test('keeps a failed history load latched across passive same-chat updates', async () => {
+			const { view, createChat, fail, requests, boundModels, loadFailure } = createSwitchingView();
+			const chat = createChat(resourceA);
+			view.setChat(chat);
+			await fail(0, new Error('Provider unavailable'));
+			const failure = loadFailure.get();
+			assert.ok(failure);
+
+			view.setChat(chat);
+			view.setChat(chat);
+			assert.deepStrictEqual({ requests: requests.length, bound: boundModels.at(-1), sameFailure: loadFailure.get() === failure }, {
+				requests: 1, bound: undefined, sameFailure: true,
+			});
+		});
+
+		test('keeps a failed history load latched through the mounted group autorun', async () => {
+			const { view, fail, requests, loadFailure, loading } = createSwitchingView();
+			const { instantiationService } = createSessionViewTestServices(disposables);
+			const leaf = disposables.add(new class extends AbstractChatView {
+				readonly kind = 'chat';
+				override readonly isLoadingTranscript = loading;
+				override readonly isInputBlocked = observableValue(this, false);
+				override readonly historyStatus = derived(reader => loadFailure.read(reader)?.status);
+				override setChat(chat: IChat, historyKey?: string, session?: ISession, onInput?: () => void): void { view.setChat(chat, historyKey, session, onInput); }
+				protected override doLayout(): void { }
+				override toJSON(): object { return {}; }
+				override focus(): void { }
+			}());
+			sinon.stub(instantiationService.get(IChatViewFactory), 'createChatView').returns(leaf);
+			const mounted = disposables.add(instantiationService.createInstance(SessionView));
+			mounted.openSession(createTestActiveSession('failed'), {});
+			await fail(0, new Error('Provider unavailable'));
+			leaf.isInputBlocked.set(true, undefined);
+			leaf.isInputBlocked.set(false, undefined);
+
+			assert.deepStrictEqual({ requests: requests.length, loading: loading.get(), failure: loadFailure.get()?.status.message }, {
+				requests: 1, loading: false, failure: 'Couldn\'t load this conversation.',
+			});
+		});
+
+		test('preserves text typed before a failed load is retried', async () => {
+			const { view, createChat, fail, complete, loadFailure, setInput, snapshot } = createSwitchingView();
+			view.setChat(createChat(resourceA));
+			setInput('draft typed before the failure');
+			await fail(0, new Error('Provider unavailable'));
+			const retry = loadFailure.get()?.status.action;
+			assert.ok(retry);
+			const retrying = retry.run();
+			await complete(1, resourceA);
+			await retrying;
+
+			assert.strictEqual(snapshot().input, 'draft typed before the failure');
+		});
+
+		test('explicit reopen does not restart a pending or bound chat', async () => {
+			const { view, createChat, complete, requests, boundModels } = createSwitchingView();
+			view.setChat(createChat(resourceA));
+			const pendingReopen = view.reopenChat(resourceA);
+			assert.strictEqual(requests.length, 1);
+			await complete(0, resourceA);
+			await pendingReopen;
+			await view.reopenChat(resourceA);
+
+			assert.deepStrictEqual({ requests: requests.length, bound: boundModels.at(-1) }, { requests: 1, bound: resourceA });
+		});
+
+		test('explicit reopen retries only the matching failure and coalesces repeated opens', async () => {
+			const { view, createChat, fail, complete, requests, boundModels, loadFailure } = createSwitchingView();
+			view.setChat(createChat(resourceA));
+			await fail(0, new Error('Provider unavailable'));
+			await view.reopenChat(resourceB);
+			assert.strictEqual(requests.length, 1);
+			const reopening = view.reopenChat(resourceA);
+			await view.reopenChat(resourceA);
+			await complete(1, resourceA);
+			await reopening;
+
+			assert.deepStrictEqual({ requests: requests.length, bound: boundModels.at(-1), failure: loadFailure.get() }, { requests: 2, bound: resourceA, failure: undefined });
+		});
+
+		test('binds the selected chat after shared-load provider replacement without another open', async () => {
+			const { view, createChat, contentService, completions, loadCts, boundModels, loadFailure, setInput, snapshot } = createProviderResolvingView();
+			const providerStarted = new DeferredPromise<void>();
+			const pendingContent = new DeferredPromise<IChatSession>();
+			let providerCalls = 0;
+			let lateDisposed = 0;
+			const registration = disposables.add(new MutableDisposable());
+			registration.value = contentService.registerChatSessionContentProvider(resourceA.scheme, {
+				provideChatSessionContent: () => {
+					providerCalls++;
+					providerStarted.complete();
+					return pendingContent.p;
+				},
+			});
+			const chat = createChat(resourceA);
+			view.setChat(chat);
+			await providerStarted.p;
+			setInput('Draft typed while loading');
+
+			registration.clear();
+			registration.value = contentService.registerChatSessionContentProvider(resourceA.scheme, {
+				provideChatSessionContent: async sessionResource => {
+					providerCalls++;
+					return { sessionResource, history: [], onWillDispose: VSCodeEvent.None, dispose: () => { } };
+				},
+			});
+			const activeLoadToken = loadCts.value?.token;
+			assert.ok(activeLoadToken);
+			await Promise.all(completions);
+			await pendingContent.complete({ sessionResource: resourceA, history: [], onWillDispose: VSCodeEvent.None, dispose: () => { lateDisposed++; } });
+
+			assert.deepStrictEqual({ activeLoadCancelled: activeLoadToken.isCancellationRequested, providerCalls, lateDisposed, bound: boundModels.at(-1), failure: loadFailure.get(), draft: snapshot().input }, {
+				activeLoadCancelled: false, providerCalls: 2, lateDisposed: 1, bound: resourceA, failure: undefined, draft: 'Draft typed while loading',
+			});
+		});
+
+		test('navigation cancellation does not replace the newly selected chat with a load failure', async () => {
+			const { view, createChat, complete, fail, requests, loadCts, boundModels, loadFailure, openOutcomes } = createSwitchingView();
+			view.setChat(createChat(resourceA));
+			const previousLoad = loadCts.value;
+			assert.ok(previousLoad);
+			view.setChat(createChat(resourceB));
+			await fail(0, new CancellationError());
+			await complete(1, resourceB);
+
+			assert.deepStrictEqual({ cancelled: previousLoad.token.isCancellationRequested, requests: requests.length, bound: boundModels.at(-1), failure: loadFailure.get(), openOutcomes }, {
+				cancelled: true, requests: 2, bound: resourceB, failure: undefined, openOutcomes: ['cancelled', 'completed'],
+			});
+		});
 
 		test('keeps the draft, attachments and scroll position of one chat out of another and restores them on return', async () => {
 			const { view, createChat, complete, compose, snapshot, historyKeys } = createSwitchingView();

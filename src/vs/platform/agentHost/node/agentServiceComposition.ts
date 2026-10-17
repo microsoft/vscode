@@ -30,6 +30,7 @@ import { AgentHostDebugLogsCollector } from './agentHostDebugLogs.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { AgentHostSavedChatService, type IAgentHostSavedChatReader } from './agentHostSavedChatService.js';
+import { AgentHostWorktreeCoOwnership } from './agentHostWorktreeCoOwnership.js';
 import { ClaudeSavedChatReader } from './claude/claudeSavedChatReader.js';
 import { CodexSavedChatReader } from './codex/codexSavedChatReader.js';
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from './localCommands/localChatCommand.js';
@@ -39,9 +40,11 @@ import { AgentService, type IAgentServiceCollaborators, type IAgentServiceCore, 
 import { IAgentSessionRegistry } from './agentSessionRegistry.js';
 import { AgentSideEffects } from './agentSideEffects.js';
 import { AgentMergeController } from './agentMergeController.js';
+import { URI } from '../../../base/common/uri.js';
 import { AgentMergeTools } from './agentMergeTools.js';
 import { AgentServerToolHost, IAgentHostServerToolService } from './shared/agentServerToolHost.js';
 import { buildServerToolGroups } from './shared/serverToolGroups.js';
+import { IAgentHostWorktreeIsolation } from './shared/worktreeIsolation.js';
 import type { ISessionServerToolAccessor } from './shared/sessionServerTools.js';
 import { type IAgentServiceFoundation } from './agentServiceFoundation.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
@@ -126,7 +129,8 @@ export function createAgentServiceComposition(
 		const orchestratorDatabase = accessor.get(IAgentHostDatabase);
 		const chatOwnership = accessor.get(IAgentHostChatOwnershipService);
 		const sessionStateStore = accessor.get(IAgentHostSessionStateStore);
-		const peerChatStore = owned.add(new AgentHostPeerChatStore(orchestratorDatabase, sessionDataService, logService, chatOwnership, sessionStateStore));
+		const worktreeCoOwnership = new AgentHostWorktreeCoOwnership(orchestratorDatabase, sessionStateStore, accessor.get(IAgentHostWorktreeIsolation), logService);
+		const peerChatStore = owned.add(new AgentHostPeerChatStore(orchestratorDatabase, sessionDataService, logService, chatOwnership, sessionStateStore, worktreeCoOwnership));
 		services.set(IAgentHostPeerChatPersistenceService, peerChatStore);
 		services.set(IAgentHostLocalCommands, owned.add(instantiationService.createInstance(AgentHostLocalCommands)));
 		const debugLogsCollector = options.debugLogsEnvironment
@@ -144,6 +148,7 @@ export function createAgentServiceComposition(
 				[CODEX_AGENT_PROVIDER_ID, instantiationService.createInstance(CodexSavedChatReader)],
 			]), orchestratorDatabase, sessionDataService, sessionStateStore, logService),
 			peerChatStore,
+			worktreeCoOwnership,
 			debugLogsCollector,
 			sessionRegistry,
 			stateManager,
@@ -154,7 +159,7 @@ export function createAgentServiceComposition(
 		const customizationEnablementService = accessor.get(IAgentHostCustomizationEnablementService);
 		const gitStateService = accessor.get(IAgentHostGitStateService);
 		const agentMergeController = owned.add(instantiationService.createInstance(AgentMergeController, {
-			startTurn: (session, turnId, prompt) => callbackAdapter.value.startAgentMergeTurn(session, turnId, prompt),
+			startTurn: (session, turnId, prompt, credentials) => callbackAdapter.value.startAgentMergeTurn(session, turnId, prompt, credentials),
 			cancelTurn: (session, turnId) => callbackAdapter.value.cancelAgentMergeTurn(session, turnId),
 			postNotice: (session, kind, content) => callbackAdapter.value.postAgentMergeNotice(session, kind, content),
 		}));
@@ -190,7 +195,7 @@ export function createAgentServiceComposition(
 			AgentMergeTools,
 			() => agentMergeController.isEnabled(),
 			chat => agentMergeController.getTurnContext(chat),
-			(chat, enabled, overrides) => agentMergeController.setEnabled(chat, enabled, overrides),
+			(chat, enabled, overrides) => agentMergeController.setEnabled(chat, enabled, overrides, callbackAdapter.sessionServerToolAccessor.getCredentialSource(URI.parse(chat))),
 		));
 		const turnTracker = accessor.get(IAgentHostTurnTracker);
 		const workspaceConversionService: { value: ISessionWorkspaceConversionService | undefined } = { value: undefined };
@@ -198,12 +203,12 @@ export function createAgentServiceComposition(
 			...callbackAdapter.sessionServerToolAccessor,
 			getChatOwner: chat => chatOwnership.getChatOwner(chat),
 			getDefaultChat: session => chatOwnership.getDefaultChat(session),
-			requestSessionWorkspaceUpdate: (chat, turnId, workspaceFolder, isolation) => {
+			requestSessionWorkspaceUpdate: (chat, turnId, workspaceFolder, isolation, credentials) => {
 				const initiatingClientId = turnTracker.getInitiatorClientId(chat.toString(), turnId);
 				if (!workspaceConversionService.value) {
 					throw new Error('Session workspace conversion is unavailable.');
 				}
-				return workspaceConversionService.value.requestSessionWorkspaceUpdate(chat, turnId, workspaceFolder, isolation, initiatingClientId);
+				return workspaceConversionService.value.requestSessionWorkspaceUpdate(chat, turnId, workspaceFolder, isolation, initiatingClientId, credentials);
 			},
 		};
 		const serverToolHost = new AgentServerToolHost(
