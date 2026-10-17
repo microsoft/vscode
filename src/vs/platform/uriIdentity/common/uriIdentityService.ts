@@ -60,7 +60,7 @@ export class UriIdentityService implements IUriIdentityService {
 			}
 			schemeIgnoresPathCasingCache.delete(e.scheme);
 			const newIgnorePathCasingValue = ignorePathCasing(URI.from({ scheme: e.scheme }));
-			if (newIgnorePathCasingValue === newIgnorePathCasingValue) {
+			if (oldIgnorePathCasingValue === newIgnorePathCasingValue) {
 				return;
 			}
 			for (const [key, entry] of this._canonicalUris.entries()) {
