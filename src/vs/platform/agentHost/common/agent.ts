@@ -866,7 +866,11 @@ export interface IAgentCreateChatOptions {
 	 * carries no destination the permission layer can check against the scope.
 	 */
 	readonly hasScopedEditSurface?: boolean;
-	/** Optional display title for the new chat. */
+	/**
+	 * Authoritative initial title supplied to host creation. When present, it
+	 * takes precedence over a generated fork placeholder; explicit provenance
+	 * determines whether automatic title replacement is allowed.
+	 */
 	readonly title?: string;
 	/** Optional model override; defaults to the session's model. */
 	readonly model?: ModelSelection;
@@ -898,6 +902,13 @@ export interface IAgentCreateChatOptions {
  * {@link IAgentCreateChatOptions} and never receive side-chat provenance.
  */
 export interface IAgentCreateChatRequestOptions extends IAgentCreateChatOptions {
+	/**
+	 * Host-owned first user message submitted after creating the chat. This is
+	 * intentionally excluded from {@link IAgentCreateChatOptions}: providers
+	 * create the chat before the host processes this message through the normal
+	 * client-aware send path.
+	 */
+	readonly initialMessage?: Message;
 	/**
 	 * Create this new chat as a side chat branching from a turn in an existing
 	 * chat (via `/btw`). The host resolves this into {@link fork} before calling

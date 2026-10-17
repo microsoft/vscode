@@ -139,6 +139,7 @@ import { readLocalModelRowMeta } from '../../common/meta/localModelStatus.js';
 import { createIdleShimLocalModelProviderHost, createSentinelContribution, FakeLocalModelProvider, MAI_ROW } from './localModelBridge/fakeLocalModelProvider.js';
 import { CopilotApiError, CopilotApiService, ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest, type IRestrictedTelemetryContext } from '../../node/shared/copilotApiService.js';
 import type { IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetryContext } from '../../node/agentHostRestrictedTelemetry.js';
+import { MockAgent, ScriptedMockAgent } from './mockAgent.js';
 import { requireMintedTestChatOwner } from '../common/mintedChatUri.js';
 import { TestChatOwnerRef } from './agentChatContextTestUtils.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
@@ -4552,6 +4553,32 @@ suite('CopilotAgent', () => {
 			});
 		} finally {
 			await disposeAgent(agent);
+		}
+	});
+
+	test('mock defaults advertise initial title support while custom capabilities remain unchanged', () => {
+		const previousMultipleChats = process.env['VSCODE_AGENT_HOST_MOCK_MULTIPLE_CHATS'];
+		process.env['VSCODE_AGENT_HOST_MOCK_MULTIPLE_CHATS'] = '1';
+		try {
+			const mockAgent = disposables.add(new MockAgent());
+			const scriptedMockAgent = disposables.add(new ScriptedMockAgent());
+			const oldHostAgent = disposables.add(new MockAgent('old-host', { multipleChats: { fork: true } }));
+
+			assert.deepStrictEqual({
+				mockDefault: mockAgent.getDescriptor().capabilities,
+				scriptedMockDefault: scriptedMockAgent.getDescriptor().capabilities,
+				explicitOldHost: oldHostAgent.getDescriptor().capabilities,
+			}, {
+				mockDefault: { multipleChats: { fork: true } },
+				scriptedMockDefault: { multipleChats: { fork: true } },
+				explicitOldHost: { multipleChats: { fork: true } },
+			});
+		} finally {
+			if (previousMultipleChats === undefined) {
+				delete process.env['VSCODE_AGENT_HOST_MOCK_MULTIPLE_CHATS'];
+			} else {
+				process.env['VSCODE_AGENT_HOST_MOCK_MULTIPLE_CHATS'] = previousMultipleChats;
+			}
 		}
 	});
 

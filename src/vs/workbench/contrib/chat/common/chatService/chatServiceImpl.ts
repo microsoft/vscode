@@ -2189,7 +2189,8 @@ export class ChatService extends Disposable implements IChatService {
 					const message = parsedRequest.text;
 					const commandResult = await this.chatSlashCommandService.executeCommand(commandPart.slashCommand.command, message.substring(commandPart.slashCommand.command.length + 1).trimStart(), new Progress<IChatProgress>(p => {
 						progressCallback([p]);
-					}), history, location, model.sessionResource, token, options);
+					}), history, location, model.sessionResource, token, options, { input: message });
+					options?.onDidExecuteSlashCommand?.();
 					agentOrCommandFollowups = Promise.resolve(commandResult?.followUp);
 					rawResult = {};
 

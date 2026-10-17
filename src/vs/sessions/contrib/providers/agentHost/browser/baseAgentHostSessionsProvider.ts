@@ -97,7 +97,7 @@ import { getWorktreeDiskUsage } from './worktreeDiskUsage.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import type { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
-import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionPermissionOption, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionPermissionOption, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
 import { AgentHostChatMoveTracker } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostChatMoveTracker.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computePullRequestRefPresentation } from '../../../github/browser/pullRequestIconStatus.js';
@@ -7277,11 +7277,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		cached.setChatModelId(chat.resource, selectedModelId, ChatModelSource.CarriedOver);
 		cached.setChatAgent(chat.resource, selectedAgentUri ? { uri: selectedAgentUri, name: '' } : undefined);
 
-		await this._retainChatSessionModel(chat.resource, selectedModelId, selectedAgentUri);
+		await this._retainChatSessionModel(chat.resource, { modelId: selectedModelId, agentUri: selectedAgentUri });
 		return chat;
 	}
 
-	async forkChat(sessionId: string, sourceChat: URI, turnId: string): Promise<IChat> {
+	async forkChat(sessionId: string, sourceChat: URI, turnId: string, options?: IForkChatOptions): Promise<IChat> {
 		this._assertSessionAvailable(sessionId);
 		const connection = this.connection;
 		if (!connection) {
@@ -7292,8 +7292,34 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!rawId || !cached) {
 			throw new Error(`Session '${sessionId}' not found`);
 		}
-		if (!cached.capabilities.get().supportsMultipleChats) {
+		const capabilities = cached.capabilities.get();
+		if (!capabilities.supportsMultipleChats) {
 			throw new Error(`Session '${sessionId}' does not support multiple chats`);
+		}
+		if (!this._agentCapabilities.get()?.get(cached.agentProvider)?.multipleChats?.fork) {
+			throw new Error(`Session '${sessionId}' does not support forking`);
+		}
+
+		// The Chat Sessions provider prepares the source composer and starts the fork's first turn in one request.
+		if (options?.initialMessage) {
+			this._keepSessionStateAlive(cached.sessionId);
+			const forked = await this._chatSessionsService.forkChatSession(
+				sourceChat,
+				undefined,
+				CancellationToken.None,
+				{
+					...(options.title !== undefined ? { title: options.title } : {}),
+					sourceRequestId: turnId,
+					initialMessage: options.initialMessage,
+				},
+			);
+			const chat = await waitForState(
+				cached.chats.map(chats => chats.find(candidate => isEqual(candidate.resource, forked.resource))),
+				(candidate): candidate is IChat => !!candidate,
+			);
+			// Retain the hydrated input state; the new peer's catalog may not yet carry its model or mode.
+			await this._retainChatSessionModel(chat.resource);
+			return chat;
 		}
 
 		const sessionUri = cached.backendUri;
@@ -7316,6 +7342,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		await connection.createChat(sessionUri, chatUri, {
 			model: selectedModel,
 			fork: { source: sourceBackendUri, turnId },
+			...(options?.title?.trim() ? { title: options.title } : {}),
 		});
 
 		const chat = await waitForState(
@@ -7327,7 +7354,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		cached.setChatModelId(chat.resource, selectedModelId, ChatModelSource.CarriedOver);
 		cached.setChatAgent(chat.resource, selectedAgentUri ? { uri: selectedAgentUri, name: '' } : undefined);
 
-		await this._retainChatSessionModel(chat.resource, selectedModelId, selectedAgentUri);
+		await this._retainChatSessionModel(chat.resource, { modelId: selectedModelId, agentUri: selectedAgentUri });
 		return chat;
 	}
 
@@ -7386,7 +7413,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._carriedOverChatModelConfigurations.set(chat.resource.toString(), { modelId: selectedModelId, configuration: modelConfiguration });
 		}
 
-		await this._retainChatSessionModel(chat.resource, selectedModelId, selectedAgentUri, modelConfiguration);
+		await this._retainChatSessionModel(chat.resource, { modelId: selectedModelId, agentUri: selectedAgentUri, modelConfiguration });
 		return chat;
 	}
 
@@ -7538,13 +7565,19 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
-	private async _retainChatSessionModel(chatResource: URI, modelId: string | undefined, agentUri: string | undefined, modelConfiguration?: IAutomationSessionTemplate['modelConfiguration']): Promise<void> {
+	private async _retainChatSessionModel(chatResource: URI, selection?: {
+		readonly modelId: string | undefined;
+		readonly agentUri: string | undefined;
+		readonly modelConfiguration?: IAutomationSessionTemplate['modelConfiguration'];
+	}): Promise<void> {
 		const modelRef = await this._chatService.acquireOrLoadSession(chatResource, ChatAgentLocation.Chat, CancellationToken.None);
 		if (!modelRef) {
 			return;
 		}
 
-		this._applyChatSessionState(modelRef, modelId, agentUri, { modelConfiguration });
+		if (selection) {
+			this._applyChatSessionState(modelRef, selection.modelId, selection.agentUri, { modelConfiguration: selection.modelConfiguration });
+		}
 		const resourceKey = chatResource.toString();
 		const lease = new DisposableStore();
 		lease.add(modelRef);

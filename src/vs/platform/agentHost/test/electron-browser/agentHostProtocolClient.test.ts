@@ -42,7 +42,7 @@ import { chatReducer } from '../../common/state/sessionReducers.js';
 import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, createChatState, createSessionState, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, TurnState, customizationId, withSessionExternal, withSessionWorkspaceless, type ChatState, type SessionState } from '../../common/state/sessionState.js';
+import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, createChatState, createSessionState, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, TurnState, customizationId, withSessionExternal, withSessionWorkspaceless, type ChatState, type Message, type SessionState } from '../../common/state/sessionState.js';
 import { AgentHostTransportFailureReason, NonReconnectableTransportError, type IClientTransport, type IProtocolTransport, type ITransportCloseDetails } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../defaultAccount/common/defaultAccount.js';
@@ -1531,11 +1531,12 @@ suite('AgentHostProtocolClient', () => {
 		const sourceUri = URI.parse('ahp-session:/test/chat-0');
 		const workingDirectory = toAgentHostUri(URI.file('/workspace'), agentHostAuthority('test.example:1234'));
 
-		test('forwards a fork source and ignores its working directories', async () => {
+		test('forwards an exact title and fork source while ignoring working directories', async () => {
 			const { client, transport } = createClient();
 
 			const resultPromise = client.createChat(sessionUri, chatUri, {
 				fork: { source: sourceUri, turnId: 'turn-1' },
+				title: '  Exact title  ',
 				workingDirectories: [workingDirectory],
 			});
 
@@ -1546,12 +1547,102 @@ suite('AgentHostProtocolClient', () => {
 				params: {
 					channel: sessionUri.toString(),
 					chat: chatUri.toString(),
+					title: '  Exact title  ',
 					source: { kind: ChatSourceKind.Fork, chat: sourceUri.toString(), turnId: 'turn-1' },
 				},
 			});
 
 			transport.fireMessage({ jsonrpc: '2.0', id: 1, result: null });
 			await resultPromise;
+		});
+
+		test('forwards the initial message snapshot and inherits missing message selections', async () => {
+			const { client, transport } = createClient();
+			const initialMessage: Message = {
+				text: 'Summarize the attached image',
+				origin: { kind: MessageKind.User },
+				attachments: [{
+					type: MessageAttachmentKind.Resource,
+					uri: 'file:///workspace/screenshot.png',
+					label: 'screenshot.png',
+				}],
+				model: { id: 'message-model' },
+			};
+
+			const resultPromise = client.createChat(sessionUri, chatUri, {
+				fork: { source: sourceUri, turnId: 'turn-1' },
+				title: 'Fork title',
+				model: { id: 'request-model' },
+				agent: { uri: 'agent://test/reviewer' },
+				initialMessage,
+			});
+
+			assert.deepStrictEqual(transport.sentMessages[0], {
+				jsonrpc: '2.0',
+				id: 1,
+				method: 'createChat',
+				params: {
+					channel: sessionUri.toString(),
+					chat: chatUri.toString(),
+					title: 'Fork title',
+					initialMessage: {
+						...initialMessage,
+						agent: { uri: 'agent://test/reviewer' },
+					},
+					source: { kind: ChatSourceKind.Fork, chat: sourceUri.toString(), turnId: 'turn-1' },
+				},
+			});
+
+			transport.fireMessage({ jsonrpc: '2.0', id: 1, result: null });
+			await resultPromise;
+		});
+
+		test('inherits a request model when the initial message has none', async () => {
+			const { client, transport } = createClient();
+			const resultPromise = client.createChat(sessionUri, chatUri, {
+				model: { id: 'request-model' },
+				initialMessage: { text: 'Continue', origin: { kind: MessageKind.User } },
+			});
+
+			assert.deepStrictEqual(transport.sentMessages[0], {
+				jsonrpc: '2.0',
+				id: 1,
+				method: 'createChat',
+				params: {
+					channel: sessionUri.toString(),
+					chat: chatUri.toString(),
+					initialMessage: {
+						text: 'Continue',
+						origin: { kind: MessageKind.User },
+						model: { id: 'request-model' },
+					},
+				},
+			});
+
+			transport.fireMessage({ jsonrpc: '2.0', id: 1, result: null });
+			await resultPromise;
+		});
+
+		test('preserves chat creation failure data', async () => {
+			const { client, transport } = createClient();
+			const resultPromise = client.createChat(sessionUri, chatUri, {
+				initialMessage: { text: 'Continue', origin: { kind: MessageKind.User } },
+			});
+			const data = {
+				chat: chatUri.toString(),
+			};
+
+			transport.fireMessage({
+				jsonrpc: '2.0',
+				id: 1,
+				error: { code: AhpErrorCodes.AlreadyExists, message: 'Chat already exists', data },
+			});
+
+			await assertRemoteProtocolError(resultPromise, {
+				code: AhpErrorCodes.AlreadyExists,
+				message: 'Chat already exists',
+				data,
+			});
 		});
 
 		test('forwards a side chat source and maps its working directories', async () => {
