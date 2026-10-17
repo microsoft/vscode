@@ -1483,6 +1483,12 @@
             "markdownDescription": "%configuration.markdown.editor.quickSuggestions%",
             "scope": "resource"
           },
+          "markdown.editor.insertActions.enabled": {
+            "type": "boolean",
+            "default": false,
+            "description": "%configuration.markdown.editor.insertActions.enabled%",
+            "scope": "resource"
+          },
           "markdown.links.openLocation": {
             "type": "string",
             "default": "currentGroup",

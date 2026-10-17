@@ -8,7 +8,7 @@ import * as z from 'zod/mini';
 
 const offset = z.int().check(z.nonnegative());
 const range = z.object({ start: offset, endExclusive: offset });
-const editorConfiguration = z.object({ highlightActiveBlock: z.boolean() });
+const editorConfiguration = z.object({ highlightActiveBlock: z.boolean(), insertActionsEnabled: z.boolean() });
 const selection = z.object({ anchor: offset, active: offset });
 export const navigationState = z.object({
 	editEpoch: offset,
