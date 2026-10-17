@@ -1046,6 +1046,12 @@ export class DebugSession implements IDebugSession {
 	private async fetchThreads(stoppedDetails?: IRawStoppedDetails): Promise<void> {
 		if (this.raw) {
 			const response = await this.raw.threads();
+			// The thread may have continued while the request was pending, in
+			// which case the stop is stale and must not be applied (#280933).
+			// Stops for all threads still apply, as other threads may remain stopped.
+			if (stoppedDetails && !stoppedDetails.allThreadsStopped && !this.stoppedDetails.includes(stoppedDetails)) {
+				stoppedDetails = undefined;
+			}
 			if (response?.body && response.body.threads) {
 				this.model.rawUpdate({
 					sessionId: this.getId(),
