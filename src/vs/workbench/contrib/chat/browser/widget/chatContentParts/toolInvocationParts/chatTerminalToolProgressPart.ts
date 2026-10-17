@@ -1619,6 +1619,15 @@ export class ChatTerminalToolOutputSection extends Disposable {
 		this.domNode.classList.toggle('collapsed', !expanded);
 	}
 
+	/**
+	 * Shows the outer horizontal scrollbar and xterm's vertical scrollbar under the same
+	 * conditions. xterm reveals its scrollbar on every scroll, so CSS keeps it hidden otherwise.
+	 */
+	private _setScrollbarsVisible(visible: boolean): void {
+		this._scrollableContainer?.updateOptions({ horizontal: visible ? ScrollbarVisibility.Auto : ScrollbarVisibility.Hidden });
+		this.domNode.classList.toggle('chat-terminal-output-container-scrollbars-visible', visible);
+	}
+
 	private async _createScrollableContainer(): Promise<void> {
 		this._scrollableContainer = this._register(new DomScrollableElement(this._outputBody, {
 			vertical: ScrollbarVisibility.Hidden,
@@ -1637,18 +1646,14 @@ export class ChatTerminalToolOutputSection extends Disposable {
 			}
 		}));
 
-		// Show horizontal scrollbar on hover/focus, hide otherwise to prevent flickering during streaming
-		this._register(dom.addDisposableListener(this.domNode, dom.EventType.MOUSE_ENTER, () => {
-			this._scrollableContainer?.updateOptions({ horizontal: ScrollbarVisibility.Auto });
-		}));
-		this._register(dom.addDisposableListener(this.domNode, dom.EventType.MOUSE_LEAVE, () => {
-			this._scrollableContainer?.updateOptions({ horizontal: ScrollbarVisibility.Hidden });
-		}));
-		this._register(dom.addDisposableListener(this.domNode, dom.EventType.FOCUS_IN, () => {
-			this._scrollableContainer?.updateOptions({ horizontal: ScrollbarVisibility.Auto });
-		}));
-		this._register(dom.addDisposableListener(this.domNode, dom.EventType.FOCUS_OUT, () => {
-			this._scrollableContainer?.updateOptions({ horizontal: ScrollbarVisibility.Hidden });
+		// Show scrollbars on hover/focus, hide otherwise to prevent flickering during streaming
+		this._register(dom.addDisposableListener(this.domNode, dom.EventType.MOUSE_ENTER, () => this._setScrollbarsVisible(true)));
+		this._register(dom.addDisposableListener(this.domNode, dom.EventType.MOUSE_LEAVE, () => this._setScrollbarsVisible(false)));
+		this._register(dom.addDisposableListener(this.domNode, dom.EventType.FOCUS_IN, () => this._setScrollbarsVisible(true)));
+		this._register(dom.addDisposableListener(this.domNode, dom.EventType.FOCUS_OUT, () => this._setScrollbarsVisible(false)));
+
+		this._register(this._scrollableContainer.onScroll(e => {
+			this.domNode.classList.toggle('chat-terminal-output-container-horizontal-overflow', e.scrollWidth > e.width);
 		}));
 
 		// Track scroll state to enable scroll lock behavior (only for user scrolls)

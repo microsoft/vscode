@@ -834,16 +834,16 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 			});
 		});
 
-		test('measures horizontal chrome from the attached element computed padding', async () => {
+		test('measures horizontal chrome from the attached element computed padding and the scrollbar', async () => {
 			const mirror = createSnapshotMirror({ text: 'hello' });
 			const container = document.createElement('div');
 			document.body.appendChild(container);
 			try {
 				fakes[0].raw.open(container);
-				fakes[0].raw.element!.style.paddingLeft = '4px';
-				fakes[0].raw.element!.style.paddingRight = '0px';
+				fakes[0].raw.element!.style.paddingLeft = '10px';
+				fakes[0].raw.element!.style.paddingRight = '6px';
 				await mirror.layout(1224);
-				strictEqual(fakes[0].raw.cols, 122); // floor((1224 - 4) / 10)
+				strictEqual(fakes[0].raw.cols, 119); // floor((1224 - 10 - 6 - 14) / 10)
 			} finally {
 				container.remove();
 			}
