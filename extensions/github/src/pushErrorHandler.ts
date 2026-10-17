@@ -157,6 +157,21 @@ export class GithubPushErrorHandler implements PushErrorHandler {
 			return true;
 		}
 
+		// GitHub could not update the refs (a server-side failure)
+		if (/fatal error in commit_refs/i.test(error.stderr)) {
+			await this.handleCommitRefsError(owner, repo);
+
+			/* __GDPR__
+				"pushErrorHandler" : {
+					"owner": "lszomoru",
+					"handler": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
+			this.telemetryReporter.sendTelemetryEvent('pushErrorHandler', { handler: 'PushRejected.CommitRefs' });
+
+			return true;
+		}
+
 		/* __GDPR__
 			"pushErrorHandler" : {
 				"owner": "lszomoru",
@@ -318,6 +333,15 @@ export class GithubPushErrorHandler implements PushErrorHandler {
 		const answer = await window.showWarningMessage(message, { modal: true }, learnMore);
 		if (answer === learnMore) {
 			commands.executeCommand('vscode.open', 'https://aka.ms/vscode-github-push-protection');
+		}
+	}
+
+	private async handleCommitRefsError(owner: string, repo: string): Promise<void> {
+		const checkStatus = l10n.t('Check GitHub Status');
+		const message = l10n.t('Your push to "{0}/{1}" failed because GitHub could not update the remote refs. This is usually a temporary problem on GitHub\'s side.', owner, repo);
+		const answer = await window.showErrorMessage(message, { modal: true }, checkStatus);
+		if (answer === checkStatus) {
+			commands.executeCommand('vscode.open', 'https://www.githubstatus.com/');
 		}
 	}
 
