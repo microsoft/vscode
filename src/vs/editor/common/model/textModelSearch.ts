@@ -253,22 +253,8 @@ export class TextModelSearch {
 	}
 
 	private static _findMatchesInLine(searchData: SearchData, text: string, lineNumber: number, deltaOffset: number, resultLen: number, result: FindMatch[], captureMatches: boolean, limitResultCount: number): number {
-		const wordSeparators = searchData.wordSeparators;
 		if (!captureMatches && searchData.simpleSearch) {
-			const searchString = searchData.simpleSearch;
-			const searchStringLen = searchString.length;
-			const textLength = text.length;
-
-			let lastMatchIndex = -searchStringLen;
-			while ((lastMatchIndex = text.indexOf(searchString, lastMatchIndex + searchStringLen)) !== -1) {
-				if (!wordSeparators || isValidMatch(wordSeparators, text, textLength, lastMatchIndex, searchStringLen)) {
-					result[resultLen++] = new FindMatch(new Range(lineNumber, lastMatchIndex + 1 + deltaOffset, lineNumber, lastMatchIndex + 1 + searchStringLen + deltaOffset), null);
-					if (resultLen >= limitResultCount) {
-						return resultLen;
-					}
-				}
-			}
-			return resultLen;
+			return findSimpleMatchesInLine(searchData.wordSeparators, searchData.simpleSearch, text, lineNumber, deltaOffset, resultLen, result, limitResultCount);
 		}
 
 		const searcher = new Searcher(searchData.wordSeparators, searchData.regex);
@@ -491,23 +477,65 @@ export function isValidMatch(wordSeparators: WordCharacterClassifier, text: stri
 	);
 }
 
+/**
+ * Finds all occurrences of a plain (non-regex) search string in a single line.
+ */
+export function findSimpleMatchesInLine(wordSeparators: WordCharacterClassifier | null, searchString: string, text: string, lineNumber: number, deltaOffset: number, resultLen: number, result: FindMatch[], limitResultCount: number): number {
+	const searchStringLen = searchString.length;
+	const textLength = text.length;
+
+	let lastMatchIndex = text.indexOf(searchString);
+	while (lastMatchIndex !== -1) {
+		if (!wordSeparators || isValidMatch(wordSeparators, text, textLength, lastMatchIndex, searchStringLen)) {
+			result[resultLen++] = new FindMatch(new Range(lineNumber, lastMatchIndex + 1 + deltaOffset, lineNumber, lastMatchIndex + 1 + searchStringLen + deltaOffset), null);
+			if (resultLen >= limitResultCount) {
+				return resultLen;
+			}
+			lastMatchIndex = text.indexOf(searchString, lastMatchIndex + searchStringLen);
+		} else {
+			// a rejected candidate can still contain a whole-word match starting inside it
+			lastMatchIndex = text.indexOf(searchString, nextWholeWordStart(wordSeparators, text, textLength, lastMatchIndex));
+		}
+	}
+	return resultLen;
+}
+
+/**
+ * The first index after `fromIndex` where a whole-word match can begin.
+ */
+function nextWholeWordStart(wordSeparators: WordCharacterClassifier, text: string, textLength: number, fromIndex: number): number {
+	for (let i = fromIndex + 1; i < textLength; i++) {
+		const charBefore = text.charCodeAt(i - 1);
+		if (wordSeparators.get(charBefore) !== WordCharacterClass.Regular || charBefore === CharCode.CarriageReturn || charBefore === CharCode.LineFeed) {
+			return i;
+		}
+		if (wordSeparators.get(text.charCodeAt(i)) !== WordCharacterClass.Regular) {
+			return i;
+		}
+	}
+	return textLength;
+}
+
 export class Searcher {
 	public readonly _wordSeparators: WordCharacterClassifier | null;
 	private readonly _searchRegex: RegExp;
 	private _prevMatchStartIndex: number;
 	private _prevMatchLength: number;
+	private _didAdvance: boolean;
 
 	constructor(wordSeparators: WordCharacterClassifier | null, searchRegex: RegExp,) {
 		this._wordSeparators = wordSeparators;
 		this._searchRegex = searchRegex;
 		this._prevMatchStartIndex = -1;
 		this._prevMatchLength = 0;
+		this._didAdvance = false;
 	}
 
 	public reset(lastIndex: number): void {
 		this._searchRegex.lastIndex = lastIndex;
 		this._prevMatchStartIndex = -1;
 		this._prevMatchLength = 0;
+		this._didAdvance = false;
 	}
 
 	public next(text: string): RegExpExecArray | null {
@@ -515,10 +543,11 @@ export class Searcher {
 
 		let m: RegExpExecArray | null;
 		do {
-			if (this._prevMatchStartIndex + this._prevMatchLength === textLength) {
+			if (!this._didAdvance && this._prevMatchStartIndex + this._prevMatchLength === textLength) {
 				// Reached the end of the line
 				return null;
 			}
+			this._didAdvance = false;
 
 			m = this._searchRegex.exec(text);
 			if (!m) {
@@ -547,6 +576,10 @@ export class Searcher {
 			if (!this._wordSeparators || isValidMatch(this._wordSeparators, text, textLength, matchStartIndex, matchLength)) {
 				return m;
 			}
+
+			// a rejected candidate can still contain a whole-word match starting inside it
+			this._searchRegex.lastIndex = nextWholeWordStart(this._wordSeparators, text, textLength, matchStartIndex);
+			this._didAdvance = true;
 
 		} while (m);
 
