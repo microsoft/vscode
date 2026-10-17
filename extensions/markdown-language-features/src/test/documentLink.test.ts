@@ -146,6 +146,20 @@ async function getLinksForFile(file: vscode.Uri): Promise<vscode.DocumentLink[]>
 		assertActiveDocumentUri(testFile);
 		assert.strictEqual(vscode.window.activeTextEditor!.selection.start.line, 1);
 	});
+
+	test('Should preserve percent-encoding in external links', async () => {
+		const firebaseUrl = 'https://firebasestorage.googleapis.com/v0/b/brewlangerie.appspot.com/o/products%2FzVNZkudXJyq8bPGTXUxx%2FBetterave-Sesame.jpg?alt=media&token=0b2310c4-3ea6-4207-bbde-9c3710ba0437';
+		const textFragmentUrl = 'https://ffmpeg.org/ffmpeg-all.html?test=a%23b%20c#:~:text=%2Dversion';
+
+		await withFileContents(testFileA, joinLines(
+			`[firebase](${firebaseUrl})`,
+			`[fragment](${textFragmentUrl})`));
+
+		const links = await getLinksForFile(testFileA);
+
+		assert.strictEqual(links[0].target?.toString(true), firebaseUrl);
+		assert.strictEqual(links[1].target?.toString(true), textFragmentUrl);
+	});
 });
 
 
