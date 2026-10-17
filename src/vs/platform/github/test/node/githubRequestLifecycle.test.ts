@@ -167,7 +167,7 @@ suite('GitHub request lifecycle', () => {
 			const burstTimers = scheduler.pendingCount;
 			requests.push(read(0));
 			const coalescedTimers = scheduler.pendingCount;
-			transport.clear();
+			transport.dispose();
 			const outcomes = await Promise.all(requests);
 			assert.deepStrictEqual({
 				burstTimers, coalescedTimers,

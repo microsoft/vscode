@@ -106,7 +106,7 @@ import { buildCopilotSystemNotification, getCopilotSubagentDisplayNames } from '
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostMcpToolRoutingEnabledConfigKey } from '../../common/agentHostSchema.js';
-import { AgentHostHydraFusionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
+import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostHydraFusionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
 import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
@@ -8639,7 +8639,7 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
-	test('completes a taskless subagent only after the completion quiet period', async () => {
+	test('completes a taskless subagent only after the completion quiet period', () => runWithFakedTimers({}, async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables, { subagentTaskCompletionDelay: 20 });
 		session.resetTurnState('turn-parent');
 		const identity = { toolCallId: 'tc-search', agentName: 'search_code_subagent', agentDisplayName: 'Search code' };
@@ -8650,9 +8650,9 @@ suite('CopilotAgentSession', () => {
 		await timeout(60);
 
 		assert.deepStrictEqual({ beforeQuietPeriod, afterQuietPeriod: completed() }, { beforeQuietPeriod: [], afterQuietPeriod: ['tc-search'] });
-	});
+	}));
 
-	test('keeps a task-backed subagent active when its lifecycle completion races a running task', async () => {
+	test('keeps a task-backed subagent active when its lifecycle completion races a running task', () => runWithFakedTimers({}, async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables, { subagentTaskCompletionDelay: 20 });
 		session.resetTurnState('turn-parent');
 		const identity = { toolCallId: 'tc-subagent', agentName: 'explore', agentDisplayName: 'Explore' };
@@ -8665,9 +8665,9 @@ suite('CopilotAgentSession', () => {
 		await timeout(60);
 
 		assert.deepStrictEqual(signals.filter(signal => signal.kind === 'subagent_completed'), []);
-	});
+	}));
 
-	test('keeps a taskless subagent active when it starts another round before the quiet period ends', async () => {
+	test('keeps a taskless subagent active when it starts another round before the quiet period ends', () => runWithFakedTimers({}, async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables, { subagentTaskCompletionDelay: 20 });
 		session.resetTurnState('turn-parent');
 		const identity = { toolCallId: 'tc-search', agentName: 'search_code_subagent', agentDisplayName: 'Search code' };
@@ -8677,9 +8677,9 @@ suite('CopilotAgentSession', () => {
 		await timeout(60);
 
 		assert.deepStrictEqual(signals.filter(signal => signal.kind === 'subagent_completed'), []);
-	});
+	}));
 
-	test('waits for subagent events to settle before completing an inactive task', async () => {
+	test('waits for subagent events to settle before completing an inactive task', () => runWithFakedTimers({}, async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables, { subagentTaskCompletionDelay: 50 });
 		session.resetTurnState('turn-parent');
 		const startedAt = new Date(0).toISOString();
@@ -8701,9 +8701,9 @@ suite('CopilotAgentSession', () => {
 		mockSession.fire('session.background_tasks_changed', {});
 		await timeout(60);
 		assert.deepStrictEqual(signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId), ['tc-subagent']);
-	});
+	}));
 
-	test('keeps running subagents active between SDK model rounds', async () => {
+	test('keeps running subagents active between SDK model rounds', () => runWithFakedTimers({}, async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables, { subagentTaskCompletionDelay: 20 });
 		session.resetTurnState('turn-parent');
 		mockSession.fire('subagent.started', {
@@ -8720,9 +8720,9 @@ suite('CopilotAgentSession', () => {
 		await timeout(50);
 
 		assert.deepStrictEqual(signals.filter(signal => signal.kind === 'subagent_completed' || signal.kind === 'subagent_resumed'), []);
-	});
+	}));
 
-	test('rechecks an inactive subagent before the completion timer closes its turn', async () => {
+	test('rechecks an inactive subagent before the completion timer closes its turn', () => runWithFakedTimers({}, async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables, { subagentTaskCompletionDelay: 20 });
 		session.resetTurnState('turn-parent');
 		mockSession.fire('subagent.started', {
@@ -8738,9 +8738,9 @@ suite('CopilotAgentSession', () => {
 		await timeout(50);
 
 		assert.deepStrictEqual(signals.filter(signal => signal.kind === 'subagent_completed'), []);
-	});
+	}));
 
-	test('ignores stale inactive task snapshots after a subagent starts its next model round', async () => {
+	test('ignores stale inactive task snapshots after a subagent starts its next model round', () => runWithFakedTimers({}, async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables, { subagentTaskCompletionDelay: 20 });
 		session.resetTurnState('turn-parent');
 		mockSession.fire('subagent.started', {
@@ -8760,7 +8760,7 @@ suite('CopilotAgentSession', () => {
 		await timeout(50);
 
 		assert.deepStrictEqual(signals.filter(signal => signal.kind === 'subagent_completed'), []);
-	});
+	}));
 
 	test('settles an inactive sibling while another subagent starts its next round', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
@@ -18180,6 +18180,129 @@ Use the attached image as context.
 				v2: { beforeRoute: [], afterRoute: [treatment] },
 				v1: { beforeRoute: [], afterRoute: [treatment] },
 			});
+		});
+
+		test('reports runtime execution exposure in every model arm regardless of the enablement default, not for child turns', async () => {
+			const results: Record<string, { beforeParentTurn: readonly string[]; afterParentTurn: readonly string[] }> = {};
+			for (const [name, enabled, model] of [
+				['control', false, ''],
+				['runtime-specific', false, 'exec-agent-b'],
+				['runtime-unavailable', false, 'unavailable-model'],
+				['inherit', true, ''],
+				['specific', true, 'exec-agent-b'],
+				['unavailable', true, 'unavailable-model'],
+			] as const) {
+				const telemetryService = new TestExperimentTriggerTelemetryService();
+				const { session, mockSession } = await createAgentSession(disposables, {
+					telemetryService,
+					rootValues: {
+						[CopilotCliConfigKey.ExecutionSubagent]: enabled,
+						[CopilotCliConfigKey.ExecutionSubagentModel]: model,
+						[CopilotCliConfigKey.ExecutionSubagentDefaultControlled]: true,
+						[CopilotCliConfigKey.ExecutionSubagentModelDefaultControlled]: true,
+						[CopilotCliVSCodeAssignmentContextKey]: 'assignment-context',
+					},
+				});
+				session.resetTurnState('execution-turn');
+				mockSession.fire('assistant.turn_start', { turnId: 'child-turn' }, { agentId: 'child' });
+				const beforeParentTurn = [...telemetryService.triggers];
+				mockSession.fire('assistant.turn_start', { turnId: 'parent-turn' });
+				mockSession.fire('assistant.turn_start', { turnId: 'parent-turn' });
+				results[name] = { beforeParentTurn, afterParentTurn: telemetryService.triggers };
+			}
+
+			const enabled = `config.${AgentHostCopilotExecutionSubagentEnabledSettingId}`;
+			const model = `config.${AgentHostCopilotExecutionSubagentModelSettingId}`;
+			assert.deepStrictEqual(results, {
+				control: { beforeParentTurn: [], afterParentTurn: [enabled, model] },
+				'runtime-specific': { beforeParentTurn: [], afterParentTurn: [enabled, model] },
+				'runtime-unavailable': { beforeParentTurn: [], afterParentTurn: [enabled, model] },
+				inherit: { beforeParentTurn: [], afterParentTurn: [enabled, model] },
+				specific: { beforeParentTurn: [], afterParentTurn: [enabled, model] },
+				unavailable: { beforeParentTurn: [], afterParentTurn: [enabled, model] },
+			});
+		});
+
+		test('holds runtime execution experiment triggers until assignment context arrives', async () => {
+			const telemetryService = new TestExperimentTriggerTelemetryService();
+			const { session, mockSession, setRootValue, fireRootConfigChange } = await createAgentSession(disposables, {
+				telemetryService,
+				rootValues: {
+					[CopilotCliConfigKey.ExecutionSubagent]: false,
+					[CopilotCliConfigKey.ExecutionSubagentDefaultControlled]: true,
+					[CopilotCliConfigKey.ExecutionSubagentModelDefaultControlled]: true,
+				},
+			});
+			session.resetTurnState('execution-turn');
+			mockSession.fire('assistant.turn_start', { turnId: 'parent-turn' });
+			const beforeContext = [...telemetryService.triggers];
+			setRootValue(CopilotCliVSCodeAssignmentContextKey, 'assignment-context');
+			fireRootConfigChange();
+			await Promise.resolve();
+
+			assert.deepStrictEqual({ beforeContext, afterContext: telemetryService.triggers }, {
+				beforeContext: [],
+				afterContext: [
+					`config.${AgentHostCopilotExecutionSubagentEnabledSettingId}`,
+					`config.${AgentHostCopilotExecutionSubagentModelSettingId}`,
+				],
+			});
+		});
+
+		test('suppresses each overridden runtime execution setting trigger independently', async () => {
+			const results: Record<string, readonly string[]> = {};
+			for (const [name, enabledDefaultControlled, modelDefaultControlled] of [
+				['defaults', true, true],
+				['enabled override', false, true],
+				['model override', true, false],
+				['both overrides', false, false],
+				['unknown provenance', undefined, undefined],
+			] as const) {
+				const telemetryService = new TestExperimentTriggerTelemetryService();
+				const { session, mockSession } = await createAgentSession(disposables, {
+					telemetryService,
+					rootValues: {
+						[CopilotCliConfigKey.ExecutionSubagent]: true,
+						[CopilotCliConfigKey.ExecutionSubagentDefaultControlled]: enabledDefaultControlled,
+						[CopilotCliConfigKey.ExecutionSubagentModelDefaultControlled]: modelDefaultControlled,
+						[CopilotCliVSCodeAssignmentContextKey]: 'assignment-context',
+					},
+				});
+				session.resetTurnState('execution-turn');
+				mockSession.fire('assistant.turn_start', { turnId: 'parent-turn' });
+				results[name] = [...telemetryService.triggers];
+			}
+
+			const enabled = `config.${AgentHostCopilotExecutionSubagentEnabledSettingId}`;
+			const model = `config.${AgentHostCopilotExecutionSubagentModelSettingId}`;
+			assert.deepStrictEqual(results, {
+				defaults: [enabled, model],
+				'enabled override': [model],
+				'model override': [enabled],
+				'both overrides': [],
+				'unknown provenance': [],
+			});
+		});
+
+		test('discards deferred execution triggers when settings become overridden before assignment context arrives', async () => {
+			const telemetryService = new TestExperimentTriggerTelemetryService();
+			const { session, mockSession, setRootValue, fireRootConfigChange } = await createAgentSession(disposables, {
+				telemetryService,
+				rootValues: {
+					[CopilotCliConfigKey.ExecutionSubagent]: false,
+					[CopilotCliConfigKey.ExecutionSubagentDefaultControlled]: true,
+					[CopilotCliConfigKey.ExecutionSubagentModelDefaultControlled]: true,
+				},
+			});
+			session.resetTurnState('execution-turn');
+			mockSession.fire('assistant.turn_start', { turnId: 'parent-turn' });
+			setRootValue(CopilotCliConfigKey.ExecutionSubagentDefaultControlled, false);
+			setRootValue(CopilotCliConfigKey.ExecutionSubagentModelDefaultControlled, false);
+			setRootValue(CopilotCliVSCodeAssignmentContextKey, 'assignment-context');
+			fireRootConfigChange();
+			await Promise.resolve();
+
+			assert.deepStrictEqual(telemetryService.triggers, []);
 		});
 
 		test('holds the HydraFusion v2 experiment trigger until the assignment context arrives', async () => {

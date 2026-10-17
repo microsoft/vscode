@@ -38,7 +38,7 @@ import { ILogService, LogLevel } from '../../../log/common/log.js';
 import product from '../../../product/common/product.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { ICopilotHomeService } from '../../../environment/common/copilotHome.js';
-import { AgentHostHydraFusionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, isCopilotHydraFusionModelId } from '../../common/copilotCliConfig.js';
+import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostHydraFusionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, isCopilotHydraFusionModelId } from '../../common/copilotCliConfig.js';
 import { logSettingExperimentTrigger } from '../../../telemetry/common/experimentTrigger.js';
 import { withCustomizationEnablement } from '../../common/customizationEnablement.js';
 import { isAutoModeRoutingTier, type AutoModeRoutingTier } from '../../common/autoModeTiers.js';
@@ -1762,7 +1762,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _pendingFusionEvents: CopilotFusionEvent[] = [];
 	private _requiresFusionEventOwnership = false;
 	private _fusionTurnCancelled = false;
-	private _hydraFusionV2ExperimentTriggerPending = false;
+	private readonly _pendingSettingExperimentTriggers = new Set<string>();
 	private _hasFusionRootTurnBoundary = false;
 	private readonly _activities: Record<CopilotActivitySource, string | undefined> = { intent: undefined, command: undefined, fusion: undefined, localModel: undefined };
 	private _publishedActivity: string | undefined;
@@ -6842,14 +6842,24 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Marks where HydraFusion starts routing as v1 or v2, in every arm of a HydraFusion version
-	 * experiment. Held until the workbench forwards its assignment context, because
+	 * Holds setting exposure until the workbench forwards its assignment context, because
 	 * agent host telemetry cannot be attributed to an experiment before then.
 	 */
-	private _reportHydraFusionV2ExperimentTrigger(): void {
-		this._hydraFusionV2ExperimentTriggerPending = typeof this._configurationService.getRootConfigValues?.()[CopilotCliVSCodeAssignmentContextKey] !== 'string';
-		if (!this._hydraFusionV2ExperimentTriggerPending) {
-			logSettingExperimentTrigger(this._telemetryService, AgentHostHydraFusionEnabledSettingId);
+	private _reportSettingExperimentTrigger(settingId: string): void {
+		const defaultControlledKey = settingId === AgentHostCopilotExecutionSubagentEnabledSettingId
+			? CopilotCliConfigKey.ExecutionSubagentDefaultControlled
+			: settingId === AgentHostCopilotExecutionSubagentModelSettingId
+				? CopilotCliConfigKey.ExecutionSubagentModelDefaultControlled
+				: undefined;
+		if (defaultControlledKey !== undefined && this._configurationService.getRootValue(copilotCliConfigSchema, defaultControlledKey) !== true) {
+			this._pendingSettingExperimentTriggers.delete(settingId);
+			return;
+		}
+		if (typeof this._configurationService.getRootConfigValues?.()[CopilotCliVSCodeAssignmentContextKey] !== 'string') {
+			this._pendingSettingExperimentTriggers.add(settingId);
+		} else {
+			this._pendingSettingExperimentTriggers.delete(settingId);
+			logSettingExperimentTrigger(this._telemetryService, settingId);
 		}
 	}
 
@@ -6859,11 +6869,13 @@ export class CopilotAgentSession extends Disposable {
 			void this._syncImageGenerationAfterConfigChange();
 			// The forwarded shell init setting lives in root config.
 			void this._syncShellInitScript();
-			if (this._hydraFusionV2ExperimentTriggerPending) {
+			if (this._pendingSettingExperimentTriggers.size > 0) {
 				// Deferred so that the listener installing the forwarded assignment context on telemetry runs first.
 				queueMicrotask(() => {
-					if (this._hydraFusionV2ExperimentTriggerPending && !this._store.isDisposed) {
-						this._reportHydraFusionV2ExperimentTrigger();
+					if (!this._store.isDisposed) {
+						for (const settingId of this._pendingSettingExperimentTriggers) {
+							this._reportSettingExperimentTrigger(settingId);
+						}
 					}
 				});
 			}
@@ -10355,7 +10367,7 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		if (event.type === 'session.fusion_route_started') {
-			this._reportHydraFusionV2ExperimentTrigger();
+			this._reportSettingExperimentTrigger(AgentHostHydraFusionEnabledSettingId);
 		}
 		const update = this._fusionProgress.accept(event);
 		if (update) {
@@ -10679,6 +10691,10 @@ export class CopilotAgentSession extends Disposable {
 			this._resumeSubagentForEvent(e);
 			if (!e.agentId) {
 				if (this._currentTurn.value) {
+					// Runtime assignments can override the enablement default. Include both
+					// setting experiments without excluding unavailable-model treatments.
+					this._reportSettingExperimentTrigger(AgentHostCopilotExecutionSubagentEnabledSettingId);
+					this._reportSettingExperimentTrigger(AgentHostCopilotExecutionSubagentModelSettingId);
 					this._currentTurn.value.activeSdkTurnId = e.data.turnId;
 					this._currentTurn.value.sdkTurnIds.add(e.data.turnId);
 					this._hasFusionRootTurnBoundary = true;

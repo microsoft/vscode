@@ -48,7 +48,7 @@ import { agentModelConfigurationReportKey, createContextSizeConfigSchemaProperty
 import { createAgentModelNoticesMeta } from '../../common/agentModelNotices.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
-import { AgentHostFusionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAMES, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, isCopilotHydraFusionModelId, normalizeSkillCharBudget, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
+import { AgentHostFusionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAMES, DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, isCopilotHydraFusionModelId, normalizeSkillCharBudget, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { getCopilotApprovalConfig, getCopilotApprovalPolicy } from './copilotApprovalPolicy.js';
 import { AGENT_HOST_COPILOT_CLIENT_NAME, CopilotManagedSettingsResolver, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
@@ -1391,6 +1391,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Tgrep) === true;
 	}
 
+	private _isExecutionSubagentEnabled(): boolean {
+		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ExecutionSubagent) === true;
+	}
+
+	private _getExecutionSubagentModel(): string {
+		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ExecutionSubagentModel)?.trim() ?? DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL;
+	}
+
 	private _isHydraFusionEnabled(): boolean {
 		return this._isFusionEnabled() || this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusion) === true;
 	}
@@ -1617,6 +1625,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._isLocalIndexEnabled(),
 			this._configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true,
 			readLocalModelRootConfig(this._configurationService).enabled,
+			this._isExecutionSubagentEnabled(),
+			this._getExecutionSubagentModel(),
 		);
 	}
 
@@ -3325,10 +3335,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _publishModels(): void {
 		const fusion = this._isFusionEnabled();
 		const hydraFusionModels: IAgentModelInfo[] = [];
+		// HydraFusion runs on Copilot, so it can't be offered without a GitHub account.
+		const signedIn = !!this._githubCredentials.token;
 		for (const [id, name] of COPILOT_HYDRA_FUSION_MODEL_NAMES) {
 			// The runtime only offers Max with HydraFusion v2.
 			const enabled = id === COPILOT_HYDRA_FUSION_MAX_MODEL_ID ? this._isHydraFusionV2Enabled() : this._isHydraFusionEnabled();
-			if (enabled && !this._capiModels.some(model => model.id === id)) {
+			if (signedIn && enabled && !this._capiModels.some(model => model.id === id)) {
 				hydraFusionModels.push({
 					provider: this.id,
 					id,
@@ -3623,7 +3635,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// Build a clean env for the CLI subprocess, stripping Electron/VS Code vars
 			// that can interfere with the Node.js process the SDK spawns.
 			const appliedProxy = this._readCopilotProxyState();
-			const env = this._createCopilotCliEnvironment(startupConfig.skillCharBudget, scoped !== undefined, appliedProxy);
+			const env = this._createCopilotCliEnvironment(startupConfig.skillCharBudget, scoped !== undefined, appliedProxy, startupConfig.executionSubagent, startupConfig.executionSubagentModel);
 			env['COPILOT_HOME'] = this._copilotHomeService.home.fsPath;
 			// Family aliases are host-side (prompt and tool-profile routing) and
 			// deliberately never reach the runtime; an ambient value here would
@@ -3719,6 +3731,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 				env['OTEL_EXPORTER_OTLP_METRICS_PROTOCOL'] = nativeTelemetry.external.protocol;
 			} else if (nativeTelemetry) {
 				env['OTEL_METRICS_EXPORTER'] = 'none';
+			}
+			if (telemetry?.filePath === '') {
+				deleteEnvironmentVariable(env, 'COPILOT_OTEL_FILE_EXPORTER_PATH');
 			}
 			const copilotSdkLogLevelAtStartup = this._resolveCopilotSdkLogLevel(startupConfig.copilotSdkLogLevel);
 			const gitHubToken = scoped ? scoped.kind === 'credential' ? scoped.credential.token : undefined
@@ -7891,7 +7906,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		};
 	}
 
-	private _createCopilotCliEnvironment(skillCharBudget = this._getSkillCharBudget(), omitAmbientAuthentication = false, proxyState = this._readCopilotProxyState()): Record<string, string | undefined> {
+	private _createCopilotCliEnvironment(skillCharBudget = this._getSkillCharBudget(), omitAmbientAuthentication = false, proxyState = this._readCopilotProxyState(), executionSubagent = this._isExecutionSubagentEnabled(), executionSubagentModel = this._getExecutionSubagentModel()): Record<string, string | undefined> {
 		const { proxy, noProxy, kerberosSpn } = proxyState;
 		const omittedKeys = [
 			...(proxy ? COPILOT_PROXY_ENV_KEYS : []),
@@ -7903,6 +7918,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._isClaudeAdvisorEnabled(),
 			skillCharBudget,
 			omitAmbientAuthentication,
+			{ enabled: executionSubagent, model: executionSubagentModel },
 		);
 		if (proxy) {
 			for (const key of COPILOT_PROXY_SET_ENV_KEYS) {

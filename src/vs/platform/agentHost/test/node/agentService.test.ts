@@ -16,7 +16,7 @@ import type { Database } from '@vscode/sqlite3';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
-import { DeferredPromise, disposableTimeout, raceTimeout, timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout, raceTimeout, retry, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
@@ -9645,7 +9645,8 @@ suite('AgentService (node dispatcher)', () => {
 			const initiator = { name: 'vscode-agents-window', title: 'VS Code Agents Window' };
 			const session = await localService.createSession({ legacyChatUris: true, _meta: withSessionInitiator(undefined, initiator) });
 			const listedBefore = (await localService.listSessions()).map(s => s.session.toString());
-			await timeout(500);
+			// Poll for the background retry instead of sleeping; `whenIdle` would itself flush and mask it.
+			await retry(async () => assert.strictEqual(await database.getMetadata(SESSION_INITIATOR_METADATA_KEY), JSON.stringify(initiator)), 10, 50);
 			assert.deepStrictEqual({
 				listed: listedBefore,
 				stored: await database.getMetadata(SESSION_INITIATOR_METADATA_KEY),
@@ -19949,11 +19950,13 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('concurrent first listings serve registered fallback data while sharing background migration', async () => {
 			const gate = new DeferredPromise<void>();
+			const migrationStarted = new DeferredPromise<void>();
 			class GatedListAgent extends MockAgent {
 				override readonly onDidDiscoverChats = Event.None;
 				listCalls = 0;
 				override async listChatsToMigrate(): Promise<IAgentListedChat[]> {
 					this.listCalls++;
+					migrationStarted.complete();
 					await gate.p;
 					return super.listExternalChats();
 				}
@@ -19973,15 +19976,9 @@ suite('AgentService (node dispatcher)', () => {
 
 			const first = svc.listSessions();
 			const second = svc.listSessions();
-			for (let i = 0; i < 20 && agent.listCalls === 0; i++) {
-				await timeout(0);
-			}
-			let listingSettled = false;
-			void first.then(() => listingSettled = true);
-			for (let i = 0; i < 20 && !listingSettled; i++) {
-				await timeout(0);
-			}
-			assert.strictEqual(listingSettled, true, 'first listing must not wait for provider migration');
+			// The migration stays blocked on `gate`: a first listing that waited for it would never settle.
+			await migrationStarted.p;
+			assert.strictEqual(await raceTimeout(first.then(() => true), 3_000, () => false), true, 'first listing must not wait for provider migration');
 			gate.complete();
 
 			const [firstResult, secondResult] = await Promise.all([first, second]);
@@ -34933,20 +34930,26 @@ suite('AgentService (node dispatcher)', () => {
 				await first.createChat(target, peer);
 				await timeout(0);
 				const orderOf = (service: AgentService) => getStateManager(service).getSessionState(target.toString())?.chats.map(chat => chat.resource);
-				const restart = async () => {
-					await first.whenCatalogReconciliationIdle();
-					await getTestSessionStateStore(first).whenIdle(undefined);
+				// A host restarts once the previous ones stopped writing. A host still running would later flush its dirty
+				// summaries (on a debounce) and write the target's catalog receipt while the next one restores it, at the same revision.
+				const hosts = [first];
+				const settle = async () => {
+					for (const host of hosts) {
+						getStateManager(host).prepareSessionSummariesForListing((await host.listSessions()).map(toListedSessionSummary));
+						await host.whenCatalogReconciliationIdle();
+						await getTestSessionStateStore(host).whenIdle(undefined);
+					}
+				};
+				const restoredOrder = async () => {
+					await settle();
 					const restarted = createService();
+					hosts.push(restarted);
 					await restarted.listSessions();
 					await restarted.restoreSession(target);
-					// What the restore persisted is restored again.
-					await restarted.whenCatalogReconciliationIdle();
-					await getTestSessionStateStore(restarted).whenIdle(undefined);
-					const again = createService();
-					await again.listSessions();
-					await again.restoreSession(target);
-					return [orderOf(restarted), orderOf(again)];
+					return orderOf(restarted);
 				};
+				// What the restore persisted is restored again.
+				const restart = async () => [await restoredOrder(), await restoredOrder()];
 
 				// Moved without an anchor: before the target's default chat.
 				await first.moveChat(source, moved, { kind: 'session', session: target, after: undefined });

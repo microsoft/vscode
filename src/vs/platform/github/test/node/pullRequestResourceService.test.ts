@@ -137,10 +137,6 @@ class TestGitHubCredentialService implements IGitHubCredentials {
 		return this.credential;
 	}
 
-	resolveCredential(): Promise<GitHubCredential> {
-		return Promise.resolve(this.credential);
-	}
-
 	handleRequestError(): void { }
 
 	invalidate(reason: GitHubCredentialInvalidation['reason']): void {

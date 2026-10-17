@@ -72,6 +72,7 @@ export class LocalApiRequestProvider extends BufferedApiRequestProvider {
 			followRedirects: metadata.redirect === 'manual' ? false : undefined,
 			caller: metadata.options?.caller,
 			deadline: metadata.options?.deadline,
+			priority: metadata.options?.priority,
 		};
 		const credentials = this.credentials;
 		if (!credentials) {
@@ -100,7 +101,7 @@ export class LocalApiRequestProvider extends BufferedApiRequestProvider {
 		}
 		try {
 			if (graphQLBody !== undefined) {
-				const response = await this.transport.graphqlText(credential.account, credential.token, url.href, graphQLBody, operationSignal, undefined, {
+				const response = await this.transport.graphqlText(credential.account, credential.token, url.href, graphQLBody, operationSignal, metadata.options?.priority, {
 					caller: metadata.options?.caller, deadline,
 				});
 				operationSignal.throwIfAborted();
