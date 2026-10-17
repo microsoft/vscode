@@ -3232,6 +3232,24 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 */
 	private _publishModels(): void {
 		const fusion = this._isFusionEnabled();
+		const capiModels = this._capiModels
+			.map(model => this._managedModelPolicy ? projectCopilotManagedModelConfiguration(model, this._managedModelPolicy, this._logService) : model)
+			// Fusion's tiers route through HydraFusion, so they only offer what its settings enable.
+			.filter(model => !fusion || !isCopilotHydraFusionModelId(model.id) || (model.id === COPILOT_HYDRA_FUSION_MAX_MODEL_ID ? this._isHydraFusionV2Enabled() : this._isHydraFusionEnabled()))
+			.map(model => this._asPresented(model, fusion));
+		if (this._capiModels.some(model => isAutoModel(model.id))) {
+			this._reportFusionExperimentTrigger();
+		}
+		// With `DYNAMIC_AUTO_TIERS` the runtime decides whether this account can run HydraFusion, so only what it lists is offered.
+		const hydraFusionModels = this._lastStartupConfig.dynamicAutoTiers ? [] : this._getUnlistedHydraFusionModels();
+		this._models.set([...capiModels, ...hydraFusionModels, ...this._byokModels, ...this._getLocalModelRows()].map(model => this._withModelConfigAliases(model)), undefined);
+		for (const entry of this._chatEntriesBySdkId.values()) {
+			entry.chatSession.refreshModelConfiguration();
+		}
+	}
+
+	/** HydraFusion rows the settings enable but the runtime's catalog omits, for runtimes that don't list HydraFusion themselves. */
+	private _getUnlistedHydraFusionModels(): IAgentModelInfo[] {
 		const hydraFusionModels: IAgentModelInfo[] = [];
 		for (const [id, name] of COPILOT_HYDRA_FUSION_MODEL_NAMES) {
 			// The runtime only offers Max with HydraFusion v2.
@@ -3246,18 +3264,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				});
 			}
 		}
-		const capiModels = this._capiModels
-			.map(model => this._managedModelPolicy ? projectCopilotManagedModelConfiguration(model, this._managedModelPolicy, this._logService) : model)
-			// Fusion's tiers route through HydraFusion, so they only offer what its settings enable.
-			.filter(model => !fusion || !isCopilotHydraFusionModelId(model.id) || (model.id === COPILOT_HYDRA_FUSION_MAX_MODEL_ID ? this._isHydraFusionV2Enabled() : this._isHydraFusionEnabled()))
-			.map(model => this._asPresented(model, fusion));
-		if (this._capiModels.some(model => isAutoModel(model.id))) {
-			this._reportFusionExperimentTrigger();
-		}
-		this._models.set([...capiModels, ...hydraFusionModels, ...this._byokModels, ...this._getLocalModelRows()].map(model => this._withModelConfigAliases(model)), undefined);
-		for (const entry of this._chatEntriesBySdkId.values()) {
-			entry.chatSession.refreshModelConfiguration();
-		}
+		return hydraFusionModels;
 	}
 
 	private _withModelConfigAliases(model: IAgentModelInfo): IAgentModelInfo {
@@ -3318,7 +3325,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			...model,
 			name: localize('copilotAgent.fusionModelName', "Fusion"),
 			configSchema,
-			// HydraFusion stays published either way, so sessions that already selected it keep working.
+			// Without `DYNAMIC_AUTO_TIERS`, HydraFusion stays published either way, so sessions that already selected it keep working.
 			_meta: withAgentModelFusionMeta(this._asFusionAutoTiersMeta(model), { balanceUsesHydraFusion: this._isFusionBalanceUsingHydraFusion() }),
 		};
 	}

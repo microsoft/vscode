@@ -11077,6 +11077,40 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('with DYNAMIC_AUTO_TIERS, publishes only the HydraFusion the runtime lists, and adds it back once a restart turns the flag off', async () => {
+			const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }, { id: 'gpt-5', name: 'GPT-5' }]);
+			client.autoTierMetadata = {
+				defaultTier: 'balance',
+				tiers: [
+					{ id: 'balance', displayName: 'Balance', description: '', type: 'auto', status: { enabled: true } },
+					{ id: 'hydrafusion', displayName: 'High', description: '', type: 'fusion', status: { enabled: false, message: 'Not available on your plan' } },
+				],
+			};
+			const { agent, configurationService } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				rootConfig: { [CopilotCliConfigKey.DynamicAutoTiers]: true, [CopilotCliConfigKey.HydraFusion]: true, [CopilotCliConfigKey.HydraFusionV2]: true },
+			});
+			const publishedModels = () => agent.models.get().map(model => model.id);
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.listChatsToMigrate();
+				await agent.refreshModels();
+				const dynamic = publishedModels();
+
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.DynamicAutoTiers]: false });
+				await agent.listChatsToMigrate();
+				await agent.refreshModels();
+
+				assert.deepStrictEqual({ dynamic, legacy: publishedModels() }, {
+					dynamic: ['auto', 'gpt-5'],
+					legacy: ['auto', 'gpt-5', 'hydrafusion', 'hydrafusion-max'],
+				});
+			} finally {
+				await disposeAgent(agent);
+				setAdvertisedAutoModeTiers(undefined);
+			}
+		});
+
 		test('restarts the runtime when HydraFusion multi-root changes with v2 on', async () => {
 			const client = new TestCopilotClient([], [{ id: 'gpt-5', name: 'GPT-5' }]);
 			const { agent, configurationService } = createTestAgentContext(disposables, {
