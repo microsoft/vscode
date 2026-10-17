@@ -475,8 +475,8 @@ suite('BrowserAgentHostDebugLogsExportService', () => {
 			readChunk: async () => { throw new Error('Remote log read failed'); },
 		});
 		assert.deepStrictEqual({
-			// The failing write targets a staging folder named with a random id.
-			result: { hostSaveError: result.hostSaveError?.replace(/\.agent-host-debug-logs-[0-9a-f-]+/, '.agent-host-debug-logs-<id>') },
+			// The failing write targets a staging folder named with a random id, and the path separator is platform specific.
+			result: { hostSaveError: result.hostSaveError?.replace(/\\/g, '/').replace(/\.agent-host-debug-logs-[0-9a-f-]+/, '.agent-host-debug-logs-<id>') },
 			clientLog: (await fileService.readFile(URI.joinPath(destination, 'client.log'))).value.toString(),
 		}, {
 			result: { hostSaveError: `Unable to write file '/exports/.agent-host-debug-logs-<id>/agenthost.log' (Error: Remote log read failed)` },

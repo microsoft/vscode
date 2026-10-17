@@ -22,6 +22,8 @@ new RuleTester({ languageOptions: { parser: tseslint.parser } }).run('code-no-ne
 		`suite('a', () => { test('b', () => { const test = (x: number) => x; test(1); }); });`,
 		`suite('a', () => { function test(a: number, b: number) { return a + b; } test('x', () => { test(1, 2); }); });`,
 		`suite('a', () => { test('b', () => { function test(a: unknown, fn: () => void) { fn(); } test(1, () => {}); }); });`,
+		// `node:test` runs a test declared inside another test as a subtest.
+		`import { suite, test } from 'node:test'; suite('a', () => { test('b', () => { test('c', () => {}); }); });`,
 		// Not a registration: no callback.
 		`suite('a', () => { test('b', () => { test('c', 1); }); });`,
 	],
@@ -61,10 +63,6 @@ new RuleTester({ languageOptions: { parser: tseslint.parser } }).run('code-no-ne
 	});
 	});
 });`,
-			errors: nested('test'),
-		},
-		{
-			code: `import { test } from 'node:test'; test('a', () => { test('b', () => {}); });`,
 			errors: nested('test'),
 		},
 	],

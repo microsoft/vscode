@@ -148,4 +148,4 @@ The fixes can be run using `npx eslint --fix` in the VS Code repo
 
 ## Tests nested inside tests
 
-`local/code-no-nested-test` reports a `test(...)` or `suite(...)` declared inside the body of another test. Mocha only collects tests while a suite runs, so a test registered from within a running test is silently dropped and never runs. This is almost always a misplaced closing brace. Local helpers that merely happen to be named `test` are ignored. Run its tests with `node --test .eslint-plugin-local/tests/code-no-nested-test.test.ts`.
+`local/code-no-nested-test` reports a `test(...)` or `suite(...)` declared inside the body of another test. Mocha only collects tests while a suite runs, so a test registered from within a running test is silently dropped and never runs. This is almost always a misplaced closing brace. Only Mocha's globals are checked: a local helper named `test` is ignored, and so is anything imported from `node:test`, which runs a nested test as a subtest. Run its tests with `node --test .eslint-plugin-local/tests/code-no-nested-test.test.ts`.

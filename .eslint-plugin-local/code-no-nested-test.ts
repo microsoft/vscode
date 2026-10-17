@@ -10,7 +10,7 @@ const registrations = new Set(['test', 'it', 'suite', 'describe']);
 const testBodies = new Set(['test', 'it']);
 
 /**
- * Tests and suites are registered while the surrounding suite runs. Registering one from inside a
+ * Tests and suites (Mocha globals) are registered while the surrounding suite runs. Registering one from inside a
  * test body happens too late: Mocha silently drops it, so it never runs. This typically comes from
  * a misplaced closing brace.
  */
@@ -40,12 +40,13 @@ export default new class NoNestedTest implements eslint.Rule.RuleModule {
 			if (callee.type !== 'Identifier' || !registrations.has(callee.name)) {
 				return undefined;
 			}
-			// A local helper that happens to be named `test` is not the test framework.
+			// Only Mocha's globals are covered. A local helper that happens to be named `test` is not the test
+			// framework, and `node:test` runs a test declared inside another test as a subtest.
 			const name = callee.name;
 			for (let scope: eslint.Scope.Scope | null = sourceCode.getScope(node); scope; scope = scope.upper) {
 				const variable = scope.set.get(name);
 				if (variable) {
-					return variable.defs.length > 0 && variable.defs.every(def => def.type === 'ImportBinding') ? name : undefined;
+					return undefined;
 				}
 			}
 			return name;
