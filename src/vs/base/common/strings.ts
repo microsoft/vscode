@@ -1422,3 +1422,4 @@ function toBinary(str: string): string {
 export function multibyteAwareBtoa(str: string): string {
 	return btoa(toBinary(str));
 }
+// [DO NOT MERGE] chat-lib skip validation: this change should skip the chat-lib checks.
