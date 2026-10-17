@@ -4051,25 +4051,30 @@ declare module 'vscode' {
 		get(uri: Uri): TextEdit[];
 
 		/**
-		 * Create a regular file.
+		 * Create a file or folder.
 		 *
-		 * @param uri Uri of the new file.
-		 * @param options Defines if an existing file should be overwritten or be
+		 * @param uri Uri of the new file or folder.
+		 * @param options Defines if an existing file or folder should be overwritten or be
 		 * ignored. When `overwrite` and `ignoreIfExists` are both set `overwrite` wins.
-		 * When both are unset and when the file already exists then the edit cannot
-		 * be applied successfully. The `content`-property allows to set the initial contents
-		 * the file is being created with.
+		 * When both are unset and when the file or folder already exists then the edit cannot
+		 * be applied successfully. The `folder`-property allows to create a folder instead of
+		 * a regular file. The `contents`-property allows to set the initial contents
+		 * when creating a file.
 		 * @param metadata Optional metadata for the entry.
 		 */
 		createFile(uri: Uri, options?: {
 			/**
-			 * Overwrite existing file. Overwrite wins over `ignoreIfExists`
+			 * Overwrite existing file or folder. Overwrite wins over `ignoreIfExists`
 			 */
 			readonly overwrite?: boolean;
 			/**
-			 * Do nothing if a file with `uri` exists already.
+			 * Do nothing if a file or folder at the destination already exists.
 			 */
 			readonly ignoreIfExists?: boolean;
+			/**
+			 * Create a folder instead of a regular file.
+			 */
+			readonly folder?: boolean;
 			/**
 			 * The initial contents of the new file.
 			 *
@@ -4102,16 +4107,36 @@ declare module 'vscode' {
 		 * @param oldUri The existing file.
 		 * @param newUri The new location.
 		 * @param options Defines if existing files should be overwritten or be
-		 * ignored. When overwrite and ignoreIfExists are both set overwrite wins.
+		 * ignored. When `overwrite` and `ignoreIfExists` are both set `overwrite` wins.
 		 * @param metadata Optional metadata for the entry.
 		 */
 		renameFile(oldUri: Uri, newUri: Uri, options?: {
 			/**
-			 * Overwrite existing file. Overwrite wins over `ignoreIfExists`
+			 * Overwrite existing file or folder. Overwrite wins over `ignoreIfExists`
 			 */
 			readonly overwrite?: boolean;
 			/**
-			 * Do nothing if a file with `uri` exists already.
+			 * Do nothing if a file or folder with `newUri` exists already.
+			 */
+			readonly ignoreIfExists?: boolean;
+		}, metadata?: WorkspaceEditEntryMetadata): void;
+
+		/**
+		 * Copy a file or folder.
+		 *
+		 * @param oldUri The existing file or folder.
+		 * @param newUri The new location.
+		 * @param options Defines if existing files or folders should be overwritten or be
+		 * ignored. When `overwrite` and `ignoreIfExists` are both set `overwrite` wins.
+		 * @param metadata Optional metadata for the entry.
+		 */
+		copyFile(oldUri: Uri, newUri: Uri, options?: {
+			/**
+			 * Overwrite existing file or folder. Overwrite wins over `ignoreIfExists`
+			 */
+			readonly overwrite?: boolean;
+			/**
+			 * Do nothing if a file or folder at the destination already exists.
 			 */
 			readonly ignoreIfExists?: boolean;
 		}, metadata?: WorkspaceEditEntryMetadata): void;
