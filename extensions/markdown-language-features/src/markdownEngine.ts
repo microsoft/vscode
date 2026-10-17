@@ -46,15 +46,16 @@ type MarkdownItConfig = Readonly<Required<Pick<MarkdownIt.Options, 'breaks' | 'l
 
 class TokenCache {
 	#cachedDocument?: {
-		readonly uri: vscode.Uri;
+		readonly document: ITextDocument;
 		readonly version: number;
 		readonly config: MarkdownItConfig;
 	};
 	#tokens?: MarkdownIt.Token[];
 
 	public tryGetCached(document: ITextDocument, config: MarkdownItConfig): MarkdownIt.Token[] | undefined {
+		// Document versions can restart when a document is reopened, so cache by document identity too.
 		if (this.#cachedDocument
-			&& this.#cachedDocument.uri.toString() === document.uri.toString()
+			&& this.#cachedDocument.document === document
 			&& document.version >= 0 && this.#cachedDocument.version === document.version
 			&& this.#cachedDocument.config.breaks === config.breaks
 			&& this.#cachedDocument.config.linkify === config.linkify
@@ -66,7 +67,7 @@ class TokenCache {
 
 	public update(document: ITextDocument, config: MarkdownItConfig, tokens: MarkdownIt.Token[]) {
 		this.#cachedDocument = {
-			uri: document.uri,
+			document,
 			version: document.version,
 			config,
 		};
