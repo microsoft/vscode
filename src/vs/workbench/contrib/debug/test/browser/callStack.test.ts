@@ -412,6 +412,19 @@ suite('Debug - CallStack', () => {
 		assert.strictEqual(stackFrame2.toString(), 'module');
 	});
 
+	test('stack frame toString() with a uri label formatter', () => {
+		const session = createTestSession(model);
+		disposables.add(session);
+		const thread = new Thread(session, 'mockthread', 1);
+		const source = new Source({
+			name: 'foo.py',
+			path: '/home/user/foo.py',
+		}, 'aDebugSessionId', mockUriIdentityService, new NullLogService());
+		const stackFrame = new StackFrame(thread, 1, source, 'app', 'normal', { startLineNumber: 3, startColumn: 1, endLineNumber: 3, endColumn: 10 }, 1, true);
+		assert.strictEqual(stackFrame.toString(uri => uri.path), 'app (/home/user/foo.py:3)');
+		assert.strictEqual(stackFrame.toString(), `app (${source.uri.fsPath}:3)`);
+	});
+
 	test('debug child sessions are added in correct order', () => {
 		const session = disposables.add(createTestSession(model));
 		model.addSession(session);
