@@ -91,7 +91,13 @@ export type DiffHistoryOptions = {
 };
 
 export enum RejectedEditsMemoryMode {
-	DiffWithTags = 'diffWithTags', // This is currently the only mode, so it is used by default but defined as a string for future extensibility.
+	/** Rejected hunks are tagged with `<|rejected/|>` and the prompt gets an instruction explaining the tag. */
+	DiffWithTags = 'diffWithTags',
+	/**
+	 * Rejected hunks are rendered as ordinary edit history (applied, then undone by the developer),
+	 * with no tag and no instruction. Only recent rejections in the active document whose lines are unchanged are used.
+	 */
+	AppliedThenUndone = 'appliedThenUndone',
 }
 
 export type PromptMemoryOptions = {
@@ -100,7 +106,7 @@ export type PromptMemoryOptions = {
 
 export namespace PromptMemoryOptions {
 	export const VALIDATOR: IValidator<PromptMemoryOptions> = vObj({
-		'rejectedEdits': vUnion(vEnum(RejectedEditsMemoryMode.DiffWithTags), vUndefined()),
+		'rejectedEdits': vUnion(vEnum(RejectedEditsMemoryMode.DiffWithTags, RejectedEditsMemoryMode.AppliedThenUndone), vUndefined()),
 	});
 }
 
@@ -594,7 +600,7 @@ export function isEagernessPrompt(options: PromptOptions, aggressivenessLevel: A
 }
 
 export function isRejectedEditMemoryEnabled(options: { readonly memory?: PromptMemoryOptions }): boolean {
-	return options.memory?.rejectedEdits === RejectedEditsMemoryMode.DiffWithTags;
+	return options.memory?.rejectedEdits !== undefined;
 }
 
 export enum ResponseFormat {

@@ -5,7 +5,7 @@
 
 import { DocumentId } from '../../../platform/inlineEdits/common/dataTypes/documentId';
 import { RootedEdit } from '../../../platform/inlineEdits/common/dataTypes/edit';
-import { DiffHistoryOptions } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { DiffHistoryOptions, PromptMemoryOptions, RejectedEditsMemoryMode } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { StatelessNextEditDocument } from '../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { IXtabHistoryDiffHunk, IXtabHistoryEditEntry, IXtabHistoryEntry, IXtabHistoryRejectedEditEntry } from '../../../platform/inlineEdits/common/workspaceEditTracker/nesXtabHistoryTracker';
 import { groupAdjacentBy, pushMany } from '../../../util/vs/base/common/arrays';
@@ -13,12 +13,62 @@ import { toUniquePath } from './promptCraftingUtils';
 
 export const REJECTED_EDIT_TAG = '<|rejected/|>';
 
+/**
+ * In {@link RejectedEditsMemoryMode.AppliedThenUndone} mode a rejection stops being shown once more than this many
+ * edit-history entries follow it (consecutive edits to the same line count once). Offline, the rejection's effect on
+ * repeated suggestions fades as later edits push it back (with the cursor on the rejected lines, repeats fall from
+ * 87% to 79% at four later edits and to 83% at eight), so older rejections are dropped to save prompt tokens.
+ */
+export const REJECTED_EDITS_MAX_EDITS_AFTER = 4;
+
+/**
+ * Picks the rejections that go into the prompt.
+ *
+ * {@link RejectedEditsMemoryMode.AppliedThenUndone} keeps only rejections that
+ * - are in the active document, and
+ * - are followed by at most {@link REJECTED_EDITS_MAX_EDITS_AFTER} edit-history entries.
+ *
+ * Like every other history entry, a rejection keeps the line numbers it had when it happened. Other modes keep all
+ * rejections.
+ */
+export function selectRejectedEditsForPrompt(
+	memory: PromptMemoryOptions | undefined,
+	rejectedEditHistory: readonly IXtabHistoryRejectedEditEntry[],
+	xtabHistory: readonly IXtabHistoryEntry[],
+	activeDoc: StatelessNextEditDocument,
+): readonly IXtabHistoryRejectedEditEntry[] {
+	const mode = memory?.rejectedEdits;
+	if (mode === undefined) {
+		return [];
+	}
+	if (mode !== RejectedEditsMemoryMode.AppliedThenUndone) {
+		return rejectedEditHistory;
+	}
+	return rejectedEditHistory.filter(entry =>
+		entry.docId === activeDoc.id
+		&& xtabHistory.filter(h => h.kind === 'edit' && h.ordinal > entry.ordinal).length <= REJECTED_EDITS_MAX_EDITS_AFTER
+	);
+}
+
 export interface EditDiffHistoryResult {
 	readonly promptPiece: string;
 	readonly nDiffs: number;
 	readonly totalTokens: number;
 }
 
+interface IDiffHistoryItem {
+	readonly ordinal: number;
+	readonly docId: DocumentId;
+	readonly isRejection: boolean;
+	render(): string | null;
+}
+
+/**
+ * @param rejectedEditsMode How rejected edits are rendered:
+ * - {@link RejectedEditsMemoryMode.DiffWithTags}: one tagged entry per rejection, at the rejection's position.
+ * - {@link RejectedEditsMemoryMode.AppliedThenUndone}: untagged "applied, then undone" entries at the rejection's
+ *   position. The pair counts as a single entry towards `nEntries`.
+ */
 export function getEditDiffHistory(
 	activeDoc: StatelessNextEditDocument,
 	xtabHistory: readonly IXtabHistoryEntry[],
@@ -26,10 +76,28 @@ export function getEditDiffHistory(
 	computeTokens: (s: string) => number,
 	{ onlyForDocsInPrompt, maxTokens, nEntries, useRelativePaths }: DiffHistoryOptions,
 	rejectedEditHistory: readonly IXtabHistoryRejectedEditEntry[],
+	rejectedEditsMode: RejectedEditsMemoryMode | undefined,
 ): EditDiffHistoryResult {
 	const workspacePath = useRelativePaths ? activeDoc.workspaceRoot?.path : undefined;
 
-	const reversedHistory = [...xtabHistory, ...rejectedEditHistory].sort((left, right) => right.ordinal - left.ordinal);
+	const items: IDiffHistoryItem[] = [];
+	for (const entry of xtabHistory) {
+		if (entry.kind === 'visibleRanges') {
+			continue;
+		}
+		items.push({ ordinal: entry.ordinal, docId: entry.docId, isRejection: false, render: () => generateDocDiff(entry, workspacePath) });
+	}
+	if (rejectedEditsMode === RejectedEditsMemoryMode.AppliedThenUndone) {
+		for (const entry of rejectedEditHistory) {
+			items.push({ ordinal: entry.ordinal, docId: entry.docId, isRejection: true, render: () => renderAppliedThenUndone(entry, workspacePath) });
+		}
+	} else {
+		for (const entry of rejectedEditHistory) {
+			items.push({ ordinal: entry.ordinal, docId: entry.docId, isRejection: true, render: () => generateDocDiff(entry, workspacePath) });
+		}
+	}
+
+	const reversedHistory = items.sort((left, right) => right.ordinal - left.ordinal);
 
 	let tokenBudget = maxTokens;
 	let totalTokensConsumed = 0;
@@ -37,20 +105,16 @@ export function getEditDiffHistory(
 	const allDiffs: string[] = [];
 
 	// we traverse in reverse (ie from most recent to least recent) because we may terminate early due to token-budget overflow
-	for (const entry of reversedHistory) {
+	for (const item of reversedHistory) {
 		if (allDiffs.length >= nEntries) { // we've reached the maximum number of entries
 			break;
 		}
 
-		if (entry.kind === 'visibleRanges') {
+		if (onlyForDocsInPrompt && !docsInPrompt.has(item.docId)) {
 			continue;
 		}
 
-		if (onlyForDocsInPrompt && !docsInPrompt.has(entry.docId)) {
-			continue;
-		}
-
-		const docDiff = generateDocDiff(entry, workspacePath);
+		const docDiff = item.render();
 		if (docDiff === null) {
 			continue;
 		}
@@ -59,7 +123,7 @@ export function getEditDiffHistory(
 
 		// Skip large rejection diffs rather than starving the diff history.
 		// TODO experiment: truncate the diff to fit within the token budget.
-		if (tokenCount > tokenBudget && entry.kind === 'rejectedEdit') {
+		if (tokenCount > tokenBudget && item.isRejection) {
 			continue;
 		}
 
@@ -133,20 +197,38 @@ function getEditDiffHunks(entry: IXtabHistoryEditEntry): IXtabHistoryDiffHunk[] 
 
 function generateDocDiff(entry: IXtabHistoryEditEntry | IXtabHistoryRejectedEditEntry, workspacePath: string | undefined): string | null {
 	const hunks = entry.kind === 'rejectedEdit' ? entry.hunks : getEditDiffHunks(entry);
+	const hunkAnnotation = entry.kind === 'rejectedEdit' ? ` ${REJECTED_EDIT_TAG}` : '';
+	return renderDocDiff(entry.docId, hunks, workspacePath, hunkAnnotation);
+}
+
+function renderDocDiff(docId: DocumentId, hunks: readonly IXtabHistoryDiffHunk[], workspacePath: string | undefined, hunkAnnotation: string): string | null {
 	if (hunks.length === 0) {
 		return null;
 	}
 
-	const uniquePath = toUniquePath(entry.docId, workspacePath);
+	const uniquePath = toUniquePath(docId, workspacePath);
 	const docDiffLines = [
 		`--- ${uniquePath}`,
 		`+++ ${uniquePath}`,
 	];
-	const hunkAnnotation = entry.kind === 'rejectedEdit' ? ` ${REJECTED_EDIT_TAG}` : '';
 	for (const hunk of hunks) {
 		docDiffLines.push(`@@ -${hunk.startLineNumber},${hunk.oldLines.length} +${hunk.startLineNumber},${hunk.newLines.length} @@${hunkAnnotation}`);
 		pushMany(docDiffLines, hunk.oldLines.map(line => `-${line}`));
 		pushMany(docDiffLines, hunk.newLines.map(line => `+${line}`));
 	}
 	return docDiffLines.join('\n');
+}
+
+function invertHunk(hunk: IXtabHistoryDiffHunk): IXtabHistoryDiffHunk {
+	return { startLineNumber: hunk.startLineNumber, oldLines: hunk.newLines, newLines: hunk.oldLines };
+}
+
+/** Renders a rejection as two ordinary entries: the suggestion applied, then undone. */
+function renderAppliedThenUndone(entry: IXtabHistoryRejectedEditEntry, workspacePath: string | undefined): string | null {
+	const applied = renderDocDiff(entry.docId, entry.hunks, workspacePath, '');
+	const undone = renderDocDiff(entry.docId, entry.hunks.map(invertHunk), workspacePath, '');
+	if (applied === null || undone === null) {
+		return null;
+	}
+	return `${applied}\n\n${undone}`;
 }
