@@ -506,6 +506,24 @@
             }
         },
         {
+            "key": "chat.canvases.enabled",
+            "name": "ChatCanvasesEnabled",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.143",
+            "localization": {
+                "description": {
+                    "key": "chat.canvases.enabled",
+                    "value": "Controls whether local Agent Host Copilot sessions can open Canvases with interactive content in the Agents Window and the Editor Window. Newly created sessions pick up changes to this setting."
+                }
+            },
+            "type": "boolean",
+            "default": false,
+            "included": true,
+            "agentHost": {
+                "status": "enforced"
+            }
+        },
+        {
             "key": "chat.copilotCliCommand.enabled",
             "name": "CopilotCliCommand",
             "category": "InteractiveSession",
