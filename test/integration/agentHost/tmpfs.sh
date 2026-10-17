@@ -18,17 +18,54 @@ MOUNTED=false
 describe_holders() {
 	local pid
 	for pid in "$@"; do
+		# fuser reports the mount itself as "kernel"; only processes can be described.
+		if [[ ! "$pid" =~ ^[0-9]+$ ]]; then
+			continue
+		fi
 		echo "Agent Host tmpfs holder $pid (PID, parent PID, process group, age in seconds, command line):" >&2
 		timeout --signal=KILL 10s ps -o pid=,ppid=,pgid=,etimes=,args= -p "$pid" >&2 || true
 		sudo -n timeout --signal=KILL 10s find "/proc/$pid/cwd" "/proc/$pid/root" "/proc/$pid/fd" -maxdepth 1 -lname "$TEST_TMPDIR*" -printf '  %p -> %l\n' >&2 2>/dev/null || true
 	done
 }
 
+# Codex's Linux filesystem helper can strand a bubblewrap sandbox child that blocks forever, reparented to PID 1, when
+# Codex kills the helper's launcher mid-session (KNOWN_ISSUES.md, openai/codex#54877). Kills such holders, but only if
+# every holder is one, and retries the unmount. Any other holder keeps the unmount failure fatal.
+reap_orphaned_codex_sandboxes() {
+	local holders pid orphans=()
+	holders=$(sudo -n timeout --signal=KILL 10s fuser -m "$TEST_TMPDIR" 2>/dev/null) || true
+	for pid in $holders; do
+		# fuser reports the mount itself as "kernel"; only processes can hold it busy.
+		if [[ ! "$pid" =~ ^[0-9]+$ ]]; then
+			continue
+		fi
+		if [[ "$(timeout --signal=KILL 10s ps -o ppid= -p "$pid" | tr -d ' ')" != 1 ]] || ! timeout --signal=KILL 10s ps -o args= -p "$pid" | grep -q -- '--codex-run-as-fs-helper'; then
+			return 1
+		fi
+		orphans+=("$pid")
+	done
+	if [[ "${#orphans[@]}" -eq 0 ]]; then
+		return 1
+	fi
+	for pid in "${orphans[@]}"; do
+		echo "::warning title=Orphaned Codex sandbox helper::Killed orphaned Codex sandbox helper $pid holding the Agent Host test tmpfs; see src/vs/platform/agentHost/test/node/e2e/KNOWN_ISSUES.md"
+		describe_holders "$pid"
+		sudo -n kill -KILL -- "$pid" || true
+	done
+	for _ in {1..50}; do
+		if sudo -n umount -- "$TEST_TMPDIR" 2>/dev/null; then
+			return 0
+		fi
+		sleep 0.1
+	done
+	return 1
+}
+
 cleanup() {
 	local status=$?
 	trap - EXIT
 	if [[ "$MOUNTED" == true ]]; then
-		if ! sudo -n umount -- "$TEST_TMPDIR"; then
+		if ! sudo -n umount -- "$TEST_TMPDIR" && ! reap_orphaned_codex_sandboxes; then
 			echo "Failed to unmount Agent Host test tmpfs: $TEST_TMPDIR" >&2
 			echo "Agent Host tmpfs mount holders (PID, command, and access type):" >&2
 			# fuser writes the holder PIDs to stdout and its verbose table to stderr.
