@@ -32,6 +32,9 @@
 .monaco-workbench.windows { --monaco-monospace-font: Consolas, "Courier New", monospace; }
 .monaco-workbench.linux { --monaco-monospace-font: "Ubuntu Mono", "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace; }
 
+/* Applied when workbench.fontFamily is set — overrides platform defaults */
+.monaco-workbench.monaco-workbench-custom-font { font-family: var(--vscode-workbench-font-family) !important; }
+
 /* Global Styles */
 
 body {
@@ -46,7 +49,7 @@ body {
 }
 
 .monaco-workbench {
-	font-size: 13px;
+	font-size: var(--vscode-workbench-font-size, 13px);
 	line-height: 1.4em;
 	position: relative;
 	inset: 0;
