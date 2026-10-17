@@ -112,6 +112,25 @@ usable after a failed refresh, but the extension does not advertise a folder
 with surviving legacy wrappers that could shadow the native executable.
 The terminal link provider and Copilot session data are unchanged.
 
+### Terminal PATH locality and recovery
+
+Authority matching follows terminal backend routing and is case-insensitive. Variable names follow the terminal's OS: Windows treats all PATH spellings alike; on macOS and Linux only `PATH` is subject to locality filtering, while `Path` and `path` remain distinct ordinary variables.
+
+The extension's terminal PATH contribution is applied only to terminals on the
+same computer as the producing extension host. A local contribution applies to
+local terminals, including local terminals in remote windows; a remote
+contribution applies only to terminals on that same remote authority. Other
+environment variables retain their existing cross-host sharing behavior, and
+the terminal's base PATH and independently installed commands are not changed.
+
+Saved PATH contributions with an unknown origin, or an origin on another
+computer, are absent from the extension's initial cached collection until the
+extension refreshes them. Correctly tagged same-computer saved contributions
+remain usable before activation. This cache migration is distinct from remote
+process recovery: a recovered pre-fix remote process retains its complete
+historical environment until normal relaunch, when the current filtered
+contribution is applied.
+
 ### Ownership
 
 VS Code owns only the shim, the launcher that gets Copilot CLI onto the device.

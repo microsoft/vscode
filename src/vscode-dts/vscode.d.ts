@@ -12890,6 +12890,10 @@ declare module 'vscode' {
 
 	/**
 	 * A collection of mutations that an extension can apply to a process environment.
+	 *
+	 * PATH modifications apply only to terminals on the same computer as the extension; a local contribution includes local terminals in remote windows, while a remote contribution applies only to its remote authority.
+	 * PATH is matched case-insensitively on Windows terminals and exactly on other platforms.
+	 * A terminal's base PATH is unchanged, and non-PATH modifications retain their existing sharing behavior.
 	 */
 	export interface EnvironmentVariableCollection extends Iterable<[variable: string, mutator: EnvironmentVariableMutator]> {
 		/**
@@ -12897,7 +12901,9 @@ declare module 'vscode' {
 		 * across window reloads. When true the collection will be active immediately such when the
 		 * window reloads. Additionally, this API will return the cached version if it exists. The
 		 * collection will be invalidated when the extension is uninstalled or when the collection
-		 * is cleared. Defaults to true.
+		 * is cleared. Cached PATH modifications from an unknown or different computer are omitted
+		 * until refreshed; correctly identified same-computer modifications remain available.
+		 * Defaults to true.
 		 */
 		persistent: boolean;
 
