@@ -661,6 +661,71 @@ suite('CompressibleObjectTree', function () {
 
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
 
+	function getStickyRowsTextContent(container: HTMLElement): string[] {
+		const stickyContainer = container.querySelector<HTMLElement>('.monaco-tree-sticky-container');
+		assert.ok(stickyContainer);
+		return getRowsTextContent(stickyContainer);
+	}
+
+	for (const compressionEnabled of [true, false]) {
+		for (const height of [49, 0]) {
+			test(`hides sticky rows at height ${height} and restores them (compression ${compressionEnabled})`, () => {
+				const container = document.createElement('div');
+				container.style.width = '200px';
+				container.style.height = '50px';
+				const tree = ds.add(new CompressibleObjectTree<number>('test', container, new Delegate(), [new Renderer()], {
+					enableStickyScroll: true,
+					compressionEnabled,
+				}));
+				const children = Array.from({ length: 20 }, (_, i) => ({ element: 100 + i }));
+				tree.layout(50);
+				tree.setChildren(null, [{ element: 1, children: [{ element: 11, children }] }]);
+				tree.scrollTop = 40;
+				const stickyRows = [getStickyRowsTextContent(container)];
+
+				container.style.height = `${height}px`;
+				tree.layout(height);
+				stickyRows.push(getStickyRowsTextContent(container));
+
+				tree.setChildren(11, [...children, { element: 200 }]);
+				stickyRows.push(getStickyRowsTextContent(container));
+				tree.scrollTop = 60;
+				stickyRows.push(getStickyRowsTextContent(container));
+
+				container.style.height = '50px';
+				tree.layout(50);
+				stickyRows.push(getStickyRowsTextContent(container));
+				const expectedRow = compressionEnabled ? '1/11' : '1';
+				assert.deepStrictEqual({ stickyRows, scrollTop: tree.scrollTop }, {
+					stickyRows: [[expectedRow], [], [], [], [expectedRow]],
+					scrollTop: 60,
+				});
+			});
+		}
+	}
+
+	for (const { height, stickyScrollMaxItemCount } of [{ height: 50, stickyScrollMaxItemCount: 7 }, { height: 200, stickyScrollMaxItemCount: 1 }]) {
+		test(`compresses sticky ancestors within height ${height} and item limit ${stickyScrollMaxItemCount}`, () => {
+			const container = document.createElement('div');
+			container.style.width = '200px';
+			container.style.height = `${height}px`;
+			const tree = ds.add(new CompressibleObjectTree<number>('test', container, new Delegate(), [new Renderer()], {
+				enableStickyScroll: true,
+				stickyScrollMaxItemCount,
+			}));
+			tree.layout(height);
+			tree.setChildren(null, [{
+				element: 1, children: [
+					{ element: 11, children: Array.from({ length: 20 }, (_, i) => ({ element: 100 + i })) },
+					{ element: 12 },
+				]
+			}]);
+			tree.scrollTop = 60;
+
+			assert.deepStrictEqual(getStickyRowsTextContent(container), ['1/11']);
+		});
+	}
+
 	test('empty', function () {
 		const container = document.createElement('div');
 		container.style.width = '200px';
