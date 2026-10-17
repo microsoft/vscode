@@ -290,7 +290,7 @@ const editorConfiguration: IConfigurationNode = {
 		'diffEditor.hideUnchangedRegions.minimumLineCount': {
 			type: 'integer',
 			default: diffEditorDefaultOptions.hideUnchangedRegions.minimumLineCount,
-			markdownDescription: nls.localize('hideUnchangedRegions.minimumLineCount', "Controls how many lines are used as a minimum for unchanged regions."),
+			markdownDescription: nls.localize('hideUnchangedRegions.minimumLineCount', "Controls the minimum number of hidden lines for unchanged regions. Smaller regions are not collapsed."),
 			minimum: 1,
 		},
 		'diffEditor.hideUnchangedRegions.contextLineCount': {
