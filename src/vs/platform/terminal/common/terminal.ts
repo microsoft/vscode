@@ -155,6 +155,7 @@ export const enum WindowsShellType {
 }
 
 export const enum GeneralShellType {
+	AbacusAI = 'abacusai',
 	Claude = 'claude',
 	Codex = 'codex',
 	CommandCode = 'commandcode',
