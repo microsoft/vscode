@@ -13986,6 +13986,44 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('publishes HydraFusion beside BYOK models only while signed in to GitHub', async () => {
+		const byokBridgeRegistry = new ByokLmBridgeRegistry();
+		const { agent } = createTestAgentContext(disposables, {
+			copilotClient: new TestCopilotClient([], [{ id: 'gpt-5', name: 'GPT-5' }]),
+			byokBridgeRegistry,
+			rootConfig: {
+				[AgentHostConfigKey.AllowSignedOutWhenUsable]: true,
+				[CopilotCliConfigKey.HydraFusion]: true,
+				[CopilotCliConfigKey.HydraFusionV2]: true,
+			},
+		});
+		const modelSnapshots = disposables.add(new Emitter<IByokLmModelInfo[]>());
+		disposables.add(byokBridgeRegistry.register('renderer', {
+			chat: async () => ({ output: [] }),
+			onDidChangeModels: modelSnapshots.event,
+		}));
+		const publishedModels = () => agent.models.get().map(model => model.id);
+
+		try {
+			modelSnapshots.fire([{ vendor: 'acme', id: 'model', name: 'Model' }]);
+			await waitForState(agent.models, models => models.some(model => model.id === 'acme/model'));
+			const signedOut = publishedModels();
+			await agent.authenticate('https://api.github.com', 'token');
+			await agent.refreshModels();
+			const signedIn = publishedModels();
+			await agent.authenticate('https://api.github.com', '');
+			await agent.refreshModels();
+
+			assert.deepStrictEqual({ signedOut, signedIn, signedOutAgain: publishedModels() }, {
+				signedOut: ['acme/model'],
+				signedIn: ['gpt-5', 'hydrafusion', 'hydrafusion-max', 'acme/model'],
+				signedOutAgain: ['acme/model'],
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	test('routes BYOK tool-cap warnings to the session that sent the request', async () => {
 		const onDidCapTools = disposables.add(new Emitter<IByokLmToolsCappedEvent>());
 		const byokLmProxyService: IByokLmProxyService = {
