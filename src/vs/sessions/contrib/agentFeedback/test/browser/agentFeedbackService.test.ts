@@ -834,7 +834,7 @@ suite('AgentFeedbackService - State', () => {
 					: undefined;
 			}
 		});
-		instantiationService.stub(ISessionsService, { activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined) } as unknown as ISessionsService);
+		instantiationService.stub(ISessionsService, { activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined), visibleSessions: observableValue<readonly IActiveSession[]>('visibleSessions', []) } as unknown as ISessionsService);
 
 		service = store.add(instantiationService.createInstance(AgentFeedbackService));
 		session = URI.parse('test://session/1');
@@ -953,7 +953,7 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 				return { providerId, sessionId: 'session-1' } as unknown as ISession;
 			}
 		});
-		instantiationService.stub(ISessionsService, { activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined) } as unknown as ISessionsService);
+		instantiationService.stub(ISessionsService, { activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined), visibleSessions: observableValue<readonly IActiveSession[]>('visibleSessions', []) } as unknown as ISessionsService);
 
 		const onDidChangeViewModel = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
 		const widget = {
