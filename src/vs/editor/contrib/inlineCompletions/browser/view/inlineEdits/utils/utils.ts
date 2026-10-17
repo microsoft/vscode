@@ -38,11 +38,19 @@ export function maxContentWidthInRange(editor: ObservableCodeEditor, range: Line
 	if (!model) { return 0; }
 	let maxContentWidth = 0;
 
-	for (let i = range.startLineNumber; i < range.endLineNumberExclusive; i++) {
+	// The range can be stale with respect to the current model (e.g. when the model
+	// shrinks under the inline-edit widget during an undo). Clamp to the current line
+	// count so we never query a line number the model no longer has.
+	const lineCount = model.getLineCount();
+	const startLineNumber = Math.max(1, Math.min(range.startLineNumber, lineCount + 1));
+	const endLineNumberExclusive = Math.max(startLineNumber, Math.min(range.endLineNumberExclusive, lineCount + 1));
+	const clampedRange = new LineRange(startLineNumber, endLineNumberExclusive);
+
+	for (let i = clampedRange.startLineNumber; i < clampedRange.endLineNumberExclusive; i++) {
 		const lineContentWidth = editor.getWidthOfLine(i, reader);
 		maxContentWidth = Math.max(maxContentWidth, lineContentWidth);
 	}
-	const lines = range.mapToLineArray(l => model.getLineContent(l));
+	const lines = clampedRange.mapToLineArray(l => model.getLineContent(l));
 
 	if (maxContentWidth < 5 && lines.some(l => l.length > 0) && model.uri.scheme !== 'file') {
 		console.log('unexpected width');
