@@ -13,6 +13,8 @@ import { IAction, toAction } from '../../../../../../../base/common/actions.js';
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
+import { isThenable } from '../../../../../../../base/common/async.js';
+import { onUnexpectedError } from '../../../../../../../base/common/errors.js';
 import { AnchorPosition } from '../../../../../../../base/common/layout.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../../base/common/observable.js';
@@ -35,13 +37,13 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, isUserProvidedModel } from '../../../../common/languageModels.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
-import { getModelConfigDescription, getModelConfigProperty, getModelConfigSummary, IModelConfigurationAccess, MODEL_CONFIG_GROUP_EFFORT, ModelConfigChangeListener } from './modelPickerModelConfig.js';
+import { getModelConfigChoices, getModelConfigDescription, getModelConfigProperty, getModelConfigSummary, IModelConfigurationAccess, MODEL_CONFIG_GROUP_EFFORT, ModelConfigChangeListener, setModelConfigValues } from './modelPickerModelConfig.js';
 import { IModelCardOptions, IPricingDisclosure, ModelCard } from './modelPickerCard.js';
 import { getPreferredSpeedVariant, IModelSpeedVariants } from './modelPickerVariants.js';
 import { getModelBadge, getOrganizationDefaultDescription, getOrganizationDefaultModel, organizationDefaultLabel } from './modelPickerBadges.js';
 import { createModelAction, createUnavailableModelItem, getUnavailableReason, requiresNewerVSCode } from './modelPickerItemPrimitives.js';
 import { getModelPickerAccessibilityProvider, getModelPickerControlModels } from './modelPickerItems.js';
-import { filterModelPickerControlModelsForEntitlement, filterModelPickerModelsForEntitlement, getFusionTierLabel, getHydraFusionTierLabel, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly } from './modelPickerPresentation.js';
+import { filterModelPickerControlModelsForEntitlement, filterModelPickerModelsForEntitlement, getFusionTierLabel, getHydraFusionTierLabel, getInlineFusionTierLabel, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly } from './modelPickerPresentation.js';
 import { buildModelPickerDestinations, buildModelPickerSections, getModelProviderLabel, hasPromotedModels, IModelPickerDestination, IModelPickerProviderPlaceholder, IModelPickerSections, IModelPickerUnavailableEntry, MODEL_PICKER_BUILT_IN_DESTINATION, MODEL_PICKER_ON_DEVICE_DESTINATION } from './modelPickerTabs.js';
 import { ModelPickerWelcome } from './modelPickerWelcome.js';
 import { createMessageBanner, HYDRA_FUSION_LEARN_MORE_URL } from './modelPickerHover.js';
@@ -174,7 +176,7 @@ export class TabbedModelPicker extends Disposable {
 		this._widget = this._register(instantiationService.createInstance(TabbedActionListWidget));
 		this._register(this._widget.onDidChangeTab(id => { this._activeDestination = id; }));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.DefaultModel)) {
+			if (e.affectsConfiguration(ChatConfiguration.DefaultModel) || e.affectsConfiguration(ChatConfiguration.FusionModelPickerInlineTiers)) {
 				this.refresh();
 			}
 		}));
@@ -469,7 +471,7 @@ export class TabbedModelPicker extends Disposable {
 					className: 'chat-model-picker-dropdown chat-model-picker-tabbed',
 					stopToolbarPointerPropagation: true,
 					tabThroughItemActions: true,
-					detailItemHeight: 64,
+					detailItemHeight: this._inlineFusionModel(current) && !isOnDevice ? 48 : 64,
 					showFilter: searching,
 					filterPlaceholder: localize('chat.modelPicker.search', "Search models"),
 					focusFilterOnOpen: searching,
@@ -525,10 +527,18 @@ export class TabbedModelPicker extends Disposable {
 			openItemDetails: item => this._openItemDetails(item),
 			delegate: {
 				onSelect: action => {
-					void action.run();
-					// A row that opens its detail page, such as an on-device model to set up, keeps the picker open.
-					if (!step && !this._widget.isShowingDetails) {
-						this._widget.hide();
+					const result = action.run();
+					const selectionVersion = this._selectionVersion;
+					const accept = () => {
+						// A row that opens its detail page, such as an on-device model to set up, keeps the picker open.
+						if (!step && !this._widget.isShowingDetails && selectionVersion === this._selectionVersion) {
+							this._widget.hide();
+						}
+					};
+					if (isThenable(result)) {
+						result.then(accept, onUnexpectedError);
+					} else {
+						accept();
 					}
 				},
 				onHide: () => { },
@@ -589,6 +599,13 @@ export class TabbedModelPicker extends Disposable {
 
 	private _autoModel(context: ITabbedModelPickerContext): ILanguageModelChatMetadataAndIdentifier | undefined {
 		return context.models.find(model => isAutoModel(model) && !isUserProvidedModel(model, this._languageModelsService) && !requiresNewerVSCode(model, context.controlModels, context.unavailableContext.currentVSCodeVersion));
+	}
+
+	private _inlineFusionModel(context: ITabbedModelPickerContext): ILanguageModelChatMetadataAndIdentifier | undefined {
+		const auto = this._autoModel(context);
+		return auto?.metadata.autoModelFusion && !context.comparison?.state.get()
+			&& this._configurationService.getValue<boolean>(ChatConfiguration.FusionModelPickerInlineTiers)
+			&& getModelConfigProperty(auto, context.configurationAccess, MODEL_CONFIG_GROUP_EFFORT) ? auto : undefined;
 	}
 
 	/**
@@ -890,7 +907,7 @@ export class TabbedModelPicker extends Disposable {
 			appendSection(undefined, sections.suggested);
 			appendSection(upsellLabel, [], sections.unavailable);
 		} else {
-			appendSection(undefined, sections.suggested, sections.unavailable);
+			appendSection(isBuiltIn && this._inlineFusionModel(context) ? localize('chat.modelPicker.individualModels', "Individual models") : undefined, sections.suggested, sections.unavailable);
 		}
 
 		if (sections.other.length) {
@@ -932,6 +949,13 @@ export class TabbedModelPicker extends Disposable {
 		const routingModels = destination.id === MODEL_PICKER_BUILT_IN_DESTINATION
 			? [this._autoModel(context), ...this._hydraFusionRowModels(context)].filter((model): model is ILanguageModelChatMetadataAndIdentifier => !!model)
 			: [];
+		const inlineFusion = destination.id === MODEL_PICKER_BUILT_IN_DESTINATION ? this._inlineFusionModel(context) : undefined;
+		if (inlineFusion) {
+			return [
+				...this._buildFusionItems(context, inlineFusion).filter(item => !!item.item).map(item => ({ ...item, label: localize('chat.modelPicker.fusionTier', "Fusion {0}", item.label) })),
+				...[...sections.pinned, ...sections.suggested, ...sections.other].map(model => this._createModelItem(model, context, undefined, getModelProviderLabel(model, this._languageModelsService))),
+			];
+		}
 		return [...sections.pinned, ...sections.suggested, ...sections.other, ...routingModels]
 			.sort((left, right) => this._getRowLabel(left, context).localeCompare(this._getRowLabel(right, context)))
 			.map(model => this._createModelItem(model, context, undefined, getModelProviderLabel(model, this._languageModelsService)));
@@ -1048,6 +1072,10 @@ export class TabbedModelPicker extends Disposable {
 	private _buildRoutingItems(context: ITabbedModelPickerContext): IActionListItem<IActionWidgetDropdownAction>[] {
 		const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
 		const auto = this._autoModel(context);
+		const inlineFusion = this._inlineFusionModel(context);
+		if (inlineFusion) {
+			return this._buildFusionItems(context, inlineFusion);
+		}
 		if (auto) {
 			items.push(this._createModelItem(auto, context));
 		}
@@ -1058,6 +1086,50 @@ export class TabbedModelPicker extends Disposable {
 			items.push(this._createModelItem(hydra, context));
 		}
 		return items;
+	}
+
+	private _buildFusionItems(context: ITabbedModelPickerContext, fusion: ILanguageModelChatMetadataAndIdentifier): IActionListItem<IActionWidgetDropdownAction>[] {
+		const property = getModelConfigProperty(fusion, context.configurationAccess, MODEL_CONFIG_GROUP_EFFORT)!;
+		const alternatives = this._hostsHydraFusion(context) ? this._hydraFusionModels(context) : [];
+		const selectedAlternative = alternatives.some(model => model.identifier === context.selectedModelId);
+		const choices = getModelConfigChoices(property);
+		const entries = [
+			...choices.map(choice => ({ choice, model: alternatives.find(model => this._getHydraFusionTier(model, context).replacesTier === choice.value) ?? fusion })),
+			...alternatives.filter(model => !this._getHydraFusionTier(model, context).replacesTier).map(model => ({ choice: undefined, model })),
+		];
+		return [
+			{ kind: ActionListItemKind.Separator, label: fusion.metadata.name, detail: localize('chat.modelPicker.fusionSubtitle', "Choose the capability for your task") },
+			...entries.map(({ choice, model }): IActionListItem<IActionWidgetDropdownAction> => {
+				const label = getInlineFusionTierLabel(choice?.value ?? model.metadata.id, choice?.label ?? this._getHydraFusionTier(model, context).label);
+				const checked = model.identifier === context.selectedModelId && (model !== fusion || !!choice?.checked && !selectedAlternative);
+				const detail = choice?.value === 'balance'
+					? localize('chat.modelPicker.fusionStandardDetail', "Quick tasks, lighter compute")
+					: choice?.value === 'intelligence'
+						? localize('chat.modelPicker.fusionHighDetail', "Everyday work, balanced compute")
+						: localize('chat.modelPicker.fusionMaxDetail', "Complex tasks, maximum compute");
+				const disabled = !!choice?.readOnly && !choice.checked;
+				return {
+					kind: ActionListItemKind.Action,
+					label, detail, disabled,
+					ariaDescription: choice?.readOnly ? localize('chat.modelPicker.fusionManaged', "Managed by the agent host") : undefined,
+					group: { title: '', icon: checked ? Codicon.check : Codicon.blank },
+					className: 'chat-model-picker-fusion-tier',
+					item: {
+						id: choice ? `${fusion.identifier}:${choice.value}` : model.identifier,
+						label, tooltip: detail, enabled: !disabled, checked, class: undefined,
+						run: async () => {
+							const version = ++this._selectionVersion;
+							if (model === fusion && choice && !choice.readOnly) {
+								await setModelConfigValues(fusion, context.configurationAccess, { [property.key]: choice.value }, (...change) => context.onConfigurationChanged(fusion, ...change));
+							}
+							if (version === this._selectionVersion && this._widget.isVisible) {
+								this._applyModelSelection(model, this._context ?? context);
+							}
+						},
+					},
+				};
+			}),
+		];
 	}
 
 	private _getUnavailableReason({ entry, needsUpdate }: IModelPickerUnavailableEntry, context: ITabbedModelPickerContext): ReturnType<typeof getUnavailableReason> {

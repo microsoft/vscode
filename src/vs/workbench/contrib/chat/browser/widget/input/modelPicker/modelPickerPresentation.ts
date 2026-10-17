@@ -15,6 +15,13 @@ export function isAutoModel(model: ILanguageModelChatMetadataAndIdentifier): boo
 	return isAutoLanguageModel(model);
 }
 
+export function getInlineFusionTierLabel(value: unknown, label: string): string {
+	if (value === 'balance' || value === 'intelligence') {
+		return getFusionAutoModeTierLabel(value);
+	}
+	return value === COPILOT_HYDRA_FUSION_MODEL_ID ? getFusionAutoModeTierLabel('intelligence') : label;
+}
+
 /**
  * Whether the model is a Copilot CLI HydraFusion research preview (HydraFusion or HydraFusion Max).
  * Fusion offers them among its tiers; otherwise HydraFusion is a model of its own, with

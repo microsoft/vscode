@@ -160,7 +160,7 @@ suite('TabbedModelPicker', () => {
 		localModels?: IModelPickerLocalModels;
 	} = {}) {
 		const container = dom.append(document.body, dom.$('.monaco-workbench.monaco-reduce-motion'));
-		container.style.cssText = '--vscode-spacing-size60: 6px; --vscode-spacing-size280: 28px;';
+		container.style.cssText = '--vscode-spacing-size60: 6px; --vscode-spacing-size160: 16px; --vscode-spacing-size200: 20px; --vscode-spacing-size280: 28px;';
 		disposables.add(toDisposable(() => container.remove()));
 		const anchorContainer = options.inDialog ? dom.append(container, dom.$('.monaco-dialog-box')) : container;
 		const anchor = dom.append(anchorContainer, dom.$('button'));
@@ -288,6 +288,61 @@ suite('TabbedModelPicker', () => {
 	function goBack(popup: HTMLElement): void {
 		element(popup, '[role="button"][aria-label^="Back to Models"]').click();
 	}
+
+	test('inline Fusion tiers are taller selectable rows and save the runtime tier before closing', async () => {
+		for (const balanceUsesHydraFusion of [false, true]) {
+			const fusion = createFusionModel(balanceUsesHydraFusion);
+			const hydra = createHydraFusionModel();
+			const max = createHydraFusionMaxModel();
+			const result = createPicker({ models: [fusion, hydra, max, ...models] });
+			const modelHeight = element(result.popup, '.chat-model-picker-model').getBoundingClientRect().height;
+			await result.configurationService.setUserConfiguration(ChatConfiguration.FusionModelPickerInlineTiers, true);
+			result.picker.show(result.anchor, result.context);
+			const rows = Array.from(result.popup.querySelectorAll<HTMLElement>('.chat-model-picker-fusion-tier'));
+			assert.deepStrictEqual(rows.map(row => {
+				const label = element(row, '.title');
+				const range = document.createRange();
+				range.selectNodeContents(label);
+				const textBounds = range.getBoundingClientRect();
+				const labelBounds = label.getBoundingClientRect();
+				return {
+					label: label.textContent,
+					detail: row.querySelector('.detail')?.textContent,
+					taller: row.getBoundingClientRect().height > modelHeight,
+					role: row.getAttribute('role'),
+					leadingCheck: element(row, '.codicon').getBoundingClientRect().right <= labelBounds.left,
+					unclippedLabel: textBounds.top >= labelBounds.top && textBounds.bottom <= labelBounds.bottom,
+				};
+			}), [
+				{ label: 'Standard', detail: 'Quick tasks, lighter compute', taller: true, role: 'menuitemradio', leadingCheck: true, unclippedLabel: true },
+				{ label: 'High', detail: 'Everyday work, balanced compute', taller: true, role: 'menuitemradio', leadingCheck: true, unclippedLabel: true },
+				{ label: 'Max', detail: 'Complex tasks, maximum compute', taller: true, role: 'menuitemradio', leadingCheck: true, unclippedLabel: true },
+			]);
+			rows[1].click();
+			await timeout(0);
+			assert.deepStrictEqual({
+				selected: result.selections,
+				saved: result.values.get(fusion.identifier),
+				visible: result.picker.isVisible,
+			}, {
+				selected: [balanceUsesHydraFusion ? hydra.identifier : fusion.identifier],
+				saved: balanceUsesHydraFusion ? undefined : { tier: 'intelligence' },
+				visible: false,
+			});
+			result.picker.show(result.anchor, { ...result.context, selectedModelId: result.selections[0] });
+			const maxRow = Array.from(result.popup.querySelectorAll<HTMLElement>('.chat-model-picker-fusion-tier')).find(row => row.querySelector('.title')?.textContent === 'Max')!;
+			maxRow.click();
+			await timeout(0);
+			assert.strictEqual(result.selections.at(-1), max.identifier);
+		}
+	});
+
+	test('the inline presentation setting does not turn Auto into Fusion', async () => {
+		const result = createPicker({ models: [createAutoModel(), ...models] });
+		await result.configurationService.setUserConfiguration(ChatConfiguration.FusionModelPickerInlineTiers, true);
+		result.picker.show(result.anchor, result.context);
+		assert.strictEqual(result.popup.querySelectorAll('.chat-model-picker-fusion-tier').length, 0);
+	});
 
 	test('dialog-hosted details preserve the requested popup layer and below-anchor placement', () => {
 		const result = createPicker({ inDialog: true, contextViewLayer: 1, details: models[0].identifier });
