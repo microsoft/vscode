@@ -5,7 +5,6 @@
 
 import type * as http from 'http';
 import type * as https from 'https';
-import { parse as parseUrl } from 'url';
 import { Promises, timeout } from '../../../base/common/async.js';
 import { streamToBufferReadableStream } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
@@ -166,7 +165,7 @@ export async function lookupKerberosAuthorization(urlStr: string, spnConfig: str
 }
 
 async function getNodeRequest(options: IRequestOptions): Promise<IRawRequestFunction> {
-	const endpoint = parseUrl(options.url!);
+	const endpoint = new URL(options.url!);
 	const module = endpoint.protocol === 'https:' ? await import('https') : await import('http');
 
 	return module.request;
@@ -199,16 +198,17 @@ export async function nodeRequest(options: NodeRequestOptions, token: Cancellati
 
 async function nodeRequestAttempt(options: NodeRequestOptions, token: CancellationToken): Promise<IRequestContext> {
 	return Promises.withAsyncBody<IRequestContext>(async (resolve, reject) => {
-		const endpoint = parseUrl(options.url!);
+		const endpoint = new URL(options.url!);
 		const rawRequest = options.getRawRequest
 			? options.getRawRequest(options)
 			: await getNodeRequest(options);
 
 		const opts: https.RequestOptions & { cache?: 'default' | 'no-store' | 'reload' | 'no-cache' | 'force-cache' | 'only-if-cached' } = {
-			hostname: endpoint.hostname,
+			// WHATWG URL keeps the brackets around IPv6 hosts, Node's http module expects them stripped
+			hostname: endpoint.hostname.replace(/^\[(.*)\]$/, '$1'),
 			port: endpoint.port ? parseInt(endpoint.port) : (endpoint.protocol === 'https:' ? 443 : 80),
 			protocol: endpoint.protocol,
-			path: endpoint.path,
+			path: endpoint.pathname + endpoint.search,
 			method: options.type || 'GET',
 			headers: options.headers,
 			agent: options.agent,
