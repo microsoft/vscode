@@ -3,6 +3,75 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.runtime-extensions-editor {
+	display: flex;
+	flex-direction: column;
+}
+
+/* Sticky filter chrome — sits outside the scrolling list */
+.runtime-extensions-editor > .runtime-extensions-header {
+	display: flex;
+	align-items: stretch;
+	gap: 12px;
+	padding: 12px 20px;
+	flex-shrink: 0;
+	box-sizing: border-box;
+	position: sticky;
+	top: 0;
+	z-index: 1;
+	background-color: var(--vscode-editorStickyScroll-background, var(--vscode-sideBarSectionHeader-background, var(--vscode-editor-background)));
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-sideBarSectionHeader-border, var(--vscode-panel-border));
+	box-shadow: var(--vscode-editorStickyScroll-shadow, var(--vscode-scrollbar-shadow)) 0 3px 2px -2px;
+}
+
+.runtime-extensions-editor > .runtime-extensions-header > .runtime-extensions-search-container {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	align-items: stretch;
+}
+
+.runtime-extensions-editor > .runtime-extensions-header > .runtime-extensions-search-container .monaco-inputbox {
+	width: 100%;
+	height: 28px;
+	box-sizing: border-box;
+}
+
+.runtime-extensions-editor > .runtime-extensions-header > .runtime-extensions-search-container .monaco-inputbox .input {
+	line-height: 18px;
+	padding: 4px 8px;
+	box-sizing: border-box;
+}
+
+.runtime-extensions-editor > .runtime-extensions-header > .runtime-extensions-host-filter-container {
+	flex: 0 0 240px;
+	max-width: 40%;
+	display: flex;
+	align-items: stretch;
+}
+
+.runtime-extensions-editor > .runtime-extensions-header > .runtime-extensions-host-filter-container > .select-container {
+	display: flex;
+	width: 100%;
+	align-items: stretch;
+}
+
+.runtime-extensions-editor > .runtime-extensions-header > .runtime-extensions-host-filter-container .monaco-select-box {
+	width: 100%;
+	height: 28px;
+	line-height: 18px;
+	padding: 4px 24px 4px 8px;
+	box-sizing: border-box;
+	font-size: inherit;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.runtime-extensions-editor > .runtime-extensions-list {
+	flex: 1;
+	min-height: 0;
+	padding-top: 4px;
+}
+
 .runtime-extensions-editor .monaco-list .monaco-list-rows > .monaco-list-row.odd:not(:hover):not(.focused) {
 	background-color: rgba(130, 130, 130, 0.08);
 }
