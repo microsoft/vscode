@@ -95,5 +95,13 @@ suite('terminalEnvironment', () => {
 			strictEqual(escapeNonWindowsPath('/foo/bar$(echo evil)', PosixShellType.Bash), '\'/foo/bar(echo evil)\'');
 			strictEqual(escapeNonWindowsPath('/foo/bar`whoami`', PosixShellType.Bash), '\'/foo/barwhoami\'');
 		});
+
+		test('should preserve tilde characters in paths', () => {
+			strictEqual(escapeNonWindowsPath('/foo/bar~1.txt', PosixShellType.Bash), '\'/foo/bar~1.txt\'');
+			strictEqual(escapeNonWindowsPath('~/foo/bar.txt', PosixShellType.Bash), '\'~/foo/bar.txt\'');
+			strictEqual(escapeNonWindowsPath('/foo/~backup/bar.txt', PosixShellType.Zsh), '\'/foo/~backup/bar.txt\'');
+			strictEqual(escapeNonWindowsPath('/foo/bar~', PosixShellType.Fish), '\'/foo/bar~\'');
+			strictEqual(escapeNonWindowsPath('/foo/bar~', GeneralShellType.PowerShell), '\'/foo/bar~\'');
+		});
 	});
 });
