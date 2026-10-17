@@ -4,13 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ChannelClient, ChannelServer, IMessagePassingProtocol, ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { BrowserViewEvent, IBrowserViewInfo, IBrowserViewNavigationEvent, IBrowserViewService, reviveBrowserViewInfo, serializeBrowserViewInfo } from '../../common/browserView.js';
+import { BrowserViewEvent, BrowserViewStorageScope, IBrowserViewInfo, IBrowserViewNavigationEvent, IBrowserViewService, reviveBrowserViewInfo, serializeBrowserViewInfo } from '../../common/browserView.js';
+import { BrowserViewReference, BrowserViewReferences } from '../../common/browserViewReference.js';
 
 class QueuedProtocol extends Disposable implements IMessagePassingProtocol {
 	private readonly messages = this._register(new Emitter<VSBuffer>());
@@ -78,6 +81,110 @@ suite('BrowserView event IPC', () => {
 			state: upcastPartial<IBrowserViewInfo['state']>({ url: 'https://example.com/', lastScreenshot })
 		});
 	}
+
+	function connectReferences() {
+		const views = new Map<string, IBrowserViewInfo>();
+		const destroyed: string[] = [];
+		const references = store.add(new BrowserViewReferences(id => {
+			let view = views.get(id);
+			if (!view) {
+				view = info(id);
+				views.set(id, view);
+			}
+			return view;
+		}, id => {
+			if (views.delete(id)) {
+				destroyed.push(id);
+			}
+		}));
+		const source = upcastPartial<IBrowserViewService>({
+			acquireBrowserView: async (id, windowId, referenceId) => references.acquire(id, windowId, referenceId),
+			releaseBrowserView: async (id, referenceId) => references.release(id, referenceId),
+			getOrCreateBrowserView: async (id, options, referenceId) => references.getOrCreate(id, options, referenceId),
+		});
+		return { ...connect(source), references, views, destroyed };
+	}
+
+	for (const replace of [false, true]) {
+		test(`releases pending native creation over IPC after its reply (lazy replacement: ${replace})`, async () => {
+			const { service, main, renderer, views, destroyed } = connectReferences();
+			const original = store.add(new BrowserViewReference(service, 'page', 1));
+			main.flush();
+			await timeout(0);
+			renderer.flush();
+			const creation = original.getOrCreate({
+				host: { windowId: 1 }, owner: { type: 'user' }, session: { scope: BrowserViewStorageScope.Global },
+			});
+			await timeout(0);
+			main.flush();
+			await timeout(0);
+			original.dispose();
+			const replacement = replace ? store.add(new BrowserViewReference(service, 'page', 1)) : undefined;
+			main.flush();
+			await timeout(0);
+			assert.deepStrictEqual({ remaining: [...views.keys()], destroyed }, { remaining: ['page'], destroyed: [] });
+			renderer.flush();
+			await creation;
+			main.flush();
+			await timeout(0);
+			renderer.flush();
+			assert.deepStrictEqual({ remaining: [...views.keys()], destroyed }, {
+				remaining: replace ? ['page'] : [], destroyed: replace ? [] : ['page'],
+			});
+			replacement?.dispose();
+			main.flush();
+			await timeout(0);
+			renderer.flush();
+			assert.deepStrictEqual({ remaining: views.size, destroyed }, { remaining: 0, destroyed: ['page'] });
+		});
+	}
+
+	test('closing before the acquisition reply prevents a native creation request', async () => {
+		const { service, main, renderer, views, destroyed } = connectReferences();
+		const reference = store.add(new BrowserViewReference(service, 'page', 1));
+		const creation = reference.getOrCreate({
+			host: { windowId: 1 }, owner: { type: 'user' }, session: { scope: BrowserViewStorageScope.Global },
+		});
+		reference.dispose();
+		main.flush();
+		await timeout(0);
+		renderer.flush();
+		await assert.rejects(creation, isCancellationError);
+		main.flush();
+		await timeout(0);
+		renderer.flush();
+		assert.deepStrictEqual({ remaining: views.size, destroyed }, { remaining: 0, destroyed: [] });
+	});
+
+	test('renderer shutdown and reload preserve native views despite a delayed old creation reply', async () => {
+		const { service, main, renderer, references, views, destroyed } = connectReferences();
+		const original = store.add(new BrowserViewReference(service, 'page', 1));
+		main.flush();
+		await timeout(0);
+		renderer.flush();
+		const creation = original.getOrCreate({
+			host: { windowId: 1 }, owner: { type: 'user' }, session: { scope: BrowserViewStorageScope.Global },
+		});
+		await timeout(0);
+		main.flush();
+		await timeout(0);
+		original.detach();
+		references.clearWindow(1, true);
+		const replacement = store.add(new BrowserViewReference(service, 'page', 1));
+		main.flush();
+		await timeout(0);
+		renderer.flush();
+		await creation;
+		main.flush();
+		await timeout(0);
+		renderer.flush();
+		assert.deepStrictEqual({ remaining: [...views.keys()], destroyed }, { remaining: ['page'], destroyed: [] });
+		replacement.dispose();
+		main.flush();
+		await timeout(0);
+		renderer.flush();
+		assert.deepStrictEqual({ remaining: views.size, destroyed }, { remaining: 0, destroyed: ['page'] });
+	});
 
 	test('forwards immediate browser events without any per-browser subscription requests', () => {
 		const source = store.add(new TestBrowserViewService());

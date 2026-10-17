@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Event } from '../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { browserZoomDefaultIndex, BrowserViewStorageScope, IBrowserViewAudience, IBrowserViewService, IBrowserViewState } from '../../../../../platform/browserView/common/browserView.js';
@@ -46,6 +46,7 @@ suite('BrowserViewModel', () => {
 			createInitialState(storageScope, audiences),
 			browserViewService,
 			createBrowserViewEventEmitters(store.add(new DisposableStore())),
+			Disposable.None,
 			browserViewWorkbenchService,
 			upcastPartial<ITelemetryService>({}),
 			upcastPartial<IDialogService>({}),
@@ -77,6 +78,7 @@ suite('BrowserViewModel', () => {
 				setBrowserZoomIndex: async () => { },
 			}),
 			emitters,
+			Disposable.None,
 			upcastPartial<IBrowserViewWorkbenchService>({ isSharingAvailable: true, onDidChangeSharingAvailable: Event.None }),
 			upcastPartial<ITelemetryService>({}),
 			upcastPartial<IDialogService>({}),

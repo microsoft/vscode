@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BrowserViewChangeEvent, BrowserViewEventData, BrowserViewCommandId, BrowserViewPresentation, BrowserViewStorageScope, IBrowserViewEditorOpenOptions, IBrowserViewInfo, IBrowserViewOwner, IBrowserViewService, IBrowserViewTheme, ipcBrowserViewChannelName, reviveBrowserViewInfo } from '../../../../platform/browserView/common/browserView.js';
+import { BrowserViewReference } from '../../../../platform/browserView/common/browserViewReference.js';
 import { matchesBrowserViewSandboxSession } from '../../../../platform/browserView/common/browserViewGroup.js';
 import { BrowserViewEventEmitters, createBrowserViewEventEmitters, BrowserViewSharingState, IBrowserViewWorkbenchService, IBrowserViewModel, BrowserViewModel, IBrowserViewContextualFilter, IBrowserViewFilterContext, IBrowserViewOpenHandler, IBrowserViewWorkbenchCreateOptions } from '../common/browserView.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
@@ -76,6 +77,8 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 
 	private readonly _browserViewService: IBrowserViewService;
 	private readonly _known = new Map<string, BrowserEditorInput>();
+	private readonly _references = this._register(new DisposableMap<BrowserEditorInput, BrowserViewReference>());
+	private readonly _pendingCreations = new Map<string, number>();
 	private readonly _remoteEvents = this._register(new DisposableMap<string, IDisposable & { emitters: BrowserViewEventEmitters }>());
 	private readonly _contextualFilters = new Set<IBrowserViewContextualFilter>();
 	private readonly _openHandlers = new Set<IBrowserViewOpenHandler>();
@@ -201,6 +204,9 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			if (event.type === 'created') {
 				const e = event.data;
 				if (e.info.presentation === BrowserViewPresentation.Unlisted) {
+					return;
+				}
+				if (this._pendingCreations.has(e.info.id) && !this._known.has(e.info.id)) {
 					return;
 				}
 				this._createModel(reviveBrowserViewInfo(e.info, screenshots[0]), e.initialUrl ?? this._known.get(e.info.id)?.url);
@@ -363,7 +369,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			id: generateUuid(),
 			associatedResource: options.associatedResource,
 			url: options.initialUrl
-		}, undefined, { ...options, initialUrl: undefined });
+		}, { ...options, initialUrl: undefined });
 		const model = await input.resolve();
 		if (editorOpenOptions) {
 			void this._openEditorForCreatedView(input, options.owner, editorOpenOptions).catch(error => {
@@ -389,25 +395,31 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		if (this._store.isDisposed) {
 			throw new CancellationError();
 		}
-		const info = await this._browserViewService.getOrCreateBrowserView(generateUuid(), {
-			host: { windowId: this._mainWindowId },
-			owner: { type: 'user' },
-			presentation: BrowserViewPresentation.Unlisted,
-			session: { scope: BrowserViewStorageScope.Ephemeral },
-			initialAudiences: [],
-			openSource,
-		});
-		if (this._store.isDisposed) {
-			await this._browserViewService.destroyBrowserView(info.id);
-			throw new CancellationError();
-		}
-		const model = this._createModel(info, undefined, false);
+		const lifetime = new DisposableStore();
+		const reference = lifetime.add(new BrowserViewReference(this._browserViewService, generateUuid(), this._mainWindowId));
+		let model: IBrowserViewModel | undefined;
 		try {
+			const info = await reference.getOrCreate({
+				host: { windowId: this._mainWindowId },
+				owner: { type: 'user' },
+				presentation: BrowserViewPresentation.Unlisted,
+				session: { scope: BrowserViewStorageScope.Ephemeral },
+				initialAudiences: [],
+				openSource,
+			});
+			if (this._store.isDisposed) {
+				throw new CancellationError();
+			}
+			lifetime.deleteAndLeak(reference);
+			model = this._createModel(info, undefined, reference);
 			await model.loadURL(initialUrl);
 			return model;
 		} catch (error) {
-			model.dispose();
+			model?.dispose();
+			reference.dispose();
 			throw error;
+		} finally {
+			lifetime.dispose();
 		}
 	}
 
@@ -415,44 +427,69 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		return this._getOrCreateLazy(data);
 	}
 
-	private _getOrCreateLazy(data: IBrowserEditorInputData, model?: IBrowserViewModel, createOptions?: IBrowserViewWorkbenchCreateOptions): BrowserEditorInput {
+	private _getOrCreateLazy(data: IBrowserEditorInputData, createOptions?: IBrowserViewWorkbenchCreateOptions, initial?: { model: IBrowserViewModel; reference: BrowserViewReference }): BrowserEditorInput {
 		const { id, associatedResource } = data;
 		if (!this._known.has(id)) {
-			const input = this.instantiationService.createInstance(BrowserEditorInput, data, async () => {
-				await this._browserViewsReady.p;
-				await this._browserViewService.getOrCreateBrowserView(
-					id,
-					{
-						host: {
-							windowId: this._mainWindowId
-						},
-						owner: createOptions?.owner ?? { type: 'user' },
-						associatedResource,
-						session: createOptions?.session ?? { scope: await this._resolveStorageScope() },
-						initialAudiences: createOptions?.initialAudiences,
-						sandboxNetworkRestrictions: createOptions?.sandboxNetworkRestrictions,
-						initialUrl: createOptions ? createOptions.initialUrl : data.url,
-						openSource: createOptions?.openSource
+			const lifetime = new DisposableStore();
+			const reference = lifetime.add(initial?.reference ?? new BrowserViewReference(this._browserViewService, id, this._mainWindowId));
+			let input: BrowserEditorInput;
+			try {
+				input = this.instantiationService.createInstance(BrowserEditorInput, data, async (): Promise<IBrowserViewModel> => {
+					await this._browserViewsReady.p;
+					if (input.isDisposed() || this._store.isDisposed) {
+						throw new CancellationError();
 					}
-				);
-				const model = this._known.get(id)?.model;
-				if (!model) {
-					throw new Error(`Browser view ${id} closed during creation`);
-				}
-				return model;
-			});
+					this._pendingCreations.set(id, (this._pendingCreations.get(id) ?? 0) + 1);
+					try {
+						const info = await reference.getOrCreate({
+							host: { windowId: this._mainWindowId },
+							owner: createOptions?.owner ?? { type: 'user' },
+							associatedResource,
+							session: createOptions?.session ?? { scope: await this._resolveStorageScope() },
+							initialAudiences: createOptions?.initialAudiences,
+							sandboxNetworkRestrictions: createOptions?.sandboxNetworkRestrictions,
+							initialUrl: createOptions ? createOptions.initialUrl : data.url,
+							openSource: createOptions?.openSource
+						});
+						if (input.isDisposed() || this._store.isDisposed) {
+							throw new CancellationError();
+						}
+						return input.model ?? this._createModel(info);
+					} finally {
+						const remaining = this._pendingCreations.get(id)! - 1;
+						if (remaining) {
+							this._pendingCreations.set(id, remaining);
+						} else {
+							this._pendingCreations.delete(id);
+						}
+					}
+				});
+				lifetime.deleteAndLeak(reference);
+				this._references.set(input, reference);
+			} finally {
+				lifetime.dispose();
+			}
 			Event.once(input.onWillDispose)(() => {
 				this._known.delete(id);
+				this._references.deleteAndDispose(input);
 				this._onDidChangeBrowserViews.fire();
 			});
-			if (model) {
-				input.model = model;
+			if (initial) {
+				input.model = initial.model;
 			}
 			this._known.set(id, input);
 			this._onDidChangeBrowserViews.fire();
+			return input;
 		}
 
 		return this._known.get(id)!;
+	}
+
+	override dispose(): void {
+		for (const reference of this._references.values()) {
+			reference.detach();
+		}
+		super.dispose();
 	}
 
 	async clearGlobalStorage(): Promise<void> {
@@ -492,10 +529,10 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		this._remoteEvents.get(event.id)?.emitters[event.event].fire(event.data);
 	}
 
-	private _createModel(info: IBrowserViewInfo, initialUrl?: string, registerInput = true): IBrowserViewModel {
+	private _createModel(info: IBrowserViewInfo, initialUrl?: string, externalReference?: BrowserViewReference): IBrowserViewModel {
 		const associatedResource = URI.revive(info.associatedResource);
 		// Don't double-create
-		const input = this._known.get(info.id);
+		let input = externalReference ? undefined : this._known.get(info.id);
 		const existing = input?.model;
 		if (existing) {
 			return existing;
@@ -511,10 +548,22 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		const emitters = createBrowserViewEventEmitters(store);
 		const eventLifetime = Object.assign(toDisposable(() => store.dispose()), { emitters });
 		this._remoteEvents.set(info.id, eventLifetime);
+		const ownership = new DisposableStore();
+		const reference = externalReference ?? (input && this._references.get(input)) ?? ownership.add(new BrowserViewReference(this._browserViewService, info.id, this._mainWindowId));
+		if (externalReference) {
+			ownership.add(externalReference);
+		} else {
+			ownership.add(toDisposable(() => {
+				if (input) {
+					this._references.deleteAndDispose(input);
+				}
+			}));
+		}
 		let model: BrowserViewModel;
 		try {
-			model = this.instantiationService.createInstance(BrowserViewModel, info.id, info.host, info.owner, associatedResource, state, this._browserViewService, emitters);
+			model = this.instantiationService.createInstance(BrowserViewModel, info.id, info.host, info.owner, associatedResource, state, this._browserViewService, emitters, ownership);
 		} catch (error) {
+			ownership.dispose();
 			this._remoteEvents.deleteAndDispose(info.id);
 			throw error;
 		}
@@ -526,9 +575,19 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			queueMicrotask(() => eventLifetime.dispose());
 		}));
 
-		if (registerInput) {
-			this._getOrCreateLazy({ id: info.id, associatedResource, url: initialUrl }, model).model = model;
-			this._onDidChangeBrowserViews.fire();
+		if (!externalReference) {
+			try {
+				if (!input) {
+					ownership.deleteAndLeak(reference);
+					input = this._getOrCreateLazy({ id: info.id, associatedResource, url: initialUrl }, undefined, { model, reference });
+				} else {
+					input.model = model;
+				}
+				this._onDidChangeBrowserViews.fire();
+			} catch (error) {
+				model.dispose();
+				throw error;
+			}
 		}
 
 		return model;
