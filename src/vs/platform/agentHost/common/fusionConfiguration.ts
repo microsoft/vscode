@@ -10,7 +10,7 @@ import { AgentHostFusionEnabledSettingId, AgentHostHydraFusionEnabledSettingId }
 export const fusionConfigurationProperties = {
 	[AgentHostFusionEnabledSettingId]: {
 		type: 'boolean',
-		markdownDescription: nls.localize('chat.copilot.ensemble.enabled', "When enabled, Copilot Agent Host sessions present Auto as Fusion, which optimizes for Lite, Balance, or Max. Max uses HydraFusion Max, so Fusion uses HydraFusion v2 unless `#{0}#` is off. Changing this setting can restart the Copilot runtime.", AgentHostHydraFusionEnabledSettingId),
+		markdownDescription: nls.localize('chat.copilot.ensemble.enabled', "When enabled, Copilot Agent Host sessions present Auto as Fusion, which optimizes for Standard, High, or Max. Max uses HydraFusion Max, so Fusion uses HydraFusion v2 unless `#{0}#` is off. Changing this setting can restart the Copilot runtime.", AgentHostHydraFusionEnabledSettingId),
 		default: false,
 		experiment: { mode: 'startup' },
 		scope: ConfigurationScope.APPLICATION_MACHINE,

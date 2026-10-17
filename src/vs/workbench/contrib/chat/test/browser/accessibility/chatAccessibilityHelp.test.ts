@@ -15,15 +15,37 @@ import { isResponseSelectionSupported } from '../../../browser/chat.js';
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('documents the session working set while preserving existing editor guidance', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true, false, false, true, false, ChatSessionArchiveActionWording.Archive, false, false, undefined, true);
+		assert.deepStrictEqual({
+			sessionChanges: help.includes('changes across the whole session instead of showing a Changes pill'),
+			disclosure: help.includes('Enter or Space to expand or collapse it'),
+			openDiff: help.includes('Up and Down Arrow to choose a file, and Enter to open its diff'),
+			editorNavigation: help.includes('Navigate between edits in the editor'),
+			editorSignals: help.includes('accessibility.signals.editsKept'),
+		}, { sessionChanges: true, disclosure: true, openDiff: true, editorNavigation: true, editorSignals: true });
+	});
+
+	test('does not describe the editor working set on other chat surfaces', () => {
+		assert.deepStrictEqual([
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true),
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true, true, false, true, false, ChatSessionArchiveActionWording.Archive, false, false, undefined, true),
+			getAccessibilityHelpText('inlineChat', new MockKeybindingService(), true, false, false, false, false, ChatSessionArchiveActionWording.Archive, false, false, undefined, true),
+			getAccessibilityHelpText('quickChat', new MockKeybindingService(), true, false, false, false, false, ChatSessionArchiveActionWording.Archive, false, false, undefined, true),
+		].map(help => help.includes('changes across the whole session instead of showing a Changes pill')), [false, false, false, false]);
+	});
+
 	for (const type of ['panelChat', 'agentView', 'editsView', 'inlineChat', 'quickChat'] as const) {
 		test(`documents the sharing toggle and backend selection (${type})`, () => {
 			const help = getAccessibilityHelpText(type, new MockKeybindingService(), false);
 			assert.deepStrictEqual({
-				backend: help.includes('chat.agentHost.remoteConnections setting selects Dev Tunnel or GitHub environment'),
-				explicitOptIn: help.includes('Selecting a backend does not enable sharing; changing it turns sharing off'),
+				backend: help.includes('Select Remote Connection Method dropdown chooses Dev Tunnels or GitHub Environments'),
+				setting: help.includes('The preview setting chat.agentHost.remoteConnections selects the connection method'),
+				explicitOptIn: help.includes('Selecting a method does not enable sharing; changing it turns sharing off'),
 				keyboard: help.includes('Enter or Space to enable or disable sharing'),
 			}, {
 				backend: type !== 'inlineChat' && type !== 'quickChat',
+				setting: type !== 'inlineChat' && type !== 'quickChat',
 				explicitOptIn: type !== 'inlineChat' && type !== 'quickChat',
 				keyboard: type !== 'inlineChat' && type !== 'quickChat',
 			});

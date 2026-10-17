@@ -194,6 +194,53 @@
 					"description": "Shared settings-engine annotations are descriptive, not a complete specification of this runtime's composition rules. Use managedSettings.compose for the runtime's effective result."
 				}
 			},
+			"ensembleTier": {
+				"description": "Managed Ensemble tier, used with the virtual auto model. A bare tier locks the preference; an overridable wrapper supplies a default. Presence in any managed source suppresses autoTier across all sources. Explicit unmanaged means no managed tier and no legacy fallback. When no source supplies ensembleTier, responses expose legacy efficiency and balance as balance and intelligence as high; these compatibility aliases do not change the legacy runtime preference. Never synthesize autoTier from ensembleTier.",
+				"examples": [
+					"balance",
+					"high",
+					"max",
+					"unmanaged",
+					{
+						"overridable": "high"
+					}
+				],
+				"oneOf": [
+					{
+						"type": "string",
+						"enum": [
+							"balance",
+							"high",
+							"max",
+							"unmanaged"
+						]
+					},
+					{
+						"type": "object",
+						"properties": {
+							"overridable": {
+								"type": "string",
+								"enum": [
+									"balance",
+									"high",
+									"max",
+									"unmanaged"
+								]
+							}
+						},
+						"required": [
+							"overridable"
+						],
+						"additionalProperties": false
+					}
+				],
+				"x-composition": {
+					"allowOverridable": true,
+					"strategy": "enum-order-wins",
+					"collapseStrategy": "enum-order-permissive-wins",
+					"description": "Uses the existing Auto channel precedence among explicit Ensemble settings; legacy Auto settings do not compete."
+				}
+			},
 			"permissions": {
 				"description": "Controls that govern permissions mode behavior.",
 				"type": "object",
@@ -1175,5 +1222,5 @@
 			}
 		}
 	},
-	"runtimeVersion": "1.0.99-1"
+	"runtimeVersion": "1.0.99-2"
 }

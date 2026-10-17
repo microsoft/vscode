@@ -31,7 +31,7 @@ export type AgentHostCatalogDatabaseReference = IReference<ISessionDatabase>;
 
 export type AgentHostCatalogSyncResult =
 	| { readonly status: 'acknowledged'; readonly sourceRevision: number }
-	| { readonly status: 'pending'; readonly sourceRevision: number; readonly reason: AgentHostDatabaseSessionV2UpsertResult | 'upsertFailed' | 'acknowledgementSuperseded' };
+	| { readonly status: 'pending'; readonly sourceRevision: number; readonly reason: AgentHostDatabaseSessionV2UpsertResult | 'upsertFailed' | 'acknowledgementSuperseded' | 'acknowledgementFailed' };
 
 export type AgentHostCatalogPendingReplayOutcome =
 	| { readonly session: string; readonly status: 'succeeded'; readonly reason: 'pendingReplayed'; readonly sourceRevision: number }
@@ -542,8 +542,16 @@ export class AgentHostCatalogSyncService {
 			};
 			traceStage('acknowledgeLocalReceipt');
 			await validate?.();
-			if (!await ref.object.acknowledgeCatalogSyncSnapshot(acknowledgement)
-				&& !isCatalogReceiptAcknowledged(await ref.object.getCatalogSyncSnapshot(), acknowledgement)) {
+			let acknowledged: boolean;
+			try {
+				acknowledged = await ref.object.acknowledgeCatalogSyncSnapshot(acknowledgement)
+					|| isCatalogReceiptAcknowledged(await ref.object.getCatalogSyncSnapshot(), acknowledgement);
+			} catch (error) {
+				// The catalog row is committed: the receipt stays pending for reconciliation to replay and acknowledge.
+				this._logService.warn(`[AgentHostCatalogSync] Failed to acknowledge the catalog sync receipt for ${sessionKey}`, error);
+				return { status: 'pending', sourceRevision, reason: 'acknowledgementFailed' };
+			}
+			if (!acknowledged) {
 				return { status: 'pending', sourceRevision, reason: 'acknowledgementSuperseded' };
 			}
 			traceStage('acknowledged');

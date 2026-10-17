@@ -60,7 +60,6 @@ import { AGENT_HOST_WORKSPACELESS_INSTRUCTIONS } from '../../../node/shared/work
 import { sessionServerToolDefinitions, sessionToolRequiresConfirmation } from '../../../node/shared/sessionServerTools.js';
 import { CODEX_COMMAND_OUTPUT_INLINE_CHAR_LIMIT } from '../../../node/codex/codexTerminalOutput.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
-import { AgentHostCodexMultiRootEnabledConfigKey } from '../../../common/agentHostSchema.js';
 import { CodexSessionConfigKey } from '../../../common/codexSessionConfigKeys.js';
 import type { SelectedCapabilityRoot } from '../../../node/codex/protocol/generated/v2/SelectedCapabilityRoot.js';
 import type { ConfigEdit } from '../../../node/codex/protocol/generated/v2/ConfigEdit.js';
@@ -208,7 +207,6 @@ function readNextRequest(stream: PassThrough): Promise<ITestWireRequest> {
 
 interface ICreateAgentOptions {
 	readonly telemetryService?: ITelemetryService;
-	readonly multiRootEnabled?: boolean;
 	readonly sessionConfig?: Readonly<Record<string, boolean | string | readonly string[]>>;
 	readonly database?: TestSessionDatabase;
 	readonly checkpointService?: IAgentHostCheckpointService;
@@ -279,7 +277,6 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	const configurationService = disposables.add(new TestCodexConfigurationService(stateManager, logService, options.sessionConfig));
-	configurationService.updateRootConfig({ [AgentHostCodexMultiRootEnabledConfigKey]: options.multiRootEnabled });
 	instantiationService.stub(ISessionDataService, createSessionDataService(options.database));
 	instantiationService.stub(IAgentPluginManager, {
 		_serviceBrand: undefined,
@@ -1619,7 +1616,7 @@ suite('CodexAgent prewarm eviction', () => {
 				agent['_dispatchTurnCompleted']({
 					threadId,
 					turn: {
-						id: 'turn-1', items: recovered ? [completed] : [], itemsView: 'full',
+						id: 'turn-1', rootTurnId: null, items: recovered ? [completed] : [], itemsView: 'full',
 						status: 'completed', error: null, startedAt: null, completedAt: null, durationMs: 1,
 					},
 				});
@@ -3485,7 +3482,7 @@ suite('CodexAgent prewarm eviction', () => {
 	});
 
 	test('fresh multi-root start selects only existing secondary skill directories', async () => {
-		const agent = await createAgent(disposables, { multiRootEnabled: true });
+		const agent = await createAgent(disposables);
 		const peer = disposables.add(createTestPeer());
 		const client = new CodexAppServerClient(peer.transport);
 		agent['_connection'] = {
@@ -3541,7 +3538,7 @@ suite('CodexAgent prewarm eviction', () => {
 	});
 
 	test('unexpected capability-root metadata failures warn without blocking start or exposing paths', async () => {
-		const agent = await createAgent(disposables, { multiRootEnabled: true });
+		const agent = await createAgent(disposables);
 		const peer = disposables.add(createTestPeer());
 		const client = new CodexAppServerClient(peer.transport);
 		agent['_connection'] = {
@@ -3587,7 +3584,7 @@ suite('CodexAgent prewarm eviction', () => {
 	});
 
 	test('pre-first-turn replacement reevaluates selected capability roots', async () => {
-		const agent = await createAgent(disposables, { multiRootEnabled: true });
+		const agent = await createAgent(disposables);
 		const peer = disposables.add(createTestPeer());
 		const client = new CodexAppServerClient(peer.transport);
 		agent['_connection'] = {
@@ -3736,7 +3733,6 @@ suite('CodexAgent prewarm eviction', () => {
 		const additionalDirectory = URI.file('/manual-write').fsPath;
 		const sessionUri = AgentSession.uri('codex', 'multi-root');
 		const agent = await createAgent(disposables, {
-			multiRootEnabled: true,
 			sessionConfig: { [CodexSessionConfigKey.AdditionalDirectories]: [additionalDirectory, `${additionalDirectory}${sep}`] },
 		});
 		const peer = disposables.add(createTestPeer());
@@ -3881,7 +3877,7 @@ suite('CodexAgent prewarm eviction', () => {
 	});
 
 	test('consecutive sends replace and remove workspace roots on the existing thread', async () => {
-		const agent = await createAgent(disposables, { multiRootEnabled: true });
+		const agent = await createAgent(disposables);
 		const peer = disposables.add(createTestPeer());
 		agent['_connection'] = {
 			kind: 'ready',
@@ -3948,7 +3944,7 @@ suite('CodexAgent prewarm eviction', () => {
 		}
 	});
 
-	test('disabled multi-root preserves the existing additional-directory payload', async () => {
+	test('reducing a multi-root workspace to one folder preserves additional writable directories', async () => {
 		const additionalDirectory = URI.file('/manual-write').fsPath;
 		const sessionUri = AgentSession.uri('codex', 'single-root');
 		const agent = await createAgent(disposables, {
@@ -3985,7 +3981,7 @@ suite('CodexAgent prewarm eviction', () => {
 				turnSelectedCapabilityRoots: turn.params.selectedCapabilityRoots,
 				permissions: turn.params.permissions,
 			}, {
-				startRuntimeWorkspaceRoots: [repoA.fsPath, additionalDirectory],
+				startRuntimeWorkspaceRoots: [repoA.fsPath, repoB.fsPath, additionalDirectory],
 				startSelectedCapabilityRoots: undefined,
 				turnRuntimeWorkspaceRoots: [repoA.fsPath, additionalDirectory],
 				turnSelectedCapabilityRoots: undefined,
@@ -3996,11 +3992,10 @@ suite('CodexAgent prewarm eviction', () => {
 		}
 	});
 
-	test('enabled multi-root preserves single-folder protocol and sandbox behavior', async () => {
+	test('single-folder sessions preserve protocol and sandbox behavior', async () => {
 		const additionalDirectory = `${URI.file('/manual-write').fsPath}${sep}`;
-		const sessionUri = AgentSession.uri('codex', 'enabled-single-root');
+		const sessionUri = AgentSession.uri('codex', 'single-folder');
 		const agent = await createAgent(disposables, {
-			multiRootEnabled: true,
 			sessionConfig: { [CodexSessionConfigKey.AdditionalDirectories]: [additionalDirectory] },
 		});
 		const peer = disposables.add(createTestPeer());
@@ -4077,7 +4072,7 @@ suite('CodexAgent prewarm eviction', () => {
 	});
 
 	test('fork inherits the source workspace roots instead of requested replacements', async () => {
-		const agent = await createAgent(disposables, { multiRootEnabled: true });
+		const agent = await createAgent(disposables);
 		const peer = disposables.add(createTestPeer());
 		const client = new CodexAppServerClient(peer.transport);
 		agent['_connection'] = {
@@ -4166,7 +4161,6 @@ suite('CodexAgent prewarm eviction', () => {
 	test('fork keeps additional writable directories out of workspace state', async () => {
 		const additionalDirectory = URI.file('/manual-write').fsPath;
 		const agent = await createAgent(disposables, {
-			multiRootEnabled: true,
 			sessionConfig: { [CodexSessionConfigKey.AdditionalDirectories]: [additionalDirectory] },
 		});
 		const peer = disposables.add(createTestPeer());
@@ -4537,7 +4531,7 @@ suite('CodexAgent prewarm eviction', () => {
 		const database = new TestSessionDatabase();
 		const repoA = URI.file('/repo-a');
 		const repoB = URI.file('/repo-b');
-		const agentA = await createAgent(disposables, { multiRootEnabled: true, database });
+		const agentA = await createAgent(disposables, { database });
 		const peerA = disposables.add(createTestPeer());
 		agentA['_connection'] = {
 			kind: 'ready',
@@ -4562,7 +4556,6 @@ suite('CodexAgent prewarm eviction', () => {
 			const canonicalOverlay = await agentA['_metadataStore'].read(AgentSession.uri('codex', 'thread'));
 
 			const agentB = await createAgent(disposables, {
-				multiRootEnabled: true,
 				database,
 				sessionConfig: { [CodexSessionConfigKey.PermissionsPreset]: 'auto-review' },
 			});

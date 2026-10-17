@@ -16,6 +16,7 @@
 - The [Copilot GitHub-reference convention](https://github.com/github/copilot-host/blob/main/spec/meta-conventions/copilot/session-meta.md#copilotgithubreferences) identifies the primary checkout's PR with `headBranch`. Clients prefer VS Code's folder-scoped GitHub metadata when present; the VS Code host also publishes the convention for a verified current-branch association in session state and summaries. Attached and created-only references are not head-branch associations, and recorded artifacts do not establish that a host created a PR.
 - Compatibility presentation must remain client-side. Do not synthesize protocol state or change execution, permissions, or visibility to imitate another client's rendering.
 - Session configuration `readOnly` governs picker editability, not settings-derived values forwarded to the host. Forwarding still validates the schema and session mutability; see [sessionConfigProperties.ts](../sessionConfigProperties.ts).
+- Sandbox local-network guidance is computed from the executing host's platform and effective configuration, only after its backend and every reported capability are supported. Clients must not infer it from their own OS or settings; absent metadata from older or other hosts means no guidance. The settings link does not grant access or override managed policy.
 
 ## Essential references
 

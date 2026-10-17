@@ -70,7 +70,7 @@ export class CopilotSessionSandbox extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
-		this._diagnostics = this._register(instantiationService.createInstance(CopilotSandboxDiagnostics, _options.ownerSession.toString(), _options.getHostSupport));
+		this._diagnostics = this._register(instantiationService.createInstance(CopilotSandboxDiagnostics, _options.ownerSession.toString(), _options.getHostSupport, _options.platform));
 	}
 
 	setPendingRequest(toolCallId: string, requestId: string): void {

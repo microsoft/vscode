@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { mock } from '../../../../base/test/common/mock.js';
@@ -138,6 +139,7 @@ suite('AgentHostPullRequestLifecycleOperationHandler', () => {
 			statusService,
 			gitHubService,
 			new NullLogService(),
+			disposables.add(new AgentHostStateManager(new NullLogService())),
 		);
 		return { handler, recorded, refreshes, merged };
 	}

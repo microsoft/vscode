@@ -66,7 +66,7 @@ export interface PullRequestReplyAndResolveResult {
 
 export interface GitHubWorkflowRun {
 	readonly id: string;
-	readonly name: string;
+	readonly name?: string | null;
 	readonly event?: string;
 	readonly status?: string;
 	readonly conclusion?: string;
