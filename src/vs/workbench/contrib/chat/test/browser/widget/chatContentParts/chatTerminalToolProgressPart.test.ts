@@ -15,6 +15,7 @@ import { DeferredPromise, timeout } from '../../../../../../../base/common/async
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { hash } from '../../../../../../../base/common/hash.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
+import { ScrollbarVisibility } from '../../../../../../../base/common/scrollable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
@@ -1696,6 +1697,44 @@ suite('ChatTerminalToolOutputSection layout', () => {
 		await section['_handleResize']();
 
 		assert.deepStrictEqual({ expandedScans, collapsedScans: scan.callCount }, { expandedScans: 1, collapsedScans: 1 });
+	});
+
+	test('shows the outer horizontal and xterm vertical scrollbars under the same hover and focus conditions', async () => {
+		const section = createSection({ text: 'output' });
+		await section.toggle(true);
+		const scrollable = section['_scrollableContainer'];
+		assert.ok(scrollable);
+		const updateOptions = sinon.spy(scrollable, 'updateOptions');
+		const states = [];
+		for (const event of [new mainWindow.MouseEvent('mouseenter'), new mainWindow.MouseEvent('mouseleave'), new mainWindow.FocusEvent('focusin'), new mainWindow.FocusEvent('focusout')]) {
+			section.domNode.dispatchEvent(event);
+			states.push({
+				event: event.type,
+				horizontal: updateOptions.lastCall.args[0].horizontal,
+				vertical: section.domNode.classList.contains('chat-terminal-output-container-scrollbars-visible'),
+			});
+		}
+
+		assert.deepStrictEqual(states, [
+			{ event: 'mouseenter', horizontal: ScrollbarVisibility.Auto, vertical: true },
+			{ event: 'mouseleave', horizontal: ScrollbarVisibility.Hidden, vertical: false },
+			{ event: 'focusin', horizontal: ScrollbarVisibility.Auto, vertical: true },
+			{ event: 'focusout', horizontal: ScrollbarVisibility.Hidden, vertical: false },
+		]);
+	});
+
+	test('marks horizontal overflow, where the xterm vertical scrollbar would scroll along with the content', async () => {
+		const section = createSection({ text: 'output' });
+		await section.toggle(true);
+		const scrollable = section['_scrollableContainer'];
+		assert.ok(scrollable);
+		const overflows = [];
+		for (const scrollWidth of [1200, 800]) {
+			scrollable.setScrollDimensions({ width: 800, scrollWidth });
+			overflows.push(section.domNode.classList.contains('chat-terminal-output-container-horizontal-overflow'));
+		}
+
+		assert.deepStrictEqual(overflows, [true, false]);
 	});
 
 	test('keeps the output row cap when reflow does not change the columns', async () => {
