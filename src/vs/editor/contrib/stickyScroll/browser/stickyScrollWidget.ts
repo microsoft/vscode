@@ -157,7 +157,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			return { lineNumbers: [], lastLineRelativePosition: 0 };
 		}
 		const candidateLineNumbers = [...state.startLineNumbers];
-		if (state.showEndForLine !== null) {
+		if (state.showEndForLine !== null && state.showEndForLine < candidateLineNumbers.length) {
 			candidateLineNumbers[state.showEndForLine] = state.endLineNumbers[state.showEndForLine];
 		}
 		let totalHeight = 0;
