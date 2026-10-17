@@ -34650,7 +34650,21 @@ suite('AgentService (node dispatcher)', () => {
 					await fileService.writeFile(joinPath(base.getSessionDataDir(session), SESSION_ATTACHMENTS_DIRNAME, 'earlier', 'note.txt'), VSBuffer.fromString('note'));
 					await fileService.writeFile(joinPath(base.getSessionDataDir(session), 'other.txt'), VSBuffer.fromString('other'));
 				};
-				return { createService, contentsOf, seed, orchestratorDatabase, agent, dataDir: (session: URI) => base.getSessionDataDir(session) };
+				// A restart stops the running service first: it would otherwise keep reacting to the shared provider and
+				// synchronize the sessions the restarted service restores, outside of that service's synchronization queue.
+				const stop = async (service: AgentService) => {
+					await service.whenCatalogReconciliationIdle();
+					await getTestSessionStateStore(service).whenIdle(undefined);
+					// The orchestrator database stands for the file that outlives a host, so it stays open.
+					const disposeDatabase = orchestratorDatabase.dispose;
+					orchestratorDatabase.dispose = () => { };
+					try {
+						service.dispose();
+					} finally {
+						orchestratorDatabase.dispose = disposeDatabase;
+					}
+				};
+				return { createService, stop, contentsOf, seed, orchestratorDatabase, agent, dataDir: (session: URI) => base.getSessionDataDir(session) };
 			}
 
 			suite('older-build edits and moves (Block 4a)', () => {
@@ -34923,37 +34937,38 @@ suite('AgentService (node dispatcher)', () => {
 			});
 
 			test('a restart restores the order a move or a reorder recorded, also with a chat before the default chat', async () => {
-				const { createService } = createDeletingServices();
-				const first = createService();
-				const source = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
-				const target = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+				const { createService, stop } = createDeletingServices();
+				let live = createService();
+				// Sessions are created once the provider's initial import ran, as after a client's first listing.
+				await live.listSessions();
+				const source = await live.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+				const target = await live.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 				const moved = URI.parse(buildChatUri(source, 'moved-first'));
 				const peer = URI.parse(buildChatUri(target, 'target-peer'));
-				await first.createChat(source, moved);
-				await first.createChat(target, peer);
+				await live.createChat(source, moved);
+				await live.createChat(target, peer);
 				await timeout(0);
 				const orderOf = (service: AgentService) => getStateManager(service).getSessionState(target.toString())?.chats.map(chat => chat.resource);
 				const restart = async () => {
-					await first.whenCatalogReconciliationIdle();
-					await getTestSessionStateStore(first).whenIdle(undefined);
+					await stop(live);
 					const restarted = createService();
 					await restarted.listSessions();
 					await restarted.restoreSession(target);
+					const restored = orderOf(restarted);
 					// What the restore persisted is restored again.
-					await restarted.whenCatalogReconciliationIdle();
-					await getTestSessionStateStore(restarted).whenIdle(undefined);
-					const again = createService();
-					await again.listSessions();
-					await again.restoreSession(target);
-					return [orderOf(restarted), orderOf(again)];
+					await stop(restarted);
+					live = createService();
+					await live.listSessions();
+					await live.restoreSession(target);
+					return [restored, orderOf(live)];
 				};
 
 				// Moved without an anchor: before the target's default chat.
-				await first.moveChat(source, moved, { kind: 'session', session: target, after: undefined });
-				const afterMove = { live: orderOf(first), restored: await restart() };
+				await live.moveChat(source, moved, { kind: 'session', session: target, after: undefined });
+				const afterMove = { live: orderOf(live), restored: await restart() };
 				// Reordered: the target's peer first.
-				await first.moveChat(target, peer, { kind: 'session', session: target, after: undefined });
-				const afterReorder = { live: orderOf(first), restored: await restart() };
+				await live.moveChat(target, peer, { kind: 'session', session: target, after: undefined });
+				const afterReorder = { live: orderOf(live), restored: await restart() };
 
 				const movedOrder = [moved.toString(), buildDefaultChatUri(target), peer.toString()];
 				const reorderedOrder = [peer.toString(), moved.toString(), buildDefaultChatUri(target)];
@@ -35035,8 +35050,7 @@ suite('AgentService (node dispatcher)', () => {
 
 				await first.disposeSession(source);
 				const afterSourceDeleted = await contentsOf(source);
-				await first.whenCatalogReconciliationIdle();
-				await getTestSessionStateStore(first).whenIdle(undefined);
+				await stop(first);
 
 				const restarted = createService();
 				await restarted.listSessions();
