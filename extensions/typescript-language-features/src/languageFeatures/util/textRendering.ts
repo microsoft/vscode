@@ -58,10 +58,119 @@ function getTagBodyText(
 		case 'default': {
 			return makeCodeblock(text);
 		}
+		// These tags are documented (JSDoc/TSDoc) to start with a `{TypeExpression}`
+		// immediately after the tag name, so -- unlike arbitrary/custom tags -- it's safe and
+		// necessary to protect that leading brace group from Markdown/HTML misinterpretation.
+		// See `wrapLeadingTypeExpressionAsCode` below.
+		case 'type':
+		case 'satisfies':
+		case 'enum':
+		case 'this':
+		case 'throws':
+		case 'exception': {
+			return wrapLeadingTypeExpressionAsCode(text);
+		}
 		default: {
 			return text;
 		}
 	}
+}
+
+/**
+ * Many JSDoc tags (`@type`, `@satisfies`, `@enum`, `@throws`, `@this`, etc.) start with a
+ * `{TypeExpression}` immediately after the tag name. That type expression is not source code,
+ * so it is not put in a code block, which means it is later rendered as plain Markdown.
+ *
+ * Markdown treats bracket pairs like `<number>` as inline HTML. Since `<number>` is not an
+ * allowed/known HTML tag, it gets stripped out by the Markdown sanitizer, silently eating any
+ * generic type arguments (e.g. `Promise<number>` renders as just `Promise`). See #341685.
+ *
+ * To avoid this, wrap the leading `{TypeExpression}` in an inline code span so it is rendered
+ * verbatim instead of being interpreted as Markdown/HTML. Any trailing description text (and
+ * its original whitespace/newlines) is left untouched so Markdown block structure is preserved.
+ */
+function wrapLeadingTypeExpressionAsCode(text: string): string {
+	if (text.charAt(0) !== '{') {
+		return text;
+	}
+
+	const end = findMatchingBraceEnd(text);
+	if (end === undefined) {
+		return text;
+	}
+
+	const typeExpression = text.slice(1, end);
+	const rest = text.slice(end + 1);
+	return wrapAsInlineCode(typeExpression) + rest;
+}
+
+/**
+ * Finds the index of the `}` that closes the `{` at index 0 of `text`, skipping over braces
+ * that appear inside quoted type syntax -- string-literal types (`{'}'}`) and template-literal
+ * types (`` {`a${T}`} ``) -- so an internal `}` inside a quote doesn't end the scan early.
+ */
+function findMatchingBraceEnd(text: string): number | undefined {
+	let depth = 0;
+	for (let i = 0; i < text.length; ++i) {
+		const ch = text.charAt(i);
+		if (ch === '\'' || ch === '"' || ch === '`') {
+			const closingQuoteIndex = findClosingQuote(text, i, ch);
+			if (closingQuoteIndex === undefined) {
+				return undefined;
+			}
+			i = closingQuoteIndex;
+			continue;
+		}
+		if (ch === '{') {
+			depth++;
+		} else if (ch === '}') {
+			if (--depth === 0) {
+				return i;
+			}
+		}
+	}
+	return undefined;
+}
+
+/**
+ * Finds the index of the quote character matching `text.charAt(start)`, skipping over
+ * backslash-escaped characters and, for template literals, over `${...}` interpolations
+ * (which may themselves contain nested quotes/template literals, e.g. `` `a${`b`}` ``).
+ */
+function findClosingQuote(text: string, start: number, quote: string): number | undefined {
+	for (let i = start + 1; i < text.length; ++i) {
+		if (text.charAt(i) === '\\') {
+			i++; // Skip the escaped character
+			continue;
+		}
+		if (quote === '`' && text.charAt(i) === '$' && text.charAt(i + 1) === '{') {
+			// Skip over the balanced `${...}` interpolation instead of treating any quote
+			// character inside it as closing this template literal.
+			const closingBraceOffset = findMatchingBraceEnd(text.slice(i + 1));
+			if (closingBraceOffset === undefined) {
+				return undefined;
+			}
+			i += closingBraceOffset + 1;
+			continue;
+		}
+		if (text.charAt(i) === quote) {
+			return i;
+		}
+	}
+	return undefined;
+}
+
+/**
+ * Wraps `code` in a Markdown inline code span. Backslashes cannot escape backticks inside a
+ * code span, so instead this uses a delimiter longer than any run of backticks already in
+ * `code`, padded with a space on each side (harmless, and required when `code` itself starts
+ * or ends with a backtick) per the CommonMark code span rules.
+ */
+function wrapAsInlineCode(code: string): string {
+	const maxBacktickRun = (code.match(/`+/g) ?? []).reduce((max, run) => Math.max(max, run.length), 0);
+	const delimiter = '`'.repeat(maxBacktickRun + 1);
+	const padding = maxBacktickRun ? ' ' : '';
+	return `${delimiter}${padding}${code}${padding}${delimiter}`;
 }
 
 function getTagDocumentation(
