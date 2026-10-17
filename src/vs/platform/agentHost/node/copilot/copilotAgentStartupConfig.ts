@@ -31,6 +31,8 @@ export class CopilotAgentStartupConfig {
 		readonly localModel = false,
 		readonly executionSubagent = false,
 		readonly executionSubagentModel = DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL,
+		/** `chat.agentHost.computerUse.enabled`: built-in plugins can only be registered before any session exists. */
+		readonly computerUse = false,
 	) { }
 
 	equals(other: CopilotAgentStartupConfig): boolean {

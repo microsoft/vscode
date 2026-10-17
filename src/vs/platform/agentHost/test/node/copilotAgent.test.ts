@@ -62,7 +62,7 @@ import { readAgentModelFusionMeta } from '../../common/meta/agentModelMeta.js';
 import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { buildAgentHostOTelEnv } from '../../common/agentService.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTelemetryLevelConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTelemetryLevelConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
@@ -722,7 +722,7 @@ interface ITestCopilotClient extends Pick<CopilotClient, 'start' | 'stop' | 'lis
 		};
 		readonly models: { readonly list: CopilotModelsList };
 		readonly managedSettings: Pick<CopilotClient['rpc']['managedSettings'], 'resolve'>;
-		readonly plugins: Pick<CopilotPlugins, 'install' | 'uninstall'> & {
+		readonly plugins: Pick<CopilotPlugins, 'install' | 'uninstall' | 'enable'> & {
 			readonly marketplaces: Pick<CopilotPluginMarketplaces, 'list' | 'add' | 'browse' | 'remove' | 'refresh'>;
 		};
 		readonly mcp: { readonly config: Pick<CopilotClient['rpc']['mcp']['config'], 'list'> };
@@ -863,6 +863,9 @@ class TestCopilotClient implements ITestCopilotClient {
 			uninstall: async params => {
 				this.pluginUninstallRequests.push(params);
 			},
+			enable: async params => {
+				this.pluginEnableRequests.push(params);
+			},
 			marketplaces: {
 				list: async () => ({ marketplaces: this.pluginMarketplaces }),
 				add: async params => {
@@ -897,6 +900,7 @@ class TestCopilotClient implements ITestCopilotClient {
 	readonly modelListRequests: Parameters<CopilotModelsList>[0][] = [];
 	readonly pluginInstallRequests: Parameters<CopilotPluginsInstall>[0][] = [];
 	readonly pluginUninstallRequests: Parameters<CopilotPluginsUninstall>[0][] = [];
+	readonly pluginEnableRequests: Parameters<CopilotPlugins['enable']>[0][] = [];
 	pluginMarketplaces: Awaited<ReturnType<CopilotPluginMarketplaces['list']>>['marketplaces'] = [];
 	pluginMarketplaceAddName = 'marketplace';
 	readonly pluginMarketplaceAddRequests: Parameters<CopilotPluginMarketplaces['add']>[0][] = [];
@@ -12479,6 +12483,66 @@ suite('CopilotAgent', () => {
 				}, {
 					stopCount: 1,
 					env: 'true',
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		function createComputerUseAgent(enabled: boolean, isLocalAgentHost: boolean, client: TestCopilotClient) {
+			const localModelSetupService: ILocalModelSetupService = { _serviceBrand: undefined, isLocalAgentHost, provider: undefined, applySelection: () => undefined };
+			const context = createTestAgentContext(disposables, {
+				copilotClient: client,
+				localModelSetupService,
+				rootConfig: { [AgentHostComputerUseEnabledConfigKey]: enabled },
+			});
+			const resolvePlugin = stub(context.agent as unknown as { _resolveComputerUsePlugin(): Promise<string | undefined> }, '_resolveComputerUsePlugin').resolves('/cache/computer-use');
+			disposables.add(toDisposable(() => resolvePlugin.restore()));
+			return { ...context, resolvePlugin };
+		}
+
+		test('offers the Computer Use plugin only to the local agent host when the setting is on', async () => {
+			const results = [];
+			for (const [enabled, isLocalAgentHost] of [[false, true], [true, true], [true, false]]) {
+				const client = new TestCopilotClient([]);
+				const { agent, resolvePlugin } = createComputerUseAgent(enabled, isLocalAgentHost, client);
+				try {
+					await agent.listChatsToMigrate();
+					results.push({
+						builtinPluginDirectories: getCreatedClientOptions(agent).at(-1)?.builtinPluginDirectories,
+						resolved: resolvePlugin.callCount,
+						enabled: client.pluginEnableRequests,
+					});
+				} finally {
+					await disposeAgent(agent);
+				}
+			}
+
+			assert.deepStrictEqual(results, [
+				{ builtinPluginDirectories: undefined, resolved: 0, enabled: [] },
+				{ builtinPluginDirectories: ['/cache/computer-use'], resolved: 1, enabled: [] },
+				{ builtinPluginDirectories: undefined, resolved: 0, enabled: [] },
+			]);
+		});
+
+		test('restarts the client and enables Computer Use when the setting is turned on', async () => {
+			const client = new StopCountingClient([]);
+			const { agent, configurationService } = createComputerUseAgent(false, true, client);
+			try {
+				await agent.listChatsToMigrate();
+				configurationService.updateRootConfig({ [AgentHostComputerUseEnabledConfigKey]: true });
+				await Promise.resolve();
+				await agent.listChatsToMigrate();
+				await timeout(0);
+
+				assert.deepStrictEqual({
+					stopCount: client.stopCount,
+					builtinPluginDirectories: getCreatedClientOptions(agent).at(-1)?.builtinPluginDirectories,
+					enabled: client.pluginEnableRequests,
+				}, {
+					stopCount: 1,
+					builtinPluginDirectories: ['/cache/computer-use'],
+					enabled: [{ names: ['computer-use'] }],
 				});
 			} finally {
 				await disposeAgent(agent);
