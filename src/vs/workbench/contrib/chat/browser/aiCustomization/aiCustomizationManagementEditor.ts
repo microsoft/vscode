@@ -2440,21 +2440,21 @@ export class AICustomizationManagementEditor extends EditorPane {
 				...category.items.map(item => category.learnMoreUrl
 					? localize('migrationAccessibleGuidanceItem', "{0}, source {1}. Documentation-only migration guidance.", item.label, item.sourceLabel)
 					: item.changesLabel
-					? localize(
-						'migrationAccessibleSelectableItemWithChanges',
-						"{0}, {1}, source {2}. Migration changes: {3}",
-						item.label,
-						item.selected === false ? localize('migrationNotSelected', "not selected") : localize('migrationSelected', "selected"),
-						item.sourceLabel,
-						item.changesLabel,
-					)
-					: localize(
-						'migrationAccessibleSelectableItem',
-						"{0}, {1}, source {2}",
-						item.label,
-						item.selected === false ? localize('migrationNotSelected', "not selected") : localize('migrationSelected', "selected"),
-						item.sourceLabel,
-					)),
+						? localize(
+							'migrationAccessibleSelectableItemWithChanges',
+							"{0}, {1}, source {2}. Migration changes: {3}",
+							item.label,
+							item.selected === false ? localize('migrationNotSelected', "not selected") : localize('migrationSelected', "selected"),
+							item.sourceLabel,
+							item.changesLabel,
+						)
+						: localize(
+							'migrationAccessibleSelectableItem',
+							"{0}, {1}, source {2}",
+							item.label,
+							item.selected === false ? localize('migrationNotSelected', "not selected") : localize('migrationSelected', "selected"),
+							item.sourceLabel,
+						)),
 			].join('\n'))),
 			...(overview.manualReviewItems?.length ? [[
 				localize('migrationAccessibleManualReview', "Needs manual review"),
