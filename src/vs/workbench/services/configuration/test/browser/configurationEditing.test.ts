@@ -207,12 +207,10 @@ suite('ConfigurationEditing', () => {
 		assert.fail('Should fail with ERROR_CONFIGURATION_FILE_DIRTY error.');
 	});
 
-	test('errors cases - ERROR_POLICY_CONFIGURATION', async () => {
-		await runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const promise = Event.toPromise(instantiationService.get(IConfigurationService).onDidChangeConfiguration);
-			await fileService.writeFile(environmentService.policyFile!, VSBuffer.fromString('{ "configurationEditing.service.policySetting": "policyValue" }'));
-			await promise;
-		});
+	test('errors cases - ERROR_POLICY_CONFIGURATION', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const promise = Event.toPromise(instantiationService.get(IConfigurationService).onDidChangeConfiguration);
+		await fileService.writeFile(environmentService.policyFile!, VSBuffer.fromString('{ "configurationEditing.service.policySetting": "policyValue" }'));
+		await promise;
 		try {
 			await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.policySetting', value: 'value' }, { donotNotifyError: true });
 		} catch (error) {
@@ -220,7 +218,7 @@ suite('ConfigurationEditing', () => {
 			return;
 		}
 		assert.fail('Should fail with ERROR_POLICY_CONFIGURATION');
-	});
+	}));
 
 	test('write policy setting - when not set', async () => {
 		await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.policySetting', value: 'value' }, { donotNotifyError: true });

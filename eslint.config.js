@@ -988,12 +988,9 @@ export default defineConfig(
 						'src/vs/platform/agentHost/test/node/agentService.test.ts',
 						'src/vs/platform/agentHost/test/node/codex/codexCreateChat.test.ts',
 						'src/vs/platform/agentHost/test/node/copilotAgentSession.test.ts',
-						'src/vs/platform/configuration/test/common/policyConfiguration.test.ts',
 						'src/vs/platform/github/test/node/scheduler.test.ts',
 						'src/vs/workbench/contrib/chat/test/browser/attachments/chatImageReveal.test.ts',
 						'src/vs/workbench/contrib/chat/test/common/chatService/chatService.test.ts',
-						'src/vs/workbench/contrib/terminal/test/browser/terminalService.test.ts',
-						'src/vs/workbench/services/configuration/test/browser/configurationEditing.test.ts',
 					]
 				}
 			]
