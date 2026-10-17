@@ -210,7 +210,7 @@ function createActionGroups(
 				const groups = createMenuActionGroups(item.submenu, options, hiddenStates, commandService, keybindingService, contextKeyService);
 				const submenuActions = Separator.join(...groups.map(g => g[1]));
 				if (submenuActions.length > 0) {
-					activeActions.push(new SubmenuItemAction(item, menuHide, submenuActions));
+					activeActions.push(new SubmenuItemAction(item, menuHide, submenuActions, options));
 				}
 			}
 		}

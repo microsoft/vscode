@@ -10,7 +10,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { KeyMod, KeyCode } from '../../../../../base/common/keyCodes.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IEditorGroup, IEditorGroupsService, GroupsOrder } from '../../../../services/editor/common/editorGroupsService.js';
-import { EditorsOrder, EditorResourceAccessor, GroupIdentifier, SideBySideEditor } from '../../../../common/editor.js';
+import { EditorsOrder, EditorResourceAccessor, GroupIdentifier, SideBySideEditor, IEditorCommandsContext } from '../../../../common/editor.js';
 import { IQuickInputService, IQuickInputButton, IQuickPickItem, IQuickPickSeparator, QuickInputButtonLocation, IQuickPick } from '../../../../../platform/quickinput/common/quickInput.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter } from '../../../../../base/common/event.js';
@@ -45,7 +45,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { IsSessionsWindowContext, ResourceContextKey } from '../../../../common/contextkeys.js';
+import { IsSessionsWindowContext, ResourceContextKey, EditorTitleContextEditorIdContext, MultipleEditorsSelectedInGroupContext } from '../../../../common/contextkeys.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { BrowserNavigationFeatures } from './browserNavigationFeatures.js';
 import { ViewColumn } from '../../../../../platform/editor/common/editor.js';
@@ -438,6 +438,42 @@ class NewTabAction extends Action2 {
 	}
 }
 
+class DuplicateTabAction extends Action2 {
+	constructor() {
+		super({
+			id: BrowserViewCommandId.DuplicateTab,
+			precondition: MultipleEditorsSelectedInGroupContext.negate(),
+			title: {
+				...localize2('browser.duplicateTab', "Duplicate tab (D)"),
+				mnemonicTitle: localize({ key: 'browser.duplicateTabMnemonic', comment: ['&& denotes a mnemonic. Keep (D) as the visible access-key hint.'] }, "&&Duplicate tab (D)"),
+			},
+			category: BrowserActionCategory,
+			menu: {
+				id: MenuId.EditorTitleContext,
+				group: '1_open',
+				order: 20,
+				when: EditorTitleContextEditorIdContext.isEqualTo(BrowserEditorInput.EDITOR_ID),
+			},
+		});
+	}
+
+	async run(accessor: ServicesAccessor, _resource?: URI, context?: IEditorCommandsContext): Promise<void> {
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const group = context ? editorGroupsService.getGroup(context.groupId) : editorGroupsService.activeGroup;
+		const source = context?.editorIndex !== undefined ? group?.getEditorByIndex(context.editorIndex) : group?.activeEditor;
+		if (!group || !(source instanceof BrowserEditorInput)) {
+			return;
+		}
+
+		const browserViewService = accessor.get(IBrowserViewWorkbenchService);
+		const duplicate = browserViewService.getOrCreateLazy({ ...source.serialize(), id: generateUuid() });
+		await accessor.get(IEditorService).openEditor(duplicate, {
+			pinned: true,
+			index: group.getIndexOfEditor(source) + 1,
+		}, group.id);
+	}
+}
+
 class CloseAllBrowserTabsAction extends Action2 {
 	constructor() {
 		super({
@@ -558,6 +594,7 @@ registerAction2(OpenIntegratedBrowserAction);
 registerAction2(OpenFileInIntegratedBrowserAction);
 registerAction2(OpenOrListBrowsersAction);
 registerAction2(NewTabAction);
+registerAction2(DuplicateTabAction);
 registerAction2(CloseAllBrowserTabsAction);
 registerAction2(CloseAllBrowserTabsInGroupAction);
 
