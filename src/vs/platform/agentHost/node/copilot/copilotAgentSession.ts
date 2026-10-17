@@ -149,6 +149,9 @@ interface IClientToolSdkPolicy {
 const DEFAULT_CLIENT_TOOL_SDK_POLICY: IClientToolSdkPolicy = {};
 const CLIENT_TOOL_SDK_POLICIES: ReadonlyMap<string, IClientToolSdkPolicy> = new Map([
 	[SEMANTIC_SEARCH_TOOL_NAME, { overridesBuiltInTool: true, skipPermission: true }],
+	// The runtime's built-in `create_pull_request` belongs to the cloud coding
+	// agent and fails locally; route the forwarded GitHub Pull Requests tool instead.
+	[CopilotToolName.CreatePullRequest, { overridesBuiltInTool: true }],
 ]);
 
 function readSubagentTaskModelSource(data: object): AgentSubagentTaskModelSource | undefined {
