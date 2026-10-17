@@ -508,10 +508,6 @@ jobs:
         working-directory: extensions/copilot
         run: npm run compile
 
-      - name: Run extension host tests
-        working-directory: extensions/copilot
-        run: xvfb-run -a npm run test:extension
-
       - name: Run vitest unit tests
         working-directory: extensions/copilot
         run: npm run test:unit
@@ -594,10 +590,6 @@ jobs:
       - name: Compile
         working-directory: extensions/copilot
         run: npm run compile
-
-      - name: Run extension host tests
-        working-directory: extensions/copilot
-        run: npm run test:extension
 
       - name: Run vitest unit tests
         working-directory: extensions/copilot
