@@ -22,7 +22,6 @@ export class SimpleScreenReaderContent extends Disposable implements IScreenRead
 	private readonly _selectionChangeListener = this._register(new MutableDisposable());
 
 	private _accessibilityPageSize: number = 1;
-	private _ignoreSelectionChangeTime: number = 0;
 
 	private _state: ISimpleScreenReaderContentState | undefined;
 	private _strategy: SimplePagedScreenReaderStrategy = new SimplePagedScreenReaderStrategy();
@@ -45,10 +44,21 @@ export class SimpleScreenReaderContent extends Disposable implements IScreenRead
 		}
 		const isScreenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
 		if (isScreenReaderOptimized) {
+			const previousState = this._state;
 			this._state = this._getScreenReaderContentState(primarySelection);
-			if (domNode.textContent !== this._state.value) {
-				this._setIgnoreSelectionChangeTime('setValue');
+			const valueChanged = domNode.textContent !== this._state.value;
+			if (valueChanged) {
 				domNode.textContent = this._state.value;
+			}
+			// An unchanged model render must not overwrite a system-caret change
+			// whose selectionchange event has not reached the editor yet.
+			if (!valueChanged && previousState
+				&& previousState.value === this._state.value
+				&& previousState.selectionStart === this._state.selectionStart
+				&& previousState.selectionEnd === this._state.selectionEnd
+				&& previousState.startPositionWithinEditor.lineNumber === this._state.startPositionWithinEditor.lineNumber
+				&& previousState.startPositionWithinEditor.column === this._state.startPositionWithinEditor.column) {
+				return;
 			}
 			const selection = getActiveWindow().document.getSelection();
 			if (!selection) {
@@ -58,7 +68,6 @@ export class SimpleScreenReaderContent extends Disposable implements IScreenRead
 			if (!data) {
 				return;
 			}
-			this._setIgnoreSelectionChangeTime('setRange');
 			selection.setBaseAndExtent(
 				data.anchorNode,
 				data.anchorOffset,
@@ -67,7 +76,6 @@ export class SimpleScreenReaderContent extends Disposable implements IScreenRead
 			);
 		} else {
 			this._state = undefined;
-			this._setIgnoreSelectionChangeTime('setValue');
 			this._domNode.domNode.textContent = '';
 		}
 	}
@@ -85,6 +93,8 @@ export class SimpleScreenReaderContent extends Disposable implements IScreenRead
 
 	public onFocusChange(newFocusValue: boolean): void {
 		if (newFocusValue) {
+			// Re-establish the DOM selection when returning from another control.
+			this._state = undefined;
 			this._selectionChangeListener.value = this._setSelectionChangeListener();
 		} else {
 			this._selectionChangeListener.value = undefined;
@@ -96,27 +106,21 @@ export class SimpleScreenReaderContent extends Disposable implements IScreenRead
 	}
 
 	public onWillCut(): void {
-		this._setIgnoreSelectionChangeTime('onCut');
 	}
 
 	public onWillPaste(): void {
-		this._setIgnoreSelectionChangeTime('onWillPaste');
 	}
 
 	// --- private methods
 
-	public _setIgnoreSelectionChangeTime(reason: string): void {
-		this._ignoreSelectionChangeTime = Date.now();
-	}
 
 	private _setSelectionChangeListener(): IDisposable {
 		// See https://github.com/microsoft/vscode/issues/27216 and https://github.com/microsoft/vscode/issues/98256
 		// When using a Braille display or NVDA for example, it is possible for users to reposition the
 		// system caret. This is reflected in Chrome as a `selectionchange` event and needs to be reflected within the editor.
 
-		// `selectionchange` events often come multiple times for a single logical change
-		// so throttle multiple `selectionchange` events that burst in a short period of time.
-		let previousSelectionChangeEventTime = 0;
+		// Compare the actual selection with our rendered state. Timing cannot
+		// distinguish our own writes from a nearby system-caret request.
 		return addDisposableListener(this._domNode.domNode.ownerDocument, 'selectionchange', () => {
 			const isScreenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
 			if (!this._state || !isScreenReaderOptimized || !IME.enabled) {
@@ -137,22 +141,14 @@ export class SimpleScreenReaderContent extends Disposable implements IScreenRead
 			}
 			const range = selection.getRangeAt(0);
 
-			const now = Date.now();
-			const delta1 = now - previousSelectionChangeEventTime;
-			previousSelectionChangeEventTime = now;
-			if (delta1 < 5) {
-				// received another `selectionchange` event within 5ms of the previous `selectionchange` event
-				// => ignore it
+			const expected = this._getScreenReaderRange(this._state.selectionStart, this._state.selectionEnd);
+			if (expected
+				&& selection.anchorNode === expected.anchorNode
+				&& selection.anchorOffset === expected.anchorOffset
+				&& selection.focusNode === expected.focusNode
+				&& selection.focusOffset === expected.focusOffset) {
 				return;
 			}
-			const delta2 = now - this._ignoreSelectionChangeTime;
-			this._ignoreSelectionChangeTime = 0;
-			if (delta2 < 100) {
-				// received a `selectionchange` event within 100ms since we touched the hidden div
-				// => ignore it, since we caused it
-				return;
-			}
-
 			this._viewController.setSelection(this._getEditorSelectionFromDomRange(this._context, this._state, selection.direction, range));
 		});
 	}
