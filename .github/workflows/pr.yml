@@ -614,3 +614,50 @@ jobs:
       - name: Run Completions Core lib tests using VS Code
         working-directory: extensions/copilot
         run: npm run test:completions-core
+
+  # The chat-lib jobs are separate jobs instead of a matrix: a matrix job skipped by
+  # a job-level `if:` is never expanded, so the per-OS required checks would not report.
+  chat-lib-linux-tests:
+    name: chat-lib tests (ubuntu-latest)
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Test chat-lib
+        uses: ./.github/actions/test-chat-lib
+
+  chat-lib-macos-tests:
+    name: chat-lib tests (macos-latest)
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
+    runs-on: macos-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Test chat-lib
+        uses: ./.github/actions/test-chat-lib
+
+  chat-lib-windows-tests:
+    name: chat-lib tests (windows-latest)
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
+    runs-on: windows-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Test chat-lib
+        uses: ./.github/actions/test-chat-lib
