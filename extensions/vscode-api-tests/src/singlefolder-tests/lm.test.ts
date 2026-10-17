@@ -90,6 +90,48 @@ suite('lm', function () {
 		assert.strictEqual(responseText, 'Hello');
 	});
 
+	test('lm request configuration overrides defaults without changing later requests', async function () {
+		const configurations: vscode.ProvideLanguageModelChatResponseOptions['modelConfiguration'][] = [];
+		disposables.push(vscode.lm.registerLanguageModelChatProvider('test-lm-vendor', {
+			async provideLanguageModelChatInformation() {
+				return [{
+					...testProviderOptions,
+					configurationSchema: {
+						properties: {
+							reasoningEffort: { type: 'string', enum: ['low', 'medium', 'high'], default: 'high' },
+							contextSize: { type: 'number', default: 100 },
+						}
+					}
+				}];
+			},
+			async provideLanguageModelChatResponse(_model, _messages, options, progress) {
+				configurations.push(options.modelConfiguration);
+				progress.report(new vscode.LanguageModelTextPart('Hello'));
+			},
+			async provideTokenCount() {
+				return 1;
+			},
+		}));
+
+		const [model] = await vscode.lm.selectChatModels({ id: 'test-lm' });
+		for (const reasoningEffort of ['low', 'high', 'low', 'medium', undefined]) {
+			const response = await model.sendRequest([vscode.LanguageModelChatMessage.User('Hello')], {
+				configuration: reasoningEffort === undefined ? undefined : { reasoningEffort }
+			});
+			for await (const _chunk of response.stream) {
+				// Wait for the provider to finish before sending the next request.
+			}
+		}
+
+		assert.deepStrictEqual(configurations, [
+			{ reasoningEffort: 'low', contextSize: 100 },
+			{ reasoningEffort: 'high', contextSize: 100 },
+			{ reasoningEffort: 'low', contextSize: 100 },
+			{ reasoningEffort: 'medium', contextSize: 100 },
+			{ reasoningEffort: 'high', contextSize: 100 },
+		]);
+	});
+
 	test('lm request fail', async function () {
 
 		disposables.push(vscode.lm.registerLanguageModelChatProvider('test-lm-vendor', {
