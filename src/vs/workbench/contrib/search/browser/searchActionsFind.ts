@@ -8,7 +8,6 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IListService, WorkbenchCompressibleAsyncDataTree } from '../../../../platform/list/browser/listService.js';
-import { ViewContainerLocation } from '../../../common/views.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import * as Constants from '../common/constants.js';
 import * as SearchEditorConstants from '../../searchEditor/browser/constants.js';
@@ -21,12 +20,10 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { resolveResourcesForSearchIncludes } from '../../../services/search/common/queryBuilder.js';
 import { getMultiSelectedResources, IExplorerService } from '../../files/browser/files.js';
+import { REVEAL_IN_EXPLORER_COMMAND_ID } from '../../files/browser/fileConstants.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { ExplorerFolderContext, ExplorerRootContext, FilesExplorerFocusCondition, VIEWLET_ID as VIEWLET_ID_FILES } from '../../files/common/files.js';
-import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
-import { ExplorerViewPaneContainer } from '../../files/browser/explorerViewlet.js';
-import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { ExplorerFolderContext, ExplorerRootContext, FilesExplorerFocusCondition } from '../../files/common/files.js';
 import { category, findInFilesCommand, getElementsToOperateOn, getSearchView, IFindInFilesArgs, openSearchView } from './searchActionsBase.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -166,9 +163,7 @@ registerAction2(class RevealInSideBarForSearchResultsAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, args: any): Promise<any> {
-		const paneCompositeService = accessor.get(IPaneCompositePartService);
-		const explorerService = accessor.get(IExplorerService);
-		const contextService = accessor.get(IWorkspaceContextService);
+		const commandService = accessor.get(ICommandService);
 
 		const searchView = getSearchView(accessor.get(IViewsService));
 		if (!searchView) {
@@ -183,19 +178,7 @@ registerAction2(class RevealInSideBarForSearchResultsAction extends Action2 {
 			return;
 		}
 
-		paneCompositeService.openPaneComposite(VIEWLET_ID_FILES, ViewContainerLocation.Sidebar, false).then((viewlet) => {
-			if (!viewlet) {
-				return;
-			}
-
-			const explorerViewContainer = viewlet.getViewPaneContainer() as ExplorerViewPaneContainer;
-			const uri = fileMatch.resource;
-			if (uri && contextService.isInsideWorkspace(uri)) {
-				const explorerView = explorerViewContainer.getExplorerView();
-				explorerView.setExpanded(true);
-				explorerService.select(uri, true).then(() => explorerView.focus(), onUnexpectedError);
-			}
-		});
+		await commandService.executeCommand(REVEAL_IN_EXPLORER_COMMAND_ID, fileMatch.resource);
 	}
 });
 
