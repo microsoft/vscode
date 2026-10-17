@@ -29,6 +29,12 @@ export const TOKEN_TYPE_ACCESS_TOKEN = 'urn:ietf:params:oauth:token-type:access_
 export const TOKEN_TYPE_ID_TOKEN = 'urn:ietf:params:oauth:token-type:id_token';
 
 /**
+ * Token type for an OAuth 2.0 refresh token. Used as the `subject_token_type` in
+ * the IdP-side token exchange when the IdP supports it as a subject token.
+ */
+export const TOKEN_TYPE_REFRESH_TOKEN = 'urn:ietf:params:oauth:token-type:refresh_token';
+
+/**
  * Token type for an Identity Assertion Authorization Grant (ID-JAG) used in
  * Cross App Access (XAA) flows.
  */
@@ -47,9 +53,11 @@ export const GRANT_TYPE_JWT_BEARER = 'urn:ietf:params:oauth:grant-type:jwt-beare
  * @param clientId the requesting app's client_id at the IdP.
  * @param clientSecret the requesting app's client_secret at the IdP, if applicable.
  *   Omit (or pass `undefined`) for public clients (`token_endpoint_auth_method=none`).
- * @param idToken the OpenID Connect `id_token` previously issued by the IdP to
- *   the requesting app. Per the spec the subject token MUST be an ID Token
- *   (not an access token).
+ * @param subjectToken the token to present as the subject — either the IdP-issued
+ *   `id_token` or `refresh_token`. Prefer `refresh_token` when available since it
+ *   does not expire as quickly as an `id_token`.
+ * @param subjectTokenType the URN token type constant for `subjectToken`, e.g.
+ *   `TOKEN_TYPE_ID_TOKEN` or `TOKEN_TYPE_REFRESH_TOKEN`.
  * @param audience the *authorization server* URL of the resource (the issuer
  *   that will redeem the ID-JAG). Required.
  * @param resource the resource indicator (RFC 8707) — the URL of the actual
@@ -57,15 +65,15 @@ export const GRANT_TYPE_JWT_BEARER = 'urn:ietf:params:oauth:grant-type:jwt-beare
  *   in practice.
  * @param scopes scopes the requesting app wants granted at the resource.
  */
-export function buildIdJagExchangeBody(clientId: string, clientSecret: string | undefined, idToken: string, audience: string, resource: string | undefined, scopes: readonly string[]): URLSearchParams {
+export function buildIdJagExchangeBody(clientId: string, clientSecret: string | undefined, subjectToken: string, subjectTokenType: string, audience: string, resource: string | undefined, scopes: readonly string[]): URLSearchParams {
 	const body = new URLSearchParams();
 	body.append('client_id', clientId);
 	if (clientSecret) {
 		body.append('client_secret', clientSecret);
 	}
 	body.append('grant_type', GRANT_TYPE_TOKEN_EXCHANGE);
-	body.append('subject_token', idToken);
-	body.append('subject_token_type', TOKEN_TYPE_ID_TOKEN);
+	body.append('subject_token', subjectToken);
+	body.append('subject_token_type', subjectTokenType);
 	body.append('requested_token_type', TOKEN_TYPE_ID_JAG);
 	body.append('audience', audience);
 	if (resource) {

@@ -22,6 +22,8 @@ import {
 	fetchResourceMetadata,
 	fetchAuthorizationServerMetadata,
 	scopesMatch,
+	TOKEN_TYPE_ID_TOKEN,
+	TOKEN_TYPE_REFRESH_TOKEN,
 	IAuthorizationJWTClaims,
 	IAuthorizationServerMetadata,
 	DEFAULT_AUTH_FLOW_PORT
@@ -2264,6 +2266,7 @@ suite('OAuth', () => {
 				'my_idp_client_id',
 				'secret_xyz',
 				'<id_token>',
+				TOKEN_TYPE_ID_TOKEN,
 				'https://auth.resource.example.com',
 				'https://api.resource.example.com',
 				['todos.read', 'mcp.access'],
@@ -2285,6 +2288,7 @@ suite('OAuth', () => {
 				'public_client_id',
 				undefined,
 				'<id_token>',
+				TOKEN_TYPE_ID_TOKEN,
 				'https://auth.resource.example.com',
 				undefined,
 				[],
@@ -2293,6 +2297,22 @@ suite('OAuth', () => {
 			assert.strictEqual(body.has('client_secret'), false);
 			assert.strictEqual(body.has('resource'), false);
 			assert.strictEqual(body.has('scope'), false);
+		});
+
+		test('buildIdJagExchangeBody uses refresh_token as subject_token when provided', () => {
+			const body = buildIdJagExchangeBody(
+				'my_idp_client_id',
+				'secret_xyz',
+				'<refresh_token>',
+				TOKEN_TYPE_REFRESH_TOKEN,
+				'https://auth.resource.example.com',
+				'https://api.resource.example.com',
+				['todos.read'],
+			);
+
+			assert.strictEqual(body.get('subject_token'), '<refresh_token>');
+			assert.strictEqual(body.get('subject_token_type'), 'urn:ietf:params:oauth:token-type:refresh_token');
+			assert.strictEqual(body.get('requested_token_type'), 'urn:ietf:params:oauth:token-type:id-jag');
 		});
 
 		test('buildResourceRedemptionBody emits an RFC 7523 JWT-bearer grant', () => {
