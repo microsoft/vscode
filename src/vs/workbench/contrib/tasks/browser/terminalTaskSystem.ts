@@ -1533,6 +1533,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		if (task.command.runtime === RuntimeType.CustomExecution) {
 			this._currentTask.shellLaunchConfig = launchConfigs = {
 				customPtyImplementation: (id, cols, rows) => new TerminalProcessExtHostProxy(id, cols, rows, this._terminalService),
+				// Mark as a task terminal so type-keyed guards (e.g. the shell integration executeCommand API) apply (#338610).
+				type: TaskTerminalType,
 				waitOnExit,
 				name: this._createTerminalName(task),
 				initialText: task.command.presentation && task.command.presentation.echo ? formatMessageForTerminal(nls.localize({
