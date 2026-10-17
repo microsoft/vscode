@@ -316,7 +316,7 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'startup' },
-			agentHost: { key: AgentHostComputerUseEnabledConfigKey },
+			agentHost: { key: AgentHostComputerUseEnabledConfigKey, scope: AgentHostConfigurationSyncScope.Local },
 		},
 		[AgentHostMcpToolRoutingEnabledSettingId]: {
 			type: 'boolean',

@@ -1644,8 +1644,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostGitHubMcpServerEnabledConfigKey) !== false;
 	}
 
+	/** Only the local desktop agent host may operate this machine's desktop. */
 	private _isComputerUseEnabled(): boolean {
-		return this._configurationService.getRootValue(platformRootSchema, AgentHostComputerUseEnabledConfigKey) === true;
+		return this._configurationService.getRootValue(platformRootSchema, AgentHostComputerUseEnabledConfigKey) === true
+			&& this._localModelSetupService.isLocalAgentHost;
 	}
 
 	private _areCopilotConnectorsEnabled(): boolean {
@@ -3758,8 +3760,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				rgDiskPath(),
 				this._otelService.getSdkTelemetryConfig(),
 				this._otelService.getNativeSdkTelemetryConfig(),
-				// Only the local desktop agent host may operate this machine's desktop.
-				!scoped && startupConfig.computerUse && this._localModelSetupService.isLocalAgentHost ? this._resolveComputerUsePlugin() : undefined,
+				!scoped && startupConfig.computerUse ? this._resolveComputerUsePlugin() : undefined,
 				startupConfig.runtimePath ? validateCopilotRuntimePath(startupConfig.runtimePath) : undefined,
 			]);
 			let runtimePath = bundledRuntimePath;

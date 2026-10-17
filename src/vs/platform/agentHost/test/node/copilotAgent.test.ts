@@ -12545,25 +12545,29 @@ suite('CopilotAgent', () => {
 			]);
 		});
 
-		test('restarts the client when the Computer Use setting is turned on', async () => {
-			const client = new StopCountingClient([]);
-			const { agent, configurationService } = createComputerUseAgent(false, true, client);
-			try {
-				await agent.listChatsToMigrate();
-				configurationService.updateRootConfig({ [AgentHostComputerUseEnabledConfigKey]: true });
-				await Promise.resolve();
-				await agent.listChatsToMigrate();
-
-				assert.deepStrictEqual({
-					stopCount: client.stopCount,
-					builtinPluginDirectories: getCreatedClientOptions(agent).at(-1)?.builtinPluginDirectories,
-				}, {
-					stopCount: 1,
-					builtinPluginDirectories: ['/cache/computer-use'],
-				});
-			} finally {
-				await disposeAgent(agent);
+		test('restarts only the local agent host client when the Computer Use setting is turned on', async () => {
+			const results = [];
+			for (const isLocalAgentHost of [true, false]) {
+				const client = new StopCountingClient([]);
+				const { agent, configurationService } = createComputerUseAgent(false, isLocalAgentHost, client);
+				try {
+					await agent.listChatsToMigrate();
+					configurationService.updateRootConfig({ [AgentHostComputerUseEnabledConfigKey]: true });
+					await Promise.resolve();
+					await agent.listChatsToMigrate();
+					results.push({
+						stopCount: client.stopCount,
+						builtinPluginDirectories: getCreatedClientOptions(agent).at(-1)?.builtinPluginDirectories,
+					});
+				} finally {
+					await disposeAgent(agent);
+				}
 			}
+
+			assert.deepStrictEqual(results, [
+				{ stopCount: 1, builtinPluginDirectories: ['/cache/computer-use'] },
+				{ stopCount: 0, builtinPluginDirectories: undefined },
+			]);
 		});
 
 		test('starts without Computer Use while the plugin downloads and restarts once it is installed', async () => {

@@ -8,6 +8,7 @@ import * as fs from 'fs';
 import { raceCancellationError } from '../../../../base/common/async.js';
 import { streamToBuffer, type VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { join } from '../../../../base/common/path.js';
 import { Promises } from '../../../../base/node/pfs.js';
 import { extract } from '../../../../base/node/zip.js';
@@ -126,27 +127,44 @@ export class CopilotComputerUsePlugin {
 			throw new Error(`Computer Use plugin checksum mismatch for ${url}: expected ${expectedSha256}, got ${actualSha256}`);
 		}
 
-		// Extract next to the final directory and publish it with a rename, so
-		// an interrupted extraction never leaves a directory with a sentinel.
-		const tmpDir = `${pluginDir}.tmp.${process.pid}`;
-		const archivePath = `${tmpDir}.zip`;
-		await fs.promises.rm(tmpDir, { recursive: true, force: true });
-		await fs.promises.mkdir(tmpDir, { recursive: true });
-		try {
-			await fs.promises.writeFile(archivePath, archive.buffer);
-			// No trailing slash: the archive's `<target>/` directory entry must reduce to `/`.
-			await extract(archivePath, tmpDir, { sourcePath: target }, token);
-			await fs.promises.writeFile(join(tmpDir, COMPLETE_SENTINEL), '');
-			if (await Promises.exists(join(pluginDir, COMPLETE_SENTINEL))) {
-				return pluginDir;
-			}
-			await fs.promises.rm(pluginDir, { recursive: true, force: true });
-			await fs.promises.rename(tmpDir, pluginDir);
-		} finally {
-			await fs.promises.rm(archivePath, { force: true });
-			await fs.promises.rm(tmpDir, { recursive: true, force: true });
-		}
+		await installComputerUsePluginArchive(archive.buffer, target, pluginDir, token);
 		this._logService.info(`[Copilot] Installed Computer Use plugin ${this._release.version} at ${pluginDir}`);
 		return pluginDir;
+	}
+}
+
+/**
+ * Extracts the `<target>/` folder of a verified release archive into
+ * `pluginDir` and publishes it with a `.complete` sentinel. Rejects with a
+ * cancellation error, without publishing, when `token` is cancelled.
+ */
+export async function installComputerUsePluginArchive(archive: Uint8Array, target: string, pluginDir: string, token: CancellationToken): Promise<void> {
+	// Extract next to the final directory and publish it with a rename, so
+	// an interrupted extraction never leaves a directory with a sentinel.
+	const tmpDir = `${pluginDir}.tmp.${process.pid}`;
+	const archivePath = `${tmpDir}.zip`;
+	await fs.promises.rm(tmpDir, { recursive: true, force: true });
+	await fs.promises.mkdir(tmpDir, { recursive: true });
+	try {
+		await fs.promises.writeFile(archivePath, archive);
+		// No trailing slash: the archive's `<target>/` directory entry must reduce to `/`.
+		try {
+			await extract(archivePath, tmpDir, { sourcePath: target }, token);
+		} catch (error) {
+			throw token.isCancellationRequested ? new CancellationError() : error;
+		}
+		// `extract` can also resolve after a cancellation that stopped it part-way.
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		await fs.promises.writeFile(join(tmpDir, COMPLETE_SENTINEL), '');
+		if (await Promises.exists(join(pluginDir, COMPLETE_SENTINEL))) {
+			return;
+		}
+		await fs.promises.rm(pluginDir, { recursive: true, force: true });
+		await fs.promises.rename(tmpDir, pluginDir);
+	} finally {
+		await fs.promises.rm(archivePath, { force: true });
+		await fs.promises.rm(tmpDir, { recursive: true, force: true });
 	}
 }

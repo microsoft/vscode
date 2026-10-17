@@ -18,7 +18,7 @@ import { INativeEnvironmentService } from '../../../environment/common/environme
 import { NullLogService } from '../../../log/common/log.js';
 import { IRequestService } from '../../../request/common/request.js';
 import { IRequestContext, IRequestOptions } from '../../../../base/parts/request/common/request.js';
-import { CopilotComputerUsePlugin, IComputerUsePluginRelease } from '../../node/copilot/copilotComputerUsePlugin.js';
+import { CopilotComputerUsePlugin, IComputerUsePluginRelease, installComputerUsePluginArchive } from '../../node/copilot/copilotComputerUsePlugin.js';
 
 suite('CopilotComputerUsePlugin', () => {
 
@@ -114,6 +114,24 @@ suite('CopilotComputerUsePlugin', () => {
 		}, {
 			cancelled: true,
 			installed: undefined,
+		});
+	});
+
+	test('a cancelled extraction publishes nothing, and a later install succeeds', async () => {
+		const pluginDir = join(tmpDir, 'install', target);
+		const cancelled = await installComputerUsePluginArchive(archive, target, pluginDir, CancellationToken.Cancelled)
+			.then(() => 'installed', error => isCancellationError(error) ? 'cancelled' : String(error));
+		const publishedAfterCancel = fs.existsSync(join(pluginDir, '.complete'));
+		await installComputerUsePluginArchive(archive, target, pluginDir, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			cancelled,
+			publishedAfterCancel,
+			files: (await fs.promises.readdir(pluginDir)).sort(),
+		}, {
+			cancelled: 'cancelled',
+			publishedAfterCancel: false,
+			files: ['.complete', 'computer-use-mcp', 'plugin.json'],
 		});
 	});
 
