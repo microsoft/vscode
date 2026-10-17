@@ -21,7 +21,6 @@ import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { killTree } from '../../../../base/node/processes.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../log/common/log.js';
@@ -310,30 +309,6 @@ function codexConfigArgs(args: readonly string[]): string[] {
 		}
 	}
 	return result;
-}
-
-/**
- * Forcefully stops a Codex app-server.
- *
- * On Linux, Codex runs its sandbox helpers through `bwrap --die-with-parent`.
- * Bubblewrap's launcher dies with its parent, but the sandbox child it has just
- * cloned waits on an eventfd that never reports the launcher's death, and only
- * binds its own lifetime to that launcher later. Killing the app-server alone
- * can therefore strand that child forever, holding the workspace and any
- * inherited files open. The app-server is frozen first so it can neither exit
- * nor launch another helper, then the tree is killed depth-first while each
- * helper's parent chain is still intact.
- */
-function killCodexAppServer(child: ChildProcessWithoutNullStreams): void {
-	const kill = () => {
-		try { child.kill('SIGKILL'); } catch { /* already dead */ }
-	};
-	if (process.platform === 'linux' && child.pid !== undefined && child.exitCode === null && child.signalCode === null) {
-		try { child.kill('SIGSTOP'); } catch { /* already dead */ }
-		void killTree(child.pid, true).catch(kill);
-	} else {
-		kill();
-	}
 }
 
 /**
@@ -2626,9 +2601,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		} catch (err) {
 			client?.dispose();
 			proxyHandle.dispose();
-			if (child) {
-				killCodexAppServer(child);
-			}
+			try { child?.kill('SIGKILL'); } catch { /* already dead */ }
 			if (sandboxTempDirectory) {
 				try { await fs.promises.rm(sandboxTempDirectory, { recursive: true, force: true }); } catch { /* best effort */ }
 			}
@@ -4295,7 +4268,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		try { connection.subscriptions?.dispose(); } catch { /* ignore */ }
 		try { connection.client.dispose(); } catch { /* ignore */ }
 		try { connection.proxyHandle.dispose(); } catch { /* ignore */ }
-		killCodexAppServer(connection.child);
+		try { connection.child.kill('SIGKILL'); } catch { /* already dead */ }
 	}
 
 	// #endregion
