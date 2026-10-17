@@ -172,6 +172,14 @@ export class UITest {
 			try {
 				await preview.getByRole('heading', { name: 'Webview Sanity' }).waitFor({ timeout: 60_000 });
 			} catch (error) {
+				// Some browsers, such as Chromium on Debian 12, refuse to register the webview service worker,
+				// so no webview can load there at all. That is a property of the browser, not a resource loading failure.
+				if (failedResources.length === 0 && diagnostics.some(message => message.includes('NotSupportedError: Failed to register a ServiceWorker'))) {
+					this.context.warn('Skipping the Markdown preview check: this browser does not allow webviews to register their service worker');
+					await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+					return;
+				}
+
 				throw new Error([
 					'Markdown preview did not render.',
 					`Failed webview resources: ${failedResources.join(', ') || 'none observed'}`,
