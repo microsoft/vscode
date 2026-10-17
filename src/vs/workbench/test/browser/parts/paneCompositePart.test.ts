@@ -11,8 +11,12 @@ import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { mock } from '../../../../base/test/common/mock.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { PanelPart } from '../../../browser/parts/panel/panelPart.js';
+import { SidebarPart } from '../../../browser/parts/sidebar/sidebarPart.js';
+import { AuxiliaryBarPart } from '../../../browser/parts/auxiliarybar/auxiliaryBarPart.js';
 import { IWorkbenchLayoutService, Parts, Position } from '../../../services/layout/browser/layoutService.js';
 import { TestLayoutService, workbenchInstantiationService } from '../workbenchTestServices.js';
 
@@ -71,6 +75,78 @@ class TestPanelPart extends PanelPart {
 		return assertReturnsDefined(this.contentDimension);
 	}
 }
+
+suite('Pane composite part fonts', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const partType of [SidebarPart, AuxiliaryBarPart, PanelPart]) {
+		test(`side bar fonts: ${partType.name} applies, updates and resets content fonts`, async () => {
+			const root = append(mainWindow.document.body, $('.monaco-workbench'));
+			store.add(toDisposable(() => root.remove()));
+			const container = append(root, $('.part'));
+			const configurationService = new TestConfigurationService({
+				'workbench.sideBar.fontFamily': 'monospace',
+				'workbench.sideBar.fontSize': 14,
+			});
+			store.add(configurationService.onDidChangeConfigurationEmitter);
+			const instantiationService = workbenchInstantiationService(undefined, store);
+			instantiationService.stub(IWorkbenchLayoutService, new TestPaneCompositeLayoutService(root));
+			instantiationService.stub(IViewDescriptorService, new TestViewDescriptorService());
+			instantiationService.stub(IConfigurationService, configurationService);
+			const part = store.add(partType === SidebarPart ? instantiationService.createInstance(SidebarPart)
+				: partType === AuxiliaryBarPart ? instantiationService.createInstance(AuxiliaryBarPart)
+					: instantiationService.createInstance(PanelPart));
+			part.create(container);
+			const content = assertReturnsDefined(container.querySelector<HTMLElement>(':scope > .content'));
+			const label = append(content, $('span'));
+			label.textContent = 'example.ts';
+			const capture = () => ({
+				family: content.style.fontFamily,
+				size: content.style.fontSize,
+				inheritedFamily: mainWindow.getComputedStyle(label).fontFamily,
+				inheritedSize: mainWindow.getComputedStyle(label).fontSize,
+			});
+			const initial = capture();
+			const update = async (family: string, size: number) => {
+				await configurationService.setUserConfiguration('workbench.sideBar.fontFamily', family);
+				await configurationService.setUserConfiguration('workbench.sideBar.fontSize', size);
+				configurationService.onDidChangeConfigurationEmitter.fire({
+					source: ConfigurationTarget.USER,
+					affectedKeys: new Set(['workbench.sideBar.fontFamily', 'workbench.sideBar.fontSize']),
+					change: { keys: ['workbench.sideBar.fontFamily', 'workbench.sideBar.fontSize'], overrides: [] },
+					affectsConfiguration: key => key.startsWith('workbench.sideBar.font'),
+				});
+			};
+			await update('serif', 16);
+			const updated = capture();
+			await update('serif', 100);
+			const upperBound = content.style.fontSize;
+			await update('serif', 0);
+			const lowerBound = content.style.fontSize;
+			await update('', 13);
+			const reset = { family: content.style.fontFamily, size: content.style.fontSize };
+			if (partType === PanelPart) {
+				assert.deepStrictEqual({ initial, updated, upperBound, lowerBound, reset }, {
+					initial: { family: '', size: '', inheritedFamily: initial.inheritedFamily, inheritedSize: initial.inheritedSize },
+					updated: { family: '', size: '', inheritedFamily: initial.inheritedFamily, inheritedSize: initial.inheritedSize },
+					upperBound: '',
+					lowerBound: '',
+					reset: { family: '', size: '' },
+				});
+			} else {
+				assert.deepStrictEqual({ initial, updated, upperBound, lowerBound, reset }, {
+					initial: { family: 'monospace', size: '14px', inheritedFamily: 'monospace', inheritedSize: '14px' },
+					updated: { family: 'serif', size: '16px', inheritedFamily: 'serif', inheritedSize: '16px' },
+					upperBound: '16px',
+					lowerBound: '9px',
+					reset: { family: '', size: '' },
+				});
+			}
+		});
+	}
+
+});
 
 suite('Pane composite part layout', () => {
 
