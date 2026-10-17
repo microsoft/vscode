@@ -194,10 +194,18 @@ type McpAccessTestWidget = {
 	disabledMessage: HTMLElement;
 	disabledLinkListener: MutableDisposable<{ dispose(): void }>;
 	commandService: ICommandService;
+	mcpService: IMcpService;
+	mcpServerCompatibilityScope: MutableDisposable<DisposableStore>;
+	mcpServerCompatibility: IObservable<ReadonlyMap<string, CustomizationMcpServerCompatibilityKind>>;
+	notificationService: { error(message: string): void };
+	activationResult: Promise<void>;
+	activationCount: number;
+	activationErrors: string[];
 	refreshCount: number;
 	refreshConnectorsCount: number;
 	refresh(): Promise<void>;
 	refreshConnectors(): Promise<void>;
+	setVisible(visible: boolean): void;
 	updateAccessState(): void;
 };
 
@@ -234,6 +242,20 @@ function createMcpAccessTestWidget(access: McpAccessValue, policyAccess: McpAcce
 	widget.disabledMessage = document.createElement('div');
 	widget.disabledLinkListener = store.add(new MutableDisposable());
 	widget.commandService = { executeCommand: async () => undefined } as unknown as ICommandService;
+	widget.activationResult = Promise.resolve();
+	widget.activationCount = 0;
+	widget.activationErrors = [];
+	widget.mcpService = {
+		activateCollections: () => {
+			widget.activationCount++;
+			return widget.activationResult;
+		},
+	} as unknown as IMcpService;
+	widget.mcpServerCompatibilityScope = store.add(new MutableDisposable());
+	widget.mcpServerCompatibility = observableValue('mcpServerCompatibility', new Map());
+	widget.notificationService = {
+		error: message => widget.activationErrors.push(message),
+	};
 	widget.refreshCount = 0;
 	widget.refreshConnectorsCount = 0;
 	widget.refresh = async () => { widget.refreshCount++; };
@@ -1194,7 +1216,42 @@ suite('mcpListWidget', () => {
 		widget.updateAccessState();
 		widget.access = McpAccessValue.All;
 		widget.updateAccessState();
-		assert.deepStrictEqual({ queries: widget.queryCount, refreshes: widget.refreshCount }, { queries: 0, refreshes: 1 });
+		assert.deepStrictEqual({
+			activationCount: widget.activationCount,
+			queries: widget.queryCount,
+			refreshes: widget.refreshCount,
+		}, { activationCount: 1, queries: 0, refreshes: 1 });
+	});
+
+	test('activates MCP collections when the section becomes visible', () => {
+		const widget = createMcpAccessTestWidget(McpAccessValue.All, undefined, disposables);
+		widget.updateAccessState();
+
+		widget.setVisible(true);
+		widget.setVisible(true);
+
+		assert.deepStrictEqual({
+			activationCount: widget.activationCount,
+			refreshCount: widget.refreshCount,
+		}, {
+			activationCount: 1,
+			refreshCount: 1,
+		});
+	});
+
+	test('does not activate MCP collections while access is disabled', () => {
+		const widget = createMcpAccessTestWidget(McpAccessValue.None, undefined, disposables);
+		widget.updateAccessState();
+
+		widget.setVisible(true);
+
+		assert.deepStrictEqual({
+			activationCount: widget.activationCount,
+			refreshCount: widget.refreshCount,
+		}, {
+			activationCount: 0,
+			refreshCount: 1,
+		});
 	});
 
 	test('shows access-disabled UI before gallery or connector work starts', () => {
@@ -1248,10 +1305,12 @@ suite('mcpListWidget', () => {
 		widget.updateAccessState();
 
 		assert.deepStrictEqual({
+			activationCount: widget.activationCount,
 			queryCount: widget.queryCount,
 			refreshCount: widget.refreshCount,
 			refreshConnectorsCount: widget.refreshConnectorsCount,
 		}, {
+			activationCount: 1,
 			queryCount: 1,
 			refreshCount: 0,
 			refreshConnectorsCount: 0,
@@ -1302,12 +1361,25 @@ suite('mcpListWidget', () => {
 		widget.updateAccessState();
 
 		assert.deepStrictEqual({
+			activationCount: widget.activationCount,
 			refreshCount: widget.refreshCount,
 			refreshConnectorsCount: widget.refreshConnectorsCount,
 		}, {
+			activationCount: 1,
 			refreshCount: 1,
 			refreshConnectorsCount: 1,
 		});
+	});
+
+	test('reports MCP collection activation failures', async () => {
+		const widget = createMcpAccessTestWidget(McpAccessValue.All, undefined, disposables);
+		widget.updateAccessState();
+		widget.activationResult = Promise.reject(new Error('provider activation failed'));
+
+		widget.setVisible(true);
+		await widget.activationResult.catch(() => undefined);
+
+		assert.deepStrictEqual(widget.activationErrors, ['Unable to load MCP servers: provider activation failed']);
 	});
 
 	test('uses durable enablement for the primary MCP switch', () => {

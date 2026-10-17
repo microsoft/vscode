@@ -1846,6 +1846,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			}());
 			reg.defineInstance(IMcpService, new class extends mock<IMcpService>() {
 				override readonly servers = constObservable((options.mcpRuntimeServers ?? mcpRuntimeServers) as never[]);
+				override async activateCollections() { }
 				override readonly enablementModel = {
 					readEnabled: (serverId: string) => {
 						if (serverId.includes('mcp-web-search')) {
