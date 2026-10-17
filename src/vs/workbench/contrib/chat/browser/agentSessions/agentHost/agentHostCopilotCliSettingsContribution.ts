@@ -115,14 +115,6 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 				},
 			},
 			{
-				key: CopilotCliConfigKey.Fusion,
-				computeValue: () => this._isFusionEnabled(),
-				registerTriggers: (store, push) => {
-					this._pushOnSettingChange(store, push, AgentHostFusionEnabledSettingId);
-					store.add(this._defaultAccountService.onDidChangePolicyData(push));
-				},
-			},
-			{
 				key: CopilotCliConfigKey.FusionHighUsesHydraFusion,
 				computeValue: () => this._defaultAccountService.policyData?.chat_preview_features_enabled !== false
 					&& this._configurationService.getValue<boolean>(AgentHostFusionHighUsesHydraFusionSettingId) === true,

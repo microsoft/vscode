@@ -15,6 +15,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
+import { IDefaultAccountService } from '../../../defaultAccount/common/defaultAccount.js';
 import { IEnvironmentService } from '../../../environment/common/environment.js';
 import { ILabelService } from '../../../label/common/label.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
@@ -2136,6 +2137,7 @@ suite('SSHRemoteAgentHostService lifecycle (renderer)', () => {
 
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IConfigurationService, configurationService as Partial<IConfigurationService>);
+		instantiationService.stub(IDefaultAccountService, { policyData: null, onDidChangePolicyData: Event.None });
 		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(IEnvironmentService, { logsHome: URI.file('/logs') } as Partial<IEnvironmentService>);
 		instantiationService.stub(ILabelService, { registerFormatter: () => toDisposable(() => undefined) } as Partial<ILabelService>);
@@ -2193,6 +2195,7 @@ suite('SSHRemoteAgentHostService lifecycle (renderer)', () => {
 		const rendererStorageService = disposables.add(new InMemoryStorageService());
 		rendererInstantiationService.stub(ILogService, new NullLogService());
 		rendererInstantiationService.stub(IConfigurationService, new TestConfigurationService() as Partial<IConfigurationService>);
+		rendererInstantiationService.stub(IDefaultAccountService, { policyData: null, onDidChangePolicyData: Event.None });
 		rendererInstantiationService.stub(IStorageService, rendererStorageService);
 		rendererInstantiationService.stub(IEnvironmentService, { logsHome: URI.file('/logs') } as Partial<IEnvironmentService>);
 		rendererInstantiationService.stub(ILabelService, { registerFormatter: () => toDisposable(() => undefined) } as Partial<ILabelService>);
