@@ -87,10 +87,11 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 			const configProvider = await this._configurationService.getConfigProvider();
 			const shell = this._terminalService.getDefaultShell(true);
 			const shellArgs = this._terminalService.getDefaultShellArgs(true);
+			const shellEnv = this._terminalService.getDefaultShellEnv(true);
 
 			const terminalName = args.title || nls.localize('debug.terminal.title', "Debug Process");
 
-			const shellConfig = JSON.stringify({ shell, shellArgs, cwd: args.cwd });
+			const shellConfig = JSON.stringify({ shell, shellArgs, shellEnv, cwd: args.cwd });
 			let terminal = await this._integratedTerminalInstances.checkout(shellConfig, terminalName);
 
 			let cwdForPrepareCommand: string | undefined;
@@ -100,6 +101,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 				const options: vscode.TerminalOptions = {
 					shellPath: shell,
 					shellArgs: shellArgs,
+					env: shellEnv,
 					cwd: args.cwd,
 					name: terminalName,
 					iconPath: new ThemeIcon('debug'),
