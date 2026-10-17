@@ -397,12 +397,12 @@ export class AutoIndentOnPaste implements IEditorContribution {
 			return;
 		}
 
-		this.callOnModel.add(this.editor.onDidPaste(({ range }) => {
-			this.trigger(range);
+		this.callOnModel.add(this.editor.onDidPaste(({ range, endLineWasUnchanged }) => {
+			this.trigger(range, endLineWasUnchanged);
 		}));
 	}
 
-	public trigger(range: Range): void {
+	public trigger(range: Range, endLineWasUnchanged: boolean): void {
 		const selections = this.editor.getSelections();
 		if (selections === null || selections.length > 1) {
 			return;
@@ -469,8 +469,14 @@ export class AutoIndentOnPaste implements IEditorContribution {
 
 		const firstLineNumber = startLineNumber;
 
+		// Leave an untouched trailing line alone; empty trailing lines are still indented as before.
+		let endLineNumber = range.endLineNumber;
+		if (endLineWasUnchanged && model.getLineContent(endLineNumber).length > 0) {
+			endLineNumber--;
+		}
+
 		// ignore empty or ignored lines
-		while (startLineNumber < range.endLineNumber) {
+		while (startLineNumber < endLineNumber) {
 			if (!/\S/.test(model.getLineContent(startLineNumber + 1))) {
 				startLineNumber++;
 				continue;
@@ -478,7 +484,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 			break;
 		}
 
-		if (startLineNumber !== range.endLineNumber) {
+		if (startLineNumber !== endLineNumber) {
 			const virtualModel = {
 				tokenization: {
 					getLineTokens: (lineNumber: number) => {
@@ -506,7 +512,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 
 				if (newSpaceCntOfSecondLine !== oldSpaceCntOfSecondLine) {
 					const spaceCntOffset = newSpaceCntOfSecondLine - oldSpaceCntOfSecondLine;
-					for (let i = startLineNumber + 1; i <= range.endLineNumber; i++) {
+					for (let i = startLineNumber + 1; i <= endLineNumber; i++) {
 						const lineContent = model.getLineContent(i);
 						const originalIndent = strings.getLeadingWhitespace(lineContent);
 						const originalSpacesCnt = indentUtils.getSpaceCnt(originalIndent, tabSize);

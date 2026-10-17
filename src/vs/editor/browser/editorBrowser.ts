@@ -549,6 +549,12 @@ export interface IPasteEvent {
 	readonly range: Range;
 	readonly languageId: string | null;
 	readonly clipboardEvent?: ClipboardEvent;
+	/**
+	 * The pasted text ends with a line break and the line after it is the unchanged line
+	 * that ended the replaced selection.
+	 * @internal
+	 */
+	readonly endLineWasUnchanged: boolean;
 }
 
 /**
