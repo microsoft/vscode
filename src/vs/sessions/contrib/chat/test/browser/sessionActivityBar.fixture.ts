@@ -54,7 +54,8 @@ const highContrastThemes: ['darkHighContrast', 'lightHighContrast'] = ['darkHigh
 
 function activityBarFixture(options: IFixtureOptions, additionalThemes?: typeof highContrastThemes) {
 	return defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		// Keep the flaky submenu fixture available for manual exploration only.
+		labels: { kind: options.openSubmenu ? 'animated' : 'screenshot' },
 		// The transcript settles through native resize and scroll callbacks.
 		virtualTime: { enabled: false },
 		additionalThemes,
