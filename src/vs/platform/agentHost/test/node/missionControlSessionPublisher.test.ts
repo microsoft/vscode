@@ -6,13 +6,14 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { constObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IAgentHostGitService, type IGitRemote } from '../../common/agentHostGitService.js';
-import { ActionType, type ActionEnvelope } from '../../common/state/sessionActions.js';
+import { ActionType, type ActionEnvelope, type ChatDeltaAction } from '../../common/state/sessionActions.js';
 import { buildDefaultChatUri, type ProjectInfo, SessionStatus } from '../../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { MissionControlSessionMirror, type MissionControlMirrorEvent } from '../../node/missionControl/missionControlSessionMirror.js';
@@ -23,7 +24,7 @@ const directory = URI.file('/workspace/checkout');
 const localProject = { uri: URI.file('/workspace/repository').toString(), displayName: 'repository' };
 const at = '2026-10-15T00:00:00Z';
 
-function envelope(serverSeq = 1): ActionEnvelope {
+function envelope(serverSeq = 1): ActionEnvelope & { readonly action: ChatDeltaAction } {
 	return { channel: 'ahp-chat:/peer', action: { type: ActionType.ChatDelta, turnId: 'turn', partId: 'part', content: 'Peer delta' }, serverSeq, origin: undefined };
 }
 
@@ -34,10 +35,10 @@ suite('MissionControlSessionPublisher', () => {
 	teardown(() => sinon.restore());
 
 	function fixture(options: {
-		remotes?: readonly IGitRemote[];
+		remotes?: readonly IGitRemote[] | null;
 		project?: ProjectInfo;
 		workingDirectories?: string[];
-		root?: URI | false;
+		root?: URI | false | null;
 		gate?: Promise<void>;
 	} = {}) {
 		const instantiation = store.add(new TestInstantiationService());
@@ -55,9 +56,15 @@ suite('MissionControlSessionPublisher', () => {
 			override async getRepositoryRoot(resource: URI) {
 				reads.push(resource.toString());
 				await options.gate;
-				return options.root === false ? undefined : options.root ?? directory;
+				return options.root === false || options.root === null ? undefined : options.root ?? directory;
+			}
+			override hasGitRoot() {
+				return constObservable(options.root === null ? undefined : options.root !== false);
 			}
 			override async getFetchRemotes() {
+				if (options.remotes === null) {
+					return undefined;
+				}
 				return options.remotes ?? [{ name: 'origin', url: 'git@github.com:microsoft/vscode.git' }];
 			}
 		}());
@@ -141,6 +148,8 @@ suite('MissionControlSessionPublisher', () => {
 		[],
 		[{ name: 'upstream', url: 'https://github.com/microsoft/vscode' }],
 		[{ name: 'origin', url: '/local/repository.git' }],
+		[{ name: 'origin', url: 'C:/repos/example.git' }],
+		[{ name: 'origin', url: 'C:\\repos\\example.git' }],
 	]) {
 		test(`retains local checkout identity without a usable origin: ${JSON.stringify(remotes)}`, async () => {
 			const f = fixture({ remotes });
@@ -200,6 +209,39 @@ suite('MissionControlSessionPublisher', () => {
 		}, { frames: [], errors: 2, failure: { namespace: 'ahp', reason: 'source_lag', skipped: 1 } });
 	});
 
+	test('reports actions skipped during a temporary withdrawal before project resolution completes', async () => {
+		const gate = new DeferredPromise<void>();
+		const f = fixture({ gate: gate.p });
+		f.publisher.enqueue(envelope(1), session);
+		f.setEnabled(false);
+		f.publisher.enqueue(envelope(2), session);
+		f.setEnabled(true);
+		f.publisher.enqueue(envelope(3), session);
+		await gate.complete();
+		await f.publisher.registerSession(session);
+		clock.runAll();
+		assert.deepStrictEqual({ frames: f.frames(), failure: f.mirror.getSessionStatus(session).failure }, {
+			frames: [], failure: { namespace: 'ahp', reason: 'source_lag', skipped: 1 },
+		});
+	});
+
+	test('reports a failed action snapshot as integrity loss before draining buffered actions', async () => {
+		const gate = new DeferredPromise<void>();
+		const f = fixture({ gate: gate.p });
+		const circular: Record<string, object> = {};
+		circular.self = circular;
+		const action = envelope(2);
+		f.publisher.enqueue(envelope(1), session);
+		f.publisher.enqueue({ ...action, action: { ...action.action, _meta: circular } }, session);
+		f.publisher.enqueue(envelope(3), session);
+		await gate.complete();
+		await f.publisher.registerSession(session);
+		clock.runAll();
+		assert.deepStrictEqual({
+			frames: f.frames(), errors: f.errors.callCount, failure: f.mirror.getSessionStatus(session).failure,
+		}, { frames: [], errors: 2, failure: { namespace: 'ahp', reason: 'source_lag', skipped: 1 } });
+	});
+
 	test('does not register a late resolution after disposal', async () => {
 		const gate = new DeferredPromise<void>();
 		const f = fixture({ gate: gate.p });
@@ -223,4 +265,14 @@ suite('MissionControlSessionPublisher', () => {
 		clock.runAll();
 		assert.deepStrictEqual({ events: f.events, sessions: f.mirror.statistics.sessions, errors: f.errors.callCount }, { events: [], sessions: 0, errors: 1 });
 	});
+
+	for (const options of [{ root: null }, { remotes: null }]) {
+		test(`does not freeze missing repository identity after an inconclusive Git probe: ${JSON.stringify(options)}`, async () => {
+			const f = fixture(options);
+			f.publisher.enqueue(envelope(), session);
+			await assert.rejects(f.publisher.registerSession(session), /could not be resolved/);
+			clock.runAll();
+			assert.deepStrictEqual({ events: f.events, sessions: f.mirror.statistics.sessions, errors: f.errors.callCount }, { events: [], sessions: 0, errors: 1 });
+		});
+	}
 });

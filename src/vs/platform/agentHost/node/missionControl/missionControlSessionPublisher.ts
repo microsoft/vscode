@@ -72,8 +72,13 @@ export class MissionControlSessionPublisher extends Disposable {
 
 	enqueue(envelope: ActionEnvelope, session: string): void {
 		if (!this._isEnabled()) {
-			if (this._sessions.get(session)?.registered) {
-				this._mirror.reportSourceLag(session, 1);
+			const publication = this._sessions.get(session);
+			if (publication && !publication.failed) {
+				if (publication.registered) {
+					this._mirror.reportSourceLag(session, 1);
+				} else {
+					publication.skipped++;
+				}
 			}
 			return;
 		}
@@ -93,15 +98,27 @@ export class MissionControlSessionPublisher extends Disposable {
 				}
 			});
 		}
-		const json = JSON.stringify(envelope);
-		const bytes = Buffer.byteLength(json);
+		let snapshot: ActionEnvelope;
+		let bytes: number;
+		try {
+			const json = JSON.stringify(envelope);
+			if (json === undefined) {
+				throw new Error('Unserialisable AHP envelope');
+			}
+			bytes = Buffer.byteLength(json);
+			snapshot = JSON.parse(json);
+		} catch (error) {
+			publication.skipped++;
+			this._log.error('[AgentHost] Mission Control pending action could not be serialized', { session }, error);
+			return;
+		}
 		if (publication.pending.length >= maxPendingFrames || publication.bytes + bytes > maxPendingSessionBytes || this._pendingBytes + bytes > maxPendingBytes) {
 			if (++publication.skipped === 1) {
 				this._log.error('[AgentHost] Mission Control pending project buffer exhausted', { session });
 			}
 			return;
 		}
-		publication.pending.push({ envelope: JSON.parse(json), bytes });
+		publication.pending.push({ envelope: snapshot, bytes });
 		publication.bytes += bytes;
 		this._pendingBytes += bytes;
 	}
@@ -163,9 +180,16 @@ export class MissionControlSessionPublisher extends Disposable {
 		}
 		const root = await this._git.getRepositoryRoot(workingDirectory);
 		if (!root) {
+			if (this._git.hasGitRoot(workingDirectory).get() !== false) {
+				throw new Error('Mission Control repository root could not be resolved');
+			}
 			return undefined;
 		}
-		const origin = (await this._git.getFetchRemotes(root))?.find(remote => remote.name === 'origin');
+		const remotes = await this._git.getFetchRemotes(root);
+		if (remotes === undefined) {
+			throw new Error('Mission Control repository remotes could not be resolved');
+		}
+		const origin = remotes.find(remote => remote.name === 'origin');
 		const remoteProject = origin && projectFromRemote(origin.url);
 		if (remoteProject) {
 			return remoteProject;
@@ -176,6 +200,9 @@ export class MissionControlSessionPublisher extends Disposable {
 }
 
 function projectFromRemote(remote: string): IMissionControlMirrorProject | undefined {
+	if (/^[a-zA-Z]:[\\/]/.test(remote.trim())) {
+		return undefined;
+	}
 	const scp = remote.includes('://') ? undefined : /^(?:[^@/:\s]+@)?(?<host>[^/:\s]+):(?<path>.+)$/.exec(remote.trim());
 	let url: URL;
 	try {
