@@ -8,6 +8,7 @@ import { IVoiceDispatchResult, IVoicePendingQuestion, IVoiceSessionContext, IVoi
 import { IBackendQuestionAnswer } from './voiceQuestionAnswers.js';
 
 type VoiceSession = IVoiceSessionContext['sessions'][number];
+export type VoiceLiveConfirmationDecision = 'approve' | 'reject';
 
 export interface IVoiceLiveInputTarget {
 	readonly session: VoiceSession | undefined;
@@ -142,6 +143,23 @@ export class VoiceLiveInputRouter {
 		return { session, questionIndex: session ? this._answers.get(this._key(session))?.answers.length ?? 0 : 0, hasContext: this._hasContext };
 	}
 
+	resolveConfirmation(callId: string, decision: VoiceLiveConfirmationDecision, target: IVoiceLiveInputTarget): VoiceLiveInputResult {
+		const stale = { clarification: localize('voice.live.stalePrompt', "The voice input or pending prompt changed. Please focus the intended chat input and answer its current prompt again.") };
+		const { session } = target;
+		if (!target.hasContext || !session) {
+			return stale;
+		}
+		const current = this._context.sessions.find(candidate => candidate.id === session.id);
+		if (!current || JSON.stringify(current.pending) !== JSON.stringify(session.pending) || session.pending?.type !== 'approval') {
+			return stale;
+		}
+		const key = this._key(session);
+		if (this._submitted.has(key)) {
+			return stale;
+		}
+		return this._createPendingToolCall(callId, session, { type: decision });
+	}
+
 	resolve(callId: string, text: string, target: IVoiceLiveInputTarget): VoiceLiveInputResult {
 		const stale = { clarification: localize('voice.live.stalePrompt', "The voice input or pending prompt changed. Please focus the intended chat input and answer its current prompt again.") };
 		if (!target.hasContext) {
@@ -212,6 +230,15 @@ export class VoiceLiveInputRouter {
 			}
 			response = { type: 'answer', answers };
 		}
+		return this._createPendingToolCall(callId, session, response);
+	}
+
+	private _createPendingToolCall(callId: string, session: VoiceSession, response: object): VoiceLiveInputResult {
+		const pending = session.pending;
+		if (!pending) {
+			return { clarification: localize('voice.live.stalePrompt', "The voice input or pending prompt changed. Please focus the intended chat input and answer its current prompt again.") };
+		}
+		const key = this._key(session);
 		this._submitted.add(key);
 		this._calls.set(callId, key);
 		return {

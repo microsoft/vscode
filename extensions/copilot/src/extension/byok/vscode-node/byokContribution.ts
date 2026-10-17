@@ -19,7 +19,7 @@ import { BYOKStorageService, IBYOKStorageService } from './byokStorageService';
 import { CustomEndpointBYOKModelProvider } from './customEndpointProvider';
 import { CustomOAIBYOKModelProvider } from './customOAIProvider';
 import { GeminiNativeBYOKLMProvider } from './geminiNativeProvider';
-import { createGptLiveSession, GPT_LIVE_SESSION_PROVIDER_ID, GptLiveSessionResult, isGptLiveModelAvailable, USE_BYOK_VOICE_MODEL_SETTING } from './gptLiveSession';
+import { createGptLiveSession, GPT_LIVE_SESSION_PROVIDER_ID, GptLiveSessionResult, isGptLiveModelAvailable, USE_BYOK_VOICE_MODEL_SETTING, USE_BYOK_VOICE_RESPONSES_MODEL_SETTING } from './gptLiveSession';
 import { OllamaLMProvider } from './ollamaProvider';
 import { OAIBYOKLMProvider } from './openAIProvider';
 import { OpenRouterLMProvider } from './openRouterProvider';
@@ -69,12 +69,14 @@ export class BYOKContrib extends Disposable implements IExtensionContribution {
 			return { available: false };
 		}
 		const modelId = this._configurationService.getNonExtensionConfig<string>(USE_BYOK_VOICE_MODEL_SETTING)?.trim();
+		const responsesModelId = this._configurationService.getNonExtensionConfig<string>(USE_BYOK_VOICE_RESPONSES_MODEL_SETTING)?.trim();
 		if (!modelId || token.isCancellationRequested) {
 			return { available: false };
 		}
 		const openAIModels = await lm.selectChatModels({ vendor: OAIBYOKLMProvider.providerId });
 		if (token.isCancellationRequested || !isClientBYOKAllowed(!!this._authService.anyGitHubSession, this._authService.copilotToken)
-			|| modelId !== this._configurationService.getNonExtensionConfig<string>(USE_BYOK_VOICE_MODEL_SETTING)?.trim()) {
+			|| modelId !== this._configurationService.getNonExtensionConfig<string>(USE_BYOK_VOICE_MODEL_SETTING)?.trim()
+			|| responsesModelId !== this._configurationService.getNonExtensionConfig<string>(USE_BYOK_VOICE_RESPONSES_MODEL_SETTING)?.trim()) {
 			return { available: false };
 		}
 		const apiKey = openAIModels.length > 0 ? this._openAIProvider?.apiKey : undefined;
@@ -91,7 +93,7 @@ export class BYOKContrib extends Disposable implements IExtensionContribution {
 		}
 		return {
 			available: true,
-			session: await createGptLiveSession(this._fetcherService, apiKey, modelId, sdp, token),
+			session: await createGptLiveSession(this._fetcherService, apiKey, modelId, responsesModelId, sdp, token),
 		};
 	}
 
