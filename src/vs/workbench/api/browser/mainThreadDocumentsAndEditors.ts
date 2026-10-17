@@ -126,7 +126,7 @@ class MainThreadDocumentAndEditorStateComputer {
 		@IPaneCompositePartService private readonly _paneCompositeService: IPaneCompositePartService,
 	) {
 		this._modelService.onModelAdded(this._updateStateOnModelAdd, this, this._toDispose);
-		this._modelService.onModelRemoved(_ => this._updateState(), this, this._toDispose);
+		this._modelService.onModelRemoved(this._updateStateOnModelRemove, this, this._toDispose);
 		this._editorService.onDidActiveEditorChange(_ => this._updateState(), this, this._toDispose);
 
 		this._codeEditorService.onCodeEditorAdd(this._onDidAddEditor, this, this._toDispose);
@@ -186,6 +186,21 @@ class MainThreadDocumentAndEditorStateComputer {
 			[], [],
 			undefined, undefined
 		));
+	}
+
+	private _updateStateOnModelRemove(model: ITextModel): void {
+		if (!this._currentState || model.isAttachedToEditor()) {
+			this._updateState();
+			return;
+		}
+
+		if (this._currentState.documents.delete(model)) {
+			this._onDidChangeState(new DocumentAndEditorStateDelta(
+				[model], [],
+				[], [],
+				undefined, undefined
+			));
+		}
 	}
 
 	private _updateState(widgetFocusCandidate?: ICodeEditor): void {
