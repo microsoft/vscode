@@ -5,8 +5,8 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { ConfigurationScope } from '../../../configuration/common/configurationRegistry.js';
-import { CopilotCliConfigKey, CopilotImageGenerationModelSettingId } from '../../common/copilotCliConfig.js';
+import { ConfigurationScope, IConfigurationPropertySchema } from '../../../configuration/common/configurationRegistry.js';
+import { CopilotCliConfigKey, CopilotImageGenerationEnabledSettingId, CopilotImageGenerationModelSettingId } from '../../common/copilotCliConfig.js';
 import { getDefaultImageGenerationModel, imageGenerationConfigurationProperties, migrateLegacyImageGenerationSetting } from '../../common/imageGenerationConfiguration.js';
 
 suite('ImageGenerationConfiguration', () => {
@@ -24,13 +24,28 @@ suite('ImageGenerationConfiguration', () => {
 			scope: property.scope,
 			agentHostKey: property.agentHost.key,
 		}, {
-			settingIds: ['chat.copilot.imageGeneration.model'],
+			settingIds: ['chat.copilot.imageGeneration.model', 'chat.copilot.imageGeneration.enabled'],
 			type: 'string',
 			enum: ['off', 'gpt-image-2.5-flare'],
 			enumItemLabels: ['Off', 'GPT Image 2.5 Flare'],
 			markdownEnumDescriptions: 2,
 			scope: ConfigurationScope.APPLICATION,
 			agentHostKey: CopilotCliConfigKey.ImageGeneration,
+		});
+	});
+
+	test('the legacy boolean stays registered as a deprecated application setting for its migration', () => {
+		const legacy: IConfigurationPropertySchema = imageGenerationConfigurationProperties[CopilotImageGenerationEnabledSettingId];
+		assert.deepStrictEqual({
+			type: legacy.type,
+			scope: legacy.scope,
+			deprecationMessage: legacy.markdownDeprecationMessage,
+			agentHost: legacy.agentHost,
+		}, {
+			type: 'boolean',
+			scope: ConfigurationScope.APPLICATION,
+			deprecationMessage: 'Use `#chat.copilot.imageGeneration.model#` instead.',
+			agentHost: undefined,
 		});
 	});
 
