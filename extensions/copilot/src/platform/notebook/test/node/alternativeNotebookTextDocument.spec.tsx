@@ -1197,6 +1197,54 @@ describe('Alternative Notebook (text) Content', () => {
 				}])).toMatchSnapshot();
 			});
 		});
+		describe('Leading markdown cells (excluded from alt content)', () => {
+			// Regression test: with `excludeMarkdownCells` enabled the alt content omits markdown cells,
+			// so `event.range` (notebook cell index space) must be translated into the alt cell index
+			// space. Otherwise indexing `altCells` with a notebook index reads past the end of the array
+			// and throws `Cannot read properties of undefined (reading 'startOffset')`.
+			const cells = [
+				new NotebookCellData(NotebookCellKind.Markup, '# This is a sample notebook', 'markdown'),
+				new NotebookCellData(NotebookCellKind.Markup, '## Header', 'markdown'),
+				new NotebookCellData(NotebookCellKind.Code, 'print("Hello World")', 'python'),
+			];
+			let altDocSnapshot: IAlternativeNotebookDocumentSnapshot;
+			let altDoc: IAlternativeNotebookDocument;
+			beforeEach(() => {
+				({ altDocSnapshot, altDoc } = createNotebook(cells));
+			});
+			function getUpdatedAltText(e: NotebookDocumentContentChange[]): string {
+				const originalText = altDocSnapshot.getText();
+				const newDoc = altDocSnapshot.withNotebookChanges(e);
+				const edit = toAltNotebookChangeEdit(altDocSnapshot, e);
+				const updatedAltText = newDoc.getText();
+				altDoc.applyNotebookChanges(e);
+				if (edit) {
+					expect(edit.apply(originalText)).toBe(updatedAltText);
+				}
+				expect(altDoc.getText()).toBe(updatedAltText);
+				return updatedAltText;
+			}
+			test(`insert code cell after leading markdown cells`, () => {
+				const { notebook } = createNotebook(cells.concat([
+					new NotebookCellData(NotebookCellKind.Code, 'print("Foo Bar")', 'python'),
+				]));
+				const updated = getUpdatedAltText([{
+					addedCells: [notebook.cellAt(3)],
+					range: new NotebookRange(3, 3),
+					removedCells: [],
+				}]);
+				expect(updated).toContain('print("Hello World")');
+				expect(updated).toContain('print("Foo Bar")');
+			});
+			test(`remove code cell after leading markdown cells`, () => {
+				const updated = getUpdatedAltText([{
+					addedCells: [],
+					range: new NotebookRange(2, 3),
+					removedCells: [altDoc.notebook.cellAt(2)],
+				}]);
+				expect(updated).not.toContain('print("Hello World")');
+			});
+		});
 		describe('Cell with multiple line (crlf)', () => {
 			const cells = [
 				new NotebookCellData(NotebookCellKind.Code, 'print("Hello World")', 'python'),
