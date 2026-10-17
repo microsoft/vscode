@@ -285,8 +285,9 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 			}
 			let promise = this.extractingGalleryExtensions.get(extensionKey.toString());
 			if (!promise) {
-				this.extractingGalleryExtensions.set(extensionKey.toString(), promise = this.downloadAndExtractGalleryExtension(extensionKey, extension, operation, options, token));
-				promise.finally(() => this.extractingGalleryExtensions.delete(extensionKey.toString()));
+				promise = this.downloadAndExtractGalleryExtension(extensionKey, extension, operation, options, token)
+					.finally(() => this.extractingGalleryExtensions.delete(extensionKey.toString()));
+				this.extractingGalleryExtensions.set(extensionKey.toString(), promise);
 			}
 			return promise;
 		}, this.extensionsScanner);
