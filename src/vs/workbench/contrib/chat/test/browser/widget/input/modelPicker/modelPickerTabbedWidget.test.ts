@@ -118,7 +118,7 @@ function createFusionModel(balanceUsesHydraFusion = true): ILanguageModelChatMet
 					tier: {
 						type: 'string', group: 'navigation', title: 'Effort Level',
 						enum: ['balance', 'intelligence'],
-						enumItemLabels: ['Lite', 'Balance'],
+						enumItemLabels: ['Standard', 'High'],
 						default: 'balance',
 					},
 				}
@@ -1297,7 +1297,7 @@ suite('TabbedModelPicker', () => {
 		assert.deepStrictEqual({ hydraFusionDetails, autoOptions: autoTiers(result.popup) }, { hydraFusionDetails: false, autoOptions: ['Efficiency', 'Balance', 'Intelligence'] });
 	});
 
-	test('Fusion offers Lite, Balance, and Max, with Balance using HydraFusion only when routed there and available', async () => {
+	test('Fusion offers Standard, High, and Max, with High using HydraFusion only when routed there and available', async () => {
 		const max = createHydraFusionMaxModel();
 		const choose = async (option: string, balanceUsesHydraFusion: boolean, withHydraFusion = true) => {
 			const fusion = createFusionModel(balanceUsesHydraFusion);
@@ -1315,30 +1315,30 @@ suite('TabbedModelPicker', () => {
 			goBack(result.popup);
 			return { rows, tiers, discount, description, ariaLabel, readout: readout(), selections: result.selections, tier: result.values.get(fusion.identifier)?.tier };
 		};
-		const fusionBalance = {
-			rows: ['Fusion', '--', 'First', 'Fixed', 'Second'], tiers: ['Lite', 'Balance', 'Max'], discount: 'Models routed via Fusion Balance receive a 10% discount.',
-			description: undefined, ariaLabel: 'Balance', readout: 'Balance', selections: ['copilot/auto'], tier: 'intelligence',
+		const fusionHigh = {
+			rows: ['Fusion', '--', 'First', 'Fixed', 'Second'], tiers: ['Standard', 'High', 'Max'], discount: 'Models routed via Fusion High receive a 10% discount.',
+			description: undefined, ariaLabel: 'High', readout: 'High', selections: ['copilot/auto'], tier: 'intelligence',
 		};
 		assert.deepStrictEqual({
-			balance: await choose('Balance', true),
+			high: await choose('High', true),
 			max: await choose('Max', true),
-			balanceNotRouted: await choose('Balance', false),
-			balanceWithoutHydraFusion: await choose('Balance', true, false),
+			highNotRouted: await choose('High', false),
+			highWithoutHydraFusion: await choose('High', true, false),
 		}, {
-			balance: {
-				rows: ['Fusion', '--', 'First', 'Fixed', 'Second'], tiers: ['Lite', 'Balance', 'Max'], discount: undefined,
-				description: 'Balance picks a workflow per task, using one or more models. Learn more',
-				ariaLabel: 'Balance, Balance picks a workflow per task, using one or more models.',
-				readout: 'Balance', selections: ['copilot/hydrafusion'], tier: undefined,
+			high: {
+				rows: ['Fusion', '--', 'First', 'Fixed', 'Second'], tiers: ['Standard', 'High', 'Max'], discount: undefined,
+				description: 'High picks a workflow per task, using one or more models. Learn more',
+				ariaLabel: 'High, High picks a workflow per task, using one or more models.',
+				readout: 'High', selections: ['copilot/hydrafusion'], tier: undefined,
 			},
 			max: {
-				rows: ['Fusion', '--', 'First', 'Fixed', 'Second'], tiers: ['Lite', 'Balance', 'Max'], discount: undefined,
+				rows: ['Fusion', '--', 'First', 'Fixed', 'Second'], tiers: ['Standard', 'High', 'Max'], discount: undefined,
 				description: 'Max uses multiple models on every task for the most thorough results. Learn more',
 				ariaLabel: 'Max, Max uses multiple models on every task for the most thorough results.',
 				readout: 'Max', selections: ['copilot/hydrafusion-max'], tier: undefined,
 			},
-			balanceNotRouted: fusionBalance,
-			balanceWithoutHydraFusion: fusionBalance,
+			highNotRouted: fusionHigh,
+			highWithoutHydraFusion: fusionHigh,
 		});
 	});
 
@@ -2042,7 +2042,7 @@ suite('TabbedModelPicker', () => {
 		});
 		openDetails(result.popup, 'Fusion');
 		const disabled = Array.from(result.popup.querySelectorAll('.tabbed-action-list-details [role="radio"]'), option => option.getAttribute('aria-disabled') === 'true');
-		chooseOption(result.popup, 'Lite');
+		chooseOption(result.popup, 'Standard');
 		await timeout(0);
 		const saved = result.values.get(fusion.identifier);
 		chooseOption(result.popup, 'Max');

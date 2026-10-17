@@ -19,6 +19,7 @@ import { AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, AgentHostCatalogData, AgentHostC
 import { IAgentHostCatalogSyncRequest } from './agentHostCatalogSyncService.js';
 import { AGENT_HOST_TITLE_SOURCE_AUTO, AgentHostTitleSource, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, parseSessionWorkingDirectories, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY, SESSION_WORKING_DIRECTORIES_KEY } from './shared/persistSessionMetadata.js';
 import { WORKTREE_META_REPOSITORY_ROOT } from './shared/worktreeIsolation.js';
+import { sessionWorktreeFolderRepositoryRoot, WORKTREE_FOLDERS_KEY } from './shared/sessionWorktreeFolders.js';
 import type { IAgentHostDatabaseCatalogSnapshotEntry } from './agentHostDatabase.js';
 
 export const CHAT_BACKING_METADATA_KEY = 'peerChatBacking';
@@ -108,6 +109,8 @@ const sessionMetadata = {
 	changes: parsedSessionMetadataKey(META_CHANGES_SUMMARY, readPersistedChanges),
 	chatBacking: stringSessionMetadataKey(CHAT_BACKING_METADATA_KEY),
 	worktreeRepositoryRoot: stringSessionMetadataKey(WORKTREE_META_REPOSITORY_ROOT),
+	/** Central only: worktrees another session recorded that this session works in since a move (Block 5). */
+	worktreeFolders: stringSessionMetadataKey(WORKTREE_FOLDERS_KEY),
 	gitHubData: parsedSessionMetadataKey(META_GITHUB_DATA_STATE, readPersistedGitHubData),
 	/** Written by earlier versions; migrated to the session folder. */
 	gitHub: parsedSessionMetadataKey(META_GITHUB_STATE, readPersistedGitHubState),
@@ -239,7 +242,10 @@ export class AgentHostCatalogSourceResolver {
 			: (state.status & SessionStatus.IsArchived) !== 0;
 		const persistedChanges = sessionMetadata.changes.read(metadata);
 		const changes = preferPersistedMetadata && metadata[META_CHANGES_SUMMARY] !== undefined ? persistedChanges : state.changes;
-		const worktreeProject = this._dependencies.worktreeProjectFromRepositoryRoot(sessionMetadata.worktreeRepositoryRoot.read(metadata));
+		const workingDirectories = (preferPersistedMetadata ? sessionMetadata.workingDirectories.read(metadata) : undefined) ?? state.workingDirectories;
+		// Its own recorded worktree, else a shared worktree a move recorded as its primary folder: never a path's shape.
+		const worktreeProject = this._dependencies.worktreeProjectFromRepositoryRoot(sessionMetadata.worktreeRepositoryRoot.read(metadata)
+			?? sessionWorktreeFolderRepositoryRoot(sessionMetadata.worktreeFolders.read(metadata), workingDirectories[0]));
 		const ehcliAdoptable = readSessionEhcliAdoptable(state.meta);
 		const ehcliAdopted = readSessionEhcliAdopted(state.meta) || sessionMetadata.ehcliAdopted.read(metadata) === true;
 		const persistedDevContainerWorktree = sessionMetadata.devContainerWorktree.read(metadata);
@@ -274,7 +280,7 @@ export class AgentHostCatalogSourceResolver {
 				? { uri: worktreeProject.uri.toString(), displayName: worktreeProject.displayName }
 				: state.project,
 			isChatBacking: isAgentHostChatBacking(session, !!sessionMetadata.chatBacking.read(metadata) || this._dependencies.isUnpersistedChatBacking(session)),
-			workingDirectories: (preferPersistedMetadata ? sessionMetadata.workingDirectories.read(metadata) : undefined) ?? state.workingDirectories,
+			workingDirectories,
 			changes,
 			_meta: Object.keys(meta).length > 0 ? meta : undefined,
 			chats: authoritativeChats ?? state.chats.map((chat, order) => {
