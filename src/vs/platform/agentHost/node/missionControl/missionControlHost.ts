@@ -32,6 +32,7 @@ import { MissionControlEnvironment } from './missionControlEnvironment.js';
 import type { MissionControlProtocolServer, MissionControlPublishDiagnostic } from './missionControlProtocolServer.js';
 import { MissionControlSdkEventSource } from './missionControlSdkEventSource.js';
 import { MissionControlSessionMirror } from './missionControlSessionMirror.js';
+import { MissionControlSessionPublisher } from './missionControlSessionPublisher.js';
 import { MissionControlProjects } from './missionControlProjects.js';
 import { MissionControlCopilotExtension } from './missionControlCopilotExtension.js';
 import { missionControlSessionConfigAdapter } from './missionControlSessionConfig.js';
@@ -425,7 +426,8 @@ export class MissionControlHost extends Disposable {
 		const mirror = this._instantiationService.createInstance(MissionControlSessionMirror, environmentId, {});
 		const sources = new DisposableStore();
 		try {
-			const sdk = sources.add(this._instantiationService.createInstance(MissionControlSdkEventSource, environmentId, mirror, () => this.environment.isEnabled));
+			const publisher = sources.add(this._instantiationService.createInstance(MissionControlSessionPublisher, mirror, () => this.environment.isEnabled));
+			const sdk = sources.add(this._instantiationService.createInstance(MissionControlSdkEventSource, environmentId, mirror, () => this.environment.isEnabled, session => publisher.registerSession(session)));
 			const attachPlanHints = (provider: IAgent) => {
 				if (provider.getSessionPlan && provider.onDidChatSessionEvent) {
 					sources.add(provider.onDidChatSessionEvent(event => this._publishPlanHint(event)));
@@ -435,7 +437,6 @@ export class MissionControlHost extends Disposable {
 			for (const provider of this._providerService.getProviders()) {
 				attachPlanHints(provider);
 			}
-			const registered = new Set<string>();
 			sources.add(this._stateManager.onDidEmitEnvelope(envelope => {
 				const changeset = parseChangesetUri(envelope.channel);
 				const getChatOwner = (chat: string) => this._chatOwnership.getChatOwner(chat);
@@ -448,18 +449,7 @@ export class MissionControlHost extends Disposable {
 					return;
 				}
 				try {
-					if (!this.environment.isEnabled) {
-						if (registered.has(session.resource)) {
-							mirror.reportSourceLag(session.resource, 1);
-						}
-						return;
-					}
-					if (!registered.has(session.resource)) {
-						mirror.registerSession(session.resource);
-						registered.add(session.resource);
-						mirror.setLifecycle(session.resource, 'started');
-					}
-					mirror.enqueue(envelope, session.resource);
+					publisher.enqueue(envelope, session.resource);
 					sdk.observeSession(session.resource);
 				} catch (error) {
 					this._logService.error('[AgentHost] Mission Control mirror admission failed', error);
