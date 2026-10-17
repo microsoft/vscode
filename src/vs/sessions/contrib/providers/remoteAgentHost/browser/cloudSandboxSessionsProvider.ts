@@ -13,13 +13,14 @@ import { localize } from '../../../../../nls.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME, CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxRequestError, isRetryableCloudSandboxError } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import type { ISession } from '../../../../services/sessions/common/session.js';
-import type { AgentHostSessionAdapter } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
+import { SessionStatus, type ISession } from '../../../../services/sessions/common/session.js';
+import { AgentHostSessionAdapter } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
 import { resolveCloudSandboxSessionConfig } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxSessionConfig.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { readSessionWorkspaceless } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { readSessionInitiator } from '../../../../../platform/agentHost/common/meta/agentSessionInitiatorMeta.js';
 
 /**
  * Internal session backend for one Copilot cloud sandbox, owned by the logical Cloud provider.
@@ -39,6 +40,10 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 
 	/** Sandboxes are per-session environments, not persistent Automation hosts. */
 	override get automations(): undefined { return undefined; }
+
+	protected override _validateBeforeCreate(): void {
+		throw new Error(localize('cloudSandbox.creationUnavailable', "Start new cloud sessions from the Cloud environment."));
+	}
 
 	protected override _adoptCachedSessionMeta(meta: IAgentSessionMetadata): IAgentSessionMetadata | undefined {
 		const adopted = super._adoptCachedSessionMeta(meta);
@@ -321,10 +326,29 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 	}
 
 	override getSessions(): ISession[] {
-		const sessions = super.getSessions();
-		return this._withheldSessions.size === 0
-			? sessions
-			: sessions.filter(session => !this._withheldSessions.has(this._sessionKeyFromChatId(session.sessionId) ?? ''));
+		return super.getSessions().filter(session => {
+			const key = this._sessionKeyFromChatId(session.sessionId);
+			return !this._withheldSessions.has(key ?? '') && !this._isAbandonedDraft(session, key);
+		});
+	}
+
+	private _isAbandonedDraft(session: ISession, key: string | undefined): boolean {
+		if (!this._taskArchiveHandler || key === this._taskArchiveHandler.sessionKey || this._provisionalSessions.has(key ?? '')
+			|| !(session instanceof AgentHostSessionAdapter) || session.agentProvider !== CLOUD_SANDBOX_AGENT_PROVIDER
+			|| session.backendUri.scheme !== CLOUD_SANDBOX_SESSION_SCHEME) {
+			return false;
+		}
+		// Legacy sandbox hosts published eager, unsent drafts as ordinary sessions.
+		const title = session.title.get();
+		const initiator = session.discoveryMetadata?.initiator ?? readSessionInitiator({ _meta: session.sessionMeta });
+		return !session.titleIsExplicit
+			&& (title === 'New task' || title === 'New Task')
+			&& initiator?.name === 'unknown'
+			&& session.createdAt.getTime() === session.updatedAt.get().getTime()
+			&& session.status.get() === SessionStatus.Completed
+			&& session.chats.get().length === 1
+			&& !session.changesSummary.get()?.files
+			&& !this._storageService.getBoolean(this._localSessionStorageKey(AgentSession.id(session.backendUri)), StorageScope.PROFILE, false);
 	}
 
 	protected override _isSessionEvictable(rawId: string): boolean {

@@ -4283,6 +4283,121 @@ suite('CloudSandboxSessionsProvider external sessions', () => {
 	}));
 });
 
+suite('CloudSandboxSessionsProvider abandoned drafts', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function draft(id: string, overrides?: Partial<IAgentSessionMetadata>): IAgentSessionMetadata {
+		return createSession(id, {
+			session: AgentSession.uri('ahp-session', id), provider: 'copilot', summary: 'New task',
+			startTime: 1000, modifiedTime: 1000, status: ProtocolSessionStatus.Idle,
+			_meta: withSessionInitiator(undefined, { name: 'unknown' }),
+			...overrides,
+		});
+	}
+
+	function createSandbox(storageService?: IStorageService) {
+		const connection = store.add(new MockAgentConnection());
+		const provider = createProvider(store.add(new DisposableStore()), connection, {
+			address: 'cloudsandbox:abandoned-drafts', ctor: CloudSandboxSessionsProvider, noConnection: true,
+			sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' }, storageService,
+		});
+		assert.ok(provider instanceof CloudSandboxSessionsProvider);
+		provider.setTaskArchiveHandler('task', async () => { });
+		return { provider, connection };
+	}
+
+	test('rejects environment-backed drafts before eagerly creating a backend session', async () => {
+		const { provider, connection } = createSandbox();
+		provider.setConnection(connection);
+		await timeout(0);
+		const type = provider.sessionTypes[0].id;
+		assert.throws(() => provider.createNewSession(toAgentHostUri(URI.file('/project'), agentHostAuthority(provider.remoteAddress)), type), /Start new cloud sessions/);
+		assert.throws(() => provider.createQuickChat(type), /Start new cloud sessions/);
+		await timeout(0);
+		assert.deepStrictEqual({ created: connection.createdSessionUris, sessions: provider.getSessions() }, { created: [], sessions: [] });
+	});
+
+	test('filters only unowned, unchanged, unattributed default-titled sessions', () => {
+		const { provider } = createSandbox();
+		provider.seedSessions([
+			draft('task'),
+			draft('abandoned'),
+			draft('abandoned-title-case', { summary: 'New Task' }),
+			draft('named', { summary: 'A real task' }),
+			draft('modified', { modifiedTime: 2000 }),
+			draft('attributed', { _meta: withSessionInitiator(undefined, { name: 'vscode' }) }),
+			draft('unattributed', { _meta: undefined }),
+			draft('running', { status: ProtocolSessionStatus.InProgress }),
+			draft('waiting', { status: ProtocolSessionStatus.InputNeeded }),
+			draft('failed', { status: ProtocolSessionStatus.Error }),
+			draft('native', { session: URI.parse('claude:/native'), provider: 'claude' }),
+			{ ...draft('changes'), changes: { files: 1, additions: 1, deletions: 0 } },
+			{
+				...draft('peers'), chats: [
+					{ chat: URI.parse('ahp-chat:/default'), kind: 'default' },
+					{ chat: URI.parse('ahp-chat:/opaque-peer'), kind: 'peer' },
+				]
+			},
+		]);
+
+		assert.deepStrictEqual(provider.getSessions().map(session => AgentSession.id(session.resource)), [
+			'task', 'named', 'modified', 'attributed', 'unattributed', 'running', 'waiting', 'failed', 'native', 'changes', 'peers',
+		]);
+	});
+
+	test('keeps explicit titles, local requests and provisional sessions visible', () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const { provider } = createSandbox(storageService);
+		provider.seedSessions([draft('explicit'), draft('sent')]);
+		const explicit = provider.getCachedSession('explicit');
+		assert.ok(explicit instanceof AgentHostSessionAdapter);
+		explicit.setTitleFromUser('New task');
+		storageService.store(`sessions.cloudSandbox.localSession.${provider.id}.sent`, true, StorageScope.PROFILE, StorageTarget.MACHINE);
+		provider.seedProvisionalSession(draft('provisional'));
+		provider.publishWithheldSession('provisional');
+
+		assert.deepStrictEqual(provider.getSessions().map(session => AgentSession.id(session.resource)), ['explicit', 'sent', 'provisional']);
+	});
+
+	test('filters restored drafts without deleting cached metadata or changing the owning task archive', async () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const storageKey = 'remoteAgentHost.cachedSessions.v5.cloudsandbox__abandoned-drafts';
+		const entries = [
+			{ session: 'ahp-session:/task', provider: 'copilot', startTime: 1000, modifiedTime: 2000, summary: 'Archived task', status: ProtocolSessionStatus.IsArchived },
+			...['New task', 'New Task'].map((summary, index) => ({
+				session: `ahp-session:/abandoned-${index}`, provider: 'copilot', startTime: 1000, modifiedTime: 1000,
+				summary, status: ProtocolSessionStatus.Idle,
+				discovery: { summary, modifiedTime: 1000, workspaceless: true, project: null, initiator: { name: 'unknown' } },
+			})),
+		];
+		storageService.store(storageKey, JSON.stringify(entries), StorageScope.APPLICATION, StorageTarget.MACHINE);
+
+		const restored = createSandbox(storageService).provider;
+		const cached = restored.getCachedSession('abandoned-0');
+		await storageService.flush();
+		assert.deepStrictEqual({
+			visible: restored.getSessions().map(session => AgentSession.id(session.resource)),
+			taskArchived: restored.getCachedSession('task')?.isArchived.get(),
+			retained: !!cached && restored.getSessionByResource(cached.resource) === cached,
+			persisted: storageService.getObject(storageKey, StorageScope.APPLICATION),
+		}, { visible: ['task'], taskArchived: true, retained: true, persisted: entries });
+	});
+
+	test('shows a filtered session when the host reports activity', async () => {
+		const { provider, connection } = createSandbox();
+		const metadata = draft('abandoned');
+		provider.seedSessions([metadata], { updateExisting: true });
+		const before = provider.getSessions().length;
+		connection.addSession({ ...metadata, modifiedTime: 2000 });
+		provider.setConnection(connection);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			before, after: provider.getSessions().map(session => AgentSession.id(session.resource)),
+		}, { before: 0, after: ['abandoned'] });
+	});
+});
+
 suite('CloudSandboxSessionsProvider discovery metadata', () => {
 	for (const sandbox of [false, true]) {
 		test(`older sandbox addresses in current caches are normalized only by the sandbox provider (${sandbox})`, async () => {
