@@ -45,7 +45,8 @@ export default new class NoNestedTest implements eslint.Rule.RuleModule {
 			const name = callee.name;
 			for (let scope: eslint.Scope.Scope | null = sourceCode.getScope(node); scope; scope = scope.upper) {
 				const variable = scope.set.get(name);
-				if (variable) {
+				// Configured globals (`languageOptions.globals`, `/* global test */`) have no definitions.
+				if (variable && variable.defs.length > 0) {
 					return undefined;
 				}
 			}

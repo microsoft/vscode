@@ -53,6 +53,15 @@ new RuleTester({ languageOptions: { parser: tseslint.parser } }).run('code-no-ne
 			errors: nested('suite'),
 		},
 		{
+			code: `/* global test, suite */ suite('a', () => { test('b', () => { test('c', () => {}); }); });`,
+			errors: nested('test'),
+		},
+		{
+			code: `suite('a', () => { test('b', () => { test('c', () => {}); }); });`,
+			languageOptions: { globals: { test: 'readonly', suite: 'readonly' } },
+			errors: nested('test'),
+		},
+		{
 			code: `suite('a', () => { test('b', () => { test.skip('c', () => {}); }); });`,
 			errors: nested('test'),
 		},
