@@ -10,7 +10,8 @@ import { readAgentManagedModelDefaults, withAgentManagedModelDefaults, withAgent
 import type { JsonPrimitive, ModelSelection } from '../../common/state/protocol/state.js';
 import type { ILogService } from '../../../log/common/log.js';
 import { localize } from '../../../../nls.js';
-import { autoModeTiers, getAutoModeTierLabel } from '../../common/autoModeTiers.js';
+import { autoModeTiers, getAutoModeTierLabel, getFusionAutoModeTierLabel } from '../../common/autoModeTiers.js';
+import { readAgentModelFusionMeta } from '../../common/meta/agentModelMeta.js';
 
 type ResolvedManagedSettings = Awaited<ReturnType<CopilotClient['rpc']['managedSettings']['resolve']>>;
 export type CopilotManagedModelPolicy = Pick<ResolvedManagedSettings, 'values' | 'meta'> & Partial<Pick<ResolvedManagedSettings, 'layers'>>;
@@ -37,6 +38,7 @@ export function withCopilotAutoTierMetadata(model: IAgentModelInfo, auto: Awaite
 		return model;
 	}
 	const tiers = auto.tiers.filter(tier => tier.type === 'auto' && tier.status.enabled);
+	const fusion = readAgentModelFusionMeta(model);
 	return {
 		...model,
 		configSchema: {
@@ -49,7 +51,7 @@ export function withCopilotAutoTierMetadata(model: IAgentModelInfo, auto: Awaite
 					type: 'string',
 					title: model.configSchema?.properties.tier?.title ?? localize('copilot.modelAutoTier.title', "Optimize for"),
 					enum: tiers.map(tier => tier.id),
-					enumLabels: tiers.map(tier => tier.displayName),
+					enumLabels: tiers.map(tier => fusion ? getFusionAutoModeTierLabel(tier.id, tier.displayName) : tier.displayName),
 					enumDescriptions: tiers.map(tier => tier.description),
 					default: tiers.find(tier => tier.id === auto.defaultTier)?.id ?? tiers[0]?.id,
 				},

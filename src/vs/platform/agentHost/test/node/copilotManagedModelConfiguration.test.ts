@@ -9,6 +9,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import type { IAgentModelInfo } from '../../common/agent.js';
 import { modelConfigurationSourceKey } from '../../common/agentModelConfiguration.js';
 import { readAgentManagedModelDefaults, readAgentModelConfigurationDefaults } from '../../common/meta/agentModelConfigurationMeta.js';
+import { withAgentModelFusionMeta } from '../../common/meta/agentModelMeta.js';
 import { createCopilotModelConfigurationReport, getCopilotManagedAutoPreference, omitCopilotManagedModelDefaults, projectCopilotManagedModelConfiguration, withCopilotAutoTierMetadata } from '../../node/copilot/copilotManagedModelConfiguration.js';
 
 suite('Copilot managed model configuration', () => {
@@ -119,6 +120,34 @@ suite('Copilot managed model configuration', () => {
 				}
 			},
 			current: { id: 'auto', config: { tier: 'max', [modelConfigurationSourceKey('tier')]: 'explicit' } },
+		});
+	});
+
+	test('uses current Fusion labels in scoped native reports without renaming wire values or other Auto providers', () => {
+		const catalog = {
+			...autoMetadata,
+			tiers: [
+				...autoMetadata.tiers,
+				{ id: 'provider-tier', displayName: 'Provider Tier', description: '', type: 'auto', status: { enabled: true } },
+			],
+		};
+		const fusion = { ...auto, _meta: withAgentModelFusionMeta(auto._meta, { balanceUsesHydraFusion: false, nativeAutoTiers: true }) };
+		const report = createCopilotModelConfigurationReport([fusion], { values: { ensembleTier: 'balance' } }, {
+			modelId: 'auto', autoTier: 'balance',
+		}, undefined, new NullLogService(), catalog);
+		const legacyReport = createCopilotModelConfigurationReport([fusion], {}, {
+			modelId: 'auto', autoTier: 'intelligence',
+		}, undefined, new NullLogService(), catalog);
+		assert.deepStrictEqual({
+			choices: report.models.auto.choices?.tier,
+			defaultTier: report.models.auto.defaults.tier,
+			currentTier: report.current?.config?.tier,
+			restoredLegacyLabel: legacyReport.models.auto.choices?.tier.labels?.at(-1),
+			ordinaryAutoLabels: withCopilotAutoTierMetadata(auto, catalog).configSchema?.properties.tier.enumLabels,
+		}, {
+			choices: { values: ['balance', 'high', 'max', 'provider-tier'], labels: ['Standard', 'High', 'Max', 'Provider Tier'], descriptions: ['balance description', 'high description', 'max description', ''] },
+			defaultTier: 'balance', currentTier: 'balance', restoredLegacyLabel: 'High',
+			ordinaryAutoLabels: ['balance', 'high', 'max', 'Provider Tier'],
 		});
 	});
 

@@ -3404,8 +3404,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					// Fusion's tiers read as an effort level, like other models' effort setting.
 					title: localize('copilotAgent.fusionTier.title', "Effort Level"),
 					enum: kept.map(index => tier.enum![index]),
-					// Legacy Auto names differ from Fusion; native catalog labels are already authoritative.
-					enumLabels: kept.map(index => this._autoTierMetadata && tier.enumLabels ? tier.enumLabels[index] : getFusionAutoModeTierLabel(String(tier.enum![index]))),
+					enumLabels: kept.map(index => getFusionAutoModeTierLabel(String(tier.enum![index]), this._autoTierMetadata ? tier.enumLabels?.[index] : undefined)),
 					...(tier.enumDescriptions && { enumDescriptions: kept.map(index => tier.enumDescriptions![index]) }),
 					default: tier.default === 'efficiency' ? defaultAutoModeTier : tier.default,
 				},

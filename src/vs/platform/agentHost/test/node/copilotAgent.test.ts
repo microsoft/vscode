@@ -12119,7 +12119,7 @@ suite('CopilotAgent', () => {
 			});
 			const published = () => {
 				const auto = agent.models.get().find(model => model.id === 'auto')!;
-				return { choices: auto.configSchema?.properties.tier.enum, defaultTier: auto.configSchema?.properties.tier.default, native: readAgentModelFusionMeta(auto)?.nativeAutoTiers };
+				return { choices: auto.configSchema?.properties.tier.enum, labels: auto.configSchema?.properties.tier.enumLabels, defaultTier: auto.configSchema?.properties.tier.default, native: readAgentModelFusionMeta(auto)?.nativeAutoTiers };
 			};
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
@@ -12128,8 +12128,8 @@ suite('CopilotAgent', () => {
 				client.autoTierMetadata = { ...client.autoTierMetadata, tiers: client.autoTierMetadata.tiers.map(tier => ({ ...tier, status: { enabled: tier.id === 'balance' } })) };
 				await agent.refreshModels();
 				assert.deepStrictEqual({ available, unavailable: published() }, {
-					available: { choices: ['balance', 'high', 'max'], defaultTier: 'max', native: true },
-					unavailable: { choices: ['balance'], defaultTier: 'balance', native: true },
+					available: { choices: ['balance', 'high', 'max'], labels: ['Standard', 'High', 'Max'], defaultTier: 'max', native: true },
+					unavailable: { choices: ['balance'], labels: ['Standard'], defaultTier: 'balance', native: true },
 				});
 			} finally {
 				await disposeAgent(agent);

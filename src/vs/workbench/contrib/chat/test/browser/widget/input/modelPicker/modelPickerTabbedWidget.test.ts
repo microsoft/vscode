@@ -1350,7 +1350,7 @@ suite('TabbedModelPicker', () => {
 				autoModelFusion: { balanceUsesHydraFusion: true, nativeAutoTiers: true },
 				configurationSchema: {
 					type: 'object' as const, properties: {
-						tier: { type: 'string' as const, group: 'navigation', enum: ['balance', 'high', 'max'], enumItemLabels: ['Balance', 'High', 'Max'], default: 'high' },
+						tier: { type: 'string' as const, group: 'navigation', enum: ['balance', 'high', 'max'], enumItemLabels: ['Standard', 'High', 'Max'], default: 'high' },
 					}
 				},
 			},
@@ -1363,10 +1363,10 @@ suite('TabbedModelPicker', () => {
 		assert.deepStrictEqual({
 			tiers, selected: result.selections, tier: result.values.get(ensemble.identifier)?.tier,
 			ariaLabel: result.popup.querySelector('.tabbed-action-list-details [role="radio"][aria-checked="true"]')?.getAttribute('aria-label'),
-		}, { tiers: ['Balance', 'High', 'Max'], selected: [], tier: 'max', ariaLabel: 'Max' });
+		}, { tiers: ['Standard', 'High', 'Max'], selected: [], tier: 'max', ariaLabel: 'Max' });
 	});
 
-	test('native Fusion keeps a selected standalone HydraFusion visible with Balance routing disabled', async () => {
+	test('native Fusion keeps a selected standalone HydraFusion visible with High routing disabled', async () => {
 		const base = createFusionModel(false);
 		const fusion = { ...base, metadata: { ...base.metadata, autoModelFusion: { balanceUsesHydraFusion: false, nativeAutoTiers: true } } };
 		const hydra = createHydraFusionModel();
