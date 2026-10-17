@@ -103,6 +103,16 @@ export class RangeUtil {
 		return ranges && ranges.length > 0 ? ranges[0] : null;
 	}
 
+	private static _findPreviousTextNode(domNode: HTMLElement, childIndex: number): ChildNode | null {
+		for (let i = childIndex - 1; i >= 0; i--) {
+			const textNode = domNode.children[i].firstChild;
+			if (textNode) {
+				return textNode;
+			}
+		}
+		return null;
+	}
+
 	public static readHorizontalRanges(domNode: HTMLElement, startChildIndex: number, startOffset: number, endChildIndex: number, endOffset: number, context: DomReadingContext): FloatHorizontalRange[] | null {
 		// Panic check
 		const min = 0;
@@ -134,13 +144,14 @@ export class RangeUtil {
 		let endElement = domNode.children[endChildIndex].firstChild;
 
 		if (!startElement || !endElement) {
-			// When having an empty <span> (without any text content), try to move to the previous <span>
-			if (!startElement && startOffset === 0 && startChildIndex > 0) {
-				startElement = domNode.children[startChildIndex - 1].firstChild;
+			// When having empty <span>s (without any text content), try to move to the end of the closest previous <span> with text.
+			// The end of an empty <span> is the same as its beginning, so this also applies when the end was moved above to an empty <span>.
+			if (!startElement && startOffset === 0) {
+				startElement = this._findPreviousTextNode(domNode, startChildIndex);
 				startOffset = Constants.MAX_SAFE_SMALL_INTEGER;
 			}
-			if (!endElement && endOffset === 0 && endChildIndex > 0) {
-				endElement = domNode.children[endChildIndex - 1].firstChild;
+			if (!endElement && (endOffset === 0 || endOffset === Constants.MAX_SAFE_SMALL_INTEGER)) {
+				endElement = this._findPreviousTextNode(domNode, endChildIndex);
 				endOffset = Constants.MAX_SAFE_SMALL_INTEGER;
 			}
 		}
