@@ -2044,8 +2044,16 @@
               "title": "API Type",
               "markdownDescription": "Default request/response format for models in this group. Individual models can override this with their own `apiType` property; when both are unset the type is inferred from the URL path."
             },
+            "url": {
+              "type": "string",
+              "pattern": "^https?://.+",
+              "patternErrorMessage": "URL must start with http:// or https://",
+              "title": "Base URL",
+              "markdownDescription": "Base URL of an OpenAI-compatible provider, e.g. `https://api.example.com/v1`. When set, models are discovered from its `/models` endpoint and requests to them use this URL. `/v1` is appended unless the URL already ends in a version segment or an explicit API path (`/chat/completions`, `/responses`, `/messages`), in which case models are listed next to that path."
+            },
             "models": {
               "type": "array",
+              "markdownDescription": "Models for this provider. When `url` is set, an entry with the same `id` as a discovered model replaces it (all required fields must be given), other entries are added, and the entries are used on their own if discovery fails.",
               "defaultSnippets": [
                 {
                   "label": "New Model",
