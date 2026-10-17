@@ -707,7 +707,7 @@ Codex record/replay servers disable `features.plugins` to keep this unrelated ma
 
 ### Linux suites pass but tmpfs cannot be unmounted
 
-An `umount: target is busy` failure means a process or kernel reference still holds the mount; passing test bodies do not prove that cleanup finished. The wrapper runs a read-only `fuser -vm` probe for at most ten seconds to report holder PIDs, command names, and access types in the task log. Probe errors are reported separately, and the original cleanup failure remains fatal. Correlate the holders with server/provider cleanup logs before changing ownership; do not use lazy unmounts, process-name kills, or retries to conceal a leak.
+An `umount: target is busy` failure means a process or kernel reference still holds the mount; passing test bodies do not prove that cleanup finished. The wrapper runs a read-only `fuser -vm` probe for at most ten seconds to report holder PIDs, command names, and access types in the task log, then describes each holder it reported, within the same ten-second budget: its parent PID, process group, age in seconds, full command line, and the paths it holds open on the mount. Match the age against the test log's timestamps to find the test that started it; a parent PID of 1 means it outlived the process that started it. Probe errors are reported separately, and the original cleanup failure remains fatal. Correlate the holders with server/provider cleanup logs before changing ownership; do not use lazy unmounts, process-name kills, or retries to conceal a leak.
 
 ### Fixture leaks a username / absolute path / token
 

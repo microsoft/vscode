@@ -12,6 +12,18 @@ fi
 TEST_TMPDIR=$(mktemp -d "${TMPDIR:-/tmp}/agent-host-e2e-tmpfs.XXXXXX")
 MOUNTED=false
 
+# Describes each holder so it can be traced to the test that leaked it: its parent and process group, its age (match it
+# against the test log's timestamps), its full command line, and what it holds open on the mount. Each probe has the
+# same budget as the holder probe, since reading /proc of a stuck process can block.
+describe_holders() {
+	local pid
+	for pid in "$@"; do
+		echo "Agent Host tmpfs holder $pid (PID, parent PID, process group, age in seconds, command line):" >&2
+		timeout --signal=KILL 10s ps -o pid=,ppid=,pgid=,etimes=,args= -p "$pid" >&2 || true
+		sudo -n timeout --signal=KILL 10s find "/proc/$pid/cwd" "/proc/$pid/root" "/proc/$pid/fd" -maxdepth 1 -lname "$TEST_TMPDIR*" -printf '  %p -> %l\n' >&2 2>/dev/null || true
+	done
+}
+
 cleanup() {
 	local status=$?
 	trap - EXIT
@@ -19,12 +31,16 @@ cleanup() {
 		if ! sudo -n umount -- "$TEST_TMPDIR"; then
 			echo "Failed to unmount Agent Host test tmpfs: $TEST_TMPDIR" >&2
 			echo "Agent Host tmpfs mount holders (PID, command, and access type):" >&2
-			if sudo -n timeout --signal=KILL 10s fuser -vm "$TEST_TMPDIR" >&2; then
+			# fuser writes the holder PIDs to stdout and its verbose table to stderr.
+			local holders=''
+			if holders=$(sudo -n timeout --signal=KILL 10s fuser -vm "$TEST_TMPDIR"); then
 				:
 			else
 				local diagnostic_status=$?
 				echo "Agent Host tmpfs holder diagnostics exited with status $diagnostic_status; the unmount failure remains fatal." >&2
 			fi
+			# shellcheck disable=SC2086 # One argument per PID.
+			describe_holders $holders
 			exit 1
 		fi
 	fi
