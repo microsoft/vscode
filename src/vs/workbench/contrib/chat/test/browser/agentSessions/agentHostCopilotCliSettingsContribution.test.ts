@@ -187,8 +187,9 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 		await flush();
 
 		// The shared forwarder dispatches one RootConfigChanged per key; merge them
-		// and assert the full forwarded set (order-independent).
-		assert.strictEqual(agentHostService.dispatchedActions.length, 19);
+		// and assert the full forwarded set (order-independent). Fusion is mirrored
+		// by the protocol client to every host rather than by this local-only forwarder.
+		assert.strictEqual(agentHostService.dispatchedActions.length, 18);
 		const merged = Object.assign({}, ...agentHostService.dispatchedActions.map(a => (a.action as IRootConfigChangedAction).config));
 		assert.deepStrictEqual(merged, {
 			[CopilotCliConfigKey.CopilotSdkLogLevel]: 'trace',
@@ -203,7 +204,6 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[CopilotCliConfigKey.HydraFusion]: true,
 			[CopilotCliConfigKey.HydraFusionV2]: true,
 			[CopilotCliConfigKey.HydraFusionMultiRoot]: true,
-			[CopilotCliConfigKey.Fusion]: true,
 			[CopilotCliConfigKey.FusionHighUsesHydraFusion]: true,
 			[CopilotCliConfigKey.Memory]: true,
 			[CopilotCliConfigKey.LocalMemory]: true,
@@ -315,7 +315,7 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 		});
 	});
 
-	test('forwards Fusion and its High routing', async () => {
+	test('forwards Fusion High routing and leaves Fusion itself to the protocol client', async () => {
 		const fusionSchema = {
 			[CopilotCliConfigKey.Fusion]: fullSchema[CopilotCliConfigKey.Fusion],
 			[CopilotCliConfigKey.FusionHighUsesHydraFusion]: fullSchema[CopilotCliConfigKey.FusionHighUsesHydraFusion],
@@ -333,10 +333,10 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			routing: await forwarded({ [AgentHostFusionEnabledSettingId]: true, [AgentHostFusionHighUsesHydraFusionSettingId]: true }),
 			previewFeaturesDisabled: await forwarded({ [AgentHostFusionEnabledSettingId]: true, [AgentHostFusionHighUsesHydraFusionSettingId]: true }, false),
 		}, {
-			off: 'false/false',
-			fusion: 'true/false',
-			routing: 'true/true',
-			previewFeaturesDisabled: 'false/false',
+			off: 'undefined/false',
+			fusion: 'undefined/false',
+			routing: 'undefined/true',
+			previewFeaturesDisabled: 'undefined/false',
 		});
 	});
 

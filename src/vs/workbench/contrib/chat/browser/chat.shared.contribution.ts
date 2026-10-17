@@ -26,6 +26,7 @@ import '../../../../platform/agentHost/common/agentHostStarter.config.contributi
 import { AgentMergeSettingId } from '../../../../platform/agentHost/common/agentMerge.js';
 import { AgentHostAllowSignedOutWhenUsableSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotMemoryEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotRuntimePathSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostFusionEnabledSettingId, AgentHostFusionHighUsesHydraFusionSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, CopilotImageGenerationEnabledSettingId, isImageGenerationEnabledByDefault, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, copilotCliConfigSchema, CopilotSkillCharBudgetSettingId, CopilotTgrepEnabledSettingId, copilotSdkLogLevelSettingValues, DEFAULT_COPILOT_SKILL_CHAR_BUDGET, normalizeSkillCharBudget } from '../../../../platform/agentHost/common/copilotCliConfig.js';
+import { fusionConfigurationProperties } from '../../../../platform/agentHost/common/fusionConfiguration.js';
 import { getLocalModelSafetyDisclosure, LOCAL_MODEL_MIN_GPU_MEMORY_GB_PLACEHOLDER, LocalModelEnabledSettingId, LocalModelLlamaServerPathSettingId, LocalModelUseInAutoSettingId } from '../../../../platform/agentHost/common/localModel.js';
 import '../../../services/agentHost/browser/localModelService.js';
 import { ChatMicrosoftAuthenticationEnabledSettingId, ChatMicrosoftAuthenticationMode, DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, mergeChatEditAutoApprovePatterns } from '../../../../platform/chat/common/chatSettings.js';
@@ -1716,14 +1717,7 @@ configurationRegistry.registerConfiguration({
 			tags: ['preview', 'experimental'],
 			agentHost: { key: CopilotCliConfigKey.ImageGeneration },
 		},
-		[AgentHostFusionEnabledSettingId]: {
-			type: 'boolean',
-			markdownDescription: nls.localize('chat.copilot.ensemble.enabled', "When enabled, local Copilot Agent Host sessions present Auto as Fusion, which optimizes for Standard, High, or Max. Max uses HydraFusion Max, so Fusion uses HydraFusion v2 unless `#{0}#` is off. Changing this setting can restart the local Copilot runtime.", AgentHostHydraFusionEnabledSettingId),
-			default: false,
-			experiment: { mode: 'startup' },
-			scope: ConfigurationScope.APPLICATION_MACHINE,
-			tags: ['preview', 'experimental', 'advanced'],
-		},
+		...fusionConfigurationProperties,
 		[AgentHostFusionHighUsesHydraFusionSettingId]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.copilot.ensemble.intelligenceUsesHydraFusion', "When enabled together with `#{0}#`, Fusion's High tier uses HydraFusion v2. When HydraFusion is unavailable, Fusion High routes like Auto's Intelligence.", AgentHostFusionEnabledSettingId),
