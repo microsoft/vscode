@@ -2681,6 +2681,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	align-items: flex-end;
 }
 
+/* The toolbars share a row with the editor here, so a long model name would push the actions out of view */
+.quick-input-widget .interactive-session .chat-input-picker-item .action-label.model-picker-split .model-picker-name {
+	max-width: 160px;
+}
+
 .quick-input-widget .interactive-session .chat-input-container {
 	margin: 0;
 	padding: 0 4px 0 6px;
