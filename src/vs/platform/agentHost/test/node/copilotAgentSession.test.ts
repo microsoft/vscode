@@ -10449,32 +10449,32 @@ suite('CopilotAgentSession', () => {
 				toolCallId: 'tc-1',
 			});
 
-			test('write permission carries the mobile diff alongside native AHP edits', async () => {
-				const { session, runtime, waitForSignal } = await createAgentSession(disposables);
-				const diff = '--- a/file.ts\n+++ b/file.ts\n@@ -0,0 +1 @@\n+export {};\n';
-				const pending = runtime.handlePermissionRequest({
-					kind: 'write', toolCallId: 'tc-diff', fileName: '/workspace/file.ts',
-					diff, newFileContents: 'export {};\n',
-				});
-				const signal = await waitForSignal(s => s.kind === 'pending_confirmation');
-				assert.ok(signal.kind === 'pending_confirmation');
-				assert.deepStrictEqual({
-					mobileDiff: signal.state._meta?.permissionRequest,
-					nativeAfter: signal.state.edits?.items[0].after?.uri,
-				}, {
-					mobileDiff: { diff },
-					nativeAfter: 'file:///workspace/file.ts',
-				});
-				session.respondToPermissionRequest('tc-diff', false);
-				await pending;
-			});
-
 			await waitForSignal(s => s.kind === 'pending_confirmation');
 			assert.strictEqual(signals.length, 1);
 
 			assert.ok(session.respondToPermissionRequest('tc-1', true));
 			const result = await resultPromise;
 			assert.strictEqual(result.kind, 'approve-once');
+		});
+
+		test('write permission carries the mobile diff alongside native AHP edits', async () => {
+			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
+			const diff = '--- a/file.ts\n+++ b/file.ts\n@@ -0,0 +1 @@\n+export {};\n';
+			const pending = runtime.handlePermissionRequest({
+				kind: 'write', toolCallId: 'tc-diff', fileName: '/workspace/file.ts',
+				diff, newFileContents: 'export {};\n',
+			});
+			const signal = await waitForSignal(s => s.kind === 'pending_confirmation');
+			assert.ok(signal.kind === 'pending_confirmation');
+			assert.deepStrictEqual({
+				mobileDiff: signal.state._meta?.permissionRequest,
+				nativeAfter: signal.state.edits?.items[0].after?.uri,
+			}, {
+				mobileDiff: { diff },
+				nativeAfter: 'file:///workspace/file.ts',
+			});
+			session.respondToPermissionRequest('tc-diff', false);
+			await pending;
 		});
 
 		test('new-file write permission includes proposed content and create wording', async () => {
