@@ -13,7 +13,7 @@ import { getErrorCode } from '../../../../base/common/errors.js';
 import { join } from '../../../../base/common/path.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import type { killTree } from '../../../../base/node/processes.js';
-import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
+import { realTimeApi, runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { collectServerDescendants, isSameServerProcess, isSameWindowsProcessRunning, killServer, stopServer } from './serverIntegrationTestHelpers.js';
 
@@ -616,7 +616,23 @@ suite('Agent Host test server cleanup', () => {
 				windowsHide: true,
 			});
 			try {
-				await once(server.stdout, 'data');
+				// Bound the readiness wait in real time so that an early exit still unwinds and restores the global timers.
+				const started = await new Promise<boolean>(resolve => {
+					const done = (value: boolean) => {
+						realTimeApi.clearTimeout(handle);
+						server.stdout.off('data', onData);
+						server.off('exit', onExit);
+						server.off('error', onExit);
+						resolve(value);
+					};
+					const onData = () => done(true);
+					const onExit = () => done(false);
+					const handle = realTimeApi.setTimeout(onExit, 5_000);
+					server.stdout.once('data', onData);
+					server.once('exit', onExit);
+					server.once('error', onExit);
+				});
+				assert.ok(started, 'Server did not start');
 				const error = await stopServer({ process: server, port: 0 }, async () => [], 1_000, {
 					killTree: async () => {
 						throw new Error('taskkill failed while server was running');
