@@ -123,6 +123,7 @@ export default new class RunWithFakedTimersWholeTest implements eslint.Rule.Rule
 		messages: {
 			partial: '`runWithFakedTimers` must wrap the entire test body: `test(\'...\', () => runWithFakedTimers({}, async () => { ... }))`. Code outside the callback runs on real timers, and the drain after the callback can fire unrelated pending timers (e.g. polls) before the code that follows. Move setup and assertions into the callback.',
 			nested: 'Do not nest `runWithFakedTimers`. The outer call already provides virtual time, and the inner drain runs in the middle of the test.',
+			floating: '`runWithFakedTimers` must be awaited or returned. Otherwise the test can finish before the callback, the drain, and the restoration of the real timers have run.',
 			hook: 'Do not call `runWithFakedTimers` from a setup or teardown hook. Wrap each test body instead, so that setup and test run on the same clock.',
 		},
 		schema: [{
@@ -144,6 +145,14 @@ export default new class RunWithFakedTimersWholeTest implements eslint.Rule.Rule
 		const calls = new Set<TSESTree.CallExpression>();
 
 		const check = (call: TSESTree.CallExpression) => {
+			let parent = call.parent;
+			while (parent?.type === 'TSAsExpression' || parent?.type === 'TSNonNullExpression' || parent?.type === 'TSSatisfiesExpression') {
+				parent = parent.parent;
+			}
+			if (parent?.type === 'ExpressionStatement') {
+				return context.report({ node: call as ESTree.Node, messageId: 'floating' });
+			}
+
 			let fn: FunctionNode | undefined;
 			for (let node: TSESTree.Node | undefined = call.parent; node; node = node.parent) {
 				if (isFunction(node)) {
@@ -170,10 +179,14 @@ export default new class RunWithFakedTimersWholeTest implements eslint.Rule.Rule
 			}
 
 			// A wrapper helper such as `function withX(fn) { return runWithFakedTimers({}, ...); }`
-			// is fine, as long as it is not defined within a test.
+			// is fine, as long as it is not defined within a test or hook.
 			for (let node: TSESTree.Node | undefined = fn.parent; node; node = node.parent) {
-				if (isFunction(node) && testFunctions.has(callbackOwner(node) ?? '')) {
+				const enclosingOwner = isFunction(node) ? callbackOwner(node) : undefined;
+				if (enclosingOwner && testFunctions.has(enclosingOwner)) {
 					return context.report({ node: call as ESTree.Node, messageId: 'partial' });
+				}
+				if (enclosingOwner && hookFunctions.has(enclosingOwner)) {
+					return context.report({ node: call as ESTree.Node, messageId: 'hook' });
 				}
 			}
 			if (!isWholeBody(fn, call)) {

@@ -62,6 +62,12 @@ new RuleTester({ languageOptions: { parser: tseslint.parser } }).run('code-run-w
 		{ filename, code: code(`test('x', () => runWithFakedTimers({}, async () => { await runWithFakedTimers({}, async () => { }); }));`), errors: errors('nested') },
 		// hooks
 		{ filename, code: code(`setup(() => runWithFakedTimers({}, async () => { }));`), errors: errors('hook') },
+		{ filename, code: code(`setup(() => { const run = () => runWithFakedTimers({}, async () => { }); return run(); });`), errors: errors('hook') },
+		{ filename, code: code(`setup(async () => { await Promise.all([1].map(() => runWithFakedTimers({}, async () => { }))); });`), errors: errors('hook') },
+		// not awaited or returned
+		{ filename, code: code(`test('x', () => { runWithFakedTimers({}, async () => { await work(); }); });`), errors: errors('floating') },
+		{ filename, code: code(`test('x', async () => { let h = []; runWithFakedTimers({ onHistory: x => h = x }, async () => { }); assert.deepStrictEqual(h, []); });`), errors: errors('floating') },
+		{ filename, code: code(`function withX(fn) { runWithFakedTimers({}, fn); }`), errors: errors('floating') },
 		// top level
 		{ filename, code: code(`await runWithFakedTimers({}, async () => { });`), errors: errors('partial') },
 		// aliased import and relative import of the module itself
