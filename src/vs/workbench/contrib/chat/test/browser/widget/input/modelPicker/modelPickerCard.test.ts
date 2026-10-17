@@ -1105,6 +1105,38 @@ suite('ModelCard', () => {
 		}, { badge: 'Research preview', context: undefined });
 	});
 
+	test('an unavailable Auto tier shows its reason as text, since it can\'t take focus', () => {
+		const auto = createAutoModel();
+		const tier = auto.metadata.configurationSchema!.properties!.tier;
+		const model = {
+			...auto,
+			metadata: {
+				...auto.metadata,
+				configurationSchema: {
+					properties: {
+						tier: {
+							...tier,
+							enum: ['balance', 'hydrafusion', 'hydrafusion-max', 'premium'],
+							enumItemLabels: ['Balance', 'High', 'Max', 'Premium'],
+							enumDescriptions: ['', '', 'This tier requires models that the user does not have access to.', ''],
+							enumItemDisabled: [false, false, true, true],
+						},
+					},
+				},
+			},
+		};
+		const { card } = createCard({ tier: 'balance' }, { model });
+		const radios = Array.from(card.element.querySelectorAll<HTMLElement>('[role="radio"]'));
+
+		assert.deepStrictEqual({
+			reasons: Array.from(card.element.querySelectorAll('.chat-model-card-unavailable-description'), element => element.textContent),
+			disabled: radios.map(radio => radio.getAttribute('aria-disabled') === 'true'),
+		}, {
+			reasons: ['Max: This tier requires models that the user does not have access to.', 'Premium is not available.'],
+			disabled: [false, false, true, true],
+		});
+	});
+
 	test('reset uses the provider defaults and returns focus to a setting when pinning is unavailable', async () => {
 		const model = createModel({
 			configurationSchema: {

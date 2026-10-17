@@ -634,6 +634,15 @@ export class ModelCard extends DisposableStore {
 			section.appendChild(element);
 			alternativeDescriptions.set(alternative, element);
 		}
+		// Disabled options can't take focus, so their reason is also shown as text for keyboard and screen reader users.
+		for (const choice of choices) {
+			if (choice.unavailable) {
+				const reason = choice.description
+					? localize('chat.modelPicker.unavailableOption', "{0}: {1}", choice.label, choice.description)
+					: localize('chat.modelPicker.unavailableOptionNoReason', "{0} is not available.", choice.label);
+				section.appendChild(dom.$('.chat-model-card-description.chat-model-card-unavailable-description', undefined, reason));
+			}
+		}
 	}
 
 	/**
