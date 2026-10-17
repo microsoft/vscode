@@ -135,6 +135,7 @@ export const agentHostPolicySupport: Readonly<Record<string, IAgentHostPolicySup
 	// process-denial controls: inherited environment/root configuration can still register a provider.
 	Claude3PIntegration: { status: 'notApplicable' },
 	Codex3PIntegration: { status: 'notApplicable' },
+	AcpAgents3PIntegration: { status: 'notApplicable' },
 	// Directly controls Copilot's custom-shell creation.
 	ChatAgentHostCustomTerminalTool: { status: 'enforced' },
 	// For the local Copilot Agent Host, explicit false clears destinations and DB activation.

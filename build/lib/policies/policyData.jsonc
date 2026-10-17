@@ -197,6 +197,24 @@
             }
         },
         {
+            "key": "chat.agentHost.acpAgent.enabled",
+            "name": "AcpAgents3PIntegration",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.142",
+            "localization": {
+                "description": {
+                    "key": "chat.agentHost.acpAgent.enabled.policy",
+                    "value": "Enable Agent Client Protocol (ACP) agent sessions in VS Code. Users can run agents they configure in `chat.agentHost.acpAgents`, such as Qwen Code or OpenCode, with the agent's own authentication."
+                }
+            },
+            "type": "boolean",
+            "default": true,
+            "included": true,
+            "agentHost": {
+                "status": "notApplicable"
+            }
+        },
+        {
             "key": "chat.agentHost.claudeAgent.enabled",
             "name": "Claude3PIntegration",
             "category": "InteractiveSession",

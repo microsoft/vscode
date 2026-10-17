@@ -15,7 +15,7 @@ import * as path from '../../../base/common/path.js';
 import { isWindows } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { StreamSplitter } from '../../../base/node/nodeStreams.js';
-import { findExecutable } from '../../../base/node/processes.js';
+import { escapeCmdArg, formatSubprocessArguments } from '../../../base/node/processes.js';
 import { LogLevel } from '../../../platform/log/common/log.js';
 import { expandEnvironmentVariablesInLaunch } from '../../contrib/mcp/common/mcpEnvironmentVariableExpansion.js';
 import { McpConnectionState, McpServerEnvironmentVariableExpansion, McpServerLaunch, McpServerTransportStdio, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
@@ -196,31 +196,5 @@ class McpHTTPHandleNode extends McpHTTPHandle {
 	}
 }
 
-const windowsShellScriptRe = /\.(bat|cmd)$/i;
-
-export const escapeCmdArg = (s: string): string => `"${s.replace(/"/g, '""')}"`;
-
-/**
- * Formats arguments to avoid issues on Windows for CVE-2024-27980.
- */
-export const formatSubprocessArguments = async (
-	executable: string,
-	args: ReadonlyArray<string>,
-	cwd: string | undefined,
-	env: Record<string, string | undefined>,
-) => {
-	if (process.platform !== 'win32') {
-		return { executable, args, shell: false };
-	}
-
-	const found = await findExecutable(executable, cwd, undefined, env);
-	if (found && windowsShellScriptRe.test(found)) {
-		return {
-			executable: escapeCmdArg(found),
-			args: args.map(escapeCmdArg),
-			shell: true,
-		};
-	}
-
-	return { executable, args, shell: false };
-};
+// Moved to base/node/processes so the agent host can launch Windows command shims the same way.
+export { escapeCmdArg, formatSubprocessArguments };
