@@ -47,7 +47,8 @@ suite('ModelService', () => {
 							bold: undefined,
 							underline: undefined,
 							strikethrough: undefined,
-							italic: undefined
+							italic: undefined,
+							fontFamily: undefined
 						};
 					}
 				};
@@ -80,7 +81,7 @@ suite('ModelService', () => {
 			2, 31, 36, (MetadataConsts.SEMANTIC_USE_FOREGROUND | (8 << MetadataConsts.FOREGROUND_OFFSET)),
 			2, 38, 39, (MetadataConsts.SEMANTIC_USE_FOREGROUND | (9 << MetadataConsts.FOREGROUND_OFFSET)),
 		]));
-		assert.deepStrictEqual(result.toString(), expected.toString());
+		assert.deepStrictEqual(result.tokens.toString(), expected.toString());
 	});
 
 	test('issue #148651: VSCode UI process can hang if a semantic token with negative values is returned by language service', () => {
@@ -99,7 +100,8 @@ suite('ModelService', () => {
 							bold: undefined,
 							underline: undefined,
 							strikethrough: undefined,
-							italic: undefined
+							italic: undefined,
+							fontFamily: undefined
 						};
 					}
 				};
@@ -132,7 +134,7 @@ suite('ModelService', () => {
 			0, 9, 10, (MetadataConsts.SEMANTIC_USE_FOREGROUND | (3 << MetadataConsts.FOREGROUND_OFFSET)),
 			0, 11, 15, (MetadataConsts.SEMANTIC_USE_FOREGROUND | (4 << MetadataConsts.FOREGROUND_OFFSET)),
 		]));
-		assert.deepStrictEqual(result.toString(), expected.toString());
+		assert.deepStrictEqual(result.tokens.toString(), expected.toString());
 	});
 
 	test('issue #149130: vscode freezes because of Bracket Pair Colorization', () => {
@@ -151,7 +153,8 @@ suite('ModelService', () => {
 							bold: undefined,
 							underline: undefined,
 							strikethrough: undefined,
-							italic: undefined
+							italic: undefined,
+							fontFamily: undefined
 						};
 					}
 				};
@@ -170,6 +173,6 @@ suite('ModelService', () => {
 			0, 11, 12, (MetadataConsts.SEMANTIC_USE_FOREGROUND | (1 << MetadataConsts.FOREGROUND_OFFSET)),
 			0, 15, 16, (MetadataConsts.SEMANTIC_USE_FOREGROUND | (1 << MetadataConsts.FOREGROUND_OFFSET)),
 		]));
-		assert.deepStrictEqual(result.toString(), expected.toString());
+		assert.deepStrictEqual(result.tokens.toString(), expected.toString());
 	});
 });

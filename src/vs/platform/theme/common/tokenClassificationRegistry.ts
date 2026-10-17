@@ -47,6 +47,7 @@ export interface TokenStyleData {
 	underline: boolean | undefined;
 	strikethrough: boolean | undefined;
 	italic: boolean | undefined;
+	fontFamily: string | undefined;
 }
 
 export class TokenStyle implements Readonly<TokenStyleData> {
@@ -56,6 +57,7 @@ export class TokenStyle implements Readonly<TokenStyleData> {
 		public readonly underline: boolean | undefined,
 		public readonly strikethrough: boolean | undefined,
 		public readonly italic: boolean | undefined,
+		public readonly fontFamily: string | undefined = undefined,
 	) {
 	}
 }
@@ -67,6 +69,7 @@ export namespace TokenStyle {
 			_bold: style.bold === undefined ? null : style.bold,
 			_underline: style.underline === undefined ? null : style.underline,
 			_italic: style.italic === undefined ? null : style.italic,
+			_fontFamily: style.fontFamily === undefined ? null : style.fontFamily,
 			_strikethrough: style.strikethrough === undefined ? null : style.strikethrough,
 		};
 	}
@@ -74,12 +77,14 @@ export namespace TokenStyle {
 		if (obj) {
 			const boolOrUndef = (b: any) => (typeof b === 'boolean') ? b : undefined;
 			const colorOrUndef = (s: any) => (typeof s === 'string') ? Color.fromHex(s) : undefined;
+			const stringOrUndef = (s: any) => (typeof s === 'string') ? s : undefined;
 			return new TokenStyle(
 				colorOrUndef(obj._foreground),
 				boolOrUndef(obj._bold),
 				boolOrUndef(obj._underline),
 				boolOrUndef(obj._strikethrough),
-				boolOrUndef(obj._italic)
+				boolOrUndef(obj._italic),
+				stringOrUndef(obj._fontFamily)
 			);
 		}
 		return undefined;
@@ -93,17 +98,19 @@ export namespace TokenStyle {
 			&& s1.bold === s2.bold
 			&& s1.underline === s2.underline
 			&& s1.strikethrough === s2.strikethrough
-			&& s1.italic === s2.italic;
+			&& s1.italic === s2.italic
+			&& s1.fontFamily === s2.fontFamily;
 	}
 	export function is(s: any): s is TokenStyle {
 		return s instanceof TokenStyle;
 	}
-	export function fromData(data: { foreground: Color | undefined; bold: boolean | undefined; underline: boolean | undefined; strikethrough: boolean | undefined; italic: boolean | undefined }): TokenStyle {
-		return new TokenStyle(data.foreground, data.bold, data.underline, data.strikethrough, data.italic);
+	export function fromData(data: { foreground: Color | undefined; bold: boolean | undefined; underline: boolean | undefined; strikethrough: boolean | undefined; italic: boolean | undefined; fontFamily?: string | undefined }): TokenStyle {
+		return new TokenStyle(data.foreground, data.bold, data.underline, data.strikethrough, data.italic, data.fontFamily);
 	}
 	export function fromSettings(foreground: string | undefined, fontStyle: string | undefined): TokenStyle;
 	export function fromSettings(foreground: string | undefined, fontStyle: string | undefined, bold: boolean | undefined, underline: boolean | undefined, strikethrough: boolean | undefined, italic: boolean | undefined): TokenStyle;
-	export function fromSettings(foreground: string | undefined, fontStyle: string | undefined, bold?: boolean, underline?: boolean, strikethrough?: boolean, italic?: boolean): TokenStyle {
+	export function fromSettings(foreground: string | undefined, fontStyle: string | undefined, bold: boolean | undefined, underline: boolean | undefined, strikethrough: boolean | undefined, italic: boolean | undefined, fontFamily: string | undefined): TokenStyle;
+	export function fromSettings(foreground: string | undefined, fontStyle: string | undefined, bold?: boolean, underline?: boolean, strikethrough?: boolean, italic?: boolean, fontFamily?: string): TokenStyle {
 		let foregroundColor = undefined;
 		if (foreground !== undefined) {
 			foregroundColor = Color.fromHex(foreground);
@@ -121,7 +128,7 @@ export namespace TokenStyle {
 				}
 			}
 		}
-		return new TokenStyle(foregroundColor, bold, underline, strikethrough, italic);
+		return new TokenStyle(foregroundColor, bold, underline, strikethrough, italic, fontFamily);
 	}
 }
 
@@ -339,6 +346,10 @@ class TokenClassificationRegistry extends Disposable implements ITokenClassifica
 					strikethrough: {
 						type: 'boolean',
 						description: nls.localize('schema.token.strikethrough', 'Sets or unsets the font style to strikethrough. Note, the presence of \'fontStyle\' overrides this setting.'),
+					},
+					fontFamily: {
+						type: 'string',
+						description: nls.localize('schema.token.fontFamily', 'Font family for the token.'),
 					}
 
 				},
