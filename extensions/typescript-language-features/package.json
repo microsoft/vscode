@@ -1790,6 +1790,12 @@
             "default": 500,
             "description": "%configuration.hover.maximumLength%",
             "scope": "resource"
+          },
+          "js/ts.folding.includeClosingBraces": {
+            "type": "boolean",
+            "default": false,
+            "description": "%configuration.folding.includeClosingBraces%",
+            "scope": "language-overridable"
           }
         }
       },
