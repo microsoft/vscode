@@ -301,6 +301,8 @@ export class PlainTextSearchHeadingImpl extends TextSearchHeadingImpl<ITextQuery
 			this.clear();
 		}, () => {
 			this.replacingAll = false;
+			// changes made while replacing were not reported, refresh once
+			this._onChange.fire({ elements: this.matches(), removed: true });
 		});
 	}
 
