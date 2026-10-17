@@ -245,6 +245,8 @@ suite('Workbench - TerminalEnvironment', () => {
 				strictEqual(await preparePathForShell('c:\\foo\\bar', 'pwsh', 'pwsh', GeneralShellType.PowerShell, wslPathBackend, OperatingSystem.Windows, true), `c:\\foo\\bar`);
 				strictEqual(await preparePathForShell('c:\\foo\\bar\'baz', 'pwsh', 'pwsh', GeneralShellType.PowerShell, wslPathBackend, OperatingSystem.Windows, true), `& 'c:\\foo\\bar''baz'`);
 				strictEqual(await preparePathForShell('c:\\foo\\bar$(echo evil)baz', 'pwsh', 'pwsh', GeneralShellType.PowerShell, wslPathBackend, OperatingSystem.Windows, true), `& 'c:\\foo\\bar$(echo evil)baz'`);
+				strictEqual(await preparePathForShell('c:\\foo\\bar|whoami', 'pwsh', 'pwsh', GeneralShellType.PowerShell, wslPathBackend, OperatingSystem.Windows, true), `& 'c:\\foo\\bar|whoami'`);
+				strictEqual(await preparePathForShell('c:\\foo\\bar\u2019;whoami;\u2019baz', 'pwsh', 'pwsh', GeneralShellType.PowerShell, wslPathBackend, OperatingSystem.Windows, true), `& 'c:\\foo\\bar\u2019\u2019;whoami;\u2019\u2019baz'`);
 			});
 			test('Git Bash', async () => {
 				strictEqual(await preparePathForShell('c:\\foo\\bar', 'bash', 'bash', WindowsShellType.GitBash, wslPathBackend, OperatingSystem.Windows, true), `'c:/foo/bar'`);
