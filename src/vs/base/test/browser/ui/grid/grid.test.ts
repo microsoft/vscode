@@ -111,6 +111,96 @@ suite('Grid', function () {
 		assert.deepStrictEqual(view2.size, [300, 600]);
 	});
 
+	for (const horizontal of [true, false]) {
+		const forward = horizontal ? Direction.Right : Direction.Down;
+		const backward = horizontal ? Direction.Left : Direction.Up;
+		const axis = horizontal ? 'width' : 'height';
+
+		test(`directional resize selects the ${axis} boundary`, () => {
+			const views = [0, 1, 2].map(() => store.add(new TestView(50, 1000, 50, 1000)));
+			const grid = store.add(new Grid(views[0]));
+			container.appendChild(grid.element);
+			grid.layout(900, 900);
+			grid.addView(views[1], 300, views[0], forward);
+			grid.addView(views[2], 300, views[1], forward);
+			grid.distributeViewSizes();
+
+			grid.resizeViewInDirection(views[1], backward, 60);
+			assert.deepStrictEqual(views.map(view => view[axis]), [240, 360, 300]);
+			grid.resizeViewInDirection(views[1], forward, 25);
+			assert.deepStrictEqual(views.map(view => view[axis]), [240, 385, 275]);
+			grid.resizeViewInDirection(views[1], backward, -40);
+			assert.deepStrictEqual(views.map(view => view[axis]), [280, 345, 275]);
+		});
+
+		test(`directional resize respects ${axis} limits and outer edges`, () => {
+			const views = [0, 1, 2].map(() => store.add(new TestView(50, horizontal ? 400 : 1000, 50, horizontal ? 1000 : 400)));
+			const grid = store.add(new Grid(views[0]));
+			container.appendChild(grid.element);
+			grid.layout(900, 900);
+			grid.addView(views[1], 300, views[0], forward);
+			grid.addView(views[2], 300, views[1], forward);
+			grid.distributeViewSizes();
+
+			grid.resizeViewInDirection(views[0], backward, 60);
+			grid.resizeViewInDirection(views[2], forward, -60);
+			grid.resizeViewInDirection(views[1], backward, NaN);
+			grid.resizeViewInDirection(views[1], forward, Infinity);
+			assert.deepStrictEqual(views.map(view => view[axis]), [300, 300, 300]);
+			grid.resizeViewInDirection(views[1], backward, 1000);
+			assert.deepStrictEqual(views.map(view => view[axis]), [200, 400, 300]);
+			grid.resizeViewInDirection(views[1], forward, -1000);
+			assert.deepStrictEqual(views.map(view => view[axis]), [200, 300, 400]);
+		});
+	}
+
+	test('directional resize stops at a neighbor minimum without moving other panes', () => {
+		const views = [0, 1, 2, 3].map(() => store.add(new TestView(100, 1000, 50, 1000)));
+		const grid = store.add(new Grid(views[0]));
+		container.appendChild(grid.element);
+		grid.layout(1000, 600);
+		for (let i = 1; i < views.length; i++) {
+			grid.addView(views[i], 250, views[i - 1], Direction.Right);
+		}
+		grid.distributeViewSizes();
+
+		grid.resizeViewInDirection(views[2], Direction.Left, 500);
+		assert.deepStrictEqual(views.map(view => view.width), [250, 100, 400, 250]);
+		grid.resizeViewInDirection(views[2], Direction.Left, 60);
+		assert.deepStrictEqual(views.map(view => view.width), [250, 100, 400, 250]);
+	});
+
+	test('directional resize restores a maximized view before resizing', () => {
+		const left = store.add(new TestView(50, 1000, 50, 1000));
+		const right = store.add(new TestView(50, 1000, 50, 1000));
+		const grid = store.add(new Grid(left));
+		container.appendChild(grid.element);
+		grid.layout(800, 600);
+		grid.addView(right, 400, left, Direction.Right);
+		grid.maximizeView(right);
+
+		grid.resizeViewInDirection(right, Direction.Left, 60);
+		assert.deepStrictEqual({ maximized: grid.hasMaximizedView(), sizes: [left.size, right.size] }, {
+			maximized: false, sizes: [[340, 600], [460, 600]]
+		});
+	});
+
+	test('directional resize reaches an ancestor boundary in a nested layout', () => {
+		const views = [0, 1, 2, 3].map(() => store.add(new TestView(50, 1000, 50, 1000)));
+		const grid = store.add(new Grid(views[0]));
+		container.appendChild(grid.element);
+		grid.layout(900, 600);
+		grid.addView(views[1], 300, views[0], Direction.Right);
+		grid.addView(views[2], 300, views[1], Direction.Right);
+		grid.distributeViewSizes();
+		grid.addView(views[3], 300, views[1], Direction.Down);
+
+		grid.resizeViewInDirection(views[3], Direction.Left, 75);
+		assert.deepStrictEqual(views.map(view => view.size), [[225, 600], [375, 300], [300, 600], [375, 300]]);
+		grid.resizeViewInDirection(views[3], Direction.Up, 50);
+		assert.deepStrictEqual(views.map(view => view.size), [[225, 600], [375, 250], [300, 600], [375, 350]]);
+	});
+
 	test('simple layout', function () {
 		const view1 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
 		const grid = store.add(new Grid(view1));

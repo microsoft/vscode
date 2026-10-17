@@ -442,6 +442,10 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		this.gridWidget.resizeView(groupView, size);
 	}
 
+	resizeGroup(group: IEditorGroupView | GroupIdentifier, direction: GroupDirection, amount: number): void {
+		this.gridWidget.resizeViewInDirection(this.assertGroupView(group), this.toGridViewDirection(direction), amount);
+	}
+
 	arrangeGroups(arrangement: GroupsArrangement, target: IEditorGroupView | GroupIdentifier = this.activeGroup): void {
 		if (this.count < 2) {
 			return; // require at least 2 groups to show
