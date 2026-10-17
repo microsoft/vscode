@@ -8,20 +8,17 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry, isConfigurationDefaultSourceEquals } from '../../common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
 import { PolicyCategory } from '../../../../base/common/policy.js';
+import { restoreConfigurationRegistryAfterSuite } from './configurationRegistryTestUtils.js';
 
 suite('ConfigurationRegistry', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+	const reset = restoreConfigurationRegistryAfterSuite();
 
 	setup(() => reset());
 	teardown(() => reset());
-
-	function reset() {
-		configurationRegistry.deregisterConfigurations(configurationRegistry.getConfigurations());
-		configurationRegistry.deregisterDefaultConfigurations(configurationRegistry.getRegisteredDefaultConfigurations());
-	}
 
 	test('configuration override', async () => {
 		configurationRegistry.registerConfiguration({
