@@ -7,8 +7,10 @@ import assert from 'assert';
 import { createHash } from 'crypto';
 import * as fs from 'fs';
 import * as os from 'os';
-import { bufferToStream, VSBuffer } from '../../../../base/common/buffer.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { timeout } from '../../../../base/common/async.js';
+import { bufferToStream, newWriteableBufferStream, VSBuffer } from '../../../../base/common/buffer.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { join } from '../../../../base/common/path.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -47,7 +49,7 @@ suite('CopilotComputerUsePlugin', () => {
 		await fs.promises.rm(tmpDir, { recursive: true, force: true });
 	});
 
-	function createPlugin(sha256: string | undefined, requests: string[]): CopilotComputerUsePlugin {
+	function createPlugin(sha256: string | undefined, requests: string[], createStream: () => IRequestContext['stream'] = () => bufferToStream(VSBuffer.wrap(archive))): CopilotComputerUsePlugin {
 		const release: IComputerUsePluginRelease = {
 			version: '1.2.3',
 			sha256: sha256 ? { [target]: sha256 } : {},
@@ -56,7 +58,7 @@ suite('CopilotComputerUsePlugin', () => {
 		const requestService = new class extends mock<IRequestService>() {
 			override async request(options: IRequestOptions): Promise<IRequestContext> {
 				requests.push(options.url ?? '');
-				return { res: { headers: {}, statusCode: 200 }, stream: bufferToStream(VSBuffer.wrap(archive)) };
+				return { res: { headers: {}, statusCode: 200 }, stream: createStream() };
 			}
 		};
 		const environmentService = new class extends mock<INativeEnvironmentService>() {
@@ -68,24 +70,50 @@ suite('CopilotComputerUsePlugin', () => {
 	test('downloads, verifies and caches the platform plugin', async () => {
 		const sha256 = createHash('sha256').update(archive).digest('hex');
 		const requests: string[] = [];
+		const installedBefore = await createPlugin(sha256, requests).getInstalledPath();
 		const first = await createPlugin(sha256, requests).resolve(CancellationToken.None);
 		const second = await createPlugin(sha256, requests).resolve(CancellationToken.None);
+		const installedAfter = await createPlugin(sha256, requests).getInstalledPath();
 		const pluginDir = join(tmpDir, 'user-data', 'agent-host', 'computer-use-plugin', '1.2.3', target);
 
 		assert.deepStrictEqual({
+			installedBefore,
 			first,
 			second,
+			installedAfter,
 			requests,
 			files: (await fs.promises.readdir(pluginDir)).sort(),
 			executable: process.platform === 'win32' || ((await fs.promises.stat(join(pluginDir, 'computer-use-mcp'))).mode & 0o111) !== 0,
 			siblings: (await fs.promises.readdir(join(pluginDir, '..'))).sort(),
 		}, {
+			installedBefore: undefined,
 			first: pluginDir,
 			second: pluginDir,
+			installedAfter: pluginDir,
 			requests: [`https://example.test/v1.2.3/plugin-${target}.zip`],
 			files: ['.complete', 'computer-use-mcp', 'plugin.json'],
 			executable: true,
 			siblings: [target],
+		});
+	});
+
+	test('cancellation aborts a stalled response body without installing', async () => {
+		const sha256 = createHash('sha256').update(archive).digest('hex');
+		const stalled = newWriteableBufferStream();
+		const plugin = createPlugin(sha256, [], () => stalled);
+		const cancellation = new CancellationTokenSource();
+		const pending = plugin.resolve(cancellation.token);
+		await timeout(0);
+		cancellation.cancel();
+		const error = await pending.then(() => undefined, err => err);
+		cancellation.dispose();
+
+		assert.deepStrictEqual({
+			cancelled: isCancellationError(error),
+			installed: await plugin.getInstalledPath(),
+		}, {
+			cancelled: true,
+			installed: undefined,
 		});
 	});
 

@@ -132,6 +132,7 @@ import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { IByokLmProxyService, NullByokLmProxyService, type IByokLmToolsCappedEvent } from '../../node/copilot/byokLmProxyService.js';
 import { ILocalModelSetupService, NullLocalModelSetupService } from '../../node/copilot/localModelBridge/localModelSetupService.js';
+import type { CopilotComputerUsePlugin } from '../../node/copilot/copilotComputerUsePlugin.js';
 import type { ILocalModelProvider, LocalModelProviderSelection } from '../../node/copilot/localModelBridge/localModelProvider.js';
 import { LocalModelCopilotRequestHandler } from '../../node/copilot/localModelBridge/shim/copilotRequestHandler.js';
 import { ShimLocalModelProvider } from '../../node/copilot/localModelBridge/shim/shimLocalModelProvider.js';
@@ -722,7 +723,7 @@ interface ITestCopilotClient extends Pick<CopilotClient, 'start' | 'stop' | 'lis
 		};
 		readonly models: { readonly list: CopilotModelsList };
 		readonly managedSettings: Pick<CopilotClient['rpc']['managedSettings'], 'resolve'>;
-		readonly plugins: Pick<CopilotPlugins, 'install' | 'uninstall' | 'enable'> & {
+		readonly plugins: Pick<CopilotPlugins, 'install' | 'uninstall'> & {
 			readonly marketplaces: Pick<CopilotPluginMarketplaces, 'list' | 'add' | 'browse' | 'remove' | 'refresh'>;
 		};
 		readonly mcp: { readonly config: Pick<CopilotClient['rpc']['mcp']['config'], 'list'> };
@@ -863,9 +864,6 @@ class TestCopilotClient implements ITestCopilotClient {
 			uninstall: async params => {
 				this.pluginUninstallRequests.push(params);
 			},
-			enable: async params => {
-				this.pluginEnableRequests.push(params);
-			},
 			marketplaces: {
 				list: async () => ({ marketplaces: this.pluginMarketplaces }),
 				add: async params => {
@@ -900,7 +898,6 @@ class TestCopilotClient implements ITestCopilotClient {
 	readonly modelListRequests: Parameters<CopilotModelsList>[0][] = [];
 	readonly pluginInstallRequests: Parameters<CopilotPluginsInstall>[0][] = [];
 	readonly pluginUninstallRequests: Parameters<CopilotPluginsUninstall>[0][] = [];
-	readonly pluginEnableRequests: Parameters<CopilotPlugins['enable']>[0][] = [];
 	pluginMarketplaces: Awaited<ReturnType<CopilotPluginMarketplaces['list']>>['marketplaces'] = [];
 	pluginMarketplaceAddName = 'marketplace';
 	readonly pluginMarketplaceAddRequests: Parameters<CopilotPluginMarketplaces['add']>[0][] = [];
@@ -12489,29 +12486,52 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		function createComputerUseAgent(enabled: boolean, isLocalAgentHost: boolean, client: TestCopilotClient) {
+		function createComputerUseAgent(enabled: boolean, isLocalAgentHost: boolean, client: TestCopilotClient, plugin?: Pick<CopilotComputerUsePlugin, 'isAvailable' | 'getInstalledPath' | 'resolve'>) {
 			const localModelSetupService: ILocalModelSetupService = { _serviceBrand: undefined, isLocalAgentHost, provider: undefined, applySelection: () => undefined };
 			const context = createTestAgentContext(disposables, {
 				copilotClient: client,
 				localModelSetupService,
 				rootConfig: { [AgentHostComputerUseEnabledConfigKey]: enabled },
 			});
+			if (plugin) {
+				(context.agent as unknown as { _computerUsePlugin: typeof plugin })._computerUsePlugin = plugin;
+				return { ...context, resolvePlugin: undefined };
+			}
 			const resolvePlugin = stub(context.agent as unknown as { _resolveComputerUsePlugin(): Promise<string | undefined> }, '_resolveComputerUsePlugin').resolves('/cache/computer-use');
 			disposables.add(toDisposable(() => resolvePlugin.restore()));
 			return { ...context, resolvePlugin };
 		}
 
+		function createDownloadingComputerUsePlugin() {
+			const download = new DeferredPromise<string | undefined>();
+			const tokens: CancellationToken[] = [];
+			let installedPath: string | undefined;
+			const plugin = {
+				isAvailable: true,
+				getInstalledPath: async () => installedPath,
+				resolve: (token: CancellationToken) => {
+					tokens.push(token);
+					return download.p;
+				},
+			};
+			return {
+				plugin, tokens, download,
+				install: (path: string) => {
+					installedPath = path;
+					download.complete(path);
+				},
+			};
+		}
+
 		test('offers the Computer Use plugin only to the local agent host when the setting is on', async () => {
 			const results = [];
 			for (const [enabled, isLocalAgentHost] of [[false, true], [true, true], [true, false]]) {
-				const client = new TestCopilotClient([]);
-				const { agent, resolvePlugin } = createComputerUseAgent(enabled, isLocalAgentHost, client);
+				const { agent, resolvePlugin } = createComputerUseAgent(enabled, isLocalAgentHost, new TestCopilotClient([]));
 				try {
 					await agent.listChatsToMigrate();
 					results.push({
 						builtinPluginDirectories: getCreatedClientOptions(agent).at(-1)?.builtinPluginDirectories,
-						resolved: resolvePlugin.callCount,
-						enabled: client.pluginEnableRequests,
+						resolved: resolvePlugin?.callCount,
 					});
 				} finally {
 					await disposeAgent(agent);
@@ -12519,13 +12539,13 @@ suite('CopilotAgent', () => {
 			}
 
 			assert.deepStrictEqual(results, [
-				{ builtinPluginDirectories: undefined, resolved: 0, enabled: [] },
-				{ builtinPluginDirectories: ['/cache/computer-use'], resolved: 1, enabled: [] },
-				{ builtinPluginDirectories: undefined, resolved: 0, enabled: [] },
+				{ builtinPluginDirectories: undefined, resolved: 0 },
+				{ builtinPluginDirectories: ['/cache/computer-use'], resolved: 1 },
+				{ builtinPluginDirectories: undefined, resolved: 0 },
 			]);
 		});
 
-		test('restarts the client and enables Computer Use when the setting is turned on', async () => {
+		test('restarts the client when the Computer Use setting is turned on', async () => {
 			const client = new StopCountingClient([]);
 			const { agent, configurationService } = createComputerUseAgent(false, true, client);
 			try {
@@ -12533,18 +12553,58 @@ suite('CopilotAgent', () => {
 				configurationService.updateRootConfig({ [AgentHostComputerUseEnabledConfigKey]: true });
 				await Promise.resolve();
 				await agent.listChatsToMigrate();
-				await timeout(0);
 
 				assert.deepStrictEqual({
 					stopCount: client.stopCount,
 					builtinPluginDirectories: getCreatedClientOptions(agent).at(-1)?.builtinPluginDirectories,
-					enabled: client.pluginEnableRequests,
 				}, {
 					stopCount: 1,
 					builtinPluginDirectories: ['/cache/computer-use'],
-					enabled: [{ names: ['computer-use'] }],
 				});
 			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('starts without Computer Use while the plugin downloads and restarts once it is installed', async () => {
+			const client = new StopCountingClient([]);
+			const fake = createDownloadingComputerUsePlugin();
+			const { agent } = createComputerUseAgent(true, true, client, fake.plugin);
+			try {
+				await agent.listChatsToMigrate();
+				const whileDownloading = getCreatedClientOptions(agent).at(-1)?.builtinPluginDirectories;
+				fake.install('/cache/computer-use');
+				await timeout(0);
+				await agent.listChatsToMigrate();
+
+				assert.deepStrictEqual({
+					whileDownloading,
+					downloads: fake.tokens.length,
+					stopCount: client.stopCount,
+					afterInstall: getCreatedClientOptions(agent).at(-1)?.builtinPluginDirectories,
+				}, {
+					whileDownloading: undefined,
+					downloads: 1,
+					stopCount: 1,
+					afterInstall: ['/cache/computer-use'],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('cancels a pending Computer Use download when the setting is turned off', async () => {
+			const fake = createDownloadingComputerUsePlugin();
+			const { agent, configurationService } = createComputerUseAgent(true, true, new StopCountingClient([]), fake.plugin);
+			try {
+				await agent.listChatsToMigrate();
+				const cancelledBefore = fake.tokens[0].isCancellationRequested;
+				configurationService.updateRootConfig({ [AgentHostComputerUseEnabledConfigKey]: false });
+				await Promise.resolve();
+
+				assert.deepStrictEqual({ cancelledBefore, cancelledAfter: fake.tokens[0].isCancellationRequested }, { cancelledBefore: false, cancelledAfter: true });
+			} finally {
+				fake.download.error(new CancellationError());
 				await disposeAgent(agent);
 			}
 		});

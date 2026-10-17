@@ -5,7 +5,8 @@
 
 import { createHash } from 'crypto';
 import * as fs from 'fs';
-import { streamToBuffer } from '../../../../base/common/buffer.js';
+import { raceCancellationError } from '../../../../base/common/async.js';
+import { streamToBuffer, type VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { join } from '../../../../base/common/path.js';
 import { Promises } from '../../../../base/node/pfs.js';
@@ -51,6 +52,7 @@ export const COMPUTER_USE_PLUGIN_NAME = 'computer-use';
  */
 export class CopilotComputerUsePlugin {
 
+	private readonly _target = `${process.platform}-${process.arch}`;
 	private _pending: Promise<string> | undefined;
 
 	constructor(
@@ -60,18 +62,33 @@ export class CopilotComputerUsePlugin {
 		@ILogService private readonly _logService: ILogService,
 	) { }
 
+	/** Whether a release exists for this platform. */
+	get isAvailable(): boolean {
+		return !!this._release.sha256[this._target];
+	}
+
+	private get _pluginDir(): string {
+		return join(this._environmentService.userDataPath, 'agent-host', 'computer-use-plugin', this._release.version, this._target);
+	}
+
+	/** Returns the plugin directory when it is already installed, without downloading. */
+	async getInstalledPath(): Promise<string | undefined> {
+		return this.isAvailable && await Promises.exists(join(this._pluginDir, COMPLETE_SENTINEL)) ? this._pluginDir : undefined;
+	}
+
 	/**
-	 * Returns the plugin directory, or `undefined` when no release exists for
-	 * this platform. Rejects when the download or verification fails.
+	 * Returns the plugin directory, downloading it when needed, or `undefined`
+	 * when no release exists for this platform. Rejects when the download or
+	 * verification fails, or when `token` is cancelled. Concurrent callers share
+	 * the first caller's download.
 	 */
 	resolve(token: CancellationToken): Promise<string | undefined> {
-		const target = `${process.platform}-${process.arch}`;
-		const expectedSha256 = this._release.sha256[target];
+		const expectedSha256 = this._release.sha256[this._target];
 		if (!expectedSha256) {
 			return Promise.resolve(undefined);
 		}
 		if (!this._pending) {
-			const pending = this._resolve(target, expectedSha256, token);
+			const pending = this._resolve(this._target, expectedSha256, token);
 			this._pending = pending;
 			pending.catch(() => {
 				if (this._pending === pending) {
@@ -83,7 +100,7 @@ export class CopilotComputerUsePlugin {
 	}
 
 	private async _resolve(target: string, expectedSha256: string, token: CancellationToken): Promise<string> {
-		const pluginDir = join(this._environmentService.userDataPath, 'agent-host', 'computer-use-plugin', this._release.version, target);
+		const pluginDir = this._pluginDir;
 		if (await Promises.exists(join(pluginDir, COMPLETE_SENTINEL))) {
 			return pluginDir;
 		}
@@ -96,7 +113,14 @@ export class CopilotComputerUsePlugin {
 			context.stream.destroy();
 			throw new Error(`HTTP ${statusCode} fetching ${url}`);
 		}
-		const archive = await streamToBuffer(context.stream);
+		// Cancellation must also abort a response body that stalls after its headers.
+		const cancellation = token.onCancellationRequested(() => context.stream.destroy());
+		let archive: VSBuffer;
+		try {
+			archive = await raceCancellationError(streamToBuffer(context.stream), token);
+		} finally {
+			cancellation.dispose();
+		}
 		const actualSha256 = createHash('sha256').update(archive.buffer).digest('hex');
 		if (actualSha256 !== expectedSha256) {
 			throw new Error(`Computer Use plugin checksum mismatch for ${url}: expected ${expectedSha256}, got ${actualSha256}`);
