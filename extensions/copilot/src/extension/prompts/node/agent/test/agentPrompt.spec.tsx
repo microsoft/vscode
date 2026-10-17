@@ -32,6 +32,7 @@ import { IToolsService } from '../../../../tools/common/toolsService';
 import { PromptRenderer } from '../../base/promptRenderer';
 import { AgentPrompt, AgentPromptProps } from '../agentPrompt';
 import { PromptRegistry } from '../promptRegistry';
+import { CUSTOM_TOOL_SEARCH_NAME } from '../toolSearchInstructions';
 
 const testFamilies = [
 	'default',
@@ -50,6 +51,61 @@ const testFamilies = [
 	'gemini-2.0-flash',
 	'grok-code-fast-1'
 ];
+
+suite('AgentPrompt tool search availability', () => {
+	test.each(['gpt-5.4', 'gpt-5.5', 'gpt-5.6', 'gpt-6', 'claude-sonnet-4.5'])('%s gates discovery guidance on request tool availability', async family => {
+		const services = createExtensionUnitTestingServices();
+		const accessor = services.createTestingAccessor();
+		try {
+			const instantiationService = accessor.get(IInstantiationService);
+			const endpoint = instantiationService.createInstance(MockEndpoint, family);
+			endpoint.supportsToolSearch = true;
+			const deferredTool: LanguageModelToolInformation = {
+				name: 'mcp_test_lookup',
+				description: 'Look up a test item',
+				tags: [],
+				inputSchema: { type: 'object', properties: {} },
+			};
+			const searchTool: LanguageModelToolInformation = {
+				name: CUSTOM_TOOL_SEARCH_NAME,
+				description: 'Search for deferred tools',
+				tags: [],
+				inputSchema: { type: 'object', properties: {} },
+			};
+			const rendered = [];
+			for (const availableTools of [[deferredTool], [deferredTool, searchTool]]) {
+				const promptContext: IBuildPromptContext = {
+					chatVariables: new ChatVariablesCollection(),
+					conversation: new Conversation('tool-search-test', [new Turn('turn', { type: 'user', message: 'Look up a test item' })]),
+					history: [],
+					query: 'Look up a test item',
+					tools: { availableTools, toolInvocationToken: null as never, toolReferences: [] },
+				};
+				const renderer = PromptRenderer.create(instantiationService, endpoint, AgentPrompt, {
+					priority: 1,
+					endpoint,
+					location: ChatLocation.Panel,
+					promptContext,
+					customizations: await PromptRegistry.resolveAllCustomizations(instantiationService, endpoint),
+				});
+				const { messages } = await renderer.render();
+				const prompt = messages.map(message => messageToMarkdown(message)).join('\n');
+				rendered.push({
+					guidance: prompt.includes('<toolSearchInstructions>'),
+					deferredList: prompt.includes('<availableDeferredTools>'),
+					reminder: prompt.includes('IMPORTANT: Before calling any deferred tool'),
+				});
+			}
+			expect(rendered).toEqual([
+				{ guidance: false, deferredList: false, reminder: false },
+				{ guidance: true, deferredList: true, reminder: true },
+			]);
+		} finally {
+			accessor.dispose();
+			services.dispose();
+		}
+	});
+});
 
 test.each([
 	{ summarization: false, systemInstructions: true },

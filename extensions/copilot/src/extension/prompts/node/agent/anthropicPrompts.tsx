@@ -613,7 +613,7 @@ class AnthropicReminderInstructions extends PromptElement<ReminderInstructionsPr
 	}
 
 	async render(state: void, sizing: PromptSizing) {
-		const toolSearchEnabled = !!this.props.endpoint.supportsToolSearch;
+		const toolSearchEnabled = !!this.props.endpoint.supportsToolSearch && this.props.hasToolSearchTool;
 		const contextEditingEnabled = isAnthropicContextEditingEnabled(this.props.endpoint, this.configurationService, this.experimentationService);
 
 		return <>

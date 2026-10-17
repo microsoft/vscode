@@ -9,6 +9,7 @@ import { ConfigKey, IConfigurationService } from '../../../../platform/configura
 import { IEndpointProvider } from '../../../../platform/endpoint/common/endpointProvider';
 import { MockEndpoint } from '../../../../platform/endpoint/test/node/mockEndpoint';
 import { SEARCH_AGENT_FAMILY } from '../../../../platform/endpoint/node/searchAgentChatEndpoint';
+import { CUSTOM_TOOL_SEARCH_NAME } from '../../../../platform/networking/common/anthropic';
 import { IChatEndpoint } from '../../../../platform/networking/common/networking';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
 import { TestWorkspaceService } from '../../../../platform/test/node/testWorkspaceService';
@@ -22,7 +23,19 @@ import { IInstantiationService } from '../../../../util/vs/platform/instantiatio
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
 import { TestChatRequest } from '../../../test/node/testHelpers';
 import { ToolName } from '../../../tools/common/toolNames';
+import { IToolsService } from '../../../tools/common/toolsService';
+import { TestToolsService } from '../../../tools/node/test/testToolsService';
 import { getAgentTools } from '../agentIntent';
+
+class ToolSearchTestToolsService extends TestToolsService {
+	override get tools() {
+		return [...super.tools, { name: CUSTOM_TOOL_SEARCH_NAME, description: 'Search for deferred tools', tags: [] }];
+	}
+}
+
+class TestSubagentChatRequest extends TestChatRequest {
+	readonly subAgentInvocationId = 'subagent';
+}
 
 class StubEndpointProvider implements IEndpointProvider {
 	declare readonly _serviceBrand: undefined;
@@ -52,6 +65,7 @@ describe('getAgentTools search subagent gating', () => {
 
 	beforeAll(() => {
 		const services = createExtensionUnitTestingServices();
+		services.define(IToolsService, new SyncDescriptor(ToolSearchTestToolsService, [new Set()]));
 		services.define(IWorkspaceFileIndex, new SyncDescriptor(NullWorkspaceFileIndex));
 		services.define(IWorkspaceService, new SyncDescriptor(
 			TestWorkspaceService,
@@ -89,6 +103,16 @@ describe('getAgentTools search subagent gating', () => {
 	function hasTool(tools: readonly { name: string }[], name: ToolName): boolean {
 		return tools.some(t => t.name === name);
 	}
+
+	test('offers tool search only to top-level requests on capable endpoints', async () => {
+		const endpoint = instantiationService.createInstance(MockEndpoint, 'gpt-6');
+		endpoint.supportsToolSearch = true;
+		const topLevelTools = await instantiationService.invokeFunction(getAgentTools, new TestChatRequest('find tools'), endpoint);
+		const subagentTools = await instantiationService.invokeFunction(getAgentTools, new TestSubagentChatRequest('find tools'), endpoint);
+		endpoint.supportsToolSearch = false;
+		const unsupportedTools = await instantiationService.invokeFunction(getAgentTools, new TestChatRequest('find tools'), endpoint);
+		expect([topLevelTools, subagentTools, unsupportedTools].map(tools => tools.some(tool => tool.name === CUSTOM_TOOL_SEARCH_NAME))).toEqual([true, false, false]);
+	});
 
 	test('hides both subagents when search-agent family is not in CAPI', async () => {
 		const request = new TestChatRequest('find usages of foo');
