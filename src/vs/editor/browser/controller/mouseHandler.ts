@@ -13,7 +13,9 @@ import { ClientCoordinates, EditorMouseEvent, EditorMouseEventFactory, GlobalEdi
 import { ViewController } from '../view/viewController.js';
 import { EditorZoom } from '../../common/config/editorZoom.js';
 import { Position } from '../../common/core/position.js';
+import { Range } from '../../common/core/range.js';
 import { Selection } from '../../common/core/selection.js';
+import { ScrollType } from '../../common/editorCommon.js';
 import { HorizontalPosition } from '../view/renderingContext.js';
 import { ViewContext } from '../../common/viewModel/viewContext.js';
 import * as viewEvents from '../../common/viewEvents.js';
@@ -411,31 +413,38 @@ class MouseDownOperation extends Disposable {
 		this._lastMouseEvent = e;
 		this._mouseState.setModifiers(e);
 
+		if (this._mouseState.isDragAndDrop) {
+			const target = this._findMousePositionForDragAndDrop(e);
+			this._viewController.emitMouseDrag({ event: e, target });
+
+			if (!target) {
+				const position = this._getPositionOutsideEditor(e)?.position;
+				if (position && !this._currentSelection.containsPosition(position)) {
+					// Keep scrolling towards the pointer without advertising an out-of-bounds drop.
+					this._context.viewModel.revealRange('mouse', true, Range.fromPositions(position), viewEvents.VerticalRevealType.Simple, ScrollType.Immediate);
+				}
+			}
+			return;
+		}
+
 		const position = this._findMousePosition(e, false);
 		if (!position) {
 			// Ignoring because position is unknown
 			return;
 		}
 
-		if (this._mouseState.isDragAndDrop) {
-			this._viewController.emitMouseDrag({
-				event: e,
-				target: position
-			});
-		} else {
-			if (position.type === MouseTargetType.OUTSIDE_EDITOR) {
-				if (position.outsidePosition === 'above' || position.outsidePosition === 'below') {
-					this._topBottomDragScrolling.start(position, e);
-					this._leftRightDragScrolling.stop();
-				} else {
-					this._leftRightDragScrolling.start(position, e);
-					this._topBottomDragScrolling.stop();
-				}
-			} else {
-				this._topBottomDragScrolling.stop();
+		if (position.type === MouseTargetType.OUTSIDE_EDITOR) {
+			if (position.outsidePosition === 'above' || position.outsidePosition === 'below') {
+				this._topBottomDragScrolling.start(position, e);
 				this._leftRightDragScrolling.stop();
-				this._dispatchMouse(position, true, NavigationCommandRevealType.Minimal);
+			} else {
+				this._leftRightDragScrolling.start(position, e);
+				this._topBottomDragScrolling.stop();
 			}
+		} else {
+			this._topBottomDragScrolling.stop();
+			this._leftRightDragScrolling.stop();
+			this._dispatchMouse(position, true, NavigationCommandRevealType.Minimal);
 		}
 	}
 
@@ -477,15 +486,13 @@ class MouseDownOperation extends Disposable {
 				e.buttons,
 				(e) => this._onMouseDownThenMove(e),
 				(browserEvent?: MouseEvent | KeyboardEvent) => {
-					const position = this._findMousePosition(this._lastMouseEvent!, false);
-
 					if (dom.isKeyboardEvent(browserEvent)) {
 						// cancel
 						this._viewController.emitMouseDropCanceled();
 					} else {
 						this._viewController.emitMouseDrop({
 							event: this._lastMouseEvent!,
-							target: (position ? this._createMouseTarget(this._lastMouseEvent!, true) : null) // Ignoring because position is unknown, e.g., Content View Zone
+							target: this._findMousePositionForDragAndDrop(this._lastMouseEvent!)
 						});
 					}
 
@@ -590,6 +597,18 @@ class MouseDownOperation extends Disposable {
 		}
 
 		return null;
+	}
+
+	private _findMousePositionForDragAndDrop(e: EditorMouseEvent): IMouseTarget | null {
+		const editorPos = e.editorPos;
+		// Captured events can still target the view after the pointer has left the widget.
+		if (e.posx < editorPos.x || e.posx > editorPos.x + editorPos.width || e.posy < editorPos.y || e.posy > editorPos.y + editorPos.height) {
+			return null;
+		}
+		if (!this._findMousePosition(e, false)) {
+			return null;
+		}
+		return this._createMouseTarget(e, true);
 	}
 
 	private _findMousePosition(e: EditorMouseEvent, testEventTarget: boolean): IMouseTarget | null {
