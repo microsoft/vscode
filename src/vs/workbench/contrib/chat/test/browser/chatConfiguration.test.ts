@@ -21,6 +21,7 @@ import { IPluginMarketplaceService } from '../../common/plugins/pluginMarketplac
 const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 const registeredAgentSessionsSettings = [
 	ChatConfiguration.UnifiedWorkspacePicker,
+	ChatConfiguration.OpenInEditorPreserveHiddenChat,
 	ChatConfiguration.AutoMarkAsDoneMergedSessionsAfterDays,
 	ChatConfiguration.AutoDeleteMarkedAsDoneMergedSessionsAfterDays,
 ].map(key => configurationProperties[key] !== undefined);
@@ -58,7 +59,24 @@ suite('Chat configuration', () => {
 	});
 
 	test('registers Agents Window settings in the shared workbench contribution', () => {
-		assert.deepStrictEqual(registeredAgentSessionsSettings, [true, true, true]);
+		assert.deepStrictEqual(registeredAgentSessionsSettings, [true, true, true, true]);
+	});
+
+	test('defines hidden Chat preservation as an opt-in experimental setting', () => {
+		const setting = configurationProperties[ChatConfiguration.OpenInEditorPreserveHiddenChat];
+		assert.deepStrictEqual({
+			type: setting.type,
+			default: setting.default,
+			scope: setting.scope,
+			tags: setting.tags,
+			experiment: setting.experiment,
+		}, {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'onExP'],
+			experiment: { mode: 'auto' },
+		});
 	});
 
 	for (const [key, value, expected] of [
