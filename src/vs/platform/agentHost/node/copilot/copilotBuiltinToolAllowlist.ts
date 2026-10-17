@@ -28,7 +28,7 @@ export const COPILOT_ENABLED_BUILTIN_TOOL_NAMES: readonly string[] = [
 	'ask_user', 'report_intent', 'think', 'report_progress', 'update_todo', 'todowrite', 'propose_work', 'task_complete',
 	'exit_plan_mode', 'parallel_validation', 'image_generation',
 	// Agents, skills and tool discovery
-	'task', 'list_agents', 'read_agent', 'write_agent', 'skill', RUNTIME_TOOL_SEARCH_TOOL_NAME, 'tool_search_tool_regex',
+	'task', 'execution_subagent', 'list_agents', 'read_agent', 'write_agent', 'skill', RUNTIME_TOOL_SEARCH_TOOL_NAME, 'tool_search_tool_regex',
 	// Stores
 	'sql', 'session_store_sql', 'store_memory',
 	// MCP maintenance
