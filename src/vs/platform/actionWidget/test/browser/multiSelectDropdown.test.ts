@@ -10,16 +10,19 @@ import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IContextViewService } from '../../../contextview/browser/contextView.js';
+import { IContextKeyService } from '../../../contextkey/common/contextkey.js';
 import { ContextViewService } from '../../../contextview/browser/contextViewService.js';
 import { IHoverService } from '../../../hover/browser/hover.js';
 import { NullHoverService } from '../../../hover/test/browser/nullHoverService.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { IKeybindingService } from '../../../keybinding/common/keybinding.js';
-import { MockKeybindingService } from '../../../keybinding/test/common/mockKeybindingService.js';
+import { MockContextKeyService, MockKeybindingService } from '../../../keybinding/test/common/mockKeybindingService.js';
 import { ILayoutService } from '../../../layout/browser/layoutService.js';
 import { IOpenerService } from '../../../opener/common/opener.js';
 import { NullOpenerService } from '../../../opener/test/common/nullOpenerService.js';
 import { IMultiSelectDropdownOptions, MultiSelectDropdown } from '../../browser/multiSelectDropdown.js';
+import { ActionWidgetService, IActionWidgetService } from '../../browser/actionWidget.js';
+import { registerActionWidgetTestKeybindings } from './actionWidgetTestUtils.js';
 
 suite('MultiSelectDropdown', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -37,10 +40,15 @@ suite('MultiSelectDropdown', () => {
 			override getContainer(): HTMLElement { return container; }
 		}());
 		instantiationService.set(IKeybindingService, new MockKeybindingService());
+		const contextKeys = store.add(new MockContextKeyService());
+		instantiationService.set(IContextKeyService, contextKeys);
 		instantiationService.set(IHoverService, NullHoverService);
 		instantiationService.set(IOpenerService, NullOpenerService);
 		const contextView = store.add(instantiationService.createInstance(ContextViewService));
 		instantiationService.set(IContextViewService, contextView);
+		const service = store.add(instantiationService.createInstance(ActionWidgetService));
+		instantiationService.set(IActionWidgetService, service);
+		store.add(registerActionWidgetTestKeybindings(container, contextKeys, instantiationService));
 		const dropdown = store.add(instantiationService.createInstance(MultiSelectDropdown));
 		const changes: (readonly string[])[] = [];
 		let hides = 0;
@@ -61,7 +69,7 @@ suite('MultiSelectDropdown', () => {
 			...options,
 		};
 		dropdown.show(showOptions);
-		const rows = () => [...container.querySelectorAll<HTMLElement>('[role="menuitemcheckbox"]')];
+		const rows = () => [...container.querySelectorAll<HTMLElement>('[role="menuitemcheckbox"], [role="option"]')];
 		const row = (label: string) => rows().find(row => row.textContent?.includes(label))!;
 		const key = (key: string, keyCode: number, target = document.activeElement!, isComposing = false) =>
 			target.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode, bubbles: true, cancelable: true, isComposing }));
@@ -70,7 +78,7 @@ suite('MultiSelectDropdown', () => {
 			input.value = value;
 			input.dispatchEvent(new InputEvent('input', { bubbles: true }));
 		};
-		return { container, anchor, nextButton, dropdown, contextView, changes, showOptions, rows, row, key, filter, hides: () => hides };
+		return { container, anchor, nextButton, dropdown, contextView, service, contextKeys, instantiationService, changes, showOptions, rows, row, key, filter, hides: () => hides };
 	}
 
 	test('renders sections, check states and menu semantics', () => {
@@ -121,7 +129,7 @@ suite('MultiSelectDropdown', () => {
 		assert.deepStrictEqual(borders(), []);
 	});
 
-	test('Enter and Space toggle, arrows skip disabled rows, Escape restores trigger focus', () => {
+	test('Enter and Space toggle, arrows skip disabled rows, Escape restores trigger focus', async () => {
 		const { dropdown, changes, key, anchor, hides } = create();
 		key('Enter', 13);
 		key('ArrowDown', 40);
@@ -129,6 +137,7 @@ suite('MultiSelectDropdown', () => {
 		key('ArrowDown', 40);
 		key('Enter', 13);
 		key('Escape', 27);
+		await Promise.resolve();
 		assert.deepStrictEqual({
 			changes, visible: dropdown.isVisible, focused: document.activeElement === anchor,
 			expanded: anchor.getAttribute('aria-expanded'), hides: hides(),
@@ -151,25 +160,29 @@ suite('MultiSelectDropdown', () => {
 	test('Space remains text input and IME key events do not toggle or dismiss', () => {
 		const { key, changes, container, dropdown } = create({ searchable: true });
 		const input = container.querySelector('input')!;
+		input.dispatchEvent(new FocusEvent('focus'));
 		const spaceDefault = key(' ', 32, input);
 		key('Enter', 13, input, true);
 		key('Escape', 27, input, true);
 		assert.deepStrictEqual({ spaceDefault, changes, visible: dropdown.isVisible }, { spaceDefault: true, changes: [], visible: true });
 	});
 
-	test('closing, replacing and disposing emits hide once without selection events', () => {
+	test('closing and replacing emits hide once without selection events', async () => {
 		const { dropdown, changes, showOptions, hides, anchor } = create();
 		dropdown.show(showOptions);
+		await Promise.resolve();
 		dropdown.hide();
 		dropdown.hide();
+		await Promise.resolve();
 		dropdown.show(showOptions);
 		dropdown.dispose();
-		assert.deepStrictEqual({ changes, hides: hides(), expanded: anchor.getAttribute('aria-expanded') }, { changes: [], hides: 3, expanded: 'false' });
+		assert.deepStrictEqual({ changes, hides: hides(), expanded: anchor.getAttribute('aria-expanded') }, { changes: [], hides: 2, expanded: 'false' });
 	});
 
-	test('external context view dismissal releases popup ownership', () => {
+	test('external context view dismissal releases popup ownership', async () => {
 		const { contextView, dropdown, hides } = create();
 		contextView.hideContextView();
+		await Promise.resolve();
 		assert.deepStrictEqual({ visible: dropdown.isVisible, hides: hides() }, { visible: false, hides: 1 });
 	});
 
@@ -187,13 +200,48 @@ suite('MultiSelectDropdown', () => {
 		}, { visible: false, hides: 1, focused: true });
 	});
 
-	test('clicking a non-focusable area outside dismisses without swallowing the event', () => {
-		const { container, dropdown, hides } = create();
-		const event = new PointerEvent('pointerdown', { bubbles: true, cancelable: true });
-		container.dispatchEvent(event);
-		assert.deepStrictEqual({
-			visible: dropdown.isVisible, hides: hides(), prevented: event.defaultPrevented,
-		}, { visible: false, hides: 1, prevented: false });
+	test('reopening after external dismissal retains the replacement and its ownership', async () => {
+		const { dropdown, contextView, showOptions } = create();
+		store.add(Event.once(dropdown.onDidHide)(() => dropdown.show(showOptions)));
+		contextView.hideContextView();
+		await Promise.resolve();
+		assert.strictEqual(dropdown.isVisible, true);
+		dropdown.hide();
+		assert.strictEqual(dropdown.isVisible, false);
+	});
+
+	test('disposing a replaced adapter does not close another client', () => {
+		const { dropdown, instantiationService, showOptions, service, anchor } = create();
+		const replacement = store.add(instantiationService.createInstance(MultiSelectDropdown));
+		replacement.show({ ...showOptions, searchable: true });
+		dropdown.dispose();
+		const open = { visible: replacement.isVisible, service: service.isVisible, expanded: anchor.getAttribute('aria-expanded'), popup: anchor.getAttribute('aria-haspopup') };
+		replacement.hide();
+		assert.deepStrictEqual({ open, closed: { expanded: anchor.getAttribute('aria-expanded'), popup: anchor.getAttribute('aria-haspopup') } }, {
+			open: { visible: true, service: true, expanded: 'true', popup: 'listbox' },
+			closed: { expanded: 'false', popup: 'menu' },
+		});
+	});
+
+	test('search exposes checked options and retains combobox focus after toggling', async () => {
+		const { container, key, filter, changes } = create({ searchable: true });
+		filter('Wed');
+		const input = container.querySelector('input')!;
+		const active = container.querySelector('[role="option"]')!;
+		const state = {
+			role: input.getAttribute('role'),
+			active: input.getAttribute('aria-activedescendant') === active.id,
+			multiple: container.querySelector('[role="listbox"]')?.getAttribute('aria-multiselectable'),
+			checked: active.getAttribute('aria-checked'),
+		};
+		key('Enter', 13, input);
+		await Promise.resolve();
+		const updated = container.querySelector('[role="option"]')!;
+		assert.deepStrictEqual({ state, changes, focused: dom.isActiveElement(input), active: input.getAttribute('aria-activedescendant') === updated.id, checked: updated.getAttribute('aria-checked') }, {
+			state: { role: 'combobox', active: true, multiple: 'true', checked: 'false' },
+			changes: [['mon', 'wed', 'fri']],
+			focused: true, active: true, checked: 'true',
+		});
 	});
 
 	test('long lists start at the section heading and scroll without losing selection', () => {

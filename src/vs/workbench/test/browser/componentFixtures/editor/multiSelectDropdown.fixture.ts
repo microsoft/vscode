@@ -8,6 +8,9 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { Event } from '../../../../../base/common/event.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IMultiSelectDropdownSection, MultiSelectDropdown } from '../../../../../platform/actionWidget/browser/multiSelectDropdown.js';
+import { ActionWidgetService, IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
+import { registerActionWidgetTestKeybindings } from '../../../../../platform/actionWidget/test/browser/actionWidgetTestUtils.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ContextViewService } from '../../../../../platform/contextview/browser/contextViewService.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
@@ -35,8 +38,10 @@ async function render(context: ComponentFixtureContext): Promise<void> {
 				override getContainer(): HTMLElement { return container; }
 			}());
 			registration.define(IContextViewService, ContextViewService);
+			registration.define(IActionWidgetService, ActionWidgetService);
 		},
 	});
+	disposableStore.add(registerActionWidgetTestKeybindings(container, instantiationService.get(IContextKeyService), instantiationService));
 	const button = disposableStore.add(new Button(container, { ...defaultButtonStyles, secondary: true }));
 	button.element.style.width = '280px';
 	button.element.setAttribute('aria-haspopup', 'menu');
