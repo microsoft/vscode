@@ -273,6 +273,11 @@ export class FindModel extends Disposable {
 
 	private async revealCellRange(cellIndex: number, matchIndex: number, outputOffset: number | null) {
 		const findMatch = this._findMatches[cellIndex];
+		// _findMatches can be replaced between cellIndex computation and this
+		// async execution (e.g. via research() triggered by onDidChangeContent).
+		if (!findMatch) {
+			return;
+		}
 		if (matchIndex >= findMatch.contentMatches.length) {
 			// reveal output range
 			this._notebookEditor.focusElement(findMatch.cell);
