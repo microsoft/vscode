@@ -16,6 +16,7 @@ import type { InitializeResult } from '../../../../../platform/agentHost/common/
 import { AhpErrorCodes, ProtocolError } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -43,6 +44,10 @@ suite('CopilotCliSessionLinkOpener', () => {
 		readonly harnessDefault?: boolean;
 		readonly importSupported?: boolean;
 		readonly importError?: Error;
+		/** Whether another process holds the session until the user takes it over. */
+		readonly inUse?: boolean;
+		/** The user's answer when asked to take over a session another process holds. */
+		readonly takeOver?: boolean;
 		readonly aiHidden?: boolean;
 	}
 
@@ -50,6 +55,7 @@ suite('CopilotCliSessionLinkOpener', () => {
 		const imported: string[] = [];
 		const opened: { resource: string; inChatView: boolean }[] = [];
 		const errors: string[] = [];
+		let takeOverPrompts = 0;
 
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
@@ -64,8 +70,11 @@ suite('CopilotCliSessionLinkOpener', () => {
 		instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({
 			ambientConnection: upcastPartial<IAgentConnection>({
 				initializeResult: constObservable(upcastPartial<InitializeResult>({ _meta: { [AgentHostSessionImportCapabilityMetaKey]: options.importSupported ?? true } })),
-				importSession: async session => {
-					imported.push(session.toString());
+				importSession: async (session, importOptions) => {
+					imported.push(`${session.toString()}${importOptions?.takeOver ? ' takeOver' : ''}`);
+					if (options.inUse && !importOptions?.takeOver) {
+						throw new ProtocolError(AhpErrorCodes.Conflict, 'In use');
+					}
 					if (options.importError) {
 						throw options.importError;
 					}
@@ -90,10 +99,16 @@ suite('CopilotCliSessionLinkOpener', () => {
 		instantiationService.stub(INotificationService, upcastPartial<INotificationService>({
 			error: message => { errors.push(String(message)); },
 		}));
+		instantiationService.stub(IDialogService, upcastPartial<IDialogService>({
+			confirm: async () => {
+				takeOverPrompts++;
+				return { confirmed: options.takeOver ?? false };
+			},
+		}));
 
 		await instantiationService.createInstance(CopilotCliSessionLinkOpener).open(id);
 
-		return { imported, opened, errors: errors.length };
+		return { imported, opened, errors: errors.length, ...(takeOverPrompts ? { takeOverPrompts } : {}) };
 	}
 
 	test('imports the session into the Copilot harness when new chats default to it', async () => {
@@ -127,11 +142,27 @@ suite('CopilotCliSessionLinkOpener', () => {
 		});
 	});
 
-	test('reports a session the Copilot harness cannot take over instead of opening it elsewhere', async () => {
-		assert.deepStrictEqual(await open(sessionId, { providerAvailable: true, harnessAvailable: true, harnessDefault: true, importError: new ProtocolError(AhpErrorCodes.Conflict, 'In use') }), {
+	test('reports a session the Copilot harness cannot import instead of opening it elsewhere', async () => {
+		assert.deepStrictEqual(await open(sessionId, { providerAvailable: true, harnessAvailable: true, harnessDefault: true, importError: new ProtocolError(AhpErrorCodes.PermissionDenied, 'Denied') }), {
 			imported: [`copilotcli:/${sessionId}`],
 			opened: [],
 			errors: 1,
+		});
+	});
+
+	test('asks before taking over a session another process holds', async () => {
+		const harness = { providerAvailable: true, harnessAvailable: true, harnessDefault: true, inUse: true };
+		assert.deepStrictEqual({
+			takenOver: await open(sessionId, { ...harness, takeOver: true }),
+			declined: await open(sessionId, { ...harness, takeOver: false }),
+		}, {
+			takenOver: {
+				imported: [`copilotcli:/${sessionId}`, `copilotcli:/${sessionId} takeOver`],
+				opened: [{ resource: `frontend-copilotcli:/${sessionId}?ambient`, inChatView: true }],
+				errors: 0,
+				takeOverPrompts: 1,
+			},
+			declined: { imported: [`copilotcli:/${sessionId}`], opened: [], errors: 0, takeOverPrompts: 1 },
 		});
 	});
 

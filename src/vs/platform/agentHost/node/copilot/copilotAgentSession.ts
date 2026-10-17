@@ -4633,6 +4633,15 @@ export class CopilotAgentSession extends Disposable {
 		});
 	}
 
+	/** The model selection and custom agent the runtime runs this chat with. */
+	async readRuntimeSelection(): Promise<{ readonly model: Awaited<ReturnType<CopilotSession['rpc']['model']['getCurrent']>>; readonly agentName: string | undefined }> {
+		const [model, agent] = await Promise.all([
+			this._awaitControlPlaneRpc('session.model.getCurrent', this._wrapper.session.rpc.model.getCurrent()),
+			this._awaitControlPlaneRpc('rpc.agent.getCurrent', this._wrapper.session.rpc.agent.getCurrent()),
+		]);
+		return { model, agentName: agent.agent?.name };
+	}
+
 	setSessionApproveAll(enabled: boolean): Promise<void> {
 		return this._permissionModeSequencer.queue(async () => {
 			if (!this._wrapper || this._store.isDisposed) {

@@ -78,6 +78,7 @@ import {
 	IMcpNotification,
 	readAgentHostOTelPolicySettings,
 	type IAgentHostDebugLogsChunk,
+	type IAgentImportSessionOptions,
 } from '../common/agentService.js';
 import type { IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from '../common/state/agentSubscription.js';
@@ -499,8 +500,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._requireClient().stopBackgroundWork(chat, id);
 	}
 
-	importSession(session: URI): Promise<void> {
-		return this._requireClient().importSession(session);
+	importSession(session: URI, options?: IAgentImportSessionOptions): Promise<void> {
+		return this._requireClient().importSession(session, options);
 	}
 
 	moveSession(session: URI, destination: URI, after: URI | undefined): Promise<URI> {

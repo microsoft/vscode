@@ -186,6 +186,23 @@ export interface IAgentDiscoveredChat extends IAgentListedChat {
 	readonly external: boolean;
 }
 
+/** Options for {@link IAgent.importChat}. */
+export interface IAgentImportChatOptions {
+	/**
+	 * Import the chat even though another process holds it. In-use records are
+	 * best effort: one left behind by a process that exited abnormally would
+	 * otherwise block the chat for good.
+	 */
+	readonly takeOver?: boolean;
+}
+
+/** The selection an imported chat continues with, as its provider's runtime restored it. */
+export interface IAgentImportedChat {
+	readonly model: ModelSelection | undefined;
+	/** `undefined` when the chat runs without a custom agent, or with one this host does not offer. */
+	readonly agent: AgentSelection | undefined;
+}
+
 /** A fresh provider transcript for a chat being observed without running a host turn. */
 export interface IAgentChatHistoryChange {
 	readonly chat: URI;
@@ -1834,11 +1851,14 @@ export interface IAgent {
 
 	/**
 	 * Takes over a restored default chat that a client explicitly imports, before
-	 * the host adopts its session. Rejects when the chat cannot move to this host,
-	 * for example because another process is using it. A provider may also align
-	 * the chat's configuration with the state its runtime persisted for the chat.
+	 * the host adopts its session. Rejects when the chat cannot move to this host;
+	 * a chat that another process is using is rejected with `Conflict` unless
+	 * {@link IAgentImportChatOptions.takeOver} is set. A provider may also align
+	 * the chat's configuration with the state its runtime persisted for the chat,
+	 * and returns the model and agent the chat continues with so the host can
+	 * offer them for the next turn.
 	 */
-	importChat?(chat: URI, context: IAgentChatContext): Promise<void>;
+	importChat?(chat: URI, context: IAgentChatContext, options?: IAgentImportChatOptions): Promise<IAgentImportedChat | void>;
 
 	// ---- Legacy migration ---------------------------------------------------
 

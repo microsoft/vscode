@@ -42,7 +42,7 @@ import { chatCatalogV2ToCatalogChats } from '../../node/agentHostCatalogSourceRe
 import { getTelemetryMigrationSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { AgentChatMigrationDeferred, AgentSession, type AgentChatMigrationResult, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, resolveAgentChatOrigin, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent, fixedChatOwnerRef } from '../../common/agent.js';
+import { AgentChatMigrationDeferred, AgentSession, type AgentChatMigrationResult, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, resolveAgentChatOrigin, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentImportChatOptions, type IAgentImportedChat, type IAgentListedChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent, fixedChatOwnerRef } from '../../common/agent.js';
 import { AgentHostPrewarmSessionsSettingId, IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, platformRootSchema, platformSessionSchema, AgentHostDeferredTitleGenerationConfigKey, AgentHostTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostPrewarmSessionsConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostWorkspaceTrustConfigKey } from '../../common/agentHostSchema.js';
@@ -16083,6 +16083,7 @@ suite('AgentService (node dispatcher)', () => {
 			readonly discoverChatCalls: string[] = [];
 			readonly importChatCalls: string[] = [];
 			importChatError: Error | undefined;
+			importedSelection: IAgentImportedChat | undefined;
 
 			override async listExternalChats(): Promise<IAgentListedChat[]> {
 				return [];
@@ -16094,11 +16095,12 @@ suite('AgentService (node dispatcher)', () => {
 				return entry && { ...discoveredChat(session, true, entry.modifiedTime), ...(entry._meta ? { _meta: entry._meta } : {}) };
 			}
 
-			async importChat(chat: URI, context: IAgentChatContext): Promise<void> {
-				this.importChatCalls.push(`${context.owner.get().toString()} ${chat.toString()}`);
+			async importChat(chat: URI, context: IAgentChatContext, options?: IAgentImportChatOptions): Promise<IAgentImportedChat | void> {
+				this.importChatCalls.push(`${context.owner.get().toString()} ${chat.toString()}${options?.takeOver ? ' takeOver' : ''}`);
 				if (this.importChatError) {
 					throw this.importChatError;
 				}
+				return this.importedSelection;
 			}
 		}
 
@@ -16115,7 +16117,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('imports an external session that discovery has not registered', async () => {
 			const { svc, agent, session, database, chat } = await createImportableExternalSession();
 			const registeredBefore = await database.getSessionV2Registration(session.toString());
-			await svc.importSession(session);
+			await svc.importSession(session, { takeOver: true });
 			const registered = await database.getSessionV2Registration(session.toString());
 			assert.deepStrictEqual({
 				registeredBefore,
@@ -16127,9 +16129,27 @@ suite('AgentService (node dispatcher)', () => {
 				registeredBefore: undefined,
 				registered: { external: false, source: 'explicit' },
 				discoverChatCalls: [session.toString()],
-				importChatCalls: [`${session.toString()} ${chat}`],
+				importChatCalls: [`${session.toString()} ${chat} takeOver`],
 				listed: [session.toString()],
 			});
+		});
+
+		test('an imported chat offers the selection its runtime continues with as its draft', async () => {
+			const { svc, agent, session, chat } = await createImportableExternalSession();
+			agent.importedSelection = {
+				model: { id: 'cli-model', config: { thinkingLevel: 'high' } },
+				agent: { uri: 'file:///agents/reviewer.agent.md' },
+			};
+			await svc.importSession(session);
+			const expected = {
+				text: '', origin: { kind: MessageKind.User },
+				model: { id: 'cli-model', config: { thinkingLevel: 'high' } },
+				agent: { uri: 'file:///agents/reviewer.agent.md' },
+			};
+			assert.deepStrictEqual({
+				live: getStateManager(svc).getChatState(chat)?.draft,
+				stored: await (svc as unknown as { _getChatDraft(session: URI, chat: URI): Promise<unknown> })._getChatDraft(session, URI.parse(chat)),
+			}, { live: expected, stored: expected });
 		});
 
 		test('a provider that refuses an import leaves the session external', async () => {

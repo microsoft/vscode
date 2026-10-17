@@ -153,7 +153,7 @@ export const stopBackgroundWorkParamsValidator = vObj({
 	id: vString(),
 });
 
-export const importSessionParamsValidator = vObj({ session: vString() });
+export const importSessionParamsValidator = vObj({ session: vString(), takeOver: vOptionalProp(vBoolean()) });
 
 class StringOrNullValidator extends ValidatorBase<string | null> {
 	validate(content: unknown): { content: string | null; error: undefined } | { content: undefined; error: ValidationError } {

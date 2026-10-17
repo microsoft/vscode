@@ -1052,6 +1052,7 @@ interface IFakeAgentSession {
 	send: (prompt: string, attachments?: unknown, turnId?: string, announcement?: string) => Promise<void>;
 	getMessages: () => Promise<readonly Turn[]>;
 	adoptRuntimeModes?: () => Promise<void>;
+	readRuntimeSelection?: () => Promise<{ readonly model: { readonly modelId?: string; readonly reasoningEffort?: string; readonly contextTier?: string; readonly autoTier?: string }; readonly agentName: string | undefined }>;
 	dispose: () => void;
 }
 
@@ -1445,6 +1446,7 @@ class TestableCopilotAgent extends CopilotAgent {
 			send: fake.send,
 			getMessages: fake.getMessages,
 			adoptRuntimeModes: async () => fake.adoptRuntimeModes?.(),
+			readRuntimeSelection: async () => fake.readRuntimeSelection?.() ?? { model: {}, agentName: undefined },
 			appliedSnapshot: undefined,
 			extensionLaunchDirectories: [],
 			setExtensionLaunchAdmission: (admission: IDisposable) => { extensionLaunchAdmission = admission; },
@@ -26098,7 +26100,7 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		function createImportedChat(inUse: boolean) {
+		function createImportedChat(inUse: boolean, runtimeSelection?: Awaited<ReturnType<NonNullable<IFakeAgentSession['readRuntimeSelection']>>>) {
 			const sessionId = 'cli-import';
 			const session = AgentSession.uri('copilotcli', sessionId);
 			const chat = defaultChatUri(session);
@@ -26108,36 +26110,63 @@ suite('CopilotAgent', () => {
 			}
 			const agent = createTestAgent(disposables, { copilotClient: client }) as TestableCopilotAgent;
 			const adoptions: string[] = [];
-			agent.registerFakeSession(sessionId, { send: async () => { }, getMessages: async () => [], adoptRuntimeModes: async () => { adoptions.push(sessionId); }, dispose: () => { } });
+			agent.registerFakeSession(sessionId, {
+				send: async () => { }, getMessages: async () => [], dispose: () => { },
+				adoptRuntimeModes: async () => { adoptions.push(sessionId); },
+				readRuntimeSelection: async () => runtimeSelection ?? { model: {}, agentName: undefined },
+			});
 			return { agent, client, chat, context: exactChatContext(session, chat, session), adoptions };
 		}
 
-		test('importing a chat resumes it and adopts the modes its runtime restored', async () => {
-			const { agent, client, chat, context, adoptions } = createImportedChat(false);
+		test('importing a chat resumes it, adopts the modes its runtime restored and returns the selection it continues with', async () => {
+			const { agent, client, chat, context, adoptions } = createImportedChat(false, {
+				model: { modelId: 'claude-sonnet-5', reasoningEffort: 'high', contextTier: 'long_context' },
+				agentName: 'vscode-ask',
+			});
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
 				await agent.materializeChat(chat, context, undefined);
-				await agent.importChat(chat, context);
-				assert.deepStrictEqual({ checkInUse: client.checkInUseRequests, resumes: agent.resumeCalls, adoptions }, {
+				const imported = await agent.importChat(chat, context);
+				assert.deepStrictEqual({ checkInUse: client.checkInUseRequests, resumes: agent.resumeCalls, adoptions, imported }, {
 					checkInUse: [['cli-import']],
 					resumes: ['cli-import'],
 					adoptions: ['cli-import'],
+					// The model offers no context-size picker here, so the runtime's tier is left alone.
+					imported: {
+						model: { id: 'claude-sonnet-5', config: { thinkingLevel: 'high' } },
+						agent: { uri: 'copilot-builtin:/agents/ask.agent.md' },
+					},
 				});
 			} finally {
 				await disposeAgent(agent);
 			}
 		});
 
-		test('importing a chat that another process is using fails before resuming it', async () => {
+		test('importing a chat with a custom agent this host does not offer continues without one', async () => {
+			const { agent, chat, context } = createImportedChat(false, { model: { modelId: 'auto', autoTier: 'balance' }, agentName: 'cli-only-agent' });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.materializeChat(chat, context, undefined);
+				assert.deepStrictEqual(await agent.importChat(chat, context), {
+					model: { id: 'auto', config: { tier: 'balance' } },
+					agent: undefined,
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('importing a chat that another process is using fails before resuming it unless the client takes it over', async () => {
 			const { agent, client, chat, context, adoptions } = createImportedChat(true);
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
 				await agent.materializeChat(chat, context, undefined);
 				await assert.rejects(() => agent.importChat(chat, context), { code: AhpErrorCodes.Conflict });
-				assert.deepStrictEqual({ checkInUse: client.checkInUseRequests, resumes: agent.resumeCalls, adoptions }, {
-					checkInUse: [['cli-import']],
-					resumes: [],
-					adoptions: [],
+				const refused = { checkInUse: [...client.checkInUseRequests], resumes: [...agent.resumeCalls], adoptions: [...adoptions] };
+				await agent.importChat(chat, context, { takeOver: true });
+				assert.deepStrictEqual({ refused, takenOver: { resumes: agent.resumeCalls, adoptions } }, {
+					refused: { checkInUse: [['cli-import']], resumes: [], adoptions: [] },
+					takenOver: { resumes: ['cli-import'], adoptions: ['cli-import'] },
 				});
 			} finally {
 				await disposeAgent(agent);
