@@ -12,6 +12,7 @@ import { URI } from '../../../../base/common/uri.js';
 import type { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
@@ -2274,7 +2275,8 @@ suite('SSHRemoteAgentHostService lifecycle (renderer)', () => {
 		});
 	});
 
-	test('releases a late replacement relay after the protocol client is disposed', async () => {
+	test('releases a late replacement relay after the protocol client is disposed', () => runWithFakedTimers({}, async () => {
+		// The relay reconnects after the default real-time backoff; advance it in virtual time.
 		const initial = await mainService.connect(config);
 		const replacement = new DeferredPromise<{ connectionId: string }>();
 		const replacementStarted = new DeferredPromise<void>();
@@ -2293,9 +2295,10 @@ suite('SSHRemoteAgentHostService lifecycle (renderer)', () => {
 		await lateRelease;
 
 		assert.deepStrictEqual(mainService.releaseRelayCalls, [initial.connectionId, 'late-relay']);
-	});
+	}));
 
-	test('two renderer services keep independent protocol leases through recovery and disposal', async () => {
+	test('two renderer services keep independent protocol leases through recovery and disposal', () => runWithFakedTimers({}, async () => {
+		// The relay reconnects after the default real-time backoff; advance it in virtual time.
 		const firstRenderer = createIsolatedRenderer();
 		const secondRenderer = createIsolatedRenderer();
 
@@ -2329,7 +2332,7 @@ suite('SSHRemoteAgentHostService lifecycle (renderer)', () => {
 			releasedRelays: ['ssh:remote.example:3'],
 			secondConnected: true,
 		});
-	});
+	}));
 
 	test('config-less persisted recovery acquires an independent relay lease', async () => {
 		const directConfig = { ...config, sshConfigHost: undefined };
