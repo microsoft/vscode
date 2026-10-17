@@ -341,7 +341,7 @@ class InsertFinalNewLineParticipant extends NotebookSaveParticipant {
 	}
 }
 
-class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipant {
+export class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipant {
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
@@ -395,13 +395,19 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 			const nbDisposable = new DisposableStore();
 			progress.report({ message: localize('notebookSaveParticipants.notebookCodeActions', "Running 'Notebook' code actions") });
 			try {
-				const cell = notebookModel.cells[0];
-				const ref = await this.textModelService.createModelReference(cell.uri);
-				nbDisposable.add(ref);
+				// Notebook-scope actions are provided per cell but apply to the whole notebook, so
+				// ask the cells in order and stop once an action has been applied from one of them.
+				for (const cell of notebookModel.cells) {
+					const ref = await this.textModelService.createModelReference(cell.uri);
+					nbDisposable.add(ref);
 
-				const textEditorModel = ref.object.textEditorModel;
+					const textEditorModel = ref.object.textEditorModel;
 
-				await this.instantiationService.invokeFunction(CodeActionParticipantUtils.applyOnSaveGenericCodeActions, textEditorModel, notebookCodeActionsOnSave, excludedActions, progress, token);
+					const applied = await this.instantiationService.invokeFunction(CodeActionParticipantUtils.applyOnSaveGenericCodeActions, textEditorModel, notebookCodeActionsOnSave, excludedActions, progress, token);
+					if (applied) {
+						break;
+					}
+				}
 			} catch {
 				this.logService.error('Failed to apply notebook code action on save');
 			} finally {
@@ -497,11 +503,12 @@ export class CodeActionParticipantUtils {
 		codeActionsOnSave: readonly HierarchicalKind[],
 		excludes: readonly HierarchicalKind[],
 		progress: IProgress<IProgressStep>,
-		token: CancellationToken): Promise<void> {
+		token: CancellationToken): Promise<boolean> {
 
 		const instantiationService: IInstantiationService = accessor.get(IInstantiationService);
 		const languageFeaturesService: ILanguageFeaturesService = accessor.get(ILanguageFeaturesService);
 		const logService: ILogService = accessor.get(ILogService);
+		let applied = false;
 
 		const getActionProgress = new class implements IProgress<CodeActionProvider> {
 			private _names = new Set<string>();
@@ -527,7 +534,7 @@ export class CodeActionParticipantUtils {
 			const actionsToRun = await CodeActionParticipantUtils.getActionsToRun(model, codeActionKind, excludes, languageFeaturesService, getActionProgress, token);
 			if (token.isCancellationRequested) {
 				actionsToRun.dispose();
-				return;
+				return applied;
 			}
 
 			try {
@@ -552,8 +559,9 @@ export class CodeActionParticipantUtils {
 					}
 					progress.report({ message: localize('codeAction.apply', "Applying code action '{0}'.", action.action.title) });
 					await instantiationService.invokeFunction(applyCodeAction, action, ApplyCodeActionReason.OnSave, {}, token);
+					applied = true;
 					if (token.isCancellationRequested) {
-						return;
+						return applied;
 					}
 				}
 			} catch {
@@ -562,6 +570,7 @@ export class CodeActionParticipantUtils {
 				actionsToRun.dispose();
 			}
 		}
+		return applied;
 	}
 
 	static async applyOnSaveFormatCodeAction(
