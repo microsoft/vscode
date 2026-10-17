@@ -45,6 +45,14 @@ new RuleTester({ languageOptions: { parser: tseslint.parser } }).run('code-no-ne
 			errors: nested('it'),
 		},
 		{
+			code: `suite('a', () => { test('b', () => { test('c', sharedTest); }); });`,
+			errors: nested('test'),
+		},
+		{
+			code: `suite('a', () => { test('b', () => { suite('c', helpers.sharedSuite); }); });`,
+			errors: nested('suite'),
+		},
+		{
 			code: `suite('a', () => { test('b', () => { test.skip('c', () => {}); }); });`,
 			errors: nested('test'),
 		},

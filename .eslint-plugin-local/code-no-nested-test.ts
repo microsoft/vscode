@@ -68,10 +68,15 @@ export default new class NoNestedTest implements eslint.Rule.RuleModule {
 			return false;
 		}
 
+		/** An inline function, or a reference to one (`test('name', sharedTest)`). */
+		function isCallbackArgument(arg: ESTree.CallExpression['arguments'][number]): boolean {
+			return arg.type === 'ArrowFunctionExpression' || arg.type === 'FunctionExpression' || arg.type === 'Identifier' || arg.type === 'MemberExpression';
+		}
+
 		return {
 			CallExpression: (node: ESTree.CallExpression) => {
 				const name = getTestApiName(node);
-				if (name && node.arguments.some(arg => arg.type === 'ArrowFunctionExpression' || arg.type === 'FunctionExpression') && isInsideTestBody(node)) {
+				if (name && node.arguments.some(isCallbackArgument) && isInsideTestBody(node)) {
 					context.report({ node, messageId: 'nested', data: { name } });
 				}
 			}
