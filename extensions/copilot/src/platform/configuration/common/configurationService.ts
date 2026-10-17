@@ -115,8 +115,9 @@ export interface IConfigurationService {
 	/**
 	 * Proxies vscode.workspace.getConfiguration to allow getting a configuration value that is not in the Copilot namespace.
 	 * @param configKey The config key to look up
+	 * @param scope Optional scope (e.g. a resource and language id) to resolve resource or language specific values
 	 */
-	getNonExtensionConfig<T>(configKey: string): T | undefined;
+	getNonExtensionConfig<T>(configKey: string, scope?: ConfigurationScope): T | undefined;
 
 	/**
 	 * Sets user configuration for a key in vscode.
@@ -279,7 +280,7 @@ export abstract class AbstractConfigurationService extends Disposable implements
 
 	abstract getConfig<T>(key: Config<T>, scope?: ConfigurationScope): T;
 	abstract inspectConfig<T>(key: BaseConfig<T>, scope?: ConfigurationScope): InspectConfigResult<T> | undefined;
-	abstract getNonExtensionConfig<T>(configKey: string): T | undefined;
+	abstract getNonExtensionConfig<T>(configKey: string, scope?: ConfigurationScope): T | undefined;
 	abstract setConfig<T>(key: BaseConfig<T>, value: T, target?: ConfigTarget): Thenable<void>;
 	abstract dumpConfig(): { [key: string]: string };
 

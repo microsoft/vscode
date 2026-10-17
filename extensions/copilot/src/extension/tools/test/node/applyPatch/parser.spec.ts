@@ -632,3 +632,93 @@ suite('applyPatch parser', () => {
 		});
 	});
 });
+
+suite('applyPatch parser indentation defaults', () => {
+	const flatJson = '{\n"name": "app"\n}';
+	const patch = [
+		'*** Begin Patch',
+		'*** Update File: config.json',
+		'@@',
+		' {',
+		'-"name": "app"',
+		'+  "name": "app",',
+		'+  "settings": {',
+		'+    "enabled": true',
+		'+  }',
+		' }',
+		'*** End Patch',
+	].join('\n');
+
+	function apply(content: string, getIndentationDefaults?: Parameters<typeof text_to_patch>[2]) {
+		const docs = { 'config.json': new StringTextDocumentWithLanguageId(content, 'json') };
+		const [parsed] = text_to_patch(patch, docs, getIndentationDefaults);
+		return patch_to_commit(parsed, docs).changes['config.json'].newContent;
+	}
+
+	it('falls back to tabs for files without indentation when no defaults are provided', () => {
+		expect(apply(flatJson)).toBe('{\n\t"name": "app",\n\t"settings": {\n\t\t"enabled": true\n\t}\n}');
+	});
+
+	it('keeps spaces for files without indentation when the defaults use spaces', () => {
+		expect(apply(flatJson, () => ({ insertSpaces: true, tabSize: 2 }))).toBe('{\n  "name": "app",\n  "settings": {\n    "enabled": true\n  }\n}');
+	});
+
+	it('uses the indentation width from the defaults', () => {
+		expect(apply(flatJson, () => ({ insertSpaces: true, tabSize: 4 }))).toBe('{\n    "name": "app",\n    "settings": {\n        "enabled": true\n    }\n}');
+	});
+
+	it('passes the patched path and document to the defaults provider', () => {
+		const calls: [string, string][] = [];
+		apply(flatJson, (path, doc) => {
+			calls.push([path, doc.languageId]);
+			return { insertSpaces: true, tabSize: 2 };
+		});
+		expect(calls).toEqual([['config.json', 'json']]);
+	});
+
+	it('prefers the indentation detected from the file content over the defaults', () => {
+		const tabIndented = '{\n\t"name": "app",\n\t"other": {\n\t\t"a": 1\n\t}\n}';
+		const tabPatch = [
+			'*** Begin Patch',
+			'*** Update File: config.json',
+			'@@',
+			'   "name": "app",',
+			'+  "settings": {',
+			'+    "enabled": true',
+			'+  },',
+			'   "other": {',
+			'*** End Patch',
+		].join('\n');
+		const docs = { 'config.json': new StringTextDocumentWithLanguageId(tabIndented, 'json') };
+		const [parsed] = text_to_patch(tabPatch, docs, () => ({ insertSpaces: true, tabSize: 2 }));
+		expect(patch_to_commit(parsed, docs).changes['config.json'].newContent).toBe('{\n\t"name": "app",\n\t"settings": {\n\t\t"enabled": true\n\t},\n\t"other": {\n\t\t"a": 1\n\t}\n}');
+	});
+
+	it('resolves the defaults per file in a multi-file patch', () => {
+		const multiPatch = [
+			'*** Begin Patch',
+			'*** Update File: config.yaml',
+			'@@',
+			' name: app',
+			'+settings:',
+			'+  enabled: true',
+			'*** Update File: main.ts',
+			'@@',
+			' const a = 1;',
+			'+if (a) {',
+			'+  run();',
+			'+}',
+			'*** End Patch',
+		].join('\n');
+		const docs = {
+			'config.yaml': new StringTextDocumentWithLanguageId('name: app', 'yaml'),
+			'main.ts': new StringTextDocumentWithLanguageId('const a = 1;', 'typescript'),
+		};
+		const [parsed] = text_to_patch(multiPatch, docs, (_path, doc) => doc.languageId === 'yaml'
+			? { insertSpaces: true, tabSize: 2 }
+			: { insertSpaces: false, tabSize: 4 });
+		const changes = patch_to_commit(parsed, docs).changes;
+		expect(changes['config.yaml'].newContent).toBe('name: app\nsettings:\n  enabled: true');
+		expect(changes['main.ts'].newContent).toBe('const a = 1;\nif (a) {\n\trun();\n}');
+	});
+});
