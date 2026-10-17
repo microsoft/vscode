@@ -176,4 +176,23 @@ describe('getDiagnostics tool', () => {
 
 		expect(result[0].diagnostics[0].code).toBe(2304);
 	});
+
+	it('should handle a null code in diagnostics without crashing', async () => {
+		const mockDiag = {
+			message: 'Null code error',
+			severity: 0,
+			range: {
+				start: { line: 0, character: 0 },
+				end: { line: 0, character: 5 },
+			},
+			source: 'ts',
+			code: null,
+		};
+		mockGetDiagnostics.mockReturnValue([mockDiag]);
+
+		const handler = server.getToolHandler('get_diagnostics')!;
+		const result = parseToolResult<DiagnosticsFileResult[]>(await handler({ uri: 'file:///test.ts' }));
+
+		expect(result[0].diagnostics[0].code).toBeNull();
+	});
 });
