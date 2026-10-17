@@ -33645,10 +33645,9 @@ suite('AgentService (node dispatcher)', () => {
 				const stateManager = getStateManager(service);
 				const internals = service as unknown as IMoveInternals & {
 					_workspaceConversionService: { restoreChatIsolation(session: string, chat: string, storage: string): Promise<void> };
-					_catalogReconciliationService: { _park(registered: Pick<IRegisteredSession, 'session' | 'provider'>, observedDirty: number | undefined, observedWakeGeneration: number, reason: 'sourceUnresolvable'): Promise<unknown>; readonly _wakeGeneration: number; wakeParkedSessions(session?: string): void };
+					_catalogReconciliationService: { _park(registered: Pick<IRegisteredSession, 'session' | 'provider'>, observedDirty: number | undefined, observedWakeGeneration: number, reason: 'sourceUnresolvable'): Promise<{ readonly reason: string }>; readonly _wakeGeneration: number; wakeParkedSessions(session?: string): void };
 					_sessionStateStore: { peek(session: URI): { readonly authority: 1 | 2 } | undefined };
 					_sessionDataService: ISessionDataService;
-					_queueCatalogSync(session: URI, metadataOverrides: Readonly<Record<string, string>>): void;
 				};
 				const movable = () => stateManager.getSessionState(source.toString())?.chats.find(chat => chat.resource === peer.toString())?.movable ?? false;
 				const settled = async () => {
@@ -33679,21 +33678,21 @@ suite('AgentService (node dispatcher)', () => {
 				// The catalog reconciliation reports a session it parked, and its release; a parked session's legacy catalog can't convert.
 				const peek = internals._sessionStateStore.peek.bind(internals._sessionStateStore);
 				internals._sessionStateStore.peek = resource => resource.toString() === source.toString() ? { ...peek(resource)!, authority: 1 } : peek(resource);
-				// Each movability change above updates the session's summary, whose debounced flush queues a background catalog
-				// write of the session: it bumps the session's payload dirty marker, so `_park` declines as superseded, and a write
-				// left pending wakes the session again. None are queued from now on, and those in flight finish before it parks.
-				internals._queueCatalogSync = () => { };
+				// The movability changes above left the session's summary dirty. Its debounced (100 ms) flush queues a catalog write
+				// of the session, which bumps the session's payload dirty marker (so `_park` declines as superseded) and, when it
+				// stays pending, wakes the session. Flush the summary now, as a listing does, and let that write finish first.
+				stateManager.prepareSessionSummariesForListing([stateManager.getSessionSummary(source.toString())!]);
 				await service.whenCatalogReconciliationIdle();
-				await internals._catalogReconciliationService._park({ session: source, provider: 'copilot' }, await getTestAgentHostDatabase(service).getSessionV2PayloadDirty(source.toString()), internals._catalogReconciliationService._wakeGeneration, 'sourceUnresolvable');
+				const { reason } = await internals._catalogReconciliationService._park({ session: source, provider: 'copilot' }, await getTestAgentHostDatabase(service).getSessionV2PayloadDirty(source.toString()), internals._catalogReconciliationService._wakeGeneration, 'sourceUnresolvable');
 				const parked = await settled();
 				internals._catalogReconciliationService.wakeParkedSessions(source.toString());
-				outcomes.parked = { parked, released: await settled() };
+				outcomes.parked = { reason, parked, released: await settled() };
 
 				assert.deepStrictEqual(outcomes, {
 					// A refused move still says why, not just that the chat isn't movable.
 					worktree: { inWorktree: false, worktreeRefusal: AgentChatMoveRefusal.WorktreeFolder, released: true },
 					conversion: { quarantined: false, released: true },
-					parked: { parked: false, released: true },
+					parked: { reason: 'sourceUnresolvable', parked: false, released: true },
 				});
 			});
 
