@@ -2402,4 +2402,77 @@ suite('FindModel', () => {
 		});
 	});
 
+	suite('editor.find.smartCase', () => {
+
+		test('does not affect search when disabled (default)', () => {
+			const textArr = ['Hello world', 'hello world'];
+			withTestCodeEditor(textArr, {}, (_editor) => {
+				const editor = _editor as IActiveCodeEditor;
+				const findState = disposables.add(new FindReplaceState());
+				findState.change({ searchString: 'Hello' }, false);
+				disposables.add(new FindModelBoundToEditorModel(editor, findState));
+
+				// matchCase is off and smartCase is off, so both lines match.
+				assert.strictEqual(findState.matchesCount, 2);
+			});
+		});
+
+		test('searches case-insensitively when the search string is all lowercase', () => {
+			const textArr = ['Hello world', 'hello world'];
+			withTestCodeEditor(textArr, { find: { smartCase: true } }, (_editor) => {
+				const editor = _editor as IActiveCodeEditor;
+				const findState = disposables.add(new FindReplaceState());
+				findState.change({ searchString: 'hello' }, false);
+				disposables.add(new FindModelBoundToEditorModel(editor, findState));
+
+				assert.strictEqual(findState.matchesCount, 2);
+			});
+		});
+
+		test('searches case-sensitively when the search string contains an uppercase character', () => {
+			const textArr = ['Hello world', 'hello world'];
+			withTestCodeEditor(textArr, { find: { smartCase: true } }, (_editor) => {
+				const editor = _editor as IActiveCodeEditor;
+				const findState = disposables.add(new FindReplaceState());
+				findState.change({ searchString: 'Hello' }, false);
+				disposables.add(new FindModelBoundToEditorModel(editor, findState));
+
+				assert.strictEqual(findState.matchesCount, 1);
+			});
+		});
+
+		test('does not override an explicit Match Case toggle', () => {
+			const textArr = ['Hello world', 'hello world'];
+			withTestCodeEditor(textArr, { find: { smartCase: true } }, (_editor) => {
+				const editor = _editor as IActiveCodeEditor;
+				const findState = disposables.add(new FindReplaceState());
+				findState.change({ searchString: 'hello', matchCase: true }, false);
+				disposables.add(new FindModelBoundToEditorModel(editor, findState));
+
+				// Match Case is explicitly on, so the all-lowercase pattern still
+				// only matches the lowercase line, regardless of smart case.
+				assert.strictEqual(findState.matchesCount, 1);
+			});
+		});
+
+		test('ignores an uppercase character inside a regex escape sequence', () => {
+			const textArr = ['aUb', 'aub'];
+			withTestCodeEditor(textArr, { find: { smartCase: true } }, (_editor) => {
+				const editor = _editor as IActiveCodeEditor;
+				const findState = disposables.add(new FindReplaceState());
+				// `\U` is an (unnecessarily) escaped literal 'U', not a genuine
+				// uppercase character in the pattern's own casing, so it should be
+				// excluded from the smart case check, same as the escaped-character
+				// handling `search.smartCase` already relies on for regex patterns.
+				// If it were mistakenly counted, this would search case-sensitively
+				// and only match 'aUb'.
+				findState.change({ searchString: 'a\\Ub', isRegex: true }, false);
+				disposables.add(new FindModelBoundToEditorModel(editor, findState));
+
+				assert.strictEqual(findState.matchesCount, 2);
+			});
+		});
+
+	});
+
 });
