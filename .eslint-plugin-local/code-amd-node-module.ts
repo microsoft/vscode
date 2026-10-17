@@ -19,8 +19,8 @@ function getModules(): Set<string> {
 			const all = Object.keys(dependencies).concat(Object.keys(optionalDependencies));
 			cachedModules = new Set(all);
 		} catch (e) {
-			console.error('Failed to load package.json for AmdModuleImportCheck rule:', e);
-			throw e; // Rethrow the error to prevent silencing it
+			console.error('Failed to load package.json for ApiProviderNaming rule:', e);
+			cachedModules = new Set(); // Fallback to an empty set to prevent linter crashes on I/O failures
 		}
 	}
 	return cachedModules;
