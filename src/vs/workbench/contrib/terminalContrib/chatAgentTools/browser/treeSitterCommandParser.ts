@@ -37,6 +37,7 @@ export interface IAutoApprovalCommandParseResult {
  */
 const pwshFlagEqualsRegex = /(^|\s)(-{1,2}[\w-]+)=/g;
 const pwshStandaloneDoubleDashRegex = /(^|\s)--(?=\s|$)/g;
+const pwshTrailingDoubleDashRegex = /^(?:[ \t]+--(?=\s|$))+/;
 
 const envOptionsWithValue = new Set(['-u', '--unset', '-C', '--chdir', '-a', '--argv0']);
 
@@ -45,6 +46,11 @@ function maskPwshPosixNativeArgs(commandLine: string): string {
 	return commandLine
 		.replace(pwshFlagEqualsRegex, (_, pre, flag) => `${pre}${flag} `)
 		.replace(pwshStandaloneDoubleDashRegex, (_, pre) => `${pre}  `);
+}
+
+function getPwshOriginalCommandEnd(commandLine: string, end: number): number {
+	const trailing = pwshTrailingDoubleDashRegex.exec(commandLine.slice(end));
+	return end + (trailing?.[0].length ?? 0);
 }
 
 export class TreeSitterCommandParser extends Disposable {
@@ -68,7 +74,7 @@ export class TreeSitterCommandParser extends Disposable {
 				const captures = await this._queryTree(languageId, masked, '(command) @command');
 				// Masked command line has identical character positions, so slice the original
 				// to preserve the user-visible text (including the masked characters).
-				return captures.map(e => commandLine.substring(e.node.startIndex, e.node.endIndex));
+				return captures.map(e => commandLine.substring(e.node.startIndex, getPwshOriginalCommandEnd(commandLine, e.node.endIndex)));
 			}
 		}
 		const captures = await this._queryTree(languageId, commandLine, '(command) @command');
@@ -82,15 +88,26 @@ export class TreeSitterCommandParser extends Disposable {
 			: '(command) @command (variable_assignment) @unanalyzable (declaration_command) @unanalyzable';
 		const { captures, hasError } = await this._queryTreeWithParseStatus(languageId, masked, querySource);
 		const subCommands: string[] = [];
+		const commandSpans: { start: number; end: number }[] = [];
 		let hasUnanalyzableSyntax = false;
 		for (const capture of captures) {
 			if (capture.name === 'command') {
-				subCommands.push(masked === commandLine ? capture.node.text : commandLine.substring(capture.node.startIndex, capture.node.endIndex));
+				const end = masked === commandLine ? capture.node.endIndex : getPwshOriginalCommandEnd(commandLine, capture.node.endIndex);
+				subCommands.push(commandLine.substring(capture.node.startIndex, end));
+				commandSpans.push({ start: capture.node.startIndex, end });
 			} else if (capture.name === 'unanalyzable') {
 				// Prefix env assignments (`FOO=bar git status`) are children of the
 				// command node and are handled by the existing transient-env deny
 				// path; only standalone shell-state mutations fail closed here.
 				if (capture.node.type !== 'variable_assignment' || capture.node.parent?.type !== 'command') {
+					hasUnanalyzableSyntax = true;
+				}
+			}
+		}
+		if (masked !== commandLine) {
+			for (const match of commandLine.matchAll(pwshStandaloneDoubleDashRegex)) {
+				const start = match.index + match[1].length;
+				if (!commandSpans.some(span => span.start <= start && span.end >= start + 2)) {
 					hasUnanalyzableSyntax = true;
 				}
 			}
@@ -150,8 +167,9 @@ export class TreeSitterCommandParser extends Disposable {
 				].join('\n');
 				break;
 		}
-		const captures = await this._queryTree(languageId, commandLine, query);
-		return captures.map(e => e.node.text.trim());
+		const masked = languageId === TreeSitterCommandParserLanguage.PowerShell ? maskPwshPosixNativeArgs(commandLine) : commandLine;
+		const captures = await this._queryTree(languageId, masked, query);
+		return captures.map(e => commandLine.substring(e.node.startIndex, e.node.endIndex).trim());
 	}
 
 	/**

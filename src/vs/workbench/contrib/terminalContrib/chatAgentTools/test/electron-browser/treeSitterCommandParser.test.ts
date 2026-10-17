@@ -195,6 +195,8 @@ suite('TreeSitterCommandParser', () => {
 				test('standalone double dash following a variable expression', () => t('$val --', []));
 				test('standalone double dash preceding a variable expression', () => t('-- $val', []));
 				test('standalone double dash at the end of a native CLI command', () => t('git diff --', ['git diff --']));
+				test('multiple standalone double dashes at the end of a native CLI command', () => t('git diff -- -- ', ['git diff -- --']));
+				test('standalone double dash before a command separator', () => t('git diff -- ; Write-Output ok', ['git diff --', 'Write-Output ok']));
 				test('standalone double dash pathspec separator', () => t('git diff -- file.txt', ['git diff -- file.txt']));
 				test('standalone double dash command separator', () => t('npm exec -- tsc --noEmit --pretty false', ['npm exec -- tsc --noEmit --pretty false']));
 				test('multiple flag=value arguments', () => t('git log --format="%h" --date=short HEAD -1', ['git log --format="%h" --date=short HEAD -1']));
@@ -256,12 +258,20 @@ suite('TreeSitterCommandParser', () => {
 				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, 'git log --format="%h|%s" -5'),
 				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, 'git diff -- package.json pnpm-lock.yaml'),
 				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, 'npm exec -- tsc --noEmit --pretty false'),
+				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, 'git diff --'),
+				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, 'git status; --'),
+				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, '-- git status'),
+				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, 'git status; -- git diff'),
 			]), [
 				{ subCommands: ['git status'], hasUnanalyzableSyntax: true },
 				{ subCommands: ['git status'], hasUnanalyzableSyntax: true },
 				{ subCommands: ['git log --format="%h|%s" -5'], hasUnanalyzableSyntax: false },
 				{ subCommands: ['git diff -- package.json pnpm-lock.yaml'], hasUnanalyzableSyntax: false },
 				{ subCommands: ['npm exec -- tsc --noEmit --pretty false'], hasUnanalyzableSyntax: false },
+				{ subCommands: ['git diff --'], hasUnanalyzableSyntax: false },
+				{ subCommands: ['git status'], hasUnanalyzableSyntax: true },
+				{ subCommands: ['git status'], hasUnanalyzableSyntax: true },
+				{ subCommands: ['git status', 'git diff'], hasUnanalyzableSyntax: true },
 			]);
 		});
 
@@ -495,6 +505,7 @@ suite('TreeSitterCommandParser', () => {
 				deepStrictEqual(actualFiles, expectedFiles);
 			}
 
+			test('redirection after standalone double dash', () => t('git diff -- f.txt > $target', ['$target']));
 			test('simple output redirection', () => t('Write-Host "hello" > file.txt', ['file.txt']));
 			test('append redirection', () => t('Write-Host "hello" >> file.txt', ['file.txt']));
 			test('multiple redirections', () => t('Write-Host "hello" > file1.txt ; Write-Host "world" > file2.txt', ['file1.txt', 'file2.txt']));
