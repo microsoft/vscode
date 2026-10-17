@@ -1470,6 +1470,8 @@ suite('Sessions - Chat View', () => {
 		const widgetState: { input: string; attachments: IChatModelInputState['attachments']; scroll: number; model: IChatModel | undefined } = { input: '', attachments: [], scroll: 0, model: undefined };
 		const openOutcomes: string[] = [];
 		const widgetVisibility = { visible: true };
+		/** The chat each `setChat` consumer saw, and which transcript the widget still rendered at that moment. */
+		const sideChatBindings: { chat: string; renderedTranscript: string | undefined }[] = [];
 		const modelRef = disposables.add(new MutableDisposable<IChatModelReference>());
 		const loadCts = disposables.add(new MutableDisposable<CancellationTokenSource>());
 		const loadFailure = observableValue<{ resource: URI; status: IChatSessionHistoryStatus } | undefined>('loadFailure', undefined);
@@ -1494,7 +1496,7 @@ suite('Sessions - Chat View', () => {
 			isInputBlocked: observableValue('inputBlocked', false),
 			_interactiveDisposable: disposables.add(new MutableDisposable()),
 			_chatPills: { setChat: () => { } },
-			_selectionSideChatController: { setChat: () => { } },
+			_selectionSideChatController: { setChat: (chat: IChat) => sideChatBindings.push({ chat: chat.resource.toString(), renderedTranscript: widgetState.model?.sessionResource.toString() }) },
 			_banners: { setDebugData: () => { } },
 			_preparationModel: { value: undefined, clear: () => { } },
 			hasVisibleTranscriptContent: observableValue('transcript', false),
@@ -1571,7 +1573,7 @@ suite('Sessions - Chat View', () => {
 			await requests[index].error(error);
 			await completions[index];
 		};
-		return { view, createChat, complete, fail, compose, snapshot, historyKeys, disposedReferences, boundModels, openOutcomes, widgetVisibility, requests, completions, loadCts, loadFailure, loading, setInput: (input: string) => { widgetState.input = input; } };
+		return { view, createChat, complete, fail, compose, snapshot, historyKeys, disposedReferences, boundModels, openOutcomes, widgetVisibility, sideChatBindings, requests, completions, loadCts, loadFailure, loading, setInput: (input: string) => { widgetState.input = input; } };
 	}
 
 	/** Uses real content resolution and shared load coordination with in-memory models. */
@@ -1758,6 +1760,20 @@ suite('Sessions - Chat View', () => {
 				backInA: { input: 'draft-a', attachments: ['draft-a.md'], scroll: 120 },
 				historyKeys: ['key-a', 'key-b', 'key-a'],
 			});
+		});
+
+		test('releases the outgoing transcript before the next chat is reflected in the view', async () => {
+			const { view, createChat, complete, sideChatBindings } = createSwitchingView();
+
+			view.setChat(createChat(resourceA), 'key-a');
+			await complete(0, resourceA);
+			view.setChat(createChat(resourceB), 'key-b');
+
+			// Reading layout (e.g. the transcript selection) while A is still rendered would lay out A for nothing.
+			assert.deepStrictEqual(sideChatBindings, [
+				{ chat: resourceA.toString(), renderedTranscript: undefined },
+				{ chat: resourceB.toString(), renderedTranscript: undefined },
+			]);
 		});
 
 		suite('chat open diagnostics', () => {
@@ -4176,7 +4192,7 @@ suite('Sessions - Chat View', () => {
 		const onDidDisposeSession = disposables.add(new Emitter<{ readonly sessionResources: readonly URI[]; readonly reason: 'cleared' | 'disposed' }>());
 		const viewStore = disposables.add(new DisposableStore());
 		const view: {
-			_loadChat(resource: URI, session: ISession | undefined, options?: { previousChatResource?: URI }): void;
+			_loadChat(resource: URI, session: ISession | undefined): void;
 			_trackUnregisteredContentProvider(removedSessionTypes: readonly string[]): void;
 			_reloadChatForReplacedProvider(addedSessionTypes: readonly string[]): void;
 		} = Object.assign(Object.create(ChatView.prototype), {
