@@ -550,7 +550,7 @@ suite('CodexAgent model refresh', () => {
 			connection: ctx.agent['_connection'].kind,
 		}, {
 			requests: ['account/read', 'account/login/start', 'account/read', 'account/rateLimits/read', 'getAuthStatus'],
-			disposed: ['child', 'client', 'proxy'],
+			disposed: ['client', 'proxy', 'child'],
 			account: { status: 'signedIn', email: 'person@example.com', planType: 'plus', profileImage: undefined, requiresOpenaiAuth: true, observedAt: undefined, rateLimit: undefined, rateLimits: [], authUrl: undefined, authUrlNonce: undefined },
 			connection: 'idle',
 		});
@@ -1094,7 +1094,7 @@ suite('CodexAgent model refresh', () => {
 		await assert.rejects(agent['_ensureConnection'](), /replaced while starting/);
 
 		assert.strictEqual(agent['_connection'].kind, 'idle');
-		assert.deepStrictEqual(disposed, ['subscriptions', 'child', 'client', 'proxy']);
+		assert.deepStrictEqual(disposed, ['subscriptions', 'client', 'proxy', 'child']);
 	});
 
 	test('rejects an app-server that exited before persistent listeners were attached', async () => {
@@ -1119,7 +1119,7 @@ suite('CodexAgent model refresh', () => {
 
 		await assert.rejects(agent['_startConnection'](0, CancellationToken.None), /exited before persistent startup completed/);
 
-		assert.deepStrictEqual(disposed, ['child', 'client', 'proxy']);
+		assert.deepStrictEqual(disposed, ['client', 'proxy', 'child']);
 	});
 
 	test('drops a model catalog returned by a replaced app-server', async () => {
