@@ -102,6 +102,19 @@ function compareResourceThemableDecorations(a: vscode.SourceControlResourceThema
 	return comparePaths(aPath, bPath);
 }
 
+type SourceControlLineChanges = {
+	readonly insertions: number;
+	readonly deletions: number;
+};
+
+type SourceControlResourceDecorationsWithLineChanges = vscode.SourceControlResourceDecorations & {
+	readonly lineChanges?: SourceControlLineChanges;
+};
+
+function getLineChanges(decorations: vscode.SourceControlResourceDecorations | undefined): SourceControlLineChanges | undefined {
+	return (decorations as SourceControlResourceDecorationsWithLineChanges | undefined)?.lineChanges;
+}
+
 function compareResourceStatesDecorations(a: vscode.SourceControlResourceDecorations, b: vscode.SourceControlResourceDecorations): number {
 	let result = 0;
 
@@ -115,6 +128,17 @@ function compareResourceStatesDecorations(a: vscode.SourceControlResourceDecorat
 
 	if (a.tooltip !== b.tooltip) {
 		return (a.tooltip || '').localeCompare(b.tooltip || '');
+	}
+
+	const aLineChanges = getLineChanges(a);
+	const bLineChanges = getLineChanges(b);
+
+	if (aLineChanges?.insertions !== bLineChanges?.insertions) {
+		return (aLineChanges?.insertions ?? -1) - (bLineChanges?.insertions ?? -1);
+	}
+
+	if (aLineChanges?.deletions !== bLineChanges?.deletions) {
+		return (aLineChanges?.deletions ?? -1) - (bLineChanges?.deletions ?? -1);
 	}
 
 	result = compareResourceThemableDecorations(a, b);
@@ -503,9 +527,12 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 				const tooltip = (r.decorations && r.decorations.tooltip) || '';
 				const strikeThrough = r.decorations && !!r.decorations.strikeThrough;
 				const faded = r.decorations && !!r.decorations.faded;
+				const lineChanges = getLineChanges(r.decorations);
+				const insertions = lineChanges?.insertions;
+				const deletions = lineChanges?.deletions;
 				const contextValue = r.contextValue || '';
 
-				const rawResource = [handle, sourceUri, icons, tooltip, strikeThrough, faded, contextValue, command, multiFileDiffEditorOriginalUri, multiFileDiffEditorModifiedUri] as SCMRawResource;
+				const rawResource = [handle, sourceUri, icons, tooltip, strikeThrough, faded, contextValue, command, multiFileDiffEditorOriginalUri, multiFileDiffEditorModifiedUri, insertions, deletions] as SCMRawResource;
 
 				return { rawResource, handle };
 			});
