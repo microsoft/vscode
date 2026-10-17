@@ -831,6 +831,19 @@ export function makeUriConfirmationChecker(configuration: IConfigurationService,
 		}
 	}
 
+	const agentFilesPatterns: Record<string, boolean> = {};
+	for (const setting of ['chat.agentFilesLocations', 'chat.agentSkillsLocations']) {
+		const locations = configuration.getNonExtensionConfig<Record<string, boolean>>(setting);
+		for (const key of Object.keys(locations ?? {})) {
+			const pattern = key.trim();
+			if (pattern && !pattern.startsWith('~/')) {
+				const normalizedPattern = pattern.startsWith('**/') || pattern.startsWith('/') ? pattern : '**/' + pattern;
+				agentFilesPatterns[normalizedPattern] = false;
+				agentFilesPatterns[normalizedPattern.endsWith('/') ? normalizedPattern + '**' : normalizedPattern + '/**'] = false;
+			}
+		}
+	}
+
 	const checks = new ResourceMap<{ patterns: { pattern: glob.ParsedPattern; isApproved: boolean }[]; ignoreCasing: boolean }>();
 	const getPatterns = (wf: URI) => {
 		let arr = checks.get(wf);
@@ -840,10 +853,12 @@ export function makeUriConfirmationChecker(configuration: IConfigurationService,
 
 		const ignoreCasing = extUriBiasedIgnorePathCase.ignorePathCasing(wf);
 		arr = { patterns: [], ignoreCasing };
-		for (const obj of [patterns, ALWAYS_CHECKED_EDIT_PATTERNS, hookFilesPatterns]) {
+		for (const obj of [patterns, ALWAYS_CHECKED_EDIT_PATTERNS, hookFilesPatterns, agentFilesPatterns]) {
 			if (obj) {
 				for (const [pattern, isApproved] of Object.entries(obj)) {
-					arr.patterns.push({ pattern: glob.parse({ base: wf.fsPath, pattern: ignoreCasing ? pattern.toLowerCase() : pattern }), isApproved });
+					const normalizedPattern = ignoreCasing ? pattern.toLowerCase() : pattern;
+					const parsedPattern = glob.parse(obj === agentFilesPatterns && pattern.startsWith('/') ? normalizedPattern : { base: wf.fsPath, pattern: normalizedPattern });
+					arr.patterns.push({ pattern: parsedPattern, isApproved });
 				}
 			}
 		}
