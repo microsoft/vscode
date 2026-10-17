@@ -30,7 +30,7 @@ MIN_GLIBCXX_VERSION="3.4.25"
 
 # Extract the ID value from /etc/os-release
 if [ -f /etc/os-release ]; then
-    OS_ID="$(cat /etc/os-release | grep -Eo 'ID=([^"]+)' | sed -n '1s/ID=//p')"
+    OS_ID=$(. /etc/os-release 2>/dev/null && echo "$ID")
     if [ "$OS_ID" = "nixos" ]; then
         echo "Warning: NixOS detected, skipping GLIBC check"
         exit 0
