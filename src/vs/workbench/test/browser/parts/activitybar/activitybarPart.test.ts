@@ -140,6 +140,38 @@ suite('ActivitybarPart', () => {
 
 	// --- Static constants ---------------------------------------------------
 
+	test('shows a visible focus indicator on the selected activity bar item', () => {
+		const workbench = document.createElement('div');
+		workbench.className = 'monaco-workbench';
+		workbench.style.setProperty('--vscode-strokeThickness', '1px');
+		workbench.style.setProperty('--vscode-focusBorder', 'rgb(255, 0, 0)');
+		const activitybar = document.createElement('div');
+		activitybar.className = 'activitybar left';
+		const content = document.createElement('div');
+		content.className = 'content';
+		const compositeBar = document.createElement('div');
+		compositeBar.className = 'composite-bar';
+		const actionBar = document.createElement('div');
+		actionBar.className = 'monaco-action-bar';
+		const action = document.createElement('div');
+		action.className = 'action-item checked';
+		action.setAttribute('role', 'tab');
+		action.tabIndex = 0;
+		const label = document.createElement('div');
+		label.className = 'action-label codicon';
+
+		action.appendChild(label);
+		actionBar.appendChild(action);
+		compositeBar.appendChild(actionBar);
+		content.appendChild(compositeBar);
+		activitybar.appendChild(content);
+		workbench.appendChild(activitybar);
+		fixture.appendChild(workbench);
+		action.focus();
+
+		assert.strictEqual(mainWindow.getComputedStyle(label).outlineStyle, 'solid');
+	});
+
 	test('default constants match expected dimensions', () => {
 		assert.deepStrictEqual(
 			{
