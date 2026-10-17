@@ -68,7 +68,10 @@ itself so that adding `copilot` to `PATH` never depends on adding `code`, and
 the reverse.
 
 - The Windows installer ([`copilot.iss`](../build/win32/copilot.iss)) adds the
-  folder to `PATH`, and can install Copilot CLI with the setup commands.
+  folder to `PATH`, and can install Copilot CLI with the setup commands. The
+  folder also contains a POSIX `copilot` launcher, so that WSL, Git Bash, and
+  Cygwin shells get the command (see
+  [`copilot` in WSL, Git Bash, and Cygwin](#copilot-in-wsl-git-bash-and-cygwin)).
 - The Copilot extension computes the same path and adds the folder to the
   `PATH` of integrated terminals, unless `chat.copilotCliCommand.enabled` is
   off. It then removes `<globalStorageUri>/copilotCli`, where earlier versions
@@ -181,6 +184,48 @@ Uninstalling VS Code deletes `bin`, including the shim folder. A shim that a
 Copilot session is still running, and any `old_*` copies it holds, stay behind
 until they're deleted manually.
 
+### `copilot` in WSL, Git Bash, and Cygwin
+
+Windows builds also ship a POSIX `copilot` launcher,
+[`copilot.sh`](../resources/win32/bin/copilot.sh), next to `copilot.exe`, like
+`bin/code` next to `code.cmd`. Shells that use the Windows `PATH` find it
+through the shim folder's `PATH` entry. Windows shells ignore it, because they
+only run files with a `PATHEXT` extension, and the Windows shim never launches
+an extensionless `copilot`.
+
+- In WSL, detected through `WSL_DISTRO_NAME` or a Microsoft kernel release, the
+  launcher runs the Linux shim of the VS Code Server installed in the
+  distribution, as the `code` launcher uses the server for `code`. It prefers
+  the server for its own commit, in one of these layouts:
+  - Remote - WSL: `<server data>/bin/<commit>`;
+  - Remote - SSH: `<server data>/cli/servers/<Quality>-<commit>/server`; or
+  - the standalone code CLI, such as `code tunnel`:
+    `<cli data>/servers/<Quality>-<commit>/server`.
+
+  `<server data>` is `VSCODE_AGENT_FOLDER`, or else
+  `~/<serverDataFolderName>`. `<cli data>` is `VSCODE_CLI_DATA_DIR`, or else
+  `~/<dataFolderName>/cli`. Otherwise it runs the most recently built shim of
+  any installed server, including those in the `~/.vscode*` folders of other
+  qualities, because every shim version works the same way. It doesn't
+  download or install a server. Without one, it explains that opening a folder
+  from WSL in VS Code installs it, and exits with `127`.
+- Before running the shim, the launcher removes from `PATH` every folder whose
+  `copilot` is such a launcher, recognized by the `vscode-copilot-launcher`
+  marker in its first 512 bytes. It reads only those bytes, so a Copilot CLI
+  executable on `PATH` isn't read in full on every run. The shim's search for
+  Copilot CLI then finds neither this launcher nor that of another quality. A
+  shim started directly, such as by a Copilot terminal in a WSL window, can
+  still find a launcher on `PATH`. That launcher runs a shim with the cleaned
+  `PATH`, so this costs at most one extra hop.
+- In Git Bash and Cygwin, the launcher runs `copilot.exe` from its folder, which
+  is what those shells ran before.
+
+Setup publishes the launcher together with the shim. A shell reads the launcher
+only until it runs the shim, so setup replaces it in place. Setup removes it
+together with the shim when the `CopilotCliCommand` policy disables the
+command. As with `code`, WSL uses the Windows `PATH` from when the distribution
+started.
+
 ## Out of scope
 
 The implementation does not:
@@ -188,7 +233,8 @@ The implementation does not:
 - register a VS Code terminal profile.
 - replace `CopilotCLITerminalLinkProvider`.
 - modify the existing `cli/` Cargo package.
-- add the shim to `PATH` outside integrated terminals on macOS and Linux.
+- add the shim to `PATH` outside integrated terminals on macOS and Linux, apart
+  from WSL shells, which use the Windows `PATH`.
 - ship the shim in the web server builds (`vscode-server-*-web`).
 
 ## Normative language
@@ -1218,6 +1264,16 @@ fixtures.
   `vscode_`, so they remain outside the product release publisher.
 - Client and server builds contain the shim at `bin/copilot-shim/`, signed
   where the build is signed.
+- The rendered Windows launcher, run under `sh` and `bash`, must:
+  - prefer the server shim for its commit in each of the three layouts, and
+    otherwise use the newest shim of any quality;
+  - skip files that aren't executable, and honor `VSCODE_AGENT_FOLDER` and
+    `VSCODE_CLI_DATA_DIR`;
+  - remove launcher folders from `PATH` while preserving other entries,
+    including empty ones and a `copilot` that contains the marker only beyond
+    its first 512 bytes, and pass arguments through;
+  - explain a missing server; and
+  - run `copilot.exe` outside WSL.
 
 ## Acceptance criteria
 

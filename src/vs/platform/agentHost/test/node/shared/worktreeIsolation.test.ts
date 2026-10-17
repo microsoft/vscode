@@ -22,6 +22,7 @@ import type { IAgentHostPullRequestResolver, IResolvedPullRequest } from '../../
 import { buildWorktreeFailureNotification, detachedWorktreeRecordUri, normalizeWorktreeFailureDiagnostic, NullAgentHostWorktreeIsolation, SessionWorkingDirectoryMissingError, WorktreeIsolation, getWorktreeName, getWorktreesRoot } from '../../../node/shared/worktreeIsolation.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY } from '../../../node/shared/sessionAdditionalWorktrees.js';
 import { TestSessionDatabase, createNoopGitService, createSessionDataService } from '../../common/sessionTestHelpers.js';
+import type { Database } from '@vscode/sqlite3';
 import { AgentHostDatabase } from '../../../node/agentHostDatabase.js';
 import { createTestSessionStateStore, createTestWorktreeCleanupService, readTestSessionAdditionalWorktrees } from '../chatMetadataTestHelpers.js';
 import { AgentHostWorktreeCleanupService } from '../../../node/agentHostWorktreeCleanupService.js';
@@ -1471,7 +1472,7 @@ suite('WorktreeIsolation', () => {
 		assert.deepStrictEqual({ dataIds: [...dataIds], removeCalls }, { dataIds: [], removeCalls: [] });
 	});
 
-	function createOwnedRecordsHarness(unopenable: Set<string> = new Set()) {
+	function createOwnedRecordsHarness(unopenable: Set<string> = new Set(), centralDatabase?: AgentHostDatabase) {
 		const databases = new Map<string, TestSessionDatabase>();
 		const base = createSessionDataService(db);
 		const service: ISessionDataService = {
@@ -1494,7 +1495,7 @@ suite('WorktreeIsolation', () => {
 			listSessionDataIds: async prefix => [...databases.keys()].map(key => URI.parse(key).path.substring(1)).filter(id => id.startsWith(prefix)),
 			deleteSessionData: async resource => { databases.delete(resource.toString()); },
 		};
-		const isolation = createIsolation(disposables, { sessionDataService: service });
+		const isolation = createIsolation(disposables, { sessionDataService: service, centralDatabase });
 		const create = async (prompt: string) => {
 			branchName = `agents/${prompt}`;
 			const created = await isolation.createDetachedWorktree({
@@ -1509,6 +1510,134 @@ suite('WorktreeIsolation', () => {
 		const setOwner = (handle: string, ownerUri: URI) => databases.get(detachedWorktreeRecordUri(handle).toString())!.setMetadata('vscode.devContainerWorktree.owner', ownerUri.toString());
 		return { databases, service, isolation, create, setOwner };
 	}
+
+	test('reconciliation re-owns a transferred worktree whose record still names its source to the session whose central list names it (Block 5)', async () => {
+		const central = disposables.add(new AgentHostDatabase(':memory:'));
+		const { databases, isolation, create, setOwner } = createOwnedRecordsHarness(new Set(), central);
+		const moved = await create('moved');
+		const target = URI.parse('copilotcli:/target');
+		// A crash after the move committed: the target lists it centrally, its record still names the source; both long ago.
+		await setOwner(moved.handle, URI.parse('copilotcli:/source'));
+		await databases.get(detachedWorktreeRecordUri(moved.handle).toString())!.setMetadata('vscode.devContainerWorktree.createdAt', '0');
+		await central.registerSessionV2(target.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		await central.importSessionState(target.toString(), {
+			importVersion: 1, importedAt: 1, folders: [], chats: [], legacyMirrorBase: '{"v":2,"entries":{}}', launchDirsBackfilled: true,
+			values: { [ADDITIONAL_WORKTREES_METADATA_KEY]: JSON.stringify([{ handle: moved.handle, workingDirectory: moved.worktree.toString(), repositoryRoot: repoRoot.toString() }]) },
+		});
+
+		await isolation.cleanupUnclaimedDetachedWorktrees();
+		const record = await databases.get(detachedWorktreeRecordUri(moved.handle).toString())!.getMetadataObject({ 'vscode.devContainerWorktree.owner': true, 'vscode.devContainerWorktree.claimed': true });
+
+		assert.deepStrictEqual({ record, exists: existsSync(moved.worktree.fsPath), removed: removeCalls }, {
+			record: { 'vscode.devContainerWorktree.owner': target.toString(), 'vscode.devContainerWorktree.claimed': 'true' },
+			exists: true,
+			removed: [],
+		});
+	});
+
+	test('reconciliation re-owns a session move\'s transferred worktree to the target that lists it, though the ended source\'s stale database still lists it too (L1, Block 5)', async () => {
+		const central = disposables.add(new AgentHostDatabase(':memory:'));
+		const { databases, service, isolation, create, setOwner } = createOwnedRecordsHarness(new Set(), central);
+		const moved = await create('session-moved');
+		const source = URI.parse('copilotcli:/ended-source');
+		const target = URI.parse('copilotcli:/session-move-target');
+		const list = JSON.stringify([{ handle: moved.handle, workingDirectory: moved.worktree.toString(), repositoryRoot: repoRoot.toString() }]);
+		await setOwner(moved.handle, source);
+		await databases.get(detachedWorktreeRecordUri(moved.handle).toString())!.setMetadata('vscode.devContainerWorktree.createdAt', '0');
+		// The source listed it, then ended by the move: its central state is tombstoned, its own database is never rewritten.
+		await service.openDatabase(source).object.setMetadata(ADDITIONAL_WORKTREES_METADATA_KEY, list);
+		for (const session of [source, target]) {
+			await central.registerSessionV2(session.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			await central.importSessionState(session.toString(), { importVersion: 1, importedAt: 1, folders: [], chats: [], legacyMirrorBase: '{"v":2,"entries":{}}', launchDirsBackfilled: true, values: { [ADDITIONAL_WORKTREES_METADATA_KEY]: list } });
+		}
+		await central.tombstoneAndUnregisterSession(source.toString());
+
+		await isolation.cleanupUnclaimedDetachedWorktrees();
+
+		assert.deepStrictEqual(await databases.get(detachedWorktreeRecordUri(moved.handle).toString())!.getMetadataObject({ 'vscode.devContainerWorktree.owner': true }), { 'vscode.devContainerWorktree.owner': target.toString() });
+	});
+
+	test('reconciliation re-owns a transferred worktree in the order older builds rely on: the target\'s copy lists it, the record names the target, the live source\'s copy drops it (PR review)', async () => {
+		const central = disposables.add(new AgentHostDatabase(':memory:'));
+		const { databases, service, isolation, create, setOwner } = createOwnedRecordsHarness(new Set(), central);
+		const moved = await create('repaired');
+		const source = URI.parse('copilotcli:/live-source');
+		const target = URI.parse('copilotcli:/repair-target');
+		const list = JSON.stringify([{ handle: moved.handle, workingDirectory: moved.worktree.toString(), repositoryRoot: repoRoot.toString() }]);
+		await setOwner(moved.handle, source);
+		const record = databases.get(detachedWorktreeRecordUri(moved.handle).toString())!;
+		await record.setMetadata('vscode.devContainerWorktree.createdAt', '0');
+		// A crash right after the move committed: central lists moved the handle; neither older-build copy followed.
+		await service.openDatabase(source).object.setMetadata(ADDITIONAL_WORKTREES_METADATA_KEY, list);
+		// The source's copy was written before the move (its merge base records it), so it is no older build's edit.
+		const mirrored = JSON.stringify({ v: 2, entries: { [JSON.stringify(['value', ADDITIONAL_WORKTREES_METADATA_KEY])]: list } });
+		for (const [session, value, base] of [[source, '[]', mirrored], [target, list, '{"v":2,"entries":{}}']] as const) {
+			await central.registerSessionV2(session.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			await central.importSessionState(session.toString(), { importVersion: 1, importedAt: 1, folders: [], chats: [], legacyMirrorBase: base, launchDirsBackfilled: true, values: { [ADDITIONAL_WORKTREES_METADATA_KEY]: value } });
+		}
+		const olderBuildList = async (session: URI) => (JSON.parse(await service.openDatabase(session).object.getMetadata(ADDITIONAL_WORKTREES_METADATA_KEY) ?? '[]') as { handle: string }[]).map(entry => entry.handle === moved.handle ? 'handle' : entry.handle);
+		let targetListedWhenOwned: string[] | undefined;
+		const setValues = record.setMetadataValues.bind(record);
+		record.setMetadataValues = async values => {
+			if (values['vscode.devContainerWorktree.owner'] === target.toString()) {
+				targetListedWhenOwned = await olderBuildList(target);
+			}
+			return setValues(values);
+		};
+
+		await isolation.cleanupUnclaimedDetachedWorktrees();
+
+		assert.deepStrictEqual({
+			targetListedWhenOwned,
+			owner: (await record.getMetadataObject({ 'vscode.devContainerWorktree.owner': true }))['vscode.devContainerWorktree.owner'],
+			sourceLists: await olderBuildList(source),
+		}, { targetListedWhenOwned: ['handle'], owner: target.toString(), sourceLists: [] });
+	});
+
+	test('resolveWorkingDirectoryForResume recreates a missing shared worktree from the branch its co-owners recorded (Block 5)', async () => {
+		const central = disposables.add(new AgentHostDatabase(':memory:'));
+		const isolation = createIsolation(disposables, { centralDatabase: central });
+		const missing = URI.joinPath(worktreesRoot, 'shared-missing');
+		const raw = await (central as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+		await new Promise<void>((resolve, reject) => raw.run('INSERT INTO worktree_co_owners (worktree_path, session_uri, repository_root, branch) VALUES (?, ?, ?, ?)', [missing.toString(), 'copilotcli:/origin', repoRoot.toString(), 'agents/shared'], error => error ? reject(error) : resolve()));
+
+		const resolved = await isolation.resolveWorkingDirectoryForResume(URI.parse('copilotcli:/co-owner'), 'co-owner', missing);
+
+		assert.deepStrictEqual({ resolved: resolved.toString(), recreated: addExistingCalls.map(call => ({ worktree: call.worktree.toString(), branchName: call.branchName })) }, {
+			resolved: missing.toString(),
+			recreated: [{ worktree: missing.toString(), branchName: 'agents/shared' }],
+		});
+	});
+
+	test('resolveWorkingDirectoryForResume recreates a missing shared worktree for a chat working in a subfolder of it, and resumes it in that subfolder (PR review)', async () => {
+		const central = disposables.add(new AgentHostDatabase(':memory:'));
+		const isolation = createIsolation(disposables, { centralDatabase: central });
+		const missing = URI.joinPath(worktreesRoot, 'shared-missing');
+		const raw = await (central as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+		await new Promise<void>((resolve, reject) => raw.run('INSERT INTO worktree_co_owners (worktree_path, session_uri, repository_root, branch) VALUES (?, ?, ?, ?)', [missing.toString(), 'copilotcli:/origin', repoRoot.toString(), 'agents/shared'], error => error ? reject(error) : resolve()));
+		const subfolder = URI.joinPath(missing, 'src');
+
+		const resolved = await isolation.resolveWorkingDirectoryForResume(URI.parse('copilotcli:/co-owner'), 'co-owner', subfolder);
+
+		assert.deepStrictEqual({ resolved: resolved.toString(), recreated: addExistingCalls.map(call => ({ worktree: call.worktree.toString(), branchName: call.branchName })) }, {
+			resolved: subfolder.toString(),
+			recreated: [{ worktree: missing.toString(), branchName: 'agents/shared' }],
+		});
+	});
+
+	test('resolveWorkingDirectoryForResume resumes an archived session that only co-owns a removed shared worktree against its recorded repository, for history (PR review)', async () => {
+		const central = disposables.add(new AgentHostDatabase(':memory:'));
+		const isolation = createIsolation(disposables, { centralDatabase: central });
+		const missing = URI.joinPath(worktreesRoot, 'shared-archived');
+		const raw = await (central as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+		await new Promise<void>((resolve, reject) => raw.run('INSERT INTO worktree_co_owners (worktree_path, session_uri, repository_root, branch) VALUES (?, ?, ?, ?)', [missing.toString(), 'copilotcli:/origin', repoRoot.toString(), 'agents/shared'], error => error ? reject(error) : resolve()));
+		// The promoted session records no worktree of its own; it is archived, like every co-owner, and the checkout removed.
+		await db.setMetadata(AH_META_IS_ARCHIVED_DB_KEY, 'true');
+
+		const resolved = await isolation.resolveWorkingDirectoryForResume(sessionUri, sessionId, URI.joinPath(missing, 'src'));
+
+		assert.deepStrictEqual({ resolved: resolved.toString(), recreated: addExistingCalls.length }, { resolved: repoRoot.toString(), recreated: 0 });
+	});
 
 	test('reconcileDetachedWorktrees retains records whose owner metadata is unreadable and still prunes the others', async () => {
 		const { databases, service, isolation, create, setOwner } = createOwnedRecordsHarness();
@@ -2288,6 +2417,28 @@ suite('WorktreeIsolation', () => {
 			addExistingCalls: [{ worktree: worktree!.toString(), branchName }],
 			restoredDuringUnarchive: true,
 		});
+	});
+
+	test('unarchive recreates a worktree a co-owner\'s removal is removing: it waits for the folder\'s lock, then finds it gone (PR review)', async () => {
+		const isolation = createIsolation(disposables);
+		const worktree = (await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } }))!;
+		const removing = new DeferredPromise<void>();
+		// A co-owner's removal holds the folder's lock past its last in-use check, then removes the folder.
+		const removal = isolation.runExclusive(worktree.toString(), async () => {
+			await removing.p;
+			rmSync(worktree.fsPath, { recursive: true, force: true });
+		});
+
+		let settled = false;
+		const unarchive = isolation.recreateWorktreeOnUnarchive(sessionUri, sessionId).then(() => { settled = true; });
+		for (let i = 0; i < 20 && !settled; i++) {
+			await timeout(5);
+		}
+		const settledWhileRemoving = settled;
+		removing.complete();
+		await Promise.all([removal, unarchive]);
+
+		assert.deepStrictEqual({ settledWhileRemoving, exists: existsSync(worktree.fsPath), recreated: addExistingCalls.map(call => call.worktree.toString()) }, { settledWhileRemoving: false, exists: true, recreated: [worktree.toString()] });
 	});
 
 	test('manual archive commits uncommitted changes and removes the worktree', async () => {

@@ -7,6 +7,7 @@ import assert from 'assert';
 import { timeout } from '../../../../base/common/async.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { AhpErrorCodes } from '../../common/state/sessionProtocol.js';
 import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
 
 suite('CopilotGitHubCredentials', () => {
@@ -104,33 +105,46 @@ suite('CopilotGitHubCredentials', () => {
 		});
 	});
 
-	test('scoped sessions do not follow legacy token changes or another session pin', () => runWithFakedTimers({}, async () => {
+	test('scoped sessions do not follow legacy token changes or another session pin', () => {
 		const legacy = disposables.add(new CopilotGitHubCredentials());
 		legacy.update('desktop', undefined);
 		const resource = 'https://api.github.com';
 		const expiresAt = Date.now() + 3_600_000;
 		const first = CopilotGitHubSessionCredentials.fromCredential({ resource, token: 'first', expiresAt, revision: 1 });
 		const second = CopilotGitHubSessionCredentials.fromCredential({ resource, token: 'second', expiresAt, revision: 1 });
-		const request = { host: 'github.com', sessionId: 'session', reason: 'initial' as const };
-		const firstProvider = first.sdkSessionOptions.gitHubTokenProvider!;
 		legacy.update('desktop-rotated', undefined);
 		assert.deepStrictEqual({
 			legacy: legacy.token,
-			first: await firstProvider(request),
+			first: first.sdkSessionOptions,
 			firstToken: first.token,
-			second: await second.sdkSessionOptions.gitHubTokenProvider!(request),
+			second: second.sdkSessionOptions,
 			usesStaticToken: first.usesStaticToken,
 			usesScopedCredential: first.usesScopedCredential,
 		}, {
 			legacy: 'desktop-rotated',
-			first: { kind: 'token', accessToken: 'first', expiresIn: 3600 },
+			first: { gitHubToken: 'first' },
 			firstToken: 'first',
-			second: { kind: 'token', accessToken: 'second', expiresIn: 3600 },
+			second: { gitHubToken: 'second' },
 			usesStaticToken: false,
 			usesScopedCredential: true,
 		});
 		assert.throws(() => first.updateStaticToken('desktop'), /provider-backed/);
-	}));
+	});
+
+	for (const expiresIn of [1, 60, 3599, 3600]) {
+		test(`scoped credentials with ${expiresIn} seconds remaining use explicit static SDK authentication`, () => {
+			const session = CopilotGitHubSessionCredentials.fromCredential({
+				resource: 'https://api.github.com', token: 'captured', expiresAt: Date.now() + expiresIn * 1000, revision: 1,
+			});
+			assert.deepStrictEqual({
+				options: session.sdkSessionOptions,
+				usesStaticToken: session.usesStaticToken,
+				usesScopedCredential: session.usesScopedCredential,
+			}, {
+				options: { gitHubToken: 'captured' }, usesStaticToken: false, usesScopedCredential: true,
+			});
+		});
+	}
 
 	test('scoped credentials without a deadline use explicit static SDK authentication without joining legacy updates', () => {
 		const session = CopilotGitHubSessionCredentials.fromCredential({
@@ -146,32 +160,27 @@ suite('CopilotGitHubCredentials', () => {
 		});
 	});
 
-	test('a captured scoped credential remains available to in-flight work only until its deadline', () => runWithFakedTimers({}, async () => {
+	test('an expired captured credential cannot launch another SDK session', () => runWithFakedTimers({}, async () => {
 		const session = CopilotGitHubSessionCredentials.fromCredential({
 			resource: 'https://api.github.com', token: 'captured', expiresAt: Date.now() + 1_000, revision: 1,
 		});
-		const provider = session.sdkSessionOptions.gitHubTokenProvider!;
-		const request = { host: 'github.com', sessionId: 'session', reason: 'refresh' as const };
-		const before = await provider(request);
+		const before = session.sdkSessionOptions;
 		await timeout(1_001);
-		assert.deepStrictEqual({ before, after: await provider(request), token: session.token }, {
-			before: { kind: 'token', accessToken: 'captured', expiresIn: 1 },
-			after: { kind: 'cancelled' },
+		assert.throws(() => session.sdkSessionOptions, { code: AhpErrorCodes.AuthRequired });
+		assert.deepStrictEqual({ before, token: session.token }, {
+			before: { gitHubToken: 'captured' },
 			token: undefined,
 		});
 	}));
 
-	test('observed revocation cancels a pinned SDK callback without acquiring another credential', async () => {
+	test('observed revocation prevents a scoped SDK launch without acquiring another credential', () => {
 		let usable = true;
 		const session = CopilotGitHubSessionCredentials.fromCredential({
 			resource: 'https://api.github.com', token: 'captured', expiresAt: Date.now() + 3_600_000, revision: 1,
 			isUsable: () => usable,
 		});
-		const provider = session.sdkSessionOptions.gitHubTokenProvider!;
 		usable = false;
-		assert.deepStrictEqual({
-			token: session.token,
-			callback: await provider({ host: 'github.com', sessionId: 'session', reason: 'refresh' }),
-		}, { token: undefined, callback: { kind: 'cancelled' } });
+		assert.throws(() => session.sdkSessionOptions, { code: AhpErrorCodes.AuthRequired });
+		assert.strictEqual(session.token, undefined);
 	});
 });

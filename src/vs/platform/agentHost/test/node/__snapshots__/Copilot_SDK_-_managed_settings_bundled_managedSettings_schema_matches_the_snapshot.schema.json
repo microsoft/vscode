@@ -802,6 +802,65 @@
 							"type": "string"
 						}
 					},
+					"headersProvider": {
+						"description": "Either false to disable dynamic telemetry headers, or a shell-free command that produces fresh headers. The executable path follows policy-helper path rules; arguments are passed verbatim without shell evaluation.",
+						"oneOf": [
+							{
+								"const": false
+							},
+							{
+								"type": "object",
+								"additionalProperties": false,
+								"required": [
+									"path"
+								],
+								"properties": {
+									"path": {
+										"type": "string",
+										"minLength": 1,
+										"allOf": [
+											{
+												"not": {
+													"pattern": "^\\s|\\s$|[/\\\\]$|^\\.{1,2}$"
+												}
+											},
+											{
+												"anyOf": [
+													{
+														"pattern": "^/.+"
+													},
+													{
+														"pattern": "^[A-Za-z]:[/\\\\].+"
+													},
+													{
+														"pattern": "^\\\\\\\\[^/\\\\]+[/\\\\].+"
+													},
+													{
+														"pattern": "^~[/\\\\].+"
+													},
+													{
+														"pattern": "^[^~/\\\\][^/\\\\]*$"
+													}
+												]
+											}
+										]
+									},
+									"args": {
+										"type": "array",
+										"items": {
+											"type": "string"
+										},
+										"default": []
+									},
+									"refreshIntervalMs": {
+										"type": "integer",
+										"minimum": 1,
+										"default": 1740000
+									}
+								}
+							}
+						]
+					},
 					"resourceAttributes": {
 						"description": "Extra OTel resource attributes (e.g. cost center / team routing). Equivalent to OTEL_RESOURCE_ATTRIBUTES.",
 						"type": "object",
@@ -862,7 +921,26 @@
 				"x-composition": {
 					"strategy": "highest-priority-managed-block-wins",
 					"description": "The highest-priority managed channel that defines telemetry supplies the complete managed telemetry block; weaker managed telemetry blocks do not merge into it. Explicit managed fields are authoritative over local or environment configuration. Omitted fields fall back according to the client resolver, including legacy captureContent and lockCaptureContent compatibility."
-				}
+				},
+				"allOf": [
+					{
+						"if": {
+							"properties": {
+								"headersProvider": {
+									"type": "object"
+								}
+							},
+							"required": [
+								"headersProvider"
+							]
+						},
+						"then": {
+							"required": [
+								"endpoint"
+							]
+						}
+					}
+				]
 			},
 			"sandbox": {
 				"description": "Enterprise-mandated sandbox floor. Admin-set values compose with the user's own sandbox configuration in the safe (more-restrictive) direction and cannot be loosened by the user. Only non-deprecated keys are part of the managed surface. The restrictiveness merge itself is applied by the client at resolve time (see #11374); recognizing the block here is behavior-neutral.",
@@ -1211,9 +1289,9 @@
 						],
 						"properties": {
 							"serverName": {
-								"description": "Matches a server by its assigned label (exact, no wildcards). Restricted to letters, numbers, hyphens, and underscores.",
+								"description": "Matches a server by its assigned label (exact, case-sensitive, no wildcards or normalization). Supports registry names such as microsoft/playwright-mcp and io.github.github/github-mcp-server. Restricted to ASCII letters, numbers, hyphens, underscores, dots, and forward slashes.",
 								"type": "string",
-								"pattern": "^[A-Za-z0-9_-]+$"
+								"pattern": "^[A-Za-z0-9_./-]+$"
 							}
 						},
 						"additionalProperties": false
@@ -1222,5 +1300,5 @@
 			}
 		}
 	},
-	"runtimeVersion": "1.0.99-2"
+	"runtimeVersion": "1.0.100-1"
 }
