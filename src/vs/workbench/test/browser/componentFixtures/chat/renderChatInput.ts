@@ -33,7 +33,7 @@ import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from 
 import { NullLanguageModelsService } from '../../../../contrib/chat/test/common/languageModels.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../../contrib/chat/common/constants.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
-import { ComponentFixtureContext, createEditorServices, ServiceRegistration } from '../fixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, ServiceRegistration, waitForFixtureCondition } from '../fixtureUtils.js';
 import { FixtureMenuService, registerChatFixtureServices } from './chatFixtureUtils.js';
 import { IChatPetService } from '../../../../contrib/chat/browser/chatPetService.js';
 import { IChatPetWidgetService } from '../../../../contrib/chat/browser/widget/chatPetWidgetService.js';
@@ -404,6 +404,11 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 	}
 
 	if (pet) {
+		// Virtual timers do not wait for the native image load that paints the sprite.
+		await waitForFixtureCondition(() => {
+			const sprite = container.querySelector<HTMLImageElement>('.chat-pet-sprite:not(.hidden) img.chat-pet-spritesheet');
+			return !!sprite?.complete && sprite.naturalWidth > 0;
+		}, 'Chat pet fixture: no pet sprite was painted, so the screenshot would show an empty pet.');
 		assertChatPetInScreenshot(container);
 	}
 }
