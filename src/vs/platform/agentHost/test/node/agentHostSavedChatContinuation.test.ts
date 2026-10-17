@@ -191,16 +191,16 @@ suite('AgentHostSavedChatContinuation', () => {
 		});
 	}
 
-	test.skip('records a busy source completion and retries archive when its turn has finished', async () => {
+	test('records a busy source completion and retries archive when its turn has finished', async () => {
 		const { svc, local, stateManager, provider, worktreeCalls } = await fixture(true);
 		const saved = await svc.readSavedChat(source);
 		stateManager.dispatchServerAction(chat.toString(), { type: ActionType.ChatTurnStarted, turnId: 'busy', startedAt: new Date(2).toISOString(), message: { text: 'Busy source', origin: { kind: MessageKind.User } } });
 		const request = { session: source, chat, identity: saved.identity, destination };
 		const busy = await svc.completeSavedChatContinuation(request);
-		const before = await local.getMetadata(AH_META_IS_ARCHIVED_DB_KEY);
+		const before = await local.getMetadata(AH_META_IS_ARCHIVED_DB_KEY) === 'true';
 		stateManager.dispatchServerAction(chat.toString(), { type: ActionType.ChatTurnComplete, turnId: 'busy', duration: 0 });
 		const idle = await svc.completeSavedChatContinuation(request);
-		assert.deepStrictEqual({ busy, before, idle, sourceCalls: provider.lifecycle, worktreeCalls }, { busy: { archived: false }, before: undefined, idle: { archived: true }, sourceCalls: [], worktreeCalls: [] });
+		assert.deepStrictEqual({ busy, before, idle, sourceCalls: provider.lifecycle, worktreeCalls }, { busy: { archived: false }, before: false, idle: { archived: true }, sourceCalls: [], worktreeCalls: [] });
 	});
 
 	test('waits for an accepted peer creation before deciding whether continuation can archive the source', async () => {
