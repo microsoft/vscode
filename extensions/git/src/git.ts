@@ -1443,11 +1443,15 @@ export class Repository {
 		return this.git.spawn(args, options);
 	}
 
-	async config(command: string, scope: string, key: string, value: any = null, options: SpawnOptions = {}): Promise<string> {
+	async config(command: string, scope: string, key: string, value: any = null, options: SpawnOptions = {}, type?: string): Promise<string> {
 		const args = ['config', `--${command}`];
 
 		if (scope) {
 			args.push(`--${scope}`);
+		}
+
+		if (type) {
+			args.push(`--${type}`);
 		}
 
 		args.push(key);
